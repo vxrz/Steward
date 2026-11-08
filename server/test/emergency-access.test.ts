@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ADMIN, setup, startTestServer, type Client, type TestServer, setEnv } from './helpers.js';
+import { ADMIN, setup, ssoBinding, startTestServer, type Client, type TestServer, setEnv } from './helpers.js';
 
 // Password sign-in switched off (single sign-on only), and emergency access from the server's command line.
 let s: TestServer;
@@ -23,7 +23,7 @@ async function ssoClient(login: string): Promise<Client> {
   authorize.pathname = authorize.pathname.replace(/\/authorize$/, '/authorize/approve');
   authorize.searchParams.set('login', login);
   const approve = await fetch(authorize, { redirect: 'manual' });
-  const res = await fetch(new URL(approve.headers.get('location')!), { redirect: 'manual' });
+  const res = await fetch(new URL(approve.headers.get('location')!), { redirect: 'manual', headers: { cookie: ssoBinding(start) } });
   const cookie = res.headers.get('set-cookie')!.split(';')[0]!;
   const key = /localStorage\.setItem\("sm\.sessionKey","([^"]+)"\)/.exec(await res.text())![1]!;
   return withSession(cookie, key);

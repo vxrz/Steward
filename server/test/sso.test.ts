@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { setup, startTestServer, withRefusalReason, type TestServer } from './helpers.js';
+import { sessionSetCookie, setup, ssoBinding, startTestServer, withRefusalReason, type TestServer } from './helpers.js';
 
 let s: TestServer;
 let providerId: string;
@@ -15,9 +15,10 @@ afterAll(async () => {
 });
 
 /** Walk the browser redirects: app → identity provider (pick account) → callback. */
-async function ssoSignIn(login: string, opts: { tamperState?: boolean } = {}) {
+async function ssoSignIn(login: string, opts: { tamperState?: boolean; cookie?: (binding: string) => string } = {}) {
   const start = await fetch(`${s.base}/api/auth/oidc/${providerId}/start?returnTo=/tasks`, { redirect: 'manual' });
   expect(start.status).toBe(302);
+  const binding = ssoBinding(start);
   const authorize = new URL(start.headers.get('location')!);
   expect(authorize.pathname).toBe('/mock/oidc/authorize');
   expect(authorize.searchParams.get('code_challenge_method')).toBe('S256');
@@ -26,13 +27,14 @@ async function ssoSignIn(login: string, opts: { tamperState?: boolean } = {}) {
   const approve = await fetch(authorize, { redirect: 'manual' });
   const callback = new URL(approve.headers.get('location')!);
   if (opts.tamperState) callback.searchParams.set('state', 'forged');
-  const res = await fetch(callback, { redirect: 'manual' });
-  const cookie = res.headers.get('set-cookie')?.split(';')[0];
+  // the browser that started the sign-in sends its binding cookie back (opts.cookie: what another browser would send)
+  const res = await fetch(callback, { redirect: 'manual', headers: { cookie: opts.cookie ? opts.cookie(binding) : binding } });
+  const cookie = sessionSetCookie(res)?.split(';')[0];
   const body = await res.text();
   // the callback page hands the session key to the web app (localStorage)
   const key = /localStorage\.setItem\("sm\.sessionKey","([^"]+)"\)/.exec(body)?.[1];
   if (cookie && key) ssoKeys.set(cookie, key);
-  return { res, cookie, body, location: res.headers.get('location') ?? '' };
+  return { res, cookie, body, location: res.headers.get('location') ?? '', binding, callback };
 }
 const ssoKeys = new Map<string, string>();
 const auth = (cookie: string) => ({ cookie, 'x-sm-session': ssoKeys.get(cookie) ?? '' });
@@ -76,6 +78,65 @@ describe('single sign-on (OIDC)', () => {
   it('rejects forged or replayed state', async () => {
     const r = await ssoSignIn('c3d5', { tamperState: true });
     expect(decodeURIComponent(r.location)).toContain('expired or is unknown');
+  });
+
+  it('binds the sign-in to the browser that started it (login CSRF, RFC 9700 §4.7.1)', async () => {
+    const start = await fetch(`${s.base}/api/auth/oidc/${providerId}/start`, { redirect: 'manual' });
+    expect(start.headers.getSetCookie()).toEqual([expect.stringMatching(/^sm_sso_[\w-]{16}=[\w-]{43}; Path=\/; HttpOnly; SameSite=Lax; Max-Age=600$/)]);
+    // the callback uses the binding cookie up
+    const ok = await ssoSignIn('c3d5');
+    expect(ok.res.status).toBe(200);
+    expect(ok.res.headers.getSetCookie()[1]).toBe(`${ok.binding.split('=')[0]}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`);
+  });
+
+  it('refuses a callback opened in another browser: an attacker cannot hand over their own sign-in', async () => {
+    const audits = async () =>
+      (await s.api('GET', '/audit?action=auth.login_failed&limit=200')).filter((a: any) => a.details?.reason === 'SSO_BROWSER_MISMATCH');
+    const before = (await audits()).length;
+    // the attacker starts and signs in at the provider, then sends the callback link to the victim (no cookie)
+    const r = await ssoSignIn('c3d5', { cookie: () => '' });
+    expect(r.res.status).toBe(302);
+    expect(decodeURIComponent(r.location)).toContain('expired or is unknown');
+    expect(r.cookie).toBeUndefined();
+    expect(r.body).not.toContain('sm.sessionKey');
+    const entries = await audits();
+    expect(entries.length).toBe(before + 1);
+    expect(entries[0]).toMatchObject({ actor: 'anonymous', entityType: 'sso', entityId: providerId });
+    expect(entries[0].summary).toContain('did not come from the browser that started it');
+    // the state is used up: not even the attacker's own browser can finish it now
+    const again = await fetch(r.callback, { redirect: 'manual', headers: { cookie: r.binding } });
+    expect(decodeURIComponent(again.headers.get('location') ?? '')).toContain('expired or is unknown');
+    expect(sessionSetCookie(again)).toBeNull();
+  });
+
+  it('refuses the binding cookie of another sign-in or a wrong value', async () => {
+    const other = ssoBinding(await fetch(`${s.base}/api/auth/oidc/${providerId}/start`, { redirect: 'manual' }));
+    const wrongName = await ssoSignIn('c3d5', { cookie: () => other });
+    expect(decodeURIComponent(wrongName.location)).toContain('expired or is unknown');
+    const wrongValue = await ssoSignIn('c3d5', { cookie: (b) => `${b.split('=')[0]}=${other.split('=')[1]}` });
+    expect(decodeURIComponent(wrongValue.location)).toContain('expired or is unknown');
+    expect(wrongValue.cookie).toBeUndefined();
+  });
+
+  it('keeps sign-ins in several tabs apart (one binding cookie per sign-in)', async () => {
+    const begin = async () => {
+      const start = await fetch(`${s.base}/api/auth/oidc/${providerId}/start`, { redirect: 'manual' });
+      const authorize = new URL(start.headers.get('location')!);
+      authorize.pathname = '/mock/oidc/authorize/approve';
+      authorize.searchParams.set('login', 'c3d5');
+      const approve = await fetch(authorize, { redirect: 'manual' });
+      return { binding: ssoBinding(start), callback: approve.headers.get('location')! };
+    };
+    const a = await begin();
+    const b = await begin();
+    expect(a.binding.split('=')[0]).not.toBe(b.binding.split('=')[0]);
+    // the browser sends both cookies with each callback; the later tab finishes first
+    const jar = `${a.binding}; ${b.binding}`;
+    for (const t of [b, a]) {
+      const res = await fetch(t.callback, { redirect: 'manual', headers: { cookie: jar } });
+      expect(res.status).toBe(200);
+      expect(sessionSetCookie(res)).toMatch(/^sm_session=/);
+    }
   });
 
   it('re-synchronises roles at every sign-in', async () => {

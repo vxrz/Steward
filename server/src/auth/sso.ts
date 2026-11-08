@@ -40,6 +40,7 @@ import type { StepUpDetail } from './context.js';
 import { invalidateAliases } from './aliases.js';
 import { BRAND, TEAM_ROLES } from '@sm/shared';
 import { config as appConfig } from '../config.js';
+import { readCookie, ssoBindingCookie, ssoBindingCookieName } from './cookies.js';
 import { aliasTarget } from './aliases.js';
 import {
   claimAt,
@@ -554,6 +555,8 @@ interface Pending {
   redirectUri: string;
   returnTo: string;
   expires: number;
+  /** SHA-256 of the value of the browser binding cookie set at the start (cookies.ts ssoBindingCookie) */
+  binding: string;
   /** A test sign-in by an administrator: records the claims, never signs in or changes an account */
   test?: { testId: string };
   /** A step-up of a signed-in session: checks the identity, never signs in or changes an account */
@@ -571,14 +574,25 @@ function safeReturnTo(path: unknown): string {
   return typeof path === 'string' && path.length <= MAX_RETURN_TO && /^\/(?!\/)[\w\-./?=&%#+~]*$/.test(path) && !path.startsWith('/api/') ? path : '/';
 }
 
-async function authorizationUrl(p: SsoProvider, config: oidc.Configuration, flow: Omit<Pending, 'verifier' | 'nonce' | 'expires'>): Promise<string> {
+/** Receives the Set-Cookie header that binds a sign-in to the browser starting it (the route sends it with its answer). */
+export type SetCookie = (header: string) => void;
+
+async function authorizationUrl(
+  p: SsoProvider,
+  config: oidc.Configuration,
+  flow: Omit<Pending, 'verifier' | 'nonce' | 'expires' | 'binding'>,
+  setCookie: SetCookie,
+): Promise<string> {
   const now = Date.now();
   for (const [k, v] of pending) if (v.expires < now) pending.delete(k);
   while (pending.size >= MAX_PENDING_SIGN_INS) pending.delete(pending.keys().next().value!);
   const state = oidc.randomState();
   const nonce = oidc.randomNonce();
   const verifier = oidc.randomPKCECodeVerifier();
-  pending.set(state, { ...flow, verifier, nonce, expires: now + STATE_TTL_MS });
+  // login CSRF (RFC 9700 §4.7.1): only the browser that started the sign-in holds the cookie the callback asks for
+  const binding = crypto.randomBytes(32).toString('base64url');
+  pending.set(state, { ...flow, verifier, nonce, expires: now + STATE_TTL_MS, binding: sha256(binding) });
+  setCookie(ssoBindingCookie(state, binding, STATE_TTL_MS / 1000));
   // a test asks for the account again (it may be another one than the administrator's own); a step-up asks for a fresh
   // sign-in (prompt=login, max_age=0) – Google does not take prompt=login and goes by max_age
   const prompt = flow.stepUp ? (p.preset === 'google' ? undefined : 'login') : p.type === 'entra' ? 'select_account' : flow.test ? 'login' : undefined;
@@ -611,11 +625,11 @@ function stepUpParameters(p: SsoProvider, mfa?: StepUpMfaAsk): Record<string, st
   return out;
 }
 
-export async function startSignIn(providerId: string, redirectUri: string, returnTo?: string): Promise<string> {
+export async function startSignIn(providerId: string, redirectUri: string, returnTo: string | undefined, setCookie: SetCookie): Promise<string> {
   const p = getProvider(providerId);
   if (!p.enabled) throw new HttpError(400, 'This sign-in provider is disabled');
   const config = await clientConfig(p);
-  return authorizationUrl(p, config, { providerId, redirectUri, returnTo: safeReturnTo(returnTo) });
+  return authorizationUrl(p, config, { providerId, redirectUri, returnTo: safeReturnTo(returnTo) }, setCookie);
 }
 
 type Claims = Record<string, unknown>;
@@ -688,12 +702,21 @@ export interface StepUpMfaAsk {
   acrValues: string[];
 }
 
-/** Handle the redirect back from the identity provider. A sign-in returns a session; a test sign-in only records the claims. */
-export async function finishSignIn(currentUrl: URL, meta: { ip?: string; userAgent?: string }): Promise<CallbackResult> {
+const UNKNOWN_SIGN_IN = 'The sign-in attempt expired or is unknown – please try again';
+
+/**
+ * Handle the redirect back from the identity provider. A sign-in returns a session; a test sign-in only records the
+ * claims. `cookieHeader`: the request's cookies – the browser binding cookie set at the start must be among them.
+ */
+export async function finishSignIn(currentUrl: URL, meta: { ip?: string; userAgent?: string }, cookieHeader: string | undefined): Promise<CallbackResult> {
   const state = currentUrl.searchParams.get('state') ?? '';
   const flow = pending.get(state);
-  if (!flow || flow.expires < Date.now()) throw new HttpError(400, 'The sign-in attempt expired or is unknown – please try again');
+  if (!flow || flow.expires < Date.now()) throw new HttpError(400, UNKNOWN_SIGN_IN);
   pending.delete(state);
+  if (!sameBrowser(flow, readCookie(cookieHeader, ssoBindingCookieName(state)))) {
+    auditUnboundCallback(flow, meta.ip);
+    throw new HttpError(400, UNKNOWN_SIGN_IN);
+  }
   if (flow.test) return finishTest(flow, state, currentUrl);
   if (flow.stepUp) return finishStepUp(flow, state, currentUrl);
   const p = getProvider(flow.providerId);
@@ -704,6 +727,84 @@ export async function finishSignIn(currentUrl: URL, meta: { ip?: string; userAge
   const fresh = freshAuthentication(p, received.idToken);
   const session = createSession(user.id, user.username, meta, p.displayName, 'refusal' in fresh ? {} : { stepUp: { ...fresh, detail: fresh.detail } });
   return { kind: 'session', ...session, returnTo: flow.returnTo, username: user.username };
+}
+
+/** Whether the callback comes from the browser that started the sign-in: it sends the binding cookie of this state. */
+function sameBrowser(flow: Pending, cookie: string | undefined): boolean {
+  if (!cookie) return false;
+  const a = Buffer.from(sha256(cookie));
+  const b = Buffer.from(flow.binding);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+/** Entries for callbacks from another browser – bounded, as /start needs no sign-in (a flood cannot fill the immutable log). */
+const UNBOUND_AUDIT_BUDGET = 20;
+let unboundWindow = { start: 0, recorded: 0, more: 0 };
+
+/**
+ * A callback without the binding cookie of its state: opened in another browser than the one that started the sign-in
+ * – an attacker handing over their own sign-in (login CSRF), or a link copied to another browser. Audited like the
+ * flow's other failures; the person gets the same answer as for an unknown state.
+ */
+function auditUnboundCallback(flow: Pending, ip: string | undefined): void {
+  const summary = 'the callback did not come from the browser that started it (binding cookie missing or wrong)';
+  const details = { reason: 'SSO_BROWSER_MISMATCH', provider: flow.providerId, ...(ip ? { ip } : {}) };
+  if (flow.stepUp) {
+    const username = db().get<{ username: string }>('SELECT username FROM users WHERE id = ?', flow.stepUp.userId)?.username ?? flow.stepUp.userId;
+    audit({
+      actor: username,
+      action: 'auth.step_up_failed',
+      entityType: 'user',
+      entityId: flow.stepUp.userId,
+      summary: `Confirmation of ${username} via single sign-on refused: ${summary}`,
+      details: { method: 'sso', ...details },
+    });
+    return;
+  }
+  if (flow.test) {
+    const entry = tests.get(flow.test.testId);
+    if (entry && entry.status === 'pending') {
+      entry.status = 'failed';
+      entry.error = `The sign-in was finished in another browser than the one that started it – start the test again in this browser`;
+      entry.finishedAt = nowIso();
+    }
+    audit({
+      actor: entry?.adminName ?? 'system',
+      action: 'sso.test_sign_in',
+      entityType: 'sso',
+      entityId: flow.providerId,
+      summary: `Test sign-in failed: ${summary}`,
+      details: { outcome: 'failed', ...details },
+    });
+    return;
+  }
+  const now = Date.now();
+  if (now - unboundWindow.start >= 60_000) unboundWindow = { start: now, recorded: 0, more: 0 };
+  if (unboundWindow.recorded >= UNBOUND_AUDIT_BUDGET) {
+    if (unboundWindow.more++ === 0) {
+      const w = unboundWindow;
+      setTimeout(() => {
+        audit({
+          actor: 'anonymous',
+          action: 'auth.login_failed',
+          entityType: 'sso',
+          entityId: null,
+          summary: `${w.more} further single sign-on callback(s) within one minute refused: ${summary}`,
+          details: { reason: 'SSO_BROWSER_MISMATCH', count: w.more, aggregated: true },
+        });
+      }, 60_000).unref();
+    }
+    return;
+  }
+  unboundWindow.recorded++;
+  audit({
+    actor: 'anonymous',
+    action: 'auth.login_failed',
+    entityType: 'sso',
+    entityId: flow.providerId,
+    summary: `Single sign-on refused: ${summary}`,
+    details,
+  });
 }
 
 // ---------- step-up: a fresh sign-in at the provider confirms a signed-in session (step-up.ts) ----------
@@ -796,25 +897,31 @@ export async function startStepUp(
   u: { id: string; sessionId: string },
   redirectUri: string,
   opts: { returnTo?: string; popup: boolean; actions?: StepUpAction[]; mfa?: StepUpMfaAsk },
+  setCookie: SetCookie,
 ): Promise<{ authorizationUrl: string; expiresAt: string }> {
   const account = getUser(u.id);
   const p = db().get<ProviderRow>('SELECT * FROM identity_providers WHERE id = ?', account.authSource);
   if (!p || !p.enabled) throw new HttpError(409, 'Your sign-in provider is not available any more – sign out and sign in again', 'STEP_UP_SSO_UNAVAILABLE');
   const provider = toProvider(p);
   const config = await clientConfig(provider);
-  const url = await authorizationUrl(provider, config, {
-    providerId: provider.id,
-    redirectUri,
-    returnTo: safeReturnTo(opts.returnTo),
-    stepUp: {
-      sessionId: u.sessionId,
-      userId: u.id,
-      popup: opts.popup,
-      actions: [...new Set(opts.actions ?? [])],
-      startedAt: Date.now(),
-      ...(opts.mfa?.required ? { mfa: opts.mfa } : {}),
+  const url = await authorizationUrl(
+    provider,
+    config,
+    {
+      providerId: provider.id,
+      redirectUri,
+      returnTo: safeReturnTo(opts.returnTo),
+      stepUp: {
+        sessionId: u.sessionId,
+        userId: u.id,
+        popup: opts.popup,
+        actions: [...new Set(opts.actions ?? [])],
+        startedAt: Date.now(),
+        ...(opts.mfa?.required ? { mfa: opts.mfa } : {}),
+      },
     },
-  });
+    setCookie,
+  );
   return { authorizationUrl: url, expiresAt: new Date(Date.now() + STATE_TTL_MS).toISOString() };
 }
 
@@ -1359,7 +1466,12 @@ const MAX_TEST_CLAIMS_BYTES = 256 * 1024;
  * window and signs in there. The callback records the claims for this administrator only – no session, no account
  * created, linked or changed.
  */
-export async function startTestSignIn(providerId: string, admin: { id: string; username: string }, redirectUri: string): Promise<SsoTestStart> {
+export async function startTestSignIn(
+  providerId: string,
+  admin: { id: string; username: string },
+  redirectUri: string,
+  setCookie: SetCookie,
+): Promise<SsoTestStart> {
   const p = getProvider(providerId);
   const config = await clientConfig(p);
   const now = Date.now();
@@ -1368,7 +1480,7 @@ export async function startTestSignIn(providerId: string, admin: { id: string; u
   const testId = crypto.randomBytes(16).toString('base64url');
   const expires = now + TEST_TTL_MS;
   tests.set(testId, { testId, providerId, adminId: admin.id, adminName: admin.username, startedAt: nowIso(), expires, status: 'pending' });
-  const url = await authorizationUrl(p, config, { providerId, redirectUri, returnTo: '/', test: { testId } });
+  const url = await authorizationUrl(p, config, { providerId, redirectUri, returnTo: '/', test: { testId } }, setCookie);
   return { testId, authorizationUrl: url, expiresAt: new Date(expires).toISOString() };
 }
 

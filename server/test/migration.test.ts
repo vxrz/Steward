@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ADMIN, authHeaders, loginCookie, quiesce, setEnv, setup, startTestServer, startedUrl, type Client, type TestServer } from './helpers.js';
+import { ADMIN, authHeaders, loginCookie, quiesce, setEnv, setup, ssoBinding, startTestServer, startedUrl, type Client, type TestServer } from './helpers.js';
 import { PG_TEST_URL } from './pg-env.js';
 import { tinyPng } from './png.js';
 
@@ -453,7 +453,7 @@ async function ssoClient(base: string, providerId: string, login: string) {
   authorize.pathname = authorize.pathname.replace(/\/authorize$/, '/authorize/approve');
   authorize.searchParams.set('login', login);
   const approve = await fetch(authorize, { redirect: 'manual' });
-  const res = await fetch(new URL(approve.headers.get('location')!), { redirect: 'manual' });
+  const res = await fetch(new URL(approve.headers.get('location')!), { redirect: 'manual', headers: { cookie: ssoBinding(start) } });
   const cookie = res.headers.get('set-cookie')!.split(';')[0]!;
   const key = /localStorage\.setItem\("sm\.sessionKey","([^"]+)"\)/.exec(await res.text())![1]!;
   return client(base, cookie, key);
