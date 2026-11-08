@@ -33,27 +33,10 @@ import { HttpError, newId, nowIso, parseJson, pathInside, sha256, sleep } from '
 import { heldLibraryOf } from '../libraries/lookup.js';
 import { getConnection } from '../platforms/service.js';
 import { openInputs, sealInputs, secretValuesOf } from './secret-inputs.js';
-import {
-  platformRequest,
-  resolveBaseUrl,
-  secretValues,
-  buildUrl,
-  credentialValues,
-  credentialsAllowed,
-  identityKey,
-  type HttpResult,
-} from '../platforms/http.js';
+import { platformRequest, resolveBaseUrl, secretValues, buildUrl, type HttpResult } from '../platforms/http.js';
 import { assertKindRules, destinationKinds } from '../platforms/restrictedOrigins.js';
 import { findRecording, missingRecording } from '../platforms/recordings.js';
-import { outboundContext } from '../platforms/policyContext.js';
-import {
-  assertAddressSafe,
-  assertNoSecretLeak,
-  assertOutboundAllowed,
-  egressSecretValues,
-  type OutboundContext,
-  type SecretBinding,
-} from '../platforms/outbound.js';
+import { assertAddressSafe, assertOutboundAllowed } from '../platforms/outbound.js';
 import { definitionHash, getProcess, permissionsFor } from '../processes/service.js';
 import { evalBool, evalExpr, evalList, render, renderString, stringify, type Bindings, type EvalOptions } from './expr.js';
 import { setImmediate as yieldToEventLoop } from 'node:timers/promises';
@@ -77,6 +60,7 @@ import { Redactor } from './redact.js';
 import { coerceInputs } from './inputs.js';
 import { Cancelled, type Binding, type LeafResult, type StepContext, type StepType, type TaskResult } from './steps/context.js';
 import { stepOf } from './steps/index.js';
+import { engineOutboundContext, enforceOutbound, originOfSafe, scanSecrets, secretBindings } from './steps/outbound.js';
 
 // ---------------------------------------------------------------------------
 // Run context
@@ -1690,82 +1674,6 @@ async function execLeaf(step: FlowNode, ctx: RunContext, key: string, attempt = 
   }
 }
 
-/** Outbound destination policy context for this server (all configured platforms). */
-export function engineOutboundContext(): OutboundContext {
-  return outboundContext();
-}
-
-/**
- * Secrets of all platforms bound to this run, for egress scanning. The binding a request is sent with (`sender`, its
- * connection slot) may send its secrets to its own origins (credentialsAllowed); every other binding's secrets may not
- * be in the request at all (0.9.0: `foreign` – a platform's credentials only travel through its own connection). Two
- * slots bound to the same platform identity are one binding. A value both bindings have counts as the sender's; of
- * the other bindings only credentials count (credentialValues), not identifiers.
- */
-function secretBindings(ctx: RunContext, sender: string | null): SecretBinding[] {
-  const own = sender ? ctx.bindings[sender] : undefined;
-  const ownKey = own ? identityKey(own.platform) : null;
-  const ownValues = new Set(own ? egressSecretValues(own.secrets) : []);
-  return Object.entries(ctx.bindings).map(([slot, b]) =>
-    ownKey && identityKey(b.platform) === ownKey
-      ? { platformName: b.platform.name, values: egressSecretValues(b.secrets), allowed: (url: string) => credentialsAllowed(b.platform, b.secrets, url) }
-      : {
-          platformName: b.platform.name,
-          // credentials only (no user names or client ids, 6+ characters): they would match ordinary text
-          values: credentialValues(b.secrets).filter((v) => !ownValues.has(v)),
-          allowed: () => false,
-          foreign: { slot, sender: own ? sender : null },
-        },
-  );
-}
-
-/**
- * The egress scan of a process-controlled request (assertNoSecretLeak); a request that carries another connection's
- * credential is refused before anything is sent and audited (0.9.0, `run.secret_refused`, without the value).
- */
-async function scanSecrets(
-  ctx: RunContext,
-  key: string | undefined,
-  url: string,
-  headers: Record<string, string>,
-  body: unknown,
-  bindings: SecretBinding[],
-): Promise<void> {
-  try {
-    await assertNoSecretLeak(url, headers, body, bindings);
-  } catch (e) {
-    if (e instanceof HttpError && e.code === 'SECRET_OTHER_SLOT') {
-      const { slot, sender, platform } = (e.params ?? {}) as { slot?: string; sender?: string; platform?: string };
-      audit({
-        actor: ctx.actor,
-        action: 'run.secret_refused',
-        entityType: 'run',
-        entityId: ctx.runId,
-        runId: ctx.runId,
-        summary: `Request ${sender ? `on connection "${sender}"` : 'without a connection'} refused: it contained a credential of connection "${slot}" (platform "${platform}")`,
-        details: { stepKey: key ?? null, slot, sender: sender || null, platform, origin: originOfSafe(url) || null },
-      });
-    }
-    throw e;
-  }
-}
-
-/**
- * Gate a process-controlled outbound request: the destination must pass the
- * outbound policy (SSRF) and must not carry any bound platform's secret to an
- * origin that platform does not allow – nor another connection's secret at all
- * (0.9.0). `sender`: the connection slot the request is sent with. Shared by the
- * http, ai and browser nodes.
- */
-async function enforceOutbound(
-  ctx: RunContext,
-  url: string,
-  o: { headers?: Record<string, string>; body?: unknown; platformOrigins?: string[]; sender: string | null; key?: string },
-): Promise<void> {
-  await assertOutboundAllowed(url, engineOutboundContext(), { platformOrigins: o.platformOrigins });
-  await scanSecrets(ctx, o.key, url, o.headers ?? {}, o.body, secretBindings(ctx, o.sender));
-}
-
 async function execHttp(step: NodeOf<'http'>, ctx: RunContext, key: string): Promise<LeafResult> {
   const b = ctx.bindings[step.connection];
   if (!b) throw new Error(`Connection "${step.connection}" is not bound`);
@@ -1998,14 +1906,6 @@ function auditWrite(ctx: RunContext, b: Binding, step: NodeOf<'http'>, p: string
     summary: `${step.method} ${p} on "${b.platform.name}" → HTTP ${res.status}`,
     details: { stepKey: key, status: res.status, durationMs: res.durationMs },
   });
-}
-
-function originOfSafe(url: string): string {
-  try {
-    return new URL(url).origin;
-  } catch {
-    return '';
-  }
 }
 
 function joinUrl(base: string, p: string): string {
