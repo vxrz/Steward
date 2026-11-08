@@ -1,5 +1,6 @@
 import type { FlowNode } from '@sm/shared';
 import type { StepExecutor, StepRegistry, StepType } from './context.js';
+import { setStep } from './set.js';
 
 /**
  * The step registry (ADR 0011, update 0.11): every step type is a module of its own behind one typed record, so the
@@ -10,7 +11,9 @@ let registry: Partial<StepRegistry> | undefined;
 
 /** Built on first use: step modules import modules that import the engine again (an import cycle), so not at load time. */
 export function steps(): Partial<StepRegistry> {
-  return (registry ??= {});
+  return (registry ??= {
+    set: setStep,
+  });
 }
 
 /** The executor of a node's step type (undefined for flow control). */

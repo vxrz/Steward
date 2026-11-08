@@ -1355,11 +1355,6 @@ function applyOutput(node: FlowNode, ctx: RunContext, output: unknown, status: S
     ctx.rememberAiText(o.text, o.modelLabel ?? node.model);
     if (o.answer && typeof o.answer === 'object') for (const t of stringLeaves(o.answer)) ctx.rememberAiText(t, o.modelLabel ?? node.model);
   }
-  if (node.type === 'set' && output && typeof output === 'object') {
-    Object.assign(ctx.vars, output as Record<string, unknown>);
-    for (const k of Object.keys(output)) ctx.taint(k, [ANY]);
-    return;
-  }
   if (node.saveAs) {
     ctx.vars[node.saveAs] = status === 'failed' && node.type !== 'check' ? { error: (output as { error?: string })?.error } : output;
     ctx.taint(node.saveAs, outputSources(node, ctx));
@@ -1699,21 +1694,6 @@ async function execLeaf(step: FlowNode, ctx: RunContext, key: string, attempt = 
         log: (level, message) => ctx.log(level, message, key),
       });
     }
-    case 'set': {
-      const out: Record<string, unknown> = {};
-      for (const [k, v] of Object.entries(step.values ?? {})) {
-        const val = await ctx.render(v);
-        out[k] = val === undefined ? null : val;
-        ctx.vars[k] = out[k];
-        ctx.taint(k, [ANY]);
-      }
-      return {
-        output: out,
-        summary: Object.keys(out)
-          .map((k) => `${k} = ${describe(out[k])}`)
-          .join(', '),
-      };
-    }
     case 'log': {
       const message = await ctx.str(step.message);
       const data = step.data ? await ctx.eval(step.data) : undefined;
@@ -1815,13 +1795,6 @@ async function execLeaf(step: FlowNode, ctx: RunContext, key: string, attempt = 
     default:
       throw new Error(`Unsupported node type ${(step as FlowNode).type}`);
   }
-}
-
-function describe(v: unknown): string {
-  if (Array.isArray(v)) return `[${v.length} items]`;
-  if (v && typeof v === 'object') return '{…}';
-  const s = stringify(v);
-  return s.length > 60 ? s.slice(0, 60) + '…' : s;
 }
 
 /** Outbound destination policy context for this server (all configured platforms). */
@@ -2540,8 +2513,6 @@ async function previewInputs(node: FlowNode, ctx: RunContext): Promise<unknown> 
       }
       case 'query':
         return { sql: node.sql, params: node.params?.length ? await ctx.render(node.params) : [] }; // nosemgrep: javascript.express.security.audit.res-render-injection.res-render-injection
-      case 'set':
-        return { values: await ctx.render(node.values ?? {}) }; // nosemgrep: javascript.express.security.audit.res-render-injection.res-render-injection
       case 'if':
         return { condition: node.condition, result: await ctx.bool(node.condition) };
       case 'check':
