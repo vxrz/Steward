@@ -13,6 +13,9 @@ export function engine(): RunEngine {
   return builtinEngine;
 }
 
-// Helpers of the built-in engine other modules use (not part of the interface): masking secrets in values, the
-// sub-process depth limit and the CSV parser of table inputs.
-export { MAX_SUBPROCESS_DEPTH, Redactor, parseCsv, resumeAcceptingRuns } from './runner.js';
+// Helpers other modules use (not part of the interface): the built-in engine's sub-process depth limit, and – outside the
+// executor, Steward's whatever the engine – masking secrets in values (redact.ts) and the CSV parser of table inputs.
+export { resumeAcceptingRuns } from './runner.js';
+export { MAX_SUBPROCESS_DEPTH } from './steps/subprocess.js';
+export { Redactor } from './redact.js';
+export { parseCsv } from './inputs.js';

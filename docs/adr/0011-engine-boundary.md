@@ -192,3 +192,27 @@ ADR 0010 (debugging) builds on steps 1 and 2: its debug runs start with `start({
 5. Callers that became stricter: monitor outputs (now also `use` on the bound platforms) and sub-process steps (`use` on the child's platforms, for the run's actor); the demo setup goes through the same check. A schedule whose bound platform was deleted is skipped instead of failing.
 6. The durable-execution spike (decided question 3) was not part of this work; it remains open.
 7. After the security review of 0.10.0 (review c): the summary of `run.cancelled` names who cancelled the run (its entry's actor stays the run's starter when the run was active), and the reason follows as one line of plain text. `authorizeSignal` re-checks `run` and `use` for every debug signal that drives a run on.
+
+## Update 0.11: step types behind a registry
+
+The decision above kept the step functions inside `runner.ts` ("Split `runner.ts` into many files" was left for later). In 0.11 they move out, as a pure refactor: the golden protocol hashes and the contract tests pass unchanged.
+
+**Decision.** Every step type is a module of its own, `server/src/engine/steps/<type>.ts`, behind one typed registry, `STEPS` in `engine/steps/index.ts` (`{ [T in StepType]: StepExecutor<T> }`, so the compiler reports a missing type). A step sees its run only through a narrow **step context**, `StepContext` in `engine/steps/context.ts`; the built-in engine's run context implements it. Flow control (`start`, `note`, `if`, `forEach`) stays in the engine.
+
+```ts
+interface StepExecutor<T extends StepType> {
+  type: T;
+  exec(step: NodeOf<T>, ctx: StepContext, key: string, attempt: number): Promise<LeafResult>;
+  preview?(step: NodeOf<T>, ctx: StepContext): Promise<unknown>; // what a debug pause shows
+  sources?(step: NodeOf<T>, ctx: StepContext): string[]; // where the result comes from (ai/provenance.ts)
+  applyOutput?(step: NodeOf<T>, ctx: StepContext, output: unknown): boolean | void; // also on replay
+}
+```
+
+- **What the context holds.** The run (`runId`, `processId`, `actor`, the pinned `def` and its `nodes`, `inputs`, `vars`), its mode (`dryRun`, `recorded`, `debug`, `debugNode`, read each time: a debug run can switch to recorded answers), `bindings`, `stats`, the `signal`, the `redactor`; expressions in the run scope (`eval`, `bool`, `list`, `render`, `str`, `item`, `data`); the run log and provenance (`log`, `taint`, `sourcesOf`, `expandSources`, `rememberAiText`, `aiModelsIn`); waiting (`beginWait`, `endWait`, `awaitTask`, `startChild`, `waitForChild`); and the run's browser session. The engine's memory (active runs, task waiters, the queue, the debug gate) is not in it.
+- **What a step does itself.** It writes its own part of the record through `engine/store.ts` (the step's input, tasks, artifacts) and audits what it does. The checks on a request – outbound policy, egress scan with the per-connection credential rule, kind rules, write skipping, recordings – are in the step modules and `engine/steps/outbound.ts`, so they stay Steward's under any engine.
+- **What stays in the engine** (`runner.ts`): scheduling and the queue, the journal and replay, retries, redaction of the step's result, cancellation, sub-process waits, the ports a step fires, debug pauses and simulated answers (they reuse the user task step's `taskView`).
+- **`Redactor`** moved to `engine/redact.ts` and the input coercion to `engine/inputs.ts`: they are not part of the replaceable executor. `engine/index.ts` re-exports them as before.
+- **ESLint.** A second `no-restricted-imports` rule stops step modules from importing `runner.ts`, `engine/index.ts` (which hands the engine out) and the debug gate. The rule for code outside `engine/` is unchanged.
+
+A step type added later is a new module and one line in the registry; for a step with the usual ports the engine does not change ([ARCHITECTURE.md](../ARCHITECTURE.md#adding-a-step-type)).

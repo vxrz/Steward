@@ -1,22 +1,16 @@
-import fs from 'node:fs';
-import path from 'node:path';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import {
-  HTTP_RESPONSE_MB,
   isMutating,
   nodePorts,
   outgoing,
   type FlowNode,
   type NodeOf,
-  type InputDef,
   type Platform,
   type ProcessDefinition,
   type RunStats,
   type StartRunRequest,
   type StepStatus,
   type TaskDecision,
-  type TaskItem,
-  type TaskRecord,
   type DebugPause,
   type DebugSignal,
   type DebugSpec,
@@ -30,116 +24,37 @@ import { getSettings } from '../settings.js';
 import { currentActor, runAs } from '../auth/context.js';
 import { findUserByName, toAuthUser } from '../auth/users.js';
 import { tracePseudonym } from '../auth/login-audit.js';
-import { HttpError, newId, nowIso, parseJson, pathInside, sha256, sleep } from '../util.js';
+import { HttpError, newId, nowIso, parseJson, sleep } from '../util.js';
 import { heldLibraryOf } from '../libraries/lookup.js';
 import { getConnection } from '../platforms/service.js';
 import { openInputs, sealInputs, secretValuesOf } from './secret-inputs.js';
-import {
-  platformRequest,
-  resolveBaseUrl,
-  secretValues,
-  buildUrl,
-  credentialValues,
-  credentialsAllowed,
-  identityKey,
-  type HttpResult,
-} from '../platforms/http.js';
-import { assertKindRules, destinationKinds } from '../platforms/restrictedOrigins.js';
-import { findRecording, missingRecording } from '../platforms/recordings.js';
-import { outboundContext } from '../platforms/policyContext.js';
-import {
-  assertAddressSafe,
-  assertNoSecretLeak,
-  assertOutboundAllowed,
-  egressSecretValues,
-  secretEncodings,
-  type OutboundContext,
-  type SecretBinding,
-} from '../platforms/outbound.js';
+import { resolveBaseUrl } from '../platforms/http.js';
 import { definitionHash, getProcess, permissionsFor } from '../processes/service.js';
-import { evalBool, evalExpr, evalList, render, renderString, stringify, type Bindings, type EvalOptions } from './expr.js';
+import { evalBool, evalExpr, evalList, render, renderString, type Bindings, type EvalOptions } from './expr.js';
 import { setImmediate as yieldToEventLoop } from 'node:timers/promises';
-import { openBrowser, type BrowserSession } from './browser.js';
+import type { BrowserSession } from './browser.js';
 import * as store from './store.js';
 import { completeManual, manualSpec, verifyManual, type ManualCompletionInput, type Settled } from './manual.js';
-import { publishDataset, datasetOwner, getDataset, metricForRun } from '../dashboards/datasets.js';
+import { metricForRun } from '../dashboards/datasets.js';
 import { builtinDatasetVisible } from '../dashboards/builtin.js';
-import { ANY, INPUT, datasetSource, inputSources, resultVars, runSources } from '../ai/provenance.js';
-import { recordStepAccessChanges, type AccessChangeInput } from '../compliance/run-entries.js';
+import { ANY, INPUT, inputSources, runSources } from '../ai/provenance.js';
 import { logger } from '../log.js';
 import { withSpan } from '../telemetry.js';
-import { forecastTo, normalizeStatus, type DatasetRow } from '@sm/shared';
+import { forecastTo } from '@sm/shared';
 import { emit } from '../events.js';
 import { isInternalError, isUnexpected, reportError } from '../errorReporting.js';
-import { applicationInputValue, applicationsInputValue } from '../catalogue/components.js';
 import { systemsForProcess } from '../catalogue/systems.js';
-import { checkOutcome } from './check-alerts.js';
-import { runAiStep } from '../ai/step.js';
 import { modeOf, modeOfRow, type DebugNodeSeed, type RunEngine, type RunSignal, type RunState, type SignalResult, type StartCommand } from './engine.js';
 import { DebugGate, type GateAction } from './debug-gate.js';
-import { startProblem } from './commands.js';
+import { Redactor } from './redact.js';
+import { coerceInputs } from './inputs.js';
+import { Cancelled, type Binding, type LeafResult, type StepContext, type StepType, type TaskResult } from './steps/context.js';
+import { stepOf } from './steps/index.js';
+import { taskView } from './steps/user-task.js';
 
 // ---------------------------------------------------------------------------
 // Run context
 // ---------------------------------------------------------------------------
-
-interface Binding {
-  platform: Platform;
-  secrets: Record<string, string>;
-  baseUrl: string;
-}
-
-/** Where a run's evidence file (screenshot) is stored: data folder/artifacts/<run id>/<file>. */
-const artifactFile = (runId: string, name: string): string => pathInside(path.join(config.dataDir, 'artifacts'), runId, name);
-
-/** Keys whose values are never stored in the protocol (headers, credentials, OAuth token responses). */
-const REDACT_KEY =
-  /^(authorization|proxy-authorization|x-space-auth-key|x-api-key|api[-_]?key|cookie|set-cookie|password|passphrase|client_secret|access_token|refresh_token|id_token)$/i;
-
-export class Redactor {
-  private values = new Set<string>();
-  /** Registers secret values – and the encoded forms they typically appear in (JSON, URL/form encoding, Base64). */
-  add(...vals: string[]): void {
-    for (const v of vals) {
-      if (!v || v.length < 4) continue;
-      // Mask the raw value and its simple encodings (base64, URL and form encoding in upper- and
-      // lowercase hex, JSON escaping) so a secret cannot be smuggled into a log/protocol field in an
-      // encoded form – or come back from a platform that echoes a query API key (Link headers, bodies).
-      for (const enc of secretEncodings(v)) this.values.add(enc);
-    }
-  }
-  /** The registered secret values (for scrubbing error reports). */
-  list(): string[] {
-    return [...this.values];
-  }
-  apply<T>(v: T): T {
-    if (typeof v === 'string') {
-      if (this.values.size === 0) return v;
-      let s: string = v;
-      // longest first, so a secret containing another one is replaced as a whole
-      for (const secret of [...this.values].sort((a, b) => b.length - a.length)) if (s.includes(secret)) s = s.split(secret).join('***');
-      // Basic credentials: user:password in Base64 – masked when they contain a registered secret
-      s = s.replace(/\b(Basic)\s+([A-Za-z0-9+/]{6,}={0,2})/g, (m, scheme: string, b64: string) => {
-        const decoded = Buffer.from(b64, 'base64').toString('utf8');
-        return [...this.values].some((x) => decoded.includes(x)) ? `${scheme} ***` : m;
-      });
-      return s as T;
-    }
-    if (Array.isArray(v)) return v.map((x) => this.apply(x)) as T;
-    if (v && typeof v === 'object') {
-      const out: Record<string, unknown> = {};
-      for (const [k, val] of Object.entries(v)) {
-        if (REDACT_KEY.test(k)) {
-          // a token found in a response is a secret from now on (also where it shows up later, e.g. in a header)
-          if (typeof val === 'string') this.add(val);
-          out[k] = '***';
-        } else out[k] = this.apply(val);
-      }
-      return out as T;
-    }
-    return v;
-  }
-}
 
 /**
  * Per-item variable scope of parallel for-each loops: the body of each item sees
@@ -147,7 +62,7 @@ export class Redactor {
  */
 const varScope = new AsyncLocalStorage<{ ctx: RunContext; vars: Record<string, unknown> }>();
 
-class RunContext {
+class RunContext implements StepContext {
   /** Test run (#105): platform calls are answered by recorded responses (always also a dry run). */
   recorded = false;
   /** A debug run (ADR 0010): one node or a step-through run; never a live run */
@@ -396,6 +311,36 @@ class RunContext {
   log(level: 'debug' | 'info' | 'warn' | 'error', message: string, stepKey?: string | null, data?: unknown) {
     store.addLog(this.runId, level, this.redactor.apply(message), stepKey, data === undefined ? undefined : this.redactor.apply(data));
   }
+
+  /** Waits for the decision on a task: settleTask (a signal) calls the waiter, cancelRun or the run's abort ends it. */
+  async awaitTask(taskId: string): Promise<TaskResult | null> {
+    try {
+      return await new Promise<TaskResult | null>((resolve) => {
+        taskWaiters.set(taskId, resolve);
+        this.signal.addEventListener('abort', () => resolve(null), { once: true });
+      });
+    } finally {
+      taskWaiters.delete(taskId);
+    }
+  }
+
+  /** A sub-process run inherits the run's mode and actor (ADR 0011, invariant 6); the child of a debug run is a debug run without pauses. */
+  startChild(stepKey: string, req: StartRunRequest): Promise<string> {
+    return startRun(
+      { ...req, dryRun: this.dryRun, recorded: this.recorded },
+      {
+        trigger: 'subprocess',
+        actor: this.actor,
+        parent: { runId: this.runId, stepKey },
+        // the child of a debug run is a debug run in the same mode, without pauses (ADR 0010)
+        ...(this.debug ? { debug: { spec: { kind: 'step' as const, ...(this.debug.recordedFrom ? { recordedFrom: this.debug.recordedFrom } : {}) } } } : {}),
+      },
+    );
+  }
+
+  waitForChild(childId: string, stepKey: string): Promise<store.RunRow> {
+    return waitForChildRun(childId, this, stepKey);
+  }
 }
 
 class StepFailure extends Error {
@@ -404,12 +349,6 @@ class StepFailure extends Error {
     public stepKey: string,
   ) {
     super(message);
-  }
-}
-
-class Cancelled extends Error {
-  constructor() {
-    super('Run was cancelled');
   }
 }
 
@@ -423,7 +362,7 @@ interface Active {
 }
 
 const active = new Map<string, Active>();
-const taskWaiters = new Map<string, (d: { decision: TaskDecision; by: string; at: string } | null) => void>();
+const taskWaiters = new Map<string, (d: TaskResult | null) => void>();
 
 export function isActive(runId: string): boolean {
   return active.has(runId);
@@ -576,100 +515,6 @@ export async function forgetRunForTests(runId: string): Promise<void> {
 export function resumeAcceptingRuns(): void {
   accepting = true;
   pumpQueue();
-}
-
-/** `lenient`: a missing required input is left empty (a single-node debug run needs only what its node reads). */
-function coerceInputs(defs: InputDef[], raw: Record<string, unknown>, lenient = false): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
-  for (const d of defs) {
-    let v = raw[d.name];
-    if (v === undefined || v === '' || v === null) v = d.default;
-    if (v === undefined || v === '' || v === null) {
-      if (d.required && !lenient) throw new HttpError(400, `Input "${d.label ?? d.name}" is required`);
-      // applications: empty means every application that is not archived
-      out[d.name] =
-        d.type === 'applications'
-          ? applicationsInputValue([], d.label ?? d.name)
-          : d.type === 'list' || d.type === 'table'
-            ? []
-            : d.type === 'boolean'
-              ? false
-              : null;
-      continue;
-    }
-    switch (d.type) {
-      case 'number': {
-        const n = Number(v);
-        if (Number.isNaN(n)) throw new HttpError(400, `Input "${d.name}" must be a number`);
-        out[d.name] = n;
-        break;
-      }
-      case 'boolean':
-        out[d.name] = v === true || v === 'true' || v === '1' || v === 1 || v === 'yes';
-        break;
-      case 'select':
-        if (d.options?.length && !d.options.includes(String(v))) throw new HttpError(400, `Input "${d.name}" must be one of ${d.options.join(', ')}`);
-        out[d.name] = String(v);
-        break;
-      case 'list':
-        out[d.name] = Array.isArray(v)
-          ? v.map(String)
-          : String(v)
-              .split(/[\n,;]/)
-              .map((s) => s.trim())
-              .filter(Boolean);
-        break;
-      case 'table':
-        out[d.name] = Array.isArray(v) ? v : parseCsv(String(v));
-        break;
-      case 'application':
-        out[d.name] = applicationInputValue(v, d.label ?? d.name);
-        break;
-      case 'applications':
-        out[d.name] = applicationsInputValue(v, d.label ?? d.name);
-        break;
-      case 'json':
-        if (typeof v === 'string') {
-          try {
-            out[d.name] = JSON.parse(v);
-          } catch {
-            throw new HttpError(400, `Input "${d.name}" must be valid JSON`);
-          }
-        } else out[d.name] = v;
-        break;
-      default:
-        out[d.name] = String(v);
-    }
-  }
-  // keep undeclared inputs out of the run to keep it reproducible
-  return out;
-}
-
-/** Small CSV parser (comma, semicolon or tab separated, quoted fields, header row). */
-export function parseCsv(text: string): Record<string, string>[] {
-  const lines = text.replace(/\r\n?/g, '\n').trim();
-  if (!lines) return [];
-  const first = lines.split('\n')[0]!;
-  const delim = [';', '\t', ','].sort((a, b) => first.split(b).length - first.split(a).length)[0]!;
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let field = '';
-  let q = false;
-  for (let i = 0; i < lines.length; i++) {
-    const c = lines[i]!;
-    if (q) {
-      if (c === '"' && lines[i + 1] === '"') ((field += '"'), i++);
-      else if (c === '"') q = false;
-      else field += c;
-    } else if (c === '"') q = true;
-    else if (c === delim) (row.push(field), (field = ''));
-    else if (c === '\n') (row.push(field), rows.push(row), (row = []), (field = ''));
-    else field += c;
-  }
-  row.push(field);
-  rows.push(row);
-  const header = rows.shift()!.map((h) => h.trim());
-  return rows.filter((r) => r.some((x) => x.trim() !== '')).map((r) => Object.fromEntries(header.map((h, i) => [h, (r[i] ?? '').trim()])));
 }
 
 /**
@@ -1354,12 +1199,6 @@ async function runNode(node: FlowNode, ctx: RunContext, scope: string | null): P
 
 const TERMINAL: StepStatus[] = ['succeeded', 'skipped', 'dryrun', 'failed'];
 
-interface LeafResult {
-  output?: unknown;
-  status?: StepStatus;
-  summary?: string;
-}
-
 function hasWires(ctx: RunContext, nodeId: string, port: string): boolean {
   return ctx.def.wires.some((w) => w.from === nodeId && w.port === port);
 }
@@ -1477,17 +1316,8 @@ async function execNode(node: FlowNode, ctx: RunContext, scope: string | null, k
 }
 
 function applyOutput(node: FlowNode, ctx: RunContext, output: unknown, status: StepStatus): void {
-  // an AI answer, also of a step replayed after a resume
-  if (node.type === 'ai' && output && typeof output === 'object' && (output as { aiGenerated?: unknown }).aiGenerated) {
-    const o = output as { text?: unknown; answer?: unknown; modelLabel?: string };
-    ctx.rememberAiText(o.text, o.modelLabel ?? node.model);
-    if (o.answer && typeof o.answer === 'object') for (const t of stringLeaves(o.answer)) ctx.rememberAiText(t, o.modelLabel ?? node.model);
-  }
-  if (node.type === 'set' && output && typeof output === 'object') {
-    Object.assign(ctx.vars, output as Record<string, unknown>);
-    for (const k of Object.keys(output)) ctx.taint(k, [ANY]);
-    return;
-  }
+  // the step type's own part (an AI answer is remembered, a "set" step's values become variables), also on replay
+  if (stepOf(node)?.applyOutput?.(node as NodeOf<StepType>, ctx, output)) return;
   if (node.saveAs) {
     ctx.vars[node.saveAs] = status === 'failed' && node.type !== 'check' ? { error: (output as { error?: string })?.error } : output;
     ctx.taint(node.saveAs, outputSources(node, ctx));
@@ -1495,29 +1325,12 @@ function applyOutput(node: FlowNode, ctx: RunContext, output: unknown, status: S
 }
 
 /**
- * Where a step's result comes from (ai/provenance.ts): the platform of an API call or a browser step; for an AI step
- * the gateway and everything its context may carry; ANY for every other step – its result is computed from the run.
+ * Where a step's result comes from (ai/provenance.ts), as its step type says (StepExecutor.sources): the platform of an
+ * API call, a query or a browser step; for an AI step the gateway and everything its context may carry; ANY for every
+ * other step – its result is computed from the run.
  */
 function outputSources(node: FlowNode, ctx: RunContext): string[] {
-  if (node.type === 'http' || node.type === 'query' || node.type === 'browser') {
-    const id = node.connection ? ctx.bindings[node.connection]?.platform.id : undefined;
-    return id ? [id] : [ANY];
-  }
-  if (node.type === 'ai') {
-    const out = new Set<string>();
-    const gw = ctx.bindings[node.connection]?.platform.id;
-    if (gw) out.add(gw);
-    for (const c of node.context ?? []) {
-      const src = c.from === 'step' ? ctx.nodes.get(c.step ?? '') : undefined;
-      if (c.from === 'dataset') out.add(datasetSource(c.dataset ?? '*'));
-      else if (c.from === 'input') out.add(INPUT);
-      else for (const x of src ? ctx.sourcesOf(resultVars(src)) : [ANY]) out.add(x);
-    }
-    return [...out];
-  }
-  // what a person entered counts as an input of the run
-  if (node.type === 'userTask') return [ANY, INPUT];
-  return [ANY];
+  return stepOf(node)?.sources?.(node as NodeOf<StepType>, ctx) ?? [ANY];
 }
 
 function journalHasPrefix(ctx: RunContext, prefix: string): boolean {
@@ -1683,8 +1496,6 @@ async function runItemsInParallel(
 // Sub-processes
 // ---------------------------------------------------------------------------
 
-/** Maximum nesting of sub-process runs below a top-level run. */
-export const MAX_SUBPROCESS_DEPTH = 5;
 const FINISHED_RUN = ['succeeded', 'failed', 'cancelled'];
 
 /** Process permissions of a user by name (sub-processes run with the rights of the run's actor). */
@@ -1694,66 +1505,8 @@ function actorPermissions(actor: string, processId: string): string[] {
   return runAs(toAuthUser(u), () => permissionsFor(processId));
 }
 
-async function execSubprocess(step: NodeOf<'subprocess'>, ctx: RunContext, key: string, attempt: number): Promise<LeafResult> {
-  let child = store.latestChildRun(ctx.runId, key);
-  // a retry attempt starts a fresh child run; a resumed run re-attaches to the existing one
-  if (child && attempt > 1 && FINISHED_RUN.includes(child.status) && child.status !== 'succeeded') child = undefined;
-  if (child) {
-    ctx.log('info', `Re-attached to sub-process run ${child.id} (${child.status})`, key);
-  } else {
-    const chain = store.ancestorChain(ctx.runId);
-    const loop = chain.find((a) => a.processId === step.process);
-    if (loop) {
-      throw new Error(
-        `Recursion: process "${step.process}" is already running in this chain (${chain
-          .map((a) => a.processId)
-          .reverse()
-          .join(' → ')})`,
-      );
-    }
-    if (chain.length > MAX_SUBPROCESS_DEPTH) throw new Error(`Sub-processes are nested too deeply (limit ${MAX_SUBPROCESS_DEPTH})`);
-    // the command layer's start check (ADR 0011), with the rights of the run's actor: run on the child …
-    const denied = startProblem(ctx.actor, { processId: step.process });
-    if (denied) throw new Error(`${ctx.actor} may not run process "${step.process}" (needs the "run" right)`);
-    const proc = getProcess(step.process, step.version);
-    const bindings: Record<string, string> = {};
-    for (const slot of proc.definition.connections) {
-      const parentSlot = step.connections?.[slot.slot] ?? slot.slot;
-      const b = ctx.bindings[parentSlot];
-      if (!b) throw new Error(`Sub-process connection "${slot.slot}" needs connection "${parentSlot}" of this process, which is not bound`);
-      bindings[slot.slot] = b.platform.id;
-    }
-    // … and (since 0.10.0) use on every platform the child is bound to
-    const unusable = startProblem(ctx.actor, { processId: step.process, bindings });
-    if (unusable) throw new Error(`Sub-process "${step.process}": ${unusable.text}`);
-    const inputs = (await ctx.render(step.inputs ?? {})) as Record<string, unknown>;
-    const request = { process: step.process, version: step.version ?? proc.currentVersion, inputs, bindings };
-    store.updateStepInput(ctx.runId, key, ctx.redactor.apply(request));
-    const id = await startRun(
-      { processId: step.process, version: step.version, inputs, bindings, dryRun: ctx.dryRun, recorded: ctx.recorded },
-      {
-        trigger: 'subprocess',
-        actor: ctx.actor,
-        parent: { runId: ctx.runId, stepKey: key },
-        // the child of a debug run is a debug run in the same mode, without pauses (ADR 0010)
-        ...(ctx.debug ? { debug: { spec: { kind: 'step' as const, ...(ctx.debug.recordedFrom ? { recordedFrom: ctx.debug.recordedFrom } : {}) } } } : {}),
-      },
-    );
-    store.updateStepInput(ctx.runId, key, ctx.redactor.apply({ ...request, childRunId: id }));
-    ctx.log('info', `Started sub-process run ${id} of "${proc.name}"${ctx.dryRun ? ' (dry run)' : ''}`, key);
-    child = { id, status: 'running' };
-  }
-  const row = await waitForChild(child.id, ctx, key);
-  if (ctx.signal.aborted) throw new Cancelled();
-  if (row.status !== 'succeeded') {
-    throw new Error(`Sub-process run ${row.id} ("${row.process_name}") ${row.status}${row.error ? `: ${row.error}` : ''}`);
-  }
-  const outputs = parseJson<Record<string, unknown>>(row.outputs ?? null, {});
-  return { output: outputs, summary: `"${row.process_name}" succeeded (run ${row.id})` };
-}
-
 /** Wait until a child run has finished (it may be running, waiting for a task, or interrupted by a restart). */
-async function waitForChild(childId: string, ctx: RunContext, key: string): Promise<store.RunRow> {
+async function waitForChildRun(childId: string, ctx: RunContext, key: string): Promise<store.RunRow> {
   let waiting = false;
   let warned = false;
   let resumed = false;
@@ -1799,839 +1552,14 @@ async function waitForChild(childId: string, ctx: RunContext, key: string): Prom
 }
 
 // ---------------------------------------------------------------------------
-// Leaf steps
+// Leaf steps: one module per step type behind the registry (steps/index.ts, steps/context.ts)
 // ---------------------------------------------------------------------------
 
+/** A step runs through its step type's module (steps/index.ts); the engine around it journals, retries and redacts. */
 async function execLeaf(step: FlowNode, ctx: RunContext, key: string, attempt = 1): Promise<LeafResult> {
-  switch (step.type) {
-    case 'http':
-      return execHttp(step, ctx, key);
-    case 'query':
-      return execQuery(step, ctx, key);
-    case 'contractTest': {
-      // the contract's test through its data contract service (#221): with the run actor's rights, stored as evidence
-      const { runContractTestStep } = await import('../datacontracts/step.js');
-      return runContractTestStep(step, {
-        contract: await ctx.str(step.contract),
-        server: step.server ? await ctx.str(step.server) : undefined,
-        actor: ctx.actor,
-        runId: ctx.runId,
-        dryRun: ctx.dryRun,
-        recorded: ctx.recorded,
-        signal: ctx.signal,
-        setInput: (input) => store.updateStepInput(ctx.runId, key, ctx.redactor.apply(input)),
-        log: (level, message) => ctx.log(level, message, key),
-      });
-    }
-    case 'set': {
-      const out: Record<string, unknown> = {};
-      for (const [k, v] of Object.entries(step.values ?? {})) {
-        const val = await ctx.render(v);
-        out[k] = val === undefined ? null : val;
-        ctx.vars[k] = out[k];
-        ctx.taint(k, [ANY]);
-      }
-      return {
-        output: out,
-        summary: Object.keys(out)
-          .map((k) => `${k} = ${describe(out[k])}`)
-          .join(', '),
-      };
-    }
-    case 'log': {
-      const message = await ctx.str(step.message);
-      const data = step.data ? await ctx.eval(step.data) : undefined;
-      ctx.log(step.level ?? 'info', message, key, data);
-      return { output: { message, data }, summary: message.slice(0, 300) };
-    }
-    case 'check': {
-      const passed = await ctx.bool(step.condition);
-      const message = (await ctx.str(step.message)) || (passed ? 'Passed' : `Condition not met: ${step.condition}`);
-      const severity = step.severity ?? 'error';
-      // what the messages say (#144): optional, and a problem here never fails the check
-      const content = await checkContent(ctx, step, passed, key);
-      if (passed) ctx.stats.checksPassed++;
-      else ctx.stats.checksFailed++;
-      // a debug run records the result in its protocol only: no check.failed entry, no alert, no message (ADR 0010)
-      if (!passed && !ctx.debug) {
-        audit({
-          actor: ctx.actor,
-          action: 'check.failed',
-          entityType: 'run',
-          entityId: ctx.runId,
-          runId: ctx.runId,
-          summary: `Check "${step.name || step.id}" failed (${severity}): ${message.slice(0, 200)}`,
-        });
-      }
-      // whether this result notifies: the schedule's setting and the check's state (#127)
-      const run = store.runRow(ctx.runId);
-      if (!ctx.debug)
-        checkOutcome({
-          runId: ctx.runId,
-          processId: run.process_id,
-          processName: ctx.def.name,
-          scheduleId: run.schedule_id ?? null,
-          check: step.name || step.id,
-          passed,
-          severity,
-          message,
-          dryRun: ctx.dryRun,
-          notify: step.notify,
-          checkId: step.id,
-          ...content,
-          betterWhen: step.betterWhen ?? 'lower',
-          runbook: step.runbook ?? ctx.def.runbook ?? null,
-        });
-      if (!passed && step.failRun) throw new Error(message);
-      return {
-        status: passed ? 'succeeded' : 'failed',
-        // notify: false (informational check) stays out of the start page's failed checks
-        output: { passed, severity, message, ...content, ...(step.notify === false ? { notify: false } : {}) },
-        summary: `${passed ? '✔' : '✘'} ${message}`,
-      };
-    }
-    case 'report': {
-      const title = await ctx.str(step.title);
-      const text = step.text ? await ctx.str(step.text) : undefined;
-      let columns: string[] | undefined;
-      let rows: unknown[][] | undefined;
-      if (step.rows) {
-        const list = await ctx.list(step.rows);
-        if (step.columns?.length) {
-          columns = step.columns.map((c) => c.label);
-          rows = [];
-          for (const item of list) rows.push(await Promise.all(step.columns.map(async (c) => stringify(await ctx.item(c.value, item)))));
-        } else {
-          const keys = new Set<string>();
-          for (const it of list.slice(0, 50)) if (it && typeof it === 'object') Object.keys(it).forEach((k) => keys.add(k));
-          columns = keys.size ? [...keys] : ['value'];
-          rows = list.map((it) => (keys.size ? columns!.map((k) => stringify((it as Record<string, unknown>)?.[k])) : [stringify(it)]));
-        }
-      }
-      // a report that carries an AI answer says so (and names the model) wherever it is shown
-      const ai = ctx.aiModelsIn(title, text, rows);
-      return {
-        output: { title, text, columns, rows, ...(ai ? { aiGenerated: { models: ai } } : {}) },
-        summary: (rows ? `${title}: ${rows.length} row(s)` : title) + (ai ? ` · AI-generated (${ai.join(', ')})` : ''),
-      };
-    }
-    case 'wait':
-      if (ctx.debug?.kind === 'node')
-        return { summary: `Would wait ${step.seconds}s (not waited in a single-node run)`, output: { wouldWaitSeconds: step.seconds } };
-      await sleep(step.seconds * 1000, ctx.signal).catch(() => {
-        throw new Cancelled();
-      });
-      return { summary: `Waited ${step.seconds}s` };
-    case 'fail':
-      throw new Error(await ctx.str(step.message));
-    case 'userTask':
-      return execUserTask(step, ctx, key);
-    case 'publish':
-      return execPublish(step, ctx, key);
-    case 'accessChange':
-      return execAccessChange(step, ctx, key);
-    case 'ai':
-      return execAi(step, ctx, key);
-    case 'browser':
-      return execBrowser(step, ctx, key);
-    case 'subprocess':
-      return execSubprocess(step, ctx, key, attempt);
-    default:
-      throw new Error(`Unsupported node type ${(step as FlowNode).type}`);
-  }
-}
-
-function describe(v: unknown): string {
-  if (Array.isArray(v)) return `[${v.length} items]`;
-  if (v && typeof v === 'object') return '{…}';
-  const s = stringify(v);
-  return s.length > 60 ? s.slice(0, 60) + '…' : s;
-}
-
-/** Outbound destination policy context for this server (all configured platforms). */
-export function engineOutboundContext(): OutboundContext {
-  return outboundContext();
-}
-
-/**
- * Secrets of all platforms bound to this run, for egress scanning. The binding a request is sent with (`sender`, its
- * connection slot) may send its secrets to its own origins (credentialsAllowed); every other binding's secrets may not
- * be in the request at all (0.9.0: `foreign` – a platform's credentials only travel through its own connection). Two
- * slots bound to the same platform identity are one binding. A value both bindings have counts as the sender's; of
- * the other bindings only credentials count (credentialValues), not identifiers.
- */
-function secretBindings(ctx: RunContext, sender: string | null): SecretBinding[] {
-  const own = sender ? ctx.bindings[sender] : undefined;
-  const ownKey = own ? identityKey(own.platform) : null;
-  const ownValues = new Set(own ? egressSecretValues(own.secrets) : []);
-  return Object.entries(ctx.bindings).map(([slot, b]) =>
-    ownKey && identityKey(b.platform) === ownKey
-      ? { platformName: b.platform.name, values: egressSecretValues(b.secrets), allowed: (url: string) => credentialsAllowed(b.platform, b.secrets, url) }
-      : {
-          platformName: b.platform.name,
-          // credentials only (no user names or client ids, 6+ characters): they would match ordinary text
-          values: credentialValues(b.secrets).filter((v) => !ownValues.has(v)),
-          allowed: () => false,
-          foreign: { slot, sender: own ? sender : null },
-        },
-  );
-}
-
-/**
- * The egress scan of a process-controlled request (assertNoSecretLeak); a request that carries another connection's
- * credential is refused before anything is sent and audited (0.9.0, `run.secret_refused`, without the value).
- */
-async function scanSecrets(
-  ctx: RunContext,
-  key: string | undefined,
-  url: string,
-  headers: Record<string, string>,
-  body: unknown,
-  bindings: SecretBinding[],
-): Promise<void> {
-  try {
-    await assertNoSecretLeak(url, headers, body, bindings);
-  } catch (e) {
-    if (e instanceof HttpError && e.code === 'SECRET_OTHER_SLOT') {
-      const { slot, sender, platform } = (e.params ?? {}) as { slot?: string; sender?: string; platform?: string };
-      audit({
-        actor: ctx.actor,
-        action: 'run.secret_refused',
-        entityType: 'run',
-        entityId: ctx.runId,
-        runId: ctx.runId,
-        summary: `Request ${sender ? `on connection "${sender}"` : 'without a connection'} refused: it contained a credential of connection "${slot}" (platform "${platform}")`,
-        details: { stepKey: key ?? null, slot, sender: sender || null, platform, origin: originOfSafe(url) || null },
-      });
-    }
-    throw e;
-  }
-}
-
-/**
- * Gate a process-controlled outbound request: the destination must pass the
- * outbound policy (SSRF) and must not carry any bound platform's secret to an
- * origin that platform does not allow – nor another connection's secret at all
- * (0.9.0). `sender`: the connection slot the request is sent with. Shared by the
- * http, ai and browser nodes.
- */
-async function enforceOutbound(
-  ctx: RunContext,
-  url: string,
-  o: { headers?: Record<string, string>; body?: unknown; platformOrigins?: string[]; sender: string | null; key?: string },
-): Promise<void> {
-  await assertOutboundAllowed(url, engineOutboundContext(), { platformOrigins: o.platformOrigins });
-  await scanSecrets(ctx, o.key, url, o.headers ?? {}, o.body, secretBindings(ctx, o.sender));
-}
-
-async function execHttp(step: NodeOf<'http'>, ctx: RunContext, key: string): Promise<LeafResult> {
-  const b = ctx.bindings[step.connection];
-  if (!b) throw new Error(`Connection "${step.connection}" is not bound`);
-  // AWS (v0.3.1): another AWS service of the account, signed with the platform – the path is relative to its endpoint
-  const awsScope = step.aws;
-  let awsOrigin: string | undefined;
-  let awsEndpoint = '';
-  if (awsScope) {
-    if (b.platform.config.auth?.type !== 'aws_sigv4')
-      throw new Error(`"aws" needs a platform with AWS request signing (SigV4); "${b.platform.name}" uses ${b.platform.config.auth?.type ?? 'none'}`);
-    if (b.platform.kind === 'aws') {
-      const { endpointFor } = await import('../aws/client.js');
-      awsEndpoint = endpointFor(b.platform, awsScope.service, awsScope.region);
-      if (/^https:\/\/[^/]+\.amazonaws\.com(\.cn)?$/i.test(awsEndpoint)) awsOrigin = awsEndpoint;
-    }
-  }
-  const rawPath = await ctx.str(step.path);
-  const p = awsEndpoint && !/^https?:\/\//i.test(rawPath) ? awsEndpoint + (rawPath.startsWith('/') ? '' : '/') + rawPath : rawPath;
-  // Semgrep's res-render-injection takes (step, ctx, key) for Express's (req, res, next): ctx.render() evaluates the
-  // step's expressions in the run scope, it never loads a file or template by name (false positive).
-  const query = (await ctx.render(step.query ?? {})) as Record<string, unknown>; // nosemgrep: javascript.express.security.audit.res-render-injection.res-render-injection
-  const headers = Object.fromEntries(Object.entries((await ctx.render(step.headers ?? {})) as Record<string, unknown>).map(([k, v]) => [k, stringify(v)])); // nosemgrep: javascript.express.security.audit.res-render-injection.res-render-injection
-  const body = step.body === undefined ? undefined : await ctx.render(step.body); // nosemgrep: javascript.express.security.audit.res-render-injection.res-render-injection
-  const writes = isMutating(step);
-  const requestInfo = { platform: b.platform.name, method: step.method, url: joinUrl(b.baseUrl, p), query, headers, body, write: writes };
-  store.updateStepInput(ctx.runId, key, ctx.redactor.apply(requestInfo));
-  // another connection's credential ($secret('<other slot>', …)) in the URL, query, headers or body: refused in every
-  // mode – dry runs and test runs too – before anything is sent (0.9.0)
-  await scanSecrets(
-    ctx,
-    key,
-    requestInfo.url,
-    headers,
-    { query, body },
-    secretBindings(ctx, step.connection).filter((x) => x.foreign),
-  );
-
-  // a single-node debug run's pasted answer stands in for the platform (it is never stored as a recording)
-  const pasted = ctx.debugNode?.answer;
-  // test run: a write with a recorded response gets that answer; without one it is skipped as in a dry run
-  const replayWrite = writes && ctx.recorded && (!!pasted || !!findRecording(b.platform.id, { method: step.method, url: p, query, body }));
-  if (writes && ctx.dryRun && !replayWrite) {
-    ctx.stats.skippedWrites++;
-    ctx.log('info', `${ctx.recorded ? 'TEST RUN – no recorded response, would call' : 'DRY RUN – would call'} ${step.method} ${requestInfo.url}`, key, body);
-    audit({
-      actor: ctx.actor,
-      action: 'api.write_skipped',
-      entityType: 'platform',
-      entityId: b.platform.id,
-      runId: ctx.runId,
-      summary: `Dry run: ${step.method} ${p} on "${b.platform.name}" not executed`,
-      details: ctx.redactor.apply({ stepKey: key, query, body }),
-    });
-    return { status: 'dryrun', output: { status: 0, ok: true, dryRun: true, body: null }, summary: `DRY RUN ${step.method} ${p}` };
-  }
-
-  ctx.redactor.add(...secretValues(b.secrets));
-  // every answer (page) is read into memory: at most this much (v0.3.1, it had no limit)
-  const maxMb = step.maxResponseMb ?? HTTP_RESPONSE_MB.default;
-  const accept = (s: number) => (step.expectStatus?.length ? step.expectStatus.includes(s) : s >= 200 && s < 300);
-  let lastRecording: string | null = null;
-  const replay = (url: string, q: Record<string, unknown>): HttpResult => {
-    if (pasted) {
-      if (lastRecording === 'pasted')
-        return { status: pasted.status, ok: pasted.status < 400, headers: pasted.headers ?? {}, body: [], durationMs: 0, url } as HttpResult;
-      lastRecording = 'pasted';
-      ctx.log('info', `DEBUG RUN – pasted answer for ${step.method} ${url} → HTTP ${pasted.status}`, key);
-      if (!accept(pasted.status)) throw new Error(`HTTP ${pasted.status} from ${step.method} ${url} (pasted): ${snippet(pasted.body)}`);
-      return { status: pasted.status, ok: pasted.status < 400, headers: pasted.headers ?? {}, body: pasted.body ?? null, durationMs: 0, url } as HttpResult;
-    }
-    const hit = findRecording(b.platform.id, { method: step.method, url, query: q, body });
-    if (!hit) throw missingRecording(b.platform.name, step.method, url, q);
-    // the same recording for the next page: the recording has no more pages
-    if (hit.recordingId === lastRecording) return { ...hit.result, body: [] };
-    lastRecording = hit.recordingId;
-    ctx.log('info', `TEST RUN – recorded response for ${step.method} ${hit.result.url} → HTTP ${hit.result.status}`, key);
-    if (!accept(hit.result.status)) throw new Error(`HTTP ${hit.result.status} from ${step.method} ${url} (recorded): ${snippet(hit.result.body)}`);
-    return hit.result;
-  };
-  const doRequest = async (url: string, q: Record<string, unknown>) => {
-    // paths the kind never calls (a vault's values) – also of the platform whose origin the URL is (0.9.0): refused in
-    // a test run too, before a recorded answer is looked up
-    if (ctx.recorded) await assertKindRules(b.platform.kind, await buildUrl(b.platform, b.secrets, url, q), step.method);
-    if (ctx.recorded) return replay(url, q);
-    const target = await buildUrl(b.platform, b.secrets, url, q);
-    // the AWS endpoint the step names is the platform's own origin for this call – only then, not every amazonaws.com host
-    await enforceOutbound(ctx, target, { headers, body, platformOrigins: awsOrigin ? [awsOrigin] : undefined, sender: step.connection, key });
-    let res: HttpResult;
-    try {
-      res = await platformRequest(
-        b.platform,
-        b.secrets,
-        {
-          method: step.method,
-          url,
-          query: q,
-          headers,
-          body,
-          bodyType: step.bodyType,
-          maxResponseBytes: maxMb * 1024 * 1024,
-          ...(awsScope ? { aws: awsScope } : {}),
-        },
-        ctx.signal,
-      );
-    } catch (e) {
-      if ((e as { code?: string }).code === 'ETOOLARGE')
-        throw new Error(
-          `The answer of ${step.method} ${url.split('?')[0]} is larger than ${maxMb} MB, the step's limit (maxResponseMb: default ${HTTP_RESPONSE_MB.default}, at most ${HTTP_RESPONSE_MB.max}) – read it in pages (pagination, a page size or filter) or raise maxResponseMb`,
-        );
-      throw e;
-    }
-    ctx.redactor.add(...secretValues(b.secrets));
-    if (res.attempts && res.attempts > 1) ctx.log('warn', `${step.method} ${url} → HTTP ${res.status} after ${res.attempts} attempts`, key);
-    if (!accept(res.status)) throw new Error(`HTTP ${res.status} from ${step.method} ${url}: ${snippet(res.body)}`);
-    return res;
-  };
-
-  const pg = step.paginate;
-  if (!pg || pg.mode === 'none') {
-    const res = await doRequest(p, query);
-    if (writes && !ctx.recorded) auditWrite(ctx, b, step, p, res, key);
-    return {
-      output: {
-        status: res.status,
-        ok: res.ok,
-        headers: res.headers,
-        body: res.body,
-        durationMs: res.durationMs,
-        ...(res.attempts ? { attempts: res.attempts } : {}),
-      },
-      summary: `${step.method} ${p} → ${res.status} (${res.durationMs} ms${res.attempts ? `, ${res.attempts} attempts` : ''})`,
-    };
-  }
-
-  // ----- pagination -----
-  const items: unknown[] = [];
-  const maxPages = pg.maxPages ?? 500;
-  const size = pg.pageSize ?? 100;
-  let pages = 0;
-  let lastStatus = 0;
-  let totalMs = 0;
-  const extract = async (bodyVal: unknown): Promise<unknown[]> => {
-    if (pg.itemsPath) {
-      const v = await ctx.data(pg.itemsPath, bodyVal);
-      return v === undefined || v === null ? [] : Array.isArray(v) ? v : [v];
-    }
-    if (Array.isArray(bodyVal)) return bodyVal;
-    const o = bodyVal as Record<string, unknown> | null;
-    if (pg.mode === 'scim') return ((o?.resources ?? o?.Resources) as unknown[]) ?? [];
-    const emb = o?._embedded as Record<string, unknown> | undefined;
-    if (emb) {
-      const first = Object.values(emb).find(Array.isArray);
-      if (first) return first as unknown[];
-    }
-    const arr = o && Object.values(o).find(Array.isArray);
-    return (arr as unknown[]) ?? [];
-  };
-
-  if (pg.mode === 'scim') {
-    let start = 1;
-    for (;;) {
-      const res = await doRequest(p, { ...query, [pg.pageParam ?? 'startIndex']: start, [pg.sizeParam ?? 'count']: size });
-      pages++;
-      lastStatus = res.status;
-      totalMs += res.durationMs;
-      const page = await extract(res.body);
-      items.push(...page);
-      const total = Number((res.body as { totalResults?: number })?.totalResults ?? 0);
-      start += page.length || size;
-      if (page.length === 0 || start > total || pages >= maxPages) break;
-    }
-  } else if (pg.mode === 'page' || pg.mode === 'offset') {
-    let pageNo = pg.mode === 'page' ? (pg.firstPage ?? 0) : 0;
-    for (;;) {
-      const q =
-        pg.mode === 'page'
-          ? { ...query, [pg.pageParam ?? 'page']: pageNo, [pg.sizeParam ?? 'size']: size }
-          : { ...query, [pg.pageParam ?? 'offset']: pageNo, [pg.sizeParam ?? 'limit']: size };
-      const res = await doRequest(p, q);
-      pages++;
-      lastStatus = res.status;
-      totalMs += res.durationMs;
-      const page = await extract(res.body);
-      items.push(...page);
-      if (page.length === 0 || pages >= maxPages) break;
-      // the API says whether more follow (hasNext): a short page is then not the end
-      const more = pg.morePath ? await ctx.data(pg.morePath, res.body) : undefined;
-      if (pg.morePath && !more) break;
-      if (pg.mode === 'page') {
-        const totalPages = Number(await ctx.data(pg.totalPagesPath ?? 'page.totalPages', res.body));
-        pageNo++;
-        if (Number.isFinite(totalPages) && totalPages > 0) {
-          if (pageNo - (pg.firstPage ?? 0) >= totalPages) break;
-        } else if (page.length < size && !pg.morePath) break;
-      } else {
-        pageNo += page.length;
-        if (page.length < size && !pg.morePath) break;
-      }
-    }
-  } else if (pg.mode === 'nextLink') {
-    let url: string | undefined = p;
-    let q: Record<string, unknown> = query;
-    while (url) {
-      const res = await doRequest(url, q);
-      pages++;
-      lastStatus = res.status;
-      totalMs += res.durationMs;
-      items.push(...(await extract(res.body)));
-      const next = await ctx.data(pg.nextPath ?? '_links.next.href', res.body);
-      url = typeof next === 'string' && next ? next : undefined;
-      q = {};
-      if (pages >= maxPages) break;
-    }
-  }
-  if (pages >= maxPages) ctx.log('warn', `Stopped after ${maxPages} pages (maxPages)`, key);
-  return {
-    output: { status: lastStatus, ok: true, body: items, pages, durationMs: totalMs },
-    summary: `${step.method} ${p} → ${items.length} item(s) in ${pages} page(s)`,
-  };
-}
-
-function auditWrite(ctx: RunContext, b: Binding, step: NodeOf<'http'>, p: string, res: HttpResult, key: string) {
-  ctx.stats.writes++;
-  audit({
-    actor: ctx.actor,
-    action: 'api.write',
-    entityType: 'platform',
-    entityId: b.platform.id,
-    runId: ctx.runId,
-    summary: `${step.method} ${p} on "${b.platform.name}" → HTTP ${res.status}`,
-    details: { stepKey: key, status: res.status, durationMs: res.durationMs },
-  });
-}
-
-function originOfSafe(url: string): string {
-  try {
-    return new URL(url).origin;
-  } catch {
-    return '';
-  }
-}
-
-function joinUrl(base: string, p: string): string {
-  if (/^https?:\/\//i.test(p)) return p;
-  return base + (p.startsWith('/') ? '' : '/') + p;
-}
-
-function snippet(v: unknown): string {
-  const s = typeof v === 'string' ? v : JSON.stringify(v);
-  return (s ?? '').slice(0, 400);
-}
-
-/** Cell values are kept flat so snapshots stay small and render as text. */
-function cell(v: unknown): unknown {
-  if (v === undefined || v === null) return null;
-  if (typeof v === 'string') return v.length > 1000 ? v.slice(0, 1000) + '…' : v;
-  if (typeof v === 'number' || typeof v === 'boolean') return v;
-  if (Array.isArray(v) && v.every((x) => x === null || typeof x !== 'object')) return v.join(', ');
-  return stringify(v).slice(0, 500);
-}
-
-/**
- * Ask an AI model (0.6.0, ai/step.ts): the step reads its context from the run (results of earlier steps, datasets the
- * actor may read, inputs), and its call goes through the same outbound policy and secret-leak check as an http step.
- * The answer's text is remembered, so reports and check messages that carry it are marked as AI-generated.
- */
-async function execAi(step: NodeOf<'ai'>, ctx: RunContext, key: string): Promise<LeafResult> {
-  const b = ctx.bindings[step.connection];
-  if (!b) throw new Error(`Connection "${step.connection}" is not bound`);
-  const res = await runAiStep(step, {
-    runId: ctx.runId,
-    processId: ctx.processId,
-    parentProcessIds: store
-      .ancestorChain(ctx.runId)
-      .slice(1)
-      .map((a) => a.processId),
-    processName: ctx.def.name,
-    processVersion: store.runRow(ctx.runId).process_version ?? null,
-    stepKey: key,
-    actor: ctx.actor,
-    // a live read of one AI node (ADR 0010) asks the model: the tokens are spent and count against the budgets
-    dryRun: ctx.dryRun && !ctx.debug?.live,
-    recorded: ctx.recorded,
-    def: ctx.def,
-    gateway: { platform: b.platform, secrets: b.secrets },
-    vars: ctx.vars,
-    inputs: ctx.inputs,
-    sourcesOf: (names) => ctx.expandSources(ctx.sourcesOf(names)),
-    inputSources: () => ctx.expandSources([INPUT]),
-    evalOn: (expr, value) => ctx.data(expr, value),
-    datasetRows: (dsKey) => {
-      const owner = datasetOwner(dsKey);
-      if (!owner) throw new Error(`Dataset "${dsKey}" has no data yet`);
-      const user = findUserByName(ctx.actor);
-      const visible =
-        owner === ctx.processId ||
-        (!!user && user.active && runAs(toAuthUser(user), () => builtinDatasetVisible(owner) ?? permissionsFor(owner).includes('view')));
-      if (!visible) throw new Error(`Dataset "${dsKey}" is not visible to ${ctx.actor}`);
-      return (user ? runAs(toAuthUser(user), () => getDataset(dsKey)) : getDataset(dsKey)).rows as Record<string, unknown>[];
-    },
-    secrets: () => [...ctx.redactor.list(), ...Object.values(ctx.bindings).flatMap((x) => secretValues(x.secrets))],
-    log: (level, message) => ctx.log(level, message, key),
-    setInput: (input) => store.updateStepInput(ctx.runId, key, ctx.redactor.apply(input)),
-    enforceOutbound: async (p, headers, body) =>
-      enforceOutbound(ctx, await buildUrl(b.platform, b.secrets, p), { headers, body, sender: step.connection, key }),
-    signal: ctx.signal,
-  });
-  return { output: res.output, status: res.output.dryRun ? 'dryrun' : 'succeeded', summary: res.summary };
-}
-
-/**
- * Query a database (0.7.0, dbms/step.ts): one read-only statement on the bound database platform, its parameters
- * rendered from their templates and bound (never put into the text). The password is masked like an HTTP platform's
- * secrets; the rows are the step's output.
- */
-async function execQuery(step: NodeOf<'query'>, ctx: RunContext, key: string): Promise<LeafResult> {
-  const b = ctx.bindings[step.connection];
-  if (!b) throw new Error(`Connection "${step.connection}" is not bound`);
-  ctx.redactor.add(...secretValues(b.secrets));
-  // Semgrep's res-render-injection takes (step, ctx, key) for Express's (req, res, next): ctx.render() evaluates the
-  // step's templates in the run scope, it never loads a file or template by name (false positive).
-  const params = (step.params?.length ? await ctx.render(step.params) : []) as unknown[]; // nosemgrep: javascript.express.security.audit.res-render-injection.res-render-injection
-  // the secrets of the run's other platforms never go to the database (as for an http step to a foreign origin)
-  const host = String(b.platform.config.database?.host ?? 'database.invalid').replace(/^\[|\]$/g, '');
-  await scanSecrets(
-    ctx,
-    key,
-    `https://${host.includes(':') ? `[${host}]` : host}/`,
-    {},
-    { sql: step.sql, params },
-    secretBindings(ctx, step.connection).filter((x) => x.foreign),
-  );
-  const { runQueryStep } = await import('../dbms/step.js');
-  const res = await runQueryStep(step, {
-    platform: b.platform,
-    secrets: b.secrets,
-    params,
-    dryRun: ctx.dryRun,
-    recorded: ctx.recorded,
-    setInput: (input) => store.updateStepInput(ctx.runId, key, ctx.redactor.apply(input)),
-    log: (level, message) => ctx.log(level, message, key),
-    signal: ctx.signal,
-  });
-  return { output: res.output, summary: res.summary };
-}
-
-/** Strings inside a JSON answer (long enough to be recognised in a message). */
-function stringLeaves(v: unknown, out: string[] = [], depth = 0): string[] {
-  if (depth > 20 || out.length > 500) return out;
-  if (typeof v === 'string') out.push(v);
-  else if (Array.isArray(v)) for (const x of v) stringLeaves(x, out, depth + 1);
-  else if (v && typeof v === 'object') for (const x of Object.values(v)) stringLeaves(x, out, depth + 1);
-  return out;
-}
-
-async function execPublish(step: NodeOf<'publish'>, ctx: RunContext, key: string): Promise<LeafResult> {
-  const list = step.rows ? await ctx.list(step.rows) : [];
-  const max = step.maxRows ?? 5000;
-  if (list.length > max) throw new Error(`${list.length} rows exceed the limit of ${max} (maxRows)`);
-  let columns: string[];
-  const rows: DatasetRow[] = [];
-  if (step.columns?.length) {
-    columns = step.columns.map((c) => c.label);
-  } else {
-    const keys = new Set<string>();
-    for (const it of list.slice(0, 50)) if (it && typeof it === 'object' && !Array.isArray(it)) Object.keys(it).forEach((k) => keys.add(k));
-    columns = keys.size ? [...keys] : ['value'];
-  }
-  for (const item of list) {
-    const row: DatasetRow = {};
-    if (step.columns?.length) {
-      for (const c of step.columns) row[c.label] = cell(await ctx.item(c.value, item));
-    } else if (item && typeof item === 'object' && !Array.isArray(item)) {
-      for (const c of columns) row[c] = cell((item as Record<string, unknown>)[c]);
-    } else row.value = cell(item);
-    if (step.key) row._key = stringify(await ctx.item(step.key, item));
-    if (step.status) row._status = normalizeStatus(await ctx.item(step.status, item));
-    if (step.statusText) row._statusText = stringify(await ctx.item(step.statusText, item));
-    rows.push(row);
-  }
-  const metrics: Record<string, number> = {};
-  for (const [name, expr] of Object.entries(step.metrics ?? {})) {
-    const v = Number(await ctx.eval(expr));
-    if (Number.isFinite(v)) metrics[name] = v;
-    else ctx.log('warn', `Metric "${name}" is not a number – skipped`, key);
-  }
-  // limits of metrics (#145): upper limits, and floors (lower limits) – a limit that is not a number is left out
-  const limits: Record<string, { value: number; lower: boolean }> = {};
-  for (const [kind, map] of [
-    ['limit', step.limits],
-    ['floor', step.floors],
-  ] as const)
-    for (const [name, expr] of Object.entries(map ?? {})) {
-      const v = Number(await ctx.eval(expr));
-      if (Number.isFinite(v)) limits[name] = { value: v, lower: kind === 'floor' };
-      else ctx.log('warn', `The ${kind} of metric "${name}" is not a number – skipped`, key);
-    }
-  const run = store.runRow(ctx.runId);
-  // A dataset key is owned by the first process to publish it. A real run by another
-  // process is rejected inside publishDataset (dashboard poisoning). A *dry run* by
-  // another process must not fail or overwrite the owner's data – e.g. previewing a
-  // second instance of a template that publishes the same key – so it returns a preview.
-  const owner = datasetOwner(step.dataset);
-  // a debug run never publishes (ADR 0010): the preview a dry run of another process gets
-  if (ctx.debug || (ctx.dryRun && owner && owner !== run.process_id)) {
-    const statusCounts: Record<string, number> = {};
-    for (const r of rows) if (r._status) statusCounts[r._status] = (statusCounts[r._status] ?? 0) + 1;
-    const counts = Object.entries(statusCounts)
-      .map(([k, n]) => `${n} ${k}`)
-      .join(', ');
-    ctx.log(
-      'info',
-      ctx.debug ? `DEBUG RUN – "${step.dataset}" was not written` : `DRY RUN – "${step.dataset}" is owned by another process; it was not written`,
-      key,
-    );
-    return {
-      status: 'dryrun',
-      output: { dataset: step.dataset, rows: rows.length, statusCounts, metrics, dryRun: true },
-      summary: `DRY RUN – would publish ${step.dataset}: ${rows.length} row(s)${counts ? ` (${counts})` : ''}`,
-    };
-  }
-  const meta = publishDataset({
-    key: step.dataset,
-    title: step.title || step.name || step.dataset,
-    processId: run.process_id,
-    processName: run.process_name,
-    runId: ctx.runId,
-    dryRun: ctx.dryRun,
-    columns,
-    rows: ctx.redactor.apply(rows),
-    metrics,
-    limits,
-    staleAfterMinutes: step.staleAfterMinutes,
-    staleAfterFixed: step.staleAfterFixed,
-    sourceSlot: step.source,
-  });
-  const counts = Object.entries(meta.statusCounts)
-    .map(([k, n]) => `${n} ${k}`)
-    .join(', ');
-  return {
-    output: { dataset: step.dataset, rows: rows.length, statusCounts: meta.statusCounts, metrics },
-    summary: `${step.dataset}: ${rows.length} row(s)${counts ? ` (${counts})` : ''}${
-      Object.keys(metrics).length
-        ? ` · ${Object.entries(metrics)
-            .map(([k, v]) => `${k}=${v}`)
-            .join(', ')}`
-        : ''
-    }`,
-  };
-}
-
-/** Rights as a clean list: an array, or text with one right per line or comma-separated. */
-function rightsList(v: unknown): string[] {
-  const raw = Array.isArray(v) ? v : v === undefined || v === null || v === '' ? [] : typeof v === 'string' ? v.split(/[\n,]/) : [v];
-  return [...new Set(raw.map((x) => stringify(x).trim()).filter(Boolean))].slice(0, 500);
-}
-
-/** accessChange: collects the access changes of this run; the entries are created when the run ends (compliance/access-changes.ts). */
-async function execAccessChange(step: NodeOf<'accessChange'>, ctx: RunContext, key: string): Promise<LeafResult> {
-  const b = ctx.bindings[step.connection];
-  if (!b) throw new Error(`Connection "${step.connection}" is not bound`);
-  const items = step.items ? await ctx.list(step.items) : [undefined];
-  if (items.length > 1000) throw new Error(`${items.length} subjects exceed the limit of 1000 per step`);
-  const at = (expr: string | undefined, item: unknown) => (!expr ? Promise.resolve(undefined) : step.items ? ctx.item(expr, item) : ctx.eval(expr));
-  const reason = ((await ctx.str(step.reason)) || '').slice(0, 2000);
-  const requestRef = ((await ctx.str(step.requestRef)) || '').slice(0, 500);
-  const approvedBy = ((await ctx.str(step.approvedBy)) || '').slice(0, 200);
-  const entries: AccessChangeInput[] = [];
-  for (const item of items) {
-    const subjectId = stringify(await at(step.subjectId, item)).trim();
-    if (!subjectId) {
-      ctx.log('warn', 'An access change without subject id was skipped', key);
-      continue;
-    }
-    const rights = rightsList(await at(step.rights, item));
-    const before = step.rightsBefore ? rightsList(await at(step.rightsBefore, item)) : null;
-    const after = step.rightsAfter ? rightsList(await at(step.rightsAfter, item)) : null;
-    entries.push({
-      platformId: b.platform.id,
-      subjectId: subjectId.slice(0, 300),
-      subjectName: stringify((await at(step.subjectName, item)) ?? '').slice(0, 300),
-      kind: step.kind,
-      rights,
-      rightsBefore: before,
-      rightsAfter: after,
-      reason,
-      requestRef,
-      approvedBy,
-      performedAt: new Date().toISOString(),
-    });
-  }
-  const output = ctx.redactor.apply({ platform: b.platform.name, kind: step.kind, entries });
-  if (ctx.dryRun) {
-    return { status: 'dryrun', output: { ...output, dryRun: true }, summary: `DRY RUN – would document ${entries.length} access change(s) (${step.kind})` };
-  }
-  recordStepAccessChanges(ctx.runId, key, b.platform.id, output.entries);
-  return { output, summary: `${entries.length} access change(s) (${step.kind}) on ${b.platform.name} – documented when the run ends` };
-}
-
-/** What a decision, selection or manual step shows: its title, instructions and (selection) items. */
-async function taskView(step: NodeOf<'userTask'>, ctx: RunContext) {
-  const title = await ctx.str(step.title);
-  const instructions = step.instructions ? await ctx.str(step.instructions) : undefined;
-  let rawItems: unknown[] = [];
-  const items: TaskItem[] = [];
-  const columns = step.columns?.length ? step.columns : [{ label: 'Item', value: '$string($)' }];
-  if (step.mode === 'select') {
-    rawItems = await ctx.list(step.items ?? '[]');
-    for (let i = 0; i < rawItems.length; i++) {
-      const it = rawItems[i];
-      const k = step.itemKey ? stringify(await ctx.item(step.itemKey, it)) : String(i);
-      items.push({
-        key: k || String(i),
-        cells: await Promise.all(columns.map(async (c) => stringify(await ctx.item(c.value, it)))),
-        preselected: step.preselect ? Boolean(await ctx.item(step.preselect, it)) : true,
-      });
-    }
-  }
-  return { title, instructions, rawItems, items, columns };
-}
-
-async function execUserTask(step: NodeOf<'userTask'>, ctx: RunContext, key: string): Promise<LeafResult> {
-  const { title, instructions, rawItems, items, columns } = await taskView(step, ctx);
-  let task = store.findTask(ctx.runId, key);
-  if (!task) {
-    const id = newId('task_');
-    store.insertTask({
-      id,
-      runId: ctx.runId,
-      stepKey: key,
-      mode: step.mode,
-      title,
-      instructions,
-      columns: step.mode === 'manual' ? [] : columns,
-      items: ctx.redactor.apply(items),
-      assignees: step.assignees ?? [],
-      fourEyes: !!step.fourEyes,
-      ...(step.mode === 'manual' ? { manual: manualSpec(step) } : {}),
-    });
-    emit('task.created', {
-      taskId: id,
-      runId: ctx.runId,
-      processId: store.runRow(ctx.runId).process_id,
-      processName: ctx.def.name,
-      title,
-      assignees: step.assignees ?? [],
-      fourEyes: !!step.fourEyes,
-      runActor: ctx.actor,
-      dryRun: ctx.dryRun,
-    });
-    audit({
-      actor: ctx.actor,
-      action: 'task.created',
-      entityType: 'task',
-      entityId: id,
-      runId: ctx.runId,
-      summary: `${step.mode === 'manual' ? 'Waiting for manual step' : 'Waiting for decision'}: "${title}"${step.mode === 'select' ? ` (${items.length} items)` : ''}`,
-    });
-    task = store.getTask(id);
-  }
-  let result: { decision: TaskDecision; by: string; at: string } | null;
-  if (task.status === 'completed' && task.decision) {
-    result = { decision: task.decision, by: task.decidedBy ?? '', at: task.decidedAt ?? '' };
-  } else if (task.status === 'cancelled') {
-    throw new Cancelled();
-  } else {
-    store.setStepStatus(ctx.runId, key, 'waiting');
-    ctx.beginWait();
-    ctx.log('info', `${step.mode === 'manual' ? 'Waiting for manual step' : 'Waiting for user decision'}: ${title}`, key);
-    const taskId = task.id;
-    try {
-      result = await new Promise((resolve) => {
-        taskWaiters.set(taskId, resolve);
-        ctx.signal.addEventListener('abort', () => resolve(null), { once: true });
-      });
-    } finally {
-      taskWaiters.delete(taskId);
-      ctx.endWait();
-    }
-    if (!result) throw new Cancelled();
-    store.setStepStatus(ctx.runId, key, 'running');
-  }
-  const { decision, by, at } = result;
-  if (step.mode === 'manual') return manualOutput(store.getTask(task.id), ctx, key, decision, by);
-  if (step.mode === 'approve') {
-    ctx.log('info', `${decision.approved ? 'Approved' : 'Rejected'} by ${by}${decision.comment ? `: ${decision.comment}` : ''}`, key);
-    if (!decision.approved && !hasWires(ctx, step.id, 'rejected')) throw new Error(`Rejected by ${by}${decision.comment ? `: ${decision.comment}` : ''}`);
-    return {
-      output: { approved: decision.approved, comment: decision.comment ?? '', decidedBy: by, decidedAt: at },
-      summary: `${decision.approved ? 'Approved' : 'Rejected'} by ${by}`,
-    };
-  }
-  const sel = new Set(decision.selectedKeys);
-  const selected = rawItems.filter((_, i) => sel.has(items[i]!.key));
-  const unselected = rawItems.filter((_, i) => !sel.has(items[i]!.key));
-  ctx.log('info', `${by} selected ${selected.length} of ${rawItems.length} item(s)`, key, { selectedKeys: decision.selectedKeys });
-  return {
-    output: {
-      approved: true,
-      selected,
-      unselected,
-      selectedKeys: decision.selectedKeys,
-      comment: decision.comment ?? '',
-      decidedBy: by,
-      decidedAt: at,
-    },
-    summary: `${by} selected ${selected.length} of ${rawItems.length}`,
-  };
+  const ex = stepOf(step);
+  if (!ex) throw new Error(`Unsupported node type ${step.type}`);
+  return ex.exec(step as NodeOf<StepType>, ctx, key, attempt);
 }
 
 // ---------------------------------------------------------------------------
@@ -2648,34 +1576,15 @@ const debugPauseMs = (): number => pauseMsForTests ?? Math.max(1, getSettings().
 /** The node's resolved inputs for a pause preview (redacted by the caller); a failing expression shows its error. */
 async function previewInputs(node: FlowNode, ctx: RunContext): Promise<unknown> {
   try {
+    const ex = stepOf(node);
+    if (ex) return await ex.preview?.(node as NodeOf<StepType>, ctx);
     switch (node.type) {
-      case 'http': {
-        const b = ctx.bindings[node.connection];
-        return {
-          method: node.method,
-          url: joinUrl(b?.baseUrl ?? '', await ctx.str(node.path)),
-          query: await ctx.render(node.query ?? {}), // nosemgrep: javascript.express.security.audit.res-render-injection.res-render-injection
-          headers: await ctx.render(node.headers ?? {}), // nosemgrep: javascript.express.security.audit.res-render-injection.res-render-injection
-          ...(node.body !== undefined ? { body: await ctx.render(node.body) } : {}), // nosemgrep: javascript.express.security.audit.res-render-injection.res-render-injection
-          write: isMutating(node),
-        };
-      }
-      case 'query':
-        return { sql: node.sql, params: node.params?.length ? await ctx.render(node.params) : [] }; // nosemgrep: javascript.express.security.audit.res-render-injection.res-render-injection
-      case 'set':
-        return { values: await ctx.render(node.values ?? {}) }; // nosemgrep: javascript.express.security.audit.res-render-injection.res-render-injection
       case 'if':
         return { condition: node.condition, result: await ctx.bool(node.condition) };
-      case 'check':
-        return { condition: node.condition, passes: await ctx.bool(node.condition) };
       case 'forEach': {
         const items = await ctx.list(node.items);
         return { items: items.length, first: items.slice(0, 5) };
       }
-      case 'log':
-        return { message: await ctx.str(node.message) };
-      case 'subprocess':
-        return { process: node.process, inputs: await ctx.render(node.inputs ?? {}) }; // nosemgrep: javascript.express.security.audit.res-render-injection.res-render-injection
       default:
         return undefined;
     }
@@ -2964,340 +1873,3 @@ export const builtinEngine: RunEngine = {
   interruptBusy: interruptBusyRuns,
   counts: () => ({ active: activeRunIds(), busy: busyRunIds(), queued: queuedRunIds() }),
 };
-
-/** A finished manual step: its entry becomes the node's output (vars.<saveAs>); a rejected verification with onReject "fail" fails the run. */
-function manualOutput(t: TaskRecord, ctx: RunContext, key: string, decision: TaskDecision, by: string): LeafResult {
-  const m = t.manual!;
-  const sub = m.submission;
-  const v = m.verification;
-  if (!decision.approved) {
-    const msg = `Verification rejected by ${v?.by ?? '?'}${v?.comment ? `: ${v.comment}` : ''}`;
-    ctx.log('error', msg, key);
-    throw new Error(msg);
-  }
-  ctx.log('info', `Completed by ${by}${v ? `, verified by ${v.by}` : ''}`, key);
-  return {
-    output: {
-      completed: true,
-      completedBy: sub?.completedBy ?? by,
-      completedAt: sub?.completedAt ?? null,
-      doneAt: sub?.doneAt ?? null,
-      doneAtReason: sub?.doneAtReason ?? null,
-      checklist: m.spec.checklist.map((item, i) => ({ item, checked: !!sub?.checked.includes(i) })),
-      fields: Object.fromEntries((sub?.fields ?? []).map((f) => [f.id, f.value])),
-      notAvailable: sub?.notAvailable ?? [],
-      comment: sub?.comment ?? '',
-      evidence: (sub?.evidence ?? []).map((e) => ({ filename: e.filename, size: e.size, sha256: e.sha256 })),
-      verifiedBy: v?.by ?? null,
-      verifiedAt: v?.at ?? null,
-      rounds: m.round,
-    },
-    summary: `Completed by ${by}${v ? `, verified by ${v.by}` : ''}`,
-  };
-}
-
-/**
- * A browser step never opens the origin of a platform of a kind with rules of its own – read-only kinds (Kafka Connect,
- * changedetection.io, container registries) and kinds with refused paths (IBM Verify Privilege Vault): the page could
- * send anything there (0.9.0). 403 BROWSER_RESTRICTED_ORIGIN.
- */
-async function assertBrowserDestination(url: string): Promise<void> {
-  const kinds = await destinationKinds(url);
-  if (!kinds.length) return;
-  const origin = originOfSafe(url) || url.slice(0, 120);
-  throw Object.assign(
-    new HttpError(
-      403,
-      `Blocked: ${origin} belongs to a platform of kind ${kinds.join(', ')}, whose rules (read-only, refused paths) a browser step cannot keep – browser steps never open it; use an http step on its connection`,
-      'BROWSER_RESTRICTED_ORIGIN',
-      { origin, kind: kinds.join(', ') },
-    ),
-    { retryable: false },
-  );
-}
-
-async function execBrowser(step: NodeOf<'browser'>, ctx: RunContext, key: string): Promise<LeafResult> {
-  const b = step.connection ? ctx.bindings[step.connection] : undefined;
-  if (step.connection && !b) throw new Error(`Connection "${step.connection}" is not bound`);
-  if (ctx.recorded) {
-    ctx.log('info', 'TEST RUN – browser steps do not run in test runs (they would open the real site)', key);
-    return { status: 'dryrun', output: { dryRun: true, recorded: true }, summary: 'TEST RUN – skipped' };
-  }
-  if (step.mutating && ctx.dryRun) {
-    ctx.stats.skippedWrites++;
-    ctx.log('info', 'DRY RUN – browser step changes data and was skipped', key);
-    return { status: 'dryrun', output: { dryRun: true }, summary: 'DRY RUN – skipped' };
-  }
-  const settings = getSettings();
-  if (!ctx.browser) {
-    const outCtx = engineOutboundContext();
-    ctx.browser = await openBrowser({
-      headless: settings.browserHeadless,
-      timeoutMs: settings.browserTimeoutMs,
-      ignoreHttpsErrors: !!b?.platform.config.http?.insecureTls,
-      // Navigation obeys the full outbound policy; sub-resources need only be address-safe
-      // (metadata / link-local / own port), so portals that pull assets from CDNs still load.
-      requestGuard: async (url, navigation) => {
-        try {
-          if (navigation) await assertOutboundAllowed(url, outCtx);
-          else await assertAddressSafe(url);
-          // the origin of a platform of a kind with rules of its own (read-only, refused paths): never from a browser,
-          // whose requests those rules cannot see (0.9.0)
-          await assertBrowserDestination(url);
-          return true;
-        } catch (e) {
-          // the page only sees "net::ERR_BLOCKED_BY_CLIENT": say what was blocked and why (v0.3.1)
-          let origin = url;
-          try {
-            origin = new URL(url).origin;
-          } catch {
-            /* keep the text */
-          }
-          if (navigation) {
-            const msg = blockedNavigation(origin, e);
-            if (!ctx.browserBlocked.includes(msg)) ctx.browserBlocked.push(msg);
-            ctx.log('warn', `Browser: ${msg}`);
-          } else ctx.log('debug', `Browser: a sub-request to ${origin} was blocked (${(e as Error).message.slice(0, 200)})`);
-          return false;
-        }
-      },
-      // a redirect hop the policy refuses has already been sent by Chromium: the step stops using the page
-      onRefusedRedirect: (url) => ctx.browserRedirects.push(url),
-    });
-  }
-  const page = ctx.browser.page;
-  const portal = b ? (await ctx.str(b.platform.config.portalUrl || b.baseUrl, { vars: b.platform.config.variables })).replace(/\/+$/, '') : '';
-  let portalOrigin = '';
-  try {
-    if (portal) portalOrigin = new URL(portal).origin;
-  } catch {
-    /* not a URL: no portal origin is allowed */
-  }
-  // The bound platform's own portal is a legitimate destination for its secrets (e.g. a login form); the secrets of the
-  // run's other connections may not be put into the page at all (0.9.0)
-  const browserBindings = secretBindings(ctx, b ? step.connection! : null).map((sb) =>
-    !sb.foreign ? { ...sb, allowed: async (url: string) => (await sb.allowed(url)) || (!!portalOrigin && originOfSafe(url) === portalOrigin) } : sb,
-  );
-  const extracted: Record<string, unknown> = {};
-  const blockedBefore = ctx.browserBlocked.length;
-  const blockedNow = () => ctx.browserBlocked.slice(blockedBefore);
-  const shots: { id: string; name: string; sha256: string }[] = [];
-  const done: string[] = [];
-  const extraBindings: Bindings = { page: () => ({ url: page.url() }) };
-  // Actions that change the page rather than just read it. In a dry run these still
-  // run (so a non-"mutating" browser step can change data in the target portal);
-  // dryRunReadOnly skips them, and we warn once when they run in a dry run otherwise.
-  const INTERACTION = new Set(['click', 'fill', 'press', 'select', 'check', 'evaluate']);
-  let warnedDryInteraction = false;
-  for (const [i, a] of step.actions.entries()) {
-    if (ctx.signal.aborted) throw new Cancelled();
-    const sel = a.selector ? await ctx.str(a.selector) : '';
-    const val = a.value !== undefined ? await ctx.str(a.value, { ...extraBindings, extracted }) : '';
-    const opts = a.timeoutMs ? { timeout: a.timeoutMs } : undefined;
-    const label = `${i + 1}. ${a.action}${sel ? ` ${sel}` : ''}`;
-    if (ctx.dryRun && INTERACTION.has(a.action)) {
-      if (step.dryRunReadOnly) {
-        ctx.stats.skippedWrites++;
-        done.push(`${label} (skipped – dry run, read-only)`);
-        continue;
-      }
-      if (!warnedDryInteraction) {
-        warnedDryInteraction = true;
-        ctx.log(
-          'warn',
-          'DRY RUN – this browser step performs page interactions (click/fill/…) that may change data in the portal. Mark the step "changes data" or set dryRunReadOnly to skip them.',
-          key,
-        );
-      }
-    }
-    // An action that puts a value into the page would send it to the page's current origin:
-    // make sure it is not a platform secret bound for an origin the page is not.
-    if (val && ['fill', 'press', 'select', 'evaluate'].includes(a.action)) {
-      await scanSecrets(ctx, key, page.url() || portal || 'about:blank', {}, val, browserBindings);
-    }
-    try {
-      switch (a.action) {
-        case 'goto': {
-          const url = /^https?:/i.test(val) ? val : portal + (val.startsWith('/') ? '' : '/') + val;
-          await enforceOutbound(ctx, url, { sender: b ? step.connection! : null, key });
-          await assertBrowserDestination(url);
-          await page.goto(url, { waitUntil: 'domcontentloaded', ...(opts ?? {}) });
-          done.push(`${label} ${url}`);
-          break;
-        }
-        case 'click':
-          await page.click(sel, opts);
-          break;
-        case 'fill':
-          await page.fill(sel, val, opts);
-          break;
-        case 'press':
-          await page.press(sel || 'body', val, opts);
-          break;
-        case 'select':
-          await page.selectOption(sel, val, opts);
-          break;
-        case 'check':
-          await page.check(sel, opts);
-          break;
-        case 'waitFor':
-          await page.waitForSelector(sel, { state: a.state ?? 'visible', ...(opts ?? {}) });
-          break;
-        case 'expectText': {
-          const text = (await page.textContent(sel || 'body', opts)) ?? '';
-          if (!text.includes(val)) throw new Error(`Expected "${val}" in ${sel || 'page'}, found "${text.trim().slice(0, 200)}"`);
-          break;
-        }
-        case 'extract': {
-          let v: unknown;
-          if (a.all) {
-            v = await page.$$eval(sel, (els, attr) => els.map((e) => (attr ? e.getAttribute(attr as string) : (e.textContent ?? '').trim())), a.attribute);
-          } else if (a.attribute) v = await page.getAttribute(sel, a.attribute, opts);
-          else v = ((await page.textContent(sel, opts)) ?? '').trim();
-          extracted[a.as ?? `value${i + 1}`] = v;
-          break;
-        }
-        case 'screenshot': {
-          const buf = await page.screenshot({ fullPage: !!a.fullPage, type: 'png' });
-          const id = newId('art_');
-          const file = artifactFile(ctx.runId, `${id}.png`);
-          fs.mkdirSync(path.dirname(file), { recursive: true });
-          fs.writeFileSync(file, buf);
-          const hash = sha256(buf);
-          const name = a.name || `screenshot-${i + 1}`;
-          store.addArtifact({ id, runId: ctx.runId, stepKey: key, kind: 'screenshot', name, mime: 'image/png', path: file, sha256: hash, size: buf.length });
-          shots.push({ id, name, sha256: hash });
-          break;
-        }
-        case 'wait':
-          await page.waitForTimeout(Number(val) || 1000);
-          break;
-        case 'evaluate': {
-          const v = await page.evaluate(val);
-          if (a.as) extracted[a.as] = v;
-          break;
-        }
-      }
-      // actions that can navigate: a refused redirect hop is reported by the time the action is done (or just after)
-      await refusedRedirects(ctx, page, ['goto', 'click', 'press'].includes(a.action) ? 50 : 0);
-      if (a.action !== 'goto') done.push(label);
-    } catch (e) {
-      // capture evidence of the failure
-      try {
-        const buf = await page.screenshot({ type: 'png' });
-        const id = newId('art_');
-        const file = artifactFile(ctx.runId, `${id}.png`);
-        fs.mkdirSync(path.dirname(file), { recursive: true });
-        fs.writeFileSync(file, buf);
-        store.addArtifact({
-          id,
-          runId: ctx.runId,
-          stepKey: key,
-          kind: 'screenshot',
-          name: `failure-${i + 1}`,
-          mime: 'image/png',
-          path: file,
-          sha256: sha256(buf),
-          size: buf.length,
-        });
-      } catch (err) {
-        // the step's own error is what the run reports; a missing screenshot only shows in the log
-        logger.warn({ err, runId: ctx.runId, step: key }, 'could not save the failure screenshot');
-      }
-      const blocked = blockedNow();
-      throw new Error(`Browser action ${label} failed: ${(e as Error).message.split('\n')[0]}${blocked.length ? ` – ${blocked.join('; ')}` : ''}`);
-    }
-  }
-  if (shots.length) {
-    audit({
-      actor: ctx.actor,
-      action: 'browser.evidence',
-      entityType: 'run',
-      entityId: ctx.runId,
-      runId: ctx.runId,
-      summary: `${shots.length} screenshot(s) captured in "${step.name || step.id}"`,
-      details: { stepKey: key, screenshots: shots },
-    });
-  }
-  await refusedRedirects(ctx, page, 50).catch((e: Error) => {
-    throw new Error(`Browser step: ${e.message} – ${blockedNow().join('; ')}`);
-  });
-  store.updateStepInput(ctx.runId, key, { actions: done });
-  const blocked = blockedNow();
-  return {
-    output: { ...extracted, url: page.url(), title: await page.title(), screenshots: shots, ...(blocked.length ? { blockedByPolicy: blocked } : {}) },
-    summary: `${step.actions.length} action(s)${shots.length ? `, ${shots.length} screenshot(s)` : ''}${blocked.length ? `, ${blocked.length} navigation(s) blocked by the outbound policy` : ''}`,
-  };
-}
-
-/**
- * Redirect hops the policy refuses (reported after Chromium sent them): the page is left for about:blank so nothing
- * of that origin is read or filled in, and the action fails with what was blocked.
- */
-async function refusedRedirects(ctx: RunContext, page: BrowserSession['page'], waitMs: number): Promise<void> {
-  // the check of a hop finishes just after the navigation that caused it
-  if (!ctx.browserRedirects.length && waitMs) await new Promise((r) => setTimeout(r, waitMs));
-  if (!ctx.browserRedirects.length) return;
-  const urls = ctx.browserRedirects.splice(0);
-  const origins = [...new Set(urls.map((u) => originOfSafe(u) || u))];
-  const msgs = origins.map((o) => blockedNavigation(o, new Error('outbound policy')));
-  for (const m of msgs) {
-    if (!ctx.browserBlocked.includes(m)) ctx.browserBlocked.push(m);
-    ctx.log('warn', `Browser: a redirect was ${m}`);
-  }
-  await page.goto('about:blank').catch(() => undefined); // leaving the page is best effort: the error below is what counts
-  throw new Error(`the page was redirected to ${origins.join(', ')}, which the outbound policy does not allow`);
-}
-
-/** A page navigation the policy refused, in plain words: what, and how to allow it. */
-export function blockedNavigation(origin: string, e: unknown): string {
-  const m = (e as Error)?.message ?? '';
-  if (/outbound policy/i.test(m))
-    return `blocked by the outbound policy: ${origin} – add it to the platform's trusted origins or the allow-list (Settings → Security & sign-in → Outbound access)`;
-  return `blocked: ${origin} – ${m.slice(0, 200)}`;
-}
-
-/** Most items a check keeps for its messages, and characters per item (#144). */
-const CHECK_ITEMS_MAX = 200;
-const CHECK_ITEM_CHARS = 300;
-
-/**
- * The optional content of a check's messages (#144): the headline and the items of a failure and the value. They are
- * evaluated like the message; an expression that fails only logs a warning, the check result stays as it is.
- */
-async function checkContent(
-  ctx: RunContext,
-  step: NodeOf<'check'>,
-  passed: boolean,
-  key: string,
-): Promise<{ headline?: string; value?: number; items?: string[]; aiGenerated?: string[] }> {
-  const out: { headline?: string; value?: number; items?: string[]; aiGenerated?: string[] } = {};
-  const attempt = async (what: string, fn: () => Promise<void>) => {
-    try {
-      await fn();
-    } catch (e) {
-      ctx.log('warn', `Check "${step.name || step.id}": the ${what} could not be evaluated – ${(e as Error).message}`, key);
-    }
-  };
-  if (step.value?.trim())
-    await attempt('value', async () => {
-      const v = Number(await ctx.eval(step.value!));
-      if (Number.isFinite(v)) out.value = v;
-    });
-  if (!passed && step.headline?.trim())
-    await attempt('headline', async () => {
-      const h = (await ctx.str(step.headline!)).replace(/\s+/g, ' ').trim();
-      if (h) out.headline = h.slice(0, 200);
-    });
-  if (!passed && step.items?.trim())
-    await attempt('items', async () => {
-      const v = await ctx.eval(step.items!);
-      const list = (Array.isArray(v) ? v : v === undefined || v === null ? [] : [v])
-        .map((x) => (typeof x === 'string' ? x : JSON.stringify(x)).slice(0, CHECK_ITEM_CHARS))
-        .filter(Boolean);
-      if (list.length) out.items = list.slice(0, CHECK_ITEMS_MAX);
-    });
-  const ai = passed ? undefined : ctx.aiModelsIn(out.headline, out.items, step.message ? await ctx.str(step.message).catch(() => '') : '');
-  if (ai) out.aiGenerated = ai;
-  return out;
-}
