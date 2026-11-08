@@ -53,7 +53,8 @@ function describeWait(w: LeaseWait): Record<string, unknown> {
 
 /**
  * While another instance holds the database lease: a minimal server on the configured address, so probes see this
- * instance alive (/api/health 200) but not ready (/api/ready 503), instead of a process that exits and restarts.
+ * instance alive (/api/health 200) but not ready (/api/ready and /api/ready/traffic 503), instead of a process that
+ * exits and restarts.
  */
 function waitingServer(): Promise<http.Server> {
   const handler: http.RequestListener = (req, res) => {
@@ -66,6 +67,8 @@ function waitingServer(): Promise<http.Server> {
     const message = 'Waiting for the database: another instance uses this database schema';
     if (path === `${config.basePath}/api/ready`)
       return json(503, { ready: false, checks: { vault: { ok: false, message }, database: { ok: false, message }, scheduler: { ok: false, message } } });
+    // not this one yet: the instance that holds the database gets the traffic
+    if (path === `${config.basePath}/api/ready/traffic`) return json(503, { ready: false, message });
     json(503, { error: `${BRAND.name} is starting. ${message}.`, code: 'WAITING_FOR_DATABASE_LEASE' });
   };
   const server = config.tls

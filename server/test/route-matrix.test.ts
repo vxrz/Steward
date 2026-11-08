@@ -76,6 +76,7 @@ const EXPECT: Record<string, Access> = {
   // ---- health, instance, sign-in ----
   'GET /api/health': PUBLIC,
   'GET /api/ready': PUBLIC,
+  'GET /api/ready/traffic': PUBLIC,
   'GET /api/instance': PUBLIC,
   'GET /api/client-config': PUBLIC,
   'GET /api/theme': PUBLIC,

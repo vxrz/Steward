@@ -12,7 +12,7 @@ import { evalExpr, render } from '../engine/expr.js';
 import { FUNCTIONS, expressionContext, inspectNode, limitSize, pickRun, sample } from '../engine/inspect.js';
 import { contractCheck } from '../engine/contract.js';
 import { initMetrics, metricsText } from '../metrics.js';
-import { readinessChecks } from '../system/readiness.js';
+import { readinessChecks, trafficReadiness } from '../system/readiness.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { ACCESS } from '../auth/access.js';
 import { env } from '../config.js';
@@ -54,6 +54,11 @@ export async function engineExtrasRoutes(app: FastifyInstance): Promise<void> {
   app.get('/ready', { config: { access: ACCESS.public } }, async (_req, reply) => {
     const { ready, checks } = readinessChecks();
     return reply.code(ready ? 200 : 503).send({ ready, checks });
+  });
+  // for routing (readinessProbe, load balancers): 200 also with a locked vault, so someone can reach the UI to unlock it
+  app.get('/ready/traffic', { config: { access: ACCESS.public } }, async (_req, reply) => {
+    const r = trafficReadiness();
+    return reply.code(r.ready ? 200 : 503).send(r);
   });
 
   // ---------- editor support ----------
