@@ -7,7 +7,7 @@
 # live there. Back up both volumes (see docs/INSTALL.md, "Database").
 services:
   steward:
-    # Signed release image (with Chromium: …:0.2.7-browser). Compose pulls it, and builds it from
+    # Signed release image (with Chromium: …:0.10.0-browser). Compose pulls it, and builds it from
     # this checkout only if the registry doesn't have it.
     image: ghcr.io/vxrz/steward:0.10.0
     build: .

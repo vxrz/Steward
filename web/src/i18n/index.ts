@@ -1,7 +1,7 @@
 import i18n, { type BackendModule, type ReadCallback } from 'i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
 import { initReactI18next } from 'react-i18next';
-import { BUNDLED_NAMESPACES, DEFAULT_LOCALE, LANGUAGES, isLocale, type Locale } from './languages';
+import { BUNDLED_NAMESPACES, DEFAULT_LOCALE, LANGUAGES, isLocale, pickFormatLocale, type Locale } from './languages';
 import { bundledEnglish } from './resources';
 
 /** localStorage key of the language chosen on this device (sign-in page, before the profile setting is known). */
@@ -84,12 +84,13 @@ export async function setLanguage(code: Locale): Promise<void> {
 
 /**
  * Locale for Intl formatting: the browser's regional variant when it matches the
- * UI language (de-AT, en-GB …), otherwise the UI language itself.
+ * UI language (de-AT, en-GB …), otherwise the UI language itself. Entries that are
+ * not valid BCP 47 tags ("en-US@posix" on some Linux kiosks) are mapped or skipped:
+ * Intl would throw on them and take every page down.
  */
 export function formatLocale(): string {
-  const lang = currentLanguage();
   const prefs = typeof navigator === 'undefined' ? [] : (navigator.languages ?? [navigator.language]);
-  return prefs.find((p) => p?.toLowerCase().split('-')[0] === lang) ?? lang;
+  return pickFormatLocale(prefs, currentLanguage());
 }
 
 export default i18n;

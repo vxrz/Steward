@@ -281,33 +281,33 @@ gh attestation verify steward-linux-x64.tar.gz --repo vxrz/Steward
 sha256sum -c SHA256SUMS.txt
 ```
 
-**Container image** (`ghcr.io/vxrz/steward`). The Container workflow signs every published image with [cosign](https://docs.sigstore.dev/cosign/) – keyless: the certificate names the workflow, the release tag and the commit – and attaches SLSA build provenance and the CycloneDX SBOM (from Syft) as attestations. Check that an image comes from a release tag of this repository before you run it (cosign 3 or later, a current GitHub CLI):
+**Container image** (`ghcr.io/vxrz/steward`). The Container workflow signs every published image with [cosign](https://docs.sigstore.dev/cosign/) – keyless: the certificate names the workflow, the release tag and the commit – and attaches SLSA build provenance and the CycloneDX SBOM (from Syft) as attestations. Check that an image comes from a release tag of this repository before you run it (cosign 3 or later, a current GitHub CLI). `<version>` is the release, e.g. the one in the `image:` line of `docker-compose.yml`:
 
 ```bash
 # signature: built by .github/workflows/container.yml for a v* tag of vxrz/Steward
-cosign verify ghcr.io/vxrz/steward:0.2.1 \
+cosign verify ghcr.io/vxrz/steward:<version> \
   --certificate-identity-regexp '^https://github\.com/vxrz/Steward/\.github/workflows/container\.yml@refs/tags/v' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 
 # for one exact release, compare the whole identity instead of a pattern
-cosign verify ghcr.io/vxrz/steward:0.2.1 \
-  --certificate-identity https://github.com/vxrz/Steward/.github/workflows/container.yml@refs/tags/v0.2.1 \
+cosign verify ghcr.io/vxrz/steward:<version> \
+  --certificate-identity https://github.com/vxrz/Steward/.github/workflows/container.yml@refs/tags/v<version> \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 
 # build provenance (SLSA) of the multi-platform image
-gh attestation verify oci://ghcr.io/vxrz/steward:0.2.1 --repo vxrz/Steward \
-  --signer-workflow vxrz/Steward/.github/workflows/container.yml --source-ref refs/tags/v0.2.1
+gh attestation verify oci://ghcr.io/vxrz/steward:<version> --repo vxrz/Steward \
+  --signer-workflow vxrz/Steward/.github/workflows/container.yml --source-ref refs/tags/v<version>
 ```
 
 Each platform image (linux/amd64, linux/arm64) is signed too and has its own provenance and SBOM attestation. Look up its digest and check it:
 
 ```bash
-docker buildx imagetools inspect ghcr.io/vxrz/steward:0.2.1          # lists the platform digests
+docker buildx imagetools inspect ghcr.io/vxrz/steward:<version>       # lists the platform digests
 gh attestation verify oci://ghcr.io/vxrz/steward@sha256:<platform digest> --repo vxrz/Steward \
   --predicate-type https://cyclonedx.org/bom                          # the SBOM attestation
 ```
 
-Run what you verified: pin the digest (`image: ghcr.io/vxrz/steward:0.2.1@sha256:…` in the compose file) or at least the version, so a later push to the tag cannot replace it unnoticed. The same commands work for the `-browser` tags.
+Run what you verified: pin the digest (`image: ghcr.io/vxrz/steward:<version>@sha256:…` in the compose file) or at least the version, so a later push to the tag cannot replace it unnoticed. The same commands work for the `-browser` tags.
 
 ## Shared procedure libraries
 

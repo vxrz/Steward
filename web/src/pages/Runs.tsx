@@ -13,7 +13,7 @@ import { RunTable } from '../components/RunTable';
 import { SummaryReportDialog } from '../components/reports/SummaryReportDialog';
 import { processKeys, runKeys } from '../queryKeys';
 
-/** Runs per request; "Load more" fetches the next, older page (`before` = start of the oldest run shown). */
+/** Runs per request; "Load more" fetches the next, older page (`before` = start and id of the oldest run shown). */
 export const RUNS_PAGE = 200;
 
 const PERIODS = ['24h', '7d'] as const;
@@ -53,7 +53,11 @@ export function RunsPage() {
       });
       return get<RunSummary[]>(`/runs?${qs}`);
     },
-    getNextPageParam: (last) => (last.length >= pageSize ? last[last.length - 1]!.startedAt : undefined),
+    // start and id: runs that started in the same millisecond (for-each children, a burst of triggers) are not skipped
+    getNextPageParam: (last) => {
+      const oldest = last.length >= pageSize ? last[last.length - 1] : undefined;
+      return oldest ? `${oldest.startedAt},${oldest.id}` : undefined;
+    },
     refetchInterval: 4000,
   });
   const list = runs.data?.pages.flat() ?? [];
