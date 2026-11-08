@@ -21,7 +21,16 @@ import * as stepUp from '../auth/step-up.js';
 import { currentInstanceId } from '../instance.js';
 import { capabilities, isAdmin, requireCapability, viewsAutomation } from '../auth/permissions.js';
 import * as credentials from '../credentials/service.js';
-import { LINK_KEY_STORAGE, readCookie, sessionCookie, sendSessionKeys, SESSION_COOKIE, SESSION_KEY_STORAGE } from '../auth/cookies.js';
+import {
+  LINK_KEY_STORAGE,
+  readCookie,
+  sessionCookie,
+  sendSessionKeys,
+  SESSION_COOKIE,
+  SESSION_KEY_STORAGE,
+  ssoBindingCookie,
+  ssoBindingCookieName,
+} from '../auth/cookies.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { auditPendingUpgrades } from '../upgrades.js';
 import { ACCESS, isStatusViewer, me } from '../auth/access.js';
@@ -194,7 +203,9 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
 
   app.get('/auth/oidc/:id/start', async (req, reply) => {
     try {
-      const url = await sso.startSignIn(params(req).id!, sso.redirectUriFor(req), (req.query as { returnTo?: string }).returnTo);
+      const url = await sso.startSignIn(params(req).id!, sso.redirectUriFor(req), (req.query as { returnTo?: string }).returnTo, (c) =>
+        reply.header('set-cookie', c),
+      );
       return reply.redirect(url);
     } catch (e) {
       return ssoFail(reply, (e as Error).message);
@@ -202,10 +213,14 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.get('/auth/oidc/callback', async (req, reply) => {
+    const current = new URL(req.url, `${req.protocol}://${req.headers.host}`);
+    // the browser binding cookie of this sign-in is used up, whatever the outcome (sent after the session cookie)
+    const state = current.searchParams.get('state') ?? '';
+    const spent = readCookie(req.headers.cookie, ssoBindingCookieName(state)) !== undefined ? ssoBindingCookie(state, null) : undefined;
+    reply.header('cache-control', 'no-store');
     try {
-      const current = new URL(req.url, `${req.protocol}://${req.headers.host}`);
-      const result = await sso.finishSignIn(current, { ip: req.ip, userAgent: req.headers['user-agent'] });
-      reply.header('cache-control', 'no-store');
+      const result = await sso.finishSignIn(current, { ip: req.ip, userAgent: req.headers['user-agent'] }, req.headers.cookie);
+      if (result.kind !== 'session' && spent) reply.header('set-cookie', spent);
       if (result.kind === 'test') {
         // a test sign-in: no cookie, no session – the administrator's editor shows the claims (it asks for them)
         const lang = resolveLocale(result.locale, getSettings().defaultLocale);
@@ -219,6 +234,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       if (result.kind === 'stepUp') return reply.type('text/html').send(stepUpPage(result));
       const { token, returnTo, sessionKey, linkKey } = result;
       reply.header('set-cookie', sessionCookie(token));
+      if (spent) reply.header('set-cookie', spent);
       // A same-site page hop (instead of a 302) so the SameSite=Strict session cookie is used right away.
       // It also hands the session key to the web app: localStorage of this origin (see auth/cookies.ts).
       const js = (v: string) => JSON.stringify(v).replace(/</g, '\\u003c');
@@ -227,6 +243,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         `<!doctype html><meta charset="utf-8"><title>Signing in…</title><p>Signing in…</p><script>try{localStorage.setItem(${js(SESSION_KEY_STORAGE)},${js(sessionKey)});localStorage.setItem(${js(LINK_KEY_STORAGE)},${js(linkKey)})}catch(e){}location.replace(${js(config.basePath + returnTo)})</script>`,
       );
     } catch (e) {
+      if (spent) reply.header('set-cookie', spent);
       return ssoFail(reply, (e as Error).message);
     }
   });
@@ -285,7 +302,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
   });
   // a fresh sign-in at the session's provider (prompt=login, max_age=0), in a popup or this window
   // (no secret is checked here: the provider checks the person; the ticket is 256 random bits)
-  app.post('/auth/step-up/sso', { config: { access: ACCESS.session, rateLimit: ROUTE_LIMITS.action } }, async (req) => {
+  app.post('/auth/step-up/sso', { config: { access: ACCESS.session, rateLimit: ROUTE_LIMITS.action } }, async (req, reply) => {
     const u = stepUp.requireSession(me());
     if (u.session.method !== 'sso') throw new HttpError(400, 'This session was not opened with single sign-on', 'STEP_UP_METHOD', { method: u.session.method });
     const b = z
@@ -297,7 +314,9 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       })
       .parse(req.body ?? {});
     // a second factor is asked for when the assurance policy requires one for what is confirmed
-    return sso.startStepUp({ id: u.id, sessionId: u.session.id }, sso.redirectUriFor(req), { ...b, mfa: ssoMfaAsk(b.actions) });
+    return sso.startStepUp({ id: u.id, sessionId: u.session.id }, sso.redirectUriFor(req), { ...b, mfa: ssoMfaAsk(b.actions) }, (c) =>
+      reply.header('set-cookie', c),
+    );
   });
   app.post('/auth/step-up/sso/complete', { bodyLimit: 4 * 1024, config: { access: ACCESS.session, rateLimit: ROUTE_LIMITS.action } }, async (req) => {
     const b = z.object({ ticket: z.string().max(100) }).parse(req.body);
@@ -328,10 +347,10 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
   });
   app.get('/sso/redirect-uri', async (req) => ({ redirectUri: sso.redirectUriFor(req) }));
   /** Test sign-in: the administrator signs in once through the provider and sees the claims – nothing signs in or changes. */
-  app.post('/sso/providers/:id/test-sign-in', { config: { access: ACCESS.adminSession, rateLimit: ROUTE_LIMITS.action } }, async (req) => {
+  app.post('/sso/providers/:id/test-sign-in', { config: { access: ACCESS.adminSession, rateLimit: ROUTE_LIMITS.action } }, async (req, reply) => {
     requireCapability(me(), 'manageUsers', 'test single sign-on');
     const u = me();
-    return sso.startTestSignIn(params(req).id!, { id: u.id, username: u.username }, sso.redirectUriFor(req));
+    return sso.startTestSignIn(params(req).id!, { id: u.id, username: u.username }, sso.redirectUriFor(req), (c) => reply.header('set-cookie', c));
   });
   app.post('/sso/test-sign-ins/:id', { config: { access: ACCESS.adminSession } }, async (req) => {
     requireCapability(me(), 'manageUsers', 'test single sign-on');

@@ -90,8 +90,11 @@ export async function costRoutes(app: FastifyInstance): Promise<void> {
 
   // ---------- push tokens for CI ----------
   app.get('/costs/platform/:id/push-tokens', async (req) => listPushTokens(platformParam(req)));
-  app.post('/costs/platform/:id/push-tokens', async (req) => createPushToken(platformParam(req), req.body));
-  app.post('/costs/platform/:id/push-tokens/:tokenId/rotate', async (req) => rotatePushToken(platformParam(req), tokenId(req)));
+  // a push token outlives the API token that would create it: sessions only (revoking stays open to tokens)
+  app.post('/costs/platform/:id/push-tokens', { config: { access: ACCESS.session } }, async (req) => createPushToken(platformParam(req), req.body));
+  app.post('/costs/platform/:id/push-tokens/:tokenId/rotate', { config: { access: ACCESS.session } }, async (req) =>
+    rotatePushToken(platformParam(req), tokenId(req)),
+  );
   app.delete('/costs/platform/:id/push-tokens/:tokenId', async (req, reply) => {
     revokePushToken(platformParam(req), tokenId(req));
     return reply.code(204).send();

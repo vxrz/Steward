@@ -36,6 +36,8 @@ export interface StepUpDetail {
 interface RequestStore {
   user: AuthUser | null;
   ip?: string;
+  /** The request is authenticated by an API token (its id), not a signed-in session */
+  apiToken?: string;
   /** Owning teams of all resources, read once per request (auth/policy.ts) */
   teamIndex?: Map<string, { id: string; name: string }[]>;
   /** How this request met the assurance policy (auth/assurance.ts): written into its audit entries */
@@ -51,6 +53,12 @@ export const currentStore = (): RequestStore | undefined => requestContext.getSt
 export function currentUser(): AuthUser | null {
   return requestContext.getStore()?.user ?? null;
 }
+
+/**
+ * Whether the current request comes with an API token instead of a signed-in session. Secrets that outlive the token
+ * (heartbeat secrets of new monitor checks …) are not handed out then: revoking a leaked token must end its access.
+ */
+export const viaApiToken = (): boolean => !!requestContext.getStore()?.apiToken;
 
 /** Name recorded in the audit log for the current action. */
 export function currentActor(): string {

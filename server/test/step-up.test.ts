@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
+import { sessionClient, sessionSetCookie, setup, ssoBinding, startTestServer, type Client, type TestServer } from './helpers.js';
 
 /**
  * Step-up re-authentication (#14, auth/step-up.ts): sensitive actions need a recent confirmation of the session's owner
@@ -46,17 +46,7 @@ async function unconfirmed(username = 'admin', password = 'Admin-password-1'): P
 }
 
 function withSession(cookie: string, key: string): Client {
-  return (async (method: string, url: string, body?: unknown) => {
-    const res = await fetch(s.base + '/api' + url, {
-      method,
-      headers: { 'x-sm-client': '1', cookie, 'x-sm-session': key, ...(body !== undefined ? { 'content-type': 'application/json' } : {}) },
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-    });
-    const text = await res.text();
-    const data = text ? JSON.parse(text) : null;
-    if (!res.ok) throw Object.assign(new Error(`${method} ${url} → ${res.status}: ${text}`), { status: res.status, body: data });
-    return data;
-  }) as Client;
+  return sessionClient(s.base, cookie, key);
 }
 
 /** A session through the mock identity provider (browser redirects walked with fetch). */
@@ -66,7 +56,7 @@ async function ssoClient(login: string): Promise<Client> {
   authorize.pathname += '/approve';
   authorize.searchParams.set('login', login);
   const approve = await fetch(authorize, { redirect: 'manual' });
-  const res = await fetch(new URL(approve.headers.get('location')!), { redirect: 'manual' });
+  const res = await fetch(new URL(approve.headers.get('location')!), { redirect: 'manual', headers: { cookie: ssoBinding(start) } });
   expect(res.status).toBe(200);
   const cookie = res.headers.get('set-cookie')!.split(';')[0]!;
   const key = /localStorage\.setItem\("sm\.sessionKey","([^"]+)"\)/.exec(await res.text())![1]!;
@@ -74,16 +64,18 @@ async function ssoClient(login: string): Promise<Client> {
 }
 
 /** A step-up through the mock: start, sign in as `login` at the provider, the callback page (no session). */
-async function ssoStepUp(c: Client, login: string, opts: { popup?: boolean; returnTo?: string } = {}) {
-  const start = await c('POST', '/auth/step-up/sso', opts);
+async function ssoStepUp(c: Client, login: string, opts: { popup?: boolean; returnTo?: string; otherBrowser?: boolean } = {}) {
+  const { otherBrowser, ...body } = opts;
+  const start = await c('POST', '/auth/step-up/sso', body);
   const url = new URL(start.authorizationUrl);
   const asked = Object.fromEntries(url.searchParams);
   url.pathname += '/approve';
   url.searchParams.set('login', login);
   const approve = await fetch(url, { redirect: 'manual' });
-  const callback = await fetch(new URL(approve.headers.get('location')!), { redirect: 'manual' });
+  // the popup or the redirect runs in the browser that started the step-up: it sends the binding cookie back
+  const callback = await fetch(new URL(approve.headers.get('location')!), { redirect: 'manual', headers: otherBrowser ? {} : { cookie: c.cookies!() } });
   const html = await callback.text();
-  return { asked, status: callback.status, setCookie: callback.headers.get('set-cookie'), html, ticket: /ticket:"([^"]+)"/.exec(html)?.[1] };
+  return { asked, status: callback.status, setCookie: sessionSetCookie(callback), html, ticket: /ticket:"([^"]+)"/.exec(html)?.[1] };
 }
 
 async function provider(): Promise<Record<string, any>> {
@@ -272,6 +264,20 @@ describe('single sign-on step-up', () => {
     await c('POST', '/me/tokens', { name: 'sso', scope: 'read' });
     // once only
     expect(await refusal(c('POST', '/auth/step-up/sso/complete', { ticket: step.ticket }))).toMatchObject({ code: 'STEP_UP_TICKET' });
+  });
+
+  it('is bound to the browser that started it: a callback without its binding cookie confirms nothing', async () => {
+    const c = await ssoClient('a1f3');
+    await c('DELETE', '/auth/step-up');
+    const step = await ssoStepUp(c, 'a1f3', { otherBrowser: true });
+    expect(step.status).toBe(302);
+    expect(step.ticket).toBeUndefined();
+    expect(step.setCookie).toBeNull();
+    expect(await lastAudit('auth.step_up_failed')).toMatchObject({ actor: 'max@contoso.example', details: { method: 'sso', reason: 'SSO_BROWSER_MISMATCH' } });
+    expect((await c('GET', '/auth/step-up')).until).toBeNull();
+    // the same browser still confirms
+    const again = await ssoStepUp(c, 'a1f3');
+    expect(await c('POST', '/auth/step-up/sso/complete', { ticket: again.ticket })).toMatchObject({ confirmedWith: 'sso' });
   });
 
   it('is bound to the session that started it', async () => {
@@ -516,7 +522,7 @@ describe('after the security review', () => {
       url.pathname += '/approve';
       url.searchParams.set('login', 'a1f3');
       const approve = await fetch(url, { redirect: 'manual' });
-      const html = await (await fetch(new URL(approve.headers.get('location')!), { redirect: 'manual' })).text();
+      const html = await (await fetch(new URL(approve.headers.get('location')!), { redirect: 'manual', headers: { cookie: c.cookies!() } })).text();
       expect(html).not.toMatch(/ticket:/);
       expect((await c('GET', '/auth/step-up')).failure).toMatchObject({ code: 'STEP_UP_SSO_UNAVAILABLE' });
     } finally {

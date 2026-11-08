@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { DB_SCHEMA_EXPORT_FORMATS, DB_SCHEMA_SUBJECTS } from '@sm/shared';
 import { LARGE_BODIES } from '../bodyLimits.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
+import { ACCESS } from '../auth/access.js';
 import { contentDisposition } from '../records/attachments.js';
 import * as svc from './service.js';
 import {
@@ -82,11 +83,12 @@ export async function dbSchemaRoutes(app: FastifyInstance): Promise<void> {
     const s = subject(req);
     return listPushTokens(s.kind, s.id);
   });
-  app.post('/db-schemas/:kind/:id/push-tokens', async (req) => {
+  // a push token outlives the API token that would create it: sessions only (revoking stays open to tokens)
+  app.post('/db-schemas/:kind/:id/push-tokens', { config: { access: ACCESS.session } }, async (req) => {
     const s = subject(req);
     return createPushToken(s.kind, s.id, req.body);
   });
-  app.post('/db-schemas/:kind/:id/push-tokens/:tokenId/rotate', async (req) => {
+  app.post('/db-schemas/:kind/:id/push-tokens/:tokenId/rotate', { config: { access: ACCESS.session } }, async (req) => {
     const s = subject(req);
     return rotatePushToken(s.kind, s.id, tokenId(req));
   });

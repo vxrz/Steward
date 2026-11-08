@@ -45,6 +45,8 @@ A token with the scope _MCP client_ works **only** on the MCP endpoint. The REST
 
 Revoke a token on the profile page (or, as an administrator, under **Settings → API tokens**). It stops working immediately.
 
+Turning the MCP server on or off (and its AI run requests and control proposals, `PUT /api/mcp-server`) needs a signed-in session, like the OAuth settings: API tokens get `403 SESSION_REQUIRED`, whatever their scope.
+
 ## Sign in with OAuth (optional)
 
 Instead of pasting a token, MCP clients that support the [MCP authorization specification](https://modelcontextprotocol.io/specification/latest/basic/authorization) can sign in with the person's Steward account. This is **optional and off by default**; MCP tokens keep working whether it is on or off.

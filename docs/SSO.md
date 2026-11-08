@@ -2,7 +2,7 @@
 
 Steward signs people in through any OpenID Connect provider: Microsoft Entra ID, Keycloak, Okta, Google Workspace, Authentik, ADFS and others. This page explains how to set up a provider, how the claims of a sign-in become a Steward account, and how to test it without signing anyone in. Reading an Entra ID tenant for access reviews (users, groups, roles, app credentials) is a platform of its own, with its own app registration: see [ENTRA.md](ENTRA.md).
 
-Sign-in uses the authorization code flow with PKCE ([openid-client](https://github.com/panva/openid-client)). Steward checks the issuer, audience, signature (JWKS), expiry, nonce and state of every ID token. The client secret is stored encrypted with the master passphrase, and the provider's settings are sealed: settings changed outside Steward are refused until an administrator saves them again.
+Sign-in uses the authorization code flow with PKCE ([openid-client](https://github.com/panva/openid-client)). Steward checks the issuer, audience, signature (JWKS), expiry, nonce and state of every ID token. Each sign-in is bound to the browser that started it (login CSRF, RFC 9700 §4.7.1): the start sets a short-lived cookie `__Host-sm_sso_…` (`__Secure-sm_sso_…` under `SM_BASE_PATH`; HttpOnly, SameSite=Lax, 10 minutes), and the callback refuses a sign-in without it, like an unknown state. A callback link opened in another browser therefore signs nobody in. Each sign-in in progress has its own cookie, so sign-ins in several tabs work. Refusals are audited as `auth.login_failed` with the reason `SSO_BROWSER_MISMATCH`. The client secret is stored encrypted with the master passphrase, and the provider's settings are sealed: settings changed outside Steward are refused until an administrator saves them again.
 
 - [Set up a provider](#set-up-a-provider)
 - [Test sign-in](#test-sign-in)
@@ -37,7 +37,7 @@ The preview uses the settings in the form, also unsaved ones. Change a claim nam
 
 A refused real sign-in only tells the person _Your sign-in was refused – ask an administrator (reference …)_. The reason (no account, an administrator account, linked to someone else …) is in the audit entry `auth.login_failed` with that reference – and in the test sign-in.
 
-A test sign-in never signs anyone in: no session, no cookie, no account created, linked or changed. Only the administrator who started it can see the result, for 15 minutes. It is audited as `sso.test_sign_in`.
+A test sign-in never signs anyone in: no session, no account created, linked or changed. Like a sign-in, it is bound to the administrator's browser by a short-lived cookie: finished in another browser, it fails. Only the administrator who started it can see the result, for 15 minutes. It is audited as `sso.test_sign_in`.
 
 ## How claims become an account
 
@@ -143,7 +143,7 @@ Before a sensitive action – an API token, a role change, the sign-in and outbo
    - `auth_time` must be at most `SM_STEP_UP_MINUTES` old (default 5) – a provider that ignored `prompt=login` and reused an older session is refused, and so is one that sends no `auth_time`;
    - with _Require multi-factor authentication_ (provider editor, _Confirming sensitive actions_): the Entra ID authentication context in `acrs`, else one of the configured _acr values_ in `acr`, else `mfa` in `amr`;
    - what a sign-in would refuse now (a required claim, the role mapping, a disabled account) refuses the step-up too.
-3. The callback never signs in, creates or changes an account and sets no cookie. Its page hands a one-time ticket to the browser that holds the session, which redeems it (`POST /api/auth/step-up/sso/complete`): a sign-in finished in another browser or for another session confirms nothing. Then the popup closes and the action runs again by itself. (In the same window you come back to the page and do it again.)
+3. The callback never signs in, creates or changes an account and sets no session cookie (it only clears the step-up's binding cookie, see above: a callback without it is refused as `auth.step_up_failed`). Its page hands a one-time ticket to the browser that holds the session, which redeems it (`POST /api/auth/step-up/sso/complete`): a sign-in finished in another browser or for another session confirms nothing. Then the popup closes and the action runs again by itself. (In the same window you come back to the page and do it again.)
 
 The return path is limited to Steward's own pages; it works under `SM_BASE_PATH` and behind a reverse proxy like the sign-in. Refusals show the reason in the dialog and are audited (`auth.step_up_failed` with the reason); a confirmation is audited as `auth.step_up` with the method `sso` or `sso+mfa`.
 
