@@ -40,6 +40,7 @@
     "web/src/pages/Credentials.tsx -> web/src/components/credentials/CredentialEditor.tsx"
   ],
   "violations": [
+    "engine-is-core: server/src/engine/commands.ts -> server/src/routes/helpers.ts",
     "routes-are-leaves: server/src/engine/commands.ts -> server/src/routes/helpers.ts",
     "routes-are-leaves: server/src/mcp/tools.ts -> server/src/system/routes.ts",
     "routes-are-leaves: server/src/msteams/decide.ts -> server/src/routes/helpers.ts",

@@ -112,6 +112,12 @@ const RULES = [
     toPattern: [/\/service\.ts$/, /\/routes\.ts$/, /\/report-section\.ts$/],
   },
   {
+    name: 'engine-is-core',
+    why: 'the engine runs steps; compliance, reports and monitors build on it, not the other way round (ADR 0011) – import lazily where a step needs them',
+    from: ['server/src/engine/'],
+    to: ['server/src/compliance/', 'server/src/reports/', 'server/src/monitors/', 'server/src/routes/', 'server/src/features/'],
+  },
+  {
     name: 'routes-are-leaves',
     why: 'routes call services; services never import routes (only the composition root and app.ts register them)',
     from: ['server/src/'],
