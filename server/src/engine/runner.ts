@@ -77,16 +77,12 @@ import { DebugGate, type GateAction } from './debug-gate.js';
 import { startProblem } from './commands.js';
 import { Redactor } from './redact.js';
 import { coerceInputs } from './inputs.js';
+import { Cancelled, type Binding, type LeafResult, type StepContext, type StepType, type TaskResult } from './steps/context.js';
+import { stepOf } from './steps/index.js';
 
 // ---------------------------------------------------------------------------
 // Run context
 // ---------------------------------------------------------------------------
-
-interface Binding {
-  platform: Platform;
-  secrets: Record<string, string>;
-  baseUrl: string;
-}
 
 /** Where a run's evidence file (screenshot) is stored: data folder/artifacts/<run id>/<file>. */
 const artifactFile = (runId: string, name: string): string => pathInside(path.join(config.dataDir, 'artifacts'), runId, name);
@@ -97,7 +93,7 @@ const artifactFile = (runId: string, name: string): string => pathInside(path.jo
  */
 const varScope = new AsyncLocalStorage<{ ctx: RunContext; vars: Record<string, unknown> }>();
 
-class RunContext {
+class RunContext implements StepContext {
   /** Test run (#105): platform calls are answered by recorded responses (always also a dry run). */
   recorded = false;
   /** A debug run (ADR 0010): one node or a step-through run; never a live run */
@@ -346,6 +342,36 @@ class RunContext {
   log(level: 'debug' | 'info' | 'warn' | 'error', message: string, stepKey?: string | null, data?: unknown) {
     store.addLog(this.runId, level, this.redactor.apply(message), stepKey, data === undefined ? undefined : this.redactor.apply(data));
   }
+
+  /** Waits for the decision on a task: settleTask (a signal) calls the waiter, cancelRun or the run's abort ends it. */
+  async awaitTask(taskId: string): Promise<TaskResult | null> {
+    try {
+      return await new Promise<TaskResult | null>((resolve) => {
+        taskWaiters.set(taskId, resolve);
+        this.signal.addEventListener('abort', () => resolve(null), { once: true });
+      });
+    } finally {
+      taskWaiters.delete(taskId);
+    }
+  }
+
+  /** A sub-process run inherits the run's mode and actor (ADR 0011, invariant 6); the child of a debug run is a debug run without pauses. */
+  startChild(stepKey: string, req: StartRunRequest): Promise<string> {
+    return startRun(
+      { ...req, dryRun: this.dryRun, recorded: this.recorded },
+      {
+        trigger: 'subprocess',
+        actor: this.actor,
+        parent: { runId: this.runId, stepKey },
+        // the child of a debug run is a debug run in the same mode, without pauses (ADR 0010)
+        ...(this.debug ? { debug: { spec: { kind: 'step' as const, ...(this.debug.recordedFrom ? { recordedFrom: this.debug.recordedFrom } : {}) } } } : {}),
+      },
+    );
+  }
+
+  waitForChild(childId: string, stepKey: string): Promise<store.RunRow> {
+    return waitForChildRun(childId, this, stepKey);
+  }
 }
 
 class StepFailure extends Error {
@@ -354,12 +380,6 @@ class StepFailure extends Error {
     public stepKey: string,
   ) {
     super(message);
-  }
-}
-
-class Cancelled extends Error {
-  constructor() {
-    super('Run was cancelled');
   }
 }
 
@@ -373,7 +393,7 @@ interface Active {
 }
 
 const active = new Map<string, Active>();
-const taskWaiters = new Map<string, (d: { decision: TaskDecision; by: string; at: string } | null) => void>();
+const taskWaiters = new Map<string, (d: TaskResult | null) => void>();
 
 export function isActive(runId: string): boolean {
   return active.has(runId);
@@ -1210,12 +1230,6 @@ async function runNode(node: FlowNode, ctx: RunContext, scope: string | null): P
 
 const TERMINAL: StepStatus[] = ['succeeded', 'skipped', 'dryrun', 'failed'];
 
-interface LeafResult {
-  output?: unknown;
-  status?: StepStatus;
-  summary?: string;
-}
-
 function hasWires(ctx: RunContext, nodeId: string, port: string): boolean {
   return ctx.def.wires.some((w) => w.from === nodeId && w.port === port);
 }
@@ -1333,6 +1347,8 @@ async function execNode(node: FlowNode, ctx: RunContext, scope: string | null, k
 }
 
 function applyOutput(node: FlowNode, ctx: RunContext, output: unknown, status: StepStatus): void {
+  // the step type's own part (an AI answer is remembered, a "set" step's values become variables), also on replay
+  if (stepOf(node)?.applyOutput?.(node as NodeOf<StepType>, ctx, output)) return;
   // an AI answer, also of a step replayed after a resume
   if (node.type === 'ai' && output && typeof output === 'object' && (output as { aiGenerated?: unknown }).aiGenerated) {
     const o = output as { text?: unknown; answer?: unknown; modelLabel?: string };
@@ -1355,6 +1371,8 @@ function applyOutput(node: FlowNode, ctx: RunContext, output: unknown, status: S
  * the gateway and everything its context may carry; ANY for every other step – its result is computed from the run.
  */
 function outputSources(node: FlowNode, ctx: RunContext): string[] {
+  const ex = stepOf(node);
+  if (ex) return ex.sources?.(node as NodeOf<StepType>, ctx) ?? [ANY];
   if (node.type === 'http' || node.type === 'query' || node.type === 'browser') {
     const id = node.connection ? ctx.bindings[node.connection]?.platform.id : undefined;
     return id ? [id] : [ANY];
@@ -1599,7 +1617,7 @@ async function execSubprocess(step: NodeOf<'subprocess'>, ctx: RunContext, key: 
     ctx.log('info', `Started sub-process run ${id} of "${proc.name}"${ctx.dryRun ? ' (dry run)' : ''}`, key);
     child = { id, status: 'running' };
   }
-  const row = await waitForChild(child.id, ctx, key);
+  const row = await ctx.waitForChild(child.id, key);
   if (ctx.signal.aborted) throw new Cancelled();
   if (row.status !== 'succeeded') {
     throw new Error(`Sub-process run ${row.id} ("${row.process_name}") ${row.status}${row.error ? `: ${row.error}` : ''}`);
@@ -1609,7 +1627,7 @@ async function execSubprocess(step: NodeOf<'subprocess'>, ctx: RunContext, key: 
 }
 
 /** Wait until a child run has finished (it may be running, waiting for a task, or interrupted by a restart). */
-async function waitForChild(childId: string, ctx: RunContext, key: string): Promise<store.RunRow> {
+async function waitForChildRun(childId: string, ctx: RunContext, key: string): Promise<store.RunRow> {
   let waiting = false;
   let warned = false;
   let resumed = false;
@@ -1659,6 +1677,8 @@ async function waitForChild(childId: string, ctx: RunContext, key: string): Prom
 // ---------------------------------------------------------------------------
 
 async function execLeaf(step: FlowNode, ctx: RunContext, key: string, attempt = 1): Promise<LeafResult> {
+  const ex = stepOf(step);
+  if (ex) return ex.exec(step as NodeOf<StepType>, ctx, key, attempt);
   switch (step.type) {
     case 'http':
       return execHttp(step, ctx, key);
@@ -2504,6 +2524,8 @@ const debugPauseMs = (): number => pauseMsForTests ?? Math.max(1, getSettings().
 /** The node's resolved inputs for a pause preview (redacted by the caller); a failing expression shows its error. */
 async function previewInputs(node: FlowNode, ctx: RunContext): Promise<unknown> {
   try {
+    const ex = stepOf(node);
+    if (ex) return await ex.preview?.(node as NodeOf<StepType>, ctx);
     switch (node.type) {
       case 'http': {
         const b = ctx.bindings[node.connection];
