@@ -23,7 +23,7 @@ Each area has a stable address. Old links to `/settings` open _General_, and `/s
 | Notifications          | `/settings/notifications` | channels, routes and allowed e-mail domains; look of e-mails and Teams messages; daily summaries; credential reminders                                                               |
 | Appearance & branding  | `/settings/appearance`    | colours, name and logo of the app; report branding                                                                                                                                   |
 | Catalogue & compliance | `/settings/catalogue`     | four-eyes rule for dismissing access findings; CIA scale; expected documents (scorecard rules); environments                                                                         |
-| Modules                | `/settings/modules`       | opt-in modules, off by default: the plant registry – switch, enterprise, display names, own fields ([PLANT.md](PLANT.md))                                                            |
+| Modules                | `/settings/modules`       | optional areas with their maturity, each switched on or off ([MODULES.md](MODULES.md)); the plant registry – switch, enterprise, display names, own fields ([PLANT.md](PLANT.md))    |
 | Data & retention       | `/settings/data`          | data retention and storage, cleanup; backups (`/settings/backups`); system status (`/settings/status`). Called _Maintenance_ until 0.3.0: `/settings/maintenance` leads here         |
 
 The CIA scale and the scorecard rules are also shown where they are used: _Applications → CIA scale_ and the scorecard. End of life opens from _Applications_ as well. All of them are the same settings.
@@ -74,6 +74,7 @@ Where a personal value has a default, the profile says where it comes from:
 | Daily summaries allowed (for everyone), credential reminders                       | instance        | administrators                                  | _Settings → Notifications_                   |
 | Colours, name and logo of the app; report branding                                 | instance        | administrators                                  | _Settings → Appearance & branding_           |
 | Four-eyes rule for access findings, CIA scale, expected documents, environments    | instance        | administrators                                  | _Settings → Catalogue & compliance_          |
+| Modules: on/off (step-up)                                                          | instance        | administrators                                  | _Settings → Modules_                         |
 | Plant registry: on/off, enterprise, display names, own fields                      | instance        | administrators                                  | _Settings → Modules_                         |
 | Data retention and storage, backups, system status                                 | instance        | administrators (system status: auditors see it) | _Settings → Maintenance_                     |
 | Single sign-on providers and accounts                                              | instance        | administrators                                  | _Users_                                      |

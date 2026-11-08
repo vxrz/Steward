@@ -137,6 +137,7 @@ Rules that hold across modules:
 
 - **Route access is declared on the route** and checked before the body is read; object rights are checked in the services ([ADR 0005](adr/0005-route-access-declared-on-routes.md)).
 - **Team scope is decided in one module** (`auth/policy.ts`) ([ADR 0006](adr/0006-owning-teams-policy-module.md)).
+- **Optional areas are modules** in one registry (`shared/src/modules.ts`, `modules/`): switched off, their routes answer 404, their jobs do not run and the web app leaves them out ([ADR 0016](adr/0016-module-registry.md), [MODULES.md](MODULES.md)).
 - **Every change of state is audited**, attributed to the signed-in user (`audit()`).
 - **Configuration comes from `env`** (`config.ts`), never from `process.env` (ESLint checks it).
 - **The internal API is private**; integrations use `/api/v1` ([API.md](API.md#the-internal-api)).
