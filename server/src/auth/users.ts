@@ -54,6 +54,7 @@ interface UserRow {
   first_name?: string | null;
   last_name?: string | null;
   profile?: string | null;
+  pseudonymised_at?: string | null;
 }
 
 const USERNAME = /^[a-zA-Z0-9._@-]{2,64}$/;
@@ -83,6 +84,7 @@ function toInfo(r: UserRow, managed: (authSource: string) => UserInfo['managedFi
     ...(r.last_name ? { lastName: r.last_name } : {}),
     profile: profileOf(r.profile),
     managedFields: managed(r.auth_source ?? 'local'),
+    ...(r.pseudonymised_at ? { pseudonymisedAt: r.pseudonymised_at } : {}),
   };
 }
 
@@ -238,11 +240,23 @@ export function createUser(input: {
   return { user: getUser(id), temporaryPassword: temp };
 }
 
+/**
+ * 409 USER_PSEUDONYMISED: the personal data of the account was replaced by a pseudonym (auth/personal-data.ts). It
+ * stays as it is – no new name, password, sign-in or roles, and it is never activated again.
+ */
+export function requireNotPseudonymised(u: UserInfo, what: string): void {
+  if (u.pseudonymisedAt)
+    throw new HttpError(409, `The data of "${u.username}" was replaced by a pseudonym – ${what} is not possible`, 'USER_PSEUDONYMISED', {
+      username: u.username,
+    });
+}
+
 export function updateUser(
   id: string,
   patch: { displayName?: string; firstName?: string; lastName?: string; email?: string; roles?: Role[]; active?: boolean },
 ): UserInfo {
   const before = getUser(id);
+  requireNotPseudonymised(before, 'changing the account');
   const roles = patch.roles ? cleanRoles(patch.roles) : before.roles;
   if (before.roles.includes('admin') && (!roles.includes('admin') || patch.active === false)) ensureAnotherAdmin(id);
   const firstName = cleanName(patch.firstName);
@@ -350,6 +364,7 @@ function ensureAnotherAdmin(exceptId: string): void {
  */
 export function bindToProvider(id: string, providerId: string, providerName: string): UserInfo {
   const u = getUser(id);
+  requireNotPseudonymised(u, 'binding it to single sign-on');
   if (u.authSource !== 'local') throw new HttpError(409, 'This account signs in with single sign-on already', 'SSO_ALREADY_BOUND');
   db().tx(() => {
     db().run(
@@ -373,6 +388,7 @@ export function bindToProvider(id: string, providerId: string, providerName: str
 
 export function resetPassword(id: string): string {
   const u = getUser(id);
+  requireNotPseudonymised(u, 'resetting the password');
   if (u.authSource !== 'local') throw new HttpError(400, 'This account signs in with single sign-on and has no password');
   requirePasswordLogin('resetting a password');
   const temp = temporaryPassword();
@@ -391,6 +407,7 @@ export function resetPassword(id: string): string {
  */
 export function recoverAccount(id: string, opts: { actor: string; activate?: boolean }): string {
   const u = getUser(id);
+  requireNotPseudonymised(u, 'resetting the password');
   if (u.authSource !== 'local') throw new HttpError(400, 'This account signs in with single sign-on and has no password');
   const temp = temporaryPassword();
   const reactivate = !u.active && !!opts.activate;

@@ -1085,7 +1085,10 @@
     "DEBUG_NOT_A_DEBUG_RUN": "Das ist kein Debug-Lauf.",
     "DEBUG_NOT_RESUMABLE": "Ein Debug-Lauf kann nicht fortgesetzt werden – starten Sie einen neuen.",
     "COMPARE_OTHER_PROCESS": "Nur Läufe desselben Prozesses lassen sich vergleichen.",
-    "DEBUG_NODE_BUSY": "{{max}} Ihrer Einzelknoten-Läufe laufen noch – warten Sie, bis einer fertig ist."
+    "DEBUG_NODE_BUSY": "{{max}} Ihrer Einzelknoten-Läufe laufen noch – warten Sie, bis einer fertig ist.",
+    "USER_PSEUDONYMISED": "Die Daten dieses Kontos wurden durch ein Pseudonym ersetzt – es lässt sich nicht mehr ändern.",
+    "USER_ACTIVE": "Deaktivieren Sie das Konto zuerst.",
+    "CONFIRMATION_MISMATCH": "Geben Sie zur Bestätigung den Benutzernamen {{username}} ein."
   },
   "boundary": {
     "title": "Auf dieser Seite ist ein Fehler aufgetreten",

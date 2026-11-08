@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { ROLES, TEAM_ROLES, type Subject, type UserInfo, boundedRecord } from '@sm/shared';
 import { audit } from '../audit.js';
@@ -10,6 +10,7 @@ import { chooseNewResourceTeam, newResourceTeams } from '../auth/policy.js';
 import { subjectReferences } from '../auth/subjects.js';
 import * as users from '../auth/users.js';
 import * as sso from '../auth/sso.js';
+import * as personalData from '../auth/personal-data.js';
 import { changesAccess, changesTeamChannel, changesTeamMembers, grantsRoles } from '../auth/step-up-rules.js';
 import { requireCapability } from '../auth/permissions.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
@@ -100,6 +101,42 @@ export async function userRoutes(app: FastifyInstance): Promise<void> {
     async (req) => {
       requireCapability(me(), 'manageUsers', 'manage users');
       return { temporaryPassword: users.resetPassword(params(req).id!) };
+    },
+  );
+  // ---------- a person's data (GDPR, docs/PRIVACY.md) ----------
+  const exportQuery = z.object({ auditAfter: z.coerce.number().int().min(0).optional() }).strip();
+  const sendExport = (reply: FastifyReply, subjectId: string, q: { auditAfter?: number }) => {
+    const data = personalData.exportPersonalData(subjectId, q);
+    personalData.auditExport(users.getUser(subjectId), me(), q);
+    const name = `steward-data-${data.account.username.replace(/[^\w.@-]/g, '_')}${q.auditAfter ? `-audit-after-${q.auditAfter}` : ''}.json`;
+    return reply.header('content-disposition', `attachment; filename="${name}"`).header('cache-control', 'no-store').send(data);
+  };
+  // the person's own data: in a session only (it holds where and from which browser they signed in)
+  app.get('/me/data-export', { config: { access: { ...ACCESS.session, plantViewer: true }, rateLimit: ROUTE_LIMITS.heavy } }, async (req, reply) =>
+    sendExport(reply, me().id, exportQuery.parse(req.query ?? {})),
+  );
+  app.get(
+    '/users/:id/data-export',
+    { config: { access: ACCESS.adminSession, rateLimit: ROUTE_LIMITS.heavy, stepUp: { action: 'exportPersonalData', who: 'manageUsers' } } },
+    async (req, reply) => {
+      requireCapability(me(), 'manageUsers', 'export the data of a person');
+      return sendExport(reply, users.getUser(params(req).id!).id, exportQuery.parse(req.query ?? {}));
+    },
+  );
+  // replaces the data of a deactivated account by a pseudonym, for good: the request names the account's user name
+  app.post(
+    '/users/:id/pseudonymise',
+    { config: { access: ACCESS.adminSession, rateLimit: ROUTE_LIMITS.credential, stepUp: { action: 'pseudonymiseUser', who: 'manageUsers' } } },
+    async (req) => {
+      requireCapability(me(), 'manageUsers', 'manage users');
+      const b = z
+        .object({ confirm: z.string().max(64) })
+        .strict()
+        .parse(req.body ?? {});
+      const u = users.getUser(params(req).id!);
+      if (b.confirm.trim().toLowerCase() !== u.username.toLowerCase())
+        throw new HttpError(400, `Type the user name "${u.username}" to confirm`, 'CONFIRMATION_MISMATCH', { username: u.username });
+      return personalData.pseudonymiseUser(u.id);
     },
   );
   app.get('/teams', { config: { access: ACCESS.admin } }, async () => {

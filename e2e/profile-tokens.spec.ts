@@ -48,3 +48,14 @@ test('API token: create (read-only), copy once, use, revoke', async ({ page }) =
     await script.dispose();
   }
 });
+
+test('the profile offers the person’s own data as a JSON file', async ({ page }) => {
+  await page.goto('/profile');
+  await expect(page.getByRole('heading', { name: 'Your data' })).toBeVisible();
+  const download = page.waitForEvent('download');
+  await page.getByTestId('profile-data-export').click();
+  const file = await download;
+  expect(file.suggestedFilename()).toMatch(/^steward-data-.+\.json$/);
+  const data = JSON.parse(await (await import('node:fs/promises')).readFile((await file.path())!, 'utf8'));
+  expect(data).toMatchObject({ format: 'steward-personal-data-v1', account: { username: expect.any(String) } });
+});

@@ -48,4 +48,13 @@ export const SIGN_IN_MIGRATIONS: NamedMigration[] = [
       ALTER TABLE sessions ADD COLUMN step_up_method TEXT;
     `,
   },
+  {
+    // 0.11.0 (security review 0.10.0 S4, docs/PRIVACY.md): when an administrator replaced a deactivated person's data by
+    // a pseudonym (auth/personal-data.ts) – for good; and the audit entries a person wrote, for the export of their data
+    name: 'signin-004-privacy',
+    sql: `
+      ALTER TABLE users ADD COLUMN pseudonymised_at TEXT;
+      CREATE INDEX audit_actor ON audit_log(actor, seq);
+    `,
+  },
 ];

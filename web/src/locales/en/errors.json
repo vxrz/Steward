@@ -1085,7 +1085,10 @@
     "DEBUG_NOT_A_DEBUG_RUN": "This is not a debug run.",
     "DEBUG_NOT_RESUMABLE": "A debug run cannot be resumed – start a new one.",
     "COMPARE_OTHER_PROCESS": "Only runs of the same process can be compared.",
-    "DEBUG_NODE_BUSY": "{{max}} of your single-node runs are still running – wait until one has finished."
+    "DEBUG_NODE_BUSY": "{{max}} of your single-node runs are still running – wait until one has finished.",
+    "USER_PSEUDONYMISED": "The data of this account was replaced by a pseudonym – it cannot be changed any more.",
+    "USER_ACTIVE": "Deactivate the account first.",
+    "CONFIRMATION_MISMATCH": "Type the user name {{username}} to confirm."
   },
   "boundary": {
     "title": "Something went wrong on this page",

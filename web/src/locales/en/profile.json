@@ -159,5 +159,10 @@
     "now_one": "New resources now belong to team {{teams}}.",
     "now_other": "New resources now belong to teams {{teams}}.",
     "nowNone": "New resources now belong to the whole instance (your teams do not take new resources yet)."
+  },
+  "data": {
+    "title": "Your data",
+    "hint": "Everything Steward holds about you, as a JSON file: your account, teams, sessions, tokens (without secrets), settings, what you did and the audit entries about you.",
+    "download": "Download my data"
   }
 }

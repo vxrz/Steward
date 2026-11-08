@@ -69,7 +69,72 @@ export interface UserInfo {
   profile: UserProfileValue[];
   /** Fields the single sign-on provider keeps up to date at every sign-in: not editable in Steward */
   managedFields: ('displayName' | 'firstName' | 'lastName' | 'email')[];
+  /** When an administrator replaced the person's data by a pseudonym (0.11.0, docs/PRIVACY.md): for good */
+  pseudonymisedAt?: string | null;
 }
+
+/**
+ * What Steward holds about one person (GDPR Art. 15 and 20, docs/PRIVACY.md): GET /api/me/data-export for oneself,
+ * GET /api/users/{id}/data-export for administrators. Secrets are never part of it (no token, hash or session key).
+ * Long lists are cut at their limit and say so; the audit entries come in pages (`audit.next`).
+ */
+export interface PersonalDataExport {
+  format: 'steward-personal-data-v1';
+  generatedAt: string;
+  version: string;
+  account: {
+    id: string;
+    username: string;
+    displayName: string;
+    firstName: string | null;
+    lastName: string | null;
+    email: string | null;
+    locale: string | null;
+    emailNotifications: boolean;
+    roles: string[];
+    active: boolean;
+    authSource: string;
+    /** Single sign-on: whether the account is linked to an identity at the provider (the identifier itself stays out) */
+    linkedIdentity: boolean;
+    /** Fields from the single sign-on provider */
+    profile: UserProfileValue[];
+    createdAt: string;
+    updatedAt: string;
+    lastLoginAt: string | null;
+    pseudonymisedAt: string | null;
+  };
+  teams: { name: string; roles: string[] }[];
+  apiTokens: {
+    name: string;
+    scope: string;
+    prefix: string;
+    createdAt: string;
+    lastUsedAt: string | null;
+    expiresAt: string | null;
+    revokedAt: string | null;
+  }[];
+  sessions: { createdAt: string; lastSeenAt: string; expiresAt: string; ip: string | null; userAgent: string | null; method: string | null }[];
+  mcpClients: { client: string; createdAt: string; lastUsedAt: string | null; revokedAt: string | null }[];
+  emergencyAccess: { issuedBy: string; createdAt: string; expiresAt: string; usedAt: string | null; usedIp: string | null; revokedAt: string | null }[];
+  settings: { notificationPrefs: unknown; dailySummary: unknown };
+  notifications: { total: number; items: { ts: string; event: string; title: string; read: boolean }[] };
+  teamsChats: { installedAt: string; removedAt: string | null }[];
+  /** Where the person is named: as the one who did something (history) and as owner or responsible (now) */
+  activity: PersonalDataActivity[];
+  audit: { total: number; limit: number; entries: AuditEntry[]; next: string | null };
+}
+
+export interface PersonalDataActivity {
+  table: string;
+  column: string;
+  /** history: who did something (started, decided, authored …); current: who owns or answers for something now */
+  kind: 'history' | 'current';
+  total: number;
+  /** The newest rows (at most `PERSONAL_DATA_LIMITS.rowsPerColumn`): id, a name or title, a time */
+  rows: { id: string | null; label: string | null; at: string | null }[];
+}
+
+export const PERSONAL_DATA_LIMITS = { rowsPerColumn: 500, notifications: 200, auditPerPage: 2000 } as const;
 
 export interface UserProfileValue {
   key: string;
@@ -454,6 +519,9 @@ export const STEP_UP_ACTIONS = [
   'changeMapSource',
   // 0.10.0 (#238): trusting a library publisher or key, removing one, widening its libraries, lifting an expiry
   'changeTrustedPublishers',
+  // 0.11.0: replacing a deactivated person's data by a pseudonym (for good), and exporting another person's data
+  'pseudonymiseUser',
+  'exportPersonalData',
 ] as const;
 export type StepUpAction = (typeof STEP_UP_ACTIONS)[number];
 
