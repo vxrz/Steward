@@ -10,7 +10,6 @@ import {
 import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { me } from '../auth/access.js';
-import { likeEscape } from '../database/sql.js';
 import { HttpError, parseJson, sha256 } from '../util.js';
 import { aliasesOf, aliasTarget, checkScope, entryOf, entryPath, entryPermissions, idFormatProblem, writeAlias, type Entry } from './ids.js';
 import { requirePlant } from './settings.js';
@@ -66,7 +65,8 @@ const pair = (table: string, kindCol: string, kindValue: string, idCol: string, 
 });
 
 /**
- * A JSON column: rows whose text contains the old id are read, rewritten and written back when they change.
+ * A JSON column: the rows (of the scope) are read, rewritten and written back when they change. No pattern prefilter: it
+ * matches case differently on SQLite and PostgreSQL, and ids may hold `_` (the tables are small).
  * `where` narrows the rows (the scope); `keys` are the primary key columns.
  */
 function json<T>(
@@ -86,8 +86,7 @@ function json<T>(
     what,
     apply: (r) => {
       const rows = db().all<Record<string, string>>(
-        `SELECT ${keys.join(', ')}, ${column} AS v FROM ${table} WHERE ${column} LIKE ? ESCAPE '\\'${where ? ` AND ${where.sql}` : ''}`,
-        `%${likeEscape(r.from)}%`,
+        `SELECT ${keys.join(', ')}, ${column} AS v FROM ${table}${where ? ` WHERE ${where.sql}` : ''}`,
         ...(where?.params(r) ?? []),
       );
       let n = 0;
@@ -138,7 +137,7 @@ const usedBy = (kind: PlantIdKind, linkKind: string, id: (r: RenameOf, side: 'fr
   what: 'credential',
   apply: (r) => {
     const from = id(r, 'from');
-    const rows = db().all<{ id: string; used_by: string }>("SELECT id, used_by FROM credentials WHERE used_by LIKE ? ESCAPE '\\'", `%${likeEscape(from)}%`);
+    const rows = db().all<{ id: string; used_by: string }>("SELECT id, used_by FROM credentials WHERE used_by <> '{}'");
     let n = 0;
     for (const row of rows) {
       const v = parseJson<{ links?: { kind: string; id: string }[] } | null>(row.used_by, null);
@@ -193,8 +192,10 @@ export const REFERENCES: readonly RefSpec[] = [
     apply: (r) =>
       db()
         .all<{ id: string; to_id: string }>(
-          "SELECT id, to_id FROM item_links WHERE to_kind = 'conduit' AND to_id LIKE ? ESCAPE '\\'",
-          `${likeEscape(r.from)}/%`,
+          // an exact prefix (no pattern: ids may hold "_")
+          "SELECT id, to_id FROM item_links WHERE to_kind = 'conduit' AND substr(to_id, 1, ?) = ?",
+          r.from.length + 1,
+          `${r.from}/`,
         )
         .reduce((n, l) => n + run('UPDATE item_links SET to_id = ? WHERE id = ?', `${r.to}${l.to_id.slice(r.from.length)}`, l.id), 0),
   },
@@ -443,6 +444,23 @@ export function previewRename(input: PlantRenameInput): PlantRenamePreview {
 
 const where = (kind: PlantIdKind, scope: string, id: string) => (scope ? `${PLANT_ID_SCOPE[kind]} ${scope}, ${kind} ${id}` : `${kind} ${id}`);
 
+/** A rename checkRename refused, as the route's answer. */
+function refuse(p: { code: string; message: string }, kind: PlantIdKind, id: string): never {
+  const params = { kind, id };
+  switch (p.code) {
+    case 'FORBIDDEN':
+      throw new HttpError(403, p.message, 'FORBIDDEN', { context: 'managePlant' });
+    case 'PLANT_ID_FORMAT':
+      throw new HttpError(400, p.message, 'PLANT_ID_FORMAT', params);
+    case 'PLANT_ID_SAME':
+      throw new HttpError(409, p.message, 'PLANT_ID_SAME', params);
+    case 'PLANT_ID_TAKEN':
+      throw new HttpError(409, p.message, 'PLANT_ID_TAKEN', params);
+    default:
+      throw new HttpError(409, p.message, 'PLANT_ID_ALIAS', params);
+  }
+}
+
 /** POST /api/plant/ids/rename: renames the entry, its references follow; audited as plant.id_changed. */
 export function renameId(input: PlantRenameInput): PlantRenameResult {
   requirePlant();
@@ -451,11 +469,7 @@ export function renameId(input: PlantRenameInput): PlantRenameResult {
   const out = db().tx(() => {
     const c = checkRename(kind, scope, id, newId);
     if (!c.entry) throw new HttpError(404, c.problem!.message, 'PLANT_ENTRY_NOT_FOUND', { kind, id });
-    if (c.problem)
-      throw new HttpError(c.problem.code === 'FORBIDDEN' ? 403 : c.problem.code.endsWith('FORMAT') ? 400 : 409, c.problem.message, c.problem.code, {
-        kind,
-        id: newId,
-      });
+    if (c.problem) refuse(c.problem, kind, newId);
     const references = renameEntry({ kind, scope, from: id, to: newId }, by);
     const total = references.reduce((n, x) => n + x.count, 0);
     audit({
