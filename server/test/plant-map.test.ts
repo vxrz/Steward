@@ -49,6 +49,8 @@ beforeAll(async () => {
   hits = (await import('../src/mock/mockMapTiles.js')).mockMapHits;
 });
 afterAll(async () => {
+  // many tests read only the status of a raw fetch: its keep-alive socket would hold app.close() up to the hook timeout
+  s?.app.server.closeAllConnections();
   await s?.app.close();
 });
 

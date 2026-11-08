@@ -113,7 +113,8 @@ describe('global run limit (SM_MAX_CONCURRENT_RUNS)', () => {
   it('0 means no limit', async () => {
     config.maxConcurrentRuns = 0;
     const ids = await Promise.all([1, 2, 3].map(() => runner.startRun({ processId: 'short-step' }, { actor: 'admin' })));
-    expect(await Promise.all(ids.map(status))).toEqual(['running', 'running', 'running']);
+    // none waits for a slot (a slow runner may already have finished one of the short runs)
+    for (const st of await Promise.all(ids.map(status))) expect(['running', 'succeeded']).toContain(st);
     for (const id of ids) await s.waitRun(id, ['succeeded']);
     config.maxConcurrentRuns = 20;
   });

@@ -46,8 +46,8 @@ jobs:
     # Node.js 24 (LTS) is the primary version (.nvmrc, Dockerfile, desktop executable); 26 (Current) is tested as well
     name: build-test (Node ${{ matrix.node }})
     runs-on: ubuntu-latest
-    # the suite takes 25-35 minutes on a hosted runner, plus up to 15 for the Chromium install on a slow day: room to finish, a hang still ends
-    timeout-minutes: 60
+    # the suite takes 40-55 minutes on a hosted runner (0.10.0, with coverage), plus up to 15 for the Chromium install on a slow day: room to finish, a hang still ends
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
@@ -104,8 +104,8 @@ jobs:
   test-postgres:
     # The same test suite on PostgreSQL (every test server gets its own schema)
     runs-on: ubuntu-latest
-    # the suite takes 25-35 minutes on a hosted runner, plus up to 15 for the Chromium install on a slow day: room to finish, a hang still ends
-    timeout-minutes: 60
+    # the suite takes 40-55 minutes on a hosted runner (0.10.0, with coverage), plus up to 15 for the Chromium install on a slow day: room to finish, a hang still ends
+    timeout-minutes: 90
     services:
       postgres:
         image: postgres:16
