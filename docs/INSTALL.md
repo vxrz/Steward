@@ -74,14 +74,14 @@ See _Quick start_ and _Everyday use_ in the [README](../README.md). `npm run des
 
 Every release publishes a signed image to the GitHub Container Registry, for linux/amd64 and linux/arm64:
 
-| Tag                                                    | Content                                                                       |
-| ------------------------------------------------------ | ----------------------------------------------------------------------------- |
-| `ghcr.io/vxrz/steward:0.2.1`                           | exactly this version (recommended: pin it, update on purpose)                 |
-| `ghcr.io/vxrz/steward:0.2`                             | the newest 0.2.x                                                              |
-| `ghcr.io/vxrz/steward:latest`                          | the newest release (pre-releases such as `0.3.0-rc.1` only get their own tag) |
-| `…:0.2.1-browser`, `…:0.2-browser`, `…:latest-browser` | the same with Chromium for browser steps (larger)                             |
+| Tag                                                                    | Content                                                                           |
+| ---------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `ghcr.io/vxrz/steward:<version>`                                       | exactly this version (recommended: pin it, update on purpose)                     |
+| `ghcr.io/vxrz/steward:<major>.<minor>`                                 | the newest patch release of that line                                             |
+| `ghcr.io/vxrz/steward:latest`                                          | the newest release (a pre-release such as `<version>-rc.1` only gets its own tag) |
+| `…:<version>-browser`, `…:<major>.<minor>-browser`, `…:latest-browser` | the same with Chromium for browser steps (larger)                                 |
 
-`docker-compose.yml` pins the version of its checkout:
+`docker-compose.yml` pins the version of its checkout (its `image:` line; use it for `<version>` in the commands below):
 
 ```bash
 docker compose up -d                                   # http://localhost:4310
@@ -90,7 +90,7 @@ docker compose up -d                                   # http://localhost:4310
 Check the image before you start it the first time (and after each update) – see [Verifying downloads](SECURITY-HARDENING.md#verifying-downloads):
 
 ```bash
-cosign verify ghcr.io/vxrz/steward:0.2.1 \
+cosign verify ghcr.io/vxrz/steward:<version> \
   --certificate-identity-regexp '^https://github\.com/vxrz/Steward/\.github/workflows/container\.yml@refs/tags/v' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```
@@ -158,6 +158,8 @@ docker compose -f docker-compose.postgres.yml up -d    # app + postgres:16, see 
 | `SM_DATABASE_CA`     | Path to the CA certificate (PEM) of the database server. Adds `sslrootcert` and, unless the URL sets one, `sslmode=verify-full`.                                                                                                                                                                                                     |
 
 **Requirements.** You need PostgreSQL 12 or later; it was tested with 16. The server must be built with ICU, as the official images and the Debian, Ubuntu and RHEL packages are. ICU provides the case-insensitive collation for user and team names. The database user needs to be able to create tables in the schema: the database owner can, and with another schema `CREATE` on the database is enough. Tables are created and upgraded automatically at start-up, the same way as on SQLite.
+
+**Backups of PostgreSQL 18 or later.** The container image has `pg_dump` and `pg_restore` of PostgreSQL 17, which back up servers up to version 17. For a newer server, point `SM_PG_DUMP` and `SM_PG_RESTORE` at matching programs (in the read-only image, mount them in), or back up with the server's own tools ([BACKUPS.md](BACKUPS.md#limits-and-notes)).
 
 **One instance per database schema.** The scheduler and the run engine keep state in memory, so two instances on the same data would run schedules twice. Before it opens the database, the app takes a **lease** for its schema: one row in the table `sm_instance_lease`, renewed every 10 seconds and valid for 45. A stopped instance deletes its lease, so the next one starts at once; a crashed one stops renewing it, so its lease frees itself after at most 45 seconds (an instance restarted on the same machine after `kill -9` takes over at once, because it can see that the old process is gone). A second instance does not exit: it waits, logs `waiting for the database lease` once a minute with the holder's name and version, answers `/api/health` with 200 and `/api/ready` with 503 meanwhile, and takes over when the lease is released or has expired. So a rolling update or a Kubernetes pod that starts before the old one has stopped just waits, instead of restarting in a loop. If an instance loses its lease while it runs (the database was unreachable for longer than 45 seconds, or someone else took it), it stops at once with exit code 70 and is restarted by its supervisor.
 
