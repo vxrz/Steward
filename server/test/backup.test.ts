@@ -30,6 +30,37 @@ const refused = (method: string, url: string, body?: unknown): Promise<{ status:
     (e: { status: number; body: any }) => e,
   );
 
+/** PostgreSQL: a database of its own for the restore test, dropped afterwards. */
+async function scratchDatabase(): Promise<{ tables(): Promise<number>; drop(): Promise<void> }> {
+  const { default: pg } = await import('pg');
+  const { PG_TEST_URL } = await import('./pg-env.js');
+  const { overrideConfig, reloadConfig } = await import('../src/config.js');
+  const name = `smt_restore_${process.pid}_${crypto.randomBytes(3).toString('hex')}`;
+  const admin = new pg.Client({ connectionString: PG_TEST_URL });
+  await admin.connect();
+  await admin.query(`CREATE DATABASE ${name}`);
+  const url = new URL(PG_TEST_URL!);
+  url.pathname = `/${name}`;
+  overrideConfig({ SM_BACKUP_RESTORE_TEST_DATABASE_URL: url.toString() });
+  return {
+    async tables() {
+      const c = new pg.Client({ connectionString: url.toString() });
+      await c.connect();
+      try {
+        const r = await c.query("SELECT COUNT(*)::int AS n FROM information_schema.tables WHERE table_schema NOT IN ('pg_catalog', 'information_schema')");
+        return r.rows[0].n as number;
+      } finally {
+        await c.end();
+      }
+    },
+    async drop() {
+      reloadConfig();
+      await admin.query(`DROP DATABASE IF EXISTS ${name} WITH (FORCE)`);
+      await admin.end();
+    },
+  };
+}
+
 beforeAll(async () => {
   s = await startTestServer();
   await setup(s);
@@ -38,6 +69,27 @@ beforeAll(async () => {
 afterAll(async () => {
   await s?.app.close();
   fs.rmSync(tmp, { recursive: true, force: true });
+});
+
+describe('S3 multipart uploads', () => {
+  it('give a large archive larger parts, never more than 10,000', async () => {
+    const { partSize, MAX_PARTS } = await import('../src/backup/s3.js');
+    const MiB = 1024 * 1024;
+    expect(partSize(100 * MiB, 16 * MiB)).toBe(16 * MiB);
+    expect(partSize(16 * MiB * 10_000, 16 * MiB)).toBe(16 * MiB);
+    const big = 500 * 1024 * MiB; // 500 GB
+    expect(Math.ceil(big / partSize(big, 16 * MiB))).toBeLessThanOrEqual(MAX_PARTS);
+    expect(partSize(big, 16 * MiB) % MiB).toBe(0);
+  });
+});
+
+describe('the PostgreSQL restore test database', () => {
+  it('is told apart from the live database by host, port and database name', async () => {
+    const { databaseIdentity } = await import('../src/backup/archive.js');
+    expect(databaseIdentity('postgres://a:x@DB.example:5432/steward')).toBe(databaseIdentity('postgres://b:y@db.example/steward?sslmode=require'));
+    expect(databaseIdentity('postgres://a@db.example/steward')).not.toBe(databaseIdentity('postgres://a@db.example/steward_restore_test'));
+    expect(databaseIdentity('postgres://a@db.example:5433/steward')).not.toBe(databaseIdentity('postgres://a@db.example:5432/steward'));
+  });
 });
 
 describe('encrypted backup file', () => {
@@ -177,20 +229,37 @@ describe('backups to S3', () => {
     expect(obj.body.includes(Buffer.from('in the backup'))).toBe(false);
     expect(fs.readdirSync(path.join(s.dataDir, '.backup-work'))).toEqual([]);
 
-    await s.api('POST', '/backups/restore-test', {});
-    const tested = (await waitIdle()).lastRestoreTest;
-    expect(tested.status, JSON.stringify(tested.steps)).toBe('succeeded');
-    // SQLite: integrity check and the audit chain of the snapshot; PostgreSQL: pg_restore reads the dump
+    // PostgreSQL: the restore test restores into a scratch database of its own (SM_BACKUP_RESTORE_TEST_DATABASE_URL)
     const pg = done.database === 'postgres';
-    expect(tested.steps.map((x: any) => [x.name, x.ok])).toEqual([
-      ['download', true],
-      ['decrypt', true],
-      ['manifest', true],
-      ['checksums', true],
-      ['database', true],
-      ...(pg ? [] : [['audit', true]]),
-    ]);
-    expect(tested.steps.find((x: any) => x.name === 'database').message).toMatch(pg ? /pg_restore reads the dump/ : /integrity check: ok/);
+    const scratch = pg ? await scratchDatabase() : undefined;
+    let tested: any;
+    try {
+      await s.api('POST', '/backups/restore-test', {});
+      tested = (await waitIdle()).lastRestoreTest;
+      expect(tested.status, JSON.stringify(tested.steps)).toBe('succeeded');
+      // SQLite: integrity check and the audit chain of the snapshot; PostgreSQL: pg_restore reads the dump and restores
+      // it into the scratch database, whose audit chain is checked the same way
+      expect(tested.steps.map((x: any) => [x.name, x.ok])).toEqual([
+        ['download', true],
+        ['decrypt', true],
+        ['manifest', true],
+        ['checksums', true],
+        ['database', true],
+        ...(pg ? [['restore', true]] : []),
+        ['audit', true],
+      ]);
+      expect(tested.steps.find((x: any) => x.name === 'database').message).toMatch(pg ? /pg_restore reads the dump/ : /integrity check: ok/);
+      if (scratch) {
+        expect(tested.steps.find((x: any) => x.name === 'restore').message).toMatch(
+          /Restored into the restore test database .*: \d+ tables, schema version \d+/,
+        );
+        expect(tested.steps.find((x: any) => x.name === 'audit').message).toMatch(/Audit chain of the restored database/);
+        // the restored schema is gone again
+        expect(await scratch.tables()).toBe(0);
+      }
+    } finally {
+      await scratch?.drop();
+    }
     const list = await s.api('GET', '/backups/stored');
     expect(list).toEqual([expect.objectContaining({ key: run.objectKey, keptAs: expect.arrayContaining(['newest']) })]);
 

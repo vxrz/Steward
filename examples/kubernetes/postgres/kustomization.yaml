@@ -1,0 +1,10 @@
+# Steward with PostgreSQL: the same Deployment, with the database URL from a Secret (a file, not a variable).
+# The PostgreSQL server itself is not part of this example: use your managed or operator-run database.
+#   kubectl create secret generic steward-database --from-file=url=./database-url.txt
+#   (one line: postgres://steward:<password>@postgres.example.internal:5432/steward?sslmode=verify-full)
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../
+patches:
+  - path: deployment-patch.yaml

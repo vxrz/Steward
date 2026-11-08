@@ -2,16 +2,19 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { config } from '../config.js';
-import { db } from '../db.js';
+import { Db, db } from '../db.js';
 import { flushPendingAudit, verifyAuditAsync } from '../audit.js';
 import { ZipReader, ZipWriter, type WrittenEntry } from '../compliance/zip.js';
 import { openSqliteFile } from '../database/sqlite-file.js';
+import { explainPgToolError, pgConnection, pgDumpArgs } from '../database/pg-dump.js';
+import { parseDatabaseTarget, quoteIdent } from '../database/sql.js';
+import { snapshotSqlite } from '../database/sqlite-snapshot.js';
 import { env } from '../config.js';
 
 /**
  * The backup archive (#117), before encryption: a ZIP with
  *   manifest.json            what is in it, with the SHA-256 of every file, and the head of the audit log
- *   database/steward.db      SQLite: a consistent snapshot (VACUUM INTO, online)
+ *   database/steward.db      SQLite: a consistent snapshot (VACUUM INTO, online, in a worker thread)
  *   database/steward.pgdump  PostgreSQL: pg_dump of the schema in the custom format (pg_restore)
  *   data/…                   the data folder: vault.json, artifacts, documents, reports, audit anchors, …
  * Not included: the live database files (the snapshot stands for them), the automatic pre-upgrade copies (backups/)
@@ -51,19 +54,9 @@ function run(bin: string, args: string[], env: NodeJS.ProcessEnv = {}): Promise<
     let err = '';
     child.stdout.on('data', (b: Buffer) => (out = (out + b.toString('utf8')).slice(-1024 * 1024)));
     child.stderr.on('data', (b: Buffer) => (err = (err + b.toString('utf8')).slice(-4000)));
-    child.on('error', (e: NodeJS.ErrnoException) =>
-      reject(new Error(e.code === 'ENOENT' ? `${bin} is not installed (set SM_PG_DUMP / SM_PG_RESTORE to its path)` : `${bin}: ${e.message}`)),
-    );
-    child.on('close', (code) => (code === 0 ? resolve(out) : reject(new Error(`${path.basename(bin)} failed (exit ${code}): ${err.trim().slice(-1000)}`))));
+    child.on('error', (e: NodeJS.ErrnoException) => reject(new Error(explainPgToolError(bin, '', null, e))));
+    child.on('close', (code) => (code === 0 ? resolve(out) : reject(new Error(explainPgToolError(bin, err, code)))));
   });
-}
-
-/** A connection string without the password (that goes in PGPASSWORD, never on the command line). */
-function pgConnection(url: string): { dbname: string; env: NodeJS.ProcessEnv } {
-  const u = new URL(url);
-  const password = decodeURIComponent(u.password);
-  u.password = '';
-  return { dbname: u.toString(), env: password ? { PGPASSWORD: password } : {} };
 }
 
 type AuditHead = { seq: number; hash: string } | null;
@@ -78,7 +71,8 @@ async function snapshotDatabase(dir: string): Promise<{ file: string; entry: str
     // VACUUM INTO wants a missing or empty file: created exclusively, 0600
     fs.closeSync(fs.openSync(file, 'wx', 0o600));
     try {
-      db().snapshotTo(file);
+      // in a worker thread on its own connection: the event loop (requests, probes) does not wait for the copy
+      await snapshotSqlite(target.file, file, () => db().snapshotTo(file));
     } catch (e) {
       fs.rmSync(file, { force: true });
       throw e;
@@ -94,8 +88,8 @@ async function snapshotDatabase(dir: string): Promise<{ file: string; entry: str
   const file = path.join(dir, 'database.pgdump');
   // read before the dump starts: the dump has at least these entries
   const audit = headOf(db().get<{ seq: number; hash: string }>(HEAD_SQL));
-  const c = pgConnection(target.url);
-  await run(pgDumpBin(), ['--format=custom', `--schema=${target.schema}`, `--file=${file}`, `--dbname=${c.dbname}`], c.env);
+  const c = pgDumpArgs(target, file);
+  await run(pgDumpBin(), c.args, c.env);
   if (process.platform !== 'win32') fs.chmodSync(file, 0o600);
   return { file, entry: 'database/steward.pgdump', kind: 'postgres', schema: target.schema, audit };
 }
@@ -126,7 +120,8 @@ export function dataFiles(root = config.dataDir): { rel: string; abs: string }[]
 export async function createArchive(out: string, o: { now?: Date } = {}): Promise<BackupManifest> {
   const dir = workDir();
   const snap = await snapshotDatabase(dir);
-  const zip = await ZipWriter.create(out);
+  // ZIP64 where needed: backups past 4 GB or 65,535 files (an archive within those limits is plain PKZIP 2.0)
+  const zip = await ZipWriter.create(out, undefined, { zip64: true });
   try {
     const files: WrittenEntry[] = [];
     files.push(await zip.addFile(snap.entry, snap.file));
@@ -175,7 +170,7 @@ export async function checkArchive(file: string, o: { deep?: boolean } = {}): Pr
   const step = (name: string, ok: boolean, message: string) => (steps.push({ name, ok, message }), ok);
   let zip: ZipReader;
   try {
-    zip = await ZipReader.open(file);
+    zip = await ZipReader.open(file, { zip64: true });
   } catch (e) {
     step('archive', false, `The archive cannot be read: ${(e as Error).message}`);
     return { ok: false, steps };
@@ -242,10 +237,12 @@ export async function checkArchive(file: string, o: { deep?: boolean } = {}): Pr
       }
     } else {
       const list = await run(pgRestoreBin(), ['--list', tmp]).then(
-        (t) => ({ ok: true, n: t.split('\n').filter((l) => l && !l.startsWith(';')).length }),
-        (e: Error) => ({ ok: false, n: 0, message: e.message }),
+        (t) => ({ ok: true, n: t.split('\n').filter((l) => l && !l.startsWith(';')).length, toc: t }),
+        (e: Error) => ({ ok: false, n: 0, toc: '', message: e.message }),
       );
       step('database', list.ok, list.ok ? `pg_restore reads the dump (${list.n} objects)` : (list as { message: string }).message);
+      // with a scratch database: restored there and checked like a SQLite snapshot (SM_BACKUP_RESTORE_TEST_DATABASE_URL)
+      if (list.ok && env.SM_BACKUP_RESTORE_TEST_DATABASE_URL) await restoreIntoScratch(tmp, list.toc, manifest, step);
     }
   } catch (e) {
     step('database', false, `The database could not be checked: ${(e as Error).message}`);
@@ -253,4 +250,95 @@ export async function checkArchive(file: string, o: { deep?: boolean } = {}): Pr
     fs.rmSync(tmp, { force: true });
   }
   return { ok: steps.every((s) => s.ok), manifest, steps };
+}
+
+/** Marks the schemas of the scratch database that the restore test may replace. */
+const SCRATCH_MARK = 'Steward restore test (SM_BACKUP_RESTORE_TEST_DATABASE_URL): replaced by every restore test';
+
+/** host:port/database of a PostgreSQL URL, to tell whether two URLs name the same database. */
+export function databaseIdentity(url: string): string {
+  const u = new URL(url);
+  return `${u.hostname.toLowerCase()}:${u.port || '5432'}/${decodeURIComponent(u.pathname.replace(/^\//, '')) || decodeURIComponent(u.username)}`;
+}
+
+/**
+ * The PostgreSQL restore test (O14 of the 0.10 review): pg_restore of the dump into the scratch database
+ * SM_BACKUP_RESTORE_TEST_DATABASE_URL – never the live one – then the same checks as for a SQLite snapshot: the schema
+ * version, the audit chain of the restored data (against the installation's audit key) ending at the entry the
+ * manifest names; the restored schema is dropped again. pg_restore restores into the schema the dump was made of, so
+ * the scratch database must be another database; a schema of that name in it that the restore test did not create is
+ * left alone (the check fails).
+ */
+async function restoreIntoScratch(
+  dump: string,
+  toc: string,
+  manifest: BackupManifest,
+  step: (name: string, ok: boolean, message: string) => boolean,
+): Promise<void> {
+  const scratchUrl = env.SM_BACKUP_RESTORE_TEST_DATABASE_URL!;
+  const schema = manifest.database.schema ?? 'public';
+  let scratch: Db | undefined;
+  try {
+    const live = config.database.kind === 'postgres' ? config.database.url : null;
+    if (live && databaseIdentity(live) === databaseIdentity(scratchUrl))
+      return void step('restore', false, 'SM_BACKUP_RESTORE_TEST_DATABASE_URL names the live database – the restore test needs a database of its own');
+    const target = parseDatabaseTarget(scratchUrl, { schema: 'public', ca: env.SM_DATABASE_CA });
+    if (target.kind !== 'postgres') return void step('restore', false, 'SM_BACKUP_RESTORE_TEST_DATABASE_URL is not a postgres:// URL');
+    scratch = new Db({ ...target, lock: false, timeoutMs: 600_000 }, { migrate: false });
+    const existing = scratch.get<{ mark: string | null; objects: number }>(
+      `SELECT obj_description(n.oid, 'pg_namespace') AS mark, (SELECT COUNT(*) FROM pg_class c WHERE c.relnamespace = n.oid) AS objects
+       FROM pg_namespace n WHERE n.nspname = ?`,
+      schema,
+    );
+    if (existing && existing.mark !== SCRATCH_MARK && Number(existing.objects) > 0)
+      return void step(
+        'restore',
+        false,
+        `The restore test database already has a schema "${schema}" with data that the restore test did not create – use an empty database`,
+      );
+    const dropSchema = () => {
+      scratch!.exec(`DROP SCHEMA IF EXISTS ${quoteIdent(schema)} CASCADE`);
+      // the dump creates its schema itself unless it is "public"; an empty "public" is left marked for the next test
+      if (schema === 'public') scratch!.exec(`CREATE SCHEMA public; COMMENT ON SCHEMA public IS '${SCRATCH_MARK}'`);
+    };
+    dropSchema();
+    if (!new RegExp(`\\bSCHEMA - ${schema}\\b`).test(toc)) scratch.exec(`CREATE SCHEMA IF NOT EXISTS ${quoteIdent(schema)}`);
+    const c = pgConnection(scratchUrl);
+    const t0 = Date.now();
+    try {
+      await run(pgRestoreBin(), ['--no-owner', '--no-privileges', '--exit-on-error', `--dbname=${c.dbname}`, dump], c.env);
+    } catch (e) {
+      step('restore', false, `pg_restore into the restore test database failed: ${(e as Error).message}`);
+      dropSchema();
+      return;
+    }
+    scratch.exec(`COMMENT ON SCHEMA ${quoteIdent(schema)} IS '${SCRATCH_MARK}'`);
+    const restored = new Db({ ...target, schema, lock: false, timeoutMs: 600_000 }, { migrate: false });
+    try {
+      const tables = Number(
+        restored.get<{ n: number }>("SELECT COUNT(*) AS n FROM information_schema.tables WHERE table_schema = current_schema() AND table_type = 'BASE TABLE'")
+          ?.n ?? 0,
+      );
+      const version = restored.get<{ version: number }>('SELECT version FROM schema_version');
+      step(
+        'restore',
+        tables > 0 && !!version,
+        `Restored into the restore test database in ${Math.round((Date.now() - t0) / 1000)} s: ${tables} tables, schema version ${version?.version ?? '–'}`,
+      );
+      const v = await verifyAuditAsync({ source: restored });
+      const headOk = !manifest.audit || (v.head?.seq === manifest.audit.seq && v.head.hash === manifest.audit.hash);
+      step(
+        'audit',
+        v.ok && headOk,
+        !v.ok || headOk ? `Audit chain of the restored database: ${v.message}` : 'The audit log of the restored database ends elsewhere than the manifest says',
+      );
+    } finally {
+      restored.close();
+      dropSchema();
+    }
+  } catch (e) {
+    step('restore', false, `The restore test database could not be used: ${(e as Error).message}`);
+  } finally {
+    scratch?.close();
+  }
 }

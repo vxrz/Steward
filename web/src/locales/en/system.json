@@ -348,7 +348,8 @@
     "noBackup": {
       "notNeeded": "No copy of the database was needed.",
       "postgres": "Steward makes no copy of a PostgreSQL database. Back it up with pg_dump before every update.",
-      "disabled": "No copy of the database was made: automatic copies are turned off (SM_UPGRADE_BACKUPS=0)."
+      "disabled": "No copy of the database was made: automatic copies are turned off (SM_UPGRADE_BACKUPS=0).",
+      "failed": "The copy of the database before the update failed, and the update went ahead without it (SM_UPGRADE_BACKUP_REQUIRED=0). The server log has the reason."
     },
     "releaseNotes": "Release notes for {{version}}",
     "dismiss": "Dismiss the update notice"

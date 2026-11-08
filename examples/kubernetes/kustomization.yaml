@@ -1,0 +1,9 @@
+# kubectl apply -k examples/kubernetes            (SQLite)
+# kubectl apply -k examples/kubernetes/postgres   (PostgreSQL)
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - pvc.yaml
+  - deployment.yaml
+  - service.yaml
+  - ingress.yaml

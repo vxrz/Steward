@@ -34,6 +34,11 @@ describe('OpenTelemetry tracing', () => {
     expect(http.length).toBeGreaterThanOrEqual(2);
     expect(http.some((h) => h.attributes['http.response.status_code'] === 200)).toBe(true);
     expect(String(http[0]!.attributes['url.full'])).not.toContain('?');
+    // the trace starts at the request that started the run: its SERVER span is the run's parent
+    const request = spans.find((sp) => sp.name === 'POST /api/runs')!;
+    expect(request).toBeTruthy();
+    expect(request.spanContext().traceId).toBe(run.spanContext().traceId);
+    expect(run.parentSpanContext?.spanId).toBe(request.spanContext().spanId);
 
     // the user is a keyed pseudonym: not the name, and not a plain hash anyone could recompute from known names
     const { actor } = await s.api('GET', `/runs/${id}`);

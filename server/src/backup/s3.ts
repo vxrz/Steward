@@ -20,6 +20,11 @@ export interface S3Object {
 /** Objects up to this size go up in one PUT; larger ones as a multipart upload in parts of PART_BYTES. */
 export const SINGLE_PUT_MAX = env.SM_BACKUP_SINGLE_PUT_BYTES;
 export const PART_BYTES = env.SM_BACKUP_PART_BYTES;
+/** S3's limit on the parts of one multipart upload. */
+export const MAX_PARTS = 10_000;
+const MIB = 1024 * 1024;
+/** The part size of a multipart upload: SM_BACKUP_PART_BYTES, or larger (whole MiB) when that would need over 10,000 parts. */
+export const partSize = (size: number, part = PART_BYTES): number => (size > part * MAX_PARTS ? Math.ceil(size / MAX_PARTS / MIB) * MIB : part);
 
 /** Object keys Steward writes: letters, digits and . _ - / only, so the URL path and the signature need no escaping. */
 export function checkKey(key: string): string {
@@ -86,9 +91,11 @@ export class S3Client {
     if (!uploadId) throw s3Error(`multipart upload of ${key}`, start);
     const id = encodeURIComponent(unescapeXml(uploadId));
     const etags: string[] = [];
+    // S3 takes at most 10,000 parts: a larger object gets larger parts (whole MiB)
+    const partBytes = partSize(size);
     try {
-      for (let pos = 0, n = 1; pos < size; pos += PART_BYTES, n++) {
-        const r = await this.req('PUT', `/${key}?partNumber=${n}&uploadId=${id}`, { body: await chunk(pos, Math.min(PART_BYTES, size - pos)) });
+      for (let pos = 0, n = 1; pos < size; pos += partBytes, n++) {
+        const r = await this.req('PUT', `/${key}?partNumber=${n}&uploadId=${id}`, { body: await chunk(pos, Math.min(partBytes, size - pos)) });
         if (!r.ok || !r.headers.etag) throw s3Error(`upload of part ${n} of ${key}`, r);
         etags.push(r.headers.etag);
       }

@@ -348,7 +348,8 @@
     "noBackup": {
       "notNeeded": "Eine Kopie der Datenbank war nicht nötig.",
       "postgres": "Steward kopiert eine PostgreSQL-Datenbank nicht selbst. Sichern Sie sie vor jedem Update mit pg_dump.",
-      "disabled": "Es wurde keine Kopie der Datenbank angelegt: Automatische Kopien sind ausgeschaltet (SM_UPGRADE_BACKUPS=0)."
+      "disabled": "Es wurde keine Kopie der Datenbank angelegt: Automatische Kopien sind ausgeschaltet (SM_UPGRADE_BACKUPS=0).",
+      "failed": "Die Kopie der Datenbank vor dem Update ist fehlgeschlagen; das Update lief ohne sie weiter (SM_UPGRADE_BACKUP_REQUIRED=0). Den Grund finden Sie im Server-Protokoll."
     },
     "releaseNotes": "Versionshinweise zu {{version}}",
     "dismiss": "Hinweis zum Update ausblenden"

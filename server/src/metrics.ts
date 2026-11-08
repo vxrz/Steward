@@ -3,10 +3,15 @@ import { db } from './db.js';
 import { on } from './events.js';
 import { registerMonitorMetrics } from './monitors/metrics.js';
 import { allParts } from './dashboards/datasets.js';
+import { deprecatedAlias } from './metrics-alias.js';
+import { registerDbMetrics } from './database/timing.js';
+import { registerHttpServerMetrics } from './http-observability.js';
+import { registerOpsMetrics } from './system/metrics.js';
 
 /**
- * Prometheus metrics (GET /api/metrics). Counters and histograms are fed by
- * domain events; gauges are read from the database on every scrape.
+ * Prometheus metrics (GET /api/metrics; reference: docs/METRICS.md). Counters and histograms are fed by
+ * domain events; gauges are read from the database on every scrape. All names start with `sm_`; the
+ * `steward_` names of 0.10 and older are served as deprecated aliases for one release (metrics-alias.ts).
  */
 
 export const registry = new Registry();
@@ -40,38 +45,45 @@ export function initMetrics(): Registry {
     buckets: [0.005, 0.025, 0.1, 0.25, 0.5, 1, 2.5, 10, 30, 120, 600],
     registers: [registry],
   });
+  // outbound calls to platforms (0.10: sm_http_requests_total / sm_http_request_duration_seconds – the names now
+  // say "client", next to the server metrics of Steward's own API, http-observability.ts)
   const httpRequests = new Counter({
-    name: 'sm_http_requests_total',
+    name: 'sm_http_client_requests_total',
     help: 'Platform API calls (every attempt, including token requests)',
     labelNames: ['host', 'method', 'status_class'] as const,
     registers: [registry],
   });
   const httpDuration = new Histogram({
-    name: 'sm_http_request_duration_seconds',
+    name: 'sm_http_client_request_duration_seconds',
     help: 'Duration of platform API calls',
     labelNames: ['host'] as const,
     buckets: [0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60],
     registers: [registry],
   });
+  deprecatedAlias(registry, 'sm_http_requests_total', httpRequests);
+  deprecatedAlias(registry, 'sm_http_request_duration_seconds', httpDuration);
 
   const mcpRequests = new Counter({
-    name: 'steward_mcp_requests_total',
+    name: 'sm_mcp_requests_total',
     help: 'Messages to the MCP endpoint by JSON-RPC method and outcome',
     labelNames: ['method', 'outcome'] as const,
     registers: [registry],
   });
   const mcpTools = new Counter({
-    name: 'steward_mcp_tool_calls_total',
+    name: 'sm_mcp_tool_calls_total',
     help: 'MCP tool calls by tool and outcome',
     labelNames: ['tool', 'outcome'] as const,
     registers: [registry],
   });
   const mcpGateway = new Counter({
-    name: 'steward_mcp_gateway_calls_total',
+    name: 'sm_mcp_gateway_calls_total',
     help: 'Platform calls through the MCP gateway by platform id and outcome',
     labelNames: ['platform', 'outcome'] as const,
     registers: [registry],
   });
+  deprecatedAlias(registry, 'steward_mcp_requests_total', mcpRequests);
+  deprecatedAlias(registry, 'steward_mcp_tool_calls_total', mcpTools);
+  deprecatedAlias(registry, 'steward_mcp_gateway_calls_total', mcpGateway);
   // method labels are bounded: anything that is not a known MCP method counts as "other"
   const KNOWN = new Set([
     'initialize',
@@ -153,6 +165,9 @@ export function initMetrics(): Registry {
     },
   });
   registerMonitorMetrics(registry);
+  registerOpsMetrics(registry);
+  registerHttpServerMetrics(registry);
+  registerDbMetrics(registry);
   return registry;
 }
 

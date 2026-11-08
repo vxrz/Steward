@@ -108,7 +108,7 @@ try {
         format: 'esm',
         target: 'node24',
         minify: false,
-        // stack traces in the logs point at server/src (node --enable-source-maps in the image)
+        // stack traces in the logs can point at server/src (NODE_OPTIONS=--enable-source-maps; off in the image by default)
         sourcemap: 'linked',
         sourcesContent: false,
         legalComments: 'none',

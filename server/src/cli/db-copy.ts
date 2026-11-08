@@ -16,7 +16,7 @@ import '../warnings.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { config, env } from '../config.js';
-import { Db } from '../db.js';
+import { Db, upgradeBackupOptions } from '../db.js';
 import { describeTarget, parseDatabaseTarget, quoteIdent, type DatabaseTarget } from '../database/sql.js';
 import { lockForCommand, type SqliteInstanceLock } from '../database/sqlite-lock.js';
 import { EVIDENCE_TABLES, noDeleteTrigger } from '../migrations/compliance.js';
@@ -27,7 +27,23 @@ export interface CopyOptions {
   from: DatabaseTarget;
   to: DatabaseTarget;
   force?: boolean;
+  /**
+   * Copy without migrating either database: both must be at the same schema state (core version and named
+   * migrations). The PostgreSQL upgrade test loads an old version's SQLite data this way into a PostgreSQL schema
+   * brought to that version (Db `upTo`), so the current migrations then run on PostgreSQL with that data.
+   */
+  asIs?: boolean;
   log?: (line: string) => void;
+}
+
+/** Core version and named migrations of a database (asIs: both sides must match). */
+function schemaState(d: Db): string {
+  const core = Number(d.get<{ version: number }>('SELECT version FROM schema_version')?.version ?? 0);
+  const named = d
+    .all<{ name: string }>('SELECT name FROM schema_migrations')
+    .map((r) => r.name)
+    .sort();
+  return JSON.stringify({ core, named });
 }
 export interface CopyResult {
   tables: { name: string; rows: number }[];
@@ -138,13 +154,14 @@ export function copyDatabase(opts: CopyOptions): CopyResult {
   if (opts.from.kind === 'sqlite' && !fs.existsSync(opts.from.file)) throw new Error(`SQLite database not found: ${opts.from.file}`);
   // Statements on large tables may take a while.
   const slow = <T extends DatabaseTarget>(t: T): T => (t.kind === 'postgres' ? { ...t, timeoutMs: t.timeoutMs ?? 600000 } : t);
-  // an older source is migrated in place first: SQLite keeps a copy next to it, as at app start-up
-  const backup = opts.from.kind === 'sqlite' ? { dir: path.join(path.dirname(opts.from.file), 'backups'), keep: config.upgradeBackups } : undefined;
-  const src = new Db(slow(opts.from), { backup });
+  // an older source is migrated in place first, with a copy as at app start-up: SQLite next to it, PostgreSQL a pg_dump
+  const backup = upgradeBackupOptions(opts.from.kind === 'sqlite' ? path.join(path.dirname(opts.from.file), 'backups') : undefined);
+  const src = new Db(slow(opts.from), opts.asIs ? { migrate: false } : { backup });
   let dst: Db | undefined;
   try {
-    dst = new Db(slow(opts.to));
+    dst = new Db(slow(opts.to), opts.asIs ? { migrate: false } : {});
     const target = dst;
+    if (opts.asIs && schemaState(src) !== schemaState(target)) throw new Error('The source and the target are at different schema versions');
     const srcTables = tables(src);
     const dstTables = tables(target);
     const missing = srcTables.filter((t) => !dstTables.includes(t));
@@ -161,8 +178,9 @@ export function copyDatabase(opts: CopyOptions): CopyResult {
     try {
       target.tx(() => {
         // evidence tables refuse deletes (trigger): lifted only while their old rows are replaced
-        const guarded = EVIDENCE_TABLES.filter((t) => filled.includes(t));
-        const frozen = [...IMMUTABLE_RECORD_TABLES, ...IMMUTABLE_MOVE_TABLES].filter((t) => filled.includes(t));
+        // (asIs: the triggers of an older schema are left as they are)
+        const guarded = opts.asIs ? [] : EVIDENCE_TABLES.filter((t) => filled.includes(t));
+        const frozen = opts.asIs ? [] : [...IMMUTABLE_RECORD_TABLES, ...IMMUTABLE_MOVE_TABLES].filter((t) => filled.includes(t));
         for (const t of guarded) target.exec(noDeleteTrigger(target.dialect, t).drop);
         for (const t of frozen) target.exec(immutableRowTriggers(target.dialect, t).drop);
         for (const t of [...order].reverse()) if (filled.includes(t)) target.run(`DELETE FROM ${quoteIdent(t)}`);

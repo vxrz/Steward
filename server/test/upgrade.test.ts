@@ -7,12 +7,19 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startedUrl } from './helpers.js';
 import { PG_TEST_URL } from './pg-env.js';
 import { coreMigrations, Db, listUpgradeBackups, namedMigrations, type DatabaseTarget } from '../src/db.js';
+import { schemaDiff, schemaSnapshot, type SchemaSnapshot } from './schema-snapshot.js';
 
 /**
  * Upgrade test: the current version starts on a data folder written by a released version
- * (server/test/fixtures/upgrade/<version>, made by scripts/fixtures/make-upgrade-fixture.mjs) –
- * on SQLite as it is, on PostgreSQL (SM_TEST_DATABASE_URL) after `db:copy`. A new fixture for
- * every minor release keeps every supported upgrade path tested (docs/TESTING.md).
+ * (server/test/fixtures/upgrade/<version>, made by scripts/fixtures/make-upgrade-fixture.mjs).
+ * A new fixture for every minor release keeps every supported upgrade path tested (docs/TESTING.md).
+ * - SQLite: the fixture's database as it is.
+ * - PostgreSQL (SM_TEST_DATABASE_URL): a schema brought to the fixture's version – exactly the core and named
+ *   migrations its database lists (Db `upTo`) – gets the fixture's rows as they are (db:copy `asIs`); the server then
+ *   runs the remaining migrations on PostgreSQL itself, with that old data, after its automatic pg_dump. This is
+ *   sound because migrations are never changed once released: "replays the old version's migrations to the schema
+ *   it wrote" checks that on SQLite for every fixture (the same lists build the PostgreSQL schema).
+ * After the upgrade the schema must equal a new installation's on the same database (A6 of the 0.10 review).
  * The assertions use what the fixture's manifest.json lists, never exact column sets, so they
  * hold after future migrations.
  */
@@ -49,6 +56,50 @@ function pendingMigrations(target: DatabaseTarget): string[] {
   }
 }
 
+/**
+ * Intentional differences between an upgraded and a new schema, as the start of a schemaDiff() line, each with its
+ * reason. Empty: every upgrade path ends at exactly the schema of a new installation.
+ */
+const SCHEMA_DIFFERENCES_ALLOWED: readonly string[] = [];
+
+/** The schema of a new installation, once per database kind. */
+const freshSchemas = new Map<string, SchemaSnapshot>();
+function freshSchema(kind: 'sqlite' | 'postgres'): SchemaSnapshot {
+  let snap = freshSchemas.get(kind);
+  if (!snap) {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sm-fresh-'));
+    const target: DatabaseTarget =
+      kind === 'sqlite'
+        ? { kind, file: path.join(dir, 'fresh.db') }
+        : { kind, url: PG_TEST_URL!, schema: `${process.env.SM_TEST_SCHEMA_PREFIX ?? 'smt_adhoc'}_upg_fresh_${process.pid}`, lock: false };
+    const d = new Db(target, { quiet: true });
+    try {
+      snap = schemaSnapshot(d);
+    } finally {
+      d.close();
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+    freshSchemas.set(kind, snap);
+  }
+  return snap;
+}
+
+/** The schema state a database records: its core version and the named migrations applied. */
+function schemaState(target: DatabaseTarget): { core: number; named: string[] } {
+  const d = new Db(target, { migrate: false });
+  try {
+    return {
+      core: Number(d.get<{ version: number }>('SELECT version FROM schema_version')?.version ?? 0),
+      named: d
+        .all<{ name: string }>('SELECT name FROM schema_migrations')
+        .map((r) => r.name)
+        .sort(),
+    };
+  } finally {
+    d.close();
+  }
+}
+
 it('has at least one fixture', () => {
   expect(versions).toContain('v0.1.0');
 });
@@ -61,6 +112,8 @@ describe.each(versions)('upgrade from %s', (version) => {
   const schema = `${process.env.SM_TEST_SCHEMA_PREFIX ?? 'smt_adhoc'}_upg_${version.replace(/\W/g, '')}_${process.pid}`;
   const pg: DatabaseTarget | undefined = PG_TEST_URL ? { kind: 'postgres', url: PG_TEST_URL, schema } : undefined;
   let pending: string[] = [];
+  /** The fixture's schema against today's migrations replayed to the fixture's version (SQLite) */
+  let replayDiff: string[] = [];
   /** The operations of every API spec as the old version stored them, with the path each request went to then. */
   let oldOperations: { platformId: string; ops: { method: string; path: string }[] }[] = [];
   /** The datasets as the old version stored them (0.4.0 keeps their rows in the partitions only) */
@@ -116,6 +169,19 @@ describe.each(versions)('upgrade from %s', (version) => {
   beforeAll(async () => {
     fs.cpSync(path.join(fixture, 'datadir'), dataDir, { recursive: true });
     pending = pendingMigrations(sqlite);
+    const state = schemaState(sqlite);
+    {
+      const file = path.join(os.tmpdir(), `sm-replay-${version}-${process.pid}.db`);
+      const replay = new Db({ kind: 'sqlite', file }, { upTo: state, quiet: true });
+      const old = new Db(sqlite, { migrate: false });
+      try {
+        replayDiff = schemaDiff(schemaSnapshot(old), schemaSnapshot(replay));
+      } finally {
+        old.close();
+        replay.close();
+        fs.rmSync(file, { force: true });
+      }
+    }
     const old = new Db(sqlite, { migrate: false });
     try {
       // before 0.2.1 the stored paths were the full request paths; from 0.2.1 on they are relative to path_prefix
@@ -132,12 +198,24 @@ describe.each(versions)('upgrade from %s', (version) => {
       old.close();
     }
     if (pg) {
-      // the way an installation moves to PostgreSQL: npm run db:copy (it migrates both databases first)
+      // PostgreSQL at the old version, with the old version's rows: the server migrates them on PostgreSQL
+      new Db(pg, { upTo: state, quiet: true, appVersion: m.version }).close();
       const { copyDatabase } = await import('../src/cli/db-copy.js');
-      copyDatabase({ from: sqlite, to: pg });
+      copyDatabase({ from: sqlite, to: pg, asIs: true, force: true });
+      expect(schemaState(pg)).toEqual(state);
     }
     const env: Record<string, string | undefined> = { ...process.env, SM_LOG_LEVEL: 'info', SM_DATA_DIR: dataDir, SM_PORT: '0', SM_DEMO: '1' };
-    for (const k of ['SM_DATABASE_URL', 'SM_DATABASE_SCHEMA', 'SM_MASTER_PASSPHRASE', 'SM_MASTER_PASSPHRASE_FILE', 'SM_UPGRADE_BACKUPS']) delete env[k];
+    for (const k of [
+      'SM_DATABASE_URL',
+      'SM_DATABASE_SCHEMA',
+      'SM_MASTER_PASSPHRASE',
+      'SM_MASTER_PASSPHRASE_FILE',
+      'SM_UPGRADE_BACKUPS',
+      'SM_UPGRADE_BACKUP_DIR',
+      'SM_UPGRADE_BACKUP_REQUIRED',
+      'SM_UPGRADE_BACKUP_TIMEOUT_SECONDS',
+    ])
+      delete env[k];
     if (pg) Object.assign(env, { SM_DATABASE_URL: PG_TEST_URL, SM_DATABASE_SCHEMA: schema });
     proc = await new Promise<ChildProcess>((resolve, reject) => {
       const child = spawn(process.execPath, ['--import', 'tsx', 'src/index.ts'], { cwd: SERVER, env, stdio: ['ignore', 'pipe', 'pipe'] });
@@ -180,12 +258,28 @@ describe.each(versions)('upgrade from %s', (version) => {
     }
   });
 
-  it('makes a backup exactly when there was something to migrate (SQLite)', () => {
+  it("replays the old version's migrations to the schema it wrote (what the PostgreSQL path relies on)", () => {
+    expect(replayDiff).toEqual([]);
+  });
+
+  it('has the same schema as a new installation after the upgrade', () => {
+    const d = new Db(pg ? { ...pg, lock: false } : sqlite, { migrate: false });
+    try {
+      expect(schemaDiff(schemaSnapshot(d), freshSchema(d.dialect), SCHEMA_DIFFERENCES_ALLOWED)).toEqual([]);
+    } finally {
+      d.close();
+    }
+  });
+
+  it('makes a backup exactly when there was something to migrate (a SQLite copy or a pg_dump)', () => {
     const backups = listUpgradeBackups(path.join(dataDir, 'backups'));
-    // with PostgreSQL the SQLite copy was migrated by db:copy, which keeps its copy in the same place
     expect(backups).toHaveLength(pending.length ? 1 : 0);
-    if (pending.length) expect(path.basename(backups[0]!)).toMatch(/^pre-\d+\.\d+\.\d+.*-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z\.db$/);
-    if (pending.length && !pg) expect(stdout).toContain('database backed up before migrating');
+    if (!pending.length) return;
+    expect(path.basename(backups[0]!)).toMatch(new RegExp(`^pre-\\d+\\.\\d+\\.\\d+.*-\\d{4}-\\d{2}-\\d{2}T\\d{2}-\\d{2}-\\d{2}Z\\.${pg ? 'pgdump' : 'db'}$`));
+    expect(stdout).toContain('database backed up before migrating');
+    // the dump is of the schema before the migrations (pg_dump's custom format starts with PGDMP)
+    if (pg) expect(fs.readFileSync(backups[0]!).subarray(0, 5).toString()).toBe('PGDMP');
+    expect(fs.statSync(backups[0]!).mode & 0o077).toBe(0);
   });
 
   it('unlocks the vault with the fixture passphrase', async () => {
