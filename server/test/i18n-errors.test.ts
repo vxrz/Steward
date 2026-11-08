@@ -154,6 +154,8 @@ describe('server error codes', () => {
       'STEP_UP_REFUSED',
       'STEP_UP_SSO_FAILED',
       'STEP_UP_CANCELLED',
+      // a switched-off module (modules/registry.ts moduleOffCode(id): PLANT_MODULE_OFF or MODULE_OFF)
+      'MODULE_OFF',
       // refused library releases (libraries/releases.ts refusal(code, …)): checked below
       ...LIBRARY_REFUSALS,
     ]);
