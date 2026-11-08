@@ -77,7 +77,7 @@ curl -sS -f -X POST "https://steward.example.com/api/hooks/costs/<platform id>?f
   --data-binary @focus.csv
 ```
 
-- Created on the Source tab (_Push from CI → New push token_) by who may manage the platform; shown **once**, only its SHA-256 is stored; optional expiry, allowed addresses (CIDR) and rate limit (6 a minute by default). Rotate and revoke there.
+- Created on the Source tab (_Push from CI → New push token_) by who may manage the platform; shown **once**, only its SHA-256 is stored; optional expiry, allowed addresses (CIDR) and rate limit (6 a minute by default). Rotate and revoke there. Creating and rotating need a signed-in session (API tokens get `403 SESSION_REQUIRED`); revoking works with an API token too.
 - It works only while its creator is active and may still manage the platform; its lines link with the creator's rights ([Mapping](#mapping)). API tokens and sign-in sessions are refused; a token of another platform, a revoked or expired one and a refused address all get the same `401`. The token is checked from the headers **before** the body is read.
 - `mode` (`replace` or `add`) and `fileName` come from the query string. The answer names the import, the lines written and replaced and the corrections. Creating, rotating, revoking and every push are audited.
 

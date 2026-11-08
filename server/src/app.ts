@@ -393,7 +393,8 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
   // available to all services; set here, after the body was read, so the context reaches the handler).
   app.addHook('preHandler', (req, _reply, done) => {
     const user = (req as unknown as { smAuthUser?: AuthUser | null }).smAuthUser ?? null;
-    requestContext.run({ user, ip: req.ip }, done);
+    const apiToken = (req as unknown as { smToken?: string }).smToken;
+    requestContext.run({ user, ip: req.ip, ...(apiToken ? { apiToken } : {}) }, done);
   });
 
   // Sensitive actions need a recent confirmation of the session's owner (auth/step-up.ts); API tokens never do them.

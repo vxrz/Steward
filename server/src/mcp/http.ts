@@ -334,7 +334,8 @@ export async function mcpRoutes(app: FastifyInstance): Promise<void> {
 
   // For the settings and profile pages (any signed-in user: it says how to connect, nothing secret).
   app.get('/mcp-server', async () => mcpServerStatus());
-  app.put('/mcp-server', async (req) => {
+  // switching the MCP server (and AI run requests, control proposals) on: sessions only, as its OAuth settings
+  app.put('/mcp-server', { config: { access: ACCESS.session } }, async (req) => {
     requireCapability(currentUser(), 'manageSettings', 'change the MCP settings');
     const b = z
       .object({ enabled: z.boolean().optional(), runRequests: z.boolean().optional(), controlProposals: z.boolean().optional() })

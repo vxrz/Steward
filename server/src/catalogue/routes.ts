@@ -36,7 +36,8 @@ export async function catalogueRoutes(app: FastifyInstance): Promise<void> {
     return reply.code(204).send();
   });
   app.get('/status-pages/:pageId/view', { config: { access: ACCESS.statusViewer } }, async (req) => status.viewPage((req.params as { pageId: string }).pageId));
-  app.post('/status-pages/:pageId/link', async (req) => status.createLink((req.params as { pageId: string }).pageId));
+  // a link without sign-in outlives the API token that would create it: sessions only (revoking stays open to tokens)
+  app.post('/status-pages/:pageId/link', { config: { access: ACCESS.session } }, async (req) => status.createLink((req.params as { pageId: string }).pageId));
   app.delete('/status-pages/:pageId/link', async (req) => status.revokeLink((req.params as { pageId: string }).pageId));
   // without signing in: the secret comes in a header (the web page keeps it in the URL fragment, so no log sees it)
   app.get('/public/status-page', { config: { access: ACCESS.public, rateLimit: ROUTE_LIMITS.webhook } }, async (req, reply) => {
