@@ -26,6 +26,7 @@ import {
   type NetworkAttributes,
 } from '@sm/shared';
 import { db } from '../db.js';
+import { refuseAliasId } from './ids.js';
 import { audit } from '../audit.js';
 import { me } from '../auth/access.js';
 import { currentUser } from '../auth/context.js';
@@ -498,6 +499,8 @@ const conduitRowOf = (siteId: string, id: string) => db().get<ConduitRow>('SELEC
 export function createVlan(siteId: string, input: z.infer<typeof vlanInput>): PlantSiteNetwork {
   manageable(siteId, 'change this site');
   if (vlanRowOf(siteId, input.id)) throw new HttpError(409, `The site has a VLAN "${input.id}" already`, 'PLANT_ID_TAKEN', { id: input.id });
+  // an old id of a renamed entry still leads there (0.11.0): it is not free
+  refuseAliasId('vlan', siteId, input.id);
   if (count('SELECT COUNT(*) AS n FROM plant_vlans WHERE site_id = ?', siteId) >= L.vlansPerSite)
     throw new HttpError(409, `At most ${L.vlansPerSite} VLANs per site`, 'PLANT_LIMIT', { max: L.vlansPerSite });
   const v: PlantVlanValues = input;
@@ -622,6 +625,8 @@ export function createSegmentFromVlan(siteId: string, vlanId: string, name: stri
 export function createZone(siteId: string, input: z.infer<typeof zoneInput>): PlantSiteNetwork {
   manageable(siteId, 'change this site');
   if (zoneRowOf(siteId, input.id)) throw new HttpError(409, `The site has a zone "${input.id}" already`, 'PLANT_ID_TAKEN', { id: input.id });
+  // an old id of a renamed entry still leads there (0.11.0): it is not free
+  refuseAliasId('zone', siteId, input.id);
   if (zoneRows(siteId).length >= L.zonesPerSite) throw new HttpError(409, `At most ${L.zonesPerSite} zones per site`, 'PLANT_LIMIT', { max: L.zonesPerSite });
   const v: PlantZoneValues = input;
   invalid(zoneProblems(v, new Set(vlanRows(siteId).map((x) => x.id))));
@@ -685,6 +690,8 @@ export function deleteZone(siteId: string, zoneId: string): PlantSiteNetwork {
 export function createConduit(siteId: string, input: z.infer<typeof conduitInput>): PlantSiteNetwork {
   manageable(siteId, 'change this site');
   if (conduitRowOf(siteId, input.id)) throw new HttpError(409, `The site has a conduit "${input.id}" already`, 'PLANT_ID_TAKEN', { id: input.id });
+  // an old id of a renamed entry still leads there (0.11.0): it is not free
+  refuseAliasId('conduit', siteId, input.id);
   if (count('SELECT COUNT(*) AS n FROM plant_conduits WHERE site_id = ?', siteId) >= L.conduitsPerSite)
     throw new HttpError(409, `At most ${L.conduitsPerSite} conduits per site`, 'PLANT_LIMIT', { max: L.conduitsPerSite });
   const v: PlantConduitValues = input;
@@ -785,6 +792,8 @@ const assetDevices = (assetId: string) => new Set(deviceRows(assetId).map((d) =>
 export function createDevice(assetId: string, input: z.infer<typeof deviceInput>): PlantAssetNetwork {
   const a = manageableAsset(assetId);
   if (deviceRowOf(assetId, input.id)) throw new HttpError(409, `The asset has a device "${input.id}" already`, 'PLANT_ID_TAKEN', { id: input.id });
+  // an old id of a renamed entry still leads there (0.11.0): it is not free
+  refuseAliasId('device', assetId, input.id);
   if (deviceRows(assetId).length >= L.devicesPerAsset)
     throw new HttpError(409, `At most ${L.devicesPerAsset} devices per asset`, 'PLANT_LIMIT', { max: L.devicesPerAsset });
   const hidden = withHiddenChecks(input.checks, null);
@@ -851,6 +860,8 @@ export function deleteDevice(assetId: string, deviceId: string): PlantAssetNetwo
 export function createDataPath(assetId: string, input: z.infer<typeof dataPathInput>): PlantAssetNetwork {
   const a = manageableAsset(assetId);
   if (pathRowOf(assetId, input.id)) throw new HttpError(409, `The asset has a data path "${input.id}" already`, 'PLANT_ID_TAKEN', { id: input.id });
+  // an old id of a renamed entry still leads there (0.11.0): it is not free
+  refuseAliasId('data_path', assetId, input.id);
   if (dataPathRows(assetId).length >= L.pathsPerAsset)
     throw new HttpError(409, `At most ${L.pathsPerAsset} data paths per asset`, 'PLANT_LIMIT', { max: L.pathsPerAsset });
   const v: PlantDataPathValues = input;
