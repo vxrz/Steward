@@ -158,6 +158,7 @@ describe('behind a reverse proxy under /steward', () => {
     expect(await health.json()).toMatchObject({ ok: true });
     expect(health.headers.get('strict-transport-security')).toContain('max-age=');
     expect((await get(`${P}/api/ready`)).status).toBe(200);
+    expect((await get(`${P}/api/ready/traffic`)).status).toBe(200);
     expect((await get(`${P}/api/auth/status`)).status).toBe(200);
     expect((await get(`${P}/api/runs`)).status).toBe(401);
   });
@@ -222,6 +223,7 @@ describe('behind a reverse proxy under /steward', () => {
     try {
       expect((await get(`${stripping.url}/steward/api/health`)).status).toBe(404);
       expect((await get(`${stripping.url}/steward/api/ready`)).status).toBe(404);
+      expect((await get(`${stripping.url}/steward/api/ready/traffic`)).status).toBe(404);
       const hints = warn.mock.calls.filter((c) => String(c[1] ?? '').includes('outside the base path'));
       expect(hints).toHaveLength(1);
       expect(String(hints[0]![1])).toMatch(/prefix stripping/);
@@ -342,7 +344,10 @@ describe('behind a reverse proxy under /steward', () => {
     const callback = new URL(approve.headers.get('location')!);
     expect(callback.origin + callback.pathname).toBe('https://apps.example.com/steward/api/auth/oidc/callback');
     // the browser reaches the public URL through the proxy
-    const res = await get(`${P}/api/auth/oidc/callback${callback.search}`);
+    const binding = start.headers.getSetCookie().find((c) => c.startsWith('__Secure-sm_sso_'))!;
+    // the binding cookie: Secure, below the prefix, sent on the provider's top-level redirect back (Lax)
+    expect(binding).toMatch(/^__Secure-sm_sso_[\w-]{16}=[\w-]+; Path=\/steward; HttpOnly; SameSite=Lax; Secure; Max-Age=600$/);
+    const res = await get(`${P}/api/auth/oidc/callback${callback.search}`, { cookie: binding.split(';')[0]! });
     expect(res.status).toBe(200);
     expect(res.headers.get('set-cookie')).toMatch(/^__Secure-sm_session=[^;]+; Path=\/steward; HttpOnly; SameSite=Strict; Secure/);
     expect(await res.text()).toContain('location.replace("/steward/tasks")');

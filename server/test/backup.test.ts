@@ -152,6 +152,11 @@ describe('backups to S3', () => {
     const saved = await s.api('PUT', '/backups/settings', { ...st.settings, enabled: true, platformId: storageId, prefix: 'prod/steward/' });
     expect(saved.nextBackupAt).toEqual(expect.any(String));
     fs.writeFileSync(path.join(s.dataDir, 'docs', 'marker.txt'), 'in the backup');
+    // the instance lock of a running server (database/sqlite-lock.ts) stays out of the backup
+    if ((await import('../src/config.js')).config.database.kind === 'sqlite') {
+      fs.writeFileSync(path.join(s.dataDir, 'service-manager.db.lock'), '');
+      fs.writeFileSync(path.join(s.dataDir, 'service-manager.db.lock.json'), '{}');
+    }
 
     const started = await s.api('POST', '/backups/run', {});
     expect(started).toMatchObject({ kind: 'backup', status: 'running', trigger: 'manual' });

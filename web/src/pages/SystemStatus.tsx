@@ -160,11 +160,13 @@ export function SystemStatusPage() {
             </Text>
             <Stack gap={4} mb="xs">
               <Endpoint path="/api/health" label={t('status.monitoring.health')} />
+              <Endpoint path="/api/ready/traffic" label={t('status.monitoring.traffic')} />
               <Endpoint path="/api/ready" label={t('status.monitoring.ready')} />
               <Endpoint path="/api/metrics" label={t('status.monitoring.metrics')} />
             </Stack>
             <List size="sm" spacing={2}>
               <List.Item>{t('status.monitoring.healthHint')}</List.Item>
+              <List.Item>{t('status.monitoring.trafficHint')}</List.Item>
               <List.Item>{t('status.monitoring.readyHint')}</List.Item>
               <List.Item>{s.metrics.access === 'public' ? t('status.monitoring.metricsPublic') : t('status.monitoring.metricsAuth')}</List.Item>
               <List.Item>{t('status.monitoring.kubernetes')}</List.Item>

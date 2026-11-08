@@ -132,10 +132,24 @@ body {
   --mantine-color-orange-filled: #c54c0a;
   --mantine-color-orange-filled-hover: #ae4309;
 }
-/* Same for the dark scheme: dimmed text and the filled orange used by warning badges. */
+/*
+ * Same for the dark scheme: dimmed text and white text on filled badges. Mantine's dark filled shade 8 is too
+ * light for white text in green (#2f9e44: 3.4:1, the "Up" monitor badges), teal, cyan, lime, yellow and orange;
+ * the light scheme's shades above reach 4.6–4.8:1 and still stand out from the dark page (3.2:1 or more).
+ */
 :root:root[data-mantine-color-scheme='dark'] {
   --mantine-color-dimmed: var(--mantine-color-dark-1);
   --mantine-color-error: var(--mantine-color-red-4);
+  --mantine-color-cyan-filled: #0b7e91;
+  --mantine-color-cyan-filled-hover: #0a6f80;
+  --mantine-color-teal-filled: #08835e;
+  --mantine-color-teal-filled-hover: #077452;
+  --mantine-color-green-filled: #278238;
+  --mantine-color-green-filled-hover: #227331;
+  --mantine-color-lime-filled: #4f820c;
+  --mantine-color-lime-filled-hover: #46730a;
+  --mantine-color-yellow-filled: #a86200;
+  --mantine-color-yellow-filled-hover: #945600;
   --mantine-color-orange-filled: #c54c0a;
   --mantine-color-orange-filled-hover: #ae4309;
 }

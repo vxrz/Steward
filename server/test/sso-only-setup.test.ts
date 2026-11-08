@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
+import { setup, ssoBinding, startTestServer, type Client, type TestServer } from './helpers.js';
 
 /**
  * SM_PASSWORD_LOGIN=none on a new installation: the first administrator sets it up with a password, and single
@@ -22,7 +22,7 @@ async function ssoClient(provider: string, login: string): Promise<Client> {
   authorize.pathname += '/approve';
   authorize.searchParams.set('login', login);
   const approve = await fetch(authorize, { redirect: 'manual' });
-  const res = await fetch(new URL(approve.headers.get('location')!), { redirect: 'manual' });
+  const res = await fetch(new URL(approve.headers.get('location')!), { redirect: 'manual', headers: { cookie: ssoBinding(start) } });
   const cookie = res.headers.get('set-cookie')!.split(';')[0]!;
   const key = /localStorage\.setItem\("sm\.sessionKey","([^"]+)"\)/.exec(await res.text())![1]!;
   return (async (method: string, url: string, body?: unknown) => {

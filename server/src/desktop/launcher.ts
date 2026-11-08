@@ -130,6 +130,18 @@ async function portAnswers(url: string): Promise<boolean> {
   }
 }
 
+/** The address of our Steward from instance.json, if it answers and proves that it knows our data folder's secret. */
+async function runningUrl(dataDir: string): Promise<string | undefined> {
+  const { instanceFile, verifyInstance } = await import('../instance.js');
+  try {
+    const { url } = JSON.parse(fs.readFileSync(instanceFile(dataDir), 'utf8')) as { url?: string };
+    if (url && (await verifyInstance(url, dataDir)) === 'ok') return url;
+  } catch {
+    /* no instance.json (yet), or unreadable: nothing to open */
+  }
+  return undefined;
+}
+
 /** --send-test-error: checks the error reporting configuration end to end. */
 async function sendTestError(): Promise<number> {
   const { initErrorReporting, sendTestEvent, errorReportingSettings, parseDsn } = await import('../errorReporting.js');
@@ -250,6 +262,25 @@ async function main(): Promise<number> {
     console.log(`${BRAND.name} is already running – opening ${url}`);
     if (args.open) openWindow(url);
     return EXIT_OK;
+  }
+  // Another Steward with this data folder, on another port or still starting: open that one instead of a second
+  // instance, which would only wait for its database lock (main.ts)
+  if (config.database.kind === 'sqlite') {
+    const { describeHolder, lockHeldElsewhere } = await import('../database/sqlite-lock.js');
+    const lock = lockHeldElsewhere(config.database.file);
+    if (lock.held) {
+      const other = await runningUrl(config.dataDir);
+      if (other) {
+        console.log(`${BRAND.name} is already running – opening ${other}`);
+        if (args.open) openWindow(other);
+        return EXIT_OK;
+      }
+      console.error(
+        `${BRAND.name} is already running with your data folder (${config.dataDir}; ${describeHolder(lock.holder)}), but does not answer yet.\n` +
+          `Wait a moment and start it again, or stop the other one first.`,
+      );
+      return EXIT_FAILURE;
+    }
   }
   const { start } = await import('../main.js');
   const started = await start({ banner: true });

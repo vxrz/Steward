@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { csvCell, csvTable } from '../src/csv.js';
-import { isEmailAddress } from '@sm/shared';
+import { canonicalLocale, isEmailAddress, pickFormatLocale } from '@sm/shared';
 
 /** The helpers merged in #18: one CSV writer, one e-mail address rule. */
 describe('CSV', () => {
@@ -45,5 +45,24 @@ describe('e-mail addresses', () => {
       'dana@exa\u0000mple.com',
     ])
       expect(isEmailAddress(a)).toBe(false);
+  });
+});
+
+/** Browser locales that are not BCP 47 tags must not reach Intl (it throws a RangeError). */
+describe('format locale', () => {
+  it('maps POSIX forms and drops what Intl cannot parse', () => {
+    expect(canonicalLocale('en-US@posix')).toBe('en-US');
+    expect(canonicalLocale('de_AT.UTF-8')).toBe('de-AT');
+    expect(canonicalLocale('en-gb')).toBe('en-GB');
+    for (const t of ['C', '', '  ', '@posix', null, undefined]) expect(canonicalLocale(t)).toBeNull();
+  });
+
+  it('takes the first valid preference in the UI language, else the UI language', () => {
+    expect(pickFormatLocale(['en-US@posix'], 'en')).toBe('en-US');
+    expect(pickFormatLocale(['C', 'de_CH'], 'de')).toBe('de-CH');
+    expect(pickFormatLocale(['C'], 'en')).toBe('en');
+    expect(pickFormatLocale(['fr-FR', 'en-GB'], 'en')).toBe('en-GB');
+    expect(pickFormatLocale([], 'de')).toBe('de');
+    for (const p of [['en-US@posix'], ['C'], ['x-y_z.UTF-8']]) expect(() => new Intl.NumberFormat(pickFormatLocale(p, 'en')).format(1)).not.toThrow();
   });
 });

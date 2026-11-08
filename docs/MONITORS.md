@@ -60,7 +60,7 @@ PowerMeter reachable (ping, TCP fallback 502)
 
 1. **Platforms.** An _Insights Hub_ platform (service credentials). Optionally _Gatus_ and _Zabbix_ platforms for outputs.
 2. **Import the examples** (_Monitors → Import → From the example library_): first _Machine 17 – machine data_ (`examples/monitors/10-…`), then _Machine 17 – PowerMeter_ (`11-…`). Platforms are referenced by name; "Insights Hub" also finds "Insights Hub (production)" when it is the only one, otherwise the only platform of the right kind is used. When the name fits several of your platforms (e.g. "Insights Hub (modev)" and "Insights Hub (prod)") or none, the dialog shows a **platform picker per reference** – with the platforms of the right kind you may use, and the one the name resolves to preselected – and imports the monitor with your choice. The same works for pasted or loaded YAML and for templates; the API takes it as `platforms: { "<name in the file>": "<platform id>" }` on `POST /api/monitors/import` and `POST /api/monitors/examples/{file}`, and lists the references with `…/preview`. Replace the IP address and the asset ids (_Edit_ → select a check).
-3. **Heartbeat secrets.** Saving shows the URL and secret of every heartbeat check **once**. Configure the gateway – one call per check, or a [gateway](#gateway-batch) for all checks.
+3. **Heartbeat secrets.** Saving shows the URL and secret of every heartbeat check **once**. A save with an API token gets no secrets (`secrets: []`): rotate the secret signed in. Configure the gateway – one call per check, or a [gateway](#gateway-batch) for all checks.
 4. **Outputs.** _Edit → Outputs_: notification subscribers (e.g. `team:maintenance`), Zabbix, Gatus, a webhook or a runbook.
 5. **Watch it.** The detail page shows the graph coloured by status, the root cause, and per check the latest results, status changes and uptime. _Monitors → Status wall_ is made for a screen in the control room.
 
@@ -206,7 +206,7 @@ A bare array is accepted too; at most 500 reports per call; the newest report pe
 
 ### Security (same model as webhook triggers)
 
-- **Authentication:** static token (`Authorization: Bearer <secret>` or `X-Steward-Token`) or HMAC (`X-Steward-Signature: sha256=<hex HMAC-SHA256 of the raw body>`; for gateways also `X-Steward-Gateway: <gateway id>`). Secrets have 256 random bits, are stored encrypted (HMAC) and as SHA-256 (constant-time comparison), are shown once and can be rotated (audited).
+- **Authentication:** static token (`Authorization: Bearer <secret>` or `X-Steward-Token`) or HMAC (`X-Steward-Signature: sha256=<hex HMAC-SHA256 of the raw body>`; for gateways also `X-Steward-Gateway: <gateway id>`). Secrets have 256 random bits, are stored encrypted (HMAC) and as SHA-256 (constant-time comparison), are shown once and can be rotated (audited). Creating a gateway and rotating a gateway or heartbeat secret need a signed-in session; API tokens get `403 SESSION_REQUIRED`.
 - **Answers:** `404` unknown or disabled check/gateway, or source address not in the allow-list (same answer) · `503` vault locked · `401` wrong secret · `415` not JSON · `400` invalid JSON or report · `413` body over 64 KB · `429` + `Retry-After` over the rate limit.
 - **Audit:** rejected calls are written as `monitor.report_rejected` at most once per endpoint and reason every 10 minutes; accepted reports are only counted (they are frequent).
 - No session and no `x-sm-client` header is needed; put `/api/hooks/` behind TLS and allow only the gateway's network.

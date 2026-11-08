@@ -70,6 +70,23 @@ test.describe('sign-in', () => {
     await expectShell(page);
     expect((await page.request.get('/api/processes', { headers: await pageSessionHeaders(page) })).status()).toBe(200);
   });
+
+  test.describe('browser locale that is not a BCP 47 tag', () => {
+    // Chromium on Linux reports "en-US@posix" with LANG unset or C/POSIX (kiosks, wall boards); Intl throws on it
+    test.use({ locale: 'en-US@posix' });
+
+    test('sign-in and pages work (en-US@posix)', async ({ page }) => {
+      expect(await page.evaluate(() => navigator.language)).toBe('en-US@posix');
+      await signIn(page, USERS.vera.username, USERS.vera.password);
+      await expectShell(page);
+      await expect(page.getByRole('heading', { name: 'Home', level: 1 })).toBeVisible();
+      // a page with dates and numbers, formatted in the UI language
+      await page.goto('/runs');
+      await expect(page.getByRole('heading', { name: 'Runs', level: 1 })).toBeVisible();
+      await expect(page.getByRole('table').first().getByRole('row').nth(1)).toBeVisible();
+      await expect(page.getByText('Something went wrong')).toHaveCount(0);
+    });
+  });
 });
 
 test.describe('viewer (vera)', () => {

@@ -74,10 +74,13 @@ export function visibleTasks(status?: string): TaskRecord[] {
   return withDecisionRights(store.listTasks({ status }).filter((t) => visible.has(t.processId ?? store.taskProcessId(t.id))));
 }
 
+/** The `before` cursor of a run list: continue after this run. */
+export const runCursor = (r: Pick<RunSummary, 'startedAt' | 'id'>): string => `${r.startedAt},${r.id}`;
+
 /**
  * Runs the user may see, newest first. Runs of hidden processes are left out before the limit applies:
  * further batches are read (older than the last one) until the page is full, so a short page means
- * "no more runs" and `before` = the oldest run's start continues the list.
+ * "no more runs" and `before` = `<startedAt>,<id>` of the oldest run continues the list.
  */
 export function visibleRuns(f: Parameters<typeof store.listRuns>[0]): RunSummary[] {
   const visible = visibleProcessIds();
@@ -94,7 +97,7 @@ export function visibleRuns(f: Parameters<typeof store.listRuns>[0]): RunSummary
     const rows = store.listRuns({ ...f, before, limit: batch });
     out.push(...rows.filter(sees));
     if (rows.length < batch) break;
-    before = rows[rows.length - 1]!.startedAt;
+    before = runCursor(rows[rows.length - 1]!);
   }
   return out.slice(0, limit);
 }

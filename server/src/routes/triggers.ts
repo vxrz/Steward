@@ -12,6 +12,7 @@ import * as triggers from '../triggers/service.js';
 import { handleHook, registerTestNonce } from '../triggers/hook.js';
 import { listTriggerExamples } from '../triggers/examples.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
+import { ACCESS } from '../auth/access.js';
 
 const params = (req: FastifyRequest) => req.params as Record<string, string>;
 
@@ -71,7 +72,8 @@ export async function triggerRoutes(app: FastifyInstance): Promise<void> {
     triggers.listFires(params(req).id!, z.object({ limit: z.coerce.number().int().min(1).max(500).default(50) }).parse(req.query ?? {}).limit),
   );
 
-  app.post('/triggers', async (req) => {
+  // creating a trigger and rotating its secret hand out a secret that outlives an API token: sessions only
+  app.post('/triggers', { config: { access: ACCESS.session } }, async (req) => {
     const b = triggers.settingsSchema.parse(req.body);
     requireProcessRun(b.processId);
     // what each run of the trigger will need: the command layer's start check (ADR 0011)
@@ -93,7 +95,7 @@ export async function triggerRoutes(app: FastifyInstance): Promise<void> {
   // pause and resume the messages of a trigger's runs (#139)
   app.post('/triggers/:id/pause', async (req) => triggers.setTriggerPause(params(req).id!, notifyPauseSchema.omit({ at: true }).parse(req.body ?? {})));
   app.post('/triggers/:id/resume', async (req) => triggers.setTriggerPause(params(req).id!, null));
-  app.post('/triggers/:id/rotate', async (req) => {
+  app.post('/triggers/:id/rotate', { config: { access: ACCESS.session } }, async (req) => {
     const r = triggers.requireTriggerEdit(params(req).id!);
     requireProcessRun(r.process_id);
     return triggers.rotateSecret(r.id);

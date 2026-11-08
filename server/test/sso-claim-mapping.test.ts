@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { setup, startTestServer, withRefusalReason, type Client, type TestServer } from './helpers.js';
+import { setup, ssoBinding, startTestServer, withRefusalReason, type Client, type TestServer } from './helpers.js';
 
 /**
  * How claims become an account (#77), with the mock identity provider emitting configurable claims: the stable
@@ -50,7 +50,7 @@ async function signIn(login: string, opts: { provider?: string; host?: string } 
   authorize.pathname += '/approve';
   authorize.searchParams.set('login', login);
   const approve = await fetch(authorize, { redirect: 'manual' });
-  const res = await fetch(new URL(approve.headers.get('location')!), { redirect: 'manual' });
+  const res = await fetch(new URL(approve.headers.get('location')!), { redirect: 'manual', headers: { cookie: ssoBinding(start) } });
   if (res.status !== 200) return { error: await withRefusalReason(s, res.headers.get('location') ?? String(res.status)) };
   const cookie = res.headers.get('set-cookie')!.split(';')[0]!;
   const key = /localStorage\.setItem\("sm\.sessionKey","([^"]+)"\)/.exec(await res.text())![1]!;
@@ -689,7 +689,8 @@ describe('test sign-in', () => {
     authorize.pathname += '/approve';
     authorize.searchParams.set('login', login);
     const approve = await fetch(authorize, { redirect: 'manual' });
-    const res = await fetch(new URL(approve.headers.get('location')!), { redirect: 'manual' });
+    // the test window runs in the administrator's browser: it sends the binding cookie of the start back
+    const res = await fetch(new URL(approve.headers.get('location')!), { redirect: 'manual', headers: { cookie: client.cookies!() } });
     return { start, res, body: await res.text() };
   }
 
@@ -708,7 +709,8 @@ describe('test sign-in', () => {
     expect(pending.status).toBe('pending');
     const { start, res, body } = await testSignIn(admin, 'tess');
     expect(res.status).toBe(200);
-    expect(res.headers.get('set-cookie')).toBeNull();
+    // no session; only the binding cookie of the test is cleared
+    expect(res.headers.getSetCookie()).toEqual([expect.stringMatching(/^sm_sso_[\w-]{16}=; Path=\/; HttpOnly; SameSite=Lax; Max-Age=0$/)]);
     expect(body).toContain('Test sign-in finished');
     expect(body).not.toContain('sm.sessionKey');
     const result = await admin('POST', `/sso/test-sign-ins/${start.testId}`, {});
@@ -785,12 +787,30 @@ describe('test sign-in', () => {
     await configure({ enabled: true, requireMapping: false });
   });
 
+  it('is bound to the browser that started it', async () => {
+    const admin = (await s.as('admin', 'Admin-password-1')) as Client;
+    const start = await admin('POST', `/sso/providers/${p}/test-sign-in`, {});
+    const authorize = new URL(start.authorizationUrl);
+    authorize.pathname += '/approve';
+    authorize.searchParams.set('login', 'e5b7');
+    const approve = await fetch(authorize, { redirect: 'manual' });
+    // the callback opened in another browser (no binding cookie): nothing is recorded
+    const res = await fetch(new URL(approve.headers.get('location')!), { redirect: 'manual' });
+    expect(res.status).toBe(302);
+    expect(decodeURIComponent(res.headers.get('location')!)).toContain('expired or is unknown');
+    const result = await admin('POST', `/sso/test-sign-ins/${start.testId}`, {});
+    expect(result).toMatchObject({ status: 'failed', error: expect.stringContaining('another browser') });
+    expect(result.idToken).toBeUndefined();
+    expect(await lastAudit('sso.test_sign_in')).toMatchObject({ actor: 'admin', details: { outcome: 'failed', reason: 'SSO_BROWSER_MISMATCH' } });
+  });
+
   it('records a failure at the identity provider', async () => {
     const admin = (await s.as('admin', 'Admin-password-1')) as Client;
     const start = await admin('POST', `/sso/providers/${p}/test-sign-in`, {});
     const state = new URL(start.authorizationUrl).searchParams.get('state')!;
     const res = await fetch(`${s.base}/api/auth/oidc/callback?state=${state}&error=access_denied&error_description=${encodeURIComponent('<b>no</b>')}`, {
       redirect: 'manual',
+      headers: { cookie: admin.cookies!() },
     });
     const body = await res.text();
     expect(body).toContain('test sign-in failed');
