@@ -6,6 +6,16 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- **Browser locales that are not BCP 47 tags no longer break the UI.** A browser that reports `en-US@posix` (Chromium on Linux with `LANG` unset or `C`/`POSIX`, common on kiosks and wall boards) made every page show an error, the sign-in page included. Such locales are now mapped (`en-US@posix` → `en-US`, `de_AT.UTF-8` → `de-AT`) or skipped, and numbers and dates fall back to the UI language.
+- **"Load more" on the runs list no longer skips runs.** Runs that started in the same millisecond as the last run of a page (for-each children, a burst of webhook triggers) were left out. The list now pages by start time and id, like the public API. The old `before=<start time>` still works.
+- **Contrast and target size.** In dark mode, filled status badges in green, teal, cyan, lime and yellow (e.g. the _Up_ and _Degraded_ monitor badges) now reach 4.5:1 with their white text. The application name link in the applications list is at least 24 px high.
+
+### Changed
+
+- **Docs.** The README no longer calls the MCP server read-only: since 0.2.10 an assistant can ask for changes that a person approves. Its node type table now lists all step types. `NOTICE` names the bundled endoflife.date data (MIT), with its licence text next to the files. `docs/INSTALL.md` and `docs/SECURITY-HARDENING.md` show image tags as `<version>` instead of 0.2.1, and INSTALL.md says that backups of PostgreSQL 18 or later need a matching `pg_dump` (`SM_PG_DUMP`).
+
 ## [0.10.0] - 2026-11-07
 
 Steward 0.10.0 puts the process engine behind **one interface** and builds **debugging** on it, adds **quiet hours and digests** for notifications, **approvals from Microsoft Teams**, **shared procedure libraries** and a **map of sites**. Every start, decision and cancel of a run now goes through one rights check; a single node can be run with sample data, a run stepped through and two runs compared, without debug runs ever counting anywhere. Messages wait for the end of quiet hours instead of being dropped; Teams cards open Steward's decision dialog, and a preview bot decides in the card where the assurance policy allows it. Libraries are signed releases installed after a full review; the plant registry's map fetches its tiles only through Steward and stays off until an administrator turns it on. Three security reviews of the new features found and fixed, among others, a debug path around the AI allowed-data rule, Teams decisions on stale rights, a Hold that a designer could lift and a map check that could send the stored key elsewhere; see _Check before updating_ under Changed.
