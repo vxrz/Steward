@@ -12,7 +12,13 @@
     "widgets_other": "{{count}} widgets",
     "by": "by {{owner}}",
     "updated": "updated {{when}}",
-    "emptyAction": "Start from a template"
+    "emptyAction": "Start from a template",
+    "name": "Dashboard",
+    "widgetsColumn": "Widgets",
+    "owner": "Owner",
+    "updatedColumn": "Updated",
+    "search": "Search by name, description or owner",
+    "noMatch": "No dashboard matches the search."
   },
   "datasets": {
     "title": "Datasets",

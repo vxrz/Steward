@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ActionIcon,
   Anchor,
   Badge,
+  Box,
   Button,
   Card,
   Group,
@@ -20,19 +21,20 @@ import {
   Title,
   Tooltip,
 } from '@mantine/core';
-import { useDisclosure } from '@mantine/hooks';
+import { useDisclosure, useMediaQuery } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { IconAlertTriangle, IconChartBar, IconFlask, IconPlus, IconTemplate, IconTrash, IconUpload } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { Dashboard, DashboardDefinition, DatasetMeta, NewResourceTeams, Team } from '@sm/shared';
 import { del, get, notifyError, notifyOk, post, put } from '../api';
 import { EmptyState, QueryState } from '../components/common';
-import { fmtNumber, fmtRelative } from '../format';
+import { fmtDate, fmtNumber, fmtRelative } from '../format';
 import { useMe } from '../auth';
 import { StatusCounts } from '../components/dashboard/status';
 import { confirmDanger } from '../components/confirm';
 import '../components/dashboard/viz.css';
-import { ListPage } from '../components/page/ListPage';
+import { ListPage, useStoredListView } from '../components/page/ListPage';
+import { DataTable, ListFooter, type DataColumn } from '../components/DataTable';
 import { dashboardKeys, datasetKeys } from '../queryKeys';
 
 interface DashboardTemplate {
@@ -44,7 +46,6 @@ interface DashboardTemplate {
 
 export function DashboardsPage() {
   const { t } = useTranslation(['dashboards', 'common', 'editor']);
-  const navigate = useNavigate();
   const qc = useQueryClient();
   const { caps, isAdmin } = useMe();
   const dashboards = useQuery({ queryKey: dashboardKeys.all, queryFn: () => get<Dashboard[]>('/dashboards') });
@@ -52,11 +53,59 @@ export function DashboardsPage() {
   const [templatesOpen, templates] = useDisclosure();
   const [importOpen, importModal] = useDisclosure();
   const [newOpen, newModal] = useDisclosure();
+  const narrow = useMediaQuery('(max-width: 48em)') ?? false;
+  const view = useStoredListView('dashboards', narrow);
+  // the search lives in the address (?q=), so a filtered list can be shared
+  const [params, setParams] = useSearchParams();
+  const q = params.get('q') ?? '';
+  const needle = q.trim().toLowerCase();
+  const shown = (dashboards.data ?? []).filter((d) => !needle || [d.name, d.description, d.owner ?? '', d.id].some((x) => x.toLowerCase().includes(needle)));
+  const columns: DataColumn<Dashboard>[] = [
+    {
+      key: 'name',
+      header: t('list.name'),
+      sortValue: (d) => d.name,
+      cell: (d) => (
+        <Stack gap={2} maw={560}>
+          <Anchor component={Link} to={`/dashboards/${d.id}`} fw={600} size="sm" onClick={(e) => e.stopPropagation()}>
+            {d.name}
+          </Anchor>
+          <Text size="xs" c="dimmed" lineClamp={1}>
+            {d.description}
+          </Text>
+        </Stack>
+      ),
+    },
+    { key: 'widgets', header: t('list.widgetsColumn'), sortValue: (d) => d.definition.widgets.length, nowrap: true, cell: (d) => d.definition.widgets.length },
+    { key: 'owner', header: t('list.owner'), sortValue: (d) => d.owner ?? '', cell: (d) => d.owner ?? '–' },
+    {
+      key: 'updated',
+      header: t('list.updatedColumn'),
+      sortValue: (d) => d.updatedAt,
+      nowrap: true,
+      cell: (d) => (
+        <Text size="xs" title={fmtDate(d.updatedAt)}>
+          {fmtRelative(d.updatedAt)}
+        </Text>
+      ),
+    },
+  ];
 
   return (
     <ListPage
       title={t('list.title')}
       description={t('list.description')}
+      view="dashboards"
+      viewState={view}
+      search={
+        dashboards.data?.length
+          ? {
+              value: q,
+              onChange: (v) => setParams(v ? { q: v } : {}, { replace: true }),
+              placeholder: t('list.search'),
+            }
+          : undefined
+      }
       actions={
         caps.createProcesses && (
           <>
@@ -90,31 +139,37 @@ export function DashboardsPage() {
           {t('list.emptyText')}
         </EmptyState>
       )}
-      <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} mb="xl">
-        {dashboards.data?.map((d) => (
-          <Card key={d.id} withBorder className="clickable" onClick={() => navigate(`/dashboards/${d.id}`)}>
-            <Anchor component={Link} to={`/dashboards/${d.id}`} fw={600} c="var(--mantine-color-text)" underline="hover" onClick={(e) => e.stopPropagation()}>
-              {d.name}
-            </Anchor>
-            <Text size="sm" c="dimmed" lineClamp={3}>
-              {d.description || ' '}
-            </Text>
-            <Group gap={6} mt="sm">
-              <Badge size="xs" variant="outline">
-                {t('list.widgets', { count: d.definition.widgets.length })}
-              </Badge>
-              {d.owner && (
-                <Text size="xs" c="dimmed">
-                  {t('list.by', { owner: d.owner })}
-                </Text>
-              )}
-              <Text size="xs" c="dimmed" ml="auto">
-                {t('list.updated', { when: fmtRelative(d.updatedAt) })}
-              </Text>
-            </Group>
-          </Card>
-        ))}
-      </SimpleGrid>
+      {!!dashboards.data?.length && shown.length === 0 && (
+        <Text c="dimmed" size="sm" mb="xl">
+          {t('list.noMatch')}
+        </Text>
+      )}
+      {shown.length > 0 && (
+        <Box mb="xl">
+          {view.cards && !narrow ? (
+            <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} role="list" aria-label={t('list.title')} data-testid="dashboard-list">
+              {shown.map((d) => (
+                <div role="listitem" key={d.id}>
+                  <DashboardCard d={d} />
+                </div>
+              ))}
+            </SimpleGrid>
+          ) : (
+            <DataTable
+              rows={shown}
+              columns={columns}
+              rowKey={(d) => d.id}
+              ariaLabel={t('list.title')}
+              rowHref={(d) => `/dashboards/${d.id}`}
+              testId="dashboard-list"
+              rememberSort="dashboards"
+              defaultSort={{ key: 'name', dir: 'asc' }}
+              footer={<ListFooter shown={shown.length} total={dashboards.data?.length} />}
+              card={(d) => <DashboardCard d={d} />}
+            />
+          )}
+        </Box>
+      )}
 
       <Title order={4} mb={4}>
         {t('datasets.title')}
@@ -216,6 +271,35 @@ export function DashboardsPage() {
  * "New dashboard": a name, the owning teams (administrators choose; for others the teams their new resources get) and
  * a start – blank or a copy of a template – then the dashboard opens in edit mode.
  */
+/** A dashboard as a card: the phone list and the card view. */
+function DashboardCard({ d }: { d: Dashboard }) {
+  const { t } = useTranslation('dashboards');
+  const navigate = useNavigate();
+  return (
+    <Card withBorder className="clickable" onClick={() => navigate(`/dashboards/${d.id}`)}>
+      <Anchor component={Link} to={`/dashboards/${d.id}`} fw={600} c="var(--mantine-color-text)" underline="hover" onClick={(e) => e.stopPropagation()}>
+        {d.name}
+      </Anchor>
+      <Text size="sm" c="dimmed" lineClamp={3}>
+        {d.description || ' '}
+      </Text>
+      <Group gap={6} mt="sm">
+        <Badge size="xs" variant="outline">
+          {t('list.widgets', { count: d.definition.widgets.length })}
+        </Badge>
+        {d.owner && (
+          <Text size="xs" c="dimmed">
+            {t('list.by', { owner: d.owner })}
+          </Text>
+        )}
+        <Text size="xs" c="dimmed" ml="auto">
+          {t('list.updated', { when: fmtRelative(d.updatedAt) })}
+        </Text>
+      </Group>
+    </Card>
+  );
+}
+
 function NewDashboardModal({ opened, onClose }: { opened: boolean; onClose: () => void }) {
   const { t } = useTranslation(['dashboards', 'common']);
   const navigate = useNavigate();

@@ -340,7 +340,9 @@ export function useFieldErrors<K extends string>(checks: Record<K, string | fals
     requestAnimationFrame(() => document.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus());
     return false;
   };
-  return { error, validate };
+  /** Hides the messages again (a dialog that is closed and opened for the next entry). */
+  const reset = () => setShown(false);
+  return { error, validate, reset };
 }
 
 export function JsonView({ value, maxHeight = 360 }: { value: unknown; maxHeight?: number }) {

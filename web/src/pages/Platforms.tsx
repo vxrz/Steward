@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useMediaQuery } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ActionIcon,
@@ -38,14 +39,15 @@ import {
 } from '@sm/shared';
 import { del, get, notifyError, notifyOk, post, apiUrl } from '../api';
 import { useMe } from '../auth';
-import { EmptyState, Hint, KeyValueEditor, QueryState } from '../components/common';
+import { EmptyState, Hint, KeyValueEditor, QueryState, useFieldErrors } from '../components/common';
 import { authLabel, presetDescription, presetSecretHelp, presetSecretLabel } from '../components/platform/presetText';
 import i18n from '../i18n';
 import { BRAND } from '../../../shared/src/brand';
 import { EnvironmentInput } from '../components/catalogue/environments';
 import { confirmDanger } from '../components/confirm';
 import { fmtDate, fmtRelative } from '../format';
-import { ListPage } from '../components/page/ListPage';
+import { ListPage, useStoredListView } from '../components/page/ListPage';
+import { DataTable, ListFooter, type DataColumn } from '../components/DataTable';
 import { platformKeys } from '../queryKeys';
 import { AddPlatformWizard } from '../components/platform/AddPlatformWizard';
 
@@ -56,12 +58,12 @@ export const KIND_COLORS: Record<string, string> = {
 };
 
 /** The latest connection test as a status dot and words: "Last test OK 5 minutes ago" / "Last test failed …". */
-function LastTest({ test }: { test?: Platform['lastTest'] }) {
+function LastTest({ test, compact }: { test?: Platform['lastTest']; compact?: boolean }) {
   const { t } = useTranslation('platforms');
   if (test === undefined) return null;
   const color = !test ? 'var(--mantine-color-gray-5)' : test.ok ? 'var(--mantine-color-green-6)' : 'var(--mantine-color-red-6)';
   return (
-    <Group gap={6} mt="xs" wrap="nowrap" data-testid="platform-last-test">
+    <Group gap={6} mt={compact ? 0 : 'xs'} wrap="nowrap" data-testid="platform-last-test">
       {test && !test.ok ? (
         <IconAlertTriangle size={14} color={color} aria-hidden style={{ flexShrink: 0 }} />
       ) : (
@@ -78,6 +80,67 @@ function LastTest({ test }: { test?: Platform['lastTest'] }) {
   );
 }
 
+/** Base URL, or host, port and database of a database platform (0.7.0), which has no base URL. */
+const addressOf = (p: Platform) => (p.config.database ? `${p.config.database.host}:${dbPort(p.config.database)}/${p.config.database.database}` : p.baseUrl);
+/** The kind of sign-in in normal case ("Bearer token", "OAuth2 client credentials"), or the database dialect. */
+const authTextOf = (p: Platform) => (p.config.database ? DB_DIALECT_INFO[p.config.database.dialect].label : authLabel(p.config.auth?.type));
+
+/** A platform as a card: the phone list and the card view. */
+function PlatformCard({ p }: { p: Platform }) {
+  const { t } = useTranslation('platforms');
+  const navigate = useNavigate();
+  return (
+    <Card withBorder padding="md" className="clickable" onClick={() => navigate(`/platforms/${p.id}`)}>
+      <Group justify="space-between" wrap="nowrap" align="flex-start">
+        <Anchor
+          component={Link}
+          to={`/platforms/${p.id}`}
+          fw={600}
+          lineClamp={1}
+          c="var(--mantine-color-text)"
+          underline="hover"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {p.name}
+        </Anchor>
+        {p.environment && (
+          <Badge variant="outline" size="sm">
+            {p.environment}
+          </Badge>
+        )}
+      </Group>
+      <Group gap={6} mt={6}>
+        <Badge color={KIND_COLORS[p.kind] ?? 'gray'} variant="light" size="sm">
+          {p.kind}
+        </Badge>
+        <Badge color="gray" variant="light" size="sm" tt="none">
+          {authTextOf(p)}
+        </Badge>
+      </Group>
+      <LastTest test={p.lastTest} />
+      <Text size="xs" c="dimmed" className="mono" mt="sm" style={{ wordBreak: 'break-all' }}>
+        {addressOf(p) || t('card.noBaseUrl')}
+      </Text>
+      <Group gap={4} mt="xs">
+        <IconKey size={14} />
+        <Text size="xs" c="dimmed">
+          {t('card.secrets', { count: p.secretKeys.length })}
+        </Text>
+        {p.acl.length > 0 && (
+          <Badge size="xs" variant="light" color="orange" ml="auto">
+            {t('card.restricted')}
+          </Badge>
+        )}
+        {!p.permissions.includes('use') && (
+          <Badge size="xs" variant="light" color="gray" ml={p.acl.length ? undefined : 'auto'}>
+            {t('card.noAccess')}
+          </Badge>
+        )}
+      </Group>
+    </Card>
+  );
+}
+
 export function PlatformsPage() {
   const { t } = useTranslation(['platforms', 'common']);
   const navigate = useNavigate();
@@ -87,24 +150,104 @@ export function PlatformsPage() {
   const [typesOpen, setTypesOpen] = useState(false);
   const platforms = useQuery({ queryKey: platformKeys.all, queryFn: () => get<Platform[]>('/platforms') });
   const { caps } = useMe();
-  const [q, setQ] = useState('');
-  const [kind, setKind] = useState<string | null>(null);
-  const [env, setEnv] = useState<string | null>(null);
+  // the filters live in the address (?q=, ?kind=, ?env=, ?test=), so a filtered list can be shared
+  const [params, setParams] = useSearchParams();
+  const set = (k: string, v: string | null) => {
+    const next = new URLSearchParams(params);
+    if (v) next.set(k, v);
+    else next.delete(k);
+    setParams(next, { replace: true });
+  };
+  const q = params.get('q') ?? '';
+  const kind = params.get('kind');
+  const env = params.get('env');
+  const test = params.get('test');
+  const setQ = (v: string) => set('q', v || null);
+  const setKind = (v: string | null) => set('kind', v);
+  const setEnv = (v: string | null) => set('env', v);
+  const narrow = useMediaQuery('(max-width: 48em)') ?? false;
+  const view = useStoredListView('platforms', narrow);
   const all = platforms.data ?? [];
   const kinds = [...new Set(all.map((p) => p.kind))].sort();
   const envs = [...new Set(all.map((p) => p.environment).filter(Boolean))].sort();
   const needle = q.trim().toLowerCase();
+  const testOf = (p: Platform) => (!p.lastTest ? 'never' : p.lastTest.ok ? 'ok' : 'failed');
   const shown = all.filter(
     (p) =>
       (!kind || p.kind === kind) &&
       (!env || p.environment === env) &&
+      (!test || testOf(p) === test) &&
       (!needle || [p.name, p.kind, p.baseUrl, p.description, p.environment].some((x) => x?.toLowerCase().includes(needle))),
   );
-  const filtered = !!(needle || kind || env);
+  const filtered = !!(needle || kind || env || test);
+  const platformColumns: DataColumn<Platform>[] = [
+    {
+      key: 'name',
+      header: t('list.name'),
+      sortValue: (p) => p.name,
+      cell: (p) => (
+        <Stack gap={2}>
+          <Anchor component={Link} to={`/platforms/${p.id}`} fw={600} size="sm" onClick={(e) => e.stopPropagation()}>
+            {p.name}
+          </Anchor>
+          <Text size="xs" c="dimmed" className="mono" style={{ wordBreak: 'break-all' }}>
+            {addressOf(p) || t('card.noBaseUrl')}
+          </Text>
+        </Stack>
+      ),
+    },
+    {
+      key: 'kind',
+      header: t('list.kind'),
+      sortValue: (p) => p.kind,
+      nowrap: true,
+      cell: (p) => (
+        <Badge color={KIND_COLORS[p.kind] ?? 'gray'} variant="light" size="sm">
+          {p.kind}
+        </Badge>
+      ),
+    },
+    { key: 'environment', header: t('list.environment'), sortValue: (p) => p.environment, nowrap: true, cell: (p) => p.environment || '–' },
+    {
+      key: 'auth',
+      header: t('list.auth'),
+      sortValue: (p) => authTextOf(p),
+      cell: (p) => <Text size="xs">{authTextOf(p)}</Text>,
+    },
+    {
+      key: 'lastTest',
+      header: t('list.lastTest'),
+      sortValue: (p) => (p.lastTest ? `${p.lastTest.ok ? 1 : 0}${p.lastTest.at}` : ''),
+      cell: (p) => <LastTest test={p.lastTest} compact />,
+    },
+    {
+      key: 'access',
+      header: t('list.access'),
+      cell: (p) => (
+        <Group gap={4} wrap="nowrap">
+          <Text size="xs" c="dimmed" className="nowrap">
+            {t('card.secrets', { count: p.secretKeys.length })}
+          </Text>
+          {p.acl.length > 0 && (
+            <Badge size="xs" variant="light" color="orange">
+              {t('card.restricted')}
+            </Badge>
+          )}
+          {!p.permissions.includes('use') && (
+            <Badge size="xs" variant="light" color="gray">
+              {t('card.noAccess')}
+            </Badge>
+          )}
+        </Group>
+      ),
+    },
+  ];
 
   return (
     <ListPage
-      activeFilters={[needle, kind, env].filter(Boolean).length}
+      activeFilters={[needle, kind, env, test].filter(Boolean).length}
+      view="platforms"
+      viewState={view}
       title={t('title')}
       description={t('description')}
       actions={
@@ -156,6 +299,16 @@ export function PlatformsPage() {
                 w={{ base: '48%', xs: 160 }}
               />
             )}
+            <Select
+              size="xs"
+              label={t('filter.lastTest')}
+              placeholder={t('filter.all')}
+              data={(['ok', 'failed', 'never'] as const).map((x) => ({ value: x, label: t(`filter.test.${x}`) }))}
+              value={test}
+              onChange={(v) => set('test', v)}
+              clearable
+              w={{ base: '48%', xs: 180 }}
+            />
             {filtered && (
               <Text size="xs" c="dimmed" mb={6} aria-live="polite">
                 {t('filter.count', { shown: shown.length, total: all.length })}
@@ -189,74 +342,35 @@ export function PlatformsPage() {
           icon={IconSearch}
           title={t('filter.noMatch')}
           action={
-            <Button
-              size="xs"
-              variant="default"
-              onClick={() => {
-                setQ('');
-                setKind(null);
-                setEnv(null);
-              }}
-            >
+            <Button size="xs" variant="default" onClick={() => setParams({}, { replace: true })}>
               {t('filter.clear')}
             </Button>
           }
         />
       )}
-      <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }}>
-        {shown.map((p) => (
-          <Card key={p.id} withBorder padding="md" className="clickable" onClick={() => navigate(`/platforms/${p.id}`)}>
-            <Group justify="space-between" wrap="nowrap" align="flex-start">
-              <Anchor
-                component={Link}
-                to={`/platforms/${p.id}`}
-                fw={600}
-                lineClamp={1}
-                c="var(--mantine-color-text)"
-                underline="hover"
-                onClick={(e) => e.stopPropagation()}
-              >
-                {p.name}
-              </Anchor>
-              {p.environment && (
-                <Badge variant="outline" size="sm">
-                  {p.environment}
-                </Badge>
-              )}
-            </Group>
-            <Group gap={6} mt={6}>
-              <Badge color={KIND_COLORS[p.kind] ?? 'gray'} variant="light" size="sm">
-                {p.kind}
-              </Badge>
-              {/* the kind of sign-in in normal case ("Bearer token", "OAuth2 client credentials") */}
-              <Badge color="gray" variant="light" size="sm" tt="none">
-                {p.config.database ? DB_DIALECT_INFO[p.config.database.dialect].label : authLabel(p.config.auth?.type)}
-              </Badge>
-            </Group>
-            <LastTest test={p.lastTest} />
-            <Text size="xs" c="dimmed" className="mono" mt="sm" style={{ wordBreak: 'break-all' }}>
-              {/* a database platform (0.7.0) has no base URL: its host, port and database */}
-              {p.config.database ? `${p.config.database.host}:${dbPort(p.config.database)}/${p.config.database.database}` : p.baseUrl || t('card.noBaseUrl')}
-            </Text>
-            <Group gap={4} mt="xs">
-              <IconKey size={14} />
-              <Text size="xs" c="dimmed">
-                {t('card.secrets', { count: p.secretKeys.length })}
-              </Text>
-              {p.acl.length > 0 && (
-                <Badge size="xs" variant="light" color="orange" ml="auto">
-                  {t('card.restricted')}
-                </Badge>
-              )}
-              {!p.permissions.includes('use') && (
-                <Badge size="xs" variant="light" color="gray" ml={p.acl.length ? undefined : 'auto'}>
-                  {t('card.noAccess')}
-                </Badge>
-              )}
-            </Group>
-          </Card>
+      {shown.length > 0 &&
+        (view.cards && !narrow ? (
+          <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} role="list" aria-label={t('title')} data-testid="platform-list">
+            {shown.map((p) => (
+              <div role="listitem" key={p.id}>
+                <PlatformCard p={p} />
+              </div>
+            ))}
+          </SimpleGrid>
+        ) : (
+          <DataTable
+            rows={shown}
+            columns={platformColumns}
+            rowKey={(p) => p.id}
+            ariaLabel={t('title')}
+            rowHref={(p) => `/platforms/${p.id}`}
+            testId="platform-list"
+            rememberSort="platforms"
+            defaultSort={{ key: 'name', dir: 'asc' }}
+            footer={<ListFooter shown={shown.length} total={all.length} />}
+            card={(p) => <PlatformCard p={p} />}
+          />
         ))}
-      </SimpleGrid>
       {/* adding a platform: the setup wizard (v0.4.0), or the quick form */}
       <AddPlatformWizard
         opened={adding}
@@ -422,8 +536,9 @@ function AddPlatformModal({ opened, onClose, onCreated }: { opened: boolean; onC
   const authType: AuthType = authChoice ?? impliedAuthType(preset?.config.auth?.type, preset?.secretFields ?? [], secrets);
   const authOptions = [...new Set<AuthType>([preset?.config.auth?.type ?? 'none', ...authFields.map((f) => f.auth!)])];
 
+  const check = useFieldErrors({ name: !name.trim() && t('common:validation.required') });
   const create = async () => {
-    if (!preset) return;
+    if (!preset || !check.validate()) return;
     setBusy(true);
     try {
       const vars = Object.fromEntries(Object.entries(variables).map(([k, v]) => [k, typeof v === 'string' ? v : JSON.stringify(v)]));
@@ -504,7 +619,14 @@ function AddPlatformModal({ opened, onClose, onCreated }: { opened: boolean; onC
       )}
       {preset && (
         <Stack>
-          <TextInput label={t('form.name')} required value={name} onChange={(e) => setName(e.currentTarget.value)} placeholder={t('form.namePlaceholder')} />
+          <TextInput
+            label={t('form.name')}
+            required
+            value={name}
+            onChange={(e) => setName(e.currentTarget.value)}
+            placeholder={t('form.namePlaceholder')}
+            error={check.error('name')}
+          />
           <EnvironmentInput label={t('form.environment')} value={environment} onChange={setEnvironment} />
           <TextInput
             label={t('form.baseUrl')}
@@ -553,7 +675,7 @@ function AddPlatformModal({ opened, onClose, onCreated }: { opened: boolean; onC
               <Button variant="default" onClick={onClose}>
                 {t('common:cancel')}
               </Button>
-              <Button onClick={create} loading={busy} disabled={!name.trim()}>
+              <Button onClick={create} loading={busy}>
                 {t('addModal.create')}
               </Button>
             </Group>

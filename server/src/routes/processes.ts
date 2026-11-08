@@ -85,11 +85,17 @@ export async function processRoutes(app: FastifyInstance): Promise<void> {
         templateId: z.string().max(200).optional(),
         text: z.string().max(MAX_DEFINITION_TEXT).optional(),
         comment: z.string().max(2000).optional(),
+        /** The id the person chose in the "New process" dialog (U7): taken as given, refused when it exists */
+        id: z
+          .string()
+          .trim()
+          .regex(/^[a-z0-9](?:[a-z0-9-]{0,46}[a-z0-9])?$/, 'Lower-case letters, digits and dashes, at most 48')
+          .optional(),
       })
       .parse(req.body);
     if (b.templateId) return processes.createFromTemplate(b.templateId);
     const def = b.text ? processes.parseDefinitionText(b.text) : b.definition;
-    return processes.createProcess(def, { comment: b.comment ?? (b.text ? 'Imported' : 'Created') });
+    return processes.createProcess(def, { comment: b.comment ?? (b.text ? 'Imported' : 'Created'), ...(b.id ? { id: b.id, exactId: true } : {}) });
   });
   app.post('/processes/validate', { bodyLimit: LARGE_BODIES.definitions.bytes }, async (req) => {
     const b = z.object({ definition: z.any().optional(), text: z.string().max(MAX_DEFINITION_TEXT).optional() }).parse(req.body);
