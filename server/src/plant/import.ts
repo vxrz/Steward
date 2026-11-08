@@ -1096,8 +1096,9 @@ function run(input: ImportInput, importId: string): Ran {
       removal = planRemoval(targets, { cascade: input.cascade });
       c.preview.removals = removal.plan;
       const origin = new Map(c.removeTargets.map((t) => [`${t.kind}|${t.scope}|${t.id}`, t.origin]));
+      // an entry that is not there (any more) is left out: a file with a remove list imports again unchanged
       for (const i of removal.plan.items)
-        if (i.refused)
+        if (i.refused && i.refused.code !== 'PLANT_ENTRY_NOT_FOUND')
           c.preview.problems.push({
             ...(origin.get(`${i.kind}|${i.scope}|${i.id}`) ?? { file: '(import)', path: 'removeMissing' }),
             message: i.refused.message,

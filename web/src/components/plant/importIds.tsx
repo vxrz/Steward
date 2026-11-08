@@ -325,8 +325,8 @@ export function ImportIdsPreview({ preview }: { preview: PlantImportPreview }) {
                 {removals.slice(0, 300).map((r) => (
                   <Table.Tr key={`${r.kind}|${r.scope}|${r.id}`}>
                     <Table.Td>
-                      <Badge size="sm" color={r.refused ? 'orange' : 'red'} variant="light">
-                        {r.refused ? t('preview.refused') : t('bulk.outcome.removed')}
+                      <Badge size="sm" color={!r.refused ? 'red' : r.refused.code === 'PLANT_ENTRY_NOT_FOUND' ? 'gray' : 'orange'} variant="light">
+                        {!r.refused ? t('bulk.outcome.removed') : r.refused.code === 'PLANT_ENTRY_NOT_FOUND' ? t('bulk.outcome.skipped') : t('preview.refused')}
                       </Badge>
                     </Table.Td>
                     <Table.Td className="nowrap">{t(`kinds.${r.kind}`)}</Table.Td>

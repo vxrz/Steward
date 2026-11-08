@@ -130,6 +130,10 @@ describe('the import as a mass removal', () => {
     expect(await status(s.api('GET', `/plant/assets/${asset}`))).toMatchObject({ status: 404 });
     const log = await s.api('GET', '/audit?action=plant.imported&limit=1');
     expect(log[0].details.removedEntries).toEqual(expect.arrayContaining([`asset:${asset}`]));
+    // the same file again: the entry is not there any more, nothing to do
+    const again = await s.api('POST', '/plant/import/preview', { files: [f], mode: 'update', cascade: true });
+    expect(again.ok).toBe(true);
+    expect(again.removals.items[0].refused.code).toBe('PLANT_ENTRY_NOT_FOUND');
   });
 
   it('a reference from an entry that stays refuses a removal; an entry in the file and in remove is refused', async () => {

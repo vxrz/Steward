@@ -626,6 +626,8 @@ A place or building must be one of the asset's site. A new device profile is ref
     - { kind: vlan, site: riverside, id: rvs-vlan-130 }
   ```
 
+  An entry that is not there (any more) is left out, so the same file imports again.
+
 - _Remove entries that are not in the files_ (`removeMissing: true`): within each site the files hold, the entries of the kinds they list there (its buildings, its areas and what is below them, its assets; the VLANs, zones and conduits of an `ot_network`; the devices and data paths of an `asset_network`) that the files do not have. Device profiles and KPI definitions only when a file lists them all (`device_profiles:`, `kpi_definitions:`). Nothing outside: other sites and kinds the files do not list stay. So _export → delete entries → import_ removes them.
 
 An explicit list is easy to review in a diff; the option suits a file that is the truth for its sites. An entry in `remove:` and in the files is a problem.
