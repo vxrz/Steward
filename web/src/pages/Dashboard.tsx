@@ -44,7 +44,7 @@ export function DashboardPage({ demo }: { demo: boolean }) {
         size="xs"
         onClick={async () => {
           try {
-            const r = await post<{ platforms: number; processes: number; users: string[]; password: string }>('/demo/setup');
+            const r = await post<{ platforms: number; processes: number; users: string[]; password: string }>('/demo/setup', { services: true });
             notifyOk(t('getStarted.demoLoaded', { platforms: r.platforms, processes: r.processes }));
             setDemoAccounts({ users: r.users, password: r.password });
             qc.invalidateQueries();
