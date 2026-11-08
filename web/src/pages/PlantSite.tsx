@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { ActionIcon, Anchor, Badge, Box, Button, Grid, Group, Menu, Paper, Stack, Table, Text, Title, Tooltip } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { IconBuilding, IconDots, IconDownload, IconEdit, IconMap, IconPencil, IconPlus, IconTrash } from '@tabler/icons-react';
+import { IconBuilding, IconDots, IconDownload, IconEdit, IconId, IconMap, IconPencil, IconPlus, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import {
   ASSET_STATUSES,
@@ -15,6 +15,7 @@ import {
 } from '@sm/shared';
 import { apiUrl, del, get, notifyError, patch, post, put } from '../api';
 import { DetailState, EmptyState } from '../components/common';
+import { ChangeIdModal, useAliasRedirect, useChangeId, type EntryRef } from '../components/plant/ids';
 import { DetailHeader } from '../components/page/DetailPage';
 import { Field, LinksPanel } from '../components/records/common';
 import { OwningTeams } from '../components/OwningTeams';
@@ -44,7 +45,7 @@ type NodeDialog = { level: PlantLevel; parentId: string | null; node?: PlantNode
  * buildings (the spatial axis), its assets by status, contacts, external references, own fields, links and access.
  */
 export function PlantSitePage() {
-  const { t } = useTranslation(['plant', 'common', 'plantMap']);
+  const { t } = useTranslation(['plant', 'common', 'plantMap', 'plantIds']);
   const label = usePlantLabel();
   const nameOf = useNameOf();
   const mapOn = usePlantConfig().data?.map.on === true;
@@ -56,7 +57,12 @@ export function PlantSitePage() {
   const [nodeDialog, setNodeDialog] = useState<NodeDialog>(null);
   const [buildingDialog, setBuildingDialog] = useState<{ building?: PlantBuilding } | null>(null);
   const [newAsset, setNewAsset] = useState(false);
+  // Change id of a node or building (0.11.0)
+  const [idOf, setIdOf] = useState<EntryRef | null>(null);
   const s = q.data;
+  // an old id in the address (0.11.0): the entry's id replaces it
+  useAliasRedirect([[siteId, s?.id]]);
+  const changeId = useChangeId(s ? { kind: 'site', id: s.id, name: s.name } : null, !!s?.canManage);
   if (!s) return <DetailState query={q} back="plantSites" />;
   // the other tabs (#230): the structure as a picture
   if (tab) return <PlantSiteTabPage site={s} tab={tab} />;
@@ -164,10 +170,19 @@ export function PlantSitePage() {
           </>
         }
         menu={
-          canManage ? { items: [{ label: t('site.delete'), icon: IconTrash, color: 'red', onClick: () => void remove(), testId: 'site-delete' }] } : undefined
+          canManage
+            ? {
+                items: [
+                  ...(changeId.item ? [changeId.item] : []),
+                  { label: t('site.delete'), icon: IconTrash, color: 'red', onClick: () => void remove(), testId: 'site-delete' },
+                ],
+              }
+            : undefined
         }
         tabs={<SiteTabs site={s} active="" />}
       />
+      {changeId.modal}
+      {idOf && <ChangeIdModal entry={idOf} onClose={() => setIdOf(null)} onRenamed={() => refresh()} />}
       <Grid gap="lg">
         <Grid.Col span={{ base: 12, md: 8 }}>
           <Stack gap="lg">
@@ -205,6 +220,7 @@ export function PlantSitePage() {
                       onAdd={(level, parentId) => setNodeDialog({ level, parentId })}
                       onEdit={(n) => setNodeDialog({ level: n.level, parentId: n.parentId, node: n })}
                       onRemove={(n) => void removeNode(n)}
+                      onChangeId={(n) => setIdOf({ kind: 'node', scope: s.id, id: n.id, name: nameOf(n) })}
                     />
                   ))}
                 </ul>
@@ -274,6 +290,16 @@ export function PlantSitePage() {
                                     onClick={() => setBuildingDialog({ building: b })}
                                   >
                                     <IconPencil size={16} />
+                                  </ActionIcon>
+                                </Tooltip>
+                                <Tooltip label={t('plantIds:changeId.menu')}>
+                                  <ActionIcon
+                                    variant="subtle"
+                                    color="gray"
+                                    aria-label={t('plantIds:changeId.title', { name: nameOf(b) })}
+                                    onClick={() => setIdOf({ kind: 'building', scope: s.id, id: b.id, name: nameOf(b) })}
+                                  >
+                                    <IconId size={16} />
                                   </ActionIcon>
                                 </Tooltip>
                                 <Tooltip label={t('common:remove')}>
@@ -444,6 +470,7 @@ function NodeItem({
   onAdd,
   onEdit,
   onRemove,
+  onChangeId,
 }: {
   node: PlantNode;
   site: PlantSiteDetail;
@@ -452,8 +479,9 @@ function NodeItem({
   onAdd: (level: PlantLevel, parentId: string) => void;
   onEdit: (n: PlantNode) => void;
   onRemove: (n: PlantNode) => void;
+  onChangeId: (n: PlantNode) => void;
 }) {
-  const { t } = useTranslation(['plant', 'common']);
+  const { t } = useTranslation(['plant', 'common', 'plantIds']);
   const label = usePlantLabel();
   const nameOf = useNameOf();
   const child = CHILD[node.level];
@@ -516,6 +544,9 @@ function NodeItem({
                 <Menu.Item leftSection={<IconPencil size={14} />} onClick={() => onEdit(node)}>
                   {t('common:edit')}
                 </Menu.Item>
+                <Menu.Item leftSection={<IconId size={14} />} onClick={() => onChangeId(node)} data-testid={`change-id-${node.id}`}>
+                  {t('plantIds:changeId.menu')}
+                </Menu.Item>
                 <Menu.Item leftSection={<IconTrash size={14} />} color="red" onClick={() => onRemove(node)}>
                   {t('common:remove')}
                 </Menu.Item>
@@ -527,7 +558,17 @@ function NodeItem({
       {node.children.length > 0 && (
         <ul className="plant-tree">
           {node.children.map((c) => (
-            <NodeItem key={c.id} node={c} site={site} buildingName={buildingName} canManage={canManage} onAdd={onAdd} onEdit={onEdit} onRemove={onRemove} />
+            <NodeItem
+              key={c.id}
+              node={c}
+              site={site}
+              buildingName={buildingName}
+              canManage={canManage}
+              onAdd={onAdd}
+              onEdit={onEdit}
+              onRemove={onRemove}
+              onChangeId={onChangeId}
+            />
           ))}
         </ul>
       )}

@@ -902,6 +902,7 @@
     "usedBy": "Verwendet von {{usedBy}}",
     "choose": "Plattform wählen",
     "noneOfKind": "Sie dürfen keine Plattform der Art {{kind}} verwenden. Legen Sie eine an oder lassen Sie sich das Recht „Verwenden“ für eine geben.",
+    "noneOfKinds": "Sie dürfen keine Plattform der Arten {{kinds}} verwenden. Legen Sie eine an oder lassen Sie sich das Recht „Verwenden“ für eine geben.",
     "none": "Sie dürfen keine Plattform verwenden. Legen Sie eine an oder lassen Sie sich das Recht „Verwenden“ für eine geben."
   },
   "testRun": {

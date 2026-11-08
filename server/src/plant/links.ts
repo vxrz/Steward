@@ -1,7 +1,8 @@
 import type { LinkTarget } from '@sm/shared';
 import { db } from '../db.js';
 import { likeEscape } from '../database/sql.js';
-import { registerLinkKind } from '../records/links.js';
+import type { LinkResolver } from '../records/links.js';
+import { conduitLinkKind } from './network.js';
 import { siteRights, sitePermissions } from './access.js';
 import { plantEnabled } from './settings.js';
 import type { AssetRow, SiteRow } from './model.js';
@@ -10,11 +11,12 @@ import type { AssetRow, SiteRow } from './model.js';
  * Sites and assets as link kinds (#218): documents, records, tickets, services and applications can name them, and
  * they hold links themselves (an asset to the systems, applications and platforms it uses). A link shows its target
  * only to readers who may see the target's site; while the module is off nothing resolves (links stay, hidden).
+ * The plant manifest (features/plant.ts) registers them, with the conduits of the network.
  */
 
 const like = (q: string) => `%${likeEscape(q.trim().toLowerCase())}%`;
 
-registerLinkKind('site', {
+const siteLinkKind: LinkResolver = {
   resolve(id) {
     if (!plantEnabled()) return null;
     const s = db().get<SiteRow>('SELECT id, code, name, names, acl FROM plant_sites WHERE id = ?', id);
@@ -34,12 +36,12 @@ registerLinkKind('site', {
       .slice(0, limit)
       .map((s) => ({ kind: 'site' as const, id: s.id, label: s.name, detail: s.code || undefined }));
   },
-});
+};
 
 const assetDetail = (a: Pick<AssetRow, 'manufacturer' | 'model' | 'site_id'>) =>
   [[a.manufacturer, a.model].filter(Boolean).join(' '), a.site_id].filter(Boolean).join(' · ');
 
-registerLinkKind('asset', {
+const assetLinkKind: LinkResolver = {
   resolve(id) {
     if (!plantEnabled()) return null;
     const a = db().get<AssetRow>('SELECT id, name, manufacturer, model, site_id FROM plant_assets WHERE id = ?', id);
@@ -60,4 +62,11 @@ registerLinkKind('asset', {
       .slice(0, limit)
       .map((a) => ({ kind: 'asset' as const, id: a.id, label: a.name, detail: assetDetail(a) }));
   },
-});
+};
+
+/** The link kinds of the plant registry (features/plant.ts registers them). */
+export const PLANT_LINK_KINDS: readonly { kind: string; resolver: LinkResolver }[] = [
+  { kind: 'site', resolver: siteLinkKind },
+  { kind: 'asset', resolver: assetLinkKind },
+  { kind: 'conduit', resolver: conduitLinkKind },
+];

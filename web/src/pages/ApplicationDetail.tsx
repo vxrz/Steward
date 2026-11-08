@@ -30,6 +30,7 @@ import { platformKeys } from '../queryKeys';
 import { CopiedFromNote, DuplicateButton } from '../components/duplicate/DuplicateButton';
 import { useMe } from '../auth';
 import { IfModule } from '../components/modules/ModuleOff';
+import { CollectorCollections } from '../components/plant/CollectorCollections';
 
 export function ApplicationDetailPage() {
   const { t } = useTranslation(['applications', 'common']);
@@ -127,6 +128,7 @@ export function ApplicationDetailPage() {
             )}
             <RunsOnPanel app={a} onSaved={refresh} />
             <IntegrationsPanel app={a} onSaved={refresh} />
+            <CollectorCollections kind="application" id={a.id} />
             <Stack gap="xs" data-testid="application-services">
               <Text fw={600}>{t('services.title')}</Text>
               {a.services.length === 0 ? (

@@ -527,6 +527,9 @@ export const STEP_UP_ACTIONS = [
   'exportPersonalData',
   // 0.11.0 (ADR 0016): switching a module on or off
   'changeModules',
+  // 0.11.0: changing the id of a plant registry entry; renaming, removing or editing many entries at once
+  'renamePlantId',
+  'changePlantInBulk',
 ] as const;
 export type StepUpAction = (typeof STEP_UP_ACTIONS)[number];
 

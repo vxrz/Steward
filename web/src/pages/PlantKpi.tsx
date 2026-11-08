@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import type { KpiColumn, KpiInput, KpiParameter, PlantKpiDetail, PlantKpiValues, PlantProfileSummary } from '@sm/shared';
 import { apiUrl, del, get, notifyError, put } from '../api';
 import { DetailState } from '../components/common';
+import { useAliasRedirect, useChangeId } from '../components/plant/ids';
 import { DetailHeader } from '../components/page/DetailPage';
 import { Field } from '../components/records/common';
 import { confirmDanger } from '../components/confirm';
@@ -98,6 +99,8 @@ export function PlantKpiPage() {
       setSearch({}, { replace: true });
     }
   }, [k?.canManage, search, setSearch]);
+  useAliasRedirect([[kpiId, k?.id]]);
+  const changeId = useChangeId(k ? { kind: 'kpi', id: k.id, name: k.name } : null, !!k?.canManage);
   if (!k) return <DetailState query={q} back="plantKpis" />;
   const base = `/plant/kpis/${encodeURIComponent(k.id)}`;
   const values = valuesOf(k);
@@ -173,9 +176,17 @@ export function PlantKpiPage() {
           </>
         }
         menu={
-          k.canManage ? { items: [{ label: t('kpi.delete'), icon: IconTrash, color: 'red', onClick: () => void remove(), testId: 'kpi-delete' }] } : undefined
+          k.canManage
+            ? {
+                items: [
+                  ...(changeId.item ? [changeId.item] : []),
+                  { label: t('kpi.delete'), icon: IconTrash, color: 'red', onClick: () => void remove(), testId: 'kpi-delete' },
+                ],
+              }
+            : undefined
         }
       />
+      {changeId.modal}
       <CopiedFromNote kind="kpi-definition" id={k.id} pathOf={(id) => `/plant/kpis/${encodeURIComponent(id)}`} />
       <Grid gap="lg">
         <Grid.Col span={{ base: 12, md: 8 }}>

@@ -21,6 +21,9 @@ import {
   type PlantMissing,
   type PlantPermission,
   type PlantRecordType,
+  type PlantProfileValues,
+  type PlantResolvedProfile,
+  plantIdMapInput,
 } from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
@@ -32,7 +35,10 @@ import { canCreateSites, plantManagesSome, siteRights } from './access.js';
 import { fieldDefs, fieldProblems, isDate, isHttpUrl, plantSettings, requirePlant } from './settings.js';
 import { issueMessages, plantFileSchema, SCHEMA_ID, type AreaFile, type AssetFile, type PlantFile, type SiteFile } from './format.js';
 import { assignmentOut, computeData, dataPlanEmpty, emptyDataPlan, kpiOut, profileOut, planData, pushWrite, type DataPlan, type Write } from './import-data.js';
-import { allAssignments, allKpis, allProfiles } from './data-model.js';
+import { allAssignments, allKpis, allProfiles, ownProfiles } from './data-model.js';
+import { applyRenames, missingEntries, planIds } from './import-ids.js';
+import { auditBulkRenames, dryRun } from './rename.js';
+import { planRemoval, type Target } from './removal.js';
 import { assetNetworksOut, computeNetwork, emptyNetPlan, netPlanEmpty, otNetworkOut, planNetwork, type NetPlan } from './import-network.js';
 import {
   assetValuesOf,
@@ -88,6 +94,12 @@ export const importInput = z
     mode: z.enum(PLANT_IMPORT_MODES),
     missing: z.enum(PLANT_MISSING).default('mark'),
     replaces: z.string().trim().max(64).nullable().default(null),
+    /** 0.11.0: old → new ids for the files' ids and references; mapped old ids that exist are renamed first */
+    idMap: plantIdMapInput.optional(),
+    /** 0.11.0: remove the entries of the kinds and sites the files cover that the files do not have */
+    removeMissing: z.boolean().default(false),
+    /** 0.11.0: removals take what belongs to an entry along (otherwise such an entry is refused) */
+    cascade: z.boolean().default(false),
   })
   .strict();
 export type ImportInput = z.infer<typeof importInput>;
@@ -410,6 +422,39 @@ interface Computed {
   preview: PlantImportPreview;
   writes: Write[];
   plan: Plan;
+  /** The parsed files, with the id mapping and the aliases applied */
+  files: PlantFile[];
+  /** Entries the files remove (`remove:`) */
+  removeTargets: (Target & { origin: Origin })[];
+}
+
+/** Whether an entry the files remove is also one they define. */
+function definedInFiles(p: Plan, t: Target): boolean {
+  const k = key(t.scope, t.id);
+  switch (t.kind) {
+    case 'site':
+      return p.sites.has(t.id);
+    case 'asset':
+      return p.assets.has(t.id);
+    case 'node':
+      return p.nodes.has(k);
+    case 'building':
+      return p.buildings.has(k);
+    case 'profile':
+      return p.data.profiles.has(t.id);
+    case 'kpi':
+      return p.data.kpis.has(t.id);
+    case 'vlan':
+      return p.net.vlans.has(k);
+    case 'zone':
+      return p.net.zones.has(k);
+    case 'conduit':
+      return p.net.conduits.has(k);
+    case 'device':
+      return p.net.devices.has(k);
+    case 'data_path':
+      return p.net.paths.has(k);
+  }
 }
 
 function compute(input: ImportInput, importId: string): Computed {
@@ -420,7 +465,21 @@ function compute(input: ImportInput, importId: string): Computed {
   const parsed = readFiles(input.files, problems);
   const files = parsed.map((f) => ({ name: f.name, sha256: f.sha256, bytes: f.bytes }));
   const allSha = sha256(parsed.map((f) => `${f.name}\0${f.sha256}`).join('\n'));
+  // 0.11.0: the id mapping and old ids (aliases); mapped entries that exist are renamed first (compute runs in the
+  // import's transaction – a rolled-back one for the preview)
+  const ids = planIds(
+    parsed.flatMap((f) => (f.file ? [{ name: f.name, file: f.file }] : [])),
+    input.idMap,
+  );
+  problems.push(...ids.problems);
+  const renamed = !problems.length && ids.renames.length ? applyRenames(ids, u.username) : { done: [], problems: [] };
+  problems.push(...renamed.problems);
   const p = plan(parsed, problems);
+  for (const t of ids.removals) {
+    if (t.scope === null || (t.kind !== 'site' && t.kind !== 'asset' && t.kind !== 'profile' && t.kind !== 'kpi' && !t.scope))
+      problems.push({ ...t.origin, message: `Name the ${['device', 'data_path'].includes(t.kind) ? 'asset' : 'site'} of ${t.kind} "${t.id}"` });
+    else if (definedInFiles(p, t)) problems.push({ ...t.origin, message: `${t.kind} "${t.id}" is in the files and in remove` });
+  }
   const s = stored();
   const mode: PlantImportMode = input.mode;
   const missing: PlantMissing = input.missing;
@@ -971,7 +1030,7 @@ function compute(input: ImportInput, importId: string): Computed {
     (byKind[c.kind] ??= emptyCounts())[c.action]++;
   }
   const empty = !p.sites.size && !p.nodes.size && !p.buildings.size && !p.assets.size && dataPlanEmpty(p.data) && netPlanEmpty(p.net);
-  if (empty && mode !== 'replace' && !problems.length)
+  if (empty && mode !== 'replace' && !problems.length && !ids.removals.length)
     problems.push({
       file: '(files)',
       path: '(document)',
@@ -990,8 +1049,87 @@ function compute(input: ImportInput, importId: string): Computed {
     counts,
     byKind,
     checks,
+    renames: renamed.done,
+    aliasUses: ids.aliasUses,
+    removals: null,
+    stepUp: false,
   };
-  return { preview, writes, plan: p };
+  return { preview, writes, plan: p, files: parsed.flatMap((f) => (f.file ? [f.file] : [])), removeTargets: ids.removals };
+}
+
+/** Applies the writes of an import: removals last – what stays may still name them while it is written. */
+function applyWrites(writes: Write[]): void {
+  for (const w of writes) if (w.action !== 'remove') w.apply();
+  const order: PlantChangeKind[] = [
+    'data_path',
+    'device',
+    'asset_checks',
+    'conduit',
+    'zone',
+    'vlan',
+    'assignment',
+    'asset',
+    'work_unit',
+    'work_center',
+    'area',
+    'building',
+    'site',
+    'kpi',
+    'profile',
+  ];
+  for (const kind of order) for (const w of writes) if (w.action === 'remove' && w.kind === kind) w.apply();
+}
+
+interface Ran extends Computed {
+  removal: ReturnType<typeof planRemoval> | null;
+}
+
+/**
+ * An import in a transaction: renames, the writes of the files and the entries they remove – what a refused removal
+ * says is a problem of the preview. The preview runs it in a transaction that is rolled back.
+ */
+function run(input: ImportInput, importId: string): Ran {
+  const c = compute(input, importId);
+  let removal: Ran['removal'] = null;
+  if (c.preview.ok) {
+    applyWrites(c.writes);
+    const targets: Target[] = [...c.removeTargets, ...(input.removeMissing ? missingEntries(c.files) : [])];
+    if (targets.length) {
+      removal = planRemoval(targets, { cascade: input.cascade });
+      c.preview.removals = removal.plan;
+      const origin = new Map(c.removeTargets.map((t) => [`${t.kind}|${t.scope}|${t.id}`, t.origin]));
+      // an entry that is not there (any more) is left out: a file with a remove list imports again unchanged
+      for (const i of removal.plan.items)
+        if (i.refused && i.refused.code !== 'PLANT_ENTRY_NOT_FOUND')
+          c.preview.problems.push({
+            ...(origin.get(`${i.kind}|${i.scope}|${i.id}`) ?? { file: '(import)', path: 'removeMissing' }),
+            message: i.refused.message,
+          });
+      if (c.preview.problems.length) c.preview.ok = false;
+    }
+  }
+  c.preview.stepUp = stepUpOf(c.preview) !== null;
+  return { ...c, removal };
+}
+
+/** The control point an import's step-up belongs to: more than one entry renamed or removed – bulk; one rename – single. */
+function stepUpOf(p: PlantImportPreview): 'plant.bulkChange' | 'plant.renameId' | null {
+  // the entries chosen for removal (what goes with one of them does not make it a bulk removal)
+  const removed = p.counts.remove + (p.removals?.items.filter((i) => !i.refused).length ?? 0);
+  if (p.renames.length > 1 || removed > 1) return 'plant.bulkChange';
+  if (p.renames.length === 1) return 'plant.renameId';
+  return null;
+}
+
+/** The step-up points of POST /api/plant/import (route config): what the preview of the body would rename and remove. */
+export function importStepUpPoints(body: unknown): string[] {
+  const input = importInput.safeParse(body);
+  if (!input.success) return [];
+  requirePlant();
+  if (!plantManagesSome(me())) return [];
+  const p = dryRun(() => run(input.data, 'preview').preview);
+  const point = p.ok ? stepUpOf(p) : null;
+  return point ? [point] : [];
 }
 
 // ---------- the API ----------
@@ -1000,7 +1138,7 @@ export function previewImport(input: ImportInput): PlantImportPreview {
   requirePlant();
   // the same right as the import itself: a preview shows what an import would change
   if (!plantManagesSome(me())) throw new HttpError(403, 'You are not allowed to import into the plant registry', 'FORBIDDEN', { context: 'managePlant' });
-  return compute(input, 'preview').preview;
+  return dryRun(() => run(input, 'preview').preview);
 }
 
 export function applyImport(input: ImportInput): PlantImportResult {
@@ -1008,34 +1146,15 @@ export function applyImport(input: ImportInput): PlantImportResult {
   const u = me();
   if (!plantManagesSome(u)) throw new HttpError(403, 'You are not allowed to import into the plant registry', 'FORBIDDEN', { context: 'managePlant' });
   const id = newId('pim_');
-  const { preview, writes } = compute(input, id);
-  if (!preview.ok)
-    throw new HttpError(400, `The files have ${preview.problems.length} problems – see the preview`, 'PLANT_IMPORT_INVALID', {
-      count: preview.problems.length,
-    });
-  // profiles and KPI definitions belong to no site
-  const sites = [...new Set(writes.map((w) => w.siteId).filter(Boolean))].sort();
-  db().tx(() => {
-    // removals last: what stays may still name them while it is written
-    for (const w of writes) if (w.action !== 'remove') w.apply();
-    const order: PlantChangeKind[] = [
-      'data_path',
-      'device',
-      'asset_checks',
-      'conduit',
-      'zone',
-      'vlan',
-      'assignment',
-      'asset',
-      'work_unit',
-      'work_center',
-      'area',
-      'building',
-      'site',
-      'kpi',
-      'profile',
-    ];
-    for (const kind of order) for (const w of writes) if (w.action === 'remove' && w.kind === kind) w.apply();
+  return db().tx(() => {
+    const { preview, writes, removal } = run(input, id);
+    if (!preview.ok)
+      throw new HttpError(400, `The files have ${preview.problems.length} problems – see the preview`, 'PLANT_IMPORT_INVALID', {
+        count: preview.problems.length,
+      });
+    removal?.apply();
+    // profiles and KPI definitions belong to no site
+    const sites = [...new Set(writes.map((w) => w.siteId).filter(Boolean))].sort();
     db().run(
       'INSERT INTO plant_imports (id, created_at, created_by, mode, missing, replaces, files, sha256, counts, sites) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       id,
@@ -1076,10 +1195,18 @@ export function applyImport(input: ImportInput): PlantImportResult {
         changed: ids('change'),
         removed: ids('remove'),
         marked: ids('mark'),
+        // 0.11.0: renames by the id mapping (also audited as plant.ids_changed) and removed entries
+        renamed: preview.renames.slice(0, 200).map((r) => `${r.kind}:${r.scope ? `${r.scope}/` : ''}${r.id}→${r.newId}`),
+        removedEntries: (removal?.entries ?? []).slice(0, 200).map((e) => `${e.kind}:${e.scope ? `${e.scope}/` : ''}${e.id}`),
+        cascade: input.cascade,
       },
     });
+    auditBulkRenames(
+      preview.renames.map((r) => ({ kind: r.kind, scope: r.scope, from: r.id, to: r.newId, references: r.references })),
+      `import ${id}`,
+    );
+    return { ...preview, import: importSummary(id)! };
   });
-  return { ...preview, import: importSummary(id)! };
 }
 
 interface ImportRow {
@@ -1197,6 +1324,12 @@ export const EXPORT_TYPES = { yaml: 'application/yaml; charset=utf-8', json: 'ap
  * and the assignments of their assets, one site (`site:` and its assignments), the catalogues only, one device profile
  * or one KPI definition. The importer reads both.
  */
+/** A profile's own part as written in a file (a derived profile only with what it adds and changes, 0.11.0). */
+function ownProfileOut(id: string, resolved: Map<string, PlantResolvedProfile>, own: Map<string, PlantProfileValues>): Record<string, unknown> {
+  const p = own.get(id)!;
+  return profileOut(p, p.extends ? (resolved.get(p.extends) ?? null) : null);
+}
+
 export function exportYaml(
   q: ExportQuery = {},
   opts: ExportOptions = {},
@@ -1209,6 +1342,8 @@ export function exportYaml(
   const file = (name: string) => (format === 'json' ? name.replace(/\.yaml$/, '.json') : name);
   // through the public API: the token is named in the audit entry
   const via = opts.tokenId ? { via: 'api', tokenId: opts.tokenId } : {};
+  // a resolved profile's interfaces are the effective ones; the file holds the own part
+  const own = ownProfiles();
   const viaText = opts.tokenId ? ' via the API' : '';
   // one catalogue record, or the catalogues
   if (q.profile || q.kpi || q.part === 'catalogue') {
@@ -1219,7 +1354,7 @@ export function exportYaml(
     if (q.profile) {
       const pr = profiles.get(q.profile);
       if (!pr) throw new HttpError(404, `Device profile ${q.profile} not found`, 'PLANT_PROFILE_NOT_FOUND', { id: q.profile });
-      doc = { version: PLANT_FORMAT_VERSION, device_profile: profileOut(pr) };
+      doc = { version: PLANT_FORMAT_VERSION, device_profile: ownProfileOut(pr.id, profiles, own) };
       filename = `${pr.id}.profile.plant.yaml`;
     } else if (q.kpi) {
       const k = kpis.get(q.kpi);
@@ -1229,7 +1364,7 @@ export function exportYaml(
     } else {
       doc = {
         version: PLANT_FORMAT_VERSION,
-        ...(profiles.size ? { device_profiles: [...profiles.values()].map(profileOut) } : {}),
+        ...(profiles.size ? { device_profiles: [...profiles.keys()].map((id) => ownProfileOut(id, profiles, own)) } : {}),
         ...(kpis.size ? { kpi_definitions: [...kpis.values()].map(kpiOut) } : {}),
       };
       filename = 'plant-catalogue.plant.yaml';
@@ -1344,7 +1479,8 @@ export function exportYaml(
   // part 2 (#219): the whole registry carries the catalogues; a site and the whole registry the assignments of their assets
   const assignments = allAssignments();
   const assigned = assets.filter((a) => assignments.has(a.id)).map((a) => assignmentOut(a.id, assignments.get(a.id)!));
-  const profiles = siteId ? [] : [...allProfiles().values()];
+  const resolvedProfiles = allProfiles();
+  const profiles = siteId ? [] : [...resolvedProfiles.keys()];
   const kpis = siteId ? [] : [...allKpis().values()];
   // part 3 (#220): the OT network of the sites and of their assets
   const networks = chosen.map((x) => otNetworkOut(x.id)).filter((x): x is Record<string, unknown> => !!x);
@@ -1353,7 +1489,7 @@ export function exportYaml(
     version: PLANT_FORMAT_VERSION,
     ...(enterprise ? { enterprise: { name: enterprise } } : {}),
     ...(siteId ? { site: out[0] } : { sites: out }),
-    ...(profiles.length ? { device_profiles: profiles.map(profileOut) } : {}),
+    ...(profiles.length ? { device_profiles: profiles.map((id) => ownProfileOut(id, resolvedProfiles, own)) } : {}),
     ...(kpis.length ? { kpi_definitions: kpis.map(kpiOut) } : {}),
     ...(assigned.length ? { assignments: assigned } : {}),
     ...(networks.length ? (siteId ? { ot_network: networks[0] } : { ot_networks: networks }) : {}),

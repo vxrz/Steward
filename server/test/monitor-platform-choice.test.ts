@@ -97,6 +97,60 @@ describe('monitor import: choose the platform', () => {
     expect(await platformOfCheck('api-data', 'api-data')).toBe(gatus.id);
   });
 
+  it('offers only platforms of a kind the check reads – also one of several – and refuses another one before saving (0.11)', async () => {
+    const forge = await platform('Forge', 'forgejo');
+    const yaml = (ref: string) =>
+      [
+        'kind: monitor',
+        `name: Pipelines ${ref}`,
+        'checks:',
+        '  - id: pipe',
+        '    name: Pipeline',
+        '    type: git',
+        `    platform: ${ref}`,
+        '    repository: acme/shop',
+      ].join('\n');
+    const { platforms } = await s.api('POST', '/monitors/import/preview', { yaml: yaml('Code') });
+    expect(platforms[0]).toMatchObject({ ref: 'Code', kind: null, kinds: ['github', 'gitlab', 'forgejo'] });
+    const offered = platforms[0].candidates.map((c: { id: string }) => c.id);
+    expect(offered).toContain(forge.id);
+    expect(offered).not.toContain(gatus.id);
+    expect(offered).not.toContain(modev.id);
+    // a choice of another kind: refused before the monitor is saved
+    const chosen = await s.api('POST', '/monitors/import', { yaml: yaml('Code'), key: 'pipes-kind', platforms: { Code: gatus.id } }).catch((e) => e);
+    expect(chosen.body).toMatchObject({
+      code: 'PLATFORM_CHOICE_KIND',
+      params: { ref: 'Code', name: 'Gatus', kinds: ['github', 'gitlab', 'forgejo'], context: 'several' },
+    });
+    // a file that names a platform of another kind by its id: refused when saving
+    const named = await s.api('POST', '/monitors/import', { yaml: yaml(gatus.id), key: 'pipes-id' }).catch((e) => e);
+    expect(named.body).toMatchObject({ code: 'CHECK_PLATFORM_KIND', params: { check: 'pipe', type: 'git', name: 'Gatus', kind: 'gatus' } });
+    await s.api('POST', '/monitors/import', { yaml: yaml('Code'), key: 'pipes-ok', platforms: { Code: forge.id } });
+    expect(await platformOfCheck('pipes-ok', 'pipe')).toBe(forge.id);
+  });
+
+  it('offers only platforms of the kind an output writes to, and refuses another one (0.11)', async () => {
+    const yaml = (ref: string, key: string) =>
+      [
+        'kind: monitor',
+        `key: ${key}`,
+        `name: Status to Gatus ${key}`,
+        'checks:',
+        '  - { id: port, name: Port, type: tcp, host: 127.0.0.1, port: 1 }',
+        'outputs:',
+        `  - { id: status, type: gatus, platform: "${ref}", endpointKey: shop }`,
+      ].join('\n');
+    const { platforms } = await s.api('POST', '/monitors/import/preview', { yaml: yaml('Status', 'gatus-out') });
+    expect(platforms[0]).toMatchObject({ ref: 'Status', kind: 'gatus', kinds: ['gatus'], usedBy: [{ type: 'output', id: 'status' }] });
+    expect(platforms[0].candidates.map((c: { id: string }) => c.id)).toEqual([gatus.id]);
+    const chosen = await s.api('POST', '/monitors/import', { yaml: yaml('Status', 'gatus-out'), platforms: { Status: modev.id } }).catch((e) => e);
+    expect(chosen.body).toMatchObject({ code: 'PLATFORM_CHOICE_KIND', params: { ref: 'Status', kind: 'gatus' } });
+    // a file that names a platform of another kind by its id: refused when saving
+    const named = await s.api('POST', '/monitors/import', { yaml: yaml(modev.id, 'gatus-out-id') }).catch((e) => e);
+    expect(named.body).toMatchObject({ code: 'OUTPUT_PLATFORM_KIND', params: { output: 'status', type: 'gatus', kind: 'insights-hub', kinds: ['gatus'] } });
+    await s.api('POST', '/monitors/import', { yaml: yaml('Status', 'gatus-out'), platforms: { Status: gatus.id } });
+  });
+
   it('lists templates by a readable name instead of their parameter placeholder', async () => {
     const examples = (await s.api('GET', '/monitors/examples')) as { kind: string; name: string; description: string }[];
     const template = examples.find((e) => e.kind === 'monitorTemplate')!;
@@ -134,7 +188,57 @@ describe('Git sync: choose the platform when accepting', () => {
     expect(detail.platforms[0]).toMatchObject({ ref: 'Insights Hub', resolved: null });
 
     expect(await codeOf(s.api('POST', `/sync-updates/${u!.id}/accept`, {}))).toContain('Choose the platform');
+    // only Insights Hub platforms are offered; another kind is refused before anything is saved (0.11)
+    expect(detail.platforms[0].candidates.map((c: { id: string }) => c.id)).not.toContain(gatus.id);
+    const wrong = await s.api('POST', `/sync-updates/${u!.id}/accept`, { platforms: { 'Insights Hub': gatus.id } }).catch((e) => e);
+    expect(wrong.body).toMatchObject({ code: 'PLATFORM_CHOICE_KIND', params: { kind: 'insights-hub', name: 'Gatus' } });
     await s.api('POST', `/sync-updates/${u!.id}/accept`, { platforms: { 'Insights Hub': prod.id } });
     expect(await platformOfCheck('m17-from-git', 'machine-ih')).toBe(prod.id);
+  });
+
+  it('asks for a platform when a check names one of another kind by its id – also one of several kinds (0.11)', async () => {
+    const forge = await platform('Forge (sync)', 'forgejo');
+    const repo = `team/kinds-${Date.now().toString(36)}`;
+    const file = [
+      'kind: monitor',
+      'key: git-from-git',
+      'name: Pipeline from Git',
+      'checks:',
+      '  - id: pipe',
+      '    name: Pipeline',
+      '    type: git',
+      `    platform: ${modev.id}`,
+      '    repository: acme/shop',
+    ].join('\n');
+    await fetch(`${s.base}/mock/git/_commit`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ repo, files: { 'steward/gatus.yaml': file }, signed: true }),
+    });
+    const { source } = await s.api('POST', '/sync-sources', {
+      name: 'Kinds',
+      provider: 'forgejo',
+      repoUrl: `${s.base}/mock/git/${repo}`,
+      branch: 'main',
+      folder: 'steward',
+      kinds: ['monitor'],
+    });
+    await s.api('POST', `/sync-sources/${source.id}/fetch`);
+    const [u] = (await s.api('GET', `/sync-updates?sourceId=${source.id}&status=pending`)) as { id: string }[];
+    const detail = await s.api('GET', `/sync-updates/${u!.id}`);
+    // the id resolves to nothing the check may read: no candidate of another kind is offered
+    expect(detail.platforms[0]).toMatchObject({ ref: modev.id, kind: null, kinds: ['github', 'gitlab', 'forgejo'], resolved: null });
+    const offered = detail.platforms[0].candidates.map((c: { id: string }) => c.id);
+    expect(offered).toContain(forge.id);
+    expect(offered).not.toContain(modev.id);
+    expect(offered).not.toContain(gatus.id);
+    // so accepting it as it is asks for a choice first, before anything is saved
+    const refused = await s.api('POST', `/sync-updates/${u!.id}/accept`, {}).catch((e) => e);
+    expect(refused.body).toMatchObject({ code: 'SYNC_PLATFORM_CHOICE_NEEDED', params: { refs: modev.id } });
+    expect((await s.api('GET', '/monitors')).some((m: { key: string }) => m.key === 'git-from-git')).toBe(false);
+    const wrong = await s.api('POST', `/sync-updates/${u!.id}/accept`, { platforms: { [modev.id]: gatus.id } }).catch((e) => e);
+    expect(wrong.body).toMatchObject({ code: 'PLATFORM_CHOICE_KIND', params: { context: 'several' } });
+    await s.api('POST', `/sync-updates/${u!.id}/accept`, { platforms: { [modev.id]: forge.id } });
+    expect(await platformOfCheck('git-from-git', 'pipe')).toBe(forge.id);
   });
 });

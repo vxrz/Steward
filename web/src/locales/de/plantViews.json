@@ -9,7 +9,8 @@
     },
     "asset": {
       "overview": "Überblick",
-      "flow": "Datenfluss"
+      "flow": "Datenfluss",
+      "collections": "Datenerfassungen"
     }
   },
   "toolbar": {

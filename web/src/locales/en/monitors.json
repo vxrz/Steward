@@ -902,6 +902,7 @@
     "usedBy": "Used by {{usedBy}}",
     "choose": "Choose a platform",
     "noneOfKind": "You may use no platform of kind {{kind}}. Add one, or ask for the “use” right on one.",
+    "noneOfKinds": "You may use no platform of the kinds {{kinds}}. Add one, or ask for the “use” right on one.",
     "none": "You may use no platform. Add one, or ask for the “use” right on one."
   },
   "testRun": {

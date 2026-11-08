@@ -217,7 +217,7 @@ describe('a Steward monitor as the source of an objective', () => {
     expect(byWindow.d7.status).toBe('below');
     expect(byWindow.h24.value).toBe(100);
     expect(byWindow.d30.value).toBeCloseTo(mon.uptime.d30, 5);
-    const { monitorAvailability } = await import('../src/reports/sections.js');
+    const { monitorAvailability } = await import('../src/reports/builtin-sections.js');
     const now = Date.now();
     expect(monitorAvailability(monitorId, now - 7 * DAY, now).uptime).toBeCloseTo(byWindow.d7.value, 5);
     // the scorecard names the monitor as the source

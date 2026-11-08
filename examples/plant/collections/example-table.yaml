@@ -1,0 +1,22 @@
+# Generic table of a data collection: the same keys as the CSV columns (docs/PLANT.md, "Data collections")
+items:
+  - {
+      collection: energy,
+      mode: interval,
+      interval_ms: 10000,
+      source_address: "input:65,2",
+      output_name: ActivePower,
+      output_type: float,
+      transform: "scale 0.001 (W to kW)",
+      destination: plant.energy,
+    }
+  - {
+      collection: energy,
+      mode: interval,
+      interval_ms: 10000,
+      source_address: "input:801,4",
+      output_name: ActiveEnergy,
+      output_type: float,
+      destination: plant.energy,
+    }
+  - { collection: state, mode: on_change, debounce_ms: 500, source_address: "coil:0", output_name: MeterOnline, output_type: bool }

@@ -1,0 +1,118 @@
+[
+  {
+    "id": "tab1",
+    "type": "tab",
+    "label": "Milling centre 1"
+  },
+  {
+    "id": "inj1",
+    "type": "inject",
+    "z": "tab1",
+    "name": "every 5 s",
+    "repeat": "5",
+    "wires": [["item1", "item2"]]
+  },
+  {
+    "id": "item1",
+    "type": "OpcUa-Item",
+    "z": "tab1",
+    "item": "ns=2;s=Spindle1.ActualSpeed",
+    "datatype": "Double",
+    "name": "SpindleSpeed",
+    "wires": [["client1"]]
+  },
+  {
+    "id": "item2",
+    "type": "OpcUa-Item",
+    "z": "tab1",
+    "item": "ns=2;s=Spindle1.Load",
+    "datatype": "Double",
+    "name": "SpindleLoad",
+    "wires": [["client1"]]
+  },
+  {
+    "id": "client1",
+    "type": "OpcUa-Client",
+    "z": "tab1",
+    "endpoint": "ep1",
+    "action": "read",
+    "name": "read machine",
+    "wires": [["chg1"]]
+  },
+  {
+    "id": "chg1",
+    "type": "change",
+    "z": "tab1",
+    "name": "to topic",
+    "rules": [
+      {
+        "t": "set",
+        "p": "topic",
+        "pt": "msg",
+        "to": "plant/rvs-mill-01/spindle",
+        "tot": "str"
+      }
+    ],
+    "wires": [["fn1", "dbg1"]]
+  },
+  {
+    "id": "fn1",
+    "type": "function",
+    "z": "tab1",
+    "name": "rpm to 1/s",
+    "func": "msg.payload = msg.payload / 60; return msg;",
+    "wires": [["mqtt1"]]
+  },
+  {
+    "id": "mqtt1",
+    "type": "mqtt out",
+    "z": "tab1",
+    "name": "broker",
+    "topic": "plant/rvs-mill-01/spindle",
+    "broker": "br1",
+    "wires": []
+  },
+  {
+    "id": "dbg1",
+    "type": "debug",
+    "z": "tab1",
+    "name": "",
+    "wires": []
+  },
+  {
+    "id": "mb1",
+    "type": "modbus-read",
+    "z": "tab1",
+    "name": "MeterPower",
+    "dataType": "InputRegister",
+    "adr": "65",
+    "quantity": "2",
+    "rate": "10",
+    "rateUnit": "s",
+    "wires": [["http1"]]
+  },
+  {
+    "id": "http1",
+    "type": "http request",
+    "z": "tab1",
+    "name": "energy API",
+    "method": "POST",
+    "url": "https://energy.example.com/api/values",
+    "wires": [[]]
+  },
+  {
+    "id": "ep1",
+    "type": "OpcUa-Endpoint",
+    "endpoint": "opc.tcp://192.0.2.10:4840",
+    "credentials": {
+      "user": "never-imported",
+      "password": "never-imported"
+    }
+  },
+  {
+    "id": "br1",
+    "type": "mqtt-broker",
+    "broker": "mqtt.example.com",
+    "port": "8883"
+  }
+]

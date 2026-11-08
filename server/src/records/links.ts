@@ -30,7 +30,7 @@ import { watchesLinkingTo } from '../changedetection/store.js';
 
 /**
  * Items that hold links: records, services, applications and ticket references (tickets/service.ts: the items a ticket
- * affects); sites and assets of the plant registry module (plant/links.ts registers their kinds).
+ * affects); sites and assets of the plant registry module (plant/links.ts has their kinds, features/plant.ts registers them).
  */
 export type LinkSource = 'record' | 'service' | 'application' | 'ticket' | 'site' | 'asset';
 

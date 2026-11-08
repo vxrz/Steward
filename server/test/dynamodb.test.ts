@@ -335,7 +335,10 @@ describe('against the demo account', () => {
 
   it('refuses a platform that is not an AWS account', async () => {
     const other = (await s.api('GET', '/platforms')).find((p: { kind: string }) => p.kind === 'snowflake').id;
-    expect(await preview({ platform: other })).toMatchObject({ status: 'unknown', message: expect.stringMatching(/is not an AWS platform$/) });
+    expect(await preview({ platform: other })).toMatchObject({
+      status: 'unknown',
+      message: expect.stringMatching(/is a platform of kind Snowflake, but this check reads AWS account – choose a platform of that kind$/),
+    });
   });
 
   it('the example monitor runs all three modes, and its ages, item count and size become dataset metrics', async () => {

@@ -1,4 +1,4 @@
-import { checkSchema, issueLabel, type CheckDef, type MonitorStatus } from '@sm/shared';
+import { checkPlatformKinds, checkSchema, issueLabel, type CheckDef, type MonitorStatus } from '@sm/shared';
 import { HttpError } from '../util.js';
 import { vault } from '../vault.js';
 import { audit } from '../audit.js';
@@ -99,8 +99,9 @@ export async function previewCheck(input: { monitorId?: string; check: unknown; 
   const c: CheckDef = { ...parsed.data };
   if (!isActive(c)) throw new HttpError(409, 'This check type is evaluated from reports, not by a call', 'CHECK_PREVIEW_UNSUPPORTED', { type: c.type });
   if ('platform' in c && c.platform) {
-    const kind =
-      c.type === 'gatus' ? 'gatus' : c.type === 'freshness' && c.source === 'insightsHub' ? 'insights-hub' : c.type === 'dynamodb' ? 'aws' : undefined;
+    // the one kind the check reads resolves a name (a platform of another kind reports unknown when the check runs)
+    const kinds = checkPlatformKinds(c);
+    const kind = kinds.length === 1 ? kinds[0] : undefined;
     const id = resolvePlatformRef(c.platform, kind).id;
     // the check runs with the owner's rights, but the person trying it must see the platform (a hidden one reads like
     // a missing one) – and reading a database's schema is their own "use" as well

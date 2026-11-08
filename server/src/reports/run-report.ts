@@ -2,7 +2,8 @@ import { runOutcome } from '@sm/shared';
 import { ReportWriter, type CellInput, type Tone } from './pdf/engine.js';
 import { translator, type MsgKey, type Translator } from './i18n.js';
 import { PRODUCT, chrome, langTag, statusTone, type BrandingInput } from './common.js';
-import { personLabel, type ManualStepModel, type Person, type RunReportModel } from './model.js';
+import type { ManualStepModel, Person, RunReportModel } from './model.js';
+import { personLabel } from './labels.js';
 
 export interface RenderResult {
   pdf: Buffer;

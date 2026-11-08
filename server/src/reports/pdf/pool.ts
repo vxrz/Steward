@@ -5,6 +5,7 @@ import { config } from '../../config.js';
 import { logger } from '../../log.js';
 import { HttpError } from '../../util.js';
 import type { PdfDrawers } from './drawers.js';
+import { reviveBuffers, type WorkerError } from './wire.js';
 
 /**
  * PDFs are drawn in a worker thread (#13), one at a time, with a time and a memory limit: a large or unusual
@@ -41,36 +42,8 @@ interface Job {
   reject: (e: unknown) => void;
 }
 
-/** What crosses the thread boundary: Buffers arrive as Uint8Arrays and are turned back into Buffers. */
-export function reviveBuffers<T>(v: T): T {
-  if (v instanceof Uint8Array) return (Buffer.isBuffer(v) ? v : Buffer.from(v.buffer, v.byteOffset, v.byteLength)) as T;
-  if (Array.isArray(v)) return v.map(reviveBuffers) as T;
-  if (v && typeof v === 'object' && Object.getPrototypeOf(v) === Object.prototype) {
-    const out: Record<string, unknown> = {};
-    for (const [k, x] of Object.entries(v)) out[k] = reviveBuffers(x);
-    return out as T;
-  }
-  return v;
-}
+export { reviveBuffers, toWorkerError, type WorkerError } from './wire.js';
 
-/** An error from the worker, as plain data (HttpError keeps its status, code and parameters). */
-export interface WorkerError {
-  message: string;
-  statusCode?: number;
-  code?: string;
-  params?: Record<string, unknown>;
-  stack?: string;
-}
-export const toWorkerError = (e: unknown): WorkerError => {
-  const err = e as Partial<HttpError> & { message?: string; stack?: string };
-  return {
-    message: String(err?.message ?? e),
-    statusCode: err?.statusCode,
-    code: err?.code,
-    params: err?.params as Record<string, unknown>,
-    stack: err?.stack,
-  };
-};
 const fromWorkerError = (e: WorkerError): Error => {
   if (e.statusCode) {
     // the error as the drawer threw it in the worker (its code is one of the drawer's own)

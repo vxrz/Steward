@@ -195,6 +195,12 @@ export const HISTORY_COLUMNS: string[] = [
   'plant_data_paths.updated_by',
   'plant_asset_checks.created_by',
   'plant_asset_checks.updated_by',
+  // data collections and the gateway names remembered from imports (0.11.0)
+  'plant_collections.created_by',
+  'plant_collections.updated_by',
+  'plant_collection_mappings.created_by',
+  // old ids of renamed plant entries (0.11.0)
+  'plant_id_aliases.renamed_by',
   'access_checks.updated_by',
   'application_components.created_by',
   'platform_recordings.created_by',

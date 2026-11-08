@@ -25,14 +25,6 @@ import { formatDateTime, t } from '../i18n/index.js';
 import { generateScheduledReport } from './service.js';
 import { asBackgroundPdf } from './pdf/pool.js';
 import { parseSections, reportSection } from './sections.js';
-// sections registered by other features
-import '../records/report-section.js';
-import '../tickets/report-section.js';
-import '../duties/report-section.js';
-import '../scorecard/report-section.js';
-import '../ai/report-section.js';
-import '../costs/report-section.js';
-import '../datacontracts/report-section.js';
 import { me } from '../auth/access.js';
 import { memberships } from '../auth/policy.js';
 

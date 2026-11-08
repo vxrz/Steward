@@ -98,3 +98,19 @@ Every import shows its preview first (add, change, remove, mark, unchanged, skip
 - **Read endpoints** `/api/v1/plant/sites/{siteId}/network` and `/api/v1/plant/assets/{assetId}/network`. The internal `GET /api/plant/sites/:siteId/network` answers with everything a diagram needs (zones, conduits, VLANs, devices, data paths with resolved collectors and hosts, live status) in one response.
 
 **Not decided here.** Steward does not discover devices, scan subnets or push rules; a status history and alerts stay with the monitors.
+
+## Update 0.11: profile inheritance and asset additions
+
+**Since:** 0.11.0. It extends part 2; nothing else changes.
+
+**Context.** Controller generations and variants share most of their interfaces and data points; copying a profile (_Duplicate_) left every copy to be kept in step by hand. Single machines often have a few data points or a whole interface (an extra I/O module) that their kind does not.
+
+**Decision.**
+
+- **One base, several levels.** A profile may extend one base profile (`extends`, column `base_id`); chains are at most 8 profiles, cycles and a profile extending itself are refused. The derived profile stores only its own part: its own interfaces, **overrides** of inherited interfaces (the fields it changes, data points and files it adds, `present: false`) and of inherited data points (the fields it changes, `present: false`) – columns `interface_overrides` and `point_overrides` (migration `plant-005-profile-extends`, additive).
+- **Resolution in one place.** `server/src/plant/resolve.ts` computes the **resolved profile** – the effective model with the origin of every interface and data point (own, inherited, overridden) – and every reader uses it (`allProfiles()`, `resolvedProfile()`): data point pages, who delivers what, assignments, checks, KPI inputs, coverage, data flow, lineage and the API. Only the editor and the export read the own part. A KPI input naming a base reads every profile that extends it.
+- **Rules refuse, drift is shown.** On save and import: the base exists, no cycle, no own interface with an inherited id, no id twice in the effective model (for the profile and for every profile that extends it, so a base save that would break a derived profile is refused), addresses fit their protocol. A base that is extended is not deleted (`PLANT_PROFILE_EXTENDED`). An override of an item the base no longer has changes nothing and is named on the profile page.
+- **Asset additions.** An assignment may add data points to an interface of its profile and whole interfaces (column `additions` of `plant_assignments`). The asset's model is its resolved profile with them; they count as delivered by the same rule as the profile's data points. An added data point the profile later gets too is the profile's (check `addition_shadowed`).
+- **Format.** Format 1 gets the optional keys `extends`, `present` (interfaces and data points of a derived profile), `aliases` (data points) and `additions` (assignments); a derived profile is written with the same keys as any profile, only its own part, and the export imports back unchanged. Files of earlier versions stay valid.
+
+**Consequences.** A base change reaches every derived profile at once – that is the point, and also why a base save checks its derived profiles. The effective model is computed on read (a few thousand profiles, in memory), not stored.

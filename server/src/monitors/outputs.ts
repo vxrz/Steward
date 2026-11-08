@@ -13,6 +13,7 @@ import { engine } from '../engine/index.js';
 import { startProblem } from '../engine/commands.js';
 import { evalExpr } from '../engine/expr.js';
 import { platformFor } from './platforms.js';
+import { storedKindProblem } from './kinds.js';
 import { zabbixSend } from './zabbix.js';
 import { loadMonitor, monitorPermissions, monitorRow, type LoadedMonitor } from './model.js';
 import { t, type MessageKey } from '../i18n/index.js';
@@ -236,6 +237,9 @@ function ownerView(m: LoadedMonitor): MonitorVisibility {
 }
 
 async function deliver(o: OutputDef, m: LoadedMonitor, events: OutEvent[]): Promise<(string | undefined)[] | void> {
+  // a stored output on a platform of another kind (kinds.ts): nothing is sent and no secret is read; the failure is recorded
+  const wrong = storedKindProblem({ type: o.type, platform: 'platform' in o ? o.platform : undefined }, true, m.owner);
+  if (wrong) throw new Error(`Output could not run: ${wrong}`);
   if (o.type === 'webhook' || o.type === 'process') {
     const canView = ownerView(m);
     events = events.map((e) => eventFor(m, e, canView));

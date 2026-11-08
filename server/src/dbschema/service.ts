@@ -661,7 +661,7 @@ export function hasSnapshot(kind: DbSchemaSubjectKind, id: string): boolean {
   return !!db().get('SELECT 1 AS x FROM db_schema_snapshots WHERE subject_kind = ? AND subject_id = ? LIMIT 1', kind, id);
 }
 
-// ---------- scheduled reads (jobs/builtin.ts) ----------
+// ---------- scheduled reads (job "db-schemas", features/dbschema.ts) ----------
 
 /** At most this many platforms are read per run of the job; the rest follow at the next run. */
 const READS_PER_RUN = 10;

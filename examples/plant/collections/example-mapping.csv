@@ -1,0 +1,7 @@
+gateway_name,address,data_point
+ProgStatus,,program_status
+OperatingMode,,operating_mode
+NCProgram,,active_program
+Spindle_speedActSP1,,spindle_speed
+SpindleLoad,,spindle_load
+FeedOverride,,feed_override

@@ -22,6 +22,7 @@ import { useTranslation } from 'react-i18next';
 import type { PlantConduitView, PlantHierarchySite, PlantSiteNetwork, PlantVlanValues, PlantVlanView, PlantZoneValues, PlantZoneView } from '@sm/shared';
 import { apiUrl, del, get, notifyError } from '../api';
 import { DetailState, EmptyState } from '../components/common';
+import { useAliasRedirect } from '../components/plant/ids';
 import { DetailHeader } from '../components/page/DetailPage';
 import { LinkTabs } from '../components/page/LinkTabs';
 import { confirmDanger } from '../components/confirm';
@@ -105,6 +106,7 @@ export function PlantNetworkPage() {
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const [search, setSearch] = useState('');
   const n = q.data;
+  useAliasRedirect([[siteId, n?.site.id]]);
   if (!n) return <DetailState query={q} back="plantSites" />;
   const siteBase = `/plant/sites/${encodeURIComponent(n.site.id)}`;
   const base = `${siteBase}/network`;

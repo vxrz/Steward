@@ -225,4 +225,4 @@ export async function runCleanup(opts: { manual?: boolean } = {}): Promise<LastC
   }
 }
 
-// Run one minute after the start, then daily, by the job runner (jobs/builtin.ts, job "cleanup").
+// Run one minute after the start, then daily, by the job runner (features/ops.ts, job "cleanup").

@@ -6,7 +6,7 @@ import { fetchSource, isFetching } from './fetch.js';
 /**
  * Scheduled fetches: once a minute, every enabled source whose interval has passed since its
  * last fetch is fetched (one at a time per source). Off by default – a source has no schedule
- * until an administrator sets an interval. Run by the job runner (jobs/builtin.ts, job "git-sync").
+ * until an administrator sets an interval. Run by the job runner (features/sync.ts, job "git-sync").
  */
 
 export function dueSources(now = Date.now()): string[] {

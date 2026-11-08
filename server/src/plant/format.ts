@@ -35,6 +35,8 @@ import {
   VLAN_RANGE_TYPES,
   ZONE_CRITICALITIES,
   ZONE_LEVELS,
+  PLANT_BULK,
+  PLANT_REMOVABLE_KINDS,
 } from '@sm/shared';
 import { ID_HINT } from './model.js';
 import { NAME_HINT, NAME_RE } from './data-model.js';
@@ -260,8 +262,17 @@ export const dataPointSchema = z
       .array(z.union([z.string().min(1).max(L.text), z.number()]))
       .max(L.enumValues)
       .optional(),
+    aliases: z
+      .array(z.string().min(1).max(L.text))
+      .max(L.aliases * 5)
+      .optional()
+      .describe('Known as: names that tools commonly use for it (a gateway’s variable names) – matched when collections are imported'),
     notes: long,
     publications: z.array(publicationTarget).max(L.publicationsPerPoint).optional().describe('Where it is usually published'),
+    present: z
+      .boolean()
+      .optional()
+      .describe('In a profile that extends another: false marks an inherited data point as not present (the other keys change an inherited one)'),
   })
   .strict()
   .meta({ id: 'DataPoint', description: 'A value an interface delivers' });
@@ -286,7 +297,8 @@ export const interfaceSchema = z
   .object({
     id: pointId,
     name: text(PLANT_LIMITS.name),
-    protocol: spelled(protocolOf, PLANT_PROTOCOLS, 'Protocol'),
+    protocol: spelled(protocolOf, PLANT_PROTOCOLS, 'Protocol').optional().describe('Protocol (required for a new interface; an inherited one keeps its own)'),
+    present: z.boolean().optional().describe('In a profile that extends another: false marks an inherited interface as not present'),
     direction,
     description: long,
     version: versionText,
@@ -309,6 +321,12 @@ export const profileSchema = z
   .object({
     id,
     name,
+    extends: id
+      .nullable()
+      .optional()
+      .describe(
+        'The base profile this one extends (0.11.0): its interfaces, data points and files are inherited; `interfaces` then lists only what this profile adds or changes',
+      ),
     manufacturer: text(PLANT_LIMITS.text),
     model: text(PLANT_LIMITS.text),
     version: versionText.describe('Firmware or product version the profile describes'),
@@ -448,6 +466,25 @@ export const assignmentSchema = z
       .max(L.overrides)
       .optional()
       .describe('Data points that differ on this asset'),
+    additions: z
+      .object({
+        interfaces: z.array(interfaceSchema).max(L.assignmentInterfaces).optional().describe('Interfaces of this asset alone'),
+        data_points: z
+          .array(
+            dataPointSchema
+              .extend({
+                interface: pointId.describe('The interface (of the profile, or added here)'),
+                group: text(L.text).describe('Its group there (empty: without a group)'),
+              })
+              .strict(),
+          )
+          .max(L.dataPoints)
+          .optional()
+          .describe('Data points this asset adds to an interface of its profile'),
+      })
+      .strict()
+      .optional()
+      .describe('What this asset has beyond its profile (0.11.0): they count as delivered like the profile’s data points'),
     publications: z
       .array(
         z
@@ -683,6 +720,19 @@ export const assetNetworkSchema = z
   .strict()
   .meta({ id: 'AssetNetwork', description: 'The OT network of an asset: its devices, data paths and live-status checks' });
 
+// 0.11.0 (docs/PLANT.md#changing-many-entries-at-once): entries the import removes, by kind and id
+export const removeSchema = z
+  .object({
+    kind: z
+      .enum(PLANT_REMOVABLE_KINDS)
+      .describe('site, building, node (area, work center, work unit), asset, profile, kpi, vlan, zone, conduit, device or data_path'),
+    id: z.string().min(1).max(120).describe('Its id'),
+    site: id.optional().describe('The site of a building, node, VLAN, zone or conduit'),
+    asset: id.optional().describe('The asset of a device or data path'),
+  })
+  .strict()
+  .meta({ id: 'Removal', description: 'An entry the import removes (with what belongs to it only when the person asks for it)' });
+
 export const plantFileSchema = z
   .object({
     $schema: z.string().max(500).optional(),
@@ -704,6 +754,7 @@ export const plantFileSchema = z
     ot_networks: z.array(otNetworkSchema).max(PLANT_LIMITS.sites).optional().describe('The OT networks of sites'),
     asset_network: assetNetworkSchema.optional().describe('The OT network of one asset'),
     asset_networks: z.array(assetNetworkSchema).max(PLANT_LIMITS.assets).optional().describe('The OT networks of assets'),
+    remove: z.array(removeSchema).max(PLANT_BULK.maxItems).optional().describe('Entries to remove (since 0.11.0)'),
   })
   .strict()
   .refine((f) => !(f.site && f.sites), { message: 'Use either site (one) or sites (several), not both', path: ['site'] })
@@ -725,6 +776,7 @@ export type AssignmentFile = z.infer<typeof assignmentSchema>;
 export type OtNetworkFile = z.infer<typeof otNetworkSchema>;
 export type AssetNetworkFile = z.infer<typeof assetNetworkSchema>;
 export type StatusCheckFile = z.infer<typeof statusCheckSchema>;
+export type RemoveFile = z.infer<typeof removeSchema>;
 
 /** The published JSON Schema (2020-12) of the format. */
 export function plantJsonSchema(): Record<string, unknown> {

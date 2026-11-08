@@ -36,6 +36,7 @@ The areas also differ a lot in how far they are. The engine and the audit log ar
 
 - An installation can be narrowed to what a team uses: fewer entries, fewer jobs, a smaller attack and upgrade surface. A later release can retire an area by switching it off first.
 - A new optional area declares itself in the registry once: its routes, jobs and pages follow. `server/test/modules.test.ts` checks that every route prefix matches a real route and that a switched-off module answers 404 everywhere.
+- The server side of a feature is wired by its manifest (`server/src/features/`, [ARCHITECTURE.md](../ARCHITECTURE.md#how-features-are-wired)); a manifest names its module, and `server/test/features.test.ts` checks that the module's jobs and built-in datasets are exactly those of its features.
 - A module's route prefixes must not overlap with the core; a route of the core under a module's prefix would disappear with it. The route matrix (`server/test/route-matrix.test.ts`) runs with every module on.
 - Parts of other pages that show a module's data (a tab of a service, a button, a monitor check kind) are hidden in the web app one by one; a monitor check of a switched-off kind that already exists keeps running.
 - Maturity is a statement of the maintainers. It is conservative: a connector only tested against a mock is at most beta, areas from 0.9.0 on are preview. It changes when real use or tests show more.

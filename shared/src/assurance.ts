@@ -224,6 +224,10 @@ export const CONTROL_POINTS: readonly ControlPoint[] = [
   sp('plant.mapSource', 'system', ['changeMapSource']),
   // switching a module on or off (0.11.0, ADR 0016): its routes, pages and jobs come or go for everyone
   sp('modules.switch', 'system', ['changeModules']),
+  // the plant registry (0.11.0, docs/PLANT.md#changing-ids): changing one entry's id asks only when the policy says so;
+  // renaming or removing more than one entry at once, or editing many, asks by default
+  { ...sp('plant.renameId', 'catalogue', ['renamePlantId']), defaults: { stepUp: false } },
+  sp('plant.bulkChange', 'catalogue', ['changePlantInBulk']),
 ];
 
 export type ControlPointKey = string;

@@ -1,5 +1,9 @@
-import type { KpiParamValue, PlantAssignmentValues, PlantCheck, PlantCheckCode, PlantKpiInstance, PlantKpiValues, PlantProfileValues } from '@sm/shared';
+import type { KpiParamValue, PlantAssignmentValues, PlantCheck, PlantCheckCode, PlantKpiInstance, PlantKpiValues, PlantResolvedProfile } from '@sm/shared';
 import { pointsOf } from './data-model.js';
+import { assetModel, isOrExtends } from './resolve.js';
+
+/** A profile as the checks read it: resolved (0.11.0), so a KPI input naming a base profile counts for a derived one. */
+type Profile = Pick<PlantResolvedProfile, 'id' | 'name' | 'interfaces' | 'chain'>;
 
 /**
  * What Steward checks in part 2 of the plant registry (#219), as pure functions over values (the stored ones, or an
@@ -29,14 +33,14 @@ const check = (code: PlantCheckCode, subject: Subject, message: string, params: 
 export type Delivery = { delivers: boolean; reason: 'interface_inactive' | 'unavailable' | null; endpoint: string };
 
 /**
- * Which data points of its profile an asset delivers: a data point is delivered when its interface is set up and
- * active in the assignment and no override says the asset lacks it.
+ * Which data points of its model (its resolved profile with the asset's additions) an asset delivers: a data point is
+ * delivered when its interface is set up and active in the assignment and no override says the asset lacks it.
  */
-export function deliveries(a: PlantAssignmentValues, profile: PlantProfileValues): Map<string, Delivery> {
+export function deliveries(a: PlantAssignmentValues, profile: Pick<PlantResolvedProfile, 'interfaces'> | null | undefined): Map<string, Delivery> {
   const active = new Map(a.interfaces.map((x) => [x.interface, x]));
   const missing = new Set(a.overrides.filter((o) => !o.available).map((o) => o.dataPoint));
   const out = new Map<string, Delivery>();
-  for (const { iface, point } of pointsOf(profile)) {
+  for (const { iface, point } of pointsOf(assetModel(a, profile))) {
     const set = active.get(iface.id);
     if (!set?.active) out.set(point.id, { delivers: false, reason: 'interface_inactive', endpoint: set?.endpoint ?? '' });
     else if (missing.has(point.id)) out.set(point.id, { delivers: false, reason: 'unavailable', endpoint: set.endpoint });
@@ -49,7 +53,7 @@ export function deliveries(a: PlantAssignmentValues, profile: PlantProfileValues
 export function inputGaps(
   def: PlantKpiValues,
   a: PlantAssignmentValues,
-  profile: PlantProfileValues | undefined,
+  profile: Profile | undefined,
 ): { code: PlantCheckCode; message: string; params: Record<string, string | number> }[] {
   const out: { code: PlantCheckCode; message: string; params: Record<string, string | number> }[] = [];
   const inputs = def.inputs.filter((i) => i.kind === 'data_point');
@@ -59,9 +63,10 @@ export function inputGaps(
     return out;
   }
   const delivered = deliveries(a, profile);
-  const ifaceOf = new Map(pointsOf(profile).map((x) => [x.point.id, x.iface]));
+  const ifaceOf = new Map(pointsOf(assetModel(a, profile)).map((x) => [x.point.id, x.iface]));
   for (const input of inputs) {
-    if (input.profile && input.profile !== a.profileId) {
+    // a KPI that reads a base profile reads every profile that extends it (0.11.0)
+    if (input.profile && !isOrExtends(profile, input.profile)) {
       out.push({
         code: 'kpi_other_profile',
         message: `KPI "${def.name}" reads data points of profile "${input.profile}", the asset has profile "${profile.name}"`,
@@ -96,7 +101,7 @@ export function inputGaps(
 }
 
 /** Whether an asset with this assignment delivers every data point input of the definition (and it has some). */
-export function canHave(def: PlantKpiValues, a: PlantAssignmentValues | undefined, profile: PlantProfileValues | undefined): boolean {
+export function canHave(def: PlantKpiValues, a: PlantAssignmentValues | undefined, profile: Profile | undefined): boolean {
   if (!a || !def.inputs.some((i) => i.kind === 'data_point')) return false;
   return inputGaps(def, a, profile).length === 0;
 }
@@ -149,21 +154,34 @@ function paramChecks(def: PlantKpiValues, k: PlantKpiInstance): { code: PlantChe
 export function assignmentChecks(
   subject: Extract<Subject, { kind: 'asset' }>,
   a: PlantAssignmentValues,
-  profiles: Map<string, PlantProfileValues>,
+  profiles: Map<string, Profile>,
   kpis: Map<string, PlantKpiValues>,
 ): PlantCheck[] {
   const out: PlantCheck[] = [];
   const profile = a.profileId ? profiles.get(a.profileId) : undefined;
   if (a.profileId && !profile)
     out.push(check('profile_unknown', subject, `The device profile "${a.profileId}" does not exist (any more)`, { profile: a.profileId }));
+  const model = assetModel(a, profile);
+  // a data point the asset adds that its profile has since got, too: the profile's counts (0.11.0)
+  for (const id of model.shadowed)
+    out.push(
+      check('addition_shadowed', subject, `Data point "${id}" is added on this asset, but its device profile has it now, too: the profile's counts`, {
+        point: id,
+      }),
+    );
   if (profile) {
-    const ifaces = new Set(profile.interfaces.map((i) => i.id));
+    const ifaces = new Set(model.interfaces.map((i) => i.id));
     for (const x of a.interfaces)
       if (!ifaces.has(x.interface))
         out.push(
           check('interface_unknown', subject, `Profile "${profile.name}" has no interface "${x.interface}"`, { interface: x.interface, profile: profile.name }),
         );
-    const points = new Set(pointsOf(profile).map((x) => x.point.id));
+    for (const x of a.additions.dataPoints)
+      if (!ifaces.has(x.interface))
+        out.push(
+          check('interface_unknown', subject, `Profile "${profile.name}" has no interface "${x.interface}"`, { interface: x.interface, profile: profile.name }),
+        );
+    const points = new Set(pointsOf(model).map((x) => x.point.id));
     for (const id of new Set([...a.overrides.map((o) => o.dataPoint), ...a.publications.map((p) => p.dataPoint)]))
       if (!points.has(id))
         out.push(check('point_unknown', subject, `Profile "${profile.name}" has no data point "${id}"`, { point: id, profile: profile.name }));
@@ -180,7 +198,7 @@ export function assignmentChecks(
 }
 
 /** The checks of a KPI definition: its ratios and its inputs. */
-export function kpiChecks(def: PlantKpiValues, profiles: Map<string, PlantProfileValues>): PlantCheck[] {
+export function kpiChecks(def: PlantKpiValues, profiles: Map<string, Pick<PlantResolvedProfile, 'name' | 'interfaces'>>): PlantCheck[] {
   const subject: Subject = { kind: 'kpi', id: def.id, name: def.name };
   const out: PlantCheck[] = [];
   const cols = new Set(def.columns.map((c) => c.name));
