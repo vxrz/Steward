@@ -110,7 +110,7 @@ Images are published from 0.2.0 on. For older versions, build the image from the
   - put it behind a reverse proxy with TLS, or set `SM_TLS_CERT`/`SM_TLS_KEY`;
   - set `SM_ALLOWED_HOSTS` to the DNS name and `SM_PUBLIC_URL` to the external URL;
   - configure single sign-on.
-- `/api/health` (liveness) and `/api/ready` (readiness) are available for orchestrators, see [Health and readiness](#health-and-readiness). `/api/metrics` serves Prometheus metrics.
+- `/api/health` (liveness), `/api/ready/traffic` (readiness for routing) and `/api/ready` (alerting) are available for orchestrators, see [Health and readiness](#health-and-readiness). `/api/metrics` serves Prometheus metrics.
 - For unattended unlock after restarts, mount the passphrase as a Docker secret and set `SM_MASTER_PASSPHRASE_FILE=/run/secrets/steward_passphrase` (commented example in `docker-compose.yml`). The file must be readable by the container's user – see [The passphrase file in Docker](#the-passphrase-file-in-docker).
 - Behind a reverse proxy that terminates TLS: `SM_TRUST_PROXY=<the proxy's address>`, `SM_PUBLIC_URL=https://…` (Secure cookie, HSTS) and `SM_ALLOWED_HOSTS=<DNS name>`. Examples for nginx, Traefik and Caddy, on an own host name or under a path: [Behind a reverse proxy](#behind-a-reverse-proxy); which address Steward sees in Docker: [Steward in Docker](#steward-in-docker).
 - Behind a company proxy or TLS inspection (Steward cannot reach a platform, or reports `unable to verify the first certificate`): [Company proxy and TLS inspection](#company-proxy-and-tls-inspection).
@@ -384,10 +384,10 @@ Steward: `SM_PUBLIC_URL=https://steward.corp.example`, `SM_ALLOWED_HOSTS=steward
 Some companies give only one host name. Steward can run under a path prefix:
 
 - Set `SM_PUBLIC_URL=https://apps.corp.example/steward`. Its path is the base path. (Or set `SM_BASE_PATH=/steward`; when both are set they must agree, otherwise Steward refuses to start.) The base path may only contain letters, digits and `. _ ~ -` in its segments.
-- Everything Steward serves moves below the prefix: the web UI, `/steward/api/…` (including `/api/v1`, `/api/mcp`, webhooks under `/api/hooks/…`, `/api/health`, `/api/ready`, `/api/metrics` and the API documentation), the manifest and the service worker. Requests outside the prefix get `404`; only `/` itself redirects to `/steward/`.
+- Everything Steward serves moves below the prefix: the web UI, `/steward/api/…` (including `/api/v1`, `/api/mcp`, webhooks under `/api/hooks/…`, `/api/health`, `/api/ready`, `/api/ready/traffic`, `/api/metrics` and the API documentation), the manifest and the service worker. Requests outside the prefix get `404`; only `/` itself redirects to `/steward/`.
 - **The proxy passes the path on unchanged. It must not strip the prefix.** Steward expects `/steward/api/health`, not `/api/health`. A proxy that strips the prefix makes every request fail with `404`, and Steward logs `request outside the base path … no prefix stripping` (at most once a minute). `X-Forwarded-Prefix` is not used.
 - One web build works under any prefix: Steward writes the base into the page (`<base href="/steward/">`).
-- Health checks, Gatus and Kubernetes probes use the prefix too: `https://apps.corp.example/steward/api/ready`, `httpGet.path: /steward/api/ready`.
+- Health checks, Gatus and Kubernetes probes use the prefix too: `https://apps.corp.example/steward/api/ready`, `httpGet.path: /steward/api/ready/traffic`.
 
 ```nginx
 # nginx – the prefix stays: proxy_pass WITHOUT a path (no trailing slash)
@@ -501,18 +501,27 @@ Every response carries an `X-Request-Id` header: a random UUID, or the id your r
 
 ## Health and readiness
 
-Every installation answers two public endpoints, without signing in:
+Every installation answers three public endpoints, without signing in:
 
-| Endpoint          | Answers                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | Use it for                                                                                                                            |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /api/health` | Always `200 {"ok": true, "version": "…"}` while the process runs                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Liveness: container `HEALTHCHECK`, Kubernetes `livenessProbe`, a simple uptime check                                                  |
-| `GET /api/ready`  | `200` when the vault is unlocked, the database is writable and the enabled schedules are armed; otherwise `503` with the failing checks: `{"ready": false, "checks": {"vault": {"ok": false, "message": "Vault is locked"}, …}}`. A database or schedule failure has a generic message here (`Database not available`); the error itself is in the server log and on _System status_ for administrators. Also `503` while Steward is shutting down (`Shutting down`) and, on PostgreSQL, while it waits for another instance to release the database (`Waiting for the database: …`) | Readiness: Kubernetes `readinessProbe`, load balancers, Gatus/Zabbix/Uptime Kuma alerts ("Steward needs someone to unlock the vault") |
+| Endpoint                 | Answers                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | Use it for                                                                                                   |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `GET /api/health`        | Always `200 {"ok": true, "version": "…"}` while the process runs                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Liveness: container `HEALTHCHECK`, Kubernetes `livenessProbe`, a simple uptime check                         |
+| `GET /api/ready/traffic` | `200 {"ready": true}` whenever Steward serves the web UI and the API, also while the vault is locked and before the first set-up. `503 {"ready": false, "message": "…"}` only while Steward shuts down (`Shutting down`) and while it waits for another instance to release the database (`Waiting for the database: …`)                                                                                                                                                                                                                                             | Routing: Kubernetes `readinessProbe`, load balancer health checks                                            |
+| `GET /api/ready`         | `200` when the vault is unlocked, the database is writable and the enabled schedules are armed; otherwise `503` with the failing checks: `{"ready": false, "checks": {"vault": {"ok": false, "message": "Vault is locked"}, …}}`. A database or schedule failure has a generic message here (`Database not available`); the error itself is in the server log and on _System status_ for administrators. Also `503` while Steward is shutting down (`Shutting down`) and while it waits for another instance to release the database (`Waiting for the database: …`) | Alerts: Gatus, Zabbix, Uptime Kuma, Prometheus blackbox checks ("Steward needs someone to unlock the vault") |
 
 ```yaml
-# Kubernetes
-livenessProbe: { httpGet: { path: /api/health, port: 4310 }, periodSeconds: 30 }
-readinessProbe: { httpGet: { path: /api/ready, port: 4310 }, periodSeconds: 15 }
+# Kubernetes (container spec)
+livenessProbe:
+  httpGet: { path: /api/health, port: 4310, httpHeaders: [{ name: Host, value: localhost }] }
+  periodSeconds: 30
+readinessProbe:
+  httpGet: { path: /api/ready/traffic, port: 4310, httpHeaders: [{ name: Host, value: localhost }] }
+  periodSeconds: 15
 ```
+
+The probes send `Host: localhost` because Kubernetes otherwise sends the pod's IP address as the host name, and Steward refuses host names that are not allowed (`403 Host not allowed`, see `SM_ALLOWED_HOSTS`). With Steward's own TLS (`SM_TLS_CERT`), add `scheme: HTTPS`.
+
+**Do not use `/api/ready` as the `readinessProbe` or as a load balancer check.** It answers `503` while the vault is locked or Steward is not set up yet. Kubernetes and load balancers then send nobody to Steward, so nobody can open the web UI to unlock the vault or do the first set-up. This happens after every restart without `SM_MASTER_PASSPHRASE_FILE`, and on a new installation. (Before 0.10.1 this guide recommended `/api/ready` there; change it to `/api/ready/traffic`.) Use `/api/ready` for alerts instead: it tells you that Steward needs someone.
 
 ```yaml
 # Gatus
@@ -522,7 +531,7 @@ endpoints:
     conditions: ['[STATUS] == 200', '[BODY].ready == true']
 ```
 
-**Under a path**, both live below it: `https://apps.corp.example/steward/api/ready`. The image's own `HEALTHCHECK` follows the base path, the port and `SM_TLS_CERT` by itself (before 0.2.1 it always asked `/api/health` at the root, so a container under a path showed _unhealthy_). With 0.2.0, override it in the compose file:
+**Under a path**, all three live below it: `https://apps.corp.example/steward/api/ready`. The image's own `HEALTHCHECK` follows the base path, the port and `SM_TLS_CERT` by itself (before 0.2.1 it always asked `/api/health` at the root, so a container under a path showed _unhealthy_). With 0.2.0, override it in the compose file:
 
 ```yaml
 healthcheck:
@@ -531,13 +540,13 @@ healthcheck:
 
 With Steward's own TLS (`SM_TLS_CERT`), the check accepts only the certificate in that file. Steward reads the file at start, so after renewing the certificate the container shows _unhealthy_ until Steward is restarted, which it needs anyway to serve the new certificate.
 
-A monitor that gets **401** asks a path Steward does not know (a trailing slash, `/api/healthz`): unknown API paths answer _please sign in_ rather than revealing which routes exist. Monitors need no credentials for these two endpoints.
+A monitor that gets **401** asks a path Steward does not know (a trailing slash, `/api/healthz`): unknown API paths answer _please sign in_ rather than revealing which routes exist. Monitors need no credentials for these three endpoints.
 
 For Zabbix, use an _HTTP agent_ item on `/api/ready` with a trigger on the status code (or the JSON path `$.ready`). [docs/MONITORS.md](MONITORS.md) and [docs/GATUS.md](GATUS.md) cover how Steward itself monitors other systems.
 
 **Version in `/api/health`.** The health endpoint keeps returning the version: monitoring and rollout checks use it to confirm which version runs, and the version is public anyway (the web UI's code and footer contain it), so hiding it here would add no protection. There is no separate `/api/version`. Signed-in users see the build details on the **About** page (`GET /api/about`).
 
-**System status page.** _Settings → System status_ (administrators; auditors get a view without paths, host names and connection details) shows the readiness checks, database type and size, vault, scheduler with the next runs, monitor engine, notification channels, error reporting, tracing, metrics access, public API, retention, TLS and runtime details (Node.js, platform, uptime, memory, time zone, installation type), with the two URLs above ready to copy. It reads `GET /api/system/status`, which never contains secrets.
+**System status page.** _Settings → System status_ (administrators; auditors get a view without paths, host names and connection details) shows the readiness checks, database type and size, vault, scheduler with the next runs, monitor engine, notification channels, error reporting, tracing, metrics access, public API, retention, TLS and runtime details (Node.js, platform, uptime, memory, time zone, installation type), with the URLs above ready to copy. It reads `GET /api/system/status`, which never contains secrets.
 
 **Background jobs.** Below that, administrators see the server's periodic background jobs – reminders (credentials, documents, tickets, measures), service duties, the scorecard, the integrations of applications (Kubernetes, repositories, Kafka, AWS, Snowflake, Dependency-Track), daily summaries, the retention clean-up, audit checkpoints and the Git sync – with their interval, last run, duration, result (with the error), next run and a **Run now** button (audited as `job.run_requested`). A job never runs twice at the same time: a start while it still runs is skipped and counted. A job that runs longer than its time limit is recorded as _timed out_. Their state is kept in the database and survives restarts; `/api/metrics` has `sm_job_last_success_timestamp_seconds{job}`, `sm_job_duration_seconds{job}` and `sm_job_failures_total{job}` for alerts (`time() - sm_job_last_success_timestamp_seconds{job="duties"} > 3600`). It reads `GET /api/system/jobs`; **Run now** is `POST /api/system/jobs/<name>/run`.
 
