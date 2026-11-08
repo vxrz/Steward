@@ -2,11 +2,12 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { config } from '../config.js';
-import { db } from '../db.js';
+import { Db, db } from '../db.js';
 import { flushPendingAudit, verifyAuditAsync } from '../audit.js';
 import { ZipReader, ZipWriter, type WrittenEntry } from '../compliance/zip.js';
 import { openSqliteFile } from '../database/sqlite-file.js';
-import { explainPgToolError, pgDumpArgs } from '../database/pg-dump.js';
+import { explainPgToolError, pgConnection, pgDumpArgs } from '../database/pg-dump.js';
+import { parseDatabaseTarget, quoteIdent } from '../database/sql.js';
 import { snapshotSqlite } from '../database/sqlite-snapshot.js';
 import { env } from '../config.js';
 
@@ -236,10 +237,12 @@ export async function checkArchive(file: string, o: { deep?: boolean } = {}): Pr
       }
     } else {
       const list = await run(pgRestoreBin(), ['--list', tmp]).then(
-        (t) => ({ ok: true, n: t.split('\n').filter((l) => l && !l.startsWith(';')).length }),
-        (e: Error) => ({ ok: false, n: 0, message: e.message }),
+        (t) => ({ ok: true, n: t.split('\n').filter((l) => l && !l.startsWith(';')).length, toc: t }),
+        (e: Error) => ({ ok: false, n: 0, toc: '', message: e.message }),
       );
       step('database', list.ok, list.ok ? `pg_restore reads the dump (${list.n} objects)` : (list as { message: string }).message);
+      // with a scratch database: restored there and checked like a SQLite snapshot (SM_BACKUP_RESTORE_TEST_DATABASE_URL)
+      if (list.ok && env.SM_BACKUP_RESTORE_TEST_DATABASE_URL) await restoreIntoScratch(tmp, list.toc, manifest, step);
     }
   } catch (e) {
     step('database', false, `The database could not be checked: ${(e as Error).message}`);
@@ -247,4 +250,95 @@ export async function checkArchive(file: string, o: { deep?: boolean } = {}): Pr
     fs.rmSync(tmp, { force: true });
   }
   return { ok: steps.every((s) => s.ok), manifest, steps };
+}
+
+/** Marks the schemas of the scratch database that the restore test may replace. */
+const SCRATCH_MARK = 'Steward restore test (SM_BACKUP_RESTORE_TEST_DATABASE_URL): replaced by every restore test';
+
+/** host:port/database of a PostgreSQL URL, to tell whether two URLs name the same database. */
+export function databaseIdentity(url: string): string {
+  const u = new URL(url);
+  return `${u.hostname.toLowerCase()}:${u.port || '5432'}/${decodeURIComponent(u.pathname.replace(/^\//, '')) || decodeURIComponent(u.username)}`;
+}
+
+/**
+ * The PostgreSQL restore test (O14 of the 0.10 review): pg_restore of the dump into the scratch database
+ * SM_BACKUP_RESTORE_TEST_DATABASE_URL – never the live one – then the same checks as for a SQLite snapshot: the schema
+ * version, the audit chain of the restored data (against the installation's audit key) ending at the entry the
+ * manifest names; the restored schema is dropped again. pg_restore restores into the schema the dump was made of, so
+ * the scratch database must be another database; a schema of that name in it that the restore test did not create is
+ * left alone (the check fails).
+ */
+async function restoreIntoScratch(
+  dump: string,
+  toc: string,
+  manifest: BackupManifest,
+  step: (name: string, ok: boolean, message: string) => boolean,
+): Promise<void> {
+  const scratchUrl = env.SM_BACKUP_RESTORE_TEST_DATABASE_URL!;
+  const schema = manifest.database.schema ?? 'public';
+  let scratch: Db | undefined;
+  try {
+    const live = config.database.kind === 'postgres' ? config.database.url : null;
+    if (live && databaseIdentity(live) === databaseIdentity(scratchUrl))
+      return void step('restore', false, 'SM_BACKUP_RESTORE_TEST_DATABASE_URL names the live database – the restore test needs a database of its own');
+    const target = parseDatabaseTarget(scratchUrl, { schema: 'public', ca: env.SM_DATABASE_CA });
+    if (target.kind !== 'postgres') return void step('restore', false, 'SM_BACKUP_RESTORE_TEST_DATABASE_URL is not a postgres:// URL');
+    scratch = new Db({ ...target, lock: false, timeoutMs: 600_000 }, { migrate: false });
+    const existing = scratch.get<{ mark: string | null; objects: number }>(
+      `SELECT obj_description(n.oid, 'pg_namespace') AS mark, (SELECT COUNT(*) FROM pg_class c WHERE c.relnamespace = n.oid) AS objects
+       FROM pg_namespace n WHERE n.nspname = ?`,
+      schema,
+    );
+    if (existing && existing.mark !== SCRATCH_MARK && Number(existing.objects) > 0)
+      return void step(
+        'restore',
+        false,
+        `The restore test database already has a schema "${schema}" with data that the restore test did not create – use an empty database`,
+      );
+    const dropSchema = () => {
+      scratch!.exec(`DROP SCHEMA IF EXISTS ${quoteIdent(schema)} CASCADE`);
+      // the dump creates its schema itself unless it is "public"; an empty "public" is left marked for the next test
+      if (schema === 'public') scratch!.exec(`CREATE SCHEMA public; COMMENT ON SCHEMA public IS '${SCRATCH_MARK}'`);
+    };
+    dropSchema();
+    if (!new RegExp(`\\bSCHEMA - ${schema}\\b`).test(toc)) scratch.exec(`CREATE SCHEMA IF NOT EXISTS ${quoteIdent(schema)}`);
+    const c = pgConnection(scratchUrl);
+    const t0 = Date.now();
+    try {
+      await run(pgRestoreBin(), ['--no-owner', '--no-privileges', '--exit-on-error', `--dbname=${c.dbname}`, dump], c.env);
+    } catch (e) {
+      step('restore', false, `pg_restore into the restore test database failed: ${(e as Error).message}`);
+      dropSchema();
+      return;
+    }
+    scratch.exec(`COMMENT ON SCHEMA ${quoteIdent(schema)} IS '${SCRATCH_MARK}'`);
+    const restored = new Db({ ...target, schema, lock: false, timeoutMs: 600_000 }, { migrate: false });
+    try {
+      const tables = Number(
+        restored.get<{ n: number }>("SELECT COUNT(*) AS n FROM information_schema.tables WHERE table_schema = current_schema() AND table_type = 'BASE TABLE'")
+          ?.n ?? 0,
+      );
+      const version = restored.get<{ version: number }>('SELECT version FROM schema_version');
+      step(
+        'restore',
+        tables > 0 && !!version,
+        `Restored into the restore test database in ${Math.round((Date.now() - t0) / 1000)} s: ${tables} tables, schema version ${version?.version ?? '–'}`,
+      );
+      const v = await verifyAuditAsync({ source: restored });
+      const headOk = !manifest.audit || (v.head?.seq === manifest.audit.seq && v.head.hash === manifest.audit.hash);
+      step(
+        'audit',
+        v.ok && headOk,
+        !v.ok || headOk ? `Audit chain of the restored database: ${v.message}` : 'The audit log of the restored database ends elsewhere than the manifest says',
+      );
+    } finally {
+      restored.close();
+      dropSchema();
+    }
+  } catch (e) {
+    step('restore', false, `The restore test database could not be used: ${(e as Error).message}`);
+  } finally {
+    scratch?.close();
+  }
 }

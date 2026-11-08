@@ -627,6 +627,12 @@ export const VARS = {
     description: 'Passphrase for `steward backup` (automation only; prefer `--passphrase-file` or the prompt). Or `SM_BACKUP_PASSPHRASE_FILE`',
     secret: true,
   }),
+  SM_BACKUP_RESTORE_TEST_DATABASE_URL: v(text(), {
+    group: 'Backups and migration',
+    description:
+      'PostgreSQL: a database of its own (not the live one) the weekly restore test restores the newest backup into, to check its tables and audit chain, then drops it again. Without it the test only reads the dump (`pg_restore --list`). Or `SM_BACKUP_RESTORE_TEST_DATABASE_URL_FILE`. See [docs/BACKUPS.md](docs/BACKUPS.md#the-restore-test)',
+    secret: true,
+  }),
   SM_BACKUP_SINGLE_PUT_BYTES: v(int(32 * 1024 * 1024, 1), {
     group: 'Backups and migration',
     default: '33554432',
