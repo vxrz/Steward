@@ -25,8 +25,6 @@ import {
   type MonitorStatus,
   type MonitorSummary,
   type TemplateParam,
-  checkPlatformKinds,
-  outputTypeKinds,
 } from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
@@ -56,6 +54,7 @@ import {
 } from './model.js';
 import { requireVisiblePlatform, resolvePlatformRef } from './platforms.js';
 import { validateCheckPlatform } from './checks.js';
+import { itemKinds, validateOutputPlatform } from './kinds.js';
 import { requireVisibleSystem } from '../dbschema/check.js';
 import { requireVisibleApplication } from '../versions/check.js';
 import { requireVisibleCostScope } from '../costs/check.js';
@@ -334,8 +333,7 @@ export function listResults(idOrKey: string, checkId: string, limit = 50): Check
 
 /** The platform kinds a check or output may use, one of them (the kind descriptors, shared/src/platformKinds.ts); empty: any platform. */
 function expectedKinds(item: { type?: unknown; source?: unknown }, isOutput: boolean): string[] {
-  const type = String(item.type ?? '');
-  return isOutput ? outputTypeKinds(type) : checkPlatformKinds({ type, source: item.source });
+  return itemKinds({ type: String(item.type ?? ''), source: item.source }, isOutput);
 }
 
 /**
@@ -495,6 +493,8 @@ function resolveReferences(def: MonitorDefinition, selfId: string | null, selfKe
         throw new HttpError(400, `Output "${o.id}": a Teams card goes to a "Microsoft Teams channel" platform, not to a URL`, 'OUTPUT_TEAMS_PLATFORM', {
           output: o.id,
         });
+      // an output type tied to platform kinds (Gatus, Zabbix): a platform of one of them
+      validateOutputPlatform(o, p);
       o.platform = p.id;
     }
     if (o.type === 'process') {

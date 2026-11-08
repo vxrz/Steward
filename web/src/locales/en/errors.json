@@ -282,6 +282,7 @@
     "HEARTBEAT_KEY_USED": "The heartbeat key “{{key}}” is already used by monitor “{{monitor}}”.",
     "NO_HEARTBEAT": "This check has no heartbeat endpoint.",
     "OUTPUT_PROCESS_NOT_FOUND": "Output “{{output}}”: process {{process}} not found.",
+    "OUTPUT_PLATFORM_KIND": "Output “{{output}}”: “{{name}}” is not a platform of a kind this output writes to ({{kindNames}}). Choose a platform of one of these kinds.",
     "OUTPUT_TEAMS_PLATFORM": "Output “{{output}}”: a Teams card goes to a “Microsoft Teams channel” platform (it keeps the Workflows URL encrypted), not to a URL or path.",
     "OUTPUT_PROCESS_FORBIDDEN": "Output “{{output}}”: you are not allowed to run process {{process}}.",
     "OUTPUT_PROCESS_INPUT": "Output “{{output}}”: the process has no input “{{input}}”.",
