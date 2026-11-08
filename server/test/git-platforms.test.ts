@@ -274,7 +274,7 @@ describe('monitor check git', () => {
     });
     await expect(
       s.api('POST', '/monitors', { definition: { name: 'Not a Git platform', checks: [g('x', 'Kubernetes (demo)', 'acme/shop-web')] } }),
-    ).rejects.toThrow(/not a GitHub, GitLab or Forgejo/);
+    ).rejects.toThrow(/CHECK_PLATFORM_KIND.*is a platform of kind Kubernetes, but a Repository pipeline check reads GitHub, GitLab or Forgejo/);
     const { monitor } = await s.api('POST', '/monitors', {
       definition: {
         name: 'Shop pipelines',

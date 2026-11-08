@@ -308,10 +308,16 @@ describe('monitor check kafka-connect', () => {
           k('lag', { connector: 'orders-archive', failedMinutes: 10000, maxLag: 100 }),
           k('cdc', { connector: 'shop-cdc', quietMinutes: 10 }),
           k('nope', { connector: 'nope' }),
-          { id: 'wrong', name: 'wrong', type: 'kafka-connect', platform: 'Kafka (demo)' },
         ],
       },
     });
+    // a platform of another kind is refused when saving (0.11.0; a stored one reports unknown: monitor-platform-kind.test.ts)
+    const wrong = await s
+      .api('POST', '/monitors', {
+        definition: { name: 'Wrong kind', checks: [{ id: 'wrong', name: 'wrong', type: 'kafka-connect', platform: 'Kafka (demo)' }] },
+      })
+      .catch((e) => e);
+    expect(wrong.body).toMatchObject({ code: 'CHECK_PLATFORM_KIND', params: { check: 'wrong', kind: 'kafka', kinds: ['kafka-connect'] } });
     const statuses = async () => {
       await eng.evaluateMonitorNow(monitor.id);
       const m = await s.api('GET', `/monitors/${monitor.id}`);
@@ -325,7 +331,6 @@ describe('monitor check kafka-connect', () => {
     expect(st.lag).toEqual(['degraded', expect.stringContaining('orders-archive lag 135 (at most 100)')]);
     expect(st.cdc).toEqual(['up', 'Kafka Connect: shop-cdc RUNNING (1/1 tasks) – shop-cdc: newest message 2 minutes ago']);
     expect(st.nope).toEqual(['unknown', 'Kafka Connect: no connector "nope"']);
-    expect(st.wrong[0]).toBe('unknown');
     noSecrets(st);
     // 20 minutes later: the task still failed – an alarm now; the CDC topics got nothing since; the source paused
     vi.useFakeTimers({ toFake: ['Date'], now: Date.now() + 20 * 60_000 });
