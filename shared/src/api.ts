@@ -1706,9 +1706,18 @@ export interface McpOAuthSettings {
   /** clients may register themselves (RFC 7591); otherwise administrators add them */
   dynamicRegistration: boolean;
   accessTokenMinutes: number;
+  /** a refresh token that is not used for this long expires (each refresh starts it again) */
   refreshTokenDays: number;
+  /** a connection ends this many days after the person allowed it, however often it was refreshed (sign in again) */
+  grantMaxDays: number;
 }
-export const MCP_OAUTH_LIMITS = { accessTokenMinutes: [5, 1440], refreshTokenDays: [1, 365], clients: 500, redirectUris: 10 } as const;
+export const MCP_OAUTH_LIMITS = {
+  accessTokenMinutes: [5, 1440],
+  refreshTokenDays: [1, 365],
+  grantMaxDays: [1, 730],
+  clients: 500,
+  redirectUris: 10,
+} as const;
 /** An OAuth client of the MCP server (administrators). */
 export interface McpOAuthClient {
   id: string;

@@ -9,10 +9,12 @@
  * - Discovery: protected resource metadata (RFC 9728) and authorization server metadata (RFC 8414).
  * - Clients: dynamic registration (RFC 7591, can be turned off) or added by administrators. Public clients only
  *   (no secrets): every client proves possession with PKCE (S256, required).
- * - Redirect URIs: https, http on a loopback address (any port, RFC 8252), or a private-use scheme. Exact match.
+ * - Redirect URIs: https, http on a loopback IP address (any port, RFC 8252), or a private-use scheme. Exact match.
  * - Scope: "mcp" (the same rights as an MCP token: the person's own, through the MCP tools only).
  * - Audience: the token is bound to the MCP endpoint (RFC 8707 "resource"); it works nowhere else.
- * - Refresh tokens rotate; reusing an old one revokes the grant (a stolen copy and the client both lose access).
+ * - Refresh tokens rotate; reusing any used one revokes the grant (a stolen copy and the client both lose access), and a
+ *   grant ends `grantMaxDays` after the consent however often it is refreshed.
+ * - Revocation (RFC 7009) only revokes tokens of the client that asks.
  * - Codes are one-time and live 10 minutes; reusing a code revokes the grant it created.
  * - People see and revoke their connected clients in their profile; administrators see all and revoke clients.
  */
@@ -36,7 +38,12 @@ import { revokeOAuthGrants } from './oauth-grants.js';
 // ---------- settings ----------
 
 const SETTING = 'mcp.oauth';
-const DEFAULTS: McpOAuthSettings = { enabled: false, dynamicRegistration: true, accessTokenMinutes: 60, refreshTokenDays: 30 };
+/**
+ * Self-registration is off unless an administrator turns it on (0.11.0, security review 0.10.0 S9): anyone can register
+ * a client with any https return address, and only the consent page stands between it and a person's access. An
+ * installation that saved its OAuth settings before keeps its choice – the stored settings always name it.
+ */
+const DEFAULTS: McpOAuthSettings = { enabled: false, dynamicRegistration: false, accessTokenMinutes: 60, refreshTokenDays: 30, grantMaxDays: 90 };
 const clamp = (n: unknown, [lo, hi]: readonly [number, number], fallback: number) =>
   typeof n === 'number' && Number.isInteger(n) ? Math.min(hi, Math.max(lo, n)) : fallback;
 
@@ -49,9 +56,10 @@ export function oauthSettings(): McpOAuthSettings {
   }
   return {
     enabled: s.enabled === true,
-    dynamicRegistration: s.dynamicRegistration !== false,
+    dynamicRegistration: typeof s.dynamicRegistration === 'boolean' ? s.dynamicRegistration : DEFAULTS.dynamicRegistration,
     accessTokenMinutes: clamp(s.accessTokenMinutes, MCP_OAUTH_LIMITS.accessTokenMinutes, DEFAULTS.accessTokenMinutes),
     refreshTokenDays: clamp(s.refreshTokenDays, MCP_OAUTH_LIMITS.refreshTokenDays, DEFAULTS.refreshTokenDays),
+    grantMaxDays: clamp(s.grantMaxDays, MCP_OAUTH_LIMITS.grantMaxDays, DEFAULTS.grantMaxDays),
   };
 }
 
@@ -68,6 +76,7 @@ export const oauthSettingsInput = z
     dynamicRegistration: z.boolean().optional(),
     accessTokenMinutes: z.number().int().min(MCP_OAUTH_LIMITS.accessTokenMinutes[0]).max(MCP_OAUTH_LIMITS.accessTokenMinutes[1]).optional(),
     refreshTokenDays: z.number().int().min(MCP_OAUTH_LIMITS.refreshTokenDays[0]).max(MCP_OAUTH_LIMITS.refreshTokenDays[1]).optional(),
+    grantMaxDays: z.number().int().min(MCP_OAUTH_LIMITS.grantMaxDays[0]).max(MCP_OAUTH_LIMITS.grantMaxDays[1]).optional(),
   })
   .strict();
 
@@ -142,7 +151,12 @@ interface ClientRow {
 }
 
 const BLOCKED_SCHEMES = ['javascript', 'data', 'file', 'vbscript', 'about', 'blob', 'ftp', 'ws', 'wss'];
-const LOOPBACK = ['127.0.0.1', '[::1]', 'localhost'];
+/**
+ * Loopback redirects (RFC 8252 §7.3, §8.3): the IP literals only, with any port. The name "localhost" is not accepted
+ * for new clients – it may resolve elsewhere (a hosts file, DNS) and a firewall may treat it differently. Clients
+ * registered with it before 0.11 keep working with their exact registered address (no other port).
+ */
+const LOOPBACK = ['127.0.0.1', '[::1]'];
 
 /** Why a redirect URI is not allowed (null: it is). */
 export function redirectProblem(raw: string): string | null {
@@ -156,7 +170,7 @@ export function redirectProblem(raw: string): string | null {
   if (u.hash || raw.includes('#')) return 'must not have a fragment';
   const scheme = u.protocol.replace(/:$/, '').toLowerCase();
   if (scheme === 'https') return u.username || u.password ? 'must not contain user information' : null;
-  if (scheme === 'http') return LOOPBACK.includes(u.hostname.toLowerCase()) ? null : 'http is only allowed on a loopback address (127.0.0.1, [::1], localhost)';
+  if (scheme === 'http') return LOOPBACK.includes(u.hostname.toLowerCase()) ? null : 'http is only allowed on a loopback IP address (127.0.0.1 or [::1])';
   if (BLOCKED_SCHEMES.includes(scheme)) return `the scheme "${scheme}" is not allowed`;
   return /^[a-z][a-z0-9+.-]*$/.test(scheme) ? null : 'has an invalid scheme';
 }
@@ -314,6 +328,13 @@ interface GrantRow {
   revoked_at: string | null;
 }
 
+/**
+ * When a grant ends at the latest: `grantMaxDays` after the person allowed the client, however often it was refreshed
+ * (RFC 9700 §4.14.2, ASVS 5.0 V10.4.8 – an absolute lifetime besides the sliding refresh lifetime). Read from the
+ * current setting, so shortening it also ends older grants sooner.
+ */
+const absoluteEnd = (createdAt: string): number => Date.parse(createdAt) + oauthSettings().grantMaxDays * 86_400_000;
+
 function toGrant(r: GrantRow & { client_name: string; username: string }): McpOAuthGrant {
   return {
     id: r.id,
@@ -323,7 +344,7 @@ function toGrant(r: GrantRow & { client_name: string; username: string }): McpOA
     scope: r.scope,
     createdAt: r.created_at,
     lastUsedAt: r.last_used_at,
-    expiresAt: r.refresh_expires_at,
+    expiresAt: new Date(Math.min(Date.parse(r.refresh_expires_at), absoluteEnd(r.created_at))).toISOString(),
   };
 }
 
@@ -334,7 +355,7 @@ export function listGrants(userId?: string): McpOAuthGrant[] {
   const rows = userId
     ? db().all<GrantRow & { client_name: string; username: string }>(`${GRANTS} AND g.user_id = ? ORDER BY g.created_at DESC`, nowIso(), userId)
     : db().all<GrantRow & { client_name: string; username: string }>(`${GRANTS} ORDER BY g.created_at DESC`, nowIso());
-  return rows.map(toGrant);
+  return rows.filter((r) => absoluteEnd(r.created_at) > Date.now()).map(toGrant);
 }
 
 /** Ends a grant: its access and refresh token stop working. Only its owner or an administrator. */
@@ -353,15 +374,18 @@ export function revokeGrant(id: string, opts: { asAdmin: boolean }): void {
   });
 }
 
-function newTokens(): { access: string; refresh: string; accessExpires: string; refreshExpires: string; expiresIn: number } {
+/** New tokens of a grant created at `createdAt`: neither lives past the grant's absolute end. */
+function newTokens(createdAt: string): { access: string; refresh: string; accessExpires: string; refreshExpires: string; expiresIn: number } {
   const s = oauthSettings();
-  const expiresIn = s.accessTokenMinutes * 60;
+  const now = Date.now();
+  const end = absoluteEnd(createdAt);
+  const accessUntil = Math.min(now + s.accessTokenMinutes * 60_000, end);
   return {
     access: random(ACCESS_PREFIX),
     refresh: random(REFRESH_PREFIX),
-    accessExpires: new Date(Date.now() + expiresIn * 1000).toISOString(),
-    refreshExpires: new Date(Date.now() + s.refreshTokenDays * 86_400_000).toISOString(),
-    expiresIn,
+    accessExpires: new Date(accessUntil).toISOString(),
+    refreshExpires: new Date(Math.min(now + s.refreshTokenDays * 86_400_000, end)).toISOString(),
+    expiresIn: Math.max(1, Math.floor((accessUntil - now) / 1000)),
   };
 }
 
@@ -386,7 +410,8 @@ export function resolveAccessGrant(token: string, resource: string): OAuthAccess
      WHERE g.access_hash = ?`,
     hashOf(token),
   );
-  if (!g || g.revoked_at || g.client_revoked || g.access_expires_at <= nowIso()) return { ok: false, reason: 'invalid' };
+  if (!g || g.revoked_at || g.client_revoked || g.access_expires_at <= nowIso() || absoluteEnd(g.created_at) <= Date.now())
+    return { ok: false, reason: 'invalid' };
   if (g.resource !== resource) return { ok: false, reason: 'audience' };
   let user: UserInfo;
   try {
@@ -565,14 +590,16 @@ function exchangeCode(b: Record<string, unknown>, req: FastifyRequest) {
   if (row.resource !== resourceOf(req)) throw new OAuthError(400, 'invalid_target', 'The code was issued for another resource');
   const user = getUser(row.user_id);
   if (!user.active) throw new OAuthError(400, 'invalid_grant', 'The account is deactivated');
-  const t = newTokens();
-  const grantId = newId('mcpg_');
   const ts = nowIso();
+  const t = newTokens(ts);
+  const grantId = newId('mcpg_');
   db().tx(() => {
     const claimed = db().run('UPDATE oauth_codes SET used_at = ?, grant_id = ? WHERE hash = ? AND used_at IS NULL', ts, grantId, row.hash).changes;
     if (claimed !== 1) throw new OAuthError(400, 'invalid_grant', 'Invalid or expired code');
     // one grant per person and client: a new one replaces the old
     db().run('UPDATE oauth_grants SET revoked_at = ? WHERE client_id = ? AND user_id = ? AND revoked_at IS NULL', ts, client.id, user.id);
+    // the used refresh tokens of grants that ended are of no use any more (their grant refuses every token)
+    db().run('DELETE FROM oauth_used_refresh WHERE grant_id IN (SELECT id FROM oauth_grants WHERE revoked_at IS NOT NULL OR refresh_expires_at < ?)', ts);
     const n = db().get<{ n: number }>(
       'SELECT COUNT(*) AS n FROM oauth_grants WHERE user_id = ? AND revoked_at IS NULL AND refresh_expires_at > ?',
       user.id,
@@ -599,6 +626,36 @@ function exchangeCode(b: Record<string, unknown>, req: FastifyRequest) {
   return tokenResponse(t, row.scope);
 }
 
+/**
+ * A refresh token that was used before, presented again: the client and a thief share it. Every refresh token a grant
+ * ever used is kept (as a hash), so any of them – not only the one before the current – ends the grant: whoever holds
+ * the current token loses access too (RFC 9700 §4.14.2, ASVS 5.0 V10.4.5). Grants rotated before 0.11 are found by
+ * their previous token.
+ */
+function refreshReused(h: string): void {
+  const grantId =
+    db().get<{ grant_id: string }>('SELECT grant_id FROM oauth_used_refresh WHERE hash = ?', h)?.grant_id ??
+    db().get<{ id: string }>('SELECT id FROM oauth_grants WHERE previous_refresh_hash = ?', h)?.id;
+  if (!grantId) return;
+  const g = db().get<GrantRow & { client_name: string; username: string }>(
+    `SELECT g.*, c.name AS client_name, u.username FROM oauth_grants g JOIN oauth_clients c ON c.id = g.client_id
+     JOIN users u ON u.id = g.user_id WHERE g.id = ? AND g.revoked_at IS NULL`,
+    grantId,
+  );
+  if (!g) return;
+  db().tx(() => {
+    db().run('UPDATE oauth_grants SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL', nowIso(), g.id);
+    audit({
+      actor: 'system',
+      action: 'mcp.oauth_refresh_reused',
+      entityType: 'mcp_client',
+      entityId: g.client_id,
+      summary: `A refresh token of MCP client "${g.client_name}" for ${g.username} was used again after it had been replaced – the connection was revoked`,
+      details: { grantId: g.id, owner: g.username },
+    });
+  });
+}
+
 function refresh(b: Record<string, unknown>, req: FastifyRequest) {
   const token = str(b.refresh_token, 200);
   const client = activeClient(b.client_id);
@@ -607,41 +664,35 @@ function refresh(b: Record<string, unknown>, req: FastifyRequest) {
   const h = hashOf(token);
   const g = db().get<GrantRow>('SELECT * FROM oauth_grants WHERE refresh_hash = ?', h);
   if (!g) {
-    // an old refresh token again: the client and a thief share it – end the grant
-    const reused = db().get<GrantRow>('SELECT * FROM oauth_grants WHERE previous_refresh_hash = ? AND revoked_at IS NULL', h);
-    if (reused) {
-      db().run('UPDATE oauth_grants SET revoked_at = ? WHERE id = ?', nowIso(), reused.id);
-      audit({
-        actor: 'system',
-        action: 'mcp.oauth_refresh_reused',
-        entityType: 'mcp_client',
-        entityId: reused.client_id,
-        summary: `An old refresh token of MCP client "${client.name}" was used again – its access was revoked`,
-        details: { grantId: reused.id },
-      });
-    }
+    refreshReused(h);
     throw new OAuthError(400, 'invalid_grant', 'Invalid, expired or revoked refresh token');
   }
   if (g.client_id !== client.id || g.revoked_at || g.refresh_expires_at <= nowIso())
     throw new OAuthError(400, 'invalid_grant', 'Invalid, expired or revoked refresh token');
+  if (absoluteEnd(g.created_at) <= Date.now())
+    throw new OAuthError(400, 'invalid_grant', 'The connection reached its longest lifetime – connect the client again');
   if (g.resource !== resourceOf(req)) throw new OAuthError(400, 'invalid_target', 'The grant is for another resource');
   const resource = str(b.resource, 500);
   if (resource && resource.replace(/\/$/, '') !== g.resource) throw new OAuthError(400, 'invalid_target', `The resource must be ${g.resource}`);
   const user = getUser(g.user_id);
   if (!user.active) throw new OAuthError(400, 'invalid_grant', 'The account is deactivated');
-  const t = newTokens();
-  const changed = db().run(
-    `UPDATE oauth_grants SET access_hash = ?, access_expires_at = ?, refresh_hash = ?, previous_refresh_hash = ?, refresh_expires_at = ?
-     WHERE id = ? AND refresh_hash = ? AND revoked_at IS NULL`,
-    hashOf(t.access),
-    t.accessExpires,
-    hashOf(t.refresh),
-    h,
-    t.refreshExpires,
-    g.id,
-    h,
-  ).changes;
-  if (changed !== 1) throw new OAuthError(400, 'invalid_grant', 'Invalid, expired or revoked refresh token');
+  const t = newTokens(g.created_at);
+  const ts = nowIso();
+  db().tx(() => {
+    const changed = db().run(
+      `UPDATE oauth_grants SET access_hash = ?, access_expires_at = ?, refresh_hash = ?, previous_refresh_hash = ?, refresh_expires_at = ?
+       WHERE id = ? AND refresh_hash = ? AND revoked_at IS NULL`,
+      hashOf(t.access),
+      t.accessExpires,
+      hashOf(t.refresh),
+      h,
+      t.refreshExpires,
+      g.id,
+      h,
+    ).changes;
+    if (changed !== 1) throw new OAuthError(400, 'invalid_grant', 'Invalid, expired or revoked refresh token');
+    db().run('INSERT INTO oauth_used_refresh (hash, grant_id, used_at) VALUES (?, ?, ?)', h, g.id, ts);
+  });
   return tokenResponse(t, g.scope);
 }
 
@@ -675,12 +726,14 @@ function serverMetadata(req: FastifyRequest) {
     revocation_endpoint: `${iss}/oauth/revoke`,
     ...(oauthSettings().dynamicRegistration ? { registration_endpoint: `${iss}/oauth/register` } : {}),
     response_types_supported: ['code'],
+    response_modes_supported: ['query'],
     grant_types_supported: ['authorization_code', 'refresh_token'],
     code_challenge_methods_supported: ['S256'],
     token_endpoint_auth_methods_supported: ['none'],
     revocation_endpoint_auth_methods_supported: ['none'],
     scopes_supported: [...SCOPES],
     authorization_response_iss_parameter_supported: true,
+    service_documentation: 'https://github.com/vxrz/Steward/blob/main/docs/MCP.md',
   };
 }
 
@@ -697,10 +750,13 @@ export async function oauthRoutes(app: FastifyInstance): Promise<void> {
     app.get(url, publicRead, async (req, reply) =>
       oauthEnabled() ? reply.header('cache-control', metadataCache()).send(resourceMetadata(req)) : notOffered(reply),
     );
-  for (const url of ['/.well-known/oauth-authorization-server', '/.well-known/openid-configuration'])
-    app.get(url, publicRead, async (req, reply) =>
-      oauthEnabled() ? reply.header('cache-control', metadataCache()).send(serverMetadata(req)) : notOffered(reply),
-    );
+  app.get('/.well-known/oauth-authorization-server', publicRead, async (req, reply) =>
+    oauthEnabled() ? reply.header('cache-control', metadataCache()).send(serverMetadata(req)) : notOffered(reply),
+  );
+  // Steward is an OAuth authorization server, not an OpenID provider (no ID tokens, no JWKS): the OpenID Connect
+  // discovery address answers 404, so no client takes the RFC 8414 document for an OIDC one (security review 0.10.0 S9).
+  // MCP clients look for /.well-known/oauth-authorization-server first.
+  app.get('/.well-known/openid-configuration', publicRead, async (_req, reply) => notOffered(reply));
 
   await app.register(async (scoped) => {
     scoped.addContentTypeParser('application/x-www-form-urlencoded', { parseAs: 'string', bodyLimit: 16 * 1024 }, (_req, body, done) =>
@@ -755,13 +811,23 @@ export async function oauthRoutes(app: FastifyInstance): Promise<void> {
       return reply.header('cache-control', 'no-store').header('pragma', 'no-cache').send(out);
     });
 
-    // RFC 7009: always 200, whether the token was known or not
+    // RFC 7009: always 200, whether the token was known or not. §2.1: the client names itself (public clients: client_id)
+    // and only tokens issued to that client are revoked (security review 0.10.0 S9)
     scoped.post('/oauth/revoke', { bodyLimit: 16 * 1024, config: { rateLimit: ROUTE_LIMITS.action } }, async (req, reply) => {
       if (!oauthEnabled()) return notOffered(reply);
-      const token = str(((req.body ?? {}) as Record<string, unknown>).token, 200);
+      const b = (req.body ?? {}) as Record<string, unknown>;
+      const client = activeClient(b.client_id);
+      if (!client) throw new OAuthError(401, 'invalid_client', 'Unknown client');
+      const token = str(b.token, 200);
       if (token) {
         const h = hashOf(token);
-        db().run('UPDATE oauth_grants SET revoked_at = ? WHERE (access_hash = ? OR refresh_hash = ?) AND revoked_at IS NULL', nowIso(), h, h);
+        db().run(
+          'UPDATE oauth_grants SET revoked_at = ? WHERE (access_hash = ? OR refresh_hash = ?) AND client_id = ? AND revoked_at IS NULL',
+          nowIso(),
+          h,
+          h,
+          client.id,
+        );
       }
       return reply.code(200).header('cache-control', 'no-store').send({});
     });

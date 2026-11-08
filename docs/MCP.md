@@ -71,18 +71,18 @@ Instead of pasting a token, MCP clients that support the [MCP authorization spec
 **Rules:**
 
 - **PKCE** (`S256`) is required. Clients are public: Steward issues no client secrets.
-- **Redirect URIs:** https, http on a loopback address (`127.0.0.1`, `[::1]`, `localhost`, any port), or the app's own scheme (e.g. `cursor://…`). They must match exactly; `javascript:`, `data:`, `file:` and similar schemes are refused.
+- **Redirect URIs:** https, http on a loopback IP address (`127.0.0.1` or `[::1]`, any port – RFC 8252), or the app's own scheme (e.g. `cursor://…`). They must match exactly; `javascript:`, `data:`, `file:` and similar schemes are refused. The name `localhost` is not accepted for new clients (RFC 8252 §8.3: it may resolve elsewhere); clients registered with it before 0.11 keep working with their exact registered address, not with another port.
 - **Scope:** `mcp`. **Audience:** the token is bound to the MCP endpoint (`resource`, RFC 8707); a token issued for another resource is refused.
-- **Lifetimes:** access tokens live 60 minutes, and people stay signed in for 30 days without using the client. Both can be changed in the settings.
-- **Refresh tokens rotate.** Using an old one again revokes the access: the client and whoever copied the token both lose it. An authorization code is valid once, for 10 minutes; using it twice revokes the access it gave.
+- **Lifetimes:** access tokens live 60 minutes, and people stay signed in for 30 days without using the client. However often the client refreshes, a connection ends 90 days after the person allowed it (_Sign in again after_); then the person allows the client again. All three can be changed in the settings.
+- **Refresh tokens rotate.** Using any refresh token again that was already used – not only the one before the current – revokes the access (RFC 9700 §4.14.2): the client and whoever copied the token both lose it. Steward keeps the hashes of a grant's used refresh tokens until the grant ends. An authorization code is valid once, for 10 minutes; using it twice revokes the access it gave.
 - **One grant per person and client.** Allowing the client again replaces the old grant. At most 50 connected clients per person.
-- **Self-registration** can be turned off. Then only clients that administrators add under the MCP server settings (name and redirect URIs) can sign in.
+- **Self-registration** is off on new installations (since 0.11): anyone could register a client with any https return address, and only the consent page would stand between it and a person's access. Turn it on in the MCP server settings for assistants that register themselves; installations that saved their OAuth settings before keep their choice. While it is off, only clients that administrators add under the MCP server settings (name and redirect URIs) can sign in.
 
 **See and revoke access:**
 
 - People see their connected clients in their profile under _Connected MCP clients_ and revoke them there.
 - Administrators see every client and connection in the MCP server settings, and can remove a client, which ends every connection to it.
-- Clients can revoke their own tokens (RFC 7009, `POST /oauth/revoke`).
+- Clients can revoke their own tokens (RFC 7009, `POST /oauth/revoke` with their `client_id`): an unknown or missing `client_id` is refused with `invalid_client`, and a token of another client is left alone.
 - **Revoked for good:** deactivating the person or resetting their password (by an administrator, or with `steward admin reset-password`) revokes their connected clients; turning OAuth off revokes everyone's. Reactivating the person or turning OAuth on again does not bring the access back – the person connects the client again (one consent). Turning MCP off only stops the tokens while it is off.
 - **MCP tokens are not revoked** by any of this: they are named, listed and revoked by their owner or an administrator. While the owner is deactivated, their tokens are refused; after reactivation they work again. Revoke them when a person leaves for good.
 
@@ -92,6 +92,7 @@ Instead of pasting a token, MCP clients that support the [MCP authorization spec
 | --------------------------------------------------- | -------------------------------------------------------------- |
 | `GET /.well-known/oauth-protected-resource/api/mcp` | resource metadata (RFC 9728)                                   |
 | `GET /.well-known/oauth-authorization-server`       | authorization server metadata (RFC 8414)                       |
+| `GET /.well-known/openid-configuration`             | `404`: Steward is no OpenID provider (no ID tokens, no JWKS)   |
 | `POST /oauth/register`                              | dynamic client registration (RFC 7591), JSON                   |
 | `GET /oauth/authorize`                              | the consent page in the web UI                                 |
 | `POST /oauth/token`                                 | `authorization_code` and `refresh_token`, form-encoded or JSON |

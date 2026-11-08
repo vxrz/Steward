@@ -121,7 +121,8 @@ describe('OAuth sign-in for MCP clients', () => {
   let clientId: string;
 
   it('is off by default: no metadata, no registration, MCP tokens as before', async () => {
-    expect((await s.api('GET', '/mcp-server')).oauth).toMatchObject({ enabled: false, dynamicRegistration: true, accessTokenMinutes: 60 });
+    // self-registration is off on a new installation (0.11.0); grants end after 90 days however often they are refreshed
+    expect((await s.api('GET', '/mcp-server')).oauth).toMatchObject({ enabled: false, dynamicRegistration: false, accessTokenMinutes: 60, grantMaxDays: 90 });
     expect((await raw('GET', '/.well-known/oauth-protected-resource/api/mcp')).status).toBe(404);
     expect((await raw('GET', '/.well-known/oauth-authorization-server')).status).toBe(404);
     expect((await raw('POST', '/oauth/register', { json: { redirect_uris: [REDIRECT] } })).status).toBe(404);
@@ -133,7 +134,10 @@ describe('OAuth sign-in for MCP clients', () => {
 
   it('publishes resource and authorization server metadata once turned on', async () => {
     const st = await s.api('PUT', '/settings/mcp-oauth', { enabled: true });
-    expect(st.settings.enabled).toBe(true);
+    expect(st.settings).toMatchObject({ enabled: true, dynamicRegistration: false });
+    expect((await raw('POST', '/oauth/register', { json: { redirect_uris: [REDIRECT] } })).status).toBe(403);
+    expect((await raw('GET', '/.well-known/oauth-authorization-server')).body.registration_endpoint).toBeUndefined();
+    await s.api('PUT', '/settings/mcp-oauth', { dynamicRegistration: true });
     const unauth = await mcp(null);
     expect(unauth.headers.get('www-authenticate')).toBe(
       `Bearer realm="Steward MCP", resource_metadata="${s.base}/.well-known/oauth-protected-resource/api/mcp", scope="mcp"`,
@@ -153,12 +157,22 @@ describe('OAuth sign-in for MCP clients', () => {
       registration_endpoint: `${s.base}/oauth/register`,
       code_challenge_methods_supported: ['S256'],
       token_endpoint_auth_methods_supported: ['none'],
+      // RFC 8414 §2: the required members, and what Steward supports of the optional ones
+      response_types_supported: ['code'],
+      response_modes_supported: ['query'],
+      grant_types_supported: ['authorization_code', 'refresh_token'],
+      revocation_endpoint: `${s.base}/oauth/revoke`,
+      service_documentation: expect.stringContaining('docs/MCP.md'),
     });
-    expect((await raw('GET', '/.well-known/openid-configuration')).body.issuer).toBe(s.base);
+    // built from the request (no SM_PUBLIC_URL): not for shared caches (security review 0.10.0 S5)
+    expect(as.headers.get('cache-control')).toBe('no-store');
+    // Steward is no OpenID provider: the OIDC discovery address is not served (security review 0.10.0 S9)
+    expect((await raw('GET', '/.well-known/openid-configuration')).status).toBe(404);
   });
 
   it('registers public clients with safe redirect URIs only', async () => {
-    for (const bad of ['javascript:alert(1)', 'http://evil.example/cb', 'https://x.example/cb#frag', 'relative/path'])
+    // RFC 8252 §8.3: loopback IP literals, not the name localhost (security review 0.10.0 S9)
+    for (const bad of ['javascript:alert(1)', 'http://evil.example/cb', 'https://x.example/cb#frag', 'relative/path', 'http://localhost:33418/callback'])
       expect((await raw('POST', '/oauth/register', { json: { client_name: 'Bad', redirect_uris: [bad] } })).body.error).toBe('invalid_redirect_uri');
     expect((await raw('POST', '/oauth/register', { json: { redirect_uris: [REDIRECT], token_endpoint_auth_method: 'client_secret_basic' } })).body.error).toBe(
       'invalid_client_metadata',
@@ -279,6 +293,78 @@ describe('OAuth sign-in for MCP clients', () => {
     expect((await raw('POST', '/oauth/token', { form: { grant_type: 'password', client_id: clientId } })).body.error).toBe('unsupported_grant_type');
   });
 
+  it('revokes the grant when any refresh token used before comes back, not only the last one (security review 0.10.0 S3)', async () => {
+    const before = (await s.api('GET', '/audit?action=mcp.oauth_refresh_reused')).length;
+    const legit = await signIn(dana, clientId);
+    const refreshWith = (token: string) => raw('POST', '/oauth/token', { form: { grant_type: 'refresh_token', refresh_token: token, client_id: clientId } });
+    // a thief copies RT1 and refreshes twice: RT1 is now two rotations old
+    const a1 = await refreshWith(legit.refresh_token);
+    const a2 = await refreshWith(a1.body.refresh_token);
+    expect([a1.status, a2.status]).toEqual([200, 200]);
+    // the client comes back with RT1: the whole grant ends, the thief's newest tokens included
+    expect((await refreshWith(legit.refresh_token)).body.error).toBe('invalid_grant');
+    expect((await refreshWith(a2.body.refresh_token)).body.error).toBe('invalid_grant');
+    expect((await mcp(a2.body.access_token)).status).toBe(401);
+    const reused = await s.api('GET', '/audit?action=mcp.oauth_refresh_reused');
+    expect(reused.length).toBe(before + 1);
+    expect(reused[0]).toMatchObject({ actor: 'system', entityType: 'mcp_client', entityId: clientId });
+    expect(reused[0].summary).toContain('for dana');
+  });
+
+  it('ends a grant after grantMaxDays however often it was refreshed (security review 0.10.0 S3)', async () => {
+    const t = await signIn(dana, clientId);
+    const { db } = await import('../src/db.js');
+    const grant = () =>
+      db().get<{ id: string; created_at: string; refresh_expires_at: string }>(
+        'SELECT id, created_at, refresh_expires_at FROM oauth_grants WHERE refresh_hash = ?',
+        crypto.createHash('sha256').update(t.refresh_token).digest('hex'),
+      )!;
+    const g = grant();
+    // the refresh lifetime slides, but never past the absolute end
+    expect(Date.parse(g.refresh_expires_at)).toBeLessThanOrEqual(Date.parse(g.created_at) + 90 * 86_400_000);
+    expect((await dana('GET', '/me/mcp-clients'))[0].expiresAt).toBe(g.refresh_expires_at);
+    // the person allowed it 91 days ago (and the client kept refreshing)
+    db().run('UPDATE oauth_grants SET created_at = ? WHERE id = ?', new Date(Date.now() - 91 * 86_400_000).toISOString(), g.id);
+    const r = await raw('POST', '/oauth/token', { form: { grant_type: 'refresh_token', refresh_token: t.refresh_token, client_id: clientId } });
+    expect(r.body).toMatchObject({ error: 'invalid_grant', error_description: expect.stringContaining('longest lifetime') });
+    expect((await mcp(t.access_token)).status).toBe(401);
+    expect(await dana('GET', '/me/mcp-clients')).toEqual([]);
+    // a shorter setting caps the tokens of a grant near its end
+    const t2 = await signIn(dana, clientId);
+    await s.api('PUT', '/settings/mcp-oauth', { grantMaxDays: 1 });
+    try {
+      const { db: d } = await import('../src/db.js');
+      d().run(
+        'UPDATE oauth_grants SET created_at = ? WHERE refresh_hash = ?',
+        new Date(Date.now() - 86_400_000 + 600_000).toISOString(),
+        crypto.createHash('sha256').update(t2.refresh_token).digest('hex'),
+      );
+      const r2 = await raw('POST', '/oauth/token', { form: { grant_type: 'refresh_token', refresh_token: t2.refresh_token, client_id: clientId } });
+      expect(r2.status).toBe(200);
+      expect(r2.body.expires_in).toBeLessThanOrEqual(600);
+      expect(await status(s.api('PUT', '/settings/mcp-oauth', { grantMaxDays: 0 }))).toBe(400);
+    } finally {
+      await s.api('PUT', '/settings/mcp-oauth', { grantMaxDays: 90 });
+    }
+  });
+
+  it('accepts a client registered with http://localhost before 0.11 at its exact address only', async () => {
+    const { db } = await import('../src/db.js');
+    const legacy = 'http://localhost:40001/cb';
+    db().run(
+      "INSERT INTO oauth_clients (id, name, redirect_uris, registered_by, created_at) VALUES ('mcpc_legacy', 'Legacy', ?, 'dynamic', ?)",
+      JSON.stringify([legacy]),
+      new Date().toISOString(),
+    );
+    const { challenge } = pkce();
+    expect((await dana('GET', `/oauth/authorize?${qs(request('mcpc_legacy', challenge, { redirect_uri: legacy }))}`)).clientId).toBe('mcpc_legacy');
+    const otherPort = await dana('GET', `/oauth/authorize?${qs(request('mcpc_legacy', challenge, { redirect_uri: 'http://localhost:40002/cb' }))}`).catch(
+      (e: { body?: any }) => e.body,
+    );
+    expect(otherPort.code).toBe('MCP_OAUTH_REDIRECT_UNKNOWN');
+    db().run("DELETE FROM oauth_clients WHERE id = 'mcpc_legacy'");
+  });
+
   it('the person sees their connected clients and revokes them; RFC 7009 revocation works as well', async () => {
     const t = await signIn(dana, clientId);
     const list = await dana('GET', '/me/mcp-clients');
@@ -288,9 +374,14 @@ describe('OAuth sign-in for MCP clients', () => {
     await dana('DELETE', `/me/mcp-clients/${list[0].id}`);
     expect((await mcp(t.access_token)).status).toBe(401);
     const t2 = await signIn(dana, clientId);
-    expect((await raw('POST', '/oauth/revoke', { form: { token: t2.refresh_token } })).status).toBe(200);
+    // RFC 7009 §2.1: the client names itself, and only its own tokens are revoked (security review 0.10.0 S9)
+    expect((await raw('POST', '/oauth/revoke', { form: { token: t2.refresh_token } })).body.error).toBe('invalid_client');
+    const other = (await raw('POST', '/oauth/register', { json: { client_name: 'Other', redirect_uris: [REDIRECT] } })).body.client_id;
+    expect((await raw('POST', '/oauth/revoke', { form: { token: t2.refresh_token, client_id: other } })).status).toBe(200);
+    expect((await mcp(t2.access_token)).status).toBe(200);
+    expect((await raw('POST', '/oauth/revoke', { form: { token: t2.refresh_token, client_id: clientId } })).status).toBe(200);
     expect((await mcp(t2.access_token)).status).toBe(401);
-    expect((await raw('POST', '/oauth/revoke', { form: { token: 'smr_unknown' } })).status).toBe(200);
+    expect((await raw('POST', '/oauth/revoke', { form: { token: 'smr_unknown', client_id: clientId } })).status).toBe(200);
   });
 
   it('administrators add clients, turn self-registration off, revoke clients and grants', async () => {

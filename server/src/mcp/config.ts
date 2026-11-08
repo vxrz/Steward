@@ -151,4 +151,4 @@ export const registerOAuthSettings = (fn: () => McpServerStatus['oauth']): void 
   oauthSettingsRef = fn;
 };
 const oauthSettingsLazy = (): McpServerStatus['oauth'] =>
-  oauthSettingsRef?.() ?? { enabled: false, dynamicRegistration: true, accessTokenMinutes: 60, refreshTokenDays: 30 };
+  oauthSettingsRef?.() ?? { enabled: false, dynamicRegistration: false, accessTokenMinutes: 60, refreshTokenDays: 30, grantMaxDays: 90 };

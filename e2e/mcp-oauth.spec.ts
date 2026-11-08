@@ -12,7 +12,8 @@ test.use({ storageState: authFile('dana') });
 test('a person allows an MCP client on the consent page and revokes it in the profile', async ({ page, apiAs }) => {
   const admin = await apiAs('admin');
   await admin.put('/api/mcp-server', { data: { enabled: true } });
-  await admin.put('/api/settings/mcp-oauth', { data: { enabled: true } });
+  // self-registration is off on a new installation (0.11.0): the test turns it on with OAuth
+  await admin.put('/api/settings/mcp-oauth', { data: { enabled: true, dynamicRegistration: true } });
   try {
     const redirect = 'http://127.0.0.1:33419/callback';
     const reg = await (
