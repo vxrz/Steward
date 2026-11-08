@@ -338,18 +338,20 @@ The API is rate-limited per token (`SM_API_RATE_LIMIT`, default 600/min).
 
 ### Prometheus
 
-Steward's own metrics for a Prometheus to scrape (reading PromQL from a Prometheus is a check type: [PROMETHEUS.md](PROMETHEUS.md)). `/api/metrics` (see the README) contains
+Steward's own metrics for a Prometheus to scrape (reading PromQL from a Prometheus is a check type: [PROMETHEUS.md](PROMETHEUS.md)). `/api/metrics` ([METRICS.md](METRICS.md)) contains
 
 ```
-steward_monitor_status{monitor="machine-17-powermeter",check=""} 0            # the monitor itself
-steward_monitor_status{monitor="machine-17-powermeter",check="pm-reports"} 2
-steward_monitor_last_ok_timestamp{monitor="machine-17-powermeter",check="pm-reports"} 1792656000
-steward_monitor_evaluations_total{type="heartbeat",result="up"} 1234
+sm_monitor_status{monitor="machine-17-powermeter",check=""} 0            # the monitor itself
+sm_monitor_status{monitor="machine-17-powermeter",check="pm-reports"} 2
+sm_monitor_last_ok_timestamp_seconds{monitor="machine-17-powermeter",check="pm-reports"} 1792656000
+sm_monitor_evaluations_total{type="heartbeat",result="up"} 1234
 ```
+
+Until 0.10 these were `steward_monitor_status`, `steward_monitor_last_ok_timestamp` and `steward_monitor_evaluations_total`. 0.11 still serves the old names (deprecated); 0.12 removes them.
 
 ```yaml
 - alert: StewardMonitorDown
-  expr: steward_monitor_status{check=""} == 2
+  expr: sm_monitor_status{check=""} == 2
   for: 2m
 ```
 

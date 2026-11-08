@@ -340,6 +340,12 @@ export const VARS = {
     default: '3600',
     description: 'PostgreSQL: longest time the `pg_dump` before migrating may take (`0` = no limit); a dump that takes longer counts as failed',
   }),
+  SM_DB_SLOW_MS: v(int(200, 0, 600_000), {
+    group: 'Database and data',
+    default: '200',
+    description:
+      'Statements and transactions that take longer are logged as `slow database statement` (start of the SQL, no values; at most once a minute each) and counted in `sm_db_slow_statements_total` (`0` = off). See [docs/METRICS.md](docs/METRICS.md#database)',
+  }),
   SM_SQLITE_AUTO_VACUUM: v(flag(true), {
     group: 'Database and data',
     default: 'on',

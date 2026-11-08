@@ -324,7 +324,7 @@ To keep the audit log meaningful, not every read is audited:
 | **Every refused gateway call** (write method, path, parameters, outbound policy, integrity) with the reason; an invalid literal path is logged as `(invalid)`, control characters in names are escaped | audit log `mcp.gateway_refused`                                                                                                                                                                         |
 | Every tool call: tool, token id, owner, short argument summary (values cut to 60 characters, objects by their keys), outcome, duration                                                                 | operational log (JSON, `info`, message `MCP tool call`)                                                                                                                                                 |
 
-Prometheus metrics (`/api/metrics`): `steward_mcp_requests_total{method,outcome}`, `steward_mcp_tool_calls_total{tool,outcome}`, `steward_mcp_gateway_calls_total{platform,outcome}`.
+Prometheus metrics (`/api/metrics`, [METRICS.md](METRICS.md)): `sm_mcp_requests_total{method,outcome}`, `sm_mcp_tool_calls_total{tool,outcome}`, `sm_mcp_gateway_calls_total{platform,outcome}`. Until 0.10 they were named `steward_mcp_…`; 0.11 still serves the old names (deprecated), 0.12 removes them.
 
 ## Configuration
 

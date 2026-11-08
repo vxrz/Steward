@@ -24,6 +24,7 @@ import { bearerToken, tokenUser } from './auth/tokens.js';
 import type { StepUpRule } from './auth/step-up.js';
 import { recordUnwrittenProofs, stepUpCheck } from './auth/assurance.js';
 import { logger } from './log.js';
+import { installHttpObservability, requestDbTotals } from './http-observability.js';
 import { publicApi } from './api/index.js';
 import { clientConfig, cspConnectSources, reportError } from './errorReporting.js';
 import { themeRoutes } from './theme/routes.js';
@@ -250,6 +251,8 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
   });
   // internal API errors as problem details (RFC 9457), with error/code/params/requestId as extension members
   app.addHook('onSend', internalProblemJson);
+  // request metrics and trace spans (first, so they cover every hook below), database totals per request
+  installHttpObservability(app);
   const routeTable: TableRow[] = [];
   ROUTE_TABLES.set(app, routeTable);
   app.addHook('onRoute', (r) => {
@@ -370,7 +373,8 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
       if (info!.mustChangePassword && !url.startsWith('/api/auth/')) {
         return void reply.code(403).send({ error: 'Please change your password first', code: 'PASSWORD_CHANGE_REQUIRED' });
       }
-      if (!vault().unlocked && !LOCKED_OK.some((p) => url.startsWith(p))) {
+      // /api/metrics too: sm_vault_unlocked and sm_ready are what alerts need while the vault is locked
+      if (!vault().unlocked && !LOCKED_OK.some((p) => url.startsWith(p)) && url !== '/api/metrics') {
         return void reply.code(423).send({ error: 'The vault is locked – an administrator has to unlock it', code: 'VAULT_LOCKED' });
       }
       // A status viewer (#26) reaches the routes that allow them – nothing else, whatever a route checks itself.
@@ -412,12 +416,16 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
     if (!req.url.startsWith('/api/')) return;
     const ms = Math.round(reply.elapsedTime);
     const status = reply.statusCode;
+    const dbTotals = requestDbTotals(req);
     const entry = {
       reqId: req.id,
       method: req.method,
       path: req.url.split('?')[0],
       status,
       ms,
+      // the database statements of the request and their time (database/timing.ts)
+      dbStatements: dbTotals?.statements,
+      dbMs: dbTotals ? Math.round(dbTotals.ms) : undefined,
       user: (req as unknown as { smUser?: string }).smUser,
       token: (req as unknown as { smToken?: string }).smToken,
       ip: req.ip,

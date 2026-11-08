@@ -9,6 +9,7 @@ import { TRIGGER_MIGRATIONS } from './migrations/triggers.js';
 import { openDriver, type Driver, type Row } from './database/drivers.js';
 import { describeTarget, pgDdl, PG_CREATE_NOCASE, type DatabaseTarget } from './database/sql.js';
 import { pgDumpSync } from './database/pg-dump.js';
+import { timedStatement, timedTransaction } from './database/timing.js';
 import { REPORT_MIGRATIONS } from './migrations/reports.js';
 import { MONITOR_MIGRATIONS } from './migrations/monitors.js';
 import { SECURITY_MIGRATIONS } from './migrations/security.js';
@@ -672,14 +673,15 @@ export class Db {
     });
   }
 
+  // every statement is measured (database/timing.ts: sm_db_* metrics, the slow-statement log, request totals)
   all<T = Row>(sql: string, ...params: unknown[]): T[] {
-    return this.driver.all(sql, params) as T[];
+    return timedStatement(this.driver.dialect, sql, () => this.driver.all(sql, params)) as T[];
   }
   get<T = Row>(sql: string, ...params: unknown[]): T | undefined {
-    return this.driver.get(sql, params) as T | undefined;
+    return timedStatement(this.driver.dialect, sql, () => this.driver.get(sql, params)) as T | undefined;
   }
   run(sql: string, ...params: unknown[]): { changes: number } {
-    return this.driver.run(sql, params);
+    return timedStatement(this.driver.dialect, sql, () => this.driver.run(sql, params));
   }
   /** Statements without parameters (DDL, several statements separated by `;`). */
   /**
@@ -692,12 +694,15 @@ export class Db {
   }
 
   exec(sql: string): void {
-    this.driver.exec(sql);
+    timedStatement(this.driver.dialect, sql, () => this.driver.exec(sql));
   }
   private depth = 0;
   /** Run fn in a transaction (nested calls join the outer transaction). */
   tx<T>(fn: () => T): T {
     if (this.depth > 0) return fn();
+    return timedTransaction(this.driver.dialect, () => this.runTx(fn));
+  }
+  private runTx<T>(fn: () => T): T {
     this.driver.begin();
     this.depth++;
     try {
