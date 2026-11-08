@@ -77,7 +77,7 @@ describe('F2 – secret encodings and egress scan', () => {
     const forms = [form, lower(form), strict, lower(strict), lower(encodeURIComponent(key)), encodeURIComponent(key).replace(/%20/g, '+')];
     const enc = secretEncodings(key);
     for (const f of forms) expect(enc, f).toContain(f);
-    const { Redactor } = await import('../src/engine/runner.js');
+    const { Redactor } = await import('../src/engine/redact.js');
     const r = new Redactor();
     r.add(key);
     for (const f of forms) expect(r.apply(`<https://x.example/a?api_key=${f}&page=2>; rel="next"`), f).not.toMatch(/Sup3r/);

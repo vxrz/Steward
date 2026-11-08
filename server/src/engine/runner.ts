@@ -8,7 +8,6 @@ import {
   outgoing,
   type FlowNode,
   type NodeOf,
-  type InputDef,
   type Platform,
   type ProcessDefinition,
   type RunStats,
@@ -52,7 +51,6 @@ import {
   assertNoSecretLeak,
   assertOutboundAllowed,
   egressSecretValues,
-  secretEncodings,
   type OutboundContext,
   type SecretBinding,
 } from '../platforms/outbound.js';
@@ -71,13 +69,14 @@ import { withSpan } from '../telemetry.js';
 import { forecastTo, normalizeStatus, type DatasetRow } from '@sm/shared';
 import { emit } from '../events.js';
 import { isInternalError, isUnexpected, reportError } from '../errorReporting.js';
-import { applicationInputValue, applicationsInputValue } from '../catalogue/components.js';
 import { systemsForProcess } from '../catalogue/systems.js';
 import { checkOutcome } from './check-alerts.js';
 import { runAiStep } from '../ai/step.js';
 import { modeOf, modeOfRow, type DebugNodeSeed, type RunEngine, type RunSignal, type RunState, type SignalResult, type StartCommand } from './engine.js';
 import { DebugGate, type GateAction } from './debug-gate.js';
 import { startProblem } from './commands.js';
+import { Redactor } from './redact.js';
+import { coerceInputs } from './inputs.js';
 
 // ---------------------------------------------------------------------------
 // Run context
@@ -91,55 +90,6 @@ interface Binding {
 
 /** Where a run's evidence file (screenshot) is stored: data folder/artifacts/<run id>/<file>. */
 const artifactFile = (runId: string, name: string): string => pathInside(path.join(config.dataDir, 'artifacts'), runId, name);
-
-/** Keys whose values are never stored in the protocol (headers, credentials, OAuth token responses). */
-const REDACT_KEY =
-  /^(authorization|proxy-authorization|x-space-auth-key|x-api-key|api[-_]?key|cookie|set-cookie|password|passphrase|client_secret|access_token|refresh_token|id_token)$/i;
-
-export class Redactor {
-  private values = new Set<string>();
-  /** Registers secret values – and the encoded forms they typically appear in (JSON, URL/form encoding, Base64). */
-  add(...vals: string[]): void {
-    for (const v of vals) {
-      if (!v || v.length < 4) continue;
-      // Mask the raw value and its simple encodings (base64, URL and form encoding in upper- and
-      // lowercase hex, JSON escaping) so a secret cannot be smuggled into a log/protocol field in an
-      // encoded form – or come back from a platform that echoes a query API key (Link headers, bodies).
-      for (const enc of secretEncodings(v)) this.values.add(enc);
-    }
-  }
-  /** The registered secret values (for scrubbing error reports). */
-  list(): string[] {
-    return [...this.values];
-  }
-  apply<T>(v: T): T {
-    if (typeof v === 'string') {
-      if (this.values.size === 0) return v;
-      let s: string = v;
-      // longest first, so a secret containing another one is replaced as a whole
-      for (const secret of [...this.values].sort((a, b) => b.length - a.length)) if (s.includes(secret)) s = s.split(secret).join('***');
-      // Basic credentials: user:password in Base64 – masked when they contain a registered secret
-      s = s.replace(/\b(Basic)\s+([A-Za-z0-9+/]{6,}={0,2})/g, (m, scheme: string, b64: string) => {
-        const decoded = Buffer.from(b64, 'base64').toString('utf8');
-        return [...this.values].some((x) => decoded.includes(x)) ? `${scheme} ***` : m;
-      });
-      return s as T;
-    }
-    if (Array.isArray(v)) return v.map((x) => this.apply(x)) as T;
-    if (v && typeof v === 'object') {
-      const out: Record<string, unknown> = {};
-      for (const [k, val] of Object.entries(v)) {
-        if (REDACT_KEY.test(k)) {
-          // a token found in a response is a secret from now on (also where it shows up later, e.g. in a header)
-          if (typeof val === 'string') this.add(val);
-          out[k] = '***';
-        } else out[k] = this.apply(val);
-      }
-      return out as T;
-    }
-    return v;
-  }
-}
 
 /**
  * Per-item variable scope of parallel for-each loops: the body of each item sees
@@ -576,100 +526,6 @@ export async function forgetRunForTests(runId: string): Promise<void> {
 export function resumeAcceptingRuns(): void {
   accepting = true;
   pumpQueue();
-}
-
-/** `lenient`: a missing required input is left empty (a single-node debug run needs only what its node reads). */
-function coerceInputs(defs: InputDef[], raw: Record<string, unknown>, lenient = false): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
-  for (const d of defs) {
-    let v = raw[d.name];
-    if (v === undefined || v === '' || v === null) v = d.default;
-    if (v === undefined || v === '' || v === null) {
-      if (d.required && !lenient) throw new HttpError(400, `Input "${d.label ?? d.name}" is required`);
-      // applications: empty means every application that is not archived
-      out[d.name] =
-        d.type === 'applications'
-          ? applicationsInputValue([], d.label ?? d.name)
-          : d.type === 'list' || d.type === 'table'
-            ? []
-            : d.type === 'boolean'
-              ? false
-              : null;
-      continue;
-    }
-    switch (d.type) {
-      case 'number': {
-        const n = Number(v);
-        if (Number.isNaN(n)) throw new HttpError(400, `Input "${d.name}" must be a number`);
-        out[d.name] = n;
-        break;
-      }
-      case 'boolean':
-        out[d.name] = v === true || v === 'true' || v === '1' || v === 1 || v === 'yes';
-        break;
-      case 'select':
-        if (d.options?.length && !d.options.includes(String(v))) throw new HttpError(400, `Input "${d.name}" must be one of ${d.options.join(', ')}`);
-        out[d.name] = String(v);
-        break;
-      case 'list':
-        out[d.name] = Array.isArray(v)
-          ? v.map(String)
-          : String(v)
-              .split(/[\n,;]/)
-              .map((s) => s.trim())
-              .filter(Boolean);
-        break;
-      case 'table':
-        out[d.name] = Array.isArray(v) ? v : parseCsv(String(v));
-        break;
-      case 'application':
-        out[d.name] = applicationInputValue(v, d.label ?? d.name);
-        break;
-      case 'applications':
-        out[d.name] = applicationsInputValue(v, d.label ?? d.name);
-        break;
-      case 'json':
-        if (typeof v === 'string') {
-          try {
-            out[d.name] = JSON.parse(v);
-          } catch {
-            throw new HttpError(400, `Input "${d.name}" must be valid JSON`);
-          }
-        } else out[d.name] = v;
-        break;
-      default:
-        out[d.name] = String(v);
-    }
-  }
-  // keep undeclared inputs out of the run to keep it reproducible
-  return out;
-}
-
-/** Small CSV parser (comma, semicolon or tab separated, quoted fields, header row). */
-export function parseCsv(text: string): Record<string, string>[] {
-  const lines = text.replace(/\r\n?/g, '\n').trim();
-  if (!lines) return [];
-  const first = lines.split('\n')[0]!;
-  const delim = [';', '\t', ','].sort((a, b) => first.split(b).length - first.split(a).length)[0]!;
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let field = '';
-  let q = false;
-  for (let i = 0; i < lines.length; i++) {
-    const c = lines[i]!;
-    if (q) {
-      if (c === '"' && lines[i + 1] === '"') ((field += '"'), i++);
-      else if (c === '"') q = false;
-      else field += c;
-    } else if (c === '"') q = true;
-    else if (c === delim) (row.push(field), (field = ''));
-    else if (c === '\n') (row.push(field), rows.push(row), (row = []), (field = ''));
-    else field += c;
-  }
-  row.push(field);
-  rows.push(row);
-  const header = rows.shift()!.map((h) => h.trim());
-  return rows.filter((r) => r.some((x) => x.trim() !== '')).map((r) => Object.fromEntries(header.map((h, i) => [h, (r[i] ?? '').trim()])));
 }
 
 /**
