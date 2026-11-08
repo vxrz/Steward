@@ -24,33 +24,9 @@ import { assertEmailsAllowed } from '../notifications/domains.js';
 import { formatDateTime, t } from '../i18n/index.js';
 import { generateScheduledReport } from './service.js';
 import { asBackgroundPdf } from './pdf/pool.js';
-import { parseSections, registerReportSection, reportSection } from './sections.js';
-import { availabilitySection, credentialsSection, gatusSection, runsSection } from './builtin-sections.js';
-import { recordsSection } from '../records/report-section.js';
-import { ticketsSection } from '../tickets/report-section.js';
-import { dutiesSection } from '../duties/report-section.js';
-import { scorecardSection } from '../scorecard/report-section.js';
-import { aiSection } from '../ai/report-section.js';
-import { costsSection } from '../costs/report-section.js';
-import { contractsSection } from '../datacontracts/report-section.js';
+import { parseSections, reportSection } from './sections.js';
 import { me } from '../auth/access.js';
 import { memberships } from '../auth/policy.js';
-
-// the sections of reports, in the order they appear in one
-for (const def of [
-  availabilitySection,
-  gatusSection,
-  credentialsSection,
-  runsSection,
-  recordsSection,
-  ticketsSection,
-  dutiesSection,
-  scorecardSection,
-  aiSection,
-  costsSection,
-  contractsSection,
-])
-  registerReportSection(def as never);
 
 /**
  * Scheduled summary reports. A schedule has an owner and runs with the owner's

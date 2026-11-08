@@ -3,7 +3,7 @@ import type { DataContractResult } from '@sm/shared';
 import { db } from '../db.js';
 import { currentUser } from '../auth/context.js';
 import { currentDoc, findingsOf, linkRows, permissionsOf, type ContractRow, type RunRow } from './service.js';
-import type { ReportSectionDef } from '../reports/sections.js';
+import { defineReportSection } from '../reports/sections.js';
 import { contractsSectionDraw, type Row, type ContractsSectionData } from './report-section-draw.js';
 
 /**
@@ -81,7 +81,7 @@ function build(c: ContractsConfig, ctx: { from: number; to: number; now: number 
   return out;
 }
 
-export const contractsSection: ReportSectionDef<ContractsConfig, ContractsSectionData> = {
+export const contractsSection = defineReportSection<ContractsConfig, ContractsSectionData>({
   ...contractsSectionDraw,
   schema: schema as unknown as ZodType<ContractsConfig>,
   validate: (c) => {
@@ -97,4 +97,4 @@ export const contractsSection: ReportSectionDef<ContractsConfig, ContractsSectio
     if (missing.length) throw Object.assign(new Error(`Data contract(s) not found: ${missing.join(', ')}`), { statusCode: 400 });
   },
   build,
-};
+});

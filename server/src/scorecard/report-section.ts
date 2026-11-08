@@ -4,7 +4,7 @@ import { db } from '../db.js';
 import { currentUser } from '../auth/context.js';
 import { computeScorecards, dayOf, scorecardTrend, snapshotsOf } from './scorecard.js';
 import { listObjectiveViews, rowTargets } from './objectives.js';
-import type { ReportSectionDef } from '../reports/sections.js';
+import { defineReportSection } from '../reports/sections.js';
 import { scorecardSectionDraw, type ScorecardSectionData } from './report-section-draw.js';
 
 /**
@@ -91,7 +91,7 @@ function build(c: ScorecardConfig, ctx: { from: number; to: number; now: number 
   return out;
 }
 
-export const scorecardSection: ReportSectionDef<ScorecardConfig, ScorecardSectionData> = {
+export const scorecardSection = defineReportSection<ScorecardConfig, ScorecardSectionData>({
   ...scorecardSectionDraw,
   schema: schema as unknown as ZodType<ScorecardConfig>,
   validate: (c) => {
@@ -105,4 +105,4 @@ export const scorecardSection: ReportSectionDef<ScorecardConfig, ScorecardSectio
     if (missing.length) throw Object.assign(new Error(`Service(s) not found: ${missing.join(', ')}`), { statusCode: 400 });
   },
   build,
-};
+});

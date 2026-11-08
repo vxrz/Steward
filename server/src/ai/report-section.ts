@@ -3,7 +3,7 @@ import { db } from '../db.js';
 import { currentUser } from '../auth/context.js';
 import { capabilities } from '../auth/permissions.js';
 import { listBudgets } from './usage.js';
-import type { ReportSectionDef } from '../reports/sections.js';
+import { defineReportSection } from '../reports/sections.js';
 import { aiSectionDraw, type AiSectionData } from './report-section-draw.js';
 
 /**
@@ -100,7 +100,7 @@ function build(c: AiConfig, ctx: { from: number; to: number }): AiSectionData {
   };
 }
 
-export const aiSection: ReportSectionDef<AiConfig, AiSectionData> = {
+export const aiSection = defineReportSection<AiConfig, AiSectionData>({
   ...aiSectionDraw,
   schema: schema as unknown as ZodType<AiConfig>,
   validate: (c) => {
@@ -114,4 +114,4 @@ export const aiSection: ReportSectionDef<AiConfig, AiSectionData> = {
     if (missing.length) throw Object.assign(new Error(`LLM gateway(s) not found: ${missing.join(', ')}`), { statusCode: 400 });
   },
   build,
-};
+});

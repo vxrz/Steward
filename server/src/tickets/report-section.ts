@@ -6,7 +6,7 @@ import { ticketSettings } from './service.js';
 import { ticketVisible } from './service.js';
 import { canViewCatalogue } from '../records/access.js';
 import { parseJson } from '../util.js';
-import type { ReportSectionDef } from '../reports/sections.js';
+import { defineReportSection } from '../reports/sections.js';
 import { ticketsSectionDraw, type OpenTicket, type TicketsSectionData } from './report-section-draw.js';
 
 /**
@@ -117,7 +117,7 @@ function build(c: TicketsConfig, ctx: { from: number; to: number; now: number })
   return out;
 }
 
-export const ticketsSection: ReportSectionDef<TicketsConfig, TicketsSectionData> = {
+export const ticketsSection = defineReportSection<TicketsConfig, TicketsSectionData>({
   ...ticketsSectionDraw,
   schema: schema as unknown as ZodType<TicketsConfig>,
   validate: (c) => {
@@ -127,4 +127,4 @@ export const ticketsSection: ReportSectionDef<TicketsConfig, TicketsSectionData>
     if (missing.length) throw Object.assign(new Error(`Ticket source(s) not found: ${missing.join(', ')}`), { statusCode: 400 });
   },
   build,
-};
+});

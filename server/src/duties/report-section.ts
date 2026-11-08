@@ -4,7 +4,7 @@ import { db } from '../db.js';
 import { currentUser } from '../auth/context.js';
 import { listDutyViews } from './service.js';
 import { addLocalDays } from './periods.js';
-import type { ReportSectionDef } from '../reports/sections.js';
+import { defineReportSection } from '../reports/sections.js';
 import { dutiesSectionDraw, type Row, type DutiesSectionData } from './report-section-draw.js';
 
 /**
@@ -59,7 +59,7 @@ function build(c: DutiesConfig, ctx: { from: number; to: number; now: number }):
   return out;
 }
 
-export const dutiesSection: ReportSectionDef<DutiesConfig, DutiesSectionData> = {
+export const dutiesSection = defineReportSection<DutiesConfig, DutiesSectionData>({
   ...dutiesSectionDraw,
   schema: schema as unknown as ZodType<DutiesConfig>,
   validate: (c) => {
@@ -73,4 +73,4 @@ export const dutiesSection: ReportSectionDef<DutiesConfig, DutiesSectionData> = 
     if (missing.length) throw Object.assign(new Error(`Service(s) not found: ${missing.join(', ')}`), { statusCode: 400 });
   },
   build,
-};
+});

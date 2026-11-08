@@ -844,7 +844,6 @@ describe('reporting', () => {
 
   it('the report section "AI usage" for report schedules', async () => {
     const { reportSection } = await import('../src/reports/sections.js');
-    await import('../src/reports/schedules.js');
     const def = reportSection('ai')!;
     const { runAs } = await import('../src/auth/context.js');
     const { findUserByName, toAuthUser } = await import('../src/auth/users.js');

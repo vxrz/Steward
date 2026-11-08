@@ -150,7 +150,6 @@ describe('the monitor check "Cost change"', () => {
 describe('reports, the dataset and /api/v1', () => {
   it("reports the costs of the period with the owner's rights", async () => {
     const { reportSection } = await import('../src/reports/sections.js');
-    await import('../src/reports/schedules.js');
     const sec = reportSection('costs')!;
     const { runAs } = await import('../src/auth/context.js');
     const { findUserByName, toAuthUser } = await import('../src/auth/users.js');

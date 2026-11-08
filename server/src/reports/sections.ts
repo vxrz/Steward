@@ -33,6 +33,9 @@ export interface ReportSectionDef<C = unknown, D = unknown> extends ReportSectio
 }
 
 const SECTIONS = new Map<string, ReportSectionDef>();
+/** Checks a section's halves against each other (its data type, its configuration) and gives it its stored type. */
+export const defineReportSection = <C, D>(def: ReportSectionDef<C, D>): ReportSectionDef => def as unknown as ReportSectionDef;
+
 /** Registers a section (in this order: the order of the sections in a report); its draw half too. */
 export function registerReportSection<C, D>(def: ReportSectionDef<C, D>): void {
   SECTIONS.set(def.id, def as unknown as ReportSectionDef);

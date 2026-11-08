@@ -13,6 +13,7 @@ import { tlsServerOptions } from './tls.js';
 import { vault } from './vault.js';
 import { HttpError } from './util.js';
 import { registerRoutes } from './routes/index.js';
+import { installFeatures } from './features/index.js';
 import { mockPlatform } from './mock/mockPlatform.js';
 import { currentUser, requestContext, type AuthUser } from './auth/context.js';
 import { ACCESS, hasRole, isStatusViewer, type ResolvedAccess, type RouteAccess } from './auth/access.js';
@@ -215,6 +216,8 @@ export const stepUpRoutes = (app: FastifyInstance): Record<string, 'always' | 'r
   Object.fromEntries((ROUTE_TABLES.get(app) ?? []).filter((r) => r.stepUp).map((r) => [`${r.method} ${r.url}`, r.stepUp!]));
 
 export async function buildApp(opts: { logger?: boolean } = {}): Promise<FastifyInstance> {
+  // what the features bring (features/index.ts): report sections, …
+  installFeatures();
   connectVaultToDatabase();
   const BASE = config.basePath;
   const app = Fastify({

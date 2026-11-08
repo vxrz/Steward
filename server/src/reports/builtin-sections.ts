@@ -8,7 +8,7 @@ import * as platforms from '../platforms/service.js';
 import { listCredentials } from '../credentials/service.js';
 import { availability as gatusAvailability, sourceRow } from '../gatus/metrics.js';
 import { st } from './scheduled-i18n.js';
-import type { ReportSectionDef } from './sections.js';
+import { defineReportSection } from './sections.js';
 import {
   availabilitySectionDraw,
   gatusSectionDraw,
@@ -138,7 +138,7 @@ const runsSchema = z.object({ processIds: z.array(z.string().min(1).max(100)).ma
 
 type RunsConfig = z.infer<typeof runsSchema>;
 
-export const availabilitySection: ReportSectionDef<AvailabilityConfig, AvailabilityData> = {
+export const availabilitySection = defineReportSection<AvailabilityConfig, AvailabilityData>({
   ...availabilitySectionDraw,
   schema: availabilitySchema as unknown as ZodType<AvailabilityConfig>,
   validate: (c) => {
@@ -154,8 +154,8 @@ export const availabilitySection: ReportSectionDef<AvailabilityConfig, Availabil
       monitors: rows.map((m) => ({ id: m.id, key: m.key, name: m.name, ...monitorAvailability(m.id, ctx.from, ctx.to) })),
     };
   },
-};
-export const gatusSection: ReportSectionDef<GatusConfig, GatusData> = {
+});
+export const gatusSection = defineReportSection<GatusConfig, GatusData>({
   ...gatusSectionDraw,
   schema: gatusSchema as unknown as ZodType<GatusConfig>,
   validate: (c) => {
@@ -171,8 +171,8 @@ export const gatusSection: ReportSectionDef<GatusConfig, GatusData> = {
       return { id: p.id, name: p.name, note: null, endpoints: gatusAvailability(p.id, s.endpointKeys, ctx.from, ctx.to) };
     }),
   }),
-};
-export const credentialsSection: ReportSectionDef<CredentialsConfig, CredentialsData> = {
+});
+export const credentialsSection = defineReportSection<CredentialsConfig, CredentialsData>({
   ...credentialsSectionDraw,
   schema: credentialsSchema as unknown as ZodType<CredentialsConfig>,
   build: (c, ctx) => {
@@ -200,8 +200,8 @@ export const credentialsSection: ReportSectionDef<CredentialsConfig, Credentials
     for (const l of [out.expired, out.overdue, out.dueSoon]) l.sort((a, b) => a.dueAt.localeCompare(b.dueAt));
     return out;
   },
-};
-export const runsSection: ReportSectionDef<RunsConfig, RunsData> = {
+});
+export const runsSection = defineReportSection<RunsConfig, RunsData>({
   ...runsSectionDraw,
   schema: runsSchema as unknown as ZodType<RunsConfig>,
   validate: (c) => {
@@ -233,4 +233,4 @@ export const runsSection: ReportSectionDef<RunsConfig, RunsData> = {
     }
     return { processes: [...per.values()].sort((a, b) => a.name.localeCompare(b.name)) };
   },
-};
+});

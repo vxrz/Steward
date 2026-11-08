@@ -136,9 +136,9 @@ const RULES = [
   },
   {
     name: 'composition-root-on-top',
-    why: 'features/ wires the features together: only the entry points (app.ts, main.ts, bootstrap, CLIs) import it',
+    why: 'features/ wires the features together: only the entry points (app.ts and its route and public-API roots, main.ts, the CLIs) import it',
     from: ['server/src/'],
-    except: ['server/src/features/', 'server/src/app.ts', 'server/src/main.ts', 'server/src/bootstrap.ts', 'server/src/cli/', 'server/src/routes/index.ts'],
+    except: ['server/src/features/', 'server/src/app.ts', 'server/src/main.ts', 'server/src/cli/', 'server/src/routes/index.ts', 'server/src/api/index.ts'],
     to: ['server/src/features/'],
   },
 ];

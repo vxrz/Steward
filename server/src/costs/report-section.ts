@@ -3,7 +3,7 @@ import { COST_SCOPES, fromMicros } from '@sm/shared';
 import { db } from '../db.js';
 import { coverOf, coverWhere, scopeInfo, visibleScopes } from './access.js';
 import { budgetOf } from './query.js';
-import type { ReportSectionDef } from '../reports/sections.js';
+import { defineReportSection } from '../reports/sections.js';
 import { en, costsSectionDraw, type Row, type CostSectionData } from './report-section-draw.js';
 
 /**
@@ -87,7 +87,7 @@ function build(c: CostConfig, ctx: { from: number; to: number; now: number }): C
   };
 }
 
-export const costsSection: ReportSectionDef<CostConfig, CostSectionData> = {
+export const costsSection = defineReportSection<CostConfig, CostSectionData>({
   ...costsSectionDraw,
   schema: schema as unknown as ZodType<CostConfig>,
   validate: (c) => {
@@ -97,4 +97,4 @@ export const costsSection: ReportSectionDef<CostConfig, CostSectionData> = {
     if (missing.length) throw Object.assign(new Error(`${en.scope[c.scope]}(s) not found: ${missing.join(', ')}`), { statusCode: 400 });
   },
   build,
-};
+});

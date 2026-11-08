@@ -339,7 +339,6 @@ describe('ticket references: API, MCP and report section', () => {
 
   it('report section: open per service and vendor, opened and resolved in the period, MTTR per vendor', async () => {
     const { reportSection } = await import('../src/reports/sections.js');
-    await import('../src/reports/schedules.js');
     const { runAs } = await import('../src/auth/context.js');
     const { findUserByName, toAuthUser } = await import('../src/auth/users.js');
     const vendor = uniq('MTTR vendor');

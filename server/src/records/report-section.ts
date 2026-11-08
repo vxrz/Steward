@@ -6,7 +6,7 @@ import { currentUser } from '../auth/context.js';
 import { canReadRecordRow, canReadRecords } from './access.js';
 import { reviewState, type DocRow } from './document-model.js';
 import { reminderSettings } from '../credentials/service.js';
-import type { ReportSectionDef } from '../reports/sections.js';
+import { defineReportSection } from '../reports/sections.js';
 import { recordsSectionDraw, type RecordActivity, type RecordRef, type RecordsSectionData } from './report-section-draw.js';
 
 /**
@@ -202,7 +202,7 @@ function build(c: RecordsConfig, ctx: { from: number; to: number; now: number })
   return out;
 }
 
-export const recordsSection: ReportSectionDef<RecordsConfig, RecordsSectionData> = {
+export const recordsSection = defineReportSection<RecordsConfig, RecordsSectionData>({
   ...recordsSectionDraw,
   schema: schema as unknown as ZodType<RecordsConfig>,
   validate: (c) => {
@@ -212,4 +212,4 @@ export const recordsSection: ReportSectionDef<RecordsConfig, RecordsSectionData>
     if (missing.length) throw Object.assign(new Error(`Record type(s) not found: ${missing.join(', ')}`), { statusCode: 400 });
   },
   build,
-};
+});
