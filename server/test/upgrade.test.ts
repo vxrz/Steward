@@ -118,6 +118,8 @@ describe.each(versions)('upgrade from %s', (version) => {
   let oldOperations: { platformId: string; ops: { method: string; path: string }[] }[] = [];
   /** The datasets as the old version stored them (0.4.0 keeps their rows in the partitions only) */
   let oldDatasets: { key: string; rows: number }[] = [];
+  /** Monitor windows of the old version (monitor_maintenance) added to the fixture's data before the upgrade (0.11) */
+  let oldMonitorWindows: { id: string; monitorId: string; reason: string }[] = [];
   /** The platforms as the old version stored them: credentials (ciphertext) and MCP gateway on the platform row */
   let oldPlatforms: { id: string; name: string; secrets: string | null; config: string }[] = [];
   let proc: ChildProcess | undefined;
@@ -194,6 +196,29 @@ describe.each(versions)('upgrade from %s', (version) => {
       // evidence packs expire a week after they were made (SM_EVIDENCE_RETENTION_DAYS): the fixture's pack would turn
       // "expired" as the fixture ages. This test checks that it still verifies after the upgrade, not the expiry.
       old.run("UPDATE evidence_packs SET expires_at = '2999-01-01T00:00:00.000Z' WHERE status = 'ready'");
+      // a monitor's own maintenance windows, as every version before 0.11 kept them: one going on, one in the past
+      const mon = old.get<{ id: string }>('SELECT id FROM monitors WHERE is_template = 0 ORDER BY id LIMIT 1');
+      if (mon) {
+        const now = Date.now();
+        oldMonitorWindows = [
+          { id: 'mw_upgrade_now', monitorId: mon.id, reason: 'Switch replacement' },
+          { id: 'mw_upgrade_past', monitorId: mon.id, reason: 'Firmware update' },
+        ];
+        for (const [w, start, end] of [
+          [oldMonitorWindows[0]!, now - 3600000, now + 3600000],
+          [oldMonitorWindows[1]!, now - 3 * 86400000, now - 3 * 86400000 + 3600000],
+        ] as const)
+          old.run(
+            'INSERT INTO monitor_maintenance (id, monitor_id, starts_at, ends_at, reason, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            w.id,
+            w.monitorId,
+            new Date(start).toISOString(),
+            new Date(end).toISOString(),
+            w.reason,
+            m.admin.username,
+            new Date(start - 60000).toISOString(),
+          );
+      }
     } finally {
       old.close();
     }
@@ -336,6 +361,36 @@ describe.each(versions)('upgrade from %s', (version) => {
     const entries = await admin('GET', '/audit?action=platform.identities_created&limit=10');
     expect(entries).toHaveLength(1);
     expect(entries[0]).toMatchObject({ actor: 'system', details: { count: oldPlatforms.length } });
+  });
+
+  it("copies the monitors' own maintenance windows into catalogue windows that list the monitor, once (0.11, ADR 0018)", async () => {
+    expect(oldMonitorWindows.length, 'the fixture has a monitor').toBeGreaterThan(0);
+    const d = new Db(pg ? { ...pg, lock: false } : sqlite, { migrate: false });
+    let copies: string[];
+    try {
+      const rows = d.all<{ id: string; migrated_to: string | null; migrated_at: string | null }>(
+        "SELECT id, migrated_to, migrated_at FROM monitor_maintenance WHERE id IN ('mw_upgrade_now', 'mw_upgrade_past') ORDER BY id",
+      );
+      expect(rows).toHaveLength(2);
+      for (const r of rows) {
+        expect(r.migrated_at, r.id).toBeTruthy();
+        expect(r.migrated_to, r.id).toMatch(/^mtw_/);
+      }
+      copies = rows.map((r) => r.migrated_to!);
+      for (const id of copies)
+        expect(d.all('SELECT kind, target_id FROM maintenance_targets WHERE window_id = ?', id)).toEqual([
+          { kind: 'monitor', target_id: oldMonitorWindows[0]!.monitorId },
+        ]);
+    } finally {
+      d.close();
+    }
+    const now = copies[0]!;
+    const w = await admin('GET', `/maintenance-windows/${now}`);
+    expect(w).toMatchObject({ title: 'Switch replacement', current: { active: true }, quietMonitors: true });
+    const mon = await admin('GET', `/monitors/${oldMonitorWindows[0]!.monitorId}`);
+    expect(mon.maintenance).toMatchObject({ id: now, reason: 'Switch replacement' });
+    const audit = await admin('GET', '/audit?action=maintenance.migrated&limit=10');
+    expect(audit.map((a: any) => a.entityId).sort()).toEqual([...copies].sort());
   });
 
   it('returns the data of the old version', async () => {

@@ -196,7 +196,7 @@ export async function catalogueRoutes(app: FastifyInstance): Promise<void> {
     to: z.string().datetime({ offset: true }).optional(),
     target: z
       .string()
-      .regex(/^(platform|system|application|service):[\w-]{1,80}$/)
+      .regex(/^(platform|system|application|service|monitor):[\w-]{1,80}$/)
       .optional(),
     cancelled: z.enum(['true', 'false']).optional(),
   });

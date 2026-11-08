@@ -1,6 +1,6 @@
 # Gatus and Steward
 
-[Gatus](https://github.com/TwiN/gatus) (Apache-2.0) is an uptime monitor with a status page and alerting. Steward does **not** re-implement monitoring: Gatus keeps checking your endpoints every few seconds, keeps the history and sends the alerts. Steward adds what Gatus does not do: procedures with approvals, an audit trail and protocols, and dashboards next to your other platform data.
+[Gatus](https://github.com/TwiN/gatus) (Apache-2.0) is an uptime monitor with a status page and alerting. Steward has monitors of its own ([MONITORS.md](MONITORS.md)) for the checks that belong to its procedures and services: dependency graphs, root causes, runbooks, maintenance windows. For broad infrastructure monitoring – many endpoints checked every few seconds, with their history and alerts – Gatus remains a good choice, and Steward works with it. Steward adds what Gatus does not do: procedures with approvals, an audit trail and protocols, availability objectives and dashboards next to your other platform data.
 
 The two work together in four directions, plus a metrics mode that gives Steward its own history of Gatus' results:
 

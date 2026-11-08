@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, Anchor, Badge, Button, Drawer, Grid, Group, Menu, Paper, ScrollArea, Stack, Table, Tabs, Text, Timeline, Title, Tooltip } from '@mantine/core';
+import { Alert, Anchor, Badge, Button, Drawer, Grid, Group, Menu, Paper, ScrollArea, Stack, Table, Tabs, Text, Timeline, Title } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
@@ -23,7 +23,7 @@ import { Trans, useTranslation } from 'react-i18next';
 import {
   type CheckResultInfo,
   type CheckState,
-  type MaintenanceWindow,
+  type MaintenanceList as MaintenanceListData,
   type MonitorDetail,
   type MonitorHistoryEntry,
   type MonitorSaveResult,
@@ -37,7 +37,8 @@ import { fmtDate, fmtNumber, fmtRelative } from '../format';
 import { MonitorGraph } from '../components/monitors/MonitorGraph';
 import { TestRunButton } from '../components/monitors/TestRunButton';
 import { MONITOR_COLORS, MonitorStatusBadge, causeText, checkTypeLabel, fmtUptime, monitorStatusLabel, uptimeText } from '../components/monitors/status';
-import { AcknowledgeModal, CopyBlock, InstantiateModal, MaintenanceModal, SecretsModal, gatewayCurl, heartbeatCurl } from '../components/monitors/dialogs';
+import { AcknowledgeModal, CopyBlock, InstantiateModal, SecretsModal, gatewayCurl, heartbeatCurl } from '../components/monitors/dialogs';
+import { MaintenanceDetailModal, MaintenanceFormModal, TargetBadges, useRepeatLabel } from '../components/catalogue/maintenance';
 import { confirmDanger, confirmDialog } from '../components/confirm';
 import { appUrl } from '../basePath';
 import { MonitorReviewModal, useCanStartReview } from '../components/records/IncidentReview';
@@ -58,6 +59,8 @@ export function MonitorDetailPage() {
   const q = useQuery({ queryKey: monitorKeys.detail(id), queryFn: () => get<MonitorDetail>(`/monitors/${id}`), refetchInterval: 5000 });
   const [busy, setBusy] = useState(false);
   const [maint, setMaint] = useState(false);
+  // a maintenance window opened from the page (the catalogue's window form and details, 0.11)
+  const [openWindow, setOpenWindow] = useState<string | null>(null);
   const [reviewing, setReviewing] = useState(false);
   const canStartReview = useCanStartReview();
   const { caps } = useMe();
@@ -251,15 +254,9 @@ export function MonitorDetailPage() {
                   user: m.maintenance.createdBy,
                 })}
               </Text>
-              {can('acknowledge') && (
-                <Button
-                  size="compact-xs"
-                  variant="light"
-                  onClick={async () => (await del(`/monitors/${m.id}/maintenance/${m.maintenance!.id}`).catch(notifyError), refresh())}
-                >
-                  {t('maintenance.endNow')}
-                </Button>
-              )}
+              <Button size="compact-xs" variant="light" onClick={() => setOpenWindow(m.maintenance!.id)}>
+                {t('maintenance.open')}
+              </Button>
             </Group>
           </Alert>
         )}
@@ -352,7 +349,7 @@ export function MonitorDetailPage() {
           <HeartbeatSetup monitor={m} onSecret={setSecrets} />
         </Tabs.Panel>
         <Tabs.Panel value="maintenance">
-          <MaintenanceList monitor={m} onPlan={() => setMaint(true)} />
+          <MaintenanceList monitor={m} onPlan={() => setMaint(true)} onOpen={setOpenWindow} />
         </Tabs.Panel>
         <Tabs.Panel value="definition">
           <Stack>
@@ -393,7 +390,26 @@ export function MonitorDetailPage() {
           />
         </Tabs.Panel>
       </Tabs>
-      {maint && <MaintenanceModal monitor={m} onClose={() => setMaint(false)} onSaved={refresh} />}
+      {maint && (
+        <MaintenanceFormModal
+          preset={{ kind: 'monitor', id: m.id }}
+          onClose={() => setMaint(false)}
+          onSaved={() => {
+            void qc.invalidateQueries({ queryKey: ['maintenance-windows'] });
+            refresh();
+          }}
+        />
+      )}
+      {openWindow && (
+        <MaintenanceDetailModal
+          id={openWindow}
+          onClose={() => {
+            setOpenWindow(null);
+            void qc.invalidateQueries({ queryKey: ['maintenance-windows'] });
+            refresh();
+          }}
+        />
+      )}
       {reviewing && <MonitorReviewModal monitorId={m.id} since={m.status === 'down' ? m.since : null} onClose={() => setReviewing(false)} />}
       {ack && <AcknowledgeModal monitor={m} onClose={() => setAck(false)} onSaved={refresh} />}
       {instances && (
@@ -734,53 +750,69 @@ function HistoryList({ monitor }: { monitor: MonitorDetail }) {
   );
 }
 
-function MaintenanceList({ monitor, onPlan }: { monitor: MonitorDetail; onPlan: () => void }) {
+/**
+ * The maintenance windows of the monitor: catalogue windows (0.11, ADR 0018) that list it or reach a platform it checks,
+ * from 90 days ago on. Planned, changed and cancelled with the catalogue's window form; the details open on click.
+ */
+function MaintenanceList({ monitor, onPlan, onOpen }: { monitor: MonitorDetail; onPlan: () => void; onOpen: (id: string) => void }) {
   const { t } = useTranslation('monitors');
+  const repeat = useRepeatLabel();
+  const [range] = useState(() => ({ from: new Date(Date.now() - 90 * 86400000).toISOString(), to: new Date(Date.now() + 300 * 86400000).toISOString() }));
   const w = useQuery({
-    queryKey: monitorKeys.maintenance(monitor.id, monitor.maintenance?.id),
-    queryFn: () => get<MaintenanceWindow[]>(`/monitors/${monitor.id}/maintenance`),
+    queryKey: ['maintenance-windows', 'target', 'monitor', monitor.id, monitor.maintenance?.id],
+    queryFn: () =>
+      get<MaintenanceListData>(
+        `/maintenance-windows?target=${encodeURIComponent(`monitor:${monitor.id}`)}&from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to)}`,
+      ),
   });
+  // newest first: the current or next occurrence, else the last one in the range
+  const lastOf = (id: string) => (w.data?.occurrences ?? []).filter((o) => o.windowId === id).at(-1);
+  const windows = [...(w.data?.windows ?? [])]
+    .map((x) => ({ x, at: x.current ?? lastOf(x.id) ?? { startsAt: x.startsAt, endsAt: x.endsAt, active: false } }))
+    .sort((a, b) => b.at.startsAt.localeCompare(a.at.startsAt));
   return (
-    <Stack>
+    <Stack data-testid="monitor-maintenance">
       <Text size="sm" c="dimmed">
-        {t('maintenance.intro')} {t('maintenance.vsPause')}
+        {t('maintenance.intro')} {t('maintenance.vsPause')} {t('maintenance.catalogue')}
       </Text>
       {monitor.permissions.includes('acknowledge') && (
         <Button size="xs" w="fit-content" leftSection={<IconTool size={14} />} onClick={onPlan}>
           {t('maintenance.plan')}
         </Button>
       )}
-      {(w.data ?? []).length === 0 && (
+      {w.isSuccess && windows.length === 0 && (
         <Text size="sm" c="dimmed">
           {t('maintenance.none')}
         </Text>
       )}
-      {(w.data ?? []).map((x) => (
-        <Paper key={x.id} withBorder p="xs">
-          <Group justify="space-between">
-            <div>
-              <Text size="sm" fw={500}>
-                {fmtDate(x.startsAt)} – {fmtDate(x.endsAt)} {x.active && <Badge size="xs">{t('maintenance.active')}</Badge>}
-              </Text>
+      {windows.map(({ x, at }) => {
+        const direct = x.targets.some((y) => y.kind === 'monitor' && y.id === monitor.id);
+        const others = x.targets.filter((y) => !(y.kind === 'monitor' && y.id === monitor.id));
+        return (
+          <Paper key={x.id} withBorder p="xs" data-testid="monitor-maintenance-window">
+            <Stack gap={2} style={{ minWidth: 0 }}>
+              <Anchor component="button" type="button" size="sm" fw={500} ta="left" onClick={() => onOpen(x.id)}>
+                {x.title}
+              </Anchor>
+              <Group gap={6} wrap="wrap">
+                {at.active && (
+                  <Badge size="sm" color="orange" variant="filled" style={{ flexShrink: 0 }}>
+                    {t('maintenance.active')}
+                  </Badge>
+                )}
+                <Text size="sm">
+                  {fmtDate(at.startsAt)} – {fmtDate(at.endsAt)}
+                </Text>
+              </Group>
               <Text size="xs" c="dimmed">
-                {x.reason} · {x.createdBy}
+                {x.recurrence ? `${repeat(x)} · ` : ''}
+                {direct ? t('maintenance.listsMonitor') : t('maintenance.reachesMonitor')} · {x.createdBy}
               </Text>
-            </div>
-            {monitor.permissions.includes('acknowledge') && Date.parse(x.endsAt) > Date.now() && (
-              <Tooltip label={x.active ? t('maintenance.endNow') : t('detail.remove')}>
-                <Button
-                  size="compact-xs"
-                  variant="subtle"
-                  color="red"
-                  onClick={async () => (await del(`/monitors/${monitor.id}/maintenance/${x.id}`).catch(notifyError), w.refetch())}
-                >
-                  {x.active ? t('maintenance.endNow') : t('detail.remove')}
-                </Button>
-              </Tooltip>
-            )}
-          </Group>
-        </Paper>
-      ))}
+              {others.length > 0 && <TargetBadges targets={others} />}
+            </Stack>
+          </Paper>
+        );
+      })}
     </Stack>
   );
 }

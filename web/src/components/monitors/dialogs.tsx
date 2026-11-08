@@ -87,57 +87,6 @@ export function SecretsModal({ result, onClose }: { result: Pick<MonitorSaveResu
   );
 }
 
-const toLocalInput = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-
-export function MaintenanceModal({ monitor, onClose, onSaved }: { monitor: MonitorDetail; onClose: () => void; onSaved: () => void }) {
-  const [start, setStart] = useState(toLocalInput(new Date()));
-  const [hours, setHours] = useState<number>(2);
-  const [reason, setReason] = useState('');
-  const [busy, setBusy] = useState(false);
-  const { t } = useTranslation(['monitors', 'common']);
-  const save = async () => {
-    setBusy(true);
-    try {
-      const s = new Date(start);
-      await post(`/monitors/${monitor.id}/maintenance`, { startsAt: s.toISOString(), endsAt: new Date(s.getTime() + hours * 3600000).toISOString(), reason });
-      onSaved();
-      onClose();
-    } catch (e) {
-      notifyError(e, t('maintenance.notPlanned'));
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <Modal opened onClose={onClose} title={t('maintenance.title', { name: monitor.name })}>
-      <Stack>
-        <Text size="sm" c="dimmed">
-          {t('maintenance.intro')}
-        </Text>
-        <TextInput type="datetime-local" label={t('maintenance.start')} value={start} onChange={(e) => setStart(e.currentTarget.value)} />
-        <NumberInput
-          label={t('maintenance.duration')}
-          min={0.25}
-          max={744}
-          step={0.5}
-          decimalScale={2}
-          value={hours}
-          onChange={(v) => setHours(Number(v) || 1)}
-        />
-        <Textarea label={t('maintenance.reason')} required autosize minRows={2} value={reason} onChange={(e) => setReason(e.currentTarget.value)} />
-        <Group justify="flex-end">
-          <Button variant="default" onClick={onClose}>
-            {t('common:cancel')}
-          </Button>
-          <Button onClick={save} loading={busy} disabled={!reason.trim()}>
-            {t('maintenance.plan')}
-          </Button>
-        </Group>
-      </Stack>
-    </Modal>
-  );
-}
-
 export function AcknowledgeModal({ monitor, onClose, onSaved }: { monitor: MonitorDetail; onClose: () => void; onSaved: () => void }) {
   const [comment, setComment] = useState('');
   const [busy, setBusy] = useState(false);

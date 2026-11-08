@@ -17,10 +17,10 @@ import { createReportSchedule, scheduleInputSchema } from '../reports/schedules.
 
 /**
  * The service half of the demo (U5 of the 0.10 review): three services built from the sample applications, with the
- * demo monitors linked, an availability objective, a duty, a system in two environments, a decision record, a change
- * record, a reviewed operations manual, credential register entries (metadata only – never a secret), a vendor ticket,
- * a planned maintenance window, a status page and a weekly report schedule. Everything is invented. It runs once:
- * when the first demo service exists, it does nothing.
+ * demo monitors linked, two availability objectives (Prometheus and a Steward monitor), a duty, a system in two
+ * environments, a decision record, a change record, a reviewed operations manual, credential register entries
+ * (metadata only – never a secret), a vendor ticket, a planned maintenance window, a status page and a weekly report
+ * schedule. Everything is invented. It runs once: when the first demo service exists, it does nothing.
  */
 export const DEMO_SERVICES = { shop: 'Online shop (demo)', care: 'Customer care (demo)', plant: 'Plant monitoring (demo)' } as const;
 
@@ -151,6 +151,20 @@ export async function setupServiceDemo(now = Date.now()): Promise<number> {
     );
     await readPromObjectives(now, true).catch((err) => logger.warn({ err: (err as Error).message }, 'demo objective not read'));
   }
+  // ---- and one from a Steward monitor (0.11: its recorded states are the figures) ----
+  const plantMonitor = monitor('plant-services');
+  if (plantMonitor)
+    step('monitor objective', () =>
+      createObjective(
+        objectiveInput.parse({
+          serviceId: plant.id,
+          name: 'Plant services up',
+          description: "Uptime of the monitor 'Plant services' from its recorded states.",
+          monitorId: plantMonitor,
+          targets: { h1: null, h24: 99, d7: 99, d30: 99.5 },
+        }),
+      ),
+    );
 
   // ---- a system in two environments ----
   const cluster = step('system', () =>

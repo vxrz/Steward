@@ -739,12 +739,13 @@
     "untilHelp": "Empty: no end",
     "monthEndHint": "On the 29th to 31st, shorter months use their last day.",
     "targets": "Affects",
-    "targetsHelp": "Platforms, systems, applications and services. What runs on them is reached too.",
+    "targetsHelp": "Platforms, systems, applications, services and monitors. What runs on them is reached too.",
     "targetKinds": {
       "platform": "Platforms",
       "system": "Systems",
       "application": "Applications",
-      "service": "Services"
+      "service": "Services",
+      "monitor": "Monitors"
     },
     "responsible": "Responsible",
     "responsibleHelp": "Told with the owners of what it affects.",

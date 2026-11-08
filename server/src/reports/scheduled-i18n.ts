@@ -47,6 +47,8 @@ const en = {
   chartEndpoints: 'Uptime per endpoint (scale {min} – 100 %)',
   avgUptime: 'Average uptime',
   slaMissedCount: 'SLA missed',
+  slaFromObjectives:
+    "SLA targets come from the availability objectives that have the monitor as source (the target of the objective window closest to the report period); monitors without such an objective use the section's target.",
 
   credentials: 'Credentials register',
   credentialsIntro: 'Entries whose expiry, rotation or review date has passed, and those due within {days} days after the end of the period.',
@@ -119,6 +121,8 @@ const de: Record<ScheduledKey, string> = {
   chartEndpoints: 'Verfügbarkeit je Endpunkt (Skala {min} – 100 %)',
   avgUptime: 'Mittlere Verfügbarkeit',
   slaMissedCount: 'SLA verfehlt',
+  slaFromObjectives:
+    'Die SLA-Ziele kommen aus den Verfügbarkeitszielen, deren Quelle der Monitor ist (das Ziel des Zeitfensters, das dem Berichtszeitraum am nächsten liegt); Monitore ohne ein solches Verfügbarkeitsziel nutzen das Ziel des Abschnitts.',
 
   credentials: 'Zugangsdaten-Register',
   credentialsIntro:

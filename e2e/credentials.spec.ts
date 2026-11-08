@@ -71,6 +71,9 @@ test('a report schedule is created and generated now', async ({ page }) => {
   await dialog.getByRole('textbox', { name: 'Name' }).fill(name);
   await dialog.getByText('Weekly', { exact: true }).click();
   await expect(dialog.getByRole('checkbox', { name: 'Availability of monitors' })).toBeChecked();
+  // the SLA target comes from the monitors' objectives; the section's own target is marked deprecated (0.11)
+  await expect(dialog.getByRole('switch', { name: 'Use the objective' })).toBeChecked();
+  await expect(dialog.getByText(/Deprecated: set targets as availability objectives/)).toBeVisible();
   await expect(dialog.getByRole('checkbox', { name: 'Credentials register' })).toBeChecked();
   await dialog.getByRole('checkbox', { name: 'Runs' }).check();
   await dialog.getByRole('button', { name: 'Save' }).click();

@@ -280,7 +280,7 @@ Not part of Steward: IP addresses, ports, firewall rules, hardware details, disc
 
 ## Maintenance windows
 
-_Catalogue → Maintenance_ lists planned work as a list or a month calendar. A window has a title, a start and an end, and lists what it affects: platforms, systems, applications and services. It happens once or repeats **weekly** or **monthly** (every n weeks or months, optionally up to a last start). Repetition keeps the wall-clock time in the instance's time zone across daylight saving changes; a monthly window on the 29th to 31st falls on the last day of shorter months.
+_Catalogue → Maintenance_ lists planned work as a list or a month calendar. A window has a title, a start and an end, and lists what it affects: platforms, systems, applications, services and monitors. It happens once or repeats **weekly** or **monthly** (every n weeks or months, optionally up to a last start). Repetition keeps the wall-clock time in the instance's time zone across daylight saving changes; a monthly window on the 29th to 31st falls on the last day of shorter months.
 
 What a window reaches:
 
@@ -289,9 +289,9 @@ What a window reaches:
 
 While a window lasts:
 
-- **Monitors stay quiet** (default on): monitors that check an affected platform show _maintenance_ and send no alerts. Checks are still recorded, and the time does not count against the monitor's uptime – as with a monitor's own maintenance window.
+- **Monitors stay quiet** (default on): monitors it lists, and monitors that check an affected platform, show _maintenance_ and send no alerts. Checks are still recorded, and the time does not count against the monitor's uptime. Since 0.11 this is the only kind of maintenance window: the monitors' own windows were copied into windows that list the monitor ([MONITORS.md](MONITORS.md#concepts), [ADR 0018](adr/0018-one-maintenance-window-concept.md)). Listing a monitor needs the _acknowledge_ right on it.
 - **Pause run messages** (default off): check and run messages of runs bound to an affected platform go to the app only.
-- **Availability objectives** of affected services and applications record a breach but send no message. Their figures stay Gatus' own; each window shows the planned minutes next to them ([SCORECARD.md](SCORECARD.md)).
+- **Availability objectives** of affected services and applications, and objectives whose source is an affected monitor, record a breach but send no message. Each window shows the planned minutes next to the figures ([SCORECARD.md](SCORECARD.md)).
 
 Announcements (notification event _Maintenance_, see [NOTIFICATIONS.md](NOTIFICATIONS.md)) go to the responsible people and the owners of what the window lists and reaches: when it is planned, a reminder before each occurrence (24 hours by default, 0 for none), when it starts and when it ends. Each is sent once per occurrence.
 

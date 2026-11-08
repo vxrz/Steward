@@ -86,7 +86,7 @@ const emptyDraft = (lang: 'en' | 'de'): Draft => ({
   lang,
   classification: '',
   title: '',
-  sections: { availability: { monitorIds: null, slaTarget: 99.5 }, credentials: { dueWithinDays: 30 } },
+  sections: { availability: { monitorIds: null, slaTarget: 99.5, slaFromObjectives: true }, credentials: { dueWithinDays: 30 } },
   recipients: { users: [], teams: [], emails: [] },
   attachPdf: false,
   team: null,
@@ -345,6 +345,8 @@ type SectionConfig = Record<string, unknown> & {
   monitorIds?: string[] | null;
   processIds?: string[] | null;
   slaTarget?: number | null;
+  /** Availability section: each monitor's SLA target from its availability objective (0.11) */
+  slaFromObjectives?: boolean;
   dueWithinDays?: number;
   types?: string[] | null;
   windowDays?: number;
@@ -378,7 +380,7 @@ function ScheduleModal({ draft, sections, onClose, onSaved }: { draft: Draft; se
     set({ sections: next });
   };
   const defaults: Record<string, SectionConfig> = {
-    availability: { monitorIds: null, slaTarget: 99.5 },
+    availability: { monitorIds: null, slaTarget: 99.5, slaFromObjectives: true },
     gatus: { sources: (gatus.data ?? []).map((g) => ({ platformId: g.platformId, endpointKeys: null })), slaTarget: 99.5 },
     credentials: { dueWithinDays: 30 },
     runs: { processIds: null },
@@ -490,14 +492,23 @@ function ScheduleModal({ draft, sections, onClose, onSaved }: { draft: Draft; se
                     value={cfg.monitorIds ?? []}
                     onChange={(v) => setSec(id, { ...cfg, monitorIds: v.length ? v : null })}
                   />
-                  <NumberInput
-                    label={t('form.slaTarget')}
-                    min={0}
-                    max={100}
-                    decimalScale={3}
-                    value={cfg.slaTarget ?? ''}
-                    onChange={(v) => setSec(id, { ...cfg, slaTarget: typeof v === 'number' ? v : null })}
-                  />
+                  <Stack gap={6}>
+                    <Switch
+                      label={t('form.slaFromObjectives')}
+                      description={t('form.slaFromObjectivesHint')}
+                      checked={!!cfg.slaFromObjectives}
+                      onChange={(e) => setSec(id, { ...cfg, slaFromObjectives: e.currentTarget.checked })}
+                    />
+                    <NumberInput
+                      label={cfg.slaFromObjectives ? t('form.slaTargetFallback') : t('form.slaTarget')}
+                      description={t('form.slaTargetDeprecated')}
+                      min={0}
+                      max={100}
+                      decimalScale={3}
+                      value={cfg.slaTarget ?? ''}
+                      onChange={(v) => setSec(id, { ...cfg, slaTarget: typeof v === 'number' ? v : null })}
+                    />
+                  </Stack>
                 </SimpleGrid>
               )}
               {cfg && id === 'gatus' && (

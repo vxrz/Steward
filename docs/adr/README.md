@@ -21,5 +21,6 @@ Short records of decisions that shape Steward's design: the context, what was de
 | [0015](0015-map-of-sites.md)                           | A map of sites, tiles served through Steward            | Accepted                                                               |
 | [0016](0016-module-registry.md)                        | One module registry: optional areas switched off        | Accepted                                                               |
 | [0017](0017-audit-retention.md)                        | Audit retention: archives keep the chain verifiable     | Accepted                                                               |
+| [0018](0018-one-maintenance-window-concept.md)         | One maintenance-window concept; monitors as a source    | Accepted                                                               |
 
 New record: copy [template.md](template.md) to `NNNN-short-title.md`, fill it in, add it to the table, and link it from [ARCHITECTURE.md](../ARCHITECTURE.md) where it applies.
