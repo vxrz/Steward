@@ -1772,8 +1772,6 @@ async function execLeaf(step: FlowNode, ctx: RunContext, key: string, attempt = 
         throw new Cancelled();
       });
       return { summary: `Waited ${step.seconds}s` };
-    case 'fail':
-      throw new Error(await ctx.str(step.message));
     case 'userTask':
       return execUserTask(step, ctx, key);
     case 'publish':
