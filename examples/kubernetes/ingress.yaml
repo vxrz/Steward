@@ -1,0 +1,30 @@
+# Optional: Steward behind an Ingress controller (ingress-nginx here) that terminates TLS. Set SM_ALLOWED_HOSTS,
+# SM_PUBLIC_URL and SM_TRUST_PROXY in deployment.yaml to match (docs/INSTALL.md, "Behind a reverse proxy").
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: steward
+  labels:
+    app.kubernetes.io/name: steward
+  annotations:
+    # uploads (documents, migration packages, imports) are larger than the controller's default of 1 MB
+    nginx.ingress.kubernetes.io/proxy-body-size: 64m
+    # long-running requests (reports, evidence packs)
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - steward.example.com
+      secretName: steward-tls
+  rules:
+    - host: steward.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: steward
+                port:
+                  name: http
