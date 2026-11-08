@@ -183,6 +183,8 @@ test.describe('accessibility – dark color scheme', () => {
     ['process editor', `/processes/${PROCESS.healthCheck}`],
     ['credentials', '/credentials'],
     ['settings', '/settings'],
+    // filled status badges ("Up", "Degraded") on the dark page
+    ['monitors', '/monitors'],
   ] as const) {
     test(`${name} (dark)`, async ({ page }) => {
       await page.goto(path);
