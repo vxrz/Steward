@@ -149,6 +149,27 @@ test.describe('pinned entries (designer)', () => {
     await expect(sidebar(page).getByTestId('nav-pinned')).toHaveCount(0);
   });
 
+  test('one tab stop per entry: P pins the focused entry, the pin buttons stay out of the tab order (U17)', async ({ page }) => {
+    await page.goto('/runs');
+    await settle(page);
+    const nav = sidebar(page);
+    const runs = nav.getByRole('link', { name: 'Runs', exact: true });
+    await expect(runs).toHaveAttribute('aria-keyshortcuts', 'P');
+    await expect(nav.getByRole('button', { name: 'Pin Runs to the top' })).toHaveAttribute('tabindex', '-1');
+    // Tab goes from entry to entry
+    await runs.focus();
+    await page.keyboard.press('Tab');
+    await expect(nav.getByRole('link', { name: 'Monitors', exact: true })).toBeFocused();
+    await page.keyboard.press('p');
+    await expect(nav.getByRole('group', { name: 'Pinned' }).getByRole('link')).toHaveText(['Monitors']);
+    await nav.getByRole('group', { name: 'Pinned' }).getByRole('link', { name: 'Monitors' }).focus();
+    await page.keyboard.press('P');
+    await expect(nav.getByTestId('nav-pinned')).toHaveCount(0);
+    // the shortcut list names it
+    await page.keyboard.press('?');
+    await expect(page.getByTestId('shortcut-list')).toContainText('Pin or unpin the focused sidebar entry');
+  });
+
   test('pins belong to the user: another user in the same browser has their own', async ({ page }) => {
     // pins are stored per user id: another user's pins in this browser do not show
     await page.goto('/');

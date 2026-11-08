@@ -183,7 +183,8 @@
       "search": "Search pages, processes, monitors, documents …",
       "help": "Show this list",
       "goTo": "Go to {{page}}",
-      "close": "Close a dialog or menu"
+      "close": "Close a dialog or menu",
+      "pin": "Pin or unpin the focused sidebar entry"
     },
     "shortcutsHint": "The shortcuts do not apply while you type in a field, in a dialog or in the process editor's canvas.",
     "whatsNewIntro": "Highlights of the coming {{brand}} release.",
@@ -226,5 +227,6 @@
   },
   "pinned": "Pinned",
   "pin": "Pin {{page}} to the top",
-  "unpin": "Unpin {{page}}"
+  "unpin": "Unpin {{page}}",
+  "pinHint": "Press P to pin or unpin this page at the top of the sidebar."
 }

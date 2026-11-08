@@ -91,6 +91,7 @@ export function ShortcutsDialog({ opened, onClose }: { opened: boolean; onClose:
     { keys: [isMac ? '⌘ K' : 'Ctrl K'], label: t('help.keys.search') },
     { keys: ['?'], label: t('help.keys.help') },
     ...(Object.keys(GO_KEYS) as GoKey[]).map((k) => ({ keys: ['g', k], label: t('help.keys.goTo', { page: t(`items.${GO_LABELS[k]}`) }) })),
+    { keys: ['P'], label: t('help.keys.pin') },
     { keys: ['Esc'], label: t('help.keys.close') },
   ];
   return (

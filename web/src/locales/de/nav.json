@@ -183,7 +183,8 @@
       "search": "Seiten, Prozesse, Monitore, Dokumente suchen …",
       "help": "Diese Liste anzeigen",
       "goTo": "Zu {{page}} wechseln",
-      "close": "Dialog oder Menü schließen"
+      "close": "Dialog oder Menü schließen",
+      "pin": "Den fokussierten Eintrag der Seitenleiste anheften oder lösen"
     },
     "shortcutsHint": "Die Kürzel gelten nicht, während Sie in einem Feld tippen, in einem Dialog oder auf der Arbeitsfläche des Prozesseditors.",
     "whatsNewIntro": "Die Höhepunkte der kommenden {{brand}}-Version.",
@@ -226,5 +227,6 @@
   },
   "pinned": "Angeheftet",
   "pin": "{{page}} oben anheften",
-  "unpin": "{{page}} lösen"
+  "unpin": "{{page}} lösen",
+  "pinHint": "Drücken Sie P, um diese Seite oben in der Seitenleiste anzuheften oder zu lösen."
 }

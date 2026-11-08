@@ -1,5 +1,4 @@
 import { Anchor, Group, Paper, SimpleGrid, Text, type SimpleGridProps } from '@mantine/core';
-import { useMediaQuery } from '@mantine/hooks';
 import { Link } from 'react-router-dom';
 import {
   IconAlertTriangle,
@@ -83,7 +82,6 @@ export function AttentionTiles({
 }) {
   const { t } = useTranslation('dashboard');
   // phones: features not set up yet fold into one line instead of a screen of empty tiles
-  const narrow = useMediaQuery('(max-width: 36em)');
   const quiet = t('counts.allQuiet');
   // nothing to count yet: no processes (runs), or no entries of the feature the viewer may see
   const none = (total: number | undefined, hint: string) => (total === 0 ? t(`counts.notSetUp.${hint}` as 'counts.notSetUp.processes') : undefined);
@@ -209,7 +207,8 @@ export function AttentionTiles({
   // the viewer's focus, in its order; features not set up yet after the others
   const focus = only ? only.flatMap((k) => all.filter((x) => x.key === k)) : all;
   const notSetUp = hideNotSetUp ? [] : focus.filter((x) => x.notSetUp);
-  const folded = narrow && notSetUp.length > 1;
+  // features nobody set up yet fold into one line (phones since 0.4, every width since 0.11.0, U13)
+  const folded = notSetUp.length > 1;
   const tiles = [...focus.filter((x) => !x.notSetUp), ...(folded ? [] : notSetUp)];
 
   return (

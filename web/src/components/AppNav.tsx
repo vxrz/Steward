@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ActionIcon, Badge, Box, Collapse, Divider, Group, Indicator, NavLink, ScrollArea, Text, Tooltip, UnstyledButton } from '@mantine/core';
+import { ActionIcon, Badge, Box, Collapse, Divider, Group, Indicator, NavLink, ScrollArea, Text, Tooltip, UnstyledButton, VisuallyHidden } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 import {
   IconCoin,
@@ -361,6 +361,9 @@ export function usePins(userId: string): [string[], (to: string) => void] {
 
 type GroupState = Partial<Record<NavGroupKey, boolean>>;
 
+/** When "g" was pressed last on a sidebar entry (the start of a "g …" shortcut, not a pin). */
+let lastG = 0;
+
 /**
  * Sidebar content: Home, the pinned entries, the areas with collapsible headings and the open-task badge,
  * and – on wide screens – a narrow icon-only mode (`rail`). An area opens when it holds the current page;
@@ -451,6 +454,18 @@ export function AppNav({
           leftSection={<n.icon size={18} stroke={1.6} />}
           active={isActive}
           aria-current={isActive ? 'page' : undefined}
+          // one tab stop per entry (U17): P pins or unpins the focused entry; the pin button is for the pointer
+          aria-keyshortcuts="P"
+          aria-describedby="nav-pin-hint"
+          onKeyDown={(e) => {
+            if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+            const key = e.key.toLowerCase();
+            // "g p" stays the shortcut to Processes (HelpMenu.tsx)
+            if (key === 'g') lastG = Date.now();
+            if (key !== 'p' || Date.now() - lastG < 1500) return;
+            e.preventDefault();
+            togglePin(n.to);
+          }}
           rightSection={
             badge ? (
               <Badge size="sm" color="accent" circle mr={26}>
@@ -471,6 +486,7 @@ export function AppNav({
             size="sm"
             aria-label={pinLabel}
             aria-pressed={isPinned}
+            tabIndex={-1}
             onClick={() => togglePin(n.to)}
             style={{ position: 'absolute', insetInlineEnd: 6, top: '50%', transform: 'translateY(-50%)' }}
           >
@@ -513,6 +529,7 @@ export function AppNav({
 
   return (
     <>
+      <VisuallyHidden id="nav-pin-hint">{t('pinHint')}</VisuallyHidden>
       <ScrollArea style={{ flex: 1 }} type="scroll" data-areas={seenSettled ? 'ready' : 'loading'}>
         {home && <Box>{home.items.map((n) => link(n, 'group'))}</Box>}
         {pinned.length > 0 &&
