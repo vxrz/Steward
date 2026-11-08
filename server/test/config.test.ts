@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { ConfigError, VARS, parseEnv, parseEnvPart, withoutName } from '../src/config-schema.js';
+import { ConfigError, FILE_VARIANTS, VARS, parseEnv, parseEnvPart, resolveFileVariants, unknownVariables, withoutName } from '../src/config-schema.js';
 
 const SERVER = path.resolve(import.meta.dirname, '..');
 const ROOT = path.resolve(SERVER, '..');
@@ -149,6 +149,82 @@ describe('configuration schema', () => {
     };
     walk(path.join(SERVER, 'src'));
     for (const n of names) expect(Object.keys(VARS), n).toContain(n);
+  });
+});
+
+describe('secrets from files (<NAME>_FILE)', () => {
+  it('exist for every secret variable', () => {
+    expect([...FILE_VARIANTS].sort()).toEqual([
+      'SM_BACKUP_PASSPHRASE',
+      'SM_BACKUP_RESTORE_TEST_DATABASE_URL',
+      'SM_DATABASE_URL',
+      'SM_SENTRY_DSN',
+      'SM_TRANSFER_PASSPHRASE',
+    ]);
+    for (const n of FILE_VARIANTS) expect(VARS[n].doc.description, n).toContain(`${n}_FILE`);
+  });
+
+  it('read the value from the file, refuse both at once and name a file that cannot be read', () => {
+    const files: Record<string, string> = { '/run/secrets/db': 'postgres://steward:s3cret@db:5432/steward\n' };
+    const read = (f: string) => {
+      if (!(f in files)) throw new Error('ENOENT: no such file');
+      return files[f]!.replace(/\r?\n$/, '');
+    };
+    const ok = resolveFileVariants({ SM_DATABASE_URL_FILE: '/run/secrets/db', SM_PORT: '1' }, read);
+    expect(ok.problems).toEqual([]);
+    expect(parseEnv(ok.env).SM_DATABASE_URL).toBe('postgres://steward:s3cret@db:5432/steward');
+    expect(resolveFileVariants({ SM_DATABASE_URL_FILE: '/run/secrets/db', SM_DATABASE_URL: 'postgres://x' }, read).problems).toEqual([
+      { name: 'SM_DATABASE_URL_FILE', message: 'set either SM_DATABASE_URL or SM_DATABASE_URL_FILE, not both' },
+    ]);
+    expect(resolveFileVariants({ SM_BACKUP_PASSPHRASE_FILE: '/nope' }, read).problems).toEqual([
+      { name: 'SM_BACKUP_PASSPHRASE_FILE', message: 'cannot read /nope: ENOENT: no such file' },
+    ]);
+  });
+
+  it('work at start-up, with the secret never in the environment', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sm-config-'));
+    try {
+      const file = path.join(dir, 'transfer');
+      fs.writeFileSync(file, 'a transfer passphrase from a file\n', { mode: 0o600 });
+      const r = spawnSync(
+        process.execPath,
+        ['--import', 'tsx', '-e', "import('./src/config.js').then((c) => console.log(JSON.stringify(c.env.SM_TRANSFER_PASSPHRASE)))"],
+        { cwd: SERVER, encoding: 'utf8', timeout: 60_000, env: { ...process.env, SM_TRANSFER_PASSPHRASE_FILE: file, SM_LOG_LEVEL: 'silent' } },
+      );
+      expect(r.stdout.trim().split('\n').pop()).toBe('"a transfer passphrase from a file"');
+      const missing = spawnSync(process.execPath, ['--import', 'tsx', '-e', "import('./src/config.js')"], {
+        cwd: SERVER,
+        encoding: 'utf8',
+        timeout: 60_000,
+        env: { ...process.env, SM_DATABASE_URL_FILE: path.join(dir, 'missing'), SM_LOG_LEVEL: 'silent' },
+      });
+      expect(missing.status).not.toBe(0);
+      expect(missing.stderr).toContain('SM_DATABASE_URL_FILE: cannot read');
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('unknown SM_* variables', () => {
+  it('are named with the closest known variable, never with their values', () => {
+    expect(
+      unknownVariables({
+        SM_DATABSE_URL: 'postgres://secret',
+        SM_UPGRADE_BACKUP: '5',
+        SM_COMPLETELY_DIFFERENT_THING: '1',
+        SM_PORT: '4310',
+        SM_DATABASE_URL_FILE: '/run/secrets/db',
+        SM_TEST_DATABASE_URL: 'x',
+        SM_E2E_WORKERS: '2',
+        SM_TOKEN: 'x',
+        PATH: '/usr/bin',
+      }),
+    ).toEqual([
+      { name: 'SM_COMPLETELY_DIFFERENT_THING' },
+      { name: 'SM_DATABSE_URL', suggestion: 'SM_DATABASE_URL' },
+      { name: 'SM_UPGRADE_BACKUP', suggestion: 'SM_UPGRADE_BACKUPS' },
+    ]);
   });
 });
 

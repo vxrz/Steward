@@ -2,7 +2,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { parseDatabaseTarget, type DatabaseTarget } from './database/sql.js';
 import { resolveBasePath } from './basePath.js';
-import { ConfigError, parseEnv, withoutName, type Env } from './config-schema.js';
+import { ConfigError, parseEnv, resolveFileVariants, withoutName, type Env } from './config-schema.js';
 
 export { ConfigError, parseEnv, parseTrustProxy, type Env } from './config-schema.js';
 
@@ -15,7 +15,11 @@ export { ROOT_DIR };
  * (esbuild replaces these two expressions, see scripts/build-exe.mjs), everything else comes from process.env.
  */
 function environment(): Record<string, string | undefined> {
-  return { ...process.env, SM_BUILD_COMMIT: process.env.SM_BUILD_COMMIT, SM_BUILD_DATE: process.env.SM_BUILD_DATE };
+  const raw = { ...process.env, SM_BUILD_COMMIT: process.env.SM_BUILD_COMMIT, SM_BUILD_DATE: process.env.SM_BUILD_DATE };
+  // secrets from files (SM_DATABASE_URL_FILE, …; systemd credentials as %d/…): config-schema.ts FILE_VARIANTS
+  const { env, problems } = resolveFileVariants(raw, (file) => readPassphraseFile(file.replace(/^%d(?=[\\/])/, process.env.CREDENTIALS_DIRECTORY ?? '%d')));
+  if (problems.length) throw new ConfigError(problems);
+  return env;
 }
 
 /**

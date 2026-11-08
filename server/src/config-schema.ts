@@ -307,7 +307,7 @@ export const VARS = {
     group: 'Database and data',
     default: '– (SQLite in the data directory)',
     description:
-      'Use PostgreSQL: `postgres://user:password@host:5432/database`. Not available in the desktop executable. See [Database](docs/INSTALL.md#5-database-sqlite-or-postgresql).',
+      'Use PostgreSQL: `postgres://user:password@host:5432/database`. Not available in the desktop executable. See [Database](docs/INSTALL.md#5-database-sqlite-or-postgresql). Or `SM_DATABASE_URL_FILE`: a file with the URL (a Docker or Kubernetes secret)',
     readme: true,
     secret: true,
   }),
@@ -533,6 +533,12 @@ export const VARS = {
     description: '`fatal`, `error`, `warn`, `info`, `debug`, `trace` or `silent`. Logs are JSON lines on stdout.',
     readme: true,
   }),
+  SM_LOG_LEVEL_FORMAT: v(oneOf(['number', 'label'] as const), {
+    group: 'Logging, tracing and error reporting',
+    default: 'number',
+    description:
+      'How log lines carry their level: `number` (pino: `"level":30`) or `label` (`"level":"info"`, for Loki, Elasticsearch or Cloud Logging pipelines that expect words)',
+  }),
   OTEL_EXPORTER_OTLP_ENDPOINT: v(text(), {
     group: 'Logging, tracing and error reporting',
     description: 'Turns on OpenTelemetry tracing (OTLP/HTTP). Standard `OTEL_*` variables apply, e.g. `OTEL_SERVICE_NAME` and `OTEL_EXPORTER_OTLP_HEADERS`.',
@@ -556,8 +562,9 @@ export const VARS = {
   SM_SENTRY_DSN: v(text(), {
     group: 'Logging, tracing and error reporting',
     description:
-      'Report unexpected errors to Sentry, GlitchTip or Bugsink (off by default; scrubbed, no personal data). More variables and exactly what is sent: [docs/ERROR-REPORTING.md](docs/ERROR-REPORTING.md). An invalid DSN only logs a warning.',
+      'Report unexpected errors to Sentry, GlitchTip or Bugsink (off by default; scrubbed, no personal data). More variables and exactly what is sent: [docs/ERROR-REPORTING.md](docs/ERROR-REPORTING.md). An invalid DSN only logs a warning. Or `SM_SENTRY_DSN_FILE`',
     readme: true,
+    secret: true,
   }),
   SM_SENTRY_DSN_WEB: v(text(), {
     group: 'Logging, tracing and error reporting',
@@ -589,7 +596,7 @@ export const VARS = {
   SM_PG_RESTORE: v(textOr('pg_restore'), { group: 'Backups and migration', default: 'pg_restore', description: '`pg_restore` program for restores' }),
   SM_BACKUP_PASSPHRASE: v(text(), {
     group: 'Backups and migration',
-    description: 'Passphrase for `steward backup` (automation only; prefer `--passphrase-file` or the prompt)',
+    description: 'Passphrase for `steward backup` (automation only; prefer `--passphrase-file` or the prompt). Or `SM_BACKUP_PASSPHRASE_FILE`',
     secret: true,
   }),
   SM_BACKUP_SINGLE_PUT_BYTES: v(int(32 * 1024 * 1024, 1), {
@@ -617,7 +624,8 @@ export const VARS = {
   }),
   SM_TRANSFER_PASSPHRASE: v(text(), {
     group: 'Backups and migration',
-    description: 'Transfer passphrase for `steward migrate` (automation only; prefer `--transfer-passphrase-file` or the prompt)',
+    description:
+      'Transfer passphrase for `steward migrate` (automation only; prefer `--transfer-passphrase-file` or the prompt). Or `SM_TRANSFER_PASSPHRASE_FILE`',
     readme: true,
     secret: true,
   }),
@@ -709,6 +717,75 @@ export function parseEnv(source: Record<string, string | undefined>): Env {
     problems.push({ name, message: i.message });
   }
   throw new ConfigError(problems);
+}
+
+/**
+ * Secrets that can come from a file instead (`<NAME>_FILE`, the convention of Docker and Kubernetes secrets): every
+ * variable marked `secret`. The master passphrase has its own SM_MASTER_PASSPHRASE_FILE (config.ts).
+ */
+export const FILE_VARIANTS: readonly VarName[] = (Object.keys(VARS) as VarName[]).filter((k) => VARS[k].doc.secret && k !== 'SM_MASTER_PASSPHRASE');
+
+/**
+ * `<NAME>_FILE` → `<NAME>`: the file's content without its trailing line break (read by `read`, so this stays free of
+ * I/O). Setting both is an error, as is a file that cannot be read or is empty. Returns the environment with the values.
+ */
+export function resolveFileVariants(
+  source: Record<string, string | undefined>,
+  read: (file: string) => string,
+): { env: Record<string, string | undefined>; problems: { name: string; message: string }[] } {
+  const out = { ...source };
+  const problems: { name: string; message: string }[] = [];
+  for (const name of FILE_VARIANTS) {
+    const fileVar = `${name}_FILE`;
+    const file = source[fileVar]?.trim();
+    if (!file) continue;
+    if (source[name]?.trim()) {
+      problems.push({ name: fileVar, message: `set either ${name} or ${fileVar}, not both` });
+      continue;
+    }
+    try {
+      out[name] = read(file);
+    } catch (e) {
+      problems.push({ name: fileVar, message: `cannot read ${file}: ${(e as Error).message}` });
+    }
+  }
+  return { env: out, problems };
+}
+
+/** Variables with the SM_ prefix that are not Steward's own but expected in its environment (tests, CLIs). */
+const OTHER_SM = ['SM_URL', 'SM_PLATFORM', 'SM_TOKEN'];
+const OTHER_SM_PREFIXES = ['SM_TEST_', 'SM_E2E_'];
+
+/** Levenshtein distance (small strings only). */
+function distance(a: string, b: string): number {
+  let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i];
+    for (let j = 1; j <= b.length; j++) cur[j] = Math.min(prev[j]! + 1, cur[j - 1]! + 1, prev[j - 1]! + (a[i - 1] === b[j - 1] ? 0 : 1));
+    prev = cur;
+  }
+  return prev[b.length]!;
+}
+
+/**
+ * SM_* variables that are set but mean nothing to Steward – usually a typo, which otherwise is silently ignored
+ * (SM_DATABSE_URL starts on SQLite) – each with the closest known name when it is near enough. Names only, never values.
+ */
+export function unknownVariables(source: Record<string, string | undefined>): { name: string; suggestion?: string }[] {
+  const known = [...Object.keys(VARS), ...FILE_VARIANTS.map((n) => `${n}_FILE`)];
+  const knownSet = new Set([...known, ...OTHER_SM]);
+  const out: { name: string; suggestion?: string }[] = [];
+  for (const name of Object.keys(source).sort()) {
+    if (!name.startsWith('SM_') || knownSet.has(name) || OTHER_SM_PREFIXES.some((p) => name.startsWith(p))) continue;
+    let best: { name: string; d: number } | undefined;
+    for (const k of known) {
+      const d = distance(name, k);
+      if (!best || d < best.d) best = { name: k, d };
+    }
+    // two edits, or three for long names (a missing word part: SM_UPGRADE_BACKUP → SM_UPGRADE_BACKUPS)
+    out.push(best && best.d <= (name.length > 16 ? 3 : 2) ? { name, suggestion: best.name } : { name });
+  }
+  return out;
 }
 
 /** Only some variables (CLIs and the health check): an invalid variable they do not use does not stop them. */

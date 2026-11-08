@@ -10,7 +10,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import prettier from 'prettier';
-import { GROUPS, VARS, type VarDoc } from '../config-schema.js';
+import { FILE_VARIANTS, GROUPS, VARS, type VarDoc } from '../config-schema.js';
 
 const HELP = `Usage: npm run config:docs -- [options]
 
@@ -82,6 +82,10 @@ function configurationDoc(): string {
     '```',
     '',
     'An empty value counts as not set. On/off variables accept `1`/`0`, `true`/`false`, `on`/`off` and `yes`/`no`. Settings that can also be changed in the UI (under **Settings**) are noted; the variable then wins over the setting.',
+    '',
+    `**Secrets from files.** Every secret variable can come from a file instead: set \`<NAME>_FILE\` to its path (${FILE_VARIANTS.map((n) => `\`${n}_FILE\``).join(', ')}; the master passphrase has \`SM_MASTER_PASSPHRASE_FILE\`). The file holds the value, a trailing line break is ignored, and \`%d/…\` means the systemd credentials folder. Docker and Kubernetes secrets are files, and a file does not show up in \`docker inspect\`, \`kubectl describe\` or \`/proc/<pid>/environ\`. Setting both \`<NAME>\` and \`<NAME>_FILE\` refuses to start.`,
+    '',
+    '**Unknown variables.** At start-up Steward logs a warning for every `SM_…` variable it does not know, with the closest known name (`unknown environment variable SM_DATABSE_URL is ignored – did you mean SM_DATABASE_URL?`). It names the variable, never its value.',
     '',
     'The tables are generated from `server/src/config-schema.ts` by `npm run config:docs` (CI checks them with `npm run config:docs -- --check`). Tests that change a variable while the server runs call `reloadConfig()` from `server/src/config.ts` (see [TESTING.md](TESTING.md)).',
   ];
