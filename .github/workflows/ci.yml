@@ -1,14 +1,21 @@
 name: CI
 
 on:
+  # branches are tested through their pull request: a push to a branch would run everything a second time
   push:
-    branches: [main, 'claude/**']
+    branches: [main]
+    tags: ['v*']
+    # images in the documentation: no check reads them (Markdown is checked: Prettier, the configuration tables, and
+    # server tests that read README.md and files in docs/)
+    paths-ignore: ['docs/**/*.png', 'docs/**/*.svg']
   pull_request:
+    paths-ignore: ['docs/**/*.png', 'docs/**/*.svg']
 
 permissions:
   contents: read
 
-# Hardening (see docs/SECURITY-PIPELINE.md): actions pinned to commit SHAs, no persisted git credentials, time limit
+# Hardening (see docs/SECURITY-PIPELINE.md): actions pinned to commit SHAs, no persisted git credentials, time limit.
+# A new push to a pull request cancels its running checks; every commit on main is tested to the end.
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}

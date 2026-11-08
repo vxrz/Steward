@@ -3,16 +3,21 @@
 name: UI tests
 
 on:
+  # branches are tested through their pull request: a push to a branch would run everything a second time
   push:
-    branches: [main, 'claude/**']
+    branches: [main]
+    # documentation only: the UI tests read none of it (ci.yml checks the documents)
+    paths-ignore: ['**/*.md', 'docs/**', 'LICENSE', 'NOTICE']
   pull_request:
+    paths-ignore: ['**/*.md', 'docs/**', 'LICENSE', 'NOTICE']
 
 permissions:
   contents: read
 
+# a new push to a pull request cancels its running UI tests; every commit on main is tested to the end
 concurrency:
   group: ui-tests-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   playwright:
