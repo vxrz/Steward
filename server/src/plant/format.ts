@@ -261,8 +261,17 @@ export const dataPointSchema = z
       .array(z.union([z.string().min(1).max(L.text), z.number()]))
       .max(L.enumValues)
       .optional(),
+    aliases: z
+      .array(z.string().min(1).max(L.text))
+      .max(L.aliases * 5)
+      .optional()
+      .describe('Known as: names that tools commonly use for it (a gateway’s variable names) – matched when collections are imported'),
     notes: long,
     publications: z.array(publicationTarget).max(L.publicationsPerPoint).optional().describe('Where it is usually published'),
+    present: z
+      .boolean()
+      .optional()
+      .describe('In a profile that extends another: false marks an inherited data point as not present (the other keys change an inherited one)'),
   })
   .strict()
   .meta({ id: 'DataPoint', description: 'A value an interface delivers' });
@@ -287,7 +296,8 @@ export const interfaceSchema = z
   .object({
     id: pointId,
     name: text(PLANT_LIMITS.name),
-    protocol: spelled(protocolOf, PLANT_PROTOCOLS, 'Protocol'),
+    protocol: spelled(protocolOf, PLANT_PROTOCOLS, 'Protocol').optional().describe('Protocol (required for a new interface; an inherited one keeps its own)'),
+    present: z.boolean().optional().describe('In a profile that extends another: false marks an inherited interface as not present'),
     direction,
     description: long,
     version: versionText,
@@ -310,6 +320,12 @@ export const profileSchema = z
   .object({
     id,
     name,
+    extends: id
+      .nullable()
+      .optional()
+      .describe(
+        'The base profile this one extends (0.11.0): its interfaces, data points and files are inherited; `interfaces` then lists only what this profile adds or changes',
+      ),
     manufacturer: text(PLANT_LIMITS.text),
     model: text(PLANT_LIMITS.text),
     version: versionText.describe('Firmware or product version the profile describes'),
@@ -449,6 +465,25 @@ export const assignmentSchema = z
       .max(L.overrides)
       .optional()
       .describe('Data points that differ on this asset'),
+    additions: z
+      .object({
+        interfaces: z.array(interfaceSchema).max(L.assignmentInterfaces).optional().describe('Interfaces of this asset alone'),
+        data_points: z
+          .array(
+            dataPointSchema
+              .extend({
+                interface: pointId.describe('The interface (of the profile, or added here)'),
+                group: text(L.text).describe('Its group there (empty: without a group)'),
+              })
+              .strict(),
+          )
+          .max(L.dataPoints)
+          .optional()
+          .describe('Data points this asset adds to an interface of its profile'),
+      })
+      .strict()
+      .optional()
+      .describe('What this asset has beyond its profile (0.11.0): they count as delivered like the profile’s data points'),
     publications: z
       .array(
         z

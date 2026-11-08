@@ -14,6 +14,7 @@ import { Field } from '../components/records/common';
 import { plantKeys } from '../queryKeys';
 import { PreviewBadge, useNameOf, usePlantConfig, usePlantLabel } from '../components/plant/common';
 import { AssetBriefLink, Breakable, ProtocolBadge, rateText, useAddressHint } from '../components/plant/data';
+import { PointCollections } from '../components/plant/CollectorCollections';
 
 // the lineage picture (#230) loads with the graph library, after the page itself
 const PointLineageView = lazy(() => import('./plant/views/AssetFlowView').then((m) => ({ default: m.PointLineageView })));
@@ -24,7 +25,7 @@ const PointLineageView = lazy(() => import('./plant/views/AssetFlowView').then((
  * it – where they publish it, and the KPI definitions that read it.
  */
 export function PlantDataPointPage() {
-  const { t, i18n } = useTranslation(['plant', 'common']);
+  const { t, i18n } = useTranslation(['plant', 'common', 'plantModel']);
   const label = usePlantLabel();
   const nameOf = useNameOf();
   const hint = useAddressHint();
@@ -197,6 +198,13 @@ export function PlantDataPointPage() {
                 <Anchor component={Link} to={profileCrumb.to} size="sm">
                   {d.profile.name}
                 </Anchor>
+                {d.origin.from !== d.profile.id && (
+                  <Text size="xs" c="dimmed" data-testid="point-origin">
+                    {d.origin.kind === 'overridden'
+                      ? t('plantModel:origin.pointOverridden', { from: d.origin.from, fields: d.origin.fields.join(', ') })
+                      : t('plantModel:origin.pointInherited', { from: d.origin.from })}
+                  </Text>
+                )}
               </Field>
               <Field label={t('data.dataType')}>
                 <span className="mono">{p.dataType || '–'}</span>
@@ -225,6 +233,17 @@ export function PlantDataPointPage() {
                   </Group>
                 </Field>
               )}
+              {p.aliases.length > 0 && (
+                <Field label={t('plantModel:aliases.label')}>
+                  <Group gap={4} data-testid="point-aliases-view">
+                    {p.aliases.map((v) => (
+                      <Badge key={v} size="sm" variant="default" tt="none" className="mono">
+                        {v}
+                      </Badge>
+                    ))}
+                  </Group>
+                </Field>
+              )}
               {p.publications.length > 0 && (
                 <Field label={t('data.defaultPublications')}>
                   <Stack gap={2}>
@@ -247,6 +266,9 @@ export function PlantDataPointPage() {
           </Paper>
         </Grid.Col>
       </Grid>
+      <Box mt="lg">
+        <PointCollections profileId={d.profile.id} pointId={p.id} />
+      </Box>
       <Box mt="lg">
         <Suspense fallback={null}>
           <PointLineageView profileId={d.profile.id} pointId={p.id} pointName={p.name} />

@@ -139,6 +139,26 @@ describe('the registry of reference columns', () => {
     plant_data_paths: ['subject', 'description', 'collector', 'destinations', 'notes', 'position'],
     // live-status checks of an asset (monitors, datasets)
     plant_asset_checks: ['checks'],
+    // data collections (0.11.0): the collector is a Steward item or a job name, its destination a system or dataset;
+    // triggers name addresses as the collector writes them
+    plant_collections: [
+      'id',
+      'name',
+      'collector',
+      'mode',
+      'interval_ms',
+      'debounce_ms',
+      'triggers',
+      'composition',
+      'destination',
+      'access',
+      'settings',
+      'notes',
+      'format',
+      'source_file',
+      'position',
+    ],
+    plant_collection_mappings: ['collector_key', 'gateway_name'],
     // written by the rename core itself (ids.ts writeAlias)
     plant_id_aliases: ['kind', 'old_id', 'new_id', 'renamed_at'],
   };

@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next';
 import type {
   PlantAssignmentValues,
   PlantAssignmentView,
+  PlantDataPoint,
   PlantInterface,
   PlantKpiInstance,
   PlantKpiSummary,
@@ -23,13 +24,33 @@ import { plantKeys } from '../../queryKeys';
 import { fmtDate } from '../../format';
 import { NotInSourceBadge, useNameOf, usePlantLabel } from './common';
 import { Breakable, ChecksList, ParamsView, ProtocolBadge, RowMenu, UnitText } from './data';
-import { AssignmentFormModal, AssignmentInterfaceModal, KpiInstanceModal, OverrideModal, PublicationModal } from './dataForms';
+import {
+  AssignmentFormModal,
+  AssignmentInterfaceModal,
+  DataPointFormModal,
+  InterfaceFormModal,
+  KpiInstanceModal,
+  OverrideModal,
+  PublicationModal,
+} from './dataForms';
+import { placePoint } from './profileEdit';
 
-const EMPTY: PlantAssignmentValues = { profileId: null, firmware: '', interfaces: [], overrides: [], publications: [], kpis: [], notes: '' };
+const EMPTY: PlantAssignmentValues = {
+  profileId: null,
+  firmware: '',
+  interfaces: [],
+  overrides: [],
+  additions: { interfaces: [], dataPoints: [] },
+  publications: [],
+  kpis: [],
+  notes: '',
+};
 
 type Dialog =
   | { kind: 'assignment' }
   | { kind: 'interface'; iface: PlantInterface }
+  | { kind: 'addInterface'; iface?: PlantInterface }
+  | { kind: 'addPoint'; iface: PlantInterface; group: string; point?: PlantDataPoint }
   | { kind: 'override'; index: number | null }
   | { kind: 'publication'; index: number | null }
   | { kind: 'kpi'; index: number | null; kpi?: string };
@@ -75,7 +96,7 @@ function Part({
  * finds wrong with them and the KPIs it can have.
  */
 export function AssetDataSection({ assetId }: { assetId: string }) {
-  const { t } = useTranslation(['plant', 'common']);
+  const { t } = useTranslation(['plant', 'common', 'plantModel']);
   const label = usePlantLabel();
   const nameOf = useNameOf();
   const qc = useQueryClient();
@@ -112,9 +133,52 @@ export function AssetDataSection({ assetId }: { assetId: string }) {
     }
   };
   const profile = v.profile;
-  const pointOptions = (profile?.interfaces ?? []).flatMap((i) =>
-    i.groups.flatMap((g) => g.dataPoints.map((d) => ({ value: d.id, label: `${d.name} (${d.id})` }))),
+  // the asset's model: its profile's interfaces with what it adds itself (0.11.0)
+  const model = v.model;
+  const addedIface = (id: string) => v.added.interfaces.includes(id);
+  const addedPoint = (id: string) => v.added.points.includes(id);
+  const hasModel = !!profile || model.length > 0;
+  /** A data point added on this asset: in an added interface itself, else as an addition to a profile interface. */
+  const savePoint = (iface: PlantInterface, point: PlantDataPoint, group: string, was: string | null) => {
+    const add = a.additions;
+    if (addedIface(iface.id))
+      return save({ ...a, additions: { ...add, interfaces: add.interfaces.map((i) => (i.id === iface.id ? placePoint(i, point, group, was) : i)) } });
+    const entry = { ...point, interface: iface.id, group };
+    return save({
+      ...a,
+      additions: {
+        ...add,
+        dataPoints: was !== null ? add.dataPoints.map((d) => (d.id === was ? entry : d)) : [...add.dataPoints, entry],
+      },
+    });
+  };
+  const removeAdded = async (iface: PlantInterface, point: PlantDataPoint) => {
+    if (!(await confirmDanger({ action: 'remove', message: t('assignment.removeConfirm', { what: point.name }) }))) return;
+    const add = a.additions;
+    await save({
+      ...a,
+      additions: addedIface(iface.id)
+        ? {
+            ...add,
+            interfaces: add.interfaces.map((i) =>
+              i.id === iface.id ? { ...i, groups: i.groups.map((g) => ({ ...g, dataPoints: g.dataPoints.filter((d) => d.id !== point.id) })) } : i,
+            ),
+          }
+        : { ...add, dataPoints: add.dataPoints.filter((d) => d.id !== point.id) },
+    }).catch(notifyError);
+  };
+  const removeAddedInterface = async (iface: PlantInterface) => {
+    if (!(await confirmDanger({ action: 'remove', message: t('assignment.removeConfirm', { what: iface.name || iface.id }) }))) return;
+    await save({
+      ...a,
+      interfaces: a.interfaces.filter((x) => x.interface !== iface.id),
+      additions: { ...a.additions, interfaces: a.additions.interfaces.filter((i) => i.id !== iface.id) },
+    }).catch(notifyError);
+  };
+  const addedPoints = model.flatMap((i) =>
+    i.groups.flatMap((g) => g.dataPoints.filter((d) => addedPoint(d.id)).map((d) => ({ iface: i, group: g.name, point: d }))),
   );
+  const pointOptions = model.flatMap((i) => i.groups.flatMap((g) => g.dataPoints.map((d) => ({ value: d.id, label: `${d.name} (${d.id})` }))));
   const pointName = (id: string) => pointOptions.find((p) => p.value === id)?.label ?? id;
   const pointLink = (id: string) =>
     profile && pointOptions.some((p) => p.value === id) ? (
@@ -213,10 +277,15 @@ export function AssetDataSection({ assetId }: { assetId: string }) {
                 <ChecksList checks={v.checks} testId="asset-checks" />
               </Alert>
             )}
-            {profile && (
-              <Part title={t('assignment.interfaces')} help={t('assignment.interfacesHelp')} testId="assignment-interfaces">
+            {hasModel && (
+              <Part
+                title={t('assignment.interfaces')}
+                help={t('assignment.interfacesHelp')}
+                action={add(t('plantModel:additions.addInterface'), { kind: 'addInterface' }, 'add-asset-interface')}
+                testId="assignment-interfaces"
+              >
                 <Stack gap={6}>
-                  {profile.interfaces.map((iface) => {
+                  {model.map((iface) => {
                     const set = a.interfaces.find((x) => x.interface === iface.id);
                     return (
                       <Group key={iface.id} justify="space-between" wrap="nowrap" align="flex-start" gap="xs" data-testid={`assigned-${iface.id}`}>
@@ -226,6 +295,11 @@ export function AssetDataSection({ assetId }: { assetId: string }) {
                               {iface.name || iface.id}
                             </Text>
                             <ProtocolBadge protocol={iface.protocol} size="xs" />
+                            {addedIface(iface.id) && (
+                              <Badge size="xs" variant="light" color="grape" tt="none">
+                                {t('plantModel:additions.assetOnly')}
+                              </Badge>
+                            )}
                             {set?.active ? (
                               <Badge size="xs" color="green" variant="light">
                                 {t('assignment.activeBadge')}
@@ -248,9 +322,25 @@ export function AssetDataSection({ assetId }: { assetId: string }) {
                           )}
                         </Stack>
                         {canManage && (
-                          <Button size="compact-xs" variant="subtle" style={{ flex: 'none' }} onClick={() => setDialog({ kind: 'interface', iface })}>
-                            {t('assignment.setUp')}
-                          </Button>
+                          <Group gap={4} wrap="nowrap" style={{ flex: 'none' }}>
+                            <Button size="compact-xs" variant="subtle" onClick={() => setDialog({ kind: 'interface', iface })}>
+                              {t('assignment.setUp')}
+                            </Button>
+                            <RowMenu
+                              label={t('plantModel:additions.interfaceActions', { name: iface.name || iface.id })}
+                              onEdit={addedIface(iface.id) ? () => setDialog({ kind: 'addInterface', iface }) : undefined}
+                              onRemove={addedIface(iface.id) ? () => void removeAddedInterface(iface) : undefined}
+                              extra={
+                                <Menu.Item
+                                  leftSection={<IconPlus size={14} />}
+                                  onClick={() => setDialog({ kind: 'addPoint', iface, group: '' })}
+                                  data-testid={`add-asset-point-${iface.id}`}
+                                >
+                                  {t('plantModel:additions.addPoint')}
+                                </Menu.Item>
+                              }
+                            />
+                          </Group>
                         )}
                       </Group>
                     );
@@ -258,7 +348,37 @@ export function AssetDataSection({ assetId }: { assetId: string }) {
                 </Stack>
               </Part>
             )}
-            {profile && (
+            {addedPoints.length > 0 && (
+              <Part title={t('plantModel:additions.title')} help={t('plantModel:additions.help')} testId="assignment-additions">
+                <Stack gap={4}>
+                  {addedPoints.map(({ iface, group, point }) => (
+                    <Group key={point.id} justify="space-between" wrap="nowrap" gap="xs" data-testid={`added-point-${point.id}`}>
+                      <Stack gap={0} style={{ minWidth: 0 }}>
+                        <Group gap={6} wrap="wrap">
+                          <Text size="sm" fw={500}>
+                            {point.name}
+                          </Text>
+                          <Text size="xs" c="dimmed" className="mono">
+                            {point.id}
+                          </Text>
+                        </Group>
+                        <Text size="xs" c="dimmed" style={{ overflowWrap: 'anywhere' }}>
+                          {[iface.name || iface.id, group, point.address, point.dataType].filter(Boolean).join(' · ')}
+                        </Text>
+                      </Stack>
+                      {canManage && (
+                        <RowMenu
+                          label={t('data.pointActions', { name: point.name })}
+                          onEdit={() => setDialog({ kind: 'addPoint', iface, group, point })}
+                          onRemove={() => void removeAdded(iface, point)}
+                        />
+                      )}
+                    </Group>
+                  ))}
+                </Stack>
+              </Part>
+            )}
+            {hasModel && (
               <Part
                 title={t('assignment.overrides')}
                 help={t('assignment.overridesHelp')}
@@ -312,7 +432,7 @@ export function AssetDataSection({ assetId }: { assetId: string }) {
                 )}
               </Part>
             )}
-            {profile && (
+            {hasModel && (
               <Part
                 title={t('assignment.publications')}
                 help={t('assignment.publicationsHelp')}
@@ -511,7 +631,18 @@ export function AssetDataSection({ assetId }: { assetId: string }) {
           onSave={async (x) => {
             // another profile has other interfaces and data points: what named the old one goes
             const same = x.profileId === a.profileId;
-            await save({ ...a, ...x, ...(same ? {} : { interfaces: [], overrides: [], publications: [] }) });
+            await save({
+              ...a,
+              ...x,
+              ...(same
+                ? {}
+                : {
+                    interfaces: a.interfaces.filter((i) => addedIface(i.interface)),
+                    overrides: [],
+                    publications: [],
+                    additions: { ...a.additions, dataPoints: [] },
+                  }),
+            });
           }}
         />
       )}
@@ -524,6 +655,38 @@ export function AssetDataSection({ assetId }: { assetId: string }) {
             const has = a.interfaces.some((y) => y.interface === x.interface);
             return save({ ...a, interfaces: has ? a.interfaces.map((y) => (y.interface === x.interface ? x : y)) : [...a.interfaces, x] });
           }}
+        />
+      )}
+      {dialog?.kind === 'addInterface' && (
+        <InterfaceFormModal
+          iface={dialog.iface}
+          taken={model.map((i) => i.id)}
+          onClose={() => setDialog(null)}
+          onSave={(iface) => {
+            const exists = a.additions.interfaces.some((i) => i.id === iface.id);
+            const additions = {
+              ...a.additions,
+              interfaces: exists
+                ? a.additions.interfaces.map((i) => (i.id === iface.id ? { ...iface, groups: i.groups, fileSets: i.fileSets } : i))
+                : [...a.additions.interfaces, iface],
+            };
+            // a new interface of this asset is set up and active (its endpoint is added with "Set up")
+            const interfaces = a.interfaces.some((x) => x.interface === iface.id)
+              ? a.interfaces
+              : [...a.interfaces, { interface: iface.id, active: true, endpoint: '', notes: '' }];
+            return save({ ...a, additions, interfaces });
+          }}
+        />
+      )}
+      {dialog?.kind === 'addPoint' && (
+        <DataPointFormModal
+          point={dialog.point}
+          protocol={dialog.iface.protocol}
+          group={dialog.group}
+          groups={dialog.iface.groups.map((g) => g.name)}
+          taken={pointOptions.map((x) => x.value)}
+          onClose={() => setDialog(null)}
+          onSave={(point, group) => savePoint(dialog.iface, point, group, dialog.point?.id ?? null)}
         />
       )}
       {dialog?.kind === 'override' && (

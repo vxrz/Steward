@@ -1,0 +1,263 @@
+{
+  "type": "example-gateway-config",
+  "datasets": [
+    {
+      "name": "machine-state",
+      "mode": "onchange",
+      "interval": 0,
+      "debounce": 250,
+      "unavailable": "skip",
+      "new": true,
+      "triggers": [
+        {
+          "condition": "anychange",
+          "name": "program status changed",
+          "referenceDatapoint": "/Channel/State/progStatus[u1]",
+          "referenceValue": ""
+        }
+      ],
+      "triggercomposition": "any",
+      "datapoints": [
+        {
+          "address": "/Channel/State/progStatus[u1]",
+          "name": "ProgStatus",
+          "type": "int"
+        },
+        {
+          "address": "/Channel/State/chanStatus[u1]",
+          "name": "ChannelStatus",
+          "type": "int"
+        },
+        {
+          "address": "/Bag/State/opMode[u1]",
+          "name": "OperatingMode",
+          "type": "int"
+        },
+        {
+          "address": "/Channel/ProgramPointer/progName[u1, 1]",
+          "name": "NCProgram",
+          "type": "string"
+        },
+        {
+          "address": "/Channel/ProgramPointer/blockNoStr[u1]",
+          "name": "BlockNumber",
+          "type": "string"
+        },
+        {
+          "address": "/Channel/State/actTNumber[u1]",
+          "name": "ToolNumber",
+          "type": "int"
+        },
+        {
+          "address": "/Channel/State/feedRateIpoOvr[u1]",
+          "name": "FeedOverride",
+          "type": "float"
+        },
+        {
+          "address": "/Channel/State/spindleOvr[u1]",
+          "name": "SpindleOverride",
+          "type": "float"
+        },
+        {
+          "address": "DB13.DBX2.0",
+          "name": "DoorClosed",
+          "type": "bool"
+        },
+        {
+          "address": "DB13.DBX2.1",
+          "name": "EmergencyStop",
+          "type": "bool"
+        }
+      ]
+    },
+    {
+      "name": "spindle",
+      "mode": "interval",
+      "interval": 1000,
+      "debounce": 0,
+      "readings": 5,
+      "datapoints": [
+        {
+          "address": "/Channel/Spindle/actSpeed[u1]",
+          "name": "Spindle_speedActSP1",
+          "type": "float"
+        },
+        {
+          "address": "/Channel/Spindle/cmdSpeed[u1]",
+          "name": "Spindle_speedCmdSP1",
+          "type": "float"
+        },
+        {
+          "address": "/DriveHsa/State/load[u10]",
+          "name": "SpindleLoad",
+          "type": "float"
+        },
+        {
+          "address": "/DriveHsa/State/motorTemperature[u10]",
+          "name": "SpindleMotorTemp",
+          "type": "float"
+        },
+        {
+          "address": "/DriveHsa/State/torque[u10]",
+          "name": "SpindleTorque",
+          "type": "float"
+        },
+        {
+          "address": "/DriveHsa/State/power[u10]",
+          "name": "SpindlePower",
+          "type": "float"
+        },
+        {
+          "address": "/Nck/Spindle/driveLoad[1]",
+          "name": "SpindleDriveLoad",
+          "type": "float"
+        },
+        {
+          "address": "/Nck/Spindle/speedLimit[1]",
+          "name": "SpindleSpeedLimit",
+          "type": "float"
+        }
+      ]
+    },
+    {
+      "name": "axes",
+      "mode": "interval",
+      "interval": 500,
+      "debounce": 0,
+      "datapoints": [
+        {
+          "address": "/Nck/MachineAxis/measPos1[1]",
+          "name": "X_Pos",
+          "type": "float"
+        },
+        {
+          "address": "/Nck/MachineAxis/measPos1[2]",
+          "name": "Y_Pos",
+          "type": "float"
+        },
+        {
+          "address": "/Nck/MachineAxis/measPos1[3]",
+          "name": "Z_Pos",
+          "type": "float"
+        },
+        {
+          "address": "/Nck/MachineAxis/aaLoad[1]",
+          "name": "X_Load",
+          "type": "float"
+        },
+        {
+          "address": "/Nck/MachineAxis/aaLoad[2]",
+          "name": "Y_Load",
+          "type": "float"
+        },
+        {
+          "address": "/Nck/MachineAxis/aaLoad[3]",
+          "name": "Z_Load",
+          "type": "float"
+        },
+        {
+          "address": "/Nck/MachineAxis/aaVactB[1]",
+          "name": "X_Speed",
+          "type": "float"
+        },
+        {
+          "address": "/Nck/MachineAxis/aaVactB[2]",
+          "name": "Y_Speed",
+          "type": "float"
+        },
+        {
+          "address": "/Nck/MachineAxis/aaVactB[3]",
+          "name": "Z_Speed",
+          "type": "float"
+        }
+      ]
+    },
+    {
+      "name": "part-counter",
+      "mode": "onchange",
+      "interval": 0,
+      "debounce": 1000,
+      "triggers": [
+        {
+          "condition": "anychange",
+          "name": "part finished",
+          "referenceDatapoint": "/NC/_N_CH_GD2_ACX/PART_COUNT",
+          "referenceValue": ""
+        },
+        {
+          "condition": "equals",
+          "name": "program end",
+          "referenceDatapoint": "/Channel/State/progStatus[u1]",
+          "referenceValue": 3
+        }
+      ],
+      "triggercomposition": "any of the triggers",
+      "datapoints": [
+        {
+          "address": "/NC/_N_CH_GD2_ACX/PART_COUNT",
+          "name": "PartCount",
+          "type": "int"
+        },
+        {
+          "address": "/NC/_N_CH_GD2_ACX/PART_TARGET",
+          "name": "PartTarget",
+          "type": "int"
+        },
+        {
+          "address": "/NC/_N_CH_GD2_ACX/ORDER_NO",
+          "name": "OrderNumber",
+          "type": "string"
+        },
+        {
+          "address": "/Channel/State/acPartsTotal[u1]",
+          "name": "PartsTotal",
+          "type": "int"
+        },
+        {
+          "address": "/Channel/State/acCycleTime[u1]",
+          "name": "CycleTime",
+          "type": "float"
+        },
+        {
+          "address": "/Channel/ProgramPointer/progName[u1,1]",
+          "name": "NCProgram_AtPart",
+          "type": "string"
+        },
+        {
+          "address": "DB20.DBW4",
+          "name": "RejectCount",
+          "type": "int"
+        },
+        {
+          "address": "DB20.DBD8",
+          "name": "GoodCount",
+          "type": "int"
+        }
+      ]
+    }
+  ],
+  "readPatterns": ["/Channel/", "/Bag/", "/Nck/", "/DriveHsa/", "/NC/", "DB13.", "DB20."],
+  "writePatterns": ["/NC/_N_CH_GD2_ACX/"],
+  "createPatterns": [],
+  "deletePatterns": [],
+  "patterns": [
+    {
+      "path": "DB20.",
+      "read": true,
+      "write": true,
+      "delete": false,
+      "create": false
+    }
+  ],
+  "whitelistedAddresses": [
+    {
+      "address": "/NC/_N_CH_GD2_ACX/ORDER_NO",
+      "type": "string"
+    }
+  ],
+  "bufferEnabled": true,
+  "maxBufferSize": 10000,
+  "plcTimeSync": false,
+  "sendEvents": true,
+  "eventsToIgnore": ["heartbeat"]
+}

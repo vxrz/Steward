@@ -9,7 +9,8 @@
     },
     "asset": {
       "overview": "Overview",
-      "flow": "Data flow"
+      "flow": "Data flow",
+      "collections": "Collections"
     }
   },
   "toolbar": {

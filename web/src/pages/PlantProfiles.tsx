@@ -223,6 +223,7 @@ export function PlantProfilesPage() {
       )}
       {creating && (
         <ProfileFormModal
+          bases={all.map((x) => ({ value: x.id, label: `${x.name} (${x.id})` }))}
           onClose={() => setCreating(false)}
           onSave={async (v) => {
             const made = await post<PlantProfileDetail>('/plant/profiles', v);

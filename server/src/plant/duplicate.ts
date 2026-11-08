@@ -100,13 +100,17 @@ export const profileDuplicator: Duplicator<PlantProfileDetail> = {
       profileInput.parse({
         id: input.key!,
         name: input.name,
-        manufacturer: p.manufacturer,
-        model: p.model,
-        version: p.version,
-        category: p.category,
-        description: p.description,
-        notes: p.notes,
-        interfaces: p.interfaces,
+        // its own part: a derived profile stays derived from the same base (0.11.0)
+        manufacturer: p.own.manufacturer,
+        model: p.own.model,
+        version: p.own.version,
+        category: p.own.category,
+        description: p.own.description,
+        notes: p.own.notes,
+        interfaces: p.own.interfaces,
+        extends: p.own.extends,
+        interfaceOverrides: p.own.interfaceOverrides,
+        pointOverrides: p.own.pointOverrides,
       }),
     );
     return {

@@ -1121,6 +1121,19 @@
           "maxLength": 200,
           "description": "Name in the installation’s default language"
         },
+        "extends": {
+          "description": "The base profile this one extends (0.11.0): its interfaces, data points and files are inherited; `interfaces` then lists only what this profile adds or changes",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$",
+              "description": "Stable id: lower-case letters, digits, \".\", \"_\" and \"-\"; never changes"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "manufacturer": {
           "anyOf": [
             {
@@ -1230,9 +1243,13 @@
           ]
         },
         "protocol": {
+          "description": "Protocol (required for a new interface; an inherited one keeps its own)",
           "type": "string",
-          "maxLength": 60,
-          "description": "Protocol: opc_ua, modbus_tcp, mqtt, http, smb, webdav, sftp, ftp, other (usual spellings such as OPC-UA or Modbus/TCP are accepted)"
+          "maxLength": 60
+        },
+        "present": {
+          "description": "In a profile that extends another: false marks an inherited interface as not present",
+          "type": "boolean"
         },
         "direction": {
           "anyOf": [
@@ -1376,8 +1393,7 @@
         }
       },
       "required": [
-        "id",
-        "protocol"
+        "id"
       ],
       "additionalProperties": false,
       "description": "An interface of a device: OPC UA, Modbus/TCP, MQTT, file transfer, web UI …"
@@ -1508,6 +1524,16 @@
             ]
           }
         },
+        "aliases": {
+          "description": "Known as: names that tools commonly use for it (a gateway’s variable names) – matched when collections are imported",
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        },
         "notes": {
           "anyOf": [
             {
@@ -1565,6 +1591,10 @@
             },
             "additionalProperties": false
           }
+        },
+        "present": {
+          "description": "In a profile that extends another: false marks an inherited data point as not present (the other keys change an inherited one)",
+          "type": "boolean"
         }
       },
       "required": [
@@ -2417,6 +2447,248 @@
             ],
             "additionalProperties": false
           }
+        },
+        "additions": {
+          "description": "What this asset has beyond its profile (0.11.0): they count as delivered like the profile’s data points",
+          "type": "object",
+          "properties": {
+            "interfaces": {
+              "description": "Interfaces of this asset alone",
+              "maxItems": 30,
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Interface"
+              }
+            },
+            "data_points": {
+              "description": "Data points this asset adds to an interface of its profile",
+              "maxItems": 5000,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9_][A-Za-z0-9._-]{0,119}$",
+                    "description": "Id of a data point, interface, parameter or column: letters, digits, \".\", \"_\" and \"-\""
+                  },
+                  "name": {
+                    "description": "Name (default: the id)",
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "description": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 8000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "data_type": {
+                    "description": "OPC UA built-in type (IEC 62541), IEC 61131-3 elementary type, or int, float, bool, string; [] for an array",
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 40
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "unit": {
+                    "description": "Unit as a UCUM code (kW.h, Cel, /min, %); usual spellings such as kWh or °C are read as their code",
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 40
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "address": {
+                    "description": "OPC UA NodeId (ns=2;s=Spindle.Speed), Modbus <table>:<address>[,<count>] (holding:100, input:7,2), a topic, a file path or column",
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 500
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "node_id": {
+                    "description": "Another spelling of address (an OPC UA NodeId)",
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 500
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "modbus_address": {
+                    "description": "Another spelling of address (a Modbus address)",
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 500
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "access": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 60,
+                        "description": "Direction, seen from whoever reads the device: read, write, read_write (usual spellings such as OPC-UA or Modbus/TCP are accepted)"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "update_rate_ms": {
+                    "description": "Typical update rate in milliseconds",
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 2678400000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "enum_values": {
+                    "maxItems": 200,
+                    "type": "array",
+                    "items": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        {
+                          "type": "number"
+                        }
+                      ]
+                    }
+                  },
+                  "aliases": {
+                    "description": "Known as: names that tools commonly use for it (a gateway’s variable names) – matched when collections are imported",
+                    "maxItems": 50,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200
+                    }
+                  },
+                  "notes": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 8000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "publications": {
+                    "description": "Where it is usually published",
+                    "maxItems": 10,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "target": {
+                          "description": "The system it is published to (an IoT platform, a historian)",
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "maxLength": 200
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "path": {
+                          "description": "Where there: a path, an aspect, a topic",
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "maxLength": 500
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "name": {
+                          "description": "Its name there: a variable, a tag",
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "maxLength": 200
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "present": {
+                    "description": "In a profile that extends another: false marks an inherited data point as not present (the other keys change an inherited one)",
+                    "type": "boolean"
+                  },
+                  "interface": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9_][A-Za-z0-9._-]{0,119}$",
+                    "description": "The interface (of the profile, or added here)"
+                  },
+                  "group": {
+                    "description": "Its group there (empty: without a group)",
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 200
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "interface"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "additionalProperties": false
         },
         "publications": {
           "description": "Where data points of this asset are published",

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Alert, Anchor, Badge, Button, Collapse, Group, Menu, Modal, Stack, Tabs, Text, TextInput, Textarea } from '@mantine/core';
+import { Alert, Anchor, Badge, Box, Button, Collapse, Group, Menu, Modal, Stack, Tabs, Text, TextInput, Textarea } from '@mantine/core';
 import {
   IconApi,
   IconBook,
@@ -61,6 +61,7 @@ import { platformKeys } from '../queryKeys';
 import { GetStartedPanel, PlatformHealthPanel, TestHints } from '../components/platform/onboarding';
 import { moduleOn } from '../modules';
 import { KindMaturityBadge } from '../components/modules/MaturityBadge';
+import { CollectorCollections } from '../components/plant/CollectorCollections';
 
 interface TokenInfo {
   fetchedAt: string;
@@ -334,6 +335,9 @@ export function PlatformDetailPage() {
       <div style={{ marginBottom: 'var(--mantine-spacing-md)' }}>
         <MaintenancePanel kind="platform" id={p.id} canPlan={canManage} />
       </div>
+      <Box mb="md">
+        <CollectorCollections kind="platform" id={p.id} />
+      </Box>
       <Tabs value={activeTab} onChange={setTab} keepMounted={false}>
         <Tabs.List mb="md" style={{ flexWrap: 'wrap' }}>
           {isDatabase && (

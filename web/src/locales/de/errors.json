@@ -1108,7 +1108,11 @@
     "DEBUG_NODE_BUSY": "{{max}} Ihrer Einzelknoten-Läufe laufen noch – warten Sie, bis einer fertig ist.",
     "USER_PSEUDONYMISED": "Die Daten dieses Kontos wurden durch ein Pseudonym ersetzt – es lässt sich nicht mehr ändern.",
     "USER_ACTIVE": "Deaktivieren Sie das Konto zuerst.",
-    "CONFIRMATION_MISMATCH": "Geben Sie zur Bestätigung den Benutzernamen {{username}} ein."
+    "CONFIRMATION_MISMATCH": "Geben Sie zur Bestätigung den Benutzernamen {{username}} ein.",
+    "PLANT_PROFILE_EXTENDED": "Andere Geräteprofile erweitern dieses ({{profiles}}) – ändern oder löschen Sie diese zuerst.",
+    "PLANT_COLLECTION_NOT_FOUND": "Datenerfassung {{id}} nicht gefunden.",
+    "PLANT_COLLECTION_INVALID": "Die Datenerfassung kann nicht gespeichert werden – {{path}}: {{message}}",
+    "PLANT_COLLECTION_IMPORT_INVALID": "Die Datenerfassungen können nicht importiert werden – {{path}}: {{message}}"
   },
   "boundary": {
     "title": "Auf dieser Seite ist ein Fehler aufgetreten",

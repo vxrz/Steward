@@ -12,6 +12,7 @@ import {
   type PlantProfileDetail,
   type PlantProfileSummary,
   type PlantProfileValues,
+  type PlantResolvedProfile,
   type Translations,
 } from '@sm/shared';
 import { db } from '../db.js';
@@ -31,6 +32,7 @@ import {
   kpiRowOf,
   kpiUpdate,
   kpiValuesOf,
+  ownProfiles,
   pointsOf,
   profileInput,
   profileProblems,
@@ -41,9 +43,9 @@ import {
   removeProfileRow,
   upsertKpi,
   upsertProfile,
-  type RuleProblem,
 } from './data-model.js';
 import { assignmentChecks, canHave, deliveries, kpiChecks } from './checks.js';
+import { descendantsOf, extendsProblems, isOrExtends, normalizeOwnPart, ownPartProblems, resolveAll, resolvedProblems } from './resolve.js';
 
 /**
  * The catalogues of part 2 (#219): device profiles and KPI definitions. They belong to the installation, not to a
@@ -90,7 +92,7 @@ function requireCatalogue(what: string): string {
   return u.username;
 }
 
-function invalid(kind: 'profile' | 'kpi', problems: RuleProblem[]): HttpError {
+function invalid(kind: 'profile' | 'kpi', problems: { path: string; message: string }[]): HttpError {
   const { path, message } = problems[0]!;
   if (kind === 'profile') return new HttpError(400, `${path}: ${message}`, 'PLANT_PROFILE_INVALID', { path, message });
   return new HttpError(400, `${path}: ${message}`, 'PLANT_KPI_INVALID', { path, message });
@@ -106,7 +108,10 @@ export function profileNotFound(id: string): HttpError {
 
 const countPoints = (p: Pick<PlantProfileValues, 'interfaces'>) => pointsOf(p).length;
 
-function profileSummary(r: PlantProfileValues & { importId: string | null; notInSource: boolean; updatedAt: string }, assetCount: number): PlantProfileSummary {
+function profileSummary(
+  r: PlantResolvedProfile & { importId: string | null; notInSource: boolean; updatedAt: string },
+  assetCount: number,
+): PlantProfileSummary {
   return {
     id: r.id,
     name: r.name,
@@ -118,6 +123,7 @@ function profileSummary(r: PlantProfileValues & { importId: string | null; notIn
     interfaceCount: r.interfaces.length,
     dataPointCount: countPoints(r),
     assetCount,
+    extends: r.extends,
     importId: r.importId,
     notInSource: r.notInSource,
     updatedAt: r.updatedAt,
@@ -136,35 +142,49 @@ export function listProfiles(): PlantProfileSummary[] {
   requirePlant();
   const v = visibleAssets();
   const using = assetsByProfile(v);
-  return db()
-    .all<import('./data-model.js').ProfileRow>('SELECT * FROM plant_profiles ORDER BY name, id')
-    .map((r) =>
-      profileSummary({ ...profileValuesOf(r), importId: r.import_id, notInSource: !!r.not_in_source, updatedAt: r.updated_at }, (using.get(r.id) ?? []).length),
-    );
+  const rows = db().all<import('./data-model.js').ProfileRow>('SELECT * FROM plant_profiles ORDER BY name, id');
+  const resolved = resolveAll(new Map(rows.map((r) => [r.id, profileValuesOf(r)])));
+  return rows.map((r) =>
+    profileSummary({ ...resolved.get(r.id)!, importId: r.import_id, notInSource: !!r.not_in_source, updatedAt: r.updated_at }, (using.get(r.id) ?? []).length),
+  );
 }
 
 export function getProfile(id: string): PlantProfileDetail {
   requirePlant();
   const r = profileRowOf(id);
   if (!r) throw profileNotFound(id);
-  const values = profileValuesOf(r);
+  const own = ownProfiles();
+  const resolved = resolveAll(own);
+  const values = resolved.get(id)!;
   const v = visibleAssets();
   const assets = (assetsByProfile(v).get(id) ?? []).map((a) => v.briefs.get(a)!).sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
+  // a KPI that reads a base profile reads this one, too (0.11.0)
+  const readsThis = (i: { kind: string; profile: string }) => i.kind === 'data_point' && !!i.profile && isOrExtends(values, i.profile);
   const kpis = [...allKpis().values()]
     .map((k) => ({
       id: k.id,
       name: k.name,
       names: k.names,
-      dataPoints: [...new Set(k.inputs.filter((i) => i.kind === 'data_point' && i.profile === id).flatMap((i) => i.dataPoints))],
-      reads: k.inputs.some((i) => i.kind === 'data_point' && i.profile === id),
+      dataPoints: [...new Set(k.inputs.filter(readsThis).flatMap((i) => i.dataPoints))],
+      reads: k.inputs.some(readsThis),
     }))
     .filter((k) => k.reads)
     .map(({ reads: _r, ...k }) => k);
+  const base = values.extends ? resolved.get(values.extends) : undefined;
+  const bases = values.chain.slice(1).map((b) => ({ id: b, name: own.get(b)?.name ?? b, exists: true }));
+  if (values.extends && !base) bases.push({ id: values.extends, name: values.extends, exists: false });
   return {
     ...profileSummary({ ...values, importId: r.import_id, notInSource: !!r.not_in_source, updatedAt: r.updated_at }, assets.length),
     description: values.description,
     notes: values.notes,
     interfaces: values.interfaces,
+    own: own.get(id)!,
+    bases,
+    base: base ? { id: base.id, name: base.name, interfaces: base.interfaces } : null,
+    origins: values.origins,
+    notPresent: values.notPresent,
+    unusedOverrides: values.unusedOverrides,
+    extendedBy: [...own.values()].filter((x) => x.extends === id && x.id !== id).map((x) => ({ id: x.id, name: x.name })),
     assets,
     kpis,
     canManage: canManageCatalogue(),
@@ -174,12 +194,49 @@ export function getProfile(id: string): PlantProfileDetail {
   };
 }
 
-/** Profile values from the API's input (groups without data points and names are kept as given). */
+/**
+ * Profile values from the API's input (groups without data points and names are kept as given), checked: its own
+ * rules, its base (exists, no cycle) and – for a base – that every profile extending it still resolves (0.11.0).
+ */
 function profileValues(id: string, b: z.infer<typeof profileUpdate>): PlantProfileValues {
   const v: PlantProfileValues = { id, ...b };
-  const problems = profileProblems(v);
-  if (problems.length) throw invalid('profile', problems);
-  return v;
+  return checkedProfile(v, ownProfiles(), (problems) => {
+    throw invalid('profile', problems);
+  });
+}
+
+/** The rules of a profile's save against the other profiles (`own`, which gets the profile); returns it normalised. */
+export function checkedProfile(
+  v: PlantProfileValues,
+  own: Map<string, PlantProfileValues>,
+  fail: (problems: { path: string; message: string }[]) => void,
+): PlantProfileValues {
+  own.set(v.id, v);
+  const ext = extendsProblems(v.id, v.extends, own);
+  if (ext.length) {
+    fail(ext);
+    return v;
+  }
+  const base = v.extends ? (resolveAll(own).get(v.extends) ?? null) : null;
+  const normalized = normalizeOwnPart(v, base);
+  const problems = v.extends ? ownPartProblems(normalized, base) : [...ownPartProblems(v, null), ...profileProblems(v)];
+  if (problems.length) {
+    fail(problems);
+    return v;
+  }
+  own.set(v.id, normalized);
+  const below = descendantsOf(v.id, own);
+  if (below.length) {
+    const after = resolveAll(own);
+    for (const d of below) {
+      const pr = resolvedProblems(after.get(d)!);
+      if (pr.length) {
+        fail([{ path: 'interfaces', message: `Device profile "${d}" extends this one: ${pr[0]!.message}` }]);
+        break;
+      }
+    }
+  }
+  return normalized;
 }
 
 export function createProfile(input: z.infer<typeof profileInput>): PlantProfileDetail {
@@ -263,6 +320,15 @@ export function deleteProfile(id: string): void {
   if (!r) throw profileNotFound(id);
   // an assignment names it: refused – with the count only when the caller sees every asset that has it
   const users = db().all<{ asset_id: string }>('SELECT asset_id FROM plant_assignments WHERE profile_id = ?', id);
+  // a base that another profile extends stays (like a profile in use)
+  const children = db().all<{ id: string; name: string }>('SELECT id, name FROM plant_profiles WHERE base_id = ? AND id <> ? ORDER BY name, id', id, id);
+  if (children.length)
+    throw new HttpError(
+      409,
+      `The profile is extended by ${children.map((c) => `"${c.name}"`).join(', ')} – change or delete those first`,
+      'PLANT_PROFILE_EXTENDED',
+      { count: children.length, profiles: children.map((c) => c.id).join(', ') },
+    );
   if (users.length) {
     const seen = visibleAssets().assets;
     if (users.some((u) => !seen.has(u.asset_id))) throw new HttpError(409, 'The profile is in use – it cannot be deleted', 'PLANT_PROFILE_IN_USE_HIDDEN');
@@ -289,9 +355,9 @@ export function pointNotFound(id: string): HttpError {
 /** A data point of a profile, and which assets (that the caller may see) deliver it. */
 export function getDataPoint(profileId: string, pointId: string): PlantDataPointDetail {
   requirePlant();
-  const r = profileRowOf(profileId);
-  if (!r) throw profileNotFound(profileId);
-  const p = profileValuesOf(r);
+  if (!profileRowOf(profileId)) throw profileNotFound(profileId);
+  const profiles = allProfiles();
+  const p = profiles.get(profileId)!;
   const found = pointsOf(p).find((x) => x.point.id === pointId);
   if (!found) throw pointNotFound(pointId);
   const v = visibleAssets();
@@ -299,8 +365,11 @@ export function getDataPoint(profileId: string, pointId: string): PlantDataPoint
   const assets: PlantDataPointDetail['assets'] = [];
   for (const [assetId, a] of assignments) {
     const brief = v.briefs.get(assetId);
-    if (!brief || a.profileId !== profileId) continue;
-    const d = deliveries(a, p).get(pointId)!;
+    // assets of a profile that extends this one deliver its data points, too (unless that profile drops it)
+    const theirs = a.profileId ? profiles.get(a.profileId) : undefined;
+    if (!brief || !theirs || !isOrExtends(theirs, profileId)) continue;
+    const d = deliveries(a, theirs).get(pointId);
+    if (!d) continue;
     assets.push({
       asset: brief,
       delivers: d.delivers,
@@ -312,13 +381,14 @@ export function getDataPoint(profileId: string, pointId: string): PlantDataPoint
   }
   assets.sort((a, b) => Number(b.delivers) - Number(a.delivers) || a.asset.name.localeCompare(b.asset.name) || a.asset.id.localeCompare(b.asset.id));
   const kpis = [...allKpis().values()]
-    .filter((k) => k.inputs.some((i) => i.kind === 'data_point' && i.profile === profileId && i.dataPoints.includes(pointId)))
+    .filter((k) => k.inputs.some((i) => i.kind === 'data_point' && !!i.profile && isOrExtends(p, i.profile) && i.dataPoints.includes(pointId)))
     .map((k) => ({ id: k.id, name: k.name, names: k.names }));
   return {
     profile: { id: p.id, name: p.name, manufacturer: p.manufacturer, model: p.model },
     interface: { id: found.iface.id, name: found.iface.name, protocol: found.iface.protocol, direction: found.iface.direction },
     group: found.group,
     point: found.point,
+    origin: p.origins.points[pointId] ?? { kind: 'own', from: p.id, fields: [], changedBy: [] },
     assets,
     kpis,
   };

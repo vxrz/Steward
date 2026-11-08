@@ -1,0 +1,5 @@
+collection;mode;interval_ms;debounce_ms;source_address;data_point;output_name;output_type;transform;destination;notes
+energy;interval;10000;0;input:65,2;;ActivePower;float;scale 0.001 (W to kW);plant.energy;
+energy;interval;10000;0;input:801,4;;ActiveEnergy;float;;plant.energy;
+energy;interval;10000;0;;power_factor;PF;float;;plant.energy;read through the profile's address
+state;on_change;;500;coil:0;;MeterOnline;bool;;plant.state;

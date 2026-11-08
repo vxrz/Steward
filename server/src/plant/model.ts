@@ -766,6 +766,8 @@ export function removeAssetRow(id: string): void {
   db().run('DELETE FROM plant_assignments WHERE asset_id = ?', id);
   // its devices, data paths and linked checks (#220)
   for (const t of ['plant_devices', 'plant_data_paths', 'plant_asset_checks']) db().run(`DELETE FROM ${t} WHERE asset_id = ?`, id);
+  // its data collections and the mappings remembered for it (0.11.0)
+  for (const t of ['plant_collections', 'plant_collection_mappings']) db().run(`DELETE FROM ${t} WHERE asset_id = ?`, id);
   db().run("DELETE FROM plant_refs WHERE kind = 'asset' AND item_id = ?", id);
   db().run("DELETE FROM item_links WHERE from_kind = 'asset' AND from_id = ?", id);
   db().run("DELETE FROM copied_from WHERE kind = 'asset' AND id = ?", id);

@@ -140,9 +140,21 @@ const UNITS = PLANT_UNITS.map((u) => ({ value: u.code, label: u.code === u.symbo
 
 // ---------- device profile ----------
 
-export function ProfileFormModal({ profile, onClose, onSave }: { profile?: PlantProfileValues; onClose: () => void; onSave: Save<PlantProfileValues> }) {
-  const { t } = useTranslation(['plant', 'common']);
+export function ProfileFormModal({
+  profile,
+  bases = [],
+  onClose,
+  onSave,
+}: {
+  profile?: PlantProfileValues;
+  /** The profiles it may extend (0.11.0) */
+  bases?: { value: string; label: string }[];
+  onClose: () => void;
+  onSave: Save<PlantProfileValues>;
+}) {
+  const { t } = useTranslation(['plant', 'common', 'plantModel']);
   const [name, setName] = useState(profile?.name ?? '');
+  const [base, setBase] = useState<string | null>(profile?.extends ?? null);
   const id = useIdField(profile?.id);
   const [manufacturer, setManufacturer] = useState(profile?.manufacturer ?? '');
   const [model, setModel] = useState(profile?.model ?? '');
@@ -167,6 +179,10 @@ export function ProfileFormModal({ profile, onClose, onSave }: { profile?: Plant
           description,
           notes,
           interfaces: profile?.interfaces ?? [],
+          extends: base,
+          // another base has other interfaces and data points: what changed the old one's goes
+          interfaceOverrides: base && base === profile?.extends ? profile.interfaceOverrides : [],
+          pointOverrides: base && base === profile?.extends ? profile.pointOverrides : [],
         });
       }}
     >
@@ -183,6 +199,16 @@ export function ProfileFormModal({ profile, onClose, onSave }: { profile?: Plant
         error={v.error('name')}
       />
       <IdInput value={id.id} onChange={id.set} disabled={!!profile} error={v.error('id')} />
+      <Select
+        label={t('plantModel:extends.label')}
+        description={t('plantModel:extends.help')}
+        data={bases}
+        value={base}
+        onChange={setBase}
+        clearable
+        searchable
+        data-testid="profile-extends"
+      />
       <SimpleGrid cols={{ base: 1, sm: 2 }}>
         <TextInput label={t('asset.manufacturer')} maxLength={200} value={manufacturer} onChange={(e) => setManufacturer(e.currentTarget.value)} />
         <TextInput label={t('asset.model')} maxLength={200} value={model} onChange={(e) => setModel(e.currentTarget.value)} />
@@ -218,10 +244,13 @@ export function ProfileFormModal({ profile, onClose, onSave }: { profile?: Plant
 export function InterfaceFormModal({
   iface,
   taken,
+  inherited = false,
   onClose,
   onSave,
 }: {
   iface?: PlantInterface;
+  /** An inherited interface (0.11.0): its protocol stays; what differs from the base becomes an override */
+  inherited?: boolean;
   /** Interface ids of the profile */
   taken: string[];
   onClose: () => void;
@@ -279,6 +308,7 @@ export function InterfaceFormModal({
           label={t('data.protocol')}
           data={PLANT_PROTOCOLS.map((p) => ({ value: p, label: t(`data.protocols.${p}`) }))}
           value={protocol}
+          disabled={inherited}
           onChange={(x) => {
             if (!x) return;
             const next = x as PlantProtocol;
@@ -351,10 +381,13 @@ export function DataPointFormModal({
   group,
   groups,
   taken,
+  inherited = false,
   onClose,
   onSave,
 }: {
   point?: PlantDataPoint;
+  /** An inherited data point (0.11.0): its group stays; what differs from the base becomes an override */
+  inherited?: boolean;
   protocol: PlantProtocol;
   group: string;
   /** The interface's group names */
@@ -364,7 +397,7 @@ export function DataPointFormModal({
   onClose: () => void;
   onSave: (p: PlantDataPoint, group: string) => Promise<void>;
 }) {
-  const { t } = useTranslation(['plant', 'common']);
+  const { t } = useTranslation(['plant', 'common', 'plantModel']);
   const [name, setName] = useState(point?.name ?? '');
   const [id, setId] = useState(point?.id ?? '');
   const [ownId, setOwnId] = useState(!!point);
@@ -375,6 +408,7 @@ export function DataPointFormModal({
   const [access, setAccess] = useState<PlantDirection>(point?.access ?? 'read');
   const [rate, setRate] = useState<number | ''>(point?.updateRateMs ?? '');
   const [values, setValues] = useState<string[]>(point?.enumValues ?? []);
+  const [aliases, setAliases] = useState<string[]>(point?.aliases ?? []);
   const [description, setDescription] = useState(point?.description ?? '');
   const [notes, setNotes] = useState(point?.notes ?? '');
   const [pubs, setPubs] = useState(point?.publications ?? []);
@@ -402,6 +436,7 @@ export function DataPointFormModal({
             access,
             updateRateMs: num(rate),
             enumValues: values,
+            aliases,
             notes,
             publications: pubs.map((x) => ({ target: x.target.trim(), path: x.path.trim(), name: x.name.trim() })).filter((x) => x.target || x.path || x.name),
           },
@@ -429,6 +464,7 @@ export function DataPointFormModal({
           value={groupName}
           onChange={setGroupName}
           maxLength={200}
+          disabled={inherited}
         />
       </SimpleGrid>
       <NameIdInput
@@ -481,6 +517,15 @@ export function DataPointFormModal({
         />
       </SimpleGrid>
       <TagsInput label={t('data.enumValues')} description={t('data.enumValuesHelp')} value={values} onChange={setValues} maxTags={200} clearable />
+      <TagsInput
+        label={t('plantModel:aliases.label')}
+        description={t('plantModel:aliases.help')}
+        value={aliases}
+        onChange={setAliases}
+        maxTags={50}
+        clearable
+        data-testid="point-aliases"
+      />
       <Textarea
         label={t('form.description')}
         autosize

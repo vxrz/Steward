@@ -20,6 +20,8 @@ import { seedPlantDemo } from './demo.js';
 import * as cat from './catalogue.js';
 import { assignmentInput, deleteAssignment, getAssignment, putAssignment } from './assignments.js';
 import * as net from './network.js';
+import * as coll from './collections.js';
+import { applyCollectionImport, collectionImportInput, previewCollectionImport } from './collections-import.js';
 import { assetFlow, coverage, hostPlacement, overview, pointLineage, siteStructure } from './views.js';
 import {
   changesMapSource,
@@ -52,6 +54,8 @@ import type { Fetched } from './mapTiles.js';
  *   GET     /api/plant/explore/points, /api/plant/checks
  *   …       /api/plant/sites/:siteId/network, …/vlans[/:vlanId[/segment]], …/zones[/:zoneId], …/conduits[/:conduitId]   the OT network (#220)
  *   …       /api/plant/assets/:assetId/network, …/devices[/:deviceId], …/paths[/:pathId], …/checks
+ *   …       /api/plant/assets/:assetId/collections[/:collectionId[/mapping]], …/collections/import[/preview]   data collections (0.11.0)
+ *   GET     /api/plant/collections?collectorKind=&collectorRef=, …/profiles/:profileId/points/:pointId/collections
  *   GET     /api/plant/views/overview | /views/coverage, …/structure, …/flow, …/lineage   the visualizations (#230)
  *   POST    /api/plant/import/preview | /api/plant/import, GET /api/plant/imports, GET /api/plant/export
  *   GET|PUT /api/settings/plant/map, POST …/map/check     the map's source (administrators, session; a new source asks for a step-up)
@@ -71,6 +75,7 @@ const importPointsOf = (req: FastifyRequest): string[] => {
   return x;
 };
 const imports = { config: { rateLimit: ROUTE_LIMITS.heavy }, bodyLimit: LARGE_BODIES.plantImport.bytes };
+const collectionImports = { config: { rateLimit: ROUTE_LIMITS.heavy }, bodyLimit: LARGE_BODIES.plantCollectionImport.bytes };
 
 /** A tile, glyph range or sprite file: inert (nosniff, no scripts), cached by this browser only. */
 const sendMapFile = (reply: FastifyReply, f: Fetched) =>
@@ -308,6 +313,33 @@ export async function plantRoutes(app: FastifyInstance): Promise<void> {
   app.post('/plant/assets/:assetId/paths', async (req) => net.createDataPath(p(req).assetId!, net.dataPathInput.parse(req.body)));
   app.put('/plant/assets/:assetId/paths/:pathId', async (req) => net.updateDataPath(p(req).assetId!, p(req).pathId!, net.dataPathUpdate.parse(req.body)));
   app.delete('/plant/assets/:assetId/paths/:pathId', async (req) => net.deleteDataPath(p(req).assetId!, p(req).pathId!));
+  // ---------- data collections (0.11.0, ADR 0019): what a collector reads from an asset, mapped to its data points ----------
+  app.get('/plant/assets/:assetId/collections', async (req) => coll.assetCollections(p(req).assetId!));
+  app.post('/plant/assets/:assetId/collections', async (req) => coll.createCollection(p(req).assetId!, coll.collectionInput.parse(req.body)));
+  app.get('/plant/assets/:assetId/collections/:collectionId', async (req) => coll.getCollection(p(req).assetId!, p(req).collectionId!));
+  app.put('/plant/assets/:assetId/collections/:collectionId', async (req) =>
+    coll.updateCollection(p(req).assetId!, p(req).collectionId!, coll.collectionUpdate.parse(req.body)),
+  );
+  app.delete('/plant/assets/:assetId/collections/:collectionId', async (req) => coll.deleteCollection(p(req).assetId!, p(req).collectionId!));
+  app.get('/plant/assets/:assetId/collections/:collectionId/mapping', async (req, reply) => {
+    const q = z.object({ format: z.enum(['csv', 'yaml']).default('csv') }).parse(req.query);
+    const x = coll.mappingFile(p(req).assetId!, p(req).collectionId!, q.format);
+    reply.header('content-disposition', `attachment; filename="${x.filename}"`);
+    reply.header('cache-control', 'no-store');
+    return reply.type(x.contentType).send(x.content);
+  });
+  app.post('/plant/assets/:assetId/collections/import/preview', collectionImports, async (req) =>
+    previewCollectionImport(p(req).assetId!, collectionImportInput.parse(req.body)),
+  );
+  app.post('/plant/assets/:assetId/collections/import', collectionImports, async (req) =>
+    applyCollectionImport(p(req).assetId!, collectionImportInput.parse(req.body)),
+  );
+  app.get('/plant/collections', async (req) => {
+    const q = z.object({ collectorKind: z.enum(['application', 'platform', 'process', 'job']), collectorRef: z.string().min(1).max(200) }).parse(req.query);
+    return coll.collectorCollections(q.collectorKind, q.collectorRef);
+  });
+  app.get('/plant/profiles/:profileId/points/:pointId/collections', async (req) => coll.pointCollections(p(req).profileId!, p(req).pointId!));
+
   // ---------- visualizations (#230): read-only aggregates, the same rights as the pages they picture ----------
   app.get('/plant/views/overview', async () => overview());
   app.get('/plant/views/coverage', async (req) =>

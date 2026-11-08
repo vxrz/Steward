@@ -21,6 +21,8 @@ import {
   type PlantMissing,
   type PlantPermission,
   type PlantRecordType,
+  type PlantProfileValues,
+  type PlantResolvedProfile,
   plantIdMapInput,
 } from '@sm/shared';
 import { db } from '../db.js';
@@ -33,7 +35,7 @@ import { canCreateSites, plantManagesSome, siteRights } from './access.js';
 import { fieldDefs, fieldProblems, isDate, isHttpUrl, plantSettings, requirePlant } from './settings.js';
 import { issueMessages, plantFileSchema, SCHEMA_ID, type AreaFile, type AssetFile, type PlantFile, type SiteFile } from './format.js';
 import { assignmentOut, computeData, dataPlanEmpty, emptyDataPlan, kpiOut, profileOut, planData, pushWrite, type DataPlan, type Write } from './import-data.js';
-import { allAssignments, allKpis, allProfiles } from './data-model.js';
+import { allAssignments, allKpis, allProfiles, ownProfiles } from './data-model.js';
 import { applyRenames, missingEntries, planIds } from './import-ids.js';
 import { auditBulkRenames, dryRun } from './rename.js';
 import { planRemoval, type Target } from './removal.js';
@@ -1322,6 +1324,12 @@ export const EXPORT_TYPES = { yaml: 'application/yaml; charset=utf-8', json: 'ap
  * and the assignments of their assets, one site (`site:` and its assignments), the catalogues only, one device profile
  * or one KPI definition. The importer reads both.
  */
+/** A profile's own part as written in a file (a derived profile only with what it adds and changes, 0.11.0). */
+function ownProfileOut(id: string, resolved: Map<string, PlantResolvedProfile>, own: Map<string, PlantProfileValues>): Record<string, unknown> {
+  const p = own.get(id)!;
+  return profileOut(p, p.extends ? (resolved.get(p.extends) ?? null) : null);
+}
+
 export function exportYaml(
   q: ExportQuery = {},
   opts: ExportOptions = {},
@@ -1334,6 +1342,8 @@ export function exportYaml(
   const file = (name: string) => (format === 'json' ? name.replace(/\.yaml$/, '.json') : name);
   // through the public API: the token is named in the audit entry
   const via = opts.tokenId ? { via: 'api', tokenId: opts.tokenId } : {};
+  // a resolved profile's interfaces are the effective ones; the file holds the own part
+  const own = ownProfiles();
   const viaText = opts.tokenId ? ' via the API' : '';
   // one catalogue record, or the catalogues
   if (q.profile || q.kpi || q.part === 'catalogue') {
@@ -1344,7 +1354,7 @@ export function exportYaml(
     if (q.profile) {
       const pr = profiles.get(q.profile);
       if (!pr) throw new HttpError(404, `Device profile ${q.profile} not found`, 'PLANT_PROFILE_NOT_FOUND', { id: q.profile });
-      doc = { version: PLANT_FORMAT_VERSION, device_profile: profileOut(pr) };
+      doc = { version: PLANT_FORMAT_VERSION, device_profile: ownProfileOut(pr.id, profiles, own) };
       filename = `${pr.id}.profile.plant.yaml`;
     } else if (q.kpi) {
       const k = kpis.get(q.kpi);
@@ -1354,7 +1364,7 @@ export function exportYaml(
     } else {
       doc = {
         version: PLANT_FORMAT_VERSION,
-        ...(profiles.size ? { device_profiles: [...profiles.values()].map(profileOut) } : {}),
+        ...(profiles.size ? { device_profiles: [...profiles.keys()].map((id) => ownProfileOut(id, profiles, own)) } : {}),
         ...(kpis.size ? { kpi_definitions: [...kpis.values()].map(kpiOut) } : {}),
       };
       filename = 'plant-catalogue.plant.yaml';
@@ -1469,7 +1479,8 @@ export function exportYaml(
   // part 2 (#219): the whole registry carries the catalogues; a site and the whole registry the assignments of their assets
   const assignments = allAssignments();
   const assigned = assets.filter((a) => assignments.has(a.id)).map((a) => assignmentOut(a.id, assignments.get(a.id)!));
-  const profiles = siteId ? [] : [...allProfiles().values()];
+  const resolvedProfiles = allProfiles();
+  const profiles = siteId ? [] : [...resolvedProfiles.keys()];
   const kpis = siteId ? [] : [...allKpis().values()];
   // part 3 (#220): the OT network of the sites and of their assets
   const networks = chosen.map((x) => otNetworkOut(x.id)).filter((x): x is Record<string, unknown> => !!x);
@@ -1478,7 +1489,7 @@ export function exportYaml(
     version: PLANT_FORMAT_VERSION,
     ...(enterprise ? { enterprise: { name: enterprise } } : {}),
     ...(siteId ? { site: out[0] } : { sites: out }),
-    ...(profiles.length ? { device_profiles: profiles.map(profileOut) } : {}),
+    ...(profiles.length ? { device_profiles: profiles.map((id) => ownProfileOut(id, resolvedProfiles, own)) } : {}),
     ...(kpis.length ? { kpi_definitions: kpis.map(kpiOut) } : {}),
     ...(assigned.length ? { assignments: assigned } : {}),
     ...(networks.length ? (siteId ? { ot_network: networks[0] } : { ot_networks: networks }) : {}),
