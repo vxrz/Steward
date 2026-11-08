@@ -66,9 +66,12 @@ COPY --from=app /app /app
 # postgresql-client: pg_dump and pg_restore for backups of a PostgreSQL database (docs/BACKUPS.md) – the version
 # of the pinned base image's Debian release (17 on trixie), kept current with the base image instead of a pin here
 # apt-get upgrade: Debian's security fixes published after the pinned base image (e.g. CVE-2026-109518 in apt),
-# so a release does not wait for a new base image digest (Trivy and Grype in the Container workflow check the result)
+# so a release does not wait for a new base image digest (Trivy and Grype in the Container workflow check the result).
+# It makes the image depend on the day of the build, not only on the commit (docs/SECURITY-PIPELINE.md): build with
+# --build-arg APT_UPGRADE=0 for an image made from the pinned base image's packages alone.
+ARG APT_UPGRADE=1
 # hadolint ignore=DL3008
-RUN apt-get update && apt-get upgrade -y --no-install-recommends \
+RUN apt-get update && if [ "$APT_UPGRADE" = "1" ]; then apt-get upgrade -y --no-install-recommends; fi \
  && apt-get install -y --no-install-recommends postgresql-client && rm -rf /var/lib/apt/lists/* \
  && if [ "$WITH_BROWSER" = "1" ]; then node node_modules/playwright/cli.js install --with-deps chromium && rm -rf /var/lib/apt/lists/*; fi \
  && rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack /opt/yarn-* \
