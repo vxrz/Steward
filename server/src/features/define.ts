@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import type { ModuleId } from '@sm/shared';
 import type { JobDefinition } from '../jobs/registry.js';
 import type { Get } from '../api/v1/helpers.js';
+import type { ToolDef } from '../mcp/tooling.js';
 import type { ReportSectionDef } from '../reports/sections.js';
 
 /**
@@ -25,6 +26,8 @@ export interface FeatureManifest {
    * also listed for the PDF worker (reports/pdf/drawers.ts)
    */
   reportSections?: readonly ReportSectionDef[];
+  /** Tools of the MCP server (mcp/tools.ts), after Steward's own */
+  mcpTools?: readonly ToolDef[];
 }
 
 export type RoutePlugin = (app: FastifyInstance) => Promise<void> | void;

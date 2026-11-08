@@ -1,5 +1,6 @@
 import { registeredJobs, registerJob, type JobDefinition } from '../jobs/registry.js';
 import { registerReportSection } from '../reports/sections.js';
+import { registerMcpTools } from '../mcp/tools.js';
 import type { ApiV1Plugin, FeatureManifest } from './define.js';
 import auth from './auth.js';
 import settings from './settings.js';
@@ -99,13 +100,16 @@ export const FEATURES: readonly FeatureManifest[] = [
 let installed = false;
 
 /**
- * Registers what the features bring into the registries the rest of Steward reads (report sections). Called once by
- * buildApp() (app.ts), before anything is served; later calls do nothing.
+ * Registers what the features bring into the registries the rest of Steward reads (report sections, MCP tools).
+ * Called once by buildApp() (app.ts), before anything is served; later calls do nothing.
  */
 export function installFeatures(): void {
   if (installed) return;
   installed = true;
-  for (const f of FEATURES) for (const s of f.reportSections ?? []) registerReportSection(s);
+  for (const f of FEATURES) {
+    for (const s of f.reportSections ?? []) registerReportSection(s);
+    registerMcpTools(f.mcpTools ?? []);
+  }
 }
 
 /** The public API (/api/v1) of the features, after the API's own endpoints (api/v1/routes.ts). */
