@@ -1694,12 +1694,6 @@ async function execLeaf(step: FlowNode, ctx: RunContext, key: string, attempt = 
         log: (level, message) => ctx.log(level, message, key),
       });
     }
-    case 'log': {
-      const message = await ctx.str(step.message);
-      const data = step.data ? await ctx.eval(step.data) : undefined;
-      ctx.log(step.level ?? 'info', message, key, data);
-      return { output: { message, data }, summary: message.slice(0, 300) };
-    }
     case 'check': {
       const passed = await ctx.bool(step.condition);
       const message = (await ctx.str(step.message)) || (passed ? 'Passed' : `Condition not met: ${step.condition}`);
@@ -2521,8 +2515,6 @@ async function previewInputs(node: FlowNode, ctx: RunContext): Promise<unknown> 
         const items = await ctx.list(node.items);
         return { items: items.length, first: items.slice(0, 5) };
       }
-      case 'log':
-        return { message: await ctx.str(node.message) };
       case 'subprocess':
         return { process: node.process, inputs: await ctx.render(node.inputs ?? {}) }; // nosemgrep: javascript.express.security.audit.res-render-injection.res-render-injection
       default:
