@@ -1,9 +1,11 @@
 import { z, type ZodType } from 'zod';
-import type { CredentialStatus, MonitorStatus, ReportLang } from '@sm/shared';
+import type { CredentialStatus, ReportLang } from '@sm/shared';
 import { db } from '../db.js';
 import { parseJson } from '../util.js';
 import { currentUser } from '../auth/context.js';
 import { permissionsOfRow } from '../monitors/model.js';
+import { statusPoints, upAndDown, uptimeHundredths } from '../monitors/stats.js';
+import { objectiveTargetForMonitor } from '../scorecard/objectives.js';
 import * as processes from '../processes/service.js';
 import * as platforms from '../platforms/service.js';
 import { listCredentials } from '../credentials/service.js';
@@ -70,10 +72,12 @@ const p95 = (values: number[]): number | null => {
   return s[Math.min(s.length - 1, Math.ceil(0.95 * s.length) - 1)]!;
 };
 
-const slaCell = (lang: ReportLang, uptime: number | null, target: number | null | undefined): CellInput => {
+/** "met" or "missed"; with `showTarget` (targets differ per row) the target follows, e.g. "met (99.5 %)". */
+const slaCell = (lang: ReportLang, uptime: number | null, target: number | null | undefined, showTarget = false): CellInput => {
   if (target === null || target === undefined) return '–';
-  if (uptime === null) return { text: st(lang, 'noData'), tone: 'muted' };
-  return uptime >= target ? { text: st(lang, 'slaMet'), tone: 'success' } : { text: st(lang, 'slaMissed'), tone: 'danger', bold: true };
+  const suffix = showTarget ? ` (${pctText(lang, target)})` : '';
+  if (uptime === null) return { text: st(lang, 'noData') + suffix, tone: 'muted' };
+  return uptime >= target ? { text: st(lang, 'slaMet') + suffix, tone: 'success' } : { text: st(lang, 'slaMissed') + suffix, tone: 'danger', bold: true };
 };
 
 /** Horizontal bars drawn with PDFKit vector primitives (no images, PDF/A-safe). */
@@ -125,6 +129,12 @@ interface MonitorAvail {
   id: string;
   key: string;
   name: string;
+  /** The SLA target this monitor is judged by (null: none) */
+  target?: number | null;
+  /** Where the target comes from: the availability objective with this monitor as source, or the section's own target */
+  targetFrom?: 'objective' | 'section' | null;
+  /** The objective's name when the target comes from one */
+  objective?: string | null;
   uptime: number | null;
   outages: { from: string; to: string | null; durationMs: number }[];
   downtimeMs: number;
@@ -132,42 +142,29 @@ interface MonitorAvail {
   p95Ms: number | null;
 }
 
-/** Time-weighted uptime of a monitor in [from, to) from its status changes, with the down intervals. */
-export function monitorAvailability(monitorId: string, from: number, to: number): Omit<MonitorAvail, 'id' | 'key' | 'name'> {
+/**
+ * Time-weighted uptime of a monitor in [from, to) from its status changes, with the down intervals. The same reading
+ * and arithmetic as the monitor's own uptime and objectives with the monitor as source (monitors/stats.ts).
+ */
+export function monitorAvailability(monitorId: string, from: number, to: number): Omit<MonitorAvail, 'id' | 'key' | 'name' | 'target'> {
   const fromIso = new Date(from).toISOString();
   const toIso = new Date(to).toISOString();
-  const before = db().get<{ ts: string; status: MonitorStatus }>(
-    "SELECT ts, status FROM monitor_history WHERE monitor_id = ? AND check_id = '' AND ts < ? ORDER BY ts DESC, id DESC LIMIT 1",
-    monitorId,
-    fromIso,
-  );
-  const changes = db().all<{ ts: string; status: MonitorStatus }>(
-    "SELECT ts, status FROM monitor_history WHERE monitor_id = ? AND check_id = '' AND ts >= ? AND ts < ? ORDER BY ts, id",
-    monitorId,
-    fromIso,
-    toIso,
-  );
-  const points = [...(before ? [{ t: from, status: before.status }] : []), ...changes.map((c) => ({ t: Date.parse(c.ts), status: c.status }))];
+  const points = statusPoints(monitorId, from, to);
   const end = Math.min(to, Date.now());
-  let ok = 0;
-  let down = 0;
   const outages: MonitorAvail['outages'] = [];
   let downSince: number | null = null;
-  points.forEach((p, i) => {
+  points.forEach((p) => {
     const a = Math.max(p.t, from);
-    const b = Math.min(points[i + 1]?.t ?? end, end);
     if (p.status === 'down') {
       if (downSince === null) downSince = a;
     } else if (downSince !== null) {
       outages.push({ from: new Date(downSince).toISOString(), to: new Date(a).toISOString(), durationMs: a - downSince });
       downSince = null;
     }
-    if (b <= a) return;
-    if (p.status === 'up' || p.status === 'degraded') ok += b - a;
-    else if (p.status === 'down') down += b - a;
   });
   if (downSince !== null)
     outages.push({ from: new Date(downSince).toISOString(), to: end < to ? null : new Date(to).toISOString(), durationMs: end - downSince });
+  const { ok, down } = upAndDown(points, from, end);
   const durations = db()
     .all<{ d: number }>(
       'SELECT duration_ms AS d FROM monitor_results WHERE monitor_id = ? AND ts >= ? AND ts < ? AND duration_ms IS NOT NULL',
@@ -177,7 +174,7 @@ export function monitorAvailability(monitorId: string, from: number, to: number)
     )
     .map((r) => Number(r.d));
   return {
-    uptime: ok + down > 0 ? Math.round((ok / (ok + down)) * 10000) / 100 : null,
+    uptime: ((h) => (h === null ? null : h / 100))(uptimeHundredths({ ok, down })),
     outages,
     downtimeMs: down,
     avgMs: durations.length ? Math.round(durations.reduce((s, x) => s + x, 0) / durations.length) : null,
@@ -185,12 +182,34 @@ export function monitorAvailability(monitorId: string, from: number, to: number)
   };
 }
 
-const availabilitySchema = z.object({ monitorIds: z.array(z.string().min(1).max(100)).max(500).nullable().default(null), slaTarget });
+/**
+ * slaTarget: one target for every monitor (deprecated in 0.11, ADR 0018). slaFromObjectives: each monitor is judged by
+ * the availability objective that has it as source, when there is one (the target of the objective window closest to
+ * the report period; several objectives: the strictest), and by slaTarget otherwise. Schedules saved before 0.11 keep
+ * slaTarget only.
+ */
+const availabilitySchema = z.object({
+  monitorIds: z.array(z.string().min(1).max(100)).max(500).nullable().default(null),
+  slaTarget,
+  slaFromObjectives: z.boolean().optional(),
+});
 type AvailabilityConfig = z.infer<typeof availabilitySchema>;
 interface AvailabilityData {
   slaTarget: number | null;
+  slaFromObjectives?: boolean;
   monitors: MonitorAvail[];
 }
+
+/** The target a monitor is judged by in the section (and where it comes from). */
+function targetOf(c: AvailabilityConfig, monitorId: string, periodMs: number): Pick<MonitorAvail, 'target' | 'targetFrom' | 'objective'> {
+  const o = c.slaFromObjectives ? objectiveTargetForMonitor(monitorId, periodMs) : null;
+  if (o) return { target: o.target, targetFrom: 'objective', objective: o.name };
+  return c.slaTarget !== null && c.slaTarget !== undefined
+    ? { target: c.slaTarget, targetFrom: 'section', objective: null }
+    : { target: null, targetFrom: null, objective: null };
+}
+/** The target of one monitor row; reports made before 0.11 have only the section's target. */
+const rowTarget = (d: AvailabilityData, m: MonitorAvail): number | null => (m.target === undefined ? d.slaTarget : m.target);
 
 function visibleMonitorRows(): { id: string; key: string; name: string; owner: string; acl: string }[] {
   const u = currentUser();
@@ -215,12 +234,20 @@ registerReportSection<AvailabilityConfig, AvailabilityData>({
     const rows = visibleMonitorRows().filter((m) => !c.monitorIds || c.monitorIds.includes(m.id) || c.monitorIds.includes(m.key));
     return {
       slaTarget: c.slaTarget ?? null,
-      monitors: rows.map((m) => ({ id: m.id, key: m.key, name: m.name, ...monitorAvailability(m.id, ctx.from, ctx.to) })),
+      slaFromObjectives: !!c.slaFromObjectives,
+      monitors: rows.map((m) => ({
+        id: m.id,
+        key: m.key,
+        name: m.name,
+        ...targetOf(c, m.id, ctx.to - ctx.from),
+        ...monitorAvailability(m.id, ctx.from, ctx.to),
+      })),
     };
   },
   glance: (d, l) => {
     const ups = d.monitors.map((m) => m.uptime).filter((x): x is number => x !== null);
-    const missed = d.slaTarget !== null ? d.monitors.filter((m) => m.uptime !== null && m.uptime < d.slaTarget!).length : null;
+    const judged = d.monitors.filter((m) => rowTarget(d, m) !== null);
+    const missed = judged.length ? judged.filter((m) => m.uptime !== null && m.uptime < rowTarget(d, m)!).length : null;
     return [
       { label: `${st(l, 'avgUptime')} (${st(l, 'monitor')})`, value: ups.length ? pctText(l, ups.reduce((s, x) => s + x, 0) / ups.length) : '–' },
       {
@@ -239,17 +266,21 @@ registerReportSection<AvailabilityConfig, AvailabilityData>({
       return;
     }
     const min = chartMin(d.monitors.map((m) => m.uptime));
+    // one target for all (as before 0.11), or per monitor (from its objective)
+    const targets = new Set(d.monitors.map((m) => rowTarget(d, m)));
+    const single = targets.size === 1 ? [...targets][0]! : null;
+    if (d.monitors.some((m) => m.targetFrom === 'objective')) w.paragraph(st(lang, 'slaFromObjectives'), { tone: 'muted', size: 8 });
     uptimeBars(
       w,
       st(lang, 'chartMonitors', { min }),
-      d.monitors.map((m) => ({ label: m.name, value: m.uptime, target: d.slaTarget })),
+      d.monitors.map((m) => ({ label: m.name, value: m.uptime, target: rowTarget(d, m) })),
       min,
     );
     w.table(
       [
         { header: st(lang, 'monitor'), width: 3 },
         { header: st(lang, 'uptime'), width: 1.4, align: 'right' },
-        { header: d.slaTarget !== null ? `${st(lang, 'sla')} ${pctText(lang, d.slaTarget)}` : st(lang, 'sla'), width: 1.4 },
+        { header: single !== null ? `${st(lang, 'sla')} ${pctText(lang, single)}` : st(lang, 'sla'), width: 1.4 },
         { header: st(lang, 'incidents'), width: 1.1, align: 'right' },
         { header: st(lang, 'downtime'), width: 1.4, align: 'right' },
         { header: st(lang, 'avgMs'), width: 1.1, align: 'right' },
@@ -258,7 +289,7 @@ registerReportSection<AvailabilityConfig, AvailabilityData>({
       d.monitors.map((m): CellInput[] => [
         { text: m.name, bold: true },
         pctText(lang, m.uptime),
-        slaCell(lang, m.uptime, d.slaTarget),
+        slaCell(lang, m.uptime, rowTarget(d, m), single === null),
         String(m.outages.length),
         m.downtimeMs ? tr.duration(m.downtimeMs) : '–',
         m.avgMs === null ? '–' : String(m.avgMs),

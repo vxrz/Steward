@@ -12065,7 +12065,8 @@
                     "platform",
                     "system",
                     "application",
-                    "service"
+                    "service",
+                    "monitor"
                   ]
                 },
                 "id": {
@@ -12076,7 +12077,7 @@
                     "string",
                     "null"
                   ],
-                  "description": "Null for a platform the token owner may not see, or something deleted"
+                  "description": "Null for a platform or monitor the token owner may not see, or something deleted"
                 }
               },
               "required": [
@@ -12321,7 +12322,8 @@
                           "platform",
                           "system",
                           "application",
-                          "service"
+                          "service",
+                          "monitor"
                         ]
                       },
                       "id": {
@@ -12332,7 +12334,7 @@
                           "null",
                           "string"
                         ],
-                        "description": "Null for a platform the token owner may not see, or something deleted"
+                        "description": "Null for a platform or monitor the token owner may not see, or something deleted"
                       }
                     },
                     "required": [
@@ -12511,7 +12513,8 @@
                           "platform",
                           "system",
                           "application",
-                          "service"
+                          "service",
+                          "monitor"
                         ]
                       },
                       "id": {
@@ -12522,7 +12525,7 @@
                           "null",
                           "string"
                         ],
-                        "description": "Null for a platform the token owner may not see, or something deleted"
+                        "description": "Null for a platform or monitor the token owner may not see, or something deleted"
                       }
                     },
                     "required": [
@@ -13540,9 +13543,22 @@
           "description": {
             "type": "string"
           },
+          "sourceKind": {
+            "type": "string",
+            "enum": [
+              "gatus",
+              "prometheus",
+              "monitor"
+            ],
+            "description": "Where the figures come from: gatus (an endpoint's uptime), prometheus (a PromQL query) or monitor (a Steward monitor's recorded states)"
+          },
+          "sourceVisible": {
+            "type": "boolean",
+            "description": "The token owner may see the source (platform or monitor); otherwise platform, endpoint and monitor are null"
+          },
           "platformVisible": {
             "type": "boolean",
-            "description": "The token owner may see the Gatus platform; otherwise platform and endpoint are null"
+            "description": "Same as sourceVisible (kept for clients from before monitors were a source)"
           },
           "platformId": {
             "type": [
@@ -13561,9 +13577,22 @@
               "null",
               "string"
             ],
-            "description": "The Gatus endpoint key (group_name)"
+            "description": "The Gatus endpoint key (group_name), or the PromQL query"
           },
           "endpointName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "monitorId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The Steward monitor (source \"monitor\")"
+          },
+          "monitorName": {
             "type": [
               "null",
               "string"
@@ -13650,7 +13679,7 @@
               ],
               "additionalProperties": false
             },
-            "description": "The windows with a target: Gatus' current uptime and the status"
+            "description": "The windows with a target: the source's current uptime and the status"
           },
           "status": {
             "type": "string",
@@ -13670,7 +13699,8 @@
                   "uptimesOff",
                   "stale",
                   "noEndpoint",
-                  "noValue"
+                  "noValue",
+                  "monitorOff"
                 ]
               },
               {
@@ -13689,7 +13719,7 @@
                 "type": "null"
               }
             ],
-            "description": "When Steward last read Gatus' uptime figures of the platform"
+            "description": "When Steward last read the source's figures (a monitor's: when they were computed)"
           },
           "notify": {
             "type": "boolean"
@@ -13833,11 +13863,15 @@
           "applicationName",
           "name",
           "description",
+          "sourceKind",
+          "sourceVisible",
           "platformVisible",
           "platformId",
           "platformName",
           "endpointKey",
           "endpointName",
+          "monitorId",
+          "monitorName",
           "targets",
           "windows",
           "status",
@@ -14229,7 +14263,7 @@
                         "string",
                         "null"
                       ],
-                      "description": "\"platform · endpoint\"; null when the token owner may not see the platform"
+                      "description": "\"platform · endpoint\", or the monitor's name; null when the token owner may not see the source"
                     },
                     "noDataReason": {
                       "anyOf": [
@@ -14240,7 +14274,8 @@
                             "uptimesOff",
                             "stale",
                             "noEndpoint",
-                            "noValue"
+                            "noValue",
+                            "monitorOff"
                           ]
                         },
                         {
@@ -15402,7 +15437,7 @@
                               "null",
                               "string"
                             ],
-                            "description": "\"platform · endpoint\"; null when the token owner may not see the platform"
+                            "description": "\"platform · endpoint\", or the monitor's name; null when the token owner may not see the source"
                           },
                           "noDataReason": {
                             "anyOf": [
@@ -15413,7 +15448,8 @@
                                   "uptimesOff",
                                   "stale",
                                   "noEndpoint",
-                                  "noValue"
+                                  "noValue",
+                                  "monitorOff"
                                 ]
                               },
                               {
@@ -17412,7 +17448,7 @@
                         "null",
                         "string"
                       ],
-                      "description": "\"platform · endpoint\"; null when the token owner may not see the platform"
+                      "description": "\"platform · endpoint\", or the monitor's name; null when the token owner may not see the source"
                     },
                     "noDataReason": {
                       "anyOf": [
@@ -17423,7 +17459,8 @@
                             "uptimesOff",
                             "stale",
                             "noEndpoint",
-                            "noValue"
+                            "noValue",
+                            "monitorOff"
                           ]
                         },
                         {
@@ -32636,7 +32673,7 @@
         "tags": [
           "Services"
         ],
-        "description": "Windows (once or repeating) on platforms, systems, applications and services that overlap the range, and every occurrence in it. Cancelled windows are left out. Platforms the token owner may not see are listed without a name.",
+        "description": "Windows (once or repeating) on platforms, systems, applications, services and monitors that overlap the range, and every occurrence in it. Cancelled windows are left out. Platforms and monitors the token owner may not see are listed without a name.",
         "parameters": [
           {
             "schema": {
@@ -32661,7 +32698,7 @@
           {
             "schema": {
               "type": "string",
-              "pattern": "^(platform|system|application|service):[\\w-]{1,80}$"
+              "pattern": "^(platform|system|application|service|monitor):[\\w-]{1,80}$"
             },
             "in": "query",
             "name": "target",
@@ -33386,7 +33423,7 @@
         "tags": [
           "Services"
         ],
-        "description": "Targets per Gatus endpoint for the windows Gatus reports (1 h, 24 h, 7 d, 30 d), attached to a service or one of its applications, with Gatus' current uptime figures and the status per window: met, below target or no data. Archived objectives (and those of archived services) are left out unless `archived` says otherwise.",
+        "description": "Targets for the windows 1 h, 24 h, 7 d and 30 d of one source – a Gatus endpoint, a PromQL query or a Steward monitor – attached to a service or one of its applications, with the source's current uptime figures and the status per window: met, below target or no data. Archived objectives (and those of archived services) are left out unless `archived` says otherwise.",
         "parameters": [
           {
             "schema": {

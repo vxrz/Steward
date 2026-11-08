@@ -12,8 +12,13 @@ export type ReportSectionId = (typeof REPORT_SECTION_IDS)[number];
 export interface AvailabilitySectionConfig {
   /** null = every monitor the owner may view */
   monitorIds: string[] | null;
-  /** SLA target in percent, e.g. 99.5 */
+  /**
+   * SLA target in percent, e.g. 99.5, for every monitor. Deprecated in 0.11 (ADR 0018): with slaFromObjectives it
+   * applies only to monitors without an objective.
+   */
   slaTarget?: number | null;
+  /** Each monitor's SLA target from the availability objective that has it as source (0.11) */
+  slaFromObjectives?: boolean;
 }
 export interface GatusSectionConfig {
   sources: { platformId: string; endpointKeys: string[] | null }[];
