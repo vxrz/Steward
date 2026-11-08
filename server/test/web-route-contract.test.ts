@@ -92,6 +92,8 @@ const API_ONLY: Record<string, string> = {
   'GET /api/library-releases/:id': 'one release; the web app reads its review',
   'POST /api/libraries/:library/rollback': 'rollback for scripts; the web app installs the previous release from its page',
   'POST /api/monitors/validate': 'checks a monitor definition, for scripts',
+  'GET /api/monitors/:id/maintenance': 'deprecated in 0.11, kept for scripts (use /api/maintenance-windows)',
+  'DELETE /api/monitors/:id/maintenance/:wid': 'deprecated in 0.11, kept for scripts (use /api/maintenance-windows)',
   'POST /api/processes/to-yaml': 'turns a definition into YAML, for scripts',
   'GET /api/records/:id/editions': 'the editions of a record; the web app reads them with the record',
   'GET /api/records/:id/reviews': 'the reviews of a record; the web app reads them with the record',
