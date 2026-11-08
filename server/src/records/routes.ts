@@ -39,8 +39,8 @@ import * as catalogue from '../catalogue/service.js';
 import { firewallContext } from './firewall.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { LARGE_BODIES } from '../bodyLimits.js';
+import { params } from '../routes/params.js';
 
-const params = (req: FastifyRequest) => req.params as Record<string, string>;
 const csv = (v: unknown): string[] | undefined =>
   typeof v === 'string' && v
     ? v

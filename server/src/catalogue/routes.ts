@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { linkInput, linkUpdate } from '../records/links.js';
 import { getPlatform } from '../platforms/service.js';
@@ -18,8 +18,7 @@ import { LARGE_BODIES } from '../bodyLimits.js';
 import { getService } from './service.js';
 import * as status from './status-pages.js';
 import { ACCESS } from '../auth/access.js';
-
-const params = (req: FastifyRequest) => req.params as Record<string, string>;
+import { params } from '../routes/params.js';
 
 /**
  * Applications of the service catalogue, the applications of services, protection needs and the CIA scale, and the

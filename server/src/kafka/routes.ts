@@ -1,9 +1,8 @@
-import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { environmentValue } from '../catalogue/environments.js';
 import { addInput, addTopics, checkSyncNow, dismissInput, dismissTopics, listInput, listSyncs, listTopics, stopSync } from './prefixes.js';
-
-const params = (req: FastifyRequest) => req.params as Record<string, string>;
+import { params } from '../routes/params.js';
 
 /** Kafka topics by prefix of an application (v0.4.0, docs/KAFKA.md); mounted under /api. */
 export async function kafkaPrefixRoutes(app: FastifyInstance): Promise<void> {

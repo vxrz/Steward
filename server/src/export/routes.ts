@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import type { FastifyInstance, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { validateProcess, type Platform } from '@sm/shared';
 import { audit } from '../audit.js';
@@ -12,6 +12,7 @@ import * as platforms from '../platforms/service.js';
 import { contentDisposition } from '../records/attachments.js';
 import { ZipWriter } from '../compliance/zip.js';
 import { platformToPostman, processToPostman, type PostmanExport, type SlotBinding } from './postman.js';
+import { params } from '../routes/params.js';
 
 /**
  * Postman export (#204): GET /api/processes/:id/export/postman and GET /api/platforms/:id/export/postman. Who may see
@@ -32,7 +33,6 @@ const processQuery = z.object({
 });
 const platformQuery = z.object({ file: fileQuery });
 
-const params = (req: FastifyRequest) => req.params as Record<string, string>;
 const options = () => ({ stewardVersion: config.version, exportedAt: new Date().toISOString() });
 
 /** A platform the current user has some right on (the export shows what its page shows); undefined otherwise. */

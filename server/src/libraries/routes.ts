@@ -8,8 +8,7 @@ import { HttpError } from '../util.js';
 import * as trust from './trust.js';
 import * as install from './install.js';
 import { stageUpload } from './releases.js';
-
-const params = (req: FastifyRequest) => req.params as Record<string, string>;
+import { params } from '../routes/params.js';
 
 const uploadBody = z.object({
   fileName: z.string().max(300).default('library.zip'),

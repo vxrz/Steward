@@ -32,7 +32,7 @@ import { mcpRunRequests } from './config.js';
 import { t } from '../i18n/index.js';
 import { mcpCardParts } from '../msteams/cards.js';
 import { mcpSettled } from '../msteams/followup.js';
-import { me } from '../auth/access.js';
+import { me, hasRole } from '../auth/access.js';
 
 /**
  * Requests of MCP clients that wait for a person in Steward (#11). A changing gateway call (POST, PUT, PATCH, DELETE)
@@ -112,7 +112,6 @@ const incomplete = (r: Row): boolean => {
 };
 
 const same = (a: string | null | undefined, b: string | null | undefined) => !!a && !!b && a.toLowerCase() === b.toLowerCase();
-const has = (u: AuthUser | null, roles: string[]) => !!u && u.roles.some((r) => roles.includes(r));
 
 /** Whether `u` may use the platform (and so see what is asked of it). */
 function usesPlatform(u: AuthUser, platformId: string | null): boolean {
@@ -127,7 +126,7 @@ function usesPlatform(u: AuthUser, platformId: string | null): boolean {
 const isOpen = (r: Row) => r.status === 'pending' && r.expires_at > nowIso();
 /** fourEyes: an approver or administrator other than the token owner, who may use the platform */
 // (by identity: former names and a linked single sign-on identity are the token owner too, auth/assurance.ts)
-const secondPerson = (u: AuthUser, r: Row) => !samePerson(r.requested_by, u) && (isAdmin(u) || has(u, ['approver'])) && usesPlatform(u, r.platform_id);
+const secondPerson = (u: AuthUser, r: Row) => !samePerson(r.requested_by, u) && (isAdmin(u) || hasRole(u, ['approver'])) && usesPlatform(u, r.platform_id);
 const mayApprove = (u: AuthUser, r: Row) => {
   if (!isOpen(r)) return false;
   const review = reviewOf(r);
@@ -140,7 +139,7 @@ const mayReject = (u: AuthUser, r: Row) =>
 const mayRead = (u: AuthUser, r: Row) =>
   same(u.username, r.requested_by) ||
   isAdmin(u) ||
-  has(u, ['auditor']) ||
+  hasRole(u, ['auditor']) ||
   (r.mode === 'fourEyes' && secondPerson(u, r)) ||
   (r.mode === 'review' && !!reviewOf(r)?.mayAccept(u, r));
 

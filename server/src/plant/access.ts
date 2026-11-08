@@ -2,7 +2,7 @@ import { PLANT_PERMISSIONS, type AclEntry, type AccessReason, type PlantPermissi
 import type { AuthUser } from '../auth/context.js';
 import { currentUser } from '../auth/context.js';
 import { decide } from '../auth/policy.js';
-import { forbid } from '../auth/access.js';
+import { forbid, hasRole } from '../auth/access.js';
 import { db } from '../db.js';
 import { parseJson } from '../util.js';
 
@@ -43,7 +43,7 @@ export function siteAccess(
 
 export const sitePermissions = (s: { id: string; acl: string }, u: AuthUser | null = currentUser()): PlantPermission[] => siteAccess(u, s).permissions;
 
-export const canCreateSites = (u: AuthUser | null = currentUser()): boolean => !!u && u.roles.some((r) => SITE_CREATORS.includes(r));
+export const canCreateSites = (u: AuthUser | null = currentUser()): boolean => hasRole(u, SITE_CREATORS);
 
 /**
  * Who manages the catalogues of part 2 (#219) – device profiles and KPI definitions, which belong to no site: whoever

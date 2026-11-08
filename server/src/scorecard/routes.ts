@@ -1,11 +1,10 @@
-import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import * as objectives from './objectives.js';
 import { setObjectiveArchived } from './sampling.js';
 import * as rules from './rules.js';
 import * as scorecard from './scorecard.js';
-
-const params = (req: FastifyRequest) => req.params as Record<string, string>;
+import { params } from '../routes/params.js';
 
 const listQuery = z.object({
   serviceId: z.string().max(200).optional(),

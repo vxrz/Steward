@@ -20,7 +20,7 @@ import { findUserByName } from '../auth/users.js';
 import { canonicalJson, HttpError, newId, nowIso, parseJson, sha256 } from '../util.js';
 import { canCreateChecks, canReadCheck, identitiesOf, readsEverything, same, visiblePlatformName } from './access.js';
 import { readCheckSource } from './reconciliation.js';
-import { me } from '../auth/access.js';
+import { me, hasRole } from '../auth/access.js';
 
 /**
  * Person access reviews (#118): one colleague's rights on several platforms at once – for a leaver, a mover or a
@@ -33,8 +33,6 @@ import { me } from '../auth/access.js';
  *   approved   sealed: SHA-256 over the review and every decision, in the audit log
  *   closed     "Check removals" read the sources again and every right to remove is gone
  */
-
-const has = (u: AuthUser | null, roles: string[]) => !!u && u.roles.some((r) => roles.includes(r));
 
 export const reviewInput = z
   .object({
@@ -111,16 +109,16 @@ function isThePerson(u: AuthUser, r: Pick<ReviewRow, 'person_user' | 'identifier
   return parseJson<string[]>(r.identifiers, []).some((x) => mine.has(norm(x)));
 }
 
-const mayRead = (u: AuthUser, r: ReviewRow) => readsEverything(u) || same(r.created_by, u.username) || has(u, ['approver']);
+const mayRead = (u: AuthUser, r: ReviewRow) => readsEverything(u) || same(r.created_by, u.username) || hasRole(u, ['approver']);
 const mayDecide = (u: AuthUser, r: ReviewRow) => r.status === 'open' && (same(r.created_by, u.username) || isAdmin(u)) && !isThePerson(u, r);
 // the reviewer never approves (by identity: former names and a linked single sign-on identity count, auth/assurance.ts)
 const mayApprove = (u: AuthUser, r: ReviewRow) =>
-  r.status === 'submitted' && (has(u, ['approver']) || isAdmin(u)) && !samePerson(r.submitted_by, u) && !isThePerson(u, r);
+  r.status === 'submitted' && (hasRole(u, ['approver']) || isAdmin(u)) && !samePerson(r.submitted_by, u) && !isThePerson(u, r);
 /** Whether the review needs a second person: its own switch, or the assurance policy for every review (personReview.decide). */
 const needsSecondPerson = (r: Pick<ReviewRow, 'four_eyes'>) => fourEyesRequired('personReview.decide', !!r.four_eyes);
 
 const mayRecheck = (u: AuthUser, r: ReviewRow) =>
-  (r.status === 'approved' || r.status === 'closed') && (same(r.created_by, u.username) || isAdmin(u) || has(u, ['approver']));
+  (r.status === 'approved' || r.status === 'closed') && (same(r.created_by, u.username) || isAdmin(u) || hasRole(u, ['approver']));
 
 function rowOf(id: string): ReviewRow {
   const r = db().get<ReviewRow>('SELECT * FROM person_reviews WHERE id = ?', id);

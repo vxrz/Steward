@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { boundedRecord, notifyPauseSchema, WEBHOOK_MAX_BODY_BYTES, type WebhookMappingPreview, type WebhookTestResult } from '@sm/shared';
 import { HttpError } from '../util.js';
@@ -13,8 +13,7 @@ import { handleHook, registerTestNonce } from '../triggers/hook.js';
 import { listTriggerExamples } from '../triggers/examples.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { ACCESS } from '../auth/access.js';
-
-const params = (req: FastifyRequest) => req.params as Record<string, string>;
+import { params } from './params.js';
 
 function requireProcessRun(processId: string) {
   const perms = permissionsFor(processId);

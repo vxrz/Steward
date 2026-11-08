@@ -17,8 +17,7 @@ import { builtinDatasetVisible, datasetOfSwitchedOffModule } from '../dashboards
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { IMPORT_BODY_SHAPE } from '../bodyShape.js';
 import { LARGE_BODIES } from '../bodyLimits.js';
-
-const params = (req: FastifyRequest) => req.params as Record<string, string>;
+import { params } from './params.js';
 
 /** A dataset is visible to whoever may view the process (or monitor) that publishes it. */
 const canSee = (d: Pick<DatasetMeta, 'processId'>) => builtinDatasetVisible(d.processId) ?? processes.permissionsFor(d.processId).includes('view');
