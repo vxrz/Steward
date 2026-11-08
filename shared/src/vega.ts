@@ -68,7 +68,7 @@ export function vegaSpecFields(spec: unknown): string[] {
     if (depth > VEGA_LIMITS.depth || !v || typeof v !== 'object') return;
     if (Array.isArray(v)) return v.forEach((x) => visit(x, inEncoding, depth + 1));
     for (const [k, child] of Object.entries(v)) {
-      if (inEncoding && k === 'field' && typeof child === 'string') out.add(child.split('.')[0].replace(/\\/g, ''));
+      if (inEncoding && k === 'field' && typeof child === 'string') out.add((child.split('.')[0] ?? child).replace(/\\/g, ''));
       else visit(child, inEncoding || k === 'encoding', depth + 1);
     }
   };

@@ -19,7 +19,7 @@ import { snowflakeJwtHint } from '../platforms/jwt.js';
  */
 
 const AU = 'SNOWFLAKE.ACCOUNT_USAGE';
-const num = (v: string | null): number | null => (v === null || v === '' ? null : Number(v));
+const num = (v: string | null | undefined): number | null => (v === null || v === undefined || v === '' ? null : Number(v));
 
 export function snowflakeClient(p: Platform, secrets: Record<string, string>): SnowflakeClient {
   if (p.kind !== SNOWFLAKE_KIND) throw new HttpError(400, `"${p.name}" is not a Snowflake account`, 'SNOWFLAKE_PLATFORM');
@@ -66,7 +66,7 @@ export async function readDatabase(c: SnowflakeClient, database: string): Promis
       type: t.TABLE_TYPE ?? '',
       rows: num(t.ROW_COUNT),
       bytes: num(t.BYTES),
-      lastAltered: t.LAST_ALTERED,
+      lastAltered: t.LAST_ALTERED ?? null,
     })),
     tableCount: Number(sizes?.N ?? tables.length),
     bytes: Number(sizes?.BYTES ?? 0),

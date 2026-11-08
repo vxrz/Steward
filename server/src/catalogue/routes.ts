@@ -223,9 +223,9 @@ export async function catalogueRoutes(app: FastifyInstance): Promise<void> {
 
   // the application a platform belongs to (platform page; 404 for platforms the user may not see)
   app.get('/platforms/:id/application', async (req) => {
-    if (!getPlatform(params(req).id!).permissions.length)
-      throw new HttpError(404, `Platform ${params(req).id} not found`, 'PLATFORM_NOT_FOUND', { id: params(req).id });
-    return { application: apps.applicationOfPlatform(params(req).id!) };
+    const id = params(req).id!;
+    if (!getPlatform(id).permissions.length) throw new HttpError(404, `Platform ${id} not found`, 'PLATFORM_NOT_FOUND', { id });
+    return { application: apps.applicationOfPlatform(id) };
   });
 
   // ---------- services → applications, protection need ----------

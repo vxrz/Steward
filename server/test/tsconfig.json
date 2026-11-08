@@ -1,0 +1,7 @@
+{
+  "extends": "../tsconfig.json",
+  // the tests index into results they have just checked: unchecked index access stays allowed here for now
+  // (about 420 places, quality review Q8); server/src, shared and web have it on (tsconfig.base.json)
+  "compilerOptions": { "noUncheckedIndexedAccess": false },
+  "include": [".", "../src"]
+}
