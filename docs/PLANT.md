@@ -13,6 +13,7 @@ The plant registry documents the factories of the enterprise an installation ser
 - [Device profiles, data points and KPIs](#device-profiles-data-points-and-kpis)
 - [Profile inheritance and asset additions](#profile-inheritance-and-asset-additions)
 - [Part 3: OT network](#part-3-ot-network)
+- [Data collections](#data-collections)
 - [Visualizations](#visualizations)
 - [Map](#map)
 - [YAML import and export](#yaml-import-and-export)
@@ -268,6 +269,57 @@ Linking a monitor or a dataset needs the right to see it – in the editor, the 
 ### Rights
 
 The OT network follows its site ([Permissions](#permissions)): who **sees the site** sees its VLANs, zones, conduits and the devices, data paths and live status of its assets – the role _Plant viewer_ included; who **manages the site** changes them. Status viewers never reach it, and nothing of it is shown on status pages. A site or asset someone may not see answers `404`, in the import too ("There is no site …", "You may not add or change asset …"); a VLAN's other sites (`sites` and `otherSites`, in the internal API, `/api/v1` and the export) and the conduit link targets leave out sites they may not see – a save or an import keeps those, as they cannot name or remove them. Linking a monitor or a dataset as a check, a segment, a collector or a host needs to see it (an item that was linked before may stay); a dataset as a data path's destination is documentation and may be one that is published later. Every change is audited on its site or asset: `site.vlan_added|vlan_changed|vlan_removed`, `site.zone_*`, `site.conduit_*`, `asset.device_added|device_changed|device_removed`, `asset.data_path_*`, `asset.checks_set`; creating a segment from a VLAN is also `system.created`.
+
+## Data collections
+
+Since 0.11.0 ([ADR 0019](adr/0019-data-collections.md)) an asset documents **what collectors read from it** – a gateway, an ETL job, a Node-RED flow: which addresses, how often, under which name, what they do with the values and where they load them. Asset page → **Collections**.
+
+### Three layers
+
+1. The **profile data point** is the canonical thing: a conventional id and name, an optional default address and **known-as names** (`aliases`: what tools commonly call it).
+2. The **asset's address** of it is the assignment's difference (`overrides[].address`); without one, the profile's address. Two assets of the same profile may have the same data point under different addresses.
+3. A **collection item** is what the collector reads (its address) and calls it (its **output name**), linked to one data point of the asset's model – or to none: **raw**.
+
+Everywhere both names are shown: the data point's name first, the collector's after it (_Spindle speed · as `Spindle_speedActSP1`_).
+
+### A collection
+
+A **data collection** belongs to an asset and to a **collector** – a Steward application, platform or process, or a job elsewhere by name (as a data path's collector) – and may name a **data path** of the asset. It reads from one **interface** of the asset's model or an unknown one, and has a name, a **mode** (_every interval_, _on change_, _on a trigger_, _other_), an interval and a debounce in ms, **triggers** (name, condition, reference address or data point, reference value) and how they combine, a **destination** (a Steward system with a path, a Steward dataset, a publication target or text), the collector's **access patterns** – what it may read, **write, create and delete** (the last three are shown in red: the collector can change the machine) –, other **settings** (buffering, events, time sync) and its **items**: address, output name and type, the data point, a transform (a note, optionally scale, offset, cast) and notes.
+
+**Coverage.** A collection counts its **mapped** items, its **raw** items – an address no data point of the asset has (_Add as data point_: an asset addition with the collector's name as known-as name; or on the profile, for whoever may manage profiles) or a data point the asset no longer has – and the data points of its interface (or of the whole model) that **no collection of the asset reads**. Two items mapped to one data point in one collection are allowed and flagged. The asset's **data flow** and a data point's **lineage** run through the collections: interface → collector → destination. A data point's page lists the collections that read it (and under which names); an application's and a platform's page the collections it runs.
+
+### Import
+
+_Collections → Import_: choose the collector, the format (or let Steward recognise it), the interface and data path if known, the files and optionally a **mapping file**. The **preview** shows every collection (new, changed, unchanged, removed – with _Remove this collector's collections that the files no longer have_) and every item with a suggested data point, its reason and a confidence, in this order:
+
+| Reason                      | Confidence | Means                                                                                         |
+| --------------------------- | ---------- | --------------------------------------------------------------------------------------------- |
+| **Mapping file**            | 100 %      | a line of the mapping file (by gateway name or address), or the table's own `data_point`      |
+| **Remembered**              | 100 %      | the pair was confirmed in an earlier import of this collector for this asset                  |
+| **Same address**            | 95 %       | the item's address is the asset's address of the data point (80 % when several have it)       |
+| **Same name**, **known-as** | 90 %       | the output name is the data point's id, name or a known-as name (case and separators ignored) |
+| **Name for this collector** | 85 %       | a name remembered for this collector only                                                     |
+| **Similar name**            | up to 80 % | a fuzzy suggestion – **never applied without confirmation**                                   |
+
+Addresses are compared normalised: whitespace removed (`[u1, 1]` is `[u1,1]`), case ignored where the protocol ignores it (Modbus, PLC and CNC variable paths; not OPC UA NodeIds), Modbus spellings read as one (`hr:100` is `holding:100`), and an OPC UA string NodeId also by its identifier alone (`ns=2;s=/Channel/State/progStatus[u1]` is `/Channel/State/progStatus[u1]`).
+
+The person confirms or changes each match – _Accept all exact matches_, _Accept all above_ a confidence – and may, per item: **record the item's address as the asset's address** of the data point (it becomes the assignment's difference; that is how per-asset addresses get documented from real configurations), **remember the name** as a known-as name of the data point (on a profile data point this needs the right to manage profiles) or only for this collector, or **add an unknown address as a data point** (of this asset, or of the profile). A line says what the import will write. Every confirmed pair is remembered for the asset and collector, so a re-import needs no new work. The import is all or nothing and needs the right to manage the asset's site.
+
+A collection's **mapping** downloads as CSV (`gateway_name,address,data_point`) or YAML (`mapping:` with the same keys) and uploads again as a mapping file. Invented examples of every format: [`examples/plant/collections/`](../examples/plant/collections/).
+
+### Formats
+
+Each importer produces collections for one asset and collector. Steward recognises a format by its **structure**, not by product names or the value of a `type` key, and runs nothing it reads.
+
+- **Gateway JSON – datasets of data points** (`example-gateway-datasets.json`): `datasets[]` with `name`, `mode` (`interval` or `onchange`), `interval` and `debounce` (ms), `unavailable`, `new`, `readings`, `triggercomposition`, `triggers[]` (`condition` such as `anychange`, `name`, `referenceDatapoint`, `referenceValue`) and `datapoints[]` (`address`, `name`, `type` – int, float, string, bool). One dataset is one collection. The file's `readPatterns`, `writePatterns`, `createPatterns`, `deletePatterns` and `patterns[]` (`path` with `read`, `write`, `delete`, `create`) are the access patterns of every collection; `type`, `whitelistedAddresses`, `bufferEnabled`, `maxBufferSize`, `plcTimeSync`, `sendEvents` and `eventsToIgnore` its settings. Addresses are CNC variables (`/Channel/State/progStatus[u1]`, `/Nck/MachineAxis/measPos1[2]`, NC user data `/NC/_N_…/NAME`) or PLC addresses (`DB13.DBX2.0`).
+- **Table – CSV or YAML** (`example-table.csv`, `example-table.yaml`): one row per item with the columns `collection`, `mode` (`interval`, `on_change`, `trigger`, `other`), `interval_ms`, `debounce_ms`, `source_address` **or** `data_point`, `output_name`, `output_type`, `transform`, `destination`, `notes`. A CSV needs a header row and may use `;` instead of `,`; a YAML file is a list of entries with the same keys (or `items:` with the list). Rows with the same `collection` are one collection; its first row gives the mode, interval, debounce and destination.
+- **Industrial Edge OPC UA connector** – _preview_ (`example-ie-opcua-connector.json`): the connector's exported configuration, `UIConfig.datapoints.OPCUA[]` with one entry per connection (`name`, `OPCUAUrl`, `portNumber`) and its `tags[]` (`name`, `address` – the NodeId –, `dataType`, `acquisitionCycle` in ms, `acquisitionMode` – `Cyclic` or `CyclicOnChange` –, `accessMode` – `r`, `rw` –, `comments`). One collection per connection, cycle and mode; a tag with write access is a write pattern; the destination is the Industrial Edge Databus (the export does not name the topic). The user, password and certificate passwords of the export are never read. The importer is built from the structure of a public example export and is marked _preview_ until it has seen more.
+- **Node-RED flow export** (`example-node-red-flow.json`): a JSON array of nodes (`id`, `type`, `z`, `wires` …). Source nodes – OPC UA items (`item`, `datatype`), S7 in (`variable`), Modbus reads (`dataType`, `adr`, `quantity`, `rate`), MQTT in (`topic`) – are followed along their `wires` to sink nodes – MQTT out, HTTP request, file and database nodes; a `debug` node ends a way. Each sink is a collection with the sources that reach it as items; `function`, `change` (with its rules), `template` and similar nodes on the way become the item's transform note (their names; code is never run); an `inject` node before a source gives its interval. Node-RED `credentials` are never imported.
+- **Mapping file**: CSV with the header `gateway_name,address,data_point` (either name or address per line), or YAML `mapping: [{ gateway_name, address, data_point }]`.
+
+### Rights and API
+
+Collections follow the asset's site, like its data paths: who sees the site sees them, who manages it changes and imports them; a known-as name or a data point on the profile needs the right to manage profiles. Every change is audited on the asset: `plant.collection_created|updated|deleted|imported` (the import with its counts and the files' SHA-256); what an import writes besides – the asset's addresses and additions (`asset.assignment_set`), known-as names on the profile (`device_profile.updated`) – is audited as well. Internal routes: `GET|POST /api/plant/assets/:assetId/collections`, `GET|PUT|DELETE …/collections/:collectionId`, `GET …/:collectionId/mapping?format=csv|yaml`, `POST …/collections/import/preview`, `POST …/collections/import`, `GET /api/plant/collections?collectorKind=&collectorRef=`, `GET /api/plant/profiles/:profileId/points/:pointId/collections`; public: `GET /api/v1/plant/assets/{assetId}/collections`.
 
 ## Visualizations
 
@@ -651,12 +703,13 @@ The public, read-only API ([API.md](API.md), tag _Plant_):
 - `GET /api/v1/plant/assets?site=&node=&domain=&status=&tag=&ref=` – assets with location and external references (paginated); `ref=erp:10004711` finds an asset by another tool's id;
 - `GET /api/v1/plant/assets/{assetId}` – an asset with equipment, lifecycle, capabilities and links;
 - `GET /api/v1/plant/assets/{assetId}/assignment` – its device profile, firmware, interfaces with endpoints, differences, publications, KPI instances, checks and the KPIs it can have;
-- `GET /api/v1/plant/profiles`, `GET /api/v1/plant/profiles/{profileId}` – device profiles with their interfaces, data points, assets and the KPI definitions that read them;
+- `GET /api/v1/plant/profiles`, `GET /api/v1/plant/profiles/{profileId}` – device profiles with their effective interfaces and data points (inherited ones included, 0.11.0), their bases, assets and the KPI definitions that read them;
 - `GET /api/v1/plant/kpis`, `GET /api/v1/plant/kpis/{kpiId}` – KPI definitions with inputs, parameters, columns, computation, checks, instances and candidates;
 - `GET /api/v1/plant/assets?profile=&dataPoint=` – the assets that have a profile (and deliver one of its data points);
 - `GET /api/v1/plant/checks?site=&asset=&kpi=&kind=` – the problems of [Checks](#checks) (paginated);
 - `GET /api/v1/plant/sites/{siteId}/network` – the OT network of a site: VLANs (with the linked segment and the hint), zones, conduits (with the records that link to them), the devices and data paths of its assets and every asset's live status;
 - `GET /api/v1/plant/assets/{assetId}/network` – an asset's devices, data paths, own checks and live status;
+- `GET /api/v1/plant/assets/{assetId}/collections` – an asset's data collections with their items, mapping and coverage (0.11.0);
 - `GET /api/v1/plant/export?site=|part=catalogue|profile=|kpi=&format=yaml|json` – the registry in the import format (with the OT network).
 
 They answer `404` while the module is off.
