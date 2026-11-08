@@ -13,6 +13,7 @@ import { me } from '../auth/access.js';
 import { HttpError, parseJson, sha256 } from '../util.js';
 import { aliasesOf, aliasTarget, checkScope, entryOf, entryPath, entryPermissions, idFormatProblem, writeAlias, type Entry } from './ids.js';
 import { requirePlant } from './settings.js';
+import { allProfiles, pointsOf } from './data-model.js';
 
 /**
  * The one rename core of the plant registry (0.11.0, docs/PLANT.md#changing-ids): an entry gets a new id and every
@@ -77,7 +78,7 @@ function json<T>(
   what: string,
   keys: string[],
   rewrite: (v: T, r: RenameOf) => boolean,
-  where?: { sql: string; params: (r: RenameOf) => unknown[] },
+  where?: { sql: string | ((r: RenameOf) => string); params: (r: RenameOf) => unknown[] },
 ): RefSpec {
   return {
     table,
@@ -86,7 +87,7 @@ function json<T>(
     what,
     apply: (r) => {
       const rows = db().all<Record<string, string>>(
-        `SELECT ${keys.join(', ')}, ${column} AS v FROM ${table}${where ? ` WHERE ${where.sql}` : ''}`,
+        `SELECT ${keys.join(', ')}, ${column} AS v FROM ${table}${where ? ` WHERE ${typeof where.sql === 'function' ? where.sql(r) : where.sql}` : ''}`,
         ...(where?.params(r) ?? []),
       );
       let n = 0;
@@ -166,7 +167,41 @@ const eachPoint = (ifaces: PlantInterface[], fn: (p: { id: string }) => void) =>
   }
 };
 
-const byProfile = { sql: 'profile_id = ?', params: (r: RenameOf) => [r.scope] };
+/**
+ * A profile and the profiles that extend it, directly or through others (0.11.0): an interface or data point of a
+ * base is also the derived profiles' and is named by their assignments, overrides and their assets' collections.
+ */
+export function profileFamily(id: string): string[] {
+  const rows = db().all<{ id: string; base_id: string | null }>('SELECT id, base_id FROM plant_profiles WHERE base_id IS NOT NULL');
+  const out = [id];
+  for (let i = 0; i < out.length; i++) for (const r of rows) if (r.base_id === out[i] && !out.includes(r.id)) out.push(r.id);
+  return out;
+}
+const marks = (n: number) => Array.from({ length: n }, () => '?').join(', ');
+/** Rows of a profile and the profiles that extend it, by a profile id column. */
+const inFamily = (column: string) => ({
+  sql: (r: RenameOf) => `${column} IN (${marks(profileFamily(r.scope).length)})`,
+  params: (r: RenameOf) => profileFamily(r.scope),
+});
+/** The assets whose profile is the given one or extends it. */
+const familyAssets = (r: RenameOf) => {
+  const family = profileFamily(r.scope);
+  return db()
+    .all<{ asset_id: string }>(`SELECT asset_id FROM plant_assignments WHERE profile_id IN (${marks(family.length)})`, ...family)
+    .map((x) => x.asset_id);
+};
+/** Rows of the assets whose profile is the given one or extends it (collections and their remembered mappings). */
+const ofFamilyAssets = (table: string, column: string, kind: PlantIdKind, what: string, extra = ''): RefSpec => ({
+  table,
+  column,
+  kind,
+  what,
+  apply: (r) => {
+    const assets = familyAssets(r);
+    if (!assets.length) return 0;
+    return run(`UPDATE ${table} SET ${column} = ? WHERE ${column} = ?${extra} AND asset_id IN (${marks(assets.length)})`, r.to, r.from, ...assets);
+  },
+});
 const bySite = { sql: 'site_id = ?', params: (r: RenameOf) => [r.scope] };
 const byAsset = { sql: 'asset_id = ?', params: (r: RenameOf) => [r.scope] };
 
@@ -230,6 +265,9 @@ export const REFERENCES: readonly RefSpec[] = [
   col('plant_devices', 'asset_id', 'asset', 'device'),
   col('plant_data_paths', 'asset_id', 'asset', 'data_path'),
   col('plant_asset_checks', 'asset_id', 'asset', 'asset_checks'),
+  // 0.11.0: its data collections and the gateway names remembered for it
+  col('plant_collections', 'asset_id', 'asset', 'collection'),
+  col('plant_collection_mappings', 'asset_id', 'asset', 'collection_mapping'),
   pair('item_links', 'from_kind', 'asset', 'from_id', 'asset', 'link'),
   pair('item_links', 'to_kind', 'asset', 'to_id', 'asset', 'link'),
   usedBy('asset', 'asset', (r, s) => r[s]),
@@ -244,6 +282,8 @@ export const REFERENCES: readonly RefSpec[] = [
   },
   // ---- device profiles, their interfaces and data points
   col('plant_profiles', 'id', 'profile', 'profile'),
+  // 0.11.0: a profile that extends it
+  col('plant_profiles', 'base_id', 'profile', 'profile'),
   col('plant_assignments', 'profile_id', 'profile', 'assignment'),
   json<{ profile: string }[]>('plant_kpis', 'inputs', 'profile', 'profile', 'kpi', ['id'], inObjects('profile')),
   pair('copied_from', 'kind', 'device-profile', 'id', 'profile', 'copy'),
@@ -256,7 +296,29 @@ export const REFERENCES: readonly RefSpec[] = [
     apply: (r) => run("UPDATE plant_id_aliases SET scope = ? WHERE scope = ? AND kind IN ('interface', 'data_point')", r.to, r.from),
   },
   json<PlantInterface[]>('plant_profiles', 'interfaces', 'id', 'interface', 'profile', ['id'], inObjects('id'), { sql: 'id = ?', params: (r) => [r.scope] }),
-  json<{ interface: string }[]>('plant_assignments', 'interfaces', 'interface', 'interface', 'assignment', ['asset_id'], inObjects('interface'), byProfile),
+  json<{ interface: string }[]>(
+    'plant_assignments',
+    'interfaces',
+    'interface',
+    'interface',
+    'assignment',
+    ['asset_id'],
+    inObjects('interface'),
+    inFamily('profile_id'),
+  ),
+  // 0.11.0: derived profiles change inherited interfaces; assets add data points to them; collections read them
+  json<{ interface: string }[]>('plant_profiles', 'interface_overrides', 'interface', 'interface', 'profile', ['id'], inObjects('interface'), inFamily('id')),
+  json<{ dataPoints: { interface: string }[] }>(
+    'plant_assignments',
+    'additions',
+    'dataPoints.interface',
+    'interface',
+    'assignment',
+    ['asset_id'],
+    (v, r) => inObjects<{ interface: string }>('interface')(v.dataPoints, r),
+    inFamily('profile_id'),
+  ),
+  ofFamilyAssets('plant_collections', 'interface_id', 'interface', 'collection'),
   json<PlantInterface[]>(
     'plant_profiles',
     'interfaces',
@@ -276,12 +338,71 @@ export const REFERENCES: readonly RefSpec[] = [
     },
     { sql: 'id = ?', params: (r) => [r.scope] },
   ),
-  json<{ dataPoint: string }[]>('plant_assignments', 'overrides', 'dataPoint', 'data_point', 'assignment', ['asset_id'], inObjects('dataPoint'), byProfile),
-  json<{ dataPoint: string }[]>('plant_assignments', 'publications', 'dataPoint', 'data_point', 'assignment', ['asset_id'], inObjects('dataPoint'), byProfile),
-  // inputs that name the profile; an input without a profile names a data point of whatever profile an asset has: kept
-  json<{ profile: string; dataPoints: string[] }[]>('plant_kpis', 'inputs', 'dataPoints', 'data_point', 'kpi', ['id'], (v, r) =>
-    v.reduce((hit, i) => (i.profile === r.scope && inList(i.dataPoints, r)) || hit, false),
+  json<{ dataPoint: string }[]>(
+    'plant_assignments',
+    'overrides',
+    'dataPoint',
+    'data_point',
+    'assignment',
+    ['asset_id'],
+    inObjects('dataPoint'),
+    inFamily('profile_id'),
   ),
+  json<{ dataPoint: string }[]>(
+    'plant_assignments',
+    'publications',
+    'dataPoint',
+    'data_point',
+    'assignment',
+    ['asset_id'],
+    inObjects('dataPoint'),
+    inFamily('profile_id'),
+  ),
+  // inputs that name the profile (or one that extends it); an input without a profile names a data point of whatever
+  // profile an asset has: kept
+  json<{ profile: string; dataPoints: string[] }[]>('plant_kpis', 'inputs', 'dataPoints', 'data_point', 'kpi', ['id'], (v, r) => {
+    const family = profileFamily(r.scope);
+    return v.reduce((hit, i) => (family.includes(i.profile) && inList(i.dataPoints, r)) || hit, false);
+  }),
+  // 0.11.0: a derived profile's own data points in inherited interfaces, and its changes to inherited ones
+  json<{ groups: { dataPoints: { id: string }[] }[] }[]>(
+    'plant_profiles',
+    'interface_overrides',
+    'groups.dataPoints.id',
+    'data_point',
+    'profile',
+    ['id'],
+    (v, r) => {
+      let hit = false;
+      for (const o of v) for (const g of o.groups ?? []) for (const d of g.dataPoints ?? []) if (d.id === r.from) ((d.id = r.to), (hit = true));
+      return hit;
+    },
+    { sql: 'id = ?', params: (r) => [r.scope] },
+  ),
+  json<{ dataPoint: string }[]>('plant_profiles', 'point_overrides', 'dataPoint', 'data_point', 'profile', ['id'], inObjects('dataPoint'), inFamily('id')),
+  // the items of the data collections of the assets with the profile (or one that extends it), and the pairs remembered
+  // for them; a collector-wide name (no asset) is not tied to a profile and stays
+  {
+    table: 'plant_collections',
+    column: 'items[dataPoint]',
+    kind: 'data_point',
+    what: 'collection',
+    apply: (r) => {
+      const assets = familyAssets(r);
+      if (!assets.length) return 0;
+      let n = 0;
+      for (const row of db().all<{ asset_id: string; id: string; items: string }>(
+        `SELECT asset_id, id, items FROM plant_collections WHERE asset_id IN (${marks(assets.length)})`,
+        ...assets,
+      )) {
+        const items = parseJson<{ dataPoint: string | null }[]>(row.items, []);
+        if (!inObjects<{ dataPoint: string | null }>('dataPoint')(items, r)) continue;
+        n += run('UPDATE plant_collections SET items = ? WHERE asset_id = ? AND id = ?', JSON.stringify(items), row.asset_id, row.id);
+      }
+      return n;
+    },
+  },
+  ofFamilyAssets('plant_collection_mappings', 'data_point', 'data_point', 'collection_mapping'),
   // ---- KPI definitions
   col('plant_kpis', 'id', 'kpi', 'kpi'),
   json<{ kpi: string }[]>('plant_assignments', 'kpis', 'kpi', 'kpi', 'assignment', ['asset_id'], inObjects('kpi')),
@@ -325,6 +446,8 @@ export const REFERENCES: readonly RefSpec[] = [
     byAsset,
   ),
   col('plant_data_paths', 'id', 'data_path', 'data_path', 'asset_id'),
+  // 0.11.0: a data collection of the asset may belong to one of its data paths
+  col('plant_collections', 'data_path_id', 'data_path', 'collection', 'asset_id'),
 ];
 
 /** The table and column of the entry itself, per kind (the rest are references). */
@@ -377,7 +500,7 @@ export function checkRename(kind: PlantIdKind, scope: string, from: string, to: 
   if (from === to) return { entry, problem: { code: 'PLANT_ID_SAME', message: 'The new id is the id it has' } };
   const format = idFormatProblem(kind, to);
   if (format) return { entry, problem: { code: 'PLANT_ID_FORMAT', message: format } };
-  const busy = taken?.(to) ?? !!entryOf(kind, scope, to);
+  const busy = taken?.(to) ?? (!!entryOf(kind, scope, to) || familyHas(kind, scope, to));
   if (busy) return { entry, problem: { code: 'PLANT_ID_TAKEN', message: `Another ${kind} has the id "${to}" already` } };
   const alias = aliasTarget(kind, scope, to);
   if (alias && alias !== from)
@@ -386,6 +509,21 @@ export function checkRename(kind: PlantIdKind, scope: string, from: string, to: 
       problem: { code: 'PLANT_ID_ALIAS', message: `"${to}" is an old id of "${alias}" and still leads to it – an administrator can remove that alias first` },
     };
   return { entry, problem: null };
+}
+
+/**
+ * Whether an interface or data point id is in use in the profile's family (0.11.0): in the effective model of the
+ * profile, of its bases or of a profile that extends it – a rename there would give a derived profile an id twice.
+ */
+function familyHas(kind: PlantIdKind, scope: string, id: string): boolean {
+  if (kind !== 'interface' && kind !== 'data_point') return false;
+  const profiles = allProfiles();
+  const self = profiles.get(scope);
+  for (const p of profiles.values()) {
+    if (!p.chain.includes(scope) && !self?.chain.includes(p.id)) continue;
+    if (kind === 'interface' ? p.interfaces.some((i) => i.id === id) : pointsOf(p).some((x) => x.point.id === id)) return true;
+  }
+  return false;
 }
 
 /**

@@ -60,7 +60,11 @@
     "copy_one": "{{count}} copy note",
     "copy_other": "{{count}} copy notes",
     "other_one": "{{count}} other",
-    "other_other": "{{count}} others"
+    "other_other": "{{count}} others",
+    "collection_one": "{{count}} data collection",
+    "collection_other": "{{count}} data collections",
+    "collection_mapping_one": "{{count}} remembered gateway name",
+    "collection_mapping_other": "{{count}} remembered gateway names"
   },
   "problems": {
     "PLANT_ID_FORMAT": "Use lower-case letters, digits, “.”, “_” and “-”, starting with a letter or digit (at most 80).",

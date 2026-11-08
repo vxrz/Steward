@@ -75,8 +75,11 @@ export function entryOf(kind: PlantIdKind, scope: string, id: string): Entry | n
         const i = p.interfaces.find((x) => x.id === id);
         return i ? e(i.name || i.id, null) : null;
       }
-      const d = pointsOf(p).find((x) => x.point.id === id);
-      return d ? e(d.point.name || d.point.id, null) : null;
+      // its own data points, and those it adds to inherited interfaces (0.11.0); inherited ones are renamed in their base
+      const d =
+        pointsOf(p).find((x) => x.point.id === id)?.point ??
+        p.interfaceOverrides.flatMap((o) => o.groups.flatMap((g) => g.dataPoints)).find((x) => x.id === id);
+      return d ? e(d.name || d.id, null) : null;
     }
   }
 }
