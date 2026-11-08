@@ -3,6 +3,7 @@ import path from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
 import YAML from 'yaml';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
+import { timeLimit } from './time.js';
 
 /**
  * YAML import and export of the plant registry (#218): the round trip with the invented two-site enterprise
@@ -319,7 +320,7 @@ describe('problems', () => {
     const keys = Array.from({ length: 30000 }, (_, i) => `  k${i}: 1`).join('\n');
     const t = Date.now();
     const r = await preview([file('keys.yaml', `version: 1\nx:\n${keys}\n`)]);
-    expect(Date.now() - t).toBeLessThan(3000);
+    expect(Date.now() - t).toBeLessThan(timeLimit(3000));
     expect(r.problems[0].message).toMatch(/Unknown key "x"/);
   });
 

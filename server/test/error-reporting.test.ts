@@ -7,6 +7,7 @@ import type { FastifyInstance } from 'fastify';
 import { InMemorySpanExporter } from '@opentelemetry/sdk-trace-base';
 import { scrubEvent, scrubString, scrubBreadcrumb } from '@sm/shared';
 import { startFakeSentry, type FakeSentry } from './fakeSentry.js';
+import { timeLimit } from './time.js';
 
 const PLATFORM_SECRET = 'platform-secret-value-123';
 const API_TOKEN = 'smt_AbCdEf0123456789xyz';
@@ -191,7 +192,7 @@ describe('scrubbing', () => {
     // was quadratic: every "eyJ" of the run was tried again up to the run's end (seconds for 70 KB)
     const t0 = performance.now();
     scrubString(('-eyJ'.repeat(2000) + ' ').repeat(10));
-    expect(performance.now() - t0).toBeLessThan(2000);
+    expect(performance.now() - t0).toBeLessThan(timeLimit(2000));
   });
 
   it('caps long strings before the patterns run, without leaving half a secret', () => {

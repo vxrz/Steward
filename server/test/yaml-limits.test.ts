@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type TestServer } from './helpers.js';
+import { timeLimit } from './time.js';
 
 /**
  * YAML importers (security review round 3, GOV-14): the duplicate-key check of the YAML library is
@@ -27,7 +28,7 @@ describe('YAML importers', () => {
     const t = Date.now();
     const v = parseYaml(`m:\n${keys(30000, '  ')}\n`, { maxBytes: 2 * 1024 * 1024 }) as { m: Record<string, number> };
     expect(Object.keys(v.m)).toHaveLength(30000);
-    expect(Date.now() - t).toBeLessThan(3000);
+    expect(Date.now() - t).toBeLessThan(timeLimit(3000));
     expect(() => parseYaml('a: 1\nb: 2\na: 3\n', { maxBytes: 1024 })).toThrow(/unique/);
     expect(() => parseYaml('x: {a: 1, a: 2}\n', { maxBytes: 1024 })).toThrow(/unique/);
     expect(() => parseYaml('a: 1\n', { maxBytes: 2 })).toThrow(/too large/);
@@ -70,7 +71,7 @@ describe('YAML importers', () => {
     const { parseData } = await import('../src/sync/items.js');
     const t = Date.now();
     expect(Object.keys((parseData(`x:\n${keys(18000, '  ')}\n`, 'x.yaml') as { x: object }).x)).toHaveLength(18000);
-    expect(Date.now() - t).toBeLessThan(3000);
+    expect(Date.now() - t).toBeLessThan(timeLimit(3000));
     expect(() => parseData('a: 1\na: 2\n', 'x.yaml')).toThrow(/unique/);
   }, 60_000);
 });

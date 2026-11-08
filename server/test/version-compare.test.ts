@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { behindOf, compareVersions, newestOf, parseVersion, type Scheme } from '../src/versions/compare.js';
+import { timeLimit } from './time.js';
 
 /**
  * Version comparison of the version watch (#241): SemVer 2.0.0, PEP 440, Maven's ComparableVersion and a loose scheme,
@@ -120,7 +121,7 @@ describe('loose', () => {
     const t0 = Date.now();
     for (const s of ['semver', 'pep440', 'maven', 'loose'] as Scheme[]) parseVersion(long, s);
     parseVersion(`1${'-'.repeat(120)}`, 'maven');
-    expect(Date.now() - t0).toBeLessThan(200);
+    expect(Date.now() - t0).toBeLessThan(timeLimit(200));
   });
 });
 

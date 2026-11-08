@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
+import { timeLimit } from './time.js';
 
 // the scraper and the monitor engine are driven by the tests
 process.env.SM_GATUS_AUTOSTART = '0';
@@ -75,7 +76,7 @@ describe('Prometheus text parser', () => {
     // \d+\.?\d* backtracked quadratically on a long digit run that does not parse (about 10 s for 100 000 digits)
     const t0 = performance.now();
     expect(parsePromValue('1'.repeat(100_000) + 'x')).toBeNull();
-    expect(performance.now() - t0).toBeLessThan(500);
+    expect(performance.now() - t0).toBeLessThan(timeLimit(500));
   });
 
   it('parses the Gatus metrics: names, labels, values in exponent notation, HELP/TYPE', async () => {

@@ -3,6 +3,7 @@ import type { AddressInfo } from 'node:net';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { dockerfileImages, rangeVersion, stackHints } from '@sm/shared';
 import { setup, startTestServer, type TestServer } from './helpers.js';
+import { timeLimit } from './time.js';
 
 /**
  * Git platforms (#107): GitHub, GitLab and Forgejo as connectors – a repository component read from the mock hosts
@@ -74,7 +75,7 @@ describe('tech stack from repository files', () => {
     // an unclosed <parent> is read in linear time (no backtracking regular expression)
     const t0 = Date.now();
     stackHints({ 'pom.xml': '<parent>'.repeat(30_000) });
-    expect(Date.now() - t0).toBeLessThan(500);
+    expect(Date.now() - t0).toBeLessThan(timeLimit(500));
   });
 });
 

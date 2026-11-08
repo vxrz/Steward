@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { normalizeTag, splitTag, tagLabel, tagProblem, tagsMatch } from '@sm/shared';
 import { setup, startTestServer, type TestServer } from './helpers.js';
+import { timeLimit } from './time.js';
 
 /**
  * Tags with an optional value (#143): `key` or `key=value`, filters by key (any value) or key=value in the lists and
@@ -23,7 +24,7 @@ describe('tag rules', () => {
     const t0 = Date.now();
     expect(normalizeTag(`-:\t${'\t'.repeat(50_000)}x`)).toBe('-=x');
     expect(normalizeTag(`env:${' '.repeat(50_000)}`)).toBe(`env:`);
-    expect(Date.now() - t0).toBeLessThan(500);
+    expect(Date.now() - t0).toBeLessThan(timeLimit(500));
     expect(normalizeTag('env=')).toBe('env');
     expect(tagLabel('env=prod')).toBe('env: prod');
     expect(tagProblem('team/data=orders')).toBeNull();

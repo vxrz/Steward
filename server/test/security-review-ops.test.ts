@@ -5,6 +5,7 @@
  */
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { quiesce, setup, startTestServer, type Client, type TestServer } from './helpers.js';
+import { timeLimit } from './time.js';
 
 process.env.SM_GATUS_AUTOSTART = '0';
 process.env.SM_MONITOR_AUTOSTART = '0';
@@ -244,12 +245,12 @@ describe('#9 certificate parsing', () => {
     const pem = '-----BEGIN CERTIFICATE-----\n'.repeat(Math.floor(250_000 / 28));
     const t0 = Date.now();
     const msg = await errorOf(dana('POST', '/credentials/certificate/parse', { pem }));
-    expect(Date.now() - t0).toBeLessThan(300);
+    expect(Date.now() - t0).toBeLessThan(timeLimit(300));
     expect(msg).toMatch(/400/);
     const { parseCertificate } = await import('../src/credentials/certificates.js');
     const t1 = Date.now();
     expect(() => parseCertificate(Buffer.from('-----BEGIN CERTIFICATE-----\nAAAA\n'.repeat(20) + 'x'.repeat(200_000)))).toThrow();
-    expect(Date.now() - t1).toBeLessThan(300);
+    expect(Date.now() - t1).toBeLessThan(timeLimit(300));
   });
 });
 

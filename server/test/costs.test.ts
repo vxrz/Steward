@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { fromMicros, toMicros } from '@sm/shared';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
+import { timeLimit } from './time.js';
 
 /**
  * Platform costs (#226, docs/COSTS.md): the decimals, the CSV reader, FOCUS file imports (preview, duplicates, replace
@@ -97,7 +98,7 @@ describe('CSV', () => {
     // a long run of quotes and separators is read in one pass (no backtracking)
     const t0 = Date.now();
     expect(() => readCsv(`a\n${'"'.repeat(200_001)}`, { rows: 10, columns: 10, cellChars: 1_000_000 }, () => {})).toThrow();
-    expect(Date.now() - t0).toBeLessThan(2000);
+    expect(Date.now() - t0).toBeLessThan(timeLimit(2000));
   });
 
   it('keeps tags without prototype keys', async () => {

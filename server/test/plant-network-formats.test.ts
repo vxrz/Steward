@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { cidrRange, ipValue, macOf } from '@sm/shared';
+import { timeLimit } from './time.js';
 
 // Address formats of the OT network (#220): IEEE 802 MAC (EUI-48), IPv4/IPv6 and CIDR – parsed without regular
 // expressions that could backtrack on long input.
@@ -19,7 +20,7 @@ describe('OT network formats', () => {
       expect(cidrRange(`${s}/24`)).toBeNull();
       expect(macOf(s)).toBeNull();
     }
-    expect(Date.now() - t).toBeLessThan(500);
+    expect(Date.now() - t).toBeLessThan(timeLimit(500));
   });
 
   it('normalises MAC addresses and CIDR ranges', () => {
