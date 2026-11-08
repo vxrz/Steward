@@ -65,13 +65,20 @@ export function FailedChecksCard({ checks }: { checks: FailedCheckGroup[] }) {
         style={{ width: '100%' }}
         data-testid="failed-checks-toggle"
       >
-        <Group gap="xs" wrap="nowrap">
-          {open ? <IconChevronDown size={16} aria-hidden /> : <IconChevronRight size={16} aria-hidden />}
-          <IconAlertTriangle size={18} color="var(--mantine-color-orange-6)" aria-hidden />
-          <Title order={5}>{t('failedChecks')}</Title>
-          <Text size="sm" c="dimmed" data-testid="failed-checks-counts">
-            · {counts}
-          </Text>
+        {/* the icons stay beside the title; on a phone the counts wrap below it as a whole line (U11) */}
+        <Group gap="xs" wrap="nowrap" align="flex-start">
+          <Group gap="xs" wrap="nowrap" mt={2} style={{ flexShrink: 0 }}>
+            {open ? <IconChevronDown size={16} aria-hidden /> : <IconChevronRight size={16} aria-hidden />}
+            <IconAlertTriangle size={18} color="var(--mantine-color-orange-6)" aria-hidden />
+          </Group>
+          <Group gap={4} wrap="wrap" align="baseline" style={{ minWidth: 0, flex: 1, columnGap: 'var(--mantine-spacing-xs)' }}>
+            <Title order={5} style={{ whiteSpace: 'nowrap' }}>
+              {t('failedChecks')}
+            </Title>
+            <Text size="sm" c="dimmed" data-testid="failed-checks-counts">
+              {counts}
+            </Text>
+          </Group>
         </Group>
       </UnstyledButton>
       {open && (
