@@ -26019,6 +26019,736 @@
         ],
         "additionalProperties": false
       },
+      "PlantAssetCollectionsEntry": {
+        "title": "PlantAssetCollectionsEntry",
+        "type": "object",
+        "properties": {
+          "asset": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "siteId": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "siteId"
+            ],
+            "additionalProperties": false
+          },
+          "collections": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "collector": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "application",
+                        "platform",
+                        "process",
+                        "job"
+                      ]
+                    },
+                    "ref": {
+                      "type": "string"
+                    },
+                    "host": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "ref",
+                    "host"
+                  ],
+                  "additionalProperties": false
+                },
+                "dataPathId": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "interfaceId": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "The interface of the asset’s model it reads; null: unknown"
+                },
+                "mode": {
+                  "type": "string",
+                  "enum": [
+                    "interval",
+                    "on_change",
+                    "trigger",
+                    "other"
+                  ]
+                },
+                "intervalMs": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "debounceMs": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "triggers": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "condition": {
+                        "type": "string"
+                      },
+                      "referencePoint": {
+                        "type": "string"
+                      },
+                      "referenceValue": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "condition",
+                      "referencePoint",
+                      "referenceValue"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "composition": {
+                  "type": "string"
+                },
+                "destination": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "system",
+                            "dataset",
+                            "publication",
+                            "other"
+                          ]
+                        },
+                        "ref": {
+                          "type": "string"
+                        },
+                        "path": {
+                          "type": "string"
+                        },
+                        "notes": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "ref",
+                        "path",
+                        "notes"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "access": {
+                  "type": "object",
+                  "properties": {
+                    "read": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "write": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "create": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "delete": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "read",
+                    "write",
+                    "create",
+                    "delete"
+                  ],
+                  "additionalProperties": false,
+                  "description": "The collector’s address patterns; write, create and delete change the machine"
+                },
+                "settings": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "key": {
+                        "type": "string"
+                      },
+                      "value": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "key",
+                      "value"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "address": {
+                        "type": "string"
+                      },
+                      "outputName": {
+                        "type": "string",
+                        "description": "The collector’s name for the value"
+                      },
+                      "outputType": {
+                        "type": "string"
+                      },
+                      "dataPoint": {
+                        "type": [
+                          "null",
+                          "string"
+                        ],
+                        "description": "The data point of the asset’s model; null: raw"
+                      },
+                      "transform": {
+                        "type": "object",
+                        "properties": {
+                          "note": {
+                            "type": "string"
+                          },
+                          "scale": {
+                            "type": [
+                              "null",
+                              "number"
+                            ]
+                          },
+                          "offset": {
+                            "type": [
+                              "null",
+                              "number"
+                            ]
+                          },
+                          "cast": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "note",
+                          "scale",
+                          "offset",
+                          "cast"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "notes": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "address",
+                      "outputName",
+                      "outputType",
+                      "dataPoint",
+                      "transform",
+                      "notes"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "notes": {
+                  "type": "string"
+                },
+                "format": {
+                  "type": "string",
+                  "description": "The importer that wrote it (empty: by hand)"
+                },
+                "sourceFile": {
+                  "type": "string"
+                },
+                "importId": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "The last import that wrote the record (null: entered in Steward)"
+                },
+                "notInSource": {
+                  "type": "boolean",
+                  "description": "Kept although the import that replaced its earlier one no longer contained it"
+                },
+                "assetId": {
+                  "type": "string"
+                },
+                "assetName": {
+                  "type": "string"
+                },
+                "siteId": {
+                  "type": "string"
+                },
+                "collectorRef": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "system",
+                            "application",
+                            "platform",
+                            "process",
+                            "dataset",
+                            "job"
+                          ]
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "label": {
+                          "type": "string",
+                          "description": "Its name (empty when the token owner may not see it)"
+                        },
+                        "path": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "visible": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "id",
+                        "label",
+                        "path",
+                        "visible"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "collectorHost": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "system",
+                            "application",
+                            "platform",
+                            "process",
+                            "dataset",
+                            "job"
+                          ]
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "label": {
+                          "type": "string",
+                          "description": "Its name (empty when the token owner may not see it)"
+                        },
+                        "path": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "visible": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "id",
+                        "label",
+                        "path",
+                        "visible"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "destinationRef": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "system",
+                            "application",
+                            "platform",
+                            "process",
+                            "dataset",
+                            "job"
+                          ]
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "label": {
+                          "type": "string",
+                          "description": "Its name (empty when the token owner may not see it)"
+                        },
+                        "path": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "visible": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "id",
+                        "label",
+                        "path",
+                        "visible"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "points": {
+                  "type": "array",
+                  "items": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "interface": {
+                            "type": "string"
+                          },
+                          "address": {
+                            "type": "string",
+                            "description": "The asset’s address: the assignment’s override, else the profile’s"
+                          },
+                          "dataType": {
+                            "type": "string"
+                          },
+                          "unit": {
+                            "type": "string"
+                          },
+                          "added": {
+                            "type": "boolean",
+                            "description": "From the asset’s additions"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "interface",
+                          "address",
+                          "dataType",
+                          "unit",
+                          "added"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "coverage": {
+                  "type": "object",
+                  "properties": {
+                    "mapped": {
+                      "type": "integer"
+                    },
+                    "raw": {
+                      "type": "integer"
+                    },
+                    "unknown": {
+                      "type": "array",
+                      "items": {
+                        "type": "integer"
+                      },
+                      "description": "Raw items whose address no data point has"
+                    },
+                    "stale": {
+                      "type": "array",
+                      "items": {
+                        "type": "integer"
+                      },
+                      "description": "Items mapped to a data point the model no longer has"
+                    },
+                    "duplicates": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "dataPoint": {
+                            "type": "string"
+                          },
+                          "items": {
+                            "type": "array",
+                            "items": {
+                              "type": "integer"
+                            }
+                          }
+                        },
+                        "required": [
+                          "dataPoint",
+                          "items"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "notCollected": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "interface": {
+                            "type": "string"
+                          },
+                          "address": {
+                            "type": "string",
+                            "description": "The asset’s address: the assignment’s override, else the profile’s"
+                          },
+                          "dataType": {
+                            "type": "string"
+                          },
+                          "unit": {
+                            "type": "string"
+                          },
+                          "added": {
+                            "type": "boolean",
+                            "description": "From the asset’s additions"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "interface",
+                          "address",
+                          "dataType",
+                          "unit",
+                          "added"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "mapped",
+                    "raw",
+                    "unknown",
+                    "stale",
+                    "duplicates",
+                    "notCollected"
+                  ],
+                  "additionalProperties": false
+                },
+                "writes": {
+                  "type": "boolean"
+                },
+                "updatedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "ISO 8601 timestamp (UTC)"
+                },
+                "updatedBy": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "collector",
+                "dataPathId",
+                "interfaceId",
+                "mode",
+                "intervalMs",
+                "debounceMs",
+                "triggers",
+                "composition",
+                "destination",
+                "access",
+                "settings",
+                "items",
+                "notes",
+                "format",
+                "sourceFile",
+                "importId",
+                "notInSource",
+                "assetId",
+                "assetName",
+                "siteId",
+                "collectorRef",
+                "collectorHost",
+                "destinationRef",
+                "points",
+                "coverage",
+                "writes",
+                "updatedAt",
+                "updatedBy"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "points": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "interface": {
+                  "type": "string"
+                },
+                "address": {
+                  "type": "string",
+                  "description": "The asset’s address: the assignment’s override, else the profile’s"
+                },
+                "dataType": {
+                  "type": "string"
+                },
+                "unit": {
+                  "type": "string"
+                },
+                "added": {
+                  "type": "boolean",
+                  "description": "From the asset’s additions"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "interface",
+                "address",
+                "dataType",
+                "unit",
+                "added"
+              ],
+              "additionalProperties": false
+            },
+            "description": "The asset’s model with its own addresses"
+          },
+          "totals": {
+            "type": "object",
+            "properties": {
+              "mapped": {
+                "type": "integer"
+              },
+              "raw": {
+                "type": "integer"
+              },
+              "notCollected": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "mapped",
+              "raw",
+              "notCollected"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "asset",
+          "collections",
+          "points",
+          "totals"
+        ],
+        "additionalProperties": false
+      },
       "DbSchemaSnapshot": {
         "title": "DbSchemaSnapshot",
         "type": "object",
@@ -36198,6 +36928,70 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PlantAssetNetworkEntry"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/plant/assets/{assetId}/collections": {
+      "get": {
+        "operationId": "getPlantAssetCollections",
+        "summary": "Get the data collections of an asset",
+        "tags": [
+          "Plant"
+        ],
+        "description": "What collectors (gateways, ETL jobs) read from the asset: per collection its collector, mode, interval, triggers, destination, access patterns and items – the address read, the collector's name for it and the data point it is mapped to (or none) – with the coverage (mapped, raw, data points no collection reads). Only while the plant registry module is on (Settings → Modules); otherwise 404.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "assetId",
+            "required": true,
+            "description": "Asset id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlantAssetCollectionsEntry"
                 }
               }
             },

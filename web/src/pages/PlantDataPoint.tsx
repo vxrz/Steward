@@ -13,6 +13,7 @@ import { Field } from '../components/records/common';
 import { plantKeys } from '../queryKeys';
 import { PreviewBadge, useNameOf, usePlantLabel } from '../components/plant/common';
 import { AssetBriefLink, Breakable, ProtocolBadge, rateText, useAddressHint } from '../components/plant/data';
+import { PointCollections } from '../components/plant/CollectorCollections';
 
 // the lineage picture (#230) loads with the graph library, after the page itself
 const PointLineageView = lazy(() => import('./plant/views/AssetFlowView').then((m) => ({ default: m.PointLineageView })));
@@ -253,6 +254,9 @@ export function PlantDataPointPage() {
           </Paper>
         </Grid.Col>
       </Grid>
+      <Box mt="lg">
+        <PointCollections profileId={d.profile.id} pointId={p.id} />
+      </Box>
       <Box mt="lg">
         <Suspense fallback={null}>
           <PointLineageView profileId={d.profile.id} pointId={p.id} pointName={p.name} />

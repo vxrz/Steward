@@ -839,6 +839,7 @@ const EXPECT: Record<string, Access> = {
   // the OT network of a site and of an asset (#220): follows the site
   'GET /api/v1/plant/sites/:siteId/network': PLANT,
   'GET /api/v1/plant/assets/:assetId/network': PLANT,
+  'GET /api/v1/plant/assets/:assetId/collections': PLANT,
   // database schemas (#222): of the demo database platform (who sees it) and of the matrix system (everyone);
   'GET /api/v1/platforms/:platformId/schema/snapshots': USE,
   // platform costs (#226): the overview for everyone (each sees what they may see); one scope as in the web app
@@ -1096,6 +1097,17 @@ const EXPECT: Record<string, Access> = {
   'POST /api/plant/assets/:assetId/paths': DESIGN,
   'PUT /api/plant/assets/:assetId/paths/:pathId': DESIGN,
   'DELETE /api/plant/assets/:assetId/paths/:pathId': DESIGN,
+  // 0.11.0 (ADR 0019): data collections follow the asset's site like its data paths
+  'GET /api/plant/assets/:assetId/collections': PLANT,
+  'POST /api/plant/assets/:assetId/collections': DESIGN,
+  'GET /api/plant/assets/:assetId/collections/:collectionId': PLANT,
+  'PUT /api/plant/assets/:assetId/collections/:collectionId': DESIGN,
+  'DELETE /api/plant/assets/:assetId/collections/:collectionId': DESIGN,
+  'GET /api/plant/assets/:assetId/collections/:collectionId/mapping': PLANT,
+  'POST /api/plant/assets/:assetId/collections/import/preview': DESIGN,
+  'POST /api/plant/assets/:assetId/collections/import': DESIGN,
+  'GET /api/plant/collections': PLANT,
+  'GET /api/plant/profiles/:profileId/points/:pointId/collections': PLANT,
 };
 
 /** Routes that only work with an interactive session: an API token must not manage identities, the vault or sign-in. */
@@ -1464,6 +1476,7 @@ function fill(url: string): string {
       .replace(/:buildingId/g, fx.building!)
       .replace(/:profileId/g, 'matrix-profile')
       .replace(/:pointId/g, 'matrix_point')
+      .replace(/:collectionId/g, 'matrix-collection')
       .replace(/:kpiId/g, 'matrix-kpi')
       .replace(
         /:linkId/g,
@@ -1528,6 +1541,7 @@ function fill(url: string): string {
 
 /** Query strings some routes need. */
 const QUERY: Record<string, string> = {
+  'GET /api/plant/collections': '?collectorKind=job&collectorRef=matrix-job',
   'GET /api/records/:id/timeline': '?from=2026-01-01T00:00:00Z&to=2026-01-02T00:00:00Z',
   'GET /api/link-targets': '?kind=record&q=',
   'GET /api/backlinks': '', // filled in beforeAll (needs the record id)
@@ -1625,6 +1639,16 @@ const bodies = (): Record<string, unknown> => ({
   'POST /api/plant/assets/:assetId/links': { url: 'https://cmdb.example.com/9', label: 'x' },
   'PATCH /api/plant/assets/:assetId/links/:linkId': { note: 'x' },
   'POST /api/plant/import/preview': { files: [{ name: 'm.yaml', content: 'version: 1\nsites: []\n' }], mode: 'add' },
+  'POST /api/plant/assets/:assetId/collections': { id: 'matrix-new-collection', name: 'New collection', collector: { kind: 'job', ref: 'matrix-job' } },
+  'PUT /api/plant/assets/:assetId/collections/:collectionId': { name: 'Matrix collection', collector: { kind: 'job', ref: 'matrix-job' } },
+  'POST /api/plant/assets/:assetId/collections/import/preview': {
+    collector: { kind: 'job', ref: 'matrix-job' },
+    files: [{ name: 'm.csv', content: 'collection,source_address,output_name\nc,ns=2;s=X,x\n' }],
+  },
+  'POST /api/plant/assets/:assetId/collections/import': {
+    collector: { kind: 'job', ref: 'matrix-job' },
+    files: [{ name: 'm.csv', content: 'collection,source_address,output_name\nc,ns=2;s=X,x\n' }],
+  },
   'POST /api/plant/profiles': { id: 'matrix-new-profile', name: 'New profile' },
   'PUT /api/plant/profiles/:profileId': { name: 'Matrix profile' },
   'POST /api/plant/kpis': { id: 'matrix-new-kpi', name: 'New KPI' },
@@ -1847,6 +1871,13 @@ beforeAll(async () => {
   });
   await a('POST', '/plant/kpis', { id: 'matrix-kpi', name: 'Matrix KPI', inputs: [{ profile: 'matrix-profile', dataPoints: ['matrix_point'] }] });
   await a('PUT', '/plant/assets/matrix-asset/assignment', { profileId: 'matrix-profile', interfaces: [{ interface: 'opc' }] });
+  // 0.11.0: a data collection of the asset
+  await a('POST', '/plant/assets/matrix-asset/collections', {
+    id: 'matrix-collection',
+    name: 'Matrix collection',
+    collector: { kind: 'job', ref: 'matrix-job' },
+    items: [{ address: 'ns=2;s=X', outputName: 'x', dataPoint: 'matrix_point' }],
+  });
   await a('PUT', '/plant/assets/matrix-asset/image', { contentBase64: tinyPng().toString('base64') });
   const siteLink = (await a('POST', '/plant/sites/matrix-site/links', { url: 'https://cmdb.example.com/4', label: 'x' })).id;
   const assetLink = (await a('POST', '/plant/assets/matrix-asset/links', { url: 'https://cmdb.example.com/5', label: 'x' })).id;

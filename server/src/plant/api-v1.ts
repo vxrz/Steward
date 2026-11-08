@@ -12,6 +12,7 @@ import * as svc from './service.js';
 import * as cat from './catalogue.js';
 import { getAssignment } from './assignments.js';
 import { assetNetwork, siteNetwork } from './network.js';
+import { assetCollections } from './collections.js';
 import { exportYaml } from './import.js';
 import type { ApiPrincipal } from '../api/v1/auth.js';
 import { PlantAssetListQuery, PlantCatalogueListQuery, PlantCheckListQuery, PlantExportQuery, PlantSiteListQuery } from './api-schemas.js';
@@ -298,6 +299,28 @@ export function plantApiRoutes(get: Get): void {
     async (req) => {
       const { canManage: _c, vlans: _v, checksSource: _s, ...n } = found(() => assetNetwork((req.params as { assetId: string }).assetId), 'Asset');
       return n;
+    },
+  );
+
+  get(
+    '/plant/assets/:assetId/collections',
+    {
+      operationId: 'getPlantAssetCollections',
+      tag: 'Plant',
+      summary: 'Get the data collections of an asset',
+      description: `What collectors (gateways, ETL jobs) read from the asset: per collection its collector, mode, interval, triggers, destination, access patterns and items – the address read, the collector's name for it and the data point it is mapped to (or none) – with the coverage (mapped, raw, data points no collection reads). ${MODULE}`,
+      params: { assetId: 'Asset id' },
+      response: { $ref: 'PlantAssetCollectionsEntry#' },
+    },
+    async (req) => {
+      const {
+        canManage: _c,
+        canManageCatalogue: _m,
+        interfaces: _i,
+        dataPaths: _d,
+        ...x
+      } = found(() => assetCollections((req.params as { assetId: string }).assetId), 'Asset');
+      return x;
     },
   );
 

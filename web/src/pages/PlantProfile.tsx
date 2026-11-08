@@ -211,7 +211,7 @@ export function PlantProfilePage() {
                             {b.name}
                           </Anchor>
                         ) : (
-                          <Text size="sm" c="orange.8" className="mono">
+                          <Text size="sm" className="mono">
                             {b.id}
                           </Text>
                         )}
@@ -264,7 +264,7 @@ export function PlantProfilePage() {
                     </Stack>
                   )}
                   {(p.unusedOverrides.interfaces.length > 0 || p.unusedOverrides.points.length > 0) && (
-                    <Text size="xs" c="orange.8" data-testid="profile-unused-overrides">
+                    <Text size="xs" data-testid="profile-unused-overrides">
                       {t('plantModel:unused', { items: [...p.unusedOverrides.interfaces, ...p.unusedOverrides.points].join(', ') })}
                     </Text>
                   )}

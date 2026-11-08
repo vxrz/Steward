@@ -16,6 +16,8 @@ import {
   PLANT_PROTOCOLS,
   ADDRESS_TYPES,
   COLLECTOR_KINDS,
+  COLLECTION_DESTINATION_KINDS,
+  COLLECTION_MODES,
   CONDUIT_DIRECTIONS,
   DESTINATION_KINDS,
   DEVICE_CONFIDENCE,
@@ -635,6 +637,74 @@ export const PlantAssetNetworkEntry = z.object({
   dataPaths: z.array(DataPath),
 });
 
+// ---------- 0.11.0: data collections (ADR 0019) ----------
+
+const CollectionPoint = z.object({
+  id: z.string(),
+  name: z.string(),
+  interface: z.string(),
+  address: z.string().describe('The asset’s address: the assignment’s override, else the profile’s'),
+  dataType: z.string(),
+  unit: z.string(),
+  added: z.boolean().describe('From the asset’s additions'),
+});
+const Collection = z.object({
+  id: z.string(),
+  name: z.string(),
+  collector: z.object({ kind: z.enum(COLLECTOR_KINDS), ref: z.string(), host: z.string().nullable() }),
+  dataPathId: z.string().nullable(),
+  interfaceId: z.string().nullable().describe('The interface of the asset’s model it reads; null: unknown'),
+  mode: z.enum(COLLECTION_MODES),
+  intervalMs: z.number().int().nullable(),
+  debounceMs: z.number().int().nullable(),
+  triggers: z.array(z.object({ name: z.string(), condition: z.string(), referencePoint: z.string(), referenceValue: z.string() })),
+  composition: z.string(),
+  destination: z.object({ kind: z.enum(COLLECTION_DESTINATION_KINDS), ref: z.string(), path: z.string(), notes: z.string() }).nullable(),
+  access: z
+    .object({ read: z.array(z.string()), write: z.array(z.string()), create: z.array(z.string()), delete: z.array(z.string()) })
+    .describe('The collector’s address patterns; write, create and delete change the machine'),
+  settings: z.array(z.object({ key: z.string(), value: z.string() })),
+  items: z.array(
+    z.object({
+      address: z.string(),
+      outputName: z.string().describe('The collector’s name for the value'),
+      outputType: z.string(),
+      dataPoint: z.string().nullable().describe('The data point of the asset’s model; null: raw'),
+      transform: z.object({ note: z.string(), scale: z.number().nullable(), offset: z.number().nullable(), cast: z.string() }),
+      notes: z.string(),
+    }),
+  ),
+  notes: z.string(),
+  format: z.string().describe('The importer that wrote it (empty: by hand)'),
+  sourceFile: z.string(),
+  ...source,
+  assetId: z.string(),
+  assetName: z.string(),
+  siteId: z.string(),
+  collectorRef: ItemRef.nullable(),
+  collectorHost: ItemRef.nullable(),
+  destinationRef: ItemRef.nullable(),
+  points: z.array(CollectionPoint.nullable()),
+  coverage: z.object({
+    mapped: z.number().int(),
+    raw: z.number().int(),
+    unknown: z.array(z.number().int()).describe('Raw items whose address no data point has'),
+    stale: z.array(z.number().int()).describe('Items mapped to a data point the model no longer has'),
+    duplicates: z.array(z.object({ dataPoint: z.string(), items: z.array(z.number().int()) })),
+    notCollected: z.array(CollectionPoint),
+  }),
+  writes: z.boolean(),
+  updatedAt: ts(),
+  updatedBy: z.string(),
+});
+
+export const PlantAssetCollectionsEntry = z.object({
+  asset: z.object({ id: z.string(), name: z.string(), siteId: z.string() }),
+  collections: z.array(Collection),
+  points: z.array(CollectionPoint).describe('The asset’s model with its own addresses'),
+  totals: z.object({ mapped: z.number().int(), raw: z.number().int(), notCollected: z.number().int() }),
+});
+
 export const PLANT_COMPONENTS: Record<string, ZodTypeAny> = {
   PlantCheckEntry,
   PlantSiteEntry,
@@ -650,4 +720,5 @@ export const PLANT_COMPONENTS: Record<string, ZodTypeAny> = {
   PlantAssignmentEntry,
   PlantSiteNetworkEntry,
   PlantAssetNetworkEntry,
+  PlantAssetCollectionsEntry,
 };

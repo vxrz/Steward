@@ -36,6 +36,35 @@ import { briefOf, kpiNotFound, pointNotFound, profileNotFound } from './catalogu
 import { allAssignments, allKpis, allProfiles, assignmentRowOf, assignmentValuesOf, pointsOf, profileRowOf, resolvedProfile } from './data-model.js';
 import { assignmentChecks, deliveries, inputGaps } from './checks.js';
 import { assetModel, isOrExtends } from './resolve.js';
+import { collectionRows, collectionValuesOf, collectorKey } from './collections-model.js';
+import type { PlantCollectionValues } from '@sm/shared';
+
+/** A collection's destination as a node of a flow (a dataset, else a target); null: none documented. */
+function destinationNode(g: GraphBuilder, c: PlantCollectionValues): string | null {
+  const d = c.destination;
+  if (!d) return null;
+  if (d.kind === 'dataset') {
+    const id = g.node({ id: `ds:${d.ref}`, kind: 'dataset', label: d.ref, detail: '', path: null, live: datasetLive(d.ref) });
+    g.nodes.get(id)!.path = g.nodes.get(id)!.live?.path ?? null;
+    return id;
+  }
+  const label = d.kind === 'system' ? (resolveTarget('system', d.ref)?.label ?? '') : d.ref;
+  return g.node({
+    id: `tgt:${norm(`${d.kind}:${d.ref}`)}`,
+    kind: 'target',
+    label: label || '–',
+    detail: d.path,
+    path: null,
+    hidden: d.kind === 'system' && !label,
+  });
+}
+
+/** The collector of a collection as a node (one per collector; its label as the reader may see it). */
+function collectorNode(g: GraphBuilder, c: PlantCollectionValues, detail: string): string {
+  const k = c.collector;
+  const label = k.kind === 'job' ? k.ref : (resolveTarget(k.kind, k.ref)?.label ?? '');
+  return g.node({ id: `coll:${collectorKey(k)}`, kind: 'collector', label: label || '–', detail, path: null, hidden: k.kind !== 'job' && !label });
+}
 import { siteNetwork } from './network.js';
 import { monitorState, monitorVisible, readableDataset } from './live.js';
 
@@ -488,6 +517,8 @@ export function assetFlow(assetId: string): PlantFlowGraph {
 
   // per data point: the nodes its data reaches last (where a KPI reads it), and its path
   const ends = new Map<string, string[]>();
+  // the data collections that read the asset's data points (0.11.0): interface → collector → destination
+  const collections = collectionRows(assetId).map(collectionValuesOf);
   const pathOf = new Map<string, PlantFlowPath>();
   // the asset's model: its resolved profile with the data points and interfaces it adds (0.11.0)
   const model = assetModel(a, profile);
@@ -542,8 +573,19 @@ export function assetFlow(assetId: string): PlantFlowGraph {
           path.edges.push(g.edge(ifId, id, point.id));
           return id;
         };
+        for (const c of collections.filter((x) => x.items.some((i) => i.dataPoint === point.id))) {
+          const cId = collectorNode(g, c, c.name);
+          if (!path.nodes.includes(cId)) path.nodes.push(cId);
+          path.edges.push(g.edge(ifId, cId, point.id));
+          const dId = destinationNode(g, c);
+          if (dId) {
+            if (!path.nodes.includes(dId)) path.nodes.push(dId);
+            path.edges.push(g.edge(cId, dId, point.id));
+          }
+          last.push(dId ?? cId);
+        }
         if (!pubs.length) {
-          last.push(client ? collector(client) : ifId);
+          if (!last.length) last.push(client ? collector(client) : ifId);
         } else
           for (const p of pubs) {
             const by = p.publishedBy.trim() || client;
@@ -682,6 +724,17 @@ export function pointLineage(profileId: string, pointId: string): PlantFlowGraph
       if (!path.edges.includes(e)) path.edges.push(e);
     };
     const last: string[] = [];
+    // the collections that read it on this asset (0.11.0): asset → collector → destination
+    if (d.delivers)
+      for (const c of collectionRows(asset.id)
+        .map(collectionValuesOf)
+        .filter((x) => x.items.some((i) => i.dataPoint === pointId))) {
+        const cId = collectorNode(g, c, '');
+        add(cId, g.edge(holder, cId, asset.id));
+        const dId = destinationNode(g, c);
+        if (dId) add(dId, g.edge(cId, dId, asset.id));
+        last.push(dId ?? cId);
+      }
     if (d.delivers)
       for (const p of a.publications.filter((x) => x.dataPoint === pointId)) {
         const target = p.target.trim() || '–';

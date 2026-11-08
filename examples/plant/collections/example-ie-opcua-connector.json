@@ -1,0 +1,58 @@
+{
+  "UIConfig": {
+    "datapoints": {
+      "OPCUA": [
+        {
+          "name": "mill-line-1",
+          "OPCUAUrl": "opc.tcp://192.0.2.10",
+          "portNumber": 4840,
+          "authenticationMode": "Anonymous",
+          "securityPolicy": "None",
+          "encryptionMode": "None",
+          "isBrowse": false,
+          "tags": [
+            {
+              "name": "ProgramStatus",
+              "address": "ns=2;s=Channel1.ProgramStatus",
+              "dataType": "Int",
+              "acquisitionCycle": 1000,
+              "acquisitionMode": "CyclicOnChange",
+              "comments": "",
+              "accessMode": "r"
+            },
+            {
+              "name": "OperatingMode",
+              "address": "ns=2;s=Channel1.OperatingMode",
+              "dataType": "Int",
+              "acquisitionCycle": 1000,
+              "acquisitionMode": "CyclicOnChange",
+              "comments": "",
+              "accessMode": "r"
+            },
+            {
+              "name": "SpindleSpeed",
+              "address": "ns=2;s=Spindle1.ActualSpeed",
+              "dataType": "Real",
+              "acquisitionCycle": 100,
+              "acquisitionMode": "Cyclic",
+              "comments": "rpm",
+              "accessMode": "r"
+            },
+            {
+              "name": "FeedOverride",
+              "address": "ns=2;s=Channel1.FeedOverride",
+              "dataType": "Real",
+              "acquisitionCycle": 1000,
+              "acquisitionMode": "CyclicOnChange",
+              "comments": "",
+              "accessMode": "rw"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "SystemData": {
+    "configVersion": "1.3.0"
+  }
+}
