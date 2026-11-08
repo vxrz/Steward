@@ -12,6 +12,7 @@ import { ListPage, useStoredListView } from '../components/page/ListPage';
 import { plantKeys } from '../queryKeys';
 import { AssetStatusBadge, NotInSourceBadge, PreviewBadge, useNameOf, usePlantConfig, usePlantLabel } from '../components/plant/common';
 import { AssetFormModal, flatNodes, nodePath, useHierarchy } from '../components/plant/forms';
+import { BulkBar, SelectAllBox, SelectBox, useSelection } from '../components/plant/bulk';
 
 // profile and data point (#219): "which assets deliver data point X" lands here from a data point or the search
 const FILTERS = ['site', 'node', 'domain', 'status', 'tag', 'profile', 'dataPoint'] as const;
@@ -77,6 +78,10 @@ export function PlantAssetsPage() {
     (a) => !needle || [a.id, a.name, a.manufacturer, a.model, a.role, a.domain, ...a.tags].some((x) => x.toLowerCase().includes(needle)),
   );
   const active = FILTERS.filter((f) => filter[f]).length + (needle ? 1 : 0);
+  // Edit selected / Remove selected (0.11.0): for whoever manages a site; entries they may not change are skipped
+  const canBulk = !!cfg.data?.canManageSome;
+  const shownIds = list.map((a) => a.id);
+  const sel = useSelection(shownIds);
   const plural = label('asset', true);
   const none = all.isSuccess && all.data.length === 0;
   const building = (a: PlantAssetSummary) =>
@@ -210,12 +215,22 @@ export function PlantAssetsPage() {
           {t('assets.count', { count: list.length })}
         </Text>
       )}
+      {canBulk && list.length > 0 && (
+        <BulkBar
+          kind="asset"
+          sel={sel}
+          visible={shownIds}
+          selectAll={view.cards}
+          entries={list.map((a) => ({ id: a.id, name: a.name, siteId: a.location.site.id }))}
+        />
+      )}
       {list.length > 0 && view.cards && (
         <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} data-testid="plant-asset-cards">
           {list.map((a) => (
             <Paper key={a.id} withBorder p="md" component="article" aria-labelledby={`asset-${a.id}`}>
               <Stack gap={6}>
                 <Group gap="xs" justify="space-between" wrap="nowrap" align="flex-start">
+                  {canBulk && <SelectBox sel={sel} id={a.id} name={a.name} />}
                   <Anchor id={`asset-${a.id}`} component={Link} to={`/plant/assets/${encodeURIComponent(a.id)}`} fw={600} style={{ overflowWrap: 'anywhere' }}>
                     {a.name}
                   </Anchor>
@@ -246,6 +261,11 @@ export function PlantAssetsPage() {
           <Table highlightOnHover fz="sm" aria-label={plural} data-testid="plant-asset-table">
             <Table.Thead>
               <Table.Tr>
+                {canBulk && (
+                  <Table.Th w={36}>
+                    <SelectAllBox sel={sel} ids={shownIds} />
+                  </Table.Th>
+                )}
                 <Table.Th>{t('form.name')}</Table.Th>
                 <Table.Th>{t('asset.status')}</Table.Th>
                 <Table.Th>{t('asset.location')}</Table.Th>
@@ -257,6 +277,11 @@ export function PlantAssetsPage() {
             <Table.Tbody>
               {list.map((a) => (
                 <Table.Tr key={a.id} className="clickable" onClick={() => navigate(`/plant/assets/${encodeURIComponent(a.id)}`)}>
+                  {canBulk && (
+                    <Table.Td onClick={(e) => e.stopPropagation()}>
+                      <SelectBox sel={sel} id={a.id} name={a.name} />
+                    </Table.Td>
+                  )}
                   <Table.Td>
                     <Anchor component={Link} to={`/plant/assets/${encodeURIComponent(a.id)}`} fw={500} size="sm" onClick={(e) => e.stopPropagation()}>
                       {a.name}
