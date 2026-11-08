@@ -6,6 +6,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.10.1] - 2026-11-08
+
+Steward 0.10.1 fixes what a whole-application review of 0.10.0 found. A single sign-on is now bound to the browser that started it (login CSRF), and secrets that would outlive an API token – webhook trigger secrets, push tokens, monitor gateways, heartbeat secrets, status page links – and the MCP server switch need a signed-in session. SQLite gets the single-instance guard PostgreSQL already had, and a new readiness probe for routing, `/api/ready/traffic`, keeps a locked or new instance reachable behind Kubernetes and load balancers. The web app no longer crashes for browser locales such as `en-US@posix`. See _Check before updating_ under Changed.
+
 ### Added
 
 - **Readiness probe for routing**: `GET /api/ready/traffic` answers `200` whenever Steward serves the web UI and the API, also while the vault is locked and before the first set-up. It answers `503` only while Steward shuts down or waits for another instance to release the database. Use it as the Kubernetes `readinessProbe` and for load balancer checks; `/api/ready` stays as it is, for alerts ([docs/INSTALL.md](docs/INSTALL.md#health-and-readiness)). _System status_ lists it with the other health-check addresses.
@@ -1058,7 +1062,8 @@ The first public version.
 - Monitors adopt the same policies: http/tcp/ping checks and webhook/Zabbix outputs are subject to the outbound policy (DNS-pinned; raw `host:port` checks need an explicit allow-list entry such as an IP/CIDR and are not inferred from platform origins); monitor http checks follow redirects manually and drop custom headers cross-origin; check error messages no longer echo the upstream response body; the guarded expression evaluation bounds condition/heartbeat/freshness expressions (CPU, memory via a `$pad` cap, and regex time); and gateway heartbeat batches share a global evaluation-concurrency cap (`SM_MONITOR_EVAL_CONCURRENCY`).
 - Semgrep findings triaged (all rule sets of the CI job, see [docs/SECURITY-PIPELINE.md](docs/SECURITY-PIPELINE.md#semgrep-triage)): the dev, PostgreSQL-test and install-script helpers start npm without a shell, also on Windows (`scripts/npm-command.mjs`); monitor-gateway key patterns (glob) and the API path editor match without regular expressions built from configured data; translation lookups ignore inherited properties; the CI gate also blocks HIGH/CRITICAL findings; SARIF uploads get the `actions: read` permission they need.
 
-[Unreleased]: https://github.com/vxrz/steward/compare/v0.10.0...HEAD
+[Unreleased]: https://github.com/vxrz/steward/compare/v0.10.1...HEAD
+[0.10.1]: https://github.com/vxrz/steward/compare/v0.10.0...v0.10.1
 [0.10.0]: https://github.com/vxrz/steward/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/vxrz/steward/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/vxrz/steward/compare/v0.7.0...v0.8.0
