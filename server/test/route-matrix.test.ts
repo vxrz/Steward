@@ -241,7 +241,7 @@ const EXPECT: Record<string, Access> = {
   'POST /api/platform-types': ADMIN,
   'POST /api/platform-types/import': ADMIN,
   'DELETE /api/platform-types/:kind': ADMIN,
-  'GET /api/platform-types/:kind/export': ALL, // connector types are shareable templates (see docs/REVIEW-2026-10.md)
+  'GET /api/platform-types/:kind/export': ALL, // connector types are shareable templates (see docs/reviews/REVIEW-2026-10.md)
   'GET /api/platforms': ALL,
   'POST /api/platforms': ADMIN,
   'GET /api/platforms/:id': USE,

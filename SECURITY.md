@@ -125,6 +125,6 @@ The example library in `examples/libraries/` is signed with a test key
 
 The CI runs secret scanning, dependency and container vulnerability scans,
 static analysis (Semgrep, CodeQL), workflow linting and OpenSSF Scorecard; see
-[docs/SECURITY-PIPELINE.md](docs/SECURITY-PIPELINE.md). The security model
+[docs/ci/SECURITY-PIPELINE.md](docs/ci/SECURITY-PIPELINE.md). The security model
 of the application is described in the [README](README.md#security-model), and
 what optional error reporting sends in [docs/ERROR-REPORTING.md](docs/ERROR-REPORTING.md).

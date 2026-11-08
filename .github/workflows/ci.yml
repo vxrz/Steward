@@ -8,7 +8,7 @@ on:
 permissions:
   contents: read
 
-# Hardening (see docs/SECURITY-PIPELINE.md): actions pinned to commit SHAs, no persisted git credentials, time limit
+# Hardening (see docs/ci/SECURITY-PIPELINE.md): actions pinned to commit SHAs, no persisted git credentials, time limit
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}

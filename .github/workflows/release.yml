@@ -14,7 +14,7 @@ on:
 permissions:
   contents: read
 
-# Hardening (see docs/SECURITY-PIPELINE.md): actions pinned to commit SHAs, no persisted git credentials,
+# Hardening (see docs/ci/SECURITY-PIPELINE.md): actions pinned to commit SHAs, no persisted git credentials,
 # no dependency cache for release builds (cache poisoning), time limits; releases are never cancelled.
 concurrency:
   group: release-${{ github.ref }}

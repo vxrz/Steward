@@ -4,10 +4,10 @@
 # for these files. All checks run in parallel; each prints a readable table in its log.
 #
 # Also weekly (new advisories appear without code changes): create a cron named "weekly"
-# in the repository settings (Settings → Crons, e.g. "17 5 * * 1") – docs/WOODPECKER.md.
+# in the repository settings (Settings → Crons, e.g. "17 5 * * 1") – docs/ci/WOODPECKER.md.
 # The scanners come from scripts/security/install-tools.sh (pinned versions, SHA-256 checked),
 # Semgrep from its image pinned by digest, zizmor from PyPI with --require-hashes.
-# No secrets. Findings and how to suppress them: docs/SECURITY-PIPELINE.md.
+# No secrets. Findings and how to suppress them: docs/ci/SECURITY-PIPELINE.md.
 
 variables:
   # buildpack-deps:bookworm-scm (Debian 12 with bash, curl, git) – runs install-tools.sh

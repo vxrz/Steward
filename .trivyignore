@@ -1,4 +1,4 @@
-# Trivy ignore list (see docs/SECURITY-PIPELINE.md). Every entry needs a reason and an expiry date.
+# Trivy ignore list (see docs/ci/SECURITY-PIPELINE.md). Every entry needs a reason and an expiry date.
 
 
 # @azure/msal-node 6.0.1 (GHSA-xcx6-jx8p-x3h5), only via tedious → @azure/identity 4.14.0, the SQL Server driver of
