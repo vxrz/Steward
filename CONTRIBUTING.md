@@ -103,6 +103,23 @@ A breaking change gets a `!` after the type/scope (`feat(api)!: …`) and a `BRE
 - Describe what changed and why, and how you tested it. Add screenshots for UI changes (light and dark, desktop and phone width when layout changes).
 - Update the docs and add an entry under **Unreleased** in [CHANGELOG.md](CHANGELOG.md) for user-visible changes.
 
+### Changelog entries
+
+[CHANGELOG.md](CHANGELOG.md) follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/): entries go under **Unreleased**, in the sections _Added_, _Changed_, _Deprecated_, _Removed_, _Fixed_ and _Security_.
+
+- **One or two sentences per entry:** what changed for the person using or running Steward, and a link to the docs page with the details. How it works, limits and edge cases belong in the docs, not in the changelog.
+- **No nested lists of implementation details.** If an entry needs more than two sentences, the docs page is missing something.
+- **Check before updating:** anything an administrator has to know or do before updating – a new default, a migration that takes long, a setting that moves, a deprecated route, a changed permission – gets a short note that starts with **Check before updating:**, so it can be found at a glance.
+- Write it for users: name the page or setting (_Settings → Backups_), not the function or table.
+
+Example:
+
+```markdown
+### Changed
+
+- **Backups** keep 14 copies by default instead of 30 ([BACKUPS.md](docs/BACKUPS.md#3-passphrase-schedule-retention)). **Check before updating:** an installation that relied on the old default keeps 30 only when it is set under _Settings → Backups_.
+```
+
 ### Code
 
 - TypeScript strict mode. No `any` unless unavoidable and commented.
@@ -143,6 +160,8 @@ A breaking change gets a `!` after the type/scope (`feat(api)!: …`) and a `BRE
 - For an integration with an external system, add a mock and a contract or example test.
 
 ## Releasing (maintainers)
+
+Which versions get fixes and how releases are tested: [docs/RELEASES.md](docs/RELEASES.md). Tag a release only from a commit on `main` whose CI run is green.
 
 1. Move the **Unreleased** entries in `CHANGELOG.md` to a new version section and update `version` in the root `package.json` and `server/src/config.ts` ([Semantic Versioning](https://semver.org/)), and the image tag (`ghcr.io/vxrz/steward:<version>`, also in their comments) in `docker-compose.yml` and `docker-compose.postgres.yml` (a test checks that they match). The deployment docs write `<version>` and need no change.
 2. Commit: `chore(release): v0.2.0` and open the release PR with the release template (`?template=release.md`): it carries the checklist and a short OWASP ASVS level 2 security self-review of what changed in the release.
