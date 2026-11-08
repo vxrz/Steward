@@ -134,6 +134,10 @@ describe('graceful shutdown', () => {
     const ready = await fetch(`${s.base}/api/ready`);
     expect(ready.status).toBe(503);
     expect(JSON.stringify(await ready.json())).toMatch(/Shutting down/);
+    // the routing probe too: load balancers stop sending people here
+    const traffic = await fetch(`${s.base}/api/ready/traffic`);
+    expect(traffic.status).toBe(503);
+    expect(await traffic.json()).toEqual({ ready: false, message: 'Shutting down' });
     await expect(s.api('POST', '/runs', { processId: 'short-step' })).rejects.toMatchObject({ status: 503, body: { code: 'SHUTTING_DOWN' } });
     const report = await stopping;
     const took = Date.now() - t0;

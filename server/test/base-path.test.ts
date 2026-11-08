@@ -158,6 +158,7 @@ describe('behind a reverse proxy under /steward', () => {
     expect(await health.json()).toMatchObject({ ok: true });
     expect(health.headers.get('strict-transport-security')).toContain('max-age=');
     expect((await get(`${P}/api/ready`)).status).toBe(200);
+    expect((await get(`${P}/api/ready/traffic`)).status).toBe(200);
     expect((await get(`${P}/api/auth/status`)).status).toBe(200);
     expect((await get(`${P}/api/runs`)).status).toBe(401);
   });
@@ -222,6 +223,7 @@ describe('behind a reverse proxy under /steward', () => {
     try {
       expect((await get(`${stripping.url}/steward/api/health`)).status).toBe(404);
       expect((await get(`${stripping.url}/steward/api/ready`)).status).toBe(404);
+      expect((await get(`${stripping.url}/steward/api/ready/traffic`)).status).toBe(404);
       const hints = warn.mock.calls.filter((c) => String(c[1] ?? '').includes('outside the base path'));
       expect(hints).toHaveLength(1);
       expect(String(hints[0]![1])).toMatch(/prefix stripping/);

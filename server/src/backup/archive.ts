@@ -111,7 +111,9 @@ export function dataFiles(root = config.dataDir): { rel: string; abs: string }[]
       const r = rel ? `${rel}/${d.name}` : d.name;
       const abs = path.join(dir, d.name);
       if (!rel && skipTop.has(d.name)) continue;
-      if (dbFile && [dbFile, `${dbFile}-wal`, `${dbFile}-shm`, `${dbFile}-journal`].includes(path.resolve(abs))) continue;
+      // the database goes in as a snapshot; its instance lock (database/sqlite-lock.ts) belongs to the running process
+      if (dbFile && [dbFile, `${dbFile}-wal`, `${dbFile}-shm`, `${dbFile}-journal`, `${dbFile}.lock`, `${dbFile}.lock.json`].includes(path.resolve(abs)))
+        continue;
       if (d.isDirectory()) walk(abs, r);
       else if (d.isFile()) out.push({ rel: r, abs });
     }

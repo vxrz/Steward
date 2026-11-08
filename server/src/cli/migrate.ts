@@ -77,6 +77,8 @@ type Values = {
 };
 
 let closeDb: (() => void) | undefined;
+/** Gives the SQLite instance lock back when the command ends (tests run several commands in one process). */
+let releaseLock: (() => void) | undefined;
 
 export async function runMigrate(argv: string[], command = 'steward migrate'): Promise<number> {
   let parsed;
@@ -115,6 +117,8 @@ export async function runMigrate(argv: string[], command = 'steward migrate'): P
     return EXIT_FAILURE;
   } finally {
     closeDb?.();
+    releaseLock?.();
+    releaseLock = undefined;
   }
 }
 
@@ -147,6 +151,16 @@ async function execute(sub: 'export' | 'inspect' | 'import', file: string | unde
   const { vault } = await import('../vault.js');
   if (!vault().initialized)
     throw new Failure(`no Steward installation in ${config.dataDir} (no vault.json) – set it up first, or use --data-dir / SM_DATA_DIR`);
+  // SQLite: the instance lock, held until the command ends (as in admin.ts)
+  if (config.database.kind === 'sqlite') {
+    const { lockForCommand } = await import('../database/sqlite-lock.js');
+    try {
+      const lock = lockForCommand(config.database.file, config.version);
+      releaseLock = () => lock.release();
+    } catch (e) {
+      throw new Failure((e as Error).message);
+    }
+  }
   const { db } = await import('../db.js');
   const d = db();
   closeDb = () => d.close();

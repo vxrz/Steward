@@ -18,6 +18,7 @@ import path from 'node:path';
 import { config, env } from '../config.js';
 import { Db } from '../db.js';
 import { describeTarget, parseDatabaseTarget, quoteIdent, type DatabaseTarget } from '../database/sql.js';
+import { lockForCommand, type SqliteInstanceLock } from '../database/sqlite-lock.js';
 import { EVIDENCE_TABLES, noDeleteTrigger } from '../migrations/compliance.js';
 import { IMMUTABLE_RECORD_TABLES, immutableRowTriggers } from '../migrations/records.js';
 import { IMMUTABLE_MOVE_TABLES } from '../migrations/instance-moves.js';
@@ -249,9 +250,14 @@ export function main(argv: string[]): number {
     const t = parseDatabaseTarget(spec, { schema: schema ?? env.SM_DATABASE_SCHEMA, ca: env.SM_DATABASE_CA });
     return t.kind === 'sqlite' ? { kind: 'sqlite', file: path.resolve(cwd, t.file) } : t;
   };
+  const locks: SqliteInstanceLock[] = [];
   try {
     const from = target(arg(argv, '--from') ?? `sqlite:${path.join(dataDir, 'service-manager.db')}`, arg(argv, '--from-schema'), 'from');
     const to = target(arg(argv, '--to') ?? env.SM_DATABASE_URL, arg(argv, '--to-schema'), 'to');
+    // SQLite: the instance lock of each file, held until the copy ends – refused while Steward uses it, as the
+    // advisory lock refuses it on PostgreSQL (database/sqlite-lock.ts)
+    if (from.kind === 'sqlite' && fs.existsSync(from.file)) locks.push(lockForCommand(from.file, config.version));
+    if (to.kind === 'sqlite' && fs.existsSync(path.dirname(to.file))) locks.push(lockForCommand(to.file, config.version));
     console.log(`Copying ${describeTarget(from)} → ${describeTarget(to)}`);
     const t0 = Date.now();
     const r = copyDatabase({ from, to, force: argv.includes('--force'), log: console.log });
@@ -262,6 +268,8 @@ export function main(argv: string[]): number {
   } catch (e) {
     console.error(`db:copy failed: ${(e as Error).message}`);
     return 1;
+  } finally {
+    for (const l of locks) l.release();
   }
 }
 
