@@ -203,7 +203,7 @@ What a connector is and what a monitor check needs is written down once (since 0
 ### Adding a check type
 
 1. **The schema**: its entry in `checkSchema` and its name in `CHECK_TYPES` (`shared/src/monitors.ts`).
-2. **The descriptor**: an entry in `CHECK_TYPE_DEFS` (`shared/src/checkTypes.ts`) with the fields of a new check. A check that reads a platform of a kind: `platform: 'kind'`, and the type in that kind's `checkTypes`.
+2. **The descriptor**: an entry in `CHECK_TYPE_DEFS` (`shared/src/checkTypes.ts`) with the fields of a new check. A check that reads a platform of a kind: `platform: 'kind'`, and the type in that kind's `checkTypes`; saving refuses a platform of another kind (`CHECK_PLATFORM_KIND`) and a stored one reports unknown without a request, for every such type.
 3. **The evaluator**: a function returning a `RawResult`, registered in `CHECK_RUNNERS` (`server/src/monitors/checks.ts`), with `plan` for a read shared by several checks and `validate` for rules that need the resolved platform.
 4. **The form**: a component `web/src/components/monitors/checks/<Type>Fields.tsx` taking `CheckFieldsProps<'<type>'>`, registered in `CHECK_FIELDS`; its icon in `CHECK_ICONS` (`checkMeta.ts`); its texts in `web/src/locales/en|de/monitors.json` (`checkTypes.<type>`, `newCheck.<type>`).
 5. **Tests**: the evaluator's own test file; `descriptors.test.ts` covers the descriptor, the evaluator and the form.
