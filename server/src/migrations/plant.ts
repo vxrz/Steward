@@ -340,4 +340,22 @@ export const PLANT_MIGRATIONS: NamedMigration[] = [
       );
     `,
   },
+  {
+    // 0.11.0: old ids of renamed entries keep leading to them (docs/PLANT.md#changing-ids). kind as in PLANT_ID_KINDS,
+    // scope the site, asset or profile id the entry's id is unique in ('' for sites, assets, profiles and KPI
+    // definitions). Chains are collapsed when written (a → b, then b → c gives a → c and b → c).
+    name: 'plant-004-id-aliases',
+    sql: `
+      CREATE TABLE plant_id_aliases (
+        kind TEXT NOT NULL,
+        scope TEXT NOT NULL DEFAULT '',
+        old_id TEXT NOT NULL,
+        new_id TEXT NOT NULL,
+        renamed_at TEXT NOT NULL,
+        renamed_by TEXT NOT NULL,
+        PRIMARY KEY (kind, scope, old_id)
+      );
+      CREATE INDEX plant_id_aliases_new ON plant_id_aliases(kind, scope, new_id);
+    `,
+  },
 ];

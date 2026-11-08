@@ -57,6 +57,8 @@ Every action that can require four-eyes and/or a step-up is a **control point** 
 | `migration.apply`        | system    | –         | on       | `applyMigration`                                           | –            | POST /api/migration/imports/staged/:id/apply                                                                                                                                              |
 | `plant.mapSource`        | system    | –         | on       | `changeMapSource`                                          | –            | PUT /api/settings/plant/map when it changes where the map's tiles come from (a source, URL, key or file; not _Off_) ([PLANT.md](PLANT.md#map))                                            |
 | `modules.switch`         | system    | –         | on       | `changeModules`                                            | –            | PUT /api/settings/modules/:id, and PUT /api/settings/plant when it turns the plant registry on or off ([MODULES.md](MODULES.md))                                                          |
+| `plant.renameId`         | catalogue | –         | off      | `renamePlantId`                                            | –            | POST /api/plant/ids/rename, and an import that renames one entry ([PLANT.md](PLANT.md#changing-ids))                                                                                      |
+| `plant.bulkChange`       | catalogue | –         | on       | `changePlantInBulk`                                        | –            | POST /api/plant/bulk (removing more than one entry, editing more than 25), an import that renames or removes more than one ([PLANT.md](PLANT.md#changing-many-entries-at-once))           |
 
 <!-- control-points:end -->
 

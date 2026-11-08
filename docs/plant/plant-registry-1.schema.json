@@ -106,6 +106,14 @@
       "items": {
         "$ref": "#/$defs/AssetNetwork"
       }
+    },
+    "remove": {
+      "description": "Entries to remove (since 0.11.0)",
+      "maxItems": 500,
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Removal"
+      }
     }
   },
   "required": [
@@ -3675,6 +3683,50 @@
       ],
       "additionalProperties": false,
       "description": "What data leaves an asset, who collects it, how it is transferred and where it ends up"
+    },
+    "Removal": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "site",
+            "building",
+            "node",
+            "asset",
+            "profile",
+            "kpi",
+            "vlan",
+            "zone",
+            "conduit",
+            "device",
+            "data_path"
+          ],
+          "description": "site, building, node (area, work center, work unit), asset, profile, kpi, vlan, zone, conduit, device or data_path"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120,
+          "description": "Its id"
+        },
+        "site": {
+          "description": "The site of a building, node, VLAN, zone or conduit",
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$"
+        },
+        "asset": {
+          "description": "The asset of a device or data path",
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$"
+        }
+      },
+      "required": [
+        "kind",
+        "id"
+      ],
+      "additionalProperties": false,
+      "description": "An entry the import removes (with what belongs to it only when the person asks for it)"
     }
   }
 }

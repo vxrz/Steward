@@ -2,6 +2,7 @@ import type { PlantMapClient } from './plantMap.js';
 import type { AclEntry, AccessReason } from './api.js';
 import type { Backlink, ItemLink } from './records.js';
 import type { PlantCheck } from './plantData.js';
+import type { PlantAliasUse, PlantPlannedRename, PlantRemovalPlan } from './plantIds.js';
 
 /**
  * Plant registry (#217, #218): an opt-in module, off by default (Settings → Modules). The sites of the enterprise
@@ -380,6 +381,14 @@ export interface PlantImportPreview {
   byKind: Partial<Record<PlantChangeKind, PlantCounts>>;
   /** What Steward checks in the records of the files once imported (they do not stop the import, #219) */
   checks: PlantCheck[];
+  /** 0.11.0: entries the id mapping renames before the files update them */
+  renames: PlantPlannedRename[];
+  /** 0.11.0: old ids in the files, read as the entries they lead to */
+  aliasUses: PlantAliasUse[];
+  /** 0.11.0: entries the import removes (`remove:` in the files, or "Remove entries that are not in the files") */
+  removals: PlantRemovalPlan | null;
+  /** 0.11.0: importing asks for a step-up (more than one entry renamed or removed) */
+  stepUp: boolean;
 }
 
 export interface PlantImportSummary {

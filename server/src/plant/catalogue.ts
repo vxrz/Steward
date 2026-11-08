@@ -15,6 +15,7 @@ import {
   type Translations,
 } from '@sm/shared';
 import { db } from '../db.js';
+import { refuseAliasId } from './ids.js';
 import { audit } from '../audit.js';
 import { me } from '../auth/access.js';
 import { HttpError, nowIso, parseJson } from '../util.js';
@@ -184,6 +185,8 @@ function profileValues(id: string, b: z.infer<typeof profileUpdate>): PlantProfi
 export function createProfile(input: z.infer<typeof profileInput>): PlantProfileDetail {
   const by = requireCatalogue('add device profiles');
   if (profileRowOf(input.id)) throw new HttpError(409, `A device profile with the id ${input.id} exists already`, 'PLANT_ID_TAKEN', { id: input.id });
+  // an old id of a renamed entry still leads there (0.11.0): it is not free
+  refuseAliasId('profile', '', input.id);
   if (Number(db().get<{ n: number }>('SELECT COUNT(*) AS n FROM plant_profiles')!.n) >= PLANT_DATA_LIMITS.profiles)
     throw new HttpError(409, `At most ${PLANT_DATA_LIMITS.profiles} device profiles`, 'PLANT_LIMIT', { max: PLANT_DATA_LIMITS.profiles });
   const { id, ...rest } = input;
@@ -446,6 +449,8 @@ function kpiValues(id: string, b: z.infer<typeof kpiUpdate>): PlantKpiValues {
 export function createKpi(input: z.infer<typeof kpiInput>): PlantKpiDetail {
   const by = requireCatalogue('add KPI definitions');
   if (kpiRowOf(input.id)) throw new HttpError(409, `A KPI definition with the id ${input.id} exists already`, 'PLANT_ID_TAKEN', { id: input.id });
+  // an old id of a renamed entry still leads there (0.11.0): it is not free
+  refuseAliasId('kpi', '', input.id);
   if (Number(db().get<{ n: number }>('SELECT COUNT(*) AS n FROM plant_kpis')!.n) >= PLANT_DATA_LIMITS.kpis)
     throw new HttpError(409, `At most ${PLANT_DATA_LIMITS.kpis} KPI definitions`, 'PLANT_LIMIT', { max: PLANT_DATA_LIMITS.kpis });
   const { id, ...rest } = input;

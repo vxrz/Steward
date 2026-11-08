@@ -76,6 +76,8 @@ export const POINT_LABELS: Record<ReportLang, Record<string, string>> = {
     'migration.apply': 'Import an instance',
     'plant.mapSource': 'Change where the map of sites fetches its tiles',
     'modules.switch': 'Switch a module on or off',
+    'plant.renameId': 'Change the id of a plant entry',
+    'plant.bulkChange': 'Change many plant entries at once',
   },
   de: {
     'apiToken.create': 'Ein API-Token erstellen',
@@ -117,6 +119,8 @@ export const POINT_LABELS: Record<ReportLang, Record<string, string>> = {
     'migration.apply': 'Eine Instanz importieren',
     'plant.mapSource': 'Ändern, woher die Standortkarte ihre Kacheln holt',
     'modules.switch': 'Ein Modul ein- oder ausschalten',
+    'plant.renameId': 'Kennung eines Anlageneintrags ändern',
+    'plant.bulkChange': 'Viele Anlageneinträge auf einmal ändern',
   },
 };
 

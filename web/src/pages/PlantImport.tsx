@@ -23,6 +23,7 @@ import { fmtBytes, fmtDate } from '../format';
 import { plantKeys } from '../queryKeys';
 import { PreviewBadge, usePlantConfig, usePlantLabel } from '../components/plant/common';
 import { ChecksList } from '../components/plant/data';
+import { IdMappingStep, ImportIdsPreview, idOptionsBody, NO_ID_OPTIONS, type IdOptions } from '../components/plant/importIds';
 
 const KIND_TYPE: Partial<Record<PlantChangeKind, PlantRecordType>> = {
   site: 'site',
@@ -48,7 +49,7 @@ interface Picked {
  * what would be added, changed and removed – then import. Earlier imports are listed below, to replace one.
  */
 export function PlantImportPage() {
-  const { t } = useTranslation(['plant', 'common']);
+  const { t } = useTranslation(['plant', 'plantIds', 'common']);
   const label = usePlantLabel();
   const qc = useQueryClient();
   const cfg = usePlantConfig();
@@ -61,9 +62,17 @@ export function PlantImportPage() {
   const [show, setShow] = useState<'changes' | 'all'>('changes');
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<PlantImportResult | null>(null);
+  // 0.11.0: the id mapping and the removals
+  const [ids, setIds] = useState<IdOptions>(NO_ID_OPTIONS);
   const canImport = cfg.data?.canManageSome;
   const earlier = imports.data ?? [];
-  const body = () => ({ files: files.map(({ name, content }) => ({ name, content })), mode, missing, replaces: mode === 'replace' ? replaces : null });
+  const body = () => ({
+    files: files.map(({ name, content }) => ({ name, content })),
+    mode,
+    missing,
+    replaces: mode === 'replace' ? replaces : null,
+    ...idOptionsBody(ids),
+  });
   const stale = () => {
     setPreview(null);
     setResult(null);
@@ -96,12 +105,15 @@ export function PlantImportPage() {
   const apply = async () => {
     if (!preview) return;
     if (preview.counts.remove > 0 && !(await confirmDanger({ action: 'remove', message: t('import.removeConfirm', { count: preview.counts.remove }) }))) return;
+    const removing = preview.removals?.items.filter((i) => !i.refused).length ?? 0;
+    if (removing > 0 && !(await confirmDanger({ action: 'remove', message: t('plantIds:preview.confirmRemove', { count: removing }) }))) return;
     setBusy(true);
     try {
       const r = await post<PlantImportResult>('/plant/import', body());
       setResult(r);
       setPreview(null);
       setFiles([]);
+      setIds(NO_ID_OPTIONS);
       notifyOk(t('import.done', { add: r.counts.add, change: r.counts.change, remove: r.counts.remove, mark: r.counts.mark }));
       void qc.invalidateQueries({ queryKey: plantKeys.all });
     } catch (e) {
@@ -199,6 +211,8 @@ export function PlantImportPage() {
               )}
             </Stack>
           </Paper>
+
+          <IdMappingStep value={ids} onChange={(v) => (setIds(v), stale())} />
 
           <Paper withBorder p="md">
             <Stack gap="sm">
@@ -308,6 +322,7 @@ export function PlantImportPage() {
                     <ChecksList checks={preview.checks} subjects testId="import-checks" />
                   </Alert>
                 )}
+                <ImportIdsPreview preview={preview} />
                 {preview.ok && (
                   <>
                     <SegmentedControl
