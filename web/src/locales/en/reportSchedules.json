@@ -29,7 +29,7 @@
   "sections": {
     "availability": {
       "title": "Availability of monitors",
-      "hint": "Uptime, outages and response times per monitor, with an optional SLA target"
+      "hint": "Uptime, outages and response times per monitor, judged against the SLA target of its availability objective"
     },
     "gatus": {
       "title": "Availability of Gatus endpoints",

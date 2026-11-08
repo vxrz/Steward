@@ -38,7 +38,7 @@ import { MonitorGraph } from '../components/monitors/MonitorGraph';
 import { TestRunButton } from '../components/monitors/TestRunButton';
 import { MONITOR_COLORS, MonitorStatusBadge, causeText, checkTypeLabel, fmtUptime, monitorStatusLabel, uptimeText } from '../components/monitors/status';
 import { AcknowledgeModal, CopyBlock, InstantiateModal, SecretsModal, gatewayCurl, heartbeatCurl } from '../components/monitors/dialogs';
-import { MaintenanceDetailModal, MaintenanceFormModal, TargetBadges, WhenLine, useRepeatLabel } from '../components/catalogue/maintenance';
+import { MaintenanceDetailModal, MaintenanceFormModal, TargetBadges, useRepeatLabel } from '../components/catalogue/maintenance';
 import { confirmDanger, confirmDialog } from '../components/confirm';
 import { appUrl } from '../basePath';
 import { MonitorReviewModal, useCanStartReview } from '../components/records/IncidentReview';
@@ -790,26 +790,26 @@ function MaintenanceList({ monitor, onPlan, onOpen }: { monitor: MonitorDetail; 
         const others = x.targets.filter((y) => !(y.kind === 'monitor' && y.id === monitor.id));
         return (
           <Paper key={x.id} withBorder p="xs" data-testid="monitor-maintenance-window">
-            <Group justify="space-between" wrap="nowrap" align="flex-start">
-              <Stack gap={2} style={{ minWidth: 0 }}>
-                <Anchor component="button" type="button" size="sm" fw={500} ta="left" onClick={() => onOpen(x.id)}>
-                  {x.title}
-                </Anchor>
-                {x.current ? (
-                  <WhenLine w={x} />
-                ) : (
-                  <Text size="sm">
-                    {fmtDate(at.startsAt)} – {fmtDate(at.endsAt)}
-                  </Text>
+            <Stack gap={2} style={{ minWidth: 0 }}>
+              <Anchor component="button" type="button" size="sm" fw={500} ta="left" onClick={() => onOpen(x.id)}>
+                {x.title}
+              </Anchor>
+              <Group gap={6} wrap="wrap">
+                {at.active && (
+                  <Badge size="sm" color="orange" variant="filled" style={{ flexShrink: 0 }}>
+                    {t('maintenance.active')}
+                  </Badge>
                 )}
-                <Text size="xs" c="dimmed">
-                  {x.recurrence ? `${repeat(x)} · ` : ''}
-                  {direct ? t('maintenance.listsMonitor') : t('maintenance.reachesMonitor')} · {x.createdBy}
+                <Text size="sm">
+                  {fmtDate(at.startsAt)} – {fmtDate(at.endsAt)}
                 </Text>
-                {others.length > 0 && <TargetBadges targets={others} />}
-              </Stack>
-              {at.active && <Badge size="xs">{t('maintenance.active')}</Badge>}
-            </Group>
+              </Group>
+              <Text size="xs" c="dimmed">
+                {x.recurrence ? `${repeat(x)} · ` : ''}
+                {direct ? t('maintenance.listsMonitor') : t('maintenance.reachesMonitor')} · {x.createdBy}
+              </Text>
+              {others.length > 0 && <TargetBadges targets={others} />}
+            </Stack>
           </Paper>
         );
       })}

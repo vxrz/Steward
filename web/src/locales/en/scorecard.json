@@ -46,7 +46,8 @@
     "stale": "No data: Gatus' uptime figures were last read more than 3 hours ago.",
     "noEndpoint": "No data: Gatus does not report this endpoint any more.",
     "noValue": "No data: Gatus reported no value for a window.",
-    "monitorOff": "No data: the monitor is disabled or was deleted."
+    "monitorOff": "No data: the monitor is disabled or was deleted.",
+    "monitorNoValue": "No data: the monitor has recorded no up or down time in a window yet."
   },
   "form": {
     "add": "Add objective",

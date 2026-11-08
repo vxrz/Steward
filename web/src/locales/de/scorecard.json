@@ -46,7 +46,8 @@
     "stale": "Keine Daten: Die Verfügbarkeitswerte von Gatus wurden zuletzt vor mehr als 3 Stunden gelesen.",
     "noEndpoint": "Keine Daten: Gatus meldet diesen Endpunkt nicht mehr.",
     "noValue": "Keine Daten: Gatus meldete für ein Zeitfenster keinen Wert.",
-    "monitorOff": "Keine Daten: Der Monitor ist ausgeschaltet oder wurde gelöscht."
+    "monitorOff": "Keine Daten: Der Monitor ist ausgeschaltet oder wurde gelöscht.",
+    "monitorNoValue": "Keine Daten: Der Monitor hat in einem Zeitfenster noch keine Zeit als verfügbar oder ausgefallen aufgezeichnet."
   },
   "form": {
     "add": "Ziel hinzufügen",
