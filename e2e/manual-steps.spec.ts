@@ -91,6 +91,11 @@ test.describe('manual steps', () => {
     await dana.goto('/processes');
     await dana.getByRole('button', { name: 'More', exact: true }).click();
     await dana.getByRole('menuitem', { name: /^New manual procedure/ }).click();
+    // the "New process" dialog opens on "Manual procedure" with its name; nothing is saved before Create (U7)
+    const dialog = dana.getByRole('dialog', { name: 'New process' });
+    await expect(dialog.getByRole('radio', { name: 'Manual procedure' })).toBeChecked();
+    await dialog.getByRole('textbox', { name: /^Name/ }).fill(`Manual procedure ${Date.now()}`);
+    await dialog.getByRole('button', { name: 'Create and edit' }).click();
     await expect(dana).toHaveURL(/\/processes\/[^/]+$/);
     const nodes = dana.locator('.react-flow__node');
     await expect(nodes).toHaveCount(4);

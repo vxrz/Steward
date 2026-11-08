@@ -39,10 +39,12 @@ test('platform: test connection, API explorer, credentials stay hidden', async (
   // the list shows the latest test, the sign-in kind in normal case, and filters by name
   await page.goto('/platforms');
   await page.getByRole('textbox', { name: 'Search platforms' }).fill('insights hub (demo)');
-  const card = page.locator('.mantine-Card-root').filter({ hasText: 'Insights Hub (demo)' });
-  await expect(page.locator('.mantine-Card-root')).toHaveCount(1);
-  await expect(card.getByTestId('platform-last-test')).toContainText(/^Last test OK /);
-  await expect(card.getByText('OAuth2 client credentials', { exact: true })).toHaveCSS('text-transform', 'none');
+  // a table since 0.11 (cards on phones)
+  const rows = page.getByTestId('platform-list').locator('tbody tr');
+  await expect(rows).toHaveCount(1);
+  const row = rows.filter({ hasText: 'Insights Hub (demo)' });
+  await expect(row.getByTestId('platform-last-test')).toContainText(/^Last test OK /);
+  await expect(row.getByText('OAuth2 client credentials', { exact: true })).toHaveCSS('text-transform', 'none');
   await page.getByRole('textbox', { name: 'Search platforms' }).fill('zzz-no-such-platform');
   await expect(page.getByText('No platform matches the filter.')).toBeVisible();
 
@@ -91,7 +93,9 @@ test('API specs: the path prefix from the server URL can be edited, with a previ
   const input = dialog.getByRole('textbox', { name: 'Path prefix' });
   await input.fill('/../admin');
   await expect(dialog.getByText(/Use \/segment\/segment/)).toBeVisible();
-  await expect(dialog.getByRole('button', { name: 'Save' })).toBeDisabled();
+  // the button stays enabled (0.11); saving a wrong prefix keeps the dialog open with the message
+  await dialog.getByRole('button', { name: 'Save' }).click();
+  await expect(dialog.getByText(/Use \/segment\/segment/)).toBeVisible();
   await input.fill('/device/api/v2');
   await expect(dialog.getByText('https://edge.example.com/device/api/v2/…')).toBeVisible();
   await dialog.getByRole('button', { name: 'Save' }).click();
