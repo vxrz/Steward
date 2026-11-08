@@ -373,10 +373,7 @@ export function removeEntries(entries: Target[]): void {
       case 'site':
         db().run("DELETE FROM item_links WHERE to_kind = 'site' AND to_id = ?", e.id);
         // other sites' VLANs that reach it no longer name it
-        for (const v of all<{ site_id: string; id: string; sites: string }>(
-          "SELECT site_id, id, sites FROM plant_vlans WHERE sites LIKE ? ESCAPE '\\'",
-          `%${e.id}%`,
-        )) {
+        for (const v of all<{ site_id: string; id: string; sites: string }>('SELECT site_id, id, sites FROM plant_vlans WHERE site_id <> ?', e.id)) {
           const list = parseJson<string[]>(v.sites, []);
           if (list.includes(e.id))
             db().run('UPDATE plant_vlans SET sites = ? WHERE site_id = ? AND id = ?', JSON.stringify(list.filter((x) => x !== e.id)), v.site_id, v.id);
