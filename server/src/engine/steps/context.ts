@@ -4,6 +4,7 @@ import type { DebugNodeSeed } from '../engine.js';
 import type { Bindings } from '../expr.js';
 import type { Redactor } from '../redact.js';
 import type { RunRow } from '../store.js';
+import { ANY } from '../../ai/provenance.js';
 
 /**
  * What a step type gets from the engine (ADR 0011, update 0.11): a narrow view of its run. The built-in engine's run
@@ -135,3 +136,9 @@ export interface StepExecutor<T extends StepType> {
 }
 
 export type StepRegistry = { [T in StepType]: StepExecutor<T> };
+
+/** The platform of a step's connection as the source of its result (ai/provenance.ts); ANY when it has none. */
+export function connectionSources(slot: string | undefined, ctx: StepContext): string[] {
+  const id = slot ? ctx.bindings[slot]?.platform.id : undefined;
+  return id ? [id] : [ANY];
+}

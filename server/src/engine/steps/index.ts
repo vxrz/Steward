@@ -1,5 +1,6 @@
 import type { FlowNode } from '@sm/shared';
 import type { StepExecutor, StepRegistry, StepType } from './context.js';
+import { queryStep } from './query.js';
 import { contractTestStep } from './contract-test.js';
 import { accessChangeStep } from './access-change.js';
 import { publishStep } from './publish.js';
@@ -20,6 +21,7 @@ let registry: Partial<StepRegistry> | undefined;
 /** Built on first use: step modules import modules that import the engine again (an import cycle), so not at load time. */
 export function steps(): Partial<StepRegistry> {
   return (registry ??= {
+    query: queryStep,
     contractTest: contractTestStep,
     accessChange: accessChangeStep,
     publish: publishStep,

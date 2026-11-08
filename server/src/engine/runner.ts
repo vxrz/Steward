@@ -1350,7 +1350,7 @@ function applyOutput(node: FlowNode, ctx: RunContext, output: unknown, status: S
 function outputSources(node: FlowNode, ctx: RunContext): string[] {
   const ex = stepOf(node);
   if (ex) return ex.sources?.(node as NodeOf<StepType>, ctx) ?? [ANY];
-  if (node.type === 'http' || node.type === 'query' || node.type === 'browser') {
+  if (node.type === 'http' || node.type === 'browser') {
     const id = node.connection ? ctx.bindings[node.connection]?.platform.id : undefined;
     return id ? [id] : [ANY];
   }
@@ -1659,8 +1659,6 @@ async function execLeaf(step: FlowNode, ctx: RunContext, key: string, attempt = 
   switch (step.type) {
     case 'http':
       return execHttp(step, ctx, key);
-    case 'query':
-      return execQuery(step, ctx, key);
     case 'userTask':
       return execUserTask(step, ctx, key);
     case 'ai':
@@ -1967,42 +1965,6 @@ async function execAi(step: NodeOf<'ai'>, ctx: RunContext, key: string): Promise
   return { output: res.output, status: res.output.dryRun ? 'dryrun' : 'succeeded', summary: res.summary };
 }
 
-/**
- * Query a database (0.7.0, dbms/step.ts): one read-only statement on the bound database platform, its parameters
- * rendered from their templates and bound (never put into the text). The password is masked like an HTTP platform's
- * secrets; the rows are the step's output.
- */
-async function execQuery(step: NodeOf<'query'>, ctx: RunContext, key: string): Promise<LeafResult> {
-  const b = ctx.bindings[step.connection];
-  if (!b) throw new Error(`Connection "${step.connection}" is not bound`);
-  ctx.redactor.add(...secretValues(b.secrets));
-  // Semgrep's res-render-injection takes (step, ctx, key) for Express's (req, res, next): ctx.render() evaluates the
-  // step's templates in the run scope, it never loads a file or template by name (false positive).
-  const params = (step.params?.length ? await ctx.render(step.params) : []) as unknown[]; // nosemgrep: javascript.express.security.audit.res-render-injection.res-render-injection
-  // the secrets of the run's other platforms never go to the database (as for an http step to a foreign origin)
-  const host = String(b.platform.config.database?.host ?? 'database.invalid').replace(/^\[|\]$/g, '');
-  await scanSecrets(
-    ctx,
-    key,
-    `https://${host.includes(':') ? `[${host}]` : host}/`,
-    {},
-    { sql: step.sql, params },
-    secretBindings(ctx, step.connection).filter((x) => x.foreign),
-  );
-  const { runQueryStep } = await import('../dbms/step.js');
-  const res = await runQueryStep(step, {
-    platform: b.platform,
-    secrets: b.secrets,
-    params,
-    dryRun: ctx.dryRun,
-    recorded: ctx.recorded,
-    setInput: (input) => store.updateStepInput(ctx.runId, key, ctx.redactor.apply(input)),
-    log: (level, message) => ctx.log(level, message, key),
-    signal: ctx.signal,
-  });
-  return { output: res.output, summary: res.summary };
-}
-
 /** Strings inside a JSON answer (long enough to be recognised in a message). */
 function stringLeaves(v: unknown, out: string[] = [], depth = 0): string[] {
   if (depth > 20 || out.length > 500) return out;
@@ -2151,8 +2113,6 @@ async function previewInputs(node: FlowNode, ctx: RunContext): Promise<unknown> 
           write: isMutating(node),
         };
       }
-      case 'query':
-        return { sql: node.sql, params: node.params?.length ? await ctx.render(node.params) : [] }; // nosemgrep: javascript.express.security.audit.res-render-injection.res-render-injection
       case 'if':
         return { condition: node.condition, result: await ctx.bool(node.condition) };
       case 'forEach': {
