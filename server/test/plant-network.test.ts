@@ -168,16 +168,25 @@ describe('zones and conduits (IEC 62443-3-2)', () => {
     expect(await add({ vlans: ['nope'] })).toMatchObject({ status: 400, code: 'PLANT_NETWORK_INVALID' });
     expect(await add({ slTarget: 3 })).toMatchObject({ status: 400, code: 'PLANT_NETWORK_INVALID' });
     expect((await add({ slTarget: 5, riskAssessment: 'RA-1' })).status).toBe(400);
+    expect((await add({ level: 'level-9' })).status).toBe(400);
     const n = await s.api('POST', '/plant/sites/riverside/zones', {
       id: 'rvs-zone-t',
       name: 'Test zone',
       criticality: 'critical',
+      level: 'supervisory',
       vlans: ['rvs-vlan-120'],
       slTarget: 3,
       riskAssessment: 'RA-RVS-2026-07',
       assessedAt: '2026-07-01',
     });
-    expect(n.zones.find((z: { id: string }) => z.id === 'rvs-zone-t')).toMatchObject({ slTarget: 3, criticality: 'critical', conduits: [] });
+    expect(n.zones.find((z: { id: string }) => z.id === 'rvs-zone-t')).toMatchObject({
+      slTarget: 3,
+      criticality: 'critical',
+      level: 'supervisory',
+      conduits: [],
+    });
+    // the example sets the level of its zones (a zone without one leaves it to the diagram)
+    expect(n.zones.find((z: { id: string }) => z.id === 'rvs-zone-cells')).toMatchObject({ level: 'control' });
   });
 
   it('a conduit connects two different zones; firewall changes link to it', async () => {
@@ -460,7 +469,11 @@ describe('import and export', () => {
     const doc = YAML.parse(yaml);
     expect(doc.ot_network.site).toBe('riverside');
     expect(doc.ot_network.vlans.map((v: { id: string }) => v.id)).toEqual(['rvs-vlan-110', 'rvs-vlan-120', 'rvs-vlan-900']);
-    expect(doc.ot_network.zones.find((z: { id: string }) => z.id === 'rvs-zone-cells')).toMatchObject({ sl_t: 2, risk_assessment: 'RA-RVS-2026-01' });
+    expect(doc.ot_network.zones.find((z: { id: string }) => z.id === 'rvs-zone-cells')).toMatchObject({
+      sl_t: 2,
+      risk_assessment: 'RA-RVS-2026-01',
+      level: 'control',
+    });
     const mill = doc.asset_networks.find((a: { asset: string }) => a.asset === 'rvs-mill-01');
     expect(mill.checks).toEqual([{ monitor: 'rvs-ot', check: 'rvs.mill-01-gw' }]);
     expect(mill.devices[0].checks).toEqual([{ monitor: 'rvs-ot', check: 'ipc' }]);

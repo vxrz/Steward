@@ -23064,6 +23064,26 @@
                     }
                   ]
                 },
+                "level": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "field",
+                        "control",
+                        "supervisory",
+                        "operations",
+                        "dmz",
+                        "enterprise",
+                        "external"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Where the zone sits in the Purdue levels (field … external); null: not set"
+                },
                 "vlans": {
                   "type": "array",
                   "items": {
@@ -23124,6 +23144,7 @@
                 "name",
                 "description",
                 "criticality",
+                "level",
                 "vlans",
                 "owner",
                 "slTarget",

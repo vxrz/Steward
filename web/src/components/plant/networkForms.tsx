@@ -37,6 +37,7 @@ import {
   TRANSFER_MODES,
   VLAN_RANGE_TYPES,
   ZONE_CRITICALITIES,
+  ZONE_LEVELS,
   type MonitorDetail,
   type MonitorSummary,
   type PlantAssetNetwork,
@@ -50,6 +51,7 @@ import {
   type PlantZoneValues,
   type SecurityLevel,
   type SystemSummary,
+  type ZoneLevel,
 } from '@sm/shared';
 import { get, notifyError, post, put } from '../../api';
 import { useFieldErrors } from '../common';
@@ -423,6 +425,7 @@ export function ZoneModal({
   const id = useIdField(zone?.id);
   const [description, setDescription] = useState(zone?.description ?? '');
   const [criticality, setCriticality] = useState<string | null>(zone?.criticality ?? null);
+  const [level, setLevel] = useState<string | null>(zone?.level ?? null);
   const [vlans, setVlans] = useState<string[]>(zone?.vlans ?? []);
   const [owner, setOwner] = useState(zone?.owner ?? '');
   const [sl, setSl] = useState<string | null>(zone?.slTarget ? String(zone.slTarget) : null);
@@ -441,6 +444,7 @@ export function ZoneModal({
       name: text(name),
       description,
       criticality,
+      level: level as ZoneLevel | null,
       vlans,
       owner: text(owner),
       slTarget: sl ? (Number(sl) as SecurityLevel) : null,
@@ -478,8 +482,18 @@ export function ZoneModal({
           onChange={setCriticality}
           clearable
         />
-        <TextInput label={t('owner')} value={owner} maxLength={200} onChange={(e) => setOwner(e.currentTarget.value)} />
+        <Select
+          label={t('zone.level')}
+          description={t('zone.levelHelp')}
+          data={ZONE_LEVELS.map((x) => ({ value: x, label: t(`levels.${x}`) }))}
+          value={level}
+          onChange={setLevel}
+          clearable
+          placeholder={t('zone.levelDerived')}
+          data-testid="zone-level"
+        />
       </SimpleGrid>
+      <TextInput label={t('owner')} value={owner} maxLength={200} onChange={(e) => setOwner(e.currentTarget.value)} />
       <MultiSelect
         label={t('zone.vlans')}
         data={network.vlans.map((x) => ({ value: x.id, label: x.vid ? `${x.name} (VID ${x.vid})` : x.name }))}

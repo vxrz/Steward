@@ -27,6 +27,15 @@ export type AddressType = (typeof ADDRESS_TYPES)[number];
 export const ZONE_CRITICALITIES = ['low', 'medium', 'high', 'critical'] as const;
 export type ZoneCriticality = (typeof ZONE_CRITICALITIES)[number];
 
+/**
+ * Where a zone sits in the levels of the Purdue reference model (ISA-95 / IEC 62443-1-1), bottom to top: field
+ * devices (0), basic control – cells, PLCs (1), supervisory – SCADA, HMI (2), site operations – MES, historian (3), the
+ * industrial DMZ (3.5), the enterprise network (4–5) and external parties – cloud, vendors. The OT network diagram
+ * draws the zones in bands in this order; without a level it derives one.
+ */
+export const ZONE_LEVELS = ['field', 'control', 'supervisory', 'operations', 'dmz', 'enterprise', 'external'] as const;
+export type ZoneLevel = (typeof ZONE_LEVELS)[number];
+
 /** IEC 62443 security levels (SL 1–4); a zone's target (SL-T) is set by a risk assessment. */
 export const SECURITY_LEVELS = [1, 2, 3, 4] as const;
 export type SecurityLevel = (typeof SECURITY_LEVELS)[number];
@@ -168,6 +177,8 @@ export interface PlantZoneValues {
   name: string;
   description: string;
   criticality: ZoneCriticality | null;
+  /** Its level in the Purdue model (null: not set – the diagram derives one) */
+  level: ZoneLevel | null;
   /** VLANs in the zone (ids of VLANs of the site) */
   vlans: string[];
   owner: string;

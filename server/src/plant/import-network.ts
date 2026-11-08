@@ -158,6 +158,7 @@ function zoneFromFile(x: ZoneFile): Planned<PlantZoneValues>['values'] {
   ] as const)
     if (has(x, f)) v[k] = str(x[f]);
   if (has(x, 'criticality')) v.criticality = x.criticality ?? null;
+  if (has(x, 'level')) v.level = x.level ?? null;
   if (has(x, 'vlans')) v.vlans = x.vlans ?? [];
   if (has(x, 'sl_t')) v.slTarget = x.sl_t ?? null;
   if (has(x, 'assessed_at')) v.assessedAt = x.assessed_at ?? null;
@@ -296,6 +297,7 @@ const ZONE_DEFAULTS = (id: string): PlantZoneValues => ({
   name: id,
   description: '',
   criticality: null,
+  level: null,
   vlans: [],
   owner: '',
   slTarget: null,
@@ -779,6 +781,7 @@ export function otNetworkOut(siteId: string): Record<string, unknown> | null {
           name: z.name,
           description: z.description,
           criticality: z.criticality,
+          level: z.level,
           vlans: z.vlans,
           owner: z.owner,
           sl_t: z.slTarget,

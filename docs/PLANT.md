@@ -170,8 +170,10 @@ A VLAN that zones or devices name cannot be removed (`PLANT_VLAN_IN_USE`).
 
 _OT network → Zones and conduits_:
 
-- a **zone** has a description, a **criticality** (low, medium, high, critical), the **VLANs** of the site in it, an owner, the **SL-T** – with the **risk assessment** that set it (required with SL-T: a document number or link) and its date – and notes. Without SL-T the zone shows _SL-T open_;
+- a **zone** has a description, a **criticality** (low, medium, high, critical), its **level** in the Purdue model (optional, see below), the **VLANs** of the site in it, an owner, the **SL-T** – with the **risk assessment** that set it (required with SL-T: a document number or link) and its date – and notes. Without SL-T the zone shows _SL-T open_;
 - a **conduit** connects **two different zones** of the site, with a **direction** (from the first to the second, the other way, both), its **protocols** (`opc-ua tcp/4840`, `https tcp/443`), its **controls** (firewall, data diode, jump host) and notes.
+
+The **level** says where a zone sits, bottom to top: _Level 0 – field devices_ (`field`), _Level 1 – basic control, cells_ (`control`), _Level 2 – supervisory_ (`supervisory`, SCADA, HMI), _Level 3 – site operations_ (`operations`, MES, historian), _Level 3.5 – industrial DMZ_ (`dmz`), _Level 4–5 – enterprise network_ (`enterprise`) and _External_ (`external`, cloud, vendors) – the levels of the Purdue reference model as ISA-95 and IEC 62443 use them. The [diagram](#ot-network-diagram) draws the zones in this order. A zone without a level gets one derived for the diagram only (nothing is stored).
 
 **Firewall changes link to a conduit**: `conduit` is a link kind (id `<site>/<conduit>`, shown under _Links → Conduit_ while the module is on), so a firewall change (`FWC`) names the conduit it changes besides the affected segments and systems. The conduit lists the records that link to it. A zone that a conduit connects cannot be removed (`PLANT_ZONE_IN_USE`).
 
@@ -492,12 +494,13 @@ ot_network:
         id: rvs-zone-cells,
         name: Production cells,
         criticality: high,
+        level: control,
         vlans: [rvs-vlan-110],
         sl_t: 2,
         risk_assessment: RA-RVS-2026-01,
         assessed_at: '2026-03-02',
       }
-    - { id: rvs-zone-dmz, name: OT DMZ, vlans: [rvs-vlan-900] } # SL-T open
+    - { id: rvs-zone-dmz, name: OT DMZ, level: dmz, vlans: [rvs-vlan-900] } # SL-T open
   conduits:
     - {
         id: rvs-cdt-cells-dmz,
@@ -538,7 +541,7 @@ asset_network:
         - { ref: IoT platform, path: rvs-mill-01/state } # kind: system (a Steward system id), dataset (a key) or other
 ```
 
-Keys: an OT network has `site`, `vlans`, `zones`, `conduits`; a VLAN `id`, `name`, `vid`, `type`, `owner`, `description`, `subnets` (`cidr`, `gateway`, `description`, `ranges` with `start`, `end`, `type`, `notes`), `restricted`, `managed_by`, `rules_at`, `sites`, `location`, `segment`, `notes`; a zone `id`, `name`, `description`, `criticality`, `vlans`, `owner`, `sl_t`, `risk_assessment`, `assessed_at`, `notes`; a conduit `id`, `name`, `description`, `zones` (two), `direction`, `protocols`, `controls`, `notes`. An asset network has `asset`, `site`, `checks`, `devices`, `data_paths`; a device `id`, `hostname`, `domain`, `purpose`, `mac`, `serial`, `vlan`, `address_type`, `address`, `switch`, `switch_port`, `wall_outlet`, `cmdb_port`, `state`, `flags`, `confidence`, `owner`, `monitoring`, `checks`, `notes`; a data path `id`, `subject`, `description`, `devices`, `collector` (`kind`, `ref`, `host`), `transfers` (`protocol`, `mode`, `peer_kind`, `peer`, `port`, `notes`), `destinations` (`kind`, `ref`, `path`, `notes`), `notes`; a check either `monitor` (with `check`) or `dataset` (with `column`, `value`, `time_column`, `max_age_minutes`), and `note`. A VLAN, zone and conduit are matched by their site and id, a device and data path by their asset and id, the checks by their asset. The same rules as an edit apply; in _replace_ with _remove_, a VLAN, zone or device that goes while a record that stays names it stops the import. `examples/plant/brightwater-ot-network.plant.yaml` is an invented OT network of the example enterprise (import it after `brightwater.plant.yaml`).
+Keys: an OT network has `site`, `vlans`, `zones`, `conduits`; a VLAN `id`, `name`, `vid`, `type`, `owner`, `description`, `subnets` (`cidr`, `gateway`, `description`, `ranges` with `start`, `end`, `type`, `notes`), `restricted`, `managed_by`, `rules_at`, `sites`, `location`, `segment`, `notes`; a zone `id`, `name`, `description`, `criticality`, `level`, `vlans`, `owner`, `sl_t`, `risk_assessment`, `assessed_at`, `notes`; a conduit `id`, `name`, `description`, `zones` (two), `direction`, `protocols`, `controls`, `notes`. An asset network has `asset`, `site`, `checks`, `devices`, `data_paths`; a device `id`, `hostname`, `domain`, `purpose`, `mac`, `serial`, `vlan`, `address_type`, `address`, `switch`, `switch_port`, `wall_outlet`, `cmdb_port`, `state`, `flags`, `confidence`, `owner`, `monitoring`, `checks`, `notes`; a data path `id`, `subject`, `description`, `devices`, `collector` (`kind`, `ref`, `host`), `transfers` (`protocol`, `mode`, `peer_kind`, `peer`, `port`, `notes`), `destinations` (`kind`, `ref`, `path`, `notes`), `notes`; a check either `monitor` (with `check`) or `dataset` (with `column`, `value`, `time_column`, `max_age_minutes`), and `note`. A VLAN, zone and conduit are matched by their site and id, a device and data path by their asset and id, the checks by their asset. The same rules as an edit apply; in _replace_ with _remove_, a VLAN, zone or device that goes while a record that stays names it stops the import. `examples/plant/brightwater-ot-network.plant.yaml` is an invented OT network of the example enterprise (import it after `brightwater.plant.yaml`).
 
 ### Modes
 

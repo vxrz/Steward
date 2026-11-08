@@ -34,6 +34,7 @@ import {
   TRANSFER_MODES,
   VLAN_RANGE_TYPES,
   ZONE_CRITICALITIES,
+  ZONE_LEVELS,
 } from '@sm/shared';
 import { ID_HINT } from './model.js';
 import { NAME_HINT, NAME_RE } from './data-model.js';
@@ -554,6 +555,11 @@ export const zoneSchema = z
     name,
     description: text(NL.longText),
     criticality: z.enum(ZONE_CRITICALITIES).nullable().optional(),
+    level: z
+      .enum(ZONE_LEVELS)
+      .nullable()
+      .optional()
+      .describe('Where the zone sits in the Purdue levels, bottom to top; leave it out and the diagram derives one'),
     vlans: z.array(id).max(NL.vlansPerZone).optional().describe('The VLANs in the zone (ids of VLANs of the site)'),
     owner: short,
     sl_t: z

@@ -110,6 +110,15 @@
     "high": "Hohe Kritikalität",
     "critical": "Kritisch"
   },
+  "levels": {
+    "field": "Ebene 0 – Feldgeräte",
+    "control": "Ebene 1 – Steuerung, Zellen",
+    "supervisory": "Ebene 2 – Prozessführung (SCADA, HMI)",
+    "operations": "Ebene 3 – Betriebsführung (MES, Historian)",
+    "dmz": "Ebene 3.5 – industrielle DMZ",
+    "enterprise": "Ebene 4–5 – Unternehmensnetz",
+    "external": "Extern – Cloud, Lieferanten"
+  },
   "directions": {
     "a_to_b": "Von {{a}} nach {{b}}",
     "b_to_a": "Von {{b}} nach {{a}}",
@@ -218,6 +227,10 @@
     "actions": "Aktionen für Zone {{name}}",
     "criticality": "Kritikalität",
     "criticalityHelp": "Die Folgen einer Kompromittierung der Anlagen darin",
+    "level": "Ebene (Purdue-Modell)",
+    "levelHelp": "Wo die Zone liegt, von unten nach oben; das Diagramm zeichnet die Zonen in dieser Reihenfolge",
+    "levelDerived": "Vom Diagramm abgeleitet",
+    "levelNotSet": "Nicht festgelegt",
     "vlans": "VLANs",
     "slTarget": "Ziel-Sicherheitslevel (SL-T)",
     "slTargetHelp": "Leer: offen, bis eine Risikobeurteilung es festlegt",

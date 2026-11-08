@@ -2901,6 +2901,26 @@
             }
           ]
         },
+        "level": {
+          "description": "Where the zone sits in the Purdue levels, bottom to top; leave it out and the diagram derives one",
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "field",
+                "control",
+                "supervisory",
+                "operations",
+                "dmz",
+                "enterprise",
+                "external"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "vlans": {
           "description": "The VLANs in the zone (ids of VLANs of the site)",
           "maxItems": 200,
