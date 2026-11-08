@@ -54,7 +54,7 @@ A process that runs every few minutes and is expected to find failures (the Gatu
 **Layers** – each narrows what the one above allows:
 
 1. the instance: channels on or off, and the routes per event (_Settings → Notifications_)
-2. teams (from 0.3.0)
+2. teams
 3. the source's policy (this section)
 4. personal: _E-mail notifications_ in the profile
 
@@ -123,8 +123,8 @@ _Settings → Look of e-mails and Teams messages_ (administrators) gives the mes
 - **E-mails** (every notification, the daily summary, test messages) use one layout: a header bar in the colour with logo and name, a thin strip that shows how the message reads (red: something failed, orange: something to do, green: a monitor is up again, blue: information), the text, a button and the footer. It is built from tables and inline styles, so Outlook and web mail show it, and the plain-text part is kept.
 - **The logo travels inside the e-mail** as an inline attachment (`cid:`). Mail clients block remote images, and Steward is usually not reachable from outside, so nothing is loaded from Steward. PNG and JPEG up to 512 KB; a WebP app logo is left out (many mail clients cannot show it) – upload a PNG or JPEG, or use the report logo.
 - **Teams cards** carry the name, the footer and a coloured strip with the same meaning. Adaptive Cards only know named colours (`good`, `warning`, `attention`, `accent`), not the hex colour. The logo is embedded only up to 12 KB, because Teams refuses cards over 28 KB.
-- **Generic webhooks** get the same JSON as before – or, with the format _Teams card_ (#130), the same Adaptive Card as the Teams channel, for a second Teams or Workflows target. Monitors can post to their own Teams channels as well ([MONITORS.md](MONITORS.md#webhook)).
-- **Where webhooks and Teams messages may go** (0.9.0): the URL an administrator stores is not checked against the outbound policy, but it and every redirect must not be a cloud-metadata or link-local address or Steward's own API. At most 5 redirects are followed; a redirect to another host than the URL's must be allowed by the outbound policy (a configured platform or the allow-list, _Settings → Outbound access_), and a `307`/`308` to another host is refused when the message would carry the credential of the URL. _Send test_ shows the reason ([SECURITY-HARDENING.md](SECURITY-HARDENING.md#which-rule-checks-which-call)).
+- **Generic webhooks** get the same JSON as before – or, with the format _Teams card_, the same Adaptive Card as the Teams channel, for a second Teams or Workflows target. Monitors can post to their own Teams channels as well ([MONITORS.md](MONITORS.md#webhook)).
+- **Where webhooks and Teams messages may go**: the URL an administrator stores is not checked against the outbound policy, but it and every redirect must not be a cloud-metadata or link-local address or Steward's own API. At most 5 redirects are followed; a redirect to another host than the URL's must be allowed by the outbound policy (a configured platform or the allow-list, _Settings → Outbound access_), and a `307`/`308` to another host is refused when the message would carry the credential of the URL. _Send test_ shows the reason ([SECURITY-HARDENING.md](SECURITY-HARDENING.md#which-rule-checks-which-call)).
 - The card's **preview** shows the test message, or a failed dry run, as an e-mail and a Teams card with the unsaved settings. _Send test_ under _Notifications_ sends it with the saved ones. Changes are audited as `notifications.look_updated`; the setting moves with a [migration package](MIGRATION.md).
 
 ### Own logo
@@ -171,12 +171,12 @@ Once a day, a short summary of what concerns you. It is **off by default**; turn
 - reviews of living documents you review that are due soon or overdue;
 - service duties you are responsible for that are due soon, and periods missed or failed since the last summary ([DUTIES.md](DUTIES.md));
 - scheduled reports you receive that were generated since the last summary;
-- **trends** of dataset metrics you may see: limits and floors the trend reaches within 30 days (soonest first), then metrics that changed by 10 % or more in 7 days with a stable trend ([trends and forecasts](DASHBOARDS.md#how-the-trend-is-computed)). People who had every section selected get a new section; a chosen subset stays as it was (since 0.4.0 also a section you left out after it was added).
+- **trends** of dataset metrics you may see: limits and floors the trend reaches within 30 days (soonest first), then metrics that changed by 10 % or more in 7 days with a stable trend ([trends and forecasts](DASHBOARDS.md#how-the-trend-is-computed)). People who had every section selected get a new section; a chosen subset stays as it was (also a section you left out after it was added).
 - **new Kafka topics** under prefixes kept in sync of applications you may change ([KAFKA.md](KAFKA.md#add-topics-by-prefix)).
 
 **Team default.** A team can set a daily summary for its members (_Users → Teams_ → settings → _Daily summary_). Members who have not saved their own settings get it – the profile card says _Default of team …_; with several teams, the first by name that sets one applies. Saving in the profile makes the settings your own (they always win), and _Back to the default_ removes them again.
 
-You choose the sections, the time of day and your time zone, the days (Monday to Friday, every day, or **once a week** on a chosen day – since 0.10.0), and whether it comes in the app only or also by e-mail. With _Send nothing on days without anything to report_ you get nothing on quiet days. **Preview** shows what it would contain right now, without sending anything.
+You choose the sections, the time of day and your time zone, the days (Monday to Friday, every day, or **once a week** on a chosen day), and whether it comes in the app only or also by e-mail. With _Send nothing on days without anything to report_ you get nothing on quiet days. **Preview** shows what it would contain right now, without sending anything.
 
 **E-mail** is sent only when e-mail is set up (SMTP), the event _Daily summary_ is routed to e-mail in _Settings → Notifications_, you turned on e-mail notifications, and your address's domain is allowed (see above). The profile card says why when one of these is missing. The e-mail has a compact HTML part and a plain text part, in your language, with links into Steward (`SM_PUBLIC_URL` or the base URL in the notification settings).
 
@@ -188,7 +188,7 @@ You choose the sections, the time of day and your time zone, the days (Monday to
 
 ## Quiet hours and digests
 
-Since 0.10.0 ([ADR 0012](adr/0012-quiet-hours-and-digests.md)). **Quiet hours decide when** an interrupting message reaches you – never whether. **Nothing is dropped**: what arrives during quiet hours waits and comes as **one catch-up message** when they end; the app shows everything at once, always. Runs, checks, the audit log, reports and the daily summary are not affected.
+The design is in [ADR 0012](adr/0012-quiet-hours-and-digests.md). **Quiet hours decide when** an interrupting message reaches you – never whether. **Nothing is dropped**: what arrives during quiet hours waits and comes as **one catch-up message** when they end; the app shows everything at once, always. Runs, checks, the audit log, reports and the daily summary are not affected.
 
 **Order.** The pause of a source, maintenance windows, a monitor's quiet reasons and the dry-run setting decide first whether a message goes out at all (as before). Quiet hours and digests then decide when.
 
@@ -220,4 +220,4 @@ API: `GET`/`PUT`/`DELETE /api/me/notification-prefs`; administrators `GET`/`PUT 
 
 ## Decisions from Microsoft Teams
 
-Since 0.10.0 ([ADR 0013](adr/0013-teams-approvals.md), set-up: [TEAMS-APPROVALS.md](TEAMS-APPROVALS.md)). Cards about decisions (`task.assigned`, `mcp.request`) show what is decided – process and step, platform, the change as `METHOD path_template`, who asked, since when, the expiry – and never a request body, run inputs or values. **Approve** and **Reject** open the decision in Steward with that choice pre-selected (`/runs/<run>?task=<task>&decide=approve`, `/mcp-requests/<id>?decide=reject`); nothing is decided until you confirm there. Select decisions, manual steps, verifications and proposals only get _Open_. When the decision is made (in Steward or in Teams), the run is cancelled or the request expires, a short **follow-up card** goes to the channels the card went to. E-mails carry the same facts and links. With the optional **Teams bot** (a preview, a second administrator approves it), people can decide in the card itself – decision steps by default, AI requests only when the assurance policy allows it.
+The design is in [ADR 0013](adr/0013-teams-approvals.md), the set-up in [TEAMS-APPROVALS.md](TEAMS-APPROVALS.md). Cards about decisions (`task.assigned`, `mcp.request`) show what is decided – process and step, platform, the change as `METHOD path_template`, who asked, since when, the expiry – and never a request body, run inputs or values. **Approve** and **Reject** open the decision in Steward with that choice pre-selected (`/runs/<run>?task=<task>&decide=approve`, `/mcp-requests/<id>?decide=reject`); nothing is decided until you confirm there. Select decisions, manual steps, verifications and proposals only get _Open_. When the decision is made (in Steward or in Teams), the run is cancelled or the request expires, a short **follow-up card** goes to the channels the card went to. E-mails carry the same facts and links. With the optional **Teams bot** (a preview, a second administrator approves it), people can decide in the card itself – decision steps by default, AI requests only when the assurance policy allows it.

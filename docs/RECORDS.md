@@ -52,7 +52,7 @@ Notes:
 
 ### Table fields
 
-A field of the kind **table** (0.5.0) holds rows with fixed columns – e.g. the rule lines of a firewall change. Each column has a key (camelCase), a label, a kind (text, choice with its options, date) and may be required. Limits: 12 columns, 200 rows, 500 characters per cell, one line each.
+A field of the kind **table** holds rows with fixed columns – e.g. the rule lines of a firewall change. Each column has a key (camelCase), a label, a kind (text, choice with its options, date) and may be required. Limits: 12 columns, 200 rows, 500 characters per cell, one line each.
 
 - The value is stored like every field value, as a string: JSON, an array of rows with a string per column (`[{"source":"10.20.30.0/24","service":"tcp/443"}]`). Steward checks every cell by its column, drops empty rows, keeps the column order and stores an empty table as no value – so the content hash covers the table exactly.
 - The document page shows the table below the text, the editor edits it row by row, _Versions_ compares it row by row, the PDF prints it as a table (the first nine columns) and the Markdown export keeps the JSON in the frontmatter.
@@ -74,8 +74,8 @@ Draft ──submit──▶ Submitted ──approve──▶ Approved ──impl
   └──cancel──▶ Cancelled ◀──cancel──┘
 ```
 
-- **Verify** (0.5.0, optional for change requests): from _Implemented_, someone other than the person who marked the change implemented confirms it worked (editors and approvers); _Close_ works from _Implemented_ and _Verified_. Firewall changes must be verified, with evidence first ([FIREWALL-CHANGES.md](FIREWALL-CHANGES.md#steps)).
-- **Evidence** (0.5.0): while a change is _Approved_ or _Implemented_, editors add evidence files (_Attachments → Add evidence_), e.g. the confirmation of a provider. They are not content – the approved content and its hash stay as they are –, each is audited with its SHA-256 (`record.evidence_added`) and checked on every download, and none can be removed. The PDF lists them in a section of their own.
+- **Verify** (optional for change requests): from _Implemented_, someone other than the person who marked the change implemented confirms it worked (editors and approvers); _Close_ works from _Implemented_ and _Verified_. Firewall changes must be verified, with evidence first ([FIREWALL-CHANGES.md](FIREWALL-CHANGES.md#steps)).
+- **Evidence**: while a change is _Approved_ or _Implemented_, editors add evidence files (_Attachments → Add evidence_), e.g. the confirmation of a provider. They are not content – the approved content and its hash stay as they are –, each is audited with its SHA-256 (`record.evidence_added`) and checked on every download, and none can be removed. The PDF lists them in a section of their own.
 
 **Access** (access change entries, see [COMPLIANCE.md](COMPLIANCE.md)): Draft ──document──▶ Documented ──verify──▶ Verified; Draft ──cancel──▶ Cancelled. _Verify_ is an approval (four-eyes; the person who performed the change cannot verify it either). The fields of the access change type cannot be removed: the reconciliation and the evidence packs read them.
 

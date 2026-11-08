@@ -1,6 +1,6 @@
 # Service status pages
 
-A status page shows how a few services are doing, for people outside the service team – for example the colleagues in a plant (#26). It is built from what Steward already knows: the **monitors** linked to the services, planned and running **maintenance windows**, open **vendor tickets** and, if you want, the **availability objectives**. It never names monitors, platforms or tickets.
+A status page shows how a few services are doing, for people outside the service team – for example the colleagues in a plant. It is built from what Steward already knows: the **monitors** linked to the services, planned and running **maintenance windows**, open **vendor tickets** and, if you want, the **availability objectives**. It never names monitors, platforms or tickets.
 
 - [Set one up](#set-one-up)
 - [What a page shows](#what-a-page-shows)

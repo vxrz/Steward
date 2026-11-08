@@ -96,7 +96,7 @@ For troubleshooting, a platform manager can read the newest messages of a topic:
 
 ## Kafka Connect and Debezium
 
-Where Kafka Connect runs – for example with [Debezium](https://debezium.io/documentation/reference/stable/connectors/index.html) for change data capture – Steward watches it like the other platforms (0.9.0, #223). It **does not** run connectors or capture changes itself, and it **never writes**: no connector is created, changed, restarted, paused, resumed or deleted. A restart may come later as a manual step with four-eyes approval.
+Where Kafka Connect runs – for example with [Debezium](https://debezium.io/documentation/reference/stable/connectors/index.html) for change data capture – Steward watches it like the other platforms. It **does not** run connectors or capture changes itself, and it **never writes**: no connector is created, changed, restarted, paused, resumed or deleted. A restart may come later as a manual step with four-eyes approval.
 
 ### Connect a cluster
 
@@ -110,7 +110,7 @@ _Platforms → New → Kafka Connect (connectors, read-only)_:
 | Credential **token**                                               | a bearer token (a proxy or gateway in front of the REST API)                                                                                                                  |
 | Credentials **tlsCertificate** / **tlsKey** (**tlsKeyPassphrase**) | a client certificate for **mutual TLS** (PEM); a private CA under the platform's HTTP settings – see [PLATFORM-SIGN-IN.md](PLATFORM-SIGN-IN.md#client-certificate-mutual-tls) |
 
-The account only needs to read (`GET`) – Steward sends nothing else to a Kafka Connect platform, whatever asks: processes, the explorer, the MCP gateway and monitors get `403 PLATFORM_METHOD_DENIED` for `POST`, `PUT`, `PATCH` and `DELETE` – since 0.9.0 also when another platform sends the request to the Kafka Connect API, and its credentials may only be used in a step on the Kafka Connect connection itself ([SECURITY-HARDENING.md](SECURITY-HARDENING.md#which-rule-checks-which-call)). The base URL goes through the outbound policy like every platform; redirects are not followed.
+The account only needs to read (`GET`) – Steward sends nothing else to a Kafka Connect platform, whatever asks: processes, the explorer, the MCP gateway and monitors get `403 PLATFORM_METHOD_DENIED` for `POST`, `PUT`, `PATCH` and `DELETE` – also when another platform sends the request to the Kafka Connect API, and its credentials may only be used in a step on the Kafka Connect connection itself ([SECURITY-HARDENING.md](SECURITY-HARDENING.md#which-rule-checks-which-call)). The base URL goes through the outbound policy like every platform; redirects are not followed.
 
 ### What Steward reads
 
@@ -140,7 +140,7 @@ _Configuration_ on a connector reads its configuration **now** – it is never s
 - **Debezium source connectors** (class `io.debezium.connector.<dbms>.…`) link to the **database platform** and the **system** they read. The rule:
   1. From the configuration: the DBMS from the class (`postgresql`, `mysql`, `mariadb`, `sqlserver`, `oracle`, `db2`, …), the host `database.hostname`, the port `database.port` (else the DBMS's default), the databases `database.dbname` (PostgreSQL, Oracle, Db2), `database.names` (SQL Server) or `database.include.list` (MySQL, MariaDB).
   2. **Database platform**: one whose connection (_Platform → Database_) has the same dialect (MariaDB and MySQL are one), the same host (case-insensitive, without a trailing dot) and port, and – when the connector names databases – one of them as its database. Several: the first by name.
-  3. **System**: the system that _is_ that database platform (#129); else a system named like the host, or like its first label (`shop-db` for `shop-db.example.internal`).
+  3. **System**: the system that _is_ that database platform; else a system named like the host, or like its first label (`shop-db` for `shop-db.example.internal`).
 - **Only what you may see**: a database platform, system, Kafka platform or application you may not see is not named – it reads like no match.
 
 ### Monitor check

@@ -1,6 +1,6 @@
 # Debugging processes
 
-When a procedure does the wrong thing, you do not have to edit it blindly and start another full run. Steward 0.10.0 offers three tools ([ADR 0010](adr/0010-debugging-procedures.md)):
+When a procedure does the wrong thing, you do not have to edit it blindly and start another full run. Steward offers three tools ([ADR 0010](adr/0010-debugging-procedures.md)):
 
 - **Run this node** – try one node with the data you choose.
 - **Step through a run** – walk through a run node by node and look at the variables before each one.

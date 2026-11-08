@@ -151,7 +151,7 @@ Rules that hold across modules:
 
 ## The engine boundary
 
-Since 0.10.0 ([ADR 0011](adr/0011-engine-boundary.md)) the process engine has one interface, `RunEngine` in `server/src/engine/engine.ts`: `start(command)`, `signal(runId, signal, actor)`, `cancel(runId, reason, actor)` and `query(runId)`, plus the host calls `recover`, `stopAccepting`, `drain` and `interruptBusy` that only `bootstrap.ts` and `main.ts` use. `engine()` from `engine/index.ts` returns the configured engine – in 0.10.0 always the **built-in engine**, today's runner (`runner.ts`). `engine/store.ts` stays importable everywhere: it is the record, not the executor.
+The process engine has one interface ([ADR 0011](adr/0011-engine-boundary.md)), `RunEngine` in `server/src/engine/engine.ts`: `start(command)`, `signal(runId, signal, actor)`, `cancel(runId, reason, actor)` and `query(runId)`, plus the host calls `recover`, `stopAccepting`, `drain` and `interruptBusy` that only `bootstrap.ts` and `main.ts` use. `engine()` from `engine/index.ts` returns the configured engine – today always the **built-in engine**, today's runner (`runner.ts`). `engine/store.ts` stays importable everywhere: it is the record, not the executor.
 
 ```mermaid
 flowchart LR

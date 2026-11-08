@@ -2,7 +2,7 @@
 
 A data contract says what a data source promises: its schema, quality rules, owner, servers and terms. Steward keeps data contracts in the **[Open Data Contract Standard (ODCS) v3](https://bitol-io.github.io/open-data-contract-standard/)** of Bitol (Linux Foundation AI & Data), links them to what it already knows – tables, datasets, applications, systems, API specifications – and tests them through the **[datacontract CLI](https://cli.datacontract.com)** (MIT), which runs as its own container next to Steward. Test results are evidence: every run is stored with its full report, and monitors, the process step, the scorecard and the reports use them.
 
-Where: **Catalogue → Data contracts** (`/data-contracts`). Since 0.9.0 (#221).
+Where: **Catalogue → Data contracts** (`/data-contracts`).
 
 ## Contents
 
@@ -78,10 +78,10 @@ A link can be made only to what the person may see (a hidden target answers like
 
 **New contract → Start from** drafts a contract from what Steward already has – nothing is saved until you choose **Create contract**:
 
-- **Database tables:** the tables and columns of the latest schema snapshot of a database platform or a system (#222): `logicalType` from the column type, `physicalType` as the database writes it, `required` from NOT NULL, the primary key and single-column unique indexes, comments as descriptions. For a database platform the draft also names its server (host, port, database) and links it – when you may use the platform.
+- **Database tables:** the tables and columns of the latest schema snapshot of a database platform or a system: `logicalType` from the column type, `physicalType` as the database writes it, `required` from NOT NULL, the primary key and single-column unique indexes, comments as descriptions. For a database platform the draft also names its server (host, port, database) and links it – when you may use the platform.
 - **Dataset:** its columns, with types guessed from up to 200 rows.
 - **OpenAPI response:** the response schema (200, 201, … or the first 2xx) of an operation of a platform's OpenAPI description, `$ref`s resolved, nested objects and arrays as nested properties, `required`, formats and lengths kept. A list response describes one item.
-- **Recorded response:** a recorded response of a platform (#105), types guessed from its values; a field present and not null in every row is `required`.
+- **Recorded response:** a recorded response of a platform, types guessed from its values; a field present and not null in every row is `required`.
 
 Every draft is ODCS v3.0.2 with status `draft`; its warnings say what to review. Patterns from a specification are copied as data – Steward never runs them.
 

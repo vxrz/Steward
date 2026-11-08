@@ -1,6 +1,6 @@
 # AI models
 
-A process can ask an AI model a **predefined question** with context from earlier steps – CheckMk data, other platforms, Steward datasets – and use the answer in later steps, for example in a report, a check message or an e-mail and Teams notification (0.6.0, #216). Every call is limited, logged and can be reported.
+A process can ask an AI model a **predefined question** with context from earlier steps – CheckMk data, other platforms, Steward datasets – and use the answer in later steps, for example in a report, a check message or an e-mail and Teams notification. Every call is limited, logged and can be reported.
 
 **The AI does not act on its own.** It answers; actions stay explicit process steps, and an answer can wait for a person's approval before it leaves Steward. There are no tool calls from the model to platforms and no chat. The other direction – an AI assistant using Steward – is the [MCP server](MCP.md).
 

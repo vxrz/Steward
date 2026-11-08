@@ -1,6 +1,6 @@
 # Platform costs
 
-What do the services, applications and teams a team runs cost per month? Steward collects the costs from the platforms it already reads – **AWS, Snowflake, Confluent Cloud, AI gateways** – and from **FOCUS files** of every other provider, keeps them in one cost model and shows them per service, application, team and platform: the last 12 months, the current month so far, a trend and a forecast, monthly budgets with notices, a monitor check for unusual increases, a scorecard part, a report section, a dataset and read endpoints of the public API (0.9.0, #226).
+What do the services, applications and teams a team runs cost per month? Steward collects the costs from the platforms it already reads – **AWS, Snowflake, Confluent Cloud, AI gateways** – and from **FOCUS files** of every other provider, keeps them in one cost model and shows them per service, application, team and platform: the last 12 months, the current month so far, a trend and a forecast, monthly budgets with notices, a monitor check for unusual increases, a scorecard part, a report section, a dataset and read endpoints of the public API.
 
 **Showback, not FinOps.** Steward shows costs where people already look after their services. Invoices, chargeback between departments, commitment and rightsizing optimisation stay in a FinOps tool ([ROADMAP.md](ROADMAP.md), _not planned_).
 
@@ -104,7 +104,7 @@ One scope shows per currency:
 
 - the **12 complete months and the current one so far** as bars (the current month hatched; a table twin with `EffectiveCost` and `BilledCost`);
 - the **forecast** of the current month: each platform's amount so far ÷ the days its lines cover × the days of the month, added up (sources lag by different times); from the 3rd day of a month;
-- the **trend**: the Theil–Sen line through the complete months (the trend functions of #145) – change per month, in percent of the average month, _steady_ or _uneven_; from five months;
+- the **trend**: the Theil–Sen line through the complete months (the trend functions of the dashboards) – change per month, in percent of the average month, _steady_ or _uneven_; from five months;
 - the **budget** and its state, the costs **by provider and service**, the **applications** (of a service, team or platform) or **platforms** (of an application) behind them, what is **unassigned** (platforms), and the sources with their last read.
 
 ## Budgets
