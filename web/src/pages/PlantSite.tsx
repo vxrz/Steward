@@ -15,6 +15,7 @@ import {
 } from '@sm/shared';
 import { apiUrl, del, get, notifyError, patch, post, put } from '../api';
 import { DetailState, EmptyState } from '../components/common';
+import { useAliasRedirect, useChangeId } from '../components/plant/ids';
 import { DetailHeader } from '../components/page/DetailPage';
 import { Field, LinksPanel } from '../components/records/common';
 import { OwningTeams } from '../components/OwningTeams';
@@ -57,6 +58,9 @@ export function PlantSitePage() {
   const [buildingDialog, setBuildingDialog] = useState<{ building?: PlantBuilding } | null>(null);
   const [newAsset, setNewAsset] = useState(false);
   const s = q.data;
+  // an old id in the address (0.11.0): the entry's id replaces it
+  useAliasRedirect([[siteId, s?.id]]);
+  const changeId = useChangeId(s ? { kind: 'site', id: s.id, name: s.name } : null, !!s?.canManage);
   if (!s) return <DetailState query={q} back="plantSites" />;
   // the other tabs (#230): the structure as a picture
   if (tab) return <PlantSiteTabPage site={s} tab={tab} />;
@@ -164,10 +168,18 @@ export function PlantSitePage() {
           </>
         }
         menu={
-          canManage ? { items: [{ label: t('site.delete'), icon: IconTrash, color: 'red', onClick: () => void remove(), testId: 'site-delete' }] } : undefined
+          canManage
+            ? {
+                items: [
+                  ...(changeId.item ? [changeId.item] : []),
+                  { label: t('site.delete'), icon: IconTrash, color: 'red', onClick: () => void remove(), testId: 'site-delete' },
+                ],
+              }
+            : undefined
         }
         tabs={<SiteTabs site={s} active="" />}
       />
+      {changeId.modal}
       <Grid gap="lg">
         <Grid.Col span={{ base: 12, md: 8 }}>
           <Stack gap="lg">
