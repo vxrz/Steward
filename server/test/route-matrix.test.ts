@@ -1052,6 +1052,14 @@ const EXPECT: Record<string, Access> = {
   'POST /api/plant/import': DESIGN,
   'GET /api/plant/imports': PLANT,
   'GET /api/plant/export': PLANT,
+  // changing ids (0.11.0): whoever may change the entry; the old ids (aliases) are the administrators'
+  'POST /api/plant/ids/rename/preview': DESIGN,
+  'POST /api/plant/ids/rename': DESIGN,
+  'GET /api/plant/aliases': ADMIN,
+  'DELETE /api/plant/aliases/:kind/:oldId': ADMIN,
+  // many entries at once (0.11.0): whoever manages a site or the catalogues; entries they may not change are skipped
+  'POST /api/plant/bulk/preview': DESIGN,
+  'POST /api/plant/bulk': DESIGN,
   // part 2 (#219): device profiles and KPI definitions (catalogues of the installation), an asset's assignment
   'GET /api/plant/profiles': PLANT,
   'POST /api/plant/profiles': DESIGN,
@@ -1322,6 +1330,20 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
       return { scope: 'service', scopeId: fx.service, amount: '500', currency: 'USD' };
     },
   },
+  // many plant entries at once (0.11.0): removing more than one; one is harmless (here: one that does not exist)
+  'POST /api/plant/bulk': {
+    sensitive: { kind: 'asset', action: 'remove', items: [{ id: 'nothing-a' }, { id: 'nothing-b' }] },
+    harmless: { kind: 'asset', action: 'remove', items: [{ id: 'nothing-a' }] },
+  },
+  // an import that removes (or renames) more than one entry; a file that removes nothing is harmless
+  'POST /api/plant/import': {
+    sensitive: {
+      files: [{ name: 'r.yaml', content: 'version: 1\nremove:\n  - { kind: site, id: hillcrest }\n  - { kind: site, id: riverside }\n' }],
+      mode: 'update',
+      cascade: true,
+    },
+    harmless: { files: [{ name: 'r.yaml', content: 'version: 1\nremove: []\n' }], mode: 'update' },
+  },
 };
 
 /**
@@ -1330,6 +1352,8 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
  */
 const STEP_UP_BY_POLICY = [
   'POST /api/records/:id/transition',
+  // changing one plant entry's id (0.11.0): off until the policy turns it on
+  'POST /api/plant/ids/rename',
   'POST /api/tasks/:id/verify',
   'POST /api/compliance/findings/:findingId/document',
   'POST /api/compliance/findings/:findingId/dismiss',
