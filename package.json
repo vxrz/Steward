@@ -49,6 +49,7 @@
     "backup": "tsx server/src/cli/backup.ts",
     "i18n:check": "node scripts/i18n-check.mjs",
     "i18n:literals": "node scripts/i18n-literals.mjs",
+    "check:imports": "node scripts/check-imports.mjs",
     "prepare": "husky || true"
   },
   "devDependencies": {
