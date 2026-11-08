@@ -56,7 +56,11 @@ export function PlatformChoices({
           />
         ) : (
           <Alert key={r.ref} color="orange" variant="light" title={label}>
-            {r.kind ? t('platformChoices.noneOfKind', { kind: r.kind }) : t('platformChoices.none')}
+            {r.kind
+              ? t('platformChoices.noneOfKind', { kind: r.kind })
+              : r.kinds.length
+                ? t('platformChoices.noneOfKinds', { kinds: r.kinds.join(', ') })
+                : t('platformChoices.none')}
           </Alert>
         );
       })}

@@ -546,6 +546,8 @@ async function collectInsightsHub(c: CheckRow): Promise<{ subjects: AccessSubjec
       context: 'platform',
       name: platform.name,
     });
+  // as the other sources: a platform whose kind changed since the check was saved is not called
+  requireSourceKind('insights-hub', platform.kind);
   const secrets = getSecrets(c.platform_id);
   const idm = String(platform.config.variables?.idmPath || '/api/identitymanagement/v3').replace(/\/$/, '');
   const raw: { id: string; name?: string; type?: string; rights: unknown[] }[] = [];

@@ -21,6 +21,7 @@ import {
 } from './model.js';
 import { analyze, applyResult, freshnessStatus, freshnessWindowSeconds, fmtAge, nextDue, phaseOffset } from './logic.js';
 import { isActive, planCheck, runActiveCheck, toMillis, type RawResult } from './checks.js';
+import { storedKindMismatch } from './kinds.js';
 import { ihKey } from './batch.js';
 import { dispatchOutputs, heldMonitors, type Subject } from './outputs.js';
 import { markDatasetsDirty, publishDirtyDatasets } from './datasets.js';
@@ -101,6 +102,32 @@ export function loadAll(): void {
   loaded = true;
 }
 
+/**
+ * Once at start (0.11.0): checks and outputs whose stored platform is of a kind they do not use (kinds.ts) – saved
+ * before the kind was checked, or the platform's kind changed. Checks report unknown, outputs record a failure, neither
+ * sends anything; one log line names them by monitor, check or output and platform id (no names, no secrets) so an
+ * administrator can find them.
+ */
+function warnPlatformKindMismatches(): void {
+  const checks: { monitor: string; key: string; check: string; type: string; platform: string; kind: string }[] = [];
+  const outputs: { monitor: string; key: string; output: string; type: string; platform: string; kind: string }[] = [];
+  for (const m of monitors.values()) {
+    for (const c of m.def.checks) {
+      const x = storedKindMismatch({ ...c, platform: 'platform' in c ? c.platform : undefined }, false);
+      if (x) checks.push({ monitor: m.id, key: m.key, check: c.id, type: c.type, platform: x.platform, kind: x.kind });
+    }
+    for (const o of m.def.outputs) {
+      const x = storedKindMismatch({ type: o.type, platform: 'platform' in o ? o.platform : undefined }, true);
+      if (x) outputs.push({ monitor: m.id, key: m.key, output: o.id, type: o.type, platform: x.platform, kind: x.kind });
+    }
+  }
+  if (checks.length || outputs.length)
+    logger.warn(
+      { checks: checks.slice(0, 100), outputs: outputs.slice(0, 100), count: checks.length + outputs.length },
+      'monitor checks and outputs whose platform is of a kind they do not read or write to: they do not run until another platform is chosen',
+    );
+}
+
 /** After a create/update: refresh the definition and evaluate the monitor soon. */
 export function reloadMonitor(id: string): void {
   const r = db().get<MonitorRow>('SELECT * FROM monitors WHERE id = ?', id);
@@ -130,6 +157,7 @@ export function startMonitorEngine(): void {
   abort = new AbortController();
   try {
     loadAll();
+    warnPlatformKindMismatches();
   } catch (err) {
     logger.error({ err }, 'monitors could not be loaded');
   }
