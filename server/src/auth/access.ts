@@ -83,8 +83,7 @@ export function requireAdmin(what: string, context?: string): AuthUser {
   return u;
 }
 
-/** Whether `u` has any of `roles`. */
-export const hasRole = (u: AuthUser | null, roles: readonly Role[]): boolean => !!u && u.roles.some((r) => roles.includes(r));
+export { hasRole } from './permissions.js';
 
 /** A status viewer: role "status" and no other (#26). */
 export const isStatusViewer = (roles: readonly string[]): boolean => roles.length > 0 && roles.every((r) => r === 'status');

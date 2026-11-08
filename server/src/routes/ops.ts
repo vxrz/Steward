@@ -32,9 +32,9 @@ import { maintenanceStatus, runCleanup } from '../maintenance.js';
 import { publicApiStatus } from '../api/v1/config.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { ACCESS, me, withCapability } from '../auth/access.js';
+import { params } from './params.js';
 
 const admin = (what: string) => withCapability('manageSettings', what);
-const params = (req: FastifyRequest) => req.params as Record<string, string>;
 const viaToken = (req: FastifyRequest) => !!(req as unknown as { smToken?: string }).smToken;
 
 const lookBody = z

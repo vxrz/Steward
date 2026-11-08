@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { CERTIFICATE_MAX_BYTES, CREDENTIAL_STATUSES, type CredentialList } from '@sm/shared';
 import { audit } from '../audit.js';
@@ -9,6 +9,7 @@ import { belongsTargets } from './belongs.js';
 import { parseCertificate, certificateBytes } from './certificates.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { ACCESS, me } from '../auth/access.js';
+import { params } from '../routes/params.js';
 
 /**
  * Credentials register (mounted under /api). Documentation only: no route
@@ -30,8 +31,6 @@ import { ACCESS, me } from '../auth/access.js';
  *   DELETE /credentials/:id               administrators
  *   POST   /credentials/import/entra      app secrets and certificates of an Entra ID tenant as entries (v0.5.0)
  */
-
-const params = (req: FastifyRequest) => req.params as Record<string, string>;
 
 const list = (v: unknown): string[] | undefined => {
   if (v === undefined || v === '') return undefined;

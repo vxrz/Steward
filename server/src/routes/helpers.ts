@@ -1,5 +1,5 @@
 /** Permission and visibility helpers shared by the route files. */
-import type { RunSummary, TaskRecord } from '@sm/shared';
+import type { ProcessPermission, RunSummary, TaskRecord } from '@sm/shared';
 import { HttpError, parseJson } from '../util.js';
 import { db } from '../db.js';
 import * as platforms from '../platforms/service.js';
@@ -14,13 +14,41 @@ import { decisionCheck, processPermissions, require } from '../auth/permissions.
 
 export { seesDebugRun } from '../engine/visibility.js';
 
-export function requireRun(runId: string, perm: 'view' | 'run', what: string) {
+/**
+ * A process the current user may see (404 otherwise, as for a missing one) and has one of `needed` on (403): its
+ * rights. `forbiddenCode: false` answers the 403 without the FORBIDDEN code and its parameters, as the expression and
+ * inspection routes did before this helper was shared (routes/engine-extras.ts).
+ */
+export function requireProcess(
+  processId: string,
+  needed: ProcessPermission | readonly ProcessPermission[],
+  what: string,
+  opts: { forbiddenCode?: boolean } = {},
+): ProcessPermission[] {
+  const perms = processes.permissionsFor(processId);
+  if (!perms.includes('view')) throw new HttpError(404, `Process ${processId} not found`);
+  const any = typeof needed === 'string' ? [needed] : needed;
+  if (any.some((p) => perms.includes(p))) return perms;
+  if (opts.forbiddenCode === false) throw new HttpError(403, `You are not allowed to ${what}`);
+  require(perms, any[0]!, what); // throws: FORBIDDEN, with the (first) right as its context
+  return perms;
+}
+
+/**
+ * A run the current user may see (`view` on its process, debug runs per ADR 0010) with `perm` on its process. A hidden
+ * run answers 404 like a missing one; `notFoundCode` adds the RUN_NOT_FOUND code to that answer (the report routes).
+ */
+export function requireRun(runId: string, perm: 'view' | 'run', what: string, opts: { notFoundCode?: boolean } = {}) {
   const r = store.runRow(runId);
   const perms = processes.permissionsFor(r.process_id);
-  if (!seesRun(r, perms)) throw new HttpError(404, `Run ${runId} not found`);
+  if (!seesRun(r, perms))
+    throw opts.notFoundCode ? new HttpError(404, `Run ${runId} not found`, 'RUN_NOT_FOUND', { id: runId }) : new HttpError(404, `Run ${runId} not found`);
   require(perms, perm, what);
   return r;
 }
+
+/** A run the current user may see (see requireRun). */
+export const requireRunView = (runId: string, opts: { notFoundCode?: boolean } = {}) => requireRun(runId, 'view', 'view this run', opts);
 
 export function requirePlatform(id: string, perm: 'use' | 'manage', what: string) {
   const p = platforms.getPlatform(id);

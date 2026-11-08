@@ -1,5 +1,5 @@
 import fs from 'node:fs';
-import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { audit } from '../audit.js';
 import { confirmPlatformConfig, confirmReview } from '../platforms/integrity.js';
@@ -21,6 +21,7 @@ import { requirePlatform } from './helpers.js';
 import { PRESET_SPECS } from '../platforms/presets.js';
 import { moduleOfPlatformKind } from '@sm/shared';
 import { moduleEnabled } from '../modules/registry.js';
+import { params } from './params.js';
 
 const platformBody = z.object({
   name: z.string().min(1).max(200),
@@ -52,8 +53,6 @@ function inlineDocType(data: Buffer, declared: string | undefined): string | nul
 }
 
 const redact = redactSecrets;
-
-const params = (req: FastifyRequest) => req.params as Record<string, string>;
 
 /** Platforms, connector types, API specifications and documentation (mounted under /api). */
 export async function platformRoutes(app: FastifyInstance): Promise<void> {

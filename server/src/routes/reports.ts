@@ -1,14 +1,12 @@
 import fs from 'node:fs';
-import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import type { FastifyInstance, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { REPORT_LANGS, REPORT_LOGO_MAX_BYTES, type ReportRecord } from '@sm/shared';
 import { audit } from '../audit.js';
 import { verifyWithAnchors } from '../audit-anchor.js';
-import { capabilities, require, requireCapability } from '../auth/permissions.js';
+import { capabilities, requireCapability } from '../auth/permissions.js';
 import * as processes from '../processes/service.js';
-import * as store from '../engine/store.js';
 import { HttpError, sha256 } from '../util.js';
-import { seesRun } from '../engine/visibility.js';
 import * as branding from '../reports/branding.js';
 import * as reports from '../reports/service.js';
 import { initAutoReports } from '../reports/auto.js';
@@ -16,6 +14,8 @@ import { canViewScheduledReport } from '../reports/schedules.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { LARGE_BODIES } from '../bodyLimits.js';
 import { ACCESS, me } from '../auth/access.js';
+import { requireRunView } from './helpers.js';
+import { params } from './params.js';
 
 /**
  * Archived PDF reports (mounted under /api):
@@ -29,17 +29,6 @@ import { ACCESS, me } from '../auth/access.js';
  *   /reports/branding…                branding settings, logo, preview (administrators)
  */
 
-const params = (req: FastifyRequest) => req.params as Record<string, string>;
-
-function requireRunView(runId: string) {
-  const r = store.runRow(runId);
-  const perms = processes.permissionsFor(r.process_id);
-  // a debug run only for its starter, the process's managers, administrators and auditors (ADR 0010)
-  if (!seesRun(r, perms)) throw new HttpError(404, `Run ${runId} not found`, 'RUN_NOT_FOUND', { id: runId });
-  require(perms, 'view', 'view this run');
-  return r;
-}
-
 /** Summary reports: the user must be able to view every process they cover. */
 function canViewAll(processIds: string[]): boolean {
   return processIds.every((id) => processes.permissionsFor(id).includes('view'));
@@ -51,7 +40,7 @@ function requireReportAccess(rec: ReportRecord): void {
     return;
   }
   if (rec.kind === 'run' && rec.runId) {
-    requireRunView(rec.runId);
+    requireRunView(rec.runId, { notFoundCode: true });
     return;
   }
   if (!canViewAll(rec.processIds)) {
@@ -101,7 +90,7 @@ export async function reportRoutes(app: FastifyInstance): Promise<void> {
   // ---------- run reports ----------
   app.post('/runs/:id/reports', { config: { rateLimit: ROUTE_LIMITS.heavy } }, async (req) => {
     const id = params(req).id!;
-    requireRunView(id);
+    requireRunView(id, { notFoundCode: true });
     const b = runReportBody.parse(req.body ?? {});
     const rec = await reports.generateRunReport(id, { ...b, lang: reports.requestLang(b.lang), actor: me().username });
     return strip(rec);
@@ -109,13 +98,13 @@ export async function reportRoutes(app: FastifyInstance): Promise<void> {
 
   app.get('/runs/:id/reports', async (req) => {
     const id = params(req).id!;
-    requireRunView(id);
+    requireRunView(id, { notFoundCode: true });
     return reports.listRunReports(id);
   });
 
   app.get('/runs/:id/report.pdf', { config: { rateLimit: ROUTE_LIMITS.heavy } }, async (req, reply) => {
     const id = params(req).id!;
-    requireRunView(id);
+    requireRunView(id, { notFoundCode: true });
     const q = z.object({ lang: z.string().max(10).optional(), timeZone: z.string().max(64).optional() }).parse(req.query ?? {});
     const rec = await reports.generateRunReport(id, { lang: reports.requestLang(q.lang), timeZone: q.timeZone, actor: me().username });
     const r = reports.getReport(rec.id);

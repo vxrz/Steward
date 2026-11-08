@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import type { FastifyInstance, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { ROLES, TEAM_ROLES, type Subject, type UserInfo, boundedRecord } from '@sm/shared';
 import { audit } from '../audit.js';
@@ -16,8 +16,7 @@ import { requireCapability } from '../auth/permissions.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { LARGE_BODIES } from '../bodyLimits.js';
 import { ACCESS, me } from '../auth/access.js';
-
-const params = (req: FastifyRequest) => req.params as Record<string, string>;
+import { params } from './params.js';
 
 /** Users, teams and team settings (mounted under /api). */
 export async function userRoutes(app: FastifyInstance): Promise<void> {

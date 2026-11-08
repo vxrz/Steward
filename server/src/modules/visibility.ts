@@ -1,7 +1,7 @@
 import { moduleOfNav, type AreaVisibility, type Role, type VisibilityArea, type VisibilitySummary } from '@sm/shared';
 import { db } from '../db.js';
 import { logger } from '../log.js';
-import { me } from '../auth/access.js';
+import { me, hasRole } from '../auth/access.js';
 import type { AuthUser } from '../auth/context.js';
 import { capabilities } from '../auth/permissions.js';
 import { moduleEnabled } from './registry.js';
@@ -34,7 +34,6 @@ interface AreaRule {
   exists?: () => boolean;
 }
 
-const has = (u: AuthUser, roles: readonly Role[]) => u.roles.some((r) => roles.includes(r));
 /** Every role that works in Steward (status and plant viewers never reach these areas) */
 const WORKING: readonly Role[] = ['admin', 'designer', 'operator', 'approver', 'auditor', 'viewer'];
 const READS_ALL: readonly Role[] = ['admin', 'auditor'];
@@ -135,7 +134,7 @@ async function rules(): Promise<Record<VisibilityArea, AreaRule>> {
       roles: [],
       // requests of AI assistants: only while the MCP server is on, or when the person still has requests to read
       any: () => mcpRequests.listRequests('all').length > 0,
-      create: (u) => mcpConfig.mcpEnabled() && (has(u, ['admin', 'auditor']) || usable().length > 0),
+      create: (u) => mcpConfig.mcpEnabled() && (hasRole(u, ['admin', 'auditor']) || usable().length > 0),
       exists: row('SELECT 1 FROM mcp_requests LIMIT 1'),
     },
     maintenance: {
@@ -246,7 +245,7 @@ export async function visibilitySummary(): Promise<VisibilitySummary> {
     let show: boolean;
     try {
       any = see(rule);
-      show = any || has(u, rule.roles) || rule.create(u);
+      show = any || hasRole(u, rule.roles) || rule.create(u);
     } catch (err) {
       // an area whose list cannot be read now is shown, as before (its page says what is wrong)
       logger.warn({ err: (err as Error).message, area: key }, 'visibility: area not decided');

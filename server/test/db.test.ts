@@ -118,6 +118,23 @@ function sharedBehaviour(open: () => Db) {
     expect(d.run('UPDATE t_tx SET v = ? WHERE id > ?', 'z', 0).changes).toBe(1);
   });
 
+  it('refuses a transaction callback that returns a promise (ADR 0001: one synchronous function)', async () => {
+    const d = open();
+    d.exec(ddl(d, 'CREATE TABLE t_tx_async (id INTEGER PRIMARY KEY)'));
+    const sneaky = (): unknown => {
+      d.run('INSERT INTO t_tx_async (id) VALUES (?)', 1);
+      return Promise.resolve();
+    };
+    // @ts-expect-error – the type refuses an async callback
+    expect(() => d.tx(async () => d.run('INSERT INTO t_tx_async (id) VALUES (?)', 2))).toThrow('must be synchronous');
+    // one that slips past the type rolls back, also when it is nested
+    expect(() => d.tx(sneaky)).toThrow('must be synchronous');
+    expect(() => d.tx(() => d.tx(sneaky))).toThrow('must be synchronous');
+    expect(d.all('SELECT id FROM t_tx_async')).toEqual([]);
+    expect(d.inTransaction).toBe(false);
+    await Promise.resolve();
+  });
+
   it('returns numbers for integers and counts, and Uint8Array for binary data', () => {
     const d = open();
     d.exec(ddl(d, 'CREATE TABLE t_types (id INTEGER PRIMARY KEY, big INTEGER, r REAL, data BLOB, s TEXT)'));

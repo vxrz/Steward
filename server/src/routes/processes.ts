@@ -25,11 +25,12 @@ import { contentDisposition, downloadType } from '../records/attachments.js';
 import { currentActor } from '../auth/context.js';
 import * as users from '../auth/users.js';
 import { processAccess } from '../auth/step-up-rules.js';
-import { require, requireCapability } from '../auth/permissions.js';
+import { requireCapability } from '../auth/permissions.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { LARGE_BODIES } from '../bodyLimits.js';
 import { me } from '../auth/access.js';
-import { requireRun, withDecisionRights, visibleTasks, visibleRuns } from './helpers.js';
+import { requireProcess, requireRun, withDecisionRights, visibleTasks, visibleRuns } from './helpers.js';
+import { params } from './params.js';
 
 /** Query strings are validated like bodies: one value per parameter, bounded, numbers as numbers. */
 const versionQuery = z.object({ version: z.coerce.number().int().min(1).optional() });
@@ -62,15 +63,6 @@ const runsQuery = z.object({
   /** With a sort: the id of the last run shown ("Load more"); `before` is the cursor of the default order */
   after: z.string().max(200).optional(),
 });
-
-function requireProcess(processId: string, perm: 'view' | 'run' | 'edit' | 'approve' | 'manage', what: string) {
-  const perms = processes.permissionsFor(processId);
-  if (!perms.includes('view')) throw new HttpError(404, `Process ${processId} not found`);
-  require(perms, perm, what);
-  return perms;
-}
-
-const params = (req: FastifyRequest) => req.params as Record<string, string>;
 
 /** Processes, runs, tasks and schedules (mounted under /api). */
 export async function processRoutes(app: FastifyInstance): Promise<void> {

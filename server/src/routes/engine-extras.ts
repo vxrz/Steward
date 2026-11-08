@@ -1,13 +1,11 @@
-import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { EvaluateResult, ScopeHints } from '@sm/shared';
 import { HttpError } from '../util.js';
-import { seesRun } from '../engine/visibility.js';
 import { currentUser } from '../auth/context.js';
 import { require } from '../auth/permissions.js';
 import * as processes from '../processes/service.js';
 import * as platforms from '../platforms/service.js';
-import * as store from '../engine/store.js';
 import { evalExpr, render } from '../engine/expr.js';
 import { FUNCTIONS, expressionContext, inspectNode, limitSize, pickRun, sample } from '../engine/inspect.js';
 import { contractCheck } from '../engine/contract.js';
@@ -16,21 +14,8 @@ import { readinessChecks, trafficReadiness } from '../system/readiness.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { ACCESS } from '../auth/access.js';
 import { env } from '../config.js';
-
-const params = (req: FastifyRequest) => req.params as Record<string, string>;
-
-function requireProcess(processId: string, perms: ('view' | 'run' | 'edit')[], what: string) {
-  const have = processes.permissionsFor(processId);
-  if (!have.includes('view')) throw new HttpError(404, `Process ${processId} not found`);
-  if (!perms.some((p) => have.includes(p))) throw new HttpError(403, `You are not allowed to ${what}`);
-}
-
-function requireRunView(runId: string) {
-  const r = store.runRow(runId);
-  // a debug run only for its starter, the process's managers, administrators and auditors (ADR 0010)
-  if (!seesRun(r, processes.permissionsFor(r.process_id))) throw new HttpError(404, `Run ${runId} not found`);
-  return r;
-}
+import { requireProcess, requireRunView } from './helpers.js';
+import { params } from './params.js';
 
 const EVAL_TIMEOUT_MS = 1000;
 const MAX_RESULT_CHARS = 50000;
@@ -64,7 +49,7 @@ export async function engineExtrasRoutes(app: FastifyInstance): Promise<void> {
   // ---------- editor support ----------
   app.get('/processes/:id/scope', async (req): Promise<ScopeHints> => {
     const id = params(req).id!;
-    requireProcess(id, ['view'], 'view this process');
+    requireProcess(id, 'view', 'view this process');
     const q = z.object({ runId: z.string().max(200).optional() }).parse(req.query ?? {});
     const current = processes.getProcess(id).definition;
     let runId: string | null = null;
@@ -89,7 +74,7 @@ export async function engineExtrasRoutes(app: FastifyInstance): Promise<void> {
 
   app.post('/processes/:id/evaluate', async (req): Promise<EvaluateResult> => {
     const id = params(req).id!;
-    requireProcess(id, ['edit', 'run'], 'evaluate expressions of this process');
+    requireProcess(id, ['edit', 'run'], 'evaluate expressions of this process', { forbiddenCode: false });
     const b = z
       .object({
         expression: z.string().max(20000),

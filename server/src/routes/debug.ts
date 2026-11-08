@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import {
   DEBUG_LIMITS,
@@ -25,8 +25,7 @@ import { findSecret } from '../credentials/secrets.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { LARGE_BODIES } from '../bodyLimits.js';
 import { requireRun } from './helpers.js';
-
-const params = (req: FastifyRequest) => req.params as Record<string, string>;
+import { params } from './params.js';
 
 const decisionSchema = z.object({
   approved: z.boolean(),

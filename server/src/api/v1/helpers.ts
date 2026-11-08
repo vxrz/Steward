@@ -12,7 +12,7 @@ export type Get = <R>(url: string, op: Op, handler: (req: FastifyRequest, reply:
 type Q = Record<string, unknown>;
 type Paged<T> = { items: T[]; nextCursor: string | null };
 
-export const params = (req: FastifyRequest) => req.params as Record<string, string>;
+export { params } from '../../routes/params.js';
 export const query = <T = Q>(req: FastifyRequest) => req.query as T;
 export const iso = (s: string | undefined) => (s ? new Date(s).toISOString() : undefined);
 export const notFound = (what: string) => new ProblemError(404, { type: 'not-found', title: 'Not found', detail: `${what} not found` });
