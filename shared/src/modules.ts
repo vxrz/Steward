@@ -324,3 +324,48 @@ export const PLATFORM_KIND_MATURITY: Readonly<Record<string, KindMaturity>> = {
 };
 
 export const kindMaturity = (kind: string | null | undefined): KindMaturity | undefined => (kind ? PLATFORM_KIND_MATURITY[kind] : undefined);
+
+// ---------- what a signed-in person can see (the sidebar, honest empty states) ----------
+
+/**
+ * The areas whose sidebar entry depends on what the person may see (GET /api/me/visibility). The keys are the
+ * sidebar's (NavKey); areas not listed here are always shown (Home, My tasks) or follow a capability.
+ */
+export const VISIBILITY_AREAS = [
+  'runs',
+  'monitors',
+  'dashboards',
+  'statusPages',
+  'reports',
+  'mcpRequests',
+  'maintenance',
+  'processes',
+  'services',
+  'applications',
+  'systems',
+  'platforms',
+  'dataContracts',
+  'records',
+  'tickets',
+  'duties',
+  'controls',
+  'accessChanges',
+  'reconciliation',
+  'personReviews',
+] as const;
+export type VisibilityArea = (typeof VISIBILITY_AREAS)[number];
+
+export interface AreaVisibility {
+  /** The sidebar shows the entry: the person may see something there, or may add something */
+  show: boolean;
+  /**
+   * There are items the person may not see (never how many, never which). Lets an empty list say "nothing you may
+   * see" instead of "nothing yet".
+   */
+  hiddenByPermissions: boolean;
+}
+
+/** GET /api/me/visibility */
+export interface VisibilitySummary {
+  areas: Partial<Record<VisibilityArea, AreaVisibility>>;
+}

@@ -447,6 +447,8 @@ const EXPECT: Record<string, Access> = {
   'GET /api/datasets': ALL,
   'GET /api/datasets/:key': ALL,
   'GET /api/datasets/:key/sources': ALL,
+  // whether a dataset exists that the caller may not see (an empty widget says so); nothing else of it
+  'GET /api/datasets/:key/visibility': ALL,
   'GET /api/datasets/:key/publishers': ALL,
   'DELETE /api/datasets/:key': ADMIN,
   'GET /api/datasets/:key/metrics': ALL,
@@ -1000,6 +1002,8 @@ const EXPECT: Record<string, Access> = {
   // ---- the module registry (0.11.0, ADR 0016): the switches are the administrators' (a session, step-up) ----
   'GET /api/settings/modules': ADMIN,
   'PUT /api/settings/modules/:id': ADMIN,
+  // what the signed-in person may see (the sidebar, honest empty states): two booleans per area, their own
+  'GET /api/me/visibility': ALL,
   // the map of sites (#234): its source is the administrators' (a session); tiles for everyone who sees the registry
   'GET /api/settings/plant/map': ADMIN,
   'PUT /api/settings/plant/map': ADMIN,

@@ -13,7 +13,7 @@ import { engine } from '../engine/index.js';
 import { currentActor } from '../auth/context.js';
 import { startProblem } from '../engine/commands.js';
 import { parseJson } from '../util.js';
-import { builtinDatasetVisible } from '../dashboards/builtin.js';
+import { builtinDatasetVisible, datasetOfSwitchedOffModule } from '../dashboards/builtin.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { IMPORT_BODY_SHAPE } from '../bodyShape.js';
 import { LARGE_BODIES } from '../bodyLimits.js';
@@ -45,6 +45,19 @@ function visibleDataset(key: string): DatasetMeta {
 export async function dashboardRoutes(app: FastifyInstance): Promise<void> {
   // ---------- datasets ----------
   app.get('/datasets', async () => datasets.listDatasets().filter(canSee));
+  // an empty widget tells "no data yet" from "data you may not see" (0.11.0): only whether such data exists – never
+  // its rows, its size or who publishes it; a dataset of a switched-off module does not exist for anyone
+  app.get('/datasets/:key/visibility', async (req): Promise<{ hiddenByPermissions: boolean }> => {
+    const key = params(req).key!;
+    const row = db().get<{ process_id: string }>('SELECT process_id FROM datasets WHERE key = ?', key);
+    if (!row || datasetOfSwitchedOffModule(row.process_id)) return { hiddenByPermissions: false };
+    try {
+      return { hiddenByPermissions: !canSee(datasets.getDatasetMeta(key)) };
+    } catch {
+      // none of its sources is visible to the caller (getDatasetMeta: not found), or it has none at all
+      return { hiddenByPermissions: datasets.datasetHasParts(key) };
+    }
+  });
   app.get('/datasets/:key/sources', async (req) => visibleDataset(params(req).key!).sources);
 
   app.get('/datasets/:key', async (req, reply) => {

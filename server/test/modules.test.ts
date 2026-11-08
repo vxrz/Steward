@@ -1,11 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { MODULES, moduleOfRoute } from '@sm/shared';
+import { MODULES, VISIBILITY_AREAS, moduleOfRoute } from '@sm/shared';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
 /**
  * The module registry (0.11.0, ADR 0016): Settings → Modules switches optional areas on and off. Off, a module's
  * routes answer 404 (internal API and /api/v1), its jobs do not run, its connectors are not offered, the web app
- * learns it in /auth/status; its data stays and is back when it is switched on.
+ * learns it in /auth/status; its data stays and is back when it is switched on. Also: GET /api/me/visibility, the
+ * areas a person may see (two booleans per area, nothing else).
  */
 
 let s: TestServer;
@@ -91,7 +92,7 @@ describe('Settings → Modules', () => {
     expect((await status(s.api, 'PUT', '/settings/modules/costs', { enabled: 'no' })).status).toBe(400);
   });
 
-  it('switched off: routes 404 (also /api/v1), no job, no connector; back on, the data is back', async () => {
+  it('switched off: routes 404 (also /api/v1), no job, no connector, no area; back on, the data is back', async () => {
     const before = await s.api('GET', '/costs?scope=service');
     const contractsBefore = await s.api('GET', '/data-contracts');
     expect(contractsBefore.length).toBeGreaterThan(0);
@@ -110,12 +111,13 @@ describe('Settings → Modules', () => {
     expect((await res.json()).code).toBe('MODULE_OFF');
     // a caller who is not signed in learns nothing about the modules
     expect((await fetch(`${s.base}/api/costs`)).status).toBe(401);
-    // the web app hears it, the connector list leaves out its kinds
+    // the web app hears it, the connector list leaves out its kinds, the visibility summary its areas
     const st = await s.api('GET', '/auth/status');
     expect(st.me.capabilities.modules).toMatchObject({ costs: false, dataContracts: false, compliance: true });
     const kinds = (await s.api('GET', '/platform-presets')).map((p: { kind: string }) => p.kind);
     expect(kinds).not.toContain('datacontract');
     expect(kinds).toContain('kubernetes');
+    expect((await s.api('GET', '/me/visibility')).areas.dataContracts).toBeUndefined();
     // its job does not run: listed as switched off, "Run now" refused, a planned start skipped without a trace
     const reg = await import('../src/jobs/registry.js');
     const { registerBuiltInJobs } = await import('../src/jobs/builtin.js');
@@ -155,5 +157,44 @@ describe('Settings → Modules', () => {
     expect(await status(s.api, 'GET', '/plant/sites')).toEqual({ status: 404, code: 'PLANT_MODULE_OFF' });
     const audit = await s.api('GET', '/audit?action=plant.module_disabled');
     expect((audit as { action: string }[]).some((e) => e.action === 'plant.module_disabled')).toBe(true);
+  });
+});
+
+describe('GET /api/me/visibility', () => {
+  it('tells each person which areas hold something for them – booleans only', async () => {
+    const admin = (await s.api('GET', '/me/visibility')).areas;
+    for (const a of VISIBILITY_AREAS) {
+      expect(admin[a], a).toBeDefined();
+      expect(Object.keys(admin[a]).sort()).toEqual(['hiddenByPermissions', 'show']);
+      expect(typeof admin[a].show).toBe('boolean');
+      expect(typeof admin[a].hiddenByPermissions).toBe('boolean');
+      // AI requests: only while the MCP server is on (it is off here) or with requests to read
+      expect(admin[a].show, a).toBe(a !== 'mcpRequests');
+    }
+    const vera = (await (await as('vera'))('GET', '/me/visibility')).areas;
+    // the viewer cannot read the demo's access checks (they need rights on the platform) and cannot start one
+    expect(vera.reconciliation).toEqual({ show: false, hiddenByPermissions: true });
+    expect(vera.processes).toEqual({ show: true, hiddenByPermissions: false });
+    // nothing to see and nothing to add: no entry, and nothing hidden either
+    expect(vera.personReviews).toEqual({ show: false, hiddenByPermissions: false });
+    const dana = (await (await as('dana'))('GET', '/me/visibility')).areas;
+    expect(dana.reconciliation.show).toBe(true);
+    expect(dana.personReviews.show).toBe(true);
+  });
+
+  it('is refused to status viewers and needs a sign-in', async () => {
+    expect((await fetch(`${s.base}/api/me/visibility`)).status).toBe(401);
+    expect((await status(await as('stella'), 'GET', '/me/visibility')).status).toBe(403);
+  });
+
+  it('a dataset the caller may not read: "hidden", never more', async () => {
+    const vera = await as('vera');
+    const keys = (await s.api('GET', '/datasets')).map((d: { key: string }) => d.key) as string[];
+    const veraKeys = new Set(((await vera('GET', '/datasets')) as { key: string }[]).map((d) => d.key));
+    const hidden = keys.find((k) => !veraKeys.has(k));
+    if (hidden) expect(await vera('GET', `/datasets/${encodeURIComponent(hidden)}/visibility`)).toEqual({ hiddenByPermissions: true });
+    const visible = [...veraKeys][0];
+    if (visible) expect(await vera('GET', `/datasets/${encodeURIComponent(visible)}/visibility`)).toEqual({ hiddenByPermissions: false });
+    expect(await vera('GET', '/datasets/no-such-dataset/visibility')).toEqual({ hiddenByPermissions: false });
   });
 });

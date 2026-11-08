@@ -4,6 +4,7 @@ import { isModuleId, type ModuleId } from '@sm/shared';
 import { ACCESS } from '../auth/access.js';
 import { HttpError } from '../util.js';
 import { modulesView, switchChanges, switchModule } from './registry.js';
+import { visibilitySummary } from './visibility.js';
 import { plantDemo } from '../plant/routes.js';
 
 /**
@@ -11,6 +12,7 @@ import { plantDemo } from '../plant/routes.js';
  *
  *   GET /api/settings/modules        every module, on or off, with its maturity (administrators)
  *   PUT /api/settings/modules/:id    { enabled } – switch one on or off (administrators, signed-in session, step-up)
+ *   GET /api/me/visibility           the areas the signed-in person may see (the sidebar, honest empty states)
  */
 
 const switchBody = z.object({ enabled: z.boolean() }).strict();
@@ -33,4 +35,5 @@ export async function moduleRoutes(app: FastifyInstance): Promise<void> {
   app.put('/settings/modules/:id', { config: { access: ACCESS.adminSession, stepUp: { action: 'changeModules', when: switching } } }, async (req) =>
     switchModule(moduleParam(req), switchBody.parse(req.body).enabled, plantDemo),
   );
+  app.get('/me/visibility', async () => visibilitySummary());
 }
