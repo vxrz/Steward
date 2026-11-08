@@ -5,11 +5,9 @@ on:
   push:
     branches: [main]
     tags: ['v*']
-    # images in the documentation: no check reads them (Markdown is checked: Prettier, the configuration tables, and
-    # server tests that read README.md and files in docs/)
-    paths-ignore: ['docs/**/*.png', 'docs/**/*.svg']
+  # no paths filter: the branch rules require checks of this workflow, and a required check that never runs blocks a
+  # pull request
   pull_request:
-    paths-ignore: ['docs/**/*.png', 'docs/**/*.svg']
 
 permissions:
   contents: read
@@ -49,24 +47,21 @@ jobs:
       - name: OpenAPI document matches the routes (npm run openapi, docs/openapi.json)
         run: npm run openapi -- --check
 
-  build:
+  build-node24:
     # Typecheck, example validation, the build, the smoke test of the compiled server and the desktop executable's
     # bundle, on Node.js 24 (LTS, the primary version: .nvmrc, Dockerfile, desktop executable) and 26 (Current).
-    # Its own job: a build break shows within minutes, not after the tests.
-    name: build (Node ${{ matrix.node }})
+    # Its own job: a build break shows within minutes, not after the tests. One job per version (no matrix), so that
+    # each version's gate job below waits for its own build.
+    name: build (Node 24)
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix:
-        node: [24, 26]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: ${{ matrix.node }}
+          node-version: 24
           cache: npm
       - name: Install dependencies (install scripts off)
         run: npm ci --ignore-scripts
@@ -83,25 +78,47 @@ jobs:
       - name: Bundle the desktop executable's server (CommonJS)
         run: node scripts/build-exe.mjs --bundle-only
       - name: Dependency audit (production dependencies)
-        if: matrix.node == 24
         run: node scripts/security/npm-audit.mjs --audit-level=moderate
 
-  test:
+  build-node26:
+    # the same on Node.js 26 (the audit runs once, above)
+    name: build (Node 26)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26
+          cache: npm
+      - name: Install dependencies (install scripts off)
+        run: npm ci --ignore-scripts
+      - name: Install scripts – only the reviewed ones (package.json "allowScripts")
+        run: node scripts/install-scripts.mjs --check --run
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Validate example processes and dashboards
+        run: npm run validate
+      - name: Build web UI and server (web/dist, server/dist)
+        run: npm run build
+      - name: Smoke test of the compiled server (node server/dist/index.js, health check, PDF worker)
+        run: node scripts/smoke-server.mjs
+      - name: Bundle the desktop executable's server (CommonJS)
+        run: node scripts/build-exe.mjs --bundle-only
+
+  test-node24:
     # The server test suite (incl. browser automation and crash/resume) in shards on their own runners; each shard runs
     # its files in parallel (3 workers, server/vitest.config.ts). Node 24 measures coverage as well (#23): the coverage
     # job merges its shards. A shard takes about 10 minutes, plus up to 15 for the Chromium install on a slow day.
-    name: test (Node ${{ matrix.node }}, shard ${{ matrix.shard }})
+    name: test (Node 24, shard ${{ matrix.shard }})
     runs-on: ubuntu-latest
     timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - { node: 24, shard: 1/3 }
-          - { node: 24, shard: 2/3 }
-          - { node: 24, shard: 3/3 }
-          - { node: 26, shard: 1/2 }
-          - { node: 26, shard: 2/2 }
+        shard: [1/3, 2/3, 3/3]
     env:
       SHARD: ${{ matrix.shard }}
     steps:
@@ -110,7 +127,48 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: ${{ matrix.node }}
+          node-version: 24
+          cache: npm
+      - name: Install dependencies (install scripts off)
+        run: npm ci --ignore-scripts
+      - name: Install scripts – only the reviewed ones (package.json "allowScripts")
+        run: node scripts/install-scripts.mjs --check --run
+      - name: Install Chromium for Playwright
+        # the browser only: the runner image has the system libraries (--with-deps spent 10-12 minutes on fonts, see ui-tests.yml)
+        # a hanging install fails here instead of using up the whole job time
+        timeout-minutes: 15
+        run: npx playwright install chromium
+      - name: Tests with coverage
+        working-directory: server
+        # the shard's coverage goes into its blob report; the minimums apply to the merged coverage only
+        run: npx vitest run --coverage --coverage.reporter=text-summary --shard="$SHARD" --reporter=default --reporter=blob --outputFile.blob="blob-report/shard-${SHARD%/*}.json"
+      - name: Keep the shard's results for the coverage job
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: server-blob-${{ strategy.job-index }}
+          path: server/blob-report/
+          retention-days: 1
+          if-no-files-found: ignore
+
+  test-node26:
+    # the same on Node.js 26, without coverage, in 2 shards
+    name: test (Node 26, shard ${{ matrix.shard }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1/2, 2/2]
+    env:
+      SHARD: ${{ matrix.shard }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26
           cache: npm
       - name: Install dependencies (install scripts off)
         run: npm ci --ignore-scripts
@@ -122,27 +180,13 @@ jobs:
         timeout-minutes: 15
         run: npx playwright install chromium
       - name: Tests
-        if: matrix.node != 24
         working-directory: server
         run: npx vitest run --shard="$SHARD"
-      - name: Tests with coverage
-        if: matrix.node == 24
-        working-directory: server
-        # the shard's coverage goes into its blob report; the minimums apply to the merged coverage only
-        run: npx vitest run --coverage --coverage.reporter=text-summary --shard="$SHARD" --reporter=default --reporter=blob --outputFile.blob="blob-report/shard-${SHARD%/*}.json"
-      - name: Keep the shard's results for the coverage job
-        if: ${{ !cancelled() && matrix.node == 24 }}
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: server-blob-${{ strategy.job-index }}
-          path: server/blob-report/
-          retention-days: 1
-          if-no-files-found: ignore
 
   coverage:
     # The coverage of the Node 24 shards, merged: summary in the job summary, HTML report as the artifact
     # "server-coverage", and a failure below the minimums in server/vitest.config.ts (docs/TESTING.md#coverage)
-    needs: test
+    needs: test-node24
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -178,8 +222,8 @@ jobs:
           retention-days: 14
           if-no-files-found: ignore
 
-  test-postgres:
-    # The same test suite on PostgreSQL (every test server gets its own schema), in shards like the test job
+  test-postgres-shards:
+    # The same test suite on PostgreSQL (every test server gets its own schema), in shards like the tests above
     name: test-postgres (shard ${{ matrix.shard }})
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -220,6 +264,51 @@ jobs:
         run: npx playwright install chromium
       - name: Tests on PostgreSQL
         run: npm run test:pg -- --shard="$SHARD"
+
+  # Gate jobs: the branch rules of main require the checks "build-test (Node 24)", "build-test (Node 26)" and
+  # "test-postgres" (the jobs' names before the build and the tests were split up). Each passes only when every job it
+  # needs succeeded – a failed, cancelled or skipped job fails it.
+  build-test-node24:
+    name: build-test (Node 24)
+    needs: [build-node24, test-node24, coverage]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Build, tests and coverage succeeded
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "results: $RESULTS"
+          for r in $RESULTS; do [ "$r" = success ] || exit 1; done
+
+  build-test-node26:
+    name: build-test (Node 26)
+    needs: [build-node26, test-node26]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Build and tests succeeded
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "results: $RESULTS"
+          for r in $RESULTS; do [ "$r" = success ] || exit 1; done
+
+  test-postgres:
+    name: test-postgres
+    needs: test-postgres-shards
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: All PostgreSQL shards succeeded
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "results: $RESULTS"
+          for r in $RESULTS; do [ "$r" = success ] || exit 1; done
 
   test-databases:
     # Database platforms (#203) against real servers: MariaDB 11.4 (LTS) and SQL Server 2022 as service containers

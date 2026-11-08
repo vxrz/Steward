@@ -6,10 +6,8 @@ on:
   # branches are tested through their pull request: a push to a branch would run everything a second time
   push:
     branches: [main]
-    # documentation only: the UI tests read none of it (ci.yml checks the documents)
-    paths-ignore: ['**/*.md', 'docs/**', 'LICENSE', 'NOTICE']
+  # no paths filter: the branch rules require "playwright", and a required check that never runs blocks a pull request
   pull_request:
-    paths-ignore: ['**/*.md', 'docs/**', 'LICENSE', 'NOTICE']
 
 permissions:
   contents: read
