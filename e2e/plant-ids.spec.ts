@@ -60,6 +60,24 @@ test.describe('as a designer', () => {
     await expect(page.getByRole('heading', { name: `Site ${site}` })).toBeVisible();
   });
 
+  test('Change id of an area from its menu in the site tree', async ({ page, apiAs }) => {
+    const api = await apiAs('dana');
+    const { site } = await siteWithAssets(api, 0);
+    const n = await api.post(`/api/plant/sites/${site}/nodes`, { data: { id: `${site}-area`, level: 'area', name: 'Paint shop' } });
+    expect(n.ok(), await n.text()).toBe(true);
+    await page.goto(`/plant/sites/${site}`);
+    const tree = page.getByTestId('plant-hierarchy');
+    await tree.getByRole('button', { name: 'Actions for Paint shop' }).click();
+    await page.getByTestId(`change-id-${site}-area`).click();
+    const dialog = page.getByRole('dialog', { name: 'Change the id of “Paint shop”' });
+    await dialog.getByTestId('change-id-input').fill(`${site}-paint`);
+    await expect(dialog.getByTestId('change-id-preview')).toBeVisible();
+    await dialog.getByTestId('change-id-confirm').click();
+    await expect(dialog).toBeHidden();
+    await expect(tree.getByTestId(`node-${site}-paint`)).toContainText('Paint shop');
+    await expect(page).toHaveURL(new RegExp(`/plant/sites/${site}$`));
+  });
+
   test('the import maps old to new ids: renames in the preview, apart from the other changes', async ({ page, apiAs }) => {
     const { site, assets } = await siteWithAssets(await apiAs('dana'), 2);
     const yaml = `version: 1\nassets:\n${assets.map((a, i) => `  - id: ${a}\n    name: Machine ${i + 1} of ${site}\n    status: maintenance\n    location: { site: ${site} }\n`).join('')}`;
