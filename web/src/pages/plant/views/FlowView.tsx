@@ -187,7 +187,7 @@ function NodeInfo({ node }: { node: PlantFlowNode | undefined }) {
 
 const PATH_LIVE = { online: IconCircleCheck, offline: IconCircleX, unknown: IconCircleDashed } as const;
 
-function PathStatus({ p }: { p: PlantFlowPath }) {
+export function PathStatus({ p }: { p: PlantFlowPath }) {
   const { t } = useTranslation('plantViews');
   if (p.kind === 'path') {
     const state = p.live ?? null;
@@ -332,7 +332,7 @@ function PathList({
 }
 
 /** The table alternative: every part with its status in words, every path and where it goes. */
-function FlowTables({
+export function FlowTables({
   graph,
   pathsTitle,
   narrow,
