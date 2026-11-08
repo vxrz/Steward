@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { authHeaders, loginCookie, setup, startTestServer, type TestServer } from './helpers.js';
 
 // Regression tests for the holistic security review of October 2026 (docs/reviews/REVIEW-2026-10.md).
@@ -30,7 +30,6 @@ beforeAll(async () => {
   await s.api('PUT', `/platforms/${restricted}/access`, { acl: [{ subject: 'user:dana', permissions: ['use'] }] });
   specId = (await s.api<{ id: string }[]>('GET', `/platforms/${restricted}/specs`))[0]!.id;
 });
-afterAll(async () => s?.app.close());
 
 describe('platform API specifications', () => {
   it('are hidden like the platform itself', async () => {

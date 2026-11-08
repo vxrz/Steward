@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { authHeaders, loginCookie, setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
 /** Control catalogues, evidence coverage and audit evidence packs (contents, signature, tamper detection, limits). */
@@ -61,9 +61,6 @@ beforeAll(async () => {
     document: true,
   });
 }, 120_000);
-afterAll(async () => {
-  await s?.app.close();
-});
 
 describe('control catalogues', () => {
   it('ship ISO/IEC 27001, IEC 62443-2-1 and NIS2 with identifiers and short topic names only', async () => {

@@ -4,8 +4,9 @@
 name: Security
 
 on:
+  # branches are tested through their pull request: a push to a branch would run everything a second time
   push:
-    branches: [main, 'claude/**']
+    branches: [main]
   pull_request:
   schedule:
     - cron: '17 5 * * 1' # Mondays 05:17 UTC

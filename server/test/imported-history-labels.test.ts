@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type TestServer } from './helpers.js';
 
 /**
@@ -42,9 +42,6 @@ beforeAll(async () => {
   // as if the imported history verified (migration/history.ts registers the real check)
   const { setVerifiedImports } = await import('../src/audit.js');
   setVerifiedImports(() => [IMPORT]);
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 describe('answers that rest on imported history', () => {

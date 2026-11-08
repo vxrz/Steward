@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { InMemorySpanExporter } from '@opentelemetry/sdk-trace-base';
 import { setup, startTestServer, type TestServer } from './helpers.js';
 
@@ -12,9 +12,6 @@ beforeAll(async () => {
   initTelemetry({ exporter, simple: true });
   await setup(s);
   await s.api('POST', '/demo/setup', {});
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 describe('OpenTelemetry tracing', () => {

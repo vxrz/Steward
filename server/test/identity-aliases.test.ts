@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type TestServer } from './helpers.js';
 
 /**
@@ -25,9 +25,6 @@ beforeAll(async () => {
   db().run("INSERT INTO identity_aliases (kind, alias, target_id, import_id) VALUES ('user', 'laptop-olivia', ?, 'imp_test')", oliviaId);
   db().run("INSERT INTO identity_aliases (kind, alias, target_id, import_id) VALUES ('team', 'old desk', ?, 'imp_test')", team.id);
   invalidateAliases();
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 describe('identity aliases of imported accounts', () => {

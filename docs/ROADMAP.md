@@ -2,7 +2,7 @@
 
 Where Steward stands, what it deliberately does not do, and what comes next. Shipped changes are in the [CHANGELOG](../CHANGELOG.md); how it is built is in [ARCHITECTURE.md](ARCHITECTURE.md). Ideas and requests are collected as GitHub issues.
 
-_Last reviewed for 0.10.0 (November 2026)._
+_Last reviewed for 0.10.1 (November 2026)._
 
 ## What Steward is for
 
@@ -67,10 +67,11 @@ Themes of this release (details in the CHANGELOG once released):
 - **0.8.0:** plant registry part 3 – the OT network ([#220](https://github.com/vxrz/Steward/issues/220)) – with visualizations ([#230](https://github.com/vxrz/Steward/issues/230)), database schemas step 1 ([#222](https://github.com/vxrz/Steward/issues/222)) and the DynamoDB freshness check ([#233](https://github.com/vxrz/Steward/issues/233)).
 - **0.9.0:** data contracts ([#221](https://github.com/vxrz/Steward/issues/221)), platform costs ([#226](https://github.com/vxrz/Steward/issues/226)), Kafka Connect and Debezium ([#223](https://github.com/vxrz/Steward/issues/223)), the version watch ([#241](https://github.com/vxrz/Steward/issues/241)), changedetection.io ([#242](https://github.com/vxrz/Steward/issues/242)), the outbound policy on every redirect ([#243](https://github.com/vxrz/Steward/issues/243)) and platform identities step 1 ([#228](https://github.com/vxrz/Steward/issues/228), [ADR 0009](adr/0009-platform-identities.md)).
 - **0.10.0:** the engine boundary ([#239](https://github.com/vxrz/Steward/issues/239), [ADR 0011](adr/0011-engine-boundary.md)), debugging procedures ([#235](https://github.com/vxrz/Steward/issues/235)), quiet hours and digests ([#236](https://github.com/vxrz/Steward/issues/236)), approvals from Microsoft Teams ([#237](https://github.com/vxrz/Steward/issues/237)), shared procedure libraries ([#238](https://github.com/vxrz/Steward/issues/238)) and the map of sites ([#234](https://github.com/vxrz/Steward/issues/234)), each with its decision record (ADRs 0010–0015).
+- **0.10.1:** the fixes from a whole-application review of 0.10.0: single sign-on bound to the browser, secrets that outlive an API token kept to signed-in sessions, one instance per SQLite database, a readiness probe for routing, and a crash fix for browser locales such as `en-US@posix`.
 
 ## Next
 
-The next release is not planned yet; the candidates are under _Later_.
+**0.11.0 – consolidation.** No new feature areas: switching off unused areas, navigation focused by role, a clearer catalogue, a demo that fills every area, a docs index, safer PostgreSQL upgrades and backups, and pseudonymising and exporting a person's data. The candidates for later releases are under _Later_.
 
 ## Later
 

@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { ADMIN, authHeaders, loginCookie, quiesce, setEnv, setup, startedUrl, startTestServer, type TestServer } from './helpers.js';
 
 let s: TestServer;
@@ -21,9 +21,6 @@ beforeAll(async () => {
   // the H1/H3 tests truncate and restore the chain and count pending entries: nothing else may write meanwhile
   await quiesce();
   gatus = (await s.api('GET', '/platforms')).find((p: any) => p.kind === 'gatus').id;
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 const db = async () => (await import('../src/db.js')).db();

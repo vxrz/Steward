@@ -1,6 +1,7 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { bodyShapeProblem, DEFAULT_BODY_SHAPE, IMPORT_BODY_SHAPE } from '../src/bodyShape.js';
 import { authHeaders, loginCookie, setup, startTestServer, ADMIN, type TestServer } from './helpers.js';
+import { timeLimit } from './time.js';
 
 /**
  * Limits on the shape of parsed request bodies (server/src/bodyShape.ts): zod keeps one issue per
@@ -21,9 +22,6 @@ beforeAll(async () => {
   s = await startTestServer();
   await setup(s);
   admin = authHeaders(await loginCookie(s.base, ADMIN.username, ADMIN.password));
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 describe('body shape limits', () => {
@@ -51,7 +49,7 @@ describe('body shape limits', () => {
     const r = await post('/bundle/import', body);
     expect(r.status).toBe(413);
     expect(r.body).toMatchObject({ code: 'BODY_TOO_COMPLEX', params: { limit: IMPORT_BODY_SHAPE.arrayItems } });
-    expect(Date.now() - t).toBeLessThan(10_000);
+    expect(Date.now() - t).toBeLessThan(timeLimit(10_000));
     expect(process.memoryUsage().heapUsed - heap).toBeLessThan(1024 * 1024 * 1024);
   });
 

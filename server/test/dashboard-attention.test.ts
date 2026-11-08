@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
 // monitor states are set by the test, not by the engine
@@ -43,9 +43,6 @@ beforeAll(async () => {
   await s.api('POST', '/demo/setup', {});
   [olivia, audrey, vera] = await Promise.all(['olivia', 'audrey', 'vera'].map((u) => s.as(u, PW)));
 }, 120_000);
-afterAll(async () => {
-  await s?.app.close();
-});
 
 describe('start page tiles', () => {
   it('administrators and auditors get all nine tiles; viewers only what they may read', async () => {

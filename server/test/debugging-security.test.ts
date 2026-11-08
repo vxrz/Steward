@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
 /**
@@ -80,9 +80,6 @@ beforeAll(async () => {
     models: [{ id: 'demo-chat-small', format: 'chat-completions', contextTokens: 32000, maxOutputTokens: 500 }],
     allowedData: { platforms: [], datasets: [], inputs: true },
   });
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 describe('1: copied run data keeps its sources (AI allowed-data rule)', () => {

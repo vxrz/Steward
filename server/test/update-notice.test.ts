@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
 /**
@@ -47,9 +47,6 @@ beforeAll(async () => {
   s = await startTestServer();
   await setup(s);
   [admin2, olivia, audrey] = [await user('admin2', 'admin'), await user('olivia', 'operator'), await user('audrey', 'auditor')];
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 describe('update notice', () => {

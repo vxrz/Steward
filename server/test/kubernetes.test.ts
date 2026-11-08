@@ -1,6 +1,7 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { imageProduct, splitImage, tagVersion } from '@sm/shared';
 import { setup, startTestServer, type TestServer } from './helpers.js';
+import { timeLimit } from './time.js';
 
 /**
  * Kubernetes (#111): images → products, a namespace component that names its cluster and is read from the mock API
@@ -25,9 +26,6 @@ beforeAll(async () => {
   mock = await import('../src/mock/mockKubernetes.js');
   eng = await import('../src/monitors/engine.js');
 });
-afterAll(async () => {
-  await s?.app.close();
-});
 
 describe('images and products', () => {
   it('reads repository and version from an image reference', () => {
@@ -45,7 +43,7 @@ describe('images and products', () => {
     // a rule with many slashes is handled in linear time (CodeQL: no backtracking regular expression)
     const t0 = Date.now();
     expect(imageProduct('x/y:1', [{ image: `${'/'.repeat(50_000)}y${'/'.repeat(50_000)}`, product: 'nodejs' }])).toMatchObject({ product: 'nodejs' });
-    expect(Date.now() - t0).toBeLessThan(500);
+    expect(Date.now() - t0).toBeLessThan(timeLimit(500));
     // own rules first
     expect(imageProduct('ghcr.io/acme/shop-web:2.4.1', [{ image: 'ghcr.io/acme/shop-web', product: 'nodejs' }])).toMatchObject({
       product: 'nodejs',

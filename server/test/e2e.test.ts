@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type TestServer } from './helpers.js';
 
 let s: TestServer;
@@ -12,9 +12,6 @@ beforeAll(async () => {
   const platforms = await s.api('GET', '/platforms');
   hub = platforms.find((p: any) => p.kind === 'insights-hub').id;
   iem = platforms.find((p: any) => p.kind === 'industrial-edge-management').id;
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 const run = (processId: string, bindings: Record<string, string>, inputs: Record<string, unknown> = {}, dryRun = false) =>

@@ -13,6 +13,7 @@ import { ADAPTERS, gatewayErrorText, modelList, modelPath } from '../src/ai/form
 import { estimateTokens, fingerprint } from '../src/ai/estimate.js';
 import { scrubForModel } from '../src/ai/scrub.js';
 import { parseJsonAnswer } from '../src/ai/step.js';
+import { timeLimit } from './time.js';
 
 /**
  * The translation layer of "Ask an AI model" (#216, docs/AI.md): one adapter per request format – the request built
@@ -257,7 +258,7 @@ describe('prompts and answers', () => {
     // many stars and a long key that does not match end quickly
     const t = Date.now();
     expect(datasetAllowed('a'.repeat(5000), ['*a*a*a*a*a*a*a*a*b'])).toBe(false);
-    expect(Date.now() - t).toBeLessThan(1000);
+    expect(Date.now() - t).toBeLessThan(timeLimit(1000));
   });
 
   it('gateway settings: unique model ids, output below the context window, paths without a query', () => {

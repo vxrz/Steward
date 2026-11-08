@@ -53,7 +53,9 @@ steps:
       npm_config_fund: 'false'
       npm_config_update_notifier: 'false'
     commands:
-      - npm ci --no-audit
+      # as in GitHub CI: no install script runs during the install, then only the reviewed ones (package.json "allowScripts")
+      - npm ci --ignore-scripts --no-audit
+      - node scripts/install-scripts.mjs --check --run
       - npm run build
       - npm run build:exe
 

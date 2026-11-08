@@ -48,11 +48,6 @@ beforeAll(async () => {
   cookies.admin = await loginCookie(s.base, 'admin', 'Admin-password-1');
   hits = (await import('../src/mock/mockMapTiles.js')).mockMapHits;
 });
-afterAll(async () => {
-  // many tests read only the status of a raw fetch: its keep-alive socket would hold app.close() up to the hook timeout
-  s?.app.server.closeAllConnections();
-  await s?.app.close();
-});
 
 describe('off by default', () => {
   it('nothing of the map works while the module is off', async () => {

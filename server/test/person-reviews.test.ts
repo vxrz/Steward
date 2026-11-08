@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
 /**
@@ -31,9 +31,6 @@ beforeAll(async () => {
   const sf = platforms.find((p: any) => p.kind === 'snowflake').id;
   awsCheck = (await s.api('POST', '/compliance/access-checks', { name: 'AWS IAM', platformId: aws, source: 'aws' })).id;
   sfCheck = (await s.api('POST', '/compliance/access-checks', { name: 'Snowflake roles', platformId: sf, source: 'snowflake', scope: '' })).id;
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 describe('AWS IAM access source', () => {

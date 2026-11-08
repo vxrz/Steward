@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { boundedRecord, validateProcess } from '@sm/shared';
 import { DEFAULT_BODY_SHAPE } from '../src/bodyShape.js';
 import { authHeaders, loginCookie, setup, startTestServer, ADMIN, type TestServer } from './helpers.js';
+import { timeLimit } from './time.js';
 
 /**
  * Zod keeps one issue per failing array element or record value (GHSA-mrhx-c7xc-m3w5). Since zod
@@ -100,7 +101,7 @@ describe('zod length limits', () => {
     const nodes = Array.from({ length: 2_000_000 }, () => 1);
     const t = Date.now();
     const r = validateProcess({ name: 'x', nodes });
-    expect(Date.now() - t).toBeLessThan(2000);
+    expect(Date.now() - t).toBeLessThan(timeLimit(2000));
     expect(r.ok).toBe(false);
     expect(r.issues).toEqual([expect.objectContaining({ path: 'nodes', message: expect.stringMatching(/Too big/) })]);
 
@@ -113,7 +114,7 @@ describe('zod length limits', () => {
     const inputs = Object.fromEntries(Array.from({ length: 200_000 }, (_, i) => [`k${i}`, i]));
     const t = Date.now();
     const r = schema.safeParse({ inputs });
-    expect(Date.now() - t).toBeLessThan(2000);
+    expect(Date.now() - t).toBeLessThan(timeLimit(2000));
     expect(r.error?.issues).toEqual([expect.objectContaining({ code: 'too_big', path: ['inputs'], maximum: 100 })]);
     // within the limit the values are checked as before
     expect(schema.safeParse({ inputs: { a: 1 } }).error?.issues).toEqual([expect.objectContaining({ code: 'invalid_type', path: ['inputs', 'a'] })]);

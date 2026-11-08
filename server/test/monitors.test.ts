@@ -3,6 +3,7 @@ import http from 'node:http';
 import net from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
+import { timeLimit } from './time.js';
 
 // the engine is driven by the tests (tick/evaluate), not by its own timer
 process.env.SM_MONITOR_AUTOSTART = '0';
@@ -82,7 +83,7 @@ describe('gateway key patterns', () => {
     expect(globMatch('a*b*c', 'axxbyy')).toBe(false);
     const started = performance.now();
     expect(globMatch('*a*a*a*a*a*a*a*b', 'a'.repeat(10_000))).toBe(false);
-    expect(performance.now() - started).toBeLessThan(500);
+    expect(performance.now() - started).toBeLessThan(timeLimit(500));
   });
 });
 

@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
 /**
@@ -92,7 +92,6 @@ beforeAll(async () => {
   tok.dana = await mcpToken(dana, 'mcp dana');
   tok.olivia = await mcpToken(olivia, 'mcp olivia');
 });
-afterAll(async () => s?.app.close());
 
 const controls = (from: number, n: number) =>
   Array.from({ length: n }, (_, i) => ({ ref: `ACME-${from + i}`, title: `Requirement ${from + i}`, description: `Text of requirement ${from + i}` }));

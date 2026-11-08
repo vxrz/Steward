@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { allowEmailDomains, setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
 /**
@@ -39,9 +39,6 @@ beforeAll(async () => {
   await allowEmailDomains(s, ['example.com']);
   await s.api('POST', '/demo/setup', {});
   [dana, olivia, adam, audrey, vera] = await Promise.all(['dana', 'olivia', 'adam', 'audrey', 'vera'].map((u) => s.as(u, PW)));
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 describe('services, credentials and records', () => {

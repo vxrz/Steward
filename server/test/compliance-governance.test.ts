@@ -1,6 +1,6 @@
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
 /**
@@ -83,9 +83,6 @@ beforeAll(async () => {
     ],
   });
 }, 120_000);
-afterAll(async () => {
-  await s?.app.close();
-});
 
 describe('GOV-1: only people who may use the platform document its access changes, never their own', () => {
   it('an operator without rights on the platform cannot create or document entries for it', async () => {

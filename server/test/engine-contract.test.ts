@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type TestServer } from './helpers.js';
 
 /**
@@ -46,9 +46,6 @@ beforeAll(async () => {
   await rec({ method: 'GET', path: '/items', query: { page: '0', size: '2' }, body: { content: [{ id: 1 }, { id: 2 }], page: { totalPages: 2 } } });
   await rec({ method: 'GET', path: '/items', query: { page: '1', size: '2' }, body: { content: [{ id: 3 }], page: { totalPages: 2 } } });
   await rec({ method: 'GET', path: '/items/{id}', body: { detail: 'item' } });
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 const n = (id: string, type: string, extra: Record<string, unknown> = {}) => ({ id, type, x: 0, y: 0, ...extra });

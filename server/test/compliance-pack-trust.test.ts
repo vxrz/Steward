@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { authHeaders, loginCookie, setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
 /**
@@ -91,9 +91,6 @@ beforeAll(async () => {
   });
   packFile = await buildPack('admin', s.api, [iso.find((c: any) => c.ref === '5.18').id], 'trust.zip');
 }, 180_000);
-afterAll(async () => {
-  await s?.app.close();
-});
 
 describe('GOV-7: the offline check trusts only a key the auditor got from the installation', () => {
   it('shows the installation fingerprint to auditors and exits 3 for a pack checked only against its own key', async () => {

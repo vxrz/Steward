@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { authHeaders, loginCookie, setup, startTestServer, ADMIN, type TestServer } from './helpers.js';
 
 /** Settings by scope (#136): instance settings at /api/settings/instance; the old /api/settings keeps working, marked deprecated. */
@@ -10,9 +10,6 @@ beforeAll(async () => {
   s = await startTestServer();
   await setup(s);
   headers = { 'x-sm-client': '1', ...authHeaders(await loginCookie(s.base, ADMIN.username, ADMIN.password)) };
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 describe('instance settings', () => {

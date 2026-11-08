@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { allowEmailDomains, authHeaders, loginCookie, quiesce, setup, startTestServer, ADMIN, type Client, type TestServer } from './helpers.js';
 
@@ -105,9 +105,6 @@ beforeAll(async () => {
     webhook: { enabled: false },
     routes: {},
   });
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 const body = (over: Record<string, unknown> = {}) => ({

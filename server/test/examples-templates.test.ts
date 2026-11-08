@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
 /**
@@ -17,9 +17,6 @@ beforeAll(async () => {
   const demo = await s.api('POST', '/demo/setup', {});
   adam = await s.as('adam', demo.password);
   for (const p of await s.api('GET', '/platforms')) if (p.name.endsWith('(demo)')) platformByKind[p.kind] = p.id;
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));

@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type TestServer } from './helpers.js';
 
 /**
@@ -18,9 +18,6 @@ beforeAll(async () => {
   s = await startTestServer();
   await setup(s);
   mockBase = `${s.base.replace(/\/$/, '')}/mock`;
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 /** A request through the platform layer, in-process – the API's request explorer masks credentials in what it returns (checked below). */

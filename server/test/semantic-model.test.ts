@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import YAML from 'yaml';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import Ajv2020 from 'ajv/dist/2020.js';
 import { setup, startTestServer, type TestServer } from './helpers.js';
 
@@ -24,7 +24,6 @@ beforeAll(async () => {
   await setup(s);
   token = (await s.api('POST', '/me/tokens', { name: 'ossie', scope: 'read' })).token;
 });
-afterAll(async () => s?.app.close());
 
 /** Field names that would mean credentials or other secrets ended up in the model. */
 const SECRETISH = /secret|password|passphrase|token|credential|apikey|api_key|clientsecret|privatekey|^inputs$|^bindings$|^config$|^variables$|sealed/i;

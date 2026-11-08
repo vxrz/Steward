@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { DEFAULT_RECORD_TYPES, DOCUMENT_RECORD_TYPE, LINK_KINDS, RECORD_ACTIONS, RECORD_STATUSES, parseMarkdown, inlineText } from '@sm/shared';
 import { authHeaders, loginCookie, setup, startTestServer, ADMIN, type Client, type TestServer } from './helpers.js';
 
@@ -86,9 +86,6 @@ beforeAll(async () => {
   [dana, olivia, adam, audrey, vera] = await Promise.all(['dana', 'olivia', 'adam', 'audrey', 'vera'].map((u) => s.as(u, PW)));
   cookies.admin = await loginCookie(s.base, ADMIN.username, ADMIN.password);
   for (const u of ['dana', 'olivia', 'adam', 'vera']) cookies[u] = await loginCookie(s.base, u, PW);
-});
-afterAll(async () => {
-  await s?.app.close();
 });
 
 describe('record types', () => {

@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { DATABASE_KIND } from '@sm/shared';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
@@ -49,9 +49,6 @@ beforeAll(async () => {
   olivia = await s.as('olivia', PW);
   db = (await s.api('GET', '/platforms')).find((p: any) => p.kind === DATABASE_KIND);
 }, 120_000);
-afterAll(async () => {
-  await s?.app.close();
-});
 
 describe('database platform settings', () => {
   it('has presets for PostgreSQL, MariaDB/MySQL and SQL Server', async () => {
