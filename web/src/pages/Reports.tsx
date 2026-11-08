@@ -40,7 +40,7 @@ import type {
   Subject,
 } from '@sm/shared';
 import { apiUrl, del, get, getOptional, notifyError, notifyOk, post, put } from '../api';
-import { EmptyState, PageHeader, QueryState, useCreateParam } from '../components/common';
+import { EmptyState, PageHeader, QueryState, useCreateParam, useFieldErrors } from '../components/common';
 import { reportLangName } from '../components/reports/RunReports';
 import { useTypeName } from '../components/records/common';
 import { fmtBytes, fmtDate, fmtDay, fmtRelative } from '../format';
@@ -390,7 +390,12 @@ function ScheduleModal({ draft, sections, onClose, onSaved }: { draft: Draft; se
     costs: { scope: 'service', ids: null },
     contracts: { contractIds: null },
   };
+  const check = useFieldErrors({
+    name: !d.name.trim() && t('common:validation.required'),
+    sections: !Object.keys(d.sections).length && t('common:validation.requiredOne'),
+  });
   const save = async () => {
+    if (!check.validate()) return;
     setBusy(true);
     try {
       const { id, ...body } = d;
@@ -414,7 +419,7 @@ function ScheduleModal({ draft, sections, onClose, onSaved }: { draft: Draft; se
     <Modal opened onClose={onClose} title={d.id ? t('edit') : t('new')} size="xl">
       <Stack>
         <SimpleGrid cols={{ base: 1, sm: 2 }}>
-          <TextInput label={t('form.name')} required value={d.name} onChange={(e) => set({ name: e.currentTarget.value })} />
+          <TextInput label={t('form.name')} required value={d.name} onChange={(e) => set({ name: e.currentTarget.value })} error={check.error('name')} />
           <TextInput label={t('form.title')} description={t('form.titleHint')} value={d.title} onChange={(e) => set({ title: e.currentTarget.value })} />
         </SimpleGrid>
         <div>
@@ -457,6 +462,11 @@ function ScheduleModal({ draft, sections, onClose, onSaved }: { draft: Draft; se
         {d.preset === 'custom' && <CronPreview cron={d.cron} timezone={d.timezone} onUse={(c) => set({ cron: c })} />}
 
         <Divider label={t('form.sections')} labelPosition="left" />
+        {check.error('sections') && (
+          <Text size="sm" c="var(--mantine-color-error)" role="alert" data-testid="sections-error">
+            {check.error('sections')}
+          </Text>
+        )}
         <Text size="xs" c="dimmed">
           {t('form.ownerRights')}
         </Text>
@@ -634,7 +644,7 @@ function ScheduleModal({ draft, sections, onClose, onSaved }: { draft: Draft; se
           <Button variant="default" onClick={onClose}>
             {t('common:cancel')}
           </Button>
-          <Button onClick={save} loading={busy} disabled={!d.name.trim() || !Object.keys(d.sections).length}>
+          <Button onClick={save} loading={busy}>
             {t('common:save')}
           </Button>
         </Group>

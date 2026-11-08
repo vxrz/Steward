@@ -37,7 +37,7 @@ import {
 } from '@sm/shared';
 import { apiUrl, del, get, getOptional, notifyError, post, put } from '../api';
 import { useMe } from '../auth';
-import { EmptyState, PageHeader, QueryState, TONE, useCreateParam } from '../components/common';
+import { EmptyState, PageHeader, QueryState, TONE, useCreateParam, useFieldErrors } from '../components/common';
 import { fmtDate, fmtRelative } from '../format';
 import { BRAND } from '../../../shared/src/brand';
 import { appUrl } from '../basePath';
@@ -326,7 +326,12 @@ function PageEditor({ page, onClose }: { page: StatusPage | null; onClose: () =>
     noticeLevel: page?.noticeLevel ?? ('info' as StatusNoticeLevel),
   });
   const [busy, setBusy] = useState(false);
+  const check = useFieldErrors({
+    title: !f.title.trim() && t('common:validation.required'),
+    services: !f.serviceIds.length && t('common:validation.requiredOne'),
+  });
   const save = async () => {
+    if (!check.validate()) return;
     setBusy(true);
     try {
       if (page) await put(`/status-pages/${page.id}`, f);
@@ -348,6 +353,7 @@ function PageEditor({ page, onClose }: { page: StatusPage | null; onClose: () =>
           value={f.title}
           onChange={(e) => setF({ ...f, title: e.currentTarget.value })}
           maxLength={STATUS_PAGE_LIMITS.title}
+          error={check.error('title')}
         />
         <Textarea
           label={t('statusPages.pageDescription')}
@@ -366,6 +372,7 @@ function PageEditor({ page, onClose }: { page: StatusPage | null; onClose: () =>
           value={f.serviceIds}
           onChange={(v) => setF({ ...f, serviceIds: v })}
           maxValues={STATUS_PAGE_LIMITS.services}
+          error={check.error('services')}
         />
         <Switch
           label={t('statusPages.showVendorIssues')}
@@ -394,7 +401,7 @@ function PageEditor({ page, onClose }: { page: StatusPage | null; onClose: () =>
           <Button variant="default" onClick={onClose}>
             {t('common:cancel')}
           </Button>
-          <Button onClick={save} loading={busy} disabled={!f.title.trim() || !f.serviceIds.length}>
+          <Button onClick={save} loading={busy}>
             {t('common:save')}
           </Button>
         </Group>

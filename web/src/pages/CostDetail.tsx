@@ -7,7 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { IconCoin, IconEyeOff, IconPencil } from '@tabler/icons-react';
 import { COST_SCOPES, type CostBudget, type CostCurrencySummary, type CostScope, type CostScopeDetail } from '@sm/shared';
 import { get, notifyError, notifyOk, put } from '../api';
-import { EmptyState, QueryState } from '../components/common';
+import { EmptyState, QueryState, useFieldErrors } from '../components/common';
 import { DetailPage } from '../components/page/DetailPage';
 import { LinkTabs } from '../components/page/LinkTabs';
 import { BudgetBadge, BudgetBar, ChangeText, fmtChange, fmtMoney, SCOPE_PATH } from '../components/costs/common';
@@ -393,7 +393,12 @@ function BudgetDialog({ d, onClose }: { d: CostScopeDetail; onClose: () => void 
   const [busy, setBusy] = useState(false);
   const n = Number(amount);
   const raising = !!b && (amount.trim() === '' || currency !== b.currency || (b.amount !== null && Number.isFinite(n) && n > Number(b.amount)));
+  const check = useFieldErrors({
+    amount: !amount.trim() && t('common:validation.required'),
+    currency: !/^[A-Za-z]{3}$/.test(currency.trim()) && t('common:validation.currency'),
+  });
   const save = async (remove = false) => {
+    if (!remove && !check.validate()) return;
     setBusy(true);
     try {
       await put('/costs/budgets', {
@@ -419,8 +424,23 @@ function BudgetDialog({ d, onClose }: { d: CostScopeDetail; onClose: () => void 
           {t('budget.dialogHint')}
         </Text>
         <Group grow align="flex-start">
-          <TextInput label={t('budget.amount')} inputMode="decimal" data-autofocus required value={amount} onChange={(e) => setAmount(e.currentTarget.value)} />
-          <TextInput label={t('budget.currency')} maxLength={3} required value={currency} onChange={(e) => setCurrency(e.currentTarget.value.toUpperCase())} />
+          <TextInput
+            label={t('budget.amount')}
+            inputMode="decimal"
+            data-autofocus
+            required
+            value={amount}
+            onChange={(e) => setAmount(e.currentTarget.value)}
+            error={check.error('amount')}
+          />
+          <TextInput
+            label={t('budget.currency')}
+            maxLength={3}
+            required
+            value={currency}
+            onChange={(e) => setCurrency(e.currentTarget.value.toUpperCase())}
+            error={check.error('currency')}
+          />
         </Group>
         <Textarea label={t('budget.comment')} autosize minRows={2} maxLength={1000} value={comment} onChange={(e) => setComment(e.currentTarget.value)} />
         {raising && (
@@ -440,7 +460,7 @@ function BudgetDialog({ d, onClose }: { d: CostScopeDetail; onClose: () => void 
             <Button variant="default" onClick={onClose}>
               {t('common:cancel')}
             </Button>
-            <Button onClick={() => save()} loading={busy} disabled={!amount.trim() || currency.trim().length !== 3}>
+            <Button onClick={() => save()} loading={busy}>
               {t('common:save')}
             </Button>
           </Group>

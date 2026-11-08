@@ -7,7 +7,7 @@ import { useTranslation } from 'react-i18next';
 import type { RecordDetail, RecordFieldDef } from '@sm/shared';
 import { TagInput } from '../components/tags';
 import { get, notifyError, notifyOk, put } from '../api';
-import { DetailState, PageHeader } from '../components/common';
+import { DetailState, PageHeader, useFieldErrors } from '../components/common';
 import { MarkdownView } from '../components/records/MarkdownView';
 import { useTypeName } from '../components/records/common';
 import { fieldHelp, fieldLabel, optionLabel } from '../components/records/builtin';
@@ -65,6 +65,8 @@ export function RecordEditorPage() {
   const [comment, setComment] = useState('');
   const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState<string | null>('write');
+  // before the early return below (a hook): the title of the draft, once it is loaded
+  const check = useFieldErrors({ title: !!draft && !draft.title.trim() && t('common:validation.required') });
   const rec = q.data;
   useEffect(() => {
     if (rec && !draft) setDraft(fromRecord(rec));
@@ -81,6 +83,7 @@ export function RecordEditorPage() {
   const dirty = JSON.stringify(draft) !== JSON.stringify(fromRecord(rec));
   const set = (patch: Partial<Draft>) => setDraft({ ...draft, ...patch });
   const save = async () => {
+    if (!check.validate()) return;
     setBusy(true);
     try {
       const fields = Object.fromEntries(Object.entries(draft.fields).filter(([, v]) => v.trim()));
@@ -139,6 +142,7 @@ export function RecordEditorPage() {
         description={`${typeName(rec.type, rec.typeName)} · ${t('detail.revisionVersion', { revision: rec.revision, version: rec.version })}`}
       />
       <form
+        noValidate
         onSubmit={(e) => {
           e.preventDefault();
           void save();
@@ -147,7 +151,14 @@ export function RecordEditorPage() {
         <Grid gap="lg">
           <Grid.Col span={{ base: 12, md: 8 }}>
             <Stack gap="sm">
-              <TextInput label={t('editor.recordTitle')} value={draft.title} onChange={(e) => set({ title: e.currentTarget.value })} required maxLength={300} />
+              <TextInput
+                label={t('editor.recordTitle')}
+                value={draft.title}
+                onChange={(e) => set({ title: e.currentTarget.value })}
+                required
+                maxLength={300}
+                error={check.error('title')}
+              />
               {wide ? (
                 <Grid gap="sm">
                   <Grid.Col span={6}>{editorPane}</Grid.Col>
@@ -215,7 +226,7 @@ export function RecordEditorPage() {
           <Button variant="default" onClick={cancel}>
             {t('common:cancel')}
           </Button>
-          <Button type="submit" loading={busy} disabled={!draft.title.trim()}>
+          <Button type="submit" loading={busy}>
             {t('common:save')}
           </Button>
         </Group>

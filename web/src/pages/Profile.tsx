@@ -24,7 +24,7 @@ import { useTranslation } from 'react-i18next';
 import type { ApiToken, ApiTokenCreated, ApiTokenScope, UserInfo } from '@sm/shared';
 import { del, getOptional, notifyError, notifyOk, patch, post } from '../api';
 import { useMe } from '../auth';
-import { Hint, PageHeader } from '../components/common';
+import { Hint, PageHeader, useFieldErrors } from '../components/common';
 import { ApiTokenTable } from '../components/ApiTokenTable';
 import { PublicApiInfo, usePublicApi } from '../components/PublicApiInfo';
 import { McpClientConfig, useMcpServer } from '../components/mcp/McpClientConfig';
@@ -405,7 +405,9 @@ function CreateTokenModal({ opened, onClose, onCreated }: { opened: boolean; onC
       setDays(90);
     }
   }, [opened]);
+  const check = useFieldErrors({ name: !name.trim() && t('common:validation.required') });
   const submit = async () => {
+    if (!check.validate()) return;
     setBusy(true);
     try {
       const token = await post<ApiTokenCreated>('/me/tokens', { name: name.trim(), scope, ...(days ? { expiresInDays: days } : {}) });
@@ -419,6 +421,7 @@ function CreateTokenModal({ opened, onClose, onCreated }: { opened: boolean; onC
   return (
     <Modal opened={opened} onClose={onClose} title={t('tokens.newTitle')}>
       <form
+        noValidate
         onSubmit={(e) => {
           e.preventDefault();
           submit();
@@ -432,6 +435,7 @@ function CreateTokenModal({ opened, onClose, onCreated }: { opened: boolean; onC
             value={name}
             onChange={(e) => setName(e.currentTarget.value)}
             data-autofocus
+            error={check.error('name')}
           />
           <div>
             <Text size="sm" fw={500} mb={4}>
@@ -461,7 +465,7 @@ function CreateTokenModal({ opened, onClose, onCreated }: { opened: boolean; onC
             <Button variant="default" onClick={onClose}>
               {t('common:cancel')}
             </Button>
-            <Button type="submit" loading={busy} disabled={!name.trim()}>
+            <Button type="submit" loading={busy}>
               {t('tokens.create')}
             </Button>
           </Group>
