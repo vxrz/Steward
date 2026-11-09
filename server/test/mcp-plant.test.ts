@@ -428,6 +428,43 @@ describe('proposals', () => {
     expect(await auditActions(rid)).toEqual(['mcp.request_created', 'plant.proposal_created', 'plant.proposal_rejected', 'mcp.request_rejected']);
   });
 
+  it('refuse dropping an item from a list inside an entry – when proposed, and when applying would drop one now', async () => {
+    // the assignment's overrides as an empty list, the known-as names without the one there is
+    const noOverrides = await propose(tok.dana, { title: 'No overrides', document: { version: 1, assignment: { asset: 'north-mill-1', overrides: [] } } });
+    expect(noOverrides).toMatchObject({ isError: true, data: expect.stringMatching(/assignment "north-mill-1" would lose overrides\[spindle_speed\]/) });
+    const v2 = (name: string, aliases: string[]) => ({
+      version: 1,
+      device_profile: {
+        id: 'example-cnc-v2',
+        name,
+        extends: 'example-cnc',
+        interfaces: [{ id: 'opc', groups: [{ name: 'Spindle', data_points: [{ id: 'spindle_speed', address: 'ns=4;s=/Spindle/Speed', aliases }] }] }],
+      },
+    });
+    const lost = await propose(tok.dana, { title: 'Rename alias', document: v2('Example CNC controller v2', ['SpindleSpeed']) });
+    expect(lost).toMatchObject({ isError: true, data: expect.stringMatching(/would lose .*aliases: Spindle_speedActSP1/) });
+    // adding a name keeps the one there is: proposed
+    const r = await propose(tok.dana, { title: 'One more alias', document: v2('Example CNC controller v2', ['Spindle_speedActSP1', 'SpindleSpeed']) });
+    expect(r.isError, r.data).toBe(false);
+    const rid = r.data.requestId;
+    // someone adds a third name in the meantime: applying the proposal would drop it now
+    const own = (await s.api('GET', '/plant/profiles/example-cnc-v2')).own;
+    const { id: _id, ...body } = own;
+    body.pointOverrides = body.pointOverrides.map((o: any) => (o.dataPoint === 'spindle_speed' ? { ...o, aliases: ['Spindle_speedActSP1', 'Third'] } : o));
+    await s.api('PUT', '/plant/profiles/example-cnc-v2', body);
+    const detail = await s.api('GET', `/mcp-requests/${rid}`);
+    expect(detail.proposal.now.ok).toBe(false);
+    expect(detail.proposal.now.problems.map((p: any) => p.message).join(' ')).toMatch(/would lose .*aliases: Third/);
+    expect(
+      await status(
+        s.api('POST', `/mcp-requests/${rid}/decision`, { approve: true, comment: '', selection: { plant: { fingerprint: detail.proposal.now.fingerprint } } }),
+      ),
+    ).toEqual({ status: 409, code: 'PLANT_PROPOSAL_REMOVES' });
+    expect((await s.api('GET', `/mcp-requests/${rid}`)).status).toBe('pending');
+    expect((await s.api('GET', '/plant/profiles/example-cnc-v2')).own.pointOverrides[0].aliases).toEqual(['Spindle_speedActSP1', 'Third']);
+    await s.api('POST', `/mcp-requests/${rid}/decision`, { approve: false, comment: '' });
+  });
+
   it('expires like other proposals; the module off hides the tools again', async () => {
     const r = await propose(tok.dana, {
       title: 'New KPI',

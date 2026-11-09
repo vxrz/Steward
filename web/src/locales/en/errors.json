@@ -1114,7 +1114,8 @@
     "PLANT_COLLECTION_INVALID": "The data collection cannot be saved – {{path}}: {{message}}",
     "PLANT_COLLECTION_IMPORT_INVALID": "The data collections cannot be imported – {{path}}: {{message}}",
     "PLANT_PROPOSAL_CHANGED": "What the proposal changes is no longer what it was – look at the preview of now and confirm it.",
-    "PLANT_PROPOSAL_INVALID": "The proposal cannot be applied now ({{count}} problems) – see the preview of now."
+    "PLANT_PROPOSAL_INVALID": "The proposal cannot be applied now ({{count}} problems) – see the preview of now.",
+    "PLANT_PROPOSAL_REMOVES": "A proposal may change items of an entry, never drop one: {{entry}} would lose {{path}}."
   },
   "boundary": {
     "title": "Something went wrong on this page",

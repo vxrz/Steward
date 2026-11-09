@@ -27,7 +27,7 @@ import { db } from '../db.js';
 import type { AuthUser } from '../auth/context.js';
 import { canManageCatalogue } from './access.js';
 import { changedKeys, type AssetRow, type SiteRow } from './model.js';
-import { fieldDiff } from './diff.js';
+import { droppedItems, fieldDiff } from './diff.js';
 import type { AssignmentFile, DataPointFile, InterfaceFile, KpiFile, PlantFile, ProfileFile } from './format.js';
 import {
   assignmentProblems,
@@ -79,6 +79,8 @@ export interface Write {
   apply: () => void;
   /** 0.12.0: a change's differences, field by field (computed for the preview's first changes only) */
   diff?: () => PlantFieldDiff[];
+  /** 0.12.0: the items a change drops from lists inside the entry */
+  drops?: () => string[];
 }
 
 export function pushWrite<V extends object>(
@@ -98,7 +100,18 @@ export function pushWrite<V extends object>(
   if (mode === 'add') return void writes.push({ kind, action: 'skip', siteId, id, name, note: 'exists (add only)', apply: () => undefined });
   const fields = changedKeys(before, after);
   if (cur?.not_in_source) fields.push('notInSource');
-  if (fields.length) writes.push({ kind, action: 'change', siteId, id, name, fields, apply: write, diff: () => fieldDiff(before, after) });
+  if (fields.length)
+    writes.push({
+      kind,
+      action: 'change',
+      siteId,
+      id,
+      name,
+      fields,
+      apply: write,
+      diff: () => fieldDiff(before, after),
+      drops: () => droppedItems(before, after),
+    });
   else writes.push({ kind, action: 'unchanged', siteId, id, name, apply: adopt });
 }
 
@@ -623,6 +636,17 @@ export function computeData(c: DataContext): PlantCheck[] {
   }
   // every profile that extends one of the files' still resolves; the checks read the resolved profiles
   const postProfiles = resolveAll(postOwn);
+  // 0.12.0: what a changed profile drops is also what its model in effect loses (an inherited known-as name replaced …)
+  const preProfiles = resolveAll(new Map([...storedProfiles].map(([id, r]) => [id, profileValuesOf(r)])));
+  for (const w of writes)
+    if (w.kind === 'profile' && w.action === 'change') {
+      const own = w.drops;
+      const was = preProfiles.get(w.id);
+      const now = postProfiles.get(w.id);
+      w.drops = () => [
+        ...new Set([...(own?.() ?? []), ...(was ? droppedItems(was.interfaces, now?.interfaces ?? []).map((x) => `in effect: interfaces${x}`) : [])]),
+      ];
+    }
   const told = new Set<string>();
   for (const pp of p.profiles.values())
     for (const d of descendantsOf(pp.values.id, postOwn)) {

@@ -378,6 +378,11 @@ export interface PlantChange {
   fields?: string[];
   /** 0.12.0: what differs, field by field (changes; the first PLANT_DIFF_LIMITS.entries changes of a preview) */
   diff?: PlantFieldDiff[];
+  /**
+   * 0.12.0: items the change drops from a list inside the entry (`interfaces[opc]`, `aliases: SpindleSpeed`) – an
+   * assistant's proposal may not drop any
+   */
+  drops?: string[];
   /** A note: why it is skipped, what else changes */
   note?: string;
 }

@@ -1027,7 +1027,10 @@ function compute(input: ImportInput, importId: string): Computed {
   let diffs = 0;
   const changes: PlantChange[] = writes
     .filter((w) => !hiddenSite(w.siteId))
-    .map(({ apply: _a, diff, ...c }) => (diff && diffs++ < PLANT_DIFF_LIMITS.entries ? { ...c, diff: diff() } : c));
+    .map(({ apply: _a, diff, drops, ...c }) => {
+      const dropped = drops?.() ?? [];
+      return { ...c, ...(diff && diffs++ < PLANT_DIFF_LIMITS.entries ? { diff: diff() } : {}), ...(dropped.length ? { drops: dropped } : {}) };
+    });
   const counts = emptyCounts();
   const byKind: PlantImportPreview['byKind'] = {};
   for (const c of changes) {
