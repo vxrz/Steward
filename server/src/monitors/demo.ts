@@ -9,7 +9,7 @@ import { createPlatform } from '../platforms/service.js';
 import { DEMO_ZABBIX } from '../mock/mockZabbix.js';
 import { DEMO_IOT_ASSETS, demoPm17Pipeline } from '../mock/mockIot.js';
 import { simulateReads } from '../mock/delaySimulation.js';
-import { delayIdentity } from './delay.js';
+import { delayIdentity, encodeDelayState } from './delay.js';
 import { parseDefinition } from './model.js';
 import * as svc from './service.js';
 import { parseYaml } from '../yaml-safe.js';
@@ -158,7 +158,7 @@ function seedObservedDelay(): void {
   });
   db().run(
     'UPDATE monitor_checks SET observed_delay = ? WHERE monitor_id = ? AND check_id = ? AND observed_delay IS NULL',
-    JSON.stringify(state),
+    encodeDelayState(state!),
     row.id,
     c.id,
   );

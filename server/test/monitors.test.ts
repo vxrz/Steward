@@ -372,6 +372,46 @@ describe('check types', () => {
     });
   });
 
+  it('Insights Hub freshness: a lagging read does not make data look older', async () => {
+    const { clearBatchCaches } = await import('../src/monitors/batch.js');
+    const pipeline = (assetId: string, body: Record<string, unknown>) =>
+      fetch(`${s.base}/mock/ih/test/timeseries/pipeline`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ assetId, aspect: 'Lagging', ...body }),
+      });
+    // uploads every 10 minutes; every 2nd read answers as of one upload earlier
+    await pipeline('lag-asset', { variables: ['level'], pipeline: { cadenceSeconds: 60, uploadEverySeconds: 600, backwardsEvery: 2 } });
+    const { monitor } = await dana('POST', '/monitors', {
+      definition: {
+        name: 'IH lagging',
+        failuresBeforeDown: 1,
+        checks: [
+          {
+            id: 'ih',
+            name: 'Level',
+            type: 'freshness',
+            platform: 'Insights Hub (demo)',
+            assetId: 'lag-asset',
+            aspect: 'Lagging',
+            variables: ['level'],
+            mode: 'maxAge',
+            maxAgeSeconds: 610,
+          },
+        ],
+      },
+    });
+    clearBatchCaches();
+    const first = await evaluate(monitor.id);
+    expect(check(first, 'ih').status).toBe('up');
+    clearBatchCaches();
+    // the lagging read sees a value 10 minutes older: the status keeps the newest seen
+    const second = await evaluate(monitor.id);
+    expect(check(second, 'ih').status).toBe('up');
+    expect(check(second, 'ih').observedDelay.excluded.wentBackwards).toBe(1);
+    await pipeline('lag-asset', { pipeline: null });
+  });
+
   it('Gatus endpoint status', async () => {
     const { monitor } = await dana('POST', '/monitors', {
       definition: {

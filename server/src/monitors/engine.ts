@@ -19,7 +19,7 @@ import {
   type MonitorRow,
   type StateRow,
 } from './model.js';
-import { delayIdentity, observeDelay, parseDelayState, type DelayObservation } from './delay.js';
+import { delayIdentity, encodeDelayState, newestSeen, parseDelayState, stepDelay, type DelayObservation, type DelayState } from './delay.js';
 import { analyze, applyResult, freshnessStatus, freshnessWindowSeconds, fmtAge, nextDue, phaseOffset } from './logic.js';
 import { isActive, planCheck, runActiveCheck, toMillis, type RawResult } from './checks.js';
 import { storedKindMismatch } from './kinds.js';
@@ -68,6 +68,8 @@ let abort = new AbortController();
 let loaded = false;
 const maintenanceSeen = new Map<string, boolean>();
 const resultCounter = new Map<string, number>();
+/** Observed delay of freshness checks (delay.ts) by check, with the times last seen that are not stored on every read */
+const delayStates = new Map<string, DelayState>();
 let lastPublish = 0;
 
 const ck = (mid: string, cid: string) => `${mid}\u0000${cid}`;
@@ -99,6 +101,7 @@ async function withSlot<T>(fn: () => Promise<T>): Promise<T> {
 
 export function loadAll(): void {
   monitors.clear();
+  delayStates.clear();
   for (const r of db().all<MonitorRow>('SELECT * FROM monitors WHERE is_template = 0')) monitors.set(r.id, loadMonitor(r));
   loaded = true;
 }
@@ -133,6 +136,7 @@ function warnPlatformKindMismatches(): void {
 export function reloadMonitor(id: string): void {
   const r = db().get<MonitorRow>('SELECT * FROM monitors WHERE id = ?', id);
   for (const k of [...due.keys()]) if (k.startsWith(id + '\u0000')) due.delete(k);
+  for (const k of [...delayStates.keys()]) if (k.startsWith(id + '\u0000')) delayStates.delete(k);
   if (!r || r.is_template) {
     monitors.delete(id);
     return;
@@ -144,6 +148,7 @@ export function reloadMonitor(id: string): void {
 
 export function forgetMonitor(id: string): void {
   monitors.delete(id);
+  for (const k of [...delayStates.keys()]) if (k.startsWith(id + '\u0000')) delayStates.delete(k);
   for (const k of [...due.keys()]) if (k.startsWith(id + '\u0000')) due.delete(k);
   maintenanceSeen.delete(id);
 }
@@ -300,7 +305,13 @@ export function evaluateCheck(mid: string, cid: string, now = clock()): Promise<
       else if (isActive(c)) {
         raw = await withSlot(() =>
           withSpan(`monitor check ${c.type}`, { 'sm.monitor.key': m.key, 'sm.monitor.check': c.id, 'sm.monitor.check_type': c.type }, async (span) => {
-            const r = await runActiveCheck(c, { owner: m.owner, signal: abort.signal, timeoutMs: timeoutMs(m, c), now: () => clock() });
+            const r = await runActiveCheck(c, {
+              owner: m.owner,
+              signal: abort.signal,
+              timeoutMs: timeoutMs(m, c),
+              now: () => clock(),
+              newestSeen: newestSeenOf(m, c, row),
+            });
             span.setAttribute('sm.monitor.status', r.status);
             if (r.status === 'down') span.setStatus({ code: SpanStatusCode.ERROR, message: r.message.slice(0, 200) });
             return r;
@@ -429,12 +440,34 @@ function evaluateSubMonitor(c: CheckOf<'monitor'>): RawResult {
 function recordObservation(m: LoadedMonitor, c: CheckDef, row: CheckRow, obs: DelayObservation): void {
   const identity = delayIdentity(c);
   if (!identity) return;
+  const k = ck(m.id, c.id);
   try {
-    const next = observeDelay(parseDelayState(row.observed_delay), identity, obs, (t) => !!activeMaintenance(m.id, t));
-    db().run('UPDATE monitor_checks SET observed_delay = ? WHERE monitor_id = ? AND check_id = ?', JSON.stringify(next), m.id, c.id);
+    const prev = delayStateOf(k, row);
+    const { state, changed } = stepDelay(prev, identity, obs, (t) => !!activeMaintenance(m.id, t));
+    delayStates.set(k, state);
+    // stored only when something worth keeping changed, not for every read of the same newest value
+    if (changed) db().run('UPDATE monitor_checks SET observed_delay = ? WHERE monitor_id = ? AND check_id = ?', encodeDelayState(state), m.id, c.id);
   } catch (err) {
     logger.warn({ err, monitor: m.id, check: c.id }, 'observed delay not recorded');
   }
+}
+
+/** The observed delay state of a check: in memory (with the latest "last seen" times), else as stored. */
+function delayStateOf(k: string, row: CheckRow): DelayState | null {
+  let st = delayStates.get(k);
+  if (st === undefined) {
+    st = parseDelayState(row.observed_delay) ?? undefined;
+    if (st) delayStates.set(k, st);
+  }
+  return st ?? null;
+}
+
+/** For the status of a freshness check: the newest timestamp per variable seen so far from the same source. */
+function newestSeenOf(m: LoadedMonitor, c: CheckDef, row: CheckRow): ((name: string) => number | null) | undefined {
+  const identity = delayIdentity(c);
+  if (!identity) return undefined;
+  const st = delayStateOf(ck(m.id, c.id), row);
+  return (name) => newestSeen(st, identity, name);
 }
 
 function bucketOf(ms: number): string {

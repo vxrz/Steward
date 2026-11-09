@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
-import { deviceTime, readablePoints, type IotPipeline } from './iotPipeline.js';
+import { deviceTime, readablePoints, readablePointsAsc, type IotPipeline } from './iotPipeline.js';
 
 /**
  * Simulated IoT time series for the monitor demo (machines with PowerMeters).
@@ -18,7 +18,9 @@ import { deviceTime, readablePoints, type IotPipeline } from './iotPipeline.js';
  *
  * Test helpers (no auth):
  *   POST /mock/ih/test/timeseries  { assetId, aspect, variable, lagSeconds?, cadenceSeconds? }   change a variable
- *   POST /mock/ih/test/timeseries/pipeline  { assetId, aspect, variables?, pipeline }             a data path (null: none)
+ *   POST /mock/ih/test/timeseries/pipeline  { assetId, aspect, variables?, pipeline }             a data path (null: none);
+ *        variables: names, or { name, everySeconds?, offsetMs? } (written every N s / at its own timestamp)
+ * Ranges are answered like the store does: the oldest records from `from` on, at most `limit` (2000).
  *   GET  /mock/ih/test/timeseries/calls                                                           calls per asset/aspect
  *   POST /mock/ih/test/timeseries/reset
  */
@@ -55,8 +57,15 @@ export function demoPm17Pipeline(now: number): IotPipeline {
   };
 }
 
+/** A variable of a data path: written with every measurement, or every N seconds; `offsetMs` moves its timestamp (its own record). */
+export interface PipelineVariable {
+  name: string;
+  everySeconds?: number;
+  offsetMs?: number;
+}
+
 interface PipelineSeries {
-  variables: string[];
+  variables: PipelineVariable[];
   pipeline: IotPipeline;
   reads: number;
 }
@@ -64,7 +73,10 @@ interface PipelineSeries {
 function seedPipelines(): Map<string, PipelineSeries> {
   const a = DEMO_IOT_ASSETS;
   return new Map([
-    [`${a.pm17.assetId}/${a.pm17.aspect}`, { variables: ['activePower', 'energy', 'voltage'], pipeline: demoPm17Pipeline(Date.now()), reads: 0 }],
+    [
+      `${a.pm17.assetId}/${a.pm17.aspect}`,
+      { variables: [{ name: 'activePower' }, { name: 'energy' }, { name: 'voltage' }], pipeline: demoPm17Pipeline(Date.now()), reads: 0 },
+    ],
   ]);
 }
 
@@ -137,30 +149,43 @@ function pipelineTimeseries(ps: PipelineSeries, q: Record<string, string>, now: 
   const U = Math.max(p.cadenceSeconds, p.uploadEverySeconds ?? p.cadenceSeconds) * 1000;
   const asOf = p.backwardsEvery && ps.reads % p.backwardsEvery === 0 ? now - U : now;
   const select = q.select ? new Set(q.select.split(',').map((s) => s.trim().toLowerCase().replace(/_qc$/, ''))) : null;
-  const names = ps.variables.filter((v) => !select || select.has(v.toLowerCase()));
-  const skew = (p.clockSkewSeconds ?? 0) * 1000;
-  let times: number[];
+  const vars = ps.variables.filter((v) => !select || select.has(v.name.toLowerCase()));
+  // records by their _time: the variables written with a measurement (each at its own offset)
+  const recordsOf = (points: number[]) => {
+    const byTime = new Map<number, Record<string, unknown>>();
+    for (const m of points)
+      for (const v of vars) {
+        if (v.everySeconds && m % (v.everySeconds * 1000) !== 0) continue;
+        const t = deviceTime(p, m) + (v.offsetMs ?? 0);
+        const rec = byTime.get(t) ?? { _time: new Date(t).toISOString() };
+        const [base, spread] = VARIABLE_BASE[v.name] ?? [10, 1];
+        rec[v.name] = valueAt({ name: v.name, cadenceSeconds: p.cadenceSeconds, lagSeconds: 0, base, spread }, t);
+        rec[`${v.name}_qc`] = 0;
+        byTime.set(t, rec);
+      }
+    return [...byTime.entries()].sort((a, b) => a[0] - b[0]);
+  };
   if (q.from || q.to) {
-    // the store filters by _time (the device clock)
-    const from = (q.from ? Date.parse(q.from) : now - 3600000) - skew;
-    const to = (q.to ? Date.parse(q.to) : now) - skew;
+    // the store filters by _time (device clock and offsets) and answers the oldest records of the range first
+    const skew = (p.clockSkewSeconds ?? 0) * 1000;
+    const from = q.from ? Date.parse(q.from) : now - 3600000;
+    const to = q.to ? Date.parse(q.to) : now;
     const limit = Math.min(Math.max(1, Number(q.limit ?? 2000)), 2000);
-    const newer = Math.ceil(Math.max(0, asOf - to) / (p.cadenceSeconds * 1000));
-    times = readablePoints(p, asOf, from, Math.min(100000, limit + newer + 10))
-      .filter((m) => m <= to)
-      .slice(0, limit)
-      .reverse();
-  } else times = readablePoints(p, asOf, asOf - 30 * 86400000, 1);
-  return times.map((m) => {
-    const t = deviceTime(p, m);
-    const rec: Record<string, unknown> = { _time: new Date(t).toISOString() };
-    for (const n of names) {
-      const [base, spread] = VARIABLE_BASE[n] ?? [10, 1];
-      rec[n] = valueAt({ name: n, cadenceSeconds: p.cadenceSeconds, lagSeconds: 0, base, spread }, t);
-      rec[`${n}_qc`] = 0;
+    const slack = Math.max(0, ...vars.map((v) => Math.abs(v.offsetMs ?? 0))) + p.cadenceSeconds * 1000;
+    const out: Record<string, unknown>[] = [];
+    // in chunks: sparse variables need more measurements than records
+    for (let start = from - skew - slack; out.length < limit && start <= to - skew + slack;) {
+      const points = readablePointsAsc(p, asOf, start, to - skew + slack, 5000);
+      if (!points.length) break;
+      for (const [t, rec] of recordsOf(points))
+        if (t >= from && t <= to && out.length < limit && (!out.length || t > Date.parse(String(out.at(-1)!._time)))) out.push(rec);
+      start = points.at(-1)! + 1;
     }
-    return rec;
-  });
+    return out;
+  }
+  // the latest record: the newest one, with only the variables written at that time
+  const recs = recordsOf(readablePoints(p, asOf, asOf - 30 * 86400000, 10));
+  return recs.length ? [recs.at(-1)![1]] : [];
 }
 
 /**
@@ -215,13 +240,14 @@ export async function mockIotRoutes(app: FastifyInstance): Promise<void> {
     return { ok: true, variable: v };
   });
   app.post('/ih/test/timeseries/pipeline', async (req, reply) => {
-    const b = req.body as { assetId?: string; aspect?: string; variables?: string[]; pipeline?: IotPipeline | null };
+    const b = req.body as { assetId?: string; aspect?: string; variables?: (string | PipelineVariable)[]; pipeline?: IotPipeline | null };
     if (!b?.assetId || !b.aspect) return reply.code(400).send({ error: 'assetId and aspect required' });
     const key = `${b.assetId}/${b.aspect}`;
     if (!b.pipeline) pipelines.delete(key);
     else {
-      if (!(b.pipeline.cadenceSeconds >= 1)) return reply.code(400).send({ error: 'pipeline.cadenceSeconds required' });
-      pipelines.set(key, { variables: b.variables?.length ? b.variables : ['value'], pipeline: b.pipeline, reads: 0 });
+      if (!(b.pipeline.cadenceSeconds >= 0.1)) return reply.code(400).send({ error: 'pipeline.cadenceSeconds (at least 0.1) required' });
+      const variables = (b.variables?.length ? b.variables : ['value']).map((v) => (typeof v === 'string' ? { name: v } : v));
+      pipelines.set(key, { variables, pipeline: b.pipeline, reads: 0 });
     }
     return { ok: true };
   });

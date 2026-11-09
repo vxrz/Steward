@@ -61,6 +61,17 @@ export interface ExecContext {
   now: () => number;
   /** Test run (#105): platform calls are answered by recorded responses; `recorded` is set when one answered */
   recorded?: { recorded: boolean };
+  /**
+   * Freshness checks (0.13): the newest timestamp seen so far per variable ('' for the API source) from the same
+   * source. The status uses the later of it and this read's, so a lagging read cannot make data look older.
+   */
+  newestSeen?: (name: string) => number | null;
+}
+
+/** The later of a read's newest timestamp and the newest seen before (null: neither). */
+function monotonic(read: number | null, seen: number | null | undefined): number | null {
+  if (read === null) return seen ?? null;
+  return seen !== null && seen !== undefined && seen > read ? seen : read;
 }
 
 /** A platform call of a check: the platform, or its recorded response in a test run (null: none recorded). */
@@ -415,13 +426,13 @@ async function checkFreshness(c: CheckOf<'freshness'>, ctx: ExecContext): Promis
       if (e instanceof CheckSetupError) throw e;
       return { status: 'unknown', message: `Freshness could not be read: ${(e as Error).message}`, durationMs: Date.now() - t0, observation: failed() };
     }
-    const latest = read.values;
     // the times of the shared read itself: its answer may be a few seconds older than this check
     const observation: DelayObservation = {
       start: read.startedAt,
       end: read.receivedAt,
-      newest: Object.fromEntries(vars.map((v) => [v, latest.get(v) ?? null])),
+      newest: Object.fromEntries(vars.map((v) => [v, read.values.get(v) ?? null])),
     };
+    const latest = new Map(vars.map((v) => [v, monotonic(read.values.get(v) ?? null, ctx.newestSeen?.(v))]));
     const per = vars.map((v) => ({ v, ...freshnessStatus(latest.get(v) ?? null, now, c, `value of ${v}`) }));
     const worst = per.reduce((a, b) => (rank(b.status) > rank(a.status) ? b : a), per[0]!);
     const ages = Object.fromEntries(per.map((p) => [p.v, p.ageSeconds === null ? null : Math.round(p.ageSeconds)]));
@@ -469,10 +480,11 @@ async function checkFreshness(c: CheckOf<'freshness'>, ctx: ExecContext): Promis
     return { status: 'unknown', message: `Timestamp expression failed: ${(e as Error).message}`, durationMs: r.durationMs, observation: failed() };
   }
   const times = (Array.isArray(ts) ? ts : [ts]).map(toMillis).filter((x): x is number => x !== undefined);
-  const latest = times.length ? Math.max(...times) : null;
+  const newest = times.length ? Math.max(...times) : null;
+  const latest = ctx.recorded ? newest : monotonic(newest, ctx.newestSeen?.(''));
   const f = freshnessStatus(latest, now, c);
   // a recorded answer (test run) is no observation of the source
-  const observation: DelayObservation | undefined = ctx.recorded ? undefined : { start: startedAt, end: receivedAt, newest: { '': latest } };
+  const observation: DelayObservation | undefined = ctx.recorded ? undefined : { start: startedAt, end: receivedAt, newest: { '': newest } };
   return { status: f.status, message: f.message, durationMs: r.durationMs, value: latest ? new Date(latest).toISOString() : null, observation };
 }
 

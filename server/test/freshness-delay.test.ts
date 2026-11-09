@@ -2,8 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { checkSchema, definitionIssues, monitorDefinitionSchema, suggestFreshness, type CheckDef, type FreshnessSettings } from '@sm/shared';
 import { freshnessLookbackSeconds, freshnessStatus, freshnessWindowSeconds, type FreshnessConfig } from '../src/monitors/logic.js';
 import {
-  DELAY_MAX_SAMPLES,
+  DELAY_OLD_SLOT_SECONDS,
   DELAY_SLOT_SECONDS,
+  applyObservation,
+  encodeDelayState,
+  newestSeen,
+  stepDelay,
   FUTURE_TOLERANCE_MS,
   delayIdentity,
   observeDelay,
@@ -26,6 +30,7 @@ const MIN = 60 * S;
 const H = 60 * MIN;
 const DAY = 24 * H;
 const T0 = Date.parse('2026-11-02T00:00:00Z');
+const I = T0 / S / 1200; // the 20-minute slot of T0
 
 describe('allowed delay: threshold math', () => {
   const now = T0;
@@ -115,17 +120,18 @@ describe('observed delay: samples', () => {
     expect(st.vars.v!.s).toEqual([]);
     st = observeDelay(st, 'id', read(T0 + 2 * MIN, { v: T0 + 30 * S }));
     // peak age of the previous value: [t − T, t' − T] = [60+50, 120.2+50]; delay of the new one: [60−30, 120.2−30]
-    expect(st.vars.v!.s).toEqual([[(T0 + MIN) / S, 61, 110, 171, 30, 91, 1]]);
+    // slot by the end of the read, then [peakLo, peakHi, delayLo, delayHi, samples]
+    expect(st.vars.v!.s).toEqual([[I, 110, 171, 30, 91, 1]]);
     expect(st.vars.v!.T).toBe(T0 + 30 * S);
     expect(st.vars.v!.t).toBe(T0 + 2 * MIN);
     // a value newer than the last read: the delay's lower bound is 0, never negative (a later slot: its own entry)
     st = observeDelay(st, 'id', read(T0 + 30 * MIN, { v: T0 + 29 * MIN }));
     expect(st.vars.v!.s).toHaveLength(2);
-    expect(st.vars.v!.s.at(-1)!.slice(4, 6)).toEqual([0, 61]);
+    expect(st.vars.v!.s.at(-1)!.slice(3, 5)).toEqual([0, 61]);
     // samples ending in the same 20-minute slot are merged: the widest bounds, counted twice
     st = observeDelay(st, 'id', read(T0 + 31 * MIN, { v: T0 + 30 * MIN + 40 * S }));
     expect(st.vars.v!.s).toHaveLength(2);
-    expect(st.vars.v!.s.at(-1)).toEqual([(T0 + 2 * MIN) / S, 1741, 60, 1771, 0, 61, 2]);
+    expect(st.vars.v!.s.at(-1)).toEqual([I + 1, 60, 1771, 0, 61, 2]);
   });
 
   it('failed reads, null values, backwards and future timestamps, maintenance: counted, never used', () => {
@@ -137,7 +143,7 @@ describe('observed delay: samples', () => {
     st = observeDelay(st, 'id', read(T0 + 2 * Q, { v: null }));
     st = observeDelay(st, 'id', read(T0 + 3 * Q, { v: T0 + 2 * Q }));
     expect(st.vars.v!.s).toHaveLength(1);
-    expect(st.vars.v!.s[0]!.slice(0, 4)).toEqual([T0 / S, 4501, 10, 4511]);
+    expect(st.vars.v!.s[0]!.slice(0, 3)).toEqual([I + 3, 10, 4511]);
     // backwards: the newest seen is kept, t does not move
     st = observeDelay(st, 'id', read(T0 + 4 * Q, { v: T0 + Q }));
     expect(st.vars.v!.T).toBe(T0 + 2 * Q);
@@ -148,7 +154,7 @@ describe('observed delay: samples', () => {
     expect(st.vars.v!.T).toBe(T0 + 2 * Q);
     st = observeDelay(st, 'id', read(T0 + 7 * Q, { v: T0 + 7 * Q + 200 + FUTURE_TOLERANCE_MS - 1 }));
     expect(st.vars.v!.s).toHaveLength(2);
-    expect(st.vars.v!.s[1]![4]).toBe(0);
+    expect(st.vars.v!.s[1]![3]).toBe(0);
     // a sample whose interval overlaps maintenance
     const maint = (t: number) => t >= T0 + 8 * Q && t < T0 + 8 * Q + 2 * MIN;
     st = observeDelay(st, 'id', read(T0 + 9 * Q, { v: T0 + 8 * Q }), maint);
@@ -167,11 +173,12 @@ describe('observed delay: samples', () => {
 
   it('restart: stored state continues the series; without one the first read records nothing', () => {
     let st = observeDelay(null, 'id', read(T0, { v: T0 - 10 * S }));
-    const stored = JSON.stringify(st);
+    const stored = encodeDelayState(st);
     st = observeDelay(parseDelayState(stored), 'id', read(T0 + MIN, { v: T0 + 30 * S }));
     expect(st.vars.v!.s).toHaveLength(1);
     expect(observeDelay(parseDelayState(null), 'id', read(T0 + MIN, { v: T0 + 30 * S })).vars.v!.s).toHaveLength(0);
     expect(parseDelayState('not json')).toBeNull();
+    expect(parseDelayState('{"v":1,"id":"id","vars":{},"ev":{}}')).toBeNull(); // an unknown form starts anew
   });
 
   it('identity: the source starts a new series, thresholds do not', () => {
@@ -208,21 +215,61 @@ describe('observed delay: samples', () => {
     expect(summarizeDelay(reset, 60, T0 + 3 * MIN)!.excluded.failedReads).toBe(0);
   });
 
-  it('window bounds: 7 days, 20-minute slots (widest bounds), at most 500 slots per variable', () => {
+  it('window bounds: 20-minute slots for 24 hours, 2-hour slots before, 7 days in all (widest bounds per slot)', () => {
     let st: DelayState | null = null;
     // a new value every minute for 9 days
-    for (let i = 0; i < 9 * 1440; i++) st = observeDelay(st, 'id', read(T0 + i * MIN, { v: T0 + i * MIN - 30 * S - (i % 7) * S }));
-    const s = st!.vars.v!.s;
-    expect(s.length).toBeLessThanOrEqual(DELAY_MAX_SAMPLES);
+    for (let i = 0; i < 9 * 1440; i++) st = applyObservation(st, 'id', read(T0 + i * MIN, { v: T0 + i * MIN - 30 * S - (i % 7) * S }));
+    const v = st!.vars.v!;
     const now = T0 + 9 * DAY;
-    expect(s[0]![0] + s[0]![1]).toBeGreaterThanOrEqual((now - 7 * DAY) / S - DELAY_SLOT_SECONDS);
-    // a slot keeps the highest upper and lowest lower bound of its samples
-    const slot = s.at(-2)!;
-    expect(slot[6]).toBeGreaterThan(1);
-    expect(slot[3]).toBe(Math.max(...s.slice(1, -1).map((x) => x[3])));
+    expect(v.s.length).toBeLessThanOrEqual(73);
+    expect(v.h.length).toBeLessThanOrEqual(73);
+    expect((v.s[0]![0] + 1) * DELAY_SLOT_SECONDS).toBeGreaterThan((now - DAY - MIN) / S);
+    expect((v.h[0]![0] + 1) * DELAY_OLD_SLOT_SECONDS).toBeGreaterThanOrEqual((now - 7 * DAY) / S);
+    // a 2-hour slot of 120 samples keeps the lowest lower and the highest upper bound: delays of 30–36 s, read every
+    // minute – the value was not readable at the read before (lower bound 0), at most 36.2 s old when seen
+    expect(v.h[1]!.slice(3)).toEqual([0, 37, 120]);
     const sum = summarizeDelay(st, 60, now)!;
-    expect(sum.worst!.samples).toBeGreaterThan(9000); // samples, not slots
+    expect(sum.worst!.samples).toBeGreaterThan(9900); // samples, not slots
     expect(sum.worst!.coverageSeconds).toBeGreaterThan(6.9 * 86400);
+    expect(sum.worst!.coverageSeconds).toBeLessThanOrEqual(7 * 86400);
+  });
+
+  it('storage: compact, round-trips, about 3 KB per variable – 50 variables over a week', () => {
+    const vars = Array.from({ length: 50 }, (_, i) => `variable${String(i).padStart(2, '0')}`);
+    let st: DelayState | null = null;
+    for (let i = 0; i < 7 * 1440; i++) {
+      const at = T0 + i * MIN;
+      const failed = i % 97 === 0;
+      st = applyObservation(st, 'id', failed ? { failed: true, at } : read(at, Object.fromEntries(vars.map((v, k) => [v, at - (20 + ((i + k) % 40)) * S]))));
+    }
+    const text = encodeDelayState(st!);
+    expect(text.length / vars.length).toBeLessThanOrEqual(3 * 1024);
+    const back = parseDelayState(text)!;
+    const now = T0 + 7 * DAY;
+    expect(summarizeDelay(back, 60, now)).toEqual(summarizeDelay(st, 60, now));
+    expect(back.vars.variable07!.T).toBe(st!.vars.variable07!.T);
+    expect(summarizeDelay(back, 60, now)!.excluded.failedReads).toBe(Math.ceil((7 * 1440) / 97));
+  });
+
+  it('stored only when something worth keeping changed', () => {
+    let r = stepDelay(null, 'id', read(T0, { v: T0 - 10 * S }));
+    expect(r.changed).toBe(true); // a new series
+    r = stepDelay(r.state, 'id', read(T0 + MIN, { v: T0 - 10 * S }));
+    expect(r.changed).toBe(false); // the same newest value again: only the time it was last seen moves (in memory)
+    expect(r.state.vars.v!.t).toBe(T0 + MIN);
+    expect(stepDelay(r.state, 'id', read(T0 + 2 * MIN, { v: T0 + MIN })).changed).toBe(true); // a sample
+    expect(stepDelay(r.state, 'id', read(T0 + 3 * MIN, { v: T0 - MIN })).changed).toBe(true); // went backwards: a count
+    expect(stepDelay(r.state, 'id', { failed: true, at: T0 + 4 * MIN }).changed).toBe(true);
+    expect(stepDelay(r.state, 'other', read(T0 + 5 * MIN, { v: T0 + 4 * MIN })).changed).toBe(true);
+  });
+
+  it('the newest seen: what the status uses while the source is the same', () => {
+    let st = observeDelay(null, 'id', read(T0, { v: T0 - 10 * S }));
+    st = observeDelay(st, 'id', read(T0 + MIN, { v: T0 - 5 * MIN })); // a lagging read
+    expect(newestSeen(st, 'id', 'v')).toBe(T0 - 10 * S);
+    expect(newestSeen(st, 'other', 'v')).toBeNull();
+    expect(newestSeen(st, 'id', 'w')).toBeNull();
+    expect(newestSeen(null, 'id', 'v')).toBeNull();
   });
 
   it('percentiles: nearest rank – always an observed value', () => {
@@ -318,6 +365,12 @@ const SCENARIOS: Scenario[] = [
     config: { mode: 'cadence', expectedIntervalSeconds: 60 },
   },
   {
+    name: 'a lagging replica: every 5th read is one upload behind, every 13th fails',
+    pipeline: { cadenceSeconds: 60, uploadEverySeconds: 300, ingestDelaySeconds: 60, jitterSeconds: 30, backwardsEvery: 5, failEvery: 13 },
+    intervalSeconds: 60,
+    config: { mode: 'cadence', expectedIntervalSeconds: 60, degradedAfterMissed: 1, downAfterMissed: 3 },
+  },
+  {
     name: 'on-change data with a maximum age that is too tight',
     pipeline: { cadenceSeconds: 600, ingestDelaySeconds: 120, jitterSeconds: 60 },
     intervalSeconds: 60,
@@ -405,8 +458,10 @@ describe('observed delay on simulated data paths', () => {
     expect(b.excluded.wentBackwards).toBeGreaterThan(100);
     expect(b.excluded.futureTimestamps).toBe(0);
     const c: FreshnessSettings = { mode: 'cadence', expectedIntervalSeconds: 60 };
-    // a skipped read only widens a sample by one interval: the suggestion stays within one minute
-    expect(Math.abs(suggestFreshness(b, c)!.changes[0]!.to! - suggestFreshness(a, c)!.changes[0]!.to!)).toBeLessThanOrEqual(60);
+    // a skipped read widens a sample by one interval (two in a row by two): more conservative, never less
+    const diff = suggestFreshness(b, c)!.changes[0]!.to! - suggestFreshness(a, c)!.changes[0]!.to!;
+    expect(diff).toBeGreaterThanOrEqual(0);
+    expect(diff).toBeLessThanOrEqual(120);
   });
 
   it('a device clock ahead of real time: every timestamp is in the future, no sample, no suggestion', () => {

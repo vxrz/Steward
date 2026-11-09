@@ -1,10 +1,11 @@
-import { applyObservation, type DelayState } from '../monitors/delay.js';
+import { applyObservation, newestSeen, type DelayState } from '../monitors/delay.js';
 import { readNewest, type IotPipeline } from './iotPipeline.js';
 
 /**
  * Runs a freshness check against a simulated data path (iotPipeline.ts) on simulated time: every `intervalSeconds`
- * from `from` to `to` (ms), one read that takes `readMs`. Each read is passed to `onRead` (the tests evaluate the
- * check's status with it) and to the observed delay. The demo seeds its PowerMeter's history this way (demo.ts).
+ * from `from` to `to` (ms), one read that takes `readMs`, applied to the observed delay. `onRead` gets each successful
+ * read with the newest timestamp the check's status uses: the later of the read's and the newest seen before (the
+ * tests evaluate the status with it). The demo seeds its PowerMeter's history this way (demo.ts).
  */
 export function simulateReads(
   p: IotPipeline,
@@ -28,7 +29,9 @@ export function simulateReads(
     const r = readNewest(p, t + readMs / 2, n);
     if (r.failed) state = applyObservation(state, opts.identity, { failed: true, at: t + readMs }, opts.inMaintenance);
     else {
-      opts.onRead?.(t + readMs, r.newest);
+      // the status uses the later of this read and the newest seen before (a lagging read cannot make data older)
+      const seen = newestSeen(state, opts.identity, opts.variables[0]!);
+      opts.onRead?.(t + readMs, r.newest === null ? seen : seen !== null && seen > r.newest ? seen : r.newest);
       state = applyObservation(
         state,
         opts.identity,

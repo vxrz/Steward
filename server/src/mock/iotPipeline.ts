@@ -59,6 +59,30 @@ export function readablePoints(p: IotPipeline, now: number, from: number, max: n
   return out.sort((x, y) => y - x).slice(0, max);
 }
 
+/**
+ * Measurement times (true time, ms) readable at `now` within [from, to], oldest first, at most `max` – the order in
+ * which the store answers a range (`from`, `to`, `limit`).
+ */
+export function readablePointsAsc(p: IotPipeline, now: number, from: number, to: number, max: number): number[] {
+  const U = upload(p);
+  const C = p.cadenceSeconds * 1000;
+  const reach = Math.ceil(((p.jitterSeconds ?? 0) * 1000) / U) + 1;
+  const top = Math.floor((now - (p.ingestDelaySeconds ?? 0) * 1000) / U) + reach;
+  const out: number[] = [];
+  for (let b = Math.ceil(from / U); b <= top && out.length < max; b++) {
+    const end = b * U;
+    if (end - U > to) break;
+    const o = (p.outages ?? []).find((x) => end - U >= x.from && end < x.to);
+    if (o) {
+      b = Math.ceil(o.to / U) - 1;
+      continue;
+    }
+    if (visibleAt(p, b) > now) continue;
+    for (let m = Math.floor((end - U) / C) * C + C; m <= end && out.length < max; m += C) if (m >= from && m <= to && !inOutage(p, m)) out.push(m);
+  }
+  return out;
+}
+
 /** The `_time` (ms) of a measurement: the device clock. */
 export const deviceTime = (p: IotPipeline, m: number) => m + (p.clockSkewSeconds ?? 0) * 1000;
 
