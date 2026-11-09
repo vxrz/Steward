@@ -59,3 +59,11 @@ Every confirmed pair is remembered for the asset and collector, so a re-import n
 - A remembered mapping can go stale when a gateway renames a variable; the next import shows it as unknown and asks again.
 - The importers read what their files say; a format that changes (the Industrial Edge export especially) may need an importer update. The Industrial Edge importer stays _preview_ until it has seen more exports than the public example it was built from.
 - Steward does not check that a collector really reads what is documented; that would need access to the collector and is out of scope.
+
+## Update 0.12: proposals from assistants
+
+**Since:** 0.12.0.
+
+- An AI assistant can read an asset's collections, their items and coverage through MCP, and propose changes to the registry for a person to apply ([ADR 0007 – Update 0.12](0007-plant-registry.md#update-012-inherited-descriptions-and-proposals-from-assistants)). For collections it proposes the profile layer and the asset layer of the three layers: known-as names of data points (a gateway's names) and the asset's addresses (overrides). Collections themselves are not part of the plant import format yet; they are still imported by a person from the collector's configuration.
+- Collections are planned to join the format, and with it assistants' proposals, in 0.12, after the work on documents, gateway sources and sinks of collections. The same rules will apply: a person applies, nothing is removed or renamed, no item is dropped.
+- A collection and each of its items have an optional description (migration `plant-008-collection-description`); the table format reads a `description` column.
