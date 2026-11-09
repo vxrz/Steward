@@ -312,7 +312,9 @@
       "acrValues": "acr values",
       "acrValuesHint": "Optional, space-separated (e.g. Keycloak: gold; Okta: urn:okta:loa:2fa:any). Sent as acr_values; the ID token's acr must be one of them."
     },
-    "teamRoles": "Roles in these teams"
+    "teamRoles": "Roles in these teams",
+    "changedCount_one": "{{count}} changed",
+    "changedCount_other": "{{count}} changed"
   },
   "profileValues": {
     "title": "From the sign-in provider",

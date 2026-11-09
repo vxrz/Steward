@@ -636,7 +636,9 @@
     "advancedHint": "Node id, optional settings, outputs, conditions and retries",
     "retryAttempts": "Retry attempts",
     "retryAttemptsHint": "Total attempts incl. the first (1–10)",
-    "retryDelay": "Retry delay (ms)"
+    "retryDelay": "Retry delay (ms)",
+    "advancedSet_one": "{{count}} set",
+    "advancedSet_other": "{{count}} set"
   },
   "fields": {
     "exprHint": "JSONata expression, e.g. {{example}}",

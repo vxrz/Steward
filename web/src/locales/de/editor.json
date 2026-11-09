@@ -636,7 +636,9 @@
     "advancedHint": "Knoten-ID, optionale Einstellungen, Ausgänge, Bedingungen und Wiederholungen",
     "retryAttempts": "Versuche",
     "retryAttemptsHint": "Versuche insgesamt einschl. des ersten (1–10)",
-    "retryDelay": "Wartezeit zwischen Versuchen (ms)"
+    "retryDelay": "Wartezeit zwischen Versuchen (ms)",
+    "advancedSet_one": "{{count}} gesetzt",
+    "advancedSet_other": "{{count}} gesetzt"
   },
   "fields": {
     "exprHint": "JSONata-Ausdruck, z. B. {{example}}",
