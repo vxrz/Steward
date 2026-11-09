@@ -10,6 +10,7 @@ Steward checks the Kafka topics an application owns – service-level checks, no
 | A schema change with a compatibility check and an approval                                | the example process _Kafka – Schema change review_                                 |
 | A few recent messages for troubleshooting                                                 | _Peek_ on a topic component (off by default)                                       |
 | Connectors and tasks of Kafka Connect (also Debezium), and what they read and write       | platforms of kind **Kafka Connect** – see [below](#kafka-connect-and-debezium)     |
+| Clusters, managed connectors, schemas and API keys of Confluent Cloud                     | platforms of kind **Confluent Cloud** – see [CONFLUENT.md](CONFLUENT.md)           |
 
 Works with Confluent Cloud and Confluent Platform, Apache Kafka, Redpanda, Amazon MSK (SASL/SCRAM) and Azure Event Hubs (Kafka endpoint). Steward connects with a pure-JavaScript Kafka client (`@platformatic/kafka`); nothing to install.
 
@@ -63,7 +64,7 @@ Teams often name their topics by a convention (`smo-ie.dev.machines`, `smo-ie.de
 
 API: `POST /api/applications/:id/kafka-topics/list` (`{ platformId, prefix, environment }`), `POST /api/applications/:id/kafka-topics` (`{ platformId, prefix, environment, topics, keepInSync }`), `GET /api/applications/:id/topic-prefixes`, `POST …/topic-prefixes/:syncId/check`, `POST …/topic-prefixes/:syncId/dismiss` (`{ topics }`), `DELETE …/topic-prefixes/:syncId`. Who may change the application uses them; the platform must be one they may use.
 
-**Access reviews of Confluent Cloud** (role bindings and ACLs) are a separate platform, see [CONFLUENT.md](CONFLUENT.md).
+**Confluent Cloud** itself – its clusters, fully managed connectors, Schema Registry, service accounts, API keys, role bindings for access reviews and its costs – is a separate platform that reads the Cloud API, see [CONFLUENT.md](CONFLUENT.md). Its clusters link to the Kafka platform whose variable `confluentClusterId` is the cluster id (`lkc-…`), and its managed connectors appear on that platform's topic components like Kafka Connect's.
 
 ## Monitor check
 
