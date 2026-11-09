@@ -191,5 +191,78 @@
     "nameTaken": "Die Anlage hat schon eine Erfassung mit diesem Namen",
     "mode": "Modus",
     "intervalMs": "Intervall (ms)"
+  },
+  "template": {
+    "label": "Vorlage – nur zum Erweitern durch andere Profile",
+    "help": "Eine Vorlage ist kein eigenes Gerät: Keine Anlage kann sie haben. Profile, die sie erweitern, schon (eine Vorlage wird nicht vererbt).",
+    "badge": "Vorlage",
+    "badgeHelp": "Nur zum Erweitern durch andere Profile – keine Anlage kann dieses Profil haben.",
+    "filter": "Art",
+    "filterTemplates": "Vorlagen",
+    "filterDevices": "Geräteprofile (keine Vorlage)"
+  },
+  "units": {
+    "label": "Erwartete Einheiten",
+    "help": "Die Einheit, die die Berechnung je Datenpunkt erwartet. Leer: die Einheit des Datenpunkts im Profil. Eine Anlage, die eine andere Einheit liefert, wird markiert.",
+    "fromProfile": "{{unit}} (aus dem Profil)",
+    "none": "Keine Einheit im Profil",
+    "differ_one": "{{count}} Einheit weicht ab",
+    "differ_other": "{{count}} Einheiten weichen ab",
+    "line": "{{point}}: erwartet {{expected}}, liefert {{actual}} – nicht über einen Faktor umrechenbar",
+    "lineConvertible": "{{point}}: erwartet {{expected}}, liefert {{actual}} – über einen Faktor umrechenbar"
+  },
+  "potential": {
+    "ready": "Erfasst – bereit",
+    "collect": "Nicht erfasst",
+    "readyHelp": "Eine Datenerfassung der Anlage ordnet jeden Datenpunkt zu, den die KPI liest: Ein Job kann starten.",
+    "collectHelp": "Das Gerät liefert jede Eingabe, aber noch keine Datenerfassung der Anlage ordnet alle zu."
+  },
+  "extract": {
+    "button": "Basisprofil herauslösen",
+    "buttonProfile": "Ein Basisprofil herauslösen",
+    "title": "Ein Basisprofil herauslösen",
+    "help": "Die Datenpunkte, die zwei oder mehr Profile gemeinsam haben, werden ein neues Basisprofil, das jedes von ihnen erweitert. Abweichende IDs werden in die des Basisprofils umbenannt (die alte ID führt weiter dorthin; Anlagen, KPI-Definitionen und Datenerfassungen folgen), abweichende Felder bleiben als Überschreibungen des jeweiligen Profils – keine Anlage ändert sich.",
+    "profiles": "Profile",
+    "profilesHelp": "Zwei oder mehr, keines, das bereits ein anderes erweitert",
+    "leading": "Führendes Profil",
+    "leadingHelp": "Das Basisprofil übernimmt Name, Datentyp, Einheit und Beschreibung seiner Datenpunkte",
+    "points": "Gemeinsame Datenpunkte",
+    "pointsHelp": "Vorgeschlagen nach gleicher ID, einem Auch-bekannt-als-Namen und dem Namen (gleiche Einheit bevorzugt). Ändern Sie eine Zuordnung, wo sie falsch ist; ein Datenpunkt, der einem Profil fehlt, kann nicht geteilt werden.",
+    "all": "Alle Datenpunkte",
+    "include": "{{point}} teilen",
+    "baseId": "ID im Basisprofil",
+    "baseIdOf": "ID von {{point}} im Basisprofil",
+    "matchIn": "{{point}} bei {{profile}}",
+    "noMatch": "Keine Zuordnung",
+    "by": {
+      "id": "gleiche ID",
+      "known_as": "auch bekannt als",
+      "name": "gleicher Name",
+      "unit": "gleiche Einheit"
+    },
+    "name": "Name des Basisprofils",
+    "templateHelp": "An: Keine Anlage kann das Basisprofil haben – nur die Profile, die es erweitern.",
+    "preview": "Vorschau",
+    "apply": "Basisprofil herauslösen",
+    "refusedPoints_one": "{{count}} Datenpunkt kann nicht ins Basisprofil – lassen Sie ihn weg oder ändern Sie zuerst die Profile.",
+    "refusedPoints_other": "{{count}} Datenpunkte können nicht ins Basisprofil – lassen Sie sie weg oder ändern Sie zuerst die Profile.",
+    "ok": "Das Basisprofil erhält {{points}} Datenpunkte an {{interfaces}} Schnittstellen. Die Datenpunkte jeder Anlage bleiben, wie sie sind.",
+    "summary": "{{renames}} IDs umbenannt · {{overrides}} Datenpunkte weichen vom Basisprofil ab · behält {{interfaces}} eigene Schnittstellen und {{points}} eigene Datenpunkte · {{assets}} Anlagen (unverändert)",
+    "differs": "Überschreibungen: {{list}}",
+    "problems": {
+      "missing": "{{profile}} hat keinen Datenpunkt {{point}}.",
+      "twice": "{{point}} ist zweimal zugeordnet.",
+      "protocol": "{{point}} von {{profile}} liegt an einer {{protocol}}-Schnittstelle, im führenden Profil an {{leading}} – ein Basisprofil hat ein Protokoll je Schnittstelle.",
+      "group": "{{point}} von {{profile}} ist in der Gruppe „{{group}}“, im führenden Profil in „{{leading}}“ – benennen Sie zuerst die Gruppe um.",
+      "interface": "{{point}} von {{profile}} liegt an der Schnittstelle {{interface}}, die andere gemeinsame Datenpunkte anders zuordnen.",
+      "id_taken": "{{point}} von {{profile}} kann die ID {{id}} nicht erhalten: Sie ist vergeben.",
+      "profile_unknown": "Es gibt kein Geräteprofil {{profile}}.",
+      "has_base": "{{profile}} erweitert bereits {{base}} – nur Profile ohne Basis können ein neues erhalten.",
+      "not_enough": "Wählen Sie zwei oder mehr Geräteprofile.",
+      "leading": "Das führende Profil ist eines der gewählten Profile.",
+      "no_points": "Wählen Sie mindestens einen Datenpunkt, den jedes Profil teilen kann.",
+      "base_taken": "Ein Geräteprofil mit der ID {{id}} gibt es bereits.",
+      "rules": "Das Ergebnis verletzt eine Regel für Geräteprofile: {{message}}"
+    }
   }
 }

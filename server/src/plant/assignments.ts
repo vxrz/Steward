@@ -16,6 +16,7 @@ import { visibleAsset } from './service.js';
 import { briefOf } from './catalogue.js';
 import {
   allKpis,
+  allProfiles,
   assignmentInput,
   assignmentProblems,
   assignmentRowOf,
@@ -24,9 +25,11 @@ import {
   kpiRowOf,
   removeAssignmentRow,
   resolvedProfile,
+  templateMessage,
   upsertAssignment,
 } from './data-model.js';
-import { assignmentChecks, canHave } from './checks.js';
+import { assignmentChecks, canHave, unitMismatches } from './checks.js';
+import { collectedPoints, isCollected } from './potential.js';
 import { assetModel } from './resolve.js';
 
 /**
@@ -67,7 +70,8 @@ export function getAssignment(assetId: string): PlantAssignmentView {
   const model = assetModel(a, profile);
   const brief = briefOf(row, site);
   const subject = { kind: 'asset' as const, id: row.id, name: row.name, siteId: row.site_id };
-  const profiles = new Map(profile ? [[profile.id, profile]] : []);
+  // every profile resolved: a KPI input names a base whose units it expects (0.12.0)
+  const profiles = allProfiles();
   const empty: PlantAssignmentValues = {
     profileId: null,
     firmware: '',
@@ -79,6 +83,7 @@ export function getAssignment(assetId: string): PlantAssignmentView {
     notes: '',
   };
   const have = new Set((a?.kpis ?? []).map((k) => k.kpi));
+  const collected = collectedPoints(new Set([assetId])).get(assetId);
   return {
     asset: brief,
     assignment: a,
@@ -92,7 +97,16 @@ export function getAssignment(assetId: string): PlantAssignmentView {
     checks: a ? assignmentChecks(subject, a, profiles, kpis) : [],
     possibleKpis: [...kpis.values()]
       .filter((d) => canHave(d, a ?? empty, profile ?? undefined))
-      .map((d) => ({ id: d.id, name: d.name, names: d.names, category: d.category, instantiated: have.has(d.id) })),
+      .map((d) => ({
+        id: d.id,
+        name: d.name,
+        names: d.names,
+        category: d.category,
+        instantiated: have.has(d.id),
+        // 0.12.0: inputs in another unit, and whether a data collection of the asset maps every input
+        units: unitMismatches(d, a ?? empty, profile ?? undefined, profiles),
+        collected: isCollected(d, collected),
+      })),
     canManage: perms.includes('manage'),
     importId: r?.import_id ?? null,
     notInSource: !!r?.not_in_source,
@@ -107,7 +121,10 @@ export function putAssignment(assetId: string, input: z.infer<typeof assignmentI
   const cur = visibleAsset(assetId);
   requireManage(cur.perms, 'change this asset');
   const v: PlantAssignmentValues = { ...input, kpis: input.kpis.map((k) => ({ ...k, params: cleanParams(k.params) })) };
-  const problems = assignmentProblems(v, resolvedProfile(v.profileId), (id) => !!kpiRowOf(id));
+  const profile = resolvedProfile(v.profileId);
+  // 0.12.0: a template is only for other profiles to extend
+  if (profile?.template) throw new HttpError(400, templateMessage(profile.name), 'PLANT_PROFILE_TEMPLATE', { profile: profile.id, name: profile.name });
+  const problems = assignmentProblems(v, profile, (id) => !!kpiRowOf(id));
   if (problems.length)
     throw new HttpError(400, `${problems[0]!.path}: ${problems[0]!.message}`, 'PLANT_ASSIGNMENT_INVALID', {
       path: problems[0]!.path,

@@ -1,4 +1,14 @@
-import type { KpiParamValue, PlantAssignmentValues, PlantCheck, PlantCheckCode, PlantKpiInstance, PlantKpiValues, PlantResolvedProfile } from '@sm/shared';
+import {
+  unitRelation,
+  type KpiParamValue,
+  type PlantAssignmentValues,
+  type PlantCheck,
+  type PlantCheckCode,
+  type PlantKpiInstance,
+  type PlantKpiValues,
+  type PlantResolvedProfile,
+  type PlantUnitMismatch,
+} from '@sm/shared';
 import { pointsOf } from './data-model.js';
 import { assetModel, isOrExtends } from './resolve.js';
 
@@ -100,6 +110,48 @@ export function inputGaps(
   return out;
 }
 
+/**
+ * 0.12.0: the data point inputs an asset delivers in another unit than the KPI expects. The expected unit is the
+ * input's (`units`), else the data point's unit in the input's profile (resolved: a base's unit, when the input names
+ * the base); the asset's unit is its override's, else its model's. Nothing is compared where either is empty, or for
+ * a data point the asset's model lacks (that is a gap, inputGaps).
+ */
+export function unitMismatches(
+  def: PlantKpiValues,
+  a: PlantAssignmentValues,
+  profile: Pick<PlantResolvedProfile, 'interfaces' | 'chain'> | undefined,
+  profiles: Map<string, Pick<PlantResolvedProfile, 'interfaces'>>,
+): PlantUnitMismatch[] {
+  if (!profile && !a.additions.dataPoints.length && !a.additions.interfaces.length) return [];
+  const model = new Map(pointsOf(assetModel(a, profile)).map((x) => [x.point.id, x.point]));
+  const overridden = new Map(a.overrides.filter((o) => o.unit).map((o) => [o.dataPoint, o.unit!]));
+  const out: PlantUnitMismatch[] = [];
+  const seen = new Set<string>();
+  for (const input of def.inputs) {
+    if (input.kind !== 'data_point') continue;
+    if (input.profile && !isOrExtends(profile, input.profile)) continue;
+    const named = input.profile ? new Map(pointsOf(profiles.get(input.profile) ?? { interfaces: [] }).map((x) => [x.point.id, x.point.unit])) : null;
+    for (const dp of input.dataPoints) {
+      const point = model.get(dp);
+      const expected = input.units?.[dp] ?? named?.get(dp) ?? '';
+      const actual = overridden.get(dp) ?? point?.unit ?? '';
+      if (!point || !expected || !actual || seen.has(dp)) continue;
+      const relation = unitRelation(expected, actual);
+      if (relation === 'same') continue;
+      seen.add(dp);
+      out.push({ point: dp, expected, actual, relation });
+    }
+  }
+  return out;
+}
+
+/** A unit mismatch as a check's code, message and parameters. */
+export const unitCheck = (def: Pick<PlantKpiValues, 'name'>, m: PlantUnitMismatch) => ({
+  code: 'kpi_unit_mismatch' as const,
+  message: `KPI "${def.name}" expects data point "${m.point}" in ${m.expected}, the asset delivers it in ${m.actual} (${m.relation === 'convertible' ? 'convertible by a factor' : 'not convertible by a factor'})`,
+  params: { kpi: def.name, point: m.point, expected: m.expected, actual: m.actual, relation: m.relation },
+});
+
 /** Whether an asset with this assignment delivers every data point input of the definition (and it has some). */
 export function canHave(def: PlantKpiValues, a: PlantAssignmentValues | undefined, profile: Profile | undefined): boolean {
   if (!a || !def.inputs.some((i) => i.kind === 'data_point')) return false;
@@ -192,7 +244,9 @@ export function assignmentChecks(
       out.push(check('kpi_unknown', subject, `The KPI definition "${k.kpi}" of job "${k.job}" does not exist (any more)`, { kpi: k.kpi }, k.job));
       continue;
     }
-    for (const g of [...inputGaps(def, a, profile), ...paramChecks(def, k)]) out.push(check(g.code, subject, g.message, g.params, k.job));
+    // 0.12.0: a unit that differs from the expected one (of the inputs the asset delivers)
+    const units = unitMismatches(def, a, profile, profiles).map((m) => unitCheck(def, m));
+    for (const g of [...inputGaps(def, a, profile), ...units, ...paramChecks(def, k)]) out.push(check(g.code, subject, g.message, g.params, k.job));
   }
   return out;
 }

@@ -18447,6 +18447,7 @@
               "kpi_point_unknown",
               "kpi_point_unavailable",
               "kpi_interface_inactive",
+              "kpi_unit_mismatch",
               "param_unknown",
               "param_type",
               "param_range",
@@ -20687,6 +20688,10 @@
             ],
             "description": "The base profile this one extends (its interfaces and data points are inherited), or null"
           },
+          "template": {
+            "type": "boolean",
+            "description": "0.12.0: a template – only for other profiles to extend; no asset has it"
+          },
           "importId": {
             "type": [
               "null",
@@ -20716,6 +20721,7 @@
           "dataPointCount",
           "assetCount",
           "extends",
+          "template",
           "importId",
           "notInSource",
           "updatedAt"
@@ -20779,6 +20785,10 @@
               "string"
             ],
             "description": "The base profile this one extends (its interfaces and data points are inherited), or null"
+          },
+          "template": {
+            "type": "boolean",
+            "description": "0.12.0: a template – only for other profiles to extend; no asset has it"
           },
           "importId": {
             "type": [
@@ -21239,6 +21249,7 @@
           "dataPointCount",
           "assetCount",
           "extends",
+          "template",
           "importId",
           "notInSource",
           "updatedAt",
@@ -21519,6 +21530,13 @@
                     "type": "string"
                   }
                 },
+                "units": {
+                  "description": "0.12.0: the unit expected per data point (UCUM); a data point left out expects its unit in the input’s profile",
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                },
                 "notes": {
                   "type": "string"
                 }
@@ -21747,6 +21765,7 @@
                     "kpi_point_unknown",
                     "kpi_point_unavailable",
                     "kpi_interface_inactive",
+                    "kpi_unit_mismatch",
                     "param_unknown",
                     "param_type",
                     "param_range",
@@ -21962,6 +21981,57 @@
               "additionalProperties": false
             },
             "description": "Assets that deliver every input but have no instance"
+          },
+          "candidateInfo": {
+            "description": "0.12.0, per candidate (asset id): whether a data collection maps every input already, and inputs delivered in another unit",
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "collected": {
+                  "type": "boolean"
+                },
+                "units": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "point": {
+                        "type": "string"
+                      },
+                      "expected": {
+                        "type": "string",
+                        "description": "UCUM code the KPI expects"
+                      },
+                      "actual": {
+                        "type": "string",
+                        "description": "UCUM code the asset delivers"
+                      },
+                      "relation": {
+                        "type": "string",
+                        "enum": [
+                          "convertible",
+                          "incompatible"
+                        ],
+                        "description": "convertible: by a pure factor (W.h and kW.h)"
+                      }
+                    },
+                    "required": [
+                      "point",
+                      "expected",
+                      "actual",
+                      "relation"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "collected",
+                "units"
+              ],
+              "additionalProperties": false
+            }
           },
           "createdAt": {
             "type": "string",
@@ -23342,6 +23412,7 @@
                     "kpi_point_unknown",
                     "kpi_point_unavailable",
                     "kpi_interface_inactive",
+                    "kpi_unit_mismatch",
                     "param_unknown",
                     "param_type",
                     "param_range",
@@ -23431,6 +23502,45 @@
                 },
                 "instantiated": {
                   "type": "boolean"
+                },
+                "units": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "point": {
+                        "type": "string"
+                      },
+                      "expected": {
+                        "type": "string",
+                        "description": "UCUM code the KPI expects"
+                      },
+                      "actual": {
+                        "type": "string",
+                        "description": "UCUM code the asset delivers"
+                      },
+                      "relation": {
+                        "type": "string",
+                        "enum": [
+                          "convertible",
+                          "incompatible"
+                        ],
+                        "description": "convertible: by a pure factor (W.h and kW.h)"
+                      }
+                    },
+                    "required": [
+                      "point",
+                      "expected",
+                      "actual",
+                      "relation"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "description": "0.12.0: inputs the asset delivers in another unit than the KPI expects"
+                },
+                "collected": {
+                  "type": "boolean",
+                  "description": "0.12.0: a data collection of the asset maps every data point input"
                 }
               },
               "required": [
@@ -37384,6 +37494,7 @@
                 "kpi_point_unknown",
                 "kpi_point_unavailable",
                 "kpi_interface_inactive",
+                "kpi_unit_mismatch",
                 "param_unknown",
                 "param_type",
                 "param_range",

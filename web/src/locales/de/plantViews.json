@@ -247,6 +247,8 @@
       "has": "Hat sie",
       "problem": "Problem",
       "could": "Könnte sie haben",
+      "ready": "Erfasst – bereit",
+      "collect": "Gerät liefert, nicht erfasst",
       "cannot": "Kann nicht",
       "unchecked": "Nicht geprüft"
     },
@@ -254,6 +256,8 @@
       "has": "Hat",
       "problem": "Problem",
       "could": "Könnte",
+      "ready": "Bereit",
+      "collect": "Liefert",
       "cannot": "Nicht",
       "unchecked": "–"
     },
@@ -261,6 +265,8 @@
       "has": "Hat sie: ein KPI-Job ist eingerichtet",
       "problem": "Problem: eine Anlagenprüfung des Jobs schlägt fehl",
       "could": "Könnte sie haben: liefert jede Eingabe, noch kein Job",
+      "ready": "Erfasst – bereit: das Gerät liefert jede Eingabe und eine Datenerfassung ordnet jede davon zu, noch kein Job",
+      "collect": "Gerät liefert, nicht erfasst: jede Eingabe wird geliefert, aber noch keine Datenerfassung ordnet alle zu",
       "cannot": "Kann nicht: Eingaben fehlen (die Zelle sagt, welche)",
       "unchecked": "Nicht geprüft: die KPI liest keine Datenpunkte"
     },
@@ -270,6 +276,10 @@
     "jobs": "KPI-Jobs: {{jobs}}",
     "inactive": "(nicht aktiv)",
     "couldHint": "Legen Sie auf der Seite der Anlage einen KPI-Job an (Daten und KPIs).",
+    "collectHint": "Ordnen Sie die Eingaben in einer Datenerfassung der Anlage zu (Datenerfassungen) und legen Sie dann einen KPI-Job an.",
+    "potential": "KPI-Potenzial: {{ready}} bereit, {{collect}} brauchen eine Datenerfassung",
+    "byPlace": "KPI-Potenzial nach Standort und Bereich",
+    "place": "Standort oder Bereich",
     "kpisOf": "KPIs von {{name}}",
     "more": "{{count}} weitere zeigen",
     "shown": "{{shown}} von {{total}} gezeigt",
