@@ -37,6 +37,7 @@ export const NOT_MOVED: Record<string, string> = {
   backup_runs: 'instance-specific (the backups of the source; set up backups on the target)',
   aws_account_cache: 'a cache of what Steward read from AWS accounts (read again on the target)',
   mcp_requests: 'short-lived requests of MCP clients waiting for a person (they expire after 24 hours)',
+  plant_proposals: 'plant registry changes proposed by AI assistants (0.12.0): they belong to their MCP requests, which are not moved',
   status_pages: 'status pages name services by id and carry the secret of their public link: set them up again on the target',
   mqtt_topics: 'when an MQTT topic last had a message and how many (read again from the broker)',
   eol_notices: 'send bookkeeping of the source (a component past its end of life is reported again on the target)',

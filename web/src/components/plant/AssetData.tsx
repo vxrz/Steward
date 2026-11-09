@@ -342,6 +342,11 @@ export function AssetDataSection({ assetId }: { assetId: string }) {
                               </Badge>
                             )}
                           </Group>
+                          {addedIface(iface.id) && iface.description && (
+                            <Text size="xs" style={{ whiteSpace: 'pre-line', overflowWrap: 'anywhere' }}>
+                              {iface.description}
+                            </Text>
+                          )}
                           {set?.endpoint && (
                             <Text size="xs" className="mono code-wrap">
                               <Breakable text={set.endpoint} />
@@ -397,6 +402,11 @@ export function AssetDataSection({ assetId }: { assetId: string }) {
                         <Text size="xs" c="dimmed" style={{ overflowWrap: 'anywhere' }}>
                           {[iface.name || iface.id, group, point.address, point.dataType].filter(Boolean).join(' · ')}
                         </Text>
+                        {point.description && (
+                          <Text size="xs" style={{ whiteSpace: 'pre-line', overflowWrap: 'anywhere' }}>
+                            {point.description}
+                          </Text>
+                        )}
                       </Stack>
                       {canManage && (
                         <RowMenu

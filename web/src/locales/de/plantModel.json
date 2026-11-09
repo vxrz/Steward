@@ -19,6 +19,19 @@
     "notPresent": "Bei diesem Gerät nicht vorhanden",
     "restore": "Wiederherstellen"
   },
+  "describe": {
+    "label": "Beschreibung",
+    "add": "Beschreibung ergänzen",
+    "edit": "Beschreibung ändern",
+    "override": "Hier beschreiben",
+    "reset": "Auf die geerbte Beschreibung zurücksetzen",
+    "inherited": "Geerbt von {{from}}",
+    "changedHere": "Hier beschrieben",
+    "profileTitle": "Beschreibung von {{name}}",
+    "itemTitle": "Beschreibung von {{name}}",
+    "inheritedHelp": "Leer: die von {{from}} geerbte Beschreibung.",
+    "plainText": "Reiner Text."
+  },
   "notPresent": {
     "title": "Geerbt, aber nicht vorhanden",
     "interface": "Schnittstelle {{name}}",
@@ -79,6 +92,7 @@
     "duplicate": "Derselbe Datenpunkt wie Eintrag {{items}}",
     "unknownAddress": "Kein Datenpunkt dieser Anlage hat diese Adresse",
     "map": "Zuordnen",
+    "describe": "Beschreiben",
     "addPoint": "Als Datenpunkt hinzufügen",
     "notCollected": "Datenpunkte, die keine Erfassung liest",
     "settings": "Einstellungen",

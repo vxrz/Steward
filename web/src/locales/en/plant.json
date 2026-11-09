@@ -357,6 +357,13 @@
       "status": "status",
       "notInSource": "back in the source"
     },
+    "diff": {
+      "show_one": "Show {{count}} difference",
+      "show_other": "Show {{count}} differences",
+      "hide": "Hide the differences",
+      "before": "Before",
+      "after": "After"
+    },
     "kinds": {
       "profile": "Device profile",
       "kpi": "KPI definition",

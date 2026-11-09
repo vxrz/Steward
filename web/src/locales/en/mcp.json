@@ -99,7 +99,8 @@
     "result": "Answer of the platform: HTTP {{status}}",
     "kinds": {
       "catalogue": "Control catalogue",
-      "mappings": "Control mappings"
+      "mappings": "Control mappings",
+      "plant": "Plant registry"
     },
     "acceptProposal_one": "Accept {{count}} entry",
     "acceptProposal_other": "Accept {{count}} entries",
@@ -229,5 +230,28 @@
     },
     "resultCatalogue": "Catalogue {{key}}: {{added}} added, {{updated}} changed, {{removed}} removed.",
     "resultMappings": "{{mapped}} mapped, {{skipped}} skipped (already mapped, control gone or not visible)."
+  },
+  "plantProposal": {
+    "added_one": "Added ({{count}} entry)",
+    "added_other": "Added ({{count}} entries)",
+    "changed_one": "Changed ({{count}} entry)",
+    "changed_other": "Changed ({{count}} entries)",
+    "countAdded_one": "{{count}} added",
+    "countAdded_other": "{{count}} added",
+    "countChanged_one": "{{count}} changed",
+    "countChanged_other": "{{count}} changed",
+    "onlyAddChange": "A proposal only adds and changes entries: it never removes or renames anything. Applying it runs the import with your rights, in one transaction.",
+    "hidden_one": "{{count}} entry in a site you may not see is left out.",
+    "hidden_other": "{{count}} entries in sites you may not see are left out.",
+    "appliedAs": "Applied as import {{id}}.",
+    "problemsTitle": "It cannot be applied now",
+    "changedSinceTitle": "The registry changed since the proposal",
+    "changedSinceText": "What applying it would change now differs from what the assistant proposed. Compare the preview of now with the one of the proposal before you apply it.",
+    "confirm": "I have checked the preview of now and want to apply it",
+    "previewNow": "What applying it changes now",
+    "previewProposed": "What it changed when it was proposed",
+    "warnings": "Warnings",
+    "checks": "What Steward checks once it is applied",
+    "result": "{{added}} added, {{changed}} changed."
   }
 }

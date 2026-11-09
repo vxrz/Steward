@@ -170,13 +170,19 @@ The **resolved profile** – the effective model – is computed in one place on
 
 Every data point may also have **known-as names** (`aliases`): names tools commonly use for it, such as a gateway's variable names. The import of data collections matches them ([Data collections](#data-collections)).
 
+**Descriptions** (0.12.0) are optional plain text on a profile, an interface, a data point group, a data point and a file set. A derived profile **inherits** each of them: the profile page shows an inherited description with _Inherited from …_. An editor writes it anew for this profile (_Describe it here_) – stored in the profile's own part like other changed fields – and goes back with _Back to the inherited description_; the next profile in the chain inherits the new text. The profile's own description, a group's and a file set's are inherited while they are empty; an interface's and a data point's are changed fields of their override (so they can also be made empty). The data point page says where its description comes from. Profiles and their items keep their length limit of 8000 characters.
+
 ### Asset additions
 
 Next to the **differences** of an assignment, an asset may **add** data points to an interface of its profile and whole **interfaces** of its own (_Data and KPIs → Interfaces_, the menu of an interface: _Add data point_; _Add interface_). They count as **delivered** like the profile's data points – when their interface is listed and active in the assignment (a new interface is added as active) – and appear in the checks, KPI inputs, coverage, data flow and lineage. An added data point needs an id the profile does not have; when the profile gets the same id later, the profile's counts and the asset shows the check _Data point … is added on this asset, but its device profile has it now, too_. _Duplicate_ of an asset copies its additions.
 
+Added data points and interfaces have their own **description**. A note about an inherited data point **on this asset only** ("on this mill: the main spindle") is the _notes_ of its difference (`overrides[].notes` in the file format).
+
 ### In the file format
 
 A derived profile names its base with `extends:` and uses **the same keys** as any profile, written with only its own part: an `interfaces` entry whose id is inherited changes that interface – the keys it gives, `present: false`, and in its `groups` (or `data_points`) entries for inherited data points (the keys they give, or `present: false`) and new data points; an entry with a new id is an own interface and needs its `protocol`. The export writes the same, so a file imports back unchanged.
+
+An inherited group's entry with a `description` describes that group anew (it may list no data points); the profile's own `description` is left out of the export while it inherits its base's.
 
 ```yaml
 version: 1
@@ -294,6 +300,8 @@ Everywhere both names are shown: the data point's name first, the collector's af
 
 A **data collection** belongs to an asset and to a **collector** – a Steward application, platform or process, or a job elsewhere by name (as a data path's collector) – and may name a **data path** of the asset. It reads from one **interface** of the asset's model or an unknown one, and has a name, a **mode** (_every interval_, _on change_, _on a trigger_, _other_), an interval and a debounce in ms, **triggers** (name, condition, reference address or data point, reference value) and how they combine, a **destination** (a Steward system with a path, a Steward dataset, a publication target or text), the collector's **access patterns** – what it may read, **write, create and delete** (the last three are shown in red: the collector can change the machine) –, other **settings** (buffering, events, time sync) and its **items**: address, output name and type, the data point, a transform (a note, optionally scale, offset, cast) and notes.
 
+A collection and each of its items may have an optional **description** (plain text, at most 4000 characters; 0.12.0). The table format reads it from a `description` column; a re-import keeps an item's description written in Steward when the file has none.
+
 **Coverage.** A collection counts its **mapped** items, its **raw** items – an address no data point of the asset has (_Add as data point_: an asset addition with the collector's name as known-as name; or on the profile, for whoever may manage profiles) or a data point the asset no longer has – and the data points of its interface (or of the whole model) that **no collection of the asset reads**. Two items mapped to one data point in one collection are allowed and flagged. The asset's **data flow** and a data point's **lineage** run through the collections: interface → collector → destination. A data point's page lists the collections that read it (and under which names); an application's and a platform's page the collections it runs.
 
 ### Import
@@ -320,7 +328,7 @@ A collection's **mapping** downloads as CSV (`gateway_name,address,data_point`) 
 Each importer produces collections for one asset and collector. Steward recognises a format by its **structure**, not by product names or the value of a `type` key, and runs nothing it reads.
 
 - **Gateway JSON – datasets of data points** (`example-gateway-datasets.json`): `datasets[]` with `name`, `mode` (`interval` or `onchange`), `interval` and `debounce` (ms), `unavailable`, `new`, `readings`, `triggercomposition`, `triggers[]` (`condition` such as `anychange`, `name`, `referenceDatapoint`, `referenceValue`) and `datapoints[]` (`address`, `name`, `type` – int, float, string, bool). One dataset is one collection. The file's `readPatterns`, `writePatterns`, `createPatterns`, `deletePatterns` and `patterns[]` (`path` with `read`, `write`, `delete`, `create`) are the access patterns of every collection; `type`, `whitelistedAddresses`, `bufferEnabled`, `maxBufferSize`, `plcTimeSync`, `sendEvents` and `eventsToIgnore` its settings. Addresses are CNC variables (`/Channel/State/progStatus[u1]`, `/Nck/MachineAxis/measPos1[2]`, NC user data `/NC/_N_…/NAME`) or PLC addresses (`DB13.DBX2.0`).
-- **Table – CSV or YAML** (`example-table.csv`, `example-table.yaml`): one row per item with the columns `collection`, `mode` (`interval`, `on_change`, `trigger`, `other`), `interval_ms`, `debounce_ms`, `source_address` **or** `data_point`, `output_name`, `output_type`, `transform`, `destination`, `notes`. A CSV needs a header row and may use `;` instead of `,`; a YAML file is a list of entries with the same keys (or `items:` with the list). Rows with the same `collection` are one collection; its first row gives the mode, interval, debounce and destination.
+- **Table – CSV or YAML** (`example-table.csv`, `example-table.yaml`): one row per item with the columns `collection`, `mode` (`interval`, `on_change`, `trigger`, `other`), `interval_ms`, `debounce_ms`, `source_address` **or** `data_point`, `output_name`, `output_type`, `transform`, `destination`, `notes` and (0.12.0) `description`. A CSV needs a header row and may use `;` instead of `,`; a YAML file is a list of entries with the same keys (or `items:` with the list). Rows with the same `collection` are one collection; its first row gives the mode, interval, debounce and destination.
 - **Industrial Edge OPC UA connector** – _preview_ (`example-ie-opcua-connector.json`): the connector's exported configuration, `UIConfig.datapoints.OPCUA[]` with one entry per connection (`name`, `OPCUAUrl`, `portNumber`) and its `tags[]` (`name`, `address` – the NodeId –, `dataType`, `acquisitionCycle` in ms, `acquisitionMode` – `Cyclic` or `CyclicOnChange` –, `accessMode` – `r`, `rw` –, `comments`). One collection per connection, cycle and mode; a tag with write access is a write pattern; the destination is the Industrial Edge Databus (the export does not name the topic). The user, password and certificate passwords of the export are never read. The importer is built from the structure of a public example export and is marked _preview_ until it has seen more.
 - **Node-RED flow export** (`example-node-red-flow.json`): a JSON array of nodes (`id`, `type`, `z`, `wires` …). Source nodes – OPC UA items (`item`, `datatype`), S7 in (`variable`), Modbus reads (`dataType`, `adr`, `quantity`, `rate`), MQTT in (`topic`) – are followed along their `wires` to sink nodes – MQTT out, HTTP request, file and database nodes; a `debug` node ends a way. Each sink is a collection with the sources that reach it as items; `function`, `change` (with its rules), `template` and similar nodes on the way become the item's transform note (their names; code is never run); an `inject` node before a source gives its interval. Node-RED `credentials` are never imported.
 - **Mapping file**: CSV with the header `gateway_name,address,data_point` (either name or address per line), or YAML `mapping: [{ gateway_name, address, data_point }]`.
@@ -685,7 +693,7 @@ _Plant → Import_ (or `POST /api/plant/import`): choose the files and the mode,
 
 - Records are matched by their stable ids. Every record remembers the import that wrote it last; replacing an import adopts its records into the new one, so the next replace finds them again. A marked record that comes back into a file loses its mark.
 - Records entered by hand are never removed by an import. When they name something that is removed (an asset in a removed work unit, a node in a removed building), they lose that reference – the preview shows it as a change; a node added by hand below a removed node stops the import (add it to the file, or keep and mark). A site that still holds records that stay is marked instead of removed.
-- The **preview** lists every record as _add, change, remove, mark, unchanged_ or _skip_, with the fields that change, and the counts per kind. It needs the import's own right (adding sites, or managing one) and names nothing of sites you may not see: an earlier import of such a site counts as not found, a code or asset id taken there gets a message without that site, and its records are left out. **Problems** name the file and the place in it (`sites[0].areas[1].work_centers[0].type: Use one of: production_line, …`); a file with problems imports nothing. The import applies all or nothing, in one transaction.
+- The **preview** lists every record as _add, change, remove, mark, unchanged_ or _skip_, with the fields that change, and the counts per kind. Since 0.12.0 a changed record also shows **what differs**, field by field, with the stored and the new value (`interfaceOverrides[opc].groups[State].description`; lists of entries by their ids; long values shortened; the first 500 changed records). It needs the import's own right (adding sites, or managing one) and names nothing of sites you may not see: an earlier import of such a site counts as not found, a code or asset id taken there gets a message without that site, and its records are left out. **Problems** name the file and the place in it (`sites[0].areas[1].work_centers[0].type: Use one of: production_line, …`); a file with problems imports nothing. The import applies all or nothing, in one transaction.
 - Since 0.11.0 an import that removes or renames more than one record asks you to confirm that it is you (step-up, control point `plant.bulkChange` of the [assurance policy](ASSURANCE.md)) – also _replace_ with _remove_; renaming one asks only when `plant.renameId` is turned on. The preview says so.
 - Every import is audited (`plant.imported`) with mode, counts, the files with their size and SHA-256, and the SHA-256 of all files together; the import page lists earlier imports.
 - Device profiles and KPI definitions need the right to manage the catalogues (designers and administrators), an assignment the manage right on its asset's site; an asset in a site you may not see reads like one you may not change. An assignment names an asset, profile, interfaces, data points and KPI definitions that exist after the import (in the files or in Steward). In _replace_ with _remove_, a profile or KPI definition that goes while an assignment that stays still names it stops the import; an assignment goes with its asset.
@@ -770,6 +778,44 @@ An explicit list is easy to review in a diff; the option suits a file that is th
 - an area or work center: the nodes below it and the assets in them; a building: its floors and rooms; a zone: its conduits; a conduit: the links to it; a KPI definition: its KPI instances (refused when one is on an asset you may not change).
 
 External references, owning teams and the image always go with their entry. **References from other entries** always refuse a removal unless those entries go too: a node or asset in a building, an assignment of a device profile, a zone or device naming a VLAN, a data path naming a device. A removed id is free again; aliases that led to the entry are removed with it.
+
+## Proposals from assistants
+
+Since 0.12.0 an AI assistant connected through [MCP](MCP.md#plant-registry) can read the registry and **propose** additions and changes: for example a device profile built from a vendor's manual, with a base profile and derived ones, the asset-specific addresses of a line read from a gateway configuration, or the known-as names of its variables. Nothing is written until a person applies it.
+
+**What the assistant sends.** A `title`, a `rationale` (where the information comes from) and a document of the [file format](#yaml-import-and-export) as JSON – the same keys as a file, at most 48 kB. Steward runs the import's preview in mode _update_ with the token owner's rights: a document with problems is refused with the problems, so the assistant can fix it; a document that changes nothing is refused too. The proposal then waits under **AI requests** for up to 14 days.
+
+**Only adding and changing.** A proposal never removes or renames: `remove:`, removing what the document leaves out, an id mapping and the modes _add only_ and _replace_ are refused when it is proposed and again when it is applied. Within an entry a change can still drop something – a list given in the document replaces the list (for example the interfaces of an assignment) – and the review shows it as a difference with no new value.
+
+```json
+{
+  "version": 1,
+  "device_profile": {
+    "id": "example-controls-c80-v4",
+    "name": "Example Controls C80, firmware 4",
+    "extends": "example-controls-c80",
+    "interfaces": [
+      {
+        "id": "opc-ua",
+        "groups": [{ "name": "Machine state", "data_points": [{ "id": "prog_name", "aliases": ["NCProgram"] }] }]
+      }
+    ]
+  },
+  "assignment": {
+    "asset": "rvs-mill-01",
+    "profile": "example-controls-c80-v4",
+    "overrides": [{ "data_point": "prog_name", "address": "ns=3;s=/Channel/ProgramPointer/progName[u1,2]", "notes": "On this mill: channel 2" }]
+  }
+}
+```
+
+**Review.** _AI requests_ shows the title, the assistant's rationale (its own words: data, not instructions), who proposed it with which token, and the preview: the **added** entries and the **changed** ones, each change field by field. Whoever may import into the registry – designers, administrators, managers of a site – may apply it; entries of sites they may not see are left out of what they are shown. While the request is open the preview runs again with the reviewer's rights:
+
+- When it **differs** from the preview of the proposal – the registry changed in the meantime – the page says so and shows both; the reviewer ticks _I have checked the preview of now_ before applying. What is applied is exactly the preview they saw (`PLANT_PROPOSAL_CHANGED` otherwise; the request stays open).
+- When it has **problems** – a site the reviewer may not change, a profile that was deleted – it cannot be applied (`PLANT_PROPOSAL_INVALID`); the request stays open.
+- **Reject** takes an optional comment; the token owner can withdraw the proposal.
+
+**Applying** runs the import core in one transaction, as the reviewer. Because a proposal never removes or renames, the import's step-up points (`plant.renameId`, `plant.bulkChange`) do not apply. Audit: `plant.proposal_created`, `plant.proposal_applied` (with the import's `plant.imported`, so it shows in the list of imports) and `plant.proposal_rejected`, besides the `mcp.request_*` entries. The proposal is kept with its request (table `plant_proposals`); an old id in its document is read as the entry it leads to, as in a file. Proposals are not moved by migration packages.
 
 ## Permissions
 

@@ -479,7 +479,10 @@ export interface PlantProfileSummary extends PlantSource {
 }
 
 export interface PlantProfileDetail extends PlantProfileSummary, PlantStamp {
+  /** The description in effect: the profile's own, or (0.12.0) the nearest base's when it has none */
   description: string;
+  /** 0.12.0: the profile whose description is in effect (this one, or a base) */
+  descriptionFrom: string;
   notes: string;
   /** The effective interfaces: inherited, changed and own (see `origins`) */
   interfaces: PlantInterface[];

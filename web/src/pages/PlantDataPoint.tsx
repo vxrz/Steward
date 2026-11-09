@@ -109,6 +109,11 @@ export function PlantDataPointPage() {
                 {p.description}
               </Text>
             )}
+            {p.description && d.origin.descriptionFrom !== d.profile.id && (
+              <Text size="xs" c="dimmed" data-testid="point-description-origin">
+                {t('plantModel:describe.inherited', { from: d.origin.descriptionFrom })}
+              </Text>
+            )}
             <Stack gap="xs" data-testid="point-assets">
               <Title order={2} fz="h4">
                 {t('point.deliveredBy', { type: label('asset', true) })}

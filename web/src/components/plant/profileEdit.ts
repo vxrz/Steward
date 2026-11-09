@@ -128,3 +128,45 @@ export function saveGroup(p: PlantProfileDetail, ifaceId: string, was: string, n
   if (isOwnInterface(p, ifaceId)) return { ...own, interfaces: own.interfaces.map((i) => (i.id === ifaceId ? rename(i) : i)) };
   return withOverride(own, rename(overrideOf(own, ifaceId)));
 }
+
+// ---------- descriptions (0.12.0): inherited ones are described anew here, or go back to the inherited one ----------
+
+/** An inherited interface's description changed here (text), or back to the inherited one (null). */
+export function describeInterface(p: PlantProfileDetail, id: string, text: string | null): PlantProfileValues {
+  const o: PlantInterfaceOverride = { ...overrideOf(p.own, id) };
+  // the inherited text again is no change
+  if (text === null || text === baseInterface(p, id)?.description) delete o.description;
+  else o.description = text;
+  return withOverride(p.own, o);
+}
+
+/** An inherited group's description changed here; an empty one is the inherited description again. */
+export function describeGroup(p: PlantProfileDetail, ifaceId: string, group: string, given: string): PlantProfileValues {
+  const o = overrideOf(p.own, ifaceId);
+  const text = given === baseInterface(p, ifaceId)?.groups.find((g) => g.name === group)?.description ? '' : given;
+  const groups = o.groups.some((g) => g.name === group)
+    ? o.groups.map((g) => (g.name === group ? { ...g, description: text } : g))
+    : [...o.groups, { name: group, description: text, dataPoints: [] }];
+  return withOverride(p.own, { ...o, groups });
+}
+
+/** An inherited file set's description changed here; an empty one is the inherited description again. */
+export function describeFileSet(p: PlantProfileDetail, ifaceId: string, fileSetId: string, given: string): PlantProfileValues {
+  const o = overrideOf(p.own, ifaceId);
+  const inherited = baseInterface(p, ifaceId)?.fileSets.find((f) => f.id === fileSetId);
+  const text = given === inherited?.description ? '' : given;
+  const fileSets = o.fileSets.some((f) => f.id === fileSetId)
+    ? o.fileSets.map((f) => (f.id === fileSetId ? { ...f, description: text } : f))
+    : inherited
+      ? [...o.fileSets, { ...inherited, description: text }]
+      : o.fileSets;
+  return withOverride(p.own, { ...o, fileSets });
+}
+
+/** An inherited data point's description back to the inherited one (its other changes stay). */
+export function resetPointDescription(p: PlantProfileDetail, id: string): PlantProfileValues {
+  const o = p.own.pointOverrides.find((x) => x.dataPoint === id);
+  if (!o) return p.own;
+  const { description: _d, ...rest } = o;
+  return withPointOverride(p.own, id, Object.keys(rest).length > 2 || !rest.present ? rest : null);
+}
