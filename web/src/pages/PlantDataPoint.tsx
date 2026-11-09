@@ -15,6 +15,7 @@ import { plantKeys } from '../queryKeys';
 import { PreviewBadge, useNameOf, usePlantConfig, usePlantLabel } from '../components/plant/common';
 import { AssetBriefLink, Breakable, ProtocolBadge, rateText, useAddressHint } from '../components/plant/data';
 import { PointCollections } from '../components/plant/CollectorCollections';
+import { ShowAll, useShowMore } from '../components/page/ShowAll';
 
 // the lineage picture (#230) loads with the graph library, after the page itself
 const PointLineageView = lazy(() => import('./plant/views/AssetFlowView').then((m) => ({ default: m.PointLineageView })));
@@ -45,6 +46,8 @@ export function PlantDataPointPage() {
     q.data ? { kind: 'data_point', scope: q.data.profile.id, id: q.data.point.id, name: q.data.point.name || q.data.point.id } : null,
     canManageCatalogue,
   );
+  // the first 20 assets, "Show all N" for the rest
+  const assets = useShowMore(q.data?.assets ?? [], 20);
   if (!q.data) return <DetailState query={q} back={['plantProfiles', profileCrumb]} />;
   const d = q.data;
   const p = d.point;
@@ -119,7 +122,7 @@ export function PlantDataPointPage() {
                 </Text>
               ) : narrow ? (
                 <Stack gap="xs" role="list" aria-label={t('point.deliveredBy', { type: label('asset', true) })}>
-                  {d.assets.map((a) => (
+                  {assets.items.map((a) => (
                     <Paper key={a.asset.id} withBorder p="sm" role="listitem">
                       <Stack gap={4}>
                         <AssetBriefLink asset={a.asset} />
@@ -147,7 +150,7 @@ export function PlantDataPointPage() {
                       </Table.Tr>
                     </Table.Thead>
                     <Table.Tbody>
-                      {d.assets.map((a) => (
+                      {assets.items.map((a) => (
                         <Table.Tr key={a.asset.id}>
                           <Table.Td>
                             <AssetBriefLink asset={a.asset} />
@@ -165,6 +168,7 @@ export function PlantDataPointPage() {
                   </Table>
                 </div>
               )}
+              <ShowAll state={assets} id="point-assets" />
             </Stack>
             <Stack gap="xs" data-testid="point-kpis">
               <Title order={2} fz="h4">
