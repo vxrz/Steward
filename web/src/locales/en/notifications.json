@@ -201,6 +201,12 @@
         "label": "Data contract test failed",
         "info": "A test of a data contract your team owns failed (the owning team’s members and channel)"
       }
+    },
+    "plant": {
+      "advisory_matched": {
+        "label": "Security advisory affects a site",
+        "info": "A new high or critical security advisory affects assets of a site you manage (plant registry)"
+      }
     }
   },
   "quiet": {

@@ -1154,7 +1154,22 @@
     "PLANT_IMPORT_CHANGED": "What the import writes is no longer what the preview showed – check the preview again.",
     "PLANT_BULK_CHANGED": "What the change writes is no longer what the preview showed – check the preview again.",
     "PLANT_RENAME_CHANGED": "What the rename writes is no longer what the preview showed – check the preview again.",
-    "PLANT_REVIEW_LEVEL": "Sites decide this themselves only when the assurance policy says “optional” for plant changes (now: {{level}})."
+    "PLANT_REVIEW_LEVEL": "Sites decide this themselves only when the assurance policy says “optional” for plant changes (now: {{level}}).",
+    "PLANT_ADVISORY_INVALID": "The file is not a CSAF 2.0 document Steward can read (JSON with document, publisher, tracking and the product tree within their limits).",
+    "PLANT_ADVISORY_TOO_LARGE": "The document is larger than {{mb}} MB.",
+    "PLANT_ADVISORY_TLP": "The document is marked TLP:{{tlp}}. Steward keeps only TLP:WHITE, GREEN or unlabeled documents, because everyone who sees the plant registry would read it.",
+    "PLANT_ADVISORY_HASH": "The {{algorithm}} hash of the document does not match – it was not kept.",
+    "PLANT_ADVISORY_NOT_FOUND": "This advisory does not exist (any more).",
+    "PLANT_ADVISORY_NO_MATCH": "The advisory does not match this asset (any more), or you may not see it.",
+    "PLANT_ADVISORY_UNTIL": "An accepted risk ends on a day between today and {{max}}.",
+    "PLANT_ADVISORY_LINK": "The maintenance window or change set does not exist.",
+    "PLANT_ADVISORY_SOURCE_NOT_FOUND": "This advisory source does not exist (any more).",
+    "PLANT_ADVISORY_SOURCE_URL": "Give an http or https address without a user name or password.",
+    "PLANT_ADVISORY_SOURCES_LIMIT": "At most {{max}} advisory sources.",
+    "PLANT_ADVISORY_FETCH_BLOCKED": "The address is blocked (address safety): cloud metadata, link-local addresses and Steward's own API are never reached.",
+    "PLANT_ADVISORY_FETCH_FAILED": "{{origin}} did not answer as expected.",
+    "PLANT_ADVISORY_FETCH_TOO_LARGE": "The answer is larger than {{kb}} KB.",
+    "PLANT_ADVISORY_FEED_INVALID": "{{origin}} did not answer with a provider-metadata.json, aggregator.json or ROLIE feed."
   },
   "boundary": {
     "title": "Something went wrong on this page",

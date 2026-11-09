@@ -616,4 +616,116 @@ export const PLANT_MIGRATIONS: NamedMigration[] = [
     name: 'plant-015-kpi-roll-up',
     sql: `ALTER TABLE plant_kpis ADD COLUMN roll_up TEXT NOT NULL DEFAULT 'none';`,
   },
+  {
+    // 0.14: security advisories for OT devices (docs/ADVISORIES.md) – CSAF 2.0 documents (kept as received, with what
+    // Steward read from them), where they come from (configured providers, aggregators and ROLIE feeds – none until an
+    // administrator adds one) and what was fetched from each, the assets they match with the people's decisions and
+    // remediation per asset, and a site's "not applicable"
+    name: 'plant-020-advisories',
+    sql: `
+      CREATE TABLE plant_advisory_sources (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        url TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        enabled INTEGER NOT NULL DEFAULT 0,
+        interval_hours INTEGER NOT NULL DEFAULT 24,
+        publishers TEXT NOT NULL DEFAULT '[]',
+        since TEXT,
+        last_run_at TEXT,
+        last_ok_at TEXT,
+        last_error TEXT,
+        last_count INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        created_by TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        updated_by TEXT NOT NULL
+      );
+      CREATE TABLE plant_advisory_fetched (
+        source_id TEXT NOT NULL,
+        url TEXT NOT NULL,
+        updated TEXT NOT NULL DEFAULT '',
+        sha256 TEXT NOT NULL DEFAULT '',
+        advisory_id TEXT,
+        error TEXT,
+        fetched_at TEXT NOT NULL,
+        PRIMARY KEY (source_id, url)
+      );
+      CREATE TABLE plant_advisories (
+        id TEXT PRIMARY KEY,
+        publisher TEXT NOT NULL,
+        namespace TEXT NOT NULL,
+        tracking_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        category TEXT NOT NULL,
+        doc_status TEXT NOT NULL,
+        version TEXT NOT NULL,
+        initial_release TEXT NOT NULL,
+        current_release TEXT NOT NULL,
+        language TEXT NOT NULL DEFAULT '',
+        tlp TEXT NOT NULL DEFAULT '',
+        aggregate_severity TEXT NOT NULL DEFAULT '',
+        severity TEXT NOT NULL,
+        cvss REAL,
+        cves TEXT NOT NULL DEFAULT '[]',
+        vendors TEXT NOT NULL DEFAULT '[]',
+        content TEXT NOT NULL,
+        document TEXT NOT NULL,
+        sha256 TEXT NOT NULL,
+        size INTEGER NOT NULL,
+        origin TEXT NOT NULL,
+        source_id TEXT,
+        url TEXT NOT NULL DEFAULT '',
+        file_name TEXT NOT NULL DEFAULT '',
+        integrity TEXT NOT NULL,
+        signature_url TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL,
+        created_by TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        updated_by TEXT NOT NULL
+      );
+      CREATE UNIQUE INDEX plant_advisories_tracking ON plant_advisories(namespace, tracking_id);
+      CREATE INDEX plant_advisories_released ON plant_advisories(current_release);
+      CREATE TABLE plant_advisory_matches (
+        advisory_id TEXT NOT NULL,
+        asset_id TEXT NOT NULL,
+        site_id TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        current INTEGER NOT NULL DEFAULT 1,
+        product_ids TEXT NOT NULL DEFAULT '[]',
+        cves TEXT NOT NULL DEFAULT '[]',
+        cvss REAL,
+        severity TEXT NOT NULL,
+        reasons TEXT NOT NULL DEFAULT '[]',
+        fixes TEXT NOT NULL DEFAULT '[]',
+        first_matched_at TEXT NOT NULL,
+        last_matched_at TEXT NOT NULL,
+        decision TEXT,
+        decision_reason TEXT NOT NULL DEFAULT '',
+        decided_by TEXT,
+        decided_at TEXT,
+        remediation TEXT NOT NULL DEFAULT 'open',
+        remediation_reason TEXT NOT NULL DEFAULT '',
+        remediation_until TEXT,
+        remediation_window TEXT,
+        remediation_change_set TEXT,
+        remediation_note TEXT NOT NULL DEFAULT '',
+        remediation_by TEXT,
+        remediation_at TEXT,
+        notified_at TEXT,
+        PRIMARY KEY (advisory_id, asset_id)
+      );
+      CREATE INDEX plant_advisory_matches_asset ON plant_advisory_matches(asset_id);
+      CREATE INDEX plant_advisory_matches_site ON plant_advisory_matches(site_id);
+      CREATE TABLE plant_advisory_sites (
+        advisory_id TEXT NOT NULL,
+        site_id TEXT NOT NULL,
+        not_applicable INTEGER NOT NULL DEFAULT 0,
+        reason TEXT NOT NULL DEFAULT '',
+        decided_by TEXT NOT NULL,
+        decided_at TEXT NOT NULL,
+        PRIMARY KEY (advisory_id, site_id)
+      );
+    `,
+  },
 ];

@@ -63,6 +63,7 @@ import { checkOpenLimits, documentOperation } from './changesets/drafts.js';
 import { revisionOf } from './changesets/entries.js';
 import type { Region } from './changesets/track.js';
 import { me } from '../auth/access.js';
+import { advisoryRoutes } from './advisories/routes.js';
 import { audit } from '../audit.js';
 
 /**
@@ -200,6 +201,8 @@ export function plantDemo(): void {
 export async function plantRoutes(app: FastifyInstance): Promise<void> {
   // 0.13.0: change sets – drafts, review, apply, history (docs/PLANT.md "Change sets")
   await changeSetRoutes(app);
+  // 0.14: security advisories (CSAF 2.0) matched to assets (docs/ADVISORIES.md)
+  await advisoryRoutes(app);
   // ---------- settings (the module switch works while the module is off) ----------
   app.get('/settings/plant', { config: { access: ACCESS.admin } }, async () => plantSettings());
   // turning the module on or off is a module switch (0.11.0, ADR 0016): the same step-up as Settings → Modules

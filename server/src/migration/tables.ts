@@ -211,6 +211,15 @@ export const HISTORY_COLUMNS: string[] = [
   // the history of plant entries (0.13.0): who wrote a change and who applied it
   'plant_entry_history.author',
   'plant_entry_history.applied_by',
+  // security advisories (0.14): who added a source or a document, who decided on a match, recorded a remediation or
+  // marked an advisory as not applicable at a site
+  'plant_advisory_sources.created_by',
+  'plant_advisory_sources.updated_by',
+  'plant_advisories.created_by',
+  'plant_advisories.updated_by',
+  'plant_advisory_matches.decided_by',
+  'plant_advisory_matches.remediation_by',
+  'plant_advisory_sites.decided_by',
   'access_checks.updated_by',
   'application_components.created_by',
   'platform_recordings.created_by',

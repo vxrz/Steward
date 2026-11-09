@@ -539,5 +539,18 @@
     "query": "Query",
     "body": "Body",
     "reason": "The assistant's reason"
+  },
+  "advisoryMatched": {
+    "title": "{{severity}} security advisory {{id}} affects {{site}}",
+    "body_one": "Advisory “{{title}}” ({{id}}, {{publisher}}, CVSS {{cvss}}) affects {{count}} asset at {{site}}: {{assets}}. Open the advisory to see the reasons, the fixed firmware and to record the remediation.",
+    "body_other": "Advisory “{{title}}” ({{id}}, {{publisher}}, CVSS {{cvss}}) affects {{count}} assets at {{site}}: {{assets}}. Open the advisory to see the reasons, the fixed firmware and to record the remediation.",
+    "severity": {
+      "critical": "Critical",
+      "high": "High",
+      "medium": "Medium",
+      "low": "Low",
+      "none": "No-risk",
+      "unknown": "Unrated"
+    }
   }
 }

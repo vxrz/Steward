@@ -1,0 +1,144 @@
+{
+  "document": {
+    "category": "csaf_security_advisory",
+    "csaf_version": "2.0",
+    "distribution": {
+      "text": "Invented example for Steward's demo and tests – not a real advisory.",
+      "tlp": {
+        "label": "WHITE",
+        "url": "https://www.first.org/tlp/"
+      }
+    },
+    "lang": "en",
+    "notes": [
+      {
+        "category": "summary",
+        "title": "Summary",
+        "text": "A crafted OPC UA request makes the OPC UA server of C80 controllers with firmware 3.0 up to 3.3.x stop answering until the controller restarts. Machine control continues; data collection over OPC UA stops."
+      },
+      {
+        "category": "legal_disclaimer",
+        "title": "Invented",
+        "text": "Vendor, products, vulnerabilities and identifiers are invented for Steward's demo and tests."
+      }
+    ],
+    "publisher": {
+      "category": "vendor",
+      "name": "Example Controls",
+      "namespace": "https://psirt.example.com/example-controls"
+    },
+    "references": [
+      {
+        "category": "self",
+        "summary": "This advisory",
+        "url": "https://psirt.example.com/example-controls/advisories/exctl-sa-2026-001.json"
+      }
+    ],
+    "title": "Example Controls C80: denial of service in the OPC UA server",
+    "tracking": {
+      "current_release_date": "2026-10-20T08:00:00.000Z",
+      "id": "EXCTL-SA-2026-001",
+      "initial_release_date": "2026-09-15T08:00:00.000Z",
+      "revision_history": [
+        {
+          "date": "2026-09-15T08:00:00.000Z",
+          "number": "1",
+          "summary": "Initial release"
+        },
+        {
+          "date": "2026-10-20T08:00:00.000Z",
+          "number": "2",
+          "summary": "Fixed firmware 3.4.0 released"
+        }
+      ],
+      "status": "final",
+      "version": "2"
+    }
+  },
+  "product_tree": {
+    "branches": [
+      {
+        "category": "vendor",
+        "name": "Example Controls",
+        "branches": [
+          {
+            "category": "product_name",
+            "name": "C80",
+            "branches": [
+              {
+                "category": "product_version_range",
+                "name": "vers:generic/>=3.0.0|<3.4.0",
+                "product": {
+                  "name": "Example Controls C80 firmware >=3.0.0 <3.4.0",
+                  "product_id": "CSAFPID-0001",
+                  "product_identification_helper": {
+                    "model_numbers": ["C80", "C80-*"]
+                  }
+                }
+              },
+              {
+                "category": "product_version",
+                "name": "3.4.0",
+                "product": {
+                  "name": "Example Controls C80 firmware 3.4.0",
+                  "product_id": "CSAFPID-0002"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "vulnerabilities": [
+    {
+      "cve": "CVE-2099-10001",
+      "title": "Uncontrolled resource consumption in the OPC UA server",
+      "cwe": {
+        "id": "CWE-400",
+        "name": "Uncontrolled Resource Consumption"
+      },
+      "notes": [
+        {
+          "category": "description",
+          "title": "Description",
+          "text": "The OPC UA server does not limit the number of pending browse requests per session."
+        }
+      ],
+      "product_status": {
+        "known_affected": ["CSAFPID-0001"],
+        "fixed": ["CSAFPID-0002"]
+      },
+      "remediations": [
+        {
+          "category": "vendor_fix",
+          "details": "Update the controller firmware to 3.4.0 or later.",
+          "product_ids": ["CSAFPID-0001"],
+          "url": "https://psirt.example.com/example-controls/downloads/c80"
+        },
+        {
+          "category": "mitigation",
+          "details": "Allow OPC UA (tcp/4840) to the controller only from the data collection gateway, through the conduit's firewall.",
+          "product_ids": ["CSAFPID-0001"]
+        }
+      ],
+      "scores": [
+        {
+          "cvss_v3": {
+            "version": "3.1",
+            "baseScore": 7.5,
+            "baseSeverity": "HIGH",
+            "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+          },
+          "products": ["CSAFPID-0001"]
+        }
+      ],
+      "threats": [
+        {
+          "category": "impact",
+          "details": "Loss of OPC UA data collection until the controller restarts."
+        }
+      ]
+    }
+  ]
+}

@@ -92,6 +92,12 @@ beforeAll(async () => {
   const otExample = 'brightwater-ot-network.plant.yaml';
   const otContent = (await import('node:fs')).readFileSync(path.resolve(__dirname, '../../examples/plant', otExample), 'utf8');
   await s.api('POST', '/plant/import', { files: [{ name: otExample, content: otContent }], mode: 'add' });
+  // 0.14: security advisories – the invented examples, matching the demo's assets
+  for (const name of ['exctl-sa-2026-001.json', 'exmet-sa-2026-003.json', 'expm-sa-2026-007.json'])
+    await s.api('POST', '/plant/advisories/upload', {
+      content: (await import('node:fs')).readFileSync(path.resolve(__dirname, '../../examples/plant/advisories', name), 'utf8'),
+      fileName: name,
+    });
   await s.api('POST', '/demo/setup', {});
   await allowEmailDomains(s, ['example.com']);
   [vera, audrey, dana] = await Promise.all(['vera', 'audrey', 'dana'].map((u) => s.as(u, PW)));
@@ -517,6 +523,9 @@ async function crawl(token: string): Promise<{ template: string; url: string; re
   for (const id of ['rvs-mill-01', 'rvs-mill-02']) await get('/plant/assets/{assetId}/collections', `/plant/assets/${id}/collections`);
   // what Steward checks, and the export in the import format (YAML; JSON is the same document)
   await listAll('/plant/checks', '/plant/checks');
+  // security advisories (0.14): the invented examples, uploaded in beforeAll; matches of the demo's assets
+  for (const x of await listAll('/plant/advisories', '/plant/advisories?all=true')) await get('/plant/advisories/{advisoryId}', `/plant/advisories/${x.id}`);
+  for (const id of ['rvs-mill-02', 'hlc-im-01']) await get('/plant/assets/{assetId}/advisories', `/plant/assets/${id}/advisories`);
   await get('/plant/export', '/plant/export');
   await get('/plant/export', '/plant/export?part=catalogue');
   // database schemas (#222): the demo database platform (read) and a system (a tbls import)

@@ -201,6 +201,12 @@
         "label": "Test eines Datenvertrags fehlgeschlagen",
         "info": "Ein Test eines Datenvertrags Ihres Teams ist fehlgeschlagen (die Mitglieder und der Kanal des Eigentümer-Teams)"
       }
+    },
+    "plant": {
+      "advisory_matched": {
+        "label": "Sicherheitshinweis betrifft einen Standort",
+        "info": "Ein neuer Sicherheitshinweis mit hohem oder kritischem Schweregrad betrifft Anlagen eines Standorts, den Sie verwalten (Werksregister)"
+      }
     }
   },
   "quiet": {
