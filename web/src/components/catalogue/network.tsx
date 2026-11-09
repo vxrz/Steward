@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ActionIcon, Anchor, Badge, Button, Group, Modal, NumberInput, Paper, Select, Stack, Table, TagsInput, Text, TextInput } from '@mantine/core';
+import { ActionIcon, Anchor, Badge, Button, Group, Modal, NumberInput, Paper, Select, Stack, Table, TagsInput, Text, TextInput, Title } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import { IconEdit, IconPlus, IconTrash } from '@tabler/icons-react';
@@ -27,6 +27,8 @@ import { TableFieldView } from '../records/TableField';
 import { typeTemplate } from '../records/builtin';
 import { TicketsPanel } from '../tickets/TicketsPanel';
 import { fmtDay, fmtRelative } from '../../format';
+import { CollapsibleSection } from '../page/CollapsibleSection';
+import { ShowAll, useShowMore } from '../page/ShowAll';
 
 /**
  * Network segments and firewall changes (#208), opt-in: the attributes of a segment (a system of kind "network"), the
@@ -313,6 +315,8 @@ export function FirewallNetworkPanel({ system }: { system: SystemDetail }) {
   const fw = system.firewall;
   const open = fw.changes.filter((c) => !c.done);
   const done = fw.changes.filter((c) => c.done);
+  // a segment's members: the first 10, "Show all N" for the rest
+  const members = useShowMore(system.members, 10);
   const remove = async (l: SystemSegmentLink) => {
     if (!(await confirmDanger({ action: 'remove', message: t('firewall.removeSegmentConfirm', { name: l.segmentName }) }))) return;
     try {
@@ -326,25 +330,29 @@ export function FirewallNetworkPanel({ system }: { system: SystemDetail }) {
     <Paper withBorder p="md" data-testid="firewall-panel">
       <Stack gap="md">
         <div>
-          <Text fw={600} id="firewall-panel-title">
+          <Title order={2} size="h5" id="firewall-panel-title">
             {t('firewall.title')}
-          </Text>
+          </Title>
           <Text size="xs" c="dimmed">
             {t('firewall.help')}
           </Text>
         </div>
 
-        <Stack gap={6} data-testid="system-segments">
-          <Group justify="space-between">
-            <Text size="sm" fw={600}>
-              {t('firewall.segments')}
-            </Text>
-            {system.canEdit && (
+        <CollapsibleSection
+          id="system-segments"
+          testId="system-segments"
+          order={3}
+          size="h6"
+          title={t('firewall.segments')}
+          count={system.segments.length}
+          actions={
+            system.canEdit && (
               <Button size="xs" variant="default" leftSection={<IconPlus size={14} />} onClick={() => setEditing('new')}>
                 {t('firewall.addSegment')}
               </Button>
-            )}
-          </Group>
+            )
+          }
+        >
           {system.segments.length === 0 ? (
             <Text size="sm" c="dimmed">
               {t('firewall.noSegments')}
@@ -398,13 +406,10 @@ export function FirewallNetworkPanel({ system }: { system: SystemDetail }) {
               </Table>
             </div>
           )}
-        </Stack>
+        </CollapsibleSection>
 
         {system.kind === 'network' && (
-          <Stack gap={6} data-testid="segment-members">
-            <Text size="sm" fw={600}>
-              {t('firewall.members')}
-            </Text>
+          <CollapsibleSection id="segment-members" testId="segment-members" order={3} size="h6" title={t('firewall.members')} count={system.members.length}>
             {system.members.length === 0 ? (
               <Text size="sm" c="dimmed">
                 {t('firewall.noMembers')}
@@ -421,7 +426,7 @@ export function FirewallNetworkPanel({ system }: { system: SystemDetail }) {
                     </Table.Tr>
                   </Table.Thead>
                   <Table.Tbody>
-                    {system.members.map((m) => (
+                    {members.items.map((m) => (
                       <Table.Tr key={m.linkId}>
                         <Table.Td>
                           <Anchor component={Link} to={`/systems/${m.systemId}`} size="sm">
@@ -437,13 +442,11 @@ export function FirewallNetworkPanel({ system }: { system: SystemDetail }) {
                 </Table>
               </div>
             )}
-          </Stack>
+            <ShowAll state={members} id="segment-members" />
+          </CollapsibleSection>
         )}
 
-        <Stack gap={6} data-testid="approved-rules">
-          <Text size="sm" fw={600}>
-            {t('firewall.rules')}
-          </Text>
+        <CollapsibleSection id="approved-rules" testId="approved-rules" order={3} size="h6" title={t('firewall.rules')} count={fw.documents.length}>
           {fw.documents.length === 0 ? (
             <Text size="sm" c="dimmed">
               {t('firewall.noRules')}
@@ -472,19 +475,25 @@ export function FirewallNetworkPanel({ system }: { system: SystemDetail }) {
               </Stack>
             ))
           )}
-        </Stack>
+        </CollapsibleSection>
 
-        <Stack gap={6} data-testid="firewall-changes">
-          <Group justify="space-between">
-            <Text size="sm" fw={600}>
-              {t('firewall.changes')}
-            </Text>
-            {canCreateChange && (
+        <CollapsibleSection
+          id="firewall-changes"
+          testId="firewall-changes"
+          order={3}
+          size="h6"
+          title={t('firewall.changes')}
+          count={fw.changes.length}
+          // open changes need attention
+          tone={open.length ? 'warning' : undefined}
+          actions={
+            canCreateChange && (
               <Button size="xs" variant="default" leftSection={<IconPlus size={14} />} onClick={() => setCreating(true)}>
                 {t('firewall.newChange')}
               </Button>
-            )}
-          </Group>
+            )
+          }
+        >
           {fw.changes.length === 0 ? (
             <Text size="sm" c="dimmed">
               {t('firewall.noChanges')}
@@ -521,7 +530,7 @@ export function FirewallNetworkPanel({ system }: { system: SystemDetail }) {
                 </Stack>
               ))
           )}
-        </Stack>
+        </CollapsibleSection>
 
         <TicketsPanel kind="system" id={system.id} label={system.name} />
       </Stack>

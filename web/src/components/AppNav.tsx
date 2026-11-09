@@ -54,6 +54,7 @@ import {
 import type { Capabilities, VisibilitySummary } from '@sm/shared';
 import { useOwnLabel } from './plant/labels';
 import { navModuleOn } from '../modules';
+import { readJsonPref, writePref } from './page/prefs';
 
 export type NavKey =
   | 'dashboard'
@@ -327,34 +328,24 @@ export function activeNavEntry<T extends { to: string; also?: string[] }>(entrie
 /** Kept for callers that test one address. */
 export const isNavActive = matches;
 
-// ---------- remembered per user in this browser ----------
+// ---------- remembered per user in this browser (components/page/prefs.ts) ----------
 
-const read = <T,>(key: string, fallback: T, ok: (v: unknown) => boolean): T => {
-  try {
-    const v = JSON.parse(localStorage.getItem(key) ?? 'null') as unknown;
-    return ok(v) ? (v as T) : fallback;
-  } catch {
-    return fallback;
-  }
-};
-const write = (key: string, value: unknown) => {
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch {
-    /* storage blocked: the choice lasts for this page view */
-  }
-};
-
-const pinsKey = (userId: string) => `sm.nav.pins.${userId}`;
-const groupsKey = (userId: string) => `sm.nav.groups.${userId}`;
+const PINS_PREF = 'nav.pins';
+const GROUPS_PREF = 'nav.groups';
+/** Where 0.11 and older kept them (read until the user changes them) */
+const legacyPinsKey = (userId: string) => `sm.nav.pins.${userId}`;
+const legacyGroupsKey = (userId: string) => `sm.nav.groups.${userId}`;
+const isStringList = (v: unknown): v is string[] => Array.isArray(v) && v.every((x) => typeof x === 'string');
+const isGroupState = (v: unknown): v is GroupState => !!v && typeof v === 'object' && !Array.isArray(v);
+const write = (name: string, value: unknown, userId: string) => writePref(name, JSON.stringify(value), userId);
 
 /** The pinned sidebar entries (their addresses) of a user, in the order they were pinned. */
 export function usePins(userId: string): [string[], (to: string) => void] {
-  const [pins, setPins] = useState<string[]>(() => read(pinsKey(userId), [], (v) => Array.isArray(v) && v.every((x) => typeof x === 'string')));
+  const [pins, setPins] = useState<string[]>(() => readJsonPref(PINS_PREF, isStringList, [], { legacyKey: legacyPinsKey(userId), userId }));
   const toggle = (to: string) => {
     const next = pins.includes(to) ? pins.filter((p) => p !== to) : [...pins, to];
     setPins(next);
-    write(pinsKey(userId), next);
+    write(PINS_PREF, next, userId);
   };
   return [pins, toggle];
 }
@@ -399,10 +390,10 @@ export function AppNav({
   const activeGroup = groups.find((g) => g.items.includes(active!))?.key;
   const [pins, togglePin] = usePins(userId);
   const pinned = pins.map((to) => all.find((n) => n.to === to)).filter((n): n is NavEntry => !!n);
-  const [state, setState] = useState<GroupState>(() => read(groupsKey(userId), {}, (v) => !!v && typeof v === 'object' && !Array.isArray(v)));
+  const [state, setState] = useState<GroupState>(() => readJsonPref(GROUPS_PREF, isGroupState, {}, { legacyKey: legacyGroupsKey(userId), userId }));
   const save = (next: GroupState) => {
     setState(next);
-    write(groupsKey(userId), next);
+    write(GROUPS_PREF, next, userId);
   };
   // the area of the page opens whenever the user gets there (also after they folded it on an earlier visit)
   useEffect(() => {
@@ -411,7 +402,7 @@ export function AppNav({
       if (s[activeGroup] !== false) return s;
       const next = { ...s };
       delete next[activeGroup];
-      write(groupsKey(userId), next);
+      write(GROUPS_PREF, next, userId);
       return next;
     });
   }, [activeGroup, userId]);

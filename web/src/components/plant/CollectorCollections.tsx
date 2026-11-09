@@ -1,10 +1,11 @@
-import { Anchor, Badge, Group, Paper, Stack, Text, Title } from '@mantine/core';
+import { Anchor, Badge, Group, Stack, Text } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import type { PlantCollectionBrief, PlantSinkTarget } from '@sm/shared';
 import { get } from '../../api';
 import { useModuleOn } from '../../modules';
+import { CollapsibleSection } from '../page/CollapsibleSection';
 
 /**
  * The data collections a collector runs (0.11.0, ADR 0019), on the page of the application, platform or process that
@@ -43,11 +44,18 @@ function CollectionBriefs({
 }) {
   const { t } = useTranslation('plantModel');
   return (
-    <Paper withBorder p="md" data-testid={testId}>
+    <CollapsibleSection
+      id={testId}
+      collapseOnPhone
+      testId={testId}
+      onlyInGroup
+      variant="card"
+      size="h5"
+      title={t(`collections.${title}`)}
+      count={list.length}
+      defaultOpen={list.length > 0}
+    >
       <Stack gap="xs">
-        <Title order={2} fz="h5">
-          {t(`collections.${title}`)}
-        </Title>
         {!list.length && empty && (
           <Text size="sm" c="dimmed">
             {t('collections.noneRead')}
@@ -73,7 +81,7 @@ function CollectionBriefs({
           </Stack>
         ))}
       </Stack>
-    </Paper>
+    </CollapsibleSection>
   );
 }
 

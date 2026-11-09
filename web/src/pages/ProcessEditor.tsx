@@ -58,6 +58,7 @@ import { useDefHistory, useUndoKeys } from '../components/editor/useDefHistory';
 import { fmtRelative } from '../format';
 import { issueText } from '../i18n/meta';
 import { DetailHeader } from '../components/page/DetailPage';
+import { useCollapsible } from '../components/page/CollapsibleSection';
 import { processKeys } from '../queryKeys';
 import { NodeDebugPanel } from '../components/debug/NodeDebugPanel';
 import { DebugRunPanel, useDebugRun } from '../components/debug/DebugRunPanel';
@@ -98,7 +99,6 @@ export function ProcessEditorPage() {
   const [saveOpen, setSaveOpen] = useState(false);
   const [runWarn, setRunWarn] = useState(false);
   const [runOpen, setRunOpen] = useState(false);
-  const [showIssues, setShowIssues] = useState(false);
   const [focus, setFocus] = useState<{ id: string; seq: number } | null>(null);
   const [showRun, setShowRun] = useState(false);
   const lastRun = useLastRun(id ?? '', showRun && !!id);
@@ -161,6 +161,8 @@ export function ProcessEditorPage() {
   }, [dirty]);
 
   const validation = useMemo(() => (def ? validateProcess(def) : { ok: true, issues: [] as ValidationIssue[], warnings: [] as ValidationIssue[] }), [def]);
+  // problems that block saving open the list (also when they appear while editing); warnings alone stay folded
+  const issuesPanel = useCollapsible({ id: 'process-issues', defaultOpen: false, forceOpen: validation.issues.length > 0, inGroup: false });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const issuesByNode = useMemo(() => byNode(validation.issues), [validation.issues, i18n.language]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -257,7 +259,13 @@ export function ProcessEditorPage() {
         actions={
           <>
             {problems.length > 0 && (
-              <UnstyledButton onClick={() => setShowIssues((s) => !s)}>
+              <UnstyledButton
+                onClick={issuesPanel.toggle}
+                aria-expanded={issuesPanel.open}
+                aria-controls="process-issues-list"
+                mih={24}
+                data-testid="process-issues-badges"
+              >
                 <Group gap={4}>
                   {validation.issues.length > 0 && (
                     <Badge color="red" leftSection={<IconAlertTriangle size={12} />}>
@@ -313,9 +321,15 @@ export function ProcessEditorPage() {
           mb="sm"
           p="xs"
           title={
-            <UnstyledButton onClick={() => setShowIssues((s) => !s)}>
-              <Group gap={4}>
-                {showIssues ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
+            <UnstyledButton
+              onClick={issuesPanel.toggle}
+              aria-expanded={issuesPanel.open}
+              aria-controls="process-issues-list"
+              mih={24}
+              data-testid="process-issues-toggle"
+            >
+              <Group gap={4} wrap="nowrap">
+                {issuesPanel.open ? <IconChevronDown size={14} aria-hidden /> : <IconChevronRight size={14} aria-hidden />}
                 <Text size="sm" fw={600}>
                   {validation.issues.length
                     ? t('issues.refused', { count: validation.issues.length })
@@ -326,7 +340,7 @@ export function ProcessEditorPage() {
             </UnstyledButton>
           }
         >
-          <Collapse expanded={showIssues}>
+          <Collapse expanded={issuesPanel.open} id="process-issues-list" data-testid="process-issues-list">
             <Stack gap={2}>
               {problems.slice(0, 30).map((i, k) => (
                 <UnstyledButton

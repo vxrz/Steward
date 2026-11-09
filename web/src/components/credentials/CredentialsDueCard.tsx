@@ -1,4 +1,4 @@
-import { Anchor, Card, Group, Stack, Text, Title } from '@mantine/core';
+import { Anchor, Group, Stack, Text } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { IconKey } from '@tabler/icons-react';
@@ -7,6 +7,7 @@ import type { Credential } from '@sm/shared';
 import { getOptional } from '../../api';
 import { fmtDay, fmtRelative } from '../../format';
 import { CredentialStatusBadge } from '../../pages/Credentials';
+import { CollapsibleSection } from '../page/CollapsibleSection';
 
 /** GET /api/credentials/summary (null for users who may not see the register). */
 export interface CredentialDueSummary {
@@ -27,16 +28,26 @@ export function CredentialsDueCard() {
   const d = s.data;
   if (!d || !d.items.length) return null;
   return (
-    <Card withBorder data-testid="credentials-due">
-      <Group mb="xs" gap="xs" wrap="nowrap" justify="space-between">
-        <Group gap="xs" wrap="nowrap">
-          <IconKey size={18} color="var(--mantine-color-orange-6)" />
-          <Title order={5}>{t('home.title')}</Title>
-        </Group>
+    // folds like the failed checks (remembered per user); one that expires or becomes overdue opens it again
+    <CollapsibleSection
+      id="credentials-due"
+      testId="credentials-due"
+      variant="card"
+      size="h5"
+      title={t('home.title')}
+      icon={<IconKey size={18} color="var(--mantine-color-orange-6)" aria-hidden style={{ flex: 'none' }} />}
+      summary={
         <Text size="xs" c="dimmed">
           {t('home.counts', { expired: d.expired, overdue: d.overdue, dueSoon: d.dueSoon })}
         </Text>
-      </Group>
+      }
+      remember="section.dashboard.credentials-due"
+      alertKey={d.items
+        .filter((c) => c.status === 'expired' || c.status === 'overdue')
+        .map((c) => c.id)
+        .sort()
+        .join(',')}
+    >
       <Stack gap={6}>
         {d.items.map((c) => (
           <Group key={c.id} justify="space-between" gap={4} wrap="wrap">
@@ -55,6 +66,6 @@ export function CredentialsDueCard() {
           {t('home.all')}
         </Anchor>
       </Stack>
-    </Card>
+    </CollapsibleSection>
   );
 }

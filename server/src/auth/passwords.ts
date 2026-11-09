@@ -21,6 +21,12 @@ import { logger } from '../log.js';
  * SM_PASSWORD_HASH_CONCURRENCY run at the same time (default 2, so about 256 MiB at peak).
  */
 const N = 2 ** 17;
+/**
+ * The cost new hashes get: N, except inside the server test runner (vitest sets VITEST), where a hash at 2^17 costs
+ * about 0.4 s of CPU and the suite creates hundreds of accounts; there 2^12 unless a test asks for the real cost with
+ * STEWARD_TEST_REAL_PASSWORD_COST=1 (passwords.test.ts). Stored hashes always name their own cost, so either verifies.
+ */
+const newN = (): number => (process.env.VITEST && process.env.STEWARD_TEST_REAL_PASSWORD_COST !== '1' ? 2 ** 12 : N);
 const R = 8;
 const P = 1;
 /** Hashes up to N=2^18 can be checked (128 × r × N bytes, plus room). */
@@ -33,17 +39,19 @@ const scryptAsync = promisify(crypto.scrypt) as (pw: string, salt: Buffer, len: 
 /** The form of a password that is hashed and checked: Unicode NFKC (the same password typed on another keyboard matches). */
 export const normalizePassword = (password: string): string => password.normalize('NFKC');
 
-const format = (salt: Buffer, hash: Buffer) => ['scrypt', N, R, P, salt.toString('base64'), hash.toString('base64'), NFKC_FLAG].join('$');
+const format = (n: number, salt: Buffer, hash: Buffer) => ['scrypt', n, R, P, salt.toString('base64'), hash.toString('base64'), NFKC_FLAG].join('$');
 
 export function hashPassword(password: string): string {
   const salt = crypto.randomBytes(16);
-  return format(salt, crypto.scryptSync(normalizePassword(password), salt, 64, { N, r: R, p: P, maxmem: MAXMEM }));
+  const n = newN();
+  return format(n, salt, crypto.scryptSync(normalizePassword(password), salt, 64, { N: n, r: R, p: P, maxmem: MAXMEM }));
 }
 
 /** Like hashPassword, off the event loop and within the hashing limit. */
 export async function hashPasswordAsync(password: string): Promise<string> {
   const salt = crypto.randomBytes(16);
-  return format(salt, await limited(() => scryptAsync(normalizePassword(password), salt, 64, { N, r: R, p: P, maxmem: MAXMEM })));
+  const n = newN();
+  return format(n, salt, await limited(() => scryptAsync(normalizePassword(password), salt, 64, { N: n, r: R, p: P, maxmem: MAXMEM })));
 }
 
 /**
@@ -83,7 +91,7 @@ function parse(stored: string) {
 /** Whether a stored hash is older or cheaper than new ones: it is replaced at the next successful sign-in. */
 export function needsRehash(stored: string): boolean {
   const s = parse(stored);
-  return !!s && (!s.nfkc || s.N < N || s.r < R || s.p < P);
+  return !!s && (!s.nfkc || s.N < newN() || s.r < R || s.p < P);
 }
 
 /** Constant-time check, off the event loop. */

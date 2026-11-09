@@ -154,5 +154,6 @@
     },
     "versionShort": "Version {{version}}",
     "importedBy": "Imported {{date}} by {{user}}"
-  }
+  },
+  "inheritedTitle": "Inherited documents"
 }

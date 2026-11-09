@@ -6,15 +6,12 @@ import { IconAlertTriangle, IconCheck, IconFileImport, IconFileText, IconTrash, 
 import { useTranslation } from 'react-i18next';
 import {
   PLANT_LIMITS,
-  type PlantChange,
   type PlantChangeAction,
-  type PlantChangeKind,
   type PlantImportMode,
   type PlantImportPreview,
   type PlantImportResult,
   type PlantImportSummary,
   type PlantMissing,
-  type PlantRecordType,
 } from '@sm/shared';
 import { apiUrl, get, notifyError, notifyOk, post } from '../api';
 import { EmptyState, PageHeader, QueryState } from '../components/common';
@@ -24,18 +21,8 @@ import { plantKeys } from '../queryKeys';
 import { PreviewBadge, usePlantConfig, usePlantLabel } from '../components/plant/common';
 import { ChecksList } from '../components/plant/data';
 import { IdMappingStep, ImportIdsPreview, idOptionsBody, NO_ID_OPTIONS, type IdOptions } from '../components/plant/importIds';
+import { ACTION_COLOR, ChangeTable, useKindLabel } from '../components/plant/changes';
 
-const KIND_TYPE: Partial<Record<PlantChangeKind, PlantRecordType>> = {
-  site: 'site',
-  area: 'area',
-  work_center: 'workCenter',
-  work_unit: 'workUnit',
-  building: 'building',
-  asset: 'asset',
-};
-/** Kinds of part 2 (#219) without an own display name */
-type DataKind = 'profile' | 'kpi' | 'assignment' | 'collection_sinks';
-const ACTION_COLOR: Record<PlantChangeAction, string> = { add: 'green', change: 'blue', remove: 'red', mark: 'orange', unchanged: 'gray', skip: 'gray' };
 const ACTIONS: PlantChangeAction[] = ['add', 'change', 'remove', 'mark', 'unchanged', 'skip'];
 
 interface Picked {
@@ -123,10 +110,7 @@ export function PlantImportPage() {
     }
   };
   const changes = (preview?.changes ?? []).filter((c) => show === 'all' || (c.action !== 'unchanged' && c.action !== 'skip'));
-  const kindLabel = (k: PlantChangeKind) => {
-    const type = KIND_TYPE[k];
-    return type ? label(type) : t(`import.kinds.${k as DataKind}`);
-  };
+  const kindLabel = useKindLabel();
   return (
     <>
       <PageHeader
@@ -430,72 +414,4 @@ export function PlantImportPage() {
       )}
     </>
   );
-}
-
-function ChangeTable({ changes, kindLabel }: { changes: PlantChange[]; kindLabel: (k: PlantChangeKind) => string }) {
-  const { t } = useTranslation('plant');
-  const shown = changes.slice(0, 500);
-  return (
-    <div className="table-scroll" tabIndex={0} role="region" aria-label={t('import.changes')}>
-      <Table fz="sm" aria-label={t('import.changes')} data-testid="import-changes">
-        <Table.Thead>
-          <Table.Tr>
-            <Table.Th>{t('import.action')}</Table.Th>
-            <Table.Th>{t('import.kind')}</Table.Th>
-            <Table.Th>{t('form.name')}</Table.Th>
-            <Table.Th>{t('import.what')}</Table.Th>
-          </Table.Tr>
-        </Table.Thead>
-        <Table.Tbody>
-          {shown.map((c) => (
-            <Table.Tr key={`${c.kind}:${c.siteId}:${c.id}:${c.action}`}>
-              <Table.Td>
-                <Badge size="sm" color={ACTION_COLOR[c.action]} variant="light">
-                  {t(`import.actions.${c.action}`)}
-                </Badge>
-              </Table.Td>
-              <Table.Td className="nowrap">{kindLabel(c.kind)}</Table.Td>
-              <Table.Td>
-                <Text size="sm">{c.name}</Text>
-                <Text size="xs" c="dimmed" className="mono">
-                  {c.kind === 'site' || !c.siteId ? c.id : `${c.siteId} / ${c.id}`}
-                </Text>
-              </Table.Td>
-              <Table.Td>
-                {c.fields?.length ? (
-                  <Group gap={4}>
-                    {c.fields.map((f) => (
-                      <Badge key={f} size="xs" variant="default">
-                        {t(`import.fields.${f as 'name'}`, { defaultValue: f })}
-                      </Badge>
-                    ))}
-                  </Group>
-                ) : null}
-                {c.note && (
-                  <Text size="xs" c="dimmed">
-                    {noteKey(c.note) === 'other' ? c.note : t(`import.notes.${noteKey(c.note) as Exclude<ReturnType<typeof noteKey>, 'other'>}`)}
-                  </Text>
-                )}
-              </Table.Td>
-            </Table.Tr>
-          ))}
-        </Table.Tbody>
-      </Table>
-      {changes.length > shown.length && (
-        <Text size="xs" c="dimmed" mt={4}>
-          {t('import.more', { count: changes.length - shown.length })}
-        </Text>
-      )}
-    </div>
-  );
-}
-
-/** The server's notes, as keys of their translations. */
-function noteKey(note: string): 'exists' | 'notInSource' | 'marked' | 'markedHolds' | 'namesRemoved' | 'other' {
-  if (note.startsWith('exists')) return 'exists';
-  if (note === 'not in source') return 'notInSource';
-  if (note.startsWith('kept, marked "not in source" (')) return 'markedHolds';
-  if (note.startsWith('kept, marked')) return 'marked';
-  if (note.startsWith('names a')) return 'namesRemoved';
-  return 'other';
 }

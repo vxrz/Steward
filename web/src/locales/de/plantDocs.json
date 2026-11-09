@@ -154,5 +154,6 @@
     },
     "versionShort": "Stand {{version}}",
     "importedBy": "Importiert am {{date}} von {{user}}"
-  }
+  },
+  "inheritedTitle": "Geerbte Dokumente"
 }

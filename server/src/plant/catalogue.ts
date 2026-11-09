@@ -176,6 +176,7 @@ export function getProfile(id: string): PlantProfileDetail {
   return {
     ...profileSummary({ ...values, importId: r.import_id, notInSource: !!r.not_in_source, updatedAt: r.updated_at }, assets.length),
     description: values.description,
+    descriptionFrom: values.descriptionFrom,
     notes: values.notes,
     interfaces: values.interfaces,
     own: own.get(id)!,
@@ -399,7 +400,7 @@ export function getDataPoint(profileId: string, pointId: string): PlantDataPoint
     interface: { id: found.iface.id, name: found.iface.name, protocol: found.iface.protocol, direction: found.iface.direction },
     group: found.group,
     point: found.point,
-    origin: p.origins.points[pointId] ?? { kind: 'own', from: p.id, fields: [], changedBy: [] },
+    origin: p.origins.points[pointId] ?? { kind: 'own', from: p.id, fields: [], changedBy: [], descriptionFrom: p.id },
     assets,
     kpis,
   };

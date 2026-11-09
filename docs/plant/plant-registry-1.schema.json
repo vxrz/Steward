@@ -1187,6 +1187,7 @@
           ]
         },
         "description": {
+          "description": "Plain text. A profile that extends another inherits its base’s description while it has none (0.12.0)",
           "anyOf": [
             {
               "type": "string",
@@ -1352,6 +1353,7 @@
                 "maxLength": 200
               },
               "description": {
+                "description": "Plain text. An inherited group’s entry describes it anew (0.12.0); left out or empty: the inherited description",
                 "anyOf": [
                   {
                     "type": "string",

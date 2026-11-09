@@ -18,6 +18,7 @@ import {
   Tabs,
   Text,
   TextInput,
+  Textarea,
   Title,
 } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
@@ -29,6 +30,7 @@ import {
   COLLECTION_FORMATS,
   COLLECTION_MODES,
   COLLECTOR_KINDS,
+  PLANT_LIMITS,
   type CollectionFormat,
   type PlantAssetCollections,
   type PlantAssignmentView,
@@ -45,6 +47,7 @@ import { EmptyState, QueryState } from '../../components/common';
 import { confirmDanger } from '../../components/confirm';
 import { Breakable } from '../../components/plant/data';
 import { ItemSelect } from '../../components/plant/network';
+import { DescribedText, DescriptionModal } from '../../components/plant/describe';
 import { CollectionFlowView, CollectionSourcesView } from '../../components/plant/CollectionFlow';
 import { PlantDocumentsPanel } from '../../components/plant/DocumentsPanel';
 
@@ -219,6 +222,7 @@ function NewCollectionModal({
   const [iface, setIface] = useState<string | null>(null);
   const [mode, setMode] = useState<(typeof COLLECTION_MODES)[number]>('interval');
   const [intervalMs, setIntervalMs] = useState<number | ''>('');
+  const [description, setDescription] = useState('');
   const [busy, setBusy] = useState(false);
   const id =
     name
@@ -237,6 +241,7 @@ function NewCollectionModal({
         interfaceId: iface,
         mode,
         intervalMs: intervalMs === '' ? null : intervalMs,
+        description: description.trim(),
       });
       void qc.invalidateQueries({ queryKey: key(assetId) });
       onCreated(id);
@@ -304,6 +309,16 @@ function NewCollectionModal({
             onChange={(x) => setIntervalMs(typeof x === 'number' ? x : '')}
           />
         </SimpleGrid>
+        <Textarea
+          label={t('describe.label')}
+          description={t('describe.plainText')}
+          autosize
+          minRows={2}
+          maxRows={6}
+          maxLength={PLANT_LIMITS.description}
+          value={description}
+          onChange={(e) => setDescription(e.currentTarget.value)}
+        />
         <Group justify="flex-end">
           <Button variant="default" onClick={onClose}>
             {t('common:cancel')}
@@ -326,6 +341,8 @@ function CollectionDetail({ assetId, id, data, onClose }: { assetId: string; id:
   const q = useQuery({ queryKey: [...key(assetId), id], queryFn: () => get<PlantCollectionView>(`${base(assetId)}/${encodeURIComponent(id)}`) });
   const [editing, setEditing] = useState<number | null>(null);
   const [adding, setAdding] = useState<number | null>(null);
+  // the collection's description (-1) or an item's (its index)
+  const [describing, setDescribing] = useState<number | null>(null);
   const [tab, setTab] = useState('items');
   const c = q.data;
   const refresh = () => {
@@ -338,7 +355,7 @@ function CollectionDetail({ assetId, id, data, onClose }: { assetId: string; id:
         <QueryState query={q} rows={4} />
       </Modal>
     );
-  const save = async (items: PlantCollectionView['items'], sinks: PlantCollectionView['sinks'] = c.sinks) => {
+  const save = async (items: PlantCollectionView['items'], description = c.description, sinks: PlantCollectionView['sinks'] = c.sinks) => {
     const {
       id: _i,
       assetId: _a,
@@ -358,13 +375,13 @@ function CollectionDetail({ assetId, id, data, onClose }: { assetId: string; id:
       ...body
     } = c;
     // the sinks are what is stored (0.12); the destination is their first one
-    await put(`${base(assetId)}/${encodeURIComponent(id)}`, { ...body, destination: null, sinks, items });
+    await put(`${base(assetId)}/${encodeURIComponent(id)}`, { ...body, destination: null, sinks, items, description });
     refresh();
     void qc.invalidateQueries({ queryKey: [...key(assetId), id] });
   };
   const saveSinks = async (sinks: PlantCollectionView['sinks']) => {
     try {
-      await save(c.items, sinks);
+      await save(c.items, c.description, sinks);
     } catch (e) {
       notifyError(e);
     }
@@ -376,7 +393,7 @@ function CollectionDetail({ assetId, id, data, onClose }: { assetId: string; id:
       try {
         await del(url);
       } catch (e) {
-        // records link to it (0.12): removed only with "also remove what belongs to it"
+        // documents link to it (0.12): removed only with "also remove what belongs to it"
         if (!(e instanceof ApiError) || e.code !== 'PLANT_COLLECTION_LINKED') throw e;
         if (!(await confirmDanger({ action: 'remove', message: t('plantDocs:removeLinked', { name: c.name, count: Number(e.params?.count ?? 0) }) }))) return;
         await del(`${url}?cascade=1`);
@@ -393,6 +410,20 @@ function CollectionDetail({ assetId, id, data, onClose }: { assetId: string; id:
   const access = (['write', 'create', 'delete'] as const).filter((k) => c.access[k].length);
   return (
     <Modal opened onClose={onClose} title={c.name} size="xl" data-testid="collection-detail">
+      {/* what the collection is: above the tabs, it holds for all of them */}
+      <Stack gap="xs" mb="sm">
+        <Text size="sm" style={{ overflowWrap: 'anywhere' }}>
+          {[collector(c), how(c)].join(' · ')}
+        </Text>
+        <DescribedText
+          text={c.description}
+          inheritedFrom={null}
+          changedHere={false}
+          editable={data.canManage}
+          onEdit={() => setDescribing(-1)}
+          testId="collection-description"
+        />
+      </Stack>
       <Tabs value={tab} onChange={(x) => setTab(x ?? 'items')} keepMounted={false}>
         <Tabs.List mb="md">
           <Tabs.Tab value="items">{t('collections.items')}</Tabs.Tab>
@@ -417,9 +448,6 @@ function CollectionDetail({ assetId, id, data, onClose }: { assetId: string; id:
         </Tabs.Panel>
         <Tabs.Panel value="items">
           <Stack gap="md">
-            <Text size="sm" style={{ overflowWrap: 'anywhere' }}>
-              {[collector(c), how(c)].join(' · ')}
-            </Text>
             {c.sinks.map((x, i) => (
               <Text key={x.id} size="sm" style={{ overflowWrap: 'anywhere' }}>
                 {t('collections.destination')}:{' '}
@@ -507,6 +535,11 @@ function CollectionDetail({ assetId, id, data, onClose }: { assetId: string; id:
                           {[it.outputType, it.transform.note].filter(Boolean).join(' · ')}
                         </Text>
                       )}
+                      {it.description && (
+                        <Text size="xs" style={{ whiteSpace: 'pre-line', overflowWrap: 'anywhere' }} data-testid={`item-description-${i}`}>
+                          {it.description}
+                        </Text>
+                      )}
                       {dup.has(i) && (
                         <Text size="xs" fw={500}>
                           {t('collections.duplicate', {
@@ -527,6 +560,9 @@ function CollectionDetail({ assetId, id, data, onClose }: { assetId: string; id:
                       <Group gap={4} wrap="nowrap">
                         <Button size="compact-xs" variant="subtle" leftSection={<IconPencil size={12} />} onClick={() => setEditing(i)}>
                           {t('collections.map')}
+                        </Button>
+                        <Button size="compact-xs" variant="subtle" onClick={() => setDescribing(i)} data-testid={`describe-item-${i}`}>
+                          {t('collections.describe')}
                         </Button>
                         {!it.dataPoint && (
                           <Button size="compact-xs" variant="subtle" onClick={() => setAdding(i)} data-testid={`add-point-${i}`}>
@@ -599,6 +635,15 @@ function CollectionDetail({ assetId, id, data, onClose }: { assetId: string; id:
           options={options}
           onClose={() => setEditing(null)}
           onSave={(dataPoint) => save(c.items.map((x, i) => (i === editing ? { ...x, dataPoint } : x)))}
+        />
+      )}
+      {describing !== null && (
+        <DescriptionModal
+          title={t('describe.itemTitle', { name: describing < 0 ? c.name : c.items[describing]!.outputName || c.items[describing]!.address })}
+          value={describing < 0 ? c.description : c.items[describing]!.description}
+          help={t('describe.plainText')}
+          onClose={() => setDescribing(null)}
+          onSave={(text) => (describing < 0 ? save(c.items, text) : save(c.items.map((x, i) => (i === describing ? { ...x, description: text } : x))))}
         />
       )}
       {adding !== null && (

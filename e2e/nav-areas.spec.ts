@@ -174,7 +174,7 @@ test.describe('pinned entries (designer)', () => {
     // pins are stored per user id: another user's pins in this browser do not show
     await page.goto('/');
     await settle(page);
-    await page.evaluate(() => localStorage.setItem('sm.nav.pins.someone-else', JSON.stringify(['/runs'])));
+    await page.evaluate(() => localStorage.setItem('sm.pref.someone-else.nav.pins', JSON.stringify(['/runs'])));
     await page.reload();
     await settle(page);
     await expect(sidebar(page).getByTestId('nav-pinned')).toHaveCount(0);

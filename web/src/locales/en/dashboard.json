@@ -133,8 +133,6 @@
     "failedTimes_one": "failed once in 7 days",
     "failedTimes_other": "failed {{count}} times in 7 days",
     "failedRuns": "runs with findings",
-    "showAll": "Show all {{count}}",
-    "showFewer": "Show fewer",
     "failedName": "Failed: {{name}}",
     "expected": "Expected: {{name}}"
   },

@@ -29,7 +29,8 @@
     "action": "Aktion",
     "summary": "Zusammenfassung",
     "run": "Ausführung",
-    "hash": "Hash {{hash}}"
+    "hash": "Hash {{hash}}",
+    "details": "Details zu Eintrag {{seq}}"
   },
   "loadOlder": "Ältere Einträge laden",
   "verifyAnchor": "Gegen Prüfpunkt prüfen",

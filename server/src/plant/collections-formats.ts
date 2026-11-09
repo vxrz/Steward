@@ -1,4 +1,5 @@
 import {
+  PLANT_LIMITS,
   type CollectionFormat,
   type CollectionMode,
   type PlantCollectionAccess,
@@ -89,12 +90,13 @@ const num = (v: unknown): number | null => {
 };
 const strings = (v: unknown): string[] => (Array.isArray(v) ? v.map(str).filter(Boolean) : []);
 const emptyAccess = (): PlantCollectionAccess => ({ read: [], write: [], create: [], delete: [] });
-const item = (address: string, outputName: string, outputType = '', note = '', notes = ''): PlantCollectionItem => ({
+const item = (address: string, outputName: string, outputType = '', note = '', notes = '', description = ''): PlantCollectionItem => ({
   address,
   outputName,
   outputType,
   dataPoint: null,
   transform: { note, scale: null, offset: null, cast: '' },
+  description,
   notes,
 });
 const base = (name: string): ParsedCollection => ({
@@ -288,6 +290,8 @@ export const TABLE_COLUMNS = [
   // 0.12: the sink a row's item goes to and its name there
   'sink',
   'target',
+  // 0.12.0: what the value is (optional)
+  'description',
 ] as const;
 
 const TABLE_MODES: Record<string, CollectionMode> = { interval: 'interval', on_change: 'on_change', onchange: 'on_change', trigger: 'trigger', other: 'other' };
@@ -316,7 +320,7 @@ export function parseTable(rows: Record<string, unknown>[], file: string, proble
     const address = str(r.source_address);
     const point = str(r.data_point);
     if (!address && !point) return void problems.push({ file, path: at, message: 'Give source_address or data_point' });
-    const it = item(address, str(r.output_name), str(r.output_type), str(r.transform), str(r.notes));
+    const it = item(address, str(r.output_name), str(r.output_type), str(r.transform), str(r.notes), str(r.description).slice(0, PLANT_LIMITS.description));
     if (point) it.dataPoint = point;
     c.items.push(it);
     // the sink of the row (0.12): its own column, else the destination (0.11) as one

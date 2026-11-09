@@ -45,7 +45,7 @@ Who may change the system changes its segments; adding a system to a segment nee
 
 ## The "Firewall & network" panel
 
-The system page shows, for every system:
+The system page shows, for every system (each part folds and shows its count; a segment lists its first 10 systems, then _Show all_):
 
 - the **segments** it is in, with its address and the segment's VLAN and zone; on a segment, the **systems in it**;
 - the **approved firewall rules** – the `FWR` document with the edition valid now, its rules, whether the next edition is pending, its review status and the next review;

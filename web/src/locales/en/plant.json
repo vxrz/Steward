@@ -141,7 +141,10 @@
     "assetCount_other": "{{count}} assets",
     "buildingOwn": "The building this part names",
     "buildingInherited": "Inherited from the level above",
-    "actionsNamed": "Actions for {{name}}"
+    "actionsNamed": "Actions for {{name}}",
+    "levelsBelow": "Levels below {{name}}",
+    "below_one": "{{count}} below",
+    "below_other": "{{count}} below"
   },
   "node": {
     "newTitle": "New {{type}}",
@@ -354,6 +357,13 @@
       "status": "status",
       "notInSource": "back in the source"
     },
+    "diff": {
+      "show_one": "Show {{count}} difference",
+      "show_other": "Show {{count}} differences",
+      "hide": "Hide the differences",
+      "before": "Before",
+      "after": "After"
+    },
     "kinds": {
       "profile": "Device profile",
       "kpi": "KPI definition",
@@ -520,7 +530,13 @@
     "fileSets": "Files",
     "pathPatternIs": "path {{pattern}}",
     "formatIs": "format {{format}}",
-    "producedPerIs": "one per {{per}}"
+    "producedPerIs": "one per {{per}}",
+    "pointCount_one": "{{count}} data point",
+    "pointCount_other": "{{count}} data points",
+    "groupCount_one": "{{count}} group",
+    "groupCount_other": "{{count}} groups",
+    "fileSetCount_one": "{{count}} file",
+    "fileSetCount_other": "{{count}} files"
   },
   "point": {
     "of": "Data point of {{iface}} › {{group}}",
@@ -773,7 +789,13 @@
     "possible": "KPIs this asset can have",
     "possibleHelp": "KPI definitions whose every data point input this asset delivers.",
     "addThis": "Add",
-    "removeConfirm": "Remove {{what}} from this asset?"
+    "removeConfirm": "Remove {{what}} from this asset?",
+    "activeCount_one": "{{count}} active",
+    "activeCount_other": "{{count}} active",
+    "notSetUpCount_one": "{{count}} not set up",
+    "notSetUpCount_other": "{{count}} not set up",
+    "notDeliveredCount_one": "{{count}} not delivered",
+    "notDeliveredCount_other": "{{count}} not delivered"
   },
   "checks": {
     "title": "Checks",

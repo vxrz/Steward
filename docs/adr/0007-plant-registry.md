@@ -114,3 +114,16 @@ Every import shows its preview first (add, change, remove, mark, unchanged, skip
 - **Format.** Format 1 gets the optional keys `extends`, `present` (interfaces and data points of a derived profile), `aliases` (data points) and `additions` (assignments); a derived profile is written with the same keys as any profile, only its own part, and the export imports back unchanged. Files of earlier versions stay valid.
 
 **Consequences.** A base change reaches every derived profile at once – that is the point, and also why a base save checks its derived profiles. The effective model is computed on read (a few thousand profiles, in memory), not stored.
+
+## Update 0.12: inherited descriptions and proposals from assistants
+
+**Since:** 0.12.0. It extends the update of 0.11; nothing else changes.
+
+**Context.** Descriptions are what a reader of a profile needs first, and a derived profile mostly describes the same device as its base. AI assistants read manuals and gateway configurations well and are asked to fill the registry from them; the registry must stay what people decided.
+
+**Decision.**
+
+- **Descriptions are inherited like other fields.** The resolved profile carries the description of the base when the derived profile has none, and `descriptionFrom` – the profile whose description is in effect – for the profile and every interface, group, data point and file set (`origins.groups`, `origins.fileSets` are new). A derived profile describes an item anew in its own part: as a field of an interface or data point override, as the description of an override group of an inherited group's name, or of a file set of the same id; an empty group or file set description inherits. The export still writes only the own part.
+- **Assistants propose, people apply.** Through MCP an assistant reads the registry with its owner's rights and proposes a document of format 1. Steward runs the import's preview (a dry run) and stores the proposal (`plant_proposals`) in the AI requests inbox. A person who may import applies it through the import core; the preview runs again with their rights, and what is applied is the preview they saw (a fingerprint). A proposal only adds and changes: no removals, no renames, no other modes, and no item dropped from a list inside an entry – checked when proposed and when applied.
+
+**Consequences.** A derived profile without a description now shows its base's. An assistant can describe a whole profile family and the asset-specific addresses of a line, and nothing reaches the registry without a person; a proposal that would drop something must be sent with the full lists, which makes it larger but never silently loses data. Data collections are not part of format 1 yet ([ADR 0019](0019-data-collections.md#update-012-proposals-from-assistants)).

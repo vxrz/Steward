@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Anchor, Badge, Box, Button, FileButton, Group, Modal, Select, Stack, Table, Text, TextInput, Title } from '@mantine/core';
+import { Anchor, Badge, Box, Button, FileButton, Group, Modal, Select, Stack, Table, Text, TextInput } from '@mantine/core';
 import { useDebouncedValue } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
@@ -18,6 +18,7 @@ import {
 } from '@sm/shared';
 import { api, get, notifyError, post } from '../../api';
 import { QueryState, useFieldErrors } from '../common';
+import { CollapsibleSection } from '../page/CollapsibleSection';
 import { RecordStatusBadge, useRecordTypes, useTypeName } from '../records/common';
 import { EditionBadge } from '../records/DocumentPanel';
 import { typeTemplate } from '../records/builtin';
@@ -73,50 +74,65 @@ export function PlantDocumentsPanel({ kind, id }: { kind: PlantDocKind; id: stri
       setUploading(false);
     }
   };
-  return (
-    <Stack gap="xs" data-testid="plant-documents">
-      <Group justify="space-between" wrap="wrap" gap="xs">
-        <Title order={2} fz="h4" id={titleId}>
-          {t('title')}
-        </Title>
-        {d?.canCreate && (
-          <Group gap="xs">
-            <Button size="xs" variant="default" leftSection={<IconPlus size={14} />} onClick={() => setCreating(true)} data-testid="plant-docs-new">
-              {t('new')}
-            </Button>
-            <Button size="xs" variant="default" leftSection={<IconLink size={14} />} onClick={() => setLinking(true)} data-testid="plant-docs-link">
-              {t('linkExisting')}
-            </Button>
-            <FileButton onChange={(f) => void upload(f)}>
-              {(props) => (
-                <Button size="xs" variant="default" leftSection={<IconFileUpload size={14} />} loading={uploading} {...props}>
-                  {t('upload')}
-                </Button>
-              )}
-            </FileButton>
-          </Group>
+  const actions = d?.canCreate && (
+    <Group gap="xs">
+      <Button size="xs" variant="default" leftSection={<IconPlus size={14} />} onClick={() => setCreating(true)} data-testid="plant-docs-new">
+        {t('new')}
+      </Button>
+      <Button size="xs" variant="default" leftSection={<IconLink size={14} />} onClick={() => setLinking(true)} data-testid="plant-docs-link">
+        {t('linkExisting')}
+      </Button>
+      <FileButton onChange={(f) => void upload(f)}>
+        {(props) => (
+          <Button size="xs" variant="default" leftSection={<IconFileUpload size={14} />} loading={uploading} {...props}>
+            {t('upload')}
+          </Button>
         )}
-      </Group>
-      {!d ? (
-        <QueryState query={q} rows={2} />
-      ) : (
-        <>
-          <DocGroup group={d.own} labelledBy={titleId} empty={t('empty')} />
-          {d.inherited.length > 0 && (
-            <Stack gap="xs" data-testid="plant-docs-inherited">
-              <Text size="xs" c="dimmed">
-                {t('inheritedHelp')}
-              </Text>
-              {d.inherited.map((g) => (
-                <InheritedGroup key={`${g.from!.kind}:${g.from!.id}`} group={g} within={kind} />
-              ))}
-            </Stack>
-          )}
-        </>
-      )}
+      </FileButton>
+    </Group>
+  );
+  const inheritedCount = d?.inherited.reduce((n, g) => n + g.documents.length + g.hidden, 0) ?? 0;
+  // a section of the page like the others (docs/UX.md "Collapsible content"): open; the inherited part folds once it is long
+  return (
+    <CollapsibleSection
+      id={titleId}
+      testId="plant-documents"
+      title={t('title')}
+      size="h4"
+      count={d ? d.own.documents.length + d.own.hidden + inheritedCount : undefined}
+      actions={actions || undefined}
+      defaultOpen
+    >
+      <Stack gap="xs">
+        {!d ? (
+          <QueryState query={q} rows={2} />
+        ) : (
+          <>
+            <DocGroup group={d.own} labelledBy={`${titleId}-title`} empty={t('empty')} />
+            {d.inherited.length > 0 && (
+              <CollapsibleSection
+                id={`${titleId}-inherited`}
+                testId="plant-docs-inherited"
+                order={3}
+                size="h6"
+                title={t('inheritedTitle')}
+                description={t('inheritedHelp')}
+                count={inheritedCount}
+                defaultOpen={inheritedCount <= 10}
+              >
+                <Stack gap="xs">
+                  {d.inherited.map((g) => (
+                    <InheritedGroup key={`${g.from!.kind}:${g.from!.id}`} group={g} within={kind} />
+                  ))}
+                </Stack>
+              </CollapsibleSection>
+            )}
+          </>
+        )}
+      </Stack>
       {creating && <NewDocumentModal kind={kind} id={id} label={d?.label ?? id} onClose={() => setCreating(false)} />}
       {linking && <LinkExistingModal kind={kind} id={id} label={d?.label ?? id} onClose={() => setLinking(false)} onLinked={refresh} />}
-    </Stack>
+    </CollapsibleSection>
   );
 }
 

@@ -179,10 +179,7 @@
       "steps_one": "{{shown}} von {{total}} Schritt",
       "steps_other": "{{shown}} von {{total}} Schritten",
       "logLines_one": "{{shown}} von {{total}} Meldung",
-      "logLines_other": "{{shown}} von {{total}} Meldungen",
-      "more_one": "{{count}} weitere anzeigen",
-      "more_other": "{{count}} weitere anzeigen",
-      "all": "Alle anzeigen"
+      "logLines_other": "{{shown}} von {{total}} Meldungen"
     },
     "testRun": "Testlauf (aufgezeichnete Antworten)",
     "findingsTitle": "Mit Befunden abgeschlossen",

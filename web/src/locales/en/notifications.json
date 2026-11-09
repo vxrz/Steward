@@ -31,9 +31,7 @@
     "groupCountUnread_one": "{{count}} message, {{unread}} unread",
     "groupCountUnread_other": "{{count}} messages, {{unread}} unread",
     "markGroupRead": "Mark read",
-    "markGroupReadNamed": "Mark read: {{name}}",
-    "showAll": "Show all {{count}}",
-    "showFewer": "Show fewer"
+    "markGroupReadNamed": "Mark read: {{name}}"
   },
   "events": {
     "task": {
