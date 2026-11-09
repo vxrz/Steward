@@ -50,7 +50,8 @@ const FORMAT_NAMES: Record<CollectionFormat, string> = {
   node_red: 'Node-RED flow',
 };
 
-const cell = (s: string) => s.replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');
+/** A Markdown table cell: backslashes first, then the pipes that would end the cell; one line. */
+export const markdownCell = (s: string) => s.replace(/\\/g, '\\\\').replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');
 const extOf = (r: SourceRow) =>
   /\.(csv|txt)$/i.test(r.file_name) ? (/\.txt$/i.test(r.file_name) ? 'txt' : 'csv') : /^\s*[[{]/.test(r.content) ? 'json' : 'yaml';
 /** The attachment name of a kept file: the original's stem, the version, "redacted". */
@@ -91,7 +92,7 @@ export function generatedPart(x: DocumentInput): string {
     '',
     '| | |',
     '|---|---|',
-    ...rows.map(([k, val]) => `| ${k} | ${cell(val)} |`),
+    ...rows.map(([k, val]) => `| ${k} | ${markdownCell(val)} |`),
     '',
     removed
       ? `Steward removed ${removed} secret values (passwords, tokens, keys, credentials) before keeping the file: the attachment is that copy.`
