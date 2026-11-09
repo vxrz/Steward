@@ -41,6 +41,8 @@ export interface WebhookTriggerSettings {
   inputMapping: Record<string, string>;
   /** Connection slot → platform id (as for schedules). */
   bindings: Record<string, string>;
+  /** Connection slot → identity id (0.13.0, ADR 0009); a missing slot uses the platform's default identity. */
+  identities?: Record<string, string>;
   authMode: WebhookAuthMode;
   /** Source addresses allowed to call the hook (IP or CIDR, IPv4/IPv6). Empty = any. */
   allowedCidrs: string[];

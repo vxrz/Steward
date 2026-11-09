@@ -231,7 +231,11 @@ function ownerProblem(r: TriggerRow): { problem: string } | { user: ReturnType<t
   const user = toAuthUser(owner);
   if (processArchived(r.process_id)) return { problem: 'the process is archived' };
   // the command layer's start check (ADR 0011), as the owner
-  const p = startProblem(user, { processId: r.process_id, bindings: parseJson<Record<string, string>>(r.bindings, {}) });
+  const p = startProblem(user, {
+    processId: r.process_id,
+    bindings: parseJson<Record<string, string>>(r.bindings, {}),
+    identities: parseJson<Record<string, string>>(r.identities ?? '{}', {}),
+  });
   if (!p) return { user };
   return { problem: p.code === 'processNotFound' || p.code === 'mayNotRun' ? `${user.username} may not run process ${r.process_id}` : p.text };
 }
@@ -303,6 +307,7 @@ export async function handleHook(req: HookRequest): Promise<HookResponse> {
         version: r.process_version ?? undefined,
         inputs: mapped.inputs,
         bindings: parseJson(r.bindings, {}),
+        identities: parseJson<Record<string, string>>(r.identities ?? '{}', {}),
         mode: r.dry_run || test?.dryRun ? 'dry' : 'live',
         actor: owner.user.username,
         origin: { trigger: 'webhook', webhook: { triggerId: r.id, triggerName: r.name, test: !!test } },

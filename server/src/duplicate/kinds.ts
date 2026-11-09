@@ -165,6 +165,8 @@ const scheduleDuplicator: Duplicator<Schedule> = {
       timezone: s.timezone,
       inputs,
       bindings: s.bindings,
+      // the identities stay named; the copy starts disabled and every fire checks them against its owner (ADR 0009)
+      ...(s.identities ? { identities: s.identities } : {}),
       dryRun: s.dryRun,
       enabled: false,
       allowOverlap: s.allowOverlap,

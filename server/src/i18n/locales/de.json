@@ -56,6 +56,8 @@
       "ownerMissing": "Der Eigentümer {{owner}} fehlt oder ist deaktiviert",
       "mayNotRun": "{{user}} darf diesen Prozess nicht ausführen",
       "mayNotUsePlatform": "{{user}} darf die Plattform {{platform}} nicht verwenden",
+      "mayNotUseIdentity": "{{user}} darf die Identität {{identity}} der Plattform {{platform}} nicht verwenden",
+      "identityMissing": "Die Identität {{identity}} der Plattform {{platform}} gibt es nicht mehr",
       "missed": "Er war {{count}}-mal fällig, während Steward nicht lief"
     }
   },
