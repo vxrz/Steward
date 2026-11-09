@@ -60,7 +60,6 @@ async function rules(): Promise<Record<VisibilityArea, AreaRule>> {
     recordAccess,
     tickets,
     duties,
-    controls,
     accessChanges,
     reconciliation,
     personReviews,
@@ -84,7 +83,6 @@ async function rules(): Promise<Record<VisibilityArea, AreaRule>> {
     import('../records/access.js'),
     import('../tickets/service.js'),
     import('../duties/service.js'),
-    import('../compliance/controls.js'),
     import('../compliance/access-changes.js'),
     import('../compliance/reconciliation.js'),
     import('../compliance/person-reviews.js'),
@@ -181,7 +179,9 @@ async function rules(): Promise<Record<VisibilityArea, AreaRule>> {
     },
     records: {
       roles: WORKING,
-      any: () => records.listRecords({ limit: 1 }).length > 0,
+      // no records at all: decided without the list, which would create the built-in record types (a read never writes;
+      // a new instance stays empty for a migration import)
+      any: () => row('SELECT 1 FROM records LIMIT 1')() && records.listRecords({ limit: 1 }).length > 0,
       create: (u) => recordAccess.canCreateRecords(u),
       exists: row('SELECT 1 FROM records LIMIT 1'),
     },
@@ -199,13 +199,19 @@ async function rules(): Promise<Record<VisibilityArea, AreaRule>> {
     },
     controls: {
       roles: WORKING,
-      any: () => controls.listCatalogues().length > 0,
+      // every signed-in person reads the catalogues, and the built-in ones are always there (created on first use);
+      // listCatalogues() would create them here, so a new instance would no longer be empty for a migration import
+      any: () => {
+        me();
+        return true;
+      },
       create: (u) => complianceAccess.canManageCatalogues(u),
       exists: row('SELECT 1 FROM control_catalogues LIMIT 1'),
     },
     accessChanges: {
       roles: [...READS_ALL, 'approver'],
-      any: () => accessChanges.listAccessChanges({ limit: 1 }).length > 0,
+      // access changes are records of the built-in access type: none without records (the list would create the type)
+      any: () => row('SELECT 1 FROM records LIMIT 1')() && accessChanges.listAccessChanges({ limit: 1 }).length > 0,
       create: (u) => usable().some((p) => complianceAccess.canDocumentAccessOn(u, p.id)),
     },
     reconciliation: {
