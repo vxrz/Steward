@@ -1,4 +1,15 @@
-import { worstStatus, type CauseRef, type CheckDef, type MonitorDefinition, type MonitorStatus } from '@sm/shared';
+import {
+  evaluateStates,
+  foldDeviations,
+  hasStates,
+  worstStatus,
+  type CauseRef,
+  type CheckDef,
+  type MonitorDefinition,
+  type MonitorStatus,
+  type StateInput,
+  type StateOutcome,
+} from '@sm/shared';
 
 /**
  * Pure status logic of the monitor engine (no I/O): flapping control,
@@ -39,6 +50,12 @@ export function applyResult(prev: Counters, raw: MonitorStatus, t: { failuresBef
       cf = 0;
       cs = 0;
       status = 'blocked';
+      break;
+    case 'off':
+      // a sub-monitor that is off (ADR 0021): not a failure
+      cs++;
+      cf = 0;
+      if (prev.status !== 'down' || cs >= t.successesBeforeUp) status = 'off';
       break;
     default:
       if (prev.status !== 'down') status = raw === 'maintenance' ? prev.status : 'unknown';
@@ -122,6 +139,8 @@ export interface Analysis {
   checks: Map<string, CheckView>;
   status: MonitorStatus;
   rootCauses: CauseRef[];
+  /** Monitors with states (ADR 0021): the outcome of the decision table */
+  state?: StateOutcome;
 }
 
 const failing = (s: MonitorStatus | undefined) => s === 'down' || s === 'blocked';
@@ -137,7 +156,13 @@ export function analyze(
   monitor: { id: string; key: string; name: string; def: MonitorDefinition },
   statuses: Map<string, MonitorStatus>,
   /** pendingDown: checks whose latest result failed but that are not confirmed down yet (they still explain their children) */
-  opts: { maintenance?: boolean; subRoots?: (check: CheckDef) => CauseRef[]; pendingDown?: Set<string> } = {},
+  opts: {
+    maintenance?: boolean;
+    subRoots?: (check: CheckDef) => CauseRef[];
+    pendingDown?: Set<string>;
+    /** Monitors with states: what the decision table needs besides the definition and the statuses */
+    states?: Omit<StateInput, 'def' | 'statuses'>;
+  } = {},
 ): Analysis {
   const checks = monitor.def.checks.filter((c) => c.enabled !== false);
   const byId = new Map(checks.map((c) => [c.id, c]));
@@ -200,7 +225,7 @@ export function analyze(
   if (!checks.length) status = 'unknown';
   else if (rule === 'quorum') {
     const critical = checks.filter((c) => c.critical !== false);
-    const healthy = critical.filter((c) => ['up', 'degraded'].includes(views.get(c.id)!.status));
+    const healthy = critical.filter((c) => ['up', 'degraded', 'off'].includes(views.get(c.id)!.status));
     const k = Math.min(monitor.def.aggregate.quorum ?? critical.length, critical.length);
     if (healthy.length >= k && k > 0) {
       status = worstStatus(healthy.map((c) => views.get(c.id)!.status));
@@ -211,11 +236,35 @@ export function analyze(
     status = worstStatus(checks.map(effective).map((s) => (s === 'blocked' ? 'down' : s)));
   }
   // every failing check is explained by its causes, or is a root cause itself
-  const rootCauses = dedupe(
+  let rootCauses = dedupe(
     checks.filter((c) => views.get(c.id)!.status === 'down').flatMap((c) => (views.get(c.id)!.causedBy.length ? views.get(c.id)!.causedBy : ref(c))),
   );
+  // states (ADR 0021): after the check views, before the maintenance override; a definition without them is untouched
+  let state: StateOutcome | undefined;
+  if (opts.states && hasStates(monitor.def)) {
+    state = evaluateStates({ def: monitor.def, statuses, ...opts.states });
+    for (const id of state.offChecks) {
+      const v = views.get(id);
+      if (v) views.set(id, { status: 'off', causedBy: [], note: null });
+    }
+    if (state.status !== null) {
+      status = state.status;
+      if (state.causes.length) {
+        const deviating = new Set(state.causes);
+        // deviations fold along links as failures do; a sub-monitor expands to its own root causes
+        rootCauses = dedupe(
+          foldDeviations(monitor.def, state.causes).flatMap((id) => {
+            const c = byId.get(id);
+            if (!c) return [];
+            const kept = views.get(id)!.causedBy.filter((x) => x.monitorId !== monitor.id || deviating.has(x.checkId));
+            return kept.length && views.get(id)!.status === 'down' ? kept : ref(c);
+          }),
+        );
+      } else rootCauses = [];
+    } else if (state.flapping && (status === 'up' || status === 'off')) status = 'degraded';
+  }
   if (opts.maintenance) status = 'maintenance';
-  return { checks: views, status, rootCauses };
+  return { checks: views, status, rootCauses, ...(state ? { state } : {}) };
 }
 
 function dedupe(list: CauseRef[]): CauseRef[] {

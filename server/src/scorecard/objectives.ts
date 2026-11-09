@@ -26,7 +26,7 @@ import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { canEditService, catalogueVisibleNow, forbid, me } from '../records/access.js';
 import { plannedMinutes } from '../catalogue/maintenance.js';
 import { permissionsOfRow } from '../monitors/model.js';
-import { monitorUptimeHundredths } from '../monitors/stats.js';
+import { monitorOffMinutes, monitorUptimeHundredths } from '../monitors/stats.js';
 
 /**
  * Availability objectives (#86): targets for the uptime windows 1 h, 24 h, 7 d and 30 d (each optional) of one source,
@@ -339,7 +339,9 @@ export function objectiveState(r: ObjectiveRow, cache: ReadingCache, facts: Samp
   const reading = cache.readRow(r);
   const j = judge(r, reading.values);
   const planned = plannedMinutes(r, OBJECTIVE_WINDOW_MS, now);
-  j.windows = j.windows.map((w) => ({ ...w, plannedMinutes: planned[w.window] }));
+  // a source monitor with states (ADR 0021): its off time, which its figures do not count, is shown next to them
+  const off = r.monitor_id ? monitorOffMinutes(r.monitor_id, OBJECTIVE_WINDOW_MS, now) : null;
+  j.windows = j.windows.map((w) => ({ ...w, plannedMinutes: planned[w.window], ...(off?.[w.window] ? { offMinutes: off[w.window] } : {}) }));
   if (j.status !== 'noData') return { ...j, reason: null, at: reading.at, noDataSince: null, noDataTooLong: false };
   const last = facts.lastData.get(r.id);
   const since = Math.max(Date.parse(r.created_at), last ? Date.parse(last) + HOUR : 0);

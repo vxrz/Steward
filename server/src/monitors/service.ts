@@ -10,6 +10,7 @@ import {
   MONITOR_PERMISSIONS,
   RESERVED_MONITOR_KEYS,
   definitionIssues,
+  hasStates,
   issueLabel,
   findCycle,
   suggestFreshness,
@@ -27,6 +28,7 @@ import {
   type MonitorSaveResult,
   type MonitorStatus,
   type MonitorSummary,
+  type MonitorStateInfo,
   type TemplateParam,
 } from '@sm/shared';
 import { db } from '../db.js';
@@ -62,7 +64,7 @@ import { requireVisibleSystem } from '../dbschema/check.js';
 import { requireVisibleApplication } from '../versions/check.js';
 import { requireVisibleCostScope } from '../costs/check.js';
 import { requireVisibleContract } from '../datacontracts/check.js';
-import { checkUptimes, monitorUptime } from './stats.js';
+import { checkUptimes, monitorOffHours, monitorUptime } from './stats.js';
 import { coerceParams, renderTemplate } from './templates.js';
 import { checkExpressions, parseDefinitionInput, validateTemplate } from './validation.js';
 import * as engine from './engine.js';
@@ -106,6 +108,8 @@ function invalidMonitor(issues: { path: string; message: string }[], def?: unkno
 // ---------- read ----------
 
 interface Joined extends MonitorRow {
+  state_id: string | null;
+  state_detail: string | null;
   status: MonitorStatus | null;
   since: string | null;
   root_causes: string | null;
@@ -115,7 +119,7 @@ interface Joined extends MonitorRow {
   ack_comment: string | null;
 }
 
-const SELECT = `SELECT m.*, s.status, s.since, s.root_causes, s.last_evaluated_at, s.ack_by, s.ack_at, s.ack_comment
+const SELECT = `SELECT m.*, s.status, s.since, s.root_causes, s.last_evaluated_at, s.ack_by, s.ack_at, s.ack_comment, s.state_id, s.state_detail
   FROM monitors m LEFT JOIN monitor_state s ON s.monitor_id = m.id`;
 
 /** The maintenance window the monitor is in now (a catalogue window that lists it or reaches a platform it checks). */
@@ -162,7 +166,19 @@ function summary(r: Joined, counts: Partial<Record<MonitorStatus, number>> | und
     permissions: permissionsOfRow(r),
     updatedAt: r.updated_at,
     lastEvaluatedAt: r.last_evaluated_at,
+    state: !r.is_template && r.enabled && hasStates(def as MonitorDefinition) ? stateInfoOf(r, def as MonitorDefinition) : null,
+    offHours: r.is_template ? null : monitorOffHours(r.id, engine.monitorNow()),
   };
+}
+
+/** The stored state of a monitor with states (ADR 0021), with the names of the cases as they are now. */
+function stateInfoOf(r: Joined, def: MonitorDefinition): MonitorStateInfo | null {
+  const d = parseJson<{ info?: MonitorStateInfo } | null>(r.state_detail, null);
+  if (!d?.info) return null;
+  const info = { ...d.info };
+  if (info.id) info.name = def.states?.cases.find((c) => c.id === info.id)?.name || info.id;
+  if (info.settlingUntil && Date.parse(info.settlingUntil) <= engine.monitorNow()) info.settlingUntil = null;
+  return info;
 }
 
 export function listMonitors(opts: { templates?: boolean } = {}): MonitorSummary[] {
@@ -203,6 +219,8 @@ function checkStates(r: Joined, def: MonitorDefinition, canView: MonitorVisibili
   );
   const uptimes = checkUptimes([r.id], engine.monitorNow());
   const inMaint = !!engine.activeMaintenance(r.id);
+  // monitors with states (ADR 0021): checks that agree with an expected down show off
+  const off = new Set(parseJson<{ offChecks?: string[] } | null>(r.state_detail, null)?.offChecks ?? []);
   return def.checks.map((c) => {
     const x = rows.get(c.id);
     const last = parseJson<CheckResultInfo | null>(x?.last_result, null);
@@ -214,7 +232,7 @@ function checkStates(r: Joined, def: MonitorDefinition, canView: MonitorVisibili
       key: checkKey(r, c),
       critical: checkCritical(c),
       enabled: checkEnabled(c),
-      status: !r.enabled || !checkEnabled(c) ? 'unknown' : inMaint ? 'maintenance' : (x?.status ?? 'unknown'),
+      status: !r.enabled || !checkEnabled(c) ? 'unknown' : inMaint ? 'maintenance' : off.has(c.id) ? 'off' : (x?.status ?? 'unknown'),
       since: x?.since ?? null,
       last,
       lastOkAt: x?.last_ok_at ?? null,
@@ -302,11 +320,16 @@ export function listHistory(idOrKey: string, opts: { checkId?: string; limit?: n
     params.push(opts.beforeId);
   }
   return db()
-    .all<{ id: number; ts: string; check_id: string; status: MonitorStatus; previous: MonitorStatus | null; message: string; caused_by: string }>(
-      `SELECT * FROM monitor_history WHERE ${where.join(' AND ')} ORDER BY id DESC LIMIT ?`,
-      ...params,
-      limit,
-    )
+    .all<{
+      id: number;
+      ts: string;
+      check_id: string;
+      status: MonitorStatus;
+      previous: MonitorStatus | null;
+      message: string;
+      caused_by: string;
+      state: string | null;
+    }>(`SELECT * FROM monitor_history WHERE ${where.join(' AND ')} ORDER BY id DESC LIMIT ?`, ...params, limit)
     .map((h) => {
       const causedBy = redactCauses(parseCauses(h.caused_by), canView);
       return {
@@ -318,6 +341,7 @@ export function listHistory(idOrKey: string, opts: { checkId?: string; limit?: n
         // monitor level: built from the causes; checks: their own message
         message: h.check_id ? checkMessage(h.message, h.status, subs.get(h.check_id), canView) : causedBy.length ? rootCauseMessage(causedBy, r.id) : h.message,
         causedBy,
+        ...(h.state ? { state: h.state } : {}),
       };
     });
 }
@@ -452,6 +476,56 @@ function requirePlatformUse(id: string, ref: string = id, kind?: string): void {
   if (!p.permissions.includes('use')) throw new HttpError(403, `You are not allowed to use platform "${p.name}"`, 'PLATFORM_USE_FORBIDDEN', { name: p.name });
 }
 
+/**
+ * A follower's state comes from its leader (ADR 0021): the leader's state must not depend on the follower. Edges: a
+ * follower → its leader; a monitor → the sub-monitors its states' conditions and required checks name. A cycle is
+ * refused (STATES_CYCLE).
+ */
+function statesCycle(def: MonitorDefinition, selfId: string | null, selfKey: string): void {
+  const me = selfId ?? '(new)';
+  // a leader named by its key (not imported yet, or this monitor itself): its id
+  const keys = new Map(
+    db()
+      .all<{ id: string; key: string }>('SELECT id, key FROM monitors')
+      .map((r) => [r.key, r.id]),
+  );
+  keys.set(selfKey.toLowerCase(), me);
+  const idOf = (ref: string) => (ref === selfId ? me : (keys.get(ref.toLowerCase()) ?? ref));
+  const edgesOf = (id: string, d: Pick<MonitorDefinition, 'checks' | 'states'>): [string, string][] => {
+    const st = d.states;
+    if (!st) return [];
+    const out: [string, string][] = [];
+    if (st.from) out.push([id, idOf(st.from)]);
+    const subs = new Map(d.checks.flatMap((c) => (c.type === 'monitor' ? [[c.id, c.monitor] as const] : [])));
+    for (const row of st.cases)
+      for (const cid of [...Object.keys(row.when ?? {}), ...(row.requires ?? [])]) {
+        const sub = subs.get(cid);
+        if (sub) out.push([id, sub]);
+      }
+    return out;
+  };
+  const nodes = new Set<string>([me]);
+  const edges: [string, string][] = [...edgesOf(me, def)];
+  if (!edges.length) return;
+  for (const m of db().all<{ id: string; definition: string }>('SELECT id, definition FROM monitors')) {
+    if (m.id === selfId) continue;
+    nodes.add(m.id);
+    const d = parseJson<Partial<MonitorDefinition>>(m.definition, {});
+    edges.push(...edgesOf(m.id, { checks: d.checks ?? [], states: d.states }));
+  }
+  const cycle = findCycle([...nodes], edges);
+  if (!cycle) return;
+  const names = new Map(
+    db()
+      .all<{ id: string; name: string }>('SELECT id, name FROM monitors')
+      .map((r) => [r.id, r.name]),
+  );
+  const path = cycle.map((id) => (id === me ? def.name : (names.get(id) ?? id))).join(' → ');
+  throw new HttpError(400, `States would depend on each other: ${path} – a leader's condition cannot use a monitor that follows it`, 'STATES_CYCLE', {
+    path,
+  });
+}
+
 /** Resolves platform names and monitor keys to ids and checks the rights and rules that need the database. */
 function resolveReferences(def: MonitorDefinition, selfId: string | null, selfKey: string, before: MonitorDefinition | null = null): MonitorDefinition {
   const out = structuredClone(def);
@@ -535,6 +609,26 @@ function resolveReferences(def: MonitorDefinition, selfId: string | null, selfKe
       o.subscribers = o.subscribers.map((s) => s.trim().toLowerCase());
     }
   }
+  // states (ADR 0021): the monitor whose state this one follows – an id or key, like a sub-monitor
+  if (out.states?.from) {
+    if (out.states.from === HIDDEN_MONITOR_REF) {
+      const old = before?.states?.from;
+      if (!old) throw new HttpError(400, 'States: choose the monitor whose state this one follows', 'STATES_LEADER_REQUIRED');
+      out.states.from = old;
+    } else {
+      const lead = monitorRow(out.states.from);
+      // a monitor that does not exist yet may be named by its key (two monitors that refer to each other are imported
+      // one after the other): until it exists, this one is evaluated as without states
+      const pending = !lead && MONITOR_KEY_RE.test(out.states.from);
+      if (!pending && (!lead || !permissionsOfRow(lead).includes('view')))
+        throw new HttpError(400, `States: monitor "${out.states.from}" not found`, 'STATES_LEADER_NOT_FOUND', { monitor: out.states.from });
+      if (lead?.is_template) throw new HttpError(400, `States: "${lead.name}" is a template`, 'STATES_LEADER_TEMPLATE', { monitor: lead.name });
+      if ((lead && lead.id === selfId) || out.states.from.toLowerCase() === selfKey.toLowerCase())
+        throw new HttpError(400, 'States: a monitor cannot follow itself', 'STATES_CYCLE', { path: out.name });
+      if (lead) out.states.from = lead.id;
+    }
+  }
+  statesCycle(out, selfId, selfKey);
   // sub-monitor references must not form a cycle
   const edges: [string, string][] = [];
   const nodes = new Set<string>();
@@ -666,7 +760,12 @@ function syncCheckRows(mid: string, key: string, def: MonitorDefinition, before:
 }
 
 function changeSummary(before: MonitorDefinition | null, after: MonitorDefinition): Record<string, unknown> {
-  if (!before) return { checks: after.checks.map((c) => c.id), outputs: after.outputs.map((o) => o.id) };
+  if (!before)
+    return {
+      checks: after.checks.map((c) => c.id),
+      outputs: after.outputs.map((o) => o.id),
+      ...(after.states ? { states: after.states.cases.map((c) => c.id) } : {}),
+    };
   const ids = (l: { id: string }[]) => l.map((x) => x.id);
   const added = ids(after.checks).filter((x) => !ids(before.checks).includes(x));
   const removed = ids(before.checks).filter((x) => !ids(after.checks).includes(x));
@@ -687,9 +786,17 @@ function changeSummary(before: MonitorDefinition | null, after: MonitorDefinitio
       'links',
       'outputs',
       'parameters',
+      'states',
     ] as const
   ).filter((k) => JSON.stringify(before[k]) !== JSON.stringify(after[k]));
-  return { checksAdded: added, checksRemoved: removed, checksChanged: changed.map((c) => c.id), fields };
+  return {
+    checksAdded: added,
+    checksRemoved: removed,
+    checksChanged: changed.map((c) => c.id),
+    fields,
+    // the states as they are after the change (ADR 0021: monitor.updated lists them)
+    ...(fields.includes('states') ? { states: (after.states?.cases ?? []).map((c) => c.id) } : {}),
+  };
 }
 
 export async function createMonitor(
@@ -1139,6 +1246,9 @@ export function exportMonitor(idOrKey: string): string {
     if (k === 'monitor' && typeof v === 'string') return monitorKeys.get(v) ?? v;
     return v;
   });
+  // the monitor whose state this one follows (ADR 0021), by key like sub-monitors
+  const st = portable.states as { from?: string } | undefined;
+  if (st?.from) st.from = monitorKeys.get(st.from) ?? st.from;
   for (const c of (portable.checks ?? []) as Record<string, unknown>[])
     if (c.x !== undefined) ((c.x = Math.round(Number(c.x))), (c.y = Math.round(Number(c.y))));
   return YAML.stringify({ kind: r.is_template ? 'monitorTemplate' : 'monitor', key: r.key, ...portable }, { lineWidth: 0 });

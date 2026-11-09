@@ -5,7 +5,7 @@ import { CHECK_TYPES, MONITOR_STATUSES, QUERY_LIST_MAX } from '@sm/shared';
 
 const ts = () => z.string().datetime({ offset: true }).describe('ISO 8601 timestamp (UTC)');
 const status = () => z.enum(MONITOR_STATUSES);
-const statusCode = () => z.number().int().describe('0 up, 1 degraded, 2 down, 3 unknown, 4 blocked, 5 maintenance');
+const statusCode = () => z.number().int().describe('0 up, 1 degraded, 2 down, 3 unknown, 4 blocked, 5 maintenance, 6 off');
 
 const CauseRef = z.object({
   monitorId: z.string(),
@@ -39,6 +39,18 @@ export const Monitor = z.object({
   templateId: z.string().nullable(),
   updatedAt: ts(),
   lastEvaluatedAt: ts().nullable(),
+  state: z
+    .object({
+      id: z.string().nullable().describe('The selected state; null: no state matches (evaluated as without states)'),
+      name: z.string().nullable(),
+      since: ts().nullable(),
+      settlingUntil: ts().nullable().describe('While settling, deviations from the state do not count'),
+      reason: z.enum(['agree', 'settling', 'contradiction', 'required', 'maxOff', 'flapping', 'unknown', 'otherwise']),
+      message: z.string(),
+    })
+    .nullable()
+    .optional()
+    .describe('Monitors with states (0.13, docs/MONITORS.md "States: off is not an outage"); null without states'),
 });
 
 const Figures = z.object({ median: z.number(), p95: z.number(), max: z.number() }).describe('Seconds: median, 95th percentile (nearest rank), maximum');
@@ -112,6 +124,7 @@ export const MonitorHistoryEntry = z.object({
   previous: status().nullable(),
   message: z.string(),
   causedBy: z.array(CauseRef),
+  state: z.string().nullable().optional().describe('Monitors with states: the state at this entry'),
 });
 
 export const MonitorDiscovery = z

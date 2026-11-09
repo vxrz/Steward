@@ -301,7 +301,7 @@ const steward: ToolDef[] = [
       'Monitors (composed uptime checks) you may view with their current status (up, degraded, down, unknown, blocked, maintenance), uptime for 24 h / 7 d / 30 d, maintenance and acknowledgement. Filter by status, tag or text.',
     input: z
       .object({
-        status: z.array(z.enum(MONITOR_STATUSES)).max(6).optional().describe('Only monitors with one of these statuses'),
+        status: z.array(z.enum(MONITOR_STATUSES)).max(MONITOR_STATUSES.length).optional().describe('Only monitors with one of these statuses'),
         tag: z.string().max(60).optional(),
         query: z.string().max(200).optional().describe('Case-insensitive text to look for in key and name'),
         cursor: cursorArg,

@@ -488,7 +488,7 @@ async function checkFreshness(c: CheckOf<'freshness'>, ctx: ExecContext): Promis
   return { status: f.status, message: f.message, durationMs: r.durationMs, value: latest ? new Date(latest).toISOString() : null, observation };
 }
 
-const rank = (s: MonitorStatus) => ({ up: 0, maintenance: 1, blocked: 2, unknown: 3, degraded: 4, down: 5 })[s];
+const rank = (s: MonitorStatus) => ({ off: -1, up: 0, maintenance: 1, blocked: 2, unknown: 3, degraded: 4, down: 5 })[s];
 
 export function toMillis(t: unknown): number | undefined {
   if (t === undefined || t === null || t === '' || typeof t === 'boolean') return undefined;

@@ -3727,12 +3727,13 @@
               "down",
               "unknown",
               "blocked",
-              "maintenance"
+              "maintenance",
+              "off"
             ]
           },
           "statusCode": {
             "type": "integer",
-            "description": "0 up, 1 degraded, 2 down, 3 unknown, 4 blocked, 5 maintenance"
+            "description": "0 up, 1 degraded, 2 down, 3 unknown, 4 blocked, 5 maintenance, 6 off"
           },
           "since": {
             "anyOf": [
@@ -3907,6 +3908,83 @@
               }
             ],
             "description": "ISO 8601 timestamp (UTC)"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "The selected state; null: no state matches (evaluated as without states)"
+                  },
+                  "name": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "since": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "ISO 8601 timestamp (UTC)"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "ISO 8601 timestamp (UTC)"
+                  },
+                  "settlingUntil": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "ISO 8601 timestamp (UTC)"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "While settling, deviations from the state do not count"
+                  },
+                  "reason": {
+                    "type": "string",
+                    "enum": [
+                      "agree",
+                      "settling",
+                      "contradiction",
+                      "required",
+                      "maxOff",
+                      "flapping",
+                      "unknown",
+                      "otherwise"
+                    ]
+                  },
+                  "message": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "since",
+                  "settlingUntil",
+                  "reason",
+                  "message"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Monitors with states (0.13, docs/MONITORS.md \"States: off is not an outage\"); null without states"
           }
         },
         "required": [
@@ -3969,12 +4047,13 @@
               "down",
               "unknown",
               "blocked",
-              "maintenance"
+              "maintenance",
+              "off"
             ]
           },
           "statusCode": {
             "type": "integer",
-            "description": "0 up, 1 degraded, 2 down, 3 unknown, 4 blocked, 5 maintenance"
+            "description": "0 up, 1 degraded, 2 down, 3 unknown, 4 blocked, 5 maintenance, 6 off"
           },
           "since": {
             "anyOf": [
@@ -4149,6 +4228,83 @@
               }
             ],
             "description": "ISO 8601 timestamp (UTC)"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "The selected state; null: no state matches (evaluated as without states)"
+                  },
+                  "name": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "since": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "ISO 8601 timestamp (UTC)"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "ISO 8601 timestamp (UTC)"
+                  },
+                  "settlingUntil": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "ISO 8601 timestamp (UTC)"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "While settling, deviations from the state do not count"
+                  },
+                  "reason": {
+                    "type": "string",
+                    "enum": [
+                      "agree",
+                      "settling",
+                      "contradiction",
+                      "required",
+                      "maxOff",
+                      "flapping",
+                      "unknown",
+                      "otherwise"
+                    ]
+                  },
+                  "message": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "since",
+                  "settlingUntil",
+                  "reason",
+                  "message"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Monitors with states (0.13, docs/MONITORS.md \"States: off is not an outage\"); null without states"
           },
           "definition": {
             "type": "object",
@@ -4239,12 +4395,13 @@
               "down",
               "unknown",
               "blocked",
-              "maintenance"
+              "maintenance",
+              "off"
             ]
           },
           "statusCode": {
             "type": "integer",
-            "description": "0 up, 1 degraded, 2 down, 3 unknown, 4 blocked, 5 maintenance"
+            "description": "0 up, 1 degraded, 2 down, 3 unknown, 4 blocked, 5 maintenance, 6 off"
           },
           "since": {
             "anyOf": [
@@ -4719,12 +4876,13 @@
               "down",
               "unknown",
               "blocked",
-              "maintenance"
+              "maintenance",
+              "off"
             ]
           },
           "statusCode": {
             "type": "integer",
-            "description": "0 up, 1 degraded, 2 down, 3 unknown, 4 blocked, 5 maintenance"
+            "description": "0 up, 1 degraded, 2 down, 3 unknown, 4 blocked, 5 maintenance, 6 off"
           },
           "since": {
             "anyOf": [
@@ -4900,6 +5058,83 @@
             ],
             "description": "ISO 8601 timestamp (UTC)"
           },
+          "state": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "The selected state; null: no state matches (evaluated as without states)"
+                  },
+                  "name": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "since": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "ISO 8601 timestamp (UTC)"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "ISO 8601 timestamp (UTC)"
+                  },
+                  "settlingUntil": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "ISO 8601 timestamp (UTC)"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "While settling, deviations from the state do not count"
+                  },
+                  "reason": {
+                    "type": "string",
+                    "enum": [
+                      "agree",
+                      "settling",
+                      "contradiction",
+                      "required",
+                      "maxOff",
+                      "flapping",
+                      "unknown",
+                      "otherwise"
+                    ]
+                  },
+                  "message": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "since",
+                  "settlingUntil",
+                  "reason",
+                  "message"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Monitors with states (0.13, docs/MONITORS.md \"States: off is not an outage\"); null without states"
+          },
           "checks": {
             "type": "array",
             "items": {
@@ -4960,12 +5195,13 @@
                     "down",
                     "unknown",
                     "blocked",
-                    "maintenance"
+                    "maintenance",
+                    "off"
                   ]
                 },
                 "statusCode": {
                   "type": "integer",
-                  "description": "0 up, 1 degraded, 2 down, 3 unknown, 4 blocked, 5 maintenance"
+                  "description": "0 up, 1 degraded, 2 down, 3 unknown, 4 blocked, 5 maintenance, 6 off"
                 },
                 "since": {
                   "anyOf": [
@@ -5462,7 +5698,8 @@
               "down",
               "unknown",
               "blocked",
-              "maintenance"
+              "maintenance",
+              "off"
             ]
           },
           "previous": {
@@ -5475,7 +5712,8 @@
                   "down",
                   "unknown",
                   "blocked",
-                  "maintenance"
+                  "maintenance",
+                  "off"
                 ]
               },
               {
@@ -5520,6 +5758,13 @@
               ],
               "additionalProperties": false
             }
+          },
+          "state": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Monitors with states: the state at this entry"
           }
         },
         "required": [
@@ -24958,6 +25203,7 @@
                               "down",
                               "unknown",
                               "maintenance",
+                              "off",
                               "disabled",
                               "not_found",
                               "fresh",
@@ -25586,6 +25832,7 @@
                               "down",
                               "unknown",
                               "maintenance",
+                              "off",
                               "disabled",
                               "not_found",
                               "fresh",
@@ -25885,6 +26132,7 @@
                         "down",
                         "unknown",
                         "maintenance",
+                        "off",
                         "disabled",
                         "not_found",
                         "fresh",
@@ -26234,6 +26482,7 @@
                               "down",
                               "unknown",
                               "maintenance",
+                              "off",
                               "disabled",
                               "not_found",
                               "fresh",
@@ -32880,7 +33129,8 @@
                   "down",
                   "unknown",
                   "blocked",
-                  "maintenance"
+                  "maintenance",
+                  "off"
                 ]
               }
             },
@@ -33122,7 +33372,7 @@
         "tags": [
           "Monitors"
         ],
-        "description": "For pull integrations (Zabbix HTTP agent, scripts). Status codes: 0 up, 1 degraded, 2 down, 3 unknown, 4 blocked, 5 maintenance.",
+        "description": "For pull integrations (Zabbix HTTP agent, scripts). Status codes: 0 up, 1 degraded, 2 down, 3 unknown, 4 blocked, 5 maintenance, 6 off (a monitor with states, every check agreeing).",
         "parameters": [
           {
             "schema": {

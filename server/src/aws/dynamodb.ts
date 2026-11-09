@@ -195,7 +195,7 @@ export function classifyAwsError(e: unknown, what: string, c: Check, region: str
 
 // ---------- the check ----------
 
-const RANK: Record<MonitorStatus, number> = { up: 0, maintenance: 1, blocked: 2, unknown: 3, degraded: 4, down: 5 };
+const RANK: Record<MonitorStatus, number> = { off: -1, up: 0, maintenance: 1, blocked: 2, unknown: 3, degraded: 4, down: 5 };
 const worse = (a: MonitorStatus, b: MonitorStatus): MonitorStatus => (RANK[b] > RANK[a] ? b : a);
 const label = (c: Check) => `DynamoDB ${c.table}`;
 

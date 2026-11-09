@@ -311,7 +311,15 @@ export function eventTone(event: string, data?: Record<string, unknown>): Messag
   if (isDryRun(data)) return 'emphasis';
   if (event === 'monitor.status') {
     const status = data?.status;
-    return status === 'up' ? 'good' : status === 'down' ? 'attention' : status === 'degraded' || status === 'blocked' ? 'warning' : 'accent';
+    return status === 'up'
+      ? 'good'
+      : status === 'off'
+        ? 'emphasis'
+        : status === 'down'
+          ? 'attention'
+          : status === 'degraded' || status === 'blocked'
+            ? 'warning'
+            : 'accent';
   }
   if (event === 'check.resolved') return 'good';
   if (BAD_EVENTS.has(event)) return 'attention';

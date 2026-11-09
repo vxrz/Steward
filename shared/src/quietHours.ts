@@ -58,6 +58,7 @@ export const EVENT_DIGEST_GROUP: Record<NotificationEvent, DigestGroup | null> =
   'backup.failed': 'runs',
   'contract.failed': 'runs',
   'monitor.status': 'monitors',
+  'monitor.state': 'monitors',
   'platform.failing': 'monitors',
   'objective.breached': 'monitors',
   'maintenance.announced': 'monitors',
