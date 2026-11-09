@@ -46,9 +46,11 @@ import {
 } from './map.js';
 import type { Fetched } from './mapTiles.js';
 import { plantSiteReviewInput, type PlantChangeSetSource } from '@sm/shared';
-import { entryWrite, splitRevision, type WriteTarget } from './changesets/write.js';
+import { entryWrite, revisedNetwork, splitRevision, type WriteTarget } from './changesets/write.js';
 import {
   applyDirect,
+  bulkRegion,
+  importRegion,
   changeSetLevel,
   insertChangeSet,
   insertOp,
@@ -60,9 +62,11 @@ import {
 } from './changesets/core.js';
 import { changeSetConfig, changeSetRoutes } from './changesets/api.js';
 import { checkOpenLimits, documentOperation } from './changesets/drafts.js';
+import { notifyProposed } from './changesets/notify.js';
 import { revisionOf } from './changesets/entries.js';
-import type { Region } from './changesets/track.js';
+import type { EntryChange, Region } from './changesets/track.js';
 import { me } from '../auth/access.js';
+import { asProposer, canManageCatalogue, plantManagesSome, plantProposesSome } from './access.js';
 import { audit } from '../audit.js';
 
 /**
@@ -138,7 +142,7 @@ function write<T>(
   target: (b: Body) => WriteTarget,
   schema: { parse: (v: unknown) => Body } | null,
   run: (b: Body) => T,
-  reread: (r: T) => T,
+  reread: (r: T, changes: EntryChange[]) => T,
   removeValue?: Record<string, unknown>,
 ) {
   const { body, revision } = splitRevision(req.body);
@@ -149,6 +153,9 @@ function write<T>(
 }
 
 /** Device profiles and KPI definitions with their revision (0.13.0: what the edit form sends back). */
+const withRevision =
+  (kind: 'profile' | 'kpi') =>
+  <T extends { id: string }>(x: T): T & { revision: number } => ({ ...x, revision: revisionOf(kind, '', x.id) ?? 1 });
 const profileWithRevision = (id: string) => {
   const x = cat.getProfile(id);
   return { ...x, revision: revisionOf('profile', '', x.id) ?? 1 };
@@ -178,8 +185,16 @@ function proposed(kind: 'import' | 'bulk' | 'rename', title: string, op: Paramet
     summary: `Plant change set "${title}" (${kind}) proposed by ${u.username} – changes here need a second person`,
     details: { source: kind, createdBy: u.username, sites: sites.slice(0, 50) },
   });
+  notifyProposed(id);
   return summaryOf(r, u);
 }
+
+/** Whether the reader may only propose (no manage right where it applies, the propose right on some site): previews show
+ * what applying would do for their draft. */
+const proposesOnly = (catalogue: boolean): boolean => {
+  const u = me();
+  return !(catalogue ? canManageCatalogue(u) : plantManagesSome(u)) && plantProposesSome(u);
+};
 
 /** The sites and the catalogue an import's preview touches. */
 const touchedBy = (changes: { kind: string; siteId: string }[]) => ({
@@ -488,7 +503,8 @@ export async function plantRoutes(app: FastifyInstance): Promise<void> {
       (b) => ({ kind: 'profile', op: 'add', scope: '', id: b.id }),
       cat.profileInput,
       (b) => cat.createProfile(b),
-      (r) => profileWithRevision(r.id),
+      // the service's answer is read after its write: only the revision is new
+      withRevision('profile'),
     ),
   );
   // 0.12.0: extract a base profile from two or more profiles (the shared data points; docs/PLANT.md)
@@ -506,7 +522,7 @@ export async function plantRoutes(app: FastifyInstance): Promise<void> {
       () => ({ kind: 'profile', op: 'set', scope: '', id: p(req).profileId! }),
       cat.profileUpdate,
       (b) => cat.updateProfile(p(req).profileId!, b),
-      () => profileWithRevision(p(req).profileId!),
+      withRevision('profile'),
     ),
   );
   app.delete('/plant/profiles/:profileId', async (req, reply) =>
@@ -531,7 +547,7 @@ export async function plantRoutes(app: FastifyInstance): Promise<void> {
       (b) => ({ kind: 'kpi', op: 'add', scope: '', id: b.id }),
       cat.kpiInput,
       (b) => cat.createKpi(b),
-      (r) => kpiWithRevision(r.id),
+      withRevision('kpi'),
     ),
   );
   app.get('/plant/kpis/:kpiId', async (req) => kpiWithRevision(p(req).kpiId!));
@@ -542,7 +558,7 @@ export async function plantRoutes(app: FastifyInstance): Promise<void> {
       () => ({ kind: 'kpi', op: 'set', scope: '', id: p(req).kpiId! }),
       cat.kpiUpdate,
       (b) => cat.updateKpi(p(req).kpiId!, b),
-      () => kpiWithRevision(p(req).kpiId!),
+      withRevision('kpi'),
     ),
   );
   app.delete('/plant/kpis/:kpiId', async (req, reply) =>
@@ -564,8 +580,15 @@ export async function plantRoutes(app: FastifyInstance): Promise<void> {
 
   // ---------- the OT network (#220): VLANs, IEC 62443-3-2 zones and conduits of a site; devices, data paths, checks ----------
   app.get('/plant/sites/:siteId/network', async (req) => net.siteNetwork(p(req).siteId!));
-  const netAgain = (req: FastifyRequest) => () => net.siteNetwork(p(req).siteId!);
-  const assetNetAgain = (req: FastifyRequest) => () => net.assetNetwork(p(req).assetId!);
+  const netAgain =
+    (req: FastifyRequest) =>
+    <T>(r: T, changes: EntryChange[]): T =>
+      revisedNetwork(r, changes) ?? (net.siteNetwork(p(req).siteId!) as T);
+  // the service's answer with the new revisions (read again only when it cannot be placed)
+  const assetNetAgain =
+    (req: FastifyRequest) =>
+    <T>(r: T, changes: EntryChange[]): T =>
+      revisedNetwork(r, changes) ?? (net.assetNetwork(p(req).assetId!) as T);
   for (const [kind, path, param, input, update, create, change, remove] of [
     ['vlan', 'vlans', 'vlanId', net.vlanInput, net.vlanUpdate, net.createVlan, net.updateVlan, net.deleteVlan],
     ['zone', 'zones', 'zoneId', net.zoneInput, net.zoneUpdate, net.createZone, net.updateZone, net.deleteZone],
@@ -840,8 +863,12 @@ export async function plantRoutes(app: FastifyInstance): Promise<void> {
   });
   app.post('/plant/bulk/preview', async (req) => {
     const { fingerprint: _f, ...input } = plantBulkInput.parse(req.body);
-    const f = previewFingerprint({ all: true }, () => applyBulk(input));
-    return { ...previewBulk(input), fingerprint: f.fingerprint };
+    // one dry run: what applying writes (its fingerprint) and the preview (computed before anything is written); who
+    // may only propose sees it with their propose right counted as manage – to add it to their draft (0.13.0)
+    const catalogue = input.kind === 'profile' || input.kind === 'kpi';
+    const draft = proposesOnly(catalogue);
+    const f = previewFingerprint(bulkRegion(input), () => (draft ? asProposer(() => applyBulk(input)) : applyBulk(input)));
+    return { ...f.result, applied: false, fingerprint: f.fingerprint };
   });
   app.post(
     '/plant/bulk',
@@ -859,7 +886,7 @@ export async function plantRoutes(app: FastifyInstance): Promise<void> {
     async (req, reply) => {
       const { fingerprint, ...input } = plantBulkInput.parse(req.body);
       if (changeSetLevel() !== 'off') {
-        const f = previewFingerprint({ all: true }, () => applyBulk(input));
+        const f = previewFingerprint(bulkRegion(input), () => applyBulk(input));
         const where = touchedBy(f.changes);
         if (f.changes.length && reviewNeeded(where.sites, where.catalogue)) {
           const op = documentOperation('bulk', input, me());
@@ -877,7 +904,7 @@ export async function plantRoutes(app: FastifyInstance): Promise<void> {
       return applyDirect({
         source: 'bulk',
         title: `${input.action === 'remove' ? 'Remove' : 'Change'} ${input.items.length} ${input.kind} entries`,
-        region: { all: true },
+        region: bulkRegion(input),
         ops: [documentOperation('bulk', input, me())],
         fn: () => applyBulk(input),
         fingerprint,
@@ -889,7 +916,10 @@ export async function plantRoutes(app: FastifyInstance): Promise<void> {
   // ---------- import and export ----------
   app.post('/plant/import/preview', imports, async (req) => {
     const { fingerprint: _f, ...input } = importInput.parse(req.body);
-    const f = previewFingerprint({ all: true }, () => previewImport(input));
+    // who may only propose sees what the files would do with their propose right counted as manage – to add them to
+    // their draft (0.13.0; a dry run that is rolled back and audits nothing)
+    const draft = proposesOnly(false);
+    const f = previewFingerprint(importRegion(input), () => (draft ? asProposer(() => previewImport(input)) : previewImport(input)));
     return { ...f.result, fingerprint: f.fingerprint };
   });
   // renaming or removing more than one entry asks for a step-up (plant.bulkChange), one rename as the policy says (plant.renameId)
@@ -917,7 +947,7 @@ export async function plantRoutes(app: FastifyInstance): Promise<void> {
       return applyDirect({
         source: 'import',
         title: `Import ${input.files.map((x) => x.name).join(', ')}`.slice(0, 200),
-        region: { all: true },
+        region: importRegion(input),
         // the files are kept by their names and hashes (plant_imports); a proposed import keeps them whole
         ops: [{ ...documentOperation('import', input, me()), source: undefined }],
         fn: () => applyImport(input),

@@ -31,6 +31,7 @@ import { RowMenu } from '../components/plant/data';
 import { anyWatched, CriticalityBadge, ItemRefView, LiveBadge, LiveCounts, liveCountsOf, NetField, NotWatchedHint, SlBadge } from '../components/plant/network';
 import { SiteDevices, SiteNetworkAddButton, SitePaths, useSiteNetworkEdit } from '../components/plant/SiteNetworkLists';
 import { ConduitModal, SegmentModal, VlanModal, ZoneModal } from '../components/plant/networkForms';
+import { saveOrDraft } from '../components/plant/changes/common';
 
 const TABS = ['', 'diagram', 'vlans', 'zones', 'devices', 'paths'] as const;
 type Tab = (typeof TABS)[number];
@@ -123,13 +124,16 @@ function NetworkPage({
   setDialog: (d: Dialog | null) => void;
 }) {
   const { t } = useTranslation(['plantNetwork', 'plant', 'common']);
+  const { t: tc } = useTranslation('plantChanges');
   const label = usePlantLabel();
   const nameOf = useNameOf();
   const qc = useQueryClient();
   const edit = useSiteNetworkEdit(n);
   const siteBase = `/plant/sites/${encodeURIComponent(n.site.id)}`;
   const base = `${siteBase}/network`;
-  const can = n.canManage;
+  // 0.13.0: who may only propose edits here too – what they save goes into their draft
+  const proposeOnly = !n.canManage && !!n.canPropose;
+  const can = n.canManage || proposeOnly;
   const saved = (x: PlantSiteNetwork) => {
     qc.setQueryData(plantKeys.network(siteId), x);
     void qc.invalidateQueries({ queryKey: ['plant', 'assetNetwork'] });
@@ -137,7 +141,7 @@ function NetworkPage({
   const remove = async (what: 'vlans' | 'zones' | 'conduits', id: string, name: string) => {
     if (!(await confirmDanger({ action: 'remove', message: t(`removeConfirm.${what}`, { name }) }))) return;
     try {
-      saved(await del<PlantSiteNetwork>(`${siteBase}/${what}/${encodeURIComponent(id)}`));
+      await saveOrDraft(n.canManage, () => del<PlantSiteNetwork>(`${siteBase}/${what}/${encodeURIComponent(id)}`), saved);
     } catch (e) {
       notifyError(e);
     }
@@ -165,7 +169,7 @@ function NetworkPage({
         back={['plantSites', { to: siteBase, label: nameOf(n.site) }]}
         title={t('title')}
         status={<PreviewBadge />}
-        description={t('pageHelp', { site: nameOf(n.site) })}
+        description={[t('pageHelp', { site: nameOf(n.site) }), proposeOnly ? tc('form.draftHint') : ''].filter(Boolean).join(' ')}
         actions={
           <Button
             size="xs"
@@ -410,7 +414,8 @@ function NetworkPage({
                           onEdit={() => setDialog({ kind: 'vlan', vlan: vlanValues(v) })}
                           onRemove={() => void remove('vlans', v.id, v.name)}
                           extra={
-                            !v.segment && (
+                            !v.segment &&
+                            n.canManage && (
                               <Menu.Item
                                 leftSection={<IconNetwork size={14} />}
                                 onClick={() => setDialog({ kind: 'segment', vlan: vlanValues(v) })}

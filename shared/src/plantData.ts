@@ -595,6 +595,8 @@ export interface PlantProfileDetail extends PlantProfileSummary, PlantStamp {
   /** KPI definitions that read data points of this profile */
   kpis: { id: string; name: string; names: Translations; dataPoints: string[] }[];
   canManage: boolean;
+  /** 0.13.0: may keep drafts of changes to it (propose on some site) */
+  canPropose?: boolean;
 }
 
 /** GET /api/plant/profiles/:id/points/:pointId: a data point and who delivers it. */
@@ -876,6 +878,8 @@ export interface PlantKpiDetail extends PlantKpiSummary, PlantStamp, PlantKpiVal
    */
   candidateInfo?: Record<string, { collected: boolean; units: PlantUnitMismatch[]; via?: PlantAssetRef }>;
   canManage: boolean;
+  /** 0.13.0: may keep drafts of changes to it (propose on some site) */
+  canPropose?: boolean;
 }
 
 // ---------- checks ----------

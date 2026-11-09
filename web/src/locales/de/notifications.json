@@ -201,6 +201,16 @@
         "label": "Test eines Datenvertrags fehlgeschlagen",
         "info": "Ein Test eines Datenvertrags Ihres Teams ist fehlgeschlagen (die Mitglieder und der Kanal des Eigentümer-Teams)"
       }
+    },
+    "plant": {
+      "change_proposed": {
+        "label": "Werksänderung zu prüfen",
+        "info": "Jemand hat eine Änderung am Werksregister vorgeschlagen, die Sie übernehmen dürfen (nie der Autor)"
+      },
+      "change_decided": {
+        "label": "Werksänderung entschieden",
+        "info": "Eine Werksänderung von Ihnen wurde übernommen, abgelehnt, an Sie zurückgegeben oder ist verfallen (mit dem Kommentar der Prüfung)"
+      }
     }
   },
   "quiet": {
@@ -235,10 +245,10 @@
       "costs": "Budgets und Kosten"
     },
     "groupHints": {
-      "decisions": "Entscheidungsschritte, KI-Anfragen, ausgelassene Pflichten. Ein Lauf wartet: höchstens stündlich.",
+      "decisions": "Entscheidungsschritte, KI-Anfragen, ausgelassene Pflichten, zu prüfende Werksänderungen. Ein Lauf wartet: höchstens stündlich.",
       "runs": "Fehlgeschlagene Läufe und Prüfungen, ausgelassene Zeitpläne, veraltete Daten, Backups, Datenverträge.",
       "monitors": "Monitorstatus, Verbindungstests von Plattformen, Ziele, Wartung.",
-      "reminders": "Zugangsdaten, Dokumentprüfungen, Tickets, Pflichten, Maßnahmen, Zugriffsänderungen.",
+      "reminders": "Zugangsdaten, Dokumentprüfungen, Tickets, Pflichten, Maßnahmen, Zugriffsänderungen, entschiedene Werksänderungen.",
       "reports": "Geplante Berichte, Supportende und neue Releases.",
       "costs": "Token-Budgets für KI und Kostenbudgets."
     },

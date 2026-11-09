@@ -1064,8 +1064,9 @@ const EXPECT: Record<string, Access> = {
   'POST /api/plant/assets/:assetId/links': DESIGN,
   'PATCH /api/plant/assets/:assetId/links/:linkId': DESIGN,
   'DELETE /api/plant/assets/:assetId/links/:linkId': DESIGN,
-  // preview and import need the right to add sites or manage one (a preview shows what an import would change)
-  'POST /api/plant/import/preview': DESIGN,
+  // the import needs the right to add sites or manage one; its preview shows what it would change – 0.13.0: also to who
+  // may only propose (with that right counted as manage, rolled back: for "Add to draft")
+  'POST /api/plant/import/preview': PROPOSE,
   'POST /api/plant/import': DESIGN,
   'GET /api/plant/imports': PLANT,
   'GET /api/plant/export': PLANT,
@@ -1074,8 +1075,9 @@ const EXPECT: Record<string, Access> = {
   'POST /api/plant/ids/rename': DESIGN,
   'GET /api/plant/aliases': ADMIN,
   'DELETE /api/plant/aliases/:kind/:oldId': ADMIN,
-  // many entries at once (0.11.0): whoever manages a site or the catalogues; entries they may not change are skipped
-  'POST /api/plant/bulk/preview': DESIGN,
+  // many entries at once (0.11.0): whoever manages a site or the catalogues; entries they may not change are skipped;
+  // 0.13.0: the preview for who may only propose too ("Add to draft")
+  'POST /api/plant/bulk/preview': PROPOSE,
   'POST /api/plant/bulk': DESIGN,
   // change sets (0.13.0, ADR 0020): whoever sees the registry reads what they may see; who may propose keeps drafts;
   // who manages what a change set touches applies, rejects or returns it (never its author under review)

@@ -91,6 +91,8 @@ export interface Notice {
   expiresAt?: string;
   /** A decision: left out of a catch-up when someone else decided it meanwhile */
   decision?: HeldAbout['decision'];
+  /** 0.13.0: a plant change set to review – left out of a catch-up when it was decided meanwhile (no card to decide in Teams) */
+  changeSet?: string;
   /** A check of a source: "still failing" or "passed again" at release */
   check?: HeldAbout['check'];
   /** Urgent beyond the source's policy (a monitor output marked urgent going down) */
@@ -273,6 +275,7 @@ export function notify(n: Notice): void {
     ...(n.about ? { kind: n.about.kind, id: n.about.id } : {}),
     ...(n.runId ? { runId: n.runId } : {}),
     ...(n.decision ? { decision: n.decision } : {}),
+    ...(n.changeSet ? { changeSet: n.changeSet } : {}),
     ...(n.check ? { check: n.check } : {}),
   };
   const hold = (target: string, plan: Extract<DeliveryPlan, { send: false }>, locale: Locale, u?: UserInfo) => {

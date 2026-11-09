@@ -57,6 +57,7 @@ import { get, notifyError, post, put } from '../../api';
 import { useFieldErrors } from '../common';
 import { FormButtons, IdInput, useIdField } from './forms';
 import { ItemSelect } from './network';
+import { saveOrDraft } from './changes/common';
 
 /**
  * The forms of the OT network (#220): a VLAN with its subnets and ranges, a zone, a conduit, a device, a data path and
@@ -120,15 +121,18 @@ function FormModal({
   );
 }
 
-/** Runs a save; closes on success, tells what went wrong otherwise. */
-function useSave<T>(onSaved: (x: T) => void, onClose: () => void) {
+/**
+ * Runs a save; closes on success, tells what went wrong otherwise. Who may only propose (`canManage` false) saves into
+ * their draft (0.13.0); an answer of a save into a draft is not shown as saved – the page keeps Steward's values.
+ */
+function useSave<T>(onSaved: (x: T) => void, onClose: () => void, canManage = true) {
   const [busy, setBusy] = useState(false);
   return {
     busy,
     run: async (f: () => Promise<T>) => {
       setBusy(true);
       try {
-        onSaved(await f());
+        await saveOrDraft(canManage, f, onSaved);
         onClose();
       } catch (e) {
         notifyError(e);
@@ -175,7 +179,7 @@ export function VlanModal({
   const [segmentId, setSegmentId] = useState<string | null>(vlan?.segmentId ?? null);
   const [notes, setNotes] = useState(vlan?.notes ?? '');
   const segments = useQuery({ queryKey: ['systems', 'network'], queryFn: () => get<SystemSummary[]>('/systems') });
-  const save = useSave(onSaved, onClose);
+  const save = useSave(onSaved, onClose, network.canManage);
   const badSubnet = subnets.findIndex((s) => !isCidr(s.cidr.trim()) || (s.gateway.trim() && !isIpAddress(s.gateway.trim())));
   const badRange = subnets.some((s) => s.ranges.some((r) => !isIpAddress(r.start.trim()) || !isIpAddress(r.end.trim())));
   const v = useFieldErrors({
@@ -436,7 +440,7 @@ export function ZoneModal({
   const [assessment, setAssessment] = useState(zone?.riskAssessment ?? '');
   const [assessedAt, setAssessedAt] = useState(zone?.assessedAt ?? '');
   const [notes, setNotes] = useState(zone?.notes ?? '');
-  const save = useSave(onSaved, onClose);
+  const save = useSave(onSaved, onClose, network.canManage);
   const v = useFieldErrors({
     name: !name.trim() && t('common:validation.required'),
     id: !PLANT_ID_RE.test(id.id) && t('plant:form.idInvalid'),
@@ -565,7 +569,7 @@ export function ConduitModal({
   const [controls, setControls] = useState<string[]>(conduit?.controls ?? []);
   const [description, setDescription] = useState(conduit?.description ?? '');
   const [notes, setNotes] = useState(conduit?.notes ?? '');
-  const save = useSave(onSaved, onClose);
+  const save = useSave(onSaved, onClose, network.canManage);
   const zoneName = (z: string | null) => network.zones.find((x) => x.id === z)?.name ?? z ?? '…';
   const v = useFieldErrors({
     name: !name.trim() && t('common:validation.required'),
@@ -756,17 +760,20 @@ const cleanChecks = (list: PlantStatusCheck[]) =>
 export function AssetChecksModal({
   assetId,
   checks,
+  canManage = true,
   onClose,
   onSaved,
 }: {
   assetId: string;
   checks: PlantStatusCheck[];
+  /** false: who may only propose – the checks go into their draft */
+  canManage?: boolean;
   onClose: () => void;
   onSaved: (n: PlantAssetNetwork) => void;
 }) {
   const { t } = useTranslation('plantNetwork');
   const [value, setValue] = useState(checks);
-  const save = useSave(onSaved, onClose);
+  const save = useSave(onSaved, onClose, canManage);
   return (
     <FormModal
       title={t('checks.assetTitle')}
@@ -819,7 +826,7 @@ export function DeviceModal({
   );
   const id = useIdField(device?.id);
   const set = (x: Partial<PlantDeviceValues>) => setD({ ...d, ...x });
-  const save = useSave(onSaved, onClose);
+  const save = useSave(onSaved, onClose, network.canManage);
   const v = useFieldErrors({
     id: !PLANT_ID_RE.test(id.id) && t('plant:form.idInvalid'),
     mac: !!d.mac.trim() && !macOf(d.mac) && t('device.macInvalid'),
@@ -973,7 +980,7 @@ export function DataPathModal({
   const [transfers, setTransfers] = useState<PlantDataPathValues['transfers']>(path?.transfers ?? []);
   const [destinations, setDestinations] = useState<PlantDataPathValues['destinations']>(path?.destinations ?? []);
   const [notes, setNotes] = useState(path?.notes ?? '');
-  const save = useSave(onSaved, onClose);
+  const save = useSave(onSaved, onClose, network.canManage);
   const view = network.dataPaths.find((x) => x.id === path?.id);
   const v = useFieldErrors({
     subject: !subject.trim() && t('common:validation.required'),

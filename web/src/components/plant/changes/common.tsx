@@ -4,8 +4,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { IconEdit, IconGitPullRequest, IconPencil } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import type { PlantChangeSetSource, PlantChangeSetState, PlantEntryKind, PlantOpenChanges } from '@sm/shared';
-import { PLANT_DRAFT_EVENT, get, inDraft } from '../../../api';
+import type { PlantChangeSetSource, PlantChangeSetState, PlantChangeSetSummary, PlantEntryKind, PlantOpenChanges } from '@sm/shared';
+import { PLANT_DRAFT_EVENT, get, inDraft, notifyOk } from '../../../api';
 import { plantKeys } from '../../../queryKeys';
 import { usePlantConfig } from '../labels';
 
@@ -59,17 +59,21 @@ export function useReviewRequired(siteReview: boolean | undefined): boolean {
  * Refreshes what shows drafts and open changes when a save went into a draft (api.ts sends the event on a 202), and
  * after any change set action.
  */
-export function useDraftRefresh(): void {
+export function useDraftRefresh(announce = false): void {
   const qc = useQueryClient();
+  const { t } = useTranslation('plantChanges');
   useEffect(() => {
-    const on = () => {
+    const on = (e: Event) => {
       void qc.invalidateQueries({ queryKey: plantKeys.config });
       void qc.invalidateQueries({ queryKey: ['plant', 'open-changes'] });
       void qc.invalidateQueries({ queryKey: ['plant', 'change-sets'] });
+      // where the save went (a form that saved into a draft closes as after any save)
+      const cs = (e as CustomEvent<PlantChangeSetSummary | undefined>).detail;
+      if (announce && cs?.state === 'draft') notifyOk(t('form.savedToDraft', { title: cs.title }));
     };
     window.addEventListener(PLANT_DRAFT_EVENT, on);
     return () => window.removeEventListener(PLANT_DRAFT_EVENT, on);
-  }, [qc]);
+  }, [qc, t, announce]);
 }
 
 /**
@@ -80,11 +84,26 @@ export function draftSave<T>(canManage: boolean, send: () => Promise<T>): Promis
   return canManage ? send() : inDraft(send);
 }
 
-/** Edit for who may only propose: what they save goes into their draft. */
-export function ProposeEditButton({ onClick, testId }: { onClick: () => void; testId: string }) {
+/**
+ * Whether a save's answer is one of a save into a draft (202 with `changeSet`): the entry as it would be with the
+ * change, computed with the propose right counted as manage. A page keeps showing Steward's values then (the draft
+ * bar counts the change, the entry is marked _Changed in your draft_).
+ */
+export const isDraftAnswer = (x: unknown): x is { changeSet: PlantChangeSetSummary } =>
+  !!x && typeof x === 'object' && 'changeSet' in x && !!(x as { changeSet?: unknown }).changeSet;
+
+/** Saves through `send` – into the draft for who may only propose – and hands an applied answer to `onSaved`. */
+export async function saveOrDraft<T>(canManage: boolean, send: () => Promise<T>, onSaved: (x: T) => void): Promise<T> {
+  const x = await draftSave(canManage, send);
+  if (!isDraftAnswer(x)) onSaved(x);
+  return x;
+}
+
+/** Edit for who may only propose: what they save goes into their draft (`catalogue`: a device profile or KPI definition). */
+export function ProposeEditButton({ onClick, testId, catalogue = false }: { onClick: () => void; testId: string; catalogue?: boolean }) {
   const { t } = useTranslation('plantChanges');
   return (
-    <Tooltip label={t('form.draftHint')} multiline w={280} withArrow>
+    <Tooltip label={t(catalogue ? 'form.catalogueHint' : 'form.draftHint')} multiline w={280} withArrow>
       <Button size="xs" variant="default" leftSection={<IconEdit size={14} aria-hidden />} onClick={onClick} data-testid={testId}>
         {t('form.proposeEdit')}
       </Button>

@@ -69,7 +69,8 @@ export function PlantProfilesPage() {
     </Button>
   );
   // Edit selected / Remove selected (0.11.0)
-  const canBulk = !!canManage;
+  // 0.13.0: who may propose selects too – Edit selected adds the change to their draft
+  const canBulk = !!canManage || !!cfg.data?.changeSets?.canPropose;
   const shownIds = list.map((p) => p.id);
   const sel = useSelection(shownIds);
   const makeModel = (p: PlantProfileSummary) => [p.manufacturer, p.model].filter(Boolean).join(' · ');

@@ -13,6 +13,16 @@
       "flow": "Datenfluss",
       "collections": "Datenerfassungen",
       "history": "Verlauf"
+    },
+    "profileLabel": "Seiten von {{name}}",
+    "kpiLabel": "Seiten von {{name}}",
+    "profile": {
+      "overview": "Überblick",
+      "history": "Verlauf"
+    },
+    "kpi": {
+      "overview": "Überblick",
+      "history": "Verlauf"
     }
   },
   "toolbar": {

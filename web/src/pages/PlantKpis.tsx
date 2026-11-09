@@ -60,7 +60,8 @@ export function PlantKpisPage() {
   const none = kpis.isSuccess && all.length === 0;
   const to = (k: PlantKpiSummary) => `/plant/kpis/${encodeURIComponent(k.id)}`;
   // Edit selected / Remove selected (0.11.0)
-  const canBulk = !!canManage;
+  // 0.13.0: who may propose selects too – Edit selected adds the change to their draft
+  const canBulk = !!canManage || !!cfg.data?.changeSets?.canPropose;
   const shownIds = list.map((k) => k.id);
   const sel = useSelection(shownIds);
   const columns: DataColumn<PlantKpiSummary>[] = [

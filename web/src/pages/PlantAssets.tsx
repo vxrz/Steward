@@ -87,7 +87,8 @@ export function PlantAssetsPage() {
   );
   const active = FILTERS.filter((f) => filter[f]).length + (needle ? 1 : 0);
   // Edit selected / Remove selected (0.11.0): for whoever manages a site; entries they may not change are skipped
-  const canBulk = !!cfg.data?.canManageSome;
+  // 0.13.0: who may propose selects too – Edit selected adds the change to their draft
+  const canBulk = !!cfg.data?.canManageSome || !!cfg.data?.changeSets?.canPropose;
   const shownIds = list.map((a) => a.id);
   const sel = useSelection(shownIds);
   const plural = label('asset', true);

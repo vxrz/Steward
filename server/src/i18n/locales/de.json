@@ -541,5 +541,34 @@
     "query": "Abfrage",
     "body": "Inhalt",
     "reason": "Begründung des Assistenten"
+  },
+  "plantChange": {
+    "proposedTitle": "Werksänderung zu prüfen: {{title}}",
+    "proposedBody_one": "{{author}} schlägt {{count}} Änderung am Werksregister vor ({{where}}). Sie dürfen sie übernehmen: Prüfen Sie sie in Steward unter Werk → Änderungen. Ohne Entscheidung verfällt sie am {{expires}}.",
+    "proposedBody_other": "{{author}} schlägt {{count}} Änderungen am Werksregister vor ({{where}}). Sie dürfen sie übernehmen: Prüfen Sie sie in Steward unter Werk → Änderungen. Ohne Entscheidung verfallen sie am {{expires}}.",
+    "proposedChannelTitle": "Werksänderung von {{author}} vorgeschlagen",
+    "proposedChannelBody": "Eine Änderung am Werksregister wartet auf eine zweite Person. Prüfen Sie sie in Steward unter Werk → Änderungen.",
+    "sites": "Standorte {{sites}}",
+    "catalogue": "Geräteprofile und KPI-Definitionen",
+    "decidedTitle": {
+      "applied": "Ihre Werksänderung wurde übernommen: {{title}}",
+      "rejected": "Ihre Werksänderung wurde abgelehnt: {{title}}",
+      "returned": "Ihre Werksänderung wurde an Sie zurückgegeben: {{title}}",
+      "expired": "Ihre Werksänderung ist verfallen: {{title}}"
+    },
+    "decidedBody": {
+      "applied": "{{by}} hat Ihre Änderung übernommen.",
+      "rejected": "{{by}} hat Ihre Änderung abgelehnt. Sie können sie in einen neuen Entwurf kopieren.",
+      "returned": "{{by}} hat Ihre Änderung als Entwurf an Sie zurückgegeben: Ändern Sie sie und schlagen Sie sie erneut vor.",
+      "expired": "Niemand hat rechtzeitig über Ihre Änderung entschieden. Sie können sie in einen neuen Entwurf kopieren und erneut vorschlagen."
+    },
+    "comment": "Kommentar: {{comment}}",
+    "decidedChannelTitle": {
+      "applied": "Werksänderung von {{author}} übernommen",
+      "rejected": "Werksänderung von {{author}} abgelehnt",
+      "returned": "Werksänderung von {{author}} zurückgegeben",
+      "expired": "Werksänderung von {{author}} verfallen"
+    },
+    "decidedChannelBody": "Öffnen Sie sie in Steward unter Werk → Änderungen."
   }
 }

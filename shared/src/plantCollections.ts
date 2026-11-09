@@ -217,6 +217,8 @@ export interface PlantCollectionView extends PlantCollectionValues, PlantSource 
 export interface PlantAssetCollections {
   asset: { id: string; name: string; siteId: string };
   canManage: boolean;
+  /** 0.13.0: may keep drafts of changes to it (propose) */
+  canPropose?: boolean;
   /** May add known-as names to profiles and data points to the profile (the catalogue right) */
   canManageCatalogue: boolean;
   collections: PlantCollectionView[];

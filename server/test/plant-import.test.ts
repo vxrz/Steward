@@ -326,12 +326,14 @@ describe('problems', () => {
 
   it('rights: a viewer may not import or preview; nobody changes a site without the manage right', async () => {
     const tree = await exportYaml();
-    // the preview needs the import's own right (adding sites or managing one): viewers and plant viewers have neither
+    // the preview needs the import's own right (adding sites or managing one) – or, since 0.13.0, the propose right
+    // (plant viewers: what the files would do, to add them to their draft); viewers have neither
     const { createUser } = await import('../src/auth/users.js');
     createUser({ username: 'pia', roles: ['plant'], password: PW });
     const pia = await s.as('pia', PW);
-    for (const c of [vera, pia])
-      expect(await status(c('POST', '/plant/import/preview', { files: [file('t.yaml', tree)], mode: 'update' }))).toEqual({ status: 403, code: 'FORBIDDEN' });
+    expect(await status(vera('POST', '/plant/import/preview', { files: [file('t.yaml', tree)], mode: 'update' }))).toEqual({ status: 403, code: 'FORBIDDEN' });
+    expect((await pia('POST', '/plant/import/preview', { files: [file('t.yaml', tree)], mode: 'update' })).ok).toBe(true);
+    expect(await status(pia('POST', '/plant/import', { files: [file('t.yaml', tree)], mode: 'update' }))).toEqual({ status: 403, code: 'FORBIDDEN' });
     // who may manage a site sees which ones they may not change
     await s.api('PUT', '/plant/sites/hillcrest/access', { acl: [{ subject: 'user:vera', permissions: ['manage'] }] });
     const v = await vera('POST', '/plant/import/preview', { files: [file('t.yaml', tree)], mode: 'update' });

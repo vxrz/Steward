@@ -15,6 +15,7 @@ import { Breakable, RowMenu } from './data';
 import { ItemRefView, LiveBadge, LiveChecks, NetField } from './network';
 import { AssetChecksModal, DataPathModal, DeviceModal } from './networkForms';
 import { Tokens } from './Tokens';
+import { saveOrDraft } from './changes/common';
 
 /** The values of a device as the API takes them (without what the view adds). */
 export function deviceValues(d: PlantDeviceView): PlantDeviceValues {
@@ -175,6 +176,7 @@ export function DataPathSummary({ path, withAsset }: { path: PlantDataPathView; 
  */
 export function AssetNetworkSection({ assetId }: { assetId: string }) {
   const { t } = useTranslation(['plantNetwork', 'common']);
+  const { t: tc } = useTranslation('plantChanges');
   const label = usePlantLabel();
   const qc = useQueryClient();
   const narrow = useMediaQuery('(max-width: 48em)') ?? false;
@@ -193,12 +195,14 @@ export function AssetNetworkSection({ assetId }: { assetId: string }) {
   const remove = async (what: 'devices' | 'paths', id: string, name: string) => {
     if (!(await confirmDanger({ action: 'remove', message: t(what === 'devices' ? 'device.removeConfirm' : 'path.removeConfirm', { name }) }))) return;
     try {
-      done(await del<PlantAssetNetwork>(`${base}/${what}/${encodeURIComponent(id)}`));
+      await saveOrDraft(n.canManage, () => del<PlantAssetNetwork>(`${base}/${what}/${encodeURIComponent(id)}`), done);
     } catch (e) {
       notifyError(e);
     }
   };
-  const can = n.canManage;
+  // 0.13.0: who may only propose edits here too – what they save goes into their draft
+  const proposeOnly = !n.canManage && !!n.canPropose;
+  const can = n.canManage || proposeOnly;
   const add = (text: string, d: Dialog, testId: string) =>
     can && (
       <Button
@@ -226,6 +230,11 @@ export function AssetNetworkSection({ assetId }: { assetId: string }) {
           <Text size="xs" c="dimmed">
             {t('asset.help')}
           </Text>
+          {proposeOnly && (
+            <Text size="xs" c="dimmed" data-testid="asset-network-draft-hint">
+              {tc('form.draftHint')}
+            </Text>
+          )}
         </div>
         <Button
           size="xs"
@@ -455,7 +464,9 @@ export function AssetNetworkSection({ assetId }: { assetId: string }) {
       )}
       {dialog?.kind === 'device' && <DeviceModal network={n} device={dialog.device} onClose={() => setDialog(null)} onSaved={done} />}
       {dialog?.kind === 'path' && <DataPathModal network={n} path={dialog.path} onClose={() => setDialog(null)} onSaved={done} />}
-      {dialog?.kind === 'checks' && <AssetChecksModal assetId={assetId} checks={n.checks} onClose={() => setDialog(null)} onSaved={done} />}
+      {dialog?.kind === 'checks' && (
+        <AssetChecksModal assetId={assetId} checks={n.checks} canManage={n.canManage} onClose={() => setDialog(null)} onSaved={done} />
+      )}
     </Stack>
   );
 }

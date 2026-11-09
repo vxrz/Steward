@@ -25,6 +25,7 @@ import {
   type PlantProfileValues,
   type PlantResolvedProfile,
   type PlantAssignmentValues,
+  type PlantEntryKind,
   plantIdMapInput,
 } from '@sm/shared';
 import { db } from '../db.js';
@@ -171,6 +172,52 @@ function readFiles(files: ImportInput['files'], problems: PlantImportProblem[]):
     out.file = r.data;
     return out;
   });
+}
+
+/** What the keys of a file can write (0.13.0, the change sets' tracker reads only these kinds). */
+const FILE_KINDS: Record<string, PlantEntryKind[]> = {
+  version: [],
+  enterprise: [],
+  site: ['site', 'node', 'building', 'asset'],
+  sites: ['site', 'node', 'building', 'asset'],
+  assets: ['asset'],
+  ot_network: ['vlan', 'zone', 'conduit'],
+  ot_networks: ['vlan', 'zone', 'conduit'],
+  asset_network: ['asset_checks', 'device', 'data_path', 'collection'],
+  asset_networks: ['asset_checks', 'device', 'data_path', 'collection'],
+  device_profile: ['profile'],
+  device_profiles: ['profile'],
+  kpi_definition: ['kpi'],
+  kpi_definitions: ['kpi'],
+  assignment: ['assignment'],
+  assignments: ['assignment'],
+};
+/** Files up to this size are read twice for their kinds; a larger import costs more than reading the whole registry. */
+const KINDS_OF_BYTES = 1024 * 1024;
+
+/**
+ * The kinds of entries an import can write (0.13.0, the region of the change sets' tracker): the kinds its files hold –
+ * when it adds and changes only (no replace, no removal, no id mapping) and the files are small; otherwise null (any).
+ */
+export function importKindsOf(input: ImportInput): PlantEntryKind[] | null {
+  if (input.mode === 'replace' || input.removeMissing || input.idMap?.entries.length) return null;
+  if (input.files.reduce((n, f) => n + f.content.length, 0) > KINDS_OF_BYTES) return null;
+  const kinds = new Set<PlantEntryKind>();
+  for (const f of input.files) {
+    let raw: unknown;
+    try {
+      raw = parseYaml(f.content, { maxBytes: PLANT_LIMITS.importBytes, maxKeys: 500_000, maxAliasCount: 100 });
+    } catch {
+      return null;
+    }
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+    for (const k of Object.keys(raw)) {
+      const list = Object.hasOwn(FILE_KINDS, k) ? FILE_KINDS[k] : undefined;
+      if (!list) return null;
+      list.forEach((x) => kinds.add(x));
+    }
+  }
+  return [...kinds];
 }
 
 // ---------- the plan: what the files say ----------
