@@ -2,7 +2,7 @@
 
 Where Steward stands, what it deliberately does not do, and what comes next. Shipped changes are in the [CHANGELOG](../CHANGELOG.md); how it is built is in [ARCHITECTURE.md](ARCHITECTURE.md). Ideas and requests are collected as GitHub issues.
 
-_Last reviewed for 0.11.0 (November 2026)._
+_Last reviewed for 0.12.0 (November 2026)._
 
 ## What Steward is for
 
@@ -70,10 +70,11 @@ Themes of this release (details in the CHANGELOG once released):
 - **0.10.0:** the engine boundary ([#239](https://github.com/vxrz/Steward/issues/239), [ADR 0011](adr/0011-engine-boundary.md)), debugging procedures ([#235](https://github.com/vxrz/Steward/issues/235)), quiet hours and digests ([#236](https://github.com/vxrz/Steward/issues/236)), approvals from Microsoft Teams ([#237](https://github.com/vxrz/Steward/issues/237)), shared procedure libraries ([#238](https://github.com/vxrz/Steward/issues/238)) and the map of sites ([#234](https://github.com/vxrz/Steward/issues/234)), each with its decision record (ADRs 0010–0015).
 - **0.10.1:** the fixes from a whole-application review of 0.10.0: single sign-on bound to the browser, secrets that outlive an API token kept to signed-in sessions, one instance per SQLite database, a readiness probe for routing, and a crash fix for browser locales such as `en-US@posix`.
 - **0.11.0:** consolidation: areas that can be switched off, navigation by role, Catalogue and Registers, a glossary and documentation index, safer PostgreSQL updates and backups, a per-person data export and pseudonymising; in the plant registry id changes, bulk changes, profile inheritance, data collections and the OT network diagram by level.
+- **0.12.0:** plant documentation and assistants: proposals from assistants over MCP, descriptions along profile inheritance, documents on profiles and data collections, gateway configurations kept without secrets, sinks and transformations, editing the OT network in place, base profiles and units for KPIs across device models, KPI potential, and consistently folding content.
 
 ## Next
 
-**0.12.0 – plant documentation and assistants.** Assistants propose plant registry changes over MCP for a person to apply, descriptions inherit along device profiles, documents attach to profiles and data collections, imported gateway configurations are kept without secrets, data collections name their sinks and transformations, and long pages and lists fold consistently. The candidates for later releases are under _Later_.
+**0.13.0 – monitoring that knows planned states, and plant change sets.** Monitors get states with expected results (an asset that is off as planned is not an outage; only checks that contradict each other alert), planned downtime and a maximum time off; freshness checks get an allowed delay and measure the delay they see; plant changes become change sets that are reviewed and applied in one step, with history and undo; and more lists sort and filter. The candidates for later releases are under _Later_.
 
 ## Later
 
