@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import type { PlantAssetSummary, PlantAssignmentView, PlantPointHit } from '@sm/shared';
+import { CollectedBadge, UnitsBadge } from '../components/plant/potential';
 import { get } from '../api';
 import { QueryState } from '../components/common';
 import { ListPage } from '../components/page/ListPage';
@@ -258,6 +259,8 @@ function AssetKpis({ assetId, onAsset }: { assetId: string | null; onAsset: (id:
                         {k.category}
                       </Text>
                     )}
+                    {!k.instantiated && k.collected !== undefined && <CollectedBadge collected={k.collected} />}
+                    <UnitsBadge units={k.units} />
                     {k.instantiated && (
                       <Badge size="xs" variant="light" color="green">
                         {t('explore.instantiated')}

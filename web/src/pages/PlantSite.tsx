@@ -459,12 +459,44 @@ export function SourceLine({ importId }: { importId: string | null }) {
     enabled: !!importId,
   });
   const imp = importId ? imports.data?.find((i) => i.id === importId) : undefined;
+  const [all, setAll] = useState(false);
+  // 0.12.0: an import keeps its files, not which file each entry came from – a long list is folded, never guessed from
+  const many = !!imp && imp.files.length > 2;
   return (
     <Field label={t('source.title')}>
       {importId ? (
-        <Anchor component={Link} to="/plant/import" size="sm">
-          {imp ? t('source.importOf', { files: imp.files.map((f) => f.name).join(', '), when: fmtDate(imp.createdAt) }) : t('source.import', { id: importId })}
-        </Anchor>
+        <Stack gap={2} data-testid="source-line">
+          <Anchor component={Link} to="/plant/import" size="sm">
+            {!imp
+              ? t('source.import', { id: importId })
+              : many
+                ? t('source.importOfMany', { count: imp.files.length, when: fmtDate(imp.createdAt) })
+                : t('source.importOf', { files: imp.files.map((f) => f.name).join(', '), when: fmtDate(imp.createdAt) })}
+          </Anchor>
+          {many && (
+            <>
+              <Anchor
+                component="button"
+                type="button"
+                size="xs"
+                w="fit-content"
+                onClick={() => setAll((x) => !x)}
+                aria-expanded={all}
+                data-testid="source-files-toggle"
+              >
+                {all ? t('source.hideFiles') : t('source.showFiles')}
+              </Anchor>
+              {all && (
+                <Text size="xs" c="dimmed" style={{ overflowWrap: 'anywhere' }} data-testid="source-files">
+                  {imp.files.map((f) => f.name).join(', ')}
+                </Text>
+              )}
+              <Text size="xs" c="dimmed">
+                {t('source.perEntry')}
+              </Text>
+            </>
+          )}
+        </Stack>
       ) : (
         t('source.manual')
       )}

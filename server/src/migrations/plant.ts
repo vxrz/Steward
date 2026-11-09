@@ -474,4 +474,10 @@ export const PLANT_MIGRATIONS: NamedMigration[] = [
     name: 'plant-011-collection-sinks',
     sql: `ALTER TABLE plant_collections ADD COLUMN sinks TEXT NOT NULL DEFAULT '[]';`,
   },
+  {
+    // 0.12.0: a device profile may be a template – only for other profiles to extend, no asset may have it
+    // (docs/PLANT.md "Profile inheritance and asset additions")
+    name: 'plant-012-profile-template',
+    sql: `ALTER TABLE plant_profiles ADD COLUMN template INTEGER NOT NULL DEFAULT 0;`,
+  },
 ];

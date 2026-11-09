@@ -339,6 +339,11 @@ export const profileSchema = z
       .describe(
         'The base profile this one extends (0.11.0): its interfaces, data points and files are inherited; `interfaces` then lists only what this profile adds or changes',
       ),
+    template: z
+      .boolean()
+      .nullable()
+      .optional()
+      .describe('0.12.0: a template – only for other profiles to extend; no asset may have it (an assignment naming it is refused)'),
     manufacturer: text(PLANT_LIMITS.text),
     model: text(PLANT_LIMITS.text),
     version: versionText.describe('Firmware or product version the profile describes'),
@@ -383,6 +388,12 @@ export const kpiSchema = z
               .describe('data_point (default) or other'),
             profile: id.nullable().optional().describe('The device profile the data points belong to'),
             data_points: z.array(pointId).max(L.inputPoints).optional(),
+            units: z
+              .record(pointId, text(40))
+              .optional()
+              .describe(
+                '0.12.0: the unit the computation expects per data point (UCUM code, usual spellings such as kWh are read as their code); a data point left out expects its unit in the input’s profile',
+              ),
             notes: long,
           })
           .strict(),

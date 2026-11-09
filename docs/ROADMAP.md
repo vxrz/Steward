@@ -79,6 +79,7 @@ Themes of this release (details in the CHANGELOG once released):
 
 - **Platform identities, steps 2–4** (rest of [#228](https://github.com/vxrz/Steward/issues/228), [ADR 0009](adr/0009-platform-identities.md)): further identities per platform, each with its own access list, MCP mode, read-only flag and optional operation filter; the PAM checkout gets its own decision record first. When they come is still open.
 - **Postman import** (rest of [#204](https://github.com/vxrz/Steward/issues/204)): requests and sign-in from a collection.
+- **Plant registry: KPI potential across profiles and parts (0.13)**: base profiles across interfaces of different protocols (0.12.0 refuses them when extracting a base), KPI inputs that read _any of these profiles_ with a data point mapping per profile, and KPI potential rolled up from parts (a power meter) to the machine they belong to.
 
 ## Ideas parked
 

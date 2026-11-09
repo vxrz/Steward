@@ -253,6 +253,11 @@
     "title": "Source",
     "import": "Import {{id}}",
     "importOf": "{{files}}, imported {{when}}",
+    "importOfMany_one": "Import of {{count}} file, imported {{when}}",
+    "importOfMany_other": "Import of {{count}} files, imported {{when}}",
+    "showFiles": "Show all files",
+    "hideFiles": "Hide the files",
+    "perEntry": "An import keeps its files, not which file each entry came from.",
     "manual": "Entered in Steward"
   },
   "export": {
@@ -823,6 +828,8 @@
       "kpi_point_unknown": "KPI “{{kpi}}” reads data point {{point}}, which profile “{{profile}}” does not have.",
       "kpi_point_unavailable": "KPI “{{kpi}}” reads data point {{point}}, which this asset does not deliver (override).",
       "kpi_interface_inactive": "KPI “{{kpi}}” reads data point {{point}}, but interface “{{interface}}” is not set up as active on this asset.",
+      "kpi_unit_mismatch": "KPI “{{kpi}}” expects data point {{point}} in {{expected}}; this asset delivers it in {{actual}} – not convertible by a factor.",
+      "kpi_unit_mismatch_convertible": "KPI “{{kpi}}” expects data point {{point}} in {{expected}}; this asset delivers it in {{actual}} – convertible by a factor, but the job has to convert it.",
       "param_unknown": "Parameter {{param}} is not a parameter of KPI “{{kpi}}”.",
       "param_type": "Parameter {{param}} must be of type {{type}}.",
       "param_range": "Parameter {{param}} is {{value}}, outside {{min}} to {{max}}.",

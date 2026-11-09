@@ -379,10 +379,28 @@ export const REFERENCES: readonly RefSpec[] = [
   ),
   // inputs that name the profile (or one that extends it); an input without a profile names a data point of whatever
   // profile an asset has: kept
-  json<{ profile: string; dataPoints: string[] }[]>('plant_kpis', 'inputs', 'dataPoints', 'data_point', 'kpi', ['id'], (v, r) => {
-    const family = profileFamily(r.scope);
-    return v.reduce((hit, i) => (family.includes(i.profile) && inList(i.dataPoints, r)) || hit, false);
-  }),
+  // (0.12.0: and the units the input expects, by data point)
+  json<{ profile: string; dataPoints: string[]; units?: Record<string, string> }[]>(
+    'plant_kpis',
+    'inputs',
+    'dataPoints',
+    'data_point',
+    'kpi',
+    ['id'],
+    (v, r) => {
+      const family = profileFamily(r.scope);
+      return v.reduce((hit, i) => {
+        if (!family.includes(i.profile)) return hit;
+        const listed = inList(i.dataPoints, r);
+        const u = i.units;
+        if (u && Object.prototype.hasOwnProperty.call(u, r.from) && !Object.prototype.hasOwnProperty.call(u, r.to)) {
+          i.units = Object.fromEntries(Object.entries(u).map(([k, x]) => [k === r.from ? r.to : k, x]));
+          return true;
+        }
+        return listed || hit;
+      }, false);
+    },
+  ),
   // 0.11.0: a derived profile's own data points in inherited interfaces, and its changes to inherited ones
   json<{ groups: { dataPoints: { id: string }[] }[] }[]>(
     'plant_profiles',

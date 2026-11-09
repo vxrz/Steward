@@ -293,6 +293,92 @@ export const unitCode = (s: string): string => {
 /** The symbol a unit is shown with (`kW.h` → kWh); a code the table does not know is shown as it is. */
 export const unitSymbol = (code: string): string => PLANT_UNITS.find((u) => u.code === code)?.symbol ?? code;
 
+/**
+ * 0.12.0: units of one quantity and their factor to a reference unit (UCUM codes). Two units of a group convert by a
+ * pure factor (W.h ↔ kW.h ↔ J); temperatures (Cel, K, [degF]) differ by an offset and do not.
+ */
+const UNIT_FACTORS: Record<string, [string, number]> = {
+  ns: ['s', 1e-9],
+  us: ['s', 1e-6],
+  ms: ['s', 1e-3],
+  s: ['s', 1],
+  min: ['s', 60],
+  h: ['s', 3600],
+  d: ['s', 86400],
+  um: ['m', 1e-6],
+  mm: ['m', 1e-3],
+  cm: ['m', 1e-2],
+  m: ['m', 1],
+  km: ['m', 1e3],
+  'mm/s': ['m/s', 1e-3],
+  'mm/min': ['m/s', 1e-3 / 60],
+  'm/s': ['m/s', 1],
+  'm/min': ['m/s', 1 / 60],
+  deg: ['rad', Math.PI / 180],
+  rad: ['rad', 1],
+  '/min': ['/s', 1 / 60],
+  '/s': ['/s', 1],
+  Hz: ['/s', 1],
+  kHz: ['/s', 1e3],
+  mA: ['A', 1e-3],
+  A: ['A', 1],
+  kA: ['A', 1e3],
+  mV: ['V', 1e-3],
+  V: ['V', 1],
+  kV: ['V', 1e3],
+  mW: ['W', 1e-3],
+  W: ['W', 1],
+  kW: ['W', 1e3],
+  MW: ['W', 1e6],
+  'V.A': ['V.A', 1],
+  'kV.A': ['V.A', 1e3],
+  'MV.A': ['V.A', 1e6],
+  var: ['var', 1],
+  kvar: ['var', 1e3],
+  'W.h': ['J', 3600],
+  'kW.h': ['J', 3.6e6],
+  'MW.h': ['J', 3.6e9],
+  J: ['J', 1],
+  kJ: ['J', 1e3],
+  MJ: ['J', 1e6],
+  N: ['N', 1],
+  kN: ['N', 1e3],
+  'N.m': ['N.m', 1],
+  Pa: ['Pa', 1],
+  kPa: ['Pa', 1e3],
+  MPa: ['Pa', 1e6],
+  bar: ['Pa', 1e5],
+  mbar: ['Pa', 100],
+  mg: ['g', 1e-3],
+  g: ['g', 1],
+  kg: ['g', 1e3],
+  t: ['g', 1e6],
+  mL: ['L', 1e-3],
+  L: ['L', 1],
+  m3: ['L', 1e3],
+  'L/min': ['L/s', 1 / 60],
+  'L/s': ['L/s', 1],
+  'm3/h': ['L/s', 1000 / 3600],
+  '%': ['1', 0.01],
+  '1': ['1', 1],
+};
+
+/** How two units (as written or UCUM codes) relate: the same unit, convertible by a pure factor, or not. */
+export type PlantUnitRelation = 'same' | 'convertible' | 'incompatible';
+
+/**
+ * 0.12.0: whether two units are the same (after reading usual spellings as their UCUM code: kWh = kW.h), differ by a
+ * pure factor (W.h and kW.h, bar and kPa, % and 1) or cannot be converted that way (kW and kW.h, Cel and K).
+ */
+export function unitRelation(a: string, b: string): PlantUnitRelation {
+  const x = unitCode(a);
+  const y = unitCode(b);
+  if (x === y) return 'same';
+  const fx = UNIT_FACTORS[x];
+  const fy = UNIT_FACTORS[y];
+  return fx && fy && fx[0] === fy[0] ? 'convertible' : 'incompatible';
+}
+
 // ---------- addresses ----------
 
 /**
@@ -446,6 +532,11 @@ export interface PlantProfileValues {
   interfaces: PlantInterface[];
   /** The base profile this one extends (0.11.0), or null */
   extends: string | null;
+  /**
+   * 0.12.0: a template – only for other profiles to extend; no asset may have it (not inherited: a profile that extends
+   * a template is none)
+   */
+  template: boolean;
   /** Changes to inherited interfaces, and data points added to them (empty without a base) */
   interfaceOverrides: PlantInterfaceOverride[];
   /** Changes to inherited data points (empty without a base) */
@@ -475,6 +566,8 @@ export interface PlantProfileSummary extends PlantSource {
   assetCount: number;
   /** The base profile (0.11.0), or null */
   extends: string | null;
+  /** 0.12.0: a template – only for other profiles to extend */
+  template: boolean;
   updatedAt: string;
 }
 
@@ -609,7 +702,17 @@ export interface PlantAssignmentView extends PlantSource {
   kpis: (PlantKpiInstance & { definition: { id: string; name: string; names: Translations; category: string } | null; results: PlantResultLink[] })[];
   checks: PlantCheck[];
   /** KPI definitions this asset can have: every data point input is delivered */
-  possibleKpis: { id: string; name: string; names: Translations; category: string; instantiated: boolean }[];
+  possibleKpis: {
+    id: string;
+    name: string;
+    names: Translations;
+    category: string;
+    instantiated: boolean;
+    /** 0.12.0: data point inputs the asset delivers in another unit than the KPI expects */
+    units?: PlantUnitMismatch[];
+    /** 0.12.0: a data collection of the asset maps every data point input (the data is collected) */
+    collected?: boolean;
+  }[];
   canManage: boolean;
   updatedAt: string | null;
   updatedBy: string | null;
@@ -639,6 +742,11 @@ export interface KpiInput {
   /** Data points: the profile and its data points the computation reads */
   profile: string;
   dataPoints: string[];
+  /**
+   * 0.12.0: the unit the computation expects, per data point (UCUM code). A data point not listed expects the unit it
+   * has in the input's profile (none without a profile: not checked). See the check kpi_unit_mismatch.
+   */
+  units?: Record<string, string>;
   notes: string;
 }
 
@@ -735,10 +843,26 @@ export interface PlantKpiDetail extends PlantKpiSummary, PlantStamp, PlantKpiVal
   instances: { asset: PlantAssetBrief; job: string; active: boolean; problems: number }[];
   /** Assets (that the reader may see) that deliver every input but have no instance */
   candidates: PlantAssetBrief[];
+  /**
+   * 0.12.0: per candidate (asset id) whether its data is collected already (a data collection maps every data point
+   * input) and the inputs it delivers in another unit
+   */
+  candidateInfo?: Record<string, { collected: boolean; units: PlantUnitMismatch[] }>;
   canManage: boolean;
 }
 
 // ---------- checks ----------
+
+/**
+ * 0.12.0: a data point input an asset delivers in another unit than the KPI expects (the KPI input's unit, else the
+ * unit of the data point in the input's profile). Convertible: by a pure factor (W.h and kW.h); else not at all.
+ */
+export interface PlantUnitMismatch {
+  point: string;
+  expected: string;
+  actual: string;
+  relation: 'convertible' | 'incompatible';
+}
 
 /** What Steward checks in part 2: an asset's assignment and KPI instances, and the KPI definitions. */
 export const PLANT_CHECK_CODES = [
@@ -751,6 +875,7 @@ export const PLANT_CHECK_CODES = [
   'kpi_point_unknown',
   'kpi_point_unavailable',
   'kpi_interface_inactive',
+  'kpi_unit_mismatch',
   'param_unknown',
   'param_type',
   'param_range',
