@@ -15,6 +15,7 @@ import {
   SimpleGrid,
   Stack,
   Table,
+  Tabs,
   Text,
   TextInput,
   Title,
@@ -39,11 +40,13 @@ import {
   type PlantCollector,
   type PlantItemDecision,
 } from '@sm/shared';
-import { apiUrl, del, get, notifyError, post, put } from '../../api';
+import { ApiError, apiUrl, del, get, notifyError, post, put } from '../../api';
 import { EmptyState, QueryState } from '../../components/common';
 import { confirmDanger } from '../../components/confirm';
 import { Breakable } from '../../components/plant/data';
 import { ItemSelect } from '../../components/plant/network';
+import { CollectionFlowView, CollectionSourcesView } from '../../components/plant/CollectionFlow';
+import { PlantDocumentsPanel } from '../../components/plant/DocumentsPanel';
 
 /**
  * The data collections of an asset (0.11.0, ADR 0019): what collectors read from it, mapped to its data points. The
@@ -56,7 +59,7 @@ const base = (assetId: string) => `/plant/assets/${encodeURIComponent(assetId)}/
 const key = (assetId: string) => ['plant', 'collections', assetId];
 
 function useCollectionText() {
-  const { t, i18n } = useTranslation(['plantModel', 'plantNetwork', 'common']);
+  const { t, i18n } = useTranslation(['plantModel', 'plantNetwork', 'plantDocs', 'common']);
   const nf = new Intl.NumberFormat(i18n.language);
   const how = (c: Pick<PlantCollectionView, 'mode' | 'intervalMs' | 'debounceMs'>) =>
     [
@@ -166,7 +169,11 @@ export function AssetCollectionsView({ assetId }: { assetId: string }) {
                     )}
                   </Group>
                   <Text size="xs" c="dimmed" style={{ overflowWrap: 'anywhere' }}>
-                    {[collector(c), how(c), c.destination && t('collections.toIs', { to: c.destinationRef?.label || c.destination.ref })]
+                    {[
+                      collector(c),
+                      how(c),
+                      c.sinks.length > 0 && t('collections.toIs', { to: c.sinks.map((x, i) => c.sinkRefs[i]?.label || x.name).join(', ') }),
+                    ]
                       .filter(Boolean)
                       .join(' · ')}
                   </Text>
@@ -319,6 +326,7 @@ function CollectionDetail({ assetId, id, data, onClose }: { assetId: string; id:
   const q = useQuery({ queryKey: [...key(assetId), id], queryFn: () => get<PlantCollectionView>(`${base(assetId)}/${encodeURIComponent(id)}`) });
   const [editing, setEditing] = useState<number | null>(null);
   const [adding, setAdding] = useState<number | null>(null);
+  const [tab, setTab] = useState('items');
   const c = q.data;
   const refresh = () => {
     void qc.invalidateQueries({ queryKey: key(assetId) });
@@ -330,7 +338,7 @@ function CollectionDetail({ assetId, id, data, onClose }: { assetId: string; id:
         <QueryState query={q} rows={4} />
       </Modal>
     );
-  const save = async (items: PlantCollectionView['items']) => {
+  const save = async (items: PlantCollectionView['items'], sinks: PlantCollectionView['sinks'] = c.sinks) => {
     const {
       id: _i,
       assetId: _a,
@@ -339,6 +347,7 @@ function CollectionDetail({ assetId, id, data, onClose }: { assetId: string; id:
       collectorRef: _c,
       collectorHost: _h,
       destinationRef: _d,
+      sinkRefs: _r,
       points: _p,
       coverage: _v,
       writes: _w,
@@ -348,13 +357,30 @@ function CollectionDetail({ assetId, id, data, onClose }: { assetId: string; id:
       updatedBy: _b,
       ...body
     } = c;
-    await put(`${base(assetId)}/${encodeURIComponent(id)}`, { ...body, items });
+    // the sinks are what is stored (0.12); the destination is their first one
+    await put(`${base(assetId)}/${encodeURIComponent(id)}`, { ...body, destination: null, sinks, items });
     refresh();
+    void qc.invalidateQueries({ queryKey: [...key(assetId), id] });
+  };
+  const saveSinks = async (sinks: PlantCollectionView['sinks']) => {
+    try {
+      await save(c.items, sinks);
+    } catch (e) {
+      notifyError(e);
+    }
   };
   const remove = async () => {
     if (!(await confirmDanger({ action: 'remove', message: t('collections.removeConfirm', { name: c.name }) }))) return;
+    const url = `${base(assetId)}/${encodeURIComponent(id)}`;
     try {
-      await del(`${base(assetId)}/${encodeURIComponent(id)}`);
+      try {
+        await del(url);
+      } catch (e) {
+        // records link to it (0.12): removed only with "also remove what belongs to it"
+        if (!(e instanceof ApiError) || e.code !== 'PLANT_COLLECTION_LINKED') throw e;
+        if (!(await confirmDanger({ action: 'remove', message: t('plantDocs:removeLinked', { name: c.name, count: Number(e.params?.count ?? 0) }) }))) return;
+        await del(`${url}?cascade=1`);
+      }
       refresh();
       onClose();
     } catch (e) {
@@ -367,181 +393,206 @@ function CollectionDetail({ assetId, id, data, onClose }: { assetId: string; id:
   const access = (['write', 'create', 'delete'] as const).filter((k) => c.access[k].length);
   return (
     <Modal opened onClose={onClose} title={c.name} size="xl" data-testid="collection-detail">
-      <Stack gap="md">
-        <Text size="sm" style={{ overflowWrap: 'anywhere' }}>
-          {[collector(c), how(c)].join(' · ')}
-        </Text>
-        {c.destination && (
-          <Text size="sm" style={{ overflowWrap: 'anywhere' }}>
-            {t('collections.destination')}:{' '}
-            {c.destinationRef?.path ? (
-              <Anchor component={Link} to={c.destinationRef.path} size="sm">
-                {c.destinationRef.label}
-              </Anchor>
-            ) : (
-              c.destinationRef?.label || c.destination.ref
-            )}
-            {c.destination.path && (
-              <Text span className="mono" size="xs">
-                {' '}
-                {c.destination.path}
-              </Text>
-            )}
-          </Text>
-        )}
-        {access.length > 0 && (
-          <Alert color="red" variant="light" icon={<IconAlertTriangle size={18} />} title={t('collections.writesTitle')} data-testid="collection-writes">
-            <Stack gap={4}>
-              <Text size="sm">{t('collections.writesText')}</Text>
-              {access.map((k) => (
-                <Text key={k} size="sm" style={{ overflowWrap: 'anywhere' }}>
-                  <Text span fw={600}>
-                    {t(`collections.access.${k}`)}:
-                  </Text>{' '}
-                  <span className="mono">{c.access[k].join(', ')}</span>
-                </Text>
-              ))}
-            </Stack>
-          </Alert>
-        )}
-        {c.access.read.length > 0 && (
-          <Text size="xs" c="dimmed" style={{ overflowWrap: 'anywhere' }}>
-            {t('collections.access.read')}: <span className="mono">{c.access.read.join(', ')}</span>
-          </Text>
-        )}
-        {c.triggers.length > 0 && (
-          <Stack gap={2}>
-            <Text size="sm" fw={600}>
-              {t('collections.triggers')}
+      <Tabs value={tab} onChange={(x) => setTab(x ?? 'items')} keepMounted={false}>
+        <Tabs.List mb="md">
+          <Tabs.Tab value="items">{t('collections.items')}</Tabs.Tab>
+          <Tabs.Tab value="flow" data-testid="collection-tab-flow">
+            {t('plantDocs:tabs.flow')}
+          </Tabs.Tab>
+          <Tabs.Tab value="sources" data-testid="collection-tab-sources">
+            {t('plantDocs:tabs.sources')}
+          </Tabs.Tab>
+          <Tabs.Tab value="documents" data-testid="collection-tab-documents">
+            {t('plantDocs:tabs.documents')}
+          </Tabs.Tab>
+        </Tabs.List>
+        <Tabs.Panel value="flow">
+          <CollectionFlowView assetId={assetId} collection={c} canManage={data.canManage} onSaveSinks={saveSinks} />
+        </Tabs.Panel>
+        <Tabs.Panel value="sources">
+          <CollectionSourcesView assetId={assetId} collectionId={c.id} />
+        </Tabs.Panel>
+        <Tabs.Panel value="documents">
+          <PlantDocumentsPanel kind="data-collection" id={`${assetId}/${c.id}`} />
+        </Tabs.Panel>
+        <Tabs.Panel value="items">
+          <Stack gap="md">
+            <Text size="sm" style={{ overflowWrap: 'anywhere' }}>
+              {[collector(c), how(c)].join(' · ')}
             </Text>
-            {c.triggers.map((x, i) => (
-              <Text key={i} size="xs" style={{ overflowWrap: 'anywhere' }}>
-                {[x.name, x.condition, x.referencePoint && `${x.referencePoint}${x.referenceValue ? ` = ${x.referenceValue}` : ''}`]
-                  .filter(Boolean)
-                  .join(' · ')}
+            {c.sinks.map((x, i) => (
+              <Text key={x.id} size="sm" style={{ overflowWrap: 'anywhere' }}>
+                {t('collections.destination')}:{' '}
+                {c.sinkRefs[i]?.path ? (
+                  <Anchor component={Link} to={c.sinkRefs[i]!.path!} size="sm">
+                    {c.sinkRefs[i]!.label}
+                  </Anchor>
+                ) : (
+                  c.sinkRefs[i]?.label || x.ref || x.name
+                )}
+                {x.object && (
+                  <Text span className="mono" size="xs">
+                    {' '}
+                    {x.object}
+                  </Text>
+                )}
               </Text>
             ))}
-            {c.composition && (
-              <Text size="xs" c="dimmed">
-                {t('collections.composition', { text: c.composition })}
+            {access.length > 0 && (
+              <Alert color="red" variant="light" icon={<IconAlertTriangle size={18} />} title={t('collections.writesTitle')} data-testid="collection-writes">
+                <Stack gap={4}>
+                  <Text size="sm">{t('collections.writesText')}</Text>
+                  {access.map((k) => (
+                    <Text key={k} size="sm" style={{ overflowWrap: 'anywhere' }}>
+                      <Text span fw={600}>
+                        {t(`collections.access.${k}`)}:
+                      </Text>{' '}
+                      <span className="mono">{c.access[k].join(', ')}</span>
+                    </Text>
+                  ))}
+                </Stack>
+              </Alert>
+            )}
+            {c.access.read.length > 0 && (
+              <Text size="xs" c="dimmed" style={{ overflowWrap: 'anywhere' }}>
+                {t('collections.access.read')}: <span className="mono">{c.access.read.join(', ')}</span>
               </Text>
             )}
-          </Stack>
-        )}
-        <Group gap="xs" wrap="wrap">
-          <Badge variant="light" color="green" tt="none">
-            {t('collections.mappedCount', { count: c.coverage.mapped })}
-          </Badge>
-          <Badge variant="light" color="orange" tt="none">
-            {t('collections.rawCount', { count: c.coverage.raw })}
-          </Badge>
-          <Badge variant="light" color="gray" tt="none">
-            {t('collections.notCollectedCount', { count: c.coverage.notCollected.length })}
-          </Badge>
-          {c.coverage.duplicates.length > 0 && (
-            <Badge variant="light" color="yellow" tt="none">
-              {t('collections.duplicatesCount', { count: c.coverage.duplicates.length })}
-            </Badge>
-          )}
-        </Group>
-        <Stack gap={4} role="list" aria-label={t('collections.items')} data-testid="collection-items">
-          {c.items.map((it, i) => (
-            <Paper key={i} withBorder p="xs" role="listitem">
-              <Group justify="space-between" wrap={narrow ? 'wrap' : 'nowrap'} gap="xs" align="flex-start">
-                <Stack gap={0} style={{ minWidth: 0, flex: 1 }}>
-                  <PointName point={c.points[i] ?? null} outputName={it.outputName} raw={!it.dataPoint} />
-                  <Text size="xs" className="mono code-wrap">
-                    <Breakable text={it.address || '–'} />
+            {c.triggers.length > 0 && (
+              <Stack gap={2}>
+                <Text size="sm" fw={600}>
+                  {t('collections.triggers')}
+                </Text>
+                {c.triggers.map((x, i) => (
+                  <Text key={i} size="xs" style={{ overflowWrap: 'anywhere' }}>
+                    {[x.name, x.condition, x.referencePoint && `${x.referencePoint}${x.referenceValue ? ` = ${x.referenceValue}` : ''}`]
+                      .filter(Boolean)
+                      .join(' · ')}
                   </Text>
-                  {(it.outputType || it.transform.note) && (
-                    <Text size="xs" c="dimmed" style={{ overflowWrap: 'anywhere' }}>
-                      {[it.outputType, it.transform.note].filter(Boolean).join(' · ')}
-                    </Text>
-                  )}
-                  {dup.has(i) && (
-                    <Text size="xs" fw={500}>
-                      {t('collections.duplicate', {
-                        items: dup
-                          .get(i)!
-                          .map((x) => x + 1)
-                          .join(', '),
-                      })}
-                    </Text>
-                  )}
-                  {unknown.has(i) && (
-                    <Text size="xs" fw={500}>
-                      {t('collections.unknownAddress')}
-                    </Text>
-                  )}
-                </Stack>
-                {data.canManage && (
-                  <Group gap={4} wrap="nowrap">
-                    <Button size="compact-xs" variant="subtle" leftSection={<IconPencil size={12} />} onClick={() => setEditing(i)}>
-                      {t('collections.map')}
-                    </Button>
-                    {!it.dataPoint && (
-                      <Button size="compact-xs" variant="subtle" onClick={() => setAdding(i)} data-testid={`add-point-${i}`}>
-                        {t('collections.addPoint')}
-                      </Button>
+                ))}
+                {c.composition && (
+                  <Text size="xs" c="dimmed">
+                    {t('collections.composition', { text: c.composition })}
+                  </Text>
+                )}
+              </Stack>
+            )}
+            <Group gap="xs" wrap="wrap">
+              <Badge variant="light" color="green" tt="none">
+                {t('collections.mappedCount', { count: c.coverage.mapped })}
+              </Badge>
+              <Badge variant="light" color="orange" tt="none">
+                {t('collections.rawCount', { count: c.coverage.raw })}
+              </Badge>
+              <Badge variant="light" color="gray" tt="none">
+                {t('collections.notCollectedCount', { count: c.coverage.notCollected.length })}
+              </Badge>
+              {c.coverage.duplicates.length > 0 && (
+                <Badge variant="light" color="yellow" tt="none">
+                  {t('collections.duplicatesCount', { count: c.coverage.duplicates.length })}
+                </Badge>
+              )}
+            </Group>
+            <Stack gap={4} role="list" aria-label={t('collections.items')} data-testid="collection-items">
+              {c.items.map((it, i) => (
+                <Paper key={i} withBorder p="xs" role="listitem">
+                  <Group justify="space-between" wrap={narrow ? 'wrap' : 'nowrap'} gap="xs" align="flex-start">
+                    <Stack gap={0} style={{ minWidth: 0, flex: 1 }}>
+                      <PointName point={c.points[i] ?? null} outputName={it.outputName} raw={!it.dataPoint} />
+                      <Text size="xs" className="mono code-wrap">
+                        <Breakable text={it.address || '–'} />
+                      </Text>
+                      {(it.outputType || it.transform.note) && (
+                        <Text size="xs" c="dimmed" style={{ overflowWrap: 'anywhere' }}>
+                          {[it.outputType, it.transform.note].filter(Boolean).join(' · ')}
+                        </Text>
+                      )}
+                      {dup.has(i) && (
+                        <Text size="xs" fw={500}>
+                          {t('collections.duplicate', {
+                            items: dup
+                              .get(i)!
+                              .map((x) => x + 1)
+                              .join(', '),
+                          })}
+                        </Text>
+                      )}
+                      {unknown.has(i) && (
+                        <Text size="xs" fw={500}>
+                          {t('collections.unknownAddress')}
+                        </Text>
+                      )}
+                    </Stack>
+                    {data.canManage && (
+                      <Group gap={4} wrap="nowrap">
+                        <Button size="compact-xs" variant="subtle" leftSection={<IconPencil size={12} />} onClick={() => setEditing(i)}>
+                          {t('collections.map')}
+                        </Button>
+                        {!it.dataPoint && (
+                          <Button size="compact-xs" variant="subtle" onClick={() => setAdding(i)} data-testid={`add-point-${i}`}>
+                            {t('collections.addPoint')}
+                          </Button>
+                        )}
+                      </Group>
                     )}
                   </Group>
-                )}
-              </Group>
-            </Paper>
-          ))}
-        </Stack>
-        {c.coverage.notCollected.length > 0 && (
-          <Stack gap={2} data-testid="collection-not-collected">
-            <Text size="sm" fw={600}>
-              {t('collections.notCollected')}
-            </Text>
-            <Text size="xs" style={{ overflowWrap: 'anywhere' }}>
-              {c.coverage.notCollected.map((p) => p.name).join(', ')}
-            </Text>
-          </Stack>
-        )}
-        {c.settings.length > 0 && (
-          <div className="table-scroll" tabIndex={0} role="region" aria-label={t('collections.settings')}>
-            <Table fz="xs" aria-label={t('collections.settings')}>
-              <Table.Tbody>
-                {c.settings.map((x) => (
-                  <Table.Tr key={x.key}>
-                    <Table.Td className="mono">{x.key}</Table.Td>
-                    <Table.Td style={{ overflowWrap: 'anywhere' }}>{x.value}</Table.Td>
-                  </Table.Tr>
+                </Paper>
+              ))}
+            </Stack>
+            {c.coverage.notCollected.length > 0 && (
+              <Stack gap={2} data-testid="collection-not-collected">
+                <Text size="sm" fw={600}>
+                  {t('collections.notCollected')}
+                </Text>
+                <Text size="xs" style={{ overflowWrap: 'anywhere' }}>
+                  {c.coverage.notCollected.map((p) => p.name).join(', ')}
+                </Text>
+              </Stack>
+            )}
+            {c.settings.length > 0 && (
+              <div className="table-scroll" tabIndex={0} role="region" aria-label={t('collections.settings')}>
+                <Table fz="xs" aria-label={t('collections.settings')}>
+                  <Table.Tbody>
+                    {c.settings.map((x) => (
+                      <Table.Tr key={x.key}>
+                        <Table.Td className="mono">{x.key}</Table.Td>
+                        <Table.Td style={{ overflowWrap: 'anywhere' }}>{x.value}</Table.Td>
+                      </Table.Tr>
+                    ))}
+                  </Table.Tbody>
+                </Table>
+              </div>
+            )}
+            <Group justify="space-between" wrap="wrap" gap="xs">
+              <Group gap="xs">
+                {(['csv', 'yaml'] as const).map((f) => (
+                  <Button
+                    key={f}
+                    size="xs"
+                    variant="default"
+                    component="a"
+                    href={apiUrl(`${base(assetId)}/${encodeURIComponent(id)}/mapping?format=${f}`)}
+                    download
+                    leftSection={<IconDownload size={14} />}
+                  >
+                    {t(`collections.mappingFile.${f}`)}
+                  </Button>
                 ))}
-              </Table.Tbody>
-            </Table>
-          </div>
-        )}
-        <Group justify="space-between" wrap="wrap" gap="xs">
-          <Group gap="xs">
-            {(['csv', 'yaml'] as const).map((f) => (
-              <Button
-                key={f}
-                size="xs"
-                variant="default"
-                component="a"
-                href={apiUrl(`${base(assetId)}/${encodeURIComponent(id)}/mapping?format=${f}`)}
-                download
-                leftSection={<IconDownload size={14} />}
-              >
-                {t(`collections.mappingFile.${f}`)}
-              </Button>
-            ))}
-          </Group>
-          {data.canManage && (
-            <Button size="xs" color="red" variant="subtle" leftSection={<IconTrash size={14} />} onClick={() => void remove()}>
-              {t('collections.remove')}
-            </Button>
-          )}
-        </Group>
-        {c.sourceFile && (
-          <Text size="xs" c="dimmed">
-            {t('collections.source', { format: c.format ? t(`collections.formats.${c.format}`) : '–', file: c.sourceFile })}
-          </Text>
-        )}
-      </Stack>
+              </Group>
+              {data.canManage && (
+                <Button size="xs" color="red" variant="subtle" leftSection={<IconTrash size={14} />} onClick={() => void remove()}>
+                  {t('collections.remove')}
+                </Button>
+              )}
+            </Group>
+            {c.sourceFile && (
+              <Text size="xs" c="dimmed">
+                {t('collections.source', { format: c.format ? t(`collections.formats.${c.format}`) : '–', file: c.sourceFile })}
+              </Text>
+            )}
+          </Stack>
+        </Tabs.Panel>
+      </Tabs>
       {editing !== null && (
         <MapModal
           value={c.items[editing]!.dataPoint}

@@ -36,6 +36,7 @@ import {
 } from '../components/plant/common';
 import { AssetFormModal, BuildingFormModal, NodeFormModal, SiteFormModal } from '../components/plant/forms';
 import { SiteNetworkCard } from '../components/plant/network';
+import { PlantDocumentsPanel } from '../components/plant/DocumentsPanel';
 import { PlantSiteTabPage, SiteTabs } from './plant/views/tabs';
 
 type NodeDialog = { level: PlantLevel; parentId: string | null; node?: PlantNode } | null;
@@ -323,6 +324,7 @@ export function PlantSitePage() {
               )}
             </Stack>
 
+            <PlantDocumentsPanel kind="site" id={s.id} />
             <LinksPanel
               links={s.links}
               backlinks={s.backlinks}

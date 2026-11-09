@@ -54,8 +54,7 @@
         "template": "## Scope\n\n\n## Notes\n\n"
       },
       "GWC": {
-        "description": "The configuration of a collector (a gateway, an ETL job) as an import of data collections read it: a summary that each import rewrites, the file with its secrets removed, and your own notes below it.",
-        "template": ""
+        "description": "The configuration of a collector (a gateway, an ETL job) as an import of data collections read it: a summary that each import rewrites, the file with its secrets removed, and your own notes below it."
       }
     },
     "fields": {

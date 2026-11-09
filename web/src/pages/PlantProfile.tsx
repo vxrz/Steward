@@ -30,6 +30,7 @@ import {
   setPointPresent,
 } from '../components/plant/profileEdit';
 import { DataPointFormModal, InterfaceFormModal, ProfileFormModal } from '../components/plant/dataForms';
+import { PlantDocumentsPanel } from '../components/plant/DocumentsPanel';
 import { SourceLine } from './PlantSite';
 
 /** Where an interface or data point of a derived profile comes from (0.11.0); nothing on a profile without a base. */
@@ -455,6 +456,7 @@ export function PlantProfilePage() {
                 </Paper>
               ))}
             </Stack>
+            <PlantDocumentsPanel kind="device-profile" id={p.id} />
           </Stack>
         </Grid.Col>
         <Grid.Col span={{ base: 12, md: 4 }}>

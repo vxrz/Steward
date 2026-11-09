@@ -50,6 +50,7 @@ export const NAMESPACES = [
   'plantMap',
   'plantModel',
   'plantIds',
+  'plantDocs',
   'costs',
   'contracts',
   'libraries',

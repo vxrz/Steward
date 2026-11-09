@@ -54,8 +54,7 @@
         "template": "## Geltungsbereich\n\n\n## Hinweise\n\n"
       },
       "GWC": {
-        "description": "Die Konfiguration eines Sammlers (eines Gateways, eines ETL-Jobs), wie ein Import von Datenerfassungen sie gelesen hat: eine Zusammenfassung, die jeder Import neu schreibt, die Datei ohne Geheimnisse und Ihre eigenen Notizen darunter.",
-        "template": ""
+        "description": "Die Konfiguration eines Sammlers (eines Gateways, eines ETL-Jobs), wie ein Import von Datenerfassungen sie gelesen hat: eine Zusammenfassung, die jeder Import neu schreibt, die Datei ohne Geheimnisse und Ihre eigenen Notizen darunter."
       }
     },
     "fields": {
