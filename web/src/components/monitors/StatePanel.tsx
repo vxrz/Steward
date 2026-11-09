@@ -1,4 +1,4 @@
-import { Alert, Badge, Group, Paper, Stack, Table, Text, Title } from '@mantine/core';
+import { Alert, Anchor, Badge, Group, Paper, Stack, Table, Text, Title } from '@mantine/core';
 import { IconCheck, IconClockHour4, IconPower, IconQuestionMark, IconX } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { CellVerdict, MonitorDetail, MonitorStateInfo, StateCellView, UptimeSet } from '@sm/shared';
@@ -139,9 +139,9 @@ export function WhyThisState({ monitor, onSelect }: { monitor: MonitorDetail; on
                     <Table.Td>{t(`states.roles.${c.role}`)}</Table.Td>
                     <Table.Th scope="row" fw={deviating.has(c.checkId) ? 700 : 400}>
                       {onSelect ? (
-                        <Text span size="sm" style={{ cursor: 'pointer', textDecoration: 'underline dotted' }} onClick={() => onSelect(c.checkId)}>
+                        <Anchor component="button" type="button" size="sm" inherit onClick={() => onSelect(c.checkId)}>
                           {nameOf(c.checkId)}
-                        </Text>
+                        </Anchor>
                       ) : (
                         nameOf(c.checkId)
                       )}
