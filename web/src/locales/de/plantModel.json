@@ -263,6 +263,13 @@
       "no_points": "Wählen Sie mindestens einen Datenpunkt, den jedes Profil teilen kann.",
       "base_taken": "Ein Geräteprofil mit der ID {{id}} gibt es bereits.",
       "rules": "Das Ergebnis verletzt eine Regel für Geräteprofile: {{message}}"
-    }
+    },
+    "interfaces": "Schnittstellen der Basis",
+    "interfacesHelp": "Die Schnittstelle jedes Profils, die die gemeinsamen Datenpunkte hält, erhält diese ID. Wo sich ihre Protokolle unterscheiden, hat die Schnittstelle der Basis das Protokoll „Andere“ und keine Adressen – jedes Profil behält sein Protokoll und seine Adressen.",
+    "interfaceId": "ID von {{interface}} in der Basis",
+    "mixed": "Protokolle unterscheiden sich ({{protocols}}): „Andere“ in der Basis"
+  },
+  "protocolOther": {
+    "help": "Die Basis lässt das Protokoll offen („Andere“): Wählen Sie das, das dieses Gerät spricht, und geben Sie dann seinen Datenpunkten ihre Adressen."
   }
 }

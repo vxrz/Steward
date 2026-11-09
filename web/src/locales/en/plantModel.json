@@ -263,6 +263,13 @@
       "no_points": "Choose at least one data point every profile can share.",
       "base_taken": "A device profile with the id {{id}} exists already.",
       "rules": "The result breaks a rule of device profiles: {{message}}"
-    }
+    },
+    "interfaces": "Interfaces of the base",
+    "interfacesHelp": "Each profile’s interface that holds the shared data points gets this id. Where their protocols differ, the base’s interface has the protocol “other” and no addresses – each profile keeps its protocol and addresses.",
+    "interfaceId": "Id of {{interface}} in the base",
+    "mixed": "Protocols differ ({{protocols}}): “other” in the base"
+  },
+  "protocolOther": {
+    "help": "The base leaves the protocol open (“other”): choose the one this device speaks, then give its data points their addresses."
   }
 }

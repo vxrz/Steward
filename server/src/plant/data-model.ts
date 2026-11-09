@@ -354,6 +354,8 @@ export const interfaceOverrideInput = z
     interface: pointName,
     present: z.boolean().default(true),
     name: z.string().trim().max(PLANT_LIMITS.name).optional(),
+    // 0.13: only for an inherited interface of protocol "other"
+    protocol: z.enum(PLANT_PROTOCOLS).optional(),
     direction: z.enum(PLANT_DIRECTIONS).optional(),
     description: z.string().trim().max(L.longText).optional(),
     version: z.string().trim().max(60).optional(),

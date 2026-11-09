@@ -254,18 +254,23 @@ export function InterfaceFormModal({
   iface,
   taken,
   inherited = false,
+  baseProtocol,
   onClose,
   onSave,
 }: {
   iface?: PlantInterface;
   /** An inherited interface (0.11.0): its protocol stays; what differs from the base becomes an override */
   inherited?: boolean;
+  /** 0.13: the base's protocol of an inherited interface – "other" leaves it to this profile */
+  baseProtocol?: PlantProtocol;
   /** Interface ids of the profile */
   taken: string[];
   onClose: () => void;
   onSave: Save<PlantInterface>;
 }) {
-  const { t } = useTranslation(['plant', 'common']);
+  const { t } = useTranslation(['plant', 'common', 'plantModel']);
+  // 0.13: an inherited interface of protocol "other" (a base across protocols) gets its protocol here
+  const protocolOpen = inherited && baseProtocol === 'other';
   const [name, setName] = useState(iface?.name ?? '');
   const [id, setId] = useState(iface?.id ?? '');
   const [ownId, setOwnId] = useState(!!iface);
@@ -317,7 +322,9 @@ export function InterfaceFormModal({
           label={t('data.protocol')}
           data={PLANT_PROTOCOLS.map((p) => ({ value: p, label: t(`data.protocols.${p}`) }))}
           value={protocol}
-          disabled={inherited}
+          disabled={inherited && !protocolOpen}
+          description={protocolOpen ? t('plantModel:protocolOther.help') : undefined}
+          data-testid="interface-protocol"
           onChange={(x) => {
             if (!x) return;
             const next = x as PlantProtocol;

@@ -221,11 +221,14 @@ export function splitInterfaces(
       groupPaths.push(x.groupPaths);
       return;
     }
-    if (f.protocol && protocolOf(f.protocol) !== inherited.protocol)
+    // 0.13: an inherited interface of protocol "other" (a base across protocols) gets its protocol here
+    const protocol = f.protocol ? protocolOf(f.protocol) : null;
+    if (protocol && protocol !== inherited.protocol && inherited.protocol !== 'other')
       problems.push({ file, path: `${at}.protocol`, message: `Interface "${f.id}" is inherited: its protocol stays ${inherited.protocol}` });
     const o: PlantInterfaceOverride = { interface: f.id, present: f.present ?? true, groups: [], fileSets: [] };
     if (f.present !== false) {
       const x = interfaceFromFile({ ...f, protocol: inherited.protocol, groups: [], data_points: [] }, at, problems, file).iface;
+      if (protocol && protocol !== inherited.protocol && inherited.protocol === 'other') o.protocol = protocol;
       if (has(f, 'name')) o.name = x.name;
       if (has(f, 'direction')) o.direction = x.direction;
       if (has(f, 'description')) o.description = x.description;
@@ -962,6 +965,7 @@ function inheritedOut(p: PlantProfileValues, base: PlantResolvedProfile): Record
     const entry: Record<string, unknown> = { id: iface.id };
     const keys: [keyof PlantInterfaceOverride, string][] = [
       ['name', 'name'],
+      ['protocol', 'protocol'],
       ['direction', 'direction'],
       ['description', 'description'],
       ['version', 'version'],

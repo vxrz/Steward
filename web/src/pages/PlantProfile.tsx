@@ -30,6 +30,7 @@ import { ExtractBaseModal } from '../components/plant/ExtractBaseModal';
 import { FormButtons } from '../components/plant/forms';
 import { AssetBriefLink, DataPointTable, ProtocolBadge, RowMenu } from '../components/plant/data';
 import {
+  baseInterface,
   describeFileSet,
   describeGroup,
   describeInterface,
@@ -691,6 +692,7 @@ export function PlantProfilePage() {
           iface={dialog.iface}
           taken={p.interfaces.map((i) => i.id)}
           inherited={!!dialog.iface && inheritedIface(dialog.iface.id)}
+          baseProtocol={dialog.iface ? baseInterface(p, dialog.iface.id)?.protocol : undefined}
           onClose={() => setDialog(null)}
           onSave={(iface) => save(saveInterface(p, iface))}
         />
