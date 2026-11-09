@@ -22,6 +22,7 @@ import { AssetNetworkSection } from '../components/plant/AssetNetwork';
 import { PlantDocumentsPanel } from '../components/plant/DocumentsPanel';
 import { SourceLine } from './PlantSite';
 import { AssetTabs, PlantAssetTabPage } from './plant/views/tabs';
+import { OpenChangesChip, ProposeEditButton } from '../components/plant/changes/common';
 
 /**
  * An asset (#218): where it is (site › area › work center › work unit, and the building that applies), the equipment
@@ -110,6 +111,8 @@ export function PlantAssetPage() {
             <AssetStatusBadge status={a.status} size="md" />
             {a.notInSource && <NotInSourceBadge />}
             <PreviewBadge />
+            {/* 0.13.0: open change sets that touch it, and whether the person's draft does */}
+            <OpenChangesChip query={{ kind: 'asset', id: a.id }} />
           </>
         }
         description={
@@ -133,13 +136,16 @@ export function PlantAssetPage() {
           </nav>
         }
         actions={
-          a.canManage && (
+          a.canManage ? (
             <>
               <Button size="xs" leftSection={<IconEdit size={14} />} onClick={() => setEditing(true)}>
                 {t('common:edit')}
               </Button>
               <DuplicateButton kind="asset" id={a.id} />
             </>
+          ) : (
+            // 0.13.0: who may only propose edits into their draft
+            a.canPropose && <ProposeEditButton onClick={() => setEditing(true)} testId="asset-propose-edit" />
           )
         }
         menu={

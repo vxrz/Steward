@@ -28,6 +28,7 @@ import { useAppName } from './theme';
 import { withBase } from './basePath';
 import { ShellLayoutContext } from './layout';
 import { setRecentUser } from './components/page/recent';
+import { DraftBar as PlantDraftBar, DraftSkipLink as PlantDraftSkipLink } from './components/plant/changes/DraftBar';
 
 // Pages are loaded on demand to keep the first download small.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -118,6 +119,8 @@ const PlantKpisPage = page(() => import('./pages/PlantKpis'), 'PlantKpisPage');
 const PlantKpiPage = page(() => import('./pages/PlantKpi'), 'PlantKpiPage');
 const PlantExplorePage = page(() => import('./pages/PlantExplore'), 'PlantExplorePage');
 const PlantChecksPage = page(() => import('./pages/PlantChecks'), 'PlantChecksPage');
+const PlantChangesPage = page(() => import('./pages/PlantChanges'), 'PlantChangesPage');
+const PlantChangeSetPage = page(() => import('./pages/PlantChangeSet'), 'PlantChangeSetPage');
 const PlantNetworkPage = page(() => import('./pages/PlantNetwork'), 'PlantNetworkPage');
 const PlantMapPage = page(() => import('./pages/PlantMap'), 'PlantMapPage');
 
@@ -285,6 +288,7 @@ function Shell({ status }: { status: AuthStatus }) {
     <ShellLayoutContext.Provider value={layout}>
       <AppShell header={{ height: 52 }} navbar={{ width: railActive ? 64 : 232, breakpoint: 'sm', collapsed: { mobile: !opened, desktop: wide } }} padding="md">
         <SkipLink />
+        {caps.plant && location.pathname.startsWith('/plant') && <PlantDraftSkipLink />}
         <AppShell.Header>
           <Group h="100%" px={{ base: 'xs', xs: 'md' }} justify="space-between" wrap="nowrap" gap="xs">
             <Group gap="sm" wrap="nowrap" style={{ minWidth: 0 }}>
@@ -362,6 +366,8 @@ function Shell({ status }: { status: AuthStatus }) {
                     {caps.plant && <Route path="/plant/kpis/:kpiId" element={<PlantKpiPage />} />}
                     {caps.plant && <Route path="/plant/explore" element={<PlantExplorePage />} />}
                     {caps.plant && <Route path="/plant/checks" element={<PlantChecksPage />} />}
+                    {caps.plant && <Route path="/plant/changes" element={<PlantChangesPage />} />}
+                    {caps.plant && <Route path="/plant/changes/:changeSetId" element={<PlantChangeSetPage />} />}
                     {caps.plant && <Route path="/plant/map" element={<PlantMapPage />} />}
                     <Route path="/plant" element={<Navigate to="/plant/sites" replace />} />
                     <Route path="/profile" element={<ProfilePage />} />
@@ -694,6 +700,23 @@ function Shell({ status }: { status: AuthStatus }) {
                         </ModuleGate>
                       }
                     />
+                    {/* 0.13.0: change sets of the plant registry (ADR 0020) */}
+                    <Route
+                      path="/plant/changes"
+                      element={
+                        <ModuleGate module="plant">
+                          <PlantChangesPage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/plant/changes/:changeSetId"
+                      element={
+                        <ModuleGate module="plant">
+                          <PlantChangeSetPage />
+                        </ModuleGate>
+                      }
+                    />
                     <Route
                       path="/plant/map"
                       element={
@@ -732,6 +755,8 @@ function Shell({ status }: { status: AuthStatus }) {
               </Suspense>
             </ErrorBoundary>
           </div>
+          {/* 0.13.0: the person's draft of plant changes, on the plant pages (ADR 0020 §5) */}
+          {caps.plant && location.pathname.startsWith('/plant') && <PlantDraftBar />}
         </AppShell.Main>
       </AppShell>
     </ShellLayoutContext.Provider>

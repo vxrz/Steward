@@ -1,12 +1,13 @@
 import { lazy, Suspense, type ReactNode } from 'react';
 import { Anchor, Badge, Group, Text } from '@mantine/core';
 import { Link, Navigate } from 'react-router-dom';
-import { IconBuilding, IconChevronRight, IconDatabaseImport, IconInfoCircle, IconRoute, IconSitemap, type Icon } from '@tabler/icons-react';
+import { IconBuilding, IconChevronRight, IconDatabaseImport, IconHistory, IconInfoCircle, IconRoute, IconSitemap, type Icon } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { PlantAssetDetail, PlantSiteDetail } from '@sm/shared';
 import { DetailHeader } from '../../../components/page/DetailPage';
 import { LinkTabs } from '../../../components/page/LinkTabs';
 import { AssetStatusBadge, NotInSourceBadge, PreviewBadge, useNameOf } from '../../../components/plant/common';
+import { EntryHistory } from '../../../components/plant/changes/EntryHistory';
 
 /**
  * The tabs of a site and an asset (#230): the overview (the page as before) and the pictures of what the registry
@@ -18,13 +19,14 @@ const SiteStructureView = lazy(() => import('./SiteStructureView').then((m) => (
 const AssetFlowView = lazy(() => import('./AssetFlowView').then((m) => ({ default: m.AssetFlowView })));
 const AssetCollectionsView = lazy(() => import('../AssetCollections').then((m) => ({ default: m.AssetCollectionsView })));
 
-export const SITE_TABS = ['', 'structure'] as const;
+// 0.13.0: the history of the entry and what belongs to it (ADR 0020 §4)
+export const SITE_TABS = ['', 'structure', 'history'] as const;
 export type SiteTab = (typeof SITE_TABS)[number];
-const SITE_TAB_ICONS: Record<SiteTab, Icon> = { '': IconInfoCircle, structure: IconSitemap };
+const SITE_TAB_ICONS: Record<SiteTab, Icon> = { '': IconInfoCircle, structure: IconSitemap, history: IconHistory };
 
-export const ASSET_TABS = ['', 'flow', 'collections'] as const;
+export const ASSET_TABS = ['', 'flow', 'collections', 'history'] as const;
 export type AssetTab = (typeof ASSET_TABS)[number];
-const ASSET_TAB_ICONS: Record<AssetTab, Icon> = { '': IconInfoCircle, flow: IconRoute, collections: IconDatabaseImport };
+const ASSET_TAB_ICONS: Record<AssetTab, Icon> = { '': IconInfoCircle, flow: IconRoute, collections: IconDatabaseImport, history: IconHistory };
 
 const siteBase = (id: string) => `/plant/sites/${encodeURIComponent(id)}`;
 const assetBase = (id: string) => `/plant/assets/${encodeURIComponent(id)}`;
@@ -94,7 +96,10 @@ export function PlantSiteTabPage({ site, tab }: { site: PlantSiteDetail; tab: st
         }
         tabs={<SiteTabs site={site} active={known} />}
       />
-      <Suspense fallback={<Loading />}>{known === 'structure' && <SiteStructureView siteId={site.id} />}</Suspense>
+      <Suspense fallback={<Loading />}>
+        {known === 'structure' && <SiteStructureView siteId={site.id} />}
+        {known === 'history' && <EntryHistory kind="site" id={site.id} children />}
+      </Suspense>
     </>
   );
 }
@@ -152,6 +157,7 @@ export function PlantAssetTabPage({ asset, tab }: { asset: PlantAssetDetail; tab
       <Suspense fallback={<Loading />}>
         {known === 'flow' && <AssetFlowView assetId={asset.id} assetName={asset.name} canManage={asset.canManage} />}
         {known === 'collections' && <AssetCollectionsView assetId={asset.id} />}
+        {known === 'history' && <EntryHistory kind="asset" id={asset.id} children />}
       </Suspense>
     </>
   );

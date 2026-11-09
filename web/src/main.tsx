@@ -17,6 +17,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { ThemedMantineProvider } from './theme';
 import { BASE_PATH } from './basePath';
 import { StepUpDialog } from './components/security/StepUpDialog';
+import { EntryConflictDialog } from './components/plant/changes/EntryConflictDialog';
 
 document.title = BRAND.name;
 initPwa();
@@ -48,6 +49,8 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                 <App />
                 {/* confirming a sensitive action (step-up re-authentication), asked by api.ts */}
                 <StepUpDialog />
+                {/* 0.13.0: a plant entry changed by someone else since the form loaded it – a choice per field */}
+                <EntryConflictDialog />
               </Suspense>
             </ErrorBoundary>
           </BrowserRouter>

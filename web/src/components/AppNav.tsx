@@ -50,6 +50,7 @@ import {
   IconUsers,
   IconWebhook,
   type Icon,
+  IconGitPullRequest,
 } from '@tabler/icons-react';
 import type { Capabilities, VisibilitySummary } from '@sm/shared';
 import { useOwnLabel } from './plant/labels';
@@ -98,7 +99,8 @@ export type NavKey =
   | 'plantExplore'
   | 'plantChecks'
   | 'plantMap'
-  | 'plantImport';
+  | 'plantImport'
+  | 'plantChanges';
 /**
  * The areas of the sidebar (v0.4.0; Registers since 0.11.0): Home has no heading; Plant only while its module is on
  * (#218).
@@ -203,6 +205,8 @@ export const NAV_GROUPS: { key: NavGroupKey; items: NavItemDef[] }[] = [
       { to: '/plant/explore', key: 'plantExplore', icon: IconListSearch, when: plant },
       { to: '/plant/checks', key: 'plantChecks', icon: IconClipboardCheck, when: plant },
       { to: '/plant/import', key: 'plantImport', icon: IconFileImport, when: (c) => plant(c) && c.plantManage === true },
+      // 0.13.0: change sets – drafts, proposals to review, applied and closed changes (ADR 0020)
+      { to: '/plant/changes', key: 'plantChanges', icon: IconGitPullRequest, when: plant },
     ],
   },
   {

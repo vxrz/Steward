@@ -117,6 +117,7 @@
   "defaultsSite": "<b>Default role rights apply</b> (everyone who works in Steward sees the site, designers manage it). Add entries to restrict access to specific users, teams or roles.",
   "helpSite": {
     "view": "See the site, its hierarchy, buildings and assets",
+    "propose": "Keep drafts of changes and propose them; someone who manages the site applies them",
     "manage": "Change the site, its hierarchy, buildings and assets; import into it"
   }
 }

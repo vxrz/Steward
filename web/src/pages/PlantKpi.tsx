@@ -107,7 +107,7 @@ export function PlantKpiPage() {
   const values = valuesOf(k);
   const save = async (next: PlantKpiValues) => {
     const { id: _id, ...body } = next;
-    qc.setQueryData(plantKeys.kpi(kpiId), await put<PlantKpiDetail>(base, body));
+    qc.setQueryData(plantKeys.kpi(kpiId), await put<PlantKpiDetail>(base, { ...body, revision: k.revision }));
     void qc.invalidateQueries({ queryKey: plantKeys.kpis });
     void qc.invalidateQueries({ queryKey: plantKeys.checks });
   };

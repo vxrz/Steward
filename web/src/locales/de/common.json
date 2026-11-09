@@ -87,6 +87,7 @@
   "no": "Nein",
   "permissions": {
     "view": "Ansehen",
+    "propose": "Vorschlagen",
     "run": "Ausführen",
     "edit": "Bearbeiten",
     "approve": "Freigeben",

@@ -111,7 +111,7 @@ export function PlantProfilePage() {
   const base = `/plant/profiles/${encodeURIComponent(p.id)}`;
   const save = async (next: PlantProfileValues) => {
     const { id: _id, ...body } = next;
-    const saved = await put<PlantProfileDetail>(base, body);
+    const saved = await put<PlantProfileDetail>(base, { ...body, revision: p.revision });
     qc.setQueryData(plantKeys.profile(profileId), saved);
     void qc.invalidateQueries({ queryKey: plantKeys.profiles });
     void qc.invalidateQueries({ queryKey: ['plant', 'point', p.id] });
