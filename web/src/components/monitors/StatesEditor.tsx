@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useMediaQuery } from '@mantine/hooks';
 import { ActionIcon, Alert, Badge, Button, Group, NumberInput, Paper, Select, Stack, Table, Text, TextInput, Title } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { IconArrowDown, IconArrowUp, IconPlus, IconTrash } from '@tabler/icons-react';
@@ -92,6 +93,8 @@ export function StatesEditor({
   const issues = useMemo(() => stateIssues(def), [def]);
   const [trial, setTrial] = useState<Record<string, MonitorStatus>>({});
   const [trialLeader, setTrialLeader] = useState<string | null>(null);
+  // phones: one card per state with the same controls (the table is a desktop task)
+  const phone = useMediaQuery('(max-width: 48em)') ?? false;
   const [result, setResult] = useState<ReturnType<typeof tryStates> | null>(null);
 
   const set = (s: StatesDef | undefined) => {
@@ -141,6 +144,142 @@ export function StatesEditor({
     return [...vals, ...conds].map((v) => ({ value: v, label: t(`states.choice.${v.replace(':', '_') as 'any'}`) as string }));
   };
   const leaderIds = leader.data?.definition.states?.cases.map((c) => c.id) ?? [];
+  /** The controls of one state, shared by the table (desktop) and the cards (phones). */
+  const rowControls = (r: StateCase, i: number) => {
+    const label = r.name || r.id;
+    const derived = derivedSettleSeconds(def, r);
+    return {
+      label,
+      order: (
+        <Group gap={2} wrap="nowrap">
+          <Text size="sm" w={18}>
+            {i + 1}
+          </Text>
+          <ActionIcon size="sm" variant="subtle" aria-label={t('states.moveUp', { state: label })} disabled={i === 0} onClick={() => move(i, -1)}>
+            <IconArrowUp size={14} />
+          </ActionIcon>
+          <ActionIcon
+            size="sm"
+            variant="subtle"
+            aria-label={t('states.moveDown', { state: label })}
+            disabled={i === cases.length - 1}
+            onClick={() => move(i, 1)}
+          >
+            <IconArrowDown size={14} />
+          </ActionIcon>
+        </Group>
+      ),
+      nameId: (
+        <Stack gap={2}>
+          <TextInput
+            size="xs"
+            aria-label={t('states.name', { n: i + 1 })}
+            value={r.name ?? ''}
+            onChange={(e) => setRow(i, { ...r, name: e.currentTarget.value })}
+          />
+          <TextInput
+            size="xs"
+            className="mono"
+            aria-label={t('states.id', { n: i + 1 })}
+            value={r.id}
+            onChange={(e) => setRow(i, { ...r, id: e.currentTarget.value.trim() })}
+          />
+          {matchNow === r.id && (
+            <Badge size="xs" variant="light" data-testid="matches-now">
+              {t('states.matchesNow')}
+            </Badge>
+          )}
+        </Stack>
+      ),
+      shows: (
+        <Select
+          size="xs"
+          w={110}
+          aria-label={t('states.showsOf', { state: label })}
+          value={r.status ?? 'up'}
+          allowDeselect={false}
+          data={[
+            { value: 'up', label: monitorStatusLabel('up') },
+            { value: 'off', label: monitorStatusLabel('off') },
+          ]}
+          onChange={(v) => {
+            const next = { ...r, status: (v ?? 'up') as 'up' | 'off' };
+            if (next.status === 'up') delete next.maxOffHours;
+            setRow(i, next);
+          }}
+        />
+      ),
+      cell: (c: CheckDef) => (
+        <Select
+          size="xs"
+          aria-label={t('states.cellLabel', { state: label, check: c.name })}
+          value={choiceOf(r, c.id)}
+          allowDeselect={false}
+          data={options(c)}
+          onChange={(v) => setRow(i, withChoice(r, c.id, (v ?? 'any') as CellChoice))}
+          data-testid={`cell-${r.id}-${c.id}`}
+        />
+      ),
+      settle: (
+        <>
+          <NumberInput
+            size="xs"
+            w={110}
+            min={1}
+            max={STATE_LIMITS.settleMax / 60}
+            suffix=" min"
+            aria-label={t('states.settleOf', { state: label })}
+            placeholder={t('states.derived', { value: fmtSpan(derived) })}
+            value={r.settleSeconds === undefined ? '' : Math.round(r.settleSeconds / 60)}
+            onChange={(v) => {
+              const next = { ...r };
+              if (v === '' || v === null) delete next.settleSeconds;
+              else next.settleSeconds = Math.min(STATE_LIMITS.settleMax, Math.max(STATE_LIMITS.settleMin, Math.round(Number(v) * 60)));
+              setRow(i, next);
+            }}
+          />
+          {r.settleSeconds === undefined && (
+            <Text size="xs" c="dimmed">
+              {t('states.derived', { value: fmtSpan(derived) })}
+            </Text>
+          )}
+        </>
+      ),
+      maxOff:
+        (r.status ?? 'up') === 'off' ? (
+          <NumberInput
+            size="xs"
+            w={90}
+            min={0}
+            max={STATE_LIMITS.maxOffHoursMax}
+            suffix=" h"
+            aria-label={t('states.maxOffOf', { state: label })}
+            placeholder={`${states.maxOffHours ?? STATE_LIMITS.defaultMaxOffHours} h`}
+            value={r.maxOffHours ?? ''}
+            onChange={(v) => {
+              const next = { ...r };
+              if (v === '' || v === null) delete next.maxOffHours;
+              else next.maxOffHours = Number(v);
+              setRow(i, next);
+            }}
+          />
+        ) : (
+          <Text size="sm" c="dimmed">
+            –
+          </Text>
+        ),
+      remove: (
+        <ActionIcon
+          variant="subtle"
+          color="red"
+          aria-label={t('states.removeState', { state: label })}
+          onClick={() => setCases(cases.filter((_, j) => j !== i))}
+        >
+          <IconTrash size={14} />
+        </ActionIcon>
+      ),
+    };
+  };
 
   return (
     <Stack>
@@ -190,180 +329,107 @@ export function StatesEditor({
           {t('states.leaderIds', { ids: leaderIds.join(', ') })}
         </Text>
       )}
-      <Table.ScrollContainer minWidth={640}>
-        <Table withTableBorder withColumnBorders fz="sm" data-testid="states-table">
-          <caption style={{ captionSide: 'bottom', textAlign: 'left', fontSize: 12 }}>{t('states.legend')}</caption>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th scope="col">{t('states.order')}</Table.Th>
-              <Table.Th scope="col">{t('states.state')}</Table.Th>
-              <Table.Th scope="col">{t('states.shows')}</Table.Th>
-              {checks.map((c) => (
-                <Table.Th scope="col" key={c.id} style={{ minWidth: 120 }}>
-                  {c.name}
-                </Table.Th>
-              ))}
-              <Table.Th scope="col">{t('states.settle')}</Table.Th>
-              {!follower && <Table.Th scope="col">{t('states.maxOffShort')}</Table.Th>}
-              <Table.Th scope="col">
-                <Text span size="xs" c="dimmed">
-                  {t('states.remove')}
-                </Text>
-              </Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {cases.map((r, i) => {
-              const label = r.name || r.id;
-              const derived = derivedSettleSeconds(def, r);
-              return (
-                <Table.Tr key={i} data-testid={`state-row-${r.id}`}>
-                  <Table.Td>
-                    <Group gap={2} wrap="nowrap">
-                      <Text size="sm" w={18}>
-                        {i + 1}
-                      </Text>
-                      <ActionIcon size="sm" variant="subtle" aria-label={t('states.moveUp', { state: label })} disabled={i === 0} onClick={() => move(i, -1)}>
-                        <IconArrowUp size={14} />
-                      </ActionIcon>
-                      <ActionIcon
-                        size="sm"
-                        variant="subtle"
-                        aria-label={t('states.moveDown', { state: label })}
-                        disabled={i === cases.length - 1}
-                        onClick={() => move(i, 1)}
-                      >
-                        <IconArrowDown size={14} />
-                      </ActionIcon>
-                    </Group>
-                  </Table.Td>
-                  <Table.Th scope="row" style={{ minWidth: 150 }}>
-                    <Stack gap={2}>
-                      <TextInput
-                        size="xs"
-                        aria-label={t('states.name', { n: i + 1 })}
-                        value={r.name ?? ''}
-                        onChange={(e) => setRow(i, { ...r, name: e.currentTarget.value })}
-                      />
-                      <TextInput
-                        size="xs"
-                        className="mono"
-                        aria-label={t('states.id', { n: i + 1 })}
-                        value={r.id}
-                        onChange={(e) => setRow(i, { ...r, id: e.currentTarget.value.trim() })}
-                      />
-                      {matchNow === r.id && (
-                        <Badge size="xs" variant="light" data-testid="matches-now">
-                          {t('states.matchesNow')}
-                        </Badge>
-                      )}
-                    </Stack>
-                  </Table.Th>
-                  <Table.Td>
-                    <Select
-                      size="xs"
-                      w={90}
-                      aria-label={t('states.showsOf', { state: label })}
-                      value={r.status ?? 'up'}
-                      allowDeselect={false}
-                      data={[
-                        { value: 'up', label: monitorStatusLabel('up') },
-                        { value: 'off', label: monitorStatusLabel('off') },
-                      ]}
-                      onChange={(v) => {
-                        const next = { ...r, status: (v ?? 'up') as 'up' | 'off' };
-                        if (next.status === 'up') delete next.maxOffHours;
-                        setRow(i, next);
-                      }}
-                    />
-                  </Table.Td>
+      {phone ? (
+        <Stack gap="sm" data-testid="states-cards">
+          {cases.map((r, i) => {
+            const x = rowControls(r, i);
+            return (
+              <Paper key={i} withBorder p="sm" data-testid={`state-card-${r.id}`} role="group" aria-label={x.label}>
+                <Stack gap="xs">
+                  <Group justify="space-between" wrap="nowrap" align="flex-start">
+                    {x.order}
+                    {x.remove}
+                  </Group>
+                  {x.nameId}
+                  <Group gap="xs" wrap="nowrap" justify="space-between">
+                    <Text size="sm">{t('states.shows')}</Text>
+                    {x.shows}
+                  </Group>
                   {checks.map((c) => (
-                    <Table.Td key={c.id}>
-                      <Select
-                        size="xs"
-                        aria-label={t('states.cellLabel', { state: label, check: c.name })}
-                        value={choiceOf(r, c.id)}
-                        allowDeselect={false}
-                        data={options(c)}
-                        onChange={(v) => setRow(i, withChoice(r, c.id, (v ?? 'any') as CellChoice))}
-                        data-testid={`cell-${r.id}-${c.id}`}
-                      />
-                    </Table.Td>
-                  ))}
-                  <Table.Td>
-                    <NumberInput
-                      size="xs"
-                      w={110}
-                      min={1}
-                      max={STATE_LIMITS.settleMax / 60}
-                      suffix=" min"
-                      aria-label={t('states.settleOf', { state: label })}
-                      placeholder={t('states.derived', { value: fmtSpan(derived) })}
-                      value={r.settleSeconds === undefined ? '' : Math.round(r.settleSeconds / 60)}
-                      onChange={(v) => {
-                        const next = { ...r };
-                        if (v === '' || v === null) delete next.settleSeconds;
-                        else next.settleSeconds = Math.min(STATE_LIMITS.settleMax, Math.max(STATE_LIMITS.settleMin, Math.round(Number(v) * 60)));
-                        setRow(i, next);
-                      }}
-                    />
-                    {r.settleSeconds === undefined && (
-                      <Text size="xs" c="dimmed">
-                        {t('states.derived', { value: fmtSpan(derived) })}
+                    <Group key={c.id} gap="xs" wrap="nowrap" justify="space-between">
+                      <Text size="sm" style={{ minWidth: 0, overflowWrap: 'anywhere' }}>
+                        {c.name}
                       </Text>
-                    )}
-                  </Table.Td>
+                      <div style={{ width: 160, flexShrink: 0 }}>{x.cell(c)}</div>
+                    </Group>
+                  ))}
+                  <Group gap="xs" wrap="nowrap" justify="space-between" align="flex-start">
+                    <Text size="sm">{t('states.settle')}</Text>
+                    <div>{x.settle}</div>
+                  </Group>
                   {!follower && (
-                    <Table.Td>
-                      {(r.status ?? 'up') === 'off' ? (
-                        <NumberInput
-                          size="xs"
-                          w={90}
-                          min={0}
-                          max={STATE_LIMITS.maxOffHoursMax}
-                          suffix=" h"
-                          aria-label={t('states.maxOffOf', { state: label })}
-                          placeholder={`${states.maxOffHours ?? STATE_LIMITS.defaultMaxOffHours} h`}
-                          value={r.maxOffHours ?? ''}
-                          onChange={(v) => {
-                            const next = { ...r };
-                            if (v === '' || v === null) delete next.maxOffHours;
-                            else next.maxOffHours = Number(v);
-                            setRow(i, next);
-                          }}
-                        />
-                      ) : (
-                        <Text size="sm" c="dimmed">
-                          –
-                        </Text>
-                      )}
-                    </Table.Td>
+                    <Group gap="xs" wrap="nowrap" justify="space-between">
+                      <Text size="sm">{t('states.maxOffShort')}</Text>
+                      {x.maxOff}
+                    </Group>
                   )}
-                  <Table.Td>
-                    <ActionIcon
-                      variant="subtle"
-                      color="red"
-                      aria-label={t('states.removeState', { state: label })}
-                      onClick={() => setCases(cases.filter((_, j) => j !== i))}
-                    >
-                      <IconTrash size={14} />
-                    </ActionIcon>
-                  </Table.Td>
-                </Table.Tr>
-              );
-            })}
-            <Table.Tr>
-              <Table.Td>–</Table.Td>
-              <Table.Th scope="row">{t('states.otherwise')}</Table.Th>
-              <Table.Td colSpan={checks.length + (follower ? 3 : 4)}>
-                <Text size="sm" c="dimmed">
-                  {t('states.otherwiseHint')}
-                </Text>
-              </Table.Td>
-            </Table.Tr>
-          </Table.Tbody>
-        </Table>
-      </Table.ScrollContainer>
+                </Stack>
+              </Paper>
+            );
+          })}
+          <Paper withBorder p="sm">
+            <Text size="sm" fw={600}>
+              {t('states.otherwise')}
+            </Text>
+            <Text size="sm" c="dimmed">
+              {t('states.otherwiseHint')}
+            </Text>
+          </Paper>
+          <Text size="xs" c="dimmed">
+            {t('states.legend')}
+          </Text>
+        </Stack>
+      ) : (
+        <Table.ScrollContainer minWidth={640}>
+          <Table withTableBorder withColumnBorders fz="sm" data-testid="states-table">
+            <caption style={{ captionSide: 'bottom', textAlign: 'left', fontSize: 12 }}>{t('states.legend')}</caption>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th scope="col">{t('states.order')}</Table.Th>
+                <Table.Th scope="col">{t('states.state')}</Table.Th>
+                <Table.Th scope="col">{t('states.shows')}</Table.Th>
+                {checks.map((c) => (
+                  <Table.Th scope="col" key={c.id} style={{ minWidth: 120 }}>
+                    {c.name}
+                  </Table.Th>
+                ))}
+                <Table.Th scope="col">{t('states.settle')}</Table.Th>
+                {!follower && <Table.Th scope="col">{t('states.maxOffShort')}</Table.Th>}
+                <Table.Th scope="col">{t('states.remove')}</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {cases.map((r, i) => {
+                const x = rowControls(r, i);
+                return (
+                  <Table.Tr key={i} data-testid={`state-row-${r.id}`}>
+                    <Table.Td>{x.order}</Table.Td>
+                    <Table.Th scope="row" style={{ minWidth: 150 }}>
+                      {x.nameId}
+                    </Table.Th>
+                    <Table.Td>{x.shows}</Table.Td>
+                    {checks.map((c) => (
+                      <Table.Td key={c.id}>{x.cell(c)}</Table.Td>
+                    ))}
+                    <Table.Td>{x.settle}</Table.Td>
+                    {!follower && <Table.Td>{x.maxOff}</Table.Td>}
+                    <Table.Td>{x.remove}</Table.Td>
+                  </Table.Tr>
+                );
+              })}
+              <Table.Tr>
+                <Table.Td>–</Table.Td>
+                <Table.Th scope="row">{t('states.otherwise')}</Table.Th>
+                <Table.Td colSpan={checks.length + (follower ? 3 : 4)}>
+                  <Text size="sm" c="dimmed">
+                    {t('states.otherwiseHint')}
+                  </Text>
+                </Table.Td>
+              </Table.Tr>
+            </Table.Tbody>
+          </Table>
+        </Table.ScrollContainer>
+      )}
       <Group>
         <Button
           size="xs"
