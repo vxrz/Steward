@@ -1958,11 +1958,10 @@
               },
               "units": {
                 "description": "0.12.0: the unit the computation expects per data point (UCUM code, usual spellings such as kWh are read as their code); a data point left out expects its unit in the input’s profile",
+                "maxProperties": 500,
                 "type": "object",
                 "propertyNames": {
-                  "type": "string",
-                  "pattern": "^[A-Za-z0-9_][A-Za-z0-9._-]{0,119}$",
-                  "description": "Id of a data point, interface, parameter or column: letters, digits, \".\", \"_\" and \"-\""
+                  "type": "string"
                 },
                 "additionalProperties": {
                   "anyOf": [

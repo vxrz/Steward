@@ -388,8 +388,7 @@ export const kpiSchema = z
               .describe('data_point (default) or other'),
             profile: id.nullable().optional().describe('The device profile the data points belong to'),
             data_points: z.array(pointId).max(L.inputPoints).optional(),
-            units: z
-              .record(pointId, text(40))
+            units: boundedRecord(text(40), L.inputPoints)
               .optional()
               .describe(
                 '0.12.0: the unit the computation expects per data point (UCUM code, usual spellings such as kWh are read as their code); a data point left out expects its unit in the input’s profile',
