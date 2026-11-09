@@ -49,7 +49,7 @@ A **site** has a code (short, unique, e.g. `RVS`), a name with translations, a d
 
 On the site page:
 
-- **Hierarchy**: areas (with an optional manufacturing domain), their work centers and work units; add, edit, move (a work center to another area, a work unit to another work center – its assets follow) and remove (only empty nodes). Each node names its building or inherits it.
+- **Hierarchy**: areas (with an optional manufacturing domain), their work centers and work units; add, edit, move (a work center to another area, a work unit to another work center – its assets follow) and remove (only empty nodes). Each node names its building or inherits it. The areas start open and the work centers folded; the arrow beside a node folds it, _Expand all_ and _Collapse all_ do it for the whole tree. A link to `#node-<id>` opens the path to that node.
 - **Buildings**: buildings, halls, floors, rooms and outdoor areas; a floor or room names the building it is in (no cycles). A building that something names cannot be removed.
 - The site's assets by status, its links, its access list and owning teams.
 
@@ -103,7 +103,9 @@ _Plant → Device profiles_: a kind of controller or device – **manufacturer, 
 - **data point groups** (machine state, energy …) and **data points**: a stable id (unique in the profile; capitals allowed, as devices name them), name, **data type**, **unit**, **address** (OPC UA NodeId, Modbus address, an MQTT topic, a file path or column …), **access**, **update rate** (ms), the **values** of a state or code, notes and where it is usually published;
 - **files** of a file-transfer interface (id, name, format, path pattern, one per …, retention, encoding).
 
-A data point has its own page: what it is (a Modbus address also says what it reads: “Input registers 13–14 (2) · function code 04”), **which assets deliver it** and the KPI definitions that read it. _Duplicate_ copies a profile with its interfaces and data points (for the next firmware generation). A profile that an asset has cannot be deleted.
+On the profile page each interface folds; its header keeps the protocol and the number of data points and groups. A profile with up to three interfaces shows them open, a longer one folded (with _Expand all_ and _Collapse all_). A link to `#iface-<id>` opens that interface.
+
+A data point has its own page: what it is (a Modbus address also says what it reads: “Input registers 13–14 (2) · function code 04”), **which assets deliver it** (the first 20, then _Show all_) and the KPI definitions that read it. _Duplicate_ copies a profile with its interfaces and data points (for the next firmware generation). A profile that an asset has cannot be deleted.
 
 ### Assignment of an asset
 
@@ -115,6 +117,8 @@ The asset page has the section **Data and KPIs**:
 - **publications**: which data point is published where – target system (an IoT platform, a historian), path (an aspect, a topic) and name (a variable), who publishes it;
 - its **KPI instances**: the KPI definition, the **job** name (unique per asset), active, the **parameters** and where the result is shown – a Steward **dashboard** (id) and/or **dataset** (key), linked for readers who may see them;
 - the **checks** of the asset and the **KPIs it can have**.
+
+Each part folds and shows its count in the header – the interfaces also how many are active and not set up, the differences how many data points are not delivered. A part with entries starts open, an empty one folded; KPI instances with a problem always open.
 
 A data point counts as **delivered** when the profile has it, its interface is listed and active in the assignment, and no difference says the asset lacks it. _Duplicate_ of an asset copies its profile, firmware, interfaces and differences – not the endpoints, publications or KPI instances (they belong to the original).
 

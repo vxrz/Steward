@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import { ActionIcon, Alert, Anchor, Badge, Box, Button, Center, Collapse, Group, Loader, Paper, Stack, Text, Tooltip, UnstyledButton } from '@mantine/core';
+import { ActionIcon, Alert, Anchor, Badge, Box, Center, Collapse, Group, Loader, Paper, Stack, Text, Tooltip, UnstyledButton } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { IconChevronDown, IconChevronRight, IconRefresh } from '@tabler/icons-react';
 import { Trans, useTranslation } from 'react-i18next';
@@ -12,6 +12,7 @@ import { errorText } from '../../i18n/errors';
 import { withBase } from '../../basePath';
 import { runKeys } from '../../queryKeys';
 import { QueryResultTable, isQueryResult } from './QueryStepFields';
+import { ShowAll, useShowMore } from '../page/ShowAll';
 
 type Activation = NodeInspection['activations'][number];
 
@@ -107,7 +108,6 @@ export function NodeInspector({ processId, nodeId }: { processId?: string; nodeI
   // older servers: fall back to the step records of the run detail
   const fallback = !!runId && !!inspect.error && isNotFound(inspect.error);
   const detail = useRunDetail(fallback ? runId : undefined);
-  const [showAll, setShowAll] = useState(false);
 
   const activations: Activation[] = useMemo(() => {
     if (inspect.data) return inspect.data.activations;
@@ -117,6 +117,7 @@ export function NodeInspector({ processId, nodeId }: { processId?: string; nodeI
         .map((s) => ({ key: s.key, status: s.status, startedAt: s.startedAt, durationMs: s.durationMs, input: s.input, output: s.output, error: s.error }));
     return [];
   }, [inspect.data, fallback, detail.data, nodeId]);
+  const shown = useShowMore(activations, 20);
 
   if (!processId) {
     return (
@@ -140,7 +141,6 @@ export function NodeInspector({ processId, nodeId }: { processId?: string; nodeI
     );
   }
   const hardError = inspect.error && !fallback ? errorText(inspect.error) : detail.error ? errorText(detail.error) : null;
-  const limit = showAll ? activations.length : 20;
   const varsBefore = inspect.data?.varsBefore;
 
   return (
@@ -184,14 +184,10 @@ export function NodeInspector({ processId, nodeId }: { processId?: string; nodeI
           {t('inspector.activations', { count: activations.length })}
         </Text>
       )}
-      {activations.slice(0, limit).map((a, i) => (
+      {shown.items.map((a, i) => (
         <ActivationView key={`${a.key}-${i}`} a={a} first={i === 0} />
       ))}
-      {activations.length > limit && (
-        <Button size="compact-xs" variant="light" onClick={() => setShowAll(true)}>
-          {t('inspector.showAll', { count: activations.length })}
-        </Button>
-      )}
+      <ShowAll state={shown} id="activations" />
       {varsBefore && Object.keys(varsBefore).length > 0 && (
         <Paper withBorder p={6}>
           <Section title={t('inspector.varsBefore', { count: Object.keys(varsBefore).length })}>

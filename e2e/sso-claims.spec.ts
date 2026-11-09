@@ -37,7 +37,9 @@ test('an administrator test-signs-in through a provider and previews the account
   await expect(test.getByTestId('sso-test-claims')).toContainText('given_name');
 
   // an unsaved change of the user name rule: the preview follows
-  await dialog.getByRole('button', { name: 'Scopes and claims' }).click();
+  // the provider's claims differ from the preset: the section starts open and says how many settings changed
+  await expect(dialog.getByRole('button', { name: 'Scopes and claims' })).toHaveAttribute('aria-expanded', 'true');
+  await expect(dialog.getByTestId('sso-claims-changed')).toHaveText('1 changed');
   await dialog.getByRole('combobox', { name: 'User name rule' }).click();
   await page.getByRole('option', { name: 'Lower case without @domain (max)' }).click();
   // only listed domains are stripped (any other domain is refused)

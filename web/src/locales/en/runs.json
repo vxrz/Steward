@@ -179,10 +179,7 @@
       "steps_one": "Showing {{shown}} of {{total}} step",
       "steps_other": "Showing {{shown}} of {{total}} steps",
       "logLines_one": "Showing {{shown}} of {{total}} message",
-      "logLines_other": "Showing {{shown}} of {{total}} messages",
-      "more_one": "Show {{count}} more",
-      "more_other": "Show {{count}} more",
-      "all": "Show all"
+      "logLines_other": "Showing {{shown}} of {{total}} messages"
     },
     "testRun": "Test run (recorded responses)",
     "findingsTitle": "Completed with findings",

@@ -44,6 +44,7 @@ import {
 } from '../components/plant/profileEdit';
 import { DataPointFormModal, InterfaceFormModal, ProfileFormModal } from '../components/plant/dataForms';
 import { SourceLine } from './PlantSite';
+import { CollapsibleSection, SectionGroup, SectionGroupControls } from '../components/page/CollapsibleSection';
 import { DescribedText, DescriptionModal } from '../components/plant/describe';
 
 /** Where an interface or data point of a derived profile comes from (0.11.0); nothing on a profile without a base. */
@@ -331,53 +332,57 @@ export function PlantProfilePage() {
                 </Stack>
               </Paper>
             )}
-            <Stack gap="sm" data-testid="profile-interfaces">
-              <Group justify="space-between" wrap="wrap" gap="xs">
-                <div>
-                  <Title order={2} fz="h4">
-                    {t('profile.interfaces')}
-                  </Title>
-                  <Text size="xs" c="dimmed">
-                    {t('profile.interfacesHelp')}
-                  </Text>
-                </div>
-                {p.canManage && (
-                  <Button size="xs" variant="default" leftSection={<IconPlus size={14} />} onClick={() => setDialog({ kind: 'interface' })}>
-                    {t('data.addInterface')}
-                  </Button>
+            <SectionGroup controls="none">
+              <Stack gap="sm" data-testid="profile-interfaces">
+                <Group justify="space-between" wrap="wrap" gap="xs">
+                  <div>
+                    <Title order={2} fz="h4">
+                      {t('profile.interfaces')}
+                    </Title>
+                    <Text size="xs" c="dimmed">
+                      {t('profile.interfacesHelp')}
+                    </Text>
+                  </div>
+                  <SectionGroupControls min={4} />
+                  {p.canManage && (
+                    <Button size="xs" variant="default" leftSection={<IconPlus size={14} />} onClick={() => setDialog({ kind: 'interface' })}>
+                      {t('data.addInterface')}
+                    </Button>
+                  )}
+                </Group>
+                {p.interfaces.length === 0 && (
+                  <EmptyState compact title={t('data.noInterfacesTitle')} whoCanAct={p.canManage ? undefined : t('profiles.whoCanAct')}>
+                    {t('data.noInterfacesText')}
+                  </EmptyState>
                 )}
-              </Group>
-              {p.interfaces.length === 0 && (
-                <EmptyState compact title={t('data.noInterfacesTitle')} whoCanAct={p.canManage ? undefined : t('profiles.whoCanAct')}>
-                  {t('data.noInterfacesText')}
-                </EmptyState>
-              )}
-              {p.interfaces.map((iface) => (
-                <Paper key={iface.id} withBorder p="md" component="section" aria-labelledby={`iface-${iface.id}`} data-testid={`interface-${iface.id}`}>
-                  <Stack gap="sm">
-                    <Group justify="space-between" wrap="nowrap" align="flex-start" gap="xs">
-                      <Stack gap={4} style={{ minWidth: 0 }}>
-                        <Group gap="xs" wrap="wrap">
-                          <Title order={3} fz="h5" id={`iface-${iface.id}`}>
-                            {iface.name || iface.id}
-                          </Title>
-                          <ProtocolBadge protocol={iface.protocol} />
-                          <OriginBadge origin={p.origins.interfaces[iface.id]} derived={derived} nameOf={nameOf2} />
-                        </Group>
-                        <Text size="xs" c="dimmed" style={{ overflowWrap: 'anywhere' }}>
+                {p.interfaces.map((iface) => (
+                  // each interface folds (this page view); open while there are at most three, a link to #iface-<id> opens it
+                  <CollapsibleSection
+                    key={iface.id}
+                    id={`iface-${iface.id}`}
+                    testId={`interface-${iface.id}`}
+                    variant="card"
+                    order={3}
+                    title={iface.name || iface.id}
+                    defaultOpen={p.interfaces.length <= 3}
+                    summary={
+                      <>
+                        <ProtocolBadge protocol={iface.protocol} />
+                        <OriginBadge origin={p.origins.interfaces[iface.id]} derived={derived} nameOf={nameOf2} />
+                        <Text size="xs" c="dimmed" data-testid="interface-counts">
                           {[
-                            t(`data.directions.${iface.direction}`),
-                            iface.defaultPort !== null && t('data.portIs', { port: iface.defaultPort }),
-                            t(`data.auth.${iface.authentication}`),
-                            iface.client && t('data.clientIs', { client: iface.client }),
-                            iface.version && t('data.versionIs', { version: iface.version }),
+                            t('data.pointCount', { count: iface.groups.reduce((n, g) => n + g.dataPoints.length, 0) }),
+                            t('data.groupCount', { count: iface.groups.filter((g) => g.name).length }),
+                            iface.fileSets.length > 0 && t('data.fileSetCount', { count: iface.fileSets.length }),
                           ]
                             .filter(Boolean)
                             .join(' · ')}
                         </Text>
-                      </Stack>
-                      {p.canManage && (
-                        <Group gap={4} wrap="nowrap">
+                      </>
+                    }
+                    actions={
+                      p.canManage && (
+                        <>
                           <Button
                             size="compact-xs"
                             variant="default"
@@ -402,147 +407,161 @@ export function PlantProfilePage() {
                               onRemove={() => void removeInterface(iface)}
                             />
                           )}
-                        </Group>
-                      )}
-                    </Group>
-                    <DescribedText
-                      text={iface.description}
-                      {...described(p.origins.interfaces[iface.id])}
-                      editable={p.canManage && inheritedIface(iface.id)}
-                      onEdit={() =>
-                        setDialog({
-                          kind: 'describe',
-                          title: t('plantModel:describe.itemTitle', { name: iface.name || iface.id }),
-                          value: iface.description,
-                          apply: (text) => describeInterface(p, iface.id, text),
-                        })
-                      }
-                      onReset={() => act(describeInterface(p, iface.id, null))}
-                      testId={`interface-description-${iface.id}`}
-                    />
-                    {iface.notes && (
-                      <Text size="xs" c="dimmed" style={{ whiteSpace: 'pre-line' }}>
-                        {iface.notes}
+                        </>
+                      )
+                    }
+                  >
+                    <Stack gap="sm">
+                      <Text size="xs" c="dimmed" style={{ overflowWrap: 'anywhere' }}>
+                        {[
+                          t(`data.directions.${iface.direction}`),
+                          iface.defaultPort !== null && t('data.portIs', { port: iface.defaultPort }),
+                          t(`data.auth.${iface.authentication}`),
+                          iface.client && t('data.clientIs', { client: iface.client }),
+                          iface.version && t('data.versionIs', { version: iface.version }),
+                        ]
+                          .filter(Boolean)
+                          .join(' · ')}
                       </Text>
-                    )}
-                    {ordered(iface.groups).map((g) => (
-                      <Stack key={g.name || '(none)'} gap={6}>
-                        <Group justify="space-between" gap="xs" wrap="nowrap">
-                          <div>
-                            <Text size="sm" fw={600}>
-                              {g.name || t('data.ungrouped')}
-                            </Text>
-                            <DescribedText
-                              size="xs"
-                              text={g.description}
-                              {...described(p.origins.groups[plantOriginKey(iface.id, g.name)])}
-                              editable={p.canManage && inheritedGroup(iface.id, g.name)}
-                              onEdit={() =>
-                                setDialog({
-                                  kind: 'describe',
-                                  title: t('plantModel:describe.itemTitle', { name: g.name }),
-                                  value: g.description,
-                                  apply: (text) => describeGroup(p, iface.id, g.name, text),
-                                })
-                              }
-                              onReset={() => act(describeGroup(p, iface.id, g.name, ''))}
-                              testId={`group-description-${iface.id}-${g.name}`}
-                            />
-                          </div>
-                          {p.canManage && g.name && !inheritedGroup(iface.id, g.name) && (
-                            <RowMenu
-                              label={t('data.groupActions', { name: g.name })}
-                              onEdit={() => setDialog({ kind: 'group', iface, group: g.name, description: g.description })}
-                            />
-                          )}
-                        </Group>
-                        <DataPointTable
-                          profileId={p.id}
-                          protocol={iface.protocol}
-                          points={g.dataPoints}
-                          label={t('data.pointsOf', { group: g.name || t('data.ungrouped'), iface: iface.name || iface.id })}
-                          canManage={p.canManage}
-                          onEdit={(point) => setDialog({ kind: 'point', iface, group: g.name, point })}
-                          onRemove={(point) => void removePoint(iface, point)}
-                          badge={(point) => <OriginBadge origin={p.origins.points[point.id]} derived={derived} nameOf={nameOf2} />}
-                          menuFor={(point) =>
-                            inheritedPoint(point.id) ? (
-                              inheritedMenu(
-                                t('data.pointActions', { name: point.name }),
-                                () => setDialog({ kind: 'point', iface, group: g.name, point }),
-                                p.origins.points[point.id],
-                                () => resetPoint(p, point.id),
-                                () => setPointPresent(p, point.id, false),
-                                () => resetPointDescription(p, point.id),
-                              )
-                            ) : (
-                              <RowMenu
-                                label={t('data.pointActions', { name: point.name })}
-                                onEdit={() => setDialog({ kind: 'point', iface, group: g.name, point })}
-                                onRemove={() => void removePoint(iface, point)}
-                              />
-                            )
-                          }
-                        />
-                      </Stack>
-                    ))}
-                    {iface.groups.every((g) => !g.dataPoints.length) && !iface.fileSets.length && (
-                      <Text size="sm" c="dimmed">
-                        {t('data.noPoints')}
-                      </Text>
-                    )}
-                    {iface.fileSets.length > 0 && (
-                      <Stack gap={4} data-testid="file-sets">
-                        <Text size="sm" fw={600}>
-                          {t('data.fileSets')}
+                      <DescribedText
+                        text={iface.description}
+                        {...described(p.origins.interfaces[iface.id])}
+                        editable={p.canManage && inheritedIface(iface.id)}
+                        onEdit={() =>
+                          setDialog({
+                            kind: 'describe',
+                            title: t('plantModel:describe.itemTitle', { name: iface.name || iface.id }),
+                            value: iface.description,
+                            apply: (text) => describeInterface(p, iface.id, text),
+                          })
+                        }
+                        onReset={() => act(describeInterface(p, iface.id, null))}
+                        testId={`interface-description-${iface.id}`}
+                      />
+                      {iface.notes && (
+                        <Text size="xs" c="dimmed" style={{ whiteSpace: 'pre-line' }}>
+                          {iface.notes}
                         </Text>
-                        {iface.fileSets.map((f) => (
-                          <Group key={f.id} gap="xs" wrap="nowrap" align="flex-start">
-                            <IconFile size={16} aria-hidden style={{ marginTop: 2, flex: 'none' }} />
-                            <Stack gap={0} style={{ minWidth: 0 }}>
-                              <Text size="sm" fw={500}>
-                                {f.name || f.id}
-                              </Text>
-                              <Text size="xs" c="dimmed" style={{ overflowWrap: 'anywhere' }}>
-                                {[
-                                  f.pathPattern && t('data.pathPatternIs', { pattern: f.pathPattern }),
-                                  f.format && t('data.formatIs', { format: f.format }),
-                                  f.producedPer && t('data.producedPerIs', { per: f.producedPer }),
-                                  t(`data.directions.${f.direction}`),
-                                ]
-                                  .filter(Boolean)
-                                  .join(' · ')}
+                      )}
+                      {ordered(iface.groups).map((g) => (
+                        <Stack key={g.name || '(none)'} gap={6}>
+                          <Group justify="space-between" gap="xs" wrap="nowrap">
+                            <div>
+                              <Text size="sm" fw={600}>
+                                {g.name || t('data.ungrouped')}
                               </Text>
                               <DescribedText
                                 size="xs"
-                                text={f.description}
-                                {...described(p.origins.fileSets[plantOriginKey(iface.id, f.id)])}
-                                editable={p.canManage && inheritedFileSet(iface.id, f.id)}
+                                text={g.description}
+                                {...described(p.origins.groups[plantOriginKey(iface.id, g.name)])}
+                                editable={p.canManage && inheritedGroup(iface.id, g.name)}
                                 onEdit={() =>
                                   setDialog({
                                     kind: 'describe',
-                                    title: t('plantModel:describe.itemTitle', { name: f.name || f.id }),
-                                    value: f.description,
-                                    apply: (text) => describeFileSet(p, iface.id, f.id, text),
+                                    title: t('plantModel:describe.itemTitle', { name: g.name }),
+                                    value: g.description,
+                                    apply: (text) => describeGroup(p, iface.id, g.name, text),
                                   })
                                 }
-                                onReset={() => act(describeFileSet(p, iface.id, f.id, ''))}
-                                testId={`file-set-description-${iface.id}-${f.id}`}
+                                onReset={() => act(describeGroup(p, iface.id, g.name, ''))}
+                                testId={`group-description-${iface.id}-${g.name}`}
                               />
-                              {f.notes && (
-                                <Text size="xs" style={{ whiteSpace: 'pre-line' }}>
-                                  {f.notes}
-                                </Text>
-                              )}
-                            </Stack>
+                            </div>
+                            {p.canManage && g.name && !inheritedGroup(iface.id, g.name) && (
+                              <RowMenu
+                                label={t('data.groupActions', { name: g.name })}
+                                onEdit={() => setDialog({ kind: 'group', iface, group: g.name, description: g.description })}
+                              />
+                            )}
                           </Group>
-                        ))}
-                      </Stack>
-                    )}
-                  </Stack>
-                </Paper>
-              ))}
-            </Stack>
+                          <DataPointTable
+                            profileId={p.id}
+                            protocol={iface.protocol}
+                            points={g.dataPoints}
+                            label={t('data.pointsOf', { group: g.name || t('data.ungrouped'), iface: iface.name || iface.id })}
+                            canManage={p.canManage}
+                            onEdit={(point) => setDialog({ kind: 'point', iface, group: g.name, point })}
+                            onRemove={(point) => void removePoint(iface, point)}
+                            badge={(point) => <OriginBadge origin={p.origins.points[point.id]} derived={derived} nameOf={nameOf2} />}
+                            menuFor={(point) =>
+                              inheritedPoint(point.id) ? (
+                                inheritedMenu(
+                                  t('data.pointActions', { name: point.name }),
+                                  () => setDialog({ kind: 'point', iface, group: g.name, point }),
+                                  p.origins.points[point.id],
+                                  () => resetPoint(p, point.id),
+                                  () => setPointPresent(p, point.id, false),
+                                  () => resetPointDescription(p, point.id),
+                                )
+                              ) : (
+                                <RowMenu
+                                  label={t('data.pointActions', { name: point.name })}
+                                  onEdit={() => setDialog({ kind: 'point', iface, group: g.name, point })}
+                                  onRemove={() => void removePoint(iface, point)}
+                                />
+                              )
+                            }
+                          />
+                        </Stack>
+                      ))}
+                      {iface.groups.every((g) => !g.dataPoints.length) && !iface.fileSets.length && (
+                        <Text size="sm" c="dimmed">
+                          {t('data.noPoints')}
+                        </Text>
+                      )}
+                      {iface.fileSets.length > 0 && (
+                        <Stack gap={4} data-testid="file-sets">
+                          <Text size="sm" fw={600}>
+                            {t('data.fileSets')}
+                          </Text>
+                          {iface.fileSets.map((f) => (
+                            <Group key={f.id} gap="xs" wrap="nowrap" align="flex-start">
+                              <IconFile size={16} aria-hidden style={{ marginTop: 2, flex: 'none' }} />
+                              <Stack gap={0} style={{ minWidth: 0 }}>
+                                <Text size="sm" fw={500}>
+                                  {f.name || f.id}
+                                </Text>
+                                <Text size="xs" c="dimmed" style={{ overflowWrap: 'anywhere' }}>
+                                  {[
+                                    f.pathPattern && t('data.pathPatternIs', { pattern: f.pathPattern }),
+                                    f.format && t('data.formatIs', { format: f.format }),
+                                    f.producedPer && t('data.producedPerIs', { per: f.producedPer }),
+                                    t(`data.directions.${f.direction}`),
+                                  ]
+                                    .filter(Boolean)
+                                    .join(' · ')}
+                                </Text>
+                                <DescribedText
+                                  size="xs"
+                                  text={f.description}
+                                  {...described(p.origins.fileSets[plantOriginKey(iface.id, f.id)])}
+                                  editable={p.canManage && inheritedFileSet(iface.id, f.id)}
+                                  onEdit={() =>
+                                    setDialog({
+                                      kind: 'describe',
+                                      title: t('plantModel:describe.itemTitle', { name: f.name || f.id }),
+                                      value: f.description,
+                                      apply: (text) => describeFileSet(p, iface.id, f.id, text),
+                                    })
+                                  }
+                                  onReset={() => act(describeFileSet(p, iface.id, f.id, ''))}
+                                  testId={`file-set-description-${iface.id}-${f.id}`}
+                                />
+                                {f.notes && (
+                                  <Text size="xs" style={{ whiteSpace: 'pre-line' }}>
+                                    {f.notes}
+                                  </Text>
+                                )}
+                              </Stack>
+                            </Group>
+                          ))}
+                        </Stack>
+                      )}
+                    </Stack>
+                  </CollapsibleSection>
+                ))}
+              </Stack>
+            </SectionGroup>
           </Stack>
         </Grid.Col>
         <Grid.Col span={{ base: 12, md: 4 }}>
