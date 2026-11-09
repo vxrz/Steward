@@ -48,6 +48,8 @@ const source = {
   snapshotDay: '',
   runId: '',
   waitingRunId: '',
+  /** 0.13.0: the plant history and import baselines of the source */
+  plant: { history: [] as { kind: string; entry_id: string; revision: number; op: string }[], baselines: [] as { kind: string; entry_id: string }[] },
 };
 
 async function rawExport(body: unknown, cookie = adminCookie): Promise<Response> {
@@ -211,6 +213,29 @@ beforeAll(async () => {
   );
   for (const r of db().all<{ id: string; secrets: string | null }>('SELECT id, secrets FROM platforms WHERE secrets IS NOT NULL'))
     source.secrets.set(r.id, vault().decrypt(r.secrets!));
+  // 0.13.0 (ADR 0020, decision 12): the history of plant entries and the import's baselines move with the entries;
+  // open change sets do not (as MCP requests do not)
+  await s.api('PUT', '/settings/plant', { enabled: true, enterprise: 'Moved Works', labels: {}, fields: {} });
+  await s.api('POST', '/plant/import', {
+    files: [
+      {
+        name: 'moved.yaml',
+        content: 'version: 1\nsites:\n  - id: moved-site\n    name: Moved site\n    assets:\n      - id: moved-press\n        name: Moved press\n',
+      },
+    ],
+    mode: 'update',
+  });
+  const press = await s.api('GET', '/plant/assets/moved-press');
+  await s.api('PUT', '/plant/assets/moved-press', { siteId: 'moved-site', name: press.name, model: 'MP-2', revision: press.revision });
+  await s.api('POST', '/plant/change-sets', { title: 'An open draft', current: true });
+  source.plant = {
+    history: db().all<{ kind: string; entry_id: string; revision: number; op: string }>(
+      'SELECT kind, entry_id, revision, op FROM plant_entry_history ORDER BY kind, entry_id, revision',
+    ),
+    baselines: db().all<{ kind: string; entry_id: string }>('SELECT kind, entry_id FROM plant_import_baselines ORDER BY kind, entry_id'),
+  };
+  expect(source.plant.history.length).toBeGreaterThanOrEqual(3);
+  expect(source.plant.baselines.length).toBeGreaterThanOrEqual(2);
   source.fingerprint = (await s.api('GET', '/audit/anchoring')).fingerprint;
   source.runId = (await s.api('GET', '/runs?status=succeeded&limit=1'))[0].id;
   // a run that waits for a decision: it must not carry on by itself on the target
@@ -701,6 +726,23 @@ describe('import into SQLite through the web API', () => {
     const secrets = await targetSecrets(dataDir, { kind: 'sqlite', file: path.join(dataDir, 'service-manager.db') });
     expect(secrets.size).toBe(source.secrets.size);
     for (const [id, v] of source.secrets) expect(secrets.get(id)).toEqual(v);
+    // 0.13.0: the plant history and baselines moved with their entries, the open change set did not
+    {
+      const { Db } = await import('../src/db.js');
+      const d = new Db({ kind: 'sqlite', file: path.join(dataDir, 'service-manager.db') }, { migrate: false });
+      try {
+        expect(
+          d
+            .all('SELECT kind, entry_id, revision, op FROM plant_entry_history ORDER BY kind, entry_id, revision')
+            .map((r: any) => ({ ...r, revision: Number(r.revision) })),
+        ).toEqual(source.plant.history.map((r: any) => ({ ...r, revision: Number(r.revision) })));
+        expect(d.all('SELECT kind, entry_id FROM plant_import_baselines ORDER BY kind, entry_id')).toEqual(source.plant.baselines);
+        expect(Number(d.get<{ n: number }>('SELECT COUNT(*) AS n FROM plant_change_sets')!.n)).toBe(0);
+        expect(Number(d.get<{ r: number }>("SELECT revision AS r FROM plant_assets WHERE id = 'moved-press'")!.r)).toBe(2);
+      } finally {
+        d.close();
+      }
+    }
     child = await startChild({ SM_DATA_DIR: dataDir, SM_MASTER_PASSPHRASE: TARGET_PASS });
   });
 

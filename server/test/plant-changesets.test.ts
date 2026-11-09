@@ -371,6 +371,101 @@ describe('the three-way merge and Revert', () => {
   });
 });
 
+describe('assistants’ proposals', () => {
+  /** tools/call of the MCP endpoint → { isError, data } */
+  async function call(token: string, name: string, args: Record<string, unknown>): Promise<{ isError: boolean; data: any }> {
+    const res = await fetch(`${s.base}/api/mcp`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        accept: 'application/json, text/event-stream',
+        authorization: `Bearer ${token}`,
+        'mcp-protocol-version': '2026-07-28',
+        'mcp-method': 'tools/call',
+        'mcp-name': name,
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: {
+          name,
+          arguments: args,
+          _meta: {
+            'io.modelcontextprotocol/protocolVersion': '2026-07-28',
+            'io.modelcontextprotocol/clientCapabilities': {},
+            'io.modelcontextprotocol/clientInfo': { name: 'test', version: '1' },
+          },
+        },
+      }),
+    });
+    const body = (await res.json()) as any;
+    if (body.error) return { isError: true, data: body.error.message };
+    return { isError: !!body.result.isError, data: body.result.isError ? body.result.content[0].text : body.result.structuredContent };
+  }
+  const doc = (description: string) => ({ version: 1, device_profile: { id: 'press-ctl', name: 'Press controller', description } });
+
+  it('are proposed change sets on their AI request; with the propose right; under review the token owner never applies', async () => {
+    await s.api('PUT', '/mcp-server', { enabled: true });
+    // an operator may propose (0.13.0) – not only who may import
+    const olafToken = (await users.olaf!('POST', '/me/tokens', { name: 'olaf assistant', scope: 'mcp' })).token;
+    const p1 = await call(olafToken, 'propose_plant_changes', {
+      title: 'Describe the controller',
+      rationale: 'From the vendor manual (example)',
+      document: doc('Example text 1'),
+    });
+    expect(p1.isError, String(p1.data)).toBe(false);
+    const cs1 = (await db()).get<{ id: string; state: string; source: string }>(
+      'SELECT id, state, source FROM plant_change_sets WHERE mcp_request_id = ?',
+      p1.data.requestId,
+    )!;
+    expect(cs1).toMatchObject({ state: 'proposed', source: 'assistant' });
+    const list = await users.dana!('GET', '/plant/change-sets?box=review&source=assistant');
+    expect(list.items.map((x: any) => x.id)).toContain(cs1.id);
+    // applied from Plant → Changes: through its request (both inboxes agree)
+    const pre = await users.dana!('POST', `/plant/change-sets/${cs1.id}/preview`);
+    expect(pre.entries).toEqual([expect.objectContaining({ kind: 'profile', id: 'press-ctl', action: 'change' })]);
+    await users.dana!('POST', `/plant/change-sets/${cs1.id}/apply`, { fingerprint: pre.fingerprint });
+    expect((await s.api('GET', `/mcp-requests/${p1.data.requestId}`)).status).toBe('done');
+    expect((await s.api('GET', `/plant/change-sets/${cs1.id}`)).state).toBe('applied');
+    expect((await s.api('GET', '/plant/history?kind=profile&id=press-ctl')).items[0]).toMatchObject({
+      by: 'olaf',
+      appliedBy: 'dana',
+      changeSet: { source: 'assistant' },
+    });
+
+    // the catalogue needs a second person: Dana's own assistant's proposal is applied by someone else
+    await setPolicy('optional');
+    await s.api('PUT', '/plant/change-sets/settings', { catalogueReview: true });
+    const danaToken = (await users.dana!('POST', '/me/tokens', { name: 'dana assistant', scope: 'mcp' })).token;
+    const p2 = await call(danaToken, 'propose_plant_changes', {
+      title: 'Describe it again',
+      rationale: 'From the vendor manual (example)',
+      document: doc('Example text 2'),
+    });
+    expect(p2.isError, String(p2.data)).toBe(false);
+    expect(await status(users.dana!('POST', `/mcp-requests/${p2.data.requestId}/decision`, { approve: true, comment: '' }))).toMatchObject({ status: 403 });
+    const cs2 = (await db()).get<{ id: string }>('SELECT id FROM plant_change_sets WHERE mcp_request_id = ?', p2.data.requestId)!.id;
+    const pre2 = await users.dirk!('POST', `/plant/change-sets/${cs2}/preview`);
+    expect((await users.dana!('POST', `/plant/change-sets/${cs2}/preview`)).applyBlocked).toMatchObject({ code: 'PLANT_CHANGESET_OWN' });
+    await users.dirk!('POST', `/mcp-requests/${p2.data.requestId}/decision`, { approve: true, comment: 'Checked' });
+    expect((await s.api('GET', `/plant/change-sets/${cs2}`)).state).toBe('applied');
+    expect(pre2.ok).toBe(true);
+    // rejected through AI requests: the change set follows
+    const p3 = await call(danaToken, 'propose_plant_changes', {
+      title: 'And once more',
+      rationale: 'From the vendor manual (example)',
+      document: doc('Example text 3'),
+    });
+    await users.dirk!('POST', `/mcp-requests/${p3.data.requestId}/decision`, { approve: false, comment: 'No' });
+    expect((await (await db()).get<{ state: string }>('SELECT state FROM plant_change_sets WHERE mcp_request_id = ?', p3.data.requestId))!.state).toBe(
+      'rejected',
+    );
+    await s.api('PUT', '/plant/change-sets/settings', { catalogueReview: false });
+    await setPolicy('off');
+  });
+});
+
 describe('limits', () => {
   it('a person keeps at most 20 open change sets', async () => {
     const { PLANT_CHANGESET_LIMITS } = await import('@sm/shared');

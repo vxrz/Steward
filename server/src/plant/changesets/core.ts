@@ -175,7 +175,11 @@ export interface OpRow {
 }
 
 export const rowOf = (id: string): CsRow | undefined => db().get<CsRow>('SELECT * FROM plant_change_sets WHERE id = ?', id);
-export const opsOf = (id: string): OpRow[] => db().all<OpRow>('SELECT * FROM plant_change_ops WHERE change_set_id = ? ORDER BY seq', id);
+/** The operations in order (numbers as numbers: PostgreSQL answers BIGINT as text). */
+export const opsOf = (id: string): OpRow[] =>
+  db()
+    .all<OpRow>('SELECT * FROM plant_change_ops WHERE change_set_id = ? ORDER BY seq', id)
+    .map((o) => ({ ...o, seq: Number(o.seq), base_revision: o.base_revision === null ? null : Number(o.base_revision) }));
 export const sourceOf = (id: string, seq: number): string | null =>
   db().get<{ content: string }>('SELECT content FROM plant_change_sources WHERE change_set_id = ? AND seq = ?', id, seq)?.content ?? null;
 const authorsOf = (r: CsRow): string[] => parseJson<string[]>(r.authors, []);
@@ -501,10 +505,35 @@ interface Choice {
 }
 
 const problemOf = (e: unknown): { code: string; message: string } | null => {
-  if (e instanceof HttpError && e.statusCode < 500) return { code: e.code ?? 'ERROR', message: e.message };
-  if (e instanceof ZodError) return { code: 'VALIDATION', message: e.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ') };
+  if (e instanceof HttpError && e.statusCode < 500) return { code: e.code ?? 'PLANT_CHANGESET_INVALID', message: e.message };
+  if (e instanceof ZodError) return { code: 'PLANT_CHANGESET_INVALID', message: e.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ') };
   return null;
 };
+
+/** Why applying is refused, as the route's answer. */
+function blockedError(b: { code: string; message: string }, id: string): HttpError {
+  switch (b.code) {
+    case 'FORBIDDEN':
+      return new HttpError(403, b.message, 'FORBIDDEN', { context: 'managePlant' });
+    case 'PLANT_CHANGESET_CLOSED':
+      return new HttpError(409, b.message, 'PLANT_CHANGESET_CLOSED', { id });
+    case 'PLANT_CHANGESET_PROPOSE_FIRST':
+      return new HttpError(409, b.message, 'PLANT_CHANGESET_PROPOSE_FIRST', { id });
+    case 'PLANT_CHANGESET_DRAFT':
+      return new HttpError(409, b.message, 'PLANT_CHANGESET_DRAFT', { id });
+    default:
+      return new HttpError(409, b.message, 'PLANT_CHANGESET_OWN', { id });
+  }
+}
+
+/** A result that is not what the preview showed, in the words of the path that applies it. */
+function changedError(code: string | undefined): HttpError {
+  const message = 'What it writes is no longer what the preview showed – look at the preview again';
+  if (code === 'PLANT_IMPORT_CHANGED') return new HttpError(409, message, 'PLANT_IMPORT_CHANGED');
+  if (code === 'PLANT_BULK_CHANGED') return new HttpError(409, message, 'PLANT_BULK_CHANGED');
+  if (code === 'PLANT_RENAME_CHANGED') return new HttpError(409, message, 'PLANT_RENAME_CHANGED');
+  return new HttpError(409, message, 'PLANT_CHANGESET_CHANGED');
+}
 
 /** The three-way merge of a `set` operation against the entry now. */
 export function mergeOf(o: OpRow, now: EntrySnap, choices: Choice[]): { body: unknown; conflicts: PlantChangeConflict[]; unresolved: number; stale: boolean } {
@@ -724,7 +753,7 @@ export function applyStored(
     const ops = opsOf(id);
     // where it reaches now
     const blocked = applyBlockedFor(r, u);
-    if (blocked) throw new HttpError(blocked.code === 'FORBIDDEN' ? 403 : 409, blocked.message, blocked.code, { id });
+    if (blocked) throw blockedError(blocked, id);
     if (r.source === 'assistant' && !o.viaRequest)
       throw new HttpError(409, 'An assistant’s proposal is applied through its AI request', 'PLANT_CHANGESET_VIA_REQUEST', { id });
     const authors = authorsOf(r);
@@ -733,9 +762,14 @@ export function applyStored(
     );
     const p = t.result.problems[0];
     if (p)
-      throw new HttpError(409, `The change set cannot be applied: ${p.message}`, p.code === 'PLANT_CHANGESET_CONFLICT' ? p.code : 'PLANT_CHANGESET_INVALID', {
-        seq: p.seq ?? 0,
-      });
+      throw new HttpError(
+        409,
+        `The change set cannot be applied: ${p.message}`,
+        p.code === 'PLANT_CHANGESET_CONFLICT' ? 'PLANT_CHANGESET_CONFLICT' : 'PLANT_CHANGESET_INVALID',
+        {
+          seq: p.seq ?? 0,
+        },
+      );
     // an assistant's proposal keeps the 0.12 check (its preview's fingerprint, the refusals of what it may not do)
     o.check?.(t.result.imports);
     if (fingerprint !== null && fingerprintOf(t.changes) !== fingerprint)
@@ -819,8 +853,7 @@ export function applyDirect<T>(o: {
     const id = newId('pcs_');
     const author = o.author ?? u.username;
     const t = withAuditDetails({ changeSetId: id }, () => tracked(o.region, { changeSetId: id, author, appliedBy: u.username }, o.fn));
-    if (o.fingerprint !== undefined && fingerprintOf(t.changes) !== o.fingerprint)
-      throw new HttpError(409, 'What it writes is no longer what the preview showed – look at the preview again', o.changedCode ?? 'PLANT_CHANGESET_CHANGED');
+    if (o.fingerprint !== undefined && fingerprintOf(t.changes) !== o.fingerprint) throw changedError(o.changedCode);
     const importId = o.importIdOf?.(t.result) ?? null;
     if (importId) recordBaselines(importId);
     if (!t.changes.length) return { result: t.result, changeSetId: null, changes: [] };
