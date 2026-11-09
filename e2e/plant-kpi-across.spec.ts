@@ -1,6 +1,6 @@
 import type { APIRequestContext } from '@playwright/test';
-import { test, expect } from './support/fixtures';
-import { authFile } from './support/env';
+import { expect } from './support/fixtures';
+import { designerTest as test } from './support/ownUser';
 import { expectAccessible } from './support/axe';
 import { expectNoHorizontalScroll } from './support/helpers';
 
@@ -101,11 +101,11 @@ async function cleanup(
 }
 
 test.describe('as a designer', () => {
-  test.use({ storageState: authFile('dana') });
+  // a designer of its own (support/ownUser.ts): these tests load many pages and would share a demo user's request
+  // budget with every spec running at the same time (the rate limit counts per user)
   test.beforeEach(async ({ apiAs }) => plantOn(await apiAs('admin')));
 
-  test('extract a base across protocols: an interface of protocol other, each profile keeps its protocol', async ({ page, apiAs }) => {
-    const api = await apiAs('dana');
+  test('extract a base across protocols: an interface of protocol other, each profile keeps its protocol', async ({ page, designerApi: api }) => {
     const tag = `x${Date.now()}`;
     const f = await meters(api, tag);
     const models = async () =>
@@ -157,8 +157,7 @@ test.describe('as a designer', () => {
     await cleanup(api, f, { profiles: [base] });
   });
 
-  test('a KPI input of two unrelated profiles with a data point mapping, suggested by name', async ({ page, apiAs }) => {
-    const api = await apiAs('dana');
+  test('a KPI input of two unrelated profiles with a data point mapping, suggested by name', async ({ page, designerApi: api }) => {
     const tag = `m${Date.now()}`;
     const f = await meters(api, tag);
     const kpi = `e2e-energy-any-${tag}`;
@@ -196,8 +195,7 @@ test.describe('as a designer', () => {
     await cleanup(api, f, { kpis: [kpi] });
   });
 
-  test('editing an input keeps its mapping – the first profile’s, too – when nothing is changed', async ({ page, apiAs }) => {
-    const api = await apiAs('dana');
+  test('editing an input keeps its mapping – the first profile’s, too – when nothing is changed', async ({ page, designerApi: api }) => {
     const tag = `k${Date.now()}`;
     const f = await meters(api, tag);
     const kpi = `e2e-energy-keep-${tag}`;
@@ -229,8 +227,7 @@ test.describe('as a designer', () => {
     await cleanup(api, f, { kpis: [kpi] });
   });
 
-  test('coverage rolled up from a meter to its machine; the asset page and the site tile', async ({ page, apiAs }) => {
-    const api = await apiAs('dana');
+  test('coverage rolled up from a meter to its machine; the asset page and the site tile', async ({ page, designerApi: api }) => {
     const tag = `r${Date.now()}`;
     const f = await meters(api, tag);
     const machine = `e2e-press-${tag}`;

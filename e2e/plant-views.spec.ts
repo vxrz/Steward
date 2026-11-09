@@ -208,6 +208,9 @@ test.describe('as a designer', () => {
     await expect(
       matrix.getByRole('link', { name: /Milling centre 1, Energy consumption: Cannot.*reads data points of profile example-meters-pm200/ }),
     ).toBeVisible();
+    // the demo site's figures (other specs add sites of their own while this one runs)
+    await page.goto('/plant/explore?view=coverage&site=riverside');
+    await picture(page);
     await expect(page.getByTestId('coverage-summary')).toContainText('KPI coverage 100 %');
     await expect(page.getByTestId('coverage-legend')).toContainText('Device delivers, not collected');
     await expectAccessible(page, 'KPI coverage matrix');
