@@ -13,16 +13,15 @@ import {
   SegmentedControl,
   Select,
   Stack,
-  Table,
   Text,
   TextInput,
+  VisuallyHidden,
 } from '@mantine/core';
-import { useMediaQuery } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { IconDownload, IconPackageExport, IconPlus, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import type { Control, EvidencePack, EvidencePacksMeta, Platform, ServiceSummary } from '@sm/shared';
+import { EVIDENCE_PACK_STATUSES, type Control, type EvidencePack, type EvidencePacksMeta, type Platform, type ServiceSummary } from '@sm/shared';
 import { apiUrl, confirmedDownload, del, get, getOptional, notifyError, post } from '../api';
 import { useMe } from '../auth';
 import { assuranceReportUrl } from '../components/assurance/AssurancePolicyPanel';
@@ -30,7 +29,12 @@ import { EmptyState, QueryState, TONE, useCreateParam, useFieldErrors } from '..
 import { PeriodPicker, periodRange, presetPeriod, validPeriod, type Period } from '../components/compliance/common';
 import { fmtBytes, fmtDate, fmtRelative } from '../format';
 import { ListPage } from '../components/page/ListPage';
+import { useListParams } from '../components/page/params';
+import { DataTable, ListFooter, type DataColumn } from '../components/DataTable';
 import { platformKeys } from '../queryKeys';
+
+/** Sort order of the status column: failed first. */
+const PACK_STATUS_ORDER: EvidencePack['status'][] = ['failed', 'building', 'ready', 'expired'];
 
 const STATUS_COLOR: Record<EvidencePack['status'], string> = { building: TONE.active, ready: TONE.ok, failed: TONE.bad, expired: TONE.neutral };
 
@@ -47,7 +51,7 @@ export function EvidencePacksPage() {
   });
   useCreateParam(meta.data?.canCreate, () => setCreating(true));
   const list = packs.data ?? [];
-  const narrow = useMediaQuery('(max-width: 48em)') ?? false;
+  const { params, set } = useListParams();
   const remove = async (p: EvidencePack) => {
     try {
       await del(`/compliance/evidence-packs/${p.id}`);
@@ -75,10 +79,102 @@ export function EvidencePacksPage() {
       {t(`packs.status.${p.status}`)}
     </Badge>
   );
+  // ?status= (the filter lives in the address, so a filtered list can be shared)
+  const statuses = params.getAll('status').filter((x): x is EvidencePack['status'] => (EVIDENCE_PACK_STATUSES as readonly string[]).includes(x));
+  const shown = statuses.length ? list.filter((p) => statuses.includes(p.status)) : list;
+  const columns: DataColumn<EvidencePack>[] = [
+    {
+      key: 'title',
+      header: t('packs.packTitle'),
+      sortValue: (p) => p.title,
+      cell: (p) => (
+        <>
+          <Text size="sm" fw={500}>
+            {p.title}
+          </Text>
+          {p.sha256 && (
+            <Text size="xs" c="dimmed" className="mono" title={p.sha256}>
+              {t('packs.sha', { hash: p.sha256.slice(0, 16) })}
+            </Text>
+          )}
+        </>
+      ),
+    },
+    { key: 'scope', header: t('packs.scope'), sortValue: (p) => p.scopeLabel, cell: (p) => p.scopeLabel },
+    {
+      key: 'period',
+      header: t('packs.period'),
+      sortValue: (p) => p.from,
+      cell: (p) => (
+        <>
+          {fmtDate(p.from)} – {fmtDate(p.to)}
+        </>
+      ),
+    },
+    {
+      key: 'status',
+      header: t('packs.statusLabel'),
+      // failed first, then those being built
+      sortValue: (p) => PACK_STATUS_ORDER.indexOf(p.status),
+      cell: (p) => (
+        <>
+          {statusBadge(p)}
+          {p.error && (
+            <Text size="xs" c="red" maw={320}>
+              {p.error}
+            </Text>
+          )}
+          {p.status === 'ready' && (
+            <Text size="xs" c="dimmed">
+              {t('packs.expires', { when: fmtRelative(p.expiresAt) })}
+            </Text>
+          )}
+        </>
+      ),
+    },
+    {
+      key: 'size',
+      header: t('packs.size'),
+      sortValue: (p) => p.size,
+      cell: (p) => (p.size !== null ? `${fmtBytes(p.size)} · ${t('packs.files', { count: p.fileCount ?? 0 })}` : '–'),
+    },
+    {
+      key: 'createdBy',
+      header: t('packs.createdBy'),
+      // newest first by default
+      sortValue: (p) => p.createdAt,
+      tdProps: (p) => ({ title: fmtDate(p.createdAt) }),
+      cell: (p) => (
+        <>
+          {p.createdBy}
+          <Text size="xs" c="dimmed">
+            {fmtRelative(p.createdAt)}
+          </Text>
+        </>
+      ),
+    },
+    { key: 'actions', header: <VisuallyHidden>{t('packs.actions')}</VisuallyHidden>, label: t('packs.actions'), cell: actions },
+  ];
   return (
     <ListPage
       title={t('packs.title')}
       description={t('packs.description')}
+      activeFilters={statuses.length ? 1 : 0}
+      filters={
+        list.length ? (
+          <Group gap="sm" mb="md" align="flex-end" wrap="wrap" data-testid="evidence-pack-filters">
+            <MultiSelect
+              size="xs"
+              label={t('packs.statusLabel')}
+              data={EVIDENCE_PACK_STATUSES.map((x) => ({ value: x, label: t(`packs.status.${x}`) }))}
+              value={statuses}
+              onChange={(v) => set('status', v)}
+              clearable
+              w={{ base: '100%', xs: 260 }}
+            />
+          </Group>
+        ) : undefined
+      }
       actions={
         meta.data?.canCreate && (
           <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setCreating(true)}>
@@ -120,84 +216,44 @@ export function EvidencePacksPage() {
           {t('packs.emptyText')}
         </EmptyState>
       )}
-      {list.length > 0 &&
-        (narrow ? (
-          <Stack gap="xs" role="list" aria-label={t('packs.title')}>
-            {list.map((p) => (
-              <Paper key={p.id} withBorder p="sm" role="listitem">
-                <Group justify="space-between" wrap="nowrap" align="flex-start">
-                  <Text fw={600} size="sm">
-                    {p.title}
-                  </Text>
-                  {statusBadge(p)}
-                </Group>
-                <Text size="xs" c="dimmed">
-                  {p.scopeLabel} · {fmtDate(p.from)} – {fmtDate(p.to)}
+      {list.length > 0 && shown.length === 0 && (
+        <Text size="sm" c="dimmed">
+          {t('packs.noMatch')}
+        </Text>
+      )}
+      {shown.length > 0 && (
+        <DataTable
+          rows={shown}
+          columns={columns}
+          rowKey={(p) => p.id}
+          ariaLabel={t('packs.title')}
+          testId="evidence-pack-list"
+          rememberSort="evidence-packs"
+          defaultSort={{ key: 'createdBy', dir: 'desc' }}
+          footer={<ListFooter shown={shown.length} total={list.length} />}
+          card={(p) => (
+            <Paper withBorder p="sm">
+              <Group justify="space-between" wrap="nowrap" align="flex-start">
+                <Text fw={600} size="sm">
+                  {p.title}
                 </Text>
-                {p.error && (
-                  <Text size="xs" c="red">
-                    {p.error}
-                  </Text>
-                )}
-                <Group justify="flex-end" mt={4}>
-                  {actions(p)}
-                </Group>
-              </Paper>
-            ))}
-          </Stack>
-        ) : (
-          <div className="table-scroll">
-            <Table fz="sm" aria-label={t('packs.title')}>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>{t('packs.packTitle')}</Table.Th>
-                  <Table.Th>{t('packs.scope')}</Table.Th>
-                  <Table.Th>{t('packs.period')}</Table.Th>
-                  <Table.Th>{t('packs.statusLabel')}</Table.Th>
-                  <Table.Th>{t('packs.size')}</Table.Th>
-                  <Table.Th>{t('packs.createdBy')}</Table.Th>
-                  <Table.Th />
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {list.map((p) => (
-                  <Table.Tr key={p.id}>
-                    <Table.Td>
-                      <Text size="sm" fw={500}>
-                        {p.title}
-                      </Text>
-                      {p.sha256 && (
-                        <Text size="xs" c="dimmed" className="mono" title={p.sha256}>
-                          {t('packs.sha', { hash: p.sha256.slice(0, 16) })}
-                        </Text>
-                      )}
-                    </Table.Td>
-                    <Table.Td>{p.scopeLabel}</Table.Td>
-                    <Table.Td>
-                      {fmtDate(p.from)} – {fmtDate(p.to)}
-                    </Table.Td>
-                    <Table.Td>
-                      {statusBadge(p)}
-                      {p.error && (
-                        <Text size="xs" c="red" maw={320}>
-                          {p.error}
-                        </Text>
-                      )}
-                      {p.status === 'ready' && (
-                        <Text size="xs" c="dimmed">
-                          {t('packs.expires', { when: fmtRelative(p.expiresAt) })}
-                        </Text>
-                      )}
-                    </Table.Td>
-                    <Table.Td>{p.size !== null ? `${fmtBytes(p.size)} · ${t('packs.files', { count: p.fileCount ?? 0 })}` : '–'}</Table.Td>
-                    <Table.Td>{p.createdBy}</Table.Td>
-                    <Table.Td>{actions(p)}</Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-          </div>
-        ))}
+                {statusBadge(p)}
+              </Group>
+              <Text size="xs" c="dimmed">
+                {p.scopeLabel} · {fmtDate(p.from)} – {fmtDate(p.to)}
+              </Text>
+              {p.error && (
+                <Text size="xs" c="red">
+                  {p.error}
+                </Text>
+              )}
+              <Group justify="flex-end" mt={4}>
+                {actions(p)}
+              </Group>
+            </Paper>
+          )}
+        />
+      )}
       {creating && <NewPackModal onClose={() => setCreating(false)} />}
     </ListPage>
   );

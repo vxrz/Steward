@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Anchor, Badge, Button, Group, Paper, SimpleGrid, Stack, Table, Text } from '@mantine/core';
+import { Anchor, Badge, Button, Group, Paper, SimpleGrid, Stack, Text } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
@@ -9,7 +9,9 @@ import { ASSET_STATUSES, type PlantSiteSummary } from '@sm/shared';
 import { apiUrl, get } from '../api';
 import { QueryState, useCreateParam } from '../components/common';
 import { ListPage, useStoredListView } from '../components/page/ListPage';
-import { fmtRelative } from '../format';
+import { fmtDate, fmtRelative } from '../format';
+import { useListParams } from '../components/page/params';
+import { DataTable, type DataColumn } from '../components/DataTable';
 import { plantKeys } from '../queryKeys';
 import { AssetStatusBadge, MapLink, NotInSourceBadge, PreviewBadge, useNameOf, usePlantConfig, usePlantLabel } from '../components/plant/common';
 import { BulkBar, SelectAllBox, SelectBox, useSelection } from '../components/plant/bulk';
@@ -18,14 +20,16 @@ import { SiteTileStats } from './plant/views/SiteTiles';
 
 /** The sites of the enterprise (#218): the plant registry's start page. */
 export function PlantSitesPage() {
-  const { t } = useTranslation(['plant', 'common', 'plantViews']);
+  const { t } = useTranslation(['plant', 'common', 'plantViews', 'plantIds']);
   const label = usePlantLabel();
   const nameOf = useNameOf();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const cfg = usePlantConfig();
   const sites = useQuery({ queryKey: plantKeys.sites, queryFn: () => get<PlantSiteSummary[]>('/plant/sites') });
-  const [q, setQ] = useState('');
+  // the search lives in the address (?q=), like the other plant lists
+  const { params, set } = useListParams();
+  const q = params.get('q') ?? '';
   const [creating, setCreating] = useState(false);
   const canCreate = cfg.data?.canCreateSites;
   useCreateParam(canCreate, () => setCreating(true));
@@ -61,6 +65,73 @@ export function PlantSitesPage() {
   const canBulk = !!cfg.data?.canManageSome;
   const shownIds = list.map((s) => s.id);
   const sel = useSelection(shownIds);
+  const stop = () => ({ onClick: (e: { stopPropagation: () => void }) => e.stopPropagation() });
+  const columns: DataColumn<PlantSiteSummary>[] = [
+    ...(canBulk
+      ? [
+          {
+            key: 'select',
+            header: <SelectAllBox sel={sel} ids={shownIds} />,
+            label: t('plantIds:bulk.selectAll'),
+            tdProps: stop,
+            cell: (s: PlantSiteSummary) => <SelectBox sel={sel} id={s.id} name={nameOf(s)} />,
+          },
+        ]
+      : []),
+    {
+      key: 'name',
+      header: t('form.name'),
+      sortValue: (s) => nameOf(s),
+      cell: (s) => (
+        <>
+          <Group gap="xs" wrap="nowrap">
+            <Anchor component={Link} to={`/plant/sites/${encodeURIComponent(s.id)}`} fw={500} size="sm" onClick={(e) => e.stopPropagation()}>
+              {nameOf(s)}
+            </Anchor>
+            {s.code && (
+              <Badge variant="default" size="xs">
+                {s.code}
+              </Badge>
+            )}
+            {s.notInSource && <NotInSourceBadge size="xs" />}
+          </Group>
+          {s.description && (
+            <Text size="xs" c="dimmed" lineClamp={1}>
+              {s.description}
+            </Text>
+          )}
+        </>
+      ),
+    },
+    { key: 'areas', header: label('area', true), sortValue: (s) => s.areaCount, cell: (s) => s.areaCount },
+    { key: 'buildings', header: label('building', true), sortValue: (s) => s.buildingCount, cell: (s) => s.buildingCount },
+    {
+      key: 'assets',
+      header: label('asset', true),
+      sortValue: (s) => s.assetCount,
+      cell: (s) => (
+        <Stack gap={2}>
+          <Text size="sm">{s.assetCount}</Text>
+          {statuses(s)}
+        </Stack>
+      ),
+    },
+    {
+      key: 'tiles',
+      header: t('plantViews:tiles.title'),
+      tdProps: () => ({ ...stop(), miw: 220 }),
+      cell: (s) => <SiteTileStats siteId={s.id} compact />,
+    },
+    { key: 'map', header: t('sites.map'), tdProps: stop, cell: (s) => <MapLink geo={s.geo} name={nameOf(s)} /> },
+    {
+      key: 'updated',
+      header: t('updated'),
+      sortValue: (s) => s.updatedAt,
+      nowrap: true,
+      tdProps: (s) => ({ title: fmtDate(s.updatedAt) }),
+      cell: (s) => fmtRelative(s.updatedAt),
+    },
+  ];
   return (
     <ListPage
       testId="plant-sites"
@@ -88,7 +159,7 @@ export function PlantSitesPage() {
           {!!sites.data?.length && exportLink}
         </>
       }
-      search={sites.data?.length ? { value: q, onChange: setQ, placeholder: t('sites.search') } : undefined}
+      search={sites.data?.length ? { value: q, onChange: (v) => set('q', v), placeholder: t('sites.search') } : undefined}
       view={sites.data?.length ? 'plant-sites' : undefined}
       viewState={view}
       empty={{
@@ -150,70 +221,16 @@ export function PlantSitesPage() {
         </SimpleGrid>
       )}
       {list.length > 0 && !view.cards && (
-        <div className="table-scroll">
-          <Table highlightOnHover fz="sm" aria-label={plural} data-testid="plant-site-table">
-            <Table.Thead>
-              <Table.Tr>
-                {canBulk && (
-                  <Table.Th w={36}>
-                    <SelectAllBox sel={sel} ids={shownIds} />
-                  </Table.Th>
-                )}
-                <Table.Th>{t('form.name')}</Table.Th>
-                <Table.Th>{label('area', true)}</Table.Th>
-                <Table.Th>{label('building', true)}</Table.Th>
-                <Table.Th>{label('asset', true)}</Table.Th>
-                <Table.Th>{t('plantViews:tiles.title')}</Table.Th>
-                <Table.Th>{t('sites.map')}</Table.Th>
-                <Table.Th>{t('updated')}</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {list.map((s) => (
-                <Table.Tr key={s.id} className="clickable" onClick={() => navigate(`/plant/sites/${encodeURIComponent(s.id)}`)}>
-                  {canBulk && (
-                    <Table.Td onClick={(e) => e.stopPropagation()}>
-                      <SelectBox sel={sel} id={s.id} name={nameOf(s)} />
-                    </Table.Td>
-                  )}
-                  <Table.Td>
-                    <Group gap="xs" wrap="nowrap">
-                      <Anchor component={Link} to={`/plant/sites/${encodeURIComponent(s.id)}`} fw={500} size="sm" onClick={(e) => e.stopPropagation()}>
-                        {nameOf(s)}
-                      </Anchor>
-                      {s.code && (
-                        <Badge variant="default" size="xs">
-                          {s.code}
-                        </Badge>
-                      )}
-                      {s.notInSource && <NotInSourceBadge size="xs" />}
-                    </Group>
-                    {s.description && (
-                      <Text size="xs" c="dimmed" lineClamp={1}>
-                        {s.description}
-                      </Text>
-                    )}
-                  </Table.Td>
-                  <Table.Td>{s.areaCount}</Table.Td>
-                  <Table.Td>{s.buildingCount}</Table.Td>
-                  <Table.Td>
-                    <Stack gap={2}>
-                      <Text size="sm">{s.assetCount}</Text>
-                      {statuses(s)}
-                    </Stack>
-                  </Table.Td>
-                  <Table.Td onClick={(e) => e.stopPropagation()} miw={220}>
-                    <SiteTileStats siteId={s.id} compact />
-                  </Table.Td>
-                  <Table.Td onClick={(e) => e.stopPropagation()}>
-                    <MapLink geo={s.geo} name={nameOf(s)} />
-                  </Table.Td>
-                  <Table.Td className="nowrap">{fmtRelative(s.updatedAt)}</Table.Td>
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-        </div>
+        <DataTable
+          rows={list}
+          columns={columns}
+          rowKey={(s) => s.id}
+          ariaLabel={plural}
+          rowHref={(s) => `/plant/sites/${encodeURIComponent(s.id)}`}
+          testId="plant-site-table"
+          rememberSort="plant-sites"
+          defaultSort={{ key: 'name', dir: 'asc' }}
+        />
       )}
       {creating && (
         <SiteFormModal

@@ -12,11 +12,11 @@ import {
   Select,
   Stack,
   Switch,
-  Table,
   TagsInput,
   Text,
   TextInput,
   Textarea,
+  VisuallyHidden,
 } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { IconEdit, IconLink, IconPlus, IconTrash } from '@tabler/icons-react';
@@ -30,6 +30,7 @@ import { LibraryOriginBadge } from '../components/libraries/parts';
 import { useRecordTypes, useTypeName } from '../components/records/common';
 import { fieldLabel, typeDescription } from '../components/records/builtin';
 import { TableColumnsEditor } from '../components/records/TableField';
+import { DataTable, type DataColumn } from '../components/DataTable';
 
 /** Record types (administrators): number prefix, name, workflow, template and fields. */
 export function RecordTypesPage() {
@@ -39,6 +40,56 @@ export function RecordTypesPage() {
   const typeName = useTypeName();
   const [editing, setEditing] = useState<RecordType | 'new' | null>(null);
   if (meta.data && !meta.data.canManageTypes) return <Alert color="orange">{t('types.adminOnly')}</Alert>;
+  const nameBadges = (x: RecordType) => (
+    <>
+      <GitOriginBadge kind="recordType" id={x.id} size="xs" /> <LibraryOriginBadge kind="recordType" id={x.id} size="xs" />
+      {x.archived && (
+        <Badge ml={6} size="xs" variant="outline" color="gray">
+          {t('types.archived')}
+        </Badge>
+      )}
+    </>
+  );
+  const editButton = (x: RecordType) => (
+    <ActionIcon variant="subtle" aria-label={t('types.editNamed', { name: typeName(x) })} onClick={() => setEditing(x)}>
+      <IconEdit size={16} />
+    </ActionIcon>
+  );
+  const columns: DataColumn<RecordType>[] = [
+    { key: 'key', header: t('types.key'), sortValue: (x) => x.key, tdProps: () => ({ className: 'mono' }), cell: (x) => x.key },
+    {
+      key: 'name',
+      header: t('types.name'),
+      sortValue: (x) => typeName(x),
+      cell: (x) => (
+        <>
+          {typeName(x)} {nameBadges(x)}
+          <Text size="xs" c="dimmed" lineClamp={2}>
+            {typeDescription(x)}
+          </Text>
+        </>
+      ),
+    },
+    {
+      key: 'workflow',
+      header: t('types.workflow'),
+      sortValue: (x) => t(`types.workflows.${x.workflow}`),
+      cell: (x) => (
+        <>
+          {t(`types.workflows.${x.workflow}`)}
+          {x.workflow === 'document' && (
+            <Text size="xs" c="dimmed">
+              {x.reviewIntervalMonths ? t('types.reviewEvery', { count: x.reviewIntervalMonths }) : t('types.reviewNone')}
+            </Text>
+          )}
+        </>
+      ),
+    },
+    { key: 'fields', header: t('types.fields'), sortValue: (x) => x.fields.length, cell: (x) => x.fields.map((f) => fieldLabel(x.key, f)).join(', ') || '–' },
+    { key: 'records', header: t('types.recordCount'), sortValue: (x) => x.recordCount, cell: (x) => x.recordCount },
+    { key: 'actions', header: <VisuallyHidden>{t('types.actions')}</VisuallyHidden>, label: t('types.actions'), cell: editButton },
+  ];
+
   return (
     <>
       <PageHeader
@@ -56,53 +107,35 @@ export function RecordTypesPage() {
           </>
         }
       />
-      <div className="table-scroll">
-        <Table fz="sm" aria-label={t('types.title')}>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>{t('types.key')}</Table.Th>
-              <Table.Th>{t('types.name')}</Table.Th>
-              <Table.Th>{t('types.workflow')}</Table.Th>
-              <Table.Th>{t('types.fields')}</Table.Th>
-              <Table.Th>{t('types.recordCount')}</Table.Th>
-              <Table.Th aria-label={t('types.actions')} />
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {(types.data ?? []).map((x) => (
-              <Table.Tr key={x.id} data-inactive={x.archived || undefined}>
-                <Table.Td className="mono">{x.key}</Table.Td>
-                <Table.Td>
-                  {typeName(x)} <GitOriginBadge kind="recordType" id={x.id} size="xs" /> <LibraryOriginBadge kind="recordType" id={x.id} size="xs" />
-                  {x.archived && (
-                    <Badge ml={6} size="xs" variant="outline" color="gray">
-                      {t('types.archived')}
-                    </Badge>
-                  )}
-                  <Text size="xs" c="dimmed" lineClamp={2}>
-                    {typeDescription(x)}
-                  </Text>
-                </Table.Td>
-                <Table.Td>
-                  {t(`types.workflows.${x.workflow}`)}
-                  {x.workflow === 'document' && (
-                    <Text size="xs" c="dimmed">
-                      {x.reviewIntervalMonths ? t('types.reviewEvery', { count: x.reviewIntervalMonths }) : t('types.reviewNone')}
-                    </Text>
-                  )}
-                </Table.Td>
-                <Table.Td>{x.fields.map((f) => fieldLabel(x.key, f)).join(', ') || '–'}</Table.Td>
-                <Table.Td>{x.recordCount}</Table.Td>
-                <Table.Td>
-                  <ActionIcon variant="subtle" aria-label={t('types.editNamed', { name: typeName(x) })} onClick={() => setEditing(x)}>
-                    <IconEdit size={16} />
-                  </ActionIcon>
-                </Table.Td>
-              </Table.Tr>
-            ))}
-          </Table.Tbody>
-        </Table>
-      </div>
+      <DataTable
+        rows={types.data ?? []}
+        columns={columns}
+        rowKey={(x) => x.id}
+        ariaLabel={t('types.title')}
+        rowProps={(x) => ({ 'data-inactive': x.archived || undefined })}
+        testId="record-type-list"
+        rememberSort="record-types"
+        defaultSort={{ key: 'key', dir: 'asc' }}
+        card={(x) => (
+          <Paper withBorder p="sm">
+            <Group justify="space-between" wrap="nowrap" align="flex-start">
+              <div style={{ minWidth: 0 }}>
+                <Text size="sm" fw={600}>
+                  <span className="mono">{x.key}</span> {typeName(x)}
+                </Text>
+                {nameBadges(x)}
+              </div>
+              {editButton(x)}
+            </Group>
+            <Text size="xs" c="dimmed" lineClamp={2}>
+              {typeDescription(x)}
+            </Text>
+            <Text size="xs" mt={4}>
+              {t(`types.workflows.${x.workflow}`)} · {t('types.recordCount')}: {x.recordCount}
+            </Text>
+          </Paper>
+        )}
+      />
       {editing && <TypeModal type={editing === 'new' ? null : editing} onClose={() => setEditing(null)} />}
     </>
   );

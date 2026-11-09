@@ -1,5 +1,22 @@
 import { useEffect, useState } from 'react';
-import { ActionIcon, Anchor, Badge, Button, Chip, Divider, Group, Modal, Select, Stack, Switch, Table, Text, TextInput, Tooltip } from '@mantine/core';
+import {
+  ActionIcon,
+  Anchor,
+  Badge,
+  Button,
+  Chip,
+  Divider,
+  Group,
+  Modal,
+  Paper,
+  Select,
+  Stack,
+  Switch,
+  Text,
+  TextInput,
+  Tooltip,
+  VisuallyHidden,
+} from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { IconCalendarTime, IconEdit, IconPlayerPlay, IconPlus, IconTrash } from '@tabler/icons-react';
@@ -18,6 +35,8 @@ import { RunModeField } from '../components/RunModeField';
 import { NotifyPolicyFields, PauseBadge, PauseControl } from '../components/notify/NotifyPolicy';
 import { CronWarnings, useCronPreview } from '../components/CronPreview';
 import { ListPage } from '../components/page/ListPage';
+import { useListParams } from '../components/page/params';
+import { DataTable, ListFooter, type DataColumn } from '../components/DataTable';
 import { processKeys, scheduleKeys } from '../queryKeys';
 import { DuplicateActionIcon, useDuplicate } from '../components/duplicate/DuplicateButton';
 
@@ -104,15 +123,181 @@ export function SchedulesPage() {
     }
   };
 
+  // the filters live in the address (?q=, ?state=, ?owner=), so a filtered list can be shared
+  const q = params.get('q') ?? '';
+  const state = params.get('state');
+  const owner = params.get('owner');
+  const { set: setFilter } = useListParams();
+  const needle = q.trim().toLowerCase();
+  const list = (schedules.data ?? []).filter(
+    (s) =>
+      (!needle || [s.name, s.processName ?? '', s.owner ?? '', s.cron].some((x) => x.toLowerCase().includes(needle))) &&
+      (!state || (state === 'active') === s.enabled) &&
+      (!owner || s.owner === owner),
+  );
+  const owners = [...new Set([...(schedules.data ?? []).map((s) => s.owner ?? ''), owner ?? ''])].filter(Boolean).sort();
+
+  const enabledSwitch = (s: Schedule) => (
+    <Switch size="xs" checked={s.enabled} disabled={!s.canEdit} onChange={(e) => save({ ...s, enabled: e.currentTarget.checked })} aria-label={t('enabled')} />
+  );
+  const nameOf = (s: Schedule) => (
+    <>
+      <Group gap={6}>
+        <Text size="sm" fw={500}>
+          {s.name}
+        </Text>
+        <PauseBadge pause={s.notify?.pause} />
+        <MissedBadge missed={s.missed} />
+      </Group>
+      <Text size="xs" c="dimmed">
+        <Link to={`/processes/${s.processId}`}>{s.processName}</Link>
+        {s.owner && ` · ${t('table.runsAs', { owner: s.owner })}`}
+        {s.dryRun && (
+          <Badge ml={4} size="xs" color="yellow" variant="light">
+            {t('common:status.dryrun')}
+          </Badge>
+        )}
+      </Text>
+    </>
+  );
+  const lastRunOf = (s: Schedule) =>
+    s.lastRunId ? (
+      <Anchor size="sm" component={Link} to={`/runs/${s.lastRunId}`} underline="never" c="var(--mantine-color-text)">
+        <Group gap={4} wrap="nowrap">
+          {s.lastRunStatus && <StatusBadge status={s.lastRunStatus} size="xs" />}
+          <Text size="xs">{fmtRelative(s.lastRunAt)}</Text>
+        </Group>
+      </Anchor>
+    ) : (
+      '–'
+    );
+  const actionsOf = (s: Schedule) => (
+    <Group gap={2} wrap="nowrap" justify="flex-end">
+      <Tooltip label={t('table.runNow')}>
+        <ActionIcon
+          variant="subtle"
+          onClick={async () => {
+            try {
+              const r = await post<{ id: string }>(`/schedules/${s.id}/run`);
+              navigate(`/runs/${r.id}`);
+            } catch (e) {
+              notifyError(e);
+            }
+          }}
+          aria-label={t('table.runNow')}
+        >
+          <IconPlayerPlay size={16} />
+        </ActionIcon>
+      </Tooltip>
+      <DuplicateActionIcon name={s.name} onClick={() => duplicate.open('schedule', s.id)} />
+      {s.canEdit && (
+        <PauseControl
+          pause={s.notify?.pause}
+          onPause={async (p) => {
+            try {
+              await post(`/schedules/${s.id}/pause`, { until: p.until, reason: p.reason, inApp: p.inApp });
+              await qc.invalidateQueries({ queryKey: scheduleKeys.all });
+            } catch (e) {
+              notifyError(e);
+            }
+          }}
+          onResume={async () => {
+            try {
+              await post(`/schedules/${s.id}/resume`, {});
+              await qc.invalidateQueries({ queryKey: scheduleKeys.all });
+            } catch (e) {
+              notifyError(e);
+            }
+          }}
+        />
+      )}
+      {s.canEdit && (
+        <ActionIcon variant="subtle" onClick={() => setDraft({ ...s })} aria-label={t('common:edit')}>
+          <IconEdit size={16} />
+        </ActionIcon>
+      )}
+      {s.canEdit && (
+        <ActionIcon
+          variant="subtle"
+          color="red"
+          aria-label={t('common:delete')}
+          onClick={async () => {
+            if (!(await confirmDanger({ action: 'delete', message: t('deleteConfirm', { name: s.name }) }))) return;
+            await del(`/schedules/${s.id}`).catch(notifyError);
+            qc.invalidateQueries({ queryKey: scheduleKeys.all });
+          }}
+        >
+          <IconTrash size={16} />
+        </ActionIcon>
+      )}
+    </Group>
+  );
+  const columns: DataColumn<Schedule>[] = [
+    { key: 'active', header: t('table.active'), sortValue: (s) => (s.enabled ? 1 : 0), cell: enabledSwitch },
+    { key: 'name', header: t('table.name'), sortValue: (s) => s.name, cell: nameOf },
+    {
+      key: 'when',
+      header: t('table.when'),
+      cell: (s) => (
+        <>
+          <span className="mono">{s.cron}</span>
+          <Text size="xs" c="dimmed">
+            {presetLabel(s.cron)} {s.timezone}
+          </Text>
+        </>
+      ),
+    },
+    {
+      key: 'next',
+      header: t('table.next'),
+      sortValue: (s) => (s.enabled ? s.nextRunAt : null),
+      nowrap: true,
+      cell: (s) => (s.enabled && s.nextRunAt ? `${fmtDate(s.nextRunAt)} (${fmtRelative(s.nextRunAt)})` : '–'),
+    },
+    { key: 'last', header: t('table.last'), sortValue: (s) => s.lastRunAt, cell: lastRunOf },
+    { key: 'actions', header: <VisuallyHidden>{t('table.actions')}</VisuallyHidden>, label: t('table.actions'), cell: actionsOf },
+  ];
+
   return (
     <ListPage
       tabs={<AutomateTabs active="/schedules" />}
       title={t('title')}
       description={t('description')}
+      view="schedules"
       primaryAction={
         <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setDraft(emptyDraft())}>
           {t('new')}
         </Button>
+      }
+      search={{ value: q, onChange: (v) => setFilter('q', v), placeholder: t('filters.search') }}
+      activeFilters={[state, owner].filter(Boolean).length}
+      filters={
+        schedules.data?.length ? (
+          <Group gap="sm" mb="md" align="flex-end" wrap="wrap" data-testid="schedule-filters">
+            <Select
+              size="xs"
+              label={t('filters.state')}
+              data={[
+                { value: 'active', label: t('filters.active') },
+                { value: 'inactive', label: t('filters.inactive') },
+              ]}
+              value={state}
+              onChange={(v) => setFilter('state', v)}
+              clearable
+              w={{ base: '100%', xs: 180 }}
+            />
+            <Select
+              size="xs"
+              label={t('filters.owner')}
+              data={owners}
+              value={owner}
+              onChange={(v) => setFilter('owner', v)}
+              clearable
+              searchable
+              w={{ base: '100%', xs: 200 }}
+            />
+          </Group>
+        ) : undefined
       }
       empty={{
         show: schedules.data?.length === 0,
@@ -128,134 +313,40 @@ export function SchedulesPage() {
       }}
     >
       <QueryState query={schedules} />
-      {!!schedules.data?.length && (
-        <div className="table-scroll">
-          <Table highlightOnHover fz="sm">
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>{t('table.active')}</Table.Th>
-                <Table.Th>{t('table.name')}</Table.Th>
-                <Table.Th>{t('table.when')}</Table.Th>
-                <Table.Th>{t('table.next')}</Table.Th>
-                <Table.Th>{t('table.last')}</Table.Th>
-                <Table.Th />
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {schedules.data.map((s) => (
-                <Table.Tr key={s.id}>
-                  <Table.Td>
-                    <Switch
-                      size="xs"
-                      checked={s.enabled}
-                      disabled={!s.canEdit}
-                      onChange={(e) => save({ ...s, enabled: e.currentTarget.checked })}
-                      aria-label={t('enabled')}
-                    />
-                  </Table.Td>
-                  <Table.Td>
-                    <Group gap={6}>
-                      <Text size="sm" fw={500}>
-                        {s.name}
-                      </Text>
-                      <PauseBadge pause={s.notify?.pause} />
-                      <MissedBadge missed={s.missed} />
-                    </Group>
-                    <Text size="xs" c="dimmed">
-                      <Link to={`/processes/${s.processId}`}>{s.processName}</Link>
-                      {s.owner && ` · ${t('table.runsAs', { owner: s.owner })}`}
-                      {s.dryRun && (
-                        <Badge ml={4} size="xs" color="yellow" variant="light">
-                          {t('common:status.dryrun')}
-                        </Badge>
-                      )}
-                    </Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <span className="mono">{s.cron}</span>
-                    <Text size="xs" c="dimmed">
-                      {presetLabel(s.cron)} {s.timezone}
-                    </Text>
-                  </Table.Td>
-                  <Table.Td className="nowrap">{s.enabled && s.nextRunAt ? `${fmtDate(s.nextRunAt)} (${fmtRelative(s.nextRunAt)})` : '–'}</Table.Td>
-                  <Table.Td>
-                    {s.lastRunId ? (
-                      <Anchor size="sm" component={Link} to={`/runs/${s.lastRunId}`} underline="never" c="var(--mantine-color-text)">
-                        <Group gap={4} wrap="nowrap">
-                          {s.lastRunStatus && <StatusBadge status={s.lastRunStatus} size="xs" />}
-                          <Text size="xs">{fmtRelative(s.lastRunAt)}</Text>
-                        </Group>
-                      </Anchor>
-                    ) : (
-                      '–'
-                    )}
-                  </Table.Td>
-                  <Table.Td>
-                    <Group gap={2} wrap="nowrap" justify="flex-end">
-                      <Tooltip label={t('table.runNow')}>
-                        <ActionIcon
-                          variant="subtle"
-                          onClick={async () => {
-                            try {
-                              const r = await post<{ id: string }>(`/schedules/${s.id}/run`);
-                              navigate(`/runs/${r.id}`);
-                            } catch (e) {
-                              notifyError(e);
-                            }
-                          }}
-                          aria-label={t('table.runNow')}
-                        >
-                          <IconPlayerPlay size={16} />
-                        </ActionIcon>
-                      </Tooltip>
-                      <DuplicateActionIcon name={s.name} onClick={() => duplicate.open('schedule', s.id)} />
-                      {s.canEdit && (
-                        <PauseControl
-                          pause={s.notify?.pause}
-                          onPause={async (p) => {
-                            try {
-                              await post(`/schedules/${s.id}/pause`, { until: p.until, reason: p.reason, inApp: p.inApp });
-                              await qc.invalidateQueries({ queryKey: scheduleKeys.all });
-                            } catch (e) {
-                              notifyError(e);
-                            }
-                          }}
-                          onResume={async () => {
-                            try {
-                              await post(`/schedules/${s.id}/resume`, {});
-                              await qc.invalidateQueries({ queryKey: scheduleKeys.all });
-                            } catch (e) {
-                              notifyError(e);
-                            }
-                          }}
-                        />
-                      )}
-                      {s.canEdit && (
-                        <ActionIcon variant="subtle" onClick={() => setDraft({ ...s })} aria-label={t('common:edit')}>
-                          <IconEdit size={16} />
-                        </ActionIcon>
-                      )}
-                      {s.canEdit && (
-                        <ActionIcon
-                          variant="subtle"
-                          color="red"
-                          aria-label={t('common:delete')}
-                          onClick={async () => {
-                            if (!(await confirmDanger({ action: 'delete', message: t('deleteConfirm', { name: s.name }) }))) return;
-                            await del(`/schedules/${s.id}`).catch(notifyError);
-                            qc.invalidateQueries({ queryKey: scheduleKeys.all });
-                          }}
-                        >
-                          <IconTrash size={16} />
-                        </ActionIcon>
-                      )}
-                    </Group>
-                  </Table.Td>
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-        </div>
+      {!!schedules.data?.length && list.length === 0 && (
+        <Text size="sm" c="dimmed">
+          {t('filters.noMatch')}
+        </Text>
+      )}
+      {list.length > 0 && (
+        <DataTable
+          rows={list}
+          columns={columns}
+          rowKey={(s) => s.id}
+          ariaLabel={t('title')}
+          testId="schedule-list"
+          rememberSort="schedules"
+          defaultSort={{ key: 'name', dir: 'asc' }}
+          footer={<ListFooter shown={list.length} total={schedules.data?.length} />}
+          card={(s) => (
+            <Paper withBorder p="sm">
+              <Group justify="space-between" wrap="nowrap" align="flex-start">
+                <div style={{ minWidth: 0 }}>{nameOf(s)}</div>
+                {enabledSwitch(s)}
+              </Group>
+              <Text size="xs" mt={4}>
+                <span className="mono">{s.cron}</span> {presetLabel(s.cron)} {s.timezone}
+              </Text>
+              <Text size="xs" c="dimmed">
+                {t('table.next')}: {s.enabled && s.nextRunAt ? fmtRelative(s.nextRunAt) : '–'}
+              </Text>
+              <Group justify="space-between" wrap="nowrap" mt={4}>
+                {lastRunOf(s)}
+                {actionsOf(s)}
+              </Group>
+            </Paper>
+          )}
+        />
       )}
       {draft && (
         <ScheduleModal

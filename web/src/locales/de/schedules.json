@@ -7,6 +7,14 @@
   "saved": "Zeitplan gespeichert",
   "enabled": "Aktiv",
   "deleteConfirm": "Zeitplan „{{name}}“ löschen?",
+  "filters": {
+    "search": "Name, Prozess oder Eigentümer",
+    "state": "Zustand",
+    "active": "Aktiv",
+    "inactive": "Inaktiv",
+    "owner": "Läuft als",
+    "noMatch": "Kein Zeitplan passt zu den Filtern."
+  },
   "table": {
     "active": "Aktiv",
     "name": "Name",
@@ -14,7 +22,8 @@
     "next": "Nächste Ausführung",
     "last": "Letzte Ausführung",
     "runsAs": "läuft als {{owner}}",
-    "runNow": "Jetzt ausführen"
+    "runNow": "Jetzt ausführen",
+    "actions": "Aktionen"
   },
   "presets": {
     "every15": "Alle 15 Min.",

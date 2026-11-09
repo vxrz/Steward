@@ -707,6 +707,7 @@
     "emptyTitle": "No systems yet",
     "emptyText": "Add the servers, clusters and cloud services your applications run on.",
     "noMatch": "No system matches the filters.",
+    "cardLine": "Applications: {{apps}} · changed {{when}}",
     "editTitle": "Change {{name}}",
     "importSbom": "Import SBOM",
     "sbomTitle": "Import an SBOM into {{name}}",

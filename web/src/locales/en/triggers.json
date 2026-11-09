@@ -17,13 +17,21 @@
   "rotateFor": "Rotate secret of {{name}}",
   "editFor": "Edit {{name}}",
   "deleteFor": "Delete {{name}}",
+  "filters": {
+    "search": "Name, process, owner or address",
+    "state": "State",
+    "active": "Active",
+    "inactive": "Inactive",
+    "noMatch": "No trigger matches the filters."
+  },
   "table": {
     "active": "Active",
     "name": "Name",
     "security": "Security",
     "lastCall": "Last call",
     "runsStarted": "Runs started",
-    "lastResult": "Last result"
+    "lastResult": "Last result",
+    "actions": "Actions"
   },
   "auth": {
     "short": {
