@@ -302,7 +302,10 @@ async function restoreIntoScratch(
       if (schema === 'public') scratch!.exec(`CREATE SCHEMA public; COMMENT ON SCHEMA public IS '${SCRATCH_MARK}'`);
     };
     dropSchema();
-    if (!new RegExp(`\\bSCHEMA - ${schema}\\b`).test(toc)) scratch.exec(`CREATE SCHEMA IF NOT EXISTS ${quoteIdent(schema)}`);
+    // the dump's table of contents lists "… SCHEMA - <name> <owner>" when it creates the schema itself (an exact match,
+    // no pattern built from the configured name)
+    const createsSchema = toc.split('\n').some((l) => ` ${l.trim()} `.includes(` SCHEMA - ${schema} `));
+    if (!createsSchema) scratch.exec(`CREATE SCHEMA IF NOT EXISTS ${quoteIdent(schema)}`);
     const c = pgConnection(scratchUrl);
     const t0 = Date.now();
     try {

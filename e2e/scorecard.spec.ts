@@ -156,7 +156,8 @@ test('an objective takes its figures from a Steward monitor', async ({ page, api
     await form.getByRole('button', { name: 'Save' }).click();
     await expect(form).toBeHidden();
     const card = panel.getByRole('listitem').filter({ hasText: name });
-    await expect(card.getByTestId('objective-source').getByRole('link', { name })).toHaveAttribute('href', new RegExp(`/monitors/${created.monitor.id}$`));
+    const sourceLink = card.getByTestId('objective-source').getByRole('link', { name });
+    await expect.poll(async () => (await sourceLink.getAttribute('href'))?.endsWith(`/monitors/${created.monitor.id}`)).toBe(true);
     // no state recorded yet: no data, said plainly
     await expect(card.getByTestId('objective-status')).toHaveText('No data');
     await expect(panel).toContainText('monitors’ own uptime');

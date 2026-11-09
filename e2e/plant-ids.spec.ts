@@ -53,10 +53,10 @@ test.describe('as a designer', () => {
     await expect(preview).toContainText(`${site} still leads here`);
     await expectAccessible(page, 'change id dialog');
     await dialog.getByTestId('change-id-confirm').click();
-    await expect(page).toHaveURL(new RegExp(`/plant/sites/${site}-new$`));
+    await expect(page).toHaveURL((u) => u.pathname.endsWith(`/plant/sites/${site}-new`));
     // a bookmark with the old id
     await page.goto(`/plant/sites/${site}`);
-    await expect(page).toHaveURL(new RegExp(`/plant/sites/${site}-new$`));
+    await expect(page).toHaveURL((u) => u.pathname.endsWith(`/plant/sites/${site}-new`));
     await expect(page.getByRole('heading', { name: `Site ${site}` })).toBeVisible();
   });
 
@@ -75,7 +75,7 @@ test.describe('as a designer', () => {
     await dialog.getByTestId('change-id-confirm').click();
     await expect(dialog).toBeHidden();
     await expect(tree.getByTestId(`node-${site}-paint`)).toContainText('Paint shop');
-    await expect(page).toHaveURL(new RegExp(`/plant/sites/${site}$`));
+    await expect(page).toHaveURL((u) => u.pathname.endsWith(`/plant/sites/${site}`));
   });
 
   test('the import maps old to new ids: renames in the preview, apart from the other changes', async ({ page, apiAs }) => {

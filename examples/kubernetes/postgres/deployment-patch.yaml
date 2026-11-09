@@ -10,6 +10,8 @@ spec:
     spec:
       containers:
         - name: steward
+          securityContext:
+            runAsNonRoot: true
           env:
             - name: SM_DATABASE_URL_FILE
               value: /run/secrets/steward-database/url
