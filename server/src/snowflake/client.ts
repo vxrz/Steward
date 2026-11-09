@@ -40,6 +40,8 @@ export class SnowflakeClient {
         headers: { accept: 'application/json', 'user-agent': 'Steward' },
         ...(body !== undefined ? { body, bodyType: 'json' as const } : {}),
         maxResponseBytes: 64 * 1024 * 1024,
+        // Steward's own statements only read (the readers of snowflake/service.ts and costs): ADR 0009
+        intent: 'read',
       },
       this.signal,
     );
