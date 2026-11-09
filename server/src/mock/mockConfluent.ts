@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import { config } from '../config.js';
 
 /**
  * A simulated Confluent Cloud API for demo mode and tests (v0.4.0): the read endpoints the Confluent access source uses,
@@ -345,6 +346,11 @@ function authorized(req: FastifyRequest, reply: FastifyReply, cluster: boolean):
   return true;
 }
 
+/** Where the mocks are: the origin and the path before /mock (a base path such as /steward included). */
+function mockBase(req: FastifyRequest): string {
+  return `${req.protocol}://${req.headers.host}${config.basePath}`;
+}
+
 const PAGE = 2;
 
 /** One page of a list, with metadata.next (absolute, like Confluent) while more follow. */
@@ -355,7 +361,7 @@ function page<T>(req: FastifyRequest, path: string, all: T[], extra: Record<stri
   const data = all.slice(from, from + size);
   let next: string | null = null;
   if (from + size < all.length) {
-    const u = new URL(`${req.protocol}://${req.headers.host}/mock/confluent${path}`);
+    const u = new URL(`${mockBase(req)}/mock/confluent${path}`);
     for (const [k, v] of Object.entries(extra)) u.searchParams.set(k, v);
     u.searchParams.set('page_size', String(size));
     u.searchParams.set('page_token', String(from + size));
@@ -417,7 +423,6 @@ export async function mockConfluent(app: FastifyInstance): Promise<void> {
   });
   // ---------- the readout (0.14.0, #123) ----------
   const env = (req: FastifyRequest) => String((req.query as Record<string, string | undefined>).environment ?? '');
-  const origin = (req: FastifyRequest) => `${req.protocol}://${req.headers.host}`;
   app.get(`${R}/org/v2/environments`, async (req, reply) =>
     authorized(req, reply, false)
       ? page(
@@ -479,7 +484,7 @@ export async function mockConfluent(app: FastifyInstance): Promise<void> {
                 package: 'ESSENTIALS',
                 cloud: 'AWS',
                 region: 'eu-central-1',
-                http_endpoint: `${origin(req)}/mock/schema-registry`,
+                http_endpoint: `${mockBase(req)}/mock/schema-registry`,
                 environment: { id: DEMO_CONFLUENT.environment },
               },
               status: { phase: 'PROVISIONED' },
