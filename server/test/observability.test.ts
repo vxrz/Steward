@@ -226,6 +226,16 @@ describe('database timing', () => {
     expect(value(text, `sm_db_slow_statements_total{dialect="${dialect}",operation="${dialect === 'sqlite' ? 'with' : 'select'}"}`)).toBeGreaterThanOrEqual(2);
   });
 
+  it('reads the first keyword by a scan, also from many comments (no backtracking)', async () => {
+    const { firstKeyword } = await import('../src/database/timing.js');
+    expect(firstKeyword('/* a */ /* b */((select 1')).toBe('select');
+    expect(firstKeyword('-- only a comment')).toBe('');
+    expect(firstKeyword('/* never closed')).toBe('');
+    const t0 = Date.now();
+    expect(firstKeyword(`/*${'*//*'.repeat(100_000)}`)).toBe('');
+    expect(Date.now() - t0).toBeLessThan(1000);
+  });
+
   it('names statement kinds from a small fixed set', async () => {
     const { statementKind } = await import('../src/database/timing.js');
     expect(

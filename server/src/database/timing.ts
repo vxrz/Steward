@@ -67,11 +67,32 @@ const KINDS = new Set([
 ]);
 const DDL = new Set(['create', 'alter', 'drop', 'vacuum', 'analyze', 'reindex', 'truncate']);
 const kindCache = new Map<string, string>();
+/** The first word of a statement, lower case: whitespace, line and block comments and opening parentheses skipped (a scan, no pattern). */
+export function firstKeyword(sql: string): string {
+  let i = 0;
+  while (i < sql.length) {
+    const c = sql[i]!;
+    if (c === '(' || c.trim() === '') i++;
+    else if (sql.startsWith('--', i)) {
+      const nl = sql.indexOf('\n', i);
+      if (nl < 0) return '';
+      i = nl + 1;
+    } else if (sql.startsWith('/*', i)) {
+      const end = sql.indexOf('*/', i + 2);
+      if (end < 0) return '';
+      i = end + 2;
+    } else break;
+  }
+  let j = i;
+  while (j < sql.length && /[a-z]/i.test(sql[j]!)) j++;
+  return sql.slice(i, j).toLowerCase();
+}
+
 /** The statement's first keyword, from a small fixed set (comments and leading parentheses skipped). */
 export function statementKind(sql: string): string {
   let k = kindCache.get(sql);
   if (k === undefined) {
-    const word = /^(?:\s|--[^\n]*\n|\/\*[\s\S]*?\*\/|\()*([a-z]+)/i.exec(sql)?.[1]?.toLowerCase() ?? '';
+    const word = firstKeyword(sql);
     k = KINDS.has(word) ? (['begin', 'commit', 'rollback', 'savepoint', 'release'].includes(word) ? 'transaction' : word) : DDL.has(word) ? 'ddl' : 'other';
     if (['declare', 'fetch', 'close'].includes(k)) k = 'cursor';
     if (kindCache.size > 5000) kindCache.clear();
