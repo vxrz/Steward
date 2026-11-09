@@ -88,6 +88,7 @@ Themes of this release (details in the CHANGELOG once released):
 
 Discussed and not planned, with the reason; they come back only with a concrete need.
 
+- **Multi-tenancy in one deployment** ([#169](https://github.com/vxrz/Steward/issues/169)): a tenant id on every table, query and permission check means that a single mistake leaks data between tenants – too much risk for what it saves. Separate tenants run separate instances (their own process, database and vault); a read-only overview across several instances ([#27](https://github.com/vxrz/Steward/issues/27)) stays possible, and inside one company the owning teams and per-site rights cover departments and plants.
 - **ITSM integration** (open or update a ServiceNow / Jira ticket from a run): ticket references cover linking today; parked until a team needs Steward to write tickets.
 - **SCIM provisioning** of users and teams: SSO with claim mapping covers sign-in and roles; parked.
 - **Audit anchoring with RFC 3161 timestamps** or a transparency log: the signed checkpoints cover tamper evidence for now; parked.
