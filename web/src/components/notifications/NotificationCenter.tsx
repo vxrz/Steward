@@ -19,12 +19,13 @@ import {
 } from '@mantine/core';
 import { useDisclosure, useMediaQuery } from '@mantine/hooks';
 import { useNavigate } from 'react-router-dom';
-import { IconBell, IconBellOff, IconCheck, IconChecks, IconChevronDown, IconChevronUp, IconMoon, IconSettings } from '@tabler/icons-react';
+import { IconBell, IconBellOff, IconCheck, IconChecks, IconMoon, IconSettings } from '@tabler/icons-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { NOTIFICATION_CATEGORIES, notificationCategory, type AppNotification, type NotificationCategory } from '@sm/shared';
 import { fmtDate, fmtRelative } from '../../format';
 import { useBrowserNotificationBridge, useNotificationActions, useNotifications } from './useNotifications';
+import { ShowAll, useShowMore } from '../page/ShowAll';
 
 /** Items a group shows before "Show all" (decision groups always show everything). */
 const GROUP_PREVIEW = 3;
@@ -74,7 +75,6 @@ export function NotificationCenter() {
   const { markRead, markAllRead, markEventsRead } = useNotificationActions();
   const [category, setCategory] = useState<'all' | NotificationCategory>('all');
   const [unreadOnly, setUnreadOnly] = useState(false);
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   useBrowserNotificationBridge(q.data);
 
   const unread = q.data?.unread ?? 0;
@@ -178,103 +178,84 @@ export function NotificationCenter() {
               </Text>
             )}
             <Stack gap="md">
-              {groups.map((g) => {
-                const open = g.category === 'decision' || expanded.has(g.event) || g.items.length <= GROUP_PREVIEW + 1;
-                const list = open ? g.items : g.items.slice(0, GROUP_PREVIEW);
-                const name = t(`events.${g.event}.label` as 'events.run.failed.label', { defaultValue: g.event });
-                return (
-                  <Box key={g.event} component="section" aria-label={name} data-testid={`notification-group-${g.event}`} data-category={g.category}>
-                    <Group justify="space-between" gap="xs" mb={4} wrap="nowrap">
-                      <Group gap={6} wrap="nowrap" style={{ minWidth: 0 }}>
-                        <Badge size="sm" variant={g.category === 'decision' ? 'filled' : 'light'} color={EVENT_COLORS[g.event] ?? 'gray'} tt="none">
-                          {name}
-                        </Badge>
-                        <Text size="xs" c="dimmed" className="nowrap">
-                          {g.unread
-                            ? t('center.groupCountUnread', { count: g.items.length, unread: g.unread })
-                            : t('center.groupCount', { count: g.items.length })}
-                        </Text>
-                      </Group>
-                      {g.unread > 0 && (
-                        <Button
-                          size="compact-xs"
-                          variant="subtle"
-                          leftSection={<IconCheck size={12} />}
-                          onClick={() => void markEventsRead([g.event])}
-                          aria-label={t('center.markGroupReadNamed', { name })}
-                        >
-                          {t('center.markGroupRead')}
-                        </Button>
-                      )}
-                    </Group>
-                    <Stack gap={4}>
-                      {list.map((n) => (
-                        <UnstyledButton
-                          key={n.id}
-                          onClick={() => onItem(n)}
-                          p="sm"
-                          style={{
-                            borderRadius: 8,
-                            border: '1px solid var(--mantine-color-default-border)',
-                            background: n.read ? undefined : 'var(--mantine-color-blue-light)',
-                          }}
-                        >
-                          {/* the visible text is the accessible name (WCAG 2.5.3); unread ones are marked for screen readers */}
-                          {!n.read && <VisuallyHidden>{t('center.unreadPrefix')}</VisuallyHidden>}
-                          <Group gap="xs" wrap="nowrap" align="flex-start">
-                            <Box
-                              mt={6}
-                              w={8}
-                              h={8}
-                              style={{ borderRadius: '50%', flexShrink: 0, background: n.read ? 'transparent' : 'var(--mantine-color-blue-filled)' }}
-                            />
-                            <Box style={{ minWidth: 0, flex: 1 }}>
-                              <Group justify="space-between" gap="xs" wrap="nowrap" align="flex-start">
-                                <Text size="sm" fw={n.read ? 500 : 700} style={{ wordBreak: 'break-word' }}>
-                                  {n.title}
-                                </Text>
-                                <Tooltip label={fmtDate(n.ts)}>
-                                  <Text size="xs" c="dimmed" className="nowrap">
-                                    {fmtRelative(n.ts)}
-                                  </Text>
-                                </Tooltip>
-                              </Group>
-                              {n.body && (
-                                <Text size="xs" c="dimmed" lineClamp={3} style={{ wordBreak: 'break-word' }}>
-                                  {n.body}
-                                </Text>
-                              )}
-                            </Box>
-                          </Group>
-                        </UnstyledButton>
-                      ))}
-                    </Stack>
-                    {g.items.length > list.length || (expanded.has(g.event) && g.category !== 'decision') ? (
-                      <Button
-                        size="compact-xs"
-                        variant="subtle"
-                        color="gray"
-                        mt={4}
-                        rightSection={expanded.has(g.event) ? <IconChevronUp size={12} /> : <IconChevronDown size={12} />}
-                        onClick={() =>
-                          setExpanded((cur) => {
-                            const next = new Set(cur);
-                            if (next.has(g.event)) next.delete(g.event);
-                            else next.add(g.event);
-                            return next;
-                          })
-                        }
-                      >
-                        {expanded.has(g.event) ? t('center.showFewer') : t('center.showAll', { count: g.items.length })}
-                      </Button>
-                    ) : null}
-                  </Box>
-                );
-              })}
+              {groups.map((g) => (
+                <NotificationGroupView key={g.event} g={g} onItem={onItem} onMarkRead={() => void markEventsRead([g.event])} />
+              ))}
             </Stack>
           </>
         )}
       </Drawer>
     </>
+  );
+}
+
+/** One group of the drawer: its first entries, "Show all N" for the rest (decision requests: all of them). */
+function NotificationGroupView({ g, onItem, onMarkRead }: { g: Group; onItem: (n: AppNotification) => void; onMarkRead: () => void }) {
+  const { t } = useTranslation('notifications');
+  // decision requests always in full; a group with one entry more than the preview, too
+  const list = useShowMore(g.items, g.category === 'decision' || g.items.length <= GROUP_PREVIEW + 1 ? g.items.length : GROUP_PREVIEW);
+  const name = t(`events.${g.event}.label` as 'events.run.failed.label', { defaultValue: g.event });
+  return (
+    <Box component="section" aria-label={name} data-testid={`notification-group-${g.event}`} data-category={g.category}>
+      <Group justify="space-between" gap="xs" mb={4} wrap="nowrap">
+        <Group gap={6} wrap="nowrap" style={{ minWidth: 0 }}>
+          <Badge size="sm" variant={g.category === 'decision' ? 'filled' : 'light'} color={EVENT_COLORS[g.event] ?? 'gray'} tt="none">
+            {name}
+          </Badge>
+          <Text size="xs" c="dimmed" className="nowrap">
+            {g.unread ? t('center.groupCountUnread', { count: g.items.length, unread: g.unread }) : t('center.groupCount', { count: g.items.length })}
+          </Text>
+        </Group>
+        {g.unread > 0 && (
+          <Button
+            size="compact-xs"
+            variant="subtle"
+            leftSection={<IconCheck size={12} />}
+            onClick={onMarkRead}
+            aria-label={t('center.markGroupReadNamed', { name })}
+          >
+            {t('center.markGroupRead')}
+          </Button>
+        )}
+      </Group>
+      <Stack gap={4}>
+        {list.items.map((n) => (
+          <UnstyledButton
+            key={n.id}
+            onClick={() => onItem(n)}
+            p="sm"
+            style={{
+              borderRadius: 8,
+              border: '1px solid var(--mantine-color-default-border)',
+              background: n.read ? undefined : 'var(--mantine-color-blue-light)',
+            }}
+          >
+            {/* the visible text is the accessible name (WCAG 2.5.3); unread ones are marked for screen readers */}
+            {!n.read && <VisuallyHidden>{t('center.unreadPrefix')}</VisuallyHidden>}
+            <Group gap="xs" wrap="nowrap" align="flex-start">
+              <Box mt={6} w={8} h={8} style={{ borderRadius: '50%', flexShrink: 0, background: n.read ? 'transparent' : 'var(--mantine-color-blue-filled)' }} />
+              <Box style={{ minWidth: 0, flex: 1 }}>
+                <Group justify="space-between" gap="xs" wrap="nowrap" align="flex-start">
+                  <Text size="sm" fw={n.read ? 500 : 700} style={{ wordBreak: 'break-word' }}>
+                    {n.title}
+                  </Text>
+                  <Tooltip label={fmtDate(n.ts)}>
+                    <Text size="xs" c="dimmed" className="nowrap">
+                      {fmtRelative(n.ts)}
+                    </Text>
+                  </Tooltip>
+                </Group>
+                {n.body && (
+                  <Text size="xs" c="dimmed" lineClamp={3} style={{ wordBreak: 'break-word' }}>
+                    {n.body}
+                  </Text>
+                )}
+              </Box>
+            </Group>
+          </UnstyledButton>
+        ))}
+      </Stack>
+      <ShowAll state={list} id={`notifications-${g.event}`} />
+    </Box>
   );
 }

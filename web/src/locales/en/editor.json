@@ -718,8 +718,6 @@
     "didNotRun": "This node did not run in the latest run.",
     "activations_one": "{{count}} activation",
     "activations_other": "{{count}} activations",
-    "showAll_one": "Show all {{count}}",
-    "showAll_other": "Show all {{count}}",
     "varsBefore_one": "Variables before this node ({{count}})",
     "varsBefore_other": "Variables before this node ({{count}})",
     "varsUnavailable": "Variables before the node are not available on this server."
