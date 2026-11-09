@@ -22,6 +22,7 @@ import {
   controlPoint,
   instanceRule,
   plantBulkInput,
+  type PlantBulkInput,
 } from '@sm/shared';
 import { db } from '../../db.js';
 import { audit, withAuditDetails, withoutAudit } from '../../audit.js';
@@ -37,9 +38,9 @@ import { requirePlant } from '../settings.js';
 import { dryRun, renameId } from '../rename.js';
 import { fieldDiff } from '../diff.js';
 import { applyBulk, bulkNeedsStepUp } from '../bulk.js';
-import { applyImport, importInput, importStepUpPoints, type ImportInput } from '../import.js';
+import { applyImport, importInput, importKindsOf, importStepUpPoints, type ImportInput } from '../import.js';
 import { CATALOGUE_KINDS, KINDS, PER_ASSET, assetSites, bodyOf, entryKey, entryPagePath, readEntry, type EntrySnap } from './entries.js';
-import { recordBaselines, tracked, type EntryChange, type Region } from './track.js';
+import { joinRegions, recordBaselines, tracked, type EntryChange, type Region } from './track.js';
 import * as svc from '../service.js';
 
 /**
@@ -468,24 +469,108 @@ export function whereOfOps(ops: Pick<OpRow, 'op' | 'kind' | 'scope' | 'entry_id'
 
 // ---------- the region of operations ----------
 
-/** What a change set's operations can reach (the tracker reads it before and after). */
+/**
+ * What a change set's operations can reach (the tracker reads it before and after). A `set` reaches what its service
+ * writes: the entry itself – an asset with its child assets (a move to another site detaches them), an assignment or
+ * the checks, devices, data paths or collections of an asset that asset's parts, a hierarchy node its site (moving a
+ * node moves its assets); adding, removing and renaming reach the entry's site, a
+ * device profile or KPI definition the catalogue with every assignment. Documents reach what they name (bulk edits)
+ * or everything (imports, removals, renames).
+ */
 export function regionOf(ops: Pick<OpRow, 'op' | 'kind' | 'scope' | 'entry_id' | 'value'>[]): Region {
   const sites = new Set<string>();
   const assets = new Set<string>();
+  const entries: NonNullable<Region['entries']> = [];
   let catalogue = false;
+  let docs: Region = {};
+  // assets whose site comes along (added, removed, moved by a removal or an addition)
+  const withSite = new Set<string>();
   for (const o of ops) {
-    if (o.op === 'import' || o.op === 'bulk' || o.op === 'rename' || !o.kind) return { all: true };
+    if (o.op === 'bulk') {
+      const b = plantBulkInput.safeParse(parseJson(o.value, null));
+      docs = joinRegions(docs, b.success ? bulkRegion(b.data) : { all: true });
+      if (docs.all) return docs;
+      continue;
+    }
+    if (o.op === 'import') {
+      let r: Region;
+      try {
+        r = importRegion(importOf(o as OpRow));
+      } catch {
+        r = { all: true };
+      }
+      docs = joinRegions(docs, r);
+      if (docs.all && !docs.kinds) return docs;
+      continue;
+    }
+    if (o.op === 'rename' || !o.kind) return { all: true };
+    if (o.op === 'set') {
+      if (o.kind === 'node') sites.add(o.scope);
+      else if (o.kind === 'asset') {
+        // the asset's row (its service writes nothing of its parts) and its child assets (detached by a move)
+        entries.push({ kind: 'asset', scope: '', id: o.entry_id });
+        for (const c of db().all<{ id: string }>('SELECT id FROM plant_assets WHERE parent_id = ?', o.entry_id))
+          entries.push({ kind: 'asset', scope: '', id: c.id });
+      } else if (PER_ASSET.includes(o.kind)) assets.add(o.entry_id);
+      else if (['device', 'data_path', 'collection'].includes(o.kind)) assets.add(o.scope);
+      else entries.push({ kind: o.kind, scope: o.scope, id: o.entry_id });
+      continue;
+    }
     if (o.kind === 'site') sites.add(o.entry_id);
     else if (['node', 'building', 'vlan', 'zone', 'conduit'].includes(o.kind)) sites.add(o.scope);
-    else if (o.kind === 'asset' || PER_ASSET.includes(o.kind)) assets.add(o.entry_id);
-    else if (CATALOGUE_KINDS.includes(o.kind)) catalogue = true;
-    else assets.add(o.scope);
-    // an asset that moves, or a new one: its site (its old site comes with the asset)
+    else if (o.kind === 'asset' || PER_ASSET.includes(o.kind)) {
+      assets.add(o.entry_id);
+      withSite.add(o.entry_id);
+    } else if (CATALOGUE_KINDS.includes(o.kind)) catalogue = true;
+    else {
+      assets.add(o.scope);
+      withSite.add(o.scope);
+    }
+    // a new asset: its site (a removed one's site comes with the asset)
     const v = parseJson<{ siteId?: unknown } | null>(o.value, null);
     if (o.kind === 'asset' && v && typeof v.siteId === 'string') sites.add(v.siteId);
   }
-  for (const s of assetSites([...assets]).values()) sites.add(s);
-  return { sites: [...sites], assets: [...assets], catalogue, assignments: catalogue };
+  for (const s of assetSites([...withSite]).values()) sites.add(s);
+  return joinRegions(docs, {
+    sites: [...sites],
+    assets: [...assets],
+    catalogue,
+    assignments: catalogue,
+    ...(entries.length ? { entries } : {}),
+  });
+}
+
+/** What an import reaches: every entry of the kinds its files hold (when it removes and renames nothing), else everything. */
+export function importRegion(input: ImportInput): Region {
+  const kinds = importKindsOf(input);
+  return kinds ? { all: true, kinds } : { all: true };
+}
+
+/**
+ * What a bulk change reaches: an edit only the entries it names (and an asset's assignment when it sets the device
+ * profile), a removal everything (what goes with an entry, and references to it elsewhere).
+ */
+export function bulkRegion(b: PlantBulkInput): Region {
+  if (b.action !== 'edit') return { all: true };
+  const ids = [...new Set(b.items.map((i) => i.id))];
+  switch (b.kind) {
+    case 'asset':
+      // the assets' rows; the device profile is their assignments'
+      return {
+        entries: [
+          ...ids.map((id) => ({ kind: 'asset' as const, scope: '', id })),
+          ...(b.set.profileId !== undefined ? ids.map((id) => ({ kind: 'assignment' as const, scope: '', id })) : []),
+        ],
+      };
+    case 'device':
+      return { assets: [...new Set(b.items.map((i) => i.scope))] };
+    case 'profile':
+    case 'kpi':
+    case 'site':
+      return { entries: ids.map((id) => ({ kind: b.kind, scope: '', id })) };
+    case 'vlan':
+      return { entries: b.items.map((i) => ({ kind: 'vlan' as const, scope: i.scope, id: i.id })) };
+  }
 }
 
 // ---------- running operations ----------

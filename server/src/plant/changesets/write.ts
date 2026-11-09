@@ -4,6 +4,7 @@ import { me } from '../../auth/access.js';
 import { asProposer } from '../access.js';
 import { CATALOGUE_KINDS, PER_ASSET, bodyOf, readEntry } from './entries.js';
 import { applyDirect, quietDryRun, regionOf, reviewNeeded, rowOf, summaryOf, type NewOp } from './core.js';
+import type { EntryChange } from './track.js';
 import { addOperation, ensureDraft, entryChanged, mayPropose, operationOf, siteOfTarget } from './drafts.js';
 
 /**
@@ -45,7 +46,7 @@ export function entryWrite<T>(
   parsed: unknown,
   revision: number | undefined,
   run: () => T,
-  reread: (result: T) => T,
+  reread: (result: T, changes: EntryChange[]) => T,
 ): T | (T & { changeSet: PlantChangeSetSummary }) {
   let t = target;
   const u = me();
@@ -90,5 +91,28 @@ export function entryWrite<T>(
   };
   const region = regionOf([{ op: t.op, kind: t.kind, scope: t.scope, entry_id: t.id, value: JSON.stringify(value ?? null) }]);
   const done = applyDirect({ source: 'edit', title: `${t.kind} "${op.name}"`, region, ops: [op], fn: run });
-  return done.changeSetId ? reread(done.result) : done.result;
+  return done.changeSetId ? reread(done.result, done.changes) : done.result;
+}
+
+const LISTS: Partial<Record<PlantEntryKind, string>> = { vlan: 'vlans', zone: 'zones', conduit: 'conduits', device: 'devices', data_path: 'dataPaths' };
+
+/**
+ * The answer of a network route (a site's or an asset's OT network, computed by the service after its write) with the
+ * revisions the change reached, instead of computing it again: the entries it changed carry their new revision, the
+ * others are as they were. Null when the answer holds something it cannot place – the route reads it again.
+ */
+export function revisedNetwork<T>(answer: T, changes: EntryChange[]): T | null {
+  if (!answer || typeof answer !== 'object') return null;
+  const out = { ...(answer as Record<string, unknown>) };
+  for (const c of changes) {
+    const list = LISTS[c.kind];
+    const items = list ? out[list] : undefined;
+    if (!list || !Array.isArray(items)) return null;
+    // a removed entry is no longer listed; an added one has its first revision already
+    if (c.op === 'remove' || c.op === 'add') continue;
+    const at = (items as { id?: unknown; assetId?: unknown }[]).findIndex((x) => x.id === c.id && (x.assetId === undefined || x.assetId === c.scope));
+    if (at < 0 || c.op !== 'set') return null;
+    out[list] = (items as Record<string, unknown>[]).map((x, i) => (i === at ? { ...x, revision: c.revision } : x));
+  }
+  return out as T;
 }
