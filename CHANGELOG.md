@@ -6,6 +6,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-11-09
+
+Steward 0.12.0 documents plant integrations end to end. Assistants read the plant registry over MCP and propose additions and changes for a person to apply; descriptions follow device profile inheritance; documents attach to device profiles, data collections and sinks; imported gateway configurations are kept without their secrets, as versions that can be compared; and data collections name their sinks and transformations. The OT network is edited where it is shown, with sorting, filters and data quality hints, and entries move in the hierarchy. KPIs work across device models: a base profile can be extracted from concrete ones, template profiles stay unassigned, KPI inputs check units, and KPI coverage shows which assets are ready because their data is already collected. Long pages fold their secondary content consistently, and Insights Hub freshness checks no longer take old records for the newest. See _Check before updating_ under Changed.
+
 ### Added
 
 - **Edit the OT network in place** (plant registry, [docs/PLANT.md](docs/PLANT.md#editing-in-place)). The site's _OT network → Devices_ and _Data paths_ tabs add, edit and remove entries with the asset's own forms (_Add device_ / _Add data path_ ask for the asset), and selected devices change together with _Edit selected_ / _Remove selected_ and the bulk preview. Both lists sort by every column, filter (VLAN, state, asset; asset for data paths), count what they show and become cards on a phone; inactive and retired devices are shown quieter.
@@ -1208,7 +1212,8 @@ The first public version.
 - Monitors adopt the same policies: http/tcp/ping checks and webhook/Zabbix outputs are subject to the outbound policy (DNS-pinned; raw `host:port` checks need an explicit allow-list entry such as an IP/CIDR and are not inferred from platform origins); monitor http checks follow redirects manually and drop custom headers cross-origin; check error messages no longer echo the upstream response body; the guarded expression evaluation bounds condition/heartbeat/freshness expressions (CPU, memory via a `$pad` cap, and regex time); and gateway heartbeat batches share a global evaluation-concurrency cap (`SM_MONITOR_EVAL_CONCURRENCY`).
 - Semgrep findings triaged (all rule sets of the CI job, see [docs/ci/SECURITY-PIPELINE.md](docs/ci/SECURITY-PIPELINE.md#semgrep-triage)): the dev, PostgreSQL-test and install-script helpers start npm without a shell, also on Windows (`scripts/npm-command.mjs`); monitor-gateway key patterns (glob) and the API path editor match without regular expressions built from configured data; translation lookups ignore inherited properties; the CI gate also blocks HIGH/CRITICAL findings; SARIF uploads get the `actions: read` permission they need.
 
-[Unreleased]: https://github.com/vxrz/steward/compare/v0.11.0...HEAD
+[Unreleased]: https://github.com/vxrz/steward/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/vxrz/steward/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/vxrz/steward/compare/v0.10.1...v0.11.0
 [0.10.1]: https://github.com/vxrz/steward/compare/v0.10.0...v0.10.1
 [0.10.0]: https://github.com/vxrz/steward/compare/v0.9.0...v0.10.0
