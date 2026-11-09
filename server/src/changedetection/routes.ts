@@ -1,10 +1,11 @@
-import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import { pageWatchLinkInput } from '@sm/shared';
 import { me } from '../auth/access.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { CheckSetupError } from '../monitors/platforms.js';
 import { HttpError } from '../util.js';
 import { cdPlatform, listWatches, refreshWatches, setWatchLink, watchHistory } from './service.js';
+import { params } from '../routes/params.js';
 
 /**
  * The watches of a changedetection.io platform as its components (#242), mounted under /api:
@@ -14,8 +15,6 @@ import { cdPlatform, listWatches, refreshWatches, setWatchLink, watchHistory } f
  *   GET  /changedetection/:platformId/watches/:uuid/history   snapshot times, read now (platform users)
  * Rights are checked on the platform (404 for a platform the caller may not see).
  */
-
-const params = (req: FastifyRequest) => req.params as Record<string, string>;
 
 /** A setup problem of the caller (the vault is locked, no use right) is a client error, not a server failure. */
 const asHttp = (e: unknown): unknown => (e instanceof CheckSetupError ? new HttpError(409, e.message, 'CHANGEDETECTION_READ_FAILED') : e);

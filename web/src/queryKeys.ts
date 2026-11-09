@@ -14,8 +14,8 @@
 export const runKeys = {
   /** Every run list (['runs', …]) */
   all: ['runs'] as const,
-  list: (status: unknown, processId: unknown, since: unknown, checks: unknown, pageSize: unknown, debug: unknown = false) =>
-    ['runs', status, processId, since, checks, pageSize, debug] as const,
+  list: (status: unknown, processId: unknown, since: unknown, checks: unknown, pageSize: unknown, debug: unknown = false, sort: unknown = null) =>
+    ['runs', status, processId, since, checks, pageSize, debug, sort] as const,
   /** The latest runs of a process (start page, process cards, the flow editor) */
   latest: (processId: string | null | undefined) => ['runs', 'latest', processId] as const,
   palette: ['runs', 'palette'] as const,
@@ -90,6 +90,8 @@ export const datasetKeys = {
   detail: (key: string | undefined, qs: string) => ['dataset', key, qs] as const,
   metrics: (key: string | undefined, names: string, days: unknown, qs: string) => ['dataset-metrics', key, names, days, qs] as const,
   publishers: (key: string | undefined) => ['dataset-publishers', key] as const,
+  /** Whether a dataset exists that the reader may not see (0.11.0, U3) */
+  visibility: (key: string | undefined) => ['dataset-visibility', key] as const,
 };
 
 export const scheduleKeys = {

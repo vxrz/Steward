@@ -1,6 +1,6 @@
 {
   "title": "Applications",
-  "description": "What your services consist of: platforms such as Insights Hub or Industrial Edge, and smaller applications. Each one can have a CIA rating (protection need).",
+  "description": "The software your services consist of – e.g. an Insights Hub tenant you use or a small in-house app – with its CIA rating (protection need). An application runs on systems; Steward reaches it through platforms.",
   "new": "New application",
   "newTitle": "New application",
   "editTitle": "Edit {{name}}",
@@ -226,7 +226,7 @@
   },
   "components": {
     "title": "Components",
-    "help": "What the application consists of. Processes read them through an input of type application, e.g. all Kafka topics of the application.",
+    "help": "The code and data parts of the application: repositories, images, libraries, Kafka topics, databases. Processes read them through an input of type application, e.g. all Kafka topics of the application.",
     "empty": "No components yet.",
     "add": "Add component",
     "addTitle": "Add a component to {{name}}",
@@ -673,7 +673,7 @@
   },
   "systems": {
     "title": "Systems",
-    "description": "Servers, VMs, clusters, appliances and cloud services that applications run on. The operating system and runtimes are kept once per system.",
+    "description": "Where applications run: servers, VMs, clusters, appliances and cloud services, each with its environments. The operating system and runtimes are kept once per system.",
     "new": "New system",
     "searchPlaceholder": "Name, vendor or note",
     "kind": "Kind",
@@ -739,12 +739,13 @@
     "untilHelp": "Empty: no end",
     "monthEndHint": "On the 29th to 31st, shorter months use their last day.",
     "targets": "Affects",
-    "targetsHelp": "Platforms, systems, applications and services. What runs on them is reached too.",
+    "targetsHelp": "Platforms, systems, applications, services and monitors. What runs on them is reached too.",
     "targetKinds": {
       "platform": "Platforms",
       "system": "Systems",
       "application": "Applications",
-      "service": "Services"
+      "service": "Services",
+      "monitor": "Monitors"
     },
     "responsible": "Responsible",
     "responsibleHelp": "Told with the owners of what it affects.",

@@ -23,6 +23,7 @@ import {
 import { get, notifyError } from '../../api';
 import { useMe } from '../../auth';
 import { confirmDanger } from '../confirm';
+import { useFieldErrors } from '../common';
 import { LinkTypeIconView, linkTypeOf, useLinkTypeName, useLinkTypes } from './linkTypes';
 
 export const useRecordTypes = (archived = false) =>
@@ -303,8 +304,12 @@ function LinkModal({
   const typeOptions = (types.data ?? [])
     .filter((x) => !x.archived || x.key === link?.linkType)
     .map((x) => ({ value: x.key, label: x.archived ? t('links.linkTypeArchived', { type: typeName(x) }) : typeName(x) }));
-  const valid = editing || (kind === 'external' ? /^https?:\/\/\S+\.\S+/.test(url) : !!target);
+  const v = useFieldErrors({
+    url: !editing && kind === 'external' && !/^https?:\/\/\S+\.\S+/.test(url) && (url.trim() ? t('common:validation.url') : t('common:validation.required')),
+    target: !editing && kind !== 'external' && !target && t('common:validation.required'),
+  });
   const submit = async () => {
+    if (!v.validate()) return;
     setBusy(true);
     try {
       // the label only when it changed (an unchanged one may be the URL itself, see above)
@@ -334,7 +339,14 @@ function LinkModal({
             {editing ? (
               <TextInput label={t('links.url')} value={url} readOnly disabled />
             ) : (
-              <TextInput label={t('links.url')} description={t('links.urlHelp')} value={url} onChange={(e) => setUrl(e.currentTarget.value)} required />
+              <TextInput
+                label={t('links.url')}
+                description={t('links.urlHelp')}
+                value={url}
+                onChange={(e) => setUrl(e.currentTarget.value)}
+                required
+                error={v.error('url')}
+              />
             )}
             <TextInput
               label={t('links.label')}
@@ -375,6 +387,8 @@ function LinkModal({
             onChange={setTarget}
             nothingFoundMessage={targets.isFetching ? t('links.searching') : t('links.nothingFound')}
             filter={({ options: o }) => o}
+            required
+            error={v.error('target')}
           />
         )}
         <TextInput
@@ -388,7 +402,7 @@ function LinkModal({
           <Button variant="default" onClick={onClose}>
             {t('common:cancel')}
           </Button>
-          <Button onClick={submit} loading={busy} disabled={!valid}>
+          <Button onClick={submit} loading={busy}>
             {editing ? t('common:save') : t('links.add')}
           </Button>
         </Group>

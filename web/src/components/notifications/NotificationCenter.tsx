@@ -9,7 +9,9 @@ import {
   Indicator,
   Loader,
   ScrollArea,
+  SegmentedControl,
   Stack,
+  Switch,
   Text,
   Tooltip,
   UnstyledButton,
@@ -17,11 +19,38 @@ import {
 } from '@mantine/core';
 import { useDisclosure, useMediaQuery } from '@mantine/hooks';
 import { useNavigate } from 'react-router-dom';
-import { IconBell, IconBellOff, IconChecks, IconMoon, IconSettings } from '@tabler/icons-react';
+import { IconBell, IconBellOff, IconCheck, IconChecks, IconChevronDown, IconChevronUp, IconMoon, IconSettings } from '@tabler/icons-react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { AppNotification } from '@sm/shared';
+import { NOTIFICATION_CATEGORIES, notificationCategory, type AppNotification, type NotificationCategory } from '@sm/shared';
 import { fmtDate, fmtRelative } from '../../format';
 import { useBrowserNotificationBridge, useNotificationActions, useNotifications } from './useNotifications';
+
+/** Items a group shows before "Show all" (decision groups always show everything). */
+const GROUP_PREVIEW = 3;
+
+interface Group {
+  event: string;
+  category: NotificationCategory;
+  items: AppNotification[];
+  unread: number;
+}
+
+/**
+ * The notifications grouped by event (U9 of the 0.10 review): decision requests first, then the groups with unread
+ * entries, newest first – so one decision never drowns among dozens of check alerts.
+ */
+export function groupNotifications(items: AppNotification[]): Group[] {
+  const by = new Map<string, Group>();
+  for (const n of items) {
+    const g = by.get(n.event) ?? { event: n.event, category: notificationCategory(n.event), items: [], unread: 0 };
+    g.items.push(n);
+    if (!n.read) g.unread++;
+    by.set(n.event, g);
+  }
+  const rank = (g: Group) => (g.category === 'decision' ? 0 : 1);
+  return [...by.values()].sort((a, b) => rank(a) - rank(b) || Number(b.unread > 0) - Number(a.unread > 0) || (b.items[0]!.ts > a.items[0]!.ts ? 1 : -1));
+}
 
 const EVENT_COLORS: Record<string, string> = {
   'task.assigned': 'violet',
@@ -42,11 +71,17 @@ export function NotificationCenter() {
   const isMobile = useMediaQuery('(max-width: 48em)');
   const navigate = useNavigate();
   const q = useNotifications();
-  const { markRead, markAllRead } = useNotificationActions();
+  const { markRead, markAllRead, markEventsRead } = useNotificationActions();
+  const [category, setCategory] = useState<'all' | NotificationCategory>('all');
+  const [unreadOnly, setUnreadOnly] = useState(false);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   useBrowserNotificationBridge(q.data);
 
   const unread = q.data?.unread ?? 0;
   const items = q.data?.items ?? [];
+  const counts = Object.fromEntries(NOTIFICATION_CATEGORIES.map((c) => [c, items.filter((n) => notificationCategory(n.event) === c).length]));
+  const shown = items.filter((n) => (category === 'all' || notificationCategory(n.event) === category) && (!unreadOnly || !n.read));
+  const groups = groupNotifications(shown);
   const label = unread ? t('center.labelUnread', { count: unread }) : t('center.title');
 
   const onItem = (n: AppNotification) => {
@@ -122,51 +157,122 @@ export function NotificationCenter() {
             </Text>
           </Stack>
         ) : (
-          <Stack gap={4}>
-            {items.map((n) => (
-              <UnstyledButton
-                key={n.id}
-                onClick={() => onItem(n)}
-                p="sm"
-                style={{
-                  borderRadius: 8,
-                  border: '1px solid var(--mantine-color-default-border)',
-                  background: n.read ? undefined : 'var(--mantine-color-blue-light)',
-                }}
-              >
-                {/* the visible text is the accessible name (WCAG 2.5.3); unread ones are marked for screen readers */}
-                {!n.read && <VisuallyHidden>{t('center.unreadPrefix')}</VisuallyHidden>}
-                <Group gap="xs" wrap="nowrap" align="flex-start">
-                  <Box
-                    mt={6}
-                    w={8}
-                    h={8}
-                    style={{ borderRadius: '50%', flexShrink: 0, background: n.read ? 'transparent' : 'var(--mantine-color-blue-filled)' }}
-                  />
-                  <Box style={{ minWidth: 0, flex: 1 }}>
-                    <Group justify="space-between" gap="xs" wrap="nowrap" align="flex-start">
-                      <Text size="sm" fw={n.read ? 500 : 700} style={{ wordBreak: 'break-word' }}>
-                        {n.title}
-                      </Text>
-                      <Tooltip label={fmtDate(n.ts)}>
+          <>
+            <Group gap="xs" mb="sm" wrap="wrap" justify="space-between">
+              <SegmentedControl
+                size="xs"
+                aria-label={t('center.filter')}
+                value={category}
+                onChange={(v) => setCategory(v as typeof category)}
+                data={[
+                  { value: 'all', label: t('center.all', { count: items.length }) },
+                  ...NOTIFICATION_CATEGORIES.map((c) => ({ value: c, label: t(`center.category.${c}`, { count: counts[c] }) })),
+                ]}
+                data-testid="notification-filter"
+              />
+              <Switch size="xs" label={t('center.unreadOnly')} checked={unreadOnly} onChange={(e) => setUnreadOnly(e.currentTarget.checked)} />
+            </Group>
+            {groups.length === 0 && (
+              <Text size="sm" c="dimmed" ta="center" py="md">
+                {t('center.noneHere')}
+              </Text>
+            )}
+            <Stack gap="md">
+              {groups.map((g) => {
+                const open = g.category === 'decision' || expanded.has(g.event) || g.items.length <= GROUP_PREVIEW + 1;
+                const list = open ? g.items : g.items.slice(0, GROUP_PREVIEW);
+                const name = t(`events.${g.event}.label` as 'events.run.failed.label', { defaultValue: g.event });
+                return (
+                  <Box key={g.event} component="section" aria-label={name} data-testid={`notification-group-${g.event}`} data-category={g.category}>
+                    <Group justify="space-between" gap="xs" mb={4} wrap="nowrap">
+                      <Group gap={6} wrap="nowrap" style={{ minWidth: 0 }}>
+                        <Badge size="sm" variant={g.category === 'decision' ? 'filled' : 'light'} color={EVENT_COLORS[g.event] ?? 'gray'} tt="none">
+                          {name}
+                        </Badge>
                         <Text size="xs" c="dimmed" className="nowrap">
-                          {fmtRelative(n.ts)}
+                          {g.unread
+                            ? t('center.groupCountUnread', { count: g.items.length, unread: g.unread })
+                            : t('center.groupCount', { count: g.items.length })}
                         </Text>
-                      </Tooltip>
+                      </Group>
+                      {g.unread > 0 && (
+                        <Button
+                          size="compact-xs"
+                          variant="subtle"
+                          leftSection={<IconCheck size={12} />}
+                          onClick={() => void markEventsRead([g.event])}
+                          aria-label={t('center.markGroupReadNamed', { name })}
+                        >
+                          {t('center.markGroupRead')}
+                        </Button>
+                      )}
                     </Group>
-                    {n.body && (
-                      <Text size="xs" c="dimmed" lineClamp={3} style={{ wordBreak: 'break-word' }}>
-                        {n.body}
-                      </Text>
-                    )}
-                    <Badge size="xs" variant="light" color={EVENT_COLORS[n.event] ?? 'gray'} mt={4} tt="none">
-                      {t(`events.${n.event}.label` as 'events.run.failed.label', { defaultValue: n.event })}
-                    </Badge>
+                    <Stack gap={4}>
+                      {list.map((n) => (
+                        <UnstyledButton
+                          key={n.id}
+                          onClick={() => onItem(n)}
+                          p="sm"
+                          style={{
+                            borderRadius: 8,
+                            border: '1px solid var(--mantine-color-default-border)',
+                            background: n.read ? undefined : 'var(--mantine-color-blue-light)',
+                          }}
+                        >
+                          {/* the visible text is the accessible name (WCAG 2.5.3); unread ones are marked for screen readers */}
+                          {!n.read && <VisuallyHidden>{t('center.unreadPrefix')}</VisuallyHidden>}
+                          <Group gap="xs" wrap="nowrap" align="flex-start">
+                            <Box
+                              mt={6}
+                              w={8}
+                              h={8}
+                              style={{ borderRadius: '50%', flexShrink: 0, background: n.read ? 'transparent' : 'var(--mantine-color-blue-filled)' }}
+                            />
+                            <Box style={{ minWidth: 0, flex: 1 }}>
+                              <Group justify="space-between" gap="xs" wrap="nowrap" align="flex-start">
+                                <Text size="sm" fw={n.read ? 500 : 700} style={{ wordBreak: 'break-word' }}>
+                                  {n.title}
+                                </Text>
+                                <Tooltip label={fmtDate(n.ts)}>
+                                  <Text size="xs" c="dimmed" className="nowrap">
+                                    {fmtRelative(n.ts)}
+                                  </Text>
+                                </Tooltip>
+                              </Group>
+                              {n.body && (
+                                <Text size="xs" c="dimmed" lineClamp={3} style={{ wordBreak: 'break-word' }}>
+                                  {n.body}
+                                </Text>
+                              )}
+                            </Box>
+                          </Group>
+                        </UnstyledButton>
+                      ))}
+                    </Stack>
+                    {g.items.length > list.length || (expanded.has(g.event) && g.category !== 'decision') ? (
+                      <Button
+                        size="compact-xs"
+                        variant="subtle"
+                        color="gray"
+                        mt={4}
+                        rightSection={expanded.has(g.event) ? <IconChevronUp size={12} /> : <IconChevronDown size={12} />}
+                        onClick={() =>
+                          setExpanded((cur) => {
+                            const next = new Set(cur);
+                            if (next.has(g.event)) next.delete(g.event);
+                            else next.add(g.event);
+                            return next;
+                          })
+                        }
+                      >
+                        {expanded.has(g.event) ? t('center.showFewer') : t('center.showAll', { count: g.items.length })}
+                      </Button>
+                    ) : null}
                   </Box>
-                </Group>
-              </UnstyledButton>
-            ))}
-          </Stack>
+                );
+              })}
+            </Stack>
+          </>
         )}
       </Drawer>
     </>

@@ -19,8 +19,7 @@ import { IMPORT_BODY_SHAPE } from '../bodyShape.js';
 import { LARGE_BODIES } from '../bodyLimits.js';
 import { monitorAccess } from '../auth/step-up-rules.js';
 import { previewCheck, testRunMonitor } from './test-run.js';
-
-const params = (req: FastifyRequest) => req.params as Record<string, string>;
+import { params } from '../routes/params.js';
 
 const saveBody = z.object({
   key: z.string().max(64).optional(),

@@ -37,10 +37,11 @@ import {
 } from '@sm/shared';
 import { apiUrl, del, get, getOptional, notifyError, post, put } from '../api';
 import { useMe } from '../auth';
-import { EmptyState, PageHeader, QueryState, TONE, useCreateParam } from '../components/common';
+import { EmptyState, PageHeader, QueryState, TONE, useCreateParam, useFieldErrors } from '../components/common';
 import { fmtDate, fmtRelative } from '../format';
 import { BRAND } from '../../../shared/src/brand';
 import { appUrl } from '../basePath';
+import { RestrictedEmpty, useHiddenByPermissions } from '../components/modules/RestrictedEmpty';
 
 const STATE_COLOR: Record<ServiceState, string> = {
   outage: TONE.bad,
@@ -198,6 +199,8 @@ export function StatusPagesPage() {
   const { isAdmin, hasRole } = useMe();
   const canEdit = isAdmin || hasRole('designer');
   const pages = useQuery({ queryKey: ['status-pages'], queryFn: () => get<StatusPage[]>('/status-pages') });
+  // entries the person may not see (U3): "nothing you may see" instead of "nothing yet"
+  const hidden = useHiddenByPermissions('statusPages');
   const [editing, setEditing] = useState<StatusPage | 'new' | null>(null);
   const [link, setLink] = useState<{ title: string; url: string } | null>(null);
   useCreateParam(canEdit, () => setEditing('new'));
@@ -248,7 +251,8 @@ export function StatusPagesPage() {
     <>
       <PageHeader title={t('statusPages.title')} description={t('statusPages.description')} actions={newButton} />
       <QueryState query={pages} />
-      {pages.isSuccess && !list.length && (
+      {pages.isSuccess && !list.length && hidden && <RestrictedEmpty />}
+      {pages.isSuccess && !list.length && !hidden && (
         <EmptyState icon={IconLink} title={t('statusPages.emptyTitle')} action={newButton}>
           {t('statusPages.emptyText')}
         </EmptyState>
@@ -326,7 +330,12 @@ function PageEditor({ page, onClose }: { page: StatusPage | null; onClose: () =>
     noticeLevel: page?.noticeLevel ?? ('info' as StatusNoticeLevel),
   });
   const [busy, setBusy] = useState(false);
+  const check = useFieldErrors({
+    title: !f.title.trim() && t('common:validation.required'),
+    services: !f.serviceIds.length && t('common:validation.requiredOne'),
+  });
   const save = async () => {
+    if (!check.validate()) return;
     setBusy(true);
     try {
       if (page) await put(`/status-pages/${page.id}`, f);
@@ -348,6 +357,7 @@ function PageEditor({ page, onClose }: { page: StatusPage | null; onClose: () =>
           value={f.title}
           onChange={(e) => setF({ ...f, title: e.currentTarget.value })}
           maxLength={STATUS_PAGE_LIMITS.title}
+          error={check.error('title')}
         />
         <Textarea
           label={t('statusPages.pageDescription')}
@@ -366,6 +376,7 @@ function PageEditor({ page, onClose }: { page: StatusPage | null; onClose: () =>
           value={f.serviceIds}
           onChange={(v) => setF({ ...f, serviceIds: v })}
           maxValues={STATUS_PAGE_LIMITS.services}
+          error={check.error('services')}
         />
         <Switch
           label={t('statusPages.showVendorIssues')}
@@ -394,7 +405,7 @@ function PageEditor({ page, onClose }: { page: StatusPage | null; onClose: () =>
           <Button variant="default" onClick={onClose}>
             {t('common:cancel')}
           </Button>
-          <Button onClick={save} loading={busy} disabled={!f.title.trim() || !f.serviceIds.length}>
+          <Button onClick={save} loading={busy}>
             {t('common:save')}
           </Button>
         </Group>

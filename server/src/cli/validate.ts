@@ -76,9 +76,19 @@ export interface FileResult {
   warnings: string[];
 }
 
-function files(p: string): string[] {
+/** Folders of the bundled examples that hold no Steward definitions (deployment manifests, alert rules); tested elsewhere. */
+const NOT_STEWARD = new Set(['kubernetes', 'prometheus']);
+/** Collector configurations (gateway, Node-RED, Industrial Edge, tables) imported into a data collection, not Steward files; tested in plant-collections. */
+const FOREIGN_FORMATS = [path.join('examples', 'plant', 'collections')];
+
+function files(p: string, top = true): string[] {
   const st = fs.statSync(p);
-  if (st.isDirectory()) return fs.readdirSync(p).flatMap((f) => files(path.join(p, f)));
+  if (st.isDirectory())
+    return fs
+      .readdirSync(p)
+      .filter((f) => !(top && NOT_STEWARD.has(f) && path.basename(p) === 'examples'))
+      .filter((f) => !FOREIGN_FORMATS.some((d) => path.join(p, f).endsWith(d)))
+      .flatMap((f) => files(path.join(p, f), false));
   return /\.(ya?ml|json)$/i.test(p) ? [p] : [];
 }
 
@@ -326,7 +336,7 @@ export async function main(argv: string[]): Promise<number> {
   if (missing.length) return usageFailure(new UsageError(`path not found: ${missing.join(', ')}`), COMMAND);
 
   const results: FileResult[] = [];
-  for (const f of targets.flatMap(files).sort()) results.push(await validateFile(f));
+  for (const f of targets.flatMap((t) => files(t)).sort()) results.push(await validateFile(f));
   const errors = results.filter((r) => !r.ok).length;
   const warnings = results.reduce((n, r) => n + r.warnings.length, 0);
 

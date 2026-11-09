@@ -99,10 +99,13 @@ export interface UpdateNotice {
   toVersion: string;
   /** Migrations applied ("core 6", then names) */
   migrations: string[];
-  /** SQLite: copies of the database made before migrating */
+  /** Copies of the database made before migrating (SQLite files, or pg_dump files on PostgreSQL) */
   backups: string[];
-  /** No copy: 'notNeeded' (no schema changes), 'postgres' (back up with pg_dump), 'disabled' (SM_UPGRADE_BACKUPS=0) */
-  noBackupReason: 'notNeeded' | 'postgres' | 'disabled' | null;
+  /**
+   * No copy: 'notNeeded' (no schema changes), 'disabled' (SM_UPGRADE_BACKUPS=0), 'failed' (the copy failed and
+   * SM_UPGRADE_BACKUP_REQUIRED=0 migrated anyway); 'postgres' only in notices of 0.10 and older (no PostgreSQL copies then)
+   */
+  noBackupReason: 'notNeeded' | 'postgres' | 'disabled' | 'failed' | null;
   /** When the update was applied (ISO) */
   at: string;
 }
@@ -136,4 +139,6 @@ export interface BackgroundJob {
   failures: number;
   /** Starts skipped because the previous run had not ended yet */
   skipped: number;
+  /** Its module is switched off (Settings → Modules): the job does not run */
+  switchedOff?: boolean;
 }

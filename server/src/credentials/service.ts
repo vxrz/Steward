@@ -26,7 +26,7 @@ import {
 import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { currentUser, type AuthUser } from '../auth/context.js';
-import { isAdmin, matches, platformPermissions } from '../auth/permissions.js';
+import { hasRole, isAdmin, matches, platformPermissions } from '../auth/permissions.js';
 import { monitorPermissions } from '../monitors/model.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { likeEscape } from '../database/sql.js';
@@ -167,7 +167,7 @@ export function credentialAccess(u: AuthUser | null, r: Pick<CredentialRow, 'id'
   return d;
 }
 
-export const canCreateCredentials = (u: AuthUser | null = currentUser()): boolean => !!u && u.roles.some((x) => EDIT_ROLES.includes(x));
+export const canCreateCredentials = (u: AuthUser | null = currentUser()): boolean => hasRole(u, EDIT_ROLES);
 
 /**
  * Whether the register is of use to someone (the sidebar entry): a role that reads it – in the instance or one of
@@ -861,7 +861,7 @@ export function updateCredential(id: string, b: CredentialInput): Credential {
   if (b.version !== undefined && b.version !== before.version)
     throw new HttpError(409, 'The entry was changed by someone else meanwhile – reload it and try again', 'VERSION_CONFLICT');
   const { values, certificate } = prepare(b, before);
-  if (!u.roles.some((x) => EDIT_ROLES.includes(x))) {
+  if (!hasRole(u, EDIT_ROLES)) {
     // owners (not editor roles) may not remove themselves from the owner list – they would lock themselves out
     if (!isOwner(u, { owner_subjects: String(values.owner_subjects) }))
       throw new HttpError(400, 'You edit this entry as one of its owners: keep yourself (or your team) in the owner list', 'OWNER_REQUIRED', {
@@ -1154,7 +1154,7 @@ export function dueSummary(now = Date.now()): { overdue: number; expired: number
 export function dueAttention(now = Date.now()): { expired: number; overdue: number; dueSoon: number; total: number } | null {
   const u = currentUser();
   const list = listCredentials({}, now);
-  if (!list.length && !(u && u.roles.some((x) => READ_ROLES.includes(x)))) return null;
+  if (!list.length && !hasRole(u, READ_ROLES)) return null;
   const n = (s: CredentialStatus) => list.filter((c) => c.status === s).length;
   return { expired: n('expired'), overdue: n('overdue'), dueSoon: n('dueSoon'), total: list.length };
 }

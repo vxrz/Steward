@@ -340,4 +340,83 @@ export const PLANT_MIGRATIONS: NamedMigration[] = [
       );
     `,
   },
+  {
+    // 0.11.0: old ids of renamed entries keep leading to them (docs/PLANT.md#changing-ids). kind as in PLANT_ID_KINDS,
+    // scope the site, asset or profile id the entry's id is unique in ('' for sites, assets, profiles and KPI
+    // definitions). Chains are collapsed when written (a → b, then b → c gives a → c and b → c).
+    name: 'plant-004-id-aliases',
+    sql: `
+      CREATE TABLE plant_id_aliases (
+        kind TEXT NOT NULL,
+        scope TEXT NOT NULL DEFAULT '',
+        old_id TEXT NOT NULL,
+        new_id TEXT NOT NULL,
+        renamed_at TEXT NOT NULL,
+        renamed_by TEXT NOT NULL,
+        PRIMARY KEY (kind, scope, old_id)
+      );
+      CREATE INDEX plant_id_aliases_new ON plant_id_aliases(kind, scope, new_id);
+    `,
+  },
+  {
+    // 0.11.0: a device profile may extend one base profile (its own part: what it adds and changes); an assignment may
+    // add data points and interfaces for its one asset (docs/adr/0007-plant-registry.md, "Update 0.11")
+    name: 'plant-005-profile-extends',
+    sql: `
+      ALTER TABLE plant_profiles ADD COLUMN base_id TEXT;
+      ALTER TABLE plant_profiles ADD COLUMN interface_overrides TEXT NOT NULL DEFAULT '[]';
+      ALTER TABLE plant_profiles ADD COLUMN point_overrides TEXT NOT NULL DEFAULT '[]';
+      CREATE INDEX plant_profiles_base ON plant_profiles(base_id);
+      ALTER TABLE plant_assignments ADD COLUMN additions TEXT NOT NULL DEFAULT '{}';
+    `,
+  },
+  {
+    // 0.11.0: data collections – what a collector reads from an asset, its items mapped to data points – and the
+    // gateway name → data point pairs remembered from imports (docs/adr/0019-data-collections.md)
+    name: 'plant-006-collections',
+    sql: `
+      CREATE TABLE plant_collections (
+        asset_id TEXT NOT NULL,
+        id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        collector TEXT NOT NULL,
+        data_path_id TEXT,
+        interface_id TEXT,
+        mode TEXT NOT NULL DEFAULT 'interval',
+        interval_ms INTEGER,
+        debounce_ms INTEGER,
+        triggers TEXT NOT NULL DEFAULT '[]',
+        composition TEXT NOT NULL DEFAULT '',
+        destination TEXT,
+        access TEXT NOT NULL DEFAULT '{}',
+        settings TEXT NOT NULL DEFAULT '[]',
+        items TEXT NOT NULL DEFAULT '[]',
+        notes TEXT NOT NULL DEFAULT '',
+        format TEXT NOT NULL DEFAULT '',
+        source_file TEXT NOT NULL DEFAULT '',
+        position INTEGER NOT NULL DEFAULT 0,
+        import_id TEXT,
+        not_in_source INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        created_by TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        updated_by TEXT NOT NULL,
+        PRIMARY KEY (asset_id, id)
+      );
+      CREATE TABLE plant_collection_mappings (
+        collector_key TEXT NOT NULL,
+        asset_id TEXT NOT NULL DEFAULT '',
+        gateway_name TEXT NOT NULL,
+        data_point TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        created_by TEXT NOT NULL,
+        PRIMARY KEY (collector_key, asset_id, gateway_name)
+      );
+    `,
+  },
+  {
+    // 0.11: where a zone sits in the Purdue levels (field … external); null: the OT network diagram derives one
+    name: 'plant-007-zone-level',
+    sql: `ALTER TABLE plant_zones ADD COLUMN level TEXT;`,
+  },
 ];

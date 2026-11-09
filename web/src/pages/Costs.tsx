@@ -12,6 +12,7 @@ import { DataTable, type DataColumn } from '../components/DataTable';
 import { BudgetBar, ChangeText, fmtMoney, SCOPE_PATH } from '../components/costs/common';
 import { costKeys } from '../queryKeys';
 import '../components/dashboard/viz.css';
+import { ServiceTabs } from '../components/page/LinkTabs';
 
 /**
  * Costs (#226): what services, applications, teams and platforms cost per month – one row per scope and currency, with
@@ -118,6 +119,7 @@ export function CostsPage() {
   );
   return (
     <ListPage
+      tabs={<ServiceTabs active="/costs" />}
       testId="costs-page"
       title={t('title')}
       description={t('description')}

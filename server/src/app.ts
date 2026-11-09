@@ -9,13 +9,16 @@ import rateLimit from '@fastify/rate-limit';
 import { ZodError } from 'zod';
 import { config, env } from './config.js';
 import { internalProblemJson } from './problem-json.js';
+import { tlsServerOptions } from './tls.js';
 import { vault } from './vault.js';
 import { HttpError } from './util.js';
 import { registerRoutes } from './routes/index.js';
+import { installFeatures } from './features/index.js';
 import { mockPlatform } from './mock/mockPlatform.js';
 import { currentUser, requestContext, type AuthUser } from './auth/context.js';
 import { ACCESS, hasRole, isStatusViewer, type ResolvedAccess, type RouteAccess } from './auth/access.js';
 import { plantOnly } from './auth/policy.js';
+import { moduleOff, switchedOffModuleOfRoute } from './modules/registry.js';
 import { sessionUser, toAuthUser } from './auth/users.js';
 import { LINK_PARAM, readCookie, SESSION_COOKIE, SESSION_HEADER } from './auth/cookies.js';
 import { connectVaultToDatabase } from './vault-rotation.js';
@@ -24,6 +27,7 @@ import { bearerToken, tokenUser } from './auth/tokens.js';
 import type { StepUpRule } from './auth/step-up.js';
 import { recordUnwrittenProofs, stepUpCheck } from './auth/assurance.js';
 import { logger } from './log.js';
+import { installHttpObservability, requestDbTotals } from './http-observability.js';
 import { publicApi } from './api/index.js';
 import { clientConfig, cspConnectSources, reportError } from './errorReporting.js';
 import { themeRoutes } from './theme/routes.js';
@@ -116,12 +120,8 @@ function webUiRequest(req: FastifyRequest): boolean {
   return WEB_UI_API.includes(url) || !url.startsWith('/api/');
 }
 
-/**
- * TLS settings for the built-in HTTPS server: TLS 1.2 or newer, forward-secret AEAD cipher suites
- * only (TLS 1.3 suites are always on). SM_TLS_CIPHERS overrides the TLS 1.2 list.
- */
-export const TLS_CIPHERS =
-  'ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305';
+/** The cipher list of the built-in HTTPS servers (tls.ts). */
+export { TLS_CIPHERS } from './tls.js';
 
 /** Loopback and private networks (RFC 1918, RFC 4193, link-local): where a reverse proxy in front of Steward lives. */
 const PRIVATE_PEERS = (() => {
@@ -216,6 +216,8 @@ export const stepUpRoutes = (app: FastifyInstance): Record<string, 'always' | 'r
   Object.fromEntries((ROUTE_TABLES.get(app) ?? []).filter((r) => r.stepUp).map((r) => [`${r.method} ${r.url}`, r.stepUp!]));
 
 export async function buildApp(opts: { logger?: boolean } = {}): Promise<FastifyInstance> {
+  // what the features bring (features/index.ts): report sections, …
+  installFeatures();
   connectVaultToDatabase();
   const BASE = config.basePath;
   const app = Fastify({
@@ -231,17 +233,7 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
     ...(BASE ? { rewriteUrl: (req: Parameters<typeof stripBasePath>[0]) => stripBasePath(req, BASE) } : {}),
     // Behind a reverse proxy: believe X-Forwarded-For/-Proto/-Host only from the configured proxies (SM_TRUST_PROXY)
     ...(config.trustProxy !== undefined ? { trustProxy: trustProxyFn(config.trustProxy) } : {}),
-    ...(config.tls
-      ? {
-          https: {
-            cert: fs.readFileSync(config.tls.cert),
-            key: fs.readFileSync(config.tls.key),
-            minVersion: 'TLSv1.2' as const,
-            ciphers: env.SM_TLS_CIPHERS || TLS_CIPHERS,
-            honorCipherOrder: true,
-          },
-        }
-      : {}),
+    ...(config.tls ? { https: tlsServerOptions()! } : {}),
   }) as unknown as FastifyInstance;
   // every answer names its request id (errors, rate limits and 404s included), so it can be quoted and looked up
   app.addHook('onSend', async (req, reply, payload) => {
@@ -250,6 +242,8 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
   });
   // internal API errors as problem details (RFC 9457), with error/code/params/requestId as extension members
   app.addHook('onSend', internalProblemJson);
+  // request metrics and trace spans (first, so they cover every hook below), database totals per request
+  installHttpObservability(app);
   const routeTable: TableRow[] = [];
   ROUTE_TABLES.set(app, routeTable);
   app.addHook('onRoute', (r) => {
@@ -290,9 +284,11 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
     // Decide by the route that actually matched (Fastify decodes and normalises the path for routing).
     const url = req.routeOptions.url ?? req.url.split('?')[0]!;
     if (url.startsWith('/mock/')) return;
-    const host = String(req.headers.host ?? '').replace(/:\d+$/, '');
+    // The Host header, and behind a trusted proxy (SM_TRUST_PROXY) also X-Forwarded-Host: req.host is what the OAuth
+    // issuer and the single sign-on redirect address are built from without SM_PUBLIC_URL (security review 0.10.0 S5)
     const allowedHosts = ['localhost', '127.0.0.1', '[::1]', ...env.SM_ALLOWED_HOSTS];
-    if (!allowedHosts.includes(host)) {
+    const hostAllowed = (h: string) => allowedHosts.includes(h.replace(/:\d+$/, ''));
+    if (!hostAllowed(String(req.headers.host ?? '')) || !hostAllowed(req.host)) {
       if (isPublicApiPath(url)) {
         return reply
           .code(403)
@@ -370,7 +366,8 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
       if (info!.mustChangePassword && !url.startsWith('/api/auth/')) {
         return void reply.code(403).send({ error: 'Please change your password first', code: 'PASSWORD_CHANGE_REQUIRED' });
       }
-      if (!vault().unlocked && !LOCKED_OK.some((p) => url.startsWith(p))) {
+      // /api/metrics too: sm_vault_unlocked and sm_ready are what alerts need while the vault is locked
+      if (!vault().unlocked && !LOCKED_OK.some((p) => url.startsWith(p)) && url !== '/api/metrics') {
         return void reply.code(423).send({ error: 'The vault is locked – an administrator has to unlock it', code: 'VAULT_LOCKED' });
       }
       // A status viewer (#26) reaches the routes that allow them – nothing else, whatever a route checks itself.
@@ -397,6 +394,21 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
     requestContext.run({ user, ip: req.ip, ...(apiToken ? { apiToken } : {}) }, done);
   });
 
+  // A switched-off module (0.11.0, ADR 0016): its routes answer 404 as if they did not exist – after authentication
+  // (a caller who is not signed in learns nothing about the modules), before step-up and the route's own code.
+  app.addHook('preHandler', (req, reply, done) => {
+    const url = req.routeOptions.url;
+    const off = url ? switchedOffModuleOfRoute(url) : undefined;
+    if (!off) return done();
+    const err = moduleOff(off);
+    if (isPublicApiPath(url!))
+      return void reply
+        .code(404)
+        .type('application/problem+json')
+        .send(JSON.stringify({ type: 'about:blank', title: 'Not Found', status: 404, detail: err.message, code: err.code }));
+    return void reply.code(404).send({ error: err.message, code: err.code, params: err.params });
+  });
+
   // Sensitive actions need a recent confirmation of the session's owner (auth/step-up.ts); API tokens never do them.
   // Runs inside the request context above, so a rule can check the caller's rights the way the route does.
   app.addHook('preHandler', (req, reply, done) => {
@@ -412,12 +424,16 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
     if (!req.url.startsWith('/api/')) return;
     const ms = Math.round(reply.elapsedTime);
     const status = reply.statusCode;
+    const dbTotals = requestDbTotals(req);
     const entry = {
       reqId: req.id,
       method: req.method,
       path: req.url.split('?')[0],
       status,
       ms,
+      // the database statements of the request and their time (database/timing.ts)
+      dbStatements: dbTotals?.statements,
+      dbMs: dbTotals ? Math.round(dbTotals.ms) : undefined,
       user: (req as unknown as { smUser?: string }).smUser,
       token: (req as unknown as { smToken?: string }).smToken,
       ip: req.ip,

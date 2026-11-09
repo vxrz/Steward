@@ -113,4 +113,12 @@ export const SCORECARD_MIGRATIONS: NamedMigration[] = [
     name: 'scorecard-005-up-to-date',
     sql: `ALTER TABLE scorecard_snapshots ADD COLUMN up_to_date TEXT NOT NULL DEFAULT 'none';`,
   },
+  {
+    // 0.11 (ADR 0018): a Steward monitor as the source of an objective (platform_id and endpoint_key stay empty then)
+    name: 'scorecard-006-monitor-source',
+    sql: `
+      ALTER TABLE availability_objectives ADD COLUMN monitor_id TEXT;
+      CREATE INDEX availability_objectives_monitor ON availability_objectives(monitor_id);
+    `,
+  },
 ];

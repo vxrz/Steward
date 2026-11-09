@@ -12,6 +12,7 @@ import { ListPage, useStoredListView } from '../components/page/ListPage';
 import { fmtRelative } from '../format';
 import { plantKeys } from '../queryKeys';
 import { AssetStatusBadge, MapLink, NotInSourceBadge, PreviewBadge, useNameOf, usePlantConfig, usePlantLabel } from '../components/plant/common';
+import { BulkBar, SelectAllBox, SelectBox, useSelection } from '../components/plant/bulk';
 import { SiteFormModal } from '../components/plant/forms';
 import { SiteTileStats } from './plant/views/SiteTiles';
 
@@ -56,6 +57,10 @@ export function PlantSitesPage() {
       {t('export.all')}
     </Button>
   );
+  // Edit selected / Remove selected (0.11.0)
+  const canBulk = !!cfg.data?.canManageSome;
+  const shownIds = list.map((s) => s.id);
+  const sel = useSelection(shownIds);
   return (
     <ListPage
       testId="plant-sites"
@@ -110,12 +115,16 @@ export function PlantSitesPage() {
           {t('sites.noMatch')}
         </Text>
       )}
+      {canBulk && list.length > 0 && (
+        <BulkBar kind="site" sel={sel} visible={shownIds} selectAll={view.cards} entries={list.map((x) => ({ id: x.id, name: nameOf(x) }))} />
+      )}
       {list.length > 0 && view.cards && (
         <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} data-testid="plant-site-cards">
           {list.map((s) => (
             <Paper key={s.id} withBorder p="md" component="article" aria-labelledby={`site-${s.id}`}>
               <Stack gap={6}>
                 <Group gap="xs" justify="space-between" wrap="nowrap">
+                  {canBulk && <SelectBox sel={sel} id={s.id} name={nameOf(s)} />}
                   <Anchor id={`site-${s.id}`} component={Link} to={`/plant/sites/${encodeURIComponent(s.id)}`} fw={600} style={{ overflowWrap: 'anywhere' }}>
                     {nameOf(s)}
                   </Anchor>
@@ -145,6 +154,11 @@ export function PlantSitesPage() {
           <Table highlightOnHover fz="sm" aria-label={plural} data-testid="plant-site-table">
             <Table.Thead>
               <Table.Tr>
+                {canBulk && (
+                  <Table.Th w={36}>
+                    <SelectAllBox sel={sel} ids={shownIds} />
+                  </Table.Th>
+                )}
                 <Table.Th>{t('form.name')}</Table.Th>
                 <Table.Th>{label('area', true)}</Table.Th>
                 <Table.Th>{label('building', true)}</Table.Th>
@@ -157,6 +171,11 @@ export function PlantSitesPage() {
             <Table.Tbody>
               {list.map((s) => (
                 <Table.Tr key={s.id} className="clickable" onClick={() => navigate(`/plant/sites/${encodeURIComponent(s.id)}`)}>
+                  {canBulk && (
+                    <Table.Td onClick={(e) => e.stopPropagation()}>
+                      <SelectBox sel={sel} id={s.id} name={nameOf(s)} />
+                    </Table.Td>
+                  )}
                   <Table.Td>
                     <Group gap="xs" wrap="nowrap">
                       <Anchor component={Link} to={`/plant/sites/${encodeURIComponent(s.id)}`} fw={500} size="sm" onClick={(e) => e.stopPropagation()}>

@@ -21,6 +21,7 @@ import {
   TRANSFER_MODES,
   VLAN_RANGE_TYPES,
   ZONE_CRITICALITIES,
+  ZONE_LEVELS,
   type PlantAssetChecksValues,
   type PlantCollector,
   type PlantConduitValues,
@@ -78,6 +79,7 @@ export interface ZoneRow extends Source {
   name: string;
   description: string;
   criticality: string | null;
+  level: string | null;
   vlans: string;
   owner: string;
   sl_target: number | null;
@@ -162,6 +164,7 @@ export const zoneValuesOf = (r: ZoneRow): PlantZoneValues => ({
   name: r.name,
   description: r.description,
   criticality: (r.criticality || null) as PlantZoneValues['criticality'],
+  level: (r.level || null) as PlantZoneValues['level'],
   vlans: parseJson(r.vlans, []),
   owner: r.owner,
   slTarget: r.sl_target === null ? null : (Number(r.sl_target) as SecurityLevel),
@@ -320,6 +323,7 @@ export const zoneInput = z
     name,
     description: text(L.longText),
     criticality: z.enum(ZONE_CRITICALITIES).nullable().default(null),
+    level: z.enum(ZONE_LEVELS).nullable().default(null),
     vlans: list(L.vlansPerZone, plantId),
     owner: text(),
     slTarget: z
@@ -608,11 +612,11 @@ export function upsertVlan(siteId: string, v: PlantVlanValues, position: number,
 
 export function upsertZone(siteId: string, v: PlantZoneValues, position: number, m: Meta, opts: { keepSource?: boolean } = {}): void {
   db().run(
-    `INSERT INTO plant_zones (site_id, id, name, description, criticality, vlans, owner, sl_target, risk_assessment, assessed_at, notes,
+    `INSERT INTO plant_zones (site_id, id, name, description, criticality, level, vlans, owner, sl_target, risk_assessment, assessed_at, notes,
        position, import_id, not_in_source, created_at, created_by, updated_at, updated_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT (site_id, id) DO UPDATE SET name = excluded.name, description = excluded.description, criticality = excluded.criticality,
-       vlans = excluded.vlans, owner = excluded.owner, sl_target = excluded.sl_target, risk_assessment = excluded.risk_assessment,
+       level = excluded.level, vlans = excluded.vlans, owner = excluded.owner, sl_target = excluded.sl_target, risk_assessment = excluded.risk_assessment,
        assessed_at = excluded.assessed_at, notes = excluded.notes, position = excluded.position, ${keep(opts)} updated_at = excluded.updated_at,
        updated_by = excluded.updated_by`,
     siteId,
@@ -620,6 +624,7 @@ export function upsertZone(siteId: string, v: PlantZoneValues, position: number,
     v.name,
     v.description,
     v.criticality,
+    v.level,
     j(v.vlans),
     v.owner,
     v.slTarget,

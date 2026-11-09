@@ -29,7 +29,7 @@
   "sections": {
     "availability": {
       "title": "Availability of monitors",
-      "hint": "Uptime, outages and response times per monitor, with an optional SLA target"
+      "hint": "Uptime, outages and response times per monitor, judged against the SLA target of its availability objective"
     },
     "gatus": {
       "title": "Availability of Gatus endpoints",
@@ -110,6 +110,10 @@
     "monitors": "Monitors",
     "allVisible": "All you may see",
     "slaTarget": "SLA target (%)",
+    "slaFromObjectives": "Use the objective",
+    "slaFromObjectivesHint": "Each monitor is judged by the availability objective that has it as source (the target of the window closest to the report period).",
+    "slaTargetFallback": "SLA target for monitors without an objective (%)",
+    "slaTargetDeprecated": "Deprecated: set targets as availability objectives of the services instead. This field will be removed in a later release.",
     "gatusPlatforms": "Gatus platforms (metrics mode)",
     "noGatus": "Turn on metrics mode for a Gatus platform first (Platform → Metrics).",
     "dueWithinDays": "Also list entries due within (days)",

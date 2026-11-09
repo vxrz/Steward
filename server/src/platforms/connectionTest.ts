@@ -1,4 +1,4 @@
-import { DTRACK_KIND, GIT_PLATFORM_KINDS, type Platform } from '@sm/shared';
+import { platformKind, type Platform } from '@sm/shared';
 import type { HttpResult } from './http.js';
 import { authHint, isEmptyBody, isHtml, isJson, redirectHint, where } from './answers.js';
 
@@ -13,34 +13,6 @@ import { authHint, isEmptyBody, isHtml, isJson, redirectHint, where } from './an
  *   Prometheus without {"status":"success"}    failed
  */
 
-/** Kinds whose test path is a JSON API (the built-in connectors). */
-export const JSON_API_KINDS: ReadonlySet<string> = new Set([
-  ...GIT_PLATFORM_KINDS,
-  'prometheus',
-  'kubernetes',
-  DTRACK_KIND,
-  'checkmk',
-  'gatus',
-  'endoflife-date',
-  'insights-hub',
-  'industrial-edge-management',
-  'confluent-cloud',
-  'microsoft-graph',
-  'privilege-vault',
-]);
-
-/** The API base URL a kind expects, for the hints. */
-const API_EXAMPLES: Record<string, string> = {
-  github: 'https://api.github.com or https://HOST/api/v3',
-  gitlab: 'https://HOST/api/v4',
-  forgejo: 'https://HOST/api/v1',
-  prometheus: 'https://HOST, Mimir/Cortex …/prometheus',
-  kubernetes: 'https://HOST:6443',
-  checkmk: 'https://HOST/SITE/check_mk/api/1.0',
-  [DTRACK_KIND]: 'the API server, not the UI',
-  'privilege-vault': 'https://HOST/SecretServer or https://TENANT.secretservercloud.com',
-};
-
 export interface TestVerdict {
   ok: boolean;
   message: string;
@@ -49,7 +21,8 @@ export interface TestVerdict {
 export function judgeHttpTest(p: Platform, what: string, requestedUrl: string, res: HttpResult): TestVerdict {
   const redirected = where(res.url) !== where(requestedUrl);
   const via = redirected ? ` (redirected to ${where(res.url)})` : '';
-  const example = API_EXAMPLES[p.kind];
+  // the kind's descriptor: whether its test path is a JSON API, and the API base URL it expects (the hints)
+  const example = platformKind(p.kind)?.apiExample;
   const empty = isEmptyBody(res.body) ? ' with an empty response' : '';
   if (res.status >= 300 && res.status < 400) {
     const loc = res.headers.location;
@@ -68,7 +41,7 @@ export function judgeHttpTest(p: Platform, what: string, requestedUrl: string, r
     return { ok: false, message: `${what} answered HTTP ${res.status}${empty}${via}${hint}` };
   }
   const html = isHtml(res);
-  const apiKind = JSON_API_KINDS.has(p.kind);
+  const apiKind = platformKind(p.kind)?.jsonApi ?? false;
   if (html && (apiKind || redirected))
     return {
       ok: false,

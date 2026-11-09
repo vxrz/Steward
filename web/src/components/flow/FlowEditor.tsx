@@ -20,7 +20,18 @@ import {
 import '@xyflow/react/dist/style.css';
 import { ActionIcon, Box, Button, Drawer, Group, Paper, ScrollArea, Stack, Tabs, Text, Tooltip, useComputedColorScheme } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
-import { IconArrowBackUp, IconArrowForwardUp, IconCopy, IconLayoutDistributeHorizontal, IconPlus, IconTrash } from '@tabler/icons-react';
+import {
+  IconArrowBackUp,
+  IconArrowForwardUp,
+  IconCopy,
+  IconLayoutDistributeHorizontal,
+  IconLayoutSidebarLeftCollapse,
+  IconLayoutSidebarLeftExpand,
+  IconLayoutSidebarRightCollapse,
+  IconLayoutSidebarRightExpand,
+  IconPlus,
+  IconTrash,
+} from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { NODE_HEIGHT, NODE_WIDTH, type FlowNode, type NodeType, type ProcessDefinition, type Wire } from '@sm/shared';
 import { notifyOk } from '../../api';
@@ -30,6 +41,7 @@ import { isMac, isTextTarget, modKey } from '../editor/useDefHistory';
 import { copyNodes, pasteNodes, readClipboard, writeClipboard } from './clipboard';
 import { FlowNodeView, type FlowNodeData, type FlowRfNode, type NodeRunStatus } from './FlowNodeView';
 import { DND_TYPE, Palette } from './Palette';
+import { readPref, writePref } from '../page/prefs';
 import { nodeColor } from './meta';
 import {
   addNode,
@@ -132,6 +144,17 @@ function FlowEditorInner({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [formKey, setFormKey] = useState(0);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  // the side panels fold to a thin strip (U8 of the 0.10 review), remembered per user: the step palette stays open
+  // unless folded; the properties stay open while a step is selected and fold while nothing is (unless kept open)
+  const [paletteShown, setPaletteShown] = useState(() => readPref('editor.palette') !== 'folded');
+  const [propsKept, setPropsKept] = useState(() => readPref('editor.properties') === 'open');
+  const togglePalette = () => {
+    setPaletteShown((v) => (writePref('editor.palette', v ? 'folded' : 'open'), !v));
+  };
+  const toggleProps = (open: boolean) => {
+    setPropsKept(open);
+    writePref('editor.properties', open ? 'open' : 'folded');
+  };
   const [selectedEdges, setSelectedEdges] = useState<Set<string>>(new Set());
   const [panelTab, setPanelTab] = useState<string>('props');
   /** Node id(s) to select after the next definition change. */
@@ -600,17 +623,83 @@ function FlowEditorInner({
     );
   }
 
+  const propsShown = !!selectedNode || propsKept;
+  const strip = { width: 36, flexShrink: 0, height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 8 } as const;
   return (
-    <Paper withBorder style={{ height, minHeight: 480, overflow: 'hidden', display: 'flex' }}>
-      {!readOnly && (
-        <Box p="xs" style={{ width: 212, flexShrink: 0, borderRight: '1px solid var(--mantine-color-default-border)', height: '100%' }}>
-          <Palette onAdd={addAtCenter} />
+    <Paper withBorder style={{ height, minHeight: 480, overflow: 'hidden', display: 'flex' }} data-testid="flow-editor">
+      {!readOnly &&
+        (paletteShown ? (
+          <Box
+            id="flow-palette"
+            p="xs"
+            pt={4}
+            style={{
+              width: 212,
+              flexShrink: 0,
+              borderRight: '1px solid var(--mantine-color-default-border)',
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            <Group justify="flex-end" mb={2}>
+              <Tooltip label={t('flow.foldPalette')}>
+                <ActionIcon
+                  size="sm"
+                  variant="subtle"
+                  color="gray"
+                  onClick={togglePalette}
+                  aria-label={t('flow.foldPalette')}
+                  aria-expanded
+                  aria-controls="flow-palette"
+                >
+                  <IconLayoutSidebarLeftCollapse size={16} />
+                </ActionIcon>
+              </Tooltip>
+            </Group>
+            <Box style={{ flex: 1, minHeight: 0 }}>
+              <Palette onAdd={addAtCenter} />
+            </Box>
+          </Box>
+        ) : (
+          <Box style={{ ...strip, borderRight: '1px solid var(--mantine-color-default-border)' }} data-testid="flow-palette-strip">
+            <Tooltip label={t('flow.showPalette')} position="right">
+              <ActionIcon size="md" variant="subtle" onClick={togglePalette} aria-label={t('flow.showPalette')} aria-expanded={false}>
+                <IconLayoutSidebarLeftExpand size={18} />
+              </ActionIcon>
+            </Tooltip>
+          </Box>
+        ))}
+      {canvas}
+      {propsShown ? (
+        <ScrollArea
+          id="flow-properties"
+          style={{ width: 380, flexShrink: 0, borderLeft: '1px solid var(--mantine-color-default-border)', height: '100%' }}
+          type="auto"
+          data-testid="flow-properties"
+        >
+          <Box p="sm">
+            {!selectedNode && (
+              <Group justify="flex-end" mb={-24}>
+                <Tooltip label={t('flow.foldProperties')}>
+                  <ActionIcon size="sm" variant="subtle" color="gray" onClick={() => toggleProps(false)} aria-label={t('flow.foldProperties')} aria-expanded>
+                    <IconLayoutSidebarRightCollapse size={16} />
+                  </ActionIcon>
+                </Tooltip>
+              </Group>
+            )}
+            {properties}
+          </Box>
+        </ScrollArea>
+      ) : (
+        <Box style={{ ...strip, borderLeft: '1px solid var(--mantine-color-default-border)' }} data-testid="flow-properties-strip">
+          <Tooltip label={t('flow.showProperties')} position="left">
+            <ActionIcon size="md" variant="subtle" onClick={() => toggleProps(true)} aria-label={t('flow.showProperties')} aria-expanded={false}>
+              <IconLayoutSidebarRightExpand size={18} />
+            </ActionIcon>
+          </Tooltip>
         </Box>
       )}
-      {canvas}
-      <ScrollArea style={{ width: 380, flexShrink: 0, borderLeft: '1px solid var(--mantine-color-default-border)', height: '100%' }} type="auto">
-        <Box p="sm">{properties}</Box>
-      </ScrollArea>
     </Paper>
   );
 }

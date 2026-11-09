@@ -4,7 +4,10 @@ import { useMediaQuery } from '@mantine/hooks';
 import { IconLayoutList, IconSearch, IconTable } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { Icon } from '@tabler/icons-react';
+import type { VisibilityArea } from '@sm/shared';
 import { EmptyState, FilterPanel, PageHeader } from '../common';
+import { readPref, writePref } from './prefs';
+import { RestrictedEmpty, useHiddenByPermissions } from '../modules/RestrictedEmpty';
 
 /** How a list shows its rows: `auto` = table on wide screens, cards on phones (DataTable's own choice). */
 export type ListView = 'auto' | 'table' | 'cards';
@@ -14,18 +17,15 @@ const ListViewContext = createContext<ListView>('auto');
 /** The view chosen on the list page around a {@link DataTable} (`auto` outside a ListPage). */
 export const useListView = (): ListView => useContext(ListViewContext);
 
-const viewKey = (id: string) => `sm.list.view.${id}`;
+// per user (0.11); the browser-wide key of before is still read until the user chooses again
+const viewPref = (id: string) => `list.view.${id}`;
 function readView(id: string): ListView {
-  try {
-    const v = localStorage.getItem(viewKey(id));
-    return v === 'table' || v === 'cards' ? v : 'auto';
-  } catch {
-    return 'auto';
-  }
+  const v = readPref(viewPref(id), `sm.list.view.${id}`);
+  return v === 'table' || v === 'cards' ? v : 'auto';
 }
 
 /**
- * The table/card choice of a list, remembered per list in this browser – for pages that draw their own cards
+ * The table/card choice of a list, remembered per list and user in this browser – for pages that draw their own cards
  * (pass it to ListPage as `viewState`). `cards` tells whether to show cards now (`narrow`: the phone width).
  */
 export function useStoredListView(id: string, narrow: boolean): { value: ListView; onChange: (v: ListView) => void; cards: boolean } {
@@ -33,7 +33,7 @@ export function useStoredListView(id: string, narrow: boolean): { value: ListVie
   return { value, onChange: setValue, cards: value === 'cards' || (value === 'auto' && narrow) };
 }
 
-/** Table or cards, remembered per list in this browser. */
+/** Table or cards, remembered per list and user in this browser. */
 function ViewToggle({ id, value, onChange }: { id: string; value: ListView; onChange: (v: ListView) => void }) {
   const { t } = useTranslation();
   // the width up to which DataTable shows cards by default
@@ -74,11 +74,7 @@ function ViewToggle({ id, value, onChange }: { id: string; value: ListView; onCh
         const next = v as ListView;
         onChange(next);
         // stored here, so that controlled pages (useStoredListView) remember it as well
-        try {
-          localStorage.setItem(viewKey(id), next);
-        } catch {
-          /* storage blocked: the choice lasts for this page view */
-        }
+        writePref(viewPref(id), next);
       }}
     />
   );
@@ -103,6 +99,7 @@ export function ListPage({
   empty,
   children,
   testId,
+  area,
 }: {
   /** Above the title: the tabs of the area (Automate) */
   tabs?: ReactNode;
@@ -122,6 +119,8 @@ export function ListPage({
   viewState?: { value: ListView; onChange: (v: ListView) => void };
   /** Shown above the page's content while `show` holds (the page leaves out its empty list then) */
   empty?: { show: boolean; icon?: Icon; title: ReactNode; text?: ReactNode; whoCanAct?: ReactNode; action?: ReactNode };
+  /** The area of the list (GET /api/me/visibility): empty, but with entries the person may not see, it says so */
+  area?: VisibilityArea;
   children?: ReactNode;
   testId?: string;
 }) {
@@ -137,6 +136,7 @@ export function ListPage({
       </>
     ) : undefined;
   const toolbar = search || filters || view;
+  const hidden = useHiddenByPermissions(area);
   // the empty state comes before the page's own content, which still renders (its dialogs live there)
   return (
     <Box data-testid={testId} data-list-page>
@@ -167,11 +167,14 @@ export function ListPage({
           )}
         </Group>
       )}
-      {empty?.show && (
-        <EmptyState icon={empty.icon} title={empty.title} action={empty.action} whoCanAct={empty.whoCanAct}>
-          {empty.text}
-        </EmptyState>
-      )}
+      {empty?.show &&
+        (hidden ? (
+          <RestrictedEmpty />
+        ) : (
+          <EmptyState icon={empty.icon} title={empty.title} action={empty.action} whoCanAct={empty.whoCanAct}>
+            {empty.text}
+          </EmptyState>
+        ))}
       <ListViewContext.Provider value={chosen}>{children}</ListViewContext.Provider>
     </Box>
   );

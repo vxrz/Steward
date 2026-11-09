@@ -33,6 +33,7 @@ import {
 import { get, notifyError, notifyOk, put } from '../../api';
 import { plantKeys } from '../../queryKeys';
 import { useSaveSection } from '../settings/SaveBar';
+import { PlantAliasesCard } from './ids';
 
 /**
  * Settings → Modules → Plant registry (#218): the switch (off by default; off, the module's pages and routes are gone
@@ -66,6 +67,8 @@ export function PlantSettingsCard() {
       // the sidebar's Plant area and the link kinds follow the switch
       void qc.invalidateQueries({ queryKey: ['auth'] });
       void qc.invalidateQueries({ queryKey: plantKeys.all });
+      // Settings → Modules shows the switch's state, too (ADR 0016)
+      void qc.invalidateQueries({ queryKey: ['settings', 'modules'] });
       notifyOk(t('settings.saved'));
     } catch (e) {
       notifyError(e);
@@ -82,117 +85,121 @@ export function PlantSettingsCard() {
   };
   const setFields = (type: (typeof PLANT_RECORD_TYPES)[number], defs: PlantFieldDef[]) => setD({ ...d, fields: { ...d.fields, [type]: defs } });
   return (
-    <Card withBorder data-testid="plant-settings">
-      <Group gap="xs" mb="xs" wrap="nowrap">
-        <IconBuildingFactory2 size={18} aria-hidden />
-        <Title order={5}>{t('settings.title')}</Title>
-        <Badge color="grape" variant="light" size="sm">
-          {t('preview')}
-        </Badge>
-      </Group>
-      <Text size="sm" c="dimmed" mb="sm">
-        <Trans t={t} i18nKey="settings.description" components={{ b: <b /> }} />
-      </Text>
-      <Stack gap="sm">
-        <Switch
-          label={t('settings.enabled')}
-          description={t('settings.enabledHelp')}
-          checked={d.enabled}
-          onChange={(e) => setD({ ...d, enabled: e.currentTarget.checked })}
-          data-testid="plant-enabled"
-        />
-        {q.data?.enabled && !d.enabled && (
-          <Alert color="yellow" p="xs">
-            <Text size="sm">{t('settings.turningOff')}</Text>
-          </Alert>
-        )}
-        {d.enabled && (
-          <>
-            <TextInput
-              label={t('settings.enterprise')}
-              description={t('settings.enterpriseHelp')}
-              maxLength={PLANT_LIMITS.name}
-              value={d.enterprise}
-              onChange={(e) => setD({ ...d, enterprise: e.currentTarget.value })}
-              maw={420}
-            />
-            <Accordion variant="contained" multiple>
-              <Accordion.Item value="labels">
-                <Accordion.Control>{t('settings.labels')}</Accordion.Control>
-                <Accordion.Panel>
-                  <Text size="xs" c="dimmed" mb="xs">
-                    {t('settings.labelsHelp')}
-                  </Text>
-                  <div className="table-scroll">
-                    <Table fz="sm" aria-label={t('settings.labels')}>
-                      <Table.Thead>
-                        <Table.Tr>
-                          <Table.Th>{t('settings.recordType')}</Table.Th>
-                          {langs.map((l) => (
-                            <Table.Th key={l}>{LOCALES.find((x) => x.code === l)!.nativeName}</Table.Th>
-                          ))}
-                        </Table.Tr>
-                      </Table.Thead>
-                      <Table.Tbody>
-                        {PLANT_RECORD_TYPES.map((type) => (
-                          <Table.Tr key={type}>
-                            <Table.Td className="nowrap">{t(`types.${type}.one`)}</Table.Td>
+    <>
+      <Card withBorder data-testid="plant-settings">
+        <Group gap="xs" mb="xs" wrap="nowrap">
+          <IconBuildingFactory2 size={18} aria-hidden />
+          <Title order={5}>{t('settings.title')}</Title>
+          <Badge color="grape" variant="light" size="sm">
+            {t('preview')}
+          </Badge>
+        </Group>
+        <Text size="sm" c="dimmed" mb="sm">
+          <Trans t={t} i18nKey="settings.description" components={{ b: <b /> }} />
+        </Text>
+        <Stack gap="sm">
+          <Switch
+            label={t('settings.enabled')}
+            description={t('settings.enabledHelp')}
+            checked={d.enabled}
+            onChange={(e) => setD({ ...d, enabled: e.currentTarget.checked })}
+            data-testid="plant-enabled"
+          />
+          {q.data?.enabled && !d.enabled && (
+            <Alert color="yellow" p="xs">
+              <Text size="sm">{t('settings.turningOff')}</Text>
+            </Alert>
+          )}
+          {d.enabled && (
+            <>
+              <TextInput
+                label={t('settings.enterprise')}
+                description={t('settings.enterpriseHelp')}
+                maxLength={PLANT_LIMITS.name}
+                value={d.enterprise}
+                onChange={(e) => setD({ ...d, enterprise: e.currentTarget.value })}
+                maw={420}
+              />
+              <Accordion variant="contained" multiple>
+                <Accordion.Item value="labels">
+                  <Accordion.Control>{t('settings.labels')}</Accordion.Control>
+                  <Accordion.Panel>
+                    <Text size="xs" c="dimmed" mb="xs">
+                      {t('settings.labelsHelp')}
+                    </Text>
+                    <div className="table-scroll">
+                      <Table fz="sm" aria-label={t('settings.labels')}>
+                        <Table.Thead>
+                          <Table.Tr>
+                            <Table.Th>{t('settings.recordType')}</Table.Th>
                             {langs.map((l) => (
-                              <Table.Td key={l}>
-                                <Group gap={4} wrap="nowrap">
-                                  <TextInput
-                                    size="xs"
-                                    aria-label={t('settings.labelOne', { type: t(`types.${type}.one`), language: l })}
-                                    placeholder={t(`types.${type}.one`, { lng: l })}
-                                    value={d.labels[type]?.[l]?.one ?? ''}
-                                    onChange={(e) => setLabel(type, l, 'one', e.currentTarget.value)}
-                                    maxLength={60}
-                                    miw={110}
-                                  />
-                                  <TextInput
-                                    size="xs"
-                                    aria-label={t('settings.labelOther', { type: t(`types.${type}.one`), language: l })}
-                                    placeholder={t(`types.${type}.other`, { lng: l })}
-                                    value={d.labels[type]?.[l]?.other ?? ''}
-                                    onChange={(e) => setLabel(type, l, 'other', e.currentTarget.value)}
-                                    maxLength={60}
-                                    miw={110}
-                                  />
-                                </Group>
-                              </Table.Td>
+                              <Table.Th key={l}>{LOCALES.find((x) => x.code === l)!.nativeName}</Table.Th>
                             ))}
                           </Table.Tr>
-                        ))}
-                      </Table.Tbody>
-                    </Table>
-                  </div>
-                </Accordion.Panel>
-              </Accordion.Item>
-              <Accordion.Item value="fields">
-                <Accordion.Control>{t('settings.fields')}</Accordion.Control>
-                <Accordion.Panel>
-                  <Text size="xs" c="dimmed" mb="xs">
-                    {t('settings.fieldsHelp')}
-                  </Text>
-                  <Stack gap="md">
-                    {PLANT_RECORD_TYPES.map((type) => (
-                      <FieldDefsEditor key={type} title={t(`types.${type}.other`)} defs={d.fields[type] ?? []} onChange={(defs) => setFields(type, defs)} />
-                    ))}
-                  </Stack>
-                </Accordion.Panel>
-              </Accordion.Item>
-            </Accordion>
-          </>
-        )}
-        {!inBar && (
-          <Group justify="flex-end">
-            <Button size="xs" onClick={() => void save()} loading={busy} disabled={!fieldsValid || !dirty}>
-              {t('settings.save')}
-            </Button>
-          </Group>
-        )}
-      </Stack>
-    </Card>
+                        </Table.Thead>
+                        <Table.Tbody>
+                          {PLANT_RECORD_TYPES.map((type) => (
+                            <Table.Tr key={type}>
+                              <Table.Td className="nowrap">{t(`types.${type}.one`)}</Table.Td>
+                              {langs.map((l) => (
+                                <Table.Td key={l}>
+                                  <Group gap={4} wrap="nowrap">
+                                    <TextInput
+                                      size="xs"
+                                      aria-label={t('settings.labelOne', { type: t(`types.${type}.one`), language: l })}
+                                      placeholder={t(`types.${type}.one`, { lng: l })}
+                                      value={d.labels[type]?.[l]?.one ?? ''}
+                                      onChange={(e) => setLabel(type, l, 'one', e.currentTarget.value)}
+                                      maxLength={60}
+                                      miw={110}
+                                    />
+                                    <TextInput
+                                      size="xs"
+                                      aria-label={t('settings.labelOther', { type: t(`types.${type}.one`), language: l })}
+                                      placeholder={t(`types.${type}.other`, { lng: l })}
+                                      value={d.labels[type]?.[l]?.other ?? ''}
+                                      onChange={(e) => setLabel(type, l, 'other', e.currentTarget.value)}
+                                      maxLength={60}
+                                      miw={110}
+                                    />
+                                  </Group>
+                                </Table.Td>
+                              ))}
+                            </Table.Tr>
+                          ))}
+                        </Table.Tbody>
+                      </Table>
+                    </div>
+                  </Accordion.Panel>
+                </Accordion.Item>
+                <Accordion.Item value="fields">
+                  <Accordion.Control>{t('settings.fields')}</Accordion.Control>
+                  <Accordion.Panel>
+                    <Text size="xs" c="dimmed" mb="xs">
+                      {t('settings.fieldsHelp')}
+                    </Text>
+                    <Stack gap="md">
+                      {PLANT_RECORD_TYPES.map((type) => (
+                        <FieldDefsEditor key={type} title={t(`types.${type}.other`)} defs={d.fields[type] ?? []} onChange={(defs) => setFields(type, defs)} />
+                      ))}
+                    </Stack>
+                  </Accordion.Panel>
+                </Accordion.Item>
+              </Accordion>
+            </>
+          )}
+          {!inBar && (
+            <Group justify="flex-end">
+              <Button size="xs" onClick={() => void save()} loading={busy} disabled={!fieldsValid || !dirty}>
+                {t('settings.save')}
+              </Button>
+            </Group>
+          )}
+        </Stack>
+      </Card>
+      {/* the old ids of renamed entries (0.11.0) */}
+      {q.data?.enabled && <PlantAliasesCard />}
+    </>
   );
 }
 

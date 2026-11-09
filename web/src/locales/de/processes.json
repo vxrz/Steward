@@ -149,5 +149,51 @@
     "checkItem1": "Alles funktioniert wie vorher"
   },
   "more": "Weitere",
-  "newManualProcedureHint": "Checklisten und Nachweise, von Personen erledigt – ohne Plattform"
+  "newManualProcedureHint": "Checklisten und Nachweise, von Personen erledigt – ohne Plattform",
+  "list": {
+    "name": "Prozess",
+    "lastRun": "Letzte Ausführung",
+    "nextRun": "Nächste Ausführung",
+    "owner": "Verantwortlich",
+    "version": "Version",
+    "actions": "Aktionen",
+    "versionLine": "v{{version}} · {{when}}",
+    "never": "Noch nie ausgeführt",
+    "notScheduled": "Nicht geplant",
+    "schedule": "Zeitplan",
+    "scheduledYes": "Geplant",
+    "scheduledNo": "Nicht geplant",
+    "noMatch": "Kein Prozess passt. Leeren Sie die Suche oder die Filter.",
+    "lastRunFilter": {
+      "succeeded": "Erfolgreich",
+      "findings": "Mit Befunden abgeschlossen",
+      "failed": "Fehlgeschlagen",
+      "other": "Läuft, wartet oder abgebrochen",
+      "never": "Noch nie ausgeführt"
+    }
+  },
+  "create": {
+    "title": "Neuer Prozess",
+    "name": "Name",
+    "id": "ID",
+    "idHint": "Wird in Adressen, Zeitplänen und der API verwendet. Sie lässt sich später nicht ändern.",
+    "idInvalid": "Verwenden Sie Kleinbuchstaben, Ziffern und Bindestriche (höchstens 48), am Anfang und Ende ein Buchstabe oder eine Ziffer.",
+    "descriptionLabel": "Beschreibung",
+    "start": "Start",
+    "blank": "Leer",
+    "manual": "Manuelles Verfahren",
+    "fromTemplate": "Aus einer Vorlage",
+    "template": "Vorlage",
+    "startHint": {
+      "blank": "Nur ein Startschritt. Die Schritte fügen Sie im Editor hinzu.",
+      "manual": "Drei manuelle Schritte mit Checklisten, bereit zum Ausfüllen.",
+      "template": "Eine Kopie einer Vorlage. Ihre Verbindungen werden beim Ausführen gewählt."
+    },
+    "teams": "Verantwortliche Teams",
+    "teamsHint": "Mitglieder dieser Teams ändern ihn; leer: er gehört der ganzen Instanz",
+    "wholeInstance": "Keine – die ganze Instanz",
+    "yourTeams": "{{teams}} (das Team, das Ihre neuen Ressourcen bekommen – siehe Profil)",
+    "wholeInstanceText": "Keine – er gehört der ganzen Instanz. Administratoren können das später ändern.",
+    "submit": "Anlegen und bearbeiten"
+  }
 }

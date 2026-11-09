@@ -221,7 +221,7 @@ export async function connectorConfig(platformId: string, name: string, actor: s
   const config = Object.fromEntries(
     Object.entries(body && typeof body === 'object' && !Array.isArray(body) ? (body as Record<string, unknown>) : {})
       .filter(([k]) => k !== '__proto__' && k !== 'constructor' && k !== 'prototype')
-      .map(([k, v]) => [k.slice(0, 300), typeof v === 'string' ? v.slice(0, 4000) : JSON.stringify(v ?? null).slice(0, 4000)])
+      .map(([k, v]): [string, string] => [k.slice(0, 300), typeof v === 'string' ? v.slice(0, 4000) : JSON.stringify(v ?? null).slice(0, 4000)])
       .sort(([a], [b]) => a.localeCompare(b)),
   );
   audit({

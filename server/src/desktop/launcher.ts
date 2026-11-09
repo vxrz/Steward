@@ -44,7 +44,7 @@ Examples:
   SM_SENTRY_DSN=https://… ${BRAND.slug} --send-test-error
 
 Environment variables (SM_HOST, SM_MASTER_PASSPHRASE_FILE, SM_SENTRY_DSN, OTEL_*, …) work as
-for the server; see the README.
+for the server; see docs/CONFIGURATION.md.
 
 Exit status: 0 = ok, 1 = failure (e.g. port in use), 2 = usage error.
 `;

@@ -105,7 +105,7 @@
         "hint": "Es enthält die Datenbank, verschlüsselte Zugangsdaten, Nachweisdateien und das Audit-Log."
       }
     },
-    "readme": "Details stehen in der <readme>README</readme>."
+    "readme": "Details stehen im <readme>Leitfaden für den Einstieg</readme>."
   },
   "maintenance": {
     "confirm": "Ausführungen und Benachrichtigungen, die älter als die gespeicherten Aufbewahrungsfristen sind, jetzt löschen? Das lässt sich nicht rückgängig machen.",
@@ -563,7 +563,7 @@
     },
     "modules": {
       "title": "Module",
-      "description": "Zuschaltbare Teile von Steward, die zunächst ausgeschaltet sind: das Werksregister."
+      "description": "Optionale Bereiche ein- oder ausschalten (Kosten, Datenverträge, Compliance, Statusseiten und andere), mit dem Reifegrad jedes Bereichs; das Werksregister und seine Karte."
     }
   },
   "endOfLife": {

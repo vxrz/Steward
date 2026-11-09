@@ -1,46 +1,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { config } from './config.js';
+import { config, env } from './config.js';
 import { logger } from './log.js';
-import { OPS_MIGRATIONS } from './migrations/ops.js';
-import { ENGINE_MIGRATIONS } from './migrations/engine.js';
-import { PERF_MIGRATIONS } from './migrations/perf.js';
-import { TRIGGER_MIGRATIONS } from './migrations/triggers.js';
 import { openDriver, type Driver, type Row } from './database/drivers.js';
 import { describeTarget, pgDdl, PG_CREATE_NOCASE, type DatabaseTarget } from './database/sql.js';
-import { REPORT_MIGRATIONS } from './migrations/reports.js';
-import { MONITOR_MIGRATIONS } from './migrations/monitors.js';
-import { SECURITY_MIGRATIONS } from './migrations/security.js';
-import { TEAM_MIGRATIONS } from './migrations/teams.js';
-import { MCP_OAUTH_MIGRATIONS } from './migrations/mcp-oauth.js';
-import { PROPOSAL_MIGRATIONS } from './migrations/proposals.js';
-import { RUNTIME_MIGRATIONS } from './migrations/runtime.js';
-import { CREDENTIAL_MIGRATIONS } from './migrations/credentials.js';
-import { GATUS_MIGRATIONS } from './migrations/gatus.js';
-import { REPORT_SCHEDULE_MIGRATIONS } from './migrations/report-schedules.js';
-import { RECORD_MIGRATIONS } from './migrations/records.js';
-import { GITSYNC_MIGRATIONS } from './migrations/gitsync.js';
-import { TICKET_MIGRATIONS } from './migrations/tickets.js';
-import { DAILY_SUMMARY_MIGRATIONS } from './migrations/daily-summary.js';
-import { NOTIFICATION_MIGRATIONS } from './migrations/notifications.js';
-import { COMPLIANCE_MIGRATIONS } from './migrations/compliance.js';
-import { SIGN_IN_MIGRATIONS } from './migrations/sign-in.js';
-import { MOVE_MIGRATIONS } from './migrations/instance-moves.js';
-import { MANUAL_STEP_MIGRATIONS } from './migrations/manual-steps.js';
-import { CATALOGUE_MIGRATIONS } from './migrations/catalogue.js';
-import { DUTY_MIGRATIONS } from './migrations/duties.js';
-import { SCORECARD_MIGRATIONS } from './migrations/scorecard.js';
-import { PLATFORM_MIGRATIONS } from './migrations/platforms.js';
-import { AUDIT_MIGRATIONS } from './migrations/audit.js';
-import { DUPLICATE_MIGRATIONS } from './migrations/duplicates.js';
-import { ASSURANCE_MIGRATIONS } from './migrations/assurance.js';
-import { AI_MIGRATIONS } from './migrations/ai.js';
-import { PLANT_MIGRATIONS } from './migrations/plant.js';
-import { DBSCHEMA_MIGRATIONS } from './migrations/dbschema.js';
-import { CHANGEDETECTION_MIGRATIONS } from './migrations/changedetection.js';
-import { COSTS_MIGRATIONS } from './migrations/costs.js';
-import { DATA_CONTRACT_MIGRATIONS } from './migrations/datacontracts.js';
-import { LIBRARY_MIGRATIONS } from './migrations/libraries.js';
+import { pgDumpSync } from './database/pg-dump.js';
+import { timedStatement, timedTransaction } from './database/timing.js';
+import { databaseForbidden } from './database/forbid.js';
+import { NAMED_MIGRATIONS } from './migrations/index.js';
 
 export type { DatabaseTarget } from './database/sql.js';
 
@@ -53,18 +20,21 @@ export interface UpgradeInfo {
   toVersion: string;
   /** Migrations applied, in order ("core 6", then names). */
   migrations: string[];
-  /** SQLite: the copy made before migrating (null: nothing to migrate, turned off, or PostgreSQL). */
+  /** The copy made before migrating: a SQLite file or a pg_dump (null: nothing to migrate, turned off, or it failed). */
   backup: string | null;
+  /** The copy failed and the migration went ahead anyway (SM_UPGRADE_BACKUP_REQUIRED=0): why. */
+  backupError?: string;
   at: string;
 }
 
 export interface DbOptions {
   migrate?: boolean;
   /**
-   * SQLite: before applying migrations to an existing database, copy it to
-   * `<dir>/pre-<version>-<UTC time>.db` and keep the newest `keep` copies (0 = no copy).
+   * Before applying migrations to an existing database, copy it to `<dir>/pre-<version>-<UTC time>.db` (SQLite) or
+   * dump its schema to `….pgdump` (PostgreSQL, pg_dump's custom format) and keep the newest `keep` copies (0 = no copy).
+   * A failed copy stops the migration unless `required` is false (then it is logged and migrated without one).
    */
-  backup?: { dir: string; keep: number };
+  backup?: UpgradeBackupOptions;
   /** The app version recorded in the database (default: config.version). */
   appVersion?: string;
   /** Tests: named migrations run after the built-in ones. */
@@ -79,6 +49,16 @@ export interface DbOptions {
   quiet?: boolean;
 }
 
+export interface UpgradeBackupOptions {
+  dir: string;
+  keep: number;
+  /** Default true: nothing is migrated without the copy. */
+  required?: boolean;
+  /** PostgreSQL: the pg_dump program (default "pg_dump") and its time limit (ms, 0 = none; default 1 hour). */
+  pgDump?: string;
+  timeoutMs?: number;
+}
+
 /** Settings rows the migration code maintains ("system." keys are internal, see settings.ts). */
 export const APP_VERSION_KEY = 'system.appVersion';
 export const PENDING_UPGRADES_KEY = 'system.pendingUpgrades';
@@ -90,45 +70,6 @@ export interface NamedMigration {
   /** PostgreSQL DDL; default: `sql` translated by pgDdl() (database/sql.ts). */
   pg?: string;
 }
-const NAMED_MIGRATIONS: NamedMigration[] = [
-  ...OPS_MIGRATIONS,
-  ...ENGINE_MIGRATIONS,
-  ...PERF_MIGRATIONS,
-  ...REPORT_MIGRATIONS,
-  ...TRIGGER_MIGRATIONS,
-  ...MONITOR_MIGRATIONS,
-  ...SECURITY_MIGRATIONS,
-  ...CREDENTIAL_MIGRATIONS,
-  ...GATUS_MIGRATIONS,
-  ...REPORT_SCHEDULE_MIGRATIONS,
-  ...RECORD_MIGRATIONS,
-  ...GITSYNC_MIGRATIONS,
-  ...TICKET_MIGRATIONS,
-  ...DAILY_SUMMARY_MIGRATIONS,
-  ...COMPLIANCE_MIGRATIONS,
-  ...SIGN_IN_MIGRATIONS,
-  ...MOVE_MIGRATIONS,
-  ...MANUAL_STEP_MIGRATIONS,
-  ...CATALOGUE_MIGRATIONS,
-  ...DUTY_MIGRATIONS,
-  ...SCORECARD_MIGRATIONS,
-  ...PLATFORM_MIGRATIONS,
-  ...TEAM_MIGRATIONS,
-  ...MCP_OAUTH_MIGRATIONS,
-  ...PROPOSAL_MIGRATIONS,
-  ...AUDIT_MIGRATIONS,
-  ...RUNTIME_MIGRATIONS,
-  ...DUPLICATE_MIGRATIONS,
-  ...ASSURANCE_MIGRATIONS,
-  ...AI_MIGRATIONS,
-  ...PLANT_MIGRATIONS,
-  ...DBSCHEMA_MIGRATIONS,
-  ...CHANGEDETECTION_MIGRATIONS,
-  ...COSTS_MIGRATIONS,
-  ...DATA_CONTRACT_MIGRATIONS,
-  ...LIBRARY_MIGRATIONS,
-  ...NOTIFICATION_MIGRATIONS,
-];
 
 const MIGRATIONS: string[] = [
   `
@@ -423,8 +364,19 @@ export function namedMigrations(dialect: 'sqlite' | 'postgres'): { name: string;
  * functions or PRAGMAs, quoted camelCase aliases (`AS "runId"`), `lower(x) LIKE lower(?)`
  * for case-insensitive search. server/test/db.test.ts checks the sources for common slips.
  */
+/** A value that is not a promise: what a transaction callback may return (Db.tx). */
+export type Synchronous<T> = T extends PromiseLike<unknown> ? never : T;
+
+function notAPromise<T>(out: T): T {
+  if (out && typeof (out as { then?: unknown }).then === 'function')
+    throw new Error('A database transaction must be synchronous: its callback returned a promise');
+  return out;
+}
+
 export class Db {
   readonly driver: Driver;
+  /** What was opened (undefined when a driver was passed in): the PostgreSQL copy before migrating needs its URL. */
+  private readonly target?: DatabaseTarget;
 
   /** Set when this open migrated an existing database or found it last opened by another app version. */
   upgrade?: UpgradeInfo;
@@ -433,7 +385,9 @@ export class Db {
     target: DatabaseTarget | Driver,
     private readonly opts: DbOptions = {},
   ) {
-    this.driver = 'dialect' in target ? target : openDriver(target);
+    // a new SQLite file gets incremental auto-vacuum, so the clean-up can give deleted space back (database/sqlite-space.ts)
+    this.driver = 'dialect' in target ? target : openDriver(target, { autoVacuum: env.SM_SQLITE_AUTO_VACUUM });
+    if (!('dialect' in target)) this.target = target;
     try {
       if (opts.migrate !== false) this.migrate();
     } catch (e) {
@@ -450,6 +404,13 @@ export class Db {
     if (!/^[a-zA-Z_][\w.]*$/.test(column) || !/^\w+$/.test(key)) throw new Error('invalid JSON field reference');
     return this.dialect === 'postgres' ? `(${column}::jsonb ->> '${key}')` : `json_extract(${column}, '$.${key}')`;
   }
+  /** SQL expression for the milliseconds between two ISO timestamp columns (portable julianday / EXTRACT(EPOCH)). */
+  durationMs(startColumn: string, endColumn: string): string {
+    if (!/^[a-zA-Z_][\w.]*$/.test(startColumn) || !/^[a-zA-Z_][\w.]*$/.test(endColumn)) throw new Error('invalid column reference');
+    return this.dialect === 'postgres'
+      ? `CAST(ROUND(EXTRACT(EPOCH FROM (${endColumn}::timestamptz - ${startColumn}::timestamptz)) * 1000) AS BIGINT)`
+      : `CAST(ROUND((julianday(${endColumn}) - julianday(${startColumn})) * 86400000) AS INTEGER)`;
+  }
   /** Where the data lives, without credentials (for logs and the UI). */
   get label(): string {
     return this.driver.label;
@@ -465,7 +426,7 @@ export class Db {
     }
     const allCore = coreMigrations(this.dialect);
     const core = this.opts.upTo ? allCore.slice(0, this.opts.upTo.core) : allCore;
-    // Feature migrations by name (applied once, in list order, after the core list): feature
+    // Feature migrations by name (applied once, in the order of migrations/index.ts, after the core list): feature
     // modules own their lists, so parallel work never collides on numbers.
     const named = [
       ...namedMigrations(this.dialect),
@@ -483,14 +444,14 @@ export class Db {
     const existing = from > 0;
     const pending = from < core.length || pendingNamed.length > 0;
     const backup = existing && pending ? this.backupBeforeMigrating() : null;
-    if (existing && pending && !backup && !this.opts.quiet) {
+    if (existing && pending && !backup && !this.opts.quiet && !this.backupError) {
       const count = core.length - from + pendingNamed.length;
-      if (this.dialect === 'postgres')
-        logger.warn(
-          { migrations: count },
-          'PostgreSQL: migrating the database without an automatic backup – back up with pg_dump before you update the app (see docs/INSTALL.md, "Updating")',
-        );
-      else logger.warn({ migrations: count }, 'migrating the database without an automatic backup (SM_UPGRADE_BACKUPS=0)');
+      logger.warn(
+        { migrations: count },
+        this.dialect === 'postgres'
+          ? 'PostgreSQL: migrating the database without an automatic backup (SM_UPGRADE_BACKUPS=0) – back up with pg_dump before you update the app (see docs/INSTALL.md, "Updating")'
+          : 'migrating the database without an automatic backup (SM_UPGRADE_BACKUPS=0)',
+      );
     }
 
     const applied: string[] = [];
@@ -529,32 +490,42 @@ export class Db {
     );
     if (backup)
       lines.push(
-        `A copy of the database from before the upgrade is at ${backup} – to go back, stop the app, replace the database with it and start the previous version.`,
+        this.dialect === 'postgres'
+          ? `A pg_dump of the schema from before the upgrade is at ${backup} – to go back, stop the app, restore it (pg_restore --clean --if-exists) and start the previous version.`
+          : `A copy of the database from before the upgrade is at ${backup} – to go back, stop the app, replace the database with it and start the previous version.`,
       );
-    else if (this.dialect === 'postgres') lines.push('To go back, restore the pg_dump backup made before the upgrade and start the previous version.');
+    else if (this.dialect === 'postgres') lines.push('To go back, restore your pg_dump backup from before the upgrade and start the previous version.');
     else lines.push('No automatic copy was made (SM_UPGRADE_BACKUPS=0).');
     lines.push('Please report the problem with this message.');
     return lines.join('\n');
   }
 
   /**
-   * SQLite: a consistent copy of the whole database (VACUUM INTO: synchronous and online, unlike
-   * node:sqlite's backup(), which is asynchronous) to <dir>/pre-<version>-<UTC time>.db, 0600 like
-   * the database itself (it holds the same encrypted secrets). Older automatic copies beyond `keep`
-   * are removed. A failed copy stops the start: nothing is migrated without the safety net.
+   * The safety net before migrating an existing database, in <dir> with the permissions of the database itself (0600:
+   * it holds the same encrypted secrets); older automatic copies beyond `keep` are removed.
+   * - SQLite: a consistent copy of the whole database, pre-<version>-<UTC time>.db (VACUUM INTO: synchronous and
+   *   online, unlike node:sqlite's backup(), which is asynchronous).
+   * - PostgreSQL: pg_dump of the schema in the custom format, pre-<version>-<UTC time>.pgdump (restore with pg_restore).
+   * A failed copy stops the start – nothing is migrated without the safety net – unless `required` is false: then it
+   * is logged and the migration goes ahead without one (`backupError`).
    */
+  private backupError?: string;
   private backupBeforeMigrating(): string | null {
     const b = this.opts.backup;
-    if (this.dialect !== 'sqlite' || !b || b.keep <= 0) return null;
+    if (!b || b.keep <= 0) return null;
+    const target = this.target;
+    if (this.dialect === 'postgres' && target?.kind !== 'postgres') return null;
     const version = (this.opts.appVersion ?? config.version).replace(/[^\w.+-]/g, '_');
     const stamp = new Date()
       .toISOString()
       .replace(/\.\d+Z$/, 'Z')
       .replace(/:/g, '-');
+    const ext = this.dialect === 'sqlite' ? 'db' : 'pgdump';
+    let file: string | null = null;
     try {
       fs.mkdirSync(b.dir, { recursive: true, mode: 0o700 });
-      // VACUUM INTO accepts an empty file: created first – exclusively ('wx', so an existing file or link is never
-      // reused) and narrowed to 0600 on the open handle (not by name, umask aside) – so it never has wider permissions
+      // created first – exclusively ('wx', so an existing file or link is never reused) and narrowed to 0600 on the open
+      // handle (not by name, umask aside) – so it never has wider permissions; VACUUM INTO and pg_dump fill the empty file
       const create = (name: string): number | null => {
         try {
           return fs.openSync(name, 'wx', 0o600);
@@ -563,32 +534,42 @@ export class Db {
           throw e;
         }
       };
-      let file = path.join(b.dir, `pre-${version}-${stamp}.db`);
-      let fd = create(file);
+      let name = path.join(b.dir, `pre-${version}-${stamp}.${ext}`);
+      let fd = create(name);
       for (let n = 2; fd === null && n < 1000; n++) {
-        file = path.join(b.dir, `pre-${version}-${stamp}-${n}.db`);
-        fd = create(file);
+        name = path.join(b.dir, `pre-${version}-${stamp}-${n}.${ext}`);
+        fd = create(name);
       }
       if (fd === null) throw new Error(`no free file name for the copy in ${b.dir}`);
+      file = name;
       try {
         if (process.platform !== 'win32') fs.fchmodSync(fd, 0o600);
       } finally {
         fs.closeSync(fd);
       }
-      try {
-        this.exec(`VACUUM INTO '${file.replace(/'/g, "''")}'`);
-      } catch (e) {
-        fs.rmSync(file, { force: true });
-        throw e;
-      }
+      const t0 = Date.now();
+      if (target?.kind === 'postgres') {
+        logger.info({ backup: file, schema: target.schema }, 'backing up the PostgreSQL schema before migrating (pg_dump)');
+        pgDumpSync({ bin: b.pgDump ?? 'pg_dump', target, file, timeoutMs: b.timeoutMs ?? 3_600_000 });
+      } else this.exec(`VACUUM INTO '${file.replace(/'/g, "''")}'`);
       pruneBackups(b.dir, b.keep);
-      logger.info({ backup: file }, 'database backed up before migrating');
+      logger.info({ backup: file, bytes: fs.statSync(file).size, ms: Date.now() - t0 }, 'database backed up before migrating');
       return file;
     } catch (e) {
-      throw new Error(
-        `Database upgrade stopped: could not back up the database to ${b.dir} before migrating: ${(e as Error).message}. ` +
-          'Free disk space or fix the folder permissions (or set SM_UPGRADE_BACKUPS=0 to upgrade without a copy).',
-      );
+      if (file) fs.rmSync(file, { force: true });
+      const reason = (e as Error).message;
+      const what =
+        target?.kind === 'postgres'
+          ? `could not dump the PostgreSQL schema "${target.schema}" to ${b.dir} before migrating: ${reason}. The database was not changed. ` +
+            "Fix the cause (free disk space, install pg_dump or point SM_PG_DUMP at one of the server's version), or back up yourself and set SM_UPGRADE_BACKUPS=0"
+          : `could not back up the database to ${b.dir} before migrating: ${reason}. ` +
+            'Free disk space or fix the folder permissions (or set SM_UPGRADE_BACKUPS=0 to upgrade without a copy)';
+      if (b.required === false) {
+        this.backupError = reason;
+        logger.warn({ err: e, dir: b.dir }, 'the copy before migrating failed; migrating without it (SM_UPGRADE_BACKUP_REQUIRED=0)');
+        return null;
+      }
+      throw new Error(`Database upgrade stopped: ${what}. SM_UPGRADE_BACKUP_REQUIRED=0 migrates even when the copy fails.`);
     }
   }
 
@@ -617,6 +598,7 @@ export class Db {
           toVersion,
           migrations: o.applied,
           backup: o.backup,
+          ...(this.backupError ? { backupError: this.backupError } : {}),
           at: new Date().toISOString(),
         };
         const list = this.get<{ value: string }>('SELECT value FROM settings WHERE key = ?', PENDING_UPGRADES_KEY);
@@ -633,14 +615,15 @@ export class Db {
     });
   }
 
+  // every statement is measured (database/timing.ts: sm_db_* metrics, the slow-statement log, request totals)
   all<T = Row>(sql: string, ...params: unknown[]): T[] {
-    return this.driver.all(sql, params) as T[];
+    return timedStatement(this.driver.dialect, sql, () => this.driver.all(sql, params)) as T[];
   }
   get<T = Row>(sql: string, ...params: unknown[]): T | undefined {
-    return this.driver.get(sql, params) as T | undefined;
+    return timedStatement(this.driver.dialect, sql, () => this.driver.get(sql, params)) as T | undefined;
   }
   run(sql: string, ...params: unknown[]): { changes: number } {
-    return this.driver.run(sql, params);
+    return timedStatement(this.driver.dialect, sql, () => this.driver.run(sql, params));
   }
   /** Statements without parameters (DDL, several statements separated by `;`). */
   /**
@@ -653,16 +636,23 @@ export class Db {
   }
 
   exec(sql: string): void {
-    this.driver.exec(sql);
+    timedStatement(this.driver.dialect, sql, () => this.driver.exec(sql));
   }
   private depth = 0;
-  /** Run fn in a transaction (nested calls join the outer transaction). */
-  tx<T>(fn: () => T): T {
-    if (this.depth > 0) return fn();
+  /**
+   * Run fn in a transaction (nested calls join the outer transaction). A transaction is one synchronous function
+   * (ADR 0001): an async callback would commit at its first `await` and run the rest outside the transaction, so
+   * the type refuses a callback that returns a promise, and one that slips through rolls back and throws.
+   */
+  tx<T>(fn: () => Synchronous<T>): T {
+    if (this.depth > 0) return notAPromise(fn());
+    return timedTransaction(this.driver.dialect, () => this.runTx(fn));
+  }
+  private runTx<T>(fn: () => Synchronous<T>): T {
     this.driver.begin();
     this.depth++;
     try {
-      const out = fn();
+      const out = notAPromise(fn());
       this.driver.commit();
       return out;
     } catch (e) {
@@ -698,8 +688,8 @@ export function databaseTarget(): DatabaseTarget {
 }
 export const databaseLabel = (): string => describeTarget(databaseTarget());
 
-/** Automatic copies made before migrating (pre-<version>-<time>[-n].db), newest first. */
-const BACKUP_FILE = /^pre-.+-(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z)(?:-(\d+))?\.db$/;
+/** Automatic copies made before migrating (pre-<version>-<time>[-n].db, or .pgdump on PostgreSQL), newest first. */
+const BACKUP_FILE = /^pre-.+-(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z)(?:-(\d+))?\.(?:db|pgdump)$/;
 export function listUpgradeBackups(dir: string): string[] {
   let names: string[];
   try {
@@ -720,20 +710,29 @@ function pruneBackups(dir: string, keep: number): void {
   for (const f of listUpgradeBackups(dir).slice(keep)) fs.rmSync(f, { force: true });
 }
 
-/** The app's database with the start-up options: copies before migrating go to <data dir>/backups (SM_UPGRADE_BACKUPS). */
+/** The copies before migrating as configured: SM_UPGRADE_BACKUPS, SM_UPGRADE_BACKUP_DIR (default <data dir>/backups), …. */
+export function upgradeBackupOptions(dir = config.upgradeBackupDir): UpgradeBackupOptions {
+  return {
+    dir,
+    keep: config.upgradeBackups,
+    required: env.SM_UPGRADE_BACKUP_REQUIRED,
+    pgDump: env.SM_PG_DUMP,
+    timeoutMs: env.SM_UPGRADE_BACKUP_TIMEOUT_SECONDS * 1000,
+  };
+}
+
+/** The app's database with the start-up options: a copy before migrating (upgradeBackupOptions). */
 export function openAppDb(target: DatabaseTarget = databaseTarget(), extra: Pick<DbOptions, 'extraMigrations'> = {}): Db {
-  return new Db(target, { backup: { dir: path.join(config.dataDir, 'backups'), keep: config.upgradeBackups }, ...extra });
+  return new Db(target, { backup: upgradeBackupOptions(), ...extra });
 }
 
 let instance: Db | undefined;
-let noDatabase: string | null = null;
 /** Threads that must not read the database (the PDF worker, #13) call this: db() then throws instead of opening it. */
-export function forbidDatabase(reason: string): void {
-  noDatabase = reason;
-}
+export { forbidDatabase } from './database/forbid.js';
 
 export function db(): Db {
-  if (noDatabase) throw new Error(`No database here: ${noDatabase}`);
+  const forbidden = databaseForbidden();
+  if (forbidden) throw new Error(`No database here: ${forbidden}`);
   if (!instance) instance = openAppDb();
   return instance;
 }

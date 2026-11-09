@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import { Text, useComputedColorScheme } from '@mantine/core';
 import { IconMapPinFilled } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
@@ -10,6 +10,13 @@ import { MapAttribution, styleUrl, transformRequest } from './mapShared';
 import './map.css';
 
 setWorkerUrl(new URL(workerUrl, document.baseURI).href);
+
+function placePin(m: MapLibreMap, el: HTMLElement | null, at: { lat: number | null; lon: number | null }) {
+  if (!el || at.lat === null || at.lon === null) return;
+  const p = m.project([at.lon, at.lat]);
+  el.style.transform = `translate3d(${p.x}px, ${p.y}px, 0) translate(-50%, -100%)`;
+  el.style.visibility = 'visible';
+}
 
 /**
  * The position picker of the site form (#234): a click on the map sets latitude and longitude (six decimals, about
@@ -33,7 +40,7 @@ export function PositionPicker({
   const scheme = useComputedColorScheme('light');
   const box = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
-  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  const pin = useRef<HTMLSpanElement>(null);
   const pickRef = useRef(onPick);
   pickRef.current = onPick;
   const at = useRef({ lat, lon });
@@ -57,12 +64,11 @@ export function PositionPicker({
     });
     m.touchZoomRotate.disableRotation();
     m.addControl(new NavigationControl({ showCompass: false }), 'top-right');
-    const place = () => {
-      const c = at.current;
-      setPos(c.lat !== null && c.lon !== null ? m.project([c.lon, c.lat]) : null);
-    };
+    // the pin follows in the map's own move (the same frame), not through React
+    const place = () => placePin(m, pin.current, at.current);
     m.on('move', place);
     m.on('load', place);
+    place();
     m.on('click', (e) => {
       const round = (v: number) => Math.round(v * 1e6) / 1e6;
       pickRef.current({ lat: round(e.lngLat.lat), lon: round(((e.lngLat.lng + 540) % 360) - 180), zoom: Math.round(m.getZoom()) });
@@ -76,29 +82,18 @@ export function PositionPicker({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    const m = mapRef.current;
-    if (!m) return;
-    setPos(lat !== null && lon !== null ? m.project([lon, lat]) : null);
+  useLayoutEffect(() => {
+    if (mapRef.current) placePin(mapRef.current, pin.current, { lat, lon });
   }, [lat, lon]);
 
   return (
     <div>
       <div className="pm-wrap" style={{ height: 220, cursor: 'crosshair' }} data-testid="position-picker">
         <div ref={box} className="pm-map" />
-        {pos && (
-          <IconMapPinFilled
-            size={28}
-            aria-hidden
-            style={{
-              position: 'absolute',
-              left: 0,
-              top: 0,
-              transform: `translate(${pos.x}px, ${pos.y}px) translate(-50%, -100%)`,
-              color: 'var(--pv-fail)',
-              pointerEvents: 'none',
-            }}
-          />
+        {lat !== null && lon !== null && (
+          <span ref={pin} className="pm-picker-pin" aria-hidden>
+            <IconMapPinFilled size={28} />
+          </span>
         )}
         <MapAttribution cfg={config} />
       </div>

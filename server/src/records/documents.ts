@@ -22,7 +22,7 @@ import { formatDateTime, t } from '../i18n/index.js';
 import { notify, titleName } from '../notifications/service.js';
 import { reminderSettings } from '../credentials/service.js';
 import { plannedReminder } from '../credentials/reminders.js';
-import { isAdmin } from '../auth/permissions.js';
+import { hasRole, isAdmin } from '../auth/permissions.js';
 import { RECORD_APPROVER_ROLES, RECORD_EDITOR_ROLES, canApproveRecord, canEditRecord, forbid, me, statusParam, canReadRecordRow } from './access.js';
 import { requireRecordRow, type RecordRow } from './model.js';
 import { requireType, type TypeRow } from './types.js';
@@ -490,7 +490,7 @@ export function reviewAttention(now = Date.now()): { overdue: number; dueSoon: n
   const mine = (s: { review: { owner: string } }, recordId: string) =>
     s.review.owner.toLowerCase() === u.username.toLowerCase() ||
     db().get<{ owner: string }>('SELECT owner FROM records WHERE id = ?', recordId)?.owner.toLowerCase() === u.username.toLowerCase();
-  const broad = u.roles.some((x) => ATTENTION_ROLES.includes(x));
+  const broad = hasRole(u, ATTENTION_ROLES);
   if (!broad && ![...states].some(([id, s]) => mine(s, id))) return null;
   let overdue = 0;
   let dueSoon = 0;

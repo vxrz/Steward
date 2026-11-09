@@ -873,7 +873,7 @@ describe('public API', () => {
         const off = await call(pia, url);
         expect(off.status, url).toBe(404);
         expect(off.type).toContain('application/problem+json');
-        expect(JSON.parse(off.text).detail).toContain('module is off');
+        expect(JSON.parse(off.text).detail).toContain('switched off');
       }
       await enable(true);
     });

@@ -14,6 +14,7 @@ import {
   type PlantSiteSummary,
 } from '@sm/shared';
 import { db } from '../db.js';
+import { refuseAliasId } from './ids.js';
 import { audit } from '../audit.js';
 import { me } from '../auth/access.js';
 import { assignCreatorTeams } from '../auth/policy.js';
@@ -23,7 +24,7 @@ import { HttpError, nowIso, parseJson, sha256 } from '../util.js';
 import { canCreateSites, canManageCatalogue, plantManagesSome, requireManage, siteRights, sitePermissions } from './access.js';
 import { cleanFields, plantSettings, requirePlant } from './settings.js';
 import { mapClient } from './map.js';
-import { assignmentValuesOf, profileRowOf, profileValuesOf, type AssignmentRow } from './data-model.js';
+import { allProfiles, assignmentValuesOf, type AssignmentRow } from './data-model.js';
 import { deliveries } from './checks.js';
 import {
   assetInput,
@@ -231,6 +232,8 @@ export function createSite(input: z.infer<typeof siteInput>): PlantSiteDetail {
   const u = me();
   if (!canCreateSites(u)) throw new HttpError(403, 'You are not allowed to add sites', 'FORBIDDEN', { context: 'createSites' });
   if (siteRowOf(input.id)) throw new HttpError(409, `A site with the id ${input.id} exists already`, 'PLANT_ID_TAKEN', { id: input.id });
+  // an old id of a renamed entry still leads there (0.11.0): it is not free
+  refuseAliasId('site', '', input.id);
   if (Number(db().get<{ n: number }>('SELECT COUNT(*) AS n FROM plant_sites')!.n) >= PLANT_LIMITS.sites)
     throw new HttpError(409, `At most ${PLANT_LIMITS.sites} sites`, 'PLANT_LIMIT', { max: PLANT_LIMITS.sites });
   const v = siteValues(input.id, input);
@@ -319,6 +322,8 @@ export function createNode(siteId: string, input: z.infer<typeof nodeInput>): Pl
   manageableSite(siteId, 'change this site');
   const index = loadIndex(siteId);
   if (index.nodes.has(input.id)) throw new HttpError(409, `The site has a node "${input.id}" already`, 'PLANT_ID_TAKEN', { id: input.id });
+  // an old id of a renamed entry still leads there (0.11.0): it is not free
+  refuseAliasId('node', siteId, input.id);
   if (index.nodes.size >= PLANT_LIMITS.nodesPerSite)
     throw new HttpError(409, `At most ${PLANT_LIMITS.nodesPerSite} nodes per site`, 'PLANT_LIMIT', { max: PLANT_LIMITS.nodesPerSite });
   nodeRules(index, input);
@@ -413,6 +418,8 @@ export function createBuilding(siteId: string, input: z.infer<typeof buildingInp
   manageableSite(siteId, 'change this site');
   const index = loadIndex(siteId);
   if (index.buildings.has(input.id)) throw new HttpError(409, `The site has a building "${input.id}" already`, 'PLANT_ID_TAKEN', { id: input.id });
+  // an old id of a renamed entry still leads there (0.11.0): it is not free
+  refuseAliasId('building', siteId, input.id);
   if (index.buildings.size >= PLANT_LIMITS.buildingsPerSite)
     throw new HttpError(409, `At most ${PLANT_LIMITS.buildingsPerSite} buildings per site`, 'PLANT_LIMIT', { max: PLANT_LIMITS.buildingsPerSite });
   const p = buildingProblem(index, input);
@@ -532,16 +539,18 @@ export function listAssets(f: AssetFilter = {}): PlantAssetSummary[] {
     rows = rows.filter((a) => parseJson<string[]>(a.tags, []).some((x) => x.toLowerCase() === t));
   }
   if (f.profile) {
-    const pr = profileRowOf(f.profile);
-    const profile = pr ? profileValuesOf(pr) : null;
+    // the profile and the profiles that extend it (0.11.0), each asset with its own resolved profile
+    const wanted = f.profile;
+    const profiles = allProfiles();
     const assigned = new Map(
       db()
-        .all<AssignmentRow>('SELECT * FROM plant_assignments WHERE profile_id = ?', f.profile)
+        .all<AssignmentRow>('SELECT * FROM plant_assignments WHERE profile_id IS NOT NULL')
         .map((r) => [r.asset_id, assignmentValuesOf(r)]),
     );
     rows = rows.filter((a) => {
       const x = assigned.get(a.id);
-      if (!x || !profile) return false;
+      const profile = x?.profileId ? profiles.get(x.profileId) : undefined;
+      if (!x || !profile || !profile.chain.includes(wanted)) return false;
       return !f.dataPoint || !!deliveries(x, profile).get(f.dataPoint)?.delivers;
     });
   }
@@ -689,6 +698,8 @@ export function createAsset(input: z.infer<typeof assetInput>): PlantAssetDetail
   requirePlant();
   const u = me();
   if (assetRowOf(input.id)) throw new HttpError(409, `An asset with the id ${input.id} exists already`, 'PLANT_ID_TAKEN', { id: input.id });
+  // an old id of a renamed entry still leads there (0.11.0): it is not free
+  refuseAliasId('asset', '', input.id);
   if (Number(db().get<{ n: number }>('SELECT COUNT(*) AS n FROM plant_assets')!.n) >= PLANT_LIMITS.assets)
     throw new HttpError(409, `At most ${PLANT_LIMITS.assets} assets`, 'PLANT_LIMIT', { max: PLANT_LIMITS.assets });
   const v = assetValues(input.id, input);

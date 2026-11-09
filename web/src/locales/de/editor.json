@@ -607,7 +607,11 @@
     "redoHint": "Wiederholen ({{key}})",
     "tidy": "Aufräumen",
     "tidyHint": "Knoten automatisch anordnen",
-    "addNode": "Knoten hinzufügen"
+    "addNode": "Knoten hinzufügen",
+    "foldPalette": "Schrittleiste einklappen",
+    "showPalette": "Schrittleiste anzeigen",
+    "foldProperties": "Hilfeleiste einklappen – sie öffnet sich wieder, wenn Sie einen Schritt auswählen",
+    "showProperties": "Eigenschaften und Hilfe anzeigen"
   },
   "exprHelp": {
     "title": "Hilfe zu Ausdrücken & Vorlagen",

@@ -14,13 +14,14 @@ const status = (p: Promise<unknown>) =>
     (e: { status: number }) => e.status,
   );
 
-const upgrade = (o: { from: string | null; to: string; migrations?: string[]; backup?: string | null }) => ({
+const upgrade = (o: { from: string | null; to: string; migrations?: string[]; backup?: string | null; backupError?: string }) => ({
   fromSchema: { core: 30, named: 40 },
   toSchema: { core: 30, named: 40 + (o.migrations?.length ?? 0) },
   fromVersion: o.from,
   toVersion: o.to,
   migrations: o.migrations ?? [],
   backup: o.backup ?? null,
+  ...(o.backupError ? { backupError: o.backupError } : {}),
   at: new Date().toISOString(),
 });
 
@@ -118,16 +119,15 @@ describe('update notice', () => {
   });
 
   it('sums up several updates recorded before one unlock; no copy: says why', async () => {
-    const { db } = await import('../src/db.js');
     await simulateUpdate(upgrade({ from: '0.1.3', to: '0.1.4', migrations: ['a-001'] }), upgrade({ from: '0.1.4', to: '0.2.0', migrations: ['b-001'] }));
     const { notice } = await s.api('GET', '/system/update-notice');
-    expect(notice).toMatchObject({
-      fromVersion: '0.1.3',
-      toVersion: '0.2.0',
-      migrations: ['a-001', 'b-001'],
-      backups: [],
-      noBackupReason: db().dialect === 'postgres' ? 'postgres' : 'disabled',
-    });
+    // (SQLite and PostgreSQL alike: both make a copy unless SM_UPGRADE_BACKUPS=0)
+    expect(notice).toMatchObject({ fromVersion: '0.1.3', toVersion: '0.2.0', migrations: ['a-001', 'b-001'], backups: [], noBackupReason: 'disabled' });
+  });
+
+  it('says when the copy failed and the update went ahead without it (SM_UPGRADE_BACKUP_REQUIRED=0)', async () => {
+    await simulateUpdate(upgrade({ from: '0.2.0', to: '0.2.1', migrations: ['d-001'], backupError: 'pg_dump is not installed' }));
+    expect((await s.api('GET', '/system/update-notice')).notice).toMatchObject({ toVersion: '0.2.1', backups: [], noBackupReason: 'failed' });
   });
 
   it('knows no version before v0.1.1 (versions were not recorded)', async () => {

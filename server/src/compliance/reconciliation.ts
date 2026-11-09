@@ -2,16 +2,13 @@ import { Cron } from 'croner';
 import { z } from 'zod';
 import {
   ACCESS_CHECK_SOURCES,
-  SNOWFLAKE_KIND,
+  accessSourceKinds,
+  type AccessCheckSource,
   SNOWFLAKE_SCOPE_RE,
-  CONFLUENT_KIND,
   confluentCrnProblem,
-  ENTRA_KIND,
   entraScopeProblem,
   type EntraScope,
-  PVAULT_KIND,
   pvFolderProblem,
-  isGitPlatformKind,
   type AccessChange,
   type AccessChangeKind,
   type AccessCheck,
@@ -315,23 +312,29 @@ function checkIgnoreRights(u: AuthUser, next: string[], cur: string[]): void {
 
 const changed = (from: string[], to: string[]) => (JSON.stringify(from) === JSON.stringify(to) ? {} : { from, to });
 
+/** The answer when a source's platform is of another kind (dataset: every kind fits). */
+const WRONG_KIND: Record<Exclude<AccessCheckSource, 'dataset'>, () => HttpError> = {
+  'insights-hub': () => new HttpError(400, 'The Insights Hub source needs an Insights Hub platform – use a dataset for other platforms', 'ACCESS_CHECK_SOURCE'),
+  git: () => new HttpError(400, 'The Git source needs a GitHub, GitLab or Forgejo/Gitea platform', 'ACCESS_CHECK_GIT_SOURCE'),
+  snowflake: () => new HttpError(400, 'The Snowflake source needs a Snowflake platform', 'ACCESS_CHECK_SNOWFLAKE_SOURCE'),
+  aws: () => new HttpError(400, 'The AWS source needs an AWS account platform', 'ACCESS_CHECK_AWS_SOURCE'),
+  confluent: () => new HttpError(400, 'The Confluent source needs a Confluent Cloud API platform', 'ACCESS_CHECK_CONFLUENT_SOURCE'),
+  entra: () => new HttpError(400, 'The Entra ID source needs a Microsoft Graph platform', 'ACCESS_CHECK_ENTRA_SOURCE'),
+  'privilege-vault': () => new HttpError(400, 'The vault source needs an IBM Verify Privilege Vault platform', 'ACCESS_CHECK_PVAULT_SOURCE'),
+};
+
+/** A source that reads its platform directly needs one of the kinds whose descriptor names it. */
+function requireSourceKind(source: AccessCheckSource, kind: string): void {
+  if (source === 'dataset' || accessSourceKinds(source).includes(kind)) return;
+  throw WRONG_KIND[source]();
+}
+
 function validatePlatform(u: AuthUser, input: CheckInput): void {
   const p = platformAcl(input.platformId);
   if (!p.exists) throw new HttpError(400, `Platform ${input.platformId} not found`, 'PLATFORM_NOT_FOUND', { id: input.platformId });
   if (!isAdmin(u) && !platformPerms(u, input.platformId).includes('use')) forbid('use this platform for an access check', 'usePlatform');
-  if (input.source === 'insights-hub' && p.kind !== 'insights-hub')
-    throw new HttpError(400, 'The Insights Hub source needs an Insights Hub platform – use a dataset for other platforms', 'ACCESS_CHECK_SOURCE');
-  if (input.source === 'git' && !isGitPlatformKind(p.kind))
-    throw new HttpError(400, 'The Git source needs a GitHub, GitLab or Forgejo/Gitea platform', 'ACCESS_CHECK_GIT_SOURCE');
-  if (input.source === 'snowflake' && p.kind !== SNOWFLAKE_KIND)
-    throw new HttpError(400, 'The Snowflake source needs a Snowflake platform', 'ACCESS_CHECK_SNOWFLAKE_SOURCE');
-  if (input.source === 'aws' && p.kind !== 'aws') throw new HttpError(400, 'The AWS source needs an AWS account platform', 'ACCESS_CHECK_AWS_SOURCE');
-  if (input.source === 'confluent' && p.kind !== CONFLUENT_KIND)
-    throw new HttpError(400, 'The Confluent source needs a Confluent Cloud API platform', 'ACCESS_CHECK_CONFLUENT_SOURCE');
-  if (input.source === 'entra' && p.kind !== ENTRA_KIND)
-    throw new HttpError(400, 'The Entra ID source needs a Microsoft Graph platform', 'ACCESS_CHECK_ENTRA_SOURCE');
-  if (input.source === 'privilege-vault' && p.kind !== PVAULT_KIND)
-    throw new HttpError(400, 'The vault source needs an IBM Verify Privilege Vault platform', 'ACCESS_CHECK_PVAULT_SOURCE');
+  // the source reads its platform directly: the kinds it reads come from the kind descriptors (shared/src/platformKinds.ts)
+  requireSourceKind(input.source, p.kind);
 }
 
 export function listChecks(): AccessCheck[] {
@@ -542,6 +545,8 @@ async function collectInsightsHub(c: CheckRow): Promise<{ subjects: AccessSubjec
       context: 'platform',
       name: platform.name,
     });
+  // as the other sources: a platform whose kind changed since the check was saved is not called
+  requireSourceKind('insights-hub', platform.kind);
   const secrets = getSecrets(c.platform_id);
   const idm = String(platform.config.variables?.idmPath || '/api/identitymanagement/v3').replace(/\/$/, '');
   const raw: { id: string; name?: string; type?: string; rights: unknown[] }[] = [];
@@ -597,7 +602,7 @@ async function collectGit(c: CheckRow): Promise<{ subjects: AccessSubject[]; sou
       context: 'platform',
       name: platform.name,
     });
-  if (!isGitPlatformKind(platform.kind)) throw new HttpError(400, 'The Git source needs a GitHub, GitLab or Forgejo/Gitea platform', 'ACCESS_CHECK_GIT_SOURCE');
+  requireSourceKind('git', platform.kind);
   await assertOutboundAllowed(await buildUrl(platform, getSecrets(c.platform_id), '/', {}), outboundContext());
   const { gitHost } = await import('../catalogue/repositories.js');
   let subjects: AccessSubject[];
@@ -626,7 +631,7 @@ async function collectSnowflake(c: CheckRow): Promise<{ subjects: AccessSubject[
       context: 'platform',
       name: platform.name,
     });
-  if (platform.kind !== SNOWFLAKE_KIND) throw new HttpError(400, 'The Snowflake source needs a Snowflake platform', 'ACCESS_CHECK_SNOWFLAKE_SOURCE');
+  requireSourceKind('snowflake', platform.kind);
   await assertOutboundAllowed(await buildUrl(platform, getSecrets(c.platform_id), '/', {}), outboundContext());
   const { snowflakeAccess } = await import('../snowflake/service.js');
   let subjects: AccessSubject[];
@@ -672,7 +677,7 @@ async function collectAws(c: CheckRow): Promise<{ subjects: AccessSubject[]; sou
       context: 'platform',
       name: platform.name,
     });
-  if (platform.kind !== 'aws') throw new HttpError(400, 'The AWS source needs an AWS account platform', 'ACCESS_CHECK_AWS_SOURCE');
+  requireSourceKind('aws', platform.kind);
   const { AwsClient, IAM_REGION, endpointFor } = await import('../aws/client.js');
   const secrets = getSecrets(c.platform_id);
   // the outbound policy like the Git and Snowflake sources (v0.3.1): the base URL (STS) and the IAM endpoint it reads,
@@ -706,7 +711,7 @@ async function collectConfluent(c: CheckRow): Promise<{ subjects: AccessSubject[
       context: 'platform',
       name: platform.name,
     });
-  if (platform.kind !== CONFLUENT_KIND) throw new HttpError(400, 'The Confluent source needs a Confluent Cloud API platform', 'ACCESS_CHECK_CONFLUENT_SOURCE');
+  requireSourceKind('confluent', platform.kind);
   const secrets = getSecrets(c.platform_id);
   await assertOutboundAllowed(await buildUrl(platform, secrets, '/', {}), outboundContext());
   const { aclTarget, confluentAccess } = await import('../kafka/confluent.js');
@@ -740,7 +745,7 @@ async function collectPrivilegeVault(c: CheckRow): Promise<{ subjects: AccessSub
       context: 'platform',
       name: platform.name,
     });
-  if (platform.kind !== PVAULT_KIND) throw new HttpError(400, 'The vault source needs an IBM Verify Privilege Vault platform', 'ACCESS_CHECK_PVAULT_SOURCE');
+  requireSourceKind('privilege-vault', platform.kind);
   const secrets = getSecrets(c.platform_id);
   await assertOutboundAllowed(await buildUrl(platform, secrets, '/', {}), outboundContext());
   const { privilegeVaultAccess } = await import('../pvault/access.js');
@@ -784,7 +789,7 @@ async function collectEntra(c: CheckRow): Promise<{ subjects: AccessSubject[]; s
       context: 'platform',
       name: platform.name,
     });
-  if (platform.kind !== ENTRA_KIND) throw new HttpError(400, 'The Entra ID source needs a Microsoft Graph platform', 'ACCESS_CHECK_ENTRA_SOURCE');
+  requireSourceKind('entra', platform.kind);
   const secrets = getSecrets(c.platform_id);
   await assertOutboundAllowed(await buildUrl(platform, secrets, '/', {}), outboundContext());
   const { entraAccess } = await import('../entra/service.js');
@@ -904,6 +909,22 @@ function snapshotData(s: SnapshotRow): AccessSubject[] {
   return src?.data ? parseJson<AccessSubject[]>(src.data, []) : [];
 }
 
+type Collected = { subjects: AccessSubject[]; sourceRunId: string | null; notes?: string[] };
+
+/** What reads each source (the dataset source reads what a process published). */
+const COLLECTORS: Record<Exclude<AccessCheckSource, 'dataset'>, (c: CheckRow) => Promise<Collected>> = {
+  'insights-hub': collectInsightsHub,
+  git: collectGit,
+  snowflake: collectSnowflake,
+  aws: collectAws,
+  confluent: collectConfluent,
+  entra: collectEntra,
+  'privilege-vault': collectPrivilegeVault,
+};
+
+const collectSource = async (c: CheckRow): Promise<Collected> =>
+  c.source !== 'dataset' && Object.hasOwn(COLLECTORS, c.source) ? COLLECTORS[c.source](c) : collectDataset(c);
+
 /**
  * What an access check's source says now, without taking a snapshot (person reviews, #118): read as the check's
  * owner; when the live read fails, the check's latest snapshot (marked).
@@ -913,22 +934,7 @@ export async function readCheckSource(
 ): Promise<{ subjects: AccessSubject[]; origin: 'live' | 'snapshot'; takenAt: string | null; error: string | null }> {
   const c = requireCheckRow(checkId);
   try {
-    const got =
-      c.source === 'insights-hub'
-        ? await collectInsightsHub(c)
-        : c.source === 'git'
-          ? await collectGit(c)
-          : c.source === 'snowflake'
-            ? await collectSnowflake(c)
-            : c.source === 'aws'
-              ? await collectAws(c)
-              : c.source === 'confluent'
-                ? await collectConfluent(c)
-                : c.source === 'entra'
-                  ? await collectEntra(c)
-                  : c.source === 'privilege-vault'
-                    ? await collectPrivilegeVault(c)
-                    : collectDataset(c);
+    const got = await collectSource(c);
     return { subjects: got.subjects, origin: 'live', takenAt: nowIso(), error: null };
   } catch (e) {
     const last = db().get<SnapshotRow>('SELECT * FROM access_snapshots WHERE check_id = ? ORDER BY seq DESC LIMIT 1', checkId);
@@ -952,24 +958,9 @@ export async function runCheck(id: string, o: { actor: string; trigger: 'schedul
   if (running.has(id)) throw new HttpError(409, 'This check is running already', 'ACCESS_CHECK_RUNNING');
   running.add(id);
   try {
-    let collected: { subjects: AccessSubject[]; sourceRunId: string | null; notes?: string[] };
+    let collected: Collected;
     try {
-      collected =
-        c.source === 'insights-hub'
-          ? await collectInsightsHub(c)
-          : c.source === 'git'
-            ? await collectGit(c)
-            : c.source === 'snowflake'
-              ? await collectSnowflake(c)
-              : c.source === 'aws'
-                ? await collectAws(c)
-                : c.source === 'confluent'
-                  ? await collectConfluent(c)
-                  : c.source === 'entra'
-                    ? await collectEntra(c)
-                    : c.source === 'privilege-vault'
-                      ? await collectPrivilegeVault(c)
-                      : collectDataset(c);
+      collected = await collectSource(c);
     } catch (e) {
       const msg = (e as Error).message.slice(0, 500);
       db().tx(() => {

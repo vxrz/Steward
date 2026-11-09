@@ -243,7 +243,6 @@ describe('budgets show only their state to who does not see the whole scope', ()
 
   it('in the report section', async () => {
     const { reportSection } = await import('../src/reports/sections.js');
-    await import('../src/costs/report-section.js');
     const sec = reportSection('costs')!;
     const { runAs } = await import('../src/auth/context.js');
     const { findUserByName, toAuthUser } = await import('../src/auth/users.js');

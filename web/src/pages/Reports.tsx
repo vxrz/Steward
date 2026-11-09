@@ -40,7 +40,7 @@ import type {
   Subject,
 } from '@sm/shared';
 import { apiUrl, del, get, getOptional, notifyError, notifyOk, post, put } from '../api';
-import { EmptyState, PageHeader, QueryState, useCreateParam } from '../components/common';
+import { EmptyState, PageHeader, QueryState, useCreateParam, useFieldErrors } from '../components/common';
 import { reportLangName } from '../components/reports/RunReports';
 import { useTypeName } from '../components/records/common';
 import { fmtBytes, fmtDate, fmtDay, fmtRelative } from '../format';
@@ -86,7 +86,7 @@ const emptyDraft = (lang: 'en' | 'de'): Draft => ({
   lang,
   classification: '',
   title: '',
-  sections: { availability: { monitorIds: null, slaTarget: 99.5 }, credentials: { dueWithinDays: 30 } },
+  sections: { availability: { monitorIds: null, slaTarget: 99.5, slaFromObjectives: true }, credentials: { dueWithinDays: 30 } },
   recipients: { users: [], teams: [], emails: [] },
   attachPdf: false,
   team: null,
@@ -345,6 +345,8 @@ type SectionConfig = Record<string, unknown> & {
   monitorIds?: string[] | null;
   processIds?: string[] | null;
   slaTarget?: number | null;
+  /** Availability section: each monitor's SLA target from its availability objective (0.11) */
+  slaFromObjectives?: boolean;
   dueWithinDays?: number;
   types?: string[] | null;
   windowDays?: number;
@@ -378,7 +380,7 @@ function ScheduleModal({ draft, sections, onClose, onSaved }: { draft: Draft; se
     set({ sections: next });
   };
   const defaults: Record<string, SectionConfig> = {
-    availability: { monitorIds: null, slaTarget: 99.5 },
+    availability: { monitorIds: null, slaTarget: 99.5, slaFromObjectives: true },
     gatus: { sources: (gatus.data ?? []).map((g) => ({ platformId: g.platformId, endpointKeys: null })), slaTarget: 99.5 },
     credentials: { dueWithinDays: 30 },
     runs: { processIds: null },
@@ -390,7 +392,12 @@ function ScheduleModal({ draft, sections, onClose, onSaved }: { draft: Draft; se
     costs: { scope: 'service', ids: null },
     contracts: { contractIds: null },
   };
+  const check = useFieldErrors({
+    name: !d.name.trim() && t('common:validation.required'),
+    sections: !Object.keys(d.sections).length && t('common:validation.requiredOne'),
+  });
   const save = async () => {
+    if (!check.validate()) return;
     setBusy(true);
     try {
       const { id, ...body } = d;
@@ -414,7 +421,7 @@ function ScheduleModal({ draft, sections, onClose, onSaved }: { draft: Draft; se
     <Modal opened onClose={onClose} title={d.id ? t('edit') : t('new')} size="xl">
       <Stack>
         <SimpleGrid cols={{ base: 1, sm: 2 }}>
-          <TextInput label={t('form.name')} required value={d.name} onChange={(e) => set({ name: e.currentTarget.value })} />
+          <TextInput label={t('form.name')} required value={d.name} onChange={(e) => set({ name: e.currentTarget.value })} error={check.error('name')} />
           <TextInput label={t('form.title')} description={t('form.titleHint')} value={d.title} onChange={(e) => set({ title: e.currentTarget.value })} />
         </SimpleGrid>
         <div>
@@ -457,6 +464,11 @@ function ScheduleModal({ draft, sections, onClose, onSaved }: { draft: Draft; se
         {d.preset === 'custom' && <CronPreview cron={d.cron} timezone={d.timezone} onUse={(c) => set({ cron: c })} />}
 
         <Divider label={t('form.sections')} labelPosition="left" />
+        {check.error('sections') && (
+          <Text size="sm" c="var(--mantine-color-error)" role="alert" data-testid="sections-error">
+            {check.error('sections')}
+          </Text>
+        )}
         <Text size="xs" c="dimmed">
           {t('form.ownerRights')}
         </Text>
@@ -480,14 +492,23 @@ function ScheduleModal({ draft, sections, onClose, onSaved }: { draft: Draft; se
                     value={cfg.monitorIds ?? []}
                     onChange={(v) => setSec(id, { ...cfg, monitorIds: v.length ? v : null })}
                   />
-                  <NumberInput
-                    label={t('form.slaTarget')}
-                    min={0}
-                    max={100}
-                    decimalScale={3}
-                    value={cfg.slaTarget ?? ''}
-                    onChange={(v) => setSec(id, { ...cfg, slaTarget: typeof v === 'number' ? v : null })}
-                  />
+                  <Stack gap={6}>
+                    <Switch
+                      label={t('form.slaFromObjectives')}
+                      description={t('form.slaFromObjectivesHint')}
+                      checked={!!cfg.slaFromObjectives}
+                      onChange={(e) => setSec(id, { ...cfg, slaFromObjectives: e.currentTarget.checked })}
+                    />
+                    <NumberInput
+                      label={cfg.slaFromObjectives ? t('form.slaTargetFallback') : t('form.slaTarget')}
+                      description={t('form.slaTargetDeprecated')}
+                      min={0}
+                      max={100}
+                      decimalScale={3}
+                      value={cfg.slaTarget ?? ''}
+                      onChange={(v) => setSec(id, { ...cfg, slaTarget: typeof v === 'number' ? v : null })}
+                    />
+                  </Stack>
                 </SimpleGrid>
               )}
               {cfg && id === 'gatus' && (
@@ -634,7 +655,7 @@ function ScheduleModal({ draft, sections, onClose, onSaved }: { draft: Draft; se
           <Button variant="default" onClick={onClose}>
             {t('common:cancel')}
           </Button>
-          <Button onClick={save} loading={busy} disabled={!d.name.trim() || !Object.keys(d.sections).length}>
+          <Button onClick={save} loading={busy}>
             {t('common:save')}
           </Button>
         </Group>

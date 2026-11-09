@@ -10,14 +10,19 @@ import { addLink, linkInput, linkUpdate, removeLink, updateLink } from '../recor
 import { HttpError } from '../util.js';
 import { plantSettings, plantSettingsInput, requirePlant, updatePlantSettings } from './settings.js';
 import * as svc from './service.js';
-import { applyImport, exportYaml, importInput, listImports, previewImport } from './import.js';
+import { applyImport, exportYaml, importInput, importStepUpPoints, listImports, previewImport } from './import.js';
+import { plantBulkInput, plantRenameInput, PLANT_ID_KINDS } from '@sm/shared';
+import { currentParams, currentQuery, listAliases, removeAlias } from './ids.js';
+import { previewRename, renameId } from './rename.js';
+import { applyBulk, bulkNeedsStepUp, previewBulk } from './bulk.js';
 import { plantJsonSchema } from './format.js';
 import { seedPlantDemo } from './demo.js';
 import * as cat from './catalogue.js';
 import { assignmentInput, deleteAssignment, getAssignment, putAssignment } from './assignments.js';
 import * as net from './network.js';
+import * as coll from './collections.js';
+import { applyCollectionImport, collectionImportInput, previewCollectionImport } from './collections-import.js';
 import { assetFlow, coverage, hostPlacement, overview, pointLineage, siteStructure } from './views.js';
-import './links.js';
 import {
   changesMapSource,
   checkBody,
@@ -49,6 +54,8 @@ import type { Fetched } from './mapTiles.js';
  *   GET     /api/plant/explore/points, /api/plant/checks
  *   …       /api/plant/sites/:siteId/network, …/vlans[/:vlanId[/segment]], …/zones[/:zoneId], …/conduits[/:conduitId]   the OT network (#220)
  *   …       /api/plant/assets/:assetId/network, …/devices[/:deviceId], …/paths[/:pathId], …/checks
+ *   …       /api/plant/assets/:assetId/collections[/:collectionId[/mapping]], …/collections/import[/preview]   data collections (0.11.0)
+ *   GET     /api/plant/collections?collectorKind=&collectorRef=, …/profiles/:profileId/points/:pointId/collections
  *   GET     /api/plant/views/overview | /views/coverage, …/structure, …/flow, …/lineage   the visualizations (#230)
  *   POST    /api/plant/import/preview | /api/plant/import, GET /api/plant/imports, GET /api/plant/export
  *   GET|PUT /api/settings/plant/map, POST …/map/check     the map's source (administrators, session; a new source asks for a step-up)
@@ -56,8 +63,19 @@ import type { Fetched } from './mapTiles.js';
  *   GET     /api/plant/map/tiles/:layer/:z/:x/:y, …/glyphs/:fontstack/:range, …/sprites/:sprite   served through Steward
  */
 
-const p = (req: FastifyRequest) => req.params as Record<string, string>;
+/** The route's parameters; a read takes old ids (aliases, 0.11.0) as the entries they lead to. */
+const p = (req: FastifyRequest) => (req.method === 'GET' ? currentParams(req.params as Record<string, string>) : req.params) as Record<string, string>;
+const q = <Q extends Record<string, unknown>>(v: Q): Q => currentQuery(v);
+
+/** The step-up points of an import, read once per request (`when` and `points` both ask). */
+const importPoints = new WeakMap<FastifyRequest, string[]>();
+const importPointsOf = (req: FastifyRequest): string[] => {
+  let x = importPoints.get(req);
+  if (!x) importPoints.set(req, (x = importStepUpPoints(req.body)));
+  return x;
+};
 const imports = { config: { rateLimit: ROUTE_LIMITS.heavy }, bodyLimit: LARGE_BODIES.plantImport.bytes };
+const collectionImports = { config: { rateLimit: ROUTE_LIMITS.heavy }, bodyLimit: LARGE_BODIES.plantCollectionImport.bytes };
 
 /** A tile, glyph range or sprite file: inert (nosniff, no scripts), cached by this browser only. */
 const sendMapFile = (reply: FastifyReply, f: Fetched) =>
@@ -82,19 +100,35 @@ const assetQuery = z.object({
   dataPoint: z.string().max(120).optional(),
 });
 
+/** The demo shows the module with its invented enterprise once it is turned on. */
+export function plantDemo(): void {
+  if (config.demo)
+    try {
+      seedPlantDemo();
+    } catch (err) {
+      logger.warn({ err: (err as Error).message }, 'plant registry demo data not loaded');
+    }
+}
+
 export async function plantRoutes(app: FastifyInstance): Promise<void> {
   // ---------- settings (the module switch works while the module is off) ----------
   app.get('/settings/plant', { config: { access: ACCESS.admin } }, async () => plantSettings());
-  app.put('/settings/plant', { config: { access: ACCESS.admin } }, async (req) =>
-    updatePlantSettings(plantSettingsInput.parse(req.body), () => {
-      // the demo shows the module with its invented enterprise once it is turned on
-      if (config.demo)
-        try {
-          seedPlantDemo();
-        } catch (err) {
-          logger.warn({ err: (err as Error).message }, 'plant registry demo data not loaded');
-        }
-    }),
+  // turning the module on or off is a module switch (0.11.0, ADR 0016): the same step-up as Settings → Modules
+  app.put(
+    '/settings/plant',
+    {
+      config: {
+        access: ACCESS.admin,
+        stepUp: {
+          action: 'changeModules',
+          when: (req: FastifyRequest) => {
+            const enabled = (req.body as { enabled?: unknown } | undefined)?.enabled;
+            return typeof enabled === 'boolean' && enabled !== plantSettings().enabled;
+          },
+        },
+      },
+    },
+    async (req) => updatePlantSettings(plantSettingsInput.parse(req.body), plantDemo),
   );
 
   // ---------- the map of sites (#234): its source is the administrators'; changing it asks for a step-up ----------
@@ -146,7 +180,7 @@ export async function plantRoutes(app: FastifyInstance): Promise<void> {
     requirePlant();
     return plantJsonSchema();
   });
-  app.get('/plant/hierarchy', async (req) => svc.hierarchy(z.object({ site: z.string().max(100).optional() }).parse(req.query).site));
+  app.get('/plant/hierarchy', async (req) => svc.hierarchy(q(z.object({ site: z.string().max(100).optional() }).parse(req.query)).site));
 
   // ---------- sites ----------
   app.get('/plant/sites', async () => svc.listSites());
@@ -186,7 +220,7 @@ export async function plantRoutes(app: FastifyInstance): Promise<void> {
   }
 
   // ---------- assets ----------
-  app.get('/plant/assets', async (req) => svc.listAssets(assetQuery.parse(req.query)));
+  app.get('/plant/assets', async (req) => svc.listAssets(q(assetQuery.parse(req.query))));
   app.post('/plant/assets', async (req) => svc.createAsset(svc.assetInput.parse(req.body)));
   app.get('/plant/assets/:assetId', async (req) => svc.getAsset(p(req).assetId!));
   app.put('/plant/assets/:assetId', async (req) => svc.updateAsset(p(req).assetId!, svc.assetUpdate.parse(req.body)));
@@ -279,6 +313,33 @@ export async function plantRoutes(app: FastifyInstance): Promise<void> {
   app.post('/plant/assets/:assetId/paths', async (req) => net.createDataPath(p(req).assetId!, net.dataPathInput.parse(req.body)));
   app.put('/plant/assets/:assetId/paths/:pathId', async (req) => net.updateDataPath(p(req).assetId!, p(req).pathId!, net.dataPathUpdate.parse(req.body)));
   app.delete('/plant/assets/:assetId/paths/:pathId', async (req) => net.deleteDataPath(p(req).assetId!, p(req).pathId!));
+  // ---------- data collections (0.11.0, ADR 0019): what a collector reads from an asset, mapped to its data points ----------
+  app.get('/plant/assets/:assetId/collections', async (req) => coll.assetCollections(p(req).assetId!));
+  app.post('/plant/assets/:assetId/collections', async (req) => coll.createCollection(p(req).assetId!, coll.collectionInput.parse(req.body)));
+  app.get('/plant/assets/:assetId/collections/:collectionId', async (req) => coll.getCollection(p(req).assetId!, p(req).collectionId!));
+  app.put('/plant/assets/:assetId/collections/:collectionId', async (req) =>
+    coll.updateCollection(p(req).assetId!, p(req).collectionId!, coll.collectionUpdate.parse(req.body)),
+  );
+  app.delete('/plant/assets/:assetId/collections/:collectionId', async (req) => coll.deleteCollection(p(req).assetId!, p(req).collectionId!));
+  app.get('/plant/assets/:assetId/collections/:collectionId/mapping', async (req, reply) => {
+    const q = z.object({ format: z.enum(['csv', 'yaml']).default('csv') }).parse(req.query);
+    const x = coll.mappingFile(p(req).assetId!, p(req).collectionId!, q.format);
+    reply.header('content-disposition', `attachment; filename="${x.filename}"`);
+    reply.header('cache-control', 'no-store');
+    return reply.type(x.contentType).send(x.content);
+  });
+  app.post('/plant/assets/:assetId/collections/import/preview', collectionImports, async (req) =>
+    previewCollectionImport(p(req).assetId!, collectionImportInput.parse(req.body)),
+  );
+  app.post('/plant/assets/:assetId/collections/import', collectionImports, async (req) =>
+    applyCollectionImport(p(req).assetId!, collectionImportInput.parse(req.body)),
+  );
+  app.get('/plant/collections', async (req) => {
+    const q = z.object({ collectorKind: z.enum(['application', 'platform', 'process', 'job']), collectorRef: z.string().min(1).max(200) }).parse(req.query);
+    return coll.collectorCollections(q.collectorKind, q.collectorRef);
+  });
+  app.get('/plant/profiles/:profileId/points/:pointId/collections', async (req) => coll.pointCollections(p(req).profileId!, p(req).pointId!));
+
   // ---------- visualizations (#230): read-only aggregates, the same rights as the pages they picture ----------
   app.get('/plant/views/overview', async () => overview());
   app.get('/plant/views/coverage', async (req) =>
@@ -298,9 +359,46 @@ export async function plantRoutes(app: FastifyInstance): Promise<void> {
   app.get('/plant/assets/:assetId/flow', async (req) => assetFlow(p(req).assetId!));
   app.get('/plant/profiles/:profileId/points/:pointId/lineage', async (req) => pointLineage(p(req).profileId!, p(req).pointId!));
 
+  // ---------- ids (0.11.0): renaming an entry, the old ids that keep leading to it, many entries at once ----------
+  app.post('/plant/ids/rename/preview', async (req) => previewRename(plantRenameInput.parse(req.body)));
+  app.post('/plant/ids/rename', { config: { stepUp: { action: 'renamePlantId', optional: true } } }, async (req) => renameId(plantRenameInput.parse(req.body)));
+  app.get('/plant/aliases', { config: { access: ACCESS.admin } }, async () => listAliases());
+  app.delete('/plant/aliases/:kind/:oldId', { config: { access: ACCESS.admin } }, async (req) => {
+    const kind = z.enum(PLANT_ID_KINDS).parse(p(req).kind);
+    removeAlias(kind, z.object({ scope: z.string().max(120).default('') }).parse(req.query).scope, p(req).oldId!);
+    return { ok: true };
+  });
+  app.post('/plant/bulk/preview', async (req) => previewBulk(plantBulkInput.parse(req.body)));
+  app.post(
+    '/plant/bulk',
+    {
+      config: {
+        stepUp: {
+          action: 'changePlantInBulk',
+          when: (req: FastifyRequest) => {
+            const b = plantBulkInput.safeParse(req.body);
+            return b.success && bulkNeedsStepUp(b.data);
+          },
+        },
+      },
+    },
+    async (req) => applyBulk(plantBulkInput.parse(req.body)),
+  );
+
   // ---------- import and export ----------
   app.post('/plant/import/preview', imports, async (req) => previewImport(importInput.parse(req.body)));
-  app.post('/plant/import', imports, async (req) => applyImport(importInput.parse(req.body)));
+  // renaming or removing more than one entry asks for a step-up (plant.bulkChange), one rename as the policy says (plant.renameId)
+  app.post(
+    '/plant/import',
+    {
+      ...imports,
+      config: {
+        ...imports.config,
+        stepUp: { action: 'changePlantInBulk', when: (req: FastifyRequest) => importPointsOf(req).length > 0, points: importPointsOf },
+      },
+    },
+    async (req) => applyImport(importInput.parse(req.body)),
+  );
   app.get('/plant/imports', async () => listImports());
   app.get('/plant/export', async (req, reply) => {
     const q = z
@@ -311,7 +409,7 @@ export async function plantRoutes(app: FastifyInstance): Promise<void> {
         part: z.enum(['all', 'catalogue']).optional(),
       })
       .parse(req.query);
-    const x = exportYaml(q);
+    const x = exportYaml(currentQuery(q));
     reply.header('content-disposition', `attachment; filename="${x.filename}"`);
     reply.header('cache-control', 'no-store');
     return reply.type(x.contentType).send(x.content);

@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { ActionIcon, Badge, Button, Group, Paper, Stack, Text } from '@mantine/core';
+import { ActionIcon, Anchor, Badge, Button, Group, Paper, Stack, Text } from '@mantine/core';
+import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { IconArchive, IconArchiveOff, IconEdit, IconPlus } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
@@ -15,8 +16,9 @@ import { Sparkline } from '../dashboard/charts';
 import { OBJECTIVE_COLORS, ObjectiveFormModal, ObjectiveStatusBadge, fmtPct } from './common';
 
 /**
- * The availability objectives of a service (service page): per objective the windows with their target, Gatus'
- * current uptime and the status; "Add objective", edit and delete for those who may edit the service.
+ * The availability objectives of a service (service page): per objective the windows with their target, the current
+ * uptime of its source (a Steward monitor, a Gatus endpoint or a PromQL query) and the status; "Add objective", edit
+ * and archive for those who may edit the service.
  */
 export function ObjectivesPanel({
   serviceId,
@@ -79,7 +81,7 @@ export function ObjectivesPanel({
       )}
       {list.length > 0 && (
         <Text size="xs" c="dimmed">
-          {t('objectives.hint')}
+          {t(list.every((o) => o.sourceKind === 'monitor') ? 'objectives.hintMonitor' : 'objectives.hint')}
         </Text>
       )}
       {archived.length > 0 && (
@@ -130,8 +132,23 @@ function ObjectiveCard({ objective: o, onEdit, onArchive }: { objective: Objecti
               </Badge>
             )}
           </Group>
-          <Text size="xs" c="dimmed" style={{ overflowWrap: 'anywhere' }}>
-            {o.platformVisible ? `${o.platformName ?? ''} · ${o.endpointName ?? o.endpointKey ?? ''}` : t('objectives.platformHidden')}
+          <Text size="xs" c="dimmed" style={{ overflowWrap: 'anywhere' }} data-testid="objective-source">
+            {o.sourceKind === 'monitor' ? (
+              o.sourceVisible && o.monitorId ? (
+                <>
+                  {t('objectives.monitor')}:{' '}
+                  <Anchor component={Link} to={`/monitors/${o.monitorId}`} size="xs">
+                    {o.monitorName ?? o.monitorId}
+                  </Anchor>
+                </>
+              ) : (
+                t('objectives.monitorHidden')
+              )
+            ) : o.sourceVisible ? (
+              `${o.platformName ?? ''} · ${o.endpointName ?? o.endpointKey ?? ''}`
+            ) : (
+              t('objectives.platformHidden')
+            )}
             {o.applicationName ? ` · ${t('objectives.application')}: ${o.applicationName}` : ''}
           </Text>
           <Group gap={6} wrap="wrap">
@@ -156,7 +173,7 @@ function ObjectiveCard({ objective: o, onEdit, onArchive }: { objective: Objecti
           </Group>
           {o.windows.some((w) => (w.plannedMinutes ?? 0) > 0) && (
             <Text size="xs" c="dimmed" data-testid="objective-planned">
-              {t('objectives.planned', {
+              {t(o.sourceKind === 'monitor' ? 'objectives.plannedMonitor' : 'objectives.planned', {
                 list: o.windows
                   .filter((w) => (w.plannedMinutes ?? 0) > 0)
                   .map((w) => `${t(`windows.${w.window}`)} ${fmtMinutes(w.plannedMinutes ?? 0)}`)
@@ -167,7 +184,7 @@ function ObjectiveCard({ objective: o, onEdit, onArchive }: { objective: Objecti
           {o.noDataReason && !o.archived && (
             <Text size="xs" c={o.noDataTooLong ? 'red.8' : 'dimmed'}>
               {o.noDataTooLong && o.noDataSince ? `${t('objectives.noDataSince', { date: fmtDate(o.noDataSince) })} ` : ''}
-              {t(`noData.${o.noDataReason}`)}
+              {t(o.sourceKind === 'monitor' && o.noDataReason === 'noValue' ? 'noData.monitorNoValue' : `noData.${o.noDataReason}`)}
             </Text>
           )}
           {o.breach && (
@@ -175,7 +192,7 @@ function ObjectiveCard({ objective: o, onEdit, onArchive }: { objective: Objecti
               {t('objectives.breachSince', { date: fmtDate(o.breach.startedAt) })}
             </Text>
           )}
-          {o.valuesAt && (
+          {o.valuesAt && o.sourceKind !== 'monitor' && (
             <Text size="xs" c="dimmed">
               {t('objectives.valuesAt', { when: fmtRelative(o.valuesAt) })}
             </Text>

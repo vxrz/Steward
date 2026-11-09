@@ -8,7 +8,7 @@ Set it up under _Settings → Backups_ (administrators; changes ask for your pas
 
 | Part        | SQLite                                                                          | PostgreSQL                                                                |
 | ----------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| Database    | a consistent snapshot (`VACUUM INTO`, while Steward runs)                       | `pg_dump --format=custom` of Steward's schema (restore with `pg_restore`) |
+| Database    | a consistent snapshot (`VACUUM INTO` in a worker thread, while Steward runs)    | `pg_dump --format=custom` of Steward's schema (restore with `pg_restore`) |
 | Data folder | `vault.json`, `artifacts/`, `docs/`, `reports/`, `audit-anchor.json`, …         | the same                                                                  |
 | Manifest    | `manifest.json`: every file with its size and SHA-256, the last audit log entry | the same                                                                  |
 
@@ -72,9 +72,15 @@ _Back up now_ and _Test the newest backup_ start one right away. _History_ shows
 1. Download the newest backup and compare its SHA-256 with the one recorded at upload – a copy changed in the bucket fails here.
 2. Decrypt it: every chunk must authenticate.
 3. Check every file of the archive against the manifest (SHA-256, size, CRC, nothing missing, nothing extra).
-4. The database: SQLite – `PRAGMA integrity_check` on the snapshot and the **audit chain of the snapshot** (every entry, against the installation's audit key, ending at the entry the manifest names; after archived entries were deleted, from the signed checkpoint they were deleted up to). PostgreSQL – `pg_restore --list` reads the dump.
+4. The database: SQLite – `PRAGMA integrity_check` on the snapshot and the **audit chain of the snapshot** (every entry, against the installation's audit key, ending at the entry the manifest names; after archived entries were deleted, from the signed checkpoint they were deleted up to). PostgreSQL – `pg_restore --list` reads the dump; with a restore test database (below), the dump is restored and checked like a SQLite snapshot.
 
-**Audit archives** (0.4.0, _Audit log → Epochs, archives and retention_) are in the data folder (`audit-archives/`), so every backup holds them. With _Also upload to the backup target_ each archive is uploaded once more on its own, encrypted with the backup key like a backup, to `<prefix>audit-archives/<file>.smbackup` – outside the retention rule of the backups, which only touches objects directly under the prefix. Read one with `steward backup decrypt <file> --out archive.zip`, then check it with `steward audit verify-archive archive.zip`.
+**PostgreSQL: a restore test database.** `pg_restore --list` only shows that the table of contents of a dump can be read. To find out whether the data restores, give the restore test a database of its own: `SM_BACKUP_RESTORE_TEST_DATABASE_URL=postgres://steward_restore@db.corp.example:5432/steward_restore_test` (or `SM_BACKUP_RESTORE_TEST_DATABASE_URL_FILE`). The test then restores the dump there with `pg_restore --no-owner --no-privileges`, checks that the tables and the schema version are there and verifies the **audit chain of the restored data** as above (step _restore_ and _audit_), and drops the restored schema again.
+
+- It must be another database than the live one: `pg_restore` restores into the schema the dump was made of, which is the live schema's name. Steward refuses a URL that names the live database (same host, port and database).
+- Use an empty database that nothing else uses. Its account needs to create schemas (owner of the database). A schema of the same name that the restore test did not create is left alone, and the test fails. Steward marks the schemas it creates there with a comment.
+- The restore takes as long as a real restore and needs the space of the database on that server once a week.
+
+**Audit archives** (_Audit log → Epochs, archives and retention_) are in the data folder (`audit-archives/`), so every backup holds them. With _Also upload to the backup target_ each archive is uploaded once more on its own, encrypted with the backup key like a backup, to `<prefix>audit-archives/<file>.smbackup` – outside the retention rule of the backups, which only touches objects directly under the prefix. Read one with `steward backup decrypt <file> --out archive.zip`, then check it with `steward audit verify-archive archive.zip`.
 
 A failed step fails the test, and the administrators get the _Backup failed_ notification (in-app and e-mail by default; change the channels under _Settings → Notifications_).
 
@@ -92,6 +98,8 @@ npm run backup -- decrypt steward-20261030T021500Z.smbackup --out restore.zip
 The passphrase can also come from `--passphrase-file <file>` or `SM_BACKUP_PASSPHRASE`. Exit status 0 means decrypted and intact.
 
 Then, with Steward **stopped** and the **same or a newer version** of Steward:
+
+A backup larger than 4 GB, or with more than 65,535 files, is a ZIP64 archive. `unzip` (Info-ZIP 6.0, as in current Linux distributions and macOS), 7-Zip, Windows Explorer and Python's `zipfile` read it. Backups within those limits are plain ZIP files, as before 0.11.0.
 
 **SQLite**
 
@@ -115,8 +123,11 @@ Start Steward and unlock the vault with the **master passphrase**. Verify the au
 
 ## Limits and notes
 
-- A backup archive must stay below 4 GB (ZIP without ZIP64). Large files of runs belong in their retention settings, not in years of backups.
+- From 0.11.0 a backup archive has no 4 GB or 65,000-file limit (ZIP64 where needed). It holds up to 2 million files; S3 takes up to 10,000 parts per upload, so the parts get larger than `SM_BACKUP_PART_BYTES` for a very large backup (5 TB per object at most). Large files of runs still belong in their retention settings, not in years of backups.
+- The SQLite snapshot is made on a connection of its own in a worker thread: requests and health probes go on meanwhile. Writes made during the snapshot are in the next backup.
+- Prometheus can watch the backups: `sm_backup_last_success_timestamp_seconds` and the other `sm_backup_*` metrics, with a "no backup for 26 hours" rule in [`examples/prometheus/steward-alerts.yml`](../examples/prometheus/steward-alerts.yml) ([METRICS.md](METRICS.md)).
 - The container image has `pg_dump`/`pg_restore` of PostgreSQL 17 (Debian trixie); they back up servers up to version 17. For a newer server, point `SM_PG_DUMP` and `SM_PG_RESTORE` at matching programs. The password of `SM_DATABASE_URL` goes to `pg_dump` in `PGPASSWORD`, never on its command line.
+- `pg_restore` of PostgreSQL 17 or newer starts with `SET transaction_timeout = 0`, which PostgreSQL 16 and older do not know: restoring into such a server reports `unrecognized configuration parameter "transaction_timeout"` and restores everything else. The restore test accepts this one error and fails on any other; by hand, restore without `--exit-on-error`.
 - During a backup the work folder `<data folder>/.backup-work` (0700) briefly holds the snapshot and the encrypted file; it is emptied after every run and at start.
 - One backup or restore test runs at a time. A backup in progress when Steward stops is marked _Interrupted_ at the next start.
 - Whoever may change the storage platform (its managers) can point backups at another bucket. The copies stay encrypted, but give that platform only administrators as managers.

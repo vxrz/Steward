@@ -5,7 +5,7 @@
 # releasing. Runs after ci.yaml passed.
 #
 # Windows and macOS executables are built by GitHub Actions only (Woodpecker agents are
-# usually Linux); docs/WOODPECKER.md "Releases" shows how to add them to the Forgejo release.
+# usually Linux); docs/ci/WOODPECKER.md "Releases" shows how to add them to the Forgejo release.
 
 variables:
   # ── Optional: publish a Forgejo release ('true' after creating the secret forgejo_token –
@@ -76,7 +76,8 @@ steps:
     environment:
       npm_config_update_notifier: 'false'
     commands:
-      - npx --yes @cyclonedx/cyclonedx-npm@4.2.1 --omit dev --output-file out/sbom.cdx.json
+      # npm's own SBOM command: nothing is downloaded at release time (see docs/ci/SECURITY-PIPELINE.md)
+      - npm sbom --sbom-format=cyclonedx --omit=dev > out/sbom.cdx.json
     when:
       - event: [tag, manual]
         matrix:

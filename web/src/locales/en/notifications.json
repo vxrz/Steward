@@ -13,7 +13,27 @@
     "quietUntil_other": "Quiet hours until {{time}} · {{count}} messages held",
     "quiet_one": "Quiet hours · {{count}} message held",
     "quiet_other": "Quiet hours · {{count}} messages held",
-    "unreadPrefix": "Unread:"
+    "unreadPrefix": "Unread:",
+    "filter": "Show",
+    "all": "All {{count}}",
+    "category": {
+      "decision_one": "Decision {{count}}",
+      "decision_other": "Decisions {{count}}",
+      "alert_one": "Alert {{count}}",
+      "alert_other": "Alerts {{count}}",
+      "update_one": "Update {{count}}",
+      "update_other": "Updates {{count}}"
+    },
+    "unreadOnly": "Unread only",
+    "noneHere": "Nothing here – change the filter to see more.",
+    "groupCount_one": "{{count}} message",
+    "groupCount_other": "{{count}} messages",
+    "groupCountUnread_one": "{{count}} message, {{unread}} unread",
+    "groupCountUnread_other": "{{count}} messages, {{unread}} unread",
+    "markGroupRead": "Mark read",
+    "markGroupReadNamed": "Mark read: {{name}}",
+    "showAll": "Show all {{count}}",
+    "showFewer": "Show fewer"
   },
   "events": {
     "task": {

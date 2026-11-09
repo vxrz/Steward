@@ -121,9 +121,12 @@ function checked(def: unknown): ProcessDefinition {
   return res.definition;
 }
 
-export function createProcess(def: unknown, opts: { id?: string; comment?: string } = {}): ProcessDetail {
+export function createProcess(def: unknown, opts: { id?: string; comment?: string; exactId?: boolean } = {}): ProcessDetail {
   const d = checked(def);
   let id = opts.id ? slugify(opts.id) : slugify(d.name);
+  // an id the person chose is not changed behind their back (archived processes keep theirs too)
+  if (opts.exactId && db().get('SELECT 1 FROM processes WHERE id = ?', id))
+    throw new HttpError(409, `A process with the id "${id}" exists already`, 'PROCESS_ID_TAKEN', { id });
   let n = 2;
   const base = id;
   while (db().get('SELECT 1 FROM processes WHERE id = ?', id)) id = `${base}-${n++}`;

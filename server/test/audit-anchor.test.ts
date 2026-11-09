@@ -118,9 +118,9 @@ describe('checkpoints', () => {
   });
 
   it('the hourly checkpoint is a background job', async () => {
-    const { registerBuiltInJobs } = await import('../src/jobs/builtin.js');
+    const { registerFeatureJobs } = await import('../src/features/index.js');
     const { listJobs } = await import('../src/jobs/registry.js');
-    registerBuiltInJobs();
+    registerFeatureJobs();
     expect(listJobs().find((j) => j.name === 'audit-checkpoint')).toMatchObject({ everySeconds: 3600, nextRunAt: null });
   });
 });

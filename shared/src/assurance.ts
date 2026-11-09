@@ -67,6 +67,7 @@ export const CONTROL_POINTS: readonly ControlPoint[] = [
   sp('user.create', 'identity', ['createUser'], true),
   sp('user.change', 'identity', ['changeAccount'], true),
   sp('user.resetPassword', 'identity', ['resetPassword'], true),
+  sp('user.pseudonymise', 'identity', ['pseudonymiseUser'], true),
   sp('team.members', 'identity', ['changeTeamMembers'], true),
   sp('access.grant', 'identity', ['grantAccess'], true),
   sp('sso.providers', 'identity', ['addSsoProvider', 'changeSsoProvider', 'deleteSsoProvider'], true),
@@ -108,6 +109,7 @@ export const CONTROL_POINTS: readonly ControlPoint[] = [
   sp('audit.export', 'audit', ['exportAuditLog']),
   sp('evidencePack.export', 'audit', ['exportEvidencePack']),
   sp('credentials.export', 'audit', ['exportCredentials']),
+  sp('personalData.export', 'audit', ['exportPersonalData']),
   // ---- changes and records ----
   {
     key: 'record.approve',
@@ -220,6 +222,12 @@ export const CONTROL_POINTS: readonly ControlPoint[] = [
   sp('migration.apply', 'system', ['applyMigration']),
   // where the map of sites fetches its tiles from (0.10.0, #234): a new style, URL, key or file; turning it off never asks
   sp('plant.mapSource', 'system', ['changeMapSource']),
+  // switching a module on or off (0.11.0, ADR 0016): its routes, pages and jobs come or go for everyone
+  sp('modules.switch', 'system', ['changeModules']),
+  // the plant registry (0.11.0, docs/PLANT.md#changing-ids): changing one entry's id asks only when the policy says so;
+  // renaming or removing more than one entry at once, or editing many, asks by default
+  { ...sp('plant.renameId', 'catalogue', ['renamePlantId']), defaults: { stepUp: false } },
+  sp('plant.bulkChange', 'catalogue', ['changePlantInBulk']),
 ];
 
 export type ControlPointKey = string;

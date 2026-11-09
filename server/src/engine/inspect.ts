@@ -10,7 +10,7 @@ import { builtinDatasetVisible } from '../dashboards/builtin.js';
 import { getPlatform, getSecrets } from '../platforms/service.js';
 import { secretValues } from '../platforms/http.js';
 import { CUSTOM_FUNCTIONS, stringify, type Bindings } from './expr.js';
-import { Redactor } from './runner.js';
+import { Redactor } from './redact.js';
 import * as store from './store.js';
 
 /**

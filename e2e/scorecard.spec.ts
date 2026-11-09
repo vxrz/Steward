@@ -64,6 +64,8 @@ test('define an availability objective and see the scorecard of the service', as
   await expect(panel).toContainText('No availability objectives yet');
   await panel.getByRole('button', { name: 'Add objective' }).click();
   const form = page.getByRole('dialog', { name: 'Add objective' });
+  // a Steward monitor is the first source offered (0.11); this one is a Gatus endpoint
+  await form.getByTestId('objective-source-kind').getByText('Gatus or Prometheus', { exact: true }).click();
   await chooseOption(page, /^Gatus or Prometheus platform/, gatus.name);
   await chooseOption(page, /^Endpoint/, endpoint.group ? `${endpoint.group}/${endpoint.name}` : endpoint.name);
   await expect(form.getByRole('textbox', { name: /^Name/ })).toHaveValue(endpoint.name);
@@ -99,7 +101,8 @@ test('define an availability objective and see the scorecard of the service', as
   await page.goto('/scorecard');
   const row = page.getByTestId(`scorecard-${svc.id}`);
   await expect(row.getByTestId('attention')).toHaveText('OK');
-  await expect(row.getByTestId('part-status')).toHaveText(['Open', 'OK', 'OK', 'OK']);
+  // the four parts every service has (the demo services can add optional columns such as data contracts)
+  await expect.poll(async () => (await row.getByTestId('part-status').allInnerTexts()).slice(0, 4)).toEqual(['Open', 'OK', 'OK', 'OK']);
   await expect(page.getByTestId('scorecard-rollup')).toContainText('Services');
   await expect(page.getByTestId('scorecard-rules')).toContainText('No rules.');
   await settle(page);
@@ -107,7 +110,7 @@ test('define an availability objective and see the scorecard of the service', as
   await expectNoHorizontalScroll(page);
   // on a phone: a card per service, no horizontal scrolling
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect(row.getByTestId('part-status')).toHaveText(['Open', 'OK', 'OK', 'OK']);
+  await expect.poll(async () => (await row.getByTestId('part-status').allInnerTexts()).slice(0, 4)).toEqual(['Open', 'OK', 'OK', 'OK']);
   await expectNoHorizontalScroll(page);
   await expectAccessible(page, 'scorecard page on a phone');
   await page.setViewportSize({ width: 1280, height: 900 });
@@ -124,4 +127,41 @@ test('define an availability objective and see the scorecard of the service', as
   await page.getByRole('dialog').getByRole('button', { name: 'Archive' }).click();
   await expect(objectives).toContainText('No availability objectives yet');
   await expect(objectives).toContainText('1 archived objective');
+});
+
+/**
+ * A Steward monitor as the source of an objective (0.11, ADR 0018): its figures are the monitor's own uptime, and the
+ * card names and links the monitor.
+ */
+test('an objective takes its figures from a Steward monitor', async ({ page, apiAs }) => {
+  const api = await apiAs('dana');
+  const name = uniq('E2E order intake');
+  const created = await json<{ monitor: { id: string } }>(
+    await api.post('/api/monitors', {
+      data: { definition: { name, checks: [{ id: 'hb', name: 'Gateway report', type: 'heartbeat', mode: 'maxAge', maxAgeSeconds: 600 }] } },
+    }),
+  );
+  const svc = await json<{ id: string }>(await api.post('/api/services', { data: { name: uniq('E2E monitor objective service'), owners: [] } }));
+  try {
+    await page.goto(`/services/${svc.id}/objectives`);
+    const panel = page.getByTestId('objectives-panel');
+    await panel.getByRole('button', { name: 'Add objective' }).click();
+    const form = page.getByRole('dialog', { name: 'Add objective' });
+    await expect(form.getByTestId('objective-source-kind').getByRole('radio', { name: 'Steward monitor' })).toBeChecked();
+    await chooseOption(page, /^Monitor/, name);
+    await expect(form.getByRole('textbox', { name: /^Name/ })).toHaveValue(name);
+    await form.getByRole('textbox', { name: 'Target for 7 days' }).fill('99');
+    await settle(page);
+    await expectAccessible(page, 'objective form with a monitor as source');
+    await form.getByRole('button', { name: 'Save' }).click();
+    await expect(form).toBeHidden();
+    const card = panel.getByRole('listitem').filter({ hasText: name });
+    const sourceLink = card.getByTestId('objective-source').getByRole('link', { name });
+    await expect.poll(async () => (await sourceLink.getAttribute('href'))?.endsWith(`/monitors/${created.monitor.id}`)).toBe(true);
+    // no state recorded yet: no data, said plainly
+    await expect(card.getByTestId('objective-status')).toHaveText('No data');
+    await expect(panel).toContainText('monitors’ own uptime');
+  } finally {
+    await api.delete(`/api/monitors/${created.monitor.id}`);
+  }
 });

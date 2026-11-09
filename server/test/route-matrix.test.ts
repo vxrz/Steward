@@ -139,6 +139,10 @@ const EXPECT: Record<string, Access> = {
   'PUT /api/teams/:id': ADMIN,
   'DELETE /api/teams/:id': ADMIN,
   'GET /api/users/:id/references': ADMIN,
+  // a person's data (GDPR, docs/PRIVACY.md): administrators for anyone, every person for themselves
+  'GET /api/users/:id/data-export': ADMIN,
+  'POST /api/users/:id/pseudonymise': ADMIN,
+  'GET /api/me/data-export': PLANT,
   'GET /api/teams/:id/references': ADMIN,
   // members of the team see its settings too (team-settings.test.ts); the matrix team has none
   'GET /api/teams/:id/settings': ADMIN,
@@ -241,7 +245,7 @@ const EXPECT: Record<string, Access> = {
   'POST /api/platform-types': ADMIN,
   'POST /api/platform-types/import': ADMIN,
   'DELETE /api/platform-types/:kind': ADMIN,
-  'GET /api/platform-types/:kind/export': ALL, // connector types are shareable templates (see docs/REVIEW-2026-10.md)
+  'GET /api/platform-types/:kind/export': ALL, // connector types are shareable templates (see docs/reviews/REVIEW-2026-10.md)
   'GET /api/platforms': ALL,
   'POST /api/platforms': ADMIN,
   'GET /api/platforms/:id': USE,
@@ -447,6 +451,8 @@ const EXPECT: Record<string, Access> = {
   'GET /api/datasets': ALL,
   'GET /api/datasets/:key': ALL,
   'GET /api/datasets/:key/sources': ALL,
+  // whether a dataset exists that the caller may not see (an empty widget says so); nothing else of it
+  'GET /api/datasets/:key/visibility': ALL,
   'GET /api/datasets/:key/publishers': ALL,
   'DELETE /api/datasets/:key': ADMIN,
   'GET /api/datasets/:key/metrics': ALL,
@@ -833,6 +839,7 @@ const EXPECT: Record<string, Access> = {
   // the OT network of a site and of an asset (#220): follows the site
   'GET /api/v1/plant/sites/:siteId/network': PLANT,
   'GET /api/v1/plant/assets/:assetId/network': PLANT,
+  'GET /api/v1/plant/assets/:assetId/collections': PLANT,
   // database schemas (#222): of the demo database platform (who sees it) and of the matrix system (everyone);
   'GET /api/v1/platforms/:platformId/schema/snapshots': USE,
   // platform costs (#226): the overview for everyone (each sees what they may see); one scope as in the web app
@@ -997,6 +1004,11 @@ const EXPECT: Record<string, Access> = {
   // ---- the plant registry (#218, on in these fixtures): its switch is the administrators'; rights per site ----
   'GET /api/settings/plant': ADMIN,
   'PUT /api/settings/plant': ADMIN,
+  // ---- the module registry (0.11.0, ADR 0016): the switches are the administrators' (a session, step-up) ----
+  'GET /api/settings/modules': ADMIN,
+  'PUT /api/settings/modules/:id': ADMIN,
+  // what the signed-in person may see (the sidebar, honest empty states): two booleans per area, their own
+  'GET /api/me/visibility': ALL,
   // the map of sites (#234): its source is the administrators' (a session); tiles for everyone who sees the registry
   'GET /api/settings/plant/map': ADMIN,
   'PUT /api/settings/plant/map': ADMIN,
@@ -1041,6 +1053,14 @@ const EXPECT: Record<string, Access> = {
   'POST /api/plant/import': DESIGN,
   'GET /api/plant/imports': PLANT,
   'GET /api/plant/export': PLANT,
+  // changing ids (0.11.0): whoever may change the entry; the old ids (aliases) are the administrators'
+  'POST /api/plant/ids/rename/preview': DESIGN,
+  'POST /api/plant/ids/rename': DESIGN,
+  'GET /api/plant/aliases': ADMIN,
+  'DELETE /api/plant/aliases/:kind/:oldId': ADMIN,
+  // many entries at once (0.11.0): whoever manages a site or the catalogues; entries they may not change are skipped
+  'POST /api/plant/bulk/preview': DESIGN,
+  'POST /api/plant/bulk': DESIGN,
   // part 2 (#219): device profiles and KPI definitions (catalogues of the installation), an asset's assignment
   'GET /api/plant/profiles': PLANT,
   'POST /api/plant/profiles': DESIGN,
@@ -1085,10 +1105,22 @@ const EXPECT: Record<string, Access> = {
   'POST /api/plant/assets/:assetId/paths': DESIGN,
   'PUT /api/plant/assets/:assetId/paths/:pathId': DESIGN,
   'DELETE /api/plant/assets/:assetId/paths/:pathId': DESIGN,
+  // 0.11.0 (ADR 0019): data collections follow the asset's site like its data paths
+  'GET /api/plant/assets/:assetId/collections': PLANT,
+  'POST /api/plant/assets/:assetId/collections': DESIGN,
+  'GET /api/plant/assets/:assetId/collections/:collectionId': PLANT,
+  'PUT /api/plant/assets/:assetId/collections/:collectionId': DESIGN,
+  'DELETE /api/plant/assets/:assetId/collections/:collectionId': DESIGN,
+  'GET /api/plant/assets/:assetId/collections/:collectionId/mapping': PLANT,
+  'POST /api/plant/assets/:assetId/collections/import/preview': DESIGN,
+  'POST /api/plant/assets/:assetId/collections/import': DESIGN,
+  'GET /api/plant/collections': PLANT,
+  'GET /api/plant/profiles/:profileId/points/:pointId/collections': PLANT,
 };
 
 /** Routes that only work with an interactive session: an API token must not manage identities, the vault or sign-in. */
 const SESSION_ONLY = [
+  'PUT /api/settings/modules/:id',
   'GET /api/settings/plant/map',
   'PUT /api/settings/plant/map',
   'POST /api/settings/plant/map/check',
@@ -1102,6 +1134,9 @@ const SESSION_ONLY = [
   'POST /api/users',
   'PUT /api/users/:id',
   'POST /api/users/:id/reset-password',
+  'GET /api/users/:id/data-export',
+  'POST /api/users/:id/pseudonymise',
+  'GET /api/me/data-export',
   'POST /api/teams',
   'PUT /api/teams/:id',
   'DELETE /api/teams/:id',
@@ -1223,6 +1258,8 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
   'POST /api/users': { sensitive: { username: 'matrix-new', roles: ['viewer'] }, harmless: { username: '!' } },
   'PUT /api/users/:id': { sensitive: { roles: ['admin'] }, harmless: {} },
   'POST /api/users/:id/reset-password': 'always',
+  'GET /api/users/:id/data-export': 'always',
+  'POST /api/users/:id/pseudonymise': 'always',
   'POST /api/sso/providers': 'always',
   'PUT /api/sso/providers/:id': 'always',
   'DELETE /api/sso/providers/:id': 'always',
@@ -1273,6 +1310,12 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
   'PUT /api/backups/passphrase': 'always',
   // where the map of sites fetches its tiles from (#234; the fixtures use OpenStreetMap, the demo's mock of it)
   'PUT /api/settings/plant/map': { sensitive: { source: 'openfreemap' }, harmless: { source: 'osm' } },
+  // switching a module (0.11.0, ADR 0016); repeating its state is harmless – the plant registry's own switch, too
+  'PUT /api/settings/modules/:id': { sensitive: { enabled: false }, harmless: { enabled: true } },
+  'PUT /api/settings/plant': {
+    sensitive: { enabled: false, enterprise: '', labels: {}, fields: {} },
+    harmless: { enabled: true, enterprise: '', labels: {}, fields: {} },
+  },
   // trusting a library publisher or key (#238, control point library.publishers); retiring and revoking need none
   'POST /api/library-publishers': 'always',
   'DELETE /api/library-publishers/:id': 'always',
@@ -1299,6 +1342,20 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
       return { scope: 'service', scopeId: fx.service, amount: '500', currency: 'USD' };
     },
   },
+  // many plant entries at once (0.11.0): removing more than one; one is harmless (here: one that does not exist)
+  'POST /api/plant/bulk': {
+    sensitive: { kind: 'asset', action: 'remove', items: [{ id: 'nothing-a' }, { id: 'nothing-b' }] },
+    harmless: { kind: 'asset', action: 'remove', items: [{ id: 'nothing-a' }] },
+  },
+  // an import that removes (or renames) more than one entry; a file that removes nothing is harmless
+  'POST /api/plant/import': {
+    sensitive: {
+      files: [{ name: 'r.yaml', content: 'version: 1\nremove:\n  - { kind: site, id: hillcrest }\n  - { kind: site, id: riverside }\n' }],
+      mode: 'update',
+      cascade: true,
+    },
+    harmless: { files: [{ name: 'r.yaml', content: 'version: 1\nremove: []\n' }], mode: 'update' },
+  },
 };
 
 /**
@@ -1307,6 +1364,8 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
  */
 const STEP_UP_BY_POLICY = [
   'POST /api/records/:id/transition',
+  // changing one plant entry's id (0.11.0): off until the policy turns it on
+  'POST /api/plant/ids/rename',
   'POST /api/tasks/:id/verify',
   'POST /api/compliance/findings/:findingId/document',
   'POST /api/compliance/findings/:findingId/dismiss',
@@ -1369,6 +1428,8 @@ function fill(url: string): string {
     url
       .replace(/\*/g, 'nothing-here')
       .replace(/\/api\/platform-types\/:kind/, `/api/platform-types/${fx.platformKind}`)
+      // the module registry (ADR 0016): a module the fixtures do not depend on
+      .replace(/\/api\/settings\/modules\/:id/, '/api/settings/modules/statusPages')
       .replace(/\/api\/owning-teams\/:kind\/:id/, `/api/owning-teams/process/${fx.process}`)
       .replace(/\/api\/duplicates\/:kind\/:id/, `/api/duplicates/process/${fx.process}`)
       // database schemas (#222): the demo database platform, the newest snapshot
@@ -1439,6 +1500,7 @@ function fill(url: string): string {
       .replace(/:buildingId/g, fx.building!)
       .replace(/:profileId/g, 'matrix-profile')
       .replace(/:pointId/g, 'matrix_point')
+      .replace(/:collectionId/g, 'matrix-collection')
       .replace(/:kpiId/g, 'matrix-kpi')
       .replace(
         /:linkId/g,
@@ -1503,6 +1565,7 @@ function fill(url: string): string {
 
 /** Query strings some routes need. */
 const QUERY: Record<string, string> = {
+  'GET /api/plant/collections': '?collectorKind=job&collectorRef=matrix-job',
   'GET /api/records/:id/timeline': '?from=2026-01-01T00:00:00Z&to=2026-01-02T00:00:00Z',
   'GET /api/link-targets': '?kind=record&q=',
   'GET /api/backlinks': '', // filled in beforeAll (needs the record id)
@@ -1583,6 +1646,7 @@ const bodies = (): Record<string, unknown> => ({
   'POST /api/applications/:id/components/:componentId/sbom': { sbom: { bomFormat: 'CycloneDX', components: [] } },
   'POST /api/systems': { name: 'Matrix system x', kind: 'server' },
   'PUT /api/settings/plant': { enabled: true, enterprise: '', labels: {}, fields: {} },
+  'PUT /api/settings/modules/:id': { enabled: true },
   'PUT /api/settings/plant/map': { source: 'osm' },
   'POST /api/settings/plant/map/check': { kind: 'raster', url: 'https://tiles.example.com/{z}/{x}/{y}.png', attribution: 'Example tiles' },
   'POST /api/plant/sites': { id: 'matrix-new', name: 'Matrix new site' },
@@ -1599,6 +1663,16 @@ const bodies = (): Record<string, unknown> => ({
   'POST /api/plant/assets/:assetId/links': { url: 'https://cmdb.example.com/9', label: 'x' },
   'PATCH /api/plant/assets/:assetId/links/:linkId': { note: 'x' },
   'POST /api/plant/import/preview': { files: [{ name: 'm.yaml', content: 'version: 1\nsites: []\n' }], mode: 'add' },
+  'POST /api/plant/assets/:assetId/collections': { id: 'matrix-new-collection', name: 'New collection', collector: { kind: 'job', ref: 'matrix-job' } },
+  'PUT /api/plant/assets/:assetId/collections/:collectionId': { name: 'Matrix collection', collector: { kind: 'job', ref: 'matrix-job' } },
+  'POST /api/plant/assets/:assetId/collections/import/preview': {
+    collector: { kind: 'job', ref: 'matrix-job' },
+    files: [{ name: 'm.csv', content: 'collection,source_address,output_name\nc,ns=2;s=X,x\n' }],
+  },
+  'POST /api/plant/assets/:assetId/collections/import': {
+    collector: { kind: 'job', ref: 'matrix-job' },
+    files: [{ name: 'm.csv', content: 'collection,source_address,output_name\nc,ns=2;s=X,x\n' }],
+  },
   'POST /api/plant/profiles': { id: 'matrix-new-profile', name: 'New profile' },
   'PUT /api/plant/profiles/:profileId': { name: 'Matrix profile' },
   'POST /api/plant/kpis': { id: 'matrix-new-kpi', name: 'New KPI' },
@@ -1821,6 +1895,13 @@ beforeAll(async () => {
   });
   await a('POST', '/plant/kpis', { id: 'matrix-kpi', name: 'Matrix KPI', inputs: [{ profile: 'matrix-profile', dataPoints: ['matrix_point'] }] });
   await a('PUT', '/plant/assets/matrix-asset/assignment', { profileId: 'matrix-profile', interfaces: [{ interface: 'opc' }] });
+  // 0.11.0: a data collection of the asset
+  await a('POST', '/plant/assets/matrix-asset/collections', {
+    id: 'matrix-collection',
+    name: 'Matrix collection',
+    collector: { kind: 'job', ref: 'matrix-job' },
+    items: [{ address: 'ns=2;s=X', outputName: 'x', dataPoint: 'matrix_point' }],
+  });
   await a('PUT', '/plant/assets/matrix-asset/image', { contentBase64: tinyPng().toString('base64') });
   const siteLink = (await a('POST', '/plant/sites/matrix-site/links', { url: 'https://cmdb.example.com/4', label: 'x' })).id;
   const assetLink = (await a('POST', '/plant/assets/matrix-asset/links', { url: 'https://cmdb.example.com/5', label: 'x' })).id;

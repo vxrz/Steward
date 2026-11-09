@@ -12,7 +12,13 @@
     "widgets_other": "{{count}} widgets",
     "by": "by {{owner}}",
     "updated": "updated {{when}}",
-    "emptyAction": "Start from a template"
+    "emptyAction": "Start from a template",
+    "name": "Dashboard",
+    "widgetsColumn": "Widgets",
+    "owner": "Owner",
+    "updatedColumn": "Updated",
+    "search": "Search by name, description or owner",
+    "noMatch": "No dashboard matches the search."
   },
   "datasets": {
     "title": "Datasets",
@@ -242,7 +248,8 @@
     "noDataHowTo": "Designers: a process with a “{{node}}” node for the dataset <c>{{dataset}}</c> fills it.",
     "openProcess": "Open the process",
     "scheduleIt": "Schedule it",
-    "datasetKey": "Dataset <c>{{dataset}}</c>"
+    "datasetKey": "Dataset <c>{{dataset}}</c>",
+    "noDataHidden": "You may not see the data of this widget. Ask an administrator or the team that owns it for access."
   },
   "charts": {
     "trendLabel": "Trend of {{names}}. Use the arrow keys to read values.",

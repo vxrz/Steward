@@ -44,22 +44,23 @@ The architecture – C4 diagrams, a module map of `server/src` and the decision 
 | `npm run typecheck`                | TypeScript in all workspaces                                                                                                                                                         |
 | `npm run lint`                     | ESLint (`eslint.config.js`): no errors and no warnings. `npm run lint:fix` fixes what it can.                                                                                        |
 | `npm run format:check`             | Prettier formatting (`.prettierrc.json`). `npm run format` formats all files.                                                                                                        |
+| `npm run check:imports`            | No new import cycles, the layer rules ([docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#import-rules)); `-- --update` after removing one                                                  |
 | `npm test`                         | API, engine and integration tests (vitest, SQLite), several test files at once ([docs/TESTING.md](docs/TESTING.md#running-the-server-tests))                                         |
 | `npm run test:coverage`            | The same suite with coverage (v8): a summary in the terminal, the HTML report in `server/coverage/`; fails below the minimums in `server/vitest.config.ts` (CI does this on Node 24) |
 | `npm run test:pg`                  | The same suite on PostgreSQL (`SM_TEST_DATABASE_URL`, see [docs/TESTING.md](docs/TESTING.md)). Needed when you touch SQL or migrations.                                              |
 | `npm run build && npm run test:ui` | Playwright browser tests, including accessibility (axe) checks                                                                                                                       |
 | `npm run validate`                 | Example processes and dashboards                                                                                                                                                     |
 | `npm run openapi -- --check`       | `docs/openapi.json` matches the API (run `npm run openapi` to regenerate)                                                                                                            |
-| `npm run config:docs -- --check`   | The environment-variable tables (README, `docs/CONFIGURATION.md`) match `server/src/config-schema.ts` (run `npm run config:docs`)                                                    |
-| `scripts/security/scan.sh`         | Optional: the security scanners CI runs (see [docs/SECURITY-PIPELINE.md](docs/SECURITY-PIPELINE.md))                                                                                 |
+| `npm run config:docs -- --check`   | The environment-variable reference `docs/CONFIGURATION.md` matches `server/src/config-schema.ts` (run `npm run config:docs`)                                                         |
+| `scripts/security/scan.sh`         | Optional: the security scanners CI runs (see [docs/ci/SECURITY-PIPELINE.md](docs/ci/SECURITY-PIPELINE.md))                                                                           |
 
-CI runs all of these on every pull request and every push to `main`: GitHub Actions (`.github/workflows/`), and Woodpecker CI (`.woodpecker/`) on a Forgejo mirror – see [docs/WOODPECKER.md](docs/WOODPECKER.md). A change to one CI system usually needs the same change in the other.
+CI runs all of these on every pull request and every push to `main`: GitHub Actions (`.github/workflows/`), and Woodpecker CI (`.woodpecker/`) on a Forgejo mirror – see [docs/ci/WOODPECKER.md](docs/ci/WOODPECKER.md). A change to one CI system usually needs the same change in the other.
 
 ### Pre-commit hooks
 
 `npm install` installs two git hooks (with [husky](https://typicode.github.io/husky/), in `.husky/`):
 
-- **pre-commit:** Prettier and `eslint --fix` on the staged files ([lint-staged](https://github.com/lint-staged/lint-staged), `lint-staged.config.js`), then a [gitleaks](https://github.com/gitleaks/gitleaks) scan of the staged changes (`scripts/gitleaks-staged.sh`; skipped with a notice when gitleaks is not installed, see [docs/SECURITY-PIPELINE.md](docs/SECURITY-PIPELINE.md)).
+- **pre-commit:** Prettier and `eslint --fix` on the staged files ([lint-staged](https://github.com/lint-staged/lint-staged), `lint-staged.config.js`), then a [gitleaks](https://github.com/gitleaks/gitleaks) scan of the staged changes (`scripts/gitleaks-staged.sh`; skipped with a notice when gitleaks is not installed, see [docs/ci/SECURITY-PIPELINE.md](docs/ci/SECURITY-PIPELINE.md)).
 - **commit-msg:** checks the message against Conventional Commits (`scripts/commit-msg.mjs`, see below). Merge commits, `Revert "…"` and `fixup!`/`squash!` commits pass.
 
 In an emergency, skip them with `git commit --no-verify`; CI still runs lint, formatting and the secret scan. Your editor picks up the basics (UTF-8, LF, two-space indent) from `.editorconfig`.
@@ -103,12 +104,29 @@ A breaking change gets a `!` after the type/scope (`feat(api)!: …`) and a `BRE
 - Describe what changed and why, and how you tested it. Add screenshots for UI changes (light and dark, desktop and phone width when layout changes).
 - Update the docs and add an entry under **Unreleased** in [CHANGELOG.md](CHANGELOG.md) for user-visible changes.
 
+### Changelog entries
+
+[CHANGELOG.md](CHANGELOG.md) follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/): entries go under **Unreleased**, in the sections _Added_, _Changed_, _Deprecated_, _Removed_, _Fixed_ and _Security_.
+
+- **One or two sentences per entry:** what changed for the person using or running Steward, and a link to the docs page with the details. How it works, limits and edge cases belong in the docs, not in the changelog.
+- **No nested lists of implementation details.** If an entry needs more than two sentences, the docs page is missing something.
+- **Check before updating:** anything an administrator has to know or do before updating – a new default, a migration that takes long, a setting that moves, a deprecated route, a changed permission – gets a short note that starts with **Check before updating:**, so it can be found at a glance.
+- Write it for users: name the page or setting (_Settings → Backups_), not the function or table.
+
+Example:
+
+```markdown
+### Changed
+
+- **Backups** keep 14 copies by default instead of 30 ([BACKUPS.md](docs/BACKUPS.md#3-passphrase-schedule-retention)). **Check before updating:** an installation that relied on the old default keeps 30 only when it is set under _Settings → Backups_.
+```
+
 ### Code
 
 - TypeScript strict mode. No `any` unless unavoidable and commented.
 - Small, focused functions. Comments explain _why_, not _what_.
 - **Errors you catch and drop say why.** An empty `catch` block has a comment with a reason (`/* already gone */`, not `/* ignore */`), and so does `.catch(() => undefined)` (on the same line or the line above). If someone should see the failure, log it instead (`logger.debug` / `logger.warn`). ESLint checks this (`scripts/eslint/catch-reason.js`).
-- **Configuration:** read environment variables from `env` in `server/src/config.ts`, never from `process.env`; a new variable goes into `server/src/config-schema.ts` (type, default, description) and `npm run config:docs` updates the tables.
+- **Configuration:** read environment variables from `env` in `server/src/config.ts`, never from `process.env`; a new variable goes into `server/src/config-schema.ts` (type, default, description) and `npm run config:docs` updates `docs/CONFIGURATION.md`.
 - **Security first:**
   - Never log, return or put secrets in error messages; use the existing redaction helpers.
   - Check permissions on the server for every route. Who may reach a route at all goes into its config – `{ config: { access: ACCESS.admin } }`, `ACCESS.public`, `ACCESS.session` (no API tokens), `statusViewer` – and is checked before the body is read; rights on a given object are checked in the service with `me()`, `forbid()` and the helpers of `server/src/auth/permissions.ts`. Both live in [`server/src/auth/access.ts`](server/src/auth/access.ts); the route permission test (`server/test/route-matrix.test.ts`) compares the declarations with its table.
@@ -116,14 +134,14 @@ A breaking change gets a `!` after the type/scope (`feat(api)!: …`) and a `BRE
   - Platform credentials only go to the platform's own origins.
 - **Database:**
   - SQL must work on SQLite and PostgreSQL: use `?` placeholders, `lower(x) LIKE lower(?)`, `db().jsonText()` for JSON fields, and quoted camelCase aliases.
-  - Schema changes are named migrations in `server/src/migrations/`, registered in `server/src/db.ts`. Never edit an existing migration.
+  - Schema changes are named migrations in `server/src/migrations/`, run in the order of `server/src/migrations/index.ts` (new lists and migrations go at the end). Never edit an existing migration.
   - `server/test/db.test.ts` scans for SQLite-only SQL.
 - **Audit:** every state change a user makes is audited with `audit()`.
 - **UI:**
   - Use Mantine components, and make it work in light and dark mode, at 390 px width and with the keyboard.
   - Give icon buttons an `aria-label`.
   - Take TanStack Query keys from the factories in `web/src/queryKeys.ts` (`runKeys.detail(id)`, `platformKeys.all`), so a query and its invalidations use the same key; add a factory for a feature you touch that still writes its keys inline.
-  - Build pages from the page templates in `web/src/components/page/`: `ListPage` for lists (title and main action, `search`, `filters` that fold on phones, `view` for the table/card switch of a `DataTable`, `empty` with `whoCanAct`) and `DetailPage`/`DetailHeader` for detail pages (breadcrumb `back`, `status` badges, `actions`, the `menu` of further actions with its `duplicate` slot, `tabs` with `LinkTabs`, `recent` for the command palette, and the save bar for forms that use `useSaveSection`). The pieces in `web/src/components/common.tsx` (`QueryState`, `StatusBadge`/`TONE` …) stay. A new page goes into one of the six areas in `web/src/components/AppNav.tsx`. Clickable cards and rows need a real link inside. See [docs/UX-REVIEW.md](docs/UX-REVIEW.md).
+  - Build pages from the page templates in `web/src/components/page/`: `ListPage` for lists (title and main action, `search`, `filters` that fold on phones, `view` for the table/card switch of a `DataTable`, `empty` with `whoCanAct`) and `DetailPage`/`DetailHeader` for detail pages (breadcrumb `back`, `status` badges, `actions`, the `menu` of further actions with its `duplicate` slot, `tabs` with `LinkTabs`, `recent` for the command palette, and the save bar for forms that use `useSaveSection`). The pieces in `web/src/components/common.tsx` (`QueryState`, `StatusBadge`/`TONE` …) stay. A new page goes into one of the six areas in `web/src/components/AppNav.tsx`. Clickable cards and rows need a real link inside. See [docs/reviews/UX-REVIEW.md](docs/reviews/UX-REVIEW.md).
   - Put user-facing text in the translation files (`web/src/locales/<lang>/`), English first, and run `npm run i18n:check` and `npm run i18n:literals` (finds texts that do not go through `t()`). See [docs/I18N.md](docs/I18N.md).
   - Give every error a person can see a code and its details: `new HttpError(400, 'English message', 'CODE', { details })`, plus `errors:codes.CODE` in the locale files ([docs/I18N.md](docs/I18N.md#server-errors)). Format dates and numbers with `web/src/format.ts`.
 - **CLIs** follow [clig.dev](https://clig.dev/): `--help`, exit codes 0/1/2, errors to stderr, `--json` for machine-readable output, respect `NO_COLOR`.
@@ -144,13 +162,15 @@ A breaking change gets a `!` after the type/scope (`feat(api)!: …`) and a `BRE
 
 ## Releasing (maintainers)
 
+Which versions get fixes and how releases are tested: [docs/RELEASES.md](docs/RELEASES.md). Tag a release only from a commit on `main` whose CI run is green.
+
 1. Move the **Unreleased** entries in `CHANGELOG.md` to a new version section and update `version` in the root `package.json` and `server/src/config.ts` ([Semantic Versioning](https://semver.org/)), and the image tag (`ghcr.io/vxrz/steward:<version>`, also in their comments) in `docker-compose.yml` and `docker-compose.postgres.yml` (a test checks that they match). The deployment docs write `<version>` and need no change.
 2. Commit: `chore(release): v0.2.0` and open the release PR with the release template (`?template=release.md`): it carries the checklist and a short OWASP ASVS level 2 security self-review of what changed in the release.
 3. Tag and push: `git tag -a v0.2.0 -m v0.2.0 && git push --tags`.
    - The **Release** workflow builds the desktop executables for Windows, macOS and Linux, smoke-tests them, adds SBOMs and checksums, and publishes a GitHub release.
    - A tag with a suffix (`v0.2.0-beta.1`) becomes a pre-release.
-   - The **Container** workflow builds the image for linux/amd64 and linux/arm64 (with and without Chromium), scans it, and only then pushes the scanned images to `ghcr.io/vxrz/steward` (`0.2.0`, `0.2`, `latest`, and the same with `-browser`; a pre-release only gets its own tag), signs them with cosign and attests provenance and SBOMs. To try this before a release: _Actions → Container → Run workflow_ with _push_ (pushes only `test-<commit sha>`). Details: [docs/SECURITY-PIPELINE.md](docs/SECURITY-PIPELINE.md#publishing-to-ghcrio).
-   - On the Forgejo mirror, Woodpecker pushes the container image to Harbor (`0.2.0`, `0.2`, `0`, `latest`), sends the SBOMs to Dependency-Track and builds the Linux executable (optionally as a Forgejo release); see [docs/WOODPECKER.md](docs/WOODPECKER.md#9-releases).
+   - The **Container** workflow builds the image for linux/amd64 and linux/arm64 (with and without Chromium), scans it, and only then pushes the scanned images to `ghcr.io/vxrz/steward` (`0.2.0`, `0.2`, `latest`, and the same with `-browser`; a pre-release only gets its own tag), signs them with cosign and attests provenance and SBOMs. To try this before a release: _Actions → Container → Run workflow_ with _push_ (pushes only `test-<commit sha>`). Details: [docs/ci/SECURITY-PIPELINE.md](docs/ci/SECURITY-PIPELINE.md#publishing-to-ghcrio).
+   - On the Forgejo mirror, Woodpecker pushes the container image to Harbor (`0.2.0`, `0.2`, `0`, `latest`), sends the SBOMs to Dependency-Track and builds the Linux executable (optionally as a Forgejo release); see [docs/ci/WOODPECKER.md](docs/ci/WOODPECKER.md#9-releases).
 
 ## Questions
 

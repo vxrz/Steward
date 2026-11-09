@@ -21,6 +21,7 @@ export const NOT_MOVED: Record<string, string> = {
   oauth_clients: 'belong to the instance (#12): MCP clients register again with the target',
   oauth_codes: 'one-time codes of the instance, minutes long',
   oauth_grants: 'access of MCP clients to this instance: people allow their clients again on the target',
+  oauth_used_refresh: 'refresh tokens the grants of this instance used (reuse detection), not moved like the grants',
   emergency_access_grants: 'instance-specific (emergency access is granted on the target server)',
   identity_providers: 'instance-specific (the target has its own single sign-on)',
   settings: 'selected settings only (see SETTINGS_MOVED)',
@@ -194,6 +195,12 @@ export const HISTORY_COLUMNS: string[] = [
   'plant_data_paths.updated_by',
   'plant_asset_checks.created_by',
   'plant_asset_checks.updated_by',
+  // data collections and the gateway names remembered from imports (0.11.0)
+  'plant_collections.created_by',
+  'plant_collections.updated_by',
+  'plant_collection_mappings.created_by',
+  // old ids of renamed plant entries (0.11.0)
+  'plant_id_aliases.renamed_by',
   'access_checks.updated_by',
   'application_components.created_by',
   'platform_recordings.created_by',

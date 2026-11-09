@@ -1,6 +1,6 @@
 {
   "title": "Services",
-  "description": "Ein kleiner Servicekatalog: wem ein Service gehört, wie kritisch er ist, wo er in Ihrer CMDB steht und was in Steward dazugehört.",
+  "description": "Was Ihr Team anderen anbietet: wem ein Service gehört, wie kritisch er ist, wo er in Ihrer CMDB steht und welche Anwendungen, Dokumente und Pflichten dazugehören.",
   "new": "Neuer Service",
   "newTitle": "Neuer Service",
   "editTitle": "{{name}} bearbeiten",

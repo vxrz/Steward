@@ -54,6 +54,8 @@ import {
   objectiveState,
   platformLookup,
   readingCache,
+  monitorLookup,
+  sourceVisible,
   sampleFacts,
   type ObjectiveRow,
   type ReadingCache,
@@ -286,21 +288,26 @@ interface ObjCtx {
   cache: ReadingCache;
   facts: SampleFacts;
   platforms: ReturnType<typeof platformLookup>;
+  monitors: ReturnType<typeof monitorLookup>;
   viewer: AuthUser | null;
 }
 
 function availabilityPart(d: Data, serviceId: string, c: ObjCtx): ScorecardAvailability {
   const list: ScorecardObjectiveItem[] = (d.objectives.get(serviceId) ?? []).map((o) => {
     const st = objectiveState(o, c.cache, c.facts, d.now);
-    // the platform and the endpoint only for readers who may see the platform
-    const visible = !!c.viewer && c.platforms.visible(c.viewer, o.platform_id);
-    const e = visible ? c.cache.endpoint(o.platform_id, o.endpoint_key) : null;
+    // the platform and the endpoint (or the monitor) only for readers who may see them
+    const visible = !!c.viewer && sourceVisible(o, c.viewer, c.platforms, c.monitors);
+    const e = visible && !o.monitor_id ? c.cache.endpoint(o.platform_id, o.endpoint_key) : null;
     return {
       id: o.id,
       name: o.name,
       status: st.status,
       applicationName: o.application_id ? (d.appNames.get(o.application_id) ?? null) : null,
-      source: visible ? `${c.platforms.get(o.platform_id)?.name ?? ''} · ${e ? (e.group_name ? `${e.group_name}/${e.name}` : e.name) : o.endpoint_key}` : null,
+      source: !visible
+        ? null
+        : o.monitor_id
+          ? (c.monitors.get(o.monitor_id)?.name ?? null)
+          : `${c.platforms.get(o.platform_id)?.name ?? ''} · ${e ? (e.group_name ? `${e.group_name}/${e.name}` : e.name) : o.endpoint_key}`,
       noDataReason: st.status === 'noData' ? st.reason : null,
       noDataTooLong: st.noDataTooLong,
       archivedAt: o.archived_at,
@@ -725,7 +732,7 @@ export interface Computed {
 export function computeScorecards(serviceIds: string[] | undefined, viewer: AuthUser | null, now = Date.now()): Computed[] {
   const d = load(serviceIds, now, viewer);
   if (!d.services.length) return [];
-  const oc: ObjCtx = { cache: readingCache(now), facts: sampleFacts(), platforms: platformLookup(), viewer };
+  const oc: ObjCtx = { cache: readingCache(now), facts: sampleFacts(), platforms: platformLookup(), monitors: monitorLookup(), viewer };
   const docs = docCtx(d, viewer);
   const needs = protectionNeeds(d.services.map((s) => s.id));
   const lc = lifecycleCtx(d, viewer);

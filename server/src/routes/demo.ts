@@ -207,7 +207,7 @@ async function setupChangedetectionDemo(platformId: string | undefined, actor: s
   }
 }
 
-export async function setupDemo(opts: { applications?: boolean } = {}): Promise<{
+export async function setupDemo(opts: { applications?: boolean; services?: boolean } = {}): Promise<{
   platforms: number;
   processes: number;
   users: string[];
@@ -217,6 +217,7 @@ export async function setupDemo(opts: { applications?: boolean } = {}): Promise<
   runs: number;
   monitors: number;
   applications: number;
+  services: number;
 }> {
   const base = `${loopbackUrl()}/mock`;
   const existing = new Set(
@@ -789,6 +790,17 @@ export async function setupDemo(opts: { applications?: boolean } = {}): Promise<
   } catch (err) {
     logger.warn({ err: (err as Error).message }, 'data contract demo data not loaded');
   }
+  // ---- the service half (U5): services from the sample applications with monitors, documents, duties, credentials …
+  // A second step on request ({ services: true }: the Home page's "Load demo" and the UI tests): the server tests
+  // load the demo for its platforms and processes and expect an empty catalogue and empty registers. ----
+  let services = 0;
+  if (opts.services && opts.applications !== false) {
+    try {
+      services = await (await import('../catalogue/demo.js')).setupServiceDemo();
+    } catch (err) {
+      logger.warn({ err: (err as Error).message }, 'demo services not created');
+    }
+  }
   // ---- the plant registry's invented enterprise, when the module is on (plant/demo.ts) ----
   try {
     seedPlantDemo();
@@ -799,7 +811,7 @@ export async function setupDemo(opts: { applications?: boolean } = {}): Promise<
   audit({
     action: 'demo.setup',
     entityType: 'settings',
-    summary: `Demo data loaded (${platforms} platforms, ${processes} processes, ${created.length} users, ${dashboards} dashboards, ${applications} applications, ${schedules} schedules, ${runs} feeder runs started, ${monitors} monitors)`,
+    summary: `Demo data loaded (${platforms} platforms, ${processes} processes, ${created.length} users, ${dashboards} dashboards, ${applications} applications, ${schedules} schedules, ${runs} feeder runs started, ${monitors} monitors, ${services} services)`,
   });
   return {
     platforms,
@@ -811,5 +823,6 @@ export async function setupDemo(opts: { applications?: boolean } = {}): Promise<
     runs,
     monitors,
     applications,
+    services,
   };
 }

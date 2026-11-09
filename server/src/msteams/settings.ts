@@ -10,6 +10,7 @@ import { db } from '../db.js';
 import { HttpError, parseJson } from '../util.js';
 import type { AuthUser } from '../auth/context.js';
 import { currentPolicy, pendingPolicyChange, pointRule, savePolicy } from '../auth/assurance.js';
+import { moduleEnabled } from '../modules/registry.js';
 
 /**
  * The Teams bot (ADR 0013 stage 2, a preview, off by default): the Entra app id, the allowed tenants, the sign-in
@@ -70,7 +71,7 @@ function saveSecrets(s: BotSecrets): void {
 }
 
 /** The assurance policy lets the bot take decisions at all (control point teams.bot – a second administrator turns it on). */
-export const botApproved = (): boolean => pointRule('teams.bot').teams === true;
+export const botApproved = (): boolean => pointRule('teams.bot').teams === true && moduleEnabled('teamsBot');
 
 /** The bot takes decisions and posts cards: switched on here and approved in the assurance policy. */
 export const botActive = (): boolean => botConfig().enabled && botApproved();

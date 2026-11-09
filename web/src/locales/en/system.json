@@ -95,7 +95,7 @@
     "development": "development build",
     "linksTitle": "Documentation and links",
     "links": {
-      "docs": "Documentation (README)",
+      "docs": "Documentation (index)",
       "guides": "Guides (docs folder)",
       "changelog": "Changelog",
       "security": "Report a vulnerability (SECURITY.md)",
@@ -333,7 +333,8 @@
         "audit-checkpoint": "Signed audit checkpoint",
         "scheduler-heartbeat": "Scheduler mark: fires after it count as missed at the next start",
         "git-sync": "Scheduled Git sync fetches"
-      }
+      },
+      "switchedOff": "Module switched off"
     }
   },
   "updateNotice": {
@@ -348,7 +349,8 @@
     "noBackup": {
       "notNeeded": "No copy of the database was needed.",
       "postgres": "Steward makes no copy of a PostgreSQL database. Back it up with pg_dump before every update.",
-      "disabled": "No copy of the database was made: automatic copies are turned off (SM_UPGRADE_BACKUPS=0)."
+      "disabled": "No copy of the database was made: automatic copies are turned off (SM_UPGRADE_BACKUPS=0).",
+      "failed": "The copy of the database before the update failed, and the update went ahead without it (SM_UPGRADE_BACKUP_REQUIRED=0). The server log has the reason."
     },
     "releaseNotes": "Release notes for {{version}}",
     "dismiss": "Dismiss the update notice"

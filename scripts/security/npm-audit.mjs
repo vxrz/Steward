@@ -6,7 +6,7 @@
 // npm audit can't ignore a single advisory. This runs `npm audit --omit=dev --json` and fails on every
 // finding at or above the level, except advisories listed under [[IgnoredVulns]] in osv-scanner.toml
 // whose ignoreUntil date has not passed. One list of accepted risks, with a reason and an expiry, for
-// both scanners (see docs/SECURITY-PIPELINE.md).
+// both scanners (see docs/ci/SECURITY-PIPELINE.md).
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -99,7 +99,7 @@ if (failing.length) {
     const through = v.via.filter((x) => typeof x === 'string');
     console.error(`- ${v.name} (${v.severity})${own.length ? `: ${own.join('; ')}` : ''}${through.length ? ` via ${through.join(', ')}` : ''}`);
   }
-  console.error('Fix them, or accept a risk with a reason and an expiry in osv-scanner.toml (docs/SECURITY-PIPELINE.md).');
+  console.error('Fix them, or accept a risk with a reason and an expiry in osv-scanner.toml (docs/ci/SECURITY-PIPELINE.md).');
   process.exit(1);
 }
 console.log(`npm-audit: no ${level} or higher findings in the production dependencies that are not accepted.`);

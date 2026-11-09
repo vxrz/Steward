@@ -148,4 +148,13 @@ export const MONITOR_MIGRATIONS: NamedMigration[] = [
       );
     `,
   },
+  {
+    // 0.11 (ADR 0018): a monitor's own maintenance windows become catalogue maintenance windows that list the monitor.
+    // The rows stay (the copy is made once the vault is open, with an audit entry each) and say what they became.
+    name: 'monitors-002-maintenance-migrated',
+    sql: `
+      ALTER TABLE monitor_maintenance ADD COLUMN migrated_to TEXT;
+      ALTER TABLE monitor_maintenance ADD COLUMN migrated_at TEXT;
+    `,
+  },
 ];

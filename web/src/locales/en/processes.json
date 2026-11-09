@@ -149,5 +149,51 @@
     "checkItem1": "Everything works as before"
   },
   "more": "More",
-  "newManualProcedureHint": "Checklists and evidence, done by people – no platform needed"
+  "newManualProcedureHint": "Checklists and evidence, done by people – no platform needed",
+  "list": {
+    "name": "Process",
+    "lastRun": "Last run",
+    "nextRun": "Next run",
+    "owner": "Owner",
+    "version": "Version",
+    "actions": "Actions",
+    "versionLine": "v{{version}} · {{when}}",
+    "never": "Never run",
+    "notScheduled": "Not scheduled",
+    "schedule": "Schedule",
+    "scheduledYes": "Scheduled",
+    "scheduledNo": "Not scheduled",
+    "noMatch": "No process matches. Clear the search or the filters.",
+    "lastRunFilter": {
+      "succeeded": "Succeeded",
+      "findings": "Completed with findings",
+      "failed": "Failed",
+      "other": "Running, waiting or cancelled",
+      "never": "Never run"
+    }
+  },
+  "create": {
+    "title": "New process",
+    "name": "Name",
+    "id": "Id",
+    "idHint": "Used in addresses, schedules and the API. It cannot be changed later.",
+    "idInvalid": "Use lower-case letters, digits and dashes (at most 48), starting and ending with a letter or digit.",
+    "descriptionLabel": "Description",
+    "start": "Start",
+    "blank": "Blank",
+    "manual": "Manual procedure",
+    "fromTemplate": "From a template",
+    "template": "Template",
+    "startHint": {
+      "blank": "A start step only. You add the steps in the editor.",
+      "manual": "Three manual steps with checklists, ready to fill in.",
+      "template": "A copy of a template. Its connections are bound when you run it."
+    },
+    "teams": "Owning teams",
+    "teamsHint": "Members of these teams change it; empty: it belongs to the whole instance",
+    "wholeInstance": "None – the whole instance",
+    "yourTeams": "{{teams}} (the team your new resources get – see your profile)",
+    "wholeInstanceText": "None – it belongs to the whole instance. Administrators can change this later.",
+    "submit": "Create and edit"
+  }
 }

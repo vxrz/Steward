@@ -28,7 +28,8 @@ export function CredentialReminderSettingsCard() {
   const valid = parsed.every((x) => Number.isInteger(x) && x >= 0 && x <= 365) && parsed.length <= 10;
   const dirty = !!d && !!q.data && (JSON.stringify(d) !== JSON.stringify(q.data) || days !== q.data.daysBefore.join(', '));
   const save = async () => {
-    if (!d) return;
+    // the field already says what is wrong; the button stays enabled (U16)
+    if (!d || !valid) return;
     setBusy(true);
     try {
       const next = await put<CredentialReminderSettings>('/credentials/settings', { ...d, daysBefore: parsed });
@@ -79,7 +80,7 @@ export function CredentialReminderSettingsCard() {
         </Group>
         {!inBar && (
           <Group justify="flex-end">
-            <Button size="xs" onClick={save} loading={busy} disabled={!valid}>
+            <Button size="xs" onClick={save} loading={busy}>
               {t('settings.save')}
             </Button>
           </Group>

@@ -2,11 +2,31 @@
 
 Steward produces three kinds of PDF/A-2b reports. All of them are archived the same way: the file is written once and never changed, its SHA-256 is recorded in the audit log (`report.generated`), and _Audit log → Verify PDF report_ checks a copy, also a signed one.
 
-| Kind                 | What                                                    | Where                                                         |
-| -------------------- | ------------------------------------------------------- | ------------------------------------------------------------- |
-| Run report           | One run: what was done, decisions, checks, evidence     | Run page → _PDF reports_ ([README](../README.md#pdf-reports)) |
-| Summary report       | Runs of one or more processes in a period               | _Runs → Summary report_ ([README](../README.md#pdf-reports))  |
-| **Scheduled report** | Availability and SLA, credentials, runs – on a schedule | _Reports_ (this page)                                         |
+| Kind                 | What                                                    | Where                                                        |
+| -------------------- | ------------------------------------------------------- | ------------------------------------------------------------ |
+| Run report           | One run: what was done, decisions, checks, evidence     | Run page → _PDF reports_ ([below](#run-and-summary-reports)) |
+| Summary report       | Runs of one or more processes in a period               | _Runs → Summary report_ ([below](#run-and-summary-reports))  |
+| **Scheduled report** | Availability and SLA, credentials, runs – on a schedule | _Reports_ (this page)                                        |
+
+## Run and summary reports
+
+Steward creates PDF reports without a browser, also in the desktop executable.
+
+- **Run report.** On a run page, open _PDF reports → Generate PDF report_ (or _Run report → Generate PDF report…_). Choose English or German and add a reviewer comment if you like. The report contains:
+  - a summary: process, version and definition hash, who started the run, when and how, the time zone, the status and a prominent _dry run_ banner;
+  - the platforms used (names and kinds only, never credentials) and the inputs;
+  - every step in order, the write operations (simulated ones are marked), decisions and approvals (who, when, selection, comment, four-eyes rule), checks, the process's own report sections, evidence with thumbnails and errors;
+  - the reviewer comment, an integrity section with the sealed protocol hash and the run's audit trail, and a sign-off block (_Prepared / Reviewed / Approved by_) with empty digital signature fields.
+- **Interim reports.** Runs that wait for a decision can be reported too. These reports are marked _interim_.
+- **Summary report.** _Runs → Summary report_ lists all runs of one or more processes in a period, e.g. "Access reviews Q3", with totals.
+- **Automatic reports.** In the process editor, _Settings → PDF report_ (YAML: `report: { auto: true, lang: de }`) generates the report whenever a run finishes, e.g. for scheduled reviews.
+- **Branding.** _Settings → Report branding_ (administrators) sets the company name, logo (PNG/JPEG, max. 1 MB; default: the Steward logo), accent colour, default classification (e.g. _Internal_) and a footer note, with a sample preview ([Branding](#branding)).
+
+**Archiving and signing.** The files are PDF/A-2b with embedded fonts and metadata (run ID, process, protocol hash, content hash), validated with veraPDF (PDF/A-2b). They are written once to `data/reports/<run>/<report>.pdf` and never overwritten; generating again creates a new version. Each generation is recorded as `report.generated` with the file's SHA-256 in the audit log, and data retention removes a run's reports together with the run. The signature fields can be signed later in Adobe Acrobat or another PDF signing tool.
+
+**Verifying a copy.** _Audit log → Verify PDF report_ (or `POST /api/reports/verify`) checks a file against the audit log. It also recognizes signed copies: a signature is appended as an incremental update, so the first bytes of a signed copy are still the original report.
+
+API: `POST /api/runs/:id/reports` `{ lang, comment, classification, timeZone }`, `GET /api/runs/:id/reports`, `GET /api/reports/:id/download`, `POST /api/reports/summary` `{ processIds, from, to, lang, comment, title }`. `GET /api/runs/:id/report.pdf?lang=de` generates, stores and returns a report in one step. Generating and downloading needs view rights on the process; branding needs the _settings_ capability.
 
 ## Branding
 
@@ -64,7 +84,7 @@ A report schedule creates a summary report every day, week or month, archives it
 
    | Section                         | Contents                                                                                                                                                                                                                                                       |
    | ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-   | Availability of monitors        | Per monitor: uptime, SLA met or missed (optional target, e.g. 99.5 %), number of outages, downtime, average and p95 response time; a bar chart and the list of outages                                                                                         |
+   | Availability of monitors        | Per monitor: uptime, SLA met or missed (target from the monitor's availability objective, see below), number of outages, downtime, average and p95 response time; a bar chart and the list of outages                                                          |
    | Availability of Gatus endpoints | The same per Gatus endpoint, from metrics mode ([GATUS.md](GATUS.md#5-metrics-mode))                                                                                                                                                                           |
    | Credentials register            | Expired and overdue entries and those due within _N_ days after the period ([CREDENTIALS.md](CREDENTIALS.md))                                                                                                                                                  |
    | Runs                            | Runs started in the period per process: succeeded, failed, other                                                                                                                                                                                               |
@@ -74,6 +94,8 @@ A report schedule creates a summary report every day, week or month, archives it
    | AI usage                        | Calls and tokens of AI models per gateway and model, the processes with the most tokens, refused and failed calls, the budgets – with the preset _monthly_ the monthly AI report ([AI.md](AI.md#reporting))                                                    |
    | Costs                           | Per service, application, team or platform the costs of the period against the period before, per currency, with the budgets (platforms: what is unassigned) – with the preset _monthly_ the monthly cost report ([COSTS.md](COSTS.md#dashboards-and-the-api)) |
    | Data contracts                  | Per data contract the tests of the period (passed, warnings, failed), the last test, Steward's findings and the versions saved with their breaking changes ([DATA-CONTRACTS.md](DATA-CONTRACTS.md#monitors-processes-scorecard-and-reports))                   |
+
+   **SLA targets of monitors.** With _Use the objective_ (on for new schedules), each monitor is judged by the availability objective that has it as source ([SCORECARD.md](SCORECARD.md#from-a-steward-monitor)): the target of the objective's window closest to the report period – 24 h for a daily report, 7 days for a weekly one, 30 days for a monthly one; with several objectives the strictest. The uptime is computed the same way as the objective's, so a report over 7 days ending now shows the same number as the objective's 7-day window. Monitors without such an objective use the section's own _SLA target_. That separate field is **deprecated** (0.11) and will be removed in a later release; schedules saved before 0.11 keep it until you switch _Use the objective_ on.
 
 6. **Recipients**: Steward users and teams (in the app and by e-mail, following their notification settings) and up to 20 e-mail addresses (e-mail only, when e-mail is set up). An address needs an allowed domain (_Settings → Notifications → Allowed e-mail domains for addresses outside Steward_; while it is empty, the company's own domains – see [CREDENTIALS.md](CREDENTIALS.md#e-mail-addresses-outside-steward)). _Attach the PDF_ sends the file with the e-mail (up to 10 MB); otherwise the e-mail has a link, which needs a Steward account. The subject is `Report ready: "<name>"`, with the name shortened to 80 characters.
 7. Save. _Generate now_ (▶) creates a report immediately for the period ending now.
@@ -120,11 +142,14 @@ Internal API (web UI): `GET/POST /api/report-schedules`, `GET/PUT/DELETE /api/re
 
 ### For developers: more sections
 
-Sections are registered in `server/src/reports/sections.ts` with `registerReportSection({ id, schema, validate, title, build, render, glance })`:
+A section has two halves ([ARCHITECTURE.md](ARCHITECTURE.md#report-sections-and-the-pdf-worker)), joined with `defineReportSection()` (`server/src/reports/sections.ts`):
 
-- `schema` validates the section's configuration (zod);
-- `build(config, { from, to, now, lang })` runs inside `runAs(owner)` and returns JSON data (part of the report's content hash);
-- `render(data, { w, tr, lang, section })` draws it with the PDF writer;
-- `glance` adds figures to the _At a glance_ row.
+- the draw half, `<feature>/report-section-draw.ts`, runs in the PDF worker and reads no database:
+  - `title(lang)` names the section;
+  - `render(data, { w, tr, lang, section })` draws it with the PDF writer;
+  - `glance` adds figures to the _At a glance_ row;
+- the collect half, `<feature>/report-section.ts`, runs in the main thread:
+  - `schema` validates the section's configuration (zod), `validate` checks what it names when a schedule is saved;
+  - `build(config, { from, to, now, lang })` runs inside `runAs(owner)` and returns JSON data (part of the report's content hash).
 
-The "records" section (`server/src/records/report-section.ts`) plugs in this way; `reports/schedules.ts` imports it.
+The feature's manifest lists the section (`reportSections` in `server/src/features/<feature>.ts`), and `server/src/reports/pdf/drawers.ts` lists its draw half for the worker. The "records" section (`server/src/records/report-section.ts`) plugs in this way.

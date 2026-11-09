@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { audit } from '../audit.js';
 import { HttpError } from '../util.js';
@@ -6,6 +6,7 @@ import * as platforms from '../platforms/service.js';
 import * as gatus from './metrics.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { me } from '../auth/access.js';
+import { params } from '../routes/params.js';
 
 /**
  * Gatus metrics mode (mounted under /api):
@@ -16,8 +17,6 @@ import { me } from '../auth/access.js';
  *   POST   /gatus/sources/:platformId/scrape      scrape now (platform users; at most every 15 s per source)
  *   GET    /gatus/sources/:platformId/endpoints   endpoint states with uptime
  */
-
-const params = (req: FastifyRequest) => req.params as Record<string, string>;
 
 /** The platform must be a Gatus platform the user has a right on (404 otherwise, so ids cannot be probed). */
 function gatusPlatform(id: string, need?: 'use' | 'manage') {

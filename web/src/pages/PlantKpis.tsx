@@ -11,6 +11,7 @@ import { QueryState, useCreateParam } from '../components/common';
 import { ListPage, useStoredListView } from '../components/page/ListPage';
 import { plantKeys } from '../queryKeys';
 import { NotInSourceBadge, PreviewBadge, useNameOf, usePlantConfig } from '../components/plant/common';
+import { BulkBar, SelectAllBox, SelectBox, useSelection } from '../components/plant/bulk';
 import { UnitText } from '../components/plant/data';
 import { KpiFormModal } from '../components/plant/dataForms';
 
@@ -50,6 +51,10 @@ export function PlantKpisPage() {
   );
   const none = kpis.isSuccess && all.length === 0;
   const to = (k: PlantKpiSummary) => `/plant/kpis/${encodeURIComponent(k.id)}`;
+  // Edit selected / Remove selected (0.11.0)
+  const canBulk = !!canManage;
+  const shownIds = list.map((k) => k.id);
+  const sel = useSelection(shownIds);
   return (
     <ListPage
       testId="plant-kpis"
@@ -124,12 +129,16 @@ export function PlantKpisPage() {
           {t('kpis.noMatch')}
         </Text>
       )}
+      {canBulk && list.length > 0 && (
+        <BulkBar kind="kpi" sel={sel} visible={shownIds} selectAll={view.cards} entries={list.map((x) => ({ id: x.id, name: nameOf(x) }))} />
+      )}
       {list.length > 0 && view.cards && (
         <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} data-testid="plant-kpi-cards">
           {list.map((k) => (
             <Paper key={k.id} withBorder p="md" component="article" aria-labelledby={`kpi-${k.id}`}>
               <Stack gap={6}>
                 <Group justify="space-between" wrap="nowrap" align="flex-start" gap="xs">
+                  {canBulk && <SelectBox sel={sel} id={k.id} name={nameOf(k)} />}
                   <Anchor id={`kpi-${k.id}`} component={Link} to={to(k)} fw={600} style={{ overflowWrap: 'anywhere' }}>
                     {nameOf(k)}
                   </Anchor>
@@ -150,6 +159,11 @@ export function PlantKpisPage() {
           <Table highlightOnHover fz="sm" aria-label={t('kpis.title')} data-testid="plant-kpi-table">
             <Table.Thead>
               <Table.Tr>
+                {canBulk && (
+                  <Table.Th w={36}>
+                    <SelectAllBox sel={sel} ids={shownIds} />
+                  </Table.Th>
+                )}
                 <Table.Th>{t('form.name')}</Table.Th>
                 <Table.Th>{t('kpi.category')}</Table.Th>
                 <Table.Th>{t('data.unit')}</Table.Th>
@@ -161,6 +175,11 @@ export function PlantKpisPage() {
             <Table.Tbody>
               {list.map((k) => (
                 <Table.Tr key={k.id} className="clickable" onClick={() => navigate(to(k))}>
+                  {canBulk && (
+                    <Table.Td onClick={(e) => e.stopPropagation()}>
+                      <SelectBox sel={sel} id={k.id} name={nameOf(k)} />
+                    </Table.Td>
+                  )}
                   <Table.Td>
                     <Group gap={6} wrap="nowrap">
                       <Anchor component={Link} to={to(k)} fw={500} size="sm" onClick={(e) => e.stopPropagation()}>

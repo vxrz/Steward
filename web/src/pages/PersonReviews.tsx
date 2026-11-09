@@ -110,6 +110,7 @@ export function PersonReviewsPage() {
   );
   return (
     <ListPage
+      area="personReviews"
       title={t('personReviews.title')}
       description={t('personReviews.description')}
       primaryAction={newButton}

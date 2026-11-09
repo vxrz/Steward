@@ -4,16 +4,21 @@ import { authFile, type UserKey } from './support/env';
 import { expectAccessible, settle } from './support/axe';
 import { json, uniq } from './support/helpers';
 
-/** The six areas of the sidebar (v0.4.0) per role, pinned entries and the addresses that moved or stayed. */
+/**
+ * The areas of the sidebar (v0.4.0; Registers since 0.11.0) per role – only what the role can use (U2) –, pinned
+ * entries and the addresses that moved or stayed.
+ */
 
 const sidebar = (page: Page) => page.getByRole('navigation', { name: 'Main navigation' });
 
 /** Opens every folded area and returns its links, area by area. */
 async function areas(page: Page): Promise<Record<string, string[]>> {
   const nav = sidebar(page);
+  // the areas wait for what the person may see (GET /api/me/visibility)
+  await expect(nav.locator('[data-areas="ready"]')).toHaveCount(1);
   const out: Record<string, string[]> = {};
   out.Home = await nav.getByRole('link', { name: 'Home', exact: true }).allInnerTexts();
-  for (const name of ['Operate', 'Automate', 'Catalogue', 'Compliance', 'Admin']) {
+  for (const name of ['Operate', 'Automate', 'Catalogue', 'Registers', 'Compliance', 'Admin']) {
     const group = nav.getByRole('group', { name, exact: true });
     if (!(await group.count())) continue;
     const toggle = group.getByRole('button', { name, exact: true });
@@ -22,50 +27,66 @@ async function areas(page: Page): Promise<Record<string, string[]>> {
     // the links are hidden until the area has unfolded (an area without entries is not shown at all)
     await expect(group.getByRole('link').first()).toBeVisible();
     // the open-task count beside "My tasks" is not part of the name
-    out[name] = (await group.getByRole('link').allInnerTexts()).map((x) => x.split('\n')[0]!.trim());
+    out[name] = (await group.getByRole('link').allInnerTexts()).map((x) => x.split('\n')[0]!.trim()).filter((x) => x !== 'AI requests');
   }
   return out;
 }
 
-const OPERATE = ['Runs', 'Monitors', 'Dashboards', 'Status pages', 'Reports', 'My tasks', 'AI requests'];
-const CATALOGUE = [
-  'Services',
-  'Applications',
-  'Systems',
-  'Platforms',
-  'Data contracts',
-  'Credentials',
-  'Documents',
-  'Ticket references',
-  'Duties',
-  'Scorecard',
-  'Costs',
-  'Maintenance',
-];
+// AI requests show while the MCP server is on or with requests to read: other specs switch it on, so it is left out here
+const OPERATE = ['Runs', 'Monitors', 'Dashboards', 'Status pages', 'Reports', 'My tasks', 'Maintenance'];
+const CATALOGUE = ['Services', 'Applications', 'Systems', 'Platforms', 'Data contracts'];
+const REGISTERS = ['Documents', 'Credentials', 'Ticket references', 'Duties'];
 const COMPLIANCE = ['Controls', 'Access changes', 'Access reconciliation', 'Person reviews', 'Evidence packs'];
+const without = (list: string[], ...names: string[]) => list.filter((x) => !names.includes(x));
 
+/**
+ * What each demo role sees (U2, 0.11.0): the server says which areas hold something for the person or may get
+ * something from them (GET /api/me/visibility). Before 0.11.0 every role saw almost the same 27–33 entries.
+ */
 const EXPECTED: Partial<Record<UserKey, Record<string, string[]>>> = {
   admin: {
     Home: ['Home'],
     Operate: OPERATE,
     Automate: ['Processes'],
     Catalogue: CATALOGUE,
+    Registers: REGISTERS,
     Compliance: COMPLIANCE,
     Admin: ['Users & teams', 'Audit log', 'Settings', 'System status'],
   },
-  dana: { Home: ['Home'], Operate: OPERATE, Automate: ['Processes'], Catalogue: CATALOGUE, Compliance: COMPLIANCE },
+  dana: { Home: ['Home'], Operate: OPERATE, Automate: ['Processes'], Catalogue: CATALOGUE, Registers: REGISTERS, Compliance: COMPLIANCE },
+  // the operator uses the demo platforms: their access checks and access changes are theirs to read
+  olivia: {
+    Home: ['Home'],
+    Operate: OPERATE,
+    Automate: ['Processes'],
+    Catalogue: CATALOGUE,
+    Registers: REGISTERS,
+    Compliance: without(COMPLIANCE, 'Person reviews'),
+  },
+  // the approver decides person reviews and reads access changes, but uses no platform (no access checks)
+  adam: {
+    Home: ['Home'],
+    Operate: OPERATE,
+    Automate: ['Processes'],
+    Catalogue: CATALOGUE,
+    Registers: REGISTERS,
+    Compliance: without(COMPLIANCE, 'Access reconciliation'),
+  },
+  // the viewer: no credentials register, no access governance, no evidence packs
   vera: {
     Home: ['Home'],
     Operate: OPERATE,
     Automate: ['Processes'],
-    Catalogue: CATALOGUE.filter((x) => x !== 'Credentials'),
-    Compliance: COMPLIANCE.filter((x) => x !== 'Evidence packs'),
+    Catalogue: CATALOGUE,
+    Registers: without(REGISTERS, 'Credentials'),
+    Compliance: ['Controls'],
   },
   audrey: {
     Home: ['Home'],
     Operate: OPERATE,
     Automate: ['Processes'],
     Catalogue: CATALOGUE,
+    Registers: REGISTERS,
     Compliance: COMPLIANCE,
     Admin: ['Audit log', 'System status'],
   },
@@ -78,6 +99,7 @@ for (const [user, expected] of Object.entries(EXPECTED) as [UserKey, Record<stri
       await page.goto('/');
       await settle(page);
       expect(await areas(page)).toEqual(expected);
+      if (user === 'vera') await expect(sidebar(page).getByRole('link', { name: 'AI requests' })).toHaveCount(0);
     });
   });
 }
@@ -127,6 +149,27 @@ test.describe('pinned entries (designer)', () => {
     await expect(sidebar(page).getByTestId('nav-pinned')).toHaveCount(0);
   });
 
+  test('one tab stop per entry: P pins the focused entry, the pin buttons stay out of the tab order (U17)', async ({ page }) => {
+    await page.goto('/runs');
+    await settle(page);
+    const nav = sidebar(page);
+    const runs = nav.getByRole('link', { name: 'Runs', exact: true });
+    await expect(runs).toHaveAttribute('aria-keyshortcuts', 'P');
+    await expect(nav.getByRole('button', { name: 'Pin Runs to the top' })).toHaveAttribute('tabindex', '-1');
+    // Tab goes from entry to entry
+    await runs.focus();
+    await page.keyboard.press('Tab');
+    await expect(nav.getByRole('link', { name: 'Monitors', exact: true })).toBeFocused();
+    await page.keyboard.press('p');
+    await expect(nav.getByRole('group', { name: 'Pinned' }).getByRole('link')).toHaveText(['Monitors']);
+    await nav.getByRole('group', { name: 'Pinned' }).getByRole('link', { name: 'Monitors' }).focus();
+    await page.keyboard.press('P');
+    await expect(nav.getByTestId('nav-pinned')).toHaveCount(0);
+    // the shortcut list names it
+    await page.keyboard.press('?');
+    await expect(page.getByTestId('shortcut-list')).toContainText('Pin or unpin the focused sidebar entry');
+  });
+
   test('pins belong to the user: another user in the same browser has their own', async ({ page }) => {
     // pins are stored per user id: another user's pins in this browser do not show
     await page.goto('/');
@@ -170,8 +213,8 @@ test.describe('addresses (admin)', () => {
     for (const [path, name] of pages) {
       await page.goto(path);
       await expect(page.getByRole('main').getByRole('heading', { level: 1 }).first(), path).toBeVisible();
-      // the sidebar marks the page's entry (Schedules, Triggers and Git sync: Processes)
-      const entry = ['/schedules', '/triggers', '/git-updates'].includes(path) ? 'Processes' : name;
+      // the sidebar marks the page's entry (Schedules, Triggers and Git sync: Processes; Scorecard and Costs: Services)
+      const entry = ['/schedules', '/triggers', '/git-updates'].includes(path) ? 'Processes' : ['/scorecard', '/costs'].includes(path) ? 'Services' : name;
       await expect(sidebar(page).getByRole('link', { name: entry, exact: true }), path).toHaveAttribute('aria-current', 'page');
     }
     const redirects: [string, RegExp][] = [
@@ -179,6 +222,7 @@ test.describe('addresses (admin)', () => {
       ['/operate', /\/runs$/],
       ['/automate', /\/processes$/],
       ['/catalogue', /\/services$/],
+      ['/registers', /\/records$/],
       ['/compliance', /\/compliance\/controls$/],
       ['/admin', /\/users$/],
     ];

@@ -1,8 +1,8 @@
-import { CONTAINER_REGISTRY_KIND, DATABASE_KIND, LLM_GATEWAY_KIND, PVAULT_KIND, type Platform } from '@sm/shared';
+import type { Platform } from '@sm/shared';
 import { audit } from '../audit.js';
 import { buildUrl, platformRequest, secretValues, tokenInfo } from './http.js';
 import { judgeHttpTest } from './connectionTest.js';
-import { snowflakeJwtHint } from './jwt.js';
+import { driverOf } from './drivers.js';
 import { shownHeaders, where } from './answers.js';
 
 /** The answer of "Test connection" (POST /platforms/:id/test) and of the periodic test (v0.4.0). */
@@ -50,73 +50,29 @@ export async function runConnectionTest(p: Platform, secrets: Record<string, str
     return r;
   };
   const testPath = p.config.testPath || '/';
-  // Microsoft Graph (v0.5.0): the sign-in, the admin consent and every part Steward reads, with what is missing;
-  // LLM gateways (0.6.0): the model list and one minimal request per model that is set up;
-  // database platforms (0.7.0): sign-in, the read-only session, whether the account can write, the catalog queries
-  if (p.kind === 'microsoft-graph' || p.kind === LLM_GATEWAY_KIND || p.kind === DATABASE_KIND) {
+  // a connector with its own test (platforms/drivers.ts): Kafka, MQTT, AWS, Snowflake, databases, Microsoft Graph …
+  const own = driverOf(p.kind)?.test;
+  if (own) {
     const t0 = Date.now();
     try {
-      const r =
-        p.kind === LLM_GATEWAY_KIND
-          ? await (await import('../ai/gateway.js')).testGateway(p, secrets)
-          : p.kind === DATABASE_KIND
-            ? await (await import('../dbms/service.js')).testDatabase(p, secrets)
-            : await (await import('../entra/service.js')).testGraph(p, secrets);
+      const r = await own.run(p, secrets);
       const message = redactSecrets(r.message, secrets);
       return done(
         {
           ok: r.ok,
           // a database answers no HTTP status: the UI shows none
-          status: r.ok && p.kind !== DATABASE_KIND ? 200 : 0,
+          status: r.ok && !own.noStatus ? 200 : 0,
           durationMs: Date.now() - t0,
           message,
           body: null,
-          token: tokenInfo(p),
-          checks: redactSecrets(r.checks, secrets),
+          token: own.token ? tokenInfo(p) : null,
+          ...(r.checks ? { checks: redactSecrets(r.checks, secrets) } : {}),
         },
         `Connection test "${p.name}": ${message.slice(0, 300)}${r.ok ? '' : ' – failed'}`,
       );
     } catch (e) {
-      const message = redactSecrets((e as Error).message, secrets);
-      return done({ ok: false, status: 0, durationMs: Date.now() - t0, message }, `Connection test "${p.name}" failed: ${message.slice(0, 200)}`);
-    }
-  }
-  // Kafka (#112) and MQTT (#113) are no HTTP APIs: their test connects to the cluster or broker; AWS (#116) asks STS who it is
-  if (p.kind === 'kafka' || p.kind === 'mqtt' || p.kind === 'aws' || p.kind === 'snowflake' || p.kind === PVAULT_KIND || p.kind === CONTAINER_REGISTRY_KIND) {
-    const t0 = Date.now();
-    try {
-      let checks: { name: string; ok: boolean; message: string }[] | undefined;
-      const message =
-        p.kind === 'kafka'
-          ? await (await import('../kafka/service.js')).testKafka(p, secrets)
-          : p.kind === 'aws'
-            ? await (await import('../aws/service.js')).testAws(p, secrets).then((r) => ((checks = r.checks), r.message))
-            : p.kind === 'snowflake'
-              ? await (await import('../snowflake/service.js')).testSnowflake(p, secrets)
-              : p.kind === PVAULT_KIND
-                ? // IBM Verify Privilege Vault (#205): signs in, then every read Steward makes, naming missing permissions
-                  await (await import('../pvault/service.js')).testPrivilegeVault(p, secrets).then((r) => ((checks = r.checks), r.message))
-                : p.kind === CONTAINER_REGISTRY_KIND
-                  ? // container registries (#241): the token flow and the tags of a test image
-                    await (await import('../versions/sources.js')).testRegistry(p, secrets)
-                  : await (await import('../mqtt/listener.js')).testMqtt(p, secrets);
-      // AWS: every part Steward reads, with what is missing (the test passes when STS works)
-      return done(
-        {
-          ok: true,
-          status: 200,
-          durationMs: Date.now() - t0,
-          message,
-          body: null,
-          token: p.kind === PVAULT_KIND ? tokenInfo(p) : null,
-          ...(checks ? { checks: redactSecrets(checks, secrets) } : {}),
-        },
-        `Connection test "${p.name}": ${message}`,
-      );
-    } catch (e) {
       let message = redactSecrets((e as Error).message, secrets);
-      // Snowflake's "390144 JWT token is invalid" says nothing about why: the usual causes
-      if (p.kind === 'snowflake') message = snowflakeJwtHint(message, p.config.variables);
+      if (own.failureHint) message = own.failureHint(message, p);
       return done({ ok: false, status: 0, durationMs: Date.now() - t0, message }, `Connection test "${p.name}" failed: ${message.slice(0, 200)}`);
     }
   }

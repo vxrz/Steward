@@ -9,7 +9,8 @@
     },
     "asset": {
       "overview": "Überblick",
-      "flow": "Datenfluss"
+      "flow": "Datenfluss",
+      "collections": "Datenerfassungen"
     }
   },
   "toolbar": {
@@ -299,7 +300,7 @@
   },
   "network": {
     "title": "Diagramm",
-    "help": "Zonen nach IEC 62443-3-2 mit ihren VLANs und den {{type}} darin, die Conduits zwischen den Zonen und die Datenwege darüber. Zeigen Sie auf einen Teil, um seine Geräte, Subnetze und VLANs zu sehen.",
+    "help": "Zonen (IEC 62443-3-2) in Bändern nach ihrer Ebene, Feld unten, mit ihren VLANs und {{type}}; Conduits sind die Übergänge zwischen ihnen. Zeigen Sie auf einen Teil oder wählen Sie ihn aus, um Details zu sehen.",
     "live": "die Prüfungen, die mit einer Anlage und ihren Geräten verknüpft sind (Monitore – Gatus, CheckMk, die MQTT- und Kafka-Prüfungen – und die Aktualität von Datensätzen): online, offline oder „keine Daten“. Ein Weg von einer Anlage, die offline ist, ist rot und steht still.",
     "exportTitle": "OT-Netz von {{site}}",
     "emptyTitle": "Noch nichts zu zeichnen",
@@ -322,7 +323,7 @@
     "restricted": "Eingeschränkt",
     "legendZone": "Zone (IEC 62443-3-2): ihre Kritikalität und SL-T",
     "legendVlan": "VLAN (IEEE 802.1Q) in einer Zone, die Anlagen darin",
-    "legendConduit": "Conduit zwischen zwei Zonen; Datenwege in eine andere Zone laufen hindurch",
+    "legendConduit": "Conduit: der Übergang zwischen zwei Zonen; Datenwege in eine andere Zone laufen durch ihn",
     "legendNoConduit": "Ein Datenweg in eine andere Zone ohne dokumentiertes Conduit",
     "legendOnline": "Von einer Anlage, deren Prüfungen online sagen",
     "legendOffline": "Von einer Anlage, deren Prüfungen offline sagen",
@@ -332,6 +333,62 @@
       "offline": "Offline",
       "unknown": "keine Daten",
       "notWatched": "nicht überwacht"
-    }
+    },
+    "level": "Ebene",
+    "levelSource": {
+      "set": "{{level}}",
+      "name": "{{level}} (aus dem Namen abgeleitet)",
+      "assets": "{{level}} (abgeleitet: Anlagen in ihren VLANs)",
+      "conduits": "{{level}} (aus den Conduits abgeleitet)",
+      "default": "{{level}} (angenommen: keine Ebene festgelegt)"
+    },
+    "levelShort": {
+      "field": "Ebene 0",
+      "control": "Ebene 1",
+      "supervisory": "Ebene 2",
+      "operations": "Ebene 3",
+      "dmz": "Ebene 3.5",
+      "enterprise": "Ebene 4–5",
+      "external": "Extern"
+    },
+    "levelName": {
+      "field": "Feldgeräte",
+      "control": "Steuerung, Zellen",
+      "supervisory": "Prozessführung",
+      "operations": "Betriebsführung",
+      "dmz": "Industrielle DMZ",
+      "enterprise": "Unternehmen",
+      "external": "Cloud, Lieferanten"
+    },
+    "outside": "Außerhalb der Zonen",
+    "nodeHelp": "Tab geht zum nächsten Teil. Leertaste wählt ihn aus, Enter öffnet seine Seite, Escape hebt die Auswahl auf.",
+    "search": "Teil oder Datenweg suchen",
+    "searchPlaceholder": "Anlage, Host, Datenweg suchen …",
+    "searchNothing": "Nichts gefunden",
+    "filters": "Filter",
+    "filterZones": "Zonen",
+    "filterProtocols": "Protokolle",
+    "filterLive": "Live-Status",
+    "filterCrossing": "Nur Wege über Zonengrenzen",
+    "filterNoConduit": "Nur Wege ohne dokumentierten Conduit",
+    "clearFilters": "Filter zurücksetzen",
+    "shown_one": "{{shown}} von {{count}} Datenweg angezeigt",
+    "shown_other": "{{shown}} von {{count}} Datenwegen angezeigt",
+    "shownShort": "{{shown}} von {{count}}",
+    "legend": "Legende",
+    "legendLevels": "Bänder: die Ebenen des Purdue-Modells, Feld unten, Unternehmensnetz und Cloud oben – Datenwege laufen nach oben",
+    "legendLabels": "Protokolle und Ports eines Wegs: zeigen Sie darauf, oder wählen Sie einen Teil oder Datenweg aus",
+    "fullscreen": "Vollbild",
+    "exitFullscreen": "Vollbild verlassen (Escape)",
+    "miniMap": "Übersicht über das ganze Bild",
+    "clearSelection": "Auswahl aufheben: {{name}}",
+    "clearSelectionShort": "Auswahl aufheben",
+    "clearSelectionHint": "Oder drücken Sie Escape, oder klicken Sie auf eine leere Stelle",
+    "openPage": "Seite öffnen",
+    "showPanel": "Datenwege zeigen",
+    "foldPanel": "Datenwege ausblenden",
+    "pathsCount_one": "{{count}} Datenweg",
+    "pathsCount_other": "{{count}} Datenwege",
+    "pathsHelp": "Zeigen Sie auf einen Eintrag, um seinen Weg zu sehen; ein Klick wählt ihn aus."
   }
 }

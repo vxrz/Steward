@@ -9,6 +9,7 @@ import { DUTY_LEVELS, type DutySummary } from '@sm/shared';
 import { get } from '../api';
 import { EmptyState, PageHeader, QueryState, subjectLabel } from '../components/common';
 import { DutyLevelBadge, DutyStatusBadge, PeriodLine } from '../components/duties/common';
+import { RestrictedEmpty, useHiddenByPermissions } from '../components/modules/RestrictedEmpty';
 
 /** Due (current period not done, or the last one in its grace period) or missed/failed (the last period). */
 const needsAttention = (d: DutySummary) =>
@@ -25,6 +26,8 @@ export function DutiesPage() {
   const level = params.get('level');
   const status = params.get('status');
   const q = useQuery({ queryKey: ['duties', 'all', archived], queryFn: () => get<DutySummary[]>(`/duties${archived ? '?archived=1' : ''}`) });
+  // entries the person may not see (U3): "nothing you may see" instead of "nothing yet"
+  const hidden = useHiddenByPermissions('duties');
   const narrow = useMediaQuery('(max-width: 48em)') ?? false;
   const set = (k: string, v: string | null) => {
     const next = new URLSearchParams(params);
@@ -58,7 +61,8 @@ export function DutiesPage() {
         <Switch size="sm" mb={8} label={t('showArchived')} checked={archived} onChange={(e) => setArchived(e.currentTarget.checked)} />
       </Group>
       <QueryState query={q} />
-      {q.isSuccess && list.length === 0 && (
+      {q.isSuccess && list.length === 0 && hidden && <RestrictedEmpty />}
+      {q.isSuccess && list.length === 0 && !hidden && (
         <EmptyState icon={IconCalendarCheck} title={t('emptyList')}>
           {t('emptyListHint')}
         </EmptyState>

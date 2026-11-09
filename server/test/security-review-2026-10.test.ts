@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { authHeaders, loginCookie, setup, startTestServer, type TestServer } from './helpers.js';
 
-// Regression tests for the holistic security review of October 2026 (docs/REVIEW-2026-10.md).
+// Regression tests for the holistic security review of October 2026 (docs/reviews/REVIEW-2026-10.md).
 const PW = 'Demo-password-1';
 let s: TestServer;
 let vera: (method: string, url: string, body?: unknown) => Promise<Response>;

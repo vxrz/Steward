@@ -1,7 +1,7 @@
 #!/bin/sh
 # Pre-commit hook step (.husky/pre-commit): scans the staged changes for secrets with gitleaks and the
 # project's .gitleaks.toml. Skips with a notice when gitleaks is not installed (PATH or .tools/bin, see
-# scripts/security/install-tools.sh); CI scans the full history on every push (docs/SECURITY-PIPELINE.md).
+# scripts/security/install-tools.sh); CI scans the full history on every push (docs/ci/SECURITY-PIPELINE.md).
 #
 # Exit status: 0 = no secrets found (or skipped), 1 = secrets found.
 cd "$(git rev-parse --show-toplevel)" || exit 2

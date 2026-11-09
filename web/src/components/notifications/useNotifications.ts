@@ -45,6 +45,19 @@ export function useNotificationActions() {
           /* next poll corrects the state */
         }
       },
+      /** Marks the unread notifications of these events read (one group of the bell) */
+      markEventsRead: async (events: string[]) => {
+        patchCache((l) => {
+          const hit = (n: AppNotification) => !n.read && events.includes(n.event);
+          const count = l.items.filter(hit).length;
+          return { ...l, unread: Math.max(0, l.unread - count), items: l.items.map((n) => (hit(n) ? { ...n, read: true } : n)) };
+        });
+        try {
+          await post('/notifications/read-all', { events });
+        } finally {
+          qc.invalidateQueries({ queryKey: KEY });
+        }
+      },
       markAllRead: async () => {
         patchCache((l) => ({ ...l, unread: 0, items: l.items.map((n) => ({ ...n, read: true })) }));
         try {

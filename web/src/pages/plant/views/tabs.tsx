@@ -1,7 +1,7 @@
 import { lazy, Suspense, type ReactNode } from 'react';
 import { Anchor, Badge, Group, Text } from '@mantine/core';
 import { Link, Navigate } from 'react-router-dom';
-import { IconBuilding, IconChevronRight, IconInfoCircle, IconRoute, IconSitemap, type Icon } from '@tabler/icons-react';
+import { IconBuilding, IconChevronRight, IconDatabaseImport, IconInfoCircle, IconRoute, IconSitemap, type Icon } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { PlantAssetDetail, PlantSiteDetail } from '@sm/shared';
 import { DetailHeader } from '../../../components/page/DetailPage';
@@ -16,14 +16,15 @@ import { AssetStatusBadge, NotInSourceBadge, PreviewBadge, useNameOf } from '../
 
 const SiteStructureView = lazy(() => import('./SiteStructureView').then((m) => ({ default: m.SiteStructureView })));
 const AssetFlowView = lazy(() => import('./AssetFlowView').then((m) => ({ default: m.AssetFlowView })));
+const AssetCollectionsView = lazy(() => import('../AssetCollections').then((m) => ({ default: m.AssetCollectionsView })));
 
 export const SITE_TABS = ['', 'structure'] as const;
 export type SiteTab = (typeof SITE_TABS)[number];
 const SITE_TAB_ICONS: Record<SiteTab, Icon> = { '': IconInfoCircle, structure: IconSitemap };
 
-export const ASSET_TABS = ['', 'flow'] as const;
+export const ASSET_TABS = ['', 'flow', 'collections'] as const;
 export type AssetTab = (typeof ASSET_TABS)[number];
-const ASSET_TAB_ICONS: Record<AssetTab, Icon> = { '': IconInfoCircle, flow: IconRoute };
+const ASSET_TAB_ICONS: Record<AssetTab, Icon> = { '': IconInfoCircle, flow: IconRoute, collections: IconDatabaseImport };
 
 const siteBase = (id: string) => `/plant/sites/${encodeURIComponent(id)}`;
 const assetBase = (id: string) => `/plant/assets/${encodeURIComponent(id)}`;
@@ -148,7 +149,10 @@ export function PlantAssetTabPage({ asset, tab }: { asset: PlantAssetDetail; tab
         description={where}
         tabs={<AssetTabs asset={asset} active={known} />}
       />
-      <Suspense fallback={<Loading />}>{known === 'flow' && <AssetFlowView assetId={asset.id} assetName={asset.name} canManage={asset.canManage} />}</Suspense>
+      <Suspense fallback={<Loading />}>
+        {known === 'flow' && <AssetFlowView assetId={asset.id} assetName={asset.name} canManage={asset.canManage} />}
+        {known === 'collections' && <AssetCollectionsView assetId={asset.id} />}
+      </Suspense>
     </>
   );
 }

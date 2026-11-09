@@ -71,18 +71,18 @@ Instead of pasting a token, MCP clients that support the [MCP authorization spec
 **Rules:**
 
 - **PKCE** (`S256`) is required. Clients are public: Steward issues no client secrets.
-- **Redirect URIs:** https, http on a loopback address (`127.0.0.1`, `[::1]`, `localhost`, any port), or the app's own scheme (e.g. `cursor://…`). They must match exactly; `javascript:`, `data:`, `file:` and similar schemes are refused.
+- **Redirect URIs:** https, http on a loopback IP address (`127.0.0.1` or `[::1]`, any port – RFC 8252), or the app's own scheme (e.g. `cursor://…`). They must match exactly; `javascript:`, `data:`, `file:` and similar schemes are refused. The name `localhost` is not accepted for new clients (RFC 8252 §8.3: it may resolve elsewhere); clients registered with it before 0.11 keep working with their exact registered address, not with another port.
 - **Scope:** `mcp`. **Audience:** the token is bound to the MCP endpoint (`resource`, RFC 8707); a token issued for another resource is refused.
-- **Lifetimes:** access tokens live 60 minutes, and people stay signed in for 30 days without using the client. Both can be changed in the settings.
-- **Refresh tokens rotate.** Using an old one again revokes the access: the client and whoever copied the token both lose it. An authorization code is valid once, for 10 minutes; using it twice revokes the access it gave.
+- **Lifetimes:** access tokens live 60 minutes, and people stay signed in for 30 days without using the client. However often the client refreshes, a connection ends 90 days after the person allowed it (_Sign in again after_); then the person allows the client again. All three can be changed in the settings.
+- **Refresh tokens rotate.** Using any refresh token again that was already used – not only the one before the current – revokes the access (RFC 9700 §4.14.2): the client and whoever copied the token both lose it. Steward keeps the hashes of a grant's used refresh tokens until the grant ends. An authorization code is valid once, for 10 minutes; using it twice revokes the access it gave.
 - **One grant per person and client.** Allowing the client again replaces the old grant. At most 50 connected clients per person.
-- **Self-registration** can be turned off. Then only clients that administrators add under the MCP server settings (name and redirect URIs) can sign in.
+- **Self-registration** is off on new installations (since 0.11): anyone could register a client with any https return address, and only the consent page would stand between it and a person's access. Turn it on in the MCP server settings for assistants that register themselves; installations that saved their OAuth settings before keep their choice. While it is off, only clients that administrators add under the MCP server settings (name and redirect URIs) can sign in.
 
 **See and revoke access:**
 
 - People see their connected clients in their profile under _Connected MCP clients_ and revoke them there.
 - Administrators see every client and connection in the MCP server settings, and can remove a client, which ends every connection to it.
-- Clients can revoke their own tokens (RFC 7009, `POST /oauth/revoke`).
+- Clients can revoke their own tokens (RFC 7009, `POST /oauth/revoke` with their `client_id`): an unknown or missing `client_id` is refused with `invalid_client`, and a token of another client is left alone.
 - **Revoked for good:** deactivating the person or resetting their password (by an administrator, or with `steward admin reset-password`) revokes their connected clients; turning OAuth off revokes everyone's. Reactivating the person or turning OAuth on again does not bring the access back – the person connects the client again (one consent). Turning MCP off only stops the tokens while it is off.
 - **MCP tokens are not revoked** by any of this: they are named, listed and revoked by their owner or an administrator. While the owner is deactivated, their tokens are refused; after reactivation they work again. Revoke them when a person leaves for good.
 
@@ -92,12 +92,13 @@ Instead of pasting a token, MCP clients that support the [MCP authorization spec
 | --------------------------------------------------- | -------------------------------------------------------------- |
 | `GET /.well-known/oauth-protected-resource/api/mcp` | resource metadata (RFC 9728)                                   |
 | `GET /.well-known/oauth-authorization-server`       | authorization server metadata (RFC 8414)                       |
+| `GET /.well-known/openid-configuration`             | `404`: Steward is no OpenID provider (no ID tokens, no JWKS)   |
 | `POST /oauth/register`                              | dynamic client registration (RFC 7591), JSON                   |
 | `GET /oauth/authorize`                              | the consent page in the web UI                                 |
 | `POST /oauth/token`                                 | `authorization_code` and `refresh_token`, form-encoded or JSON |
 | `POST /oauth/revoke`                                | token revocation (RFC 7009)                                    |
 
-The issuer is `SM_PUBLIC_URL` (recommended: set it), otherwise the address of the request. With a base path (`SM_BASE_PATH=/steward`), the well-known addresses put the path at the end, as the RFCs require: `/.well-known/oauth-authorization-server/steward` and `/.well-known/oauth-protected-resource/steward/api/mcp`. Steward answers exactly these two outside its base path, so a reverse proxy has to pass them on as well. Steward never sends CORS headers, so browser-based clients must exchange the code through their own backend.
+The issuer is `SM_PUBLIC_URL` (recommended: set it), otherwise the address of the request. Its host must be allowed (`SM_ALLOWED_HOSTS`): behind a trusted proxy (`SM_TRUST_PROXY`) both `Host` and `X-Forwarded-Host` are checked, and Steward warns at start-up when `SM_TRUST_PROXY` is set without `SM_PUBLIC_URL`. The discovery documents may be cached for 5 minutes only when they come from `SM_PUBLIC_URL`; built from the request they are sent with `Cache-Control: no-store`. With a base path (`SM_BASE_PATH=/steward`), the well-known addresses put the path at the end, as the RFCs require: `/.well-known/oauth-authorization-server/steward` and `/.well-known/oauth-protected-resource/steward/api/mcp`. Steward answers exactly these two outside its base path, so a reverse proxy has to pass them on as well. Steward never sends CORS headers, so browser-based clients must exchange the code through their own backend.
 
 ## Connect a client
 
@@ -165,7 +166,7 @@ VS Code asks for the token when it starts the server, so the token is not in the
 
 Other clients: endpoint `https://<your Steward>/api/mcp`, header `Authorization: Bearer <token>`.
 
-Steward only accepts requests whose `Host` is allowed (`localhost`, `127.0.0.1` or `SM_ALLOWED_HOSTS`). Behind a reverse proxy set `SM_PUBLIC_URL` and `SM_ALLOWED_HOSTS` as for the web UI.
+Steward only accepts requests whose `Host` (and, behind a trusted proxy, `X-Forwarded-Host`) is allowed (`localhost`, `127.0.0.1` or `SM_ALLOWED_HOSTS`). Behind a reverse proxy set `SM_PUBLIC_URL` and `SM_ALLOWED_HOSTS` as for the web UI.
 
 ## Tools
 
@@ -220,7 +221,7 @@ The gateway lets an assistant read a platform's API **through Steward**. Steward
 1. Open the platform and the tab **MCP**.
 2. Switch on **Allow access for MCP clients** and click **Save**. _Changing calls_ stays at _Not possible (read-only)_ unless you choose otherwise ([Approved writes](#approved-writes)).
 
-Only people with the `manage` right on the platform can do this; it is audited (`platform.mcp_gateway_changed`). The setting is part of the platform's sealed connection settings (since 0.9.0 the mode is kept on the platform's default identity, [ADR 0009](adr/0009-platform-identities.md); the path prefixes stay on the platform), so a change made directly in the database is detected. New platforms, copies and connector types always start with the gateway off. People who call the gateway need the `use` right on the platform.
+Only people with the `manage` right on the platform can do this; it is audited (`platform.mcp_gateway_changed`). The setting is part of the platform's sealed connection settings (the mode is kept on the platform's default identity, [ADR 0009](adr/0009-platform-identities.md); the path prefixes stay on the platform), so a change made directly in the database is detected. New platforms, copies and connector types always start with the gateway off. People who call the gateway need the `use` right on the platform.
 
 ### How it works
 
@@ -247,7 +248,7 @@ Platforms **without an API specification** can still be read: list GET path pref
 
 ## Approved writes
 
-An assistant can ask for two kinds of change (#11). Neither happens when it asks: each becomes a **request** that a person decides in Steward under **AI requests** (in the sidebar under _Operate_, next to _My tasks_).
+An assistant can ask for two kinds of change. Neither happens when it asks: each becomes a **request** that a person decides in Steward under **AI requests** (in the sidebar under _Operate_, next to _My tasks_).
 
 | Request                                            | Turned on where                                                                                                   | Who decides                                                                                                                                                           |
 | -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -274,7 +275,7 @@ All non-read methods still go through one function, `writeDecision()` in `server
 
 ## Control proposals
 
-An assistant can turn a company's own control set – an ISMS policy, group-wide requirements, a customer's list, in Word, Excel or PDF – into a control catalogue and suggest which Steward items are evidence for which control (#74). It reads the document on its side; Steward only receives the result. Off by default: _Settings → MCP server → Let assistants propose control catalogues and mappings_ (administrators). Then designers and administrators get the tools `list_control_catalogues`, `get_control_catalogue`, `find_mapping_targets`, `propose_control_catalogue` and `propose_control_mappings`.
+An assistant can turn a company's own control set – an ISMS policy, group-wide requirements, a customer's list, in Word, Excel or PDF – into a control catalogue and suggest which Steward items are evidence for which control. It reads the document on its side; Steward only receives the result. Off by default: _Settings → MCP server → Let assistants propose control catalogues and mappings_ (administrators). Then designers and administrators get the tools `list_control_catalogues`, `get_control_catalogue`, `find_mapping_targets`, `propose_control_catalogue` and `propose_control_mappings`.
 
 - **Nothing applies directly.** A proposal waits under **AI requests** for up to 14 days.
 - **A catalogue** is compared with the catalogue of the same key: new, changed (with the current text) and unchanged controls, and the controls the proposal leaves out. An **administrator** edits controls, unticks what is wrong and accepts the rest; left-out controls are removed only when ticked (with what is mapped to them). A built-in catalogue only gets its texts changed. A new key creates the catalogue.
@@ -319,12 +320,12 @@ To keep the audit log meaningful, not every read is audited:
 | MCP turned on or off                                                                                                                                                                                   | audit log `mcp.settings_changed`                                                                                                                                                                        |
 | Gateway turned on or off for a platform                                                                                                                                                                | audit log `platform.mcp_gateway_changed`                                                                                                                                                                |
 | First use of a token per UTC day (an OAuth connection counts as one token)                                                                                                                             | audit log `mcp.token_used`                                                                                                                                                                              |
-| OAuth (#12): a client registered or removed, a person allowed a client, a connection revoked, a code or an old refresh token used again                                                                | audit log `mcp.oauth_client_registered`, `mcp.oauth_client_revoked`, `mcp.oauth_authorized`, `mcp.oauth_grant_revoked`, `mcp.oauth_grants_revoked`, `mcp.oauth_code_reused`, `mcp.oauth_refresh_reused` |
+| OAuth: a client registered or removed, a person allowed a client, a connection revoked, a code or an old refresh token used again                                                                      | audit log `mcp.oauth_client_registered`, `mcp.oauth_client_revoked`, `mcp.oauth_authorized`, `mcp.oauth_grant_revoked`, `mcp.oauth_grants_revoked`, `mcp.oauth_code_reused`, `mcp.oauth_refresh_reused` |
 | **Every gateway call** – platform, operation id, method, path template, status, duration, token id, owner, names (not values) of the query parameters                                                  | audit log `mcp.gateway_call`                                                                                                                                                                            |
 | **Every refused gateway call** (write method, path, parameters, outbound policy, integrity) with the reason; an invalid literal path is logged as `(invalid)`, control characters in names are escaped | audit log `mcp.gateway_refused`                                                                                                                                                                         |
 | Every tool call: tool, token id, owner, short argument summary (values cut to 60 characters, objects by their keys), outcome, duration                                                                 | operational log (JSON, `info`, message `MCP tool call`)                                                                                                                                                 |
 
-Prometheus metrics (`/api/metrics`): `steward_mcp_requests_total{method,outcome}`, `steward_mcp_tool_calls_total{tool,outcome}`, `steward_mcp_gateway_calls_total{platform,outcome}`.
+Prometheus metrics (`/api/metrics`, [METRICS.md](METRICS.md)): `sm_mcp_requests_total{method,outcome}`, `sm_mcp_tool_calls_total{tool,outcome}`, `sm_mcp_gateway_calls_total{platform,outcome}`. Until 0.10 they were named `steward_mcp_…`; 0.11 still serves the old names (deprecated), 0.12 removes them.
 
 ## Configuration
 

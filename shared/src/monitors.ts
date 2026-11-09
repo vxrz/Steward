@@ -74,77 +74,6 @@ export const CHECK_TYPES = [
 ] as const;
 export type CheckType = (typeof CHECK_TYPES)[number];
 
-export const CHECK_TYPE_INFO: Record<CheckType, { label: string; help: string }> = {
-  ping: { label: 'Ping', help: 'ICMP echo via the system ping command; falls back to a TCP connect when ping is not available' },
-  tcp: { label: 'TCP port', help: 'Opens a TCP connection to host:port' },
-  http: { label: 'HTTP(S)', help: 'Calls a URL: expected status, JSONata condition on the body, response time, TLS certificate expiry' },
-  platform: { label: 'Platform API', help: 'Calls an operation through a configured platform (its authentication, base URL and retries)' },
-  freshness: {
-    label: 'Data freshness',
-    help: 'Latest timestamp of a data source must be recent: expected cadence or maximum age (Insights Hub time series preset)',
-  },
-  heartbeat: { label: 'Heartbeat (push)', help: 'Another system (e.g. an IoT gateway) reports to Steward; missing reports turn the check down' },
-  gatus: { label: 'Gatus endpoint', help: 'Status of an endpoint monitored by Gatus' },
-  checkmk: { label: 'CheckMk host or service', help: 'Current state of a host or service in CheckMk (OK, WARN, CRIT, UNKNOWN)' },
-  kubernetes: { label: 'Kubernetes deployments', help: 'Deployments of a namespace are ready (e.g. 3/3) and no pod is crash-looping' },
-  kafka: { label: 'Kafka topic', help: 'New messages on a topic within N minutes, the lag of a consumer group, a group that is stuck, the schema version' },
-  'kafka-connect': {
-    label: 'Kafka Connect connectors',
-    help: 'Connectors and their tasks are RUNNING, a task failed for N minutes, the consumer lag of a sink connector, a Debezium connector whose topics got no message for N minutes',
-  },
-  mqtt: { label: 'MQTT topics', help: 'Messages on an MQTT topic within N minutes, devices (topics of a pattern) that went silent, connected clients' },
-  'data-contract': {
-    label: 'Data contract',
-    help: 'An ODCS data contract: its test through the data contract service passes (warnings degrade), or Steward’s own checks – owner, last test, columns of linked datasets and tables – find nothing',
-  },
-  'dependency-track': {
-    label: 'Vulnerabilities (Dependency-Track)',
-    help: 'A Dependency-Track project has no more open critical (or high) findings than allowed and no failing policy violation',
-  },
-  'version-behind': {
-    label: 'Version behind',
-    help: 'The tech stack of an application is up to date: degraded when more minor releases or days behind than allowed, down when a major release behind or the release cycle reached its end of life (version watch)',
-  },
-  'privilege-vault': {
-    label: 'Vault hygiene (IBM Verify Privilege Vault)',
-    help: 'Secrets of IBM Verify Privilege Vault: failed heartbeats, passwords not rotated or expired, automatic changing off, no owner, privileged secrets without checkout or approval',
-  },
-  'page-watch': {
-    label: 'Page watch (changedetection.io)',
-    help: 'Watches of changedetection.io: a page changed within the last N hours (informational or degraded), a watch whose last check failed or that was not checked for too long',
-  },
-  snowflake: {
-    label: 'Snowflake',
-    help: 'A Snowflake table changed recently enough, no task of a database failed, or a warehouse stayed within its credits',
-  },
-  database: {
-    label: 'Database',
-    help: 'A database platform: the connection works (and is read-only), replication lag stays below a limit, or the value of a read-only query is judged against WARN and CRIT levels',
-  },
-  dynamodb: {
-    label: 'DynamoDB table',
-    help: 'A DynamoDB table on an AWS platform: the newest item per partition key is recent enough, the table had writes within the window (CloudWatch), or its status, point-in-time recovery and time to live',
-  },
-  'db-schema': {
-    label: 'Database schema changes',
-    help: 'The schema snapshots of a database platform or a system: no change, or no breaking change, within the last N hours; optionally reads the platform first',
-  },
-  cost: {
-    label: 'Cost change',
-    help: 'The costs of a service, application, team or platform: up by more than a percentage or an amount compared with the month before',
-  },
-  entra: {
-    label: 'Entra ID (Microsoft Graph)',
-    help: 'App registrations whose secrets or certificates expire within N days, or the Microsoft 365 service health',
-  },
-  git: {
-    label: 'Repository pipeline',
-    help: 'The pipeline of the default branch on GitHub, GitLab or Forgejo passes; optionally few enough open security alerts',
-  },
-  prometheus: { label: 'Prometheus query', help: 'A PromQL query compared with WARN and CRIT levels; with several series the worst one counts' },
-  monitor: { label: 'Sub-monitor', help: 'The aggregated status of another monitor (evaluated on its own schedule)' },
-};
-
 export const LINK_MODES = ['soft', 'hard'] as const;
 export type LinkMode = (typeof LINK_MODES)[number];
 export const AGGREGATE_RULES = ['worst', 'critical', 'quorum'] as const;
@@ -1128,11 +1057,13 @@ export function fillPlaceholders(text: string, ctx: Record<string, Record<string
 export interface MonitorPlatformReference {
   /** The value in the file: a platform name or id */
   ref: string;
-  /** Kind the checks and outputs need; null: any platform */
+  /** Kind the checks and outputs need; null: any platform, or one of several (kinds) */
   kind: string | null;
+  /** The kinds the checks and outputs accept, one of them (the repository check: GitHub, GitLab or Forgejo); empty: any platform */
+  kinds: string[];
   usedBy: { type: 'check' | 'output'; id: string; name: string }[];
   /** What the reference resolves to without a choice (only a platform the user may use) */
   resolved: { id: string; name: string } | null;
-  /** Platforms of that kind the user may use */
+  /** Platforms of those kinds the user may use */
   candidates: { id: string; name: string; kind: string }[];
 }

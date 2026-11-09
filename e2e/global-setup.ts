@@ -162,7 +162,8 @@ export default async function globalSetup(_config: FullConfig): Promise<() => Pr
     // 2. vault + first admin, demo data
     const setup = await must('POST', '/api/auth/setup', { passphrase: MASTER_PASSPHRASE, username: USERS.admin.username, password: USERS.admin.password });
     const adminCookie = setup.session!;
-    await must('POST', '/api/demo/setup', {}, adminCookie);
+    // with the service half (services, documents, credential entries, duties …), as the Home page's "Load demo" does
+    await must('POST', '/api/demo/setup', { services: true }, adminCookie);
     // the company's domain: plain addresses there (credential owners, report recipients) get e-mails
     await must('PATCH', '/api/me', { email: 'admin@example.com' }, adminCookie);
     // (The demo allow-lists loopback itself, so its simulated plant-device monitor

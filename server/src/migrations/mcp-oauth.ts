@@ -48,4 +48,17 @@ export const MCP_OAUTH_MIGRATIONS: NamedMigration[] = [
       CREATE INDEX oauth_grants_previous ON oauth_grants(previous_refresh_hash);
     `,
   },
+  {
+    // 0.11.0 (security review 0.10.0 S3): the hashes of every refresh token a grant has used, so presenting any of them
+    // again – not only the one before the current – revokes the grant (RFC 9700 §4.14.2)
+    name: 'mcp-oauth-002',
+    sql: `
+      CREATE TABLE oauth_used_refresh (
+        hash TEXT PRIMARY KEY,
+        grant_id TEXT NOT NULL REFERENCES oauth_grants(id) ON DELETE CASCADE,
+        used_at TEXT NOT NULL
+      );
+      CREATE INDEX oauth_used_refresh_grant ON oauth_used_refresh(grant_id);
+    `,
+  },
 ];

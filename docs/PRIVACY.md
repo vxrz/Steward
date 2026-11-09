@@ -4,17 +4,17 @@ This page describes which personal data Steward stores, for how long, and how re
 
 ## What is stored
 
-| Data                                                                                                   | Where                                                        | Why                                      | Retention                                                                                                                                  |
-| ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------ | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| Accounts: user name, display name, e-mail, roles, teams, language, last sign-in                        | `users`, `teams`                                             | sign-in, access control, notifications   | kept – Steward cannot delete accounts yet; deactivate leavers ([below](#leavers-deactivation)); SSO accounts are synchronised from the IdP |
-| Sessions: hashed token, IP address, browser (user agent), times                                        | `sessions`                                                   | sign-in                                  | until sign-out, at most 12 hours                                                                                                           |
-| Audit log: who did what and when (user name), IP address of sign-ins, summaries and details of actions | `audit_log`                                                  | evidence (change management, compliance) | **kept for good** – see below                                                                                                              |
-| Runs: who started/approved, inputs, step results, logs, screenshots                                    | `runs`, `run_*`, `data/artifacts`                            | the protocol of a procedure              | _Settings → Retention_ (runs older than N days are deleted; 0 = keep)                                                                      |
-| Data fetched from platforms (e.g. user lists in an access review)                                      | step results, reports, dashboards                            | the procedure itself                     | with the run; dashboards keep the latest dataset and metric history (`SM_METRIC_RETENTION_DAYS`)                                           |
-| Notifications                                                                                          | `notifications`                                              | in-app messages                          | read ones after _Settings → Retention_ days                                                                                                |
-| Quiet hours and digests of a person; messages held for them (rendered text, never channel URLs)        | `notification_prefs`, `notification_outbox`                  | quiet hours and digests (0.10.0)         | settings until changed (also kept when the account is deactivated); held messages until released, then 7 days                              |
-| Microsoft Teams: where the bot is installed (tenant, conversation, a person's chat), cards it posted   | `teams_conversations`, `teams_cards`, `teams_bot_activities` | approvals in Teams (preview)             | conversations until removed; activity ids 24 hours                                                                                         |
-| Operational log (stdout)                                                                               | your log system                                              | operations                               | your log retention                                                                                                                         |
+| Data                                                                                                   | Where                                                        | Why                                      | Retention                                                                                                                            |
+| ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------ | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Accounts: user name, display name, e-mail, roles, teams, language, last sign-in                        | `users`, `teams`                                             | sign-in, access control, notifications   | kept – deactivate, then pseudonymise leavers ([below](#leavers-deactivation-and-pseudonymisation)); SSO accounts synced from the IdP |
+| Sessions: hashed token, IP address, browser (user agent), times                                        | `sessions`                                                   | sign-in                                  | until sign-out, at most 12 hours                                                                                                     |
+| Audit log: who did what and when (user name), IP address of sign-ins, summaries and details of actions | `audit_log`                                                  | evidence (change management, compliance) | **kept for good** – see below                                                                                                        |
+| Runs: who started/approved, inputs, step results, logs, screenshots                                    | `runs`, `run_*`, `data/artifacts`                            | the protocol of a procedure              | _Settings → Retention_ (runs older than N days are deleted; 0 = keep)                                                                |
+| Data fetched from platforms (e.g. user lists in an access review)                                      | step results, reports, dashboards                            | the procedure itself                     | with the run; dashboards keep the latest dataset and metric history (`SM_METRIC_RETENTION_DAYS`)                                     |
+| Notifications                                                                                          | `notifications`                                              | in-app messages                          | read ones after _Settings → Retention_ days                                                                                          |
+| Quiet hours and digests of a person; messages held for them (rendered text, never channel URLs)        | `notification_prefs`, `notification_outbox`                  | quiet hours and digests (0.10.0)         | settings until changed or pseudonymised; held messages until released, then 7 days                                                   |
+| Microsoft Teams: where the bot is installed (tenant, conversation, a person's chat), cards it posted   | `teams_conversations`, `teams_cards`, `teams_bot_activities` | approvals in Teams (preview)             | conversations until removed; activity ids 24 hours                                                                                   |
+| Operational log (stdout)                                                                               | your log system                                              | operations                               | your log retention                                                                                                                   |
 
 ## Minimisation built in
 
@@ -31,25 +31,30 @@ Every audit entry is part of an HMAC chain and of signed checkpoints kept outsid
 Position for erasure requests:
 
 1. **Legal basis and retention**: the audit log is kept to meet legal and contractual obligations and for the establishment, exercise or defence of legal claims (GDPR Art. 6(1)(c)/(f), Art. 17(3)(b) and (e)). Define its retention period in your records of processing (for example the retention period of your change-management evidence, often 6–10 years).
-2. **Reduce what is not evidence**: deactivate the account and replace its display name and e-mail ([below](#leavers-deactivation)); configure run retention so that protocols with personal data from platforms are deleted when no longer needed. Steward cannot delete an account or pseudonymise a person's data yet.
+2. **Reduce what is not evidence**: deactivate the account and replace its personal data by a pseudonym ([below](#leavers-deactivation-and-pseudonymisation)); configure run retention so that protocols with personal data from platforms are deleted when no longer needed.
 3. **Pseudonymise instead of deleting**, where your policy allows: use neutral, non-speaking user names (e.g. personnel numbers or IdP object ids via the SSO user name claim) so that the audit log identifies a person only together with the mapping kept in your HR/IdP system. Deleting that mapping there effectively anonymises the log without breaking the chain.
 4. **When the log itself must go** (end of the retention period): with archiving on (_Audit log → Epochs, archives and retention_), the monthly archive files are the evidence – keep them as long as required and delete them (and their copies) afterwards; with the audit retention set, their entries leave the database too. Without archives: archive an export (_Audit log → Export → JSON with signed checkpoint_), then set up a new installation (new database and vault). Deleting single entries is not supported.
 
-## Leavers: deactivation
+## Leavers: deactivation and pseudonymisation
 
-Steward **cannot delete an account** today: not in the web app, not through the API and not on the command line. For a person who leaves, an administrator deactivates the account under _Users_. Deactivation:
+Steward does not delete accounts: audit entries, run protocols, records and reports point at them. For a person who leaves, an administrator **deactivates** the account under _Users_. Deactivation:
 
 - ends all the person's sessions and MCP OAuth grants at once;
 - stops their API tokens and push tokens, and the schedules, webhook triggers and monitor outputs that act in their name;
 - shows first where the person is still named (owner, access lists, decider …), so these can be handed over.
 
-What stays, and why:
+Then, when the person's data is no longer needed (for example after an erasure request), an administrator can **replace the personal data by a pseudonym**: _Users_ → the mask icon of the deactivated account (`POST /api/users/{id}/pseudonymise`). It asks for a fresh confirmation (step-up, control point `user.pseudonymise`, [ASSURANCE.md](ASSURANCE.md)) and for the user name typed again, and it is audited (`user.pseudonymised`). **It cannot be undone**: the account stays deactivated for good, and it can no longer be changed, given a password or bound to single sign-on. The assurance policy has no four-eyes control point for account changes, so one administrator decides; the audit entry names them.
 
-- **The account row with the user name, roles and team memberships.** Audit entries name people by their user name, and every entry is part of the HMAC chain. The user name stays reserved so it is never given to someone else, and the log keeps meaning the same person. For the same reason, user names cannot be changed.
-- **Display name, first and last name and e-mail** stay as they are, unless an administrator changes them under _Users_: replace the display name with a neutral text and clear the first and last name and the e-mail. For a single sign-on account whose fields are synchronised from the provider, change them at the provider, or set the provider's sync rule for the field to _only when the account is created_ first.
-- The person's settings (language, quiet hours, digests), notifications, token names and their entries in run protocols, records and reports, until run retention or the other retention settings remove them.
+Replaced or deleted:
 
-**Planned for 0.11:** pseudonymising a person's data (the profile is removed and replaced by a pseudonymous placeholder, so the audit chain still verifies) and a per-person export of their data.
+- the display name becomes a stable pseudonym derived from the account id, such as `former-user-7f3a2c`; first and last name, e-mail, the profile fields from single sign-on, the link to the identity at the provider (issuer and subject), the language and the e-mail setting are removed, and the password;
+- the person's settings (quiet hours, digests, daily summary), notifications, messages held for them, their chat with the Teams bot, team memberships, sessions, API tokens, emergency access windows and connected MCP clients are deleted.
+
+Kept, and why:
+
+- **The account id and the user name**, with the roles and dates. Every audit entry is signed in a chain (HMAC over all its fields, including the user name of the actor and the summary, which often names user names too) and checked against signed checkpoints. Entries are never changed, so they keep naming the user name; the account keeps it as well, so the entries, run protocols, records, reviews and reports – often sealed with a hash – still point at one account, and the name is never given to someone else. Replacing the user name only in the account would remove nothing from the log and break that link. If user names identify people (e.g. `jane.doe`), use neutral ones such as personnel numbers, see position 3 above.
+- **Evidence written before**: names in run protocols, records, person reviews, reports and evidence packs stay as written. Run retention and the other retention settings remove them in time. Steward does not search free text for the former name: it cannot tell a person's name from the same words elsewhere reliably.
+- The audit entries themselves, as described above.
 
 ## Access to personal data
 
@@ -60,9 +65,12 @@ What stays, and why:
 
 ## Data subject access requests
 
-There is no per-person export yet (planned for 0.11, see [above](#leavers-deactivation)). Collect the data by hand:
+Every person downloads what Steward holds about them under _Profile → Your data_ (`GET /api/me/data-export`, in a signed-in session only – not with an API token). Administrators download it for anyone under _Users_ → the download icon (`GET /api/users/{id}/data-export`, with a step-up: control point `personalData.export`). Both are audited (`user.data_exported`). The file is JSON (`steward-personal-data-v1`, GDPR Art. 15 and 20) with:
 
-- the profile: _Users_ shows user name, display name, e-mail, roles, teams, sign-in method and last sign-in;
-- the audit log: search for the user name (_Audit log → Search_) and export the matching entries (CSV);
-- runs: run protocols list the people who started or decided a run;
-- where the person is still named: _Users → Deactivate_ lists it before anything changes (`GET /api/users/{id}/references`).
+- the account: user name, names, e-mail, language, roles, sign-in method, whether it is linked to a single sign-on identity, the profile fields, dates; the teams with the roles in them;
+- API tokens, sessions (times, address, browser), connected MCP clients and emergency access windows – metadata only, never a token, hash or key;
+- settings (quiet hours, digests, daily summary), the newest 200 notifications and the person's chat with the Teams bot;
+- where the person is named: as the one who did something (runs started, decisions, documents written, … – every column the migration package keeps as history) and as owner or responsible now, with the newest 500 rows per column and the total;
+- the audit entries the person wrote and those about their account, 2000 per file. When there are more, `audit.next` names the next file (`?auditAfter=<seq>`), which holds only the following audit entries.
+
+Not in the file: entries of an older installation imported by a migration (they keep their former user names), and the operational log of your log system.

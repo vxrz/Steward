@@ -1,0 +1,131 @@
+# Steward on Kubernetes – one pod, SQLite on a persistent volume (README.md in this folder; docs/INSTALL.md).
+# PostgreSQL instead of SQLite: the overlay in postgres/.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: steward
+  labels:
+    app.kubernetes.io/name: steward
+spec:
+  # One instance per data folder and database (ADR 0002): a second pod would wait for the database lock.
+  replicas: 1
+  # Stop the old pod before the new one starts. With RollingUpdate the new pod waits for the old one's lock,
+  # never becomes ready, and the rollout hangs (docs/INSTALL.md, "One instance per data folder").
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: steward
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: steward
+    spec:
+      # Steward does not call the Kubernetes API with the pod's own account
+      automountServiceAccountToken: false
+      # No <SERVICE>_PORT variables from other Services: a Service named "sm" would set SM_PORT=tcp://…
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        # A new volume is mounted owned by root: fsGroup makes it writable for the container's user (uid 1000)
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      # A little more than SM_SHUTDOWN_GRACE_SECONDS (25): running steps may finish (docs/INSTALL.md, "Stopping")
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: steward
+          # Pin the version and update on purpose; verify the signature first (docs/SECURITY-HARDENING.md).
+          # With Chromium for browser steps: ghcr.io/vxrz/steward:0.11.0-browser
+          image: ghcr.io/vxrz/steward:0.11.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 4310
+          env:
+            # The host name people use (the probes send Host: localhost, which is always allowed)
+            - name: SM_ALLOWED_HOSTS
+              value: steward.example.com
+            # The address people open, through the Ingress (TLS there): Secure cookie and HSTS
+            - name: SM_PUBLIC_URL
+              value: https://steward.example.com
+            # The addresses the Ingress controller connects from (its pod network): only they may set X-Forwarded-*
+            - name: SM_TRUST_PROXY
+              value: 10.0.0.0/8
+            # Unattended unlock after a restart, so schedules run (secret.example.yaml). The file only unlocks:
+            # set Steward up in the browser first, with exactly this passphrase.
+            - name: SM_MASTER_PASSPHRASE_FILE
+              value: /run/secrets/steward/passphrase
+            # Words instead of pino's numbers for the level of log lines (Loki, Elasticsearch, Cloud Logging)
+            - name: SM_LOG_LEVEL_FORMAT
+              value: label
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: tmp
+              mountPath: /tmp
+            - name: passphrase
+              mountPath: /run/secrets/steward
+              readOnly: true
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              # browser steps (the -browser image) need more: 2Gi is the compose files' limit
+              memory: 2Gi
+          # The first start after an update migrates the database before the server listens, after a copy of it
+          # (SQLite file or pg_dump, SM_UPGRADE_BACKUPS): up to 10 minutes here; raise failureThreshold for a large one.
+          startupProbe:
+            httpGet:
+              path: /api/health
+              port: http
+              httpHeaders:
+                - name: Host
+                  value: localhost
+            periodSeconds: 10
+            failureThreshold: 60
+          # Liveness: the process answers. Never /api/ready here: a locked vault would restart the pod over and over.
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+              httpHeaders:
+                - name: Host
+                  value: localhost
+            periodSeconds: 30
+            timeoutSeconds: 10
+          # Routing: also with a locked vault or before the first set-up – only through the UI can someone unlock it.
+          # Alert on "needs someone" with /api/ready or sm_ready (examples/prometheus/steward-alerts.yml) instead.
+          readinessProbe:
+            httpGet:
+              path: /api/ready/traffic
+              port: http
+              httpHeaders:
+                - name: Host
+                  value: localhost
+            periodSeconds: 15
+            timeoutSeconds: 10
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: steward-data
+        # read-only root file system: /tmp for browser steps and temporary files
+        - name: tmp
+          emptyDir:
+            sizeLimit: 1Gi
+        - name: passphrase
+          secret:
+            secretName: steward-passphrase
+            # readable by the container's group (fsGroup), nobody else
+            defaultMode: 0440
+            # without it Steward starts locked, and an administrator unlocks it in the browser
+            optional: true

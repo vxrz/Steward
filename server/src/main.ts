@@ -1,17 +1,19 @@
 import './warnings.js';
-import fs from 'node:fs';
 import http from 'node:http';
 import https from 'node:https';
 import type { AddressInfo } from 'node:net';
 import { initTelemetry, shutdownTelemetry } from './telemetry.js';
 import { logger } from './log.js';
-import { config, ensureDataDirs, securityWarnings } from './config.js';
+import { config, ensureDataDirs, env, securityWarnings } from './config.js';
+import { vacuumAtStart } from './database/sqlite-space.js';
+import { unknownVariables } from './config-schema.js';
 import { buildApp } from './app.js';
 import { unlockFromEnv } from './routes/auth.js';
 import { vault } from './vault.js';
 import { BRAND } from '@sm/shared';
 import { flushNotifications } from './notifications/service.js';
 import { db } from './db.js';
+import { tlsServerOptions } from './tls.js';
 import { passwordLoginPending } from './settings.js';
 import { closeErrorReporting, initErrorReporting, isUnexpected, reportError } from './errorReporting.js';
 import { listPlatforms, allSecretsUnchecked } from './platforms/service.js';
@@ -20,6 +22,7 @@ import { removeInstanceFile, writeInstanceFile } from './instance.js';
 import { warnEmailVerifiedProviders } from './auth/sso.js';
 import { flushFailedLoginAudit } from './auth/login-audit.js';
 import { shutdown, startBackground } from './bootstrap.js';
+import { registerFeatureJobs } from './features/index.js';
 import { InstanceLease, type LeaseWait } from './database/lease.js';
 import { describeHolder, SqliteInstanceLock } from './database/sqlite-lock.js';
 import { engine } from './engine/index.js';
@@ -71,9 +74,7 @@ function waitingServer(message: string): Promise<http.Server> {
     if (path === `${config.basePath}/api/ready/traffic`) return json(503, { ready: false, message });
     json(503, { error: `${BRAND.name} is starting. ${message}.`, code: 'WAITING_FOR_DATABASE_LEASE' });
   };
-  const server = config.tls
-    ? https.createServer({ cert: fs.readFileSync(config.tls.cert), key: fs.readFileSync(config.tls.key), minVersion: 'TLSv1.2' }, handler)
-    : http.createServer(handler);
+  const server = config.tls ? https.createServer(tlsServerOptions()!, handler) : http.createServer(handler);
   return new Promise((resolve, reject) => {
     server.once('error', reject);
     server.listen({ host: config.host, port: config.port }, () => resolve(server));
@@ -185,6 +186,12 @@ export async function start(opts: { banner?: boolean } = {}): Promise<Started> {
   const permissionProblems = ensureDataDirs();
   for (const p of permissionProblems) logger.warn({ problem: p }, 'could not restrict permissions in the data directory');
   for (const w of securityWarnings()) logger.warn({ security: true }, w);
+  // a misspelt variable is otherwise ignored without a word (SM_DATABSE_URL starts on SQLite); names only, never values
+  for (const u of unknownVariables(process.env))
+    logger.warn(
+      { variable: u.name, ...(u.suggestion ? { didYouMean: u.suggestion } : {}) },
+      u.suggestion ? `unknown environment variable ${u.name} is ignored – did you mean ${u.suggestion}?` : `unknown environment variable ${u.name} is ignored`,
+    );
   // one instance per database (ADR 0002): the lease on PostgreSQL, a file lock on SQLite
   const lease: { onLost(fn: (reason: string) => void): void; release(): unknown } | null = (await acquireLease()) ?? (await acquireSqliteLock());
   lease?.onLost((reason) => {
@@ -202,6 +209,8 @@ export async function start(opts: { banner?: boolean } = {}): Promise<Started> {
   // with the path of the automatic backup in the message.
   try {
     db();
+    // SQLite, once after a large clean-up: give the free space back before anything listens (database/sqlite-space.ts)
+    if (env.SM_SQLITE_VACUUM_AT_START) vacuumAtStart(db());
   } catch (e) {
     await lease?.release();
     throw e;
@@ -224,6 +233,7 @@ export async function start(opts: { banner?: boolean } = {}): Promise<Started> {
   // the Teams bot's own listener (ADR 0013, preview): only POST /teams/bot/messages
   const botListener = await (await import('./msteams/listener.js')).startBotListener();
   // background jobs, event-loop monitor and backups now; recovery, scheduler and monitors once the vault is unlocked
+  registerFeatureJobs();
   startBackground();
   await unlockFromEnv().catch((e) => {
     logger.error({ err: e }, 'automatic unlock failed');

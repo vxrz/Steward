@@ -365,6 +365,29 @@ describe('automatic entries from runs', () => {
   });
 });
 
+describe('a source whose platform changed its kind', () => {
+  it('is not read: the Insights Hub source checks the kind when it runs, as the other sources do (0.11)', async () => {
+    const { db } = await import('../src/db.js');
+    const mine = await s.api('POST', '/compliance/access-checks', {
+      name: 'Kind changes',
+      platformId: hub,
+      source: 'insights-hub',
+      cron: '0 5 * * *',
+      timezone: 'Europe/Berlin',
+    });
+    db().run("UPDATE platforms SET kind = 'generic' WHERE id = ?", hub);
+    try {
+      const r = await s.api('POST', `/compliance/access-checks/${mine.id}/run`, {}).catch((e) => e);
+      expect(r).toMatchObject({ status: 400, body: { code: 'ACCESS_CHECK_SOURCE' } });
+      expect(await s.api('GET', `/compliance/access-checks/${mine.id}`)).toMatchObject({ lastStatus: 'failed', snapshotCount: 0 });
+    } finally {
+      db().run("UPDATE platforms SET kind = 'insights-hub' WHERE id = ?", hub);
+    }
+    await s.api('POST', `/compliance/access-checks/${mine.id}/run`, {});
+    expect(await s.api('GET', `/compliance/access-checks/${mine.id}`)).toMatchObject({ lastStatus: 'ok', snapshotCount: 1 });
+  });
+});
+
 describe('public API', () => {
   it('lists access changes and findings for token owners', async () => {
     const token = (await audrey('POST', '/me/tokens', { name: 'compliance', scope: 'read' })).token;

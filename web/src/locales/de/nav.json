@@ -156,7 +156,8 @@
     "catalogue": "Katalog",
     "compliance": "Compliance",
     "admin": "Administration",
-    "plant": "Werk"
+    "plant": "Werk",
+    "registers": "Register"
   },
   "mainNavigation": "Hauptnavigation",
   "skipToContent": "Zum Inhalt springen",
@@ -170,7 +171,7 @@
     "checklist": "Checkliste für den Einstieg",
     "docs": "Dokumentation",
     "doc": {
-      "guide": "Benutzerhandbuch (README)",
+      "guide": "Erste Schritte",
       "install": "Installation und Betrieb",
       "mcp": "KI-Assistenten (MCP)",
       "api": "Öffentliche REST-API",
@@ -182,7 +183,8 @@
       "search": "Seiten, Prozesse, Monitore, Dokumente suchen …",
       "help": "Diese Liste anzeigen",
       "goTo": "Zu {{page}} wechseln",
-      "close": "Dialog oder Menü schließen"
+      "close": "Dialog oder Menü schließen",
+      "pin": "Den fokussierten Eintrag der Seitenleiste anheften oder lösen"
     },
     "shortcutsHint": "Die Kürzel gelten nicht, während Sie in einem Feld tippen, in einem Dialog oder auf der Arbeitsfläche des Prozesseditors.",
     "whatsNewIntro": "Die Höhepunkte der kommenden {{brand}}-Version.",
@@ -220,9 +222,11 @@
         "title": "KI-Assistenten (MCP)",
         "text": "Ein lesender MCP-Server lässt KI-Assistenten Ausführungen, Monitore und Dashboards mit Ihren Rechten ansehen."
       }
-    }
+    },
+    "glossary": "Glossar"
   },
   "pinned": "Angeheftet",
   "pin": "{{page}} oben anheften",
-  "unpin": "{{page}} lösen"
+  "unpin": "{{page}} lösen",
+  "pinHint": "Drücken Sie P, um diese Seite oben in der Seitenleiste anzuheften oder zu lösen."
 }

@@ -736,7 +736,7 @@ describe('M8 – privacy', () => {
 
 describe('L – redaction, scrubbing, TLS', () => {
   it('redacts encoded secrets and token fields in run data', async () => {
-    const { Redactor } = await import('../src/engine/runner.js');
+    const { Redactor } = await import('../src/engine/redact.js');
     const r = new Redactor();
     const pw = 'S3cr3t"pa$$:word';
     r.add(pw);

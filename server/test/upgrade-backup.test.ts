@@ -166,6 +166,14 @@ describe('automatic backup before migrating (SQLite)', () => {
     );
   });
 
+  it('migrates without the copy when it fails and SM_UPGRADE_BACKUP_REQUIRED=0', () => {
+    const c = fixtureCopy();
+    fs.writeFileSync(c.backups, 'a file where the folder should be');
+    const d = open(c.file, { backup: { dir: c.backups, keep: 3, required: false }, extraMigrations: [extra('upgrade_test_notrequired')] });
+    expect(d.upgrade).toMatchObject({ migrations: ['upgrade_test_notrequired'], backup: null, backupError: expect.any(String) });
+    expect(d.get("SELECT name FROM sqlite_master WHERE name = 'upgrade_test_notrequired'")).toBeTruthy();
+  });
+
   it('does not migrate when the copy cannot be written', () => {
     const c = fixtureCopy();
     fs.writeFileSync(c.backups, 'a file where the folder should be');
@@ -177,23 +185,95 @@ describe('automatic backup before migrating (SQLite)', () => {
   });
 });
 
-describe.skipIf(!PG_TEST_URL)('before migrating on PostgreSQL', () => {
-  it('makes no copy of its own (pg_dump is recommended in the log and the docs)', () => {
-    const target = { kind: 'postgres' as const, url: PG_TEST_URL!, schema: `${process.env.SM_TEST_SCHEMA_PREFIX ?? 'smt_adhoc'}_upgb${process.pid}` };
-    const backups = path.join(root, 'pg-backups');
+describe.skipIf(!PG_TEST_URL)('automatic backup before migrating (PostgreSQL: pg_dump)', () => {
+  let n = 0;
+  /** A schema with data at the current state, last opened by app version 1.0.0. */
+  const schema = () => {
+    const target = { kind: 'postgres' as const, url: PG_TEST_URL!, schema: `${process.env.SM_TEST_SCHEMA_PREFIX ?? 'smt_adhoc'}_upgb${process.pid}_${n++}` };
+    const d = new Db(target, { appVersion: '1.0.0' });
+    d.run("INSERT INTO settings (key, value) VALUES ('upgrade-test', '\"kept\"')");
+    d.close();
     new Db(target, { appVersion: '1.0.0' }).close();
-    const first = new Db(target, { appVersion: '1.0.0' });
+    return target;
+  };
+  const opts = (dir: string, extraOpts: Record<string, unknown> = {}) => ({ dir, keep: 3, pgDump: process.env.SM_PG_DUMP ?? 'pg_dump', ...extraOpts });
+
+  it('dumps the schema (custom format, private to the owner) before pending migrations', async () => {
+    const target = schema();
+    const backups = path.join(root, `pg-backups-${n}`);
+    const first = new Db(target, { appVersion: '1.0.0', backup: opts(backups) });
     expect(first.upgrade).toBeUndefined();
     first.close();
-    const d = new Db(target, { appVersion: '1.1.0', backup: { dir: backups, keep: 3 }, extraMigrations: [extra('upgrade_test_pg')] });
+    expect(fs.existsSync(backups)).toBe(false);
+    const d = new Db(target, { appVersion: '1.1.0', backup: opts(backups), extraMigrations: [extra('upgrade_test_pg')] });
     try {
-      expect(d.upgrade).toMatchObject({ fromVersion: '1.0.0', toVersion: '1.1.0', migrations: ['upgrade_test_pg'], backup: null });
+      const [backup] = listUpgradeBackups(backups);
+      expect(path.basename(backup!)).toMatch(/^pre-1\.1\.0-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z\.pgdump$/);
+      expect(d.upgrade).toMatchObject({ fromVersion: '1.0.0', toVersion: '1.1.0', migrations: ['upgrade_test_pg'], backup });
+      expect(fs.readFileSync(backup!).subarray(0, 5).toString()).toBe('PGDMP');
+      if (posix) expect(fs.statSync(backup!).mode & 0o777).toBe(0o600);
+      // the dump is from before the migration: it has the data, not the new table
+      const { execFileSync } = await import('node:child_process');
+      const list = execFileSync(process.env.SM_PG_RESTORE ?? 'pg_restore', ['--list', backup!], { encoding: 'utf8' });
+      expect(list).toContain('TABLE DATA');
+      expect(list).not.toContain('upgrade_test_pg');
+    } finally {
+      d.close();
+    }
+    // a failed migration names the dump
+    expect(
+      () => new Db(target, { backup: opts(backups), extraMigrations: [extra('upgrade_test_pg'), extra('upgrade_test_pg_bad', 'CREATE TABLE runs (x TEXT)')] }),
+    ).toThrow(/A pg_dump of the schema from before the upgrade is at .*\.pgdump/);
+  });
+
+  it('does not migrate when pg_dump fails – unless SM_UPGRADE_BACKUP_REQUIRED=0', () => {
+    const target = schema();
+    const backups = path.join(root, `pg-backups-${n}`);
+    const missing = path.join(root, 'no-such-pg_dump');
+    expect(
+      () => new Db(target, { appVersion: '1.1.0', backup: opts(backups, { pgDump: missing }), extraMigrations: [extra('upgrade_test_pg_nodump')] }),
+    ).toThrow(/Database upgrade stopped: could not dump the PostgreSQL schema .* is not installed .*The database was not changed/s);
+    const check = new Db(target, { migrate: false });
+    try {
+      expect(check.get("SELECT 1 FROM schema_migrations WHERE name = 'upgrade_test_pg_nodump'")).toBeUndefined();
+    } finally {
+      check.close();
+    }
+    expect(listUpgradeBackups(backups)).toEqual([]);
+    const d = new Db(target, {
+      appVersion: '1.1.0',
+      backup: opts(backups, { pgDump: missing, required: false }),
+      extraMigrations: [extra('upgrade_test_pg_nodump')],
+    });
+    try {
+      expect(d.upgrade).toMatchObject({ migrations: ['upgrade_test_pg_nodump'], backup: null, backupError: expect.stringContaining('is not installed') });
+      expect(listUpgradeBackups(backups)).toEqual([]);
+    } finally {
+      d.close();
+    }
+  });
+
+  it('is turned off with 0 (SM_UPGRADE_BACKUPS=0)', () => {
+    const target = schema();
+    const backups = path.join(root, `pg-backups-${n}`);
+    const d = new Db(target, { appVersion: '1.1.0', backup: opts(backups, { keep: 0 }), extraMigrations: [extra('upgrade_test_pg_off')] });
+    try {
+      expect(d.upgrade).toMatchObject({ migrations: ['upgrade_test_pg_off'], backup: null });
       expect(fs.existsSync(backups)).toBe(false);
     } finally {
       d.close();
     }
-    const failing = () => new Db(target, { extraMigrations: [extra('upgrade_test_pg'), extra('upgrade_test_pg_bad', 'CREATE TABLE runs (x TEXT)')] });
-    expect(failing).toThrow(/restore the pg_dump backup made before the upgrade/);
+  });
+});
+
+describe('pg_dump errors', () => {
+  it('say what to do when the server is newer than pg_dump', async () => {
+    const { explainPgToolError } = await import('../src/database/pg-dump.js');
+    const stderr = 'pg_dump: error: aborting because of server version mismatch\npg_dump: detail: server version: 18.1; pg_dump version: 17.6';
+    expect(explainPgToolError('/usr/bin/pg_dump', stderr, 1)).toMatch(/server version: 18\.1.*point SM_PG_DUMP at the program of the server's version/s);
+    expect(explainPgToolError('/opt/pg/pg_dump', '', null, Object.assign(new Error('spawn'), { code: 'ENOENT' }))).toBe(
+      '/opt/pg/pg_dump is not installed (set SM_PG_DUMP / SM_PG_RESTORE to its path)',
+    );
   });
 });
 

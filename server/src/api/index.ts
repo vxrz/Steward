@@ -24,6 +24,7 @@ import { apiAuthHook, docsAccess, type ApiPrincipal } from './v1/auth.js';
 import { ProblemError, problemBody, sendProblem, PROBLEM_BASE } from './v1/problem.js';
 import { OPERATION_ERRORS, PAGINATED_OPERATIONS, v1Routes } from './v1/routes.js';
 import { componentSchemas } from './v1/schemas.js';
+import { featureApiRoutes } from '../features/index.js';
 import { env } from '../config.js';
 
 type Doc = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -253,7 +254,7 @@ async function v1Scope(app: FastifyInstance, opts: { spec: () => Doc }): Promise
       return sendProblem(req, reply, 405, { type: 'method-not-allowed', title: 'Method not allowed', detail: 'The public API is read-only' });
     },
   });
-  await app.register(v1Routes, { spec: opts.spec });
+  await app.register(v1Routes, { spec: opts.spec, features: featureApiRoutes() });
 }
 
 /** The plugin; register with `{ prefix: '/api' }`. `basePath` defaults to the configured one (SM_BASE_PATH). */

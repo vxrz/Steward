@@ -18,7 +18,8 @@
     "signsInWith": "Signs in with {{provider}}",
     "mustChange": "must change password",
     "never": "never",
-    "resetPassword": "Reset password"
+    "resetPassword": "Reset password",
+    "pseudonymised": "pseudonymised"
   },
   "teams": {
     "title": "Teams",
@@ -43,7 +44,7 @@
     "email": "E-mail",
     "ssoHint": "Single sign-on users are created automatically at their first sign-in (if the provider allows it). You can also create them here in advance with exactly their SSO user name (e.g. the e-mail / UPN) to assign roles – the account is linked at the first sign-in.",
     "initialPassword": "Initial password (optional)",
-    "initialPasswordHint": "Leave empty to generate a temporary password. The user must change it at the first sign-in either way.",
+    "initialPasswordHint": "Leave empty to generate a temporary password; otherwise at least {{min}} characters, not a common password. The user must change it at the first sign-in either way.",
     "adminWarning": "Administrators can manage users, platforms and credentials and see everything.",
     "noPasswordHint": "Password sign-in is turned off: the account gets no password. It is linked at its first single sign-on with exactly this user name (e.g. the e-mail / UPN).",
     "signIn": "Signs in with",
@@ -433,5 +434,17 @@
     "quiet": {
       "usesInstance": "Members use their own quiet hours and digests, or none."
     }
+  },
+  "privacy": {
+    "export": "Export the data of {{name}} (JSON)",
+    "pseudonymise": "Replace the data of {{name}} by a pseudonym",
+    "title": "Replace the personal data of {{name}}",
+    "irreversible": "This cannot be undone. The account stays deactivated for good.",
+    "replaced": "Replaced or deleted: display, first and last name, e-mail, the profile fields and the link to the single sign-on identity, the language, settings and notifications, messages held for the person, their Teams chat with the bot, team memberships, sessions, API tokens, emergency access and connected MCP clients. The account shows a pseudonym such as former-user-7f3a2c instead.",
+    "kept": "Kept: the account id and the user name with its roles and dates. The audit log names the user name in entries that cannot change (they are signed in a chain), and run protocols, records and reports keep who did what.",
+    "exportFirst": "If the person asked for their data, <a>export it first</a>.",
+    "confirmLabel": "Type the user name {{name}} to confirm",
+    "submit": "Replace by a pseudonym",
+    "done": "The data of {{name}} was replaced by the pseudonym {{pseudonym}}"
   }
 }

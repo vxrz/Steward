@@ -1,0 +1,179 @@
+{
+  "title": "Modules",
+  "intro": "Optional areas of {{brand}}. Switch off what your team does not use: its pages, menu entries, routes and background jobs go away for everyone. Its data stays, and comes back when you switch the area on again.",
+  "switchLabel": "Switch {{name}} on",
+  "switchedOn": "{{name}} is switched on.",
+  "switchedOff": "{{name}} is switched off. Its data is kept.",
+  "off": {
+    "title": "This area is switched off",
+    "text": "An administrator can turn it on in Settings → Modules.",
+    "textAdmin": "You can turn it on in Settings → Modules. Its data was kept.",
+    "open": "Open Settings → Modules"
+  },
+  "requires": "Needs {{name}}.",
+  "ownSettings": "Switched on and set up below.",
+  "mapSettings": "On while the plant registry is on and a map source is chosen (below, under Map).",
+  "defaultOff": "Off until an administrator turns it on.",
+  "docs": "Maturity of every area and connector",
+  "items": {
+    "compliance": {
+      "name": "Compliance and evidence",
+      "description": "Control catalogues, access changes, access reconciliation, person reviews and evidence packs."
+    },
+    "statusPages": {
+      "name": "Status pages",
+      "description": "Read-only pages for colleagues outside the team, and the status viewer role."
+    },
+    "scorecard": {
+      "name": "Scorecard",
+      "description": "Availability objectives and the scorecard of services (a view of Services)."
+    },
+    "costs": {
+      "name": "Costs",
+      "description": "Platform costs in one cost model (FOCUS showback), budgets and the cost readers (a view of Services)."
+    },
+    "dataContracts": {
+      "name": "Data contracts",
+      "description": "ODCS data contracts, their versions, breaking-change rules and tests."
+    },
+    "ai": {
+      "name": "AI models",
+      "description": "LLM gateways, the “Ask an AI model” step, token budgets and the usage log."
+    },
+    "teamsBot": {
+      "name": "Approvals in Microsoft Teams",
+      "description": "The Teams bot that lets people decide approvals in a Teams card."
+    },
+    "libraries": {
+      "name": "Shared procedure libraries",
+      "description": "Signed library releases, trusted publishers and installed libraries."
+    },
+    "versionWatch": {
+      "name": "Version watch and end of life",
+      "description": "Newest versions and end-of-life dates of the tech stack of applications and systems."
+    },
+    "changedetection": {
+      "name": "changedetection.io",
+      "description": "Page watches of changedetection.io platforms, their monitor check and reviews."
+    },
+    "plant": {
+      "name": "Plant registry",
+      "description": "Sites, assets, device profiles, KPIs and the OT network of your plants."
+    },
+    "plantMap": {
+      "name": "Map of sites",
+      "description": "The sites of the plant registry on a map, with tiles served through {{brand}}."
+    }
+  },
+  "maturity": {
+    "label": "Maturity",
+    "stable": {
+      "name": "stable",
+      "text": "Stable: used and tested broadly; changes are announced in the change log."
+    },
+    "beta": {
+      "name": "beta",
+      "text": "Beta: complete, but little used so far. Expect rough edges."
+    },
+    "preview": {
+      "name": "preview",
+      "text": "Preview: new; it may still change in ways that need you to act."
+    }
+  },
+  "verified": {
+    "real": "Tested against real systems of this product.",
+    "mock": "Tested only against a simulation of the product in {{brand}}'s tests, not yet against a real system.",
+    "none": "Talks to no product of its own."
+  },
+  "restricted": {
+    "title": "Nothing here you may see",
+    "text": "There are entries you do not have access to. Ask an administrator or the team that owns them."
+  },
+  "glossary": {
+    "title": "Glossary",
+    "open": "Glossary",
+    "intro": "The words {{brand}} uses, and how they relate.",
+    "relation": "A service consists of applications. An application runs on systems. {{brand}} reaches systems and applications through platforms.",
+    "docs": "Full glossary in the documentation",
+    "groups": {
+      "catalogue": "Catalogue",
+      "automation": "Automation",
+      "watching": "Watching",
+      "records": "Records and people"
+    },
+    "terms": {
+      "service": {
+        "term": "Service",
+        "text": "What a team offers to others, with an owner and a criticality. It consists of applications."
+      },
+      "application": {
+        "term": "Application",
+        "text": "Software a service consists of, with a CIA rating. It runs on systems."
+      },
+      "system": {
+        "term": "System",
+        "text": "Where applications run: a server, VM, cluster, appliance or cloud service, with its environments. Part of the catalogue."
+      },
+      "component": {
+        "term": "Component",
+        "text": "A code or data part of an application: a repository, image, library, topic or database."
+      },
+      "platform": {
+        "term": "Platform",
+        "text": "A connection {{brand}} talks to through an API: base URL, credentials, API specifications. Not a catalogue entry."
+      },
+      "process": {
+        "term": "Process",
+        "text": "A versioned flow of steps that {{brand}} runs. “Procedure” and “runbook” mean the same thing in these docs."
+      },
+      "run": {
+        "term": "Run",
+        "text": "One execution of a process, with its journal and evidence."
+      },
+      "step": {
+        "term": "Step",
+        "text": "One node of a process in a run: a call, a check, a manual task or a decision."
+      },
+      "decision": {
+        "term": "Decision",
+        "text": "An approval or selection a person makes while a run waits (My tasks)."
+      },
+      "monitor": {
+        "term": "Monitor",
+        "text": "A graph of checks that runs on a schedule and reports a status."
+      },
+      "check": {
+        "term": "Check",
+        "text": "One test inside a monitor or a process step (e.g. HTTP status, a query value)."
+      },
+      "objective": {
+        "term": "Objective",
+        "text": "An availability target of a service, measured over time (the scorecard)."
+      },
+      "document": {
+        "term": "Document",
+        "text": "A record with a type and a workflow: change requests, decisions, reviews, firewall changes. In the docs also called a record."
+      },
+      "credential": {
+        "term": "Credentials register",
+        "text": "Metadata about secrets kept elsewhere (expiry, rotation, owner). It never holds the secret itself; platforms do."
+      },
+      "duty": {
+        "term": "Duty",
+        "text": "A recurring obligation of a service, judged by real runs: done, late or missed."
+      },
+      "team": {
+        "term": "Team and owning team",
+        "text": "A team groups people with roles. The owning teams of an item decide who may see and change it."
+      },
+      "module": {
+        "term": "Module",
+        "text": "An optional area an administrator can switch off in Settings → Modules."
+      }
+    }
+  },
+  "state": {
+    "on": "On",
+    "off": "Off"
+  }
+}

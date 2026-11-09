@@ -8,13 +8,15 @@ import type { ProcessSummary, RunSummary } from '@sm/shared';
 import { get } from '../api';
 import { QueryState, statusLabel } from '../components/common';
 import { ListPage } from '../components/page/ListPage';
-import { ListFooter } from '../components/DataTable';
+import { ListFooter, storedSort, storeSort, type SortState } from '../components/DataTable';
 import { RunTable } from '../components/RunTable';
 import { SummaryReportDialog } from '../components/reports/SummaryReportDialog';
 import { processKeys, runKeys } from '../queryKeys';
 
 /** Runs per request; "Load more" fetches the next, older page (`before` = start and id of the oldest run shown). */
 export const RUNS_PAGE = 200;
+
+const DEFAULT_SORT: SortState = { key: 'started', dir: 'desc' };
 
 const PERIODS = ['24h', '7d'] as const;
 type Period = (typeof PERIODS)[number];
@@ -36,9 +38,17 @@ export function RunsPage() {
   // ?limit=50: a smaller page (1–1000)
   const pageSize = Math.min(Math.max(Number(params.get('limit')) || RUNS_PAGE, 1), 1000);
   const [summaryOpen, setSummaryOpen] = useState(false);
+  // sorted by the server (U15): over all runs, not only the loaded page; the choice is remembered per user
+  const [sort, setSortState] = useState<SortState>(() => storedSort('runs', DEFAULT_SORT) ?? DEFAULT_SORT);
+  const setSort = (next: SortState | null) => {
+    const s = next ?? DEFAULT_SORT;
+    setSortState(s);
+    storeSort('runs', s);
+  };
+  const isDefault = sort.key === DEFAULT_SORT.key && sort.dir === DEFAULT_SORT.dir;
   const processes = useQuery({ queryKey: processKeys.all, queryFn: () => get<ProcessSummary[]>('/processes') });
   const runs = useInfiniteQuery({
-    queryKey: runKeys.list(status, processId, since, checks, pageSize, kind === 'debug'),
+    queryKey: runKeys.list(status, processId, since, checks, pageSize, kind === 'debug', `${sort.key}:${sort.dir}`),
     initialPageParam: '',
     queryFn: ({ pageParam }) => {
       const qs = new URLSearchParams({
@@ -49,14 +59,16 @@ export function RunsPage() {
         ...(since ? { since } : {}),
         ...(checks ? { checks } : {}),
         ...(kind === 'debug' ? { debug: '1' } : {}),
-        ...(pageParam ? { before: pageParam } : {}),
+        ...(isDefault ? {} : { sort: sort.key, dir: sort.dir }),
+        ...(pageParam ? (isDefault ? { before: pageParam } : { after: pageParam }) : {}),
       });
       return get<RunSummary[]>(`/runs?${qs}`);
     },
     // start and id: runs that started in the same millisecond (for-each children, a burst of triggers) are not skipped
+    // a sorted list continues after the id of its last run
     getNextPageParam: (last) => {
       const oldest = last.length >= pageSize ? last[last.length - 1] : undefined;
-      return oldest ? `${oldest.startedAt},${oldest.id}` : undefined;
+      return oldest ? (isDefault ? `${oldest.startedAt},${oldest.id}` : oldest.id) : undefined;
     },
     refetchInterval: 4000,
   });
@@ -151,6 +163,8 @@ export function RunsPage() {
       {list.length > 0 && (
         <RunTable
           runs={list}
+          sort={sort}
+          onSortChange={setSort}
           footer={<ListFooter shown={list.length} hasMore={runs.hasNextPage} onLoadMore={() => void runs.fetchNextPage()} loading={runs.isFetchingNextPage} />}
         />
       )}

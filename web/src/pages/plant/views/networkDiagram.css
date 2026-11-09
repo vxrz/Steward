@@ -1,0 +1,432 @@
+/* The OT network diagram (#230): bands by level, zones and VLANs as areas, small chips, conduits as gates. The colours
+   come from views.css (--pv-*); light and dark follow the theme. */
+
+:root {
+  --nd-band: color-mix(in srgb, var(--mantine-color-gray-1) 55%, transparent);
+  --nd-band-alt: transparent;
+  --nd-minimap-area: var(--mantine-color-indigo-1);
+  --nd-minimap-part: var(--mantine-color-gray-5);
+}
+[data-mantine-color-scheme='dark'] {
+  --nd-band: color-mix(in srgb, var(--mantine-color-dark-5) 35%, transparent);
+  --nd-minimap-area: var(--mantine-color-dark-4);
+  --nd-minimap-part: var(--mantine-color-dark-1);
+}
+
+.nd-graph .react-flow__node {
+  cursor: pointer;
+}
+.nd-graph .react-flow__node-band,
+.nd-graph .react-flow__node-outside {
+  pointer-events: none;
+  cursor: default;
+}
+.nd-graph .react-flow__node:focus-visible {
+  outline: 2px solid var(--pv-hl);
+  outline-offset: 3px;
+  border-radius: 8px;
+}
+
+/* ---------- bands ---------- */
+.nd-band {
+  background: var(--nd-band);
+  border-top: 1px dashed var(--mantine-color-default-border);
+  border-bottom: 1px dashed var(--mantine-color-default-border);
+  position: relative;
+}
+.nd-band-label {
+  position: absolute;
+  left: 14px;
+  top: 40px;
+  width: 104px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--mantine-color-dimmed);
+}
+.nd-band-short {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--mantine-color-text);
+}
+.nd-band-name {
+  font-size: 12px;
+  line-height: 1.25;
+}
+.nd-band[data-compact='true'] .nd-band-short {
+  font-size: 22px;
+}
+.nd-band[data-compact='true'] .nd-band-name {
+  font-size: 18px;
+}
+
+/* ---------- areas: zones and VLANs ---------- */
+.nd-area {
+  position: relative;
+  border-radius: 12px;
+  border: 1.5px solid var(--pv-conduit);
+  background: var(--pv-zone-bg);
+  transition:
+    opacity 160ms ease,
+    box-shadow 160ms ease;
+}
+.nd-area[data-kind='vlan'] {
+  border: 1px solid var(--mantine-color-default-border);
+  background: var(--pv-vlan-bg);
+  border-radius: 10px;
+}
+/* dimmed: faded frames and quieter text – the text keeps its contrast (no opacity on it) */
+.nd-area[data-dim='true'] {
+  border-color: var(--mantine-color-default-border);
+  background: transparent;
+}
+.nd-area[data-dim='true'] .nd-area-label {
+  border-color: var(--mantine-color-default-border);
+  color: var(--mantine-color-dimmed);
+}
+.nd-area[data-hl='true'],
+.nd-area[data-sel='true'] {
+  box-shadow: 0 0 0 2px var(--pv-hl);
+}
+.nd-area-label {
+  position: absolute;
+  top: -11px;
+  left: 10px;
+  max-width: calc(100% - 20px);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--mantine-color-body);
+  border: 1px solid var(--pv-conduit);
+  font-size: 12px;
+  line-height: 18px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.nd-area[data-kind='vlan'] .nd-area-label {
+  top: 4px;
+  left: 6px;
+  border: none;
+  background: transparent;
+  font-size: 11.5px;
+  line-height: 16px;
+}
+/* the tags give way first, then the name */
+.nd-area-name {
+  font-weight: 600;
+  flex: 0 0 auto;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.nd-area-tag {
+  color: var(--mantine-color-dimmed);
+  font-size: 11px;
+  flex: 0 100 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.nd-area[data-compact='true'] .nd-area-label {
+  font-size: 20px;
+  line-height: 26px;
+  top: -16px;
+}
+.nd-area[data-kind='vlan'][data-compact='true'] .nd-area-label {
+  top: 0;
+  font-size: 17px;
+  line-height: 24px;
+}
+.nd-area[data-compact='true'] .nd-area-tag {
+  display: none;
+}
+
+/* ---------- chips ---------- */
+.nd-chip {
+  width: 176px;
+  height: 52px;
+  padding: 4px 8px 4px 9px;
+  border-radius: 8px;
+  background: var(--mantine-color-body);
+  border: 1px solid var(--mantine-color-default-border);
+  border-left: 4px solid var(--pv-state, var(--pv-edge));
+  box-shadow: 0 1px 2px rgb(0 0 0 / 7%);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+  transition:
+    opacity 160ms ease,
+    box-shadow 160ms ease;
+}
+.nd-chip[data-dim='true'],
+.nd-gate[data-dim='true'] {
+  color: var(--mantine-color-dimmed);
+  border-color: var(--mantine-color-default-border);
+  box-shadow: none;
+}
+.nd-chip[data-dim='true'] {
+  border-left-color: var(--mantine-color-default-border);
+}
+.nd-chip[data-dim='true'] .nd-name {
+  font-weight: 500;
+}
+.nd-gate[data-dim='true'] svg {
+  color: var(--mantine-color-dimmed);
+}
+.nd-chip[data-hl='true'],
+.nd-gate[data-hl='true'] {
+  box-shadow: 0 0 0 2px var(--pv-hl);
+}
+.nd-chip[data-sel='true'],
+.nd-gate[data-sel='true'] {
+  box-shadow:
+    0 0 0 2px var(--pv-hl),
+    0 0 0 5px color-mix(in srgb, var(--pv-hl) 30%, transparent);
+}
+.nd-chip-top {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  height: 14px;
+  color: var(--mantine-color-dimmed);
+}
+.nd-kind {
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--mantine-color-dimmed);
+  white-space: nowrap;
+}
+.nd-live {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 10.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.nd-live[data-live='ok'] {
+  color: var(--mantine-color-green-light-color);
+}
+.nd-live[data-live='fail'] {
+  color: var(--mantine-color-red-light-color);
+}
+.nd-live[data-live='warn'] {
+  color: var(--mantine-color-orange-light-color);
+}
+.nd-live[data-live='unknown'] {
+  color: var(--mantine-color-dimmed);
+}
+.nd-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 16px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.nd-name[data-hidden='true'] {
+  font-style: italic;
+}
+.nd-detail {
+  font-size: 10.5px;
+  line-height: 13px;
+  color: var(--mantine-color-dimmed);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.nd-chip[data-compact='true'] .nd-name {
+  font-size: 19px;
+  line-height: 21px;
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.nd-chip[data-compact='true'] .nd-live {
+  margin: 0 4px 0 0;
+  vertical-align: -2px;
+}
+
+/* ---------- conduits: gates on the boundary ---------- */
+.nd-gate {
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 2px solid var(--pv-conduit);
+  background: var(--mantine-color-body);
+  color: var(--mantine-color-text);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 12%);
+  transition:
+    opacity 160ms ease,
+    box-shadow 160ms ease;
+}
+.nd-gate svg {
+  color: var(--pv-conduit);
+  flex-shrink: 0;
+}
+.nd-gate-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nd-gate[data-compact='true'] {
+  font-size: 15px;
+}
+
+/* ---------- outside every zone ---------- */
+.nd-outside {
+  border: 1.5px dashed var(--mantine-color-default-border);
+  border-radius: 12px;
+  position: relative;
+}
+.nd-outside-label {
+  position: absolute;
+  top: 6px;
+  left: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--mantine-color-dimmed);
+}
+.nd-outside[data-compact='true'] .nd-outside-label {
+  font-size: 18px;
+  top: 2px;
+}
+
+/* ---------- ways ---------- */
+.nd-edge-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 12px;
+  pointer-events: stroke;
+}
+.nd-graph .pv-edge[data-dim='true'] {
+  opacity: 0.12;
+}
+/* many ways: the ones not pointed at step back */
+.nd-graph[data-many] .pv-edge:not([data-hl]):not([data-dim]) {
+  opacity: 0.55;
+}
+.nd-pill {
+  z-index: 4;
+}
+/* panning: the dashes pause (no repaint of every way in every frame) */
+.nd-graph[data-moving] .pv-edge-flow {
+  animation-play-state: paused;
+}
+.nd-graph .react-flow__minimap {
+  border: 1px solid var(--mantine-color-default-border);
+  border-radius: var(--mantine-radius-sm);
+}
+
+/* ---------- the frame: side panel, full screen ---------- */
+.nd-frame {
+  display: flex;
+  gap: var(--mantine-spacing-sm);
+  align-items: stretch;
+  min-width: 0;
+}
+.nd-frame > .nd-canvas {
+  flex: 1;
+  min-width: 0;
+}
+.nd-panel {
+  width: 340px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--mantine-spacing-xs);
+  min-height: 0;
+}
+.nd-strip {
+  width: 36px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 6px;
+  border: 1px solid var(--mantine-color-default-border);
+  border-radius: var(--mantine-radius-md);
+}
+.nd-full {
+  position: fixed;
+  inset: 0;
+  z-index: 190;
+  background: var(--mantine-color-body);
+  padding: var(--mantine-spacing-xs);
+  display: flex;
+  flex-direction: column;
+  gap: var(--mantine-spacing-xs);
+}
+.nd-full > .nd-frame {
+  flex: 1;
+  min-height: 0;
+}
+@media (max-width: 48em) {
+  .nd-frame {
+    flex-direction: column;
+  }
+  .nd-panel {
+    width: auto;
+  }
+  .nd-strip {
+    width: auto;
+    flex-direction: row;
+    justify-content: flex-start;
+    padding: 4px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nd-area,
+  .nd-chip,
+  .nd-gate {
+    transition: none;
+  }
+}
+.pv-static .nd-area,
+.pv-static .nd-chip,
+.pv-static .nd-gate {
+  transition: none;
+}
+
+/* ---------- what is pointed at or selected: a card in the picture's corner ---------- */
+.nd-canvas {
+  position: relative;
+}
+.nd-info-floating {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 300px;
+  max-height: calc(100% - 16px);
+  overflow: auto;
+  z-index: 6;
+  pointer-events: none;
+}
+.nd-info-floating[data-interactive='true'] {
+  pointer-events: auto;
+}
+.nd-strip-text {
+  writing-mode: vertical-rl;
+  margin-top: 8px;
+  white-space: nowrap;
+}
+@media (max-width: 48em) {
+  .nd-strip-text {
+    writing-mode: horizontal-tb;
+    margin: 0 0 0 6px;
+  }
+}

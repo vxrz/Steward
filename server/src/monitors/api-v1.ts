@@ -6,6 +6,7 @@ import { decodeCursor, linkNext, pageArray, pageRows } from '../api/v1/paginatio
 import type { Op } from '../api/v1/routes.js';
 import * as svc from './service.js';
 import * as A from './api-schemas.js';
+import { params } from '../routes/params.js';
 
 /**
  * Monitors in the public, read-only API – for pull integrations such as the
@@ -13,7 +14,6 @@ import * as A from './api-schemas.js';
  */
 type Get = <R>(url: string, op: Op, handler: (req: FastifyRequest, reply: FastifyReply) => Promise<R> | R) => unknown;
 
-const params = (req: FastifyRequest) => req.params as Record<string, string>;
 const notFound = (what: string) => new ProblemError(404, { type: 'not-found', title: 'Not found', detail: `${what} not found` });
 
 function viewable(idOrKey: string) {

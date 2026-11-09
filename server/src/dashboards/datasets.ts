@@ -421,6 +421,9 @@ export function listDatasets(view?: View): DatasetMeta[] {
 
 const notFound = (key: string) => new HttpError(404, `Dataset "${key}" has no data yet – run the process that publishes it`);
 
+/** Whether a dataset holds any partition, whoever may see it (GET /api/datasets/:key/visibility). */
+export const datasetHasParts = (key: string): boolean => partsOf(key, false).length > 0;
+
 export function getDatasetMeta(key: string, view?: View): DatasetMeta {
   const d = db().get<DatasetRowDb>(`SELECT ${HEADER} FROM datasets WHERE key = ?`, key);
   if (!d) throw notFound(key);

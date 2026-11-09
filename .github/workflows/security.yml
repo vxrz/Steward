@@ -1,6 +1,6 @@
 # Security checks on every push and pull request, and weekly (new advisories
 # appear without code changes). What each job does and how to handle a finding:
-# docs/SECURITY-PIPELINE.md. Run them locally: scripts/security/scan.sh
+# docs/ci/SECURITY-PIPELINE.md. Run them locally: scripts/security/scan.sh
 name: Security
 
 on:

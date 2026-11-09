@@ -36,6 +36,10 @@ describe('browser steps and the outbound policy', () => {
     await new Promise<void>((r) => sso.listen(0, '127.0.0.1', r));
     ssoOrigin = `http://127.0.0.1:${(sso.address() as AddressInfo).port}`;
     portal = http.createServer((req, res) => {
+      if (req.url?.startsWith('/page')) {
+        res.writeHead(200, { 'content-type': 'text/html' });
+        return res.end('<html><body>Portal page</body></html>');
+      }
       if (req.url === '/js') {
         res.writeHead(200, { 'content-type': 'text/html' });
         return res.end(`<html><body>Portal<script>setTimeout(() => (location.href = '${ssoOrigin}/login'), 10)</script></body></html>`);
@@ -60,7 +64,7 @@ describe('browser steps and the outbound policy', () => {
   });
 
   it('names the origin and the fix', async () => {
-    const { blockedNavigation } = await import('../src/engine/runner.js');
+    const { blockedNavigation } = await import('../src/engine/steps/browser.js');
     expect(blockedNavigation('https://sso.example.com', new Error('Blocked by the outbound policy: https://sso.example.com is not …'))).toBe(
       "blocked by the outbound policy: https://sso.example.com – add it to the platform's trusted origins or the allow-list (Settings → Security & sign-in → Outbound access)",
     );
@@ -125,6 +129,51 @@ describe('browser steps and the outbound policy', () => {
     },
     120_000,
   );
+  it.skipIf(!hasChromium)(
+    'keeps a secret rendered into a goto URL out of the stored step input',
+    async () => {
+      const n = (id: string, type: string, extra: Record<string, unknown> = {}) => ({ id, type, x: 0, y: 0, ...extra });
+      const keyed = await s.api('POST', '/platforms', {
+        name: 'Portal with a key',
+        kind: 'generic',
+        baseUrl: (await s.api('GET', `/platforms/${platformId}`)).baseUrl,
+        config: { auth: { type: 'apiKey', apiKeyIn: 'header', apiKeyName: 'x-api-key' }, variables: {}, http: { proxy: 'none' } },
+        secrets: { apiKey: 'portal-goto-SECRET-0815' },
+      });
+      const p = await s.api('POST', '/processes', {
+        definition: {
+          name: 'Portal with a key in the URL',
+          connections: [{ slot: 'portal' }],
+          inputs: [],
+          nodes: [
+            n('start', 'start'),
+            n('open', 'browser', {
+              connection: 'portal',
+              actions: [
+                { action: 'goto', value: "/page?key={{ $secret('portal', 'apiKey') }}" },
+                { action: 'waitFor', selector: "body[data-key='{{ $secret('portal', 'apiKey') }}'], body" },
+              ],
+            }),
+          ],
+          wires: [{ from: 'start', port: 'out', to: 'open' }],
+        },
+      });
+      const { id } = await s.api('POST', '/runs', { processId: p.id, bindings: { portal: keyed.id }, inputs: {} });
+      const r = await s.waitRun(id, ['succeeded', 'failed', 'cancelled']);
+      expect(r.status, JSON.stringify(r.steps)).toBe('succeeded');
+      const step = await s.api('GET', `/runs/${r.id}/steps/${r.steps.find((x: any) => x.key === 'open').id}`);
+      expect(step.input.actions).toHaveLength(2);
+      expect(step.input.actions[0]).toMatch(/^1\. goto http:\/\/127\.0\.0\.1:\d+\/page\?key=/);
+      expect(JSON.stringify(step.input)).not.toContain('portal-goto-SECRET-0815');
+      expect(JSON.stringify(step)).not.toContain('portal-goto-SECRET-0815');
+      // and in the database itself
+      const d = (await import('../src/db.js')).db();
+      expect(JSON.stringify(d.all('SELECT input FROM run_steps WHERE run_id = ?', r.id))).not.toContain('portal-goto-SECRET-0815');
+      await s.api('DELETE', `/platforms/${keyed.id}`);
+    },
+    120_000,
+  );
+
   it.skipIf(!hasChromium)(
     'never opens the origin of a read-only platform, nor puts another connection’s secret into a page (0.9.0)',
     async () => {

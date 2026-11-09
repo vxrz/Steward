@@ -346,7 +346,7 @@ export function serviceApiRoutes(get: Get): void {
       tag: 'Services',
       summary: 'Planned maintenance windows and their occurrences in a range',
       description:
-        'Windows (once or repeating) on platforms, systems, applications and services that overlap the range, and every occurrence in it. Cancelled windows are left out. Platforms the token owner may not see are listed without a name.',
+        'Windows (once or repeating) on platforms, systems, applications, services and monitors that overlap the range, and every occurrence in it. Cancelled windows are left out. Platforms and monitors the token owner may not see are listed without a name.',
       query: MaintenanceListQuery,
       response: { $ref: 'MaintenanceListEntry#' },
     },

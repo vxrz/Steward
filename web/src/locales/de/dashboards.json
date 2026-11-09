@@ -12,7 +12,13 @@
     "widgets_other": "{{count}} Widgets",
     "by": "von {{owner}}",
     "updated": "aktualisiert {{when}}",
-    "emptyAction": "Mit einer Vorlage beginnen"
+    "emptyAction": "Mit einer Vorlage beginnen",
+    "name": "Dashboard",
+    "widgetsColumn": "Anzahl Widgets",
+    "owner": "Verantwortlich",
+    "updatedColumn": "Geändert",
+    "search": "Nach Name, Beschreibung oder Verantwortlichen suchen",
+    "noMatch": "Kein Dashboard passt zur Suche."
   },
   "datasets": {
     "title": "Datenquellen",
@@ -242,7 +248,8 @@
     "noDataHowTo": "Für Designer: Ein Prozess mit einem Knoten „{{node}}“ für den Datensatz <c>{{dataset}}</c> füllt es.",
     "openProcess": "Prozess öffnen",
     "scheduleIt": "Einplanen",
-    "datasetKey": "Datensatz <c>{{dataset}}</c>"
+    "datasetKey": "Datensatz <c>{{dataset}}</c>",
+    "noDataHidden": "Sie dürfen die Daten dieses Widgets nicht sehen. Fragen Sie einen Administrator oder das verantwortliche Team nach Zugriff."
   },
   "charts": {
     "trendLabel": "Trend von {{names}}. Werte mit den Pfeiltasten ablesen.",

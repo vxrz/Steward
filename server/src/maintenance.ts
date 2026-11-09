@@ -9,6 +9,7 @@ import { getSettings, readSetting, writeSetting } from './settings.js';
 import { deleteMonitorDataBefore } from './monitors/retention.js';
 import { pruneGatusData } from './gatus/metrics.js';
 import { runArchiving } from './audit-archive.js';
+import { reclaimFreePages } from './database/sqlite-space.js';
 
 /**
  * Retention: removes finished runs (with steps, logs, tasks and artifacts) and
@@ -190,6 +191,15 @@ export async function runCleanup(opts: { manual?: boolean } = {}): Promise<LastC
         : {}),
     };
     if (removed.runs) db().compact();
+    // SQLite: the space of what was deleted goes back to the file system (incremental auto-vacuum; database/sqlite-space.ts)
+    if (removed.runs || notificationsDeleted || monitorData || auditArchive?.deleted) {
+      try {
+        const r = await reclaimFreePages(db(), { turn: async () => void (await turn()) });
+        if (r?.freedBytes) logger.info({ freedMb: Math.round(r.freedBytes / 1024 / 1024) }, 'database space given back after the clean-up');
+      } catch (err) {
+        logger.warn({ err }, 'could not give the database space back after the clean-up');
+      }
+    }
     writeSetting(LAST_KEY, result);
     if (opts.manual || removed.runs || notificationsDeleted) {
       audit({
@@ -215,4 +225,4 @@ export async function runCleanup(opts: { manual?: boolean } = {}): Promise<LastC
   }
 }
 
-// Run one minute after the start, then daily, by the job runner (jobs/builtin.ts, job "cleanup").
+// Run one minute after the start, then daily, by the job runner (features/ops.ts, job "cleanup").

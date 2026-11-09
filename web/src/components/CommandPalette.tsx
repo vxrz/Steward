@@ -57,7 +57,9 @@ import type {
   Subject,
   SystemSummary,
   TicketList,
+  ModuleId,
 } from '@sm/shared';
+import { moduleOn } from '../modules';
 import { get, notifyError, notifyOk, post } from '../api';
 import { useMe } from '../auth';
 import { fmtRelative } from '../format';
@@ -67,6 +69,17 @@ import { dashboardKeys, monitorKeys, platformKeys, processKeys, runKeys } from '
 import { readRecent, rememberRecent, type RecentItem, type RecentKind } from './page/recent';
 
 /** Icons of the recent entries by kind. */
+/** Recent entries of a module's kinds (ADR 0016): left out while it is switched off. */
+const RECENT_MODULES: Partial<Record<RecentKind, ModuleId>> = {
+  statusPage: 'statusPages',
+  personReview: 'compliance',
+  contract: 'dataContracts',
+  site: 'plant',
+  asset: 'plant',
+  profile: 'plant',
+  kpi: 'plant',
+};
+
 const RECENT_ICONS: Record<RecentKind, Icon> = {
   run: IconPlayerPlay,
   process: IconSitemap,
@@ -124,6 +137,13 @@ const SETTING_ENTRIES: [string, string][] = [
   ['data', 'settings:retention.title'],
   ['data', 'settings:backups.title'],
 ];
+
+/** Settings of a module (ADR 0016): not offered while it is switched off. */
+const SETTING_MODULES: Record<string, ModuleId> = {
+  'settings:endOfLife.title': 'versionWatch',
+  'settings:compliance.title': 'compliance',
+  'scorecard:rules.title': 'scorecard',
+};
 
 const RunDialog = lazy(() => import('./RunDialog').then((m) => ({ default: m.RunDialog })));
 
@@ -234,7 +254,7 @@ export function CommandPalette({ pages }: { pages: PalettePage[] }) {
     // keys from several namespaces, listed below
     const tx = t as unknown as (key: string) => string;
     const settingActions: SpotlightActionData[] = caps.manageSettings
-      ? SETTING_ENTRIES.map(([area, key]) => ({
+      ? SETTING_ENTRIES.filter(([, key]) => !SETTING_MODULES[key] || moduleOn(caps, SETTING_MODULES[key])).map(([area, key]) => ({
           id: `setting:${area}:${key}`,
           label: tx(key),
           description: `${tx('settings:title')} · ${tx(`settings:areas.${area}.title`)}`,
@@ -316,17 +336,19 @@ export function CommandPalette({ pages }: { pages: PalettePage[] }) {
     return [
       {
         group: t('palette.groups.recent'),
-        actions: recent.map((r) => {
-          const I = RECENT_ICONS[r.kind] ?? IconHistory;
-          return {
-            id: `recent:${r.to}`,
-            label: r.label,
-            description: t(`palette.kinds.${r.kind}`),
-            leftSection: icon(I),
-            keywords: ['recent', 'last', t('palette.keywords.recent')],
-            onClick: open(r.to, r.label, r.kind),
-          };
-        }),
+        actions: recent
+          .filter((r) => !RECENT_MODULES[r.kind] || moduleOn(caps, RECENT_MODULES[r.kind]!))
+          .map((r) => {
+            const I = RECENT_ICONS[r.kind] ?? IconHistory;
+            return {
+              id: `recent:${r.to}`,
+              label: r.label,
+              description: t(`palette.kinds.${r.kind}`),
+              leftSection: icon(I),
+              keywords: ['recent', 'last', t('palette.keywords.recent')],
+              onClick: open(r.to, r.label, r.kind),
+            };
+          }),
       },
       { group: t('palette.groups.actions'), actions: quick },
       { group: t('palette.groups.pages'), actions: pageActions },
@@ -481,28 +503,27 @@ export function CommandPalette({ pages }: { pages: PalettePage[] }) {
       },
       {
         group: t('palette.groups.personReviews'),
-        actions: canReview
-          ? (subjects.data ?? [])
-              .filter((x) => x.kind === 'user')
-              .map((x) => {
-                const username = x.value.slice('user:'.length);
-                return {
-                  id: `person-review:${username}`,
-                  label: t('palette.newPersonReviewFor', { name: x.label }),
-                  leftSection: icon(IconUserSearch),
-                  keywords: ['person', 'review', 'access', 'new', username, t('palette.keywords.review')],
-                  onClick: go(`/compliance/person-reviews?new=1&user=${encodeURIComponent(username)}`),
-                };
-              })
-          : [],
+        actions:
+          canReview && moduleOn(caps, 'compliance')
+            ? (subjects.data ?? [])
+                .filter((x) => x.kind === 'user')
+                .map((x) => {
+                  const username = x.value.slice('user:'.length);
+                  return {
+                    id: `person-review:${username}`,
+                    label: t('palette.newPersonReviewFor', { name: x.label }),
+                    leftSection: icon(IconUserSearch),
+                    keywords: ['person', 'review', 'access', 'new', username, t('palette.keywords.review')],
+                    onClick: go(`/compliance/person-reviews?new=1&user=${encodeURIComponent(username)}`),
+                  };
+                })
+            : [],
       },
     ];
   }, [
     t,
     pages,
-    caps.manageSettings,
-    caps.createProcesses,
-    caps.createMonitors,
+    caps,
     canEditServices,
     colorScheme,
     setColorScheme,

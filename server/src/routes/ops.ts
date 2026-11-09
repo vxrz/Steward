@@ -32,9 +32,9 @@ import { maintenanceStatus, runCleanup } from '../maintenance.js';
 import { publicApiStatus } from '../api/v1/config.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { ACCESS, me, withCapability } from '../auth/access.js';
+import { params } from './params.js';
 
 const admin = (what: string) => withCapability('manageSettings', what);
-const params = (req: FastifyRequest) => req.params as Record<string, string>;
 const viaToken = (req: FastifyRequest) => !!(req as unknown as { smToken?: string }).smToken;
 
 const lookBody = z
@@ -100,8 +100,13 @@ export async function opsRoutes(app: FastifyInstance): Promise<void> {
     const q = quietNow(me().id);
     return q.active ? { ...list, quiet: { until: q.until, held: q.held } } : list;
   });
-  app.post('/notifications/read-all', { config: { access: ACCESS.plantViewer } }, async () => {
-    markAllRead(me().id);
+  app.post('/notifications/read-all', { config: { access: ACCESS.plantViewer } }, async (req) => {
+    // { events: [...] }: only the notifications of these events (one group of the bell, U9)
+    const b = z
+      .object({ events: z.array(z.enum(NOTIFICATION_EVENTS)).max(NOTIFICATION_EVENTS.length).optional() })
+      .strict()
+      .parse(req.body ?? {});
+    markAllRead(me().id, b.events);
     return { ok: true };
   });
   app.post('/notifications/:id/read', { config: { access: ACCESS.plantViewer } }, async (req) => {

@@ -66,7 +66,7 @@ describe('single sign-on (OIDC)', () => {
     const r = await ssoSignIn('e5b7'); // Nina, no roles
     expect(r.res.status).toBe(302);
     // the person sees a reference, not the reason (it would tell whether an account exists); the audit entry has it
-    expect(decodeURIComponent(r.location)).toMatch(/Your sign-in was refused – ask an administrator \(reference [0-9a-f]{8}\)/);
+    expect(r.location).toMatch(/^\/\?sso_error=SSO_SIGN_IN_REFUSED&sso_ref=[0-9a-f]{8}$/);
     expect(decodeURIComponent(r.location)).not.toContain('role');
     expect(await withRefusalReason(s, r.location)).toContain('no role assigned');
     expect(r.cookie).toBeUndefined();
@@ -74,7 +74,21 @@ describe('single sign-on (OIDC)', () => {
 
   it('rejects forged or replayed state', async () => {
     const r = await ssoSignIn('c3d5', { tamperState: true });
-    expect(decodeURIComponent(r.location)).toContain('expired or is unknown');
+    expect(decodeURIComponent(r.location)).toBe('/?sso_error=SSO_STATE_UNKNOWN');
+  });
+
+  it('puts no text of the request on the sign-in page: a fixed code only (security review 0.10.0 S8)', async () => {
+    const lure = 'Your account is locked. Call the service desk at +1 555 0100 and give your password.';
+    const start = await fetch(`${s.base}/api/auth/oidc/${providerId}/start`, { redirect: 'manual' });
+    const state = new URL(start.headers.get('location')!).searchParams.get('state')!;
+    const callback = `${s.base}/api/auth/oidc/callback?state=${state}&error=x&error_description=${encodeURIComponent(lure)}`;
+    // from the browser that started it: the identity provider's (or an attacker's) description stays out of the address
+    const r = await fetch(callback, { redirect: 'manual', headers: { cookie: ssoBinding(start) } });
+    expect(r.status).toBe(302);
+    expect(r.headers.get('location')).toBe('/?sso_error=SSO_IDP_ERROR');
+    // an unknown provider and a disabled one: a code as well
+    const unknown = await fetch(`${s.base}/api/auth/oidc/nope/start`, { redirect: 'manual' });
+    expect(unknown.headers.get('location')).toBe('/?sso_error=SSO_PROVIDER_UNAVAILABLE');
   });
 
   it('binds the sign-in to the browser that started it (login CSRF, RFC 9700 §4.7.1)', async () => {
@@ -93,7 +107,7 @@ describe('single sign-on (OIDC)', () => {
     // the attacker starts and signs in at the provider, then sends the callback link to the victim (no cookie)
     const r = await ssoSignIn('c3d5', { cookie: () => '' });
     expect(r.res.status).toBe(302);
-    expect(decodeURIComponent(r.location)).toContain('expired or is unknown');
+    expect(decodeURIComponent(r.location)).toBe('/?sso_error=SSO_STATE_UNKNOWN');
     expect(r.cookie).toBeUndefined();
     expect(r.body).not.toContain('sm.sessionKey');
     const entries = await audits();
@@ -102,16 +116,16 @@ describe('single sign-on (OIDC)', () => {
     expect(entries[0].summary).toContain('did not come from the browser that started it');
     // the state is used up: not even the attacker's own browser can finish it now
     const again = await fetch(r.callback, { redirect: 'manual', headers: { cookie: r.binding } });
-    expect(decodeURIComponent(again.headers.get('location') ?? '')).toContain('expired or is unknown');
+    expect(decodeURIComponent(again.headers.get('location') ?? '')).toBe('/?sso_error=SSO_STATE_UNKNOWN');
     expect(sessionSetCookie(again)).toBeNull();
   });
 
   it('refuses the binding cookie of another sign-in or a wrong value', async () => {
     const other = ssoBinding(await fetch(`${s.base}/api/auth/oidc/${providerId}/start`, { redirect: 'manual' }));
     const wrongName = await ssoSignIn('c3d5', { cookie: () => other });
-    expect(decodeURIComponent(wrongName.location)).toContain('expired or is unknown');
+    expect(decodeURIComponent(wrongName.location)).toBe('/?sso_error=SSO_STATE_UNKNOWN');
     const wrongValue = await ssoSignIn('c3d5', { cookie: (b) => `${b.split('=')[0]}=${other.split('=')[1]}` });
-    expect(decodeURIComponent(wrongValue.location)).toContain('expired or is unknown');
+    expect(decodeURIComponent(wrongValue.location)).toBe('/?sso_error=SSO_STATE_UNKNOWN');
     expect(wrongValue.cookie).toBeUndefined();
   });
 
@@ -177,7 +191,7 @@ describe('single sign-on (OIDC)', () => {
     await s.api('PUT', `/sso/providers/${p.id}`, { ...p, enabled: false });
     expect((await s.api('GET', '/auth/status')).ssoProviders).toEqual([]);
     const start = await fetch(`${s.base}/api/auth/oidc/${p.id}/start`, { redirect: 'manual' });
-    expect(decodeURIComponent(start.headers.get('location')!)).toContain('disabled');
+    expect(start.headers.get('location')).toBe('/?sso_error=SSO_PROVIDER_UNAVAILABLE');
     await s.api('PUT', `/sso/providers/${p.id}`, { ...p, enabled: true });
   });
 });

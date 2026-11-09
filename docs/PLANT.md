@@ -1,8 +1,8 @@
 # Plant registry (preview)
 
-The plant registry documents the factories of the enterprise an installation serves: its **sites**, how each site is organised (**areas, work centers, work units**), its **buildings**, the **assets** – machines and equipment – in them, since 0.7.0 **what data each asset's interfaces deliver and which KPIs are computed from it** (device profiles, data points, KPI definitions), and since 0.8.0 the **OT network** of sites and assets – VLANs, zones and conduits, devices, data paths – with the **live status** of each asset. It is an opt-in module: off by default, and while it is off nothing of it shows and the rest of Steward works as before. The design is recorded in [ADR 0007](adr/0007-plant-registry.md).
+The plant registry documents the factories of the enterprise an installation serves: its **sites**, how each site is organised (**areas, work centers, work units**), its **buildings**, the **assets** – machines and equipment – in them, **what data each asset's interfaces deliver and which KPIs are computed from it** (device profiles, data points, KPI definitions), and the **OT network** of sites and assets – VLANs, zones and conduits, devices, data paths – with the **live status** of each asset. It is an opt-in module: off by default, and while it is off nothing of it shows and the rest of Steward works as before. The design is recorded in [ADR 0007](adr/0007-plant-registry.md).
 
-> **Preview.** The pages, the API and the import format may still change. Format 1 stays importable; 0.7.0 (#219) and 0.8.0 (#220) added optional keys to it.
+> **Preview.** The pages, the API and the import format may still change. Format 1 stays importable; 0.7.0 and 0.8.0 added optional keys to it.
 
 - [Turning it on](#turning-it-on)
 - [Concepts and standards](#concepts-and-standards)
@@ -11,18 +11,22 @@ The plant registry documents the factories of the enterprise an installation ser
 - [Links to Steward items](#links-to-steward-items)
 - [Own fields and display names](#own-fields-and-display-names)
 - [Device profiles, data points and KPIs](#device-profiles-data-points-and-kpis)
+- [Profile inheritance and asset additions](#profile-inheritance-and-asset-additions)
 - [Part 3: OT network](#part-3-ot-network)
+- [Data collections](#data-collections)
 - [Visualizations](#visualizations)
 - [Map](#map)
 - [YAML import and export](#yaml-import-and-export)
+- [Changing ids](#changing-ids)
+- [Changing many entries at once](#changing-many-entries-at-once)
 - [Permissions](#permissions)
 - [API](#api)
 
 ## Turning it on
 
-_Settings → Modules → Plant registry_ (administrators): **Turn on the plant registry**, give the enterprise's name and save. The sidebar gets the area **Plant** with _Sites_, _Assets_, _Map_ (since 0.10.0), _Device profiles_, _KPI definitions_, _Explore data_, _Checks_ and – for whoever may manage a site – _Import_; documents, tickets, services and applications can link to sites and assets. Each site page leads to its **OT network** (since 0.8.0).
+_Settings → Modules → Plant registry_ (administrators): **Turn on the plant registry**, give the enterprise's name and save. The sidebar gets the area **Plant** with _Sites_, _Assets_, _Map_, _Device profiles_, _KPI definitions_, _Explore data_, _Checks_ and – for whoever may manage a site – _Import_; documents, tickets, services and applications can link to sites and assets. Each site page leads to its **OT network**.
 
-Turning it off hides the area, the pages and the link kinds again; every route of the module answers `404` with the code `PLANT_MODULE_OFF` (also `/api/v1/plant/…`). The data stays and is back when the module is turned on again. Turning it on or off is audited (`plant.module_enabled`, `plant.module_disabled`).
+Turning it off hides the area, the pages and the link kinds again; every route of the module answers `404` with the code `PLANT_MODULE_OFF` (also `/api/v1/plant/…`). The data stays and is back when the module is turned on again. Turning it on or off is audited (`plant.module_enabled`, `plant.module_disabled`) and, since 0.11.0, asks for a fresh confirmation (step-up, control point `modules.switch`), like every module switch ([MODULES.md](MODULES.md)). While it is off, its pages say _This area is switched off_ instead of _Page not found_.
 
 In the demo (`npm run demo`) turning the module on loads an invented enterprise with two sites (`examples/plant/brightwater.plant.yaml`) and invented device profiles, KPI definitions and assignments of some assets (`examples/plant/brightwater-data-points.plant.yaml`) – milling centre 2 has a KPI instance whose OPC UA interface is not set up yet, so _Checks_ has something to show.
 
@@ -35,7 +39,7 @@ The model follows two standards, so that a plant engineer finds the words they k
 
 **The innermost building wins.** The building that applies to a node is its own, else its work center's, else its area's. An asset may override it with its own building. The site page shows each node's building (inherited ones in italics), the asset page where its building comes from.
 
-**Stable ids.** Every record has an id of lower-case letters, digits, `.`, `_` and `-` (at most 80) that never changes – links, imports and other tools rely on it. Site and asset ids are unique in the installation; node and building ids are unique within their site.
+**Stable ids.** Every record has an id of lower-case letters, digits, `.`, `_` and `-` (at most 80) – links, imports and other tools rely on it. It changes only when someone changes it on purpose, and then the old id keeps leading to the record ([Changing ids](#changing-ids)). Site and asset ids are unique in the installation; node and building ids are unique within their site.
 
 **Generic words, the installation's names.** The module's words are generic (_site, area, work center, work unit, building, asset_). An installation gives its own names per language under _Display names_ (for example _Machine_ instead of _Asset_) without changing the model; other tools' ids go into **external references** (system, id, link), site-specific attributes into **own fields**.
 
@@ -78,7 +82,7 @@ _Settings → Modules → Plant registry_:
 
 ## Device profiles, data points and KPIs
 
-Part 2 of the registry (#219, [ADR 0007 – Part 2](adr/0007-plant-registry.md#part-2-data-points-and-kpis-070)) records what data an asset's interfaces deliver and which KPIs are computed from it. Two **catalogues** belong to the installation, not to a site; the **assignment** belongs to its asset.
+Part 2 of the registry ([ADR 0007 – Part 2](adr/0007-plant-registry.md#part-2-data-points-and-kpis-070)) records what data an asset's interfaces deliver and which KPIs are computed from it. Two **catalogues** belong to the installation, not to a site; the **assignment** belongs to its asset.
 
 ### Standards
 
@@ -144,9 +148,72 @@ _Plant → Explore data_: **who delivers a data point** – a text across every 
 
 Everyone who sees the plant registry sees the catalogues (the role _Plant viewer_ included); **designers and administrators** manage them (whoever may add sites). An assignment and its KPI instances follow the asset's site: who sees the site sees them, who manages it changes them. Lists, counts, the search, the checks and the data point and KPI pages count and name only assets of sites the reader may see; a profile that only a hidden asset has is “still in use” without a count. Every change is audited (`device_profile.created|updated|deleted`, `kpi_definition.created|updated|deleted`, `asset.assignment_set|assignment_removed`, `*.duplicated`).
 
+## Profile inheritance and asset additions
+
+Since 0.11.0 ([ADR 0007 – Update 0.11](adr/0007-plant-registry.md#update-011-profile-inheritance-and-asset-additions)) a device profile can build on another one, and an asset can have more than its profile.
+
+### Profile inheritance
+
+A device profile may **extend** one base profile (_Edit → Extends_). The base may extend another one, up to 8 profiles in a chain; a profile cannot extend itself or one that extends it (no cycles). The derived profile **inherits** the base's interfaces, data point groups, data points and files, and:
+
+- **adds** its own interfaces, and data points or groups to an inherited interface;
+- **changes** fields of an inherited interface (name, direction, port, sign-in, client, version, description, notes – not its protocol) or data point (name, data type, unit, address, access, update rate, values, known-as names, description, notes, usual publications – not its id or group). A field it does not change stays the base's;
+- marks an inherited interface or data point as **not present** (the device does not have it). An interface that is not present takes its data points with it.
+
+Manufacturer, model and category that the derived profile leaves empty are the base's. **Changes to a base flow down**: a data point added to the base appears in every profile that extends it. A save of a base is refused when a profile that extends it would then have an id twice; a base that another profile extends **cannot be deleted** (`PLANT_PROFILE_EXTENDED`), like a profile in use. A changed id of a base, or of one of its interfaces or data points, reaches the profiles that extend it and their assets; a new id that the base, a derived profile or a base of it uses already is refused.
+
+The **resolved profile** – the effective model – is computed in one place on the server and used everywhere: the profile page, the data point pages and "which assets deliver it", the assignment and its checks, KPI inputs, coverage, data flow and lineage, and the API. A **KPI input that names a base** reads every profile that extends it, and the data point page of a base lists the assets of the derived profiles that keep the data point. The profile page shows the chain of bases, where each interface and data point comes from (_Inherited from …_, _Changed here (fields)_, _Added here_), the inherited items marked not present (with _Restore_) and the profiles that extend it. On an inherited item the menu offers _Edit_ (an override), _Back to the base's values_ and _Not present on this device_. Changes to items the base no longer has are ignored and named on the page. _Duplicate_ keeps `extends`.
+
+Every data point may also have **known-as names** (`aliases`): names tools commonly use for it, such as a gateway's variable names. The import of data collections matches them ([Data collections](#data-collections)).
+
+### Asset additions
+
+Next to the **differences** of an assignment, an asset may **add** data points to an interface of its profile and whole **interfaces** of its own (_Data and KPIs → Interfaces_, the menu of an interface: _Add data point_; _Add interface_). They count as **delivered** like the profile's data points – when their interface is listed and active in the assignment (a new interface is added as active) – and appear in the checks, KPI inputs, coverage, data flow and lineage. An added data point needs an id the profile does not have; when the profile gets the same id later, the profile's counts and the asset shows the check _Data point … is added on this asset, but its device profile has it now, too_. _Duplicate_ of an asset copies its additions.
+
+### In the file format
+
+A derived profile names its base with `extends:` and uses **the same keys** as any profile, written with only its own part: an `interfaces` entry whose id is inherited changes that interface – the keys it gives, `present: false`, and in its `groups` (or `data_points`) entries for inherited data points (the keys they give, or `present: false`) and new data points; an entry with a new id is an own interface and needs its `protocol`. The export writes the same, so a file imports back unchanged.
+
+```yaml
+version: 1
+device_profile:
+  id: example-controls-c80-v4
+  name: Example Controls C80, firmware 4
+  extends: example-controls-c80
+  interfaces:
+    - id: opc-ua # inherited: only what changes
+      default_port: 4841
+      groups:
+        - name: Machine state
+          data_points:
+            - { id: prog_name, address: 'ns=3;s=/Channel/ProgramPointer/progName[u1,1]', aliases: [NCProgram] }
+            - { id: legacy_alarm, present: false }
+            - { id: spindle_load, name: Spindle load, unit: '%', address: 'ns=3;s=/DriveHsa/State/load[u10]' } # new
+    - { id: web-ui, present: false }
+    - id: mqtt # new
+      protocol: mqtt
+      data_points:
+        - { id: part_count, name: Part count, address: cnc/parts }
+---
+version: 1
+assignment:
+  asset: rvs-mill-01
+  profile: example-controls-c80-v4
+  interfaces:
+    - { interface: opc-ua, endpoint: 'opc.tcp://rvs-mill-01.ot.example.com:4841' }
+    - { interface: clamp-io, endpoint: '10.20.110.31:502' }
+  additions:
+    interfaces:
+      - id: clamp-io
+        protocol: modbus_tcp
+        data_points: [{ id: clamp_state, name: Clamp state, address: 'coil:4' }]
+    data_points:
+      - { interface: opc-ua, group: Pneumatics, id: air_pressure, name: Air pressure, unit: bar, address: 'ns=2;s=/Plc/Air' }
+```
+
 ## Part 3: OT network
 
-Part 3 of the registry (#220, [ADR 0007 – Part 3](adr/0007-plant-registry.md#part-3-ot-network-080)) documents how the plant's operational-technology network looks and whether an asset is online. It is documentation, **not a CMDB, not an IP address management tool**: Steward checks formats (VLAN IDs, CIDR subnets, addresses, MAC addresses), not overlaps, and reads nothing from switches or firewalls. A **site** holds its VLANs, zones and conduits; an **asset** its devices, data paths and the checks that tell its live status.
+Part 3 of the registry ([ADR 0007 – Part 3](adr/0007-plant-registry.md#part-3-ot-network-080)) documents how the plant's operational-technology network looks and whether an asset is online. It is documentation, **not a CMDB, not an IP address management tool**: Steward checks formats (VLAN IDs, CIDR subnets, addresses, MAC addresses), not overlaps, and reads nothing from switches or firewalls. A **site** holds its VLANs, zones and conduits; an **asset** its devices, data paths and the checks that tell its live status.
 
 ### Standards
 
@@ -170,8 +237,10 @@ A VLAN that zones or devices name cannot be removed (`PLANT_VLAN_IN_USE`).
 
 _OT network → Zones and conduits_:
 
-- a **zone** has a description, a **criticality** (low, medium, high, critical), the **VLANs** of the site in it, an owner, the **SL-T** – with the **risk assessment** that set it (required with SL-T: a document number or link) and its date – and notes. Without SL-T the zone shows _SL-T open_;
+- a **zone** has a description, a **criticality** (low, medium, high, critical), its **level** in the Purdue model (optional, see below), the **VLANs** of the site in it, an owner, the **SL-T** – with the **risk assessment** that set it (required with SL-T: a document number or link) and its date – and notes. Without SL-T the zone shows _SL-T open_;
 - a **conduit** connects **two different zones** of the site, with a **direction** (from the first to the second, the other way, both), its **protocols** (`opc-ua tcp/4840`, `https tcp/443`), its **controls** (firewall, data diode, jump host) and notes.
+
+The **level** says where a zone sits, bottom to top: _Level 0 – field devices_ (`field`), _Level 1 – basic control, cells_ (`control`), _Level 2 – supervisory_ (`supervisory`, SCADA, HMI), _Level 3 – site operations_ (`operations`, MES, historian), _Level 3.5 – industrial DMZ_ (`dmz`), _Level 4–5 – enterprise network_ (`enterprise`) and _External_ (`external`, cloud, vendors) – the levels of the Purdue reference model as ISA-95 and IEC 62443 use them. The [diagram](#ot-network-diagram) draws the zones in this order. A zone without a level gets one derived for the diagram only (nothing is stored).
 
 **Firewall changes link to a conduit**: `conduit` is a link kind (id `<site>/<conduit>`, shown under _Links → Conduit_ while the module is on), so a firewall change (`FWC`) names the conduit it changes besides the affected segments and systems. The conduit lists the records that link to it. A zone that a conduit connects cannot be removed (`PLANT_ZONE_IN_USE`).
 
@@ -205,9 +274,60 @@ Linking a monitor or a dataset needs the right to see it – in the editor, the 
 
 The OT network follows its site ([Permissions](#permissions)): who **sees the site** sees its VLANs, zones, conduits and the devices, data paths and live status of its assets – the role _Plant viewer_ included; who **manages the site** changes them. Status viewers never reach it, and nothing of it is shown on status pages. A site or asset someone may not see answers `404`, in the import too ("There is no site …", "You may not add or change asset …"); a VLAN's other sites (`sites` and `otherSites`, in the internal API, `/api/v1` and the export) and the conduit link targets leave out sites they may not see – a save or an import keeps those, as they cannot name or remove them. Linking a monitor or a dataset as a check, a segment, a collector or a host needs to see it (an item that was linked before may stay); a dataset as a data path's destination is documentation and may be one that is published later. Every change is audited on its site or asset: `site.vlan_added|vlan_changed|vlan_removed`, `site.zone_*`, `site.conduit_*`, `asset.device_added|device_changed|device_removed`, `asset.data_path_*`, `asset.checks_set`; creating a segment from a VLAN is also `system.created`.
 
+## Data collections
+
+Since 0.11.0 ([ADR 0019](adr/0019-data-collections.md)) an asset documents **what collectors read from it** – a gateway, an ETL job, a Node-RED flow: which addresses, how often, under which name, what they do with the values and where they load them. Asset page → **Collections**.
+
+### Three layers
+
+1. The **profile data point** is the canonical thing: a conventional id and name, an optional default address and **known-as names** (`aliases`: what tools commonly call it).
+2. The **asset's address** of it is the assignment's difference (`overrides[].address`); without one, the profile's address. Two assets of the same profile may have the same data point under different addresses.
+3. A **collection item** is what the collector reads (its address) and calls it (its **output name**), linked to one data point of the asset's model – or to none: **raw**.
+
+Everywhere both names are shown: the data point's name first, the collector's after it (_Spindle speed · as `Spindle_speedActSP1`_).
+
+### A collection
+
+A **data collection** belongs to an asset and to a **collector** – a Steward application, platform or process, or a job elsewhere by name (as a data path's collector) – and may name a **data path** of the asset. It reads from one **interface** of the asset's model or an unknown one, and has a name, a **mode** (_every interval_, _on change_, _on a trigger_, _other_), an interval and a debounce in ms, **triggers** (name, condition, reference address or data point, reference value) and how they combine, a **destination** (a Steward system with a path, a Steward dataset, a publication target or text), the collector's **access patterns** – what it may read, **write, create and delete** (the last three are shown in red: the collector can change the machine) –, other **settings** (buffering, events, time sync) and its **items**: address, output name and type, the data point, a transform (a note, optionally scale, offset, cast) and notes.
+
+**Coverage.** A collection counts its **mapped** items, its **raw** items – an address no data point of the asset has (_Add as data point_: an asset addition with the collector's name as known-as name; or on the profile, for whoever may manage profiles) or a data point the asset no longer has – and the data points of its interface (or of the whole model) that **no collection of the asset reads**. Two items mapped to one data point in one collection are allowed and flagged. The asset's **data flow** and a data point's **lineage** run through the collections: interface → collector → destination. A data point's page lists the collections that read it (and under which names); an application's and a platform's page the collections it runs.
+
+### Import
+
+_Collections → Import_: choose the collector, the format (or let Steward recognise it), the interface and data path if known, the files and optionally a **mapping file**. The **preview** shows every collection (new, changed, unchanged, removed – with _Remove this collector's collections that the files no longer have_) and every item with a suggested data point, its reason and a confidence, in this order:
+
+| Reason                      | Confidence | Means                                                                                         |
+| --------------------------- | ---------- | --------------------------------------------------------------------------------------------- |
+| **Mapping file**            | 100 %      | a line of the mapping file (by gateway name or address), or the table's own `data_point`      |
+| **Remembered**              | 100 %      | the pair was confirmed in an earlier import of this collector for this asset                  |
+| **Same address**            | 95 %       | the item's address is the asset's address of the data point (80 % when several have it)       |
+| **Same name**, **known-as** | 90 %       | the output name is the data point's id, name or a known-as name (case and separators ignored) |
+| **Name for this collector** | 85 %       | a name remembered for this collector only                                                     |
+| **Similar name**            | up to 80 % | a fuzzy suggestion – **never applied without confirmation**                                   |
+
+Addresses are compared normalised: whitespace removed (`[u1, 1]` is `[u1,1]`), case ignored where the protocol ignores it (Modbus, PLC and CNC variable paths; not OPC UA NodeIds), Modbus spellings read as one (`hr:100` is `holding:100`), and an OPC UA string NodeId also by its identifier alone (`ns=2;s=/Channel/State/progStatus[u1]` is `/Channel/State/progStatus[u1]`).
+
+The person confirms or changes each match – _Accept all exact matches_, _Accept all above_ a confidence – and may, per item: **record the item's address as the asset's address** of the data point (it becomes the assignment's difference; that is how per-asset addresses get documented from real configurations), **remember the name** as a known-as name of the data point (on a profile data point this needs the right to manage profiles) or only for this collector, or **add an unknown address as a data point** (of this asset, or of the profile). A line says what the import will write. Every confirmed pair is remembered for the asset and collector, so a re-import needs no new work. The import is all or nothing and needs the right to manage the asset's site.
+
+A collection's **mapping** downloads as CSV (`gateway_name,address,data_point`) or YAML (`mapping:` with the same keys) and uploads again as a mapping file. Invented examples of every format: [`examples/plant/collections/`](../examples/plant/collections/).
+
+### Formats
+
+Each importer produces collections for one asset and collector. Steward recognises a format by its **structure**, not by product names or the value of a `type` key, and runs nothing it reads.
+
+- **Gateway JSON – datasets of data points** (`example-gateway-datasets.json`): `datasets[]` with `name`, `mode` (`interval` or `onchange`), `interval` and `debounce` (ms), `unavailable`, `new`, `readings`, `triggercomposition`, `triggers[]` (`condition` such as `anychange`, `name`, `referenceDatapoint`, `referenceValue`) and `datapoints[]` (`address`, `name`, `type` – int, float, string, bool). One dataset is one collection. The file's `readPatterns`, `writePatterns`, `createPatterns`, `deletePatterns` and `patterns[]` (`path` with `read`, `write`, `delete`, `create`) are the access patterns of every collection; `type`, `whitelistedAddresses`, `bufferEnabled`, `maxBufferSize`, `plcTimeSync`, `sendEvents` and `eventsToIgnore` its settings. Addresses are CNC variables (`/Channel/State/progStatus[u1]`, `/Nck/MachineAxis/measPos1[2]`, NC user data `/NC/_N_…/NAME`) or PLC addresses (`DB13.DBX2.0`).
+- **Table – CSV or YAML** (`example-table.csv`, `example-table.yaml`): one row per item with the columns `collection`, `mode` (`interval`, `on_change`, `trigger`, `other`), `interval_ms`, `debounce_ms`, `source_address` **or** `data_point`, `output_name`, `output_type`, `transform`, `destination`, `notes`. A CSV needs a header row and may use `;` instead of `,`; a YAML file is a list of entries with the same keys (or `items:` with the list). Rows with the same `collection` are one collection; its first row gives the mode, interval, debounce and destination.
+- **Industrial Edge OPC UA connector** – _preview_ (`example-ie-opcua-connector.json`): the connector's exported configuration, `UIConfig.datapoints.OPCUA[]` with one entry per connection (`name`, `OPCUAUrl`, `portNumber`) and its `tags[]` (`name`, `address` – the NodeId –, `dataType`, `acquisitionCycle` in ms, `acquisitionMode` – `Cyclic` or `CyclicOnChange` –, `accessMode` – `r`, `rw` –, `comments`). One collection per connection, cycle and mode; a tag with write access is a write pattern; the destination is the Industrial Edge Databus (the export does not name the topic). The user, password and certificate passwords of the export are never read. The importer is built from the structure of a public example export and is marked _preview_ until it has seen more.
+- **Node-RED flow export** (`example-node-red-flow.json`): a JSON array of nodes (`id`, `type`, `z`, `wires` …). Source nodes – OPC UA items (`item`, `datatype`), S7 in (`variable`), Modbus reads (`dataType`, `adr`, `quantity`, `rate`), MQTT in (`topic`) – are followed along their `wires` to sink nodes – MQTT out, HTTP request, file and database nodes; a `debug` node ends a way. Each sink is a collection with the sources that reach it as items; `function`, `change` (with its rules), `template` and similar nodes on the way become the item's transform note (their names; code is never run); an `inject` node before a source gives its interval. Node-RED `credentials` are never imported.
+- **Mapping file**: CSV with the header `gateway_name,address,data_point` (either name or address per line), or YAML `mapping: [{ gateway_name, address, data_point }]`.
+
+### Rights and API
+
+A changed id of the asset, its data path, an interface or a data point ([Changing ids](#changing-ids)) reaches its collections and remembered names; removing the asset takes them along (with _Also remove what belongs to it_), and a data path a collection belongs to is removed only with it too. Collections follow the asset's site, like its data paths: who sees the site sees them, who manages it changes and imports them; a known-as name or a data point on the profile needs the right to manage profiles. Every change is audited on the asset: `plant.collection_created|updated|deleted|imported` (the import with its counts and the files' SHA-256); what an import writes besides – the asset's addresses and additions (`asset.assignment_set`), known-as names on the profile (`device_profile.updated`) – is audited as well. Internal routes: `GET|POST /api/plant/assets/:assetId/collections`, `GET|PUT|DELETE …/collections/:collectionId`, `GET …/:collectionId/mapping?format=csv|yaml`, `POST …/collections/import/preview`, `POST …/collections/import`, `GET /api/plant/collections?collectorKind=&collectorRef=`, `GET /api/plant/profiles/:profileId/points/:pointId/collections`; public: `GET /api/v1/plant/assets/{assetId}/collections`.
+
 ## Visualizations
 
-Since 0.8.0 (#230) the registry draws what it **documents**: how a site is structured, where an asset's data goes, which assets deliver a data point, which KPIs are covered and how data crosses the site's OT network. The pictures are documentation, not monitoring:
+The registry draws what it **documents**: how a site is structured, where an asset's data goes, which assets deliver a data point, which KPIs are covered and how data crosses the site's OT network. The pictures are documentation, not monitoring:
 
 - **Live status only where it is real.** Colour, "failing" marks and status words come only from Steward items that are linked to the part: a **monitor** the asset links to (its status: _Up, Degraded, Down, Maintenance, Blocked_), the **dataset** a KPI instance names (its freshness: _Fresh, Due, Stale_) and the **plant checks** ([Checks](#checks)). A part without such a link is drawn neutral. A linked item without data – a dataset that has no rows yet, or one the reader may not see – says **No data**, never OK. A linked monitor the reader may not see counts as on the OT network ([Live status](#live-status)): "a check you may not see" with _online_, _offline_ or _unknown_ only (a degraded or maintained monitor is not told apart), without name or link. Every view has a small legend that says which parts have live status.
 - **Motion means direction.** The edges of a graph move in the direction of the documented flow; a path that is highlighted moves faster; a node whose live status changes pulses once. With the system setting _reduce motion_ (`prefers-reduced-motion`) nothing moves and arrows show the direction; the switch **Animation off** does the same for whoever wants it (remembered in the browser).
@@ -251,15 +371,23 @@ The **KPI coverage** in per cent is the jobs set up of all the KPIs the assets c
 
 ### OT network diagram
 
-![The OT network of Riverside Works: the zone Production cells with its VLANs and the milling centres on them, the conduit to the DMZ and the data paths across it](images/plant/ot-network.png)
+![The OT network of Riverside Works in two bands: the zone Production cells on level 1 with its VLANs and the milling centres, the conduit Cells to DMZ as a gate between it and the OT DMZ on level 3.5, and the parties outside the zones on the right](images/plant/ot-network.png)
 
 _OT network → **Diagram**_ (also from a site's **Structure** and its OT network card), drawn from part 3 ([Part 3: OT network](#part-3-ot-network)):
 
-- **Zones** after IEC 62443-3-2 are areas, with their criticality and SL-T (or _SL-T open_) on the border; the **VLANs** (IEEE 802.1Q) in a zone are areas inside it, with their VID; the **assets** sit on the VLAN of their first device. **Conduits** connect the zones as wide pipes in their direction (both ways: arrows at both ends, nothing moves).
-- **Data paths** run from where the data comes from (what the collector pulls from – a device is its asset –, else the asset), over the **collector** and the parties it pushes to, to the **destinations**; the edges carry the protocol, port and push or pull. A **host** (a Steward system named by a data path) is placed on the VLAN whose **network segment** it is a member of – so a way into another zone runs **through the conduit** between the two zones; one without a documented conduit is dashed in orange and says so. Collectors, hosts, datasets and other parties outside every zone stand beside the zones.
-- **Devices and VLANs on hover or focus**: the panel beside the picture shows an asset's devices (address, VLAN, state, live status), a VLAN's subnets, segment and who manages it, a zone's VLANs, owner and risk assessment, a conduit's protocols and controls.
-- **Live status only from #220's linked checks**: an asset is online, offline or _no data_ from the checks linked to it and its devices (monitors – Gatus, CheckMk, the MQTT silent-device and Kafka checks – and dataset freshness). Its data paths are coloured by it: green and moving when online, red and still when offline. An asset nothing watches is drawn neutral (documentation only), with the direction of its paths only. Hosts, collectors and other parties have no live status here.
-- The table lists every zone, VLAN, conduit, asset and party with what it is in, its details and its status in words, and every data path with its way. Assets without devices and data paths are not drawn (the page says how many).
+- **Bands by level.** The zones (IEC 62443-3-2) stand in horizontal bands by their [level](#zones-and-conduits) in the Purdue model: field devices and cells at the bottom, then supervisory, site operations, the DMZ, the enterprise network and external parties at the top – data paths run upwards. A zone without a level gets one for the picture: from its name or a VLAN of the type _dmz_ ("DMZ", "SCADA", "MES", "office", "cloud" …), else the zones with assets lowest, a zone reached only past a DMZ on the enterprise side, the rest between. The zone's panel says when a level is derived. Zones that a conduit connects stand above each other where they can.
+- **Zones, VLANs, parts.** A zone is an area with its criticality and SL-T (or _SL-T open_) on its border; the **VLANs** (IEEE 802.1Q) in it are areas inside it, with their VID; the **assets** sit on the VLAN of their first device, as small chips. Zoomed out, a chip shows its name only, larger; zoomed in, also its kind, its live status in words and a detail line (devices and data paths of an asset, the kind and host of a collector).
+- **Conduits are gates** on the boundary between their two zones, with a short pipe into each zone and arrows in their direction (both ways: arrows at both ends, nothing moves).
+- **Data paths** run from where the data comes from (what the collector pulls from – a device is its asset –, else the asset), over the **collector** and the parties it pushes to, to the **destinations**. A **host** (a Steward system named by a data path) is placed on the VLAN whose **network segment** it is a member of – so a way into another zone runs **through the gate** between the two zones; one without a documented conduit is dashed in orange. Collectors, hosts, datasets and other parties outside every zone stand in a column on the right, near what they are connected to. The protocol, port, push or pull of a way show when you point at it, or at a part or data path – not all at once, so they do not cover each other.
+- **Fits the frame.** The picture opens with everything in view and fills the screen below the toolbar; _Show everything_ (in the zoom buttons) fits it again. **Full screen** (the button below the zoom buttons) gives it the whole window; Escape leaves it. Zoomed in on a larger site, a **mini map** shows where you are.
+- **Find and select.** The search finds an asset, collector, host, other party, dataset, zone, VLAN, conduit or data path and centres it. A click (or Space) **selects** a part: its data paths stay, the rest is dimmed, and a card shows its details with _Open page_; _Clear selection_ above the picture, Escape or a click on an empty spot clear it. A double click or Enter opens the part's page.
+- **Filters** narrow the data paths: by zone, by protocol, by live status (online, offline, no data, not watched), _Only paths that cross zones_ and _Only paths without a documented conduit_. What no path of the filter touches is dimmed; the side panel lists only the paths that match.
+- **Devices and VLANs on hover or focus**: the card shows an asset's devices (address, VLAN, state, live status), a VLAN's subnets, segment and who manages it, a zone's level, VLANs, owner and risk assessment, a conduit's protocols and controls.
+- **The side panel** lists the data paths (pointing at one highlights its way, a click selects it). It folds to a thin strip and stays as you left it (kept per user in this browser); it starts open on wide screens and folded below 1,600 px.
+- **The legend** folds into the _Legend_ button (reachable with Tab, Escape closes it).
+- **Live status only from linked checks**: an asset is online, offline or _no data_ from the checks linked to it and its devices (monitors – Gatus, CheckMk, the MQTT silent-device and Kafka checks – and dataset freshness). Its data paths are coloured by it: green when online, red and still when offline. An asset nothing watches is drawn neutral (documentation only), with the direction of its paths only. Hosts, collectors and other parties have no live status here. With more than 60 ways only the highlighted ones move; the arrows show the direction of all.
+- **Phones** start with the table; the picture is a tap away, fitted to the screen, with pinch zoom; a tap selects a part and shows its details below the picture.
+- The table lists every zone (with its level), VLAN, conduit, asset and party with what it is in, its details and its status in words, and every data path with its way. Assets without devices and data paths are not drawn (the page says how many). The export (SVG or PNG) draws the same bands, zones and gates, without the filters or a selection.
 
 ### Site overview tiles
 
@@ -273,7 +401,7 @@ The views read their data again every minute (live status may change; the docume
 
 ![The map of sites: the list and the map side by side, pins with their state](images/plant/map.png)
 
-Since 0.10.0 (#234, [ADR 0015](adr/0015-map-of-sites.md)) _Plant → Map_ shows the sites the reader may see as a list and on a map side by side; phones start with the list (_Picture_ / _Table_). The search and the state filter apply to both. **The map is off until an administrator turns it on** – until then the page is the list, and nothing is sent to a map provider.
+_Plant → Map_ ([ADR 0015](adr/0015-map-of-sites.md)) shows the sites the reader may see as a list and on a map side by side; phones start with the list (_Picture_ / _Table_). The search and the state filter apply to both. **The map is off until an administrator turns it on** – until then the page is the list, and nothing is sent to a map provider.
 
 ### Turning it on
 
@@ -320,6 +448,7 @@ Do this on a machine with internet access and copy the file over. Mind the data'
 - **Pins** are buttons in list order (Tab moves through them, Enter opens the card) with an icon and an accessible name that says the state (_Riverside Works, RVS, 1 check failing_); never colour alone. A legend under the map names every state.
 - **State of a site**: the worst of its assets' linked monitors and its failing plant checks – _Offline_ wins, then _Warning_ (a degraded monitor or a failing check), _Unknown_ (never shown as online), _Online_; a site nothing watches is _Not watched_ (neutral).
 - **Clusters** when sites are closer than about 56 px, also buttons (_2 sites, worst: Warning – zoom in_), counting only the sites the reader sees. At most 2,000 positions are drawn; the list names all.
+- **Pins follow the map** in the frame it is drawn in, while panning and zooming. Only pins in view are shown and focusable; the sites half a view around it are drawn hidden, so pins do not appear late. Clusters are made anew when the zoom level changes or new sites come near the view.
 - **The card**: name, code, state, assets by status, KPI coverage, open checks, and links to the site, its structure and its OT network.
 - **Show on map** on the site page (and in the list) opens the map at the site with its own zoom. `prefers-reduced-motion` and _Animation off_ turn the fly-to into a jump.
 - **Position picker**: in the site form, a click on the map sets latitude and longitude (typing them stays possible, also with the map off).
@@ -461,7 +590,7 @@ assignment:
     - { kpi: energy-consumption, job: rvs-mill-01-energy, active: true, params: { closest_point_max_distance_ms: 600000 }, dataset: plant.energy }
 ```
 
-(Three files in one block for brevity; each `---` part is its own file.) Keys: a profile has `id`, `name`, `manufacturer`, `model`, `version`, `category`, `description`, `notes`, `interfaces`; an interface `id`, `name`, `protocol`, `direction`, `description`, `version`, `default_port`, `authentication`, `client`, `notes`, `groups` (`name`, `description`, `data_points`), `data_points`, `file_sets` (`id`, `name`, `description`, `format`, `direction`, `path_pattern`, `produced_per`, `retention`, `encoding`, `notes`); a data point `id`, `name`, `description`, `data_type`, `unit`, `address` (or `node_id` / `modbus_address`), `access`, `update_rate_ms`, `enum_values`, `notes`, `publications` (`target`, `path`, `name`). A KPI definition has `id`, `name`, `names`, `category`, `type`, `description`, `formula`, `unit`, `range` (`min`, `max`), `trend`, `timing`, `audience`, `methodology`, `strategy`, `implementation`, `dynamic_columns`, `inputs` (`kind`, `profile`, `data_points`, `notes`), `parameters` (`name`, `aliases`, `description`, `type`, `default`, `required`, `min`, `max`, `unit`), `columns` (`name`, `kind`, `scope`, `unit`, `numerator`, `denominator`, `scale`, `description`), `computation` (`summary`, `diagram`, `steps` with `name`, `does`, `why`, `identities` with `relation`, `note`, `limits`), `notes`. An assignment has `asset`, `site`, `profile`, `firmware`, `interfaces` (`interface`, `active`, `endpoint`, `notes`), `overrides` (`data_point`, `available`, `address`, `unit`, `data_type`, `update_rate_ms`, `notes`), `publications` (`data_point`, `target`, `path`, `name`, `published_by`, `notes`), `kpis` (`kpi`, `job`, `active`, `params`, `dashboard`, `dataset`, `notes`), `notes`.
+(Three files in one block for brevity; each `---` part is its own file.) Keys: a profile has `id`, `name`, `manufacturer`, `model`, `version`, `category`, `description`, `notes`, `interfaces`; an interface `id`, `name`, `protocol`, `direction`, `description`, `version`, `default_port`, `authentication`, `client`, `notes`, `groups` (`name`, `description`, `data_points`), `data_points`, `file_sets` (`id`, `name`, `description`, `format`, `direction`, `path_pattern`, `produced_per`, `retention`, `encoding`, `notes`); a data point `id`, `name`, `description`, `data_type`, `unit`, `address` (or `node_id` / `modbus_address`), `access`, `update_rate_ms`, `enum_values`, `aliases`, `notes`, `publications` (`target`, `path`, `name`). Since 0.11.0 a profile also has `extends`, and an interface or data point of a derived profile `present` ([Profile inheritance](#in-the-file-format)). A KPI definition has `id`, `name`, `names`, `category`, `type`, `description`, `formula`, `unit`, `range` (`min`, `max`), `trend`, `timing`, `audience`, `methodology`, `strategy`, `implementation`, `dynamic_columns`, `inputs` (`kind`, `profile`, `data_points`, `notes`), `parameters` (`name`, `aliases`, `description`, `type`, `default`, `required`, `min`, `max`, `unit`), `columns` (`name`, `kind`, `scope`, `unit`, `numerator`, `denominator`, `scale`, `description`), `computation` (`summary`, `diagram`, `steps` with `name`, `does`, `why`, `identities` with `relation`, `note`, `limits`), `notes`. An assignment has `asset`, `site`, `profile`, `firmware`, `interfaces` (`interface`, `active`, `endpoint`, `notes`), `overrides` (`data_point`, `available`, `address`, `unit`, `data_type`, `update_rate_ms`, `notes`), `additions` (`interfaces`, `data_points` with `interface` and `group`; 0.11.0), `publications` (`data_point`, `target`, `path`, `name`, `published_by`, `notes`), `kpis` (`kpi`, `job`, `active`, `params`, `dashboard`, `dataset`, `notes`), `notes`.
 
 Values are read in their usual spellings: protocols `OPC-UA`, `Modbus/TCP`, `SMB/CIFS`, `HTTP`; sign-in `username-password`; data types `int`, `float[]`, `bool`; units `kWh`, `°C`, `rpm`; an input kind `datapoint`. Files of other tools import after renaming their keys, for example `profile_id`/`kpi_id` → `id`, `display_name` → `name`, `type` (of an interface) → `protocol`, `requires_client` → `client`, `datapoint_groups` → `groups`, `group` → `name`, `datapoints` → `data_points`, `type` (of a data point) → `data_type`, `opc_node_id` → `node_id`, `typical_update_rate_ms` → `update_rate_ms`, `params` → `parameters`, `variables` → `data_points`, `arity` → `scope`; in an assignment `asset_id` → `asset`, `controller_profile` → `profile`, `controller_firmware` → `firmware`, `connectivity` → `interfaces`, `interface_id` → `interface`, `endpoint_url` → `endpoint`, `datapoint_overrides` → `overrides`, publications' `datapoint` → `data_point`, `aspect` → `path`, `variable` → `name`, `job_name` → `job`; attributes of the asset itself (its tags, its name) go into the asset, not the assignment. A profile and a KPI definition are matched by their `id`, an assignment by its asset.
 
@@ -491,12 +620,13 @@ ot_network:
         id: rvs-zone-cells,
         name: Production cells,
         criticality: high,
+        level: control,
         vlans: [rvs-vlan-110],
         sl_t: 2,
         risk_assessment: RA-RVS-2026-01,
         assessed_at: '2026-03-02',
       }
-    - { id: rvs-zone-dmz, name: OT DMZ, vlans: [rvs-vlan-900] } # SL-T open
+    - { id: rvs-zone-dmz, name: OT DMZ, level: dmz, vlans: [rvs-vlan-900] } # SL-T open
   conduits:
     - {
         id: rvs-cdt-cells-dmz,
@@ -537,7 +667,7 @@ asset_network:
         - { ref: IoT platform, path: rvs-mill-01/state } # kind: system (a Steward system id), dataset (a key) or other
 ```
 
-Keys: an OT network has `site`, `vlans`, `zones`, `conduits`; a VLAN `id`, `name`, `vid`, `type`, `owner`, `description`, `subnets` (`cidr`, `gateway`, `description`, `ranges` with `start`, `end`, `type`, `notes`), `restricted`, `managed_by`, `rules_at`, `sites`, `location`, `segment`, `notes`; a zone `id`, `name`, `description`, `criticality`, `vlans`, `owner`, `sl_t`, `risk_assessment`, `assessed_at`, `notes`; a conduit `id`, `name`, `description`, `zones` (two), `direction`, `protocols`, `controls`, `notes`. An asset network has `asset`, `site`, `checks`, `devices`, `data_paths`; a device `id`, `hostname`, `domain`, `purpose`, `mac`, `serial`, `vlan`, `address_type`, `address`, `switch`, `switch_port`, `wall_outlet`, `cmdb_port`, `state`, `flags`, `confidence`, `owner`, `monitoring`, `checks`, `notes`; a data path `id`, `subject`, `description`, `devices`, `collector` (`kind`, `ref`, `host`), `transfers` (`protocol`, `mode`, `peer_kind`, `peer`, `port`, `notes`), `destinations` (`kind`, `ref`, `path`, `notes`), `notes`; a check either `monitor` (with `check`) or `dataset` (with `column`, `value`, `time_column`, `max_age_minutes`), and `note`. A VLAN, zone and conduit are matched by their site and id, a device and data path by their asset and id, the checks by their asset. The same rules as an edit apply; in _replace_ with _remove_, a VLAN, zone or device that goes while a record that stays names it stops the import. `examples/plant/brightwater-ot-network.plant.yaml` is an invented OT network of the example enterprise (import it after `brightwater.plant.yaml`).
+Keys: an OT network has `site`, `vlans`, `zones`, `conduits`; a VLAN `id`, `name`, `vid`, `type`, `owner`, `description`, `subnets` (`cidr`, `gateway`, `description`, `ranges` with `start`, `end`, `type`, `notes`), `restricted`, `managed_by`, `rules_at`, `sites`, `location`, `segment`, `notes`; a zone `id`, `name`, `description`, `criticality`, `level`, `vlans`, `owner`, `sl_t`, `risk_assessment`, `assessed_at`, `notes`; a conduit `id`, `name`, `description`, `zones` (two), `direction`, `protocols`, `controls`, `notes`. An asset network has `asset`, `site`, `checks`, `devices`, `data_paths`; a device `id`, `hostname`, `domain`, `purpose`, `mac`, `serial`, `vlan`, `address_type`, `address`, `switch`, `switch_port`, `wall_outlet`, `cmdb_port`, `state`, `flags`, `confidence`, `owner`, `monitoring`, `checks`, `notes`; a data path `id`, `subject`, `description`, `devices`, `collector` (`kind`, `ref`, `host`), `transfers` (`protocol`, `mode`, `peer_kind`, `peer`, `port`, `notes`), `destinations` (`kind`, `ref`, `path`, `notes`), `notes`; a check either `monitor` (with `check`) or `dataset` (with `column`, `value`, `time_column`, `max_age_minutes`), and `note`. A VLAN, zone and conduit are matched by their site and id, a device and data path by their asset and id, the checks by their asset. The same rules as an edit apply; in _replace_ with _remove_, a VLAN, zone or device that goes while a record that stays names it stops the import. `examples/plant/brightwater-ot-network.plant.yaml` is an invented OT network of the example enterprise (import it after `brightwater.plant.yaml`).
 
 ### Modes
 
@@ -552,6 +682,7 @@ _Plant → Import_ (or `POST /api/plant/import`): choose the files and the mode,
 - Records are matched by their stable ids. Every record remembers the import that wrote it last; replacing an import adopts its records into the new one, so the next replace finds them again. A marked record that comes back into a file loses its mark.
 - Records entered by hand are never removed by an import. When they name something that is removed (an asset in a removed work unit, a node in a removed building), they lose that reference – the preview shows it as a change; a node added by hand below a removed node stops the import (add it to the file, or keep and mark). A site that still holds records that stay is marked instead of removed.
 - The **preview** lists every record as _add, change, remove, mark, unchanged_ or _skip_, with the fields that change, and the counts per kind. It needs the import's own right (adding sites, or managing one) and names nothing of sites you may not see: an earlier import of such a site counts as not found, a code or asset id taken there gets a message without that site, and its records are left out. **Problems** name the file and the place in it (`sites[0].areas[1].work_centers[0].type: Use one of: production_line, …`); a file with problems imports nothing. The import applies all or nothing, in one transaction.
+- Since 0.11.0 an import that removes or renames more than one record asks you to confirm that it is you (step-up, control point `plant.bulkChange` of the [assurance policy](ASSURANCE.md)) – also _replace_ with _remove_; renaming one asks only when `plant.renameId` is turned on. The preview says so.
 - Every import is audited (`plant.imported`) with mode, counts, the files with their size and SHA-256, and the SHA-256 of all files together; the import page lists earlier imports.
 - Device profiles and KPI definitions need the right to manage the catalogues (designers and administrators), an assignment the manage right on its asset's site; an asset in a site you may not see reads like one you may not change. An assignment names an asset, profile, interfaces, data points and KPI definitions that exist after the import (in the files or in Steward). In _replace_ with _remove_, a profile or KPI definition that goes while an assignment that stays still names it stops the import; an assignment goes with its asset.
 - **Checks** of the records in the files – as they will be after the import – are shown in the preview ([Checks](#checks)); they do not stop the import.
@@ -560,6 +691,81 @@ _Plant → Import_ (or `POST /api/plant/import`): choose the files and the mode,
 ### Export
 
 _Export YAML_ on the site list (every site you may see, with the device profiles, KPI definitions, the assignments of the assets and their OT networks), on a site page and its OT network (that site, as `site:`, with the assignments of its assets, `ot_network:` and `asset_networks:`), on the profile and KPI lists (`?part=catalogue`: the device profiles and KPI definitions) and on a profile or KPI definition page (`?profile=<id>`, `?kpi=<id>`: one record, as `device_profile:` or `kpi_definition:`), or `GET /api/plant/export[?site=<id>|?part=catalogue|?profile=<id>|?kpi=<id>]`. The export is format 1 and imports back unchanged: exporting, importing the file in _replace_ mode and exporting again gives the same file. It is audited (`plant.exported`).
+
+## Changing ids
+
+Since 0.11.0 an entry can get a new id. Every reference follows in one transaction, and the old id stays an **alias** that still leads to the entry.
+
+**What can be renamed:** sites, buildings, areas, work centers and work units (one id space per site), assets, device profiles with their interfaces and data points, KPI definitions, VLANs, zones and conduits of a site, devices and data paths of an asset. The job name of a KPI instance and the id of a file set have no references; change them by editing the assignment or the profile. Checks of an asset have no id.
+
+**One entry:** on its page (a site, an asset, a device profile, a data point, a KPI definition), _More actions → Change id_. The dialog checks the new id while you type – the same rules as for a new entry: its format, no other entry of the kind (in its site, asset or profile) has it, and it is no old id of another entry – and lists what refers to the entry (assets, nodes, links, assignments …). Whoever may change the entry renames it. The assurance policy point `plant.renameId` (off by default) can ask for a step-up.
+
+**What follows:** the plant tables (the site of nodes, buildings, assets and the OT network; locations, parents, buildings; assignments, KPI inputs and KPI instances; zones' VLANs, conduits' zones, devices' VLANs, data paths' devices and peers), the links of records, services, tickets and applications (`site`, `asset`, `conduit` – `<site>/<conduit>`), owning teams, credentials' _used by_, where copies came from, the sites of earlier imports, the external references and the image. The audit log is history and keeps the old ids. A dataset filter of a live-status check (`value: rvs-mill-01`) names rows of an outside dataset, not the entry, and stays as it is. A KPI input without a device profile names a data point of whatever profile an asset has and keeps its name.
+
+**Old ids keep working:**
+
+- reads of the internal API and of `/api/v1/plant/…` (paths and the filters `site`, `asset`, `profile`, `kpi`) take an old id as the entry; changes name the entry by its id;
+- a link or bookmark in the web app opens the entry and its address changes to the new id;
+- an import file with an old id updates the entry; the preview notes it under _old ids in the files_.
+
+Chains collapse: after `a → b` and `b → c`, both `a` and `b` lead to `c`; renaming back to an old id removes that alias. A new entry cannot take an old id. _Settings → Modules → Plant registry → Old ids_ lists them for administrators; removing one there frees the id (audited as `plant.id_alias_removed`). When an entry is removed, its aliases go with it and its ids are free again.
+
+**Audit:** `plant.id_changed` with the kind, the old and new id and the number of references updated per kind.
+
+### Renaming many entries with an import
+
+The import page has an optional step _Change ids_: a list of old → new ids, pasted or loaded from a file, and simple rules.
+
+```csv
+kind,old,new
+asset,rvs-mill-01,rvs-mc-01
+hlc-im-01,hlc-moulding-01
+```
+
+A line is `kind,old,new` or `old,new` (any kind); YAML works too (`- { kind: asset, old: rvs-mill-01, new: rvs-mc-01 }`). Rules – _replace a prefix_, _add a prefix_, _add a suffix_, _lower case_ – apply to the ids of the chosen kinds (all kinds when none is chosen), after the list. The mapping applies to the ids in the files and to every reference inside them. When a mapped old id is an entry that exists, that entry is **renamed** through the same rename core and then updated from the files, so _export → map → import_ renames many entries at once. In the API: `idMap: { entries: [{ kind, old, new }], rules: [{ type, from, to, kinds }] }` in the body of `POST /api/plant/import[/preview]`.
+
+The preview lists the renames apart from what is added, changed and removed. It refuses: two old ids that would become one new id, an id that is old and new at once (chains and cycles – rename in two imports), a new id another entry has, an old id of another entry, a new id in the wrong format, and an entry you may not change. Renaming more than one entry asks for a step-up (`plant.bulkChange`, on by default). The renames are audited once as `plant.ids_changed` and in `plant.imported`.
+
+## Changing many entries at once
+
+Since 0.11.0. Every bulk change shows a preview first – what changes, what is **skipped** (an entry you may not change) and what is **refused** (a rule or a reference, with the reason) – and applies in one transaction. Removing more than one entry, or editing more than 25, asks for a step-up (`plant.bulkChange`). One audit entry per action, with the entries in its details: `plant.bulk_changed`, `plant.bulk_removed`.
+
+**In the lists:** the asset, site, device profile and KPI definition lists have a checkbox per row (and _Select all shown_). _Edit selected_ sets fields that are safe to set on many entries:
+
+| Kind           | Fields                                                                                                                                               |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Asset          | status, add or remove tags, manufacturer, model, domain, process area, role, end of support, device profile; building and place (assets of one site) |
+| Device profile | category, manufacturer                                                                                                                               |
+| KPI definition | category                                                                                                                                             |
+| VLAN (API)     | type, managed by, restricted, owner                                                                                                                  |
+| Device (API)   | state, confidence, owner, add or remove flags                                                                                                        |
+
+A place or building must be one of the asset's site. A new device profile is refused for an asset whose assignment has interface settings for its old profile (change it on the asset's page). Owning teams of many sites are set with `POST /api/owning-teams/bulk` and `resources: [{ kind: site, id }]` (administrators, [TEAMS.md](TEAMS.md)). _Remove selected_ works for every list above.
+
+**With an import:** two ways, both through the same removal core:
+
+- `remove:` in a file – entries by kind and id, with `site` (buildings, nodes, VLANs, zones, conduits) or `asset` (devices, data paths):
+
+  ```yaml
+  version: 1
+  remove:
+    - { kind: asset, id: rvs-old-press }
+    - { kind: vlan, site: riverside, id: rvs-vlan-130 }
+  ```
+
+  An entry that is not there (any more) is left out, so the same file imports again.
+
+- _Remove entries that are not in the files_ (`removeMissing: true`): within each site the files hold, the entries of the kinds they list there (its buildings, its areas and what is below them, its assets; the VLANs, zones and conduits of an `ot_network`; the devices and data paths of an `asset_network`) that the files do not have. Device profiles and KPI definitions only when a file lists them all (`device_profiles:`, `kpi_definitions:`). Nothing outside: other sites and kinds the files do not list stay. So _export → delete entries → import_ removes them.
+
+An explicit list is easy to review in a diff; the option suits a file that is the truth for its sites. An entry in `remove:` and in the files is a problem.
+
+**What goes with an entry:** only when you choose _Also remove what belongs to it_ (`cascade: true`). Without it, an entry that still has any of these is refused, and the preview says what it has:
+
+- a site: its areas, work centers, work units, buildings, assets and OT network, and the links to it;
+- an asset: the assets that are part of it, its assignment and KPI instances, devices, data paths, linked checks and links;
+- an area or work center: the nodes below it and the assets in them; a building: its floors and rooms; a zone: its conduits; a conduit: the links to it; a KPI definition: its KPI instances (refused when one is on an asset you may not change).
+
+External references, owning teams and the image always go with their entry. **References from other entries** always refuse a removal unless those entries go too: a node or asset in a building, an assignment of a device profile, a zone or device naming a VLAN, a data path naming a device. A removed id is free again; aliases that led to the entry are removed with it.
 
 ## Permissions
 
@@ -570,14 +776,14 @@ Rights are per site; the hierarchy, buildings and assets of a site follow it ([A
 - **Owning teams**: as for other resources, members of the owning teams have their instance and team roles on the site.
 - **Plant viewer** (`plant`): a new instance role that **sees only the plant registry** (sites that are not restricted) and their own profile. For a user whose only working role it is – no other instance role (a _status_ role adds the status pages) and no role in a team – the server refuses every other route (`403 PLANT_VIEWER_ONLY`), the public API answers only `/api/v1/plant/…` and `/api/v1/me`, the MCP endpoint refuses them, and the web app shows the _Plant_ area and the profile only. Linked systems and applications show by name, without a link; records, services and credentials that link to a site or asset are not listed. With another working role, they keep that role's access.
 - **Status viewers** never see the module; nothing of it is shown on status pages.
-- The **OT network** (#220) follows its site: who sees the site sees it, who manages the site changes it ([Rights](#rights-1)).
-- **Device profiles and KPI definitions** (#219) belong to the installation: everyone who sees the registry sees them, designers and administrators manage them. An asset's **assignment and KPI instances** follow its site ([Rights](#rights)).
+- The **OT network** follows its site: who sees the site sees it, who manages the site changes it ([Rights](#rights-1)).
+- **Device profiles and KPI definitions** belong to the installation: everyone who sees the registry sees them, designers and administrators manage them. An asset's **assignment and KPI instances** follow its site ([Rights](#rights)).
 
 A site or asset that you may not see answers `404`, as if it did not exist; a link to it shows as "not visible".
 
 ## API
 
-The internal API (the web app) is under `/api/plant/…`: `sites`, `sites/:siteId` with `nodes`, `buildings`, `links` and `access`, `hierarchy`, `assets`, `assets/:assetId` with `image` and `links`, `import/preview`, `import`, `imports`, `export`, `schema`, `config`; since 0.7.0 `assets/:assetId/assignment` (`GET`, `PUT`, `DELETE`), `profiles`, `profiles/:profileId` with `points/:pointId` and `duplicate`, `kpis`, `kpis/:kpiId` with `duplicate`, `explore/points?q=` and `checks`; `assets` also takes `profile` and `dataPoint`; since 0.8.0 the [visualizations](#visualizations) `views/overview`, `views/coverage`, `sites/:siteId/structure`, `assets/:assetId/flow`, `profiles/:profileId/points/:pointId/lineage` and `sites/:siteId/network/placement`, and the OT network `sites/:siteId/network` (the whole OT network of a site with every asset's live status and the systems the data paths name – one answer for a diagram), `sites/:siteId/vlans[/:vlanId[/segment]]`, `sites/:siteId/zones[/:zoneId]`, `sites/:siteId/conduits[/:conduitId]`, `assets/:assetId/network`, `assets/:assetId/devices[/:deviceId]`, `assets/:assetId/paths[/:pathId]` and `assets/:assetId/checks`; the switch and settings are `GET`/`PUT /api/settings/plant`.
+The internal API (the web app) is under `/api/plant/…`: `sites`, `sites/:siteId` with `nodes`, `buildings`, `links` and `access`, `hierarchy`, `assets`, `assets/:assetId` with `image` and `links`, `import/preview`, `import`, `imports`, `export`, `schema`, `config`; since 0.11.0 `ids/rename/preview` and `ids/rename` (body `{ kind, scope, id, newId }`), `aliases` (`GET`, `DELETE aliases/:kind/:oldId?scope=`, administrators), `bulk/preview` and `bulk` (body `{ kind, action: edit | remove, items: [{ id, scope }], set, cascade }`); `assets/:assetId/assignment` (`GET`, `PUT`, `DELETE`), `profiles`, `profiles/:profileId` with `points/:pointId` and `duplicate`, `kpis`, `kpis/:kpiId` with `duplicate`, `explore/points?q=` and `checks`; `assets` also takes `profile` and `dataPoint`; the [visualizations](#visualizations) `views/overview`, `views/coverage`, `sites/:siteId/structure`, `assets/:assetId/flow`, `profiles/:profileId/points/:pointId/lineage` and `sites/:siteId/network/placement`, and the OT network `sites/:siteId/network` (the whole OT network of a site with every asset's live status and the systems the data paths name – one answer for a diagram), `sites/:siteId/vlans[/:vlanId[/segment]]`, `sites/:siteId/zones[/:zoneId]`, `sites/:siteId/conduits[/:conduitId]`, `assets/:assetId/network`, `assets/:assetId/devices[/:deviceId]`, `assets/:assetId/paths[/:pathId]` and `assets/:assetId/checks`; the switch and settings are `GET`/`PUT /api/settings/plant`.
 
 The public, read-only API ([API.md](API.md), tag _Plant_):
 
@@ -586,12 +792,13 @@ The public, read-only API ([API.md](API.md), tag _Plant_):
 - `GET /api/v1/plant/assets?site=&node=&domain=&status=&tag=&ref=` – assets with location and external references (paginated); `ref=erp:10004711` finds an asset by another tool's id;
 - `GET /api/v1/plant/assets/{assetId}` – an asset with equipment, lifecycle, capabilities and links;
 - `GET /api/v1/plant/assets/{assetId}/assignment` – its device profile, firmware, interfaces with endpoints, differences, publications, KPI instances, checks and the KPIs it can have;
-- `GET /api/v1/plant/profiles`, `GET /api/v1/plant/profiles/{profileId}` – device profiles with their interfaces, data points, assets and the KPI definitions that read them;
+- `GET /api/v1/plant/profiles`, `GET /api/v1/plant/profiles/{profileId}` – device profiles with their effective interfaces and data points (inherited ones included, 0.11.0), their bases, assets and the KPI definitions that read them;
 - `GET /api/v1/plant/kpis`, `GET /api/v1/plant/kpis/{kpiId}` – KPI definitions with inputs, parameters, columns, computation, checks, instances and candidates;
 - `GET /api/v1/plant/assets?profile=&dataPoint=` – the assets that have a profile (and deliver one of its data points);
 - `GET /api/v1/plant/checks?site=&asset=&kpi=&kind=` – the problems of [Checks](#checks) (paginated);
-- `GET /api/v1/plant/sites/{siteId}/network` – the OT network of a site: VLANs (with the linked segment and the hint), zones, conduits (with the records that link to them), the devices and data paths of its assets and every asset's live status (#220);
+- `GET /api/v1/plant/sites/{siteId}/network` – the OT network of a site: VLANs (with the linked segment and the hint), zones, conduits (with the records that link to them), the devices and data paths of its assets and every asset's live status;
 - `GET /api/v1/plant/assets/{assetId}/network` – an asset's devices, data paths, own checks and live status;
+- `GET /api/v1/plant/assets/{assetId}/collections` – an asset's data collections with their items, mapping and coverage (0.11.0);
 - `GET /api/v1/plant/export?site=|part=catalogue|profile=|kpi=&format=yaml|json` – the registry in the import format (with the OT network).
 
 They answer `404` while the module is off.

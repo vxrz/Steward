@@ -9,6 +9,7 @@ import {
   type ObjectiveDetail,
   type ObjectiveNoDataReason,
   type ObjectiveSample,
+  type ObjectiveSourceKind,
   type ObjectiveStatus,
   type ObjectiveSummary,
   type ObjectiveTargets,
@@ -24,14 +25,21 @@ import { platformPermissions } from '../auth/permissions.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { canEditService, catalogueVisibleNow, forbid, me } from '../records/access.js';
 import { plannedMinutes } from '../catalogue/maintenance.js';
+import { permissionsOfRow } from '../monitors/model.js';
+import { monitorUptimeHundredths } from '../monitors/stats.js';
 
 /**
- * Availability objectives (#86): targets for the uptime windows Gatus reports (1 h, 24 h, 7 d, 30 d; each optional)
- * of one Gatus endpoint, attached to a service or one of its applications.
+ * Availability objectives (#86): targets for the uptime windows 1 h, 24 h, 7 d and 30 d (each optional) of one source,
+ * attached to a service or one of its applications.
  *
- * The values are Gatus' own uptime figures: the metrics mode of a Gatus platform reads them once an hour when "read
- * Gatus' uptime figures" is on (gatus_endpoints.gatus_uptime). Nothing here calls Gatus; the objective job samples
- * what Steward has read (jobs.ts).
+ * Sources:
+ *   - a Gatus endpoint: Gatus' own uptime figures, which the metrics mode of a Gatus platform reads once an hour when
+ *     "read Gatus' uptime figures" is on (gatus_endpoints.gatus_uptime). Nothing here calls Gatus;
+ *   - a PromQL query on a Prometheus platform (#110), read hourly by readPromObjectives;
+ *   - a Steward monitor (0.11, ADR 0018): the time-weighted uptime from the monitor's recorded states (monitors/
+ *     stats.ts) – the figure the monitor and scheduled reports show for the same window. Time in maintenance (and
+ *     unknown or blocked) does not count, as in the monitor's own figure.
+ * The objective job samples the figures hourly (jobs.ts).
  *
  * Status per window: met (value ≥ target), below (value < target), no data (no value). An objective is below when any
  * window is below, else no data when any window has no value, else met.
@@ -51,8 +59,11 @@ export interface ObjectiveRow {
   application_id: string | null;
   name: string;
   description: string;
+  /** '' when the source is a monitor */
   platform_id: string;
   endpoint_key: string;
+  /** The source monitor (0.11); null: a Gatus endpoint or PromQL query */
+  monitor_id?: string | null;
   target_h1: number | null;
   target_h24: number | null;
   target_d7: number | null;
@@ -109,25 +120,40 @@ const fields = {
   applicationId: id.nullable().default(null),
   name: z.string().trim().min(1).max(OBJECTIVE_LIMITS.name),
   description: z.string().max(OBJECTIVE_LIMITS.description).default(''),
-  platformId: id,
-  endpointKey: z.string().trim().min(1).max(500),
+  /** A Gatus or Prometheus platform with an endpoint key or PromQL query … */
+  platformId: id.optional(),
+  endpointKey: z.string().trim().min(1).max(500).optional(),
+  /** … or a Steward monitor (0.11) */
+  monitorId: id.optional(),
   targets,
   notify: z.boolean().default(false),
 };
+type SourceFields = { platformId?: string; endpointKey?: string; monitorId?: string };
 const oneTarget = (x: { targets: ObjectiveTargets }) => OBJECTIVE_WINDOWS.some((w) => x.targets[w] !== null);
 const oneTargetMsg = { message: 'Set a target for at least one window', path: ['targets'] };
+/** Either a monitor or a platform with endpoint (or query) – not both, and not half of one. */
+const oneSource = (x: SourceFields, required: boolean) =>
+  x.monitorId !== undefined
+    ? x.platformId === undefined && x.endpointKey === undefined
+    : (x.platformId === undefined) === (x.endpointKey === undefined) && (!required || x.platformId !== undefined);
+const oneSourceMsg = { message: 'Name either a monitor, or a platform with its endpoint or query', path: ['monitorId'] };
 export const objectiveInput = z
   .object({ serviceId: id, ...fields })
   .strict()
-  .refine(oneTarget, oneTargetMsg);
-/** A change; without platform and endpoint they stay (editors who may not see the platform change the targets only). */
+  .refine(oneTarget, oneTargetMsg)
+  .refine((x) => oneSource(x, true), oneSourceMsg);
+/** A change; without a source the source stays (editors who may not see the platform or monitor change the targets only). */
 export const objectiveUpdate = z
-  .object({ ...fields, platformId: fields.platformId.optional(), endpointKey: fields.endpointKey.optional() })
+  .object(fields)
   .strict()
-  .refine(oneTarget, oneTargetMsg);
+  .refine(oneTarget, oneTargetMsg)
+  .refine((x) => oneSource(x, false), oneSourceMsg);
 export type ObjectiveInput = z.infer<typeof objectiveInput>;
 export type ObjectiveUpdate = z.infer<typeof objectiveUpdate>;
-type Resolved = Omit<ObjectiveUpdate, 'platformId' | 'endpointKey'> & { platformId: string; endpointKey: string };
+type Resolved = Omit<ObjectiveUpdate, 'platformId' | 'endpointKey' | 'monitorId'> & { platformId: string; endpointKey: string; monitorId: string | null };
+
+export const sourceKindOf = (r: Pick<ObjectiveRow, 'monitor_id'>, platformKind: string | null | undefined): ObjectiveSourceKind =>
+  r.monitor_id ? 'monitor' : platformKind === 'prometheus' ? 'prometheus' : 'gatus';
 
 // ---------- values ----------
 
@@ -179,8 +205,23 @@ export function readingCache(now = Date.now()) {
     if (!kinds.has(platformId)) kinds.set(platformId, db().get<{ kind: string }>('SELECT kind FROM platforms WHERE id = ?', platformId)?.kind ?? null);
     return kinds.get(platformId);
   };
-  return {
+  const monitors = new Map<string, { enabled: number } | null>();
+  const monitorOf = (monitorId: string) => {
+    if (!monitors.has(monitorId))
+      monitors.set(monitorId, db().get<{ enabled: number }>('SELECT enabled FROM monitors WHERE id = ? AND is_template = 0', monitorId) ?? null);
+    return monitors.get(monitorId)!;
+  };
+  const cache = {
     endpoint,
+    /** The figures of an objective's source: a monitor's recorded states, or what Steward read from Gatus or Prometheus. */
+    readRow(r: Pick<ObjectiveRow, 'platform_id' | 'endpoint_key' | 'monitor_id'>): ObjectiveReading {
+      if (!r.monitor_id) return cache.read(r.platform_id, r.endpoint_key);
+      const m = monitorOf(r.monitor_id);
+      // a disabled monitor records nothing new: its last state would count on for ever
+      if (!m || !Number(m.enabled)) return { values: none, reason: 'monitorOff', at: null };
+      const values = monitorUptimeHundredths(r.monitor_id, OBJECTIVE_WINDOW_MS, now);
+      return { values, reason: OBJECTIVE_WINDOWS.some((w) => values[w] !== null) ? null : 'noValue', at: new Date(now).toISOString() };
+    },
     read(platformId: string, key: string): ObjectiveReading {
       // a PromQL query (#110): the figures the background job read (readPromObjectives)
       if (kindOf(platformId) === 'prometheus') {
@@ -220,6 +261,7 @@ export function readingCache(now = Date.now()) {
       return { values, reason: OBJECTIVE_WINDOWS.some((w) => values[w] !== null) ? null : 'noValue', at: src.last_uptimes_at };
     },
   };
+  return cache;
 }
 export type ReadingCache = ReturnType<typeof readingCache>;
 
@@ -294,7 +336,7 @@ export function objectiveState(r: ObjectiveRow, cache: ReadingCache, facts: Samp
       noDataTooLong: end - since > OBJECTIVE_LIMITS.noDataAttentionHours * HOUR,
     };
   }
-  const reading = cache.read(r.platform_id, r.endpoint_key);
+  const reading = cache.readRow(r);
   const j = judge(r, reading.values);
   const planned = plannedMinutes(r, OBJECTIVE_WINDOW_MS, now);
   j.windows = j.windows.map((w) => ({ ...w, plannedMinutes: planned[w.window] }));
@@ -356,6 +398,35 @@ export function platformLookup() {
   };
 }
 
+/** Monitors by id, and whether a user may see one (the view right). */
+export function monitorLookup() {
+  const rows = new Map<string, { id: string; name: string; owner: string; acl: string } | null>();
+  const get = (mid: string) => {
+    if (!rows.has(mid))
+      rows.set(
+        mid,
+        db().get<{ id: string; name: string; owner: string; acl: string }>('SELECT id, name, owner, acl FROM monitors WHERE id = ? AND is_template = 0', mid) ??
+          null,
+      );
+    return rows.get(mid) ?? undefined;
+  };
+  return {
+    get,
+    visible(u: AuthUser | null, mid: string): boolean {
+      const m = get(mid);
+      return !!m && !!u && permissionsOfRow(m, u).includes('view');
+    },
+  };
+}
+
+/** May the reader see the objective's source (its platform, or its monitor)? */
+export const sourceVisible = (
+  r: Pick<ObjectiveRow, 'platform_id' | 'monitor_id'>,
+  u: AuthUser | null,
+  platforms: ReturnType<typeof platformLookup>,
+  monitors: ReturnType<typeof monitorLookup>,
+): boolean => (r.monitor_id ? monitors.visible(u, r.monitor_id) : platforms.visible(u, r.platform_id));
+
 // ---------- views ----------
 
 const toBreach = (b: BreachRow): ObjectiveBreach => ({
@@ -377,6 +448,7 @@ interface ViewCtx {
   u: AuthUser | null;
   cache: ReadingCache;
   platforms: ReturnType<typeof platformLookup>;
+  monitors: ReturnType<typeof monitorLookup>;
   services: Map<string, ServiceRef>;
   apps: Map<string, string>;
   breaches: Map<string, BreachRow>;
@@ -389,6 +461,7 @@ function viewCtx(now: number): ViewCtx {
     u: currentUser(),
     cache: readingCache(now),
     platforms: platformLookup(),
+    monitors: monitorLookup(),
     services: new Map(
       db()
         .all<ServiceRef>('SELECT id, name, owners, archived FROM services')
@@ -416,8 +489,9 @@ function build(r: ObjectiveRow, c: ViewCtx): ObjectiveView {
   const s = c.services.get(r.service_id)!;
   const st = objectiveState(r, c.cache, c.facts, c.now);
   const { windows, status } = st;
-  const visible = c.platforms.visible(c.u, r.platform_id);
-  const e = visible ? c.cache.endpoint(r.platform_id, r.endpoint_key) : null;
+  const visible = sourceVisible(r, c.u, c.platforms, c.monitors);
+  const onPlatform = visible && !r.monitor_id;
+  const e = onPlatform ? c.cache.endpoint(r.platform_id, r.endpoint_key) : null;
   const open = c.breaches.get(r.id);
   return {
     row: r,
@@ -429,11 +503,15 @@ function build(r: ObjectiveRow, c: ViewCtx): ObjectiveView {
       applicationName: r.application_id ? (c.apps.get(r.application_id) ?? null) : null,
       name: r.name,
       description: r.description,
+      sourceKind: sourceKindOf(r, c.platforms.get(r.platform_id)?.kind),
+      sourceVisible: visible,
       platformVisible: visible,
-      platformId: visible ? r.platform_id : null,
-      platformName: visible ? (c.platforms.get(r.platform_id)?.name ?? null) : null,
-      endpointKey: visible ? r.endpoint_key : null,
-      endpointName: visible ? (e ? (e.group_name ? `${e.group_name}/${e.name}` : e.name) : null) : null,
+      platformId: onPlatform ? r.platform_id : null,
+      platformName: onPlatform ? (c.platforms.get(r.platform_id)?.name ?? null) : null,
+      endpointKey: onPlatform ? r.endpoint_key : null,
+      endpointName: onPlatform ? (e ? (e.group_name ? `${e.group_name}/${e.name}` : e.name) : null) : null,
+      monitorId: visible && r.monitor_id ? r.monitor_id : null,
+      monitorName: visible && r.monitor_id ? (c.monitors.get(r.monitor_id)?.name ?? null) : null,
       targets: rowTargets(r),
       windows,
       status,
@@ -518,8 +596,14 @@ export function getObjective(objectiveId: string, now = Date.now()): ObjectiveDe
 function checkReferences(u: AuthUser, s: ServiceRef, input: Resolved, cur?: ObjectiveRow): void {
   if (input.applicationId && !db().get('SELECT 1 FROM service_applications WHERE service_id = ? AND application_id = ?', s.id, input.applicationId))
     throw new HttpError(400, 'The application is not part of the service', 'OBJECTIVE_APPLICATION_NOT_IN_SERVICE', { id: input.applicationId });
-  // an editor who may not see the platform may still change the targets, as long as the endpoint stays
-  if (cur && cur.platform_id === input.platformId && cur.endpoint_key === input.endpointKey) return;
+  // an editor who may not see the platform or monitor may still change the targets, as long as the source stays
+  if (cur && cur.platform_id === input.platformId && cur.endpoint_key === input.endpointKey && (cur.monitor_id ?? null) === input.monitorId) return;
+  if (input.monitorId) {
+    // a monitor the user may not see is "unknown" to them (no probing); templates are not monitors that run
+    if (!monitorLookup().visible(u, input.monitorId))
+      throw new HttpError(400, `Monitor ${input.monitorId} not found`, 'OBJECTIVE_MONITOR_UNKNOWN', { id: input.monitorId });
+    return;
+  }
   const p = platformLookup();
   const pf = p.get(input.platformId);
   // a platform the user may not see is "unknown" to them (no probing)
@@ -543,8 +627,9 @@ const describeTargets = (t: ObjectiveTargets) =>
     .map((w) => `${w.slice(1)}${w[0]} ≥ ${t[w]} %`)
     .join(', ');
 
-export function createObjective(input: ObjectiveInput): ObjectiveDetail {
+export function createObjective(raw: ObjectiveInput): ObjectiveDetail {
   const u = me();
+  const input = { ...raw, platformId: raw.platformId ?? '', endpointKey: raw.endpointKey ?? '', monitorId: raw.monitorId ?? null };
   const s = serviceRef(input.serviceId);
   if (!canEdit(u, s)) forbid('define objectives of this service', 'changeService');
   if (s.archived) throw new HttpError(409, 'The service is archived', 'OBJECTIVE_SERVICE_ARCHIVED', { id: s.id });
@@ -556,9 +641,9 @@ export function createObjective(input: ObjectiveInput): ObjectiveDetail {
   const now = nowIso();
   db().tx(() => {
     db().run(
-      `INSERT INTO availability_objectives (id, service_id, application_id, name, description, platform_id, endpoint_key, target_h1, target_h24, target_d7, target_d30,
-         notify, created_at, created_by, updated_at, updated_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO availability_objectives (id, service_id, application_id, name, description, platform_id, endpoint_key, monitor_id, target_h1, target_h24, target_d7,
+         target_d30, notify, created_at, created_by, updated_at, updated_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       objectiveId,
       s.id,
       input.applicationId,
@@ -566,6 +651,7 @@ export function createObjective(input: ObjectiveInput): ObjectiveDetail {
       input.description,
       input.platformId,
       input.endpointKey,
+      input.monitorId,
       toHundredths(input.targets.h1),
       toHundredths(input.targets.h24),
       toHundredths(input.targets.d7),
@@ -584,8 +670,7 @@ export function createObjective(input: ObjectiveInput): ObjectiveDetail {
       details: {
         serviceId: s.id,
         applicationId: input.applicationId,
-        platformId: input.platformId,
-        endpointKey: input.endpointKey,
+        ...(input.monitorId ? { monitorId: input.monitorId } : { platformId: input.platformId, endpointKey: input.endpointKey }),
         targets: input.targets,
         notify: input.notify,
       },
@@ -597,7 +682,12 @@ export function createObjective(input: ObjectiveInput): ObjectiveDetail {
 export function updateObjective(objectiveId: string, change: ObjectiveUpdate): ObjectiveDetail {
   const u = me();
   const cur = objectiveRow(objectiveId);
-  const input: Resolved = { ...change, platformId: change.platformId ?? cur.platform_id, endpointKey: change.endpointKey ?? cur.endpoint_key };
+  // a new source replaces the old one; without one the source stays
+  const input: Resolved = change.monitorId
+    ? { ...change, platformId: '', endpointKey: '', monitorId: change.monitorId }
+    : change.platformId !== undefined
+      ? { ...change, platformId: change.platformId, endpointKey: change.endpointKey!, monitorId: null }
+      : { ...change, platformId: cur.platform_id, endpointKey: cur.endpoint_key, monitorId: cur.monitor_id ?? null };
   const s = serviceRef(cur.service_id);
   if (!canEdit(u, s)) forbid('change objectives of this service', 'changeService');
   if (cur.archived_at) throw new HttpError(409, 'The objective is archived – restore it first', 'OBJECTIVE_ARCHIVED', { id: objectiveId });
@@ -608,23 +698,25 @@ export function updateObjective(objectiveId: string, change: ObjectiveUpdate): O
     description: input.description,
     platform_id: input.platformId,
     endpoint_key: input.endpointKey,
+    monitor_id: input.monitorId,
     target_h1: toHundredths(input.targets.h1),
     target_h24: toHundredths(input.targets.h24),
     target_d7: toHundredths(input.targets.d7),
     target_d30: toHundredths(input.targets.d30),
     notify: input.notify ? 1 : 0,
   };
-  const changes = (Object.keys(next) as (keyof typeof next)[]).filter((k) => (next[k] ?? null) !== (cur[k] === null ? null : cur[k]));
+  const changes = (Object.keys(next) as (keyof typeof next)[]).filter((k) => (next[k] ?? null) !== (cur[k] ?? null));
   if (!changes.length) return getObjective(objectiveId);
   db().tx(() => {
     db().run(
-      `UPDATE availability_objectives SET application_id = ?, name = ?, description = ?, platform_id = ?, endpoint_key = ?, target_h1 = ?, target_h24 = ?,
-         target_d7 = ?, target_d30 = ?, notify = ?, updated_at = ?, updated_by = ? WHERE id = ?`,
+      `UPDATE availability_objectives SET application_id = ?, name = ?, description = ?, platform_id = ?, endpoint_key = ?, monitor_id = ?, target_h1 = ?,
+         target_h24 = ?, target_d7 = ?, target_d30 = ?, notify = ?, updated_at = ?, updated_by = ? WHERE id = ?`,
       next.application_id,
       next.name,
       next.description,
       next.platform_id,
       next.endpoint_key,
+      next.monitor_id,
       next.target_h1,
       next.target_h24,
       next.target_d7,
@@ -700,4 +792,29 @@ export async function readPromObjectives(now = Date.now(), force = false): Promi
     read++;
   }
   return read;
+}
+
+// ---------- the SLA of scheduled reports (0.11, ADR 0018) ----------
+
+/**
+ * The target a scheduled report judges a monitor by when its availability section takes SLA targets from objectives:
+ * among the active objectives that have the monitor as source (of services the caller may see), the target of the
+ * window closest to the report period (1 h, 24 h, 7 d or 30 d); with several objectives the strictest. Null: none.
+ */
+export function objectiveTargetForMonitor(monitorId: string, periodMs: number): { target: number; name: string; window: ObjectiveWindow } | null {
+  let best: { target: number; name: string; window: ObjectiveWindow } | null = null;
+  for (const r of db().all<ObjectiveRow & { svc_owners: string; svc_archived: number }>(
+    `SELECT o.*, s.owners AS svc_owners, s.archived AS svc_archived FROM availability_objectives o JOIN services s ON s.id = o.service_id
+     WHERE o.monitor_id = ? AND o.archived_at IS NULL ORDER BY o.name, o.id`,
+    monitorId,
+  )) {
+    if (Number(r.svc_archived) || !catalogueVisibleNow('service', { id: r.service_id, owners: r.svc_owners })) continue;
+    const windows = OBJECTIVE_WINDOWS.filter((w) => r[targetColumn(w)] !== null && r[targetColumn(w)] !== undefined);
+    if (!windows.length) continue;
+    const distance = (w: ObjectiveWindow) => Math.abs(Math.log(OBJECTIVE_WINDOW_MS[w] / Math.max(periodMs, 1)));
+    const w = windows.reduce((a, b) => (distance(b) < distance(a) ? b : a));
+    const target = Number(r[targetColumn(w)]) / 100;
+    if (!best || target > best.target) best = { target, name: r.name, window: w };
+  }
+  return best;
 }

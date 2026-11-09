@@ -23,6 +23,7 @@ import {
   DB_SCHEMA_LIMITS,
   LIBRARY_LIMITS,
   PLANT_LIMITS,
+  PLANT_COLLECTION_LIMITS,
   RECORDING_LIMITS,
   REPORT_LOGO_MAX_BYTES,
 } from '@sm/shared';
@@ -76,6 +77,11 @@ export const LARGE_BODIES = {
   catalogueImport: { routes: ['POST /api/compliance/catalogues/import'], bytes: jsonText(CATALOGUE_LIMITS.importBytes, 16 * KIB) },
   /** Plant registry files (YAML or JSON, #218): PLANT_LIMITS.importBytes (8 MB) together */
   plantImport: { routes: ['POST /api/plant/import', 'POST /api/plant/import/preview'], bytes: jsonText(PLANT_LIMITS.importBytes) },
+  /** A collector's configuration files and a mapping file (0.11.0): PLANT_COLLECTION_LIMITS.fileBytes (4 MB) together, plus the decisions */
+  plantCollectionImport: {
+    routes: ['POST /api/plant/assets/:assetId/collections/import', 'POST /api/plant/assets/:assetId/collections/import/preview'],
+    bytes: jsonText(PLANT_COLLECTION_LIMITS.fileBytes * 2, 2 * 1024 * KIB),
+  },
   /** A monitor file (YAML): MONITOR_IMPORT_LIMITS.yamlChars (512 KB) – line breaks are escaped in JSON */
   monitorImport: { routes: ['POST /api/monitors/import', 'POST /api/monitors/import/preview'], bytes: jsonText(MONITOR_IMPORT_LIMITS.yamlChars) },
   /** Instances of a monitor template from a CSV file: MONITOR_IMPORT_LIMITS.csvChars (1 MB) */

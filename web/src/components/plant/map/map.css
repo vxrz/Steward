@@ -36,6 +36,19 @@
   box-shadow: 0 1px 4px rgb(0 0 0 / 30%);
   cursor: pointer;
   white-space: nowrap;
+  /* moved in the map's own frame (SitesMap's position), on the compositor */
+  will-change: transform;
+}
+/* drawn ahead of the view (half a view around it) but not shown, focusable or announced until it is in view */
+.pm-pin[data-off],
+.pm-cluster[data-off] {
+  visibility: hidden;
+}
+/* the open card's anchor, inside its pin and covering it: a click on the pin closes the card */
+.pm-anchor {
+  position: absolute;
+  inset: -3px;
+  border-radius: inherit;
 }
 .pm-pin {
   padding: 4px 8px 4px 5px;
@@ -119,4 +132,15 @@
 }
 .pm-wrap .maplibregl-ctrl-group button:focus-visible {
   box-shadow: 0 0 0 3px var(--mantine-primary-color-filled);
+}
+/* the position picker's pin: placed in the map's own frame, like the pins of the map of sites */
+.pm-picker-pin {
+  position: absolute;
+  left: 0;
+  top: 0;
+  line-height: 0;
+  color: var(--pv-fail);
+  pointer-events: none;
+  will-change: transform;
+  visibility: hidden; /* until it is placed */
 }

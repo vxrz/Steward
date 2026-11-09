@@ -35,10 +35,13 @@ import type plant from '../locales/en/plant.json';
 import type plantNetwork from '../locales/en/plantNetwork.json';
 import type plantViews from '../locales/en/plantViews.json';
 import type plantMap from '../locales/en/plantMap.json';
+import type plantModel from '../locales/en/plantModel.json';
+import type plantIds from '../locales/en/plantIds.json';
 import type costs from '../locales/en/costs.json';
 import type contracts from '../locales/en/contracts.json';
 import type libraries from '../locales/en/libraries.json';
 import type debug from '../locales/en/debug.json';
+import type modules from '../locales/en/modules.json';
 import auth from '../locales/en/auth.json';
 import common from '../locales/en/common.json';
 import errors from '../locales/en/errors.json';
@@ -87,8 +90,11 @@ export interface Resources {
   plantNetwork: typeof plantNetwork;
   plantViews: typeof plantViews;
   plantMap: typeof plantMap;
+  plantModel: typeof plantModel;
+  plantIds: typeof plantIds;
   costs: typeof costs;
   contracts: typeof contracts;
   libraries: typeof libraries;
   debug: typeof debug;
+  modules: typeof modules;
 }

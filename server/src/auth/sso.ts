@@ -626,8 +626,14 @@ function stepUpParameters(p: SsoProvider, mfa?: StepUpMfaAsk): Record<string, st
 }
 
 export async function startSignIn(providerId: string, redirectUri: string, returnTo: string | undefined, setCookie: SetCookie): Promise<string> {
-  const p = getProvider(providerId);
-  if (!p.enabled) throw new HttpError(400, 'This sign-in provider is disabled');
+  let p: SsoProvider;
+  try {
+    p = getProvider(providerId);
+  } catch (e) {
+    if (e instanceof HttpError && e.statusCode === 404) throw new HttpError(404, e.message, 'SSO_PROVIDER_UNAVAILABLE');
+    throw e;
+  }
+  if (!p.enabled) throw new HttpError(400, 'This sign-in provider is disabled', 'SSO_PROVIDER_UNAVAILABLE');
   const config = await clientConfig(p);
   return authorizationUrl(p, config, { providerId, redirectUri, returnTo: safeReturnTo(returnTo) }, setCookie);
 }
@@ -643,7 +649,9 @@ interface ReceivedClaims {
 /** The claims of the redirect back from the identity provider (code exchange, ID token validation, optionally userinfo). */
 async function receiveClaims(p: SsoProvider, flow: Pending, state: string, currentUrl: URL, wantUserinfo: boolean): Promise<ReceivedClaims> {
   const idpError = currentUrl.searchParams.get('error');
-  if (idpError) throw new HttpError(400, `Identity provider: ${(currentUrl.searchParams.get('error_description') ?? idpError).slice(0, 300)}`);
+  // the description is the provider's text (or an attacker's, with a stolen state): logged and shown to administrators in
+  // the test sign-in, never on the sign-in page (routes/auth.ts ssoFail shows a fixed text for the code)
+  if (idpError) throw new HttpError(400, `Identity provider: ${(currentUrl.searchParams.get('error_description') ?? idpError).slice(0, 300)}`, 'SSO_IDP_ERROR');
   const config = await clientConfig(p);
   // openid-client compares the callback URL with the registered redirect URI
   const callback = new URL(flow.redirectUri);
@@ -655,7 +663,7 @@ async function receiveClaims(p: SsoProvider, flow: Pending, state: string, curre
     idTokenExpected: true,
   });
   const idToken = tokens.claims() as Claims | undefined;
-  if (!idToken?.sub) throw new HttpError(400, 'The identity provider did not return an ID token');
+  if (!idToken?.sub) throw new HttpError(400, 'The identity provider did not return an ID token', 'SSO_IDP_ERROR');
   const out: ReceivedClaims = { idToken: { ...idToken } };
   if (wantUserinfo && config.serverMetadata().userinfo_endpoint && tokens.access_token) {
     try {
@@ -711,17 +719,18 @@ const UNKNOWN_SIGN_IN = 'The sign-in attempt expired or is unknown – please tr
 export async function finishSignIn(currentUrl: URL, meta: { ip?: string; userAgent?: string }, cookieHeader: string | undefined): Promise<CallbackResult> {
   const state = currentUrl.searchParams.get('state') ?? '';
   const flow = pending.get(state);
-  if (!flow || flow.expires < Date.now()) throw new HttpError(400, UNKNOWN_SIGN_IN);
+  if (!flow || flow.expires < Date.now()) throw new HttpError(400, UNKNOWN_SIGN_IN, 'SSO_STATE_UNKNOWN');
   pending.delete(state);
   if (!sameBrowser(flow, readCookie(cookieHeader, ssoBindingCookieName(state)))) {
     auditUnboundCallback(flow, meta.ip);
-    throw new HttpError(400, UNKNOWN_SIGN_IN);
+    throw new HttpError(400, UNKNOWN_SIGN_IN, 'SSO_STATE_UNKNOWN');
   }
   if (flow.test) return finishTest(flow, state, currentUrl);
   if (flow.stepUp) return finishStepUp(flow, state, currentUrl);
   const p = getProvider(flow.providerId);
   const received = await receiveClaims(p, flow, state, currentUrl, p.useUserinfo);
-  if (p.useUserinfo && received.userinfoError) throw new HttpError(502, `Could not read the userinfo of ${p.displayName}: ${received.userinfoError}`);
+  if (p.useUserinfo && received.userinfoError)
+    throw new HttpError(502, `Could not read the userinfo of ${p.displayName}: ${received.userinfoError}`, 'SSO_IDP_ERROR');
   const user = provisionUser(p, mergedClaims(p, received));
   // a sign-in the provider says was fresh (auth_time) confirms the session for sensitive actions right away
   const fresh = freshAuthentication(p, received.idToken);
@@ -830,7 +839,7 @@ function freshAuthentication(
     return {
       refusal: {
         code: 'STEP_UP_NO_AUTH_TIME',
-        message: `${p.displayName} did not say when you signed in (claim auth_time) – an administrator has to set the provider up to send it (docs/SSO.md#step-up)`,
+        message: `${p.displayName} did not say when you signed in (claim auth_time) – an administrator has to set the provider up to send it (docs/SSO.md#step-up-re-authentication)`,
       },
     };
   }
@@ -1556,7 +1565,8 @@ export function testResult(testId: string, adminId: string, draft?: unknown): Ss
 
 /** Redirect URI to register at the identity provider. */
 export function redirectUriFor(req: { protocol: string; host: string }): string {
-  // SM_PUBLIC_URL includes the base path; without it the request's address (X-Forwarded-Proto/-Host only from SM_TRUST_PROXY)
+  // SM_PUBLIC_URL includes the base path; without it the request's address (X-Forwarded-Proto/-Host only from SM_TRUST_PROXY,
+  // and the forwarded host must be on the allow-list like the Host header, app.ts)
   const base = appConfig.publicUrl ?? `${req.protocol}://${req.host}${appConfig.basePath}`;
   return `${base}/api/auth/oidc/callback`;
 }

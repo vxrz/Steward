@@ -156,7 +156,10 @@
   "validation": {
     "required": "Pflichtfeld",
     "requiredOne": "Mindestens eine Auswahl",
-    "invalid": "Ungültig"
+    "invalid": "Ungültig",
+    "url": "Geben Sie eine Webadresse ein, die mit http:// oder https:// beginnt",
+    "minLength": "Mindestens {{count}} Zeichen",
+    "currency": "Ein Währungscode aus drei Buchstaben, z. B. EUR"
   },
   "tags": {
     "hint": "Ein Schlüssel, optional mit Wert: Schlüssel eingeben, mit Tab zum Wert, mit Enter hinzufügen (z. B. env: prod oder nur pci).",

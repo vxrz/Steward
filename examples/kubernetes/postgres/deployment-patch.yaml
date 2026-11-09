@@ -1,0 +1,41 @@
+# Strategic merge patch for ../deployment.yaml. The data folder stays: vault.json, artifacts, reports, documents
+# and the pg_dump before each update (SM_UPGRADE_BACKUPS) are files. Recreate stays too: a second pod would wait
+# for the database lease (docs/INSTALL.md, "One instance per database schema").
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: steward
+spec:
+  template:
+    spec:
+      # The same as in ../deployment.yaml: repeated so that the patch read on its own (by a scanner) asks for no root
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: steward
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          env:
+            - name: SM_DATABASE_URL_FILE
+              value: /run/secrets/steward-database/url
+            - name: SM_DATABASE_SCHEMA
+              value: steward
+            # The image's pg_dump is PostgreSQL 17's: for a newer server, point SM_PG_DUMP and SM_PG_RESTORE at
+            # programs of its version (a custom image), or the copy before an update fails – and stops the update.
+          volumeMounts:
+            - name: database-url
+              mountPath: /run/secrets/steward-database
+              readOnly: true
+      volumes:
+        - name: database-url
+          secret:
+            secretName: steward-database
+            defaultMode: 0440

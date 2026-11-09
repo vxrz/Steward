@@ -1,0 +1,179 @@
+{
+  "title": "Module",
+  "intro": "Optionale Bereiche von {{brand}}. Schalten Sie aus, was Ihr Team nicht nutzt: Seiten, Menüeinträge, Routen und Hintergrundaufgaben verschwinden für alle. Die Daten bleiben und sind wieder da, wenn Sie den Bereich wieder einschalten.",
+  "switchLabel": "{{name}} einschalten",
+  "switchedOn": "{{name}} ist eingeschaltet.",
+  "switchedOff": "{{name}} ist ausgeschaltet. Die Daten bleiben erhalten.",
+  "off": {
+    "title": "Dieser Bereich ist ausgeschaltet",
+    "text": "Ein Administrator kann ihn unter Einstellungen → Module einschalten.",
+    "textAdmin": "Sie können ihn unter Einstellungen → Module einschalten. Seine Daten sind erhalten.",
+    "open": "Einstellungen → Module öffnen"
+  },
+  "requires": "Braucht {{name}}.",
+  "ownSettings": "Wird unten eingeschaltet und eingerichtet.",
+  "mapSettings": "Eingeschaltet, solange das Werksregister eingeschaltet und eine Kartenquelle gewählt ist (unten unter Karte).",
+  "defaultOff": "Aus, bis ein Administrator es einschaltet.",
+  "docs": "Reifegrad aller Bereiche und Konnektoren",
+  "items": {
+    "compliance": {
+      "name": "Compliance und Nachweise",
+      "description": "Kontrollkataloge, Zugriffsänderungen, Zugriffsabgleich, Personenprüfungen und Nachweispakete."
+    },
+    "statusPages": {
+      "name": "Statusseiten",
+      "description": "Nur lesbare Seiten für Kolleginnen und Kollegen außerhalb des Teams, und die Rolle Statusbetrachter."
+    },
+    "scorecard": {
+      "name": "Scorecard",
+      "description": "Verfügbarkeitsziele und die Scorecard der Services (eine Ansicht der Services)."
+    },
+    "costs": {
+      "name": "Kosten",
+      "description": "Plattformkosten in einem Kostenmodell (FOCUS-Showback), Budgets und die Kostenleser (eine Ansicht der Services)."
+    },
+    "dataContracts": {
+      "name": "Datenverträge",
+      "description": "ODCS-Datenverträge, ihre Versionen, Regeln für inkompatible Änderungen und Tests."
+    },
+    "ai": {
+      "name": "KI-Modelle",
+      "description": "LLM-Gateways, der Schritt „KI-Modell fragen“, Token-Budgets und das Nutzungsprotokoll."
+    },
+    "teamsBot": {
+      "name": "Freigaben in Microsoft Teams",
+      "description": "Der Teams-Bot, mit dem Freigaben in einer Teams-Karte entschieden werden."
+    },
+    "libraries": {
+      "name": "Gemeinsame Prozessbibliotheken",
+      "description": "Signierte Bibliotheksversionen, vertrauenswürdige Herausgeber und installierte Bibliotheken."
+    },
+    "versionWatch": {
+      "name": "Versionsbeobachtung und Lebensende",
+      "description": "Neueste Versionen und Lebensende-Daten des Technologie-Stacks von Anwendungen und Systemen."
+    },
+    "changedetection": {
+      "name": "changedetection.io",
+      "description": "Seitenbeobachtungen von changedetection.io-Plattformen, ihre Monitorprüfung und Reviews."
+    },
+    "plant": {
+      "name": "Werksregister",
+      "description": "Standorte, Anlagen, Geräteprofile, KPIs und das OT-Netz Ihrer Werke."
+    },
+    "plantMap": {
+      "name": "Standortkarte",
+      "description": "Die Standorte des Werksregisters auf einer Karte, mit Kacheln über {{brand}}."
+    }
+  },
+  "maturity": {
+    "label": "Reifegrad",
+    "stable": {
+      "name": "stabil",
+      "text": "Stabil: breit genutzt und getestet; Änderungen kündigt das Änderungsprotokoll an."
+    },
+    "beta": {
+      "name": "Beta",
+      "text": "Beta: vollständig, aber bisher wenig genutzt. Rechnen Sie mit Ecken und Kanten."
+    },
+    "preview": {
+      "name": "Vorschau",
+      "text": "Vorschau: neu; es kann sich noch so ändern, dass Sie handeln müssen."
+    }
+  },
+  "verified": {
+    "real": "Gegen echte Systeme dieses Produkts getestet.",
+    "mock": "Nur gegen eine Nachbildung des Produkts in den Tests von {{brand}} getestet, noch nicht gegen ein echtes System.",
+    "none": "Spricht mit keinem eigenen Produkt."
+  },
+  "restricted": {
+    "title": "Hier gibt es nichts, was Sie sehen dürfen",
+    "text": "Es gibt Einträge, auf die Sie keinen Zugriff haben. Fragen Sie einen Administrator oder das Team, dem sie gehören."
+  },
+  "glossary": {
+    "title": "Glossar",
+    "open": "Glossar",
+    "intro": "Die Begriffe, die {{brand}} verwendet, und wie sie zusammenhängen.",
+    "relation": "Ein Service besteht aus Anwendungen. Eine Anwendung läuft auf Systemen. {{brand}} erreicht Systeme und Anwendungen über Plattformen.",
+    "docs": "Vollständiges Glossar in der Dokumentation",
+    "groups": {
+      "catalogue": "Katalog",
+      "automation": "Automatisierung",
+      "watching": "Überwachung",
+      "records": "Dokumente und Personen"
+    },
+    "terms": {
+      "service": {
+        "term": "Service",
+        "text": "Was ein Team anderen anbietet, mit einer verantwortlichen Person und einer Kritikalität. Er besteht aus Anwendungen."
+      },
+      "application": {
+        "term": "Anwendung",
+        "text": "Software, aus der ein Service besteht, mit einer CIA-Bewertung. Sie läuft auf Systemen."
+      },
+      "system": {
+        "term": "System",
+        "text": "Worauf Anwendungen laufen: ein Server, eine VM, ein Cluster, eine Appliance oder ein Cloud-Dienst, mit seinen Umgebungen. Teil des Katalogs."
+      },
+      "component": {
+        "term": "Komponente",
+        "text": "Ein Code- oder Datenteil einer Anwendung: ein Repository, Image, eine Bibliothek, ein Topic oder eine Datenbank."
+      },
+      "platform": {
+        "term": "Plattform",
+        "text": "Eine Verbindung, über deren API {{brand}} spricht: Basis-URL, Zugangsdaten, API-Spezifikationen. Kein Katalogeintrag."
+      },
+      "process": {
+        "term": "Prozess",
+        "text": "Ein versionierter Ablauf von Schritten, den {{brand}} ausführt. „Verfahren“ und „Runbook“ meinen in der Dokumentation dasselbe."
+      },
+      "run": {
+        "term": "Ausführung",
+        "text": "Ein Durchlauf eines Prozesses, mit Protokoll und Nachweisen."
+      },
+      "step": {
+        "term": "Schritt",
+        "text": "Ein Knoten eines Prozesses in einer Ausführung: ein Aufruf, eine Prüfung, eine manuelle Aufgabe oder eine Entscheidung."
+      },
+      "decision": {
+        "term": "Entscheidung",
+        "text": "Eine Freigabe oder Auswahl, die eine Person trifft, während eine Ausführung wartet (Meine Aufgaben)."
+      },
+      "monitor": {
+        "term": "Monitor",
+        "text": "Ein Graph aus Prüfungen, der nach Zeitplan läuft und einen Status meldet."
+      },
+      "check": {
+        "term": "Prüfung",
+        "text": "Ein einzelner Test in einem Monitor oder einem Prozessschritt (z. B. HTTP-Status, ein Abfragewert)."
+      },
+      "objective": {
+        "term": "Ziel",
+        "text": "Ein Verfügbarkeitsziel eines Service, über die Zeit gemessen (die Scorecard)."
+      },
+      "document": {
+        "term": "Dokument",
+        "text": "Ein Eintrag mit Typ und Arbeitsablauf: Änderungsanträge, Entscheidungen, Reviews, Firewall-Änderungen. In der Dokumentation auch „Record“."
+      },
+      "credential": {
+        "term": "Zugangsdaten (Register)",
+        "text": "Metadaten zu Geheimnissen, die anderswo liegen (Ablauf, Rotation, Verantwortliche). Es enthält nie das Geheimnis selbst; das tun Plattformen."
+      },
+      "duty": {
+        "term": "Pflicht",
+        "text": "Eine wiederkehrende Verpflichtung eines Service, bewertet an echten Ausführungen: erledigt, verspätet oder versäumt."
+      },
+      "team": {
+        "term": "Team und verantwortliches Team",
+        "text": "Ein Team fasst Personen mit Rollen zusammen. Die verantwortlichen Teams eines Eintrags entscheiden, wer ihn sehen und ändern darf."
+      },
+      "module": {
+        "term": "Modul",
+        "text": "Ein optionaler Bereich, den ein Administrator unter Einstellungen → Module ausschalten kann."
+      }
+    }
+  },
+  "state": {
+    "on": "Ein",
+    "off": "Aus"
+  }
+}

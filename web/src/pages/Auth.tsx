@@ -21,7 +21,7 @@ import { IconChevronDown, IconChevronRight, IconClockHour4, IconLock, IconShield
 import { useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { Trans, useTranslation } from 'react-i18next';
-import type { AuthStatus } from '@sm/shared';
+import { PASSWORD_RULES, passwordLength, type AuthStatus } from '@sm/shared';
 import { post } from '../api';
 import { SsoButtons, SsoErrorAlert, useSsoError } from '../components/sso/SsoButtons';
 import { AppFooter } from '../components/brand/AppFooter';
@@ -29,16 +29,23 @@ import { AppLogo } from '../components/brand/AppLogo';
 import { LanguageMenu } from '../components/LanguageSwitcher';
 import { errorText } from '../i18n/errors';
 import { useAppName } from '../theme';
-
-type PolicyError = 'policyTooShort' | 'policyCharacters';
+import { useFieldErrors } from '../components/common';
 
 /** The shortest master passphrase the server accepts (POST /auth/setup). */
 const PASSPHRASE_MIN = 12;
 
-function policyError(pw: string): PolicyError | null {
-  if (pw.length < 10) return 'policyTooShort';
-  if (!/[A-Za-z]/.test(pw) || !/[^A-Za-z]/.test(pw)) return 'policyCharacters';
-  return null;
+/**
+ * The part of the password rule the browser can check (PASSWORD_RULES): the length in characters of the NFKC form. The
+ * server also refuses common passwords (PASSWORD_POLICY with the context tooCommon, shown as a translated text).
+ */
+const tooShort = (pw: string): boolean => passwordLength(pw) < PASSWORD_RULES.minLength;
+
+/** The rule under a new password field: how many characters are still missing while it is too short. */
+function PasswordRule({ value }: { value: string }) {
+  const { t } = useTranslation('auth');
+  const min = PASSWORD_RULES.minLength;
+  const missing = min - passwordLength(value);
+  return <>{value && missing > 0 ? t('policyTooShortMore', { min, count: missing }) : t('policy', { min })}</>;
 }
 
 function Card({ icon, title, intro, children }: { icon: ReactNode; title: string; intro?: ReactNode; children: ReactNode }) {
@@ -72,7 +79,7 @@ function useRefreshAuth() {
 }
 
 export function SetupPage({ status }: { status: AuthStatus }) {
-  const { t } = useTranslation('auth');
+  const { t } = useTranslation(['auth', 'common']);
   const appName = useAppName();
   const refresh = useRefreshAuth();
   const [passphrase, setPassphrase] = useState('');
@@ -85,13 +92,20 @@ export function SetupPage({ status }: { status: AuthStatus }) {
   const [busy, setBusy] = useState(false);
   const existingVault = status.initialized;
   const [passphraseTouched, setPassphraseTouched] = useState(false);
+  // the button stays enabled: on submit the missing or wrong fields say what is wrong (U16 of the 0.10 review)
+  const required = t('common:validation.required');
+  const v = useFieldErrors({
+    passphrase: existingVault ? !passphrase && required : passphrase.length < PASSPHRASE_MIN && t('setup.passphraseTooShort', { count: PASSPHRASE_MIN }),
+    passphrase2: !existingVault && passphrase !== passphrase2 && t('passphrasesDiffer'),
+    username: !username.trim() && required,
+    password: !password && required,
+    password2: password !== password2 && t('passwordsDiffer'),
+  });
 
   const submit = async () => {
     setError(null);
-    if (!existingVault && passphrase !== passphrase2) return setError(t('passphrasesDiffer'));
-    if (password !== password2) return setError(t('passwordsDiffer'));
-    const pe = policyError(password);
-    if (pe) return setError(t(pe));
+    if (!v.validate()) return;
+    if (tooShort(password)) return setError(t('policyTooShort', { min: PASSWORD_RULES.minLength }));
     setBusy(true);
     try {
       await post('/auth/setup', { passphrase, username: username.trim(), displayName: displayName.trim() || undefined, password });
@@ -110,6 +124,7 @@ export function SetupPage({ status }: { status: AuthStatus }) {
       intro={existingVault ? t('setup.introExistingVault') : t('setup.intro')}
     >
       <form
+        noValidate
         onSubmit={(e) => {
           e.preventDefault();
           submit();
@@ -136,7 +151,8 @@ export function SetupPage({ status }: { status: AuthStatus }) {
                   : t('setup.passphraseRule', { count: PASSPHRASE_MIN })
             }
             error={
-              !existingVault && passphraseTouched && passphrase.length < PASSPHRASE_MIN ? t('setup.passphraseTooShort', { count: PASSPHRASE_MIN }) : undefined
+              v.error('passphrase') ??
+              (!existingVault && passphraseTouched && passphrase.length < PASSPHRASE_MIN ? t('setup.passphraseTooShort', { count: PASSPHRASE_MIN }) : undefined)
             }
             onBlur={() => setPassphraseTouched(true)}
           />
@@ -146,7 +162,7 @@ export function SetupPage({ status }: { status: AuthStatus }) {
               required
               value={passphrase2}
               onChange={(e) => setPassphrase2(e.currentTarget.value)}
-              error={passphrase2 && passphrase.startsWith(passphrase2) === false ? t('passphrasesDiffer') : undefined}
+              error={v.error('passphrase2') ?? (passphrase2 && passphrase.startsWith(passphrase2) === false ? t('passphrasesDiffer') : undefined)}
             />
           )}
           <Text fw={600} size="sm" mt="xs">
@@ -159,6 +175,7 @@ export function SetupPage({ status }: { status: AuthStatus }) {
             onChange={(e) => setUsername(e.currentTarget.value)}
             placeholder={t('setup.usernamePlaceholder')}
             autoComplete="username"
+            error={v.error('username')}
           />
           <TextInput
             label={t('displayName')}
@@ -168,11 +185,12 @@ export function SetupPage({ status }: { status: AuthStatus }) {
           />
           <PasswordInput
             label={t('password')}
-            description={t('policy')}
+            description={<PasswordRule value={password} />}
             required
             value={password}
             onChange={(e) => setPassword(e.currentTarget.value)}
             autoComplete="new-password"
+            error={v.error('password')}
           />
           <PasswordInput
             label={t('repeatPassword')}
@@ -180,9 +198,10 @@ export function SetupPage({ status }: { status: AuthStatus }) {
             value={password2}
             onChange={(e) => setPassword2(e.currentTarget.value)}
             autoComplete="new-password"
+            error={v.error('password2')}
           />
           {error && <Alert color="red">{error}</Alert>}
-          <Button type="submit" loading={busy} disabled={passphrase.length < (existingVault ? 1 : PASSPHRASE_MIN) || !username.trim() || !password}>
+          <Button type="submit" loading={busy}>
             {existingVault ? t('setup.createAdmin') : t('setup.submit')}
           </Button>
           {status.demo && (
@@ -423,8 +442,7 @@ export function ChangePasswordForm({ forced, onDone }: { forced?: boolean; onDon
   const submit = async () => {
     setError(null);
     if (next !== next2) return setError(t('changePassword.newPasswordsDiffer'));
-    const pe = policyError(next);
-    if (pe) return setError(t(pe));
+    if (tooShort(next)) return setError(t('policyTooShort', { min: PASSWORD_RULES.minLength }));
     setBusy(true);
     try {
       await post('/auth/password', { current, next });
@@ -454,7 +472,7 @@ export function ChangePasswordForm({ forced, onDone }: { forced?: boolean; onDon
         />
         <PasswordInput
           label={t('changePassword.new')}
-          description={t('policy')}
+          description={<PasswordRule value={next} />}
           required
           value={next}
           onChange={(e) => setNext(e.currentTarget.value)}

@@ -110,6 +110,15 @@
     "high": "High criticality",
     "critical": "Critical"
   },
+  "levels": {
+    "field": "Level 0 – field devices",
+    "control": "Level 1 – basic control, cells",
+    "supervisory": "Level 2 – supervisory (SCADA, HMI)",
+    "operations": "Level 3 – site operations (MES, historian)",
+    "dmz": "Level 3.5 – industrial DMZ",
+    "enterprise": "Level 4–5 – enterprise network",
+    "external": "External – cloud, vendors"
+  },
   "directions": {
     "a_to_b": "From {{a}} to {{b}}",
     "b_to_a": "From {{b}} to {{a}}",
@@ -218,6 +227,10 @@
     "actions": "Actions for zone {{name}}",
     "criticality": "Criticality",
     "criticalityHelp": "The consequence of a compromise of the assets in it",
+    "level": "Level (Purdue model)",
+    "levelHelp": "Where the zone sits, bottom to top; the diagram draws the zones in this order",
+    "levelDerived": "Derived by the diagram",
+    "levelNotSet": "Not set",
     "vlans": "VLANs",
     "slTarget": "Target security level (SL-T)",
     "slTargetHelp": "Empty: open until a risk assessment sets it",

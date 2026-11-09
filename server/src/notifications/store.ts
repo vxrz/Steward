@@ -1,4 +1,4 @@
-import type { AppNotification, NotificationEvent } from '@sm/shared';
+import { NOTIFICATION_DECISION_EVENTS, type AppNotification, type NotificationEvent } from '@sm/shared';
 import { db } from '../db.js';
 import { HttpError, newId, nowIso } from '../util.js';
 
@@ -49,9 +49,22 @@ export function addInApp(
 }
 
 export function listInApp(userId: string, limit = 50): { items: AppNotification[]; unread: number } {
-  const items = db()
-    .all<NotificationRow>('SELECT * FROM notifications WHERE user_id = ? ORDER BY ts DESC, rowid DESC LIMIT ?', userId, Math.min(Math.max(limit, 1), 500))
-    .map(toNotification);
+  const rows = db().all<NotificationRow>(
+    'SELECT * FROM notifications WHERE user_id = ? ORDER BY ts DESC, rowid DESC LIMIT ?',
+    userId,
+    Math.min(Math.max(limit, 1), 500),
+  );
+  // unread decision requests stay in the list however many alerts came after them (U9 of the 0.10 review)
+  const seen = new Set(rows.map((r) => r.id));
+  const marks = NOTIFICATION_DECISION_EVENTS.map(() => '?').join(', ');
+  const waiting = db()
+    .all<NotificationRow>(
+      `SELECT * FROM notifications WHERE user_id = ? AND read = 0 AND event IN (${marks}) ORDER BY ts DESC, rowid DESC LIMIT 100`,
+      userId,
+      ...NOTIFICATION_DECISION_EVENTS,
+    )
+    .filter((r) => !seen.has(r.id));
+  const items = [...rows, ...waiting].map(toNotification);
   const unread = db().get<{ n: number }>('SELECT COUNT(*) AS n FROM notifications WHERE user_id = ? AND read = 0', userId)!.n;
   return { items, unread };
 }
@@ -63,8 +76,11 @@ export function markRead(userId: string, id: string): void {
   }
 }
 
-export function markAllRead(userId: string): void {
-  db().run('UPDATE notifications SET read = 1 WHERE user_id = ? AND read = 0', userId);
+/** Marks every unread notification of the user read – or only those of the given events (a group in the bell). */
+export function markAllRead(userId: string, events?: readonly string[]): void {
+  if (events?.length)
+    db().run(`UPDATE notifications SET read = 1 WHERE user_id = ? AND read = 0 AND event IN (${events.map(() => '?').join(', ')})`, userId, ...events);
+  else db().run('UPDATE notifications SET read = 1 WHERE user_id = ? AND read = 0', userId);
 }
 
 /** Retention: read notifications older than `days`. */

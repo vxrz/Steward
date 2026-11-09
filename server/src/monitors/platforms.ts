@@ -39,6 +39,11 @@ export function clearPlatformAccessCache(): void {
   cache.clear();
 }
 
+/** A platform's name and kind, without its secrets (the kind guard of checks.ts); undefined: no such platform. */
+export function platformKindRow(id: string): { name: string; kind: string } | undefined {
+  return db().get<{ name: string; kind: string }>('SELECT name, kind FROM platforms WHERE id = ?', id);
+}
+
 /** Platform + decrypted secrets for a background call on behalf of `owner`; throws CheckSetupError otherwise. */
 export function platformFor(owner: string, platformId: string): { platform: Platform; secrets: Record<string, string> } {
   if (!vault().unlocked) throw new CheckSetupError('the vault is locked');

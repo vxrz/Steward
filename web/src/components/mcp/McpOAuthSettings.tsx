@@ -23,11 +23,11 @@ export function McpOAuthSettings() {
   const { t } = useTranslation(['mcp', 'common']);
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ['mcp-oauth'], queryFn: () => get<View>('/settings/mcp-oauth') });
-  const [life, setLife] = useState<{ access: number; refresh: number } | null>(null);
+  const [life, setLife] = useState<{ access: number; refresh: number; max: number } | null>(null);
   const [adding, setAdding] = useState<{ name: string; uris: string } | null>(null);
   const v = q.data;
   useEffect(() => {
-    if (v) setLife({ access: v.settings.accessTokenMinutes, refresh: v.settings.refreshTokenDays });
+    if (v) setLife({ access: v.settings.accessTokenMinutes, refresh: v.settings.refreshTokenDays, max: v.settings.grantMaxDays });
   }, [v]);
   if (!v || !life) return null;
   const apply = (next: View, done?: string) => {
@@ -118,10 +118,19 @@ export function McpOAuthSettings() {
               onChange={(x) => setLife({ ...life, refresh: Number(x) || s.refreshTokenDays })}
               w={200}
             />
+            <NumberInput
+              label={t('oauth.grantMaxDays')}
+              description={t('oauth.grantMaxDaysHint')}
+              min={MCP_OAUTH_LIMITS.grantMaxDays[0]}
+              max={MCP_OAUTH_LIMITS.grantMaxDays[1]}
+              value={life.max}
+              onChange={(x) => setLife({ ...life, max: Number(x) || s.grantMaxDays })}
+              w={200}
+            />
             <Button
               variant="default"
-              disabled={life.access === s.accessTokenMinutes && life.refresh === s.refreshTokenDays}
-              onClick={() => change({ accessTokenMinutes: life.access, refreshTokenDays: life.refresh }, t('oauth.saved'))}
+              disabled={life.access === s.accessTokenMinutes && life.refresh === s.refreshTokenDays && life.max === s.grantMaxDays}
+              onClick={() => change({ accessTokenMinutes: life.access, refreshTokenDays: life.refresh, grantMaxDays: life.max }, t('oauth.saved'))}
             >
               {t('common:save')}
             </Button>

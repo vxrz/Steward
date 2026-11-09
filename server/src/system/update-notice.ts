@@ -29,8 +29,8 @@ export function recordUpdateNotice(list: UpgradeInfo[]): void {
     ? null
     : !migrations.length
       ? 'notNeeded'
-      : db().dialect === 'postgres'
-        ? 'postgres'
+      : list.some((u) => u.backupError)
+        ? 'failed'
         : 'disabled';
   const notice: StoredNotice = {
     id: newId('upd_'),

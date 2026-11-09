@@ -26,7 +26,7 @@ url="${url%/}"
 case "$url" in
   "" | *example.com* | *example.org*)
     echo "error: set DEPENDENCY_TRACK_URL to your Dependency-Track API server (now: '${url:-unset}')" >&2
-    echo "       see docs/WOODPECKER.md, \"Set these two values\"" >&2
+    echo "       see docs/ci/WOODPECKER.md, \"Set these two values\"" >&2
     exit 2
     ;;
   https://* | http://*) ;;

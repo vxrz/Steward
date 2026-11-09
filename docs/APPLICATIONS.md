@@ -194,7 +194,7 @@ _Read all now_ (designers and administrators, `POST /api/catalogue/versions/refr
 - **No credentials to public registries**: requests carry no cookies and no authorization, follow no redirects and stop above 16 MB and after 20 seconds. Package URLs are parsed segment by segment and encoded – `..`, `/` inside a segment or control characters are refused, so an SBOM cannot point a request elsewhere. Platforms (Dependency-Track, container registries, Git) use their own credentials, only on their own origins; a registry's token service gets the platform's credentials only when it is one of the platform's origins (Docker Hub: `auth.docker.io` is a trusted origin of the preset), and only the pull right of one repository is asked for.
 - **Rights**: an entry of an application or system the reader may not see answers like a missing one; a monitor check sees the application as its owner does. A platform named in an entry's setting must be one the person may use, and is read with their rights afterwards (the platforms of the settings with the instance's).
 
-**Set up**: the demo has _Container registry (demo)_ and simulated npm, PyPI, Maven, NuGet, Go and crates.io registries. For real use, add a platform of type _Docker Hub_ or _Container registry_ (GHCR, Harbor, GitLab, Artifactory …: base URL the registry, variable `registry` the host images name, optional `testImage` for the connection test, anonymous or a read-only robot account), choose it under _Version watch_, and allow the registry hosts in the outbound policy. Container registry platforms are read-only (since 0.9.0: only `GET` and `HEAD`, `PLATFORM_METHOD_DENIED` otherwise – also for requests another platform sends below the registry's base URL).
+**Set up**: the demo has _Container registry (demo)_ and simulated npm, PyPI, Maven, NuGet, Go and crates.io registries. For real use, add a platform of type _Docker Hub_ or _Container registry_ (GHCR, Harbor, GitLab, Artifactory …: base URL the registry, variable `registry` the host images name, optional `testImage` for the connection test, anonymous or a read-only robot account), choose it under _Version watch_, and allow the registry hosts in the outbound policy. Container registry platforms are read-only (only `GET` and `HEAD`, `PLATFORM_METHOD_DENIED` otherwise – also for requests another platform sends below the registry's base URL).
 
 ### Processes: input type application
 
@@ -262,7 +262,7 @@ A system has a **name** and a **kind** (server, virtual machine, cluster, applia
 
 The system page lists the applications that run on it with their environment. A system is deleted only when no application runs on it any more.
 
-**Network segments and firewall changes** (0.5.0, optional): a system of the kind _Network segment_ has a VLAN ID, subnets, a zone or security level, a site and who manages its firewall; any system can be _in_ segments, with its address there. The system page's _Firewall & network_ panel shows the segments, the approved firewall rules, the firewall changes and the provider's tickets. Systems are a link kind, so documents, firewall changes and ticket references can name a server directly. _Duplicate_ copies a system with its attributes and its segments (without addresses). Nothing of this is required – see [FIREWALL-CHANGES.md](FIREWALL-CHANGES.md).
+**Network segments and firewall changes** (optional): a system of the kind _Network segment_ has a VLAN ID, subnets, a zone or security level, a site and who manages its firewall; any system can be _in_ segments, with its address there. The system page's _Firewall & network_ panel shows the segments, the approved firewall rules, the firewall changes and the provider's tickets. Systems are a link kind, so documents, firewall changes and ticket references can name a server directly. _Duplicate_ copies a system with its attributes and its segments (without addresses). Nothing of this is required – see [FIREWALL-CHANGES.md](FIREWALL-CHANGES.md).
 
 ### Runs on
 
@@ -280,7 +280,7 @@ Not part of Steward: IP addresses, ports, firewall rules, hardware details, disc
 
 ## Maintenance windows
 
-_Catalogue → Maintenance_ lists planned work as a list or a month calendar. A window has a title, a start and an end, and lists what it affects: platforms, systems, applications and services. It happens once or repeats **weekly** or **monthly** (every n weeks or months, optionally up to a last start). Repetition keeps the wall-clock time in the instance's time zone across daylight saving changes; a monthly window on the 29th to 31st falls on the last day of shorter months.
+_Catalogue → Maintenance_ lists planned work as a list or a month calendar. A window has a title, a start and an end, and lists what it affects: platforms, systems, applications, services and monitors. It happens once or repeats **weekly** or **monthly** (every n weeks or months, optionally up to a last start). Repetition keeps the wall-clock time in the instance's time zone across daylight saving changes; a monthly window on the 29th to 31st falls on the last day of shorter months.
 
 What a window reaches:
 
@@ -289,9 +289,9 @@ What a window reaches:
 
 While a window lasts:
 
-- **Monitors stay quiet** (default on): monitors that check an affected platform show _maintenance_ and send no alerts. Checks are still recorded, and the time does not count against the monitor's uptime – as with a monitor's own maintenance window.
+- **Monitors stay quiet** (default on): monitors it lists, and monitors that check an affected platform, show _maintenance_ and send no alerts. Checks are still recorded, and the time does not count against the monitor's uptime. Since 0.11 this is the only kind of maintenance window: the monitors' own windows were copied into windows that list the monitor ([MONITORS.md](MONITORS.md#concepts), [ADR 0018](adr/0018-one-maintenance-window-concept.md)). Listing a monitor needs the _acknowledge_ right on it.
 - **Pause run messages** (default off): check and run messages of runs bound to an affected platform go to the app only.
-- **Availability objectives** of affected services and applications record a breach but send no message. Their figures stay Gatus' own; each window shows the planned minutes next to them ([SCORECARD.md](SCORECARD.md)).
+- **Availability objectives** of affected services and applications, and objectives whose source is an affected monitor, record a breach but send no message. Each window shows the planned minutes next to the figures ([SCORECARD.md](SCORECARD.md)).
 
 Announcements (notification event _Maintenance_, see [NOTIFICATIONS.md](NOTIFICATIONS.md)) go to the responsible people and the owners of what the window lists and reaches: when it is planned, a reminder before each occurrence (24 hours by default, 0 for none), when it starts and when it ends. Each is sent once per occurrence.
 

@@ -2,7 +2,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { parseDatabaseTarget, type DatabaseTarget } from './database/sql.js';
 import { resolveBasePath } from './basePath.js';
-import { ConfigError, parseEnv, withoutName, type Env } from './config-schema.js';
+import { ConfigError, parseEnv, resolveFileVariants, withoutName, type Env } from './config-schema.js';
 
 export { ConfigError, parseEnv, parseTrustProxy, type Env } from './config-schema.js';
 
@@ -15,7 +15,11 @@ export { ROOT_DIR };
  * (esbuild replaces these two expressions, see scripts/build-exe.mjs), everything else comes from process.env.
  */
 function environment(): Record<string, string | undefined> {
-  return { ...process.env, SM_BUILD_COMMIT: process.env.SM_BUILD_COMMIT, SM_BUILD_DATE: process.env.SM_BUILD_DATE };
+  const raw = { ...process.env, SM_BUILD_COMMIT: process.env.SM_BUILD_COMMIT, SM_BUILD_DATE: process.env.SM_BUILD_DATE };
+  // secrets from files (SM_DATABASE_URL_FILE, …; systemd credentials as %d/…): config-schema.ts FILE_VARIANTS
+  const { env, problems } = resolveFileVariants(raw, (file) => readPassphraseFile(file.replace(/^%d(?=[\\/])/, process.env.CREDENTIALS_DIRECTORY ?? '%d')));
+  if (problems.length) throw new ConfigError(problems);
+  return env;
 }
 
 /**
@@ -116,8 +120,9 @@ export const config = {
     ? check('SM_DATABASE_URL', () => parseDatabaseTarget(env.SM_DATABASE_URL!, { schema: env.SM_DATABASE_SCHEMA, ca: env.SM_DATABASE_CA }))
     : { kind: 'sqlite', file: path.join(dataDir, 'service-manager.db') }) as DatabaseTarget,
   demo: env.SM_DEMO,
-  /** SQLite: automatic copies of the database made before migrations, kept in <data dir>/backups (0 = none). */
+  /** Automatic copies of the database made before migrations (SQLite file or pg_dump), kept in upgradeBackupDir (0 = none). */
   upgradeBackups: env.SM_UPGRADE_BACKUPS,
+  upgradeBackupDir: path.resolve(env.SM_UPGRADE_BACKUP_DIR ?? path.join(dataDir, 'backups')),
   /** Runs at the same time (SM_MAX_CONCURRENT_RUNS, 0 = no limit): further runs wait in status queued, first come first served (engine/runner.ts). */
   maxConcurrentRuns: env.SM_MAX_CONCURRENT_RUNS,
   /** On SIGTERM/SIGINT: how long running steps may still finish before their runs are marked interrupted (bootstrap.ts). */
@@ -177,7 +182,7 @@ const LOOPBACK = ['127.0.0.1', 'localhost', '::1', '[::1]'];
  */
 export function securityWarnings(
   e: Pick<Env, 'SM_ALLOWED_HOSTS' | 'SM_METRICS_PUBLIC'> = env,
-  c: { host: string; demo: boolean; secureCookies: boolean } = config,
+  c: { host: string; demo: boolean; secureCookies: boolean; trustProxy?: unknown; publicUrl?: string } = config,
   passphraseFromEnvironment = passphraseInEnvironment,
 ): string[] {
   const out: string[] = [];
@@ -195,6 +200,11 @@ export function securityWarnings(
   }
   if (passphraseFromEnvironment) {
     out.push('The master passphrase comes from SM_MASTER_PASSPHRASE – prefer SM_MASTER_PASSPHRASE_FILE (a secret file only the service account can read)');
+  }
+  if (c.trustProxy !== undefined && !c.publicUrl) {
+    out.push(
+      'SM_TRUST_PROXY is set without SM_PUBLIC_URL: the addresses of single sign-on and of the OAuth sign-in for MCP clients come from the forwarded host header – set SM_PUBLIC_URL to the address people use',
+    );
   }
   if (e.SM_METRICS_PUBLIC) out.push('SM_METRICS_PUBLIC=1: /api/metrics answers without signing in (counts of runs, checks and platforms)');
   if (config.session.maxMs > 12 * 3_600_000 || config.session.idleMs > 30 * 60_000) {

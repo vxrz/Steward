@@ -2,11 +2,13 @@ import { useEffect, useState } from 'react';
 import { Anchor, Badge, Button, Grid, Group, List, Modal, Paper, Stack, Text, TextInput, Textarea, Title } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { IconDownload, IconEdit, IconFile, IconPlus, IconTrash } from '@tabler/icons-react';
+import { IconArrowBackUp, IconDownload, IconEdit, IconEyeOff, IconFile, IconPlus, IconTrash } from '@tabler/icons-react';
+import { Menu } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
-import type { PlantDataPoint, PlantInterface, PlantProfileDetail, PlantProfileValues } from '@sm/shared';
+import type { PlantDataPoint, PlantInterface, PlantModelOrigin, PlantProfileDetail, PlantProfileSummary, PlantProfileValues } from '@sm/shared';
 import { apiUrl, del, get, notifyError, put } from '../api';
 import { DetailState, EmptyState } from '../components/common';
+import { useAliasRedirect, useChangeId } from '../components/plant/ids';
 import { DetailHeader } from '../components/page/DetailPage';
 import { Field } from '../components/records/common';
 import { confirmDanger } from '../components/confirm';
@@ -16,37 +18,41 @@ import { plantKeys } from '../queryKeys';
 import { NotInSourceBadge, PreviewBadge, useNameOf, usePlantLabel } from '../components/plant/common';
 import { FormButtons } from '../components/plant/forms';
 import { AssetBriefLink, DataPointTable, ProtocolBadge, RowMenu } from '../components/plant/data';
+import {
+  ordered,
+  removePoint as removeOwnPoint,
+  resetInterface,
+  resetPoint,
+  saveGroup,
+  saveInterface,
+  savePoint,
+  setInterfacePresent,
+  setPointPresent,
+} from '../components/plant/profileEdit';
 import { DataPointFormModal, InterfaceFormModal, ProfileFormModal } from '../components/plant/dataForms';
 import { SourceLine } from './PlantSite';
 
-const valuesOf = (p: PlantProfileDetail): PlantProfileValues => ({
-  id: p.id,
-  name: p.name,
-  manufacturer: p.manufacturer,
-  model: p.model,
-  version: p.version,
-  category: p.category,
-  description: p.description,
-  notes: p.notes,
-  interfaces: p.interfaces,
-});
-
-/** The data points without a group come last (as the file lists them). */
-const ordered = (groups: PlantInterface['groups']) => [...groups.filter((g) => g.name), ...groups.filter((g) => !g.name && g.dataPoints.length)];
-
-/** Puts a data point into its group (a new group is added), in place when it stays in its group. */
-function placePoint(iface: PlantInterface, point: PlantDataPoint, group: string, was: string | null): PlantInterface {
-  const groups = iface.groups.map((g) => ({ ...g, dataPoints: [...g.dataPoints] }));
-  const from = was === null ? null : groups.find((g) => g.dataPoints.some((d) => d.id === was));
-  if (from && from.name === group) {
-    from.dataPoints = from.dataPoints.map((d) => (d.id === was ? point : d));
-    return { ...iface, groups };
-  }
-  if (from) from.dataPoints = from.dataPoints.filter((d) => d.id !== was);
-  const to = groups.find((g) => g.name === group);
-  if (to) to.dataPoints.push(point);
-  else groups.push({ name: group, description: '', dataPoints: [point] });
-  return { ...iface, groups: ordered(groups) };
+/** Where an interface or data point of a derived profile comes from (0.11.0); nothing on a profile without a base. */
+function OriginBadge({ origin, derived, nameOf }: { origin: PlantModelOrigin | undefined; derived: boolean; nameOf: (id: string) => string }) {
+  const { t } = useTranslation('plantModel');
+  if (!derived || !origin) return null;
+  if (origin.kind === 'own')
+    return (
+      <Badge size="xs" variant="light" color="green" tt="none" data-testid="origin-own">
+        {t('origin.own')}
+      </Badge>
+    );
+  if (origin.kind === 'overridden')
+    return (
+      <Badge size="xs" variant="light" color="blue" tt="none" data-testid="origin-overridden">
+        {t('origin.overridden', { fields: origin.fields.join(', '), from: nameOf(origin.from) })}
+      </Badge>
+    );
+  return (
+    <Badge size="xs" variant="default" tt="none" data-testid="origin-inherited">
+      {t('origin.inherited', { from: nameOf(origin.from) })}
+    </Badge>
+  );
 }
 
 type Dialog =
@@ -60,7 +66,7 @@ type Dialog =
  * interface exchanges, the assets that have the profile and the KPI definitions that read it.
  */
 export function PlantProfilePage() {
-  const { t } = useTranslation(['plant', 'common']);
+  const { t } = useTranslation(['plant', 'common', 'plantModel']);
   const label = usePlantLabel();
   const nameOf = useNameOf();
   const { profileId } = useParams();
@@ -70,6 +76,7 @@ export function PlantProfilePage() {
   const q = useQuery({ queryKey: plantKeys.profile(profileId), queryFn: () => get<PlantProfileDetail>(`/plant/profiles/${encodeURIComponent(profileId!)}`) });
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const p = q.data;
+  const profiles = useQuery({ queryKey: plantKeys.profiles, queryFn: () => get<PlantProfileSummary[]>('/plant/profiles'), enabled: !!p?.canManage });
   // ?edit=1 (after Duplicate): open the form once the profile is loaded
   useEffect(() => {
     if (p?.canManage && search.get('edit') === '1') {
@@ -77,6 +84,8 @@ export function PlantProfilePage() {
       setSearch({}, { replace: true });
     }
   }, [p?.canManage, search, setSearch]);
+  useAliasRedirect([[profileId, p?.id]]);
+  const changeId = useChangeId(p ? { kind: 'profile', id: p.id, name: p.name } : null, !!p?.canManage);
   if (!p) return <DetailState query={q} back="plantProfiles" />;
   const base = `/plant/profiles/${encodeURIComponent(p.id)}`;
   const save = async (next: PlantProfileValues) => {
@@ -86,13 +95,12 @@ export function PlantProfilePage() {
     void qc.invalidateQueries({ queryKey: plantKeys.profiles });
     void qc.invalidateQueries({ queryKey: ['plant', 'point', p.id] });
   };
-  const values = valuesOf(p);
-  const withInterface = (iface: PlantInterface) => ({
-    ...values,
-    interfaces: values.interfaces.some((i) => i.id === iface.id)
-      ? values.interfaces.map((i) => (i.id === iface.id ? iface : i))
-      : [...values.interfaces, iface],
-  });
+  const values = p.own;
+  const derived = !!p.extends;
+  const nameOf2 = (id: string) => (id === p.id ? p.name : (p.bases.find((b) => b.id === id)?.name ?? id));
+  const inheritedIface = (id: string) => p.origins.interfaces[id]?.kind !== undefined && p.origins.interfaces[id]?.kind !== 'own';
+  const inheritedPoint = (id: string) => p.origins.points[id]?.kind !== undefined && p.origins.points[id]?.kind !== 'own';
+  const act = (next: PlantProfileValues) => void save(next).catch(notifyError);
   const allPoints = p.interfaces.flatMap((i) => i.groups.flatMap((g) => g.dataPoints.map((d) => d.id)));
   const remove = async () => {
     if (!(await confirmDanger({ action: 'delete', message: t('profile.deleteConfirm', { name: p.name }) }))) return;
@@ -111,9 +119,33 @@ export function PlantProfilePage() {
   };
   const removePoint = async (iface: PlantInterface, point: PlantDataPoint) => {
     if (!(await confirmDanger({ action: 'remove', message: t('data.removePointConfirm', { name: point.name }) }))) return;
-    const next = { ...iface, groups: ordered(iface.groups.map((g) => ({ ...g, dataPoints: g.dataPoints.filter((d) => d.id !== point.id) }))) };
-    await save(withInterface(next)).catch(notifyError);
+    await save(removeOwnPoint(p, iface.id, point.id)).catch(notifyError);
   };
+  /** The menu of an inherited item: change it (an override), back to the base's values, not present. */
+  const inheritedMenu = (
+    label: string,
+    onEdit: () => void,
+    origin: PlantModelOrigin | undefined,
+    reset: () => PlantProfileValues,
+    drop: () => PlantProfileValues,
+  ) => (
+    <RowMenu
+      label={label}
+      onEdit={onEdit}
+      extra={
+        <>
+          {origin?.kind === 'overridden' && (
+            <Menu.Item leftSection={<IconArrowBackUp size={14} />} onClick={() => act(reset())}>
+              {t('plantModel:actions.reset')}
+            </Menu.Item>
+          )}
+          <Menu.Item leftSection={<IconEyeOff size={14} />} onClick={() => act(drop())}>
+            {t('plantModel:actions.notPresent')}
+          </Menu.Item>
+        </>
+      }
+    />
+  );
   return (
     <>
       <DetailHeader
@@ -150,10 +182,16 @@ export function PlantProfilePage() {
         }
         menu={
           p.canManage
-            ? { items: [{ label: t('profile.delete'), icon: IconTrash, color: 'red', onClick: () => void remove(), testId: 'profile-delete' }] }
+            ? {
+                items: [
+                  ...(changeId.item ? [changeId.item] : []),
+                  { label: t('profile.delete'), icon: IconTrash, color: 'red', onClick: () => void remove(), testId: 'profile-delete' },
+                ],
+              }
             : undefined
         }
       />
+      {changeId.modal}
       <CopiedFromNote kind="device-profile" id={p.id} pathOf={(id) => `/plant/profiles/${encodeURIComponent(id)}`} />
       <Grid gap="lg">
         <Grid.Col span={{ base: 12, md: 8 }}>
@@ -162,6 +200,85 @@ export function PlantProfilePage() {
               <Text size="sm" style={{ whiteSpace: 'pre-line' }}>
                 {p.description}
               </Text>
+            )}
+            {derived && (
+              <Paper withBorder p="sm" data-testid="profile-bases">
+                <Stack gap={6}>
+                  <Group gap={6} wrap="wrap">
+                    <Text size="sm" fw={600}>
+                      {t('plantModel:extends.chain')}
+                    </Text>
+                    {p.bases.map((b, i) => (
+                      <Group key={b.id} gap={6} wrap="nowrap">
+                        {i > 0 && (
+                          <Text size="sm" c="dimmed" aria-hidden>
+                            →
+                          </Text>
+                        )}
+                        {b.exists ? (
+                          <Anchor component={Link} to={`/plant/profiles/${encodeURIComponent(b.id)}`} size="sm">
+                            {b.name}
+                          </Anchor>
+                        ) : (
+                          <Text size="sm" className="mono">
+                            {b.id}
+                          </Text>
+                        )}
+                      </Group>
+                    ))}
+                  </Group>
+                  <Text size="xs" c="dimmed">
+                    {t('plantModel:extends.chainHelp')}
+                  </Text>
+                  {(p.notPresent.interfaces.length > 0 || p.notPresent.points.length > 0) && (
+                    <Stack gap={4} data-testid="profile-not-present">
+                      <Text size="sm" fw={500}>
+                        {t('plantModel:notPresent.title')}
+                      </Text>
+                      {[
+                        ...p.notPresent.interfaces.map((x) => ({
+                          key: `i:${x.id}`,
+                          label: t('plantModel:notPresent.interface', { name: x.name }),
+                          x,
+                          kind: 'interface' as const,
+                        })),
+                        ...p.notPresent.points.map((x) => ({
+                          key: `p:${x.id}`,
+                          label: t('plantModel:notPresent.point', { name: x.name, id: x.id }),
+                          x,
+                          kind: 'point' as const,
+                        })),
+                      ].map((r) => (
+                        <Group key={r.key} gap="xs" wrap="nowrap" justify="space-between">
+                          <Text size="sm" style={{ overflowWrap: 'anywhere' }}>
+                            {r.label}
+                            {r.x.by !== p.id && (
+                              <Text span size="xs" c="dimmed">
+                                {' '}
+                                {t('plantModel:notPresent.by', { name: nameOf2(r.x.by) })}
+                              </Text>
+                            )}
+                          </Text>
+                          {p.canManage && r.x.by === p.id && (
+                            <Button
+                              size="compact-xs"
+                              variant="subtle"
+                              onClick={() => act(r.kind === 'interface' ? setInterfacePresent(p, r.x.id, true) : setPointPresent(p, r.x.id, true))}
+                            >
+                              {t('plantModel:actions.restore')}
+                            </Button>
+                          )}
+                        </Group>
+                      ))}
+                    </Stack>
+                  )}
+                  {(p.unusedOverrides.interfaces.length > 0 || p.unusedOverrides.points.length > 0) && (
+                    <Text size="xs" data-testid="profile-unused-overrides">
+                      {t('plantModel:unused', { items: [...p.unusedOverrides.interfaces, ...p.unusedOverrides.points].join(', ') })}
+                    </Text>
+                  )}
+                </Stack>
+              </Paper>
             )}
             <Stack gap="sm" data-testid="profile-interfaces">
               <Group justify="space-between" wrap="wrap" gap="xs">
@@ -194,6 +311,7 @@ export function PlantProfilePage() {
                             {iface.name || iface.id}
                           </Title>
                           <ProtocolBadge protocol={iface.protocol} />
+                          <OriginBadge origin={p.origins.interfaces[iface.id]} derived={derived} nameOf={nameOf2} />
                         </Group>
                         <Text size="xs" c="dimmed" style={{ overflowWrap: 'anywhere' }}>
                           {[
@@ -217,11 +335,21 @@ export function PlantProfilePage() {
                           >
                             {t('data.addPoint')}
                           </Button>
-                          <RowMenu
-                            label={t('data.interfaceActions', { name: iface.name || iface.id })}
-                            onEdit={() => setDialog({ kind: 'interface', iface })}
-                            onRemove={() => void removeInterface(iface)}
-                          />
+                          {inheritedIface(iface.id) ? (
+                            inheritedMenu(
+                              t('data.interfaceActions', { name: iface.name || iface.id }),
+                              () => setDialog({ kind: 'interface', iface }),
+                              p.origins.interfaces[iface.id],
+                              () => resetInterface(p, iface.id),
+                              () => setInterfacePresent(p, iface.id, false),
+                            )
+                          ) : (
+                            <RowMenu
+                              label={t('data.interfaceActions', { name: iface.name || iface.id })}
+                              onEdit={() => setDialog({ kind: 'interface', iface })}
+                              onRemove={() => void removeInterface(iface)}
+                            />
+                          )}
                         </Group>
                       )}
                     </Group>
@@ -248,12 +376,14 @@ export function PlantProfilePage() {
                               </Text>
                             )}
                           </div>
-                          {p.canManage && g.name && (
-                            <RowMenu
-                              label={t('data.groupActions', { name: g.name })}
-                              onEdit={() => setDialog({ kind: 'group', iface, group: g.name, description: g.description })}
-                            />
-                          )}
+                          {p.canManage &&
+                            g.name &&
+                            !(inheritedIface(iface.id) && p.base?.interfaces.find((x) => x.id === iface.id)?.groups.some((x) => x.name === g.name)) && (
+                              <RowMenu
+                                label={t('data.groupActions', { name: g.name })}
+                                onEdit={() => setDialog({ kind: 'group', iface, group: g.name, description: g.description })}
+                              />
+                            )}
                         </Group>
                         <DataPointTable
                           profileId={p.id}
@@ -263,6 +393,24 @@ export function PlantProfilePage() {
                           canManage={p.canManage}
                           onEdit={(point) => setDialog({ kind: 'point', iface, group: g.name, point })}
                           onRemove={(point) => void removePoint(iface, point)}
+                          badge={(point) => <OriginBadge origin={p.origins.points[point.id]} derived={derived} nameOf={nameOf2} />}
+                          menuFor={(point) =>
+                            inheritedPoint(point.id) ? (
+                              inheritedMenu(
+                                t('data.pointActions', { name: point.name }),
+                                () => setDialog({ kind: 'point', iface, group: g.name, point }),
+                                p.origins.points[point.id],
+                                () => resetPoint(p, point.id),
+                                () => setPointPresent(p, point.id, false),
+                              )
+                            ) : (
+                              <RowMenu
+                                label={t('data.pointActions', { name: point.name })}
+                                onEdit={() => setDialog({ kind: 'point', iface, group: g.name, point })}
+                                onRemove={() => void removePoint(iface, point)}
+                              />
+                            )
+                          }
                         />
                       </Stack>
                     ))}
@@ -329,6 +477,30 @@ export function PlantProfilePage() {
                 )}
               </Stack>
             </Paper>
+            {(p.extendedBy.length > 0 || derived) && (
+              <Paper withBorder p="md" data-testid="profile-extended-by">
+                <Stack gap="xs">
+                  <Title order={2} fz="h5">
+                    {t('plantModel:extends.extendedBy')}
+                  </Title>
+                  {p.extendedBy.length === 0 ? (
+                    <Text size="sm" c="dimmed">
+                      {t('plantModel:extends.noneExtends')}
+                    </Text>
+                  ) : (
+                    <List size="sm" spacing={2}>
+                      {p.extendedBy.map((x) => (
+                        <List.Item key={x.id}>
+                          <Anchor component={Link} to={`/plant/profiles/${encodeURIComponent(x.id)}`} size="sm">
+                            {x.name}
+                          </Anchor>
+                        </List.Item>
+                      ))}
+                    </List>
+                  )}
+                </Stack>
+              </Paper>
+            )}
             <Paper withBorder p="md" data-testid="profile-kpis">
               <Stack gap="xs">
                 <Title order={2} fz="h5">
@@ -381,13 +553,21 @@ export function PlantProfilePage() {
           </Stack>
         </Grid.Col>
       </Grid>
-      {dialog?.kind === 'profile' && <ProfileFormModal profile={values} onClose={() => setDialog(null)} onSave={save} />}
+      {dialog?.kind === 'profile' && (
+        <ProfileFormModal
+          profile={values}
+          bases={(profiles.data ?? []).filter((x) => x.id !== p.id).map((x) => ({ value: x.id, label: `${x.name} (${x.id})` }))}
+          onClose={() => setDialog(null)}
+          onSave={save}
+        />
+      )}
       {dialog?.kind === 'interface' && (
         <InterfaceFormModal
           iface={dialog.iface}
           taken={p.interfaces.map((i) => i.id)}
+          inherited={!!dialog.iface && inheritedIface(dialog.iface.id)}
           onClose={() => setDialog(null)}
-          onSave={(iface) => save(withInterface(iface))}
+          onSave={(iface) => save(saveInterface(p, iface))}
         />
       )}
       {dialog?.kind === 'point' && (
@@ -397,8 +577,9 @@ export function PlantProfilePage() {
           group={dialog.group}
           groups={dialog.iface.groups.map((g) => g.name)}
           taken={allPoints}
+          inherited={!!dialog.point && inheritedPoint(dialog.point.id)}
           onClose={() => setDialog(null)}
-          onSave={(point, group) => save(withInterface(placePoint(dialog.iface, point, group, dialog.point?.id ?? null)))}
+          onSave={(point, group) => save(savePoint(p, dialog.iface.id, point, group, dialog.point?.id ?? null))}
         />
       )}
       {dialog?.kind === 'group' && (
@@ -407,14 +588,7 @@ export function PlantProfilePage() {
           description={dialog.description}
           taken={dialog.iface.groups.map((g) => g.name).filter((n) => n !== dialog.group)}
           onClose={() => setDialog(null)}
-          onSave={(name, description) =>
-            save(
-              withInterface({
-                ...dialog.iface,
-                groups: dialog.iface.groups.map((g) => (g.name === dialog.group ? { ...g, name, description } : g)),
-              }),
-            )
-          }
+          onSave={(name, description) => save(saveGroup(p, dialog.iface.id, dialog.group, name, description))}
         />
       )}
     </>

@@ -95,7 +95,7 @@
     "development": "Entwicklungs-Build",
     "linksTitle": "Dokumentation und Links",
     "links": {
-      "docs": "Dokumentation (README)",
+      "docs": "Dokumentation (Übersicht)",
       "guides": "Anleitungen (Ordner docs)",
       "changelog": "Änderungsprotokoll",
       "security": "Sicherheitslücke melden (SECURITY.md)",
@@ -333,7 +333,8 @@
         "audit-checkpoint": "Signierter Prüfpunkt des Audit-Protokolls",
         "scheduler-heartbeat": "Markierung des Zeitplaners: spätere Termine gelten beim nächsten Start als verpasst",
         "git-sync": "Geplante Abrufe der Git-Synchronisierung"
-      }
+      },
+      "switchedOff": "Modul ausgeschaltet"
     }
   },
   "updateNotice": {
@@ -348,7 +349,8 @@
     "noBackup": {
       "notNeeded": "Eine Kopie der Datenbank war nicht nötig.",
       "postgres": "Steward kopiert eine PostgreSQL-Datenbank nicht selbst. Sichern Sie sie vor jedem Update mit pg_dump.",
-      "disabled": "Es wurde keine Kopie der Datenbank angelegt: Automatische Kopien sind ausgeschaltet (SM_UPGRADE_BACKUPS=0)."
+      "disabled": "Es wurde keine Kopie der Datenbank angelegt: Automatische Kopien sind ausgeschaltet (SM_UPGRADE_BACKUPS=0).",
+      "failed": "Die Kopie der Datenbank vor dem Update ist fehlgeschlagen; das Update lief ohne sie weiter (SM_UPGRADE_BACKUP_REQUIRED=0). Den Grund finden Sie im Server-Protokoll."
     },
     "releaseNotes": "Versionshinweise zu {{version}}",
     "dismiss": "Hinweis zum Update ausblenden"

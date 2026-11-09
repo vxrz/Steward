@@ -1,0 +1,15 @@
+# The data folder (/data): the SQLite database, vault.json, artifacts, reports, uploaded documents, the automatic
+# copies before updates (backups/). Use block storage (ReadWriteOnce): SQLite's locking is not reliable on network
+# file systems (NFS, SMB, EFS, ReadWriteMany volumes).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: steward-data
+  labels:
+    app.kubernetes.io/name: steward
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi

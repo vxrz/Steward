@@ -133,6 +133,10 @@
       "resetPassword": {
         "label": "Ein Passwort zurücksetzen",
         "description": "Mit einem vorläufigen Passwort kann sich der Administrator als die Person anmelden."
+      },
+      "pseudonymise": {
+        "label": "Daten einer Person durch ein Pseudonym ersetzen",
+        "description": "Entfernt Name, E-Mail und Einstellungen einer deaktivierten Person endgültig."
       }
     },
     "team": {
@@ -299,6 +303,14 @@
       "mapSource": {
         "label": "Ändern, woher die Standortkarte ihre Kacheln holt",
         "description": "Eine neue Kachelquelle für die Standortkarte: OpenStreetMap, Hell/Dunkel, eine eigene URL oder ein API-Schlüssel, eine selbst bereitgestellte Datei oder der eigene Stil neu gelesen. Die Karte auszuschalten braucht keine Bestätigung."
+      },
+      "renameId": {
+        "label": "Kennung eines Anlageneintrags ändern",
+        "description": "Ein Eintrag des Anlagenregisters erhält eine neue Kennung; alle Verweise folgen, und die alte Kennung führt weiter zu ihm. Standardmäßig aus: Wer den Eintrag ändern darf, benennt ihn um."
+      },
+      "bulkChange": {
+        "label": "Viele Anlageneinträge auf einmal ändern",
+        "description": "Mehr als einen Eintrag des Anlagenregisters auf einmal umbenennen oder entfernen (in den Listen oder mit einem Import) oder mehr als 25 bearbeiten."
       }
     },
     "library": {
@@ -315,6 +327,18 @@
       "bot": {
         "label": "Mit dem Teams-Bot entscheiden",
         "description": "Der Teams-Bot (Vorschau) nimmt überhaupt Entscheidungen in Karten entgegen; die Teams-Schalter der Entscheidungspunkte sagen, welche."
+      }
+    },
+    "personalData": {
+      "export": {
+        "label": "Daten einer Person exportieren",
+        "description": "Alles, was Steward über eine andere Person speichert, verlässt Steward als Datei."
+      }
+    },
+    "modules": {
+      "switch": {
+        "label": "Ein Modul ein- oder ausschalten",
+        "description": "Einen optionalen Bereich (Kosten, Datenverträge, Compliance, Statusseiten und andere) für alle ein- oder ausschalten: seine Seiten, Routen und Hintergrundaufgaben kommen oder gehen. Seine Daten bleiben."
       }
     }
   },

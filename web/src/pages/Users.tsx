@@ -26,10 +26,10 @@ import {
 } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { IconCheck, IconCopy, IconEdit, IconKey, IconPlus, IconSettings, IconTrash, IconUsersGroup } from '@tabler/icons-react';
+import { IconCheck, IconCopy, IconDownload, IconEdit, IconKey, IconMask, IconPlus, IconSettings, IconTrash, IconUsersGroup } from '@tabler/icons-react';
 import { Trans, useTranslation } from 'react-i18next';
-import { ROLES, ROLE_INFO, TEAM_ROLES, type AuthStatus, type Role, type Team, type UserInfo } from '@sm/shared';
-import { del, get, notifyError, notifyOk, post, put } from '../api';
+import { PASSWORD_RULES, ROLES, ROLE_INFO, TEAM_ROLES, type AuthStatus, type Role, type Team, type UserInfo } from '@sm/shared';
+import { apiUrl, confirmedDownload, del, get, notifyError, notifyOk, post, put } from '../api';
 import { useFieldErrors } from '../components/common';
 import { DataTable, type DataColumn } from '../components/DataTable';
 import { fmtRelative } from '../format';
@@ -113,6 +113,7 @@ export function UsersPage() {
   const [teamEdit, setTeamEdit] = useState<Team | 'new' | null>(null);
   const [teamSettings, setTeamSettings] = useState<Team | null>(null);
   const [temp, setTemp] = useState<{ username: string; password: string } | null>(null);
+  const [pseudonymising, setPseudonymising] = useState<UserInfo | null>(null);
   const sso = useSsoProviders();
   const ssoName = (source: string) => sso.data?.find((p) => p.id === source)?.displayName ?? source;
   const passwordsOff = usePasswordsOff();
@@ -168,7 +169,16 @@ export function UsersPage() {
     >
       <Stack>
         {users.data && (
-          <UserList users={users.data} myName={myName} passwordsOff={passwordsOff} ssoName={ssoName} onEdit={setEditing} onReset={reset} onActive={setActive} />
+          <UserList
+            users={users.data}
+            myName={myName}
+            passwordsOff={passwordsOff}
+            ssoName={ssoName}
+            onEdit={setEditing}
+            onReset={reset}
+            onActive={setActive}
+            onPseudonymise={setPseudonymising}
+          />
         )}
 
         <Group justify="space-between" mt="md">
@@ -284,6 +294,16 @@ export function UsersPage() {
         />
       )}
       {temp && <TempPassword username={temp.username} password={temp.password} onClose={() => setTemp(null)} />}
+      {pseudonymising && (
+        <PseudonymiseModal
+          user={pseudonymising}
+          onClose={() => setPseudonymising(null)}
+          onDone={() => {
+            setPseudonymising(null);
+            refresh();
+          }}
+        />
+      )}
     </ListPage>
   );
 }
@@ -301,6 +321,7 @@ function UserList({
   onEdit,
   onReset,
   onActive,
+  onPseudonymise,
 }: {
   users: UserInfo[];
   myName: string;
@@ -309,6 +330,7 @@ function UserList({
   onEdit: (u: UserInfo) => void;
   onReset: (u: UserInfo) => void;
   onActive: (u: UserInfo, active: boolean) => void;
+  onPseudonymise: (u: UserInfo) => void;
 }) {
   const { t } = useTranslation(['users', 'common']);
   const narrow = useMediaQuery('(max-width: 48em)') ?? false;
@@ -330,6 +352,7 @@ function UserList({
         {u.username}
         {u.email ? ` · ${u.email}` : ''}
         {u.mustChangePassword ? ` · ${t('table.mustChange')}` : ''}
+        {u.pseudonymisedAt ? ` · ${t('table.pseudonymised')}` : ''}
       </Text>
     </>
   );
@@ -338,19 +361,39 @@ function UserList({
     <Switch
       size="xs"
       checked={u.active}
-      disabled={u.username === myName}
+      disabled={u.username === myName || !!u.pseudonymisedAt}
       onChange={(e) => onActive(u, e.currentTarget.checked)}
       aria-label={t('table.active')}
     />
   );
   const actions = (u: UserInfo) => (
     <Group gap={2} wrap="nowrap" justify="flex-end">
-      <Tooltip label={t('common:edit')}>
-        <ActionIcon variant="subtle" onClick={() => onEdit(u)} aria-label={t('common:edit')}>
-          <IconEdit size={16} />
+      {!u.pseudonymisedAt && (
+        <Tooltip label={t('common:edit')}>
+          <ActionIcon variant="subtle" onClick={() => onEdit(u)} aria-label={t('common:edit')}>
+            <IconEdit size={16} />
+          </ActionIcon>
+        </Tooltip>
+      )}
+      <Tooltip label={t('privacy.export', { name: u.username })}>
+        <ActionIcon
+          variant="subtle"
+          component="a"
+          href={apiUrl(`/users/${u.id}/data-export`)}
+          onClick={confirmedDownload('exportPersonalData')}
+          aria-label={t('privacy.export', { name: u.username })}
+        >
+          <IconDownload size={16} />
         </ActionIcon>
       </Tooltip>
-      {(!u.authSource || u.authSource === 'local') && !passwordsOff && (
+      {!u.active && !u.pseudonymisedAt && (
+        <Tooltip label={t('privacy.pseudonymise', { name: u.username })}>
+          <ActionIcon variant="subtle" color="red" onClick={() => onPseudonymise(u)} aria-label={t('privacy.pseudonymise', { name: u.username })}>
+            <IconMask size={16} />
+          </ActionIcon>
+        </Tooltip>
+      )}
+      {(!u.authSource || u.authSource === 'local') && !passwordsOff && !u.pseudonymisedAt && (
         <Tooltip label={t('table.resetPassword')}>
           <ActionIcon variant="subtle" onClick={() => onReset(u)} aria-label={t('table.resetPassword')}>
             <IconKey size={16} />
@@ -406,6 +449,71 @@ function UserList({
     <Card withBorder p={0}>
       {table}
     </Card>
+  );
+}
+
+/**
+ * Replaces the personal data of a deactivated account by a pseudonym, for good (docs/PRIVACY.md): the administrator
+ * types the user name to confirm; the server asks for a step-up.
+ */
+function PseudonymiseModal({ user, onClose, onDone }: { user: UserInfo; onClose: () => void; onDone: () => void }) {
+  const { t } = useTranslation(['users', 'common']);
+  const [typed, setTyped] = useState('');
+  const [busy, setBusy] = useState(false);
+  const isMobile = useMediaQuery('(max-width: 48em)');
+  const matches = typed.trim().toLowerCase() === user.username.toLowerCase();
+  const submit = async () => {
+    setBusy(true);
+    try {
+      const after = await post<UserInfo>(`/users/${user.id}/pseudonymise`, { confirm: typed.trim() });
+      notifyOk(t('privacy.done', { name: user.username, pseudonym: after.displayName }));
+      onDone();
+    } catch (e) {
+      notifyError(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Modal opened onClose={onClose} title={t('privacy.title', { name: user.username })} fullScreen={isMobile} size="lg">
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (matches) void submit();
+        }}
+      >
+        <Stack gap="sm">
+          <Alert color="red" variant="light">
+            {t('privacy.irreversible')}
+          </Alert>
+          <Text size="sm">{t('privacy.replaced')}</Text>
+          <Text size="sm">{t('privacy.kept')}</Text>
+          <Text size="sm">
+            <Trans
+              t={t}
+              i18nKey="privacy.exportFirst"
+              components={{ a: <a href={apiUrl(`/users/${user.id}/data-export`)} onClick={confirmedDownload('exportPersonalData')} /> }}
+            />
+          </Text>
+          <TextInput
+            label={t('privacy.confirmLabel', { name: user.username })}
+            value={typed}
+            onChange={(e) => setTyped(e.currentTarget.value)}
+            autoComplete="off"
+            data-autofocus
+            data-testid="pseudonymise-confirm"
+          />
+          <Group justify="flex-end">
+            <Button variant="default" onClick={onClose}>
+              {t('common:cancel')}
+            </Button>
+            <Button type="submit" color="red" disabled={!matches} loading={busy}>
+              {t('privacy.submit')}
+            </Button>
+          </Group>
+        </Stack>
+      </form>
+    </Modal>
   );
 }
 
@@ -530,7 +638,7 @@ function UserModal({
         {!user && !passwordsOff && !provider && (
           <PasswordInput
             label={t('userModal.initialPassword')}
-            description={t('userModal.initialPasswordHint')}
+            description={t('userModal.initialPasswordHint', { min: PASSWORD_RULES.minLength })}
             value={password}
             onChange={(e) => setPassword(e.currentTarget.value)}
             autoComplete="new-password"
@@ -562,7 +670,11 @@ function TeamModal({ team, users, onClose, onSaved }: { team: Team | null; users
   // roles in the team (#131), by member; members without an entry have only their own roles
   const [memberRoles, setMemberRoles] = useState<Record<string, Role[]>>(team?.memberRoles ?? {});
   const [busy, setBusy] = useState(false);
+  const nameError = useFieldErrors({
+    name: name.trim().length < 2 && (name.trim() ? t('common:validation.minLength', { count: 2 }) : t('common:validation.required')),
+  });
   const save = async () => {
+    if (!nameError.validate()) return;
     setBusy(true);
     try {
       const body = { name: name.trim(), description, members, memberRoles: Object.fromEntries(members.map((m) => [m, memberRoles[m] ?? []])) };
@@ -579,7 +691,7 @@ function TeamModal({ team, users, onClose, onSaved }: { team: Team | null; users
   return (
     <Modal opened onClose={onClose} title={team ? t('teamModal.edit', { name: team.name }) : t('teams.new')}>
       <Stack>
-        <TextInput label={t('common:name')} required value={name} onChange={(e) => setName(e.currentTarget.value)} />
+        <TextInput label={t('common:name')} required value={name} onChange={(e) => setName(e.currentTarget.value)} error={nameError.error('name')} />
         <Textarea label={t('teamModal.description')} autosize minRows={1} value={description} onChange={(e) => setDescription(e.currentTarget.value)} />
         <MultiSelect
           label={t('teamModal.members')}
@@ -614,7 +726,7 @@ function TeamModal({ team, users, onClose, onSaved }: { team: Team | null; users
           <Button variant="default" onClick={onClose}>
             {t('common:cancel')}
           </Button>
-          <Button onClick={save} loading={busy} disabled={name.trim().length < 2}>
+          <Button onClick={save} loading={busy}>
             {t('common:save')}
           </Button>
         </Group>

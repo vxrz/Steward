@@ -1,23 +1,23 @@
 /**
- * Writes the environment-variable tables from the configuration schema (server/src/config-schema.ts):
- * the short table in README.md (variables marked `readme`) and the full reference docs/CONFIGURATION.md.
+ * Writes the environment-variable reference docs/CONFIGURATION.md from the configuration schema
+ * (server/src/config-schema.ts).
  *
- *   npm run config:docs               write both
- *   npm run config:docs -- --check    exit 1 when one of them is outdated (CI)
+ *   npm run config:docs               write it
+ *   npm run config:docs -- --check    exit 1 when it is outdated (CI)
  *
  * The output is formatted with the project's Prettier settings, so `npm run format:check` agrees with it.
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import prettier from 'prettier';
-import { GROUPS, VARS, type VarDoc } from '../config-schema.js';
+import { FILE_VARIANTS, GROUPS, VARS, type VarDoc } from '../config-schema.js';
 
 const HELP = `Usage: npm run config:docs -- [options]
 
-Generates the environment-variable tables in README.md and docs/CONFIGURATION.md from server/src/config-schema.ts.
+Generates the environment-variable reference docs/CONFIGURATION.md from server/src/config-schema.ts.
 
 Options:
-  --check         Compare with the files instead of writing them; exit 1 when one is outdated
+  --check         Compare with the file instead of writing it; exit 1 when it is outdated
   -h, --help      Show this help
 
 Exit codes: 0 success (or up to date), 1 outdated (--check), 2 usage error.
@@ -43,28 +43,20 @@ const END = '<!-- config-table:end -->';
 const entries = Object.entries(VARS) as [string, { doc: VarDoc }][];
 const cell = (s: string) => s.replace(/\\/g, '\\\\').replace(/\|/g, '\\|').replace(/\n/g, ' ');
 
-/** Links in the descriptions are relative to the repository root (README); docs/ files need them one level up. */
-function relink(text: string, fromDocs: boolean): string {
-  if (!fromDocs) return text;
+/** Links in the descriptions are relative to the repository root; docs/CONFIGURATION.md needs them one level up. */
+function relink(text: string): string {
   return text.replace(/\]\((?!https?:|#)([^)]+)\)/g, (_m, target: string) => `](${target.startsWith('docs/') ? target.slice(5) : `../${target}`})`);
 }
 
 /** A literal default in code style; a phrase ("modern list", "– (the setting)") as it is. */
 const defaultCell = (d: string | undefined) => (!d ? '–' : /^[^\s`–]+$/.test(d) ? `\`${d}\`` : d);
 
-function table(rows: [string, { doc: VarDoc }][], fromDocs: boolean): string {
+function table(rows: [string, { doc: VarDoc }][]): string {
   const lines = ['| Variable | Default | Purpose |', '| --- | --- | --- |'];
   for (const [name, { doc }] of rows) {
-    lines.push(`| \`${name}\` | ${cell(defaultCell(doc.default))} | ${cell(relink(doc.description, fromDocs))} |`);
+    lines.push(`| \`${name}\` | ${cell(defaultCell(doc.default))} | ${cell(relink(doc.description))} |`);
   }
   return lines.join('\n');
-}
-
-function readmeTable(): string {
-  return `${table(
-    entries.filter(([, x]) => x.doc.readme),
-    false,
-  )}\n\nAll variables, grouped, with their limits: [docs/CONFIGURATION.md](docs/CONFIGURATION.md). An invalid value refuses to start, with one line per bad variable.`;
 }
 
 function configurationDoc(): string {
@@ -83,12 +75,16 @@ function configurationDoc(): string {
     '',
     'An empty value counts as not set. On/off variables accept `1`/`0`, `true`/`false`, `on`/`off` and `yes`/`no`. Settings that can also be changed in the UI (under **Settings**) are noted; the variable then wins over the setting.',
     '',
+    `**Secrets from files.** Every secret variable can come from a file instead: set \`<NAME>_FILE\` to its path (${FILE_VARIANTS.map((n) => `\`${n}_FILE\``).join(', ')}; the master passphrase has \`SM_MASTER_PASSPHRASE_FILE\`). The file holds the value, a trailing line break is ignored, and \`%d/…\` means the systemd credentials folder. Docker and Kubernetes secrets are files, and a file does not show up in \`docker inspect\`, \`kubectl describe\` or \`/proc/<pid>/environ\`. Setting both \`<NAME>\` and \`<NAME>_FILE\` refuses to start.`,
+    '',
+    '**Unknown variables.** At start-up Steward logs a warning for every `SM_…` variable it does not know, with the closest known name (`unknown environment variable SM_DATABSE_URL is ignored – did you mean SM_DATABASE_URL?`). It names the variable, never its value.',
+    '',
     'The tables are generated from `server/src/config-schema.ts` by `npm run config:docs` (CI checks them with `npm run config:docs -- --check`). Tests that change a variable while the server runs call `reloadConfig()` from `server/src/config.ts` (see [TESTING.md](TESTING.md)).',
   ];
   for (const g of GROUPS) {
     const rows = entries.filter(([, x]) => x.doc.group === g);
     if (!rows.length) continue;
-    parts.push('', `## ${g}`, '', table(rows, true));
+    parts.push('', `## ${g}`, '', table(rows));
   }
   parts.push('', END, '');
   return parts.join('\n');
@@ -99,16 +95,7 @@ async function format(text: string, file: string): Promise<string> {
   return prettier.format(text, { ...options, filepath: file });
 }
 
-async function readmeContent(file: string): Promise<string> {
-  const current = fs.readFileSync(file, 'utf8');
-  const a = current.indexOf(START);
-  const b = current.indexOf(END);
-  if (a < 0 || b < a) throw new Error(`${path.relative(ROOT, file)}: the markers ${START} … ${END} are missing`);
-  return format(`${current.slice(0, a)}${START}\n\n${readmeTable()}\n\n${current.slice(b)}`, file);
-}
-
 const targets: { file: string; content: () => Promise<string> }[] = [
-  { file: path.join(ROOT, 'README.md'), content: () => readmeContent(path.join(ROOT, 'README.md')) },
   { file: path.join(ROOT, 'docs', 'CONFIGURATION.md'), content: () => format(configurationDoc(), path.join(ROOT, 'docs', 'CONFIGURATION.md')) },
 ];
 

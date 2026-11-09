@@ -1,6 +1,6 @@
 # Availability objectives and the service scorecard
 
-Is a service in good shape? The _scorecard_ answers it in one place, per service, in four parts: are its **duties** met, is its **availability** on target, is its **documentation** current, and is its **protection need** rated. _Availability objectives_ say what "on target" means for each Gatus endpoint of a service.
+Is a service in good shape? The _scorecard_ answers it in one place, per service, in four parts: are its **duties** met, is its **availability** on target, is its **documentation** current, and is its **protection need** rated. _Availability objectives_ say what "on target" means for a service: for one of Steward's monitors, a Gatus endpoint or a PromQL query.
 
 - [Availability objectives](#availability-objectives)
 - [Define an objective](#define-an-objective)
@@ -15,7 +15,13 @@ Is a service in good shape? The _scorecard_ answers it in one place, per service
 
 ## Availability objectives
 
-Uptime targets differ per endpoint, and some assets rightly have a lower uptime. An objective names **one Gatus endpoint** and a target for each window you want to judge:
+Uptime targets differ per endpoint, and some assets rightly have a lower uptime. An objective names **one source** and a target for each window you want to judge (1 h, 24 h, 7 days, 30 days). The source is one of:
+
+- a **Steward monitor** (since 0.11) – see [From a Steward monitor](#from-a-steward-monitor);
+- a **Gatus endpoint** – see the table below;
+- a **PromQL query** on a Prometheus platform – see [From Prometheus](#from-prometheus).
+
+For a Gatus endpoint the windows are the ones of Gatus' uptime API:
 
 | Window  | Gatus uptime API                      |
 | ------- | ------------------------------------- |
@@ -24,34 +30,42 @@ Uptime targets differ per endpoint, and some assets rightly have a lower uptime.
 | 7 days  | `/api/v1/endpoints/{key}/uptimes/7d`  |
 | 30 days | `/api/v1/endpoints/{key}/uptimes/30d` |
 
-Each window is optional, for example "24 h ≥ 99 %, 30 days ≥ 99.5 %". Targets have at most two decimals, as Gatus' figures do. An objective belongs to a service and, if you like, to one of its applications ([APPLICATIONS.md](APPLICATIONS.md)).
+Each window is optional, for example "24 h ≥ 99 %, 30 days ≥ 99.5 %". Targets have at most two decimals. An objective belongs to a service and, if you like, to one of its applications ([APPLICATIONS.md](APPLICATIONS.md)).
 
-The values are **Gatus' own uptime figures**. Steward does not calculate service hours or production schedules and makes no extra call to Gatus: the metrics mode of a Gatus platform reads the figures once an hour when _Also read Gatus' uptime figures_ is on ([GATUS.md](GATUS.md)). Turn it on for every Gatus platform you use for objectives.
+For a Gatus endpoint the values are **Gatus' own uptime figures**. Steward does not calculate service hours or production schedules and makes no extra call to Gatus: the metrics mode of a Gatus platform reads the figures once an hour when _Also read Gatus' uptime figures_ is on ([GATUS.md](GATUS.md)). Turn it on for every Gatus platform you use for objectives.
 
-**From Prometheus** (#110). An objective can take its figures from a **PromQL query** on a Prometheus platform (Prometheus, Thanos, Mimir, VictoriaMetrics) instead of a Gatus endpoint. The query returns the availability as a fraction from 0 to 1 and contains `$window`, which Steward sets to `1h`, `24h`, `7d` and `30d` – e.g. `avg_over_time(up{job="shop"}[$window])`, or `avg_over_time(probe_success{instance="https://shop.example.com"}[$window])` for a blackbox probe. With several series the lowest one counts. Steward runs the queries once an hour (one per window) with the rights of whoever last changed the objective, keeps the figures, and judges them like Gatus' figures: older than three hours means _stale_, never read means _no source_. A query without `$window` is refused (`OBJECTIVE_PROMQL_WINDOW`).
+### From a Steward monitor
+
+An objective can take its figures from one of Steward's own monitors ([MONITORS.md](MONITORS.md)). The value of each window is the monitor's **time-weighted uptime** from its recorded states over the window ending now: up and degraded count for it, down against it; unknown, blocked and maintenance time is left out. It is the same figure the monitor page shows (_24 h_, _7 days_, _30 days_) and the same arithmetic as the section _Availability of monitors_ of scheduled reports, so the scorecard, the service page and a report show the same number for the same window. Nothing is read from elsewhere, so the figures are never stale; a disabled or deleted monitor shows _no data_.
+
+### From Prometheus
+
+An objective can take its figures from a **PromQL query** on a Prometheus platform (Prometheus, Thanos, Mimir, VictoriaMetrics) instead of a Gatus endpoint. The query returns the availability as a fraction from 0 to 1 and contains `$window`, which Steward sets to `1h`, `24h`, `7d` and `30d` – e.g. `avg_over_time(up{job="shop"}[$window])`, or `avg_over_time(probe_success{instance="https://shop.example.com"}[$window])` for a blackbox probe. With several series the lowest one counts. Steward runs the queries once an hour (one per window) with the rights of whoever last changed the objective, keeps the figures, and judges them like Gatus' figures: older than three hours means _stale_, never read means _no source_. A query without `$window` is refused (`OBJECTIVE_PROMQL_WINDOW`).
 
 ## Define an objective
 
 1. Open the service: _Catalogue → Services → (service)_, tab _Objectives_ (the scorecard has its own tab).
 2. In _Availability objectives_, choose _Add objective_.
-3. Choose the Gatus platform and the endpoint – or a Prometheus platform and the PromQL query with `$window`. The list shows the Gatus platforms with metrics mode and the Prometheus platforms that you may see, and the endpoints Gatus reported to them.
-4. Check the name (it starts as the endpoint's name), set the targets, and choose the application if the objective is about one.
+3. Choose the **source**: _Steward monitor_ and the monitor – or _Gatus or Prometheus_, then the Gatus platform and the endpoint, or a Prometheus platform and the PromQL query with `$window`. The lists show the monitors you may see, the Gatus platforms with metrics mode and the Prometheus platforms that you may see, and the endpoints Gatus reported to them.
+4. Check the name (it starts as the monitor's or the endpoint's name), set the targets, and choose the application if the objective is about one.
 5. Tick _Send a message when it falls below target_ if the owners should hear about it.
 6. _Save_.
 
-_Edit_ (pencil) changes an objective. Objectives are **archived, never deleted** (_Archive_, box icon): archiving first takes a **final sample** from the newest figures Steward has read from Gatus (a breach that began since the last hourly sample is recorded and announced; without figures the final sample says _no data_). An archived objective is no longer sampled, its samples and breaches stay until the retention removes them, and it still counts on the scorecard with the status of its final sample until its longest window has passed (for "24 h ≥ 99 %, 7 days ≥ 99 %" that is 7 days) – also _no data for more than 24 hours_, measured up to the archive. So archiving an objective that is below target does not clean the scorecard. Archived objectives are listed under the active ones; _Restore_ brings one back.
+_Edit_ (pencil) changes an objective. Objectives are **archived, never deleted** (_Archive_, box icon): archiving first takes a **final sample** from the newest figures of its source (a breach that began since the last hourly sample is recorded and announced; without figures the final sample says _no data_). An archived objective is no longer sampled, its samples and breaches stay until the retention removes them, and it still counts on the scorecard with the status of its final sample until its longest window has passed (for "24 h ≥ 99 %, 7 days ≥ 99 %" that is 7 days) – also _no data for more than 24 hours_, measured up to the archive. So archiving an objective that is below target does not clean the scorecard. Archived objectives are listed under the active ones; _Restore_ brings one back.
 
 ## Status of an objective
 
 Per window with a target:
 
-| Status           | Meaning                                |
-| ---------------- | -------------------------------------- |
-| **Met**          | Gatus' value is at or above the target |
-| **Below target** | Gatus' value is below the target       |
-| **No data**      | There is no value for the window       |
+| Status           | Meaning                             |
+| ---------------- | ----------------------------------- |
+| **Met**          | The value is at or above the target |
+| **Below target** | The value is below the target       |
+| **No data**      | There is no value for the window    |
 
-The objective is _below target_ when any window is below; else _no data_ when any window has no value; else _met_. The card shows the Gatus platform and the endpoint (or _Gatus platform hidden_, see below) and says why there is no data:
+The objective is _below target_ when any window is below; else _no data_ when any window has no value; else _met_. The card shows the monitor, or the Gatus platform and the endpoint (or _Monitor hidden_, _Gatus platform hidden_, see below) and says why there is no data:
+
+- the monitor is disabled or was deleted (a disabled monitor records nothing new);
 
 - the platform has no metrics mode, or it is off;
 - Gatus' uptime figures are not read (_Also read Gatus' uptime figures_ is off);
@@ -63,13 +77,13 @@ No data for **more than 24 hours** – since the last sample with data, or since
 
 ## Hourly samples and breaches
 
-Once an hour, Steward stores a **sample** of each objective: the values it had read from Gatus and the status. Samples are kept for **90 days**. _Show history_ on an objective shows the last 30 days (a line of its first window, the number of samples below target and the breaches); the API has all of them (`/api/v1/objectives/{objectiveId}/samples`).
+Once an hour, Steward stores a **sample** of each objective: the values of its source at that hour (for a monitor: its uptime over each window ending then) and the status. Samples are kept for **90 days**. _Show history_ on an objective shows the last 30 days (a line of its first window, the number of samples below target and the breaches); the API has all of them (`/api/v1/objectives/{objectiveId}/samples`).
 
 A **breach** starts with the first sample below target and ends with the first sample that meets every target again (_met again_) – or when the objective is archived (_ended by archiving_, which is not a recovery; _Show history_, the API's `endReason` and the report say which). _No data_ neither starts nor ends a breach. Ended breaches are kept for 400 days.
 
 With _Send a message …_ on, the service owners (administrators when it has none) get **one message per breach** – not one per sample, and at most one per objective a day: an objective that flaps between met and below target records every breach, but sends no second message within 24 hours (notification event `objective.breached`, in-app by default; route it to e-mail, Teams or a webhook in _Settings → Notifications_, see [NOTIFICATIONS.md](NOTIFICATIONS.md)).
 
-During a **maintenance window** of the service or application ([APPLICATIONS.md](APPLICATIONS.md#maintenance-windows)) a breach is still recorded, but no message is sent. The figures stay Gatus' own uptime; each window shows the planned maintenance minutes next to them (_Planned maintenance: 24 h 2 h_, `plannedMinutes` per window in the API).
+During a **maintenance window** of the service or application, or one that lists or reaches the objective's monitor ([APPLICATIONS.md](APPLICATIONS.md#maintenance-windows)), a breach is still recorded, but no message is sent. Each window shows the planned maintenance minutes next to the figures (_Planned maintenance: 24 h 2 h_, `plannedMinutes` per window in the API). Gatus' and Prometheus' figures are not changed by it. A monitor's figures leave out the time it spent in maintenance, as its own uptime does.
 
 ## The scorecard
 
@@ -108,7 +122,7 @@ Details:
 
 **Up to date** is a seventh part, off by default, from the [version watch](APPLICATIONS.md#version-watch): an administrator turns it on under _Applications → Version watch → Count on the scorecard_. It considers the stack entries of the components and the systems of the service's applications that have a known newest version: _Attention_ when one is a major release behind, _Open_ when one is more minor releases (default 2) or days (default 180) behind than the version watch's settings allow. It lists those entries, major first, then production. The end of life of a release cycle stays the part _Tech stack_. In both parts a system the reader may not see is neither named nor counted.
 
-**Costs** is an eighth part (0.9.0, [COSTS.md](COSTS.md#budgets)): the service's monthly cost budget against the month so far and its forecast. Without a budget it has _nothing to judge_ and is not shown. The amounts appear only for readers who may see the service's costs; everyone else sees the percentages. A reader who does not see every application of the service sees only the state (the budget covers them all, so its figures would give away the others' costs).
+**Costs** is an eighth part ([COSTS.md](COSTS.md#budgets)): the service's monthly cost budget against the month so far and its forecast. Without a budget it has _nothing to judge_ and is not shown. The amounts appear only for readers who may see the service's costs; everyone else sees the percentages. A reader who does not see every application of the service sees only the state (the budget covers them all, so its figures would give away the others' costs).
 
 **Data contracts** is a ninth part ([DATA-CONTRACTS.md](DATA-CONTRACTS.md#monitors-processes-scorecard-and-reports)): the ODCS contracts linked to the service's applications or to their systems, as the reader may see them – each with its last test (dry runs left out) and Steward's own findings. Without a linked contract it has _nothing to judge_ and is not shown.
 
@@ -155,17 +169,17 @@ Once an hour, Steward stores **today's scorecard of every service** (a _snapshot
 | --------------------------------------- | ------------------------------------------------------------------- |
 | See the scorecard, objectives and rules | Everyone who can sign in (like services and duties)                 |
 | Define, change and delete objectives    | Whoever may edit the service: administrators, designers, its owners |
-| Choose the platform and the endpoint    | Only Gatus platforms the author may see (use or manage)             |
+| Choose the source                       | Only monitors, Gatus and Prometheus platforms the author may see    |
 | Change the expected-document rules      | Administrators                                                      |
 
 Only what you may see counts and shows:
 
-- People who may not see an objective's Gatus platform see its name, status and values, but **not** the platform or the endpoint – as duties hide the names of processes you may not view. A platform you may not see is "not found" when you define an objective, so platform ids cannot be probed. Such an editor can still change the name and targets; the endpoint stays.
+- People who may not see an objective's source (its Gatus or Prometheus platform, or its monitor) see its name, status and values, but **not** the platform, the endpoint or the monitor – as duties hide the names of processes you may not view. A platform or monitor you may not see is "not found" when you define an objective (`OBJECTIVE_PLATFORM_UNKNOWN`, `OBJECTIVE_MONITOR_UNKNOWN`), so ids cannot be probed. Such an editor can still change the name and targets; the source stays.
 - Documents you may not read are neither listed nor counted. A stored day whose documentation relied on a document you may not read shows that part as _Hidden_ (and it does not count for that day's _Attention needed_).
 
 ## Audit, API, reports, migration
 
 - **Audit**: `objective.created`, `objective.updated`, `objective.archived`, `objective.restored`, `objective.breached`, `objective.recovered` (by `system`), `scorecard.rule_created`, `scorecard.rule_updated`, `scorecard.rule_deleted`.
 - **Public API** (read-only, [API.md](API.md)): `GET /api/v1/scorecard`, `/api/v1/scorecard/trend`, `/api/v1/services/{serviceId}/scorecard`, `/api/v1/objectives`, `/api/v1/objectives/{objectiveId}/samples`.
-- **Scheduled reports** ([REPORTS.md](REPORTS.md)): the section _Service scorecard_ lists every service with its parts and _Attention needed_, the trend of the stored days in the report period, and the objectives with their status at the end of the period and the breaches that started in it. For a report period that has ended, the services come from the snapshot of its last day, so a report made later shows the same.
+- **Scheduled reports** ([REPORTS.md](REPORTS.md)): the section _Availability of monitors_ can take each monitor's SLA target from the objective that has it as source (_Use the objective_). The section _Service scorecard_ lists every service with its parts and _Attention needed_, the trend of the stored days in the report period, and the objectives with their status at the end of the period and the breaches that started in it. For a report period that has ended, the services come from the snapshot of its last day, so a report made later shows the same.
 - **Migration packages** ([MIGRATION.md](MIGRATION.md)): objectives, rules, samples, breaches and snapshots move; the owners stored with a snapshot follow the identity mapping. The dry run checks these rows like the CIA scale: targets and values must be 0–10000 hundredths of a percent, statuses known, snapshot days `YYYY-MM-DD`; otherwise the import is blocked.

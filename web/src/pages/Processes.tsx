@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import {
   ActionIcon,
   Alert,
@@ -11,14 +11,17 @@ import {
   List,
   Menu,
   Modal,
+  MultiSelect,
   SegmentedControl,
+  Select,
   SimpleGrid,
   Stack,
   Text,
   Textarea,
   Tooltip,
+  VisuallyHidden,
 } from '@mantine/core';
-import { useDisclosure } from '@mantine/hooks';
+import { useDisclosure, useMediaQuery } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -36,7 +39,7 @@ import {
   IconSitemap,
   IconChecklist,
 } from '@tabler/icons-react';
-import { BUNDLE_FORMATS, tagLabel, tagsMatch, type ExportBundle, type ProcessDetail, type ProcessSummary } from '@sm/shared';
+import { BUNDLE_FORMATS, tagLabel, tagsMatch, type ExportBundle, type ProcessDetail, type ProcessSummary, type Schedule } from '@sm/shared';
 import { TagBadges, TagFilterChip, useTagFilter } from '../components/tags';
 import { del, get, notifyError, notifyOk, post, apiUrl } from '../api';
 import { QueryState, StatusBadge } from '../components/common';
@@ -46,28 +49,38 @@ import { LibraryOriginBadge } from '../components/libraries/parts';
 import { RunDialog } from '../components/RunDialog';
 import { DescriptionText, descriptionPlain } from '../components/DescriptionText';
 import { TemplateGallery } from '../components/TemplateGallery';
-import { fmtRelative } from '../format';
+import { fmtDate, fmtRelative } from '../format';
 import { errorText } from '../i18n/errors';
 import { BRAND } from '../../../shared/src/brand';
 import { useMe } from '../auth';
 import { confirmDanger } from '../components/confirm';
-import { ListPage } from '../components/page/ListPage';
-import { dashboardKeys, processKeys } from '../queryKeys';
+import { ListPage, useStoredListView } from '../components/page/ListPage';
+import { DataTable, ListFooter, type DataColumn } from '../components/DataTable';
+import { NewProcessModal, type NewProcessStart } from '../components/processes/NewProcessModal';
+import { dashboardKeys, processKeys, scheduleKeys } from '../queryKeys';
 import { DuplicateMenuItem, useDuplicate } from '../components/duplicate/DuplicateButton';
+
+type LastRunFilter = 'succeeded' | 'findings' | 'failed' | 'other' | 'never';
+const LAST_RUN_FILTERS: LastRunFilter[] = ['succeeded', 'findings', 'failed', 'other', 'never'];
+const lastRunOf = (p: ProcessSummary): LastRunFilter => {
+  if (!p.lastRun) return 'never';
+  const o = p.lastRun.outcome ?? p.lastRun.status;
+  return o === 'succeeded' || o === 'findings' || o === 'failed' ? o : 'other';
+};
 
 export function ProcessesPage() {
   const { t } = useTranslation(['processes', 'common']);
-  const navigate = useNavigate();
   const qc = useQueryClient();
   const processes = useQuery({ queryKey: processKeys.all, queryFn: () => get<ProcessSummary[]>('/processes') });
-  const [filter, setFilter] = useState('');
+  const schedules = useQuery({ queryKey: scheduleKeys.all, queryFn: () => get<Schedule[]>('/schedules') });
   const [runId, setRunId] = useState<string | null>(null);
   const [templatesOpen, templates] = useDisclosure();
   const [importOpen, importModal] = useDisclosure();
   const [bundleOpen, bundleModal] = useDisclosure();
+  const [newStart, setNewStart] = useState<NewProcessStart | null>(null);
   const { caps } = useMe();
   // ?templates=<kind> or ?bundle=<id> (a platform's "Get started", v0.4.0): the gallery opens filtered, or on the bundle
-  const [params] = useSearchParams();
+  const [params, setParams] = useSearchParams();
   const galleryKind = params.get('templates');
   const galleryBundle = params.get('bundle');
   useEffect(() => {
@@ -75,87 +88,179 @@ export function ProcessesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once per link
   }, [galleryKind, galleryBundle]);
   const duplicate = useDuplicate();
+  const narrow = useMediaQuery('(max-width: 48em)') ?? false;
+  const view = useStoredListView('processes', narrow);
 
-  const createBlank = async () => {
-    try {
-      const p = await post<ProcessDetail>('/processes', {
-        definition: {
-          name: t('newProcessName'),
-          description: '',
-          connections: [],
-          inputs: [],
-          nodes: [{ id: 'start', type: 'start', name: 'Start', x: 0, y: 0 }],
-          wires: [],
-        },
-      });
-      navigate(`/processes/${p.id}`);
-    } catch (e) {
-      notifyError(e);
-    }
+  // the filters live in the address (?q=, ?tag=, ?last=, ?scheduled=), so a filtered list can be shared
+  const filter = params.get('q') ?? '';
+  const last = params.getAll('last').filter((x): x is LastRunFilter => (LAST_RUN_FILTERS as string[]).includes(x));
+  const scheduled = params.get('scheduled');
+  const set = (k: string, v: string | string[] | null) => {
+    const next = new URLSearchParams(params);
+    next.delete(k);
+    for (const x of Array.isArray(v) ? v : v ? [v] : []) next.append(k, x);
+    setParams(next, { replace: true });
   };
-
-  /** A process of manual steps only, ready to fill in (the "Manual procedure" template). */
-  const createManual = async () => {
-    const step = (id: string, x: number, title: string, extra: Record<string, unknown>) => ({
-      id,
-      type: 'userTask',
-      mode: 'manual',
-      name: title,
-      title,
-      instructions: t('manualTemplate.instructions'),
-      x,
-      y: 0,
-      ...extra,
-    });
-    try {
-      const p = await post<ProcessDetail>('/processes', {
-        definition: {
-          name: t('manualTemplate.name'),
-          description: t('manualTemplate.description'),
-          tags: ['manual'],
-          connections: [],
-          inputs: [],
-          nodes: [
-            { id: 'start', type: 'start', name: 'Start', x: 0, y: 0 },
-            step('prepare', 260, t('manualTemplate.prepare'), { checklist: [t('manualTemplate.prepareItem1'), t('manualTemplate.prepareItem2')] }),
-            step('carryOut', 520, t('manualTemplate.carryOut'), {
-              checklist: [t('manualTemplate.carryOutItem1')],
-              fields: [{ id: 'ticket', type: 'ticket', label: t('manualTemplate.ticket'), use: 'required' }],
-              verification: { required: true },
-            }),
-            step('check', 780, t('manualTemplate.check'), { checklist: [t('manualTemplate.checkItem1')], checklistAllRequired: true }),
-          ],
-          wires: [
-            { from: 'start', port: 'out', to: 'prepare' },
-            { from: 'prepare', port: 'out', to: 'carryOut' },
-            { from: 'carryOut', port: 'out', to: 'check' },
-          ],
-        },
-      });
-      navigate(`/processes/${p.id}`);
-    } catch (e) {
-      notifyError(e);
-    }
-  };
-
   const [tag, setTag] = useTagFilter();
-  const f = filter.toLowerCase();
+  // the next run of each process: its earliest enabled schedule
+  const nextRun = new Map<string, string>();
+  for (const sc of schedules.data ?? []) {
+    if (!sc.enabled || !sc.nextRunAt) continue;
+    const cur = nextRun.get(sc.processId);
+    if (!cur || sc.nextRunAt < cur) nextRun.set(sc.processId, sc.nextRunAt);
+  }
+  const f = filter.trim().toLowerCase();
   const list = (processes.data ?? []).filter(
     (p) =>
       (!f ||
         p.name.toLowerCase().includes(f) ||
+        p.id.includes(f) ||
         p.tags.some((x) => tagLabel(x).toLowerCase().includes(f)) ||
         descriptionPlain(p.description ?? '')
           .toLowerCase()
           .includes(f)) &&
-      tagsMatch(p.tags, tag),
+      tagsMatch(p.tags, tag) &&
+      (!last.length || last.includes(lastRunOf(p))) &&
+      (!scheduled || (scheduled === 'yes') === nextRun.has(p.id)),
   );
+  const active = last.length + (scheduled ? 1 : 0);
+  const archive = async (p: ProcessSummary) => {
+    if (!(await confirmDanger({ action: 'archive', message: t('card.archiveConfirm', { name: p.name }) }))) return;
+    await del(`/processes/${p.id}`).catch(notifyError);
+    void qc.invalidateQueries({ queryKey: processKeys.all });
+  };
+  const actionsOf = (p: ProcessSummary) => (
+    <Group gap={4} wrap="nowrap" onClick={(e) => e.stopPropagation()}>
+      {p.permissions.includes('run') && (
+        <Tooltip label={t('card.run')}>
+          <ActionIcon variant="light" onClick={() => setRunId(p.id)} aria-label={t('card.runNamed', { name: p.name })}>
+            <IconPlayerPlay size={16} />
+          </ActionIcon>
+        </Tooltip>
+      )}
+      <Menu position="bottom-end">
+        <Menu.Target>
+          <ActionIcon variant="subtle" aria-label={t('card.moreFor', { name: p.name })}>
+            <IconDots size={16} />
+          </ActionIcon>
+        </Menu.Target>
+        <Menu.Dropdown>
+          <Menu.Item leftSection={<IconFileExport size={14} />} component="a" href={apiUrl(`/processes/${p.id}/export`)}>
+            {t('card.exportYaml')}
+          </Menu.Item>
+          {caps.createProcesses && <DuplicateMenuItem onClick={() => duplicate.open('process', p.id)} />}
+          {p.permissions.includes('manage') && (
+            <Menu.Item color="red" leftSection={<IconArchive size={14} />} onClick={() => void archive(p)}>
+              {t('card.archive')}
+            </Menu.Item>
+          )}
+        </Menu.Dropdown>
+      </Menu>
+    </Group>
+  );
+  const badgesOf = (p: ProcessSummary) => (
+    <>
+      <GitOriginBadge kind="process" id={p.id} size="xs" />
+      <LibraryOriginBadge kind="process" id={p.id} size="xs" />
+      {p.acl.length > 0 && (
+        <Badge size="xs" variant="light" color="orange" title={t('card.restrictedHint')}>
+          {t('card.restricted')}
+        </Badge>
+      )}
+      {!p.permissions.includes('edit') && (
+        <Badge size="xs" variant="light" color="gray">
+          {t('card.readOnly')}
+        </Badge>
+      )}
+    </>
+  );
+  const columns: DataColumn<ProcessSummary>[] = [
+    {
+      key: 'name',
+      header: t('list.name'),
+      sortValue: (p) => p.name,
+      // compact: name, badges and tags on one line, the description in one line below (54 demo processes fit a few screens)
+      cell: (p) => (
+        <Stack gap={0} maw={600}>
+          <Group gap={6} wrap="wrap" align="center">
+            <Anchor component={Link} to={`/processes/${p.id}`} fw={600} size="sm" onClick={(e) => e.stopPropagation()}>
+              {p.name}
+            </Anchor>
+            {badgesOf(p)}
+            <TagBadges tags={p.tags} onTag={setTag} />
+          </Group>
+          <Text size="xs" c="dimmed" lineClamp={1}>
+            {descriptionPlain(p.description ?? '')}
+          </Text>
+        </Stack>
+      ),
+    },
+    {
+      key: 'lastRun',
+      header: t('list.lastRun'),
+      sortValue: (p) => p.lastRun?.startedAt,
+      nowrap: true,
+      cell: (p) =>
+        p.lastRun ? (
+          <Stack gap={2} align="flex-start">
+            <StatusBadge status={p.lastRun.outcome ?? p.lastRun.status} size="xs" />
+            <Anchor
+              component={Link}
+              to={`/runs/${p.lastRun.id}`}
+              size="xs"
+              c="dimmed"
+              title={fmtDate(p.lastRun.startedAt)}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {fmtRelative(p.lastRun.startedAt)}
+            </Anchor>
+          </Stack>
+        ) : (
+          <Text size="xs" c="dimmed">
+            {t('list.never')}
+          </Text>
+        ),
+    },
+    {
+      key: 'nextRun',
+      header: t('list.nextRun'),
+      sortValue: (p) => nextRun.get(p.id),
+      nowrap: true,
+      cell: (p) => {
+        const at = nextRun.get(p.id);
+        return at ? (
+          <Text size="xs" title={fmtDate(at)}>
+            {fmtRelative(at)}
+          </Text>
+        ) : (
+          <Text size="xs" c="dimmed">
+            {t('list.notScheduled')}
+          </Text>
+        );
+      },
+    },
+    { key: 'owner', header: t('list.owner'), sortValue: (p) => p.owner ?? '', cell: (p) => <Text size="xs">{p.owner ?? '–'}</Text> },
+    {
+      key: 'version',
+      header: t('list.version'),
+      sortValue: (p) => p.updatedAt,
+      nowrap: true,
+      cell: (p) => (
+        <Text size="xs" title={fmtDate(p.updatedAt)}>
+          {t('list.versionLine', { version: p.currentVersion, when: fmtRelative(p.updatedAt) })}
+        </Text>
+      ),
+    },
+    { key: 'actions', header: <VisuallyHidden>{t('list.actions')}</VisuallyHidden>, label: t('list.actions'), cell: actionsOf },
+  ];
 
   return (
     <ListPage
       tabs={<AutomateTabs active="/processes" />}
       title={t('title')}
       description={t('description')}
+      view="processes"
+      viewState={view}
       actions={
         <>
           {/* the secondary actions in one menu: a manual procedure, YAML import, bundles (several processes and dashboards in one file) */}
@@ -168,7 +273,7 @@ export function ProcessesPage() {
             <Menu.Dropdown>
               {caps.createProcesses && (
                 <>
-                  <Menu.Item leftSection={<IconChecklist size={14} />} onClick={createManual}>
+                  <Menu.Item leftSection={<IconChecklist size={14} />} onClick={() => setNewStart('manual')}>
                     {t('newManualProcedure')}
                     <Text size="xs" c="dimmed">
                       {t('newManualProcedureHint')}
@@ -196,14 +301,42 @@ export function ProcessesPage() {
               <Button size="xs" variant="light" leftSection={<IconTemplate size={14} />} onClick={templates.open}>
                 {t('fromTemplate')}
               </Button>
-              <Button size="xs" leftSection={<IconPlus size={14} />} onClick={createBlank}>
+              <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setNewStart('blank')}>
                 {t('newProcess')}
               </Button>
             </>
           )}
         </>
       }
-      search={{ value: filter, onChange: setFilter, placeholder: t('search') }}
+      search={{ value: filter, onChange: (v) => set('q', v || null), placeholder: t('search') }}
+      activeFilters={active}
+      filters={
+        processes.data?.length ? (
+          <Group gap="sm" mb="md" align="flex-end" wrap="wrap" data-testid="process-filters">
+            <MultiSelect
+              size="xs"
+              label={t('list.lastRun')}
+              data={LAST_RUN_FILTERS.map((x) => ({ value: x, label: t(`list.lastRunFilter.${x}`) }))}
+              value={last}
+              onChange={(v) => set('last', v)}
+              clearable
+              w={{ base: '100%', xs: 240 }}
+            />
+            <Select
+              size="xs"
+              label={t('list.schedule')}
+              data={[
+                { value: 'yes', label: t('list.scheduledYes') },
+                { value: 'no', label: t('list.scheduledNo') },
+              ]}
+              value={scheduled}
+              onChange={(v) => set('scheduled', v)}
+              clearable
+              w={{ base: '100%', xs: 200 }}
+            />
+          </Group>
+        ) : undefined
+      }
       empty={{
         show: processes.data?.length === 0,
         icon: IconSitemap,
@@ -222,97 +355,87 @@ export function ProcessesPage() {
         ),
       }}
     >
-      <Box mb="md">
+      <Box mb={tag ? 'md' : 0}>
         <TagFilterChip tag={tag} onChange={setTag} />
       </Box>
       <QueryState query={processes} />
-      <SimpleGrid cols={{ base: 1, md: 2, xl: 3 }}>
-        {list.map((p) => (
-          <Card key={p.id} withBorder padding="md" className="clickable" onClick={() => navigate(`/processes/${p.id}`)}>
-            <Group justify="space-between" wrap="nowrap" align="flex-start">
-              <Anchor
-                component={Link}
-                to={`/processes/${p.id}`}
-                fw={600}
-                c="var(--mantine-color-text)"
-                underline="hover"
-                style={{ minWidth: 0 }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                {p.name}
-              </Anchor>
-              <Group gap={4} wrap="nowrap" onClick={(e) => e.stopPropagation()}>
-                {p.permissions.includes('run') && (
-                  <Tooltip label={t('card.run')}>
-                    <ActionIcon variant="light" onClick={() => setRunId(p.id)} aria-label={t('card.runNamed', { name: p.name })}>
-                      <IconPlayerPlay size={16} />
-                    </ActionIcon>
-                  </Tooltip>
-                )}
-                <Menu position="bottom-end">
-                  <Menu.Target>
-                    <ActionIcon variant="subtle" aria-label={t('card.moreFor', { name: p.name })}>
-                      <IconDots size={16} />
-                    </ActionIcon>
-                  </Menu.Target>
-                  <Menu.Dropdown>
-                    <Menu.Item leftSection={<IconFileExport size={14} />} component="a" href={apiUrl(`/processes/${p.id}/export`)}>
-                      {t('card.exportYaml')}
-                    </Menu.Item>
-                    {caps.createProcesses && <DuplicateMenuItem onClick={() => duplicate.open('process', p.id)} />}
-                    {p.permissions.includes('manage') && (
-                      <Menu.Item
-                        color="red"
-                        leftSection={<IconArchive size={14} />}
-                        onClick={async () => {
-                          if (!(await confirmDanger({ action: 'archive', message: t('card.archiveConfirm', { name: p.name }) }))) return;
-                          await del(`/processes/${p.id}`).catch(notifyError);
-                          qc.invalidateQueries({ queryKey: processKeys.all });
-                        }}
-                      >
-                        {t('card.archive')}
-                      </Menu.Item>
-                    )}
-                  </Menu.Dropdown>
-                </Menu>
-              </Group>
-            </Group>
-            <DescriptionText text={p.description} size="sm" c="dimmed" lineClamp={3} mt={4} />
-            <Group gap={4} mt="sm">
-              <Badge size="xs" variant="outline">
-                v{p.currentVersion}
-              </Badge>
-              <GitOriginBadge kind="process" id={p.id} size="xs" />
-              <LibraryOriginBadge kind="process" id={p.id} size="xs" />
-              {p.acl.length > 0 && (
-                <Badge size="xs" variant="light" color="orange" title={t('card.restrictedHint')}>
-                  {t('card.restricted')}
-                </Badge>
-              )}
-              {!p.permissions.includes('edit') && (
-                <Badge size="xs" variant="light" color="gray">
-                  {t('card.readOnly')}
-                </Badge>
-              )}
-              <TagBadges tags={p.tags} onTag={setTag} />
-              {p.lastRun && (
-                <>
-                  <Text size="xs" c="dimmed" ml="auto">
-                    {t('card.lastRun', { when: fmtRelative(p.lastRun.startedAt) })}
-                  </Text>
-                  <StatusBadge status={p.lastRun.outcome ?? p.lastRun.status} size="xs" />
-                </>
-              )}
-            </Group>
-          </Card>
+      {!!processes.data?.length && list.length === 0 && (
+        <Text c="dimmed" size="sm">
+          {t('list.noMatch')}
+        </Text>
+      )}
+      {list.length > 0 &&
+        (view.cards && !narrow ? (
+          // the card view on wide screens: the grid of before (descriptions in full)
+          <SimpleGrid cols={{ base: 1, md: 2, xl: 3 }} role="list" aria-label={t('title')} data-testid="process-list">
+            {list.map((p) => (
+              <div role="listitem" key={p.id}>
+                <ProcessCard p={p} actions={actionsOf(p)} badges={badgesOf(p)} onTag={setTag} />
+              </div>
+            ))}
+          </SimpleGrid>
+        ) : (
+          <DataTable
+            rows={list}
+            columns={columns}
+            rowKey={(p) => p.id}
+            ariaLabel={t('title')}
+            rowHref={(p) => `/processes/${p.id}`}
+            testId="process-list"
+            verticalSpacing={6}
+            rememberSort="processes"
+            defaultSort={{ key: 'name', dir: 'asc' }}
+            footer={<ListFooter shown={list.length} total={processes.data?.length} />}
+            card={(p) => <ProcessCard p={p} actions={actionsOf(p)} badges={badgesOf(p)} onTag={setTag} />}
+          />
         ))}
-      </SimpleGrid>
       <RunDialog processId={runId} opened={!!runId} onClose={() => setRunId(null)} />
       <TemplateGallery opened={templatesOpen} onClose={templates.close} initialKind={galleryKind || null} initialBundle={galleryBundle} />
+      <NewProcessModal opened={newStart !== null} initialStart={newStart ?? 'blank'} onClose={() => setNewStart(null)} />
       <ImportModal opened={importOpen} onClose={importModal.close} />
       <BundleImportModal opened={bundleOpen} onClose={bundleModal.close} />
       {duplicate.dialog}
     </ListPage>
+  );
+}
+
+/** A process as a card: the phone list and the card view. */
+function ProcessCard({ p, actions, badges, onTag }: { p: ProcessSummary; actions: ReactNode; badges: ReactNode; onTag: (tag: string) => void }) {
+  const { t } = useTranslation('processes');
+  const navigate = useNavigate();
+  return (
+    <Card withBorder padding="md" className="clickable" onClick={() => navigate(`/processes/${p.id}`)} h="100%">
+      <Group justify="space-between" wrap="nowrap" align="flex-start">
+        <Anchor
+          component={Link}
+          to={`/processes/${p.id}`}
+          fw={600}
+          c="var(--mantine-color-text)"
+          underline="hover"
+          style={{ minWidth: 0 }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {p.name}
+        </Anchor>
+        {actions}
+      </Group>
+      <DescriptionText text={p.description} size="sm" c="dimmed" lineClamp={3} mt={4} />
+      <Group gap={4} mt="sm">
+        <Badge size="xs" variant="outline">
+          v{p.currentVersion}
+        </Badge>
+        {badges}
+        <TagBadges tags={p.tags} onTag={onTag} />
+        {p.lastRun && (
+          <>
+            <Text size="xs" c="dimmed" ml="auto">
+              {t('card.lastRun', { when: fmtRelative(p.lastRun.startedAt) })}
+            </Text>
+            <StatusBadge status={p.lastRun.outcome ?? p.lastRun.status} size="xs" />
+          </>
+        )}
+      </Group>
+    </Card>
   );
 }
 

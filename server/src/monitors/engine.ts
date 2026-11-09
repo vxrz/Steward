@@ -20,12 +20,14 @@ import {
   type StateRow,
 } from './model.js';
 import { analyze, applyResult, freshnessStatus, freshnessWindowSeconds, fmtAge, nextDue, phaseOffset } from './logic.js';
-import { isActive, planFreshness, planCheckmk, planGatus, runActiveCheck, toMillis, type RawResult } from './checks.js';
+import { isActive, planCheck, runActiveCheck, toMillis, type RawResult } from './checks.js';
+import { storedKindMismatch } from './kinds.js';
 import { ihKey } from './batch.js';
 import { dispatchOutputs, heldMonitors, type Subject } from './outputs.js';
 import { markDatasetsDirty, publishDirtyDatasets } from './datasets.js';
 import { countEvaluation } from './metrics.js';
 import { subMonitorMessage } from './redact.js';
+import { catalogueMaintenance, type ActiveMaintenance } from './maintenance-hook.js';
 
 /**
  * The monitor engine: a light scheduler, separate from process runs.
@@ -100,6 +102,32 @@ export function loadAll(): void {
   loaded = true;
 }
 
+/**
+ * Once at start (0.11.0): checks and outputs whose stored platform is of a kind they do not use (kinds.ts) – saved
+ * before the kind was checked, or the platform's kind changed. Checks report unknown, outputs record a failure, neither
+ * sends anything; one log line names them by monitor, check or output and platform id (no names, no secrets) so an
+ * administrator can find them.
+ */
+function warnPlatformKindMismatches(): void {
+  const checks: { monitor: string; key: string; check: string; type: string; platform: string; kind: string }[] = [];
+  const outputs: { monitor: string; key: string; output: string; type: string; platform: string; kind: string }[] = [];
+  for (const m of monitors.values()) {
+    for (const c of m.def.checks) {
+      const x = storedKindMismatch({ ...c, platform: 'platform' in c ? c.platform : undefined }, false);
+      if (x) checks.push({ monitor: m.id, key: m.key, check: c.id, type: c.type, platform: x.platform, kind: x.kind });
+    }
+    for (const o of m.def.outputs) {
+      const x = storedKindMismatch({ type: o.type, platform: 'platform' in o ? o.platform : undefined }, true);
+      if (x) outputs.push({ monitor: m.id, key: m.key, output: o.id, type: o.type, platform: x.platform, kind: x.kind });
+    }
+  }
+  if (checks.length || outputs.length)
+    logger.warn(
+      { checks: checks.slice(0, 100), outputs: outputs.slice(0, 100), count: checks.length + outputs.length },
+      'monitor checks and outputs whose platform is of a kind they do not read or write to: they do not run until another platform is chosen',
+    );
+}
+
 /** After a create/update: refresh the definition and evaluate the monitor soon. */
 export function reloadMonitor(id: string): void {
   const r = db().get<MonitorRow>('SELECT * FROM monitors WHERE id = ?', id);
@@ -129,6 +157,7 @@ export function startMonitorEngine(): void {
   abort = new AbortController();
   try {
     loadAll();
+    warnPlatformKindMismatches();
   } catch (err) {
     logger.error({ err }, 'monitors could not be loaded');
   }
@@ -225,11 +254,7 @@ export function tick(now = clock()): number {
     }
   }
   // register the shared reads before any check starts, so one call serves them all
-  for (const [m, c] of start) {
-    if (c.type === 'freshness') planFreshness(c, m.owner);
-    else if (c.type === 'gatus') planGatus(c, m.owner);
-    else if (c.type === 'checkmk') planCheckmk(c, m.owner);
-  }
+  for (const [m, c] of start) planCheck(c, m.owner);
   for (const [m, c] of start) void evaluateCheck(m.id, c.id, now);
   for (const mid of heldMonitors()) scheduleRecompute(mid);
   if (now - lastPublish >= 60000) {
@@ -248,9 +273,7 @@ export async function evaluateMonitorNow(mid: string): Promise<void> {
   const m = monitors.get(mid);
   if (!m) return;
   const now = clock();
-  for (const c of m.def.checks) if (c.type === 'freshness') planFreshness(c, m.owner);
-  for (const c of m.def.checks) if (c.type === 'gatus') planGatus(c, m.owner);
-  for (const c of m.def.checks) if (c.type === 'checkmk') planCheckmk(c, m.owner);
+  for (const c of m.def.checks) planCheck(c, m.owner);
   await Promise.all(m.def.checks.filter(checkEnabled).map((c) => evaluateCheck(m.id, c.id, now)));
   await settle();
 }
@@ -482,22 +505,23 @@ function pruneResults(mid: string, cid: string): void {
 
 // ---------- maintenance ----------
 
-export function activeMaintenance(mid: string, now = clock()): { id: string; ends_at: string; reason: string } | undefined {
+/**
+ * The maintenance window a monitor is in now: a catalogue window (#108) that lists the monitor or reaches a platform
+ * it checks (0.11, ADR 0018: the one maintenance-window concept). A monitor's own window from before 0.11 that was not
+ * copied yet (the copy is made once the vault is open) still counts until it is.
+ */
+export function activeMaintenance(mid: string, now = clock()): ActiveMaintenance | undefined {
   const ts = iso(now);
   return (
-    db().get<{ id: string; ends_at: string; reason: string }>(
-      'SELECT id, ends_at, reason FROM monitor_maintenance WHERE monitor_id = ? AND starts_at <= ? AND ends_at > ? ORDER BY ends_at DESC LIMIT 1',
+    catalogueMaintenance(mid, now) ??
+    db().get<ActiveMaintenance>(
+      `SELECT id, starts_at, ends_at, reason, created_by, created_at FROM monitor_maintenance
+       WHERE monitor_id = ? AND migrated_at IS NULL AND starts_at <= ? AND ends_at > ? ORDER BY ends_at DESC LIMIT 1`,
       mid,
       ts,
       ts,
-    ) ?? catalogueMaintenance?.(mid, now)
+    )
   );
-}
-
-/** Maintenance windows of the catalogue (#108) on a platform the monitor checks – set by catalogue/maintenance.ts. */
-let catalogueMaintenance: ((mid: string, now: number) => { id: string; starts_at: string; ends_at: string; reason: string } | undefined) | null = null;
-export function setCatalogueMaintenance(fn: typeof catalogueMaintenance): void {
-  catalogueMaintenance = fn;
 }
 
 // ---------- graph evaluation ----------

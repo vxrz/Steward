@@ -1,9 +1,10 @@
 # yaml-language-server: $schema=https://github.com/vxrz/Steward/blob/main/docs/plant/plant-registry-1.schema.json
 # Steward plant registry, format 1 (docs/PLANT.md) – part 3: the OT network (#220).
 # The invented OT network of the invented Riverside Works (brightwater.plant.yaml): IEEE 802.1Q VLANs with their
-# subnets, IEC 62443-3-2 zones and a conduit, and the devices and data paths of two milling centres. Addresses are
-# private (10.x) or documentation ranges (192.0.2.0/24, RFC 5737); MAC addresses use the IEEE documentation block
-# 00-00-5E-00-53-xx (RFC 7042); host names are below example.com. Nothing here names a real host.
+# subnets, IEC 62443-3-2 zones (with their level in the Purdue model) and a conduit, and the devices and data paths of
+# two milling centres. Addresses are private (10.x) or documentation ranges (192.0.2.0/24, RFC 5737); MAC addresses
+# use the IEEE documentation block 00-00-5E-00-53-xx (RFC 7042); host names are below example.com. Nothing here names
+# a real host.
 version: 1
 ot_network:
   site: riverside
@@ -54,6 +55,7 @@ ot_network:
       name: Production cells
       description: Machining and assembly – the machines and their controllers.
       criticality: high
+      level: control
       vlans: [rvs-vlan-110, rvs-vlan-120]
       owner: Head of production
       sl_t: 2
@@ -62,6 +64,7 @@ ot_network:
     - id: rvs-zone-dmz
       name: OT DMZ
       criticality: medium
+      level: dmz
       vlans: [rvs-vlan-900]
       owner: Plant IT
       notes: The target security level is open until the risk assessment of the DMZ (planned).

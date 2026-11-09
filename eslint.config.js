@@ -93,6 +93,21 @@ export default defineConfig(
             "MemberExpression[object.type='MemberExpression'][object.object.name='process'][object.property.name='env'][property.name=/^SM_/]:not(AssignmentExpression > MemberExpression.left)",
           message: 'Read SM_* variables from `env` in server/src/config.ts (validated at start-up; add new ones to config-schema.ts).',
         },
+        // one copy of each route helper (architecture review A10): small differences between copies are where access bugs start
+        {
+          selector:
+            "Program > VariableDeclaration > VariableDeclarator[id.name='params'] > ArrowFunctionExpression > TSAsExpression > MemberExpression[property.name='params']",
+          message: 'Use params() from server/src/routes/params.ts.',
+        },
+        {
+          selector:
+            "CallExpression[callee.property.name='some'][callee.object.property.name='roles'] > ArrowFunctionExpression > CallExpression[callee.property.name='includes']",
+          message: 'Use hasRole(user, roles) from auth/permissions.ts (or auth/access.ts).',
+        },
+        {
+          selector: 'Program > FunctionDeclaration[id.name=/^require(Process|Run|RunView|Platform)$/]',
+          message: 'Use requireProcess, requireRun, requireRunView or requirePlatform from server/src/routes/helpers.ts.',
+        },
       ],
     },
   },
@@ -111,6 +126,26 @@ export default defineConfig(
             {
               group: ['**/engine/runner', '**/engine/runner.js'],
               message: 'Use the engine boundary: engine() from engine/index.ts, rights checks from engine/commands.ts (ADR 0011).',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  // Step modules (ADR 0011, update 0.11) see their run only through the step context (steps/context.ts): they never
+  // import the built-in engine – the runner, or engine/index.ts, which hands it out – so the executor stays replaceable
+  // and a step runs the same under any engine.
+  {
+    files: ['server/src/engine/steps/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['**/runner', '**/runner.js', '../index', '../index.js', '**/engine/index', '**/engine/index.js', '**/debug-gate', '**/debug-gate.js'],
+              message: 'A step module sees its run only through the StepContext (engine/steps/context.ts), never the engine itself (ADR 0011).',
             },
           ],
         },

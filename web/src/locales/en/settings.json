@@ -105,7 +105,7 @@
         "hint": "It contains the database, encrypted credentials, evidence files and the audit log."
       }
     },
-    "readme": "See the <readme>README</readme> for details."
+    "readme": "See the <readme>getting-started guide</readme> for details."
   },
   "maintenance": {
     "confirm": "Delete runs and notifications older than the saved retention periods now? This cannot be undone.",
@@ -563,7 +563,7 @@
     },
     "modules": {
       "title": "Modules",
-      "description": "Opt-in parts of Steward that are off by default: the plant registry."
+      "description": "Switch optional areas on or off (costs, data contracts, compliance, status pages and others), with how mature each one is; the plant registry and its map."
     }
   },
   "endOfLife": {

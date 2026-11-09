@@ -67,7 +67,8 @@ for spec in "${SPECS[@]}"; do
   found=$((found + 1))
   file="$work/$(basename "$url")"
   echo "• $name $version" >&2
-  curl -fsSL --retry 3 --proto '=https' --tlsv1.2 -o "$file" "$url"
+  # GitHub's release downloads answer 504 for minutes at a time: retry with growing pauses (1, 2, 4 … 64 s), up to 4 min
+  curl -fsSL --retry 8 --retry-max-time 240 --proto '=https' --tlsv1.2 -o "$file" "$url"
   echo "$sha  $file" | sha256sum --check --quiet --strict
   if [ -n "$member" ]; then
     mkdir -p "$work/$name"

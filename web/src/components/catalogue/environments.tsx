@@ -112,6 +112,11 @@ export function EnvironmentsCard() {
   const twice = (i: number) => !!names[i] && names.indexOf(names[i]!) !== i;
   const invalid = rows.some((r, i) => !r.name.trim() || twice(i));
   const save = async () => {
+    // the rows already say what is wrong; the button stays enabled (U16)
+    if (invalid) {
+      requestAnimationFrame(() => document.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus());
+      return;
+    }
     setBusy(true);
     try {
       const r = await put<EnvironmentSettings>('/catalogue/environments', { environments: rows.map((x) => ({ ...x, name: x.name.trim() })) });
@@ -238,7 +243,7 @@ export function EnvironmentsCard() {
             >
               {t('environments.add')}
             </Button>
-            <Button size="xs" loading={busy} disabled={invalid} onClick={() => void save()}>
+            <Button size="xs" loading={busy} onClick={() => void save()}>
               {t('environments.save')}
             </Button>
           </Group>

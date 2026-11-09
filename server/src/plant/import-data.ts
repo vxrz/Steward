@@ -17,6 +17,10 @@ import {
   type PlantMissing,
   type PlantPermission,
   type PlantProfileValues,
+  type PlantInterfaceOverride,
+  type PlantProfilePointOverride,
+  type PlantResolvedProfile,
+  type PlantAssetPointAddition,
 } from '@sm/shared';
 import { db } from '../db.js';
 import type { AuthUser } from '../auth/context.js';
@@ -44,6 +48,7 @@ import {
   type ProfileRow,
 } from './data-model.js';
 import { assignmentChecks, kpiChecks } from './checks.js';
+import { descendantsOf, extendsProblems, normalizeOwnPart, ownPartProblems, resolveAll, resolveChain, resolvedProblems } from './resolve.js';
 
 /**
  * The YAML import and export of part 2 (#219): device profiles, KPI definitions and assignments, in the same file
@@ -102,6 +107,8 @@ interface PlannedProfile extends Origin {
   values: Partial<PlantProfileValues> & { id: string; name: string };
   /** The file's place of each group: groupPaths[interface][group] */
   groupPaths: string[][];
+  /** The file's interfaces as written: split into own interfaces and overrides once the base is known (0.11.0) */
+  raw: InterfaceFile[] | null;
 }
 interface PlannedKpi extends Origin {
   values: Partial<PlantKpiValues> & { id: string; name: string };
@@ -133,9 +140,107 @@ function pointFromFile(d: DataPointFile, o: Origin, problems: PlantImportProblem
     access: d.access ? (directionOf(d.access) ?? 'read') : 'read',
     updateRateMs: d.update_rate_ms ?? null,
     enumValues: (d.enum_values ?? []).map((x) => String(x).trim()).filter(Boolean),
+    aliases: [...new Set((d.aliases ?? []).map((x) => x.trim()).filter(Boolean))],
     notes: str(d.notes),
     publications: (d.publications ?? []).map((x) => ({ target: str(x.target), path: str(x.path), name: str(x.name) })),
   };
+}
+
+/** The keys an inherited data point's entry gives (0.11.0): what the derived profile changes. */
+function pointOverrideFromFile(d: DataPointFile, o: Origin, problems: PlantImportProblem[]): PlantProfilePointOverride {
+  const x: PlantProfilePointOverride = { dataPoint: d.id, present: d.present ?? true };
+  if (d.present === false) return x;
+  const full = pointFromFile(d, o, problems);
+  if (has(d, 'name')) x.name = full.name;
+  if (has(d, 'description')) x.description = full.description;
+  if (has(d, 'data_type')) x.dataType = full.dataType;
+  if (has(d, 'unit')) x.unit = full.unit;
+  if (has(d, 'address') || has(d, 'node_id') || has(d, 'modbus_address')) x.address = full.address;
+  if (has(d, 'access')) x.access = full.access;
+  if (has(d, 'update_rate_ms')) x.updateRateMs = full.updateRateMs;
+  if (has(d, 'enum_values')) x.enumValues = full.enumValues;
+  if (has(d, 'aliases')) x.aliases = full.aliases;
+  if (has(d, 'notes')) x.notes = full.notes;
+  if (has(d, 'publications')) x.publications = full.publications;
+  return x;
+}
+
+/**
+ * A derived profile's `interfaces` as written, against its base's effective model: an entry with an inherited id
+ * changes that interface (the keys it gives, `present: false`, data points it adds or changes); any other entry is an
+ * own interface (0.11.0). Without a base every entry is an own interface, as before.
+ */
+export function splitInterfaces(
+  raw: InterfaceFile[],
+  base: PlantResolvedProfile | null,
+  path: string,
+  file: string,
+  problems: PlantImportProblem[],
+): { interfaces: PlantInterface[]; interfaceOverrides: PlantInterfaceOverride[]; pointOverrides: PlantProfilePointOverride[]; groupPaths: string[][] } {
+  const interfaces: PlantInterface[] = [];
+  const interfaceOverrides: PlantInterfaceOverride[] = [];
+  const pointOverrides: PlantProfilePointOverride[] = [];
+  const groupPaths: string[][] = [];
+  const inheritedPoint = new Map<string, string>();
+  for (const i of base?.interfaces ?? []) for (const g of i.groups) for (const d of g.dataPoints) inheritedPoint.set(d.id, i.id);
+  raw.forEach((f, i) => {
+    const at = `${path}.interfaces[${i}]`;
+    const inherited = base?.interfaces.find((x) => x.id === f.id);
+    if (!inherited) {
+      if (!f.protocol) problems.push({ file, path: `${at}.protocol`, message: 'Required (a new interface needs its protocol)' });
+      if (f.present !== undefined)
+        problems.push({
+          file,
+          path: `${at}.present`,
+          message: base ? `The base has no interface "${f.id}"` : 'Only a profile that extends another marks inherited interfaces',
+        });
+      const x = interfaceFromFile(f, at, problems, file);
+      for (const [j, g] of x.iface.groups.entries())
+        for (const [k, d] of g.dataPoints.entries())
+          if ((f.groups?.[j]?.data_points?.[k] ?? f.data_points?.[k])?.present !== undefined)
+            problems.push({ file, path: `${x.groupPaths[j]}`, message: `Data point "${d.id}": "present" marks only inherited data points` });
+      interfaces.push(x.iface);
+      groupPaths.push(x.groupPaths);
+      return;
+    }
+    if (f.protocol && protocolOf(f.protocol) !== inherited.protocol)
+      problems.push({ file, path: `${at}.protocol`, message: `Interface "${f.id}" is inherited: its protocol stays ${inherited.protocol}` });
+    const o: PlantInterfaceOverride = { interface: f.id, present: f.present ?? true, groups: [], fileSets: [] };
+    if (f.present !== false) {
+      const x = interfaceFromFile({ ...f, protocol: inherited.protocol, groups: [], data_points: [] }, at, problems, file).iface;
+      if (has(f, 'name')) o.name = x.name;
+      if (has(f, 'direction')) o.direction = x.direction;
+      if (has(f, 'description')) o.description = x.description;
+      if (has(f, 'version')) o.version = x.version;
+      if (has(f, 'default_port')) o.defaultPort = x.defaultPort;
+      if (has(f, 'authentication')) o.authentication = x.authentication;
+      if (has(f, 'client')) o.client = x.client;
+      if (has(f, 'notes')) o.notes = x.notes;
+      o.fileSets = x.fileSets;
+      const inheritedGroups = new Set(inherited.groups.map((g) => g.name));
+      const groups: [string, string, DataPointFile[], string][] = [
+        ...(f.groups ?? []).map(
+          (g, j) => [g.name.trim(), str(g.description), g.data_points ?? [], `${at}.groups[${j}]`] as [string, string, DataPointFile[], string],
+        ),
+        ...(f.data_points?.length ? [['', '', f.data_points, at] as [string, string, DataPointFile[], string]] : []),
+      ];
+      for (const [name, description, points, gat] of groups) {
+        const added: PlantDataPoint[] = [];
+        points.forEach((d, k) => {
+          const dat = name || gat !== at ? `${gat}.data_points[${k}]` : `${at}.data_points[${k}]`;
+          const on = inheritedPoint.get(d.id);
+          if (on && on !== f.id)
+            problems.push({ file, path: `${dat}.id`, message: `Data point "${d.id}" is inherited on interface "${on}" – change it there` });
+          else if (on) pointOverrides.push(pointOverrideFromFile(d, { file, path: dat }, problems));
+          else if (d.present !== undefined) problems.push({ file, path: `${dat}.present`, message: `The base has no data point "${d.id}"` });
+          else added.push(pointFromFile(d, { file, path: dat }, problems));
+        });
+        if (added.length || !inheritedGroups.has(name)) o.groups.push({ name, description, dataPoints: added });
+      }
+    }
+    interfaceOverrides.push(o);
+  });
+  return { interfaces: normalizeInterfaces(interfaces), interfaceOverrides, pointOverrides, groupPaths };
 }
 
 function interfaceFromFile(f: InterfaceFile, path: string, problems: PlantImportProblem[], file: string): { iface: PlantInterface; groupPaths: string[] } {
@@ -157,7 +262,7 @@ function interfaceFromFile(f: InterfaceFile, path: string, problems: PlantImport
     iface: {
       id: f.id,
       name: str(f.name),
-      protocol: protocolOf(f.protocol) ?? 'other',
+      protocol: (f.protocol ? protocolOf(f.protocol) : null) ?? 'other',
       direction: f.direction ? (directionOf(f.direction) ?? 'read') : 'read',
       description: str(f.description),
       version: str(f.version),
@@ -183,18 +288,12 @@ function interfaceFromFile(f: InterfaceFile, path: string, problems: PlantImport
   };
 }
 
-function profileFromFile(p: ProfileFile, o: Origin, problems: PlantImportProblem[]): PlannedProfile {
+function profileFromFile(p: ProfileFile, o: Origin): PlannedProfile {
   const v: PlannedProfile['values'] = { id: p.id, name: p.name.trim() };
   for (const k of ['manufacturer', 'model', 'version', 'category', 'description', 'notes'] as const) if (has(p, k)) v[k] = str(p[k]);
-  const groupPaths: string[][] = [];
-  if (has(p, 'interfaces'))
-    v.interfaces = (p.interfaces ?? []).map((f, i) => {
-      // the places of the data points in the file: below the profile's own place
-      const x = interfaceFromFile(f, `${o.path}.interfaces[${i}]`, problems, o.file);
-      groupPaths.push(x.groupPaths);
-      return x.iface;
-    });
-  return { ...o, values: v, groupPaths };
+  if (has(p, 'extends')) v.extends = p.extends ?? null;
+  // the interfaces are read once the base is known (computeData): an entry may change an inherited interface
+  return { ...o, values: v, groupPaths: [], raw: has(p, 'interfaces') ? (p.interfaces ?? []) : null };
 }
 
 function kpiFromFile(k: KpiFile, o: Origin): PlannedKpi {
@@ -252,7 +351,7 @@ function kpiFromFile(k: KpiFile, o: Origin): PlannedKpi {
   return { ...o, values: v };
 }
 
-function assignmentFromFile(a: AssignmentFile, o: Origin): PlannedAssignment {
+function assignmentFromFile(a: AssignmentFile, o: Origin, pending: PlantImportProblem[]): PlannedAssignment {
   const v: PlannedAssignment['values'] = {};
   if (has(a, 'profile')) v.profileId = a.profile ?? null;
   if (has(a, 'firmware')) v.firmware = str(a.firmware);
@@ -269,6 +368,22 @@ function assignmentFromFile(a: AssignmentFile, o: Origin): PlannedAssignment {
       updateRateMs: x.update_rate_ms ?? null,
       notes: str(x.notes),
     }));
+  if (has(a, 'additions')) {
+    const at = `${o.path}.additions`;
+    const problems: PlantImportProblem[] = [];
+    v.additions = {
+      interfaces: (a.additions?.interfaces ?? []).map((f, i) => {
+        if (!f.protocol) problems.push({ file: o.file, path: `${at}.interfaces[${i}].protocol`, message: 'Required (a new interface needs its protocol)' });
+        return interfaceFromFile(f, `${at}.interfaces[${i}]`, problems, o.file).iface;
+      }),
+      dataPoints: (a.additions?.data_points ?? []).map((d, i): PlantAssetPointAddition => ({
+        ...pointFromFile(d, { file: o.file, path: `${at}.data_points[${i}]` }, problems),
+        interface: d.interface,
+        group: str(d.group),
+      })),
+    };
+    pending.push(...problems);
+  }
   if (has(a, 'publications'))
     v.publications = (a.publications ?? []).map((x) => ({
       dataPoint: x.data_point,
@@ -305,7 +420,7 @@ export function planData(p: DataPlan, f: PlantFile, file: string, problems: Plan
       twice(o, `Device profile "${x.id}"`, first);
       continue;
     }
-    p.profiles.set(x.id, profileFromFile(x, o, problems));
+    p.profiles.set(x.id, profileFromFile(x, o));
   }
   const kpis: [KpiFile, string][] = f.kpi_definition
     ? [[f.kpi_definition, 'kpi_definition']]
@@ -321,7 +436,7 @@ export function planData(p: DataPlan, f: PlantFile, file: string, problems: Plan
     const o = { file, path };
     const first = p.assignments.get(x.asset);
     if (first) twice(o, `The assignment of asset "${x.asset}"`, first);
-    else p.assignments.set(x.asset, assignmentFromFile(x, o));
+    else p.assignments.set(x.asset, assignmentFromFile(x, o, problems));
   }
 }
 
@@ -339,6 +454,9 @@ const PROFILE_DEFAULTS = (id: string): PlantProfileValues => ({
   description: '',
   notes: '',
   interfaces: [],
+  extends: null,
+  interfaceOverrides: [],
+  pointOverrides: [],
 });
 const KPI_DEFAULTS = (id: string): PlantKpiValues => ({
   id,
@@ -369,6 +487,7 @@ export const ASSIGNMENT_DEFAULTS = (): PlantAssignmentValues => ({
   firmware: '',
   interfaces: [],
   overrides: [],
+  additions: { interfaces: [], dataPoints: [] },
   publications: [],
   kpis: [],
   notes: '',
@@ -440,19 +559,49 @@ export function computeData(c: DataContext): PlantCheck[] {
     for (const r of storedAssignments.values()) if (fromPrev(r) && !p.assignments.has(r.asset_id)) removing.assignments.add(r.asset_id);
   }
 
-  // ---- profiles
-  const postProfiles = new Map<string, PlantProfileValues>();
-  for (const [id, r] of storedProfiles) if (!removing.profiles.has(id)) postProfiles.set(id, profileValuesOf(r));
-  for (const pp of p.profiles.values()) {
+  // ---- profiles: bases first, so a derived profile's interfaces are read against its base's model (0.11.0)
+  const postOwn = new Map<string, PlantProfileValues>();
+  for (const [id, r] of storedProfiles) if (!removing.profiles.has(id)) postOwn.set(id, profileValuesOf(r));
+  const settled = new Map<string, PlantProfileValues>();
+  const settling = new Set<string>();
+  const settle = (pp: PlannedProfile): PlantProfileValues => {
+    const done = settled.get(pp.values.id);
+    if (done) return done;
+    settling.add(pp.values.id);
     const cur = storedProfiles.get(pp.values.id);
     const before = cur ? profileValuesOf(cur) : null;
     const after: PlantProfileValues = { ...(before && !full ? before : PROFILE_DEFAULTS(pp.values.id)), ...pp.values };
+    const baseId = after.extends;
+    const planned = baseId ? p.profiles.get(baseId) : undefined;
+    // a base in the files is read first (a cycle is refused below)
+    if (planned && !settling.has(baseId!)) settle(planned);
+    const base = baseId && !settling.has(baseId) ? resolveChain(baseId, (x) => postOwn.get(x)) : null;
+    if (pp.raw) {
+      const x = splitInterfaces(pp.raw, base, pp.path, pp.file, problems);
+      after.interfaces = x.interfaces;
+      after.interfaceOverrides = x.interfaceOverrides;
+      after.pointOverrides = x.pointOverrides;
+      pp.groupPaths = x.groupPaths;
+    }
     after.interfaces = normalizeInterfaces(after.interfaces);
-    // the group paths are the file's (data points without a group are listed on their interface)
-    if (pp.values.interfaces)
-      for (const pr of profileProblems(after, (i, j) => (pp.groupPaths[i]?.[j] ?? `${pp.path}.interfaces[${i}]`).slice(pp.path.length + 1)))
-        problems.push({ file: pp.file, path: `${pp.path}.${pr.path}`, message: pr.message });
-    postProfiles.set(after.id, after);
+    for (const pr of extendsProblems(after.id, after.extends, new Map([...postOwn, [after.id, after]])))
+      problems.push({ file: pp.file, path: `${pp.path}.${pr.path}`, message: pr.message });
+    const normalized = normalizeOwnPart(after, base);
+    if (!after.extends) {
+      // the group paths are the file's (data points without a group are listed on their interface)
+      if (pp.raw)
+        for (const pr of profileProblems(normalized, (i, j) => (pp.groupPaths[i]?.[j] ?? `${pp.path}.interfaces[${i}]`).slice(pp.path.length + 1)))
+          problems.push({ file: pp.file, path: `${pp.path}.${pr.path}`, message: pr.message });
+    } else if (base) for (const pr of ownPartProblems(normalized, base)) problems.push({ file: pp.file, path: `${pp.path}.${pr.path}`, message: pr.message });
+    settling.delete(pp.values.id);
+    settled.set(normalized.id, normalized);
+    postOwn.set(normalized.id, normalized);
+    return normalized;
+  };
+  for (const pp of p.profiles.values()) {
+    const cur = storedProfiles.get(pp.values.id);
+    const before = cur ? profileValuesOf(cur) : null;
+    const after = settle(pp);
     pushWrite(
       writes,
       mode,
@@ -467,6 +616,22 @@ export function computeData(c: DataContext): PlantCheck[] {
       () => db().run('UPDATE plant_profiles SET import_id = ?, not_in_source = 0 WHERE id = ?', c.importId, after.id),
     );
   }
+  // every profile that extends one of the files' still resolves; the checks read the resolved profiles
+  const postProfiles = resolveAll(postOwn);
+  const told = new Set<string>();
+  for (const pp of p.profiles.values())
+    for (const d of descendantsOf(pp.values.id, postOwn)) {
+      if (told.has(d) || p.profiles.has(d)) continue;
+      told.add(d);
+      const pr = resolvedProblems(postProfiles.get(d)!);
+      if (pr.length) problems.push({ file: pp.file, path: `${pp.path}.interfaces`, message: `Device profile "${d}" extends this one: ${pr[0]!.message}` });
+    }
+  for (const pp of p.profiles.values())
+    if (postOwn.get(pp.values.id)?.extends) {
+      const pr = resolvedProblems(postProfiles.get(pp.values.id)!);
+      if (pr.length && !problems.some((x) => x.file === pp.file && x.path.startsWith(pp.path)))
+        problems.push({ file: pp.file, path: `${pp.path}.interfaces`, message: pr[0]!.message });
+    }
 
   // ---- KPI definitions
   const postKpis = new Map<string, PlantKpiValues>();
@@ -600,6 +765,15 @@ export function computeData(c: DataContext): PlantCheck[] {
       else if (r.not_in_source) writes.push({ kind: 'assignment', action: 'unchanged', siteId, id: r.asset_id, name, note: 'not in source', apply: mark });
       else writes.push({ kind: 'assignment', action: 'mark', siteId, id: r.asset_id, name, note: 'kept, marked "not in source"', apply: mark });
     }
+    // a base that goes while a profile that stays extends it: the import stops (0.11.0)
+    if (c.missing === 'remove')
+      for (const x of postOwn.values())
+        if (x.extends && removing.profiles.has(x.extends))
+          problems.push({
+            file: '(files)',
+            path: 'device_profiles',
+            message: `Device profile "${x.extends}" is removed, but profile "${x.id}" extends it – add it to the files, or keep and mark the missing records`,
+          });
     // a profile or KPI definition that goes while an assignment that stays still names it: the import stops
     if (c.missing === 'remove')
       for (const [assetId, a] of postAssignments) {
@@ -657,52 +831,134 @@ const pointOut = (d: PlantDataPoint) =>
     access: d.access === 'read' ? '' : d.access,
     update_rate_ms: d.updateRateMs,
     enum_values: d.enumValues,
+    aliases: d.aliases,
     notes: d.notes,
     publications: d.publications.map((x) => clean({ target: x.target, path: x.path, name: x.name })),
   });
 
-export function profileOut(p: PlantProfileValues): Record<string, unknown> {
+/** An inherited data point's entry: only what the derived profile changes (0.11.0). */
+const pointOverrideOut = (o: PlantProfilePointOverride): Record<string, unknown> => {
+  if (!o.present) return { id: o.dataPoint, present: false };
+  const out: Record<string, unknown> = { id: o.dataPoint };
+  const keys: [keyof PlantProfilePointOverride, string][] = [
+    ['name', 'name'],
+    ['description', 'description'],
+    ['dataType', 'data_type'],
+    ['unit', 'unit'],
+    ['address', 'address'],
+    ['access', 'access'],
+    ['updateRateMs', 'update_rate_ms'],
+    ['enumValues', 'enum_values'],
+    ['aliases', 'aliases'],
+    ['notes', 'notes'],
+    ['publications', 'publications'],
+  ];
+  for (const [k, f] of keys) if (o[k] !== undefined) out[f] = o[k];
+  return out;
+};
+
+const fileSetOut = (f: PlantInterface['fileSets'][number]) =>
+  clean({
+    id: f.id,
+    name: f.name,
+    description: f.description,
+    format: f.format,
+    direction: f.direction === 'read' ? '' : f.direction,
+    path_pattern: f.pathPattern,
+    produced_per: f.producedPer,
+    retention: f.retention,
+    encoding: f.encoding,
+    notes: f.notes,
+  });
+
+/**
+ * A derived profile's changes to inherited interfaces as `interfaces` entries (0.11.0): per inherited interface the keys
+ * it changes, `present: false`, and in its groups the inherited data points it changes and the ones it adds – in the
+ * base's order, so the file imports back unchanged. Overrides of items the base no longer has are left out.
+ */
+function inheritedOut(p: PlantProfileValues, base: PlantResolvedProfile): Record<string, unknown>[] {
+  const out: Record<string, unknown>[] = [];
+  const overrides = new Map(p.pointOverrides.map((o) => [o.dataPoint, o]));
+  for (const iface of base.interfaces) {
+    const io = p.interfaceOverrides.find((o) => o.interface === iface.id);
+    if (io && !io.present) {
+      out.push({ id: iface.id, present: false });
+      continue;
+    }
+    const groups = new Map<string, { description: string; points: Record<string, unknown>[] }>();
+    for (const g of iface.groups)
+      for (const d of g.dataPoints) {
+        const o = overrides.get(d.id);
+        if (!o) continue;
+        const x = groups.get(g.name) ?? { description: '', points: [] };
+        x.points.push(pointOverrideOut(o));
+        groups.set(g.name, x);
+      }
+    const order = iface.groups.map((g) => g.name);
+    for (const g of io?.groups ?? []) {
+      const x = groups.get(g.name) ?? { description: order.includes(g.name) ? '' : g.description, points: [] };
+      x.points.push(...g.dataPoints.map(pointOut));
+      groups.set(g.name, x);
+    }
+    if (!io && !groups.size) continue;
+    const named = [...order.filter((n) => groups.has(n)), ...[...groups.keys()].filter((n) => !order.includes(n))].filter((n) => n);
+    const entry: Record<string, unknown> = { id: iface.id };
+    const keys: [keyof PlantInterfaceOverride, string][] = [
+      ['name', 'name'],
+      ['direction', 'direction'],
+      ['description', 'description'],
+      ['version', 'version'],
+      ['defaultPort', 'default_port'],
+      ['authentication', 'authentication'],
+      ['client', 'client'],
+      ['notes', 'notes'],
+    ];
+    for (const [k, f] of keys) if (io && io[k] !== undefined) entry[f] = io[k];
+    if (named.length)
+      entry.groups = named.map((n) => ({
+        name: n,
+        ...clean({ description: groups.get(n)!.description }),
+        ...(groups.get(n)!.points.length ? { data_points: groups.get(n)!.points } : {}),
+      }));
+    if (groups.get('')?.points.length) entry.data_points = groups.get('')!.points;
+    if (io?.fileSets.length) entry.file_sets = io.fileSets.map(fileSetOut);
+    out.push(entry);
+  }
+  return out;
+}
+
+/** A profile's own part in the file format; a derived profile needs its base's effective model (0.11.0). */
+export function profileOut(p: PlantProfileValues, base: PlantResolvedProfile | null = null): Record<string, unknown> {
   return clean({
     id: p.id,
     name: p.name,
+    extends: p.extends,
     manufacturer: p.manufacturer,
     model: p.model,
     version: p.version,
     category: p.category,
     description: p.description,
     notes: p.notes,
-    interfaces: normalizeInterfaces(p.interfaces).map((i) =>
-      clean({
-        id: i.id,
-        name: i.name,
-        protocol: i.protocol,
-        direction: i.direction === 'read' ? '' : i.direction,
-        description: i.description,
-        version: i.version,
-        default_port: i.defaultPort,
-        authentication: i.authentication === 'none' ? '' : i.authentication,
-        client: i.client,
-        notes: i.notes,
-        groups: i.groups.filter((g) => g.name).map((g) => clean({ name: g.name, description: g.description, data_points: g.dataPoints.map(pointOut) })),
-        data_points: (i.groups.find((g) => !g.name)?.dataPoints ?? []).map(pointOut),
-        file_sets: i.fileSets.map((f) =>
-          clean({
-            id: f.id,
-            name: f.name,
-            description: f.description,
-            format: f.format,
-            direction: f.direction === 'read' ? '' : f.direction,
-            path_pattern: f.pathPattern,
-            produced_per: f.producedPer,
-            retention: f.retention,
-            encoding: f.encoding,
-            notes: f.notes,
-          }),
-        ),
-      }),
-    ),
+    interfaces: [...(p.extends && base ? inheritedOut(p, base) : []), ...normalizeInterfaces(p.interfaces).map(interfaceOut)],
   });
 }
+
+const interfaceOut = (i: PlantInterface): Record<string, unknown> =>
+  clean({
+    id: i.id,
+    name: i.name,
+    protocol: i.protocol,
+    direction: i.direction === 'read' ? '' : i.direction,
+    description: i.description,
+    version: i.version,
+    default_port: i.defaultPort,
+    authentication: i.authentication === 'none' ? '' : i.authentication,
+    client: i.client,
+    notes: i.notes,
+    groups: i.groups.filter((g) => g.name).map((g) => clean({ name: g.name, description: g.description, data_points: g.dataPoints.map(pointOut) })),
+    data_points: (i.groups.find((g) => !g.name)?.dataPoints ?? []).map(pointOut),
+    file_sets: i.fileSets.map(fileSetOut),
+  });
 
 export function kpiOut(k: PlantKpiValues): Record<string, unknown> {
   return clean({
@@ -769,6 +1025,10 @@ export function assignmentOut(assetId: string, a: PlantAssignmentValues): Record
       ...(x.available ? {} : { available: false }),
       ...clean({ address: x.address, unit: x.unit, data_type: x.dataType, update_rate_ms: x.updateRateMs, notes: x.notes }),
     })),
+    additions: clean({
+      interfaces: a.additions.interfaces.map((i) => interfaceOut({ ...i, groups: normalizeInterfaces([i])[0]!.groups })),
+      data_points: a.additions.dataPoints.map((d) => ({ interface: d.interface, ...clean({ group: d.group }), ...pointOut(d) })),
+    }),
     publications: a.publications.map((x) =>
       clean({ data_point: x.dataPoint, target: x.target, path: x.path, name: x.name, published_by: x.publishedBy, notes: x.notes }),
     ),

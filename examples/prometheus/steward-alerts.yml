@@ -1,0 +1,114 @@
+# Prometheus alerting rules for Steward (docs/METRICS.md). Load them with rule_files: in prometheus.yml, scrape
+# /api/metrics with an API token of an administrator or auditor (or SM_METRICS_PUBLIC=1 on a private network):
+#
+#   scrape_configs:
+#     - job_name: steward
+#       metrics_path: /api/metrics
+#       authorization: { credentials_file: /etc/prometheus/steward-token }
+#       static_configs: [{ targets: ["steward.example.com:443"] }]
+#       scheme: https
+#
+# Adjust the thresholds to your schedules: the backup rule assumes a daily backup.
+groups:
+  - name: steward
+    rules:
+      - alert: StewardDown
+        expr: up{job="steward"} == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: Steward does not answer /api/metrics
+          description: '{{ $labels.instance }} has not been scraped for 5 minutes: the process is down or unreachable.'
+
+      - alert: StewardVaultLocked
+        expr: sm_vault_unlocked == 0
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: Steward's vault is locked – schedules, monitors and integrations wait
+          description: 'Unlock it in the web UI (or mount SM_MASTER_PASSPHRASE_FILE so it unlocks after a restart).'
+
+      - alert: StewardNotReady
+        expr: sm_ready == 0 and sm_vault_unlocked == 1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Steward is not ready
+          description: 'A readiness check fails (sm_readiness_check, /api/ready or System status: database or schedules).'
+
+      - alert: StewardSchedulerStalled
+        expr: sm_vault_unlocked == 1 and time() - sm_job_last_success_timestamp_seconds{job="scheduler-heartbeat"} > 600
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: Steward's scheduler has not run for 10 minutes
+          description: 'Scheduled runs are not starting. Check the server log and System status → Background jobs.'
+
+      - alert: StewardBackgroundJobFailing
+        expr: increase(sm_job_failures_total[1h]) > 0
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Steward background job {{ $labels.job }} failed'
+          description: 'See System status → Background jobs for the error.'
+
+      - alert: StewardNoRecentBackup
+        expr: sm_backup_enabled == 1 and time() - sm_backup_last_success_timestamp_seconds > 26 * 3600
+        for: 30m
+        labels:
+          severity: critical
+        annotations:
+          summary: No successful Steward backup for more than 26 hours
+          description: 'Also fires when backups never ran (0) – check Settings → Backups and the vault.'
+
+      - alert: StewardBackupFailed
+        expr: sm_backup_last_failure_timestamp_seconds > sm_backup_last_success_timestamp_seconds
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: The last Steward backup failed
+          description: 'Settings → Backups shows the failed step.'
+
+      - alert: StewardRestoreTestFailed
+        expr: sm_backup_restore_test_last_failure_timestamp_seconds > sm_backup_restore_test_last_success_timestamp_seconds
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: The last restore test of Steward's backups failed
+          description: 'The newest backup could not be read back completely – Settings → Backups shows why.'
+
+      - alert: StewardEventLoopLag
+        expr: sm_event_loop_lag_seconds > 1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Steward's event loop is blocked – every request waits
+          description: "Usually slow database statements: see sm_db_statement_duration_seconds and 'slow database statement' in the log."
+
+      - alert: StewardHttpErrors
+        expr: |
+          sum(rate(sm_http_server_request_duration_seconds_count{http_response_status_code=~"5..", http_response_status_code!="503"}[10m]))
+            / sum(rate(sm_http_server_request_duration_seconds_count[10m])) > 0.05
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: More than 5% of requests to Steward fail with a server error
+          description: "The log has one 'request failed' line per error, with the request id."
+
+      - alert: StewardDatasetStale
+        expr: sm_dataset_stale == 1
+        for: 30m
+        labels:
+          severity: info
+        annotations:
+          summary: 'Steward dataset {{ $labels.dataset }} is stale'
+          description: 'The process that publishes it has not succeeded in time.'

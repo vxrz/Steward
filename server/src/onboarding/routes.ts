@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import { HttpError } from '../util.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { getPlatform } from '../platforms/service.js';
@@ -7,8 +7,7 @@ import { requirePlatform } from '../routes/helpers.js';
 import { listBundles, setupBundle, setupInput, turnOnBundle, turnOnInput } from './bundles.js';
 import { getStarted } from './getStarted.js';
 import { kafkaPrefixRoutes } from '../kafka/routes.js';
-
-const params = (req: FastifyRequest) => req.params as Record<string, string>;
+import { params } from '../routes/params.js';
 
 /** A platform the current user has some permission on (404 otherwise, so ids can't be probed). */
 function visiblePlatform(id: string) {

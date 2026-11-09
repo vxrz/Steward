@@ -74,18 +74,27 @@ test.describe('lists, dialogs and help (admin)', () => {
     await footer.getByRole('button', { name: 'Load more' }).click();
     await expect(table.locator('tbody tr')).toHaveCount(4);
 
-    // sort by process: ascending, descending, back to the list order
+    // sort by process on the server (0.11): ascending, descending, ascending again; newest first is the Started column
     const header = table.getByRole('columnheader', { name: 'Process' });
     await expect(header).toHaveAttribute('aria-sort', 'none');
+    await expect(table.getByRole('columnheader', { name: 'Started' })).toHaveAttribute('aria-sort', 'descending');
     await header.getByRole('button').click();
     await expect(header).toHaveAttribute('aria-sort', 'ascending');
     const names = async () => table.locator('tbody tr td:nth-child(2)').allInnerTexts();
-    const asc = await names();
-    expect(asc).toEqual([...asc].sort((a, b) => a.localeCompare(b, 'en', { sensitivity: 'base', numeric: true })));
+    await expect
+      .poll(async () => {
+        const asc = await names();
+        return asc.join('\n') === [...asc].sort((a, b) => a.localeCompare(b, 'en', { sensitivity: 'base', numeric: true })).join('\n');
+      })
+      .toBe(true);
     await header.getByRole('button').click();
     await expect(header).toHaveAttribute('aria-sort', 'descending');
     await header.getByRole('button').click();
-    await expect(header).toHaveAttribute('aria-sort', 'none');
+    await expect(header).toHaveAttribute('aria-sort', 'ascending');
+    const started = table.getByRole('columnheader', { name: 'Started' });
+    await started.getByRole('button').click();
+    await started.getByRole('button').click();
+    await expect(started).toHaveAttribute('aria-sort', 'descending');
 
     // the start page's runs tile opens the failed runs when there are any
     await page.goto('/runs?status=failed');
@@ -300,10 +309,17 @@ test.describe('start page for auditors', () => {
     await expect(tiles.getByRole('link').first()).toContainText('Undocumented access changes');
     await expect(tiles.getByTestId('tile-run-findings')).toBeVisible();
     await expect(tiles.getByTestId('tile-monitors')).toHaveCount(0);
-    const credentials = tiles.getByTestId('tile-credentials');
-    await expect(credentials).toHaveAttribute('data-state', 'not-set-up');
-    await expect(credentials).toContainText('Not set up yet');
-    await expect(credentials).toHaveAttribute('href', /\/credentials$/);
+    // features nobody set up yet: two or more fold into one line (0.11.0, U13), a single one is a dashed tile
+    const folded = page.getByTestId('tiles-not-set-up');
+    if (await folded.count()) {
+      await expect(folded.getByRole('link', { name: /Credentials/ })).toHaveAttribute('href', /\/credentials$/);
+      await expect(tiles.getByTestId('tile-credentials')).toHaveCount(0);
+    } else {
+      const credentials = tiles.getByTestId('tile-credentials');
+      await expect(credentials).toHaveAttribute('data-state', 'not-set-up');
+      await expect(credentials).toContainText('Not set up yet');
+      await expect(credentials).toHaveAttribute('href', /\/credentials$/);
+    }
     const compliance = page.getByTestId('start-compliance');
     await expect(compliance.getByRole('link', { name: /Person reviews/ })).toHaveAttribute('href', /\/compliance\/person-reviews$/);
     await expect(compliance.getByRole('link', { name: /Evidence packs/ })).toBeVisible();
@@ -317,8 +333,13 @@ test.describe('phone @mobile', () => {
   test.use({ storageState: authFile('olivia') });
 
   test('start page tiles: two balanced columns at 390 px', async ({ page }) => {
-    // seven tiles: without the runs-with-findings count (an older server)
-    await allSetUp(page, (body) => delete body.attention.runs.withFindings);
+    // seven tiles: without the runs-with-findings count (an older server), and without the credentials and duties the
+    // demo's Service Desk team (olivia) owns
+    await allSetUp(page, (body) => {
+      delete body.attention.runs.withFindings;
+      delete body.attention.credentials;
+      delete body.attention.duties;
+    });
     await page.goto('/');
     await settle(page);
     const links = page.getByTestId('start-tiles').getByRole('link');

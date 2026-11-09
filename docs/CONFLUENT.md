@@ -56,7 +56,7 @@ _Compliance → Person reviews → New_: name the colleague's e-mail address and
 
 ## Costs
 
-The same platform reads the organisation's costs (0.9.0, [COSTS.md](COSTS.md#sources)) from the **Costs API** `GET /billing/v1/costs` – daily lines per cluster, connector and product in US dollars, at most one month per request, complete after 72 hours – once a day when turned on under _Costs → the platform → Source_. The Cloud API key's service account needs the **OrganizationAdmin** or **BillingAdmin** role for it. A cluster's costs belong to the Kafka platform whose variable `confluentClusterId` is the cluster id (`lkc-…`) and so to the application of its topics; other lines stay on the Confluent platform.
+The same platform reads the organisation's costs ([COSTS.md](COSTS.md#sources)) from the **Costs API** `GET /billing/v1/costs` – daily lines per cluster, connector and product in US dollars, at most one month per request, complete after 72 hours – once a day when turned on under _Costs → the platform → Source_. The Cloud API key's service account needs the **OrganizationAdmin** or **BillingAdmin** role for it. A cluster's costs belong to the Kafka platform whose variable `confluentClusterId` is the cluster id (`lkc-…`) and so to the application of its topics; other lines stay on the Confluent platform.
 
 ## Demo and tests
 

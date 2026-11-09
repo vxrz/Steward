@@ -1,6 +1,6 @@
 # Debugging processes
 
-When a procedure does the wrong thing, you do not have to edit it blindly and start another full run. Steward 0.10.0 offers three tools ([ADR 0010](adr/0010-debugging-procedures.md)):
+When a procedure does the wrong thing, you do not have to edit it blindly and start another full run. Steward offers three tools ([ADR 0010](adr/0010-debugging-procedures.md)):
 
 - **Run this node** – try one node with the data you choose.
 - **Step through a run** – walk through a run node by node and look at the variables before each one.
@@ -47,7 +47,7 @@ Select a node in the editor and open the tab **Run this node** beside its proper
 1. **Variables** – _From a run_: the variables just before this node in an earlier run (rebuilt from that run's protocol; secrets stay `***`, and the result names the masked variables). Copied variables keep that run's data sources: an _Ask an AI model_ node sends them only when its gateway's _allowed data_ admits that run's platforms, as in the run itself. Sample data you type or paste counts as a run input. _Sample data_: a JSON object of variables, and the run inputs. _Run inputs_: inputs only. Sample data is limited to 1 MB, and **anything that looks like a credential is refused** (`DEBUG_SAMPLE_SECRET`): use an input of type _secret_ (it is sealed as in a run) or the platform's credentials instead.
 2. **Answers** –
    - **Offline**: nothing is contacted, no platform is resolved and `$secret()` fails. For `set`, `if`, `check`, `report`, `log`, `fail`, loops, decisions, and for an http node with a **pasted answer** or an AI node with a sample answer.
-   - **Recorded** (the default for a node that calls a platform): the node's connection is resolved, the kind rules are checked, then the platform's [recorded responses](../README.md#recorded-responses-and-test-runs) answer – or the pasted answer.
+   - **Recorded** (the default for a node that calls a platform): the node's connection is resolved, the kind rules are checked, then the platform's [recorded responses](PLATFORMS.md#recorded-responses-and-test-runs) answer – or the pasted answer.
    - **Live read**: the request is really sent as in a dry run, but only for a node that reads: `GET` and `HEAD`, a database query (database platforms are read-only), an AI call, a browser step without clicks or typing. A step's `mutating: false` does not make a `POST` live-able; such a request runs with recorded answers.
 3. **Pasted answer** (http nodes): an HTTP status and a JSON body that stand in for the platform. It lives only in this debug run's protocol and is never stored as a recording.
 4. **Simulated answer** for a decision, selection or manual step.

@@ -95,7 +95,7 @@ export function recordSample(
   users: () => UserInfo[] = () => listUsers().filter((u) => u.active),
 ): SampleOutcome {
   const out: SampleOutcome = { sampled: false, status: null, breach: false, recovered: false, notified: false };
-  const reading = cache.read(o.platform_id, o.endpoint_key);
+  const reading = cache.readRow(o);
   const { windows, status } = judge(o, reading.values);
   const v = reading.values;
   const inserted = db().run(
@@ -205,7 +205,12 @@ export function setObjectiveArchived(objectiveId: string, archived: boolean, now
       entityType: 'objective',
       entityId: objectiveId,
       summary: `Availability objective "${cur.name}" of service "${s.name}" ${archived ? `archived (final status: ${final?.status ?? 'unchanged'})` : 'restored'}`,
-      details: { serviceId: s.id, platformId: cur.platform_id, endpointKey: cur.endpoint_key, targets: rowTargets(cur), finalStatus: final?.status ?? null },
+      details: {
+        serviceId: s.id,
+        ...(cur.monitor_id ? { monitorId: cur.monitor_id } : { platformId: cur.platform_id, endpointKey: cur.endpoint_key }),
+        targets: rowTargets(cur),
+        finalStatus: final?.status ?? null,
+      },
     });
   });
   return getObjective(objectiveId);

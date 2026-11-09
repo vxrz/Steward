@@ -156,7 +156,8 @@
     "catalogue": "Catalogue",
     "compliance": "Compliance",
     "admin": "Admin",
-    "plant": "Plant"
+    "plant": "Plant",
+    "registers": "Registers"
   },
   "mainNavigation": "Main navigation",
   "skipToContent": "Skip to content",
@@ -170,7 +171,7 @@
     "checklist": "Getting-started checklist",
     "docs": "Documentation",
     "doc": {
-      "guide": "User guide (README)",
+      "guide": "Getting started",
       "install": "Installation and operation",
       "mcp": "AI assistants (MCP)",
       "api": "Public REST API",
@@ -182,7 +183,8 @@
       "search": "Search pages, processes, monitors, documents …",
       "help": "Show this list",
       "goTo": "Go to {{page}}",
-      "close": "Close a dialog or menu"
+      "close": "Close a dialog or menu",
+      "pin": "Pin or unpin the focused sidebar entry"
     },
     "shortcutsHint": "The shortcuts do not apply while you type in a field, in a dialog or in the process editor's canvas.",
     "whatsNewIntro": "Highlights of the coming {{brand}} release.",
@@ -220,9 +222,11 @@
         "title": "AI assistants (MCP)",
         "text": "A read-only MCP server lets AI assistants look at runs, monitors and dashboards with your rights."
       }
-    }
+    },
+    "glossary": "Glossary"
   },
   "pinned": "Pinned",
   "pin": "Pin {{page}} to the top",
-  "unpin": "Unpin {{page}}"
+  "unpin": "Unpin {{page}}",
+  "pinHint": "Press P to pin or unpin this page at the top of the sidebar."
 }
