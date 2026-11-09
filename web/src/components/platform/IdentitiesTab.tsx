@@ -362,6 +362,17 @@ function GeneralForm({
       t('identities.testOk'),
       t('identities.testFailed'),
     );
+  const tokenTypes = ['oauth2_client_credentials', 'token_request', 'jwt'];
+  const usesToken = tokenTypes.includes((own ? settings.data?.auth?.type : platform.config.auth?.type) ?? '');
+  const renew = () =>
+    action(
+      async () => {
+        const r = await post<{ ok: boolean; message?: string }>(`${base(platform, identity!)}/token/renew`);
+        if (!r.ok) throw new Error(r.message ?? '');
+      },
+      t('identities.tokenRenewed'),
+      t('identities.tokenNotRenewed'),
+    );
   const remove = async () => {
     if (!(await confirmDanger({ action: 'delete', message: t('identities.deleteText', { name: identity!.name }) }))) return;
     if (await action(() => del(base(platform, identity!)), t('identities.deleted', { name: identity!.name }), t('identities.notDeleted'))) onDeleted?.();
@@ -446,6 +457,11 @@ function GeneralForm({
               {identity && (
                 <Button variant="default" onClick={test} disabled={busy} data-testid="identity-test">
                   {t('identities.test')}
+                </Button>
+              )}
+              {identity && usesToken && (
+                <Button variant="default" onClick={renew} disabled={busy}>
+                  {t('identities.renewToken')}
                 </Button>
               )}
               {identity && !identity.default && (

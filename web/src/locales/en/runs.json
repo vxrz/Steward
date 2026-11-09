@@ -66,7 +66,7 @@
     "blocked": "platforms you may not use are disabled",
     "select": "Select platform",
     "none": "No platforms yet – add one under Platforms",
-    "identity": "Identity for “{{slot}}”",
+    "identity": "Identity for \"{{slot}}\"",
     "needsWrites": "needs an identity that can write"
   },
   "dialog": {

@@ -262,7 +262,6 @@
     "removeText": "Remove the secret <b>{{key}}</b>? Processes using it will fail until it is set again."
   },
   "identities": {
-    "info": "An identity is one set of credentials of this platform. Every platform has a default identity: requests use it unless they name another one. Its credentials are on the Credentials tab, its access for MCP clients on the MCP tab.",
     "none": "This platform has no identity yet. Ask an administrator to review its connection settings.",
     "default": "Default",
     "readOnly": "Read only",
@@ -275,13 +274,10 @@
     "noCredentials": "None stored",
     "openCredentials": "Change on the Credentials tab",
     "mcpLabel": "MCP clients",
-    "openMcp": "Change on the MCP tab",
     "operations": "Operations",
     "allOperations": "All operations",
-    "filtered": "Chosen operations only",
     "whoMayUse": "Who may use it",
     "everyoneWithUse": "Everyone with the “use” right on this platform",
-    "accessList": "The people and teams on its access list",
     "you": "You",
     "youMayUse": "You may use it",
     "youMayNotUse": "You may not use it",
@@ -355,7 +351,10 @@
     "staleText": "These chosen operations are no longer in the platform’s specifications and match nothing: {{list}}",
     "searchOperations": "Search operations",
     "filterLimit": "The filter sees the method and the path, not the body: a chosen POST /graphql also lets changes through. The rights of the credentials decide in the end.",
-    "filterSaved": "Operation filter saved"
+    "filterSaved": "Operation filter saved",
+    "renewToken": "Get a new token",
+    "tokenRenewed": "New token fetched",
+    "tokenNotRenewed": "No new token"
   },
   "settings": {
     "kind": "Kind",
@@ -563,11 +562,14 @@
       "identity": "Identity “{{name}}”",
       "mcp": "MCP clients: {{mode}}",
       "credentials": "Stored credentials: {{keys}}",
-      "reset": "Steward 0.9.0 does not use these settings of an identity – they go back to the platform’s when you confirm:",
+      "reset": "Its credential source (reserved for a later PAM checkout) is not used yet – it is removed when you confirm.",
       "variables": "Variables: {{vars}}",
       "signIn": "Its own sign-in: {{type}} at {{url}}",
       "flags": "Flags: {{flags}}",
-      "remove": "Only the default identity exists in Steward 0.9.0 – this identity is removed when you confirm."
+      "remove": "This identity is removed when you confirm.",
+      "keep": "Kept and sealed as shown:",
+      "access": "Who may use it besides administrators and its owning teams: {{subjects}}",
+      "accessClosed": "nobody else (closed)"
     }
   },
   "recordings": {

@@ -262,7 +262,6 @@
     "removeText": "Geheimnis <b>{{key}}</b> entfernen? Prozesse, die es verwenden, schlagen fehl, bis es wieder gesetzt ist."
   },
   "identities": {
-    "info": "Eine Identität ist ein Satz Zugangsdaten dieser Plattform. Jede Plattform hat eine Standard-Identität: Anfragen verwenden sie, wenn sie keine andere nennen. Ihre Zugangsdaten finden Sie im Reiter Zugangsdaten, den Zugriff für MCP-Clients im Reiter MCP.",
     "none": "Diese Plattform hat noch keine Identität. Bitten Sie einen Administrator, die Verbindungseinstellungen zu prüfen.",
     "default": "Standard",
     "readOnly": "Nur lesen",
@@ -275,13 +274,10 @@
     "noCredentials": "Keine gespeichert",
     "openCredentials": "Im Reiter Zugangsdaten ändern",
     "mcpLabel": "MCP-Clients",
-    "openMcp": "Im Reiter MCP ändern",
     "operations": "Operationen",
     "allOperations": "Alle Operationen",
-    "filtered": "Nur ausgewählte Operationen",
     "whoMayUse": "Wer sie verwenden darf",
     "everyoneWithUse": "Alle mit dem Recht „Nutzen“ auf dieser Plattform",
-    "accessList": "Die Personen und Teams auf ihrer Zugriffsliste",
     "you": "Sie",
     "youMayUse": "Sie dürfen sie verwenden",
     "youMayNotUse": "Sie dürfen sie nicht verwenden",
@@ -355,7 +351,10 @@
     "staleText": "Diese ausgewählten Operationen sind nicht mehr in den Spezifikationen der Plattform und passen zu nichts: {{list}}",
     "searchOperations": "Operationen suchen",
     "filterLimit": "Der Filter sieht Methode und Pfad, nicht den Inhalt: Ein ausgewählter POST /graphql lässt auch Änderungen durch. Am Ende entscheiden die Rechte der Zugangsdaten.",
-    "filterSaved": "Operationsfilter gespeichert"
+    "filterSaved": "Operationsfilter gespeichert",
+    "renewToken": "Neues Token holen",
+    "tokenRenewed": "Neues Token geholt",
+    "tokenNotRenewed": "Kein neues Token"
   },
   "settings": {
     "kind": "Art",
@@ -563,11 +562,14 @@
       "identity": "Identität „{{name}}“",
       "mcp": "MCP-Clients: {{mode}}",
       "credentials": "Gespeicherte Zugangsdaten: {{keys}}",
-      "reset": "Steward 0.9.0 verwendet diese Einstellungen einer Identität nicht – sie werden beim Bestätigen auf die der Plattform zurückgesetzt:",
+      "reset": "Ihre Quelle der Zugangsdaten (für einen späteren PAM-Checkout vorgesehen) wird noch nicht verwendet – sie wird beim Bestätigen entfernt.",
       "variables": "Variablen: {{vars}}",
       "signIn": "Eigene Anmeldung: {{type}} bei {{url}}",
       "flags": "Merkmale: {{flags}}",
-      "remove": "In Steward 0.9.0 gibt es nur die Standard-Identität – diese Identität wird beim Bestätigen entfernt."
+      "remove": "Diese Identität wird beim Bestätigen entfernt.",
+      "keep": "Wird wie angezeigt übernommen und versiegelt:",
+      "access": "Wer sie neben Administratoren und den zuständigen Teams verwenden darf: {{subjects}}",
+      "accessClosed": "niemand sonst (geschlossen)"
     }
   },
   "recordings": {
