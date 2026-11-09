@@ -724,6 +724,13 @@
     "calendar": "Kalender",
     "view": "Ansicht",
     "titleLabel": "Titel",
+    "kind": "Art",
+    "kinds": {
+      "maintenance": "Wartung",
+      "downtime": "Geplanter Stillstand"
+    },
+    "kindMaintenanceHelp": "Betroffene Monitore zeigen „Wartung“ und senden keine Alarme.",
+    "kindDowntimeHelp": "Wochenenden, Feiertage, Stillstände: Status bleiben, wie sie sind; Monitore mit Zuständen rechnen diese Zeit nicht auf ihre höchste Aus-Zeit an und melden Widersprüche weiterhin. Monitore ohne Zustände sind nicht betroffen. Angekündigt wird nichts, außer eine Erinnerung ist gesetzt.",
     "note": "Hinweis",
     "noteHelp": "Was gemacht wird und was Nutzer merken. Wird mit der Ankündigung verschickt.",
     "start": "Beginn",

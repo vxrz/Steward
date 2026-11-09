@@ -724,6 +724,13 @@
     "calendar": "Calendar",
     "view": "View",
     "titleLabel": "Title",
+    "kind": "Kind",
+    "kinds": {
+      "maintenance": "Maintenance",
+      "downtime": "Planned downtime"
+    },
+    "kindMaintenanceHelp": "Affected monitors show “maintenance” and send no alerts.",
+    "kindDowntimeHelp": "Weekends, holidays, shutdowns: statuses stay as they are; monitors with states do not count this time towards their maximum off time and still alert contradictions. Monitors without states are not affected. Nothing is announced unless a reminder is set.",
     "note": "Note",
     "noteHelp": "What is done and what users notice. Sent with the announcement.",
     "start": "Start",
