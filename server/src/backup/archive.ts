@@ -59,6 +59,31 @@ function run(bin: string, args: string[], env: NodeJS.ProcessEnv = {}): Promise<
   });
 }
 
+/** Runs a tool and hands back its exit code and the end of its error output (a failure to start still rejects). */
+function runCapture(bin: string, args: string[], env: NodeJS.ProcessEnv = {}): Promise<{ code: number | null; err: string }> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(bin, args, { env: { ...process.env, ...env }, stdio: ['ignore', 'ignore', 'pipe'] });
+    let err = '';
+    child.stderr.on('data', (b: Buffer) => (err = (err + b.toString('utf8')).slice(-16_000)));
+    child.on('error', (e: NodeJS.ErrnoException) => reject(new Error(explainPgToolError(bin, '', null, e))));
+    child.on('close', (code) => resolve({ code, err }));
+  });
+}
+
+/**
+ * pg_restore 17 and newer start every connection with `SET transaction_timeout = 0`, which PostgreSQL 16 and older do
+ * not know: restoring into such a server reports exactly that error and nothing else goes wrong. True when every error
+ * pg_restore reported is this one (and it counted no others).
+ */
+export function onlyTransactionTimeoutErrors(stderr: string): boolean {
+  const errors = stderr.split('pg_restore: error:').slice(1);
+  if (!errors.length) return false;
+  const known = (e: string) => e.includes('unrecognized configuration parameter "transaction_timeout"') && e.includes('SET transaction_timeout');
+  if (!errors.every(known)) return false;
+  const ignored = /errors ignored on restore: (\d+)/.exec(stderr);
+  return !ignored || Number(ignored[1]) === errors.length;
+}
+
 type AuditHead = { seq: number; hash: string } | null;
 const HEAD_SQL = 'SELECT seq, hash FROM audit_log WHERE seq >= 1 ORDER BY seq DESC LIMIT 1';
 const headOf = (r: { seq: number; hash: string } | undefined): AuditHead => (r ? { seq: Number(r.seq), hash: String(r.hash) } : null);
@@ -309,7 +334,10 @@ async function restoreIntoScratch(
     const c = pgConnection(scratchUrl);
     const t0 = Date.now();
     try {
-      await run(pgRestoreBin(), ['--no-owner', '--no-privileges', '--exit-on-error', `--dbname=${c.dbname}`, dump], c.env);
+      // without --exit-on-error: a pg_restore newer than the restore test server (16 or older) reports the unknown
+      // transaction_timeout setting; that error alone is accepted, any other fails the step
+      const r = await runCapture(pgRestoreBin(), ['--no-owner', '--no-privileges', `--dbname=${c.dbname}`, dump], c.env);
+      if (r.code !== 0 && !onlyTransactionTimeoutErrors(r.err)) throw new Error(explainPgToolError(pgRestoreBin(), r.err, r.code));
     } catch (e) {
       step('restore', false, `pg_restore into the restore test database failed: ${(e as Error).message}`);
       dropSchema();

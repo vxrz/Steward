@@ -90,6 +90,20 @@ describe('the PostgreSQL restore test database', () => {
     expect(databaseIdentity('postgres://a@db.example/steward')).not.toBe(databaseIdentity('postgres://a@db.example/steward_restore_test'));
     expect(databaseIdentity('postgres://a@db.example:5433/steward')).not.toBe(databaseIdentity('postgres://a@db.example:5432/steward'));
   });
+
+  it('accepts only the unknown transaction_timeout of a newer pg_restore on PostgreSQL 16 or older', async () => {
+    const { onlyTransactionTimeoutErrors } = await import('../src/backup/archive.js');
+    const timeout =
+      'pg_restore: error: could not execute query: ERROR:  unrecognized configuration parameter "transaction_timeout"\nCommand was: SET transaction_timeout = 0;\n';
+    expect(onlyTransactionTimeoutErrors(`${timeout}pg_restore: warning: errors ignored on restore: 1\n`)).toBe(true);
+    expect(onlyTransactionTimeoutErrors(timeout)).toBe(true);
+    // another error next to it, a count that does not match, or no error at all: the restore failed
+    const other = 'pg_restore: error: could not execute query: ERROR:  relation "runs" already exists\nCommand was: CREATE TABLE runs ();\n';
+    expect(onlyTransactionTimeoutErrors(`${timeout}${other}pg_restore: warning: errors ignored on restore: 2\n`)).toBe(false);
+    expect(onlyTransactionTimeoutErrors(`${timeout}pg_restore: warning: errors ignored on restore: 3\n`)).toBe(false);
+    expect(onlyTransactionTimeoutErrors('pg_restore: error: connection to server failed\n')).toBe(false);
+    expect(onlyTransactionTimeoutErrors('')).toBe(false);
+  });
 });
 
 describe('encrypted backup file', () => {
