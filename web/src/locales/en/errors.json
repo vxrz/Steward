@@ -1112,7 +1112,9 @@
     "PLANT_PROFILE_EXTENDED": "Other device profiles extend this one ({{profiles}}) – change or delete those first.",
     "PLANT_COLLECTION_NOT_FOUND": "Data collection {{id}} not found.",
     "PLANT_COLLECTION_INVALID": "The data collection cannot be saved – {{path}}: {{message}}",
-    "PLANT_COLLECTION_IMPORT_INVALID": "The data collections cannot be imported – {{path}}: {{message}}"
+    "PLANT_COLLECTION_IMPORT_INVALID": "The data collections cannot be imported – {{path}}: {{message}}",
+    "PLANT_PROPOSAL_CHANGED": "What the proposal changes is no longer what it was – look at the preview of now and confirm it.",
+    "PLANT_PROPOSAL_INVALID": "The proposal cannot be applied now ({{count}} problems) – see the preview of now."
   },
   "boundary": {
     "title": "Something went wrong on this page",

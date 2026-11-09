@@ -424,4 +424,21 @@ export const PLANT_MIGRATIONS: NamedMigration[] = [
     name: 'plant-008-collection-description',
     sql: `ALTER TABLE plant_collections ADD COLUMN description TEXT NOT NULL DEFAULT '';`,
   },
+  {
+    // 0.12.0: changes to the registry proposed by AI assistants (docs/PLANT.md "Proposals from assistants"), one per MCP
+    // request (mcp_requests: who, when, the rationale, the decision): the document, its preview when it was proposed and
+    // the import that applied it
+    name: 'plant-009-proposals',
+    sql: `
+      CREATE TABLE plant_proposals (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        document TEXT NOT NULL,
+        sha256 TEXT NOT NULL,
+        preview TEXT NOT NULL,
+        fingerprint TEXT NOT NULL,
+        import_id TEXT
+      );
+    `,
+  },
 ];

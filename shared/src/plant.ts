@@ -342,6 +342,13 @@ export type PlantChangeKind =
   | 'asset_checks';
 export type PlantChangeAction = 'add' | 'change' | 'remove' | 'mark' | 'unchanged' | 'skip';
 
+/** 0.12.0: changes to the plant registry proposed by an AI assistant (docs/PLANT.md "Proposals from assistants"). */
+export const PLANT_PROPOSAL_LIMITS = {
+  /** The proposed document (JSON), as sent (an MCP request is at most 64 KB) */
+  documentBytes: 48 * 1024,
+  title: 120,
+} as const;
+
 /** 0.12.0: the size of the field-level differences an import's preview shows. */
 export const PLANT_DIFF_LIMITS = {
   /** Differences per changed entry */
