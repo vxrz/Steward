@@ -50,6 +50,7 @@ import { ItemSelect } from '../../components/plant/network';
 import { DescribedText, DescriptionModal } from '../../components/plant/describe';
 import { CollectionFlowView, CollectionSourcesView } from '../../components/plant/CollectionFlow';
 import { PlantDocumentsPanel } from '../../components/plant/DocumentsPanel';
+import { draftSave } from '../../components/plant/changes/common';
 
 /**
  * The data collections of an asset (0.11.0, ADR 0019): what collectors read from it, mapped to its data points. The
@@ -128,14 +129,17 @@ export function AssetCollectionsView({ assetId }: { assetId: string }) {
             {t('collections.help')}
           </Text>
         </div>
-        {v.canManage && (
+        {(v.canManage || v.canPropose) && (
           <Group gap="xs">
             <Button size="xs" variant="default" leftSection={<IconPlus size={14} />} onClick={() => setCreating(true)} data-testid="collections-new">
               {t('collections.new')}
             </Button>
-            <Button size="xs" leftSection={<IconDatabaseImport size={14} />} onClick={() => setImporting(true)} data-testid="collections-import">
-              {t('collections.import.button')}
-            </Button>
+            {/* a collector's files are imported by who manages the site (as operations of a change set: phase 2) */}
+            {v.canManage && (
+              <Button size="xs" leftSection={<IconDatabaseImport size={14} />} onClick={() => setImporting(true)} data-testid="collections-import">
+                {t('collections.import.button')}
+              </Button>
+            )}
           </Group>
         )}
       </Group>
@@ -234,15 +238,18 @@ function NewCollectionModal({
   const submit = async () => {
     setBusy(true);
     try {
-      await post(base(assetId), {
-        id,
-        name: name.trim(),
-        collector: { ...collector, ref: collector.ref.trim() },
-        interfaceId: iface,
-        mode,
-        intervalMs: intervalMs === '' ? null : intervalMs,
-        description: description.trim(),
-      });
+      // 0.13.0: who may only propose adds it to their draft
+      await draftSave(data.canManage, () =>
+        post(base(assetId), {
+          id,
+          name: name.trim(),
+          collector: { ...collector, ref: collector.ref.trim() },
+          interfaceId: iface,
+          mode,
+          intervalMs: intervalMs === '' ? null : intervalMs,
+          description: description.trim(),
+        }),
+      );
       void qc.invalidateQueries({ queryKey: key(assetId) });
       onCreated(id);
       onClose();
@@ -344,6 +351,8 @@ function CollectionDetail({ assetId, id, data, onClose }: { assetId: string; id:
   // the collection's description (-1) or an item's (its index)
   const [describing, setDescribing] = useState<number | null>(null);
   const [tab, setTab] = useState('items');
+  // 0.13.0: who may only propose edits here too – what they save goes into their draft
+  const canEdit = data.canManage || !!data.canPropose;
   const c = q.data;
   const refresh = () => {
     void qc.invalidateQueries({ queryKey: key(assetId) });
@@ -375,7 +384,8 @@ function CollectionDetail({ assetId, id, data, onClose }: { assetId: string; id:
       ...body
     } = c;
     // the sinks are what is stored (0.12); the destination is their first one
-    await put(`${base(assetId)}/${encodeURIComponent(id)}`, { ...body, destination: null, sinks, items, description });
+    // 0.13.0: who may only propose saves into their draft
+    await draftSave(data.canManage, () => put(`${base(assetId)}/${encodeURIComponent(id)}`, { ...body, destination: null, sinks, items, description }));
     refresh();
     void qc.invalidateQueries({ queryKey: [...key(assetId), id] });
   };
@@ -391,12 +401,12 @@ function CollectionDetail({ assetId, id, data, onClose }: { assetId: string; id:
     const url = `${base(assetId)}/${encodeURIComponent(id)}`;
     try {
       try {
-        await del(url);
+        await draftSave(data.canManage, () => del(url));
       } catch (e) {
         // documents link to it (0.12): removed only with "also remove what belongs to it"
         if (!(e instanceof ApiError) || e.code !== 'PLANT_COLLECTION_LINKED') throw e;
         if (!(await confirmDanger({ action: 'remove', message: t('plantDocs:removeLinked', { name: c.name, count: Number(e.params?.count ?? 0) }) }))) return;
-        await del(`${url}?cascade=1`);
+        await draftSave(data.canManage, () => del(`${url}?cascade=1`));
       }
       refresh();
       onClose();
@@ -419,7 +429,7 @@ function CollectionDetail({ assetId, id, data, onClose }: { assetId: string; id:
           text={c.description}
           inheritedFrom={null}
           changedHere={false}
-          editable={data.canManage}
+          editable={canEdit}
           onEdit={() => setDescribing(-1)}
           testId="collection-description"
         />
@@ -438,7 +448,7 @@ function CollectionDetail({ assetId, id, data, onClose }: { assetId: string; id:
           </Tabs.Tab>
         </Tabs.List>
         <Tabs.Panel value="flow">
-          <CollectionFlowView assetId={assetId} collection={c} canManage={data.canManage} onSaveSinks={saveSinks} />
+          <CollectionFlowView assetId={assetId} collection={c} canManage={canEdit} onSaveSinks={saveSinks} />
         </Tabs.Panel>
         <Tabs.Panel value="sources">
           <CollectionSourcesView assetId={assetId} collectionId={c.id} />
@@ -556,7 +566,7 @@ function CollectionDetail({ assetId, id, data, onClose }: { assetId: string; id:
                         </Text>
                       )}
                     </Stack>
-                    {data.canManage && (
+                    {canEdit && (
                       <Group gap={4} wrap="nowrap">
                         <Button size="compact-xs" variant="subtle" leftSection={<IconPencil size={12} />} onClick={() => setEditing(i)}>
                           {t('collections.map')}
@@ -564,7 +574,8 @@ function CollectionDetail({ assetId, id, data, onClose }: { assetId: string; id:
                         <Button size="compact-xs" variant="subtle" onClick={() => setDescribing(i)} data-testid={`describe-item-${i}`}>
                           {t('collections.describe')}
                         </Button>
-                        {!it.dataPoint && (
+                        {/* the data point goes into the asset's model first: for who manages the site */}
+                        {!it.dataPoint && data.canManage && (
                           <Button size="compact-xs" variant="subtle" onClick={() => setAdding(i)} data-testid={`add-point-${i}`}>
                             {t('collections.addPoint')}
                           </Button>
@@ -615,7 +626,7 @@ function CollectionDetail({ assetId, id, data, onClose }: { assetId: string; id:
                   </Button>
                 ))}
               </Group>
-              {data.canManage && (
+              {canEdit && (
                 <Button size="xs" color="red" variant="subtle" leftSection={<IconTrash size={14} />} onClick={() => void remove()}>
                   {t('collections.remove')}
                 </Button>

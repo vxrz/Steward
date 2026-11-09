@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Badge, Button, Checkbox, Group, Modal, Paper, Select, SimpleGrid, Stack, Table, TagsInput, Text, TextInput } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { IconEdit, IconShieldLock, IconTrash } from '@tabler/icons-react';
+import { IconEdit, IconGitPullRequest, IconShieldLock, IconTrash } from '@tabler/icons-react';
+import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   ASSET_STATUSES,
@@ -13,11 +14,14 @@ import {
   type PlantBulkKind,
   type PlantBulkResult,
   type PlantBulkSet,
+  type PlantChangeSetDetail,
+  type PlantChangeSetSummary,
   type PlantProfileSummary,
 } from '@sm/shared';
 import { get, notifyError, notifyOk, post } from '../../api';
 import { plantKeys } from '../../queryKeys';
-import { useNameOf } from './common';
+import { useNameOf, usePlantConfig } from './common';
+import { useChangeSetConfig } from './changes/common';
 import { flatNodes, nodePath, useHierarchy } from './forms';
 import { useCountsText, useProblemText } from './ids';
 
@@ -204,7 +208,15 @@ function BulkModal({
   onDone: (r: PlantBulkResult) => void;
 }) {
   const { t } = useTranslation(['plantIds', 'plant', 'common']);
+  const { t: tc } = useTranslation('plantChanges');
   const qc = useQueryClient();
+  const navigate = useNavigate();
+  const cfg = usePlantConfig();
+  const cs = useChangeSetConfig();
+  const catalogue = kind === 'profile' || kind === 'kpi';
+  // 0.13.0: who manages applies; who may propose adds the change to their draft (both: both buttons)
+  const canApply = !!(catalogue ? cfg.data?.canManageCatalogue : cfg.data?.canManageSome);
+  const canDraft = !!cs?.canPropose;
   const countsText = useCountsText();
   const problemText = useProblemText();
   const [set, setSet] = useState<PlantBulkSet>({});
@@ -216,13 +228,34 @@ function BulkModal({
   const run = async (apply: boolean) => {
     setBusy(true);
     try {
-      const r = await post<PlantBulkResult>(apply ? '/plant/bulk' : '/plant/bulk/preview', body);
+      const r = await post<PlantBulkResult & { changeSet?: PlantChangeSetSummary }>(apply ? '/plant/bulk' : '/plant/bulk/preview', body);
       if (!apply) setPreview(r);
-      else {
+      else if (r.changeSet) {
+        // changes here need a second person: the bulk change became a proposed change set of its own
+        notifyOk(tc('form.proposedForReview', { title: r.changeSet.title }));
+        void qc.invalidateQueries({ queryKey: ['plant', 'change-sets'] });
+        onDone(r);
+        navigate(`/plant/changes/${encodeURIComponent(r.changeSet.id)}`);
+      } else {
         notifyOk(t('bulk.result', r.counts));
         void qc.invalidateQueries({ queryKey: plantKeys.all });
         onDone(r);
       }
+    } catch (e) {
+      notifyError(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+  /** Add to draft (0.13.0): the bulk change as one change of the person's current draft – nothing is changed yet. */
+  const addToDraft = async () => {
+    setBusy(true);
+    try {
+      const d = await post<PlantChangeSetDetail>('/plant/change-sets/current/operations', { op: 'bulk', value: body });
+      notifyOk(tc('form.addedToDraft', { title: d.title }));
+      void qc.invalidateQueries({ queryKey: plantKeys.config });
+      void qc.invalidateQueries({ queryKey: ['plant', 'change-sets'] });
+      onDone({ ...preview!, applied: false });
     } catch (e) {
       notifyError(e);
     } finally {
@@ -322,16 +355,35 @@ function BulkModal({
               {t('bulk.preview')}
             </Button>
           )}
-          <Button
-            color={action === 'remove' ? 'red' : undefined}
-            onClick={() => void run(true)}
-            disabled={!preview || doable === 0}
-            loading={busy && !!preview}
-            data-testid="bulk-apply"
-          >
-            {action === 'remove' ? t('bulk.applyRemove') : t('bulk.apply')}
-          </Button>
+          {canDraft && (
+            <Button
+              variant={canApply ? 'default' : 'filled'}
+              leftSection={<IconGitPullRequest size={14} aria-hidden />}
+              onClick={() => void addToDraft()}
+              disabled={!preview || doable === 0}
+              loading={busy && !!preview}
+              data-testid="bulk-add-to-draft"
+            >
+              {tc('form.addToDraft')}
+            </Button>
+          )}
+          {canApply && (
+            <Button
+              color={action === 'remove' ? 'red' : undefined}
+              onClick={() => void run(true)}
+              disabled={!preview || doable === 0}
+              loading={busy && !!preview}
+              data-testid="bulk-apply"
+            >
+              {action === 'remove' ? t('bulk.applyRemove') : t('bulk.apply')}
+            </Button>
+          )}
         </Group>
+        {canDraft && preview && doable > 0 && (
+          <Text size="xs" c="dimmed">
+            {tc('form.addToDraftHint')}
+          </Text>
+        )}
         {action === 'edit' && !given && (
           <Text size="xs" c="dimmed">
             {t('bulk.nothingSet')}

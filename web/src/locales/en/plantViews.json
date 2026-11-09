@@ -13,6 +13,16 @@
       "flow": "Data flow",
       "collections": "Collections",
       "history": "History"
+    },
+    "profileLabel": "Pages of {{name}}",
+    "kpiLabel": "Pages of {{name}}",
+    "profile": {
+      "overview": "Overview",
+      "history": "History"
+    },
+    "kpi": {
+      "overview": "Overview",
+      "history": "History"
     }
   },
   "toolbar": {

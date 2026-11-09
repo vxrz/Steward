@@ -20,7 +20,7 @@ import { refuseAliasId } from './ids.js';
 import { audit } from '../audit.js';
 import { me } from '../auth/access.js';
 import { HttpError, nowIso, parseJson } from '../util.js';
-import { canManageCatalogue, siteRights } from './access.js';
+import { canManageCatalogue, plantProposesSome, siteRights } from './access.js';
 import { requirePlant } from './settings.js';
 import { changedKeys, type AssetRow, type SiteRow } from './model.js';
 import {
@@ -191,6 +191,8 @@ export function getProfile(id: string): PlantProfileDetail {
     assets,
     kpis,
     canManage: canManageCatalogue(),
+    // 0.13.0: who may propose on some site keeps drafts of changes to it
+    canPropose: plantProposesSome(),
     createdAt: r.created_at,
     createdBy: r.created_by,
     updatedBy: r.updated_by,
@@ -551,6 +553,7 @@ export function getKpi(id: string): PlantKpiDetail {
     candidates,
     candidateInfo,
     canManage: canManageCatalogue(),
+    canPropose: plantProposesSome(),
     createdAt: r.created_at,
     createdBy: r.created_by,
     updatedBy: r.updated_by,

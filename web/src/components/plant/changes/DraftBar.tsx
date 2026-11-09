@@ -45,7 +45,8 @@ export function DraftBar() {
   const navigate = useNavigate();
   const narrow = useMediaQuery('(max-width: 48em)') ?? false;
   const [folded, setFolded] = useState(true);
-  useDraftRefresh();
+  // the draft bar is on every plant page once: it says where a save went
+  useDraftRefresh(true);
   const draft = cfg?.draft ?? null;
   const show = !!draft || (!!cfg?.canPropose && cfg.level !== 'off');
   const drafts = useQuery({

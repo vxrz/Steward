@@ -437,6 +437,8 @@ export interface PlantDataQualityHint {
 export interface PlantSiteNetwork {
   site: { id: string; code: string; name: string; names: Record<string, string> };
   canManage: boolean;
+  /** 0.13.0: may keep drafts of changes to it (propose) */
+  canPropose?: boolean;
   vlans: PlantVlanView[];
   zones: PlantZoneView[];
   conduits: PlantConduitView[];
@@ -456,6 +458,8 @@ export interface PlantSiteNetwork {
 export interface PlantAssetNetwork {
   asset: { id: string; name: string; siteId: string };
   canManage: boolean;
+  /** 0.13.0: may keep drafts of changes to it (propose) */
+  canPropose?: boolean;
   live: PlantLiveStatus;
   checks: PlantStatusCheck[];
   checksSource: PlantSource;

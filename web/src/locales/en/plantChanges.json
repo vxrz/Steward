@@ -192,6 +192,15 @@
   },
   "form": {
     "draftHint": "You may propose changes here: what you save goes into your draft, someone who manages the site applies it.",
-    "proposeEdit": "Propose a change"
+    "proposeEdit": "Propose a change",
+    "catalogueHint": "You may propose changes to device profiles and KPI definitions: what you save goes into your draft, someone who manages the catalogue applies it.",
+    "savedToDraft": "Saved into your draft “{{title}}” – nothing is changed in Steward until it is applied.",
+    "addToDraft": "Add to draft",
+    "addToDraftHint": "Nothing is changed yet: it goes into your draft as one change, previewed again when the draft is reviewed and applied.",
+    "addedToDraft": "Added to your draft “{{title}}”",
+    "openDraft": "Open the draft",
+    "proposedForReview": "Changes here need a second person: proposed for review as “{{title}}”.",
+    "openChangeSet": "Open the change set",
+    "importProposeOnly": "You may propose changes: preview the files, then add them to your draft. Someone who manages the sites applies it."
   }
 }

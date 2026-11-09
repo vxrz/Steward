@@ -3,7 +3,7 @@ import { Anchor, Badge, Group, Text } from '@mantine/core';
 import { Link, Navigate } from 'react-router-dom';
 import { IconBuilding, IconChevronRight, IconDatabaseImport, IconHistory, IconInfoCircle, IconRoute, IconSitemap, type Icon } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import type { PlantAssetDetail, PlantSiteDetail } from '@sm/shared';
+import type { PlantAssetDetail, PlantKpiDetail, PlantProfileDetail, PlantSiteDetail } from '@sm/shared';
 import { DetailHeader } from '../../../components/page/DetailPage';
 import { LinkTabs } from '../../../components/page/LinkTabs';
 import { AssetStatusBadge, NotInSourceBadge, PreviewBadge, useNameOf } from '../../../components/plant/common';
@@ -159,6 +159,58 @@ export function PlantAssetTabPage({ asset, tab }: { asset: PlantAssetDetail; tab
         {known === 'collections' && <AssetCollectionsView assetId={asset.id} />}
         {known === 'history' && <EntryHistory kind="asset" id={asset.id} children />}
       </Suspense>
+    </>
+  );
+}
+
+// ---------- device profiles and KPI definitions (0.13.0): the page and its history ----------
+
+export const CATALOGUE_TABS = ['', 'history'] as const;
+export type CatalogueTab = (typeof CATALOGUE_TABS)[number];
+const CATALOGUE_TAB_ICONS: Record<CatalogueTab, Icon> = { '': IconInfoCircle, history: IconHistory };
+type CatalogueKind = 'profile' | 'kpi';
+const catalogueBase = (kind: CatalogueKind, id: string) => `/plant/${kind === 'profile' ? 'profiles' : 'kpis'}/${encodeURIComponent(id)}`;
+
+export function CatalogueTabs({ kind, entry, active }: { kind: CatalogueKind; entry: { id: string; name: string }; active: CatalogueTab }) {
+  const { t } = useTranslation('plantViews');
+  const base = catalogueBase(kind, entry.id);
+  return (
+    <LinkTabs
+      label={t(kind === 'profile' ? 'tabs.profileLabel' : 'tabs.kpiLabel', { name: entry.name })}
+      active={active ? `${base}/${active}` : base}
+      tabs={CATALOGUE_TABS.map((x) => ({
+        to: x ? `${base}/${x}` : base,
+        label: t(`tabs.${kind}.${x || 'overview'}`),
+        icon: CATALOGUE_TAB_ICONS[x],
+        testId: `${kind}-tab-${x || 'overview'}`,
+      }))}
+    />
+  );
+}
+
+/** A tab of a device profile or KPI definition other than its page: the same header, the tab's view. */
+export function CatalogueTabPage({ kind, entry, tab }: { kind: CatalogueKind; entry: PlantProfileDetail | PlantKpiDetail; tab: string }) {
+  const nameOf = useNameOf();
+  const known = CATALOGUE_TABS.find((x) => x === tab);
+  const base = catalogueBase(kind, entry.id);
+  if (!known) return <Navigate to={base} replace />;
+  const title = kind === 'kpi' ? nameOf(entry as PlantKpiDetail) : entry.name;
+  return (
+    <>
+      <DetailHeader
+        recent={{ label: title, kind, to: base }}
+        back={kind === 'profile' ? 'plantProfiles' : 'plantKpis'}
+        title={title}
+        status={
+          <>
+            {entry.category && <Badge variant="default">{entry.category}</Badge>}
+            {entry.notInSource && <NotInSourceBadge />}
+            <PreviewBadge />
+          </>
+        }
+        tabs={<CatalogueTabs kind={kind} entry={{ id: entry.id, name: title }} active={known} />}
+      />
+      {known === 'history' && <EntryHistory kind={kind} id={entry.id} />}
     </>
   );
 }

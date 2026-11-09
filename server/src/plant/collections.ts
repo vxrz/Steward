@@ -125,6 +125,7 @@ export function assetCollections(assetId: string): PlantAssetCollections {
   return {
     asset: { id: row.id, name: row.name, siteId: row.site_id },
     canManage: perms.includes('manage'),
+    canPropose: perms.includes('propose'),
     canManageCatalogue: canManageCatalogue(),
     collections,
     interfaces: ctx.interfaces.map((i) => ({ id: i.id, name: i.name, protocol: i.protocol, direction: i.direction })),

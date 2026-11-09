@@ -1,11 +1,13 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
+import { authHeaders, loginCookie, setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
 /**
  * Plant change sets, 0.13.0 (docs/PLANT.md "Change sets", docs/NOTIFICATIONS.md): who is told that a change set waits
  * for review (plant.change_proposed: who may apply it on its sites, never an author, never who may not see the site)
  * and that it was decided (plant.change_decided: its authors, with the reviewer's comment, not who decided); held
- * messages about a change set decided meanwhile.
+ * messages about a change set decided meanwhile; and the routes behind the web app's forms for who may only propose –
+ * the import's and bulk change's preview and "Add to draft", the propose flag of device profiles, KPI definitions, the
+ * OT network and data collections.
  */
 
 process.env.SM_GATUS_AUTOSTART = '0';
@@ -201,5 +203,64 @@ describe('plant.change_proposed and plant.change_decided', () => {
     const own = (await db()).all('SELECT * FROM notification_outbox WHERE target = ? AND released_at IS NULL', `email:${dirk.id}`);
     expect(outbox.renderHeld(own as never, 'catchup', 'en', dirk)).toBeNull();
     await users.olaf!('POST', `/plant/change-sets/${id2}/withdraw`);
+  });
+});
+
+describe('the routes behind the forms of who may only propose', () => {
+  it('device profiles, KPI definitions, the OT network and data collections say whether the reader may propose', async () => {
+    await s.api('POST', '/plant/profiles', { id: 'example-plc', name: 'Example PLC', interfaces: [] });
+    await s.api('POST', '/plant/kpis', { id: 'example-oee', name: 'Example OEE' });
+    for (const url of [
+      '/plant/profiles/example-plc',
+      '/plant/kpis/example-oee',
+      '/plant/sites/north/network',
+      '/plant/assets/press-1/network',
+      '/plant/assets/press-1/collections',
+    ]) {
+      expect(await users.olaf!('GET', url), url).toMatchObject({ canManage: false, canPropose: true });
+      expect(await users.dana!('GET', url), url).toMatchObject({ canManage: true, canPropose: true });
+      expect(await users.vera!('GET', url), url).toMatchObject({ canManage: false, canPropose: false });
+    }
+    // a profile edited by who may only propose goes into their draft
+    const p = await users.olaf!('GET', '/plant/profiles/example-plc');
+    const { id: _id, ...own } = p.own;
+    const cookie = await loginCookie(s.base, 'olaf', PW);
+    const r = await fetch(`${s.base}/api/plant/profiles/example-plc`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json', 'x-sm-client': '1', 'x-sm-draft': '1', ...authHeaders(cookie) },
+      body: JSON.stringify({ ...own, description: 'Proposed text', revision: p.revision }),
+    });
+    expect(r.status).toBe(202);
+    expect((await r.json()).changeSet).toMatchObject({ state: 'draft', catalogue: true });
+    expect((await s.api('GET', '/plant/profiles/example-plc')).description).toBe('');
+    const draft = (await users.olaf!('GET', '/plant/config')).changeSets.draft;
+    await users.olaf!('POST', `/plant/change-sets/${draft.id}/withdraw`);
+  });
+
+  it('who may only propose previews an import and a bulk change and adds them to the draft – nothing changes yet', async () => {
+    const files = [{ name: 'north.plant.yaml', content: 'version: 1\nassets:\n  - { id: press-1, name: Press 1, model: Q-1, location: { site: north } }\n' }];
+    const pre = await users.olaf!('POST', '/plant/import/preview', { files, mode: 'update' });
+    expect(pre).toMatchObject({ ok: true, counts: { change: 1 } });
+    // the import itself stays with who manages
+    expect(await users.olaf!('POST', '/plant/import', { files, mode: 'update' }).catch((e) => e.status)).toBe(403);
+    const d = await users.olaf!('POST', '/plant/change-sets/current/operations', { op: 'import', value: { files, mode: 'update' } });
+    expect(d).toMatchObject({ state: 'draft', operationCount: 1 });
+    const bulk = { kind: 'asset', action: 'edit', items: [{ scope: '', id: 'press-1' }], set: { status: 'maintenance' } };
+    const bp = await users.olaf!('POST', '/plant/bulk/preview', bulk);
+    expect(bp.counts).toMatchObject({ changed: 1, skipped: 0 });
+    const d2 = await users.olaf!('POST', '/plant/change-sets/current/operations', { op: 'bulk', value: bulk });
+    expect(d2).toMatchObject({ id: d.id, operationCount: 2 });
+    const view = await users.olaf!('POST', `/plant/change-sets/${d.id}/preview`);
+    expect(view.entries).toEqual([expect.objectContaining({ kind: 'asset', id: 'press-1', action: 'change' })]);
+    expect(view.entries[0].diff.map((x: { path: string }) => x.path).sort()).toEqual(['model', 'status']);
+    const now = await s.api('GET', '/plant/assets/press-1');
+    expect([now.model, now.status]).not.toContain('Q-1');
+    expect(now.status).not.toBe('maintenance');
+    // a viewer may not even preview
+    expect(await users.vera!('POST', '/plant/import/preview', { files, mode: 'update' }).catch((e) => e.status)).toBe(403);
+    expect(await users.vera!('POST', '/plant/bulk/preview', bulk).catch((e) => e.status)).toBe(403);
+    // nothing of the previews was audited or written
+    expect((await db()).get<{ n: number }>("SELECT COUNT(*) AS n FROM plant_imports WHERE created_by = 'olaf'")!.n).toBe(0);
+    await users.olaf!('POST', `/plant/change-sets/${d.id}/withdraw`);
   });
 });

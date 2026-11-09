@@ -29,6 +29,8 @@ import { ComputationModal, KpiColumnModal, KpiFormModal, KpiInputModal, KpiParam
 import { SourceLine } from './PlantSite';
 import { KpiCoverageCard } from './plant/views/CoverageMatrix';
 import { CollectedBadge, UnitsBadge } from '../components/plant/potential';
+import { OpenChangesChip, ProposeEditButton, saveOrDraft } from '../components/plant/changes/common';
+import { CatalogueTabPage, CatalogueTabs } from './plant/views/tabs';
 
 const valuesOf = (k: PlantKpiDetail): PlantKpiValues => ({
   id: k.id,
@@ -166,7 +168,7 @@ export function PlantKpiPage() {
   const { t } = useTranslation(['plant', 'common', 'plantModel', 'plantViews']);
   const label = usePlantLabel();
   const nameOf = useNameOf();
-  const { kpiId } = useParams();
+  const { kpiId, tab } = useParams();
   const qc = useQueryClient();
   const navigate = useNavigate();
   const [search, setSearch] = useSearchParams();
@@ -183,13 +185,23 @@ export function PlantKpiPage() {
   useAliasRedirect([[kpiId, k?.id]]);
   const changeId = useChangeId(k ? { kind: 'kpi', id: k.id, name: k.name } : null, !!k?.canManage);
   if (!k) return <DetailState query={q} back="plantKpis" />;
+  if (tab) return <CatalogueTabPage kind="kpi" entry={k} tab={tab} />;
   const base = `/plant/kpis/${encodeURIComponent(k.id)}`;
   const values = valuesOf(k);
+  // 0.13.0: who may propose changes (but not manage the catalogue) edits into their draft
+  const proposeOnly = !k.canManage && !!k.canPropose;
+  const editable = k.canManage || proposeOnly;
   const save = async (next: PlantKpiValues) => {
     const { id: _id, ...body } = next;
-    qc.setQueryData(plantKeys.kpi(kpiId), await put<PlantKpiDetail>(base, { ...body, revision: k.revision }));
-    void qc.invalidateQueries({ queryKey: plantKeys.kpis });
-    void qc.invalidateQueries({ queryKey: plantKeys.checks });
+    await saveOrDraft(
+      k.canManage,
+      () => put<PlantKpiDetail>(base, { ...body, revision: k.revision }),
+      (saved) => {
+        qc.setQueryData(plantKeys.kpi(kpiId), saved);
+        void qc.invalidateQueries({ queryKey: plantKeys.kpis });
+        void qc.invalidateQueries({ queryKey: plantKeys.checks });
+      },
+    );
   };
   const removeFrom = async <K extends 'inputs' | 'parameters' | 'columns'>(key: K, index: number, what: string) => {
     if (!(await confirmDanger({ action: 'remove', message: t('kpi.removeConfirm', { what }) }))) return;
@@ -206,7 +218,7 @@ export function PlantKpiPage() {
     }
   };
   const add = (kind: 'input' | 'param' | 'column', text: string) =>
-    k.canManage && (
+    editable && (
       <Button size="xs" variant="default" leftSection={<IconPlus size={14} />} onClick={() => setDialog({ kind, index: null })}>
         {text}
       </Button>
@@ -228,11 +240,13 @@ export function PlantKpiPage() {
         recent={{ label: nameOf(k), kind: 'kpi' }}
         back="plantKpis"
         title={nameOf(k)}
+        tabs={<CatalogueTabs kind="kpi" entry={{ id: k.id, name: nameOf(k) }} active="" />}
         status={
           <>
             {k.category && <Badge variant="default">{k.category}</Badge>}
             {k.notInSource && <NotInSourceBadge />}
             <PreviewBadge />
+            <OpenChangesChip query={{ kind: 'kpi', id: k.id }} />
           </>
         }
         description={k.description || undefined}
@@ -243,6 +257,7 @@ export function PlantKpiPage() {
                 {t('common:edit')}
               </Button>
             )}
+            {proposeOnly && <ProposeEditButton onClick={() => setDialog({ kind: 'kpi' })} testId="kpi-propose-edit" catalogue />}
             {k.canManage && <DuplicateButton kind="kpi-definition" id={k.id} />}
             <Button
               size="xs"
@@ -324,7 +339,7 @@ export function PlantKpiPage() {
                             </Text>
                           )}
                         </Stack>
-                        {k.canManage && (
+                        {editable && (
                           <RowMenu
                             label={t('kpi.inputActions', { n: i + 1 })}
                             onEdit={() => setDialog({ kind: 'input', index: i })}
@@ -351,7 +366,7 @@ export function PlantKpiPage() {
                       <col style={{ width: '13%' }} />
                       <col style={{ width: '15%' }} />
                       <col />
-                      {k.canManage && <col style={{ width: 40 }} />}
+                      {editable && <col style={{ width: 40 }} />}
                     </colgroup>
                     <Table.Thead>
                       <Table.Tr>
@@ -360,7 +375,7 @@ export function PlantKpiPage() {
                         <Table.Th>{t('kpi.default')}</Table.Th>
                         <Table.Th>{t('kpi.range')}</Table.Th>
                         <Table.Th>{t('form.description')}</Table.Th>
-                        {k.canManage && <Table.Th aria-label={t('actions')} />}
+                        {editable && <Table.Th aria-label={t('actions')} />}
                       </Table.Tr>
                     </Table.Thead>
                     <Table.Tbody>
@@ -392,7 +407,7 @@ export function PlantKpiPage() {
                               {p.description || '–'}
                             </Text>
                           </Table.Td>
-                          {k.canManage && (
+                          {editable && (
                             <Table.Td>
                               <RowMenu
                                 label={t('kpi.paramActions', { name: p.name })}
@@ -427,7 +442,7 @@ export function PlantKpiPage() {
                       <col style={{ width: '8%' }} />
                       <col style={{ width: '10%' }} />
                       <col />
-                      {k.canManage && <col style={{ width: 40 }} />}
+                      {editable && <col style={{ width: 40 }} />}
                     </colgroup>
                     <Table.Thead>
                       <Table.Tr>
@@ -436,7 +451,7 @@ export function PlantKpiPage() {
                         <Table.Th>{t('data.unit')}</Table.Th>
                         <Table.Th>{t('kpi.scope')}</Table.Th>
                         <Table.Th>{t('form.description')}</Table.Th>
-                        {k.canManage && <Table.Th aria-label={t('actions')} />}
+                        {editable && <Table.Th aria-label={t('actions')} />}
                       </Table.Tr>
                     </Table.Thead>
                     <Table.Tbody>
@@ -464,7 +479,7 @@ export function PlantKpiPage() {
                               {col.description || '–'}
                             </Text>
                           </Table.Td>
-                          {k.canManage && (
+                          {editable && (
                             <Table.Td>
                               <RowMenu
                                 label={t('kpi.columnActions', { name: col.name })}
@@ -483,7 +498,7 @@ export function PlantKpiPage() {
             <Section
               title={t('kpi.computation')}
               action={
-                k.canManage && (
+                editable && (
                   <Button size="xs" variant="default" leftSection={<IconEdit size={14} />} onClick={() => setDialog({ kind: 'computation' })}>
                     {t('common:edit')}
                   </Button>

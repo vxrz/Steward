@@ -8234,6 +8234,15 @@ export interface Resources {
     'siteReview.hint': string;
     'form.draftHint': string;
     'form.proposeEdit': string;
+    'form.catalogueHint': string;
+    'form.savedToDraft': string;
+    'form.addToDraft': string;
+    'form.addToDraftHint': string;
+    'form.addedToDraft': string;
+    'form.openDraft': string;
+    'form.proposedForReview': string;
+    'form.openChangeSet': string;
+    'form.importProposeOnly': string;
   };
   plantDocs: {
     title: string;
@@ -9295,6 +9304,12 @@ export interface Resources {
     'tabs.asset.flow': string;
     'tabs.asset.collections': string;
     'tabs.asset.history': string;
+    'tabs.profileLabel': string;
+    'tabs.kpiLabel': string;
+    'tabs.profile.overview': string;
+    'tabs.profile.history': string;
+    'tabs.kpi.overview': string;
+    'tabs.kpi.history': string;
     'toolbar.mode': string;
     'toolbar.picture': string;
     'toolbar.table': string;

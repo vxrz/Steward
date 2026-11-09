@@ -361,9 +361,11 @@ function Shell({ status }: { status: AuthStatus }) {
                     {caps.plant && <Route path="/plant/import" element={<PlantImportPage />} />}
                     {caps.plant && <Route path="/plant/profiles" element={<PlantProfilesPage />} />}
                     {caps.plant && <Route path="/plant/profiles/:profileId" element={<PlantProfilePage />} />}
+                    {caps.plant && <Route path="/plant/profiles/:profileId/:tab" element={<PlantProfilePage />} />}
                     {caps.plant && <Route path="/plant/profiles/:profileId/points/:pointId" element={<PlantDataPointPage />} />}
                     {caps.plant && <Route path="/plant/kpis" element={<PlantKpisPage />} />}
                     {caps.plant && <Route path="/plant/kpis/:kpiId" element={<PlantKpiPage />} />}
+                    {caps.plant && <Route path="/plant/kpis/:kpiId/:tab" element={<PlantKpiPage />} />}
                     {caps.plant && <Route path="/plant/explore" element={<PlantExplorePage />} />}
                     {caps.plant && <Route path="/plant/checks" element={<PlantChecksPage />} />}
                     {caps.plant && <Route path="/plant/changes" element={<PlantChangesPage />} />}
@@ -661,6 +663,14 @@ function Shell({ status }: { status: AuthStatus }) {
                       }
                     />
                     <Route
+                      path="/plant/profiles/:profileId/:tab"
+                      element={
+                        <ModuleGate module="plant">
+                          <PlantProfilePage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
                       path="/plant/profiles/:profileId/points/:pointId"
                       element={
                         <ModuleGate module="plant">
@@ -678,6 +688,14 @@ function Shell({ status }: { status: AuthStatus }) {
                     />
                     <Route
                       path="/plant/kpis/:kpiId"
+                      element={
+                        <ModuleGate module="plant">
+                          <PlantKpiPage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/plant/kpis/:kpiId/:tab"
                       element={
                         <ModuleGate module="plant">
                           <PlantKpiPage />

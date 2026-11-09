@@ -492,6 +492,7 @@ export function siteNetwork(siteId: string): PlantSiteNetwork {
   return {
     site: { id: d.site.id, code: d.site.code, name: d.site.name, names: parseJson(d.site.names, {}) },
     canManage: d.perms.includes('manage'),
+    canPropose: d.perms.includes('propose'),
     vlans: d.vlans.map((r) => vlanView(r, d, rights, names)),
     zones: d.zoneRows.map((r) => zoneView(r, d)),
     conduits: d.conduits.map((r) => conduitView(siteId, r)),
@@ -793,6 +794,7 @@ export function assetNetwork(assetId: string): PlantAssetNetwork {
   return {
     asset: { id: row.id, name: row.name, siteId: row.site_id },
     canManage: perms.includes('manage'),
+    canPropose: perms.includes('propose'),
     live: assetLive(
       own,
       devices.map((d) => d.live),

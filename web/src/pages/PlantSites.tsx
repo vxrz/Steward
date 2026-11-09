@@ -62,7 +62,8 @@ export function PlantSitesPage() {
     </Button>
   );
   // Edit selected / Remove selected (0.11.0)
-  const canBulk = !!cfg.data?.canManageSome;
+  // 0.13.0: who may propose selects too – the change goes into their draft
+  const canBulk = !!cfg.data?.canManageSome || !!cfg.data?.changeSets?.canPropose;
   const shownIds = list.map((s) => s.id);
   const sel = useSelection(shownIds);
   const stop = () => ({ onClick: (e: { stopPropagation: () => void }) => e.stopPropagation() });

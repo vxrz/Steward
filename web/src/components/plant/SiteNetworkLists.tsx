@@ -31,6 +31,7 @@ import { DataPathModal, DeviceModal } from './networkForms';
 import { DataPathSummary, DeviceHints, deviceValues, pathValues } from './AssetNetwork';
 import { FormButtons } from './forms';
 import { Tokens } from './Tokens';
+import { saveOrDraft } from './changes/common';
 
 /**
  * The site's Devices and Data paths tabs (0.12, docs/PLANT.md#editing-in-place): sortable and filtered lists with a
@@ -63,7 +64,7 @@ export function useSiteNetworkEdit(n: PlantSiteNetwork) {
   const remove = async (what: 'devices' | 'paths', assetId: string, id: string, name: string) => {
     if (!(await confirmDanger({ action: 'remove', message: t(what === 'devices' ? 'device.removeConfirm' : 'path.removeConfirm', { name }) }))) return;
     try {
-      done(await del<PlantAssetNetwork>(`/plant/assets/${encodeURIComponent(assetId)}/${what}/${encodeURIComponent(id)}`));
+      await saveOrDraft(n.canManage, () => del<PlantAssetNetwork>(`/plant/assets/${encodeURIComponent(assetId)}/${what}/${encodeURIComponent(id)}`), done);
     } catch (e) {
       notifyError(e);
     }
@@ -90,7 +91,8 @@ export function useSiteNetworkEdit(n: PlantSiteNetwork) {
       <AssetFormLoader edit={edit} onClose={() => setEdit(null)} onSaved={done} />
     ));
   return {
-    can: n.canManage,
+    // 0.13.0: who may only propose edits here too – what they save goes into their draft
+    can: n.canManage || !!n.canPropose,
     add,
     editDevice: (d: PlantDeviceView) => setEdit({ kind: 'device', assetId: d.assetId, device: deviceValues(d) }),
     editPath: (p: PlantDataPathView) => setEdit({ kind: 'path', assetId: p.assetId, path: pathValues(p) }),

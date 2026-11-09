@@ -66,6 +66,7 @@ import { notifyProposed } from './changesets/notify.js';
 import { revisionOf } from './changesets/entries.js';
 import type { EntryChange, Region } from './changesets/track.js';
 import { me } from '../auth/access.js';
+import { asProposer, canManageCatalogue, plantManagesSome, plantProposesSome } from './access.js';
 import { audit } from '../audit.js';
 
 /**
@@ -187,6 +188,13 @@ function proposed(kind: 'import' | 'bulk' | 'rename', title: string, op: Paramet
   notifyProposed(id);
   return summaryOf(r, u);
 }
+
+/** Whether the reader may only propose (no manage right where it applies, the propose right on some site): previews show
+ * what applying would do for their draft. */
+const proposesOnly = (catalogue: boolean): boolean => {
+  const u = me();
+  return !(catalogue ? canManageCatalogue(u) : plantManagesSome(u)) && plantProposesSome(u);
+};
 
 /** The sites and the catalogue an import's preview touches. */
 const touchedBy = (changes: { kind: string; siteId: string }[]) => ({
@@ -855,8 +863,11 @@ export async function plantRoutes(app: FastifyInstance): Promise<void> {
   });
   app.post('/plant/bulk/preview', async (req) => {
     const { fingerprint: _f, ...input } = plantBulkInput.parse(req.body);
-    // one dry run: what applying writes (its fingerprint) and the preview (computed before anything is written)
-    const f = previewFingerprint(bulkRegion(input), () => applyBulk(input));
+    // one dry run: what applying writes (its fingerprint) and the preview (computed before anything is written); who
+    // may only propose sees it with their propose right counted as manage – to add it to their draft (0.13.0)
+    const catalogue = input.kind === 'profile' || input.kind === 'kpi';
+    const draft = proposesOnly(catalogue);
+    const f = previewFingerprint(bulkRegion(input), () => (draft ? asProposer(() => applyBulk(input)) : applyBulk(input)));
     return { ...f.result, applied: false, fingerprint: f.fingerprint };
   });
   app.post(
@@ -905,7 +916,10 @@ export async function plantRoutes(app: FastifyInstance): Promise<void> {
   // ---------- import and export ----------
   app.post('/plant/import/preview', imports, async (req) => {
     const { fingerprint: _f, ...input } = importInput.parse(req.body);
-    const f = previewFingerprint(importRegion(input), () => previewImport(input));
+    // who may only propose sees what the files would do with their propose right counted as manage – to add them to
+    // their draft (0.13.0; a dry run that is rolled back and audits nothing)
+    const draft = proposesOnly(false);
+    const f = previewFingerprint(importRegion(input), () => (draft ? asProposer(() => previewImport(input)) : previewImport(input)));
     return { ...f.result, fingerprint: f.fingerprint };
   });
   // renaming or removing more than one entry asks for a step-up (plant.bulkChange), one rename as the policy says (plant.renameId)
