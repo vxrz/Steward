@@ -2,7 +2,8 @@ import fs from 'node:fs';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { vault, publicKeyPem } from '../vault.js';
-import { audit, queryAudit, chainEntriesAscending, prunedBase } from '../audit.js';
+import { AUDIT_SORT_KEYS } from '@sm/shared';
+import { audit, auditFacets, queryAudit, chainEntriesAscending, prunedBase } from '../audit.js';
 import { anchoringStatus, createCheckpoint, parseAnchor, saveEmailSettings, verificationResult, verifyWithAnchors, anchorFile } from '../audit-anchor.js';
 import { auditCsv, auditExportBundle } from '../audit-export.js';
 import { archiveForDownload, archiveStatusAsync, runArchiving, saveArchiveSettings, startFullVerification } from '../audit-archive.js';
@@ -24,6 +25,11 @@ const auditQuery = z.object({
   from: z.string().max(64).optional(),
   to: z.string().max(64).optional(),
   beforeSeq: z.coerce.number().int().min(1).optional(),
+  /** 0.13: sorted by the server – a column and a direction (default: time, newest first) */
+  sort: z.enum(AUDIT_SORT_KEYS).optional(),
+  order: z.enum(['asc', 'desc']).optional(),
+  /** The seq of the last entry shown: the next page in the chosen order ("load more") */
+  afterSeq: z.coerce.number().int().min(1).optional(),
   limit: z.coerce.number().int().min(1).max(5000).optional(),
 });
 
@@ -34,7 +40,16 @@ export async function auditRoutes(app: FastifyInstance): Promise<void> {
     const q = auditQuery.parse(req.query ?? {});
     if (q.runId) requireRun(q.runId, 'view', 'view this run');
     else requireCapability(me(), 'viewAudit', 'view the audit log');
-    return queryAudit(q);
+    const { sort, order, ...f } = q;
+    const by = { key: sort ?? 'time', dir: order ?? 'desc' } as const;
+    if (f.beforeSeq && (by.key !== 'time' || by.dir !== 'desc'))
+      throw new HttpError(400, 'beforeSeq= continues the newest-first list; use afterSeq=<seq> with a sort', 'AUDIT_CURSOR_SORT');
+    return queryAudit({ ...f, sort: by });
+  });
+  // the actors and target types for the filters of the audit page
+  app.get('/audit/facets', async () => {
+    requireCapability(me(), 'viewAudit', 'view the audit log');
+    return auditFacets();
   });
   // Verification against all anchors (local anchor file, SM_AUDIT_ANCHOR[_FILE], and an anchor pasted by the user).
   // Incremental (from the newest signed checkpoint) unless `full`; a pasted checkpoint is always checked in full.

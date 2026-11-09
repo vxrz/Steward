@@ -6,6 +6,7 @@ import { IconEdit, IconExternalLink, IconFileImport, IconTrash } from '@tabler/i
 import { useTranslation } from 'react-i18next';
 import type { SbomPreview, SystemDetail } from '@sm/shared';
 import { del, get, notifyError } from '../api';
+import { CopyId } from '../components/CopyId';
 import { DetailState, subjectLabel } from '../components/common';
 import { Field } from '../components/records/common';
 import { confirmDanger } from '../components/confirm';
@@ -69,7 +70,12 @@ export function SystemDetailPage() {
             <Badge variant="default">{t(`systems.kinds.${s.kind}`)}</Badge>
           </Group>
         }
-        description={t('detailLine', { user: s.updatedBy, date: fmtDate(s.updatedAt) })}
+        description={
+          <>
+            {t('detailLine', { user: s.updatedBy, date: fmtDate(s.updatedAt) })}
+            <CopyId id={s.id} />
+          </>
+        }
         actions={
           (s.canEdit || canCreate) && (
             <>

@@ -1555,6 +1555,19 @@ export interface ImportedHistoryRef {
   sourceFingerprint: string;
 }
 
+/**
+ * Columns the audit log can be sorted by on the server (0.13): `time` is the order of the chain (the sequence number,
+ * so entries written in the same millisecond keep their order), `target` the entity type and id.
+ */
+export const AUDIT_SORT_KEYS = ['time', 'actor', 'action', 'target'] as const;
+export type AuditSortKey = (typeof AUDIT_SORT_KEYS)[number];
+
+/** The actors and target types in the audit log (the filters of the audit page; GET /api/audit/facets). */
+export interface AuditFacets {
+  actors: string[];
+  entityTypes: string[];
+}
+
 export interface AuditEntry {
   seq: number;
   ts: string;

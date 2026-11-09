@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { IconArchive, IconArchiveOff, IconEdit, IconExternalLink, IconPlus, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
+import { CopyId } from '../components/CopyId';
 import { TagBadges } from '../components/tags';
 import type { ApplicationDetail, ApplicationDocument, Platform } from '@sm/shared';
 import { del, get, notifyError, patch, post } from '../api';
@@ -85,6 +86,7 @@ export function ApplicationDetailPage() {
         description={
           <>
             {t('detailLine', { user: a.updatedBy, date: fmtDate(a.updatedAt) })}
+            <CopyId id={a.id} />
             <CopiedFromNote kind="application" id={a.id} pathOf={(id) => `/applications/${id}`} />
           </>
         }

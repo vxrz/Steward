@@ -1,9 +1,12 @@
 /** /api/v1 routes for the audit log and its verification. */
+import type { AuditSortKey } from '@sm/shared';
 import { audit, queryAudit } from '../../audit.js';
 import { createCheckpoint, verificationResult, verifyWithAnchors } from '../../audit-anchor.js';
 import { currentUser } from '../../auth/context.js';
 import { capabilities, requireCapability } from '../../auth/permissions.js';
+import { HttpError } from '../../util.js';
 import { decodeCursor, pageRows } from './pagination.js';
+import { ProblemError } from './problem.js';
 import * as S from './schemas.js';
 import { iso, paged, query, viewableRun, type Get } from './helpers.js';
 
@@ -27,7 +30,8 @@ export function auditRoutes(get: Get): void {
       operationId: 'listAuditEntries',
       tag: 'Audit',
       summary: 'List audit log entries',
-      description: 'Auditors and administrators; others only with `runId` of a run they may view. Newest first.',
+      description:
+        'Auditors and administrators; others only with `runId` of a run they may view. Newest first unless `sort`/`order` choose another order (keyset pagination, stable while sorted).',
       query: S.AuditListQuery,
       paginated: true,
       response: S.pageOf('AuditEntry', 'A page of audit entries'),
@@ -42,13 +46,25 @@ export function auditRoutes(get: Get): void {
         q?: string;
         from?: string;
         to?: string;
+        sort?: AuditSortKey;
+        order?: 'asc' | 'desc';
         cursor?: string;
         limit: number;
       }>(req);
       if (q.runId && !capabilities(currentUser()).viewAudit) viewableRun(q.runId);
       else requireCapability(currentUser(), 'viewAudit', 'view the audit log');
       const after = decodeCursor(q.cursor, q);
-      const rows = queryAudit({
+      const list = (f: Parameters<typeof queryAudit>[0]) => {
+        try {
+          return queryAudit(f);
+        } catch (e) {
+          // the entry the cursor points to was deleted by the retention in the meantime
+          if (e instanceof HttpError && e.code === 'AUDIT_CURSOR_UNKNOWN')
+            throw new ProblemError(400, { type: 'invalid-cursor', title: 'Invalid cursor', detail: e.message });
+          throw e;
+        }
+      };
+      const rows = list({
         action: q.action,
         actor: q.actor,
         entityType: q.entityType,
@@ -57,7 +73,10 @@ export function auditRoutes(get: Get): void {
         q: q.q,
         from: iso(q.from),
         to: iso(q.to),
-        beforeSeq: after ? Number(after[0]) : undefined,
+        // the cursor holds the seq of the last entry: the next page continues after it in the same order (the filter
+        // fingerprint includes sort and order, so a cursor cannot change the order)
+        sort: { key: q.sort ?? 'time', dir: q.order ?? 'desc' },
+        afterSeq: after ? Number(after[0]) : undefined,
         limit: q.limit + 1,
       });
       return paged(

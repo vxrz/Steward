@@ -31,6 +31,7 @@ import {
 import { Trans, useTranslation } from 'react-i18next';
 import { CHANGEDETECTION_KIND, DATABASE_KIND, KAFKA_CONNECT_KIND, LLM_GATEWAY_KIND, type AclEntry, type Platform } from '@sm/shared';
 import { apiUrl, del, get, notifyError, notifyOk, post, put } from '../api';
+import { CopyId } from '../components/CopyId';
 import { AccessEditor } from '../components/AccessEditor';
 import { OwningTeams } from '../components/OwningTeams';
 import { useMe } from '../auth';
@@ -198,6 +199,7 @@ export function PlatformDetailPage() {
             <Text span size="xs" className="mono" style={{ wordBreak: 'break-all' }}>
               {p.baseUrl}
             </Text>
+            <CopyId id={p.id} />
             {application.data?.application && (
               <Text span size="xs" data-testid="platform-application">
                 {t('applications:integrations.belongsTo')}{' '}

@@ -41,7 +41,7 @@ The architecture – C4 diagrams, a module map of `server/src` and the decision 
 
 | Command                            | What it checks                                                                                                                                                                       |
 | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `npm run typecheck`                | TypeScript in all workspaces                                                                                                                                                         |
+| `npm run typecheck`                | TypeScript in all workspaces; first writes the translation key types `web/src/i18n/keys.gen.ts` from the English texts (`npm run i18n:types`)                                        |
 | `npm run lint`                     | ESLint (`eslint.config.js`): no errors and no warnings. `npm run lint:fix` fixes what it can.                                                                                        |
 | `npm run format:check`             | Prettier formatting (`.prettierrc.json`). `npm run format` formats all files.                                                                                                        |
 | `npm run check:imports`            | No new import cycles, the layer rules ([docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#import-rules)); `-- --update` after removing one                                                  |
@@ -52,6 +52,7 @@ The architecture – C4 diagrams, a module map of `server/src` and the decision 
 | `npm run validate`                 | Example processes and dashboards                                                                                                                                                     |
 | `npm run openapi -- --check`       | `docs/openapi.json` matches the API (run `npm run openapi` to regenerate)                                                                                                            |
 | `npm run config:docs -- --check`   | The environment-variable reference `docs/CONFIGURATION.md` matches `server/src/config-schema.ts` (run `npm run config:docs`)                                                         |
+| `npm run i18n:types -- --check`    | `web/src/i18n/keys.gen.ts` matches the English translation files (run `npm run i18n:types`, or `npm run typecheck`, and commit the file)                                             |
 | `scripts/security/scan.sh`         | Optional: the security scanners CI runs (see [docs/ci/SECURITY-PIPELINE.md](docs/ci/SECURITY-PIPELINE.md))                                                                           |
 
 CI runs all of these on every pull request and every push to `main`: GitHub Actions (`.github/workflows/`), and Woodpecker CI (`.woodpecker/`) on a Forgejo mirror – see [docs/ci/WOODPECKER.md](docs/ci/WOODPECKER.md). A change to one CI system usually needs the same change in the other.

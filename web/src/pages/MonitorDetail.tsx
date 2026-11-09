@@ -29,6 +29,7 @@ import {
   type MonitorSaveResult,
 } from '@sm/shared';
 import { api, apiUrl, del, get, notifyError, notifyOk, post, put } from '../api';
+import { CopyId } from '../components/CopyId';
 import { DetailState, JsonView } from '../components/common';
 import { GitOriginBadge } from '../components/gitsync/GitOriginBadge';
 import { LibraryOriginBadge } from '../components/libraries/parts';
@@ -136,6 +137,7 @@ export function MonitorDetailPage() {
           <>
             <span className="mono">{m.key}</span> · {t('detail.owner', { owner: m.owner })}
             {!m.isTemplate && m.since && ` · ${t('detail.since', { date: fmtDate(m.since) })}`}
+            <CopyId id={m.id} />
             <CopiedFromNote kind="monitor" id={m.id} pathOf={(id) => `/monitors/${id}`} />
           </>
         }

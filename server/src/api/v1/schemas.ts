@@ -13,6 +13,7 @@ import { z, type ZodTypeAny } from 'zod';
 import { zodJsonSchema, type JsonSchema } from '../../jsonSchema.js';
 import {
   API_DOCS_MODES,
+  AUDIT_SORT_KEYS,
   DATASET_STATUSES,
   PLATFORM_PERMISSIONS,
   PROCESS_PERMISSIONS,
@@ -823,6 +824,11 @@ export const AuditListQuery = z.object({
   q: z.string().max(200).optional().describe('Search in summary, actor and action'),
   from: ts().optional().describe('At or after this time (ISO 8601)'),
   to: ts().optional().describe('Before this time (ISO 8601)'),
+  sort: z
+    .enum(AUDIT_SORT_KEYS)
+    .optional()
+    .describe('Sort by: `time` (default; the order of the hash chain), `actor`, `action` or `target` (entity type, then id). Ties keep the chain order'),
+  order: z.enum(['asc', 'desc']).optional().describe('Direction (default `desc`: newest or Z first). A `nextCursor` continues in the same order'),
 });
 
 export const UserListQuery = z.object({ ...page, active: z.boolean().optional() });
