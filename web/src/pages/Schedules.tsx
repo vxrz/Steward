@@ -23,6 +23,7 @@ import { IconCalendarTime, IconEdit, IconPlayerPlay, IconPlus, IconTrash } from 
 import { Trans, useTranslation } from 'react-i18next';
 import { DEFAULT_SCHEDULE_NOTIFY, type ProcessDetail, type ProcessSummary, type Schedule } from '@sm/shared';
 import { del, get, notifyError, notifyOk, post, put } from '../api';
+import { CopyId } from '../components/CopyId';
 import { QueryState, StatusBadge, useCreateParam, useFieldErrors } from '../components/common';
 import { AutomateTabs } from '../components/page/LinkTabs';
 import { InputsForm, defaultInputs } from '../components/InputsForm';
@@ -400,6 +401,7 @@ function ScheduleModal({ draft, onClose, onSave }: { draft: Draft; onClose: () =
   return (
     <Modal opened onClose={onClose} title={draft.id ? t('edit') : t('new')} size="lg">
       <Stack>
+        {draft.id && <CopyId id={draft.id} />}
         <Select
           label={t('form.process')}
           required

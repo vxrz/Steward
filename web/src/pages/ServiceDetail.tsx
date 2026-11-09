@@ -18,6 +18,7 @@ import {
   IconTool,
 } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
+import { CopyId } from '../components/CopyId';
 import { TagBadges } from '../components/tags';
 import type { ApplicationDetail, ServiceDetail } from '@sm/shared';
 import { del, get, notifyError, patch, post } from '../api';
@@ -120,6 +121,7 @@ export function ServiceDetailPage() {
       description={
         <>
           {t('detailLine', { user: s.updatedBy, date: fmtDate(s.updatedAt) })}
+          <CopyId id={s.id} />
           <CopiedFromNote kind="service" id={s.id} pathOf={(id) => `/services/${id}`} />
         </>
       }

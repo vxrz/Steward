@@ -44,6 +44,7 @@ import type {
 import { DEFAULT_TRIGGER_NOTIFY } from '@sm/shared';
 import { Trans, useTranslation } from 'react-i18next';
 import { del, get, notifyError, notifyOk, post, put } from '../api';
+import { CopyId } from '../components/CopyId';
 import { Hint, QueryState, StatusBadge } from '../components/common';
 import { AutomateTabs } from '../components/page/LinkTabs';
 import { BindingsForm, loadBindings } from '../components/RunDialog';
@@ -509,6 +510,7 @@ function TriggerModal({ draft, onClose, onSave }: { draft: Draft; onClose: () =>
   return (
     <Modal opened onClose={onClose} title={draft.id ? t('form.editTitle') : t('new')} size="xl">
       <Stack>
+        {draft.id && <CopyId id={draft.id} />}
         <Group grow align="flex-start">
           <Select
             label={t('form.process')}
