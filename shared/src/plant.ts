@@ -342,6 +342,24 @@ export type PlantChangeKind =
   | 'asset_checks';
 export type PlantChangeAction = 'add' | 'change' | 'remove' | 'mark' | 'unchanged' | 'skip';
 
+/** 0.12.0: the size of the field-level differences an import's preview shows. */
+export const PLANT_DIFF_LIMITS = {
+  /** Differences per changed entry */
+  perEntry: 50,
+  /** Changed entries that get their differences (the first ones) */
+  entries: 500,
+  /** Characters of a text value, entries of a list value */
+  text: 500,
+  list: 20,
+} as const;
+
+/** 0.12.0: one difference of a changed entry: where (`interfaces[opc].description`), the stored and the new value. */
+export interface PlantFieldDiff {
+  path: string;
+  before: unknown;
+  after: unknown;
+}
+
 export interface PlantChange {
   kind: PlantChangeKind;
   action: PlantChangeAction;
@@ -351,6 +369,8 @@ export interface PlantChange {
   name: string;
   /** Fields that differ (changes) */
   fields?: string[];
+  /** 0.12.0: what differs, field by field (changes; the first PLANT_DIFF_LIMITS.entries changes of a preview) */
+  diff?: PlantFieldDiff[];
   /** A note: why it is skipped, what else changes */
   note?: string;
 }

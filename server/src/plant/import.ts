@@ -4,6 +4,7 @@ import {
   LEVEL_RECORD_TYPE,
   PLANT_FORMAT_VERSION,
   PLANT_IMPORT_MODES,
+  PLANT_DIFF_LIMITS,
   PLANT_LIMITS,
   PLANT_MISSING,
   type ExternalRef,
@@ -1022,7 +1023,11 @@ function compute(input: ImportInput, importId: string): Computed {
   });
 
   // what the file would change in sites the caller may not see is not shown (it cannot be imported anyway)
-  const changes: PlantChange[] = writes.filter((w) => !hiddenSite(w.siteId)).map(({ apply: _a, ...c }) => c);
+  // 0.12.0: the first changes say what differs, field by field
+  let diffs = 0;
+  const changes: PlantChange[] = writes
+    .filter((w) => !hiddenSite(w.siteId))
+    .map(({ apply: _a, diff, ...c }) => (diff && diffs++ < PLANT_DIFF_LIMITS.entries ? { ...c, diff: diff() } : c));
   const counts = emptyCounts();
   const byKind: PlantImportPreview['byKind'] = {};
   for (const c of changes) {

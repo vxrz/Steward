@@ -354,6 +354,13 @@
       "status": "Status",
       "notInSource": "wieder in der Quelle"
     },
+    "diff": {
+      "show_one": "{{count}} Unterschied zeigen",
+      "show_other": "{{count}} Unterschiede zeigen",
+      "hide": "Unterschiede ausblenden",
+      "before": "Vorher",
+      "after": "Nachher"
+    },
     "kinds": {
       "profile": "Geräteprofil",
       "kpi": "KPI-Definition",

@@ -10,6 +10,7 @@ import {
   type PlantChangeKind,
   type PlantCheck,
   type PlantDataPoint,
+  type PlantFieldDiff,
   type PlantImportMode,
   type PlantImportProblem,
   type PlantInterface,
@@ -26,6 +27,7 @@ import { db } from '../db.js';
 import type { AuthUser } from '../auth/context.js';
 import { canManageCatalogue } from './access.js';
 import { changedKeys, type AssetRow, type SiteRow } from './model.js';
+import { fieldDiff } from './diff.js';
 import type { AssignmentFile, DataPointFile, InterfaceFile, KpiFile, PlantFile, ProfileFile } from './format.js';
 import {
   assignmentProblems,
@@ -75,6 +77,8 @@ export interface Write {
   note?: string;
   /** What to write (add, change, unchanged: adopt; mark: flag) */
   apply: () => void;
+  /** 0.12.0: a change's differences, field by field (computed for the preview's first changes only) */
+  diff?: () => PlantFieldDiff[];
 }
 
 export function pushWrite<V extends object>(
@@ -94,7 +98,7 @@ export function pushWrite<V extends object>(
   if (mode === 'add') return void writes.push({ kind, action: 'skip', siteId, id, name, note: 'exists (add only)', apply: () => undefined });
   const fields = changedKeys(before, after);
   if (cur?.not_in_source) fields.push('notInSource');
-  if (fields.length) writes.push({ kind, action: 'change', siteId, id, name, fields, apply: write });
+  if (fields.length) writes.push({ kind, action: 'change', siteId, id, name, fields, apply: write, diff: () => fieldDiff(before, after) });
   else writes.push({ kind, action: 'unchanged', siteId, id, name, apply: adopt });
 }
 
