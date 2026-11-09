@@ -3,7 +3,7 @@ import { Anchor, Button, Group, Paper, Select, SimpleGrid, Stack, Table, Text } 
 import { useMediaQuery } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { IconCpu, IconDownload, IconFileImport, IconPlus } from '@tabler/icons-react';
+import { IconCpu, IconDownload, IconFileImport, IconHierarchy2, IconPlus } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { PLANT_PROTOCOLS, type PlantProfileDetail, type PlantProfileSummary, type PlantProtocol } from '@sm/shared';
 import { apiUrl, get, post } from '../api';
@@ -14,10 +14,12 @@ import { NotInSourceBadge, PreviewBadge, usePlantConfig } from '../components/pl
 import { BulkBar, SelectAllBox, SelectBox, useSelection } from '../components/plant/bulk';
 import { ProtocolBadge } from '../components/plant/data';
 import { ProfileFormModal } from '../components/plant/dataForms';
+import { ExtractBaseModal } from '../components/plant/ExtractBaseModal';
+import { TemplateBadge } from '../components/plant/potential';
 
 /** The device profiles of the installation (#219): kinds of controllers and devices with their interfaces and data points. */
 export function PlantProfilesPage() {
-  const { t } = useTranslation(['plant', 'common']);
+  const { t } = useTranslation(['plant', 'common', 'plantModel']);
   const navigate = useNavigate();
   const qc = useQueryClient();
   const cfg = usePlantConfig();
@@ -26,7 +28,10 @@ export function PlantProfilesPage() {
   const [q, setQ] = useState(params.get('q') ?? '');
   const protocol = params.get('protocol') as PlantProtocol | null;
   const category = params.get('category');
+  // 0.12.0: templates (only for other profiles to extend) or the others
+  const kind = params.get('kind') as 'template' | 'device' | null;
   const [creating, setCreating] = useState(false);
+  const [extracting, setExtracting] = useState(false);
   const canManage = cfg.data?.canManageCatalogue;
   useCreateParam(canManage, () => setCreating(true));
   const narrow = useMediaQuery('(max-width: 48em)') ?? false;
@@ -44,10 +49,11 @@ export function PlantProfilesPage() {
     (p) =>
       (!needle || [p.id, p.name, p.manufacturer, p.model, p.category].some((x) => x.toLowerCase().includes(needle))) &&
       (!protocol || p.protocols.includes(protocol)) &&
-      (!category || p.category === category),
+      (!category || p.category === category) &&
+      (!kind || p.template === (kind === 'template')),
   );
   const none = profiles.isSuccess && all.length === 0;
-  const active = (protocol ? 1 : 0) + (category ? 1 : 0) + (needle ? 1 : 0);
+  const active = (protocol ? 1 : 0) + (category ? 1 : 0) + (kind ? 1 : 0) + (needle ? 1 : 0);
   const to = (p: PlantProfileSummary) => `/plant/profiles/${encodeURIComponent(p.id)}`;
   const protocols = (p: PlantProfileSummary) => (
     <Group gap={4}>
@@ -83,6 +89,11 @@ export function PlantProfilesPage() {
               {t('import.button')}
             </Button>
           )}
+          {canManage && all.filter((p) => !p.extends).length >= 2 && (
+            <Button size="xs" variant="default" leftSection={<IconHierarchy2 size={14} />} onClick={() => setExtracting(true)} data-testid="extract-base-open">
+              {t('plantModel:extract.button')}
+            </Button>
+          )}
           {!none && (
             <Button size="xs" variant="default" component="a" href={apiUrl('/plant/export?part=catalogue')} download leftSection={<IconDownload size={14} />}>
               {t('export.catalogue')}
@@ -113,6 +124,19 @@ export function PlantProfilesPage() {
               clearable
               searchable
               w={{ base: '100%', xs: 200 }}
+            />
+            <Select
+              size="xs"
+              label={t('plantModel:template.filter')}
+              data={[
+                { value: 'template', label: t('plantModel:template.filterTemplates') },
+                { value: 'device', label: t('plantModel:template.filterDevices') },
+              ]}
+              value={kind}
+              onChange={(v) => set('kind', v)}
+              clearable
+              w={{ base: '100%', xs: 200 }}
+              data-testid="profile-kind-filter"
             />
           </Group>
         )
@@ -160,6 +184,7 @@ export function PlantProfilesPage() {
                 </Text>
                 {protocols(p)}
                 <Text size="sm">{t('profiles.counts', { interfaces: p.interfaceCount, points: p.dataPointCount, assets: p.assetCount })}</Text>
+                {p.template && <TemplateBadge />}
                 {p.notInSource && <NotInSourceBadge size="xs" />}
               </Stack>
             </Paper>
@@ -200,6 +225,7 @@ export function PlantProfilesPage() {
                       <Text size="xs" c="dimmed" className="mono">
                         {p.id}
                       </Text>
+                      {p.template && <TemplateBadge />}
                       {p.notInSource && <NotInSourceBadge size="xs" />}
                     </Group>
                   </Table.Td>
@@ -220,6 +246,9 @@ export function PlantProfilesPage() {
             </Table.Tbody>
           </Table>
         </div>
+      )}
+      {extracting && (
+        <ExtractBaseModal profiles={all} preselect={[...sel.ids].filter((id) => !all.find((x) => x.id === id)?.extends)} onClose={() => setExtracting(false)} />
       )}
       {creating && (
         <ProfileFormModal

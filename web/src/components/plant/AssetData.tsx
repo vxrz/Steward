@@ -16,6 +16,7 @@ import type {
   PlantProfileSummary,
   PlantPublication,
 } from '@sm/shared';
+import { CollectedBadge, UnitsBadge } from './potential';
 import { del, get, notifyError, put } from '../../api';
 import { EmptyState, QueryState } from '../common';
 import { confirmDanger } from '../confirm';
@@ -661,6 +662,8 @@ export function AssetDataSection({ assetId }: { assetId: string }) {
                       <Anchor component={Link} to={`/plant/kpis/${encodeURIComponent(k.id)}`} size="sm">
                         {nameOf(k)}
                       </Anchor>
+                      {!k.instantiated && k.collected !== undefined && <CollectedBadge collected={k.collected} />}
+                      <UnitsBadge units={k.units} />
                       {k.instantiated ? (
                         <Badge size="xs" variant="light" color="green">
                           {t('explore.instantiated')}

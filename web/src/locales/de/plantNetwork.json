@@ -25,7 +25,7 @@
   },
   "overview": {
     "title": "Live-Status",
-    "help": "Online, offline oder unbekannt – nur aus den Prüfungen, die mit einer Anlage oder ihren Geräten verknüpft sind. Ohne Prüfung bleibt der Status unbekannt, nie online.",
+    "help": "Online, offline oder unbekannt – nur aus den Prüfungen, die mit einer Anlage oder ihren Geräten verknüpft sind; nie online, ohne dass eine Prüfung es sagt. Eine Anlage ohne Prüfung wird nicht überwacht.",
     "status": "Status",
     "live": "Live",
     "counts": "{{devices}} Geräte · {{paths}} Datenwege",
@@ -40,7 +40,9 @@
     "help": "Prüfungen der Anlage selbst; ihre Geräte haben eigene. Offline gewinnt, unbekannt wird nie als online gezeigt.",
     "noChecks": "Keine Prüfung verknüpft.",
     "noOwnChecks": "Mit der Anlage selbst ist keine Prüfung verknüpft.",
-    "hiddenCheck": "Eine Prüfung, die Sie nicht sehen dürfen"
+    "hiddenCheck": "Eine Prüfung, die Sie nicht sehen dürfen",
+    "notWatched": "Nicht überwacht",
+    "nothingWatched": "An diesem Standort wird noch nichts überwacht: Verknüpfen Sie Monitor-Prüfungen oder die Aktualität eines Datensatzes auf der Seite einer Anlage oder eines Geräts (Live-Status → Prüfungen)."
   },
   "checkKinds": {
     "monitor": "Monitor",
@@ -100,7 +102,7 @@
     "static": "Statisch"
   },
   "addressTypes": {
-    "dynamic": "Dynamisch",
+    "dynamic": "Dynamisch (DHCP)",
     "reserved": "Reserviert",
     "static": "Statisch"
   },
@@ -268,14 +270,14 @@
   "device": {
     "title": "Geräte",
     "help": "Die Netzwerkidentität der Anlage: Hostname, MAC, VLAN, Adresse und Switch-Port.",
-    "siteHelp": "Die Geräte aller Anlagen dieses Standorts. Geändert werden sie auf der Seite der Anlage.",
+    "siteHelp": "Die Geräte aller Anlagen dieses Standorts. Fügen Sie sie hier oder auf der Seite der Anlage hinzu, ändern oder entfernen Sie sie.",
     "add": "Gerät hinzufügen",
     "newTitle": "Neues Gerät",
     "editTitle": "Gerät {{name}}",
     "formHelp": "MAC-Adressen sind EUI-48 (jede übliche Schreibweise), Adressen IPv4 oder IPv6.",
     "none": "Noch kein Gerät.",
     "emptyTitle": "Noch kein Gerät",
-    "emptyText": "Geräte werden auf der Seite ihrer {{type}} hinzugefügt.",
+    "emptyText": "Fügen Sie das erste hier oder auf der Seite seiner {{type}} hinzu.",
     "actions": "Aktionen für Gerät {{name}}",
     "removeConfirm": "Gerät {{name}} entfernen?",
     "search": "Host, Adresse, MAC, Port suchen",
@@ -302,19 +304,28 @@
     "monitoring": "Überwachung",
     "flags": "Merker",
     "flagsHelp": "Was bestellt oder erledigt ist: device_ordered, port_ordered, address_ordered …",
-    "flagInvalid": "Merker sind snake_case: port_ordered."
+    "flagInvalid": "Merker sind snake_case: port_ordered.",
+    "select": "Auswählen",
+    "allVlans": "Alle VLANs",
+    "noVlan": "Kein VLAN",
+    "allStates": "Alle Zustände",
+    "allAssets": "Alle {{type}}",
+    "count_one": "{{count}} Gerät",
+    "count_other": "{{count}} Geräte",
+    "countOf_one": "{{shown}} von {{count}} Gerät",
+    "countOf_other": "{{shown}} von {{count}} Geräten"
   },
   "path": {
     "title": "Datenwege",
     "help": "Welche Daten die Anlage verlassen, wer sie abholt, wie sie übertragen werden und wo sie landen. Hosts sind Steward-Systeme, so lassen sich Ketten verfolgen.",
-    "siteHelp": "Die Datenwege aller Anlagen dieses Standorts mit den Gliedern ihrer Ketten.",
+    "siteHelp": "Die Datenwege aller Anlagen dieses Standorts mit den Gliedern ihrer Ketten. Fügen Sie sie hier oder auf der Seite der Anlage hinzu, ändern oder entfernen Sie sie.",
     "add": "Datenweg hinzufügen",
     "newTitle": "Neuer Datenweg",
     "editTitle": "Datenweg {{name}}",
     "formHelp": "Ein Sammler (eine Steward-Anwendung, -Plattform oder ein Steward-Prozess oder ein Job anderswo), seine Übertragungen und die Ziele.",
     "none": "Noch kein Datenweg.",
     "emptyTitle": "Noch kein Datenweg",
-    "emptyText": "Datenwege werden auf der Seite ihrer {{type}} hinzugefügt.",
+    "emptyText": "Fügen Sie den ersten hier oder auf der Seite seiner {{type}} hinzu.",
     "actions": "Aktionen für Datenweg {{name}}",
     "removeConfirm": "Datenweg „{{name}}“ entfernen?",
     "subject": "Gegenstand",
@@ -351,7 +362,13 @@
     "comesFrom": "Kommt von",
     "continuesIn": "Geht weiter in",
     "chainMore_one": "und {{count}} weiterer",
-    "chainMore_other": "und {{count}} weitere"
+    "chainMore_other": "und {{count}} weitere",
+    "search": "Gegenstand, Sammler, Protokoll suchen",
+    "noMatch": "Kein Datenweg passt.",
+    "count_one": "{{count}} Datenweg",
+    "count_other": "{{count}} Datenwege",
+    "countOf_one": "{{shown}} von {{count}} Datenweg",
+    "countOf_other": "{{shown}} von {{count}} Datenwegen"
   },
   "asset": {
     "title": "OT-Netzwerk",
@@ -360,5 +377,31 @@
     "emptyTitle": "Kein OT-Netzwerk dokumentiert",
     "emptyText": "Diese {{type}} hat noch keine Geräte, Datenwege oder Prüfungen."
   },
-  "actions": "Aktionen"
+  "actions": "Aktionen",
+  "site": {
+    "pickHelp": "Wählen Sie die {{type}}, zu der es gehört.",
+    "pickRequired": "Wählen Sie die {{type}}."
+  },
+  "quality": {
+    "title": "Datenqualität",
+    "help": "Was in der Dokumentation der Geräte dieses Standorts nicht stimmt (ausgemusterte Geräte ausgenommen). Jedes Gerät führt zu seiner Zeile.",
+    "none": "Nichts zu korrigieren.",
+    "summary_one": "{{count}} Hinweis zu den Geräten",
+    "summary_other": "{{count}} Hinweise zu den Geräten",
+    "open": "Im Reiter Geräte zeigen",
+    "kinds": {
+      "duplicate_address_one": "Adresse {{value}} ist bei {{count}} Gerät eingetragen",
+      "duplicate_address_other": "Adresse {{value}} ist bei {{count}} Geräten eingetragen",
+      "duplicate_mac_one": "MAC {{value}} ist bei {{count}} Gerät eingetragen",
+      "duplicate_mac_other": "MAC {{value}} ist bei {{count}} Geräten eingetragen",
+      "duplicate_hostname_one": "Hostname {{value}} ist bei {{count}} Gerät eingetragen",
+      "duplicate_hostname_other": "Hostname {{value}} ist bei {{count}} Geräten eingetragen",
+      "vlan_missing_one": "{{count}} Gerät nennt VLAN „{{value}}“, das dieser Standort nicht hat",
+      "vlan_missing_other": "{{count}} Geräte nennen VLAN „{{value}}“, das dieser Standort nicht hat",
+      "no_vlan_one": "{{count}} Gerät hat kein VLAN",
+      "no_vlan_other": "{{count}} Geräte haben kein VLAN",
+      "switch_case_one": "Ein Switch in unterschiedlicher Groß- und Kleinschreibung: {{variants}}",
+      "switch_case_other": "Ein Switch in unterschiedlicher Groß- und Kleinschreibung: {{variants}}"
+    }
+  }
 }

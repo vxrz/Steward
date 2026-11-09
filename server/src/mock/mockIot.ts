@@ -7,7 +7,7 @@ import { deviceTime, readablePoints, readablePointsAsc, type IotPipeline } from 
  * Served through the Insights Hub mock:
  *   GET /mock/ih/api/iottimeseries/v3/timeseries/{assetId}/{aspect}
  *       ?latestRecord=true                  newest record only (it holds just the variables written at that time)
- *       ?from=&to=[&select=a,b][&limit=]     records in the range, oldest first (default limit 2000)
+ *       ?from=&to=[&select=a,b][&limit=]     records in the range, oldest first, at most limit (default and most 2000)
  *       (no parameters)                      newest record, like latestRecord
  * Every variable has its own cadence and "lag" (age of its newest point), so
  * some variables are fresh and others stale. Data is generated relative to now.
@@ -125,6 +125,20 @@ function pointTimes(v: IotVariable, now: number, from: number, to: number, max: 
   return out;
 }
 
+/** Point times of a variable within [from, to] (ms), oldest first, at most `max`. */
+function pointTimesFrom(v: IotVariable, now: number, from: number, to: number, max: number): number[] {
+  const newest = Math.floor((now - v.lagSeconds * 1000) / 1000) * 1000;
+  const step = v.cadenceSeconds * 1000;
+  const last = Math.min(newest, to);
+  if (last < from) return [];
+  // the oldest point time at or after `from` on the variable's grid (newest − k·step)
+  const k = Math.floor((newest - from) / step);
+  let t = newest - k * step;
+  const out: number[] = [];
+  for (; t <= last && out.length < max; t += step) if (t >= from) out.push(t);
+  return out;
+}
+
 function records(vars: IotVariable[], times: Map<number, IotVariable[]>): Record<string, unknown>[] {
   void vars;
   return [...times.entries()]
@@ -210,7 +224,8 @@ export function iotTimeseries(entity: string, aspect: string, q: Record<string, 
     const from = q.from ? Date.parse(q.from) : now - 3600000;
     const to = q.to ? Date.parse(q.to) : now;
     const limit = Math.min(Math.max(1, Number(q.limit ?? 2000)), 2000);
-    for (const v of chosen) for (const t of pointTimes(v, now, from, to, limit)) byTime.set(t, [...(byTime.get(t) ?? []), v]);
+    // like the real API: the OLDEST records of the range first, at most `limit` – the caller pages forward
+    for (const v of chosen) for (const t of pointTimesFrom(v, now, from, to, limit)) byTime.set(t, [...(byTime.get(t) ?? []), v]);
     return records(chosen, byTime).slice(0, limit);
   }
   // latest record: only the variables written at the newest timestamp

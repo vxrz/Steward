@@ -107,7 +107,13 @@ export function AssetBriefLink({ asset, withSite = true }: { asset: PlantAssetBr
 /** A check as a sentence in the UI language. */
 export function useCheckText() {
   const { t } = useTranslation('plant');
-  return (c: PlantCheck) => t(`checks.codes.${c.code}`, { ...c.params, defaultValue: c.message });
+  // a unit that differs (0.12.0) says whether it converts by a factor (the context)
+  return (c: PlantCheck) =>
+    t(`checks.codes.${c.code}`, {
+      ...c.params,
+      ...(c.code === 'kpi_unit_mismatch' && c.params.relation === 'convertible' ? { context: 'convertible' } : {}),
+      defaultValue: c.message,
+    });
 }
 
 /** Checks as a list: what is wrong, on which record and KPI instance. */

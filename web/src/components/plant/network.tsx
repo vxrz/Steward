@@ -3,7 +3,7 @@ import { Anchor, Badge, Button, Group, Paper, Select, SimpleGrid, Stack, Text, T
 import { useDebouncedValue } from '@mantine/hooks';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { IconCircleCheck, IconCircleDashed, IconCircleX, IconNetwork } from '@tabler/icons-react';
+import { IconCircleCheck, IconCircleDashed, IconCircleX, IconEyeOff, IconNetwork } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { LinkKind, LinkTarget, LiveState, PlantItemRef, PlantLiveStatus, PlantSiteNetwork, SecurityLevel, ZoneCriticality } from '@sm/shared';
 import { get } from '../../api';
@@ -31,11 +31,32 @@ const LIVE_ICON = { online: IconCircleCheck, offline: IconCircleX, unknown: Icon
 
 const CRITICALITY_COLOR: Record<ZoneCriticality, string> = { low: TONE.neutral, medium: TONE.soon, high: TONE.attention, critical: TONE.bad };
 
-/** Online, offline or unknown – with the reason in a tooltip when nothing watches it. */
+/**
+ * Online, offline or unknown – or "Not watched" (quiet, no alarm look) when no check is linked: unknown is kept for a
+ * linked check that has no result (0.12).
+ */
 export function LiveBadge({ live, size = 'sm' }: { live: PlantLiveStatus; size?: 'xs' | 'sm' | 'md' }) {
   const { t } = useTranslation('plantNetwork');
+  if (!live.watched)
+    return (
+      <Tooltip label={t('live.notWatchedHint')} multiline w={260} withArrow>
+        <Badge
+          color="gray"
+          variant="default"
+          c="dimmed"
+          fw={500}
+          size={size}
+          leftSection={<IconEyeOff size={12} aria-hidden />}
+          style={{ minWidth: 'max-content' }}
+          data-testid="live-badge"
+          data-state="not_watched"
+        >
+          {t('live.notWatched')}
+        </Badge>
+      </Tooltip>
+    );
   const Icon = LIVE_ICON[live.state];
-  const badge = (
+  return (
     <Badge
       color={LIVE_COLOR[live.state]}
       variant={live.state === 'unknown' ? 'outline' : 'light'}
@@ -48,11 +69,18 @@ export function LiveBadge({ live, size = 'sm' }: { live: PlantLiveStatus; size?:
       {t(`live.${live.state}`)}
     </Badge>
   );
-  if (live.watched) return badge;
+}
+
+/** Whether any of the statuses comes from a linked check (else a list leaves out its Live column). */
+export const anyWatched = (list: { live: PlantLiveStatus }[]) => list.some((x) => x.live.watched);
+
+/** The line in place of a Live column when nothing on the site is watched: where checks are linked. */
+export function NotWatchedHint() {
+  const { t } = useTranslation('plantNetwork');
   return (
-    <Tooltip label={t('live.notWatchedHint')} multiline w={260} withArrow>
-      {badge}
-    </Tooltip>
+    <Text size="xs" c="dimmed" data-testid="live-not-watched-hint">
+      {t('live.nothingWatched')}
+    </Text>
   );
 }
 
@@ -153,17 +181,27 @@ export function ItemRefView({ item, fallback }: { item: PlantItemRef | null; fal
   );
 }
 
-/** A small row of counts: online, offline, unknown. */
-export function LiveCounts({ counts, compact }: { counts: Record<LiveState, number>; compact?: boolean }) {
+/** Assets by live status, with "Not watched" apart from "Unknown" (0.12): only assets with a linked check are unknown. */
+export function liveCountsOf(assets: { live: PlantLiveStatus }[]): Record<LiveState | 'notWatched', number> {
+  const out = { online: 0, offline: 0, unknown: 0, notWatched: 0 };
+  for (const a of assets) out[a.live.watched ? a.live.state : 'notWatched']++;
+  return out;
+}
+
+const COUNT_ICON = { ...LIVE_ICON, notWatched: IconEyeOff } as const;
+const COUNT_COLOR: Record<LiveState | 'notWatched', string> = { ...LIVE_COLOR, notWatched: TONE.neutral };
+
+/** A small row of counts: online, offline, unknown – and not watched. */
+export function LiveCounts({ counts, compact }: { counts: Record<LiveState | 'notWatched', number>; compact?: boolean }) {
   const { t } = useTranslation('plantNetwork');
   return (
-    <SimpleGrid cols={3} spacing="xs" data-testid="live-counts">
-      {(['online', 'offline', 'unknown'] as const).map((s) => {
-        const Icon = LIVE_ICON[s];
+    <SimpleGrid cols={compact ? 2 : { base: 2, sm: 4 }} spacing="xs" data-testid="live-counts">
+      {(['online', 'offline', 'unknown', 'notWatched'] as const).map((s) => {
+        const Icon = COUNT_ICON[s];
         return (
           <Paper key={s} withBorder p={compact ? 6 : 'sm'} data-testid={`live-count-${s}`}>
             <Group gap={6} wrap="nowrap" justify="center">
-              <Icon size={compact ? 16 : 20} color={`var(--mantine-color-${LIVE_COLOR[s]}-filled)`} aria-hidden />
+              <Icon size={compact ? 16 : 20} color={`var(--mantine-color-${COUNT_COLOR[s]}-filled)`} aria-hidden />
               <Text fw={700} size={compact ? 'md' : 'xl'}>
                 {counts[s]}
               </Text>
@@ -192,7 +230,7 @@ export function SiteNetworkCard({ siteId }: { siteId: string }) {
         </Group>
         {n ? (
           <>
-            <LiveCounts counts={n.statusCounts} compact />
+            <LiveCounts counts={liveCountsOf(n.assets)} compact />
             <Text size="xs" c="dimmed">
               {t('card.summary', { vlans: n.vlans.length, zones: n.zones.length, devices: n.devices.length })}
             </Text>

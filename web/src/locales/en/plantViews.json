@@ -247,6 +247,8 @@
       "has": "Has it",
       "problem": "Problem",
       "could": "Could have it",
+      "ready": "Collected – ready",
+      "collect": "Device delivers, not collected",
       "cannot": "Cannot",
       "unchecked": "Not checked"
     },
@@ -254,6 +256,8 @@
       "has": "Has",
       "problem": "Problem",
       "could": "Could",
+      "ready": "Ready",
+      "collect": "Delivers",
       "cannot": "Cannot",
       "unchecked": "–"
     },
@@ -261,6 +265,8 @@
       "has": "Has it: a KPI job is set up",
       "problem": "Problem: a plant check of the job fails",
       "could": "Could have it: delivers every input, no job yet",
+      "ready": "Collected – ready: the device delivers every input and a data collection maps each of them, no job yet",
+      "collect": "Device delivers, not collected: every input is delivered, but no data collection maps all of them yet",
       "cannot": "Cannot: inputs are missing (the cell says which)",
       "unchecked": "Not checked: the KPI reads no data points"
     },
@@ -270,6 +276,10 @@
     "jobs": "Jobs: {{jobs}}",
     "inactive": "(not active)",
     "couldHint": "Add a KPI job on the asset page (Data and KPIs).",
+    "collectHint": "Map the inputs in a data collection of the asset (Data collections), then add a KPI job.",
+    "potential": "KPI potential: {{ready}} ready, {{collect}} need a data collection",
+    "byPlace": "KPI potential by site and area",
+    "place": "Site or area",
     "kpisOf": "KPIs of {{name}}",
     "more": "Show {{count}} more",
     "shown": "{{shown}} of {{total}} shown",

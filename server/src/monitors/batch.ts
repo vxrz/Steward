@@ -117,11 +117,58 @@ function latestPerVariable(records: unknown, vars: string[], into: Map<string, n
   }
 }
 
+/** Records per page of the time series API (its most). */
+const IH_PAGE = 2000;
+/** Pages read per time slice before the read gives up (then the check is unknown, never down). */
+const IH_MAX_PAGES = 10;
+/** Time slices of the look-back, newest first: the newest value of a variable is usually in the first one. */
+const IH_SLICES_SECONDS = [600, 3600, 6 * 3600, 86400, 7 * 86400];
+
+/**
+ * The newest value per variable in [from, to]: the API answers the OLDEST records of a range first, at most
+ * IH_PAGE of them, so a full page is followed by the next one (from = the last record's time + 1 ms) until a page
+ * is not full. Returns false when the end of the range was not reached within IH_MAX_PAGES pages.
+ */
+async function newestInRange(
+  platform: Platform,
+  secrets: Parameters<typeof platformRequest>[1],
+  url: string,
+  vars: string[],
+  from: number,
+  to: number,
+  into: Map<string, number | null>,
+  maxPages = IH_MAX_PAGES,
+): Promise<boolean> {
+  let start = from;
+  for (let page = 0; page < maxPages; page++) {
+    const r = await platformRequest(
+      platform,
+      secrets,
+      { method: 'GET', url, query: { from: new Date(start).toISOString(), to: new Date(to).toISOString(), select: vars.join(','), limit: IH_PAGE } },
+      AbortSignal.timeout(30000),
+    );
+    if (!r.ok) throw new SourceError(`Insights Hub time series API answered HTTP ${r.status}`, r.status);
+    const recs = Array.isArray(r.body) ? (r.body as Record<string, unknown>[]) : [];
+    latestPerVariable(recs, vars, into);
+    if (recs.length < IH_PAGE) return true;
+    const times = recs.map((x) => Date.parse(String(x?._time ?? ''))).filter((t) => !Number.isNaN(t));
+    const last = times.length ? Math.max(...times) : NaN;
+    // a full page that does not move forward cannot be paged
+    if (!Number.isFinite(last) || last < start) return false;
+    start = last + 1;
+    if (start > to) return true;
+  }
+  return false;
+}
+
 /**
  * 1. `GET …/timeseries/{asset}/{aspect}?latestRecord=true` – the newest record (raw store; it contains only the
  *    variables written at that moment);
- * 2. for variables missing from it: `?from=<now − window>&to=<now>&select=<vars>` and the newest value per variable.
- * (`latestValue=true` reads aggregated data that can lag 1–2 hours behind, so it is not used.)
+ * 2. for variables missing from it: `?from=<now − window>&to=<now>&select=<vars>`. The API answers the oldest
+ *    records first: when that page is full, the newest values are later, so the window is read again in time slices
+ *    from now backwards (10 min, 1 h, 6 h, 1 day, 7 days), each paged forward to its end, until every variable has
+ *    a value. A slice too dense to page through makes the read fail (the check is unknown, never down).
+ * (`latestValue=true` reads aggregates that can lag 1–2 hours behind, so it is not used.)
  */
 async function fetchIh(key: string, plan: IhPlan): Promise<IhLatest> {
   const [platformId, assetId, aspect] = key.split('|') as [string, string, string];
@@ -132,20 +179,30 @@ async function fetchIh(key: string, plan: IhPlan): Promise<IhLatest> {
   const first = await platformRequest(platform, secrets, { method: 'GET', url, query: { latestRecord: 'true' } }, AbortSignal.timeout(30000));
   if (!first.ok) throw new SourceError(`Insights Hub time series API answered HTTP ${first.status}`, first.status);
   latestPerVariable(first.body, plan.vars, out);
-  const missing = plan.vars.filter((v) => out.get(v) === null);
-  if (missing.length) {
-    const to = new Date();
-    const from = new Date(to.getTime() - Math.min(plan.windowSeconds, 7 * 86400) * 1000);
-    const second = await platformRequest(
-      platform,
-      secrets,
-      { method: 'GET', url, query: { from: from.toISOString(), to: to.toISOString(), select: missing.join(','), limit: 2000 } },
-      AbortSignal.timeout(30000),
-    );
-    if (!second.ok) throw new SourceError(`Insights Hub time series API answered HTTP ${second.status}`, second.status);
-    latestPerVariable(second.body, missing, out);
+  const to = Date.now();
+  const oldest = to - Math.min(plan.windowSeconds, 7 * 86400) * 1000;
+  const firstMissing = plan.vars.filter((v) => out.get(v) === null);
+  // sparse data (the usual case): one page holds the whole look-back window
+  const done = (): IhLatest => ({ values: out, startedAt, receivedAt: Date.now() });
+  if (!firstMissing.length || (await newestInRange(platform, secrets, url, firstMissing, oldest, to, out, 1))) return done();
+  // dense data: the first page held only the oldest records – read time slices from now backwards instead
+  let sliceEnd = to;
+  for (const seconds of IH_SLICES_SECONDS) {
+    if (sliceEnd <= oldest) break;
+    const sliceStart = Math.max(oldest, to - seconds * 1000);
+    if (sliceStart >= sliceEnd) continue;
+    const found = new Map<string, number | null>(firstMissing.map((v) => [v, null]));
+    if (!(await newestInRange(platform, secrets, url, firstMissing, sliceStart, sliceEnd, found)))
+      throw new SourceError(
+        `Too much data to find the newest value: more than ${IH_PAGE * IH_MAX_PAGES} records between ${new Date(sliceStart).toISOString()} and ${new Date(sliceEnd).toISOString()}`,
+      );
+    for (const [v, t] of found) if (t !== null) out.set(v, Math.max(t, out.get(v) ?? t));
+    // a variable found in a newer slice has its newest value there: older slices are only read for the others
+    firstMissing.splice(0, firstMissing.length, ...firstMissing.filter((v) => found.get(v) === null));
+    if (!firstMissing.length) break;
+    sliceEnd = sliceStart - 1;
   }
-  return { values: out, startedAt, receivedAt: Date.now() };
+  return done();
 }
 
 export const ihFetch = new SharedFetch<IhPlan, IhLatest>(

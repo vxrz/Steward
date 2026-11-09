@@ -25,7 +25,7 @@
   },
   "overview": {
     "title": "Live status",
-    "help": "Online, offline or unknown – only from the checks linked to an asset or its devices. Without a check it stays unknown, never online.",
+    "help": "Online, offline or unknown – only from the checks linked to an asset or its devices; never online without a check saying so. An asset without any check is not watched.",
     "status": "Status",
     "live": "Live",
     "counts": "{{devices}} devices · {{paths}} data paths",
@@ -40,7 +40,9 @@
     "help": "Checks linked to the asset itself; its devices have their own. Offline wins, unknown is never shown as online.",
     "noChecks": "No check is linked.",
     "noOwnChecks": "No check is linked to the asset itself.",
-    "hiddenCheck": "A check you may not see"
+    "hiddenCheck": "A check you may not see",
+    "notWatched": "Not watched",
+    "nothingWatched": "Nothing on this site is watched yet: link monitor checks or dataset freshness to an asset or device on its page (Live status → Checks)."
   },
   "checkKinds": {
     "monitor": "Monitor",
@@ -100,7 +102,7 @@
     "static": "Static"
   },
   "addressTypes": {
-    "dynamic": "Dynamic",
+    "dynamic": "Dynamic (DHCP)",
     "reserved": "Reserved",
     "static": "Static"
   },
@@ -268,14 +270,14 @@
   "device": {
     "title": "Devices",
     "help": "The network identity of the asset: host name, MAC, VLAN, address and switch port.",
-    "siteHelp": "The devices of every asset of this site. They are changed on the asset’s page.",
+    "siteHelp": "The devices of every asset of this site. Add, change or remove them here or on the asset’s page.",
     "add": "Add device",
     "newTitle": "New device",
     "editTitle": "Device {{name}}",
     "formHelp": "MAC addresses are EUI-48 (any usual spelling), addresses IPv4 or IPv6.",
     "none": "No device yet.",
     "emptyTitle": "No device yet",
-    "emptyText": "Devices are added on the page of their {{type}}.",
+    "emptyText": "Add the first one here or on the page of its {{type}}.",
     "actions": "Actions for device {{name}}",
     "removeConfirm": "Remove device {{name}}?",
     "search": "Search host, address, MAC, port",
@@ -302,19 +304,28 @@
     "monitoring": "Monitoring",
     "flags": "Flags",
     "flagsHelp": "What is ordered or done: device_ordered, port_ordered, address_ordered …",
-    "flagInvalid": "Flags are snake_case: port_ordered."
+    "flagInvalid": "Flags are snake_case: port_ordered.",
+    "select": "Select",
+    "allVlans": "All VLANs",
+    "noVlan": "No VLAN",
+    "allStates": "All states",
+    "allAssets": "All {{type}}",
+    "count_one": "{{count}} device",
+    "count_other": "{{count}} devices",
+    "countOf_one": "{{shown}} of {{count}} device",
+    "countOf_other": "{{shown}} of {{count}} devices"
   },
   "path": {
     "title": "Data paths",
     "help": "What data leaves the asset, who collects it, how it is transferred and where it ends up. Hosts are Steward systems, so chains can be followed.",
-    "siteHelp": "The data paths of every asset of this site, with the links of their chains.",
+    "siteHelp": "The data paths of every asset of this site, with the links of their chains. Add, change or remove them here or on the asset’s page.",
     "add": "Add data path",
     "newTitle": "New data path",
     "editTitle": "Data path {{name}}",
     "formHelp": "A collector (a Steward application, platform or process, or a job elsewhere), its transfers and the destinations.",
     "none": "No data path yet.",
     "emptyTitle": "No data path yet",
-    "emptyText": "Data paths are added on the page of their {{type}}.",
+    "emptyText": "Add the first one here or on the page of its {{type}}.",
     "actions": "Actions for data path {{name}}",
     "removeConfirm": "Remove data path “{{name}}”?",
     "subject": "Subject",
@@ -351,7 +362,13 @@
     "comesFrom": "Comes from",
     "continuesIn": "Continues in",
     "chainMore_one": "and {{count}} more",
-    "chainMore_other": "and {{count}} more"
+    "chainMore_other": "and {{count}} more",
+    "search": "Search subject, collector, protocol",
+    "noMatch": "No data path matches.",
+    "count_one": "{{count}} data path",
+    "count_other": "{{count}} data paths",
+    "countOf_one": "{{shown}} of {{count}} data path",
+    "countOf_other": "{{shown}} of {{count}} data paths"
   },
   "asset": {
     "title": "OT network",
@@ -360,5 +377,31 @@
     "emptyTitle": "No OT network documented",
     "emptyText": "This {{type}} has no devices, data paths or checks yet."
   },
-  "actions": "Actions"
+  "actions": "Actions",
+  "site": {
+    "pickHelp": "Choose the {{type}} it belongs to.",
+    "pickRequired": "Choose the {{type}}."
+  },
+  "quality": {
+    "title": "Data quality",
+    "help": "What looks wrong in the documentation of the devices of this site (retired devices left out). Each device leads to its row.",
+    "none": "Nothing to correct.",
+    "summary_one": "{{count}} hint about the devices",
+    "summary_other": "{{count}} hints about the devices",
+    "open": "Show on the Devices tab",
+    "kinds": {
+      "duplicate_address_one": "Address {{value}} is used by {{count}} device",
+      "duplicate_address_other": "Address {{value}} is used by {{count}} devices",
+      "duplicate_mac_one": "MAC {{value}} is used by {{count}} device",
+      "duplicate_mac_other": "MAC {{value}} is used by {{count}} devices",
+      "duplicate_hostname_one": "Host name {{value}} is used by {{count}} device",
+      "duplicate_hostname_other": "Host name {{value}} is used by {{count}} devices",
+      "vlan_missing_one": "{{count}} device names VLAN “{{value}}”, which this site does not have",
+      "vlan_missing_other": "{{count}} devices name VLAN “{{value}}”, which this site does not have",
+      "no_vlan_one": "{{count}} device has no VLAN",
+      "no_vlan_other": "{{count}} devices have no VLAN",
+      "switch_case_one": "One switch written in different letter case: {{variants}}",
+      "switch_case_other": "One switch written in different letter case: {{variants}}"
+    }
+  }
 }

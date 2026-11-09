@@ -1134,6 +1134,13 @@
             }
           ]
         },
+        "template": {
+          "description": "0.12.0: a template – only for other profiles to extend; no asset may have it (an assignment naming it is refused)",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
         "manufacturer": {
           "anyOf": [
             {
@@ -1947,6 +1954,25 @@
                   "type": "string",
                   "pattern": "^[A-Za-z0-9_][A-Za-z0-9._-]{0,119}$",
                   "description": "Id of a data point, interface, parameter or column: letters, digits, \".\", \"_\" and \"-\""
+                }
+              },
+              "units": {
+                "description": "0.12.0: the unit the computation expects per data point (UCUM code, usual spellings such as kWh are read as their code); a data point left out expects its unit in the input’s profile",
+                "maxProperties": 500,
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 40
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 }
               },
               "notes": {

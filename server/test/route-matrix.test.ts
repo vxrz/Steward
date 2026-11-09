@@ -1064,6 +1064,10 @@ const EXPECT: Record<string, Access> = {
   // part 2 (#219): device profiles and KPI definitions (catalogues of the installation), an asset's assignment
   'GET /api/plant/profiles': PLANT,
   'POST /api/plant/profiles': DESIGN,
+  // 0.12.0: extract a base profile (the candidates and the preview change nothing)
+  'POST /api/plant/profiles/extract-base/candidates': DESIGN,
+  'POST /api/plant/profiles/extract-base/preview': DESIGN,
+  'POST /api/plant/profiles/extract-base': DESIGN,
   'GET /api/plant/profiles/:profileId': PLANT,
   'PUT /api/plant/profiles/:profileId': DESIGN,
   'DELETE /api/plant/profiles/:profileId': DESIGN,

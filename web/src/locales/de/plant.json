@@ -253,6 +253,11 @@
     "title": "Quelle",
     "import": "Importlauf {{id}}",
     "importOf": "{{files}}, importiert am {{when}}",
+    "importOfMany_one": "Import von {{count}} Datei, importiert am {{when}}",
+    "importOfMany_other": "Import von {{count}} Dateien, importiert am {{when}}",
+    "showFiles": "Alle Dateien anzeigen",
+    "hideFiles": "Dateien ausblenden",
+    "perEntry": "Ein Import bewahrt seine Dateien auf, nicht, aus welcher Datei jeder Eintrag stammt.",
     "manual": "In Steward erfasst"
   },
   "export": {
@@ -823,6 +828,8 @@
       "kpi_point_unknown": "Die KPI „{{kpi}}“ liest den Datenpunkt {{point}}, den das Profil „{{profile}}“ nicht hat.",
       "kpi_point_unavailable": "Die KPI „{{kpi}}“ liest den Datenpunkt {{point}}, den diese Anlage nicht liefert (Abweichung).",
       "kpi_interface_inactive": "Die KPI „{{kpi}}“ liest den Datenpunkt {{point}}, aber die Schnittstelle „{{interface}}“ ist an dieser Anlage nicht als aktiv eingerichtet.",
+      "kpi_unit_mismatch": "Die KPI „{{kpi}}“ erwartet den Datenpunkt {{point}} in {{expected}}; diese Anlage liefert ihn in {{actual}} – nicht über einen Faktor umrechenbar.",
+      "kpi_unit_mismatch_convertible": "Die KPI „{{kpi}}“ erwartet den Datenpunkt {{point}} in {{expected}}; diese Anlage liefert ihn in {{actual}} – über einen Faktor umrechenbar, der Job muss ihn aber umrechnen.",
       "param_unknown": "{{param}} ist kein Parameter der KPI „{{kpi}}“.",
       "param_type": "Der Parameter {{param}} muss vom Typ {{type}} sein.",
       "param_range": "Der Parameter {{param}} ist {{value}}, außerhalb von {{min}} bis {{max}}.",
@@ -859,5 +866,16 @@
     "nonePossible": "Keine KPI-Definition: Keine liest nur Datenpunkte, die diese Anlage liefert.",
     "nonePossibleNoProfile": "Ordnen Sie zuerst ein Geräteprofil zu: KPIs lesen dessen Datenpunkte.",
     "instantiated": "hat eine Instanz"
+  },
+  "move": {
+    "menu": "Verschieben nach…",
+    "nodeTitle": "{{type}} {{name}} verschieben",
+    "nodeHelp": "Die {{type}} kommt unter eine andere {{parent}} dieses Standorts, mit allem darunter und ihren Anlagen.",
+    "newParent": "Neue {{type}}",
+    "nothingFound": "Nichts gefunden",
+    "siteOnly": "{{site}} (nur der Standort)",
+    "assetTitle": "{{name}} verschieben",
+    "assetHelp": "Wählen Sie den Platz der {{type}} in der Hierarchie dieses Standorts. Alles andere bleibt, wie es ist.",
+    "newPlace": "Neuer Platz"
   }
 }
