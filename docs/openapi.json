@@ -25036,6 +25036,73 @@
               "additionalProperties": false
             },
             "description": "The Steward systems the data paths name"
+          },
+          "dataQuality": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "duplicate_address",
+                    "duplicate_mac",
+                    "duplicate_hostname",
+                    "vlan_missing",
+                    "no_vlan",
+                    "switch_case"
+                  ],
+                  "description": "duplicate_address, duplicate_mac, duplicate_hostname (two devices share it), vlan_missing (a VLAN the site does not have), no_vlan, switch_case (switch names that differ only by letter case)"
+                },
+                "value": {
+                  "type": "string",
+                  "description": "The value they share, or the missing VLAN’s id (empty for no_vlan)"
+                },
+                "variants": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "switch_case: the spellings of the switch name, the most used first"
+                },
+                "devices": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "assetId": {
+                        "type": "string"
+                      },
+                      "assetName": {
+                        "type": "string"
+                      },
+                      "deviceId": {
+                        "type": "string"
+                      },
+                      "hostname": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "assetId",
+                      "assetName",
+                      "deviceId",
+                      "hostname"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "description": "The devices it concerns (switch_case: those not written in the most used spelling)"
+                }
+              },
+              "required": [
+                "kind",
+                "value",
+                "variants",
+                "devices"
+              ],
+              "additionalProperties": false
+            },
+            "description": "What looks wrong in the documentation of the site’s devices (retired devices left out)"
           }
         },
         "required": [
@@ -25047,7 +25114,8 @@
           "dataPaths",
           "assets",
           "statusCounts",
-          "hosts"
+          "hosts",
+          "dataQuality"
         ],
         "additionalProperties": false
       },

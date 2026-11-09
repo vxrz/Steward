@@ -41,7 +41,7 @@ export function LinkTabs({ tabs, active, label, mb = 'md', after }: { tabs: Link
                 {tab.icon && <tab.icon size={16} stroke={1.6} aria-hidden />}
                 <span>{tab.label}</span>
                 {tab.count !== undefined && tab.count > 0 && (
-                  <Badge size="xs" variant="light" circle>
+                  <Badge size="xs" variant="light" className="count-badge" data-testid="link-tab-count">
                     {tab.count}
                   </Badge>
                 )}

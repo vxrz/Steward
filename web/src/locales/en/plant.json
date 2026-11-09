@@ -859,5 +859,16 @@
     "nonePossible": "No KPI definition: none reads only data points this asset delivers.",
     "nonePossibleNoProfile": "Assign a device profile first: KPIs read its data points.",
     "instantiated": "has an instance"
+  },
+  "move": {
+    "menu": "Move to…",
+    "nodeTitle": "Move {{type}} {{name}}",
+    "nodeHelp": "The {{type}} moves below another {{parent}} of this site, with everything below it and its assets.",
+    "newParent": "New {{type}}",
+    "nothingFound": "Nothing found",
+    "siteOnly": "{{site}} (the site only)",
+    "assetTitle": "Move {{name}}",
+    "assetHelp": "Choose the place of the {{type}} in this site's hierarchy. Everything else stays as it is.",
+    "newPlace": "New place"
   }
 }

@@ -41,6 +41,7 @@ import { requireManage, siteRights, sitePermissions } from './access.js';
 import { plantEnabled } from './settings.js';
 import { changedKeys, siteRowOf, type AssetRow, type SiteRow } from './model.js';
 import { visibleAsset, visibleSite } from './service.js';
+import { dataQuality } from './network-quality.js';
 import { assetLive, checksForReader, liveContext, liveOf, monitorVisible, readableDataset, withHiddenChecks, type LiveContext } from './live.js';
 import {
   assetChecksInput,
@@ -494,6 +495,7 @@ export function siteNetwork(siteId: string): PlantSiteNetwork {
     assets,
     statusCounts,
     hosts,
+    dataQuality: dataQuality(devices, new Set(vlanValues.keys())),
   };
 }
 
