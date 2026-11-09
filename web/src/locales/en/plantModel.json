@@ -19,6 +19,19 @@
     "notPresent": "Not present on this device",
     "restore": "Restore"
   },
+  "describe": {
+    "label": "Description",
+    "add": "Add a description",
+    "edit": "Change the description",
+    "override": "Describe it here",
+    "reset": "Back to the inherited description",
+    "inherited": "Inherited from {{from}}",
+    "changedHere": "Described here",
+    "profileTitle": "Description of {{name}}",
+    "itemTitle": "Description of {{name}}",
+    "inheritedHelp": "Empty: the description inherited from {{from}}.",
+    "plainText": "Plain text."
+  },
   "notPresent": {
     "title": "Inherited, but not present",
     "interface": "Interface {{name}}",
@@ -79,6 +92,7 @@
     "duplicate": "The same data point as item {{items}}",
     "unknownAddress": "No data point of this asset has this address",
     "map": "Map",
+    "describe": "Describe",
     "addPoint": "Add as data point",
     "notCollected": "Data points no collection reads",
     "settings": "Settings",
