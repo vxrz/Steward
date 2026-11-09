@@ -181,6 +181,12 @@ export function useCollapsible({ id, defaultOpen, forceOpen = false, remember: r
     // folded earlier: stays folded unless something new needs attention
     return alertKey && readPref(`${remember}.seen`) !== alertKey ? null : false;
   });
+  // remembered as folded: opens again once what needs attention differs from what was there when it was folded
+  const [prevAlert, setPrevAlert] = useState(alertKey);
+  if (alertKey !== prevAlert) {
+    setPrevAlert(alertKey);
+    if (remember && alertKey && choice === false && readPref(`${remember}.seen`) !== alertKey) setChoice(null);
+  }
   // forced open again whenever the reason appears (a new error, another link to it)
   const [wasForced, setWasForced] = useState(forced);
   if (forced !== wasForced) {
