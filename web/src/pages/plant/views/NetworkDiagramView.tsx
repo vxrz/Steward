@@ -426,7 +426,7 @@ function Diagram({ graph, network: n, levels }: { graph: PlantFlowGraph; network
             leftSection={<IconFilter size={14} aria-hidden />}
             rightSection={
               active ? (
-                <Badge size="xs" circle>
+                <Badge size="xs" className="count-badge">
                   {active}
                 </Badge>
               ) : undefined

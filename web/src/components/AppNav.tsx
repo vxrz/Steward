@@ -459,7 +459,7 @@ export function AppNav({
           }}
           rightSection={
             badge ? (
-              <Badge size="sm" color="accent" circle mr={26}>
+              <Badge size="sm" color="accent" className="count-badge" mr={26}>
                 {badge}
               </Badge>
             ) : undefined

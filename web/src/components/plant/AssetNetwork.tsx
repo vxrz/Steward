@@ -14,6 +14,7 @@ import { NotInSourceBadge, usePlantLabel } from './common';
 import { Breakable, RowMenu } from './data';
 import { ItemRefView, LiveBadge, LiveChecks, NetField } from './network';
 import { AssetChecksModal, DataPathModal, DeviceModal } from './networkForms';
+import { Tokens } from './Tokens';
 
 /** The values of a device as the API takes them (without what the view adds). */
 export function deviceValues(d: PlantDeviceView): PlantDeviceValues {
@@ -305,20 +306,33 @@ export function AssetNetworkSection({ assetId }: { assetId: string }) {
                           {d.purpose && <Text size="xs">{d.purpose}</Text>}
                           <Group gap="lg" wrap="wrap" style={{ rowGap: 6 }}>
                             <NetField label={t('device.address')}>
-                              <span className="mono">{d.address || '–'}</span>
-                              {d.addressType && (
-                                <Text span size="xs" c="dimmed">
-                                  {' '}
-                                  · {t(`addressTypes.${d.addressType}`)}
-                                </Text>
+                              {/* no address but a type: the type alone ("Dynamic (DHCP)"), not "– · Dynamic" */}
+                              {d.address ? (
+                                <>
+                                  <span className="mono nowrap">{d.address}</span>
+                                  {d.addressType && (
+                                    <Text span size="xs" c="dimmed">
+                                      {' '}
+                                      · {t(`addressTypes.${d.addressType}`)}
+                                    </Text>
+                                  )}
+                                </>
+                              ) : d.addressType ? (
+                                t(`addressTypes.${d.addressType}`)
+                              ) : (
+                                '–'
                               )}
                             </NetField>
-                            <NetField label={t('device.vlan')}>{n.vlans.find((x) => x.id === d.vlan)?.name ?? d.vlan ?? '–'}</NetField>
+                            <NetField label={t('device.vlan')}>
+                              <span className="nowrap">{n.vlans.find((x) => x.id === d.vlan)?.name ?? d.vlan ?? '–'}</span>
+                            </NetField>
                             <NetField label={t('device.mac')}>
-                              <span className="mono">{d.mac || '–'}</span>
+                              <span className="mono nowrap">{d.mac || '–'}</span>
                             </NetField>
                             <NetField label={t('device.port')}>
-                              <span className="mono">{[d.switch, d.switchPort].filter(Boolean).join(' · ') || '–'}</span>
+                              <span className="mono">
+                                <Tokens values={[d.switch, d.switchPort]} empty="–" />
+                              </span>
                             </NetField>
                           </Group>
                           {(d.flags.length > 0 || d.confidence) && (

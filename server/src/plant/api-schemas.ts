@@ -25,6 +25,7 @@ import {
   DEVICE_STATES,
   LIVE_REASONS,
   LIVE_STATES,
+  DATA_QUALITY_KINDS,
   PEER_KINDS,
   STATUS_CHECK_KINDS,
   TRANSFER_MODES,
@@ -630,6 +631,22 @@ export const PlantSiteNetworkEntry = z.object({
   assets: z.array(AssetLive).describe('Every asset of the site with its live status'),
   statusCounts: z.object({ online: z.number().int(), offline: z.number().int(), unknown: z.number().int() }),
   hosts: z.array(ItemRef).describe('The Steward systems the data paths name'),
+  dataQuality: z
+    .array(
+      z.object({
+        kind: z
+          .enum(DATA_QUALITY_KINDS)
+          .describe(
+            'duplicate_address, duplicate_mac, duplicate_hostname (two devices share it), vlan_missing (a VLAN the site does not have), no_vlan, switch_case (switch names that differ only by letter case)',
+          ),
+        value: z.string().describe('The value they share, or the missing VLAN’s id (empty for no_vlan)'),
+        variants: z.array(z.string()).describe('switch_case: the spellings of the switch name, the most used first'),
+        devices: z
+          .array(z.object({ assetId: z.string(), assetName: z.string(), deviceId: z.string(), hostname: z.string() }))
+          .describe('The devices it concerns (switch_case: those not written in the most used spelling)'),
+      }),
+    )
+    .describe('What looks wrong in the documentation of the site’s devices (retired devices left out)'),
 });
 
 export const PlantAssetNetworkEntry = z.object({

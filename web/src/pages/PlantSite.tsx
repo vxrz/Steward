@@ -2,7 +2,19 @@ import { useState } from 'react';
 import { ActionIcon, Anchor, Badge, Box, Button, Grid, Group, Menu, Paper, Stack, Table, Text, Title, Tooltip } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { IconBuilding, IconChevronDown, IconDots, IconDownload, IconEdit, IconId, IconMap, IconPencil, IconPlus, IconTrash } from '@tabler/icons-react';
+import {
+  IconArrowMoveRight,
+  IconBuilding,
+  IconChevronDown,
+  IconDots,
+  IconDownload,
+  IconEdit,
+  IconId,
+  IconMap,
+  IconPencil,
+  IconPlus,
+  IconTrash,
+} from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import {
   ASSET_STATUSES,
@@ -35,6 +47,7 @@ import {
   usePlantLabel,
 } from '../components/plant/common';
 import { AssetFormModal, BuildingFormModal, NodeFormModal, SiteFormModal } from '../components/plant/forms';
+import { MoveNodeModal } from '../components/plant/MoveTo';
 import { SiteNetworkCard } from '../components/plant/network';
 import { PlantDocumentsPanel } from '../components/plant/DocumentsPanel';
 import { PlantSiteTabPage, SiteTabs } from './plant/views/tabs';
@@ -61,6 +74,8 @@ export function PlantSitePage() {
   const [newAsset, setNewAsset] = useState(false);
   // Change id of a node or building (0.11.0)
   const [idOf, setIdOf] = useState<EntryRef | null>(null);
+  // Move to… (0.12): a work center or work unit below another parent
+  const [moving, setMoving] = useState<PlantNode | null>(null);
   // a link to #node-<id> opens the path to that node
   const { hash } = useLocation();
   const target = hash.startsWith('#node-') ? decodeURIComponent(hash.slice(6)) : null;
@@ -231,6 +246,7 @@ export function PlantSitePage() {
                         onEdit={(n) => setNodeDialog({ level: n.level, parentId: n.parentId, node: n })}
                         onRemove={(n) => void removeNode(n)}
                         onChangeId={(n) => setIdOf({ kind: 'node', scope: s.id, id: n.id, name: nameOf(n) })}
+                        onMove={setMoving}
                         target={target}
                       />
                     ))}
@@ -435,6 +451,7 @@ export function PlantSitePage() {
       </Grid>
       {editing && <SiteFormModal site={s} onClose={() => setEditing(false)} onSaved={saved} />}
       {nodeDialog && <NodeFormModal site={s} {...nodeDialog} onClose={() => setNodeDialog(null)} onSaved={saved} />}
+      {moving && <MoveNodeModal site={s} node={moving} onClose={() => setMoving(null)} onSaved={saved} />}
       {buildingDialog && <BuildingFormModal site={s} building={buildingDialog.building} onClose={() => setBuildingDialog(null)} onSaved={saved} />}
       {newAsset && (
         <AssetFormModal
@@ -486,6 +503,7 @@ function NodeItem({
   onEdit,
   onRemove,
   onChangeId,
+  onMove,
   target,
 }: {
   /** The node a link (#node-<id>) points to: the nodes above it open */
@@ -498,6 +516,7 @@ function NodeItem({
   onEdit: (n: PlantNode) => void;
   onRemove: (n: PlantNode) => void;
   onChangeId: (n: PlantNode) => void;
+  onMove: (n: PlantNode) => void;
 }) {
   const { t } = useTranslation(['plant', 'common', 'plantIds']);
   const label = usePlantLabel();
@@ -597,6 +616,11 @@ function NodeItem({
                 <Menu.Item leftSection={<IconPencil size={14} />} onClick={() => onEdit(node)}>
                   {t('common:edit')}
                 </Menu.Item>
+                {node.level !== 'area' && (
+                  <Menu.Item leftSection={<IconArrowMoveRight size={14} />} onClick={() => onMove(node)} data-testid={`move-${node.id}`}>
+                    {t('move.menu')}
+                  </Menu.Item>
+                )}
                 <Menu.Item leftSection={<IconId size={14} />} onClick={() => onChangeId(node)} data-testid={`change-id-${node.id}`}>
                   {t('plantIds:changeId.menu')}
                 </Menu.Item>
@@ -622,6 +646,7 @@ function NodeItem({
               onEdit={onEdit}
               onRemove={onRemove}
               onChangeId={onChangeId}
+              onMove={onMove}
               target={target}
             />
           ))}
