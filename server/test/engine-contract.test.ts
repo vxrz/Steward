@@ -159,7 +159,11 @@ describe('invariant 1: one journal entry per activation, in execution order', ()
     const r = await testRun(id, 'api');
     const run = await s.api('GET', `/runs/${r.id}`);
     const keys = steps(run).map((x) => x.key);
-    expect(keys).toEqual([
+    // branches of a parallel node run at the same time: their entries follow the parallel node in the order they ran
+    // (by completion on a busy machine), so they are compared as a group; everything else keeps its exact order
+    const par = keys.indexOf('par');
+    const ordered = [...keys.slice(0, par + 1), ...keys.slice(par + 1, par + 4).sort(), ...keys.slice(par + 4)];
+    expect(ordered).toEqual([
       'start',
       'init',
       'list',
