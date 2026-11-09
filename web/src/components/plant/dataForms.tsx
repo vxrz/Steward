@@ -816,36 +816,56 @@ export function KpiInputModal({
   const [notes, setNotes] = useState(input?.notes ?? '');
   const first = kind === 'data_point' ? (chosen[0] ?? null) : null;
   const others = kind === 'data_point' ? chosen.slice(1) : [];
+  // the profiles and data points the input had: their mapping is kept as it is (no suggestions), so a save without a
+  // change leaves it unchanged – also a mapping of the first profile (set through the API or an import)
+  const [had] = useState(() => ({
+    profiles: new Set(input ? kpiInputProfiles(input) : []),
+    points: new Set(input?.dataPoints ?? []),
+    mapped: new Set(Object.entries(input?.mapping ?? {}).flatMap(([o, m]) => (Object.keys(m).length ? [o] : []))),
+  }));
+  // the mapping table: every other profile, and the first one where it has a mapping
+  const columns = kind === 'data_point' ? chosen.filter((o, n) => n > 0 || had.mapped.has(o)) : [];
   const options = usePointOptions(first);
   const known = useProfilePoints(kind === 'data_point' ? chosen : []);
-  const unitOf = new Map(options.map((o) => [o.value, o.unit]));
+  const unitsOf = new Map(options.map((o) => [o.value, o.unit]));
   // data points that are named but not in the profile (any more) stay choosable, so they can be removed
   const data = [...(options ?? []), ...points.filter((p) => !(options ?? []).some((o) => o.value === p)).map((p) => ({ value: p, label: p }))];
+  const explicit = (o: string, p: string): string | undefined => mapping[o]?.[p];
+  /** The unit of an input's data point in the first profile (through its mapping). */
+  const unitOf = (p: string) => unitsOf.get((first && explicit(first, p)) || p);
+  /** A unit the input states already stays, even where it is the profile's (a save without a change keeps it). */
+  const keptUnit = (p: string) => input?.units?.[p] !== undefined && unitCode(units[p] ?? '') === input.units[p];
   // the suggestions: the input's data points (as the first profile has them) matched in each other profile
   const suggested = new Map(
     others.map((o) => {
-      const mine = points.map((p) => known.get(first ?? '')?.find((d) => d.id === p) ?? { id: p, name: p, unit: '', aliases: [] });
+      const mine = points.map((p) => {
+        const id = (first && explicit(first, p)) || p;
+        return known.get(first ?? '')?.find((d) => d.id === id) ?? { id: p, name: p, unit: '', aliases: [] };
+      });
       return [o, matchPoints(mine, known.get(o) ?? [])] as const;
     }),
   );
+  /** The data point of profile `o` for the input's data point `p` (null: none chosen). */
   const target = (o: string, p: string, i: number): string | null => {
-    const set = mapping[o]?.[p];
+    const set = explicit(o, p);
     if (set !== undefined) return set || null;
+    // what the input had reads the same id; a profile or data point added now gets a suggestion
+    if (o === first || (had.profiles.has(o) && had.points.has(p))) return p;
     return suggested.get(o)?.[i]?.point.id ?? null;
   };
   return (
     <FormModal
       title={input ? t('kpi.editInput') : t('kpi.newInput')}
-      size={others.length ? 'xl' : 'md'}
+      size={columns.length ? 'xl' : 'md'}
       onClose={onClose}
       onSubmit={async () => {
         // 0.12.0: the units it expects (a data point without one: its unit in the profile)
         const expected = Object.fromEntries(
-          points.filter((p) => units[p]?.trim() && unitCode(units[p]!) !== unitOf.get(p)).map((p) => [p, unitCode(units[p]!)]),
+          points.filter((p) => units[p]?.trim() && (keptUnit(p) || unitCode(units[p]!) !== unitOf(p))).map((p) => [p, unitCode(units[p]!)]),
         );
-        // 0.13: the mapping – only where the other profile's id differs
+        // 0.13: the mapping – only where the profile's id differs
         const map: Record<string, Record<string, string>> = {};
-        for (const o of others) {
+        for (const o of columns) {
           const m = Object.fromEntries(points.flatMap((p, i) => (target(o, p, i) && target(o, p, i) !== p ? [[p, target(o, p, i)!]] : [])));
           if (Object.keys(m).length) map[o] = m;
         }
@@ -895,7 +915,7 @@ export function KpiInputModal({
             nothingFoundMessage={t('data.noPoints')}
             data-testid="kpi-input-points"
           />
-          {others.length > 0 && points.length > 0 && (
+          {columns.length > 0 && points.length > 0 && (
             <Stack gap={4} data-testid="kpi-input-mapping">
               <Text size="sm" fw={500}>
                 {t('plantModel:anyOf.mapping')}
@@ -908,7 +928,7 @@ export function KpiInputModal({
                   <Table.Thead>
                     <Table.Tr>
                       <Table.Th>{t('plantModel:anyOf.inputPoint')}</Table.Th>
-                      {others.map((o) => (
+                      {columns.map((o) => (
                         <Table.Th key={o}>{profiles.find((p) => p.id === o)?.name ?? o}</Table.Th>
                       ))}
                     </Table.Tr>
@@ -917,7 +937,7 @@ export function KpiInputModal({
                     {points.map((p, i) => (
                       <Table.Tr key={p}>
                         <Table.Td className="mono">{p}</Table.Td>
-                        {others.map((o) => {
+                        {columns.map((o) => {
                           const list = known.get(o) ?? [];
                           const value = target(o, p, i);
                           const hint = suggested.get(o)?.[i];
@@ -970,7 +990,7 @@ export function KpiInputModal({
                     key={p}
                     size="xs"
                     label={p}
-                    placeholder={unitOf.get(p) ? t('plantModel:units.fromProfile', { unit: unitOf.get(p) }) : t('plantModel:units.none')}
+                    placeholder={unitOf(p) ? t('plantModel:units.fromProfile', { unit: unitOf(p) }) : t('plantModel:units.none')}
                     data={UNITS}
                     value={units[p] ?? ''}
                     onChange={(x) => setUnits((u) => ({ ...u, [p]: x }))}

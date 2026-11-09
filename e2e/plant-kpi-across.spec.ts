@@ -196,6 +196,39 @@ test.describe('as a designer', () => {
     await cleanup(api, f, { kpis: [kpi] });
   });
 
+  test('editing an input keeps its mapping – the first profile’s, too – when nothing is changed', async ({ page, apiAs }) => {
+    const api = await apiAs('dana');
+    const tag = `k${Date.now()}`;
+    const f = await meters(api, tag);
+    const kpi = `e2e-energy-keep-${tag}`;
+    // set through the API: the input's own id, mapped in both profiles (the first one included)
+    const input = {
+      kind: 'data_point',
+      profile: f.a100,
+      profiles: [f.a100, f.b700],
+      dataPoints: ['energy'],
+      units: { energy: 'W.h' },
+      mapping: { [f.a100]: { energy: 'energy_total' }, [f.b700]: { energy: 'ActiveEnergy' } },
+      notes: 'Set by an import',
+    };
+    await ok(api.post('/api/plant/kpis', { data: { id: kpi, name: `E2E energy (kept) ${tag}`, inputs: [input] } }));
+    const before = (await (await api.get(`/api/plant/kpis/${kpi}`)).json()).inputs;
+    await page.goto(`/plant/kpis/${kpi}`);
+    await expect(page.getByTestId(`kpi-input-mapping-${f.a100}`)).toContainText('energy → energy_total');
+    await page.getByRole('button', { name: 'Actions for input 1' }).click();
+    await page.getByRole('menuitem', { name: /^Edit/ }).click();
+    const dialog = page.getByRole('dialog', { name: 'Edit input' });
+    const mapping = dialog.getByTestId('kpi-input-mapping');
+    // the first profile's mapping is shown and kept
+    await expect(mapping.getByTestId(`kpi-map-energy-${f.a100}`)).toHaveValue('Active energy (energy_total, kWh)');
+    await expect(mapping.getByTestId(`kpi-map-energy-${f.b700}`)).toHaveValue('Active energy (ActiveEnergy, Wh)');
+    await dialog.getByRole('button', { name: 'Save' }).click();
+    await expect(dialog).toBeHidden();
+    expect((await (await api.get(`/api/plant/kpis/${kpi}`)).json()).inputs).toEqual(before);
+    expect(before[0]).toMatchObject({ mapping: input.mapping, units: input.units, notes: input.notes });
+    await cleanup(api, f, { kpis: [kpi] });
+  });
+
   test('coverage rolled up from a meter to its machine; the asset page and the site tile', async ({ page, apiAs }) => {
     const api = await apiAs('dana');
     const tag = `r${Date.now()}`;
