@@ -24,6 +24,7 @@ import {
   type PlantRecordType,
   type PlantProfileValues,
   type PlantResolvedProfile,
+  type PlantAssignmentValues,
   plantIdMapInput,
 } from '@sm/shared';
 import { db } from '../db.js';
@@ -37,6 +38,7 @@ import { fieldDefs, fieldProblems, isDate, isHttpUrl, plantSettings, requirePlan
 import { issueMessages, plantFileSchema, SCHEMA_ID, type AreaFile, type AssetFile, type PlantFile, type SiteFile } from './format.js';
 import { assignmentOut, computeData, dataPlanEmpty, emptyDataPlan, kpiOut, profileOut, planData, pushWrite, type DataPlan, type Write } from './import-data.js';
 import { allAssignments, allKpis, allProfiles, ownProfiles } from './data-model.js';
+import { assetPoints } from './collections-model.js';
 import { applyRenames, missingEntries, planIds } from './import-ids.js';
 import { auditBulkRenames, dryRun } from './rename.js';
 import { planRemoval, type Target } from './removal.js';
@@ -981,7 +983,9 @@ function compute(input: ImportInput, importId: string): Computed {
   }
 
   // ---- device profiles, KPI definitions and assignments (#219)
+  let postData: { assignments: Map<string, PlantAssignmentValues>; profiles: Map<string, PlantResolvedProfile> } | null = null;
   const checks = computeData({
+    onPost: (assignments, profiles) => (postData = { assignments, profiles }),
     plan: p.data,
     mode,
     missing,
@@ -1020,6 +1024,11 @@ function compute(input: ImportInput, importId: string): Computed {
     removedAssets: removing.assets,
     fileSites: new Set(p.sites.keys()),
     needManage,
+    assetModel: (assetId) => {
+      const a = postData?.assignments.get(assetId) ?? null;
+      const m = assetPoints(a, a?.profileId ? postData?.profiles.get(a.profileId) : null);
+      return { interfaces: new Set(m.interfaces.map((i) => i.id)), points: new Set(m.points.map((x) => x.id)) };
+    },
   });
 
   // what the file would change in sites the caller may not see is not shown (it cannot be imported anyway)

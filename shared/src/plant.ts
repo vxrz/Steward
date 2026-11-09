@@ -341,7 +341,9 @@ export type PlantChangeKind =
   | 'data_path'
   | 'asset_checks'
   /** 0.12: the sinks of an asset's data collection */
-  | 'collection_sinks';
+  | 'collection_sinks'
+  /** 0.12: a data collection of an asset (in the file format since 0.12) */
+  | 'collection';
 export type PlantChangeAction = 'add' | 'change' | 'remove' | 'mark' | 'unchanged' | 'skip';
 
 /** 0.12.0: changes to the plant registry proposed by an AI assistant (docs/PLANT.md "Proposals from assistants"). */

@@ -7,7 +7,7 @@ import { PLANT_DIFF_LIMITS, type PlantFieldDiff } from '@sm/shared';
  * size; an entry shows at most PLANT_DIFF_LIMITS.perEntry differences.
  */
 
-const KEYS = ['id', 'interface', 'dataPoint', 'job', 'name', 'key', 'cidr', 'start'] as const;
+const KEYS = ['id', 'interface', 'dataPoint', 'job', 'name', 'key', 'cidr', 'start', 'item', 'address'] as const;
 
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);

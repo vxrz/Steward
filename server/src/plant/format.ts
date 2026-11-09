@@ -33,6 +33,7 @@ import {
   PLANT_NETWORK_LIMITS as NL,
   PLANT_COLLECTION_LIMITS as CL,
   COLLECTION_DESTINATION_KINDS,
+  COLLECTION_MODES,
   SINK_TRANSFORM_KINDS,
   TRANSFER_MODES,
   VLAN_RANGE_TYPES,
@@ -765,9 +766,93 @@ export const sinkSchema = z
   .strict()
   .meta({ id: 'Sink', description: 'Where a data collection’s data goes after it is loaded (and perhaps transformed)' });
 
+// 0.12: an asset's data collections – what a collector reads and what each value is (its sinks: collection_sinks)
+const patternList = z.array(z.string().min(1).max(CL.address)).max(CL.patterns).optional();
+export const collectionItemSchema = z
+  .object({
+    address: text(CL.address).describe('The address the collector reads (an OPC UA NodeId, a register, a variable path)'),
+    output_name: text(CL.text).describe('The collector’s name for the value (a gateway’s variable name)'),
+    output_type: text(60),
+    data_point: z
+      .string()
+      .min(1)
+      .max(120)
+      .nullable()
+      .optional()
+      .describe('The data point of the asset’s model it is (of its profile or its additions); empty: raw, not mapped'),
+    transform: z
+      .object({
+        note: text(2000).describe('Rename, conversion, scaling, an expression – text, never run'),
+        scale: z.number().nullable().optional(),
+        offset: z.number().nullable().optional(),
+        cast: text(40),
+      })
+      .strict()
+      .optional(),
+    description: text(PLANT_LIMITS.description),
+    notes: text(2000),
+  })
+  .strict()
+  .meta({ id: 'CollectionItem', description: 'A value a collector reads: its address, its name there and the data point it is' });
+
+export const collectionSchema = z
+  .object({
+    id,
+    name: z.string().min(1).max(CL.text),
+    collector: z
+      .object({
+        kind: z.enum(COLLECTOR_KINDS).describe('application, platform, process (a Steward item) or job (elsewhere, by name)'),
+        ref: z.string().min(1).max(CL.text).describe('Its id (the name of a job)'),
+        host: text(100).describe('The Steward system it runs on'),
+      })
+      .strict()
+      .optional()
+      .describe('Who reads: required for a new collection'),
+    data_path: ref.describe('A data path of the asset it belongs to'),
+    interface: z.string().max(120).nullable().optional().describe('The interface of the asset’s model it reads (empty: unknown)'),
+    mode: z.enum(COLLECTION_MODES).optional().describe('interval (default), on_change, trigger or other'),
+    interval_ms: z
+      .number()
+      .int()
+      .min(0)
+      .max(31 * 86_400_000)
+      .nullable()
+      .optional(),
+    debounce_ms: z
+      .number()
+      .int()
+      .min(0)
+      .max(31 * 86_400_000)
+      .nullable()
+      .optional(),
+    triggers: z
+      .array(z.object({ name: text(CL.text), condition: text(CL.text), reference_point: text(CL.address), reference_value: text(CL.text) }).strict())
+      .max(CL.triggers)
+      .optional(),
+    composition: text(2000).describe('How the triggers combine, or how the values are composed'),
+    access: z
+      .object({ read: patternList, write: patternList, create: patternList, delete: patternList })
+      .strict()
+      .optional()
+      .describe('What the collector may do on the machine, as address patterns; write, create and delete can change it'),
+    settings: z
+      .array(z.object({ key: z.string().min(1).max(CL.text), value: text(2000) }).strict())
+      .max(CL.settings)
+      .optional()
+      .describe('Other settings of the collector (buffering, events) – never credentials'),
+    items: z.array(collectionItemSchema).max(CL.items).optional().describe('What it reads; the list replaces the stored one'),
+    description: text(PLANT_LIMITS.description),
+    notes: text(CL.longText),
+  })
+  .strict()
+  .meta({
+    id: 'DataCollection',
+    description: 'What a collector (a gateway, an ETL job, a flow) reads from the asset (0.12); its sinks are in collection_sinks',
+  });
+
 export const collectionSinksSchema = z
   .object({
-    collection: id.describe('A data collection of the asset (collections are made by their import or by hand)'),
+    collection: id.describe('A data collection of the asset (stored, or in `collections` of the file)'),
     sinks: z.array(sinkSchema).max(CL.sinks).describe('All its sinks: the list replaces the stored one'),
   })
   .strict()
@@ -780,7 +865,16 @@ export const assetNetworkSchema = z
     checks,
     devices: z.array(deviceSchema).max(NL.devicesPerAsset).optional(),
     data_paths: z.array(dataPathSchema).max(NL.pathsPerAsset).optional(),
-    collection_sinks: z.array(collectionSinksSchema).max(CL.collectionsPerAsset).optional().describe('0.12: the sinks of its data collections'),
+    collections: z
+      .array(collectionSchema)
+      .max(CL.collectionsPerAsset)
+      .optional()
+      .describe('0.12: its data collections (added and changed, never removed by an import)'),
+    collection_sinks: z
+      .array(collectionSinksSchema)
+      .max(CL.collectionsPerAsset)
+      .optional()
+      .describe('0.12: the sinks of its data collections (stored ones, or ones in `collections`)'),
   })
   .strict()
   .meta({ id: 'AssetNetwork', description: 'The OT network of an asset: its devices, data paths and live-status checks, and where its collected data goes' });

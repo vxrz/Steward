@@ -539,6 +539,8 @@ export interface DataContext {
   /** Sites the files name themselves (a refused one is named there already) */
   fileSites: Set<string>;
   needManage: (siteId: string, o: Origin) => void;
+  /** 0.12: the assignments and resolved profiles after the import (the OT network's data collections read them) */
+  onPost?: (assignments: Map<string, PlantAssignmentValues>, profiles: Map<string, PlantResolvedProfile>) => void;
 }
 
 /** Compares the part-2 records of the files with what is stored; returns what Steward checks in them. */
@@ -831,6 +833,7 @@ export function computeData(c: DataContext): PlantCheck[] {
     const k = postKpis.get(pk.values.id);
     if (k) checks.push(...kpiChecks(k, postProfiles));
   }
+  c.onPost?.(postAssignments, postProfiles);
   return checks.slice(0, 500);
 }
 

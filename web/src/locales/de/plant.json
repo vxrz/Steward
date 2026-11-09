@@ -368,7 +368,8 @@
       "profile": "Geräteprofil",
       "kpi": "KPI-Definition",
       "assignment": "Zuordnung",
-      "collection_sinks": "Ziele einer Datenerfassung"
+      "collection_sinks": "Ziele einer Datenerfassung",
+      "collection": "Datenerfassung"
     },
     "checks_one": "{{count}} Hinweis der Prüfungen",
     "checks_other": "{{count}} Hinweise der Prüfungen",

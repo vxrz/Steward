@@ -14,6 +14,8 @@ import {
   type PlantVlanValues,
   type PlantZoneValues,
   type PlantCollectionSink,
+  type PlantCollectionValues,
+  PLANT_COLLECTION_LIMITS,
 } from '@sm/shared';
 import { db } from '../db.js';
 import type { AssetRow, SiteRow } from './model.js';
@@ -22,7 +24,16 @@ import { clean, pushWrite, type Origin, type Write } from './import-data.js';
 import { refProblems, withHiddenSites } from './network.js';
 import { checkVisible, liveContext, withStoredHiddenChecks } from './live.js';
 import { resolveTarget } from '../records/links.js';
-import { collectionRowOf, destinationOfSink, sinksOf, type CollectionRow } from './collections-model.js';
+import {
+  collectionInput,
+  collectionProblems,
+  collectionRowOf,
+  collectionValuesOf,
+  destinationOfSink,
+  sinksOf,
+  upsertCollection,
+  type CollectionRow,
+} from './collections-model.js';
 import { siteRights } from './access.js';
 import {
   assetChecksInput,
@@ -94,6 +105,8 @@ export interface NetPlan {
   paths: Map<string, Planned<PlantDataPathValues>>;
   /** 0.12: the sinks of data collections, by asset/collection */
   sinks: Map<string, Planned<{ id: string; sinks: PlantCollectionSink[] }>>;
+  /** 0.12: data collections, by asset/collection */
+  collections: Map<string, Planned<PlantCollectionValues>>;
 }
 
 export const emptyNetPlan = (): NetPlan => ({
@@ -105,6 +118,7 @@ export const emptyNetPlan = (): NetPlan => ({
   devices: new Map(),
   paths: new Map(),
   sinks: new Map(),
+  collections: new Map(),
 });
 export const netPlanEmpty = (p: NetPlan) => !p.sites.size && !p.assets.size;
 
@@ -277,6 +291,13 @@ export function planNetwork(p: NetPlan, f: PlantFile, file: string, problems: Pl
       if (fx) return twice(ro, `Data path "${x.id}"`, fx);
       p.paths.set(k, { ...ro, owner: a.asset, position: i, values: pathFromFile(x) });
     });
+    (a.collections ?? []).forEach((x, i) => {
+      const ro = { file, path: `${path}.collections[${i}]` };
+      const k = key(a.asset, x.id);
+      const fx = p.collections.get(k);
+      if (fx) return twice(ro, `Data collection "${x.id}"`, fx);
+      p.collections.set(k, { ...ro, owner: a.asset, position: i, values: collectionFromFile(x) });
+    });
     (a.collection_sinks ?? []).forEach((x, i) => {
       const ro = { file, path: `${path}.collection_sinks[${i}]` };
       const k = key(a.asset, x.collection);
@@ -286,6 +307,73 @@ export function planNetwork(p: NetPlan, f: PlantFile, file: string, problems: Pl
     });
   }
 }
+
+type CollectionFile = NonNullable<AssetNetworkFile['collections']>[number];
+
+/** A data collection of the file (0.12): the keys it gives (the others keep their stored values). */
+function collectionFromFile(x: CollectionFile): Planned<PlantCollectionValues>['values'] {
+  const v: Planned<PlantCollectionValues>['values'] = { id: x.id };
+  v.name = x.name.trim();
+  if (x.collector) v.collector = { kind: x.collector.kind, ref: x.collector.ref.trim(), host: str(x.collector.host) || null };
+  if (has(x, 'data_path')) v.dataPathId = x.data_path ?? null;
+  if (has(x, 'interface')) v.interfaceId = str(x.interface) || null;
+  if (has(x, 'mode')) v.mode = x.mode ?? 'interval';
+  if (has(x, 'interval_ms')) v.intervalMs = x.interval_ms ?? null;
+  if (has(x, 'debounce_ms')) v.debounceMs = x.debounce_ms ?? null;
+  if (has(x, 'triggers'))
+    v.triggers = (x.triggers ?? []).map((t) => ({
+      name: str(t.name),
+      condition: str(t.condition),
+      referencePoint: str(t.reference_point),
+      referenceValue: str(t.reference_value),
+    }));
+  if (has(x, 'composition')) v.composition = str(x.composition);
+  if (has(x, 'access')) v.access = { read: x.access?.read ?? [], write: x.access?.write ?? [], create: x.access?.create ?? [], delete: x.access?.delete ?? [] };
+  if (has(x, 'settings')) v.settings = (x.settings ?? []).map((e) => ({ key: e.key.trim(), value: str(e.value) }));
+  if (has(x, 'items'))
+    v.items = (x.items ?? []).map((it) => ({
+      address: str(it.address),
+      outputName: str(it.output_name),
+      outputType: str(it.output_type),
+      dataPoint: str(it.data_point) || null,
+      transform: { note: str(it.transform?.note), scale: it.transform?.scale ?? null, offset: it.transform?.offset ?? null, cast: str(it.transform?.cast) },
+      description: str(it.description),
+      notes: str(it.notes),
+    }));
+  if (has(x, 'description')) v.description = str(x.description);
+  if (has(x, 'notes')) v.notes = str(x.notes);
+  return v;
+}
+
+/** A data collection in the file format (its sinks go to collection_sinks): empty and default values left out. */
+export const collectionOut = (v: PlantCollectionValues) =>
+  clean({
+    id: v.id,
+    name: v.name,
+    collector: clean({ kind: v.collector.kind, ref: v.collector.ref, host: v.collector.host }),
+    data_path: v.dataPathId,
+    interface: v.interfaceId,
+    mode: v.mode === 'interval' ? '' : v.mode,
+    interval_ms: v.intervalMs,
+    debounce_ms: v.debounceMs,
+    triggers: v.triggers.map((t) => clean({ name: t.name, condition: t.condition, reference_point: t.referencePoint, reference_value: t.referenceValue })),
+    composition: v.composition,
+    access: clean({ read: v.access.read, write: v.access.write, create: v.access.create, delete: v.access.delete }),
+    settings: v.settings.map((e) => ({ key: e.key, ...clean({ value: e.value }) })),
+    items: v.items.map((it) =>
+      clean({
+        address: it.address,
+        output_name: it.outputName,
+        output_type: it.outputType,
+        data_point: it.dataPoint,
+        transform: clean({ note: it.transform.note, scale: it.transform.scale, offset: it.transform.offset, cast: it.transform.cast }),
+        description: it.description,
+        notes: it.notes,
+      }),
+    ),
+    description: v.description,
+    notes: v.notes,
+  });
 
 type SinkFile = NonNullable<AssetNetworkFile['collection_sinks']>[number]['sinks'][number];
 
@@ -313,7 +401,7 @@ const sinkFromFile = (x: SinkFile): PlantCollectionSink => ({
 });
 
 /** A sink in the file format: empty and default values left out. */
-const sinkOut = (x: PlantCollectionSink) =>
+export const sinkOut = (x: PlantCollectionSink) =>
   clean({
     id: x.id,
     name: x.name,
@@ -448,6 +536,8 @@ export interface NetContext {
   removedAssets: Set<string>;
   fileSites: Set<string>;
   needManage: (siteId: string, o: Origin) => void;
+  /** 0.12: the interfaces and data points of an asset's model after the import (data collections name them) */
+  assetModel: (assetId: string) => { interfaces: Set<string>; points: Set<string> };
 }
 
 const all = <R>(sql: string) => db().all<R>(sql);
@@ -531,6 +621,7 @@ export function computeNetwork(c: NetContext): void {
   const postVlans = postIds(stored.vlans.keys(), p.vlans.keys(), removing.vlans);
   const postZones = postIds(stored.zones.keys(), p.zones.keys(), removing.zones);
   const postDevices = postIds(stored.devices.keys(), p.devices.keys(), removing.devices);
+  const postPaths = postIds(stored.paths.keys(), p.paths.keys(), removing.paths);
   const none = new Set<string>();
 
   // ---- the records of the files
@@ -679,16 +770,86 @@ export function computeNetwork(c: NetContext): void {
     );
   }
 
-  // the sinks of the asset's data collections (0.12): the collection must exist; the file's list replaces the stored one
+  // the data collections of an asset (0.12): added and changed by the keys the file gives; an import never removes one
+  const plannedCollections = new Map<string, PlantCollectionValues>();
+  const counts = new Map<string, number>();
+  for (const [k, x] of p.collections) {
+    const siteId = okAssets.get(x.owner);
+    if (!siteId) continue;
+    const cur = collectionRowOf(x.owner, x.values.id);
+    const before = cur ? collectionValuesOf(cur) : null;
+    if (!before && !x.values.collector) {
+      problems.push({ file: x.file, path: `${x.path}.collector`, message: 'Required (a new data collection needs its collector)' });
+      continue;
+    }
+    if (!before) {
+      const n = counts.get(x.owner) ?? Number(db().get<{ n: number }>('SELECT COUNT(*) AS n FROM plant_collections WHERE asset_id = ?', x.owner)?.n ?? 0);
+      counts.set(x.owner, n + 1);
+      if (n + 1 > PLANT_COLLECTION_LIMITS.collectionsPerAsset) {
+        problems.push({ file: x.file, path: x.path, message: `At most ${PLANT_COLLECTION_LIMITS.collectionsPerAsset} data collections per asset` });
+        continue;
+      }
+    }
+    const fresh: PlantCollectionValues = {
+      id: x.values.id,
+      name: x.values.id,
+      collector: { kind: 'job', ref: '', host: null },
+      dataPathId: null,
+      interfaceId: null,
+      mode: 'interval',
+      intervalMs: null,
+      debounceMs: null,
+      triggers: [],
+      composition: '',
+      destination: null,
+      sinks: [],
+      access: { read: [], write: [], create: [], delete: [] },
+      settings: [],
+      items: [],
+      description: '',
+      notes: '',
+      format: '',
+      sourceFile: '',
+    };
+    // the sinks stay as they are (collection_sinks changes them); a replace starts from the defaults but keeps them
+    const merged = { ...(before && !full ? before : fresh), ...x.values, sinks: before?.sinks ?? [] } as PlantCollectionValues;
+    // the destination of 0.11 follows the first sink (checked there)
+    const parsed = checked(collectionInput, { ...merged, destination: null }, x, problems) as PlantCollectionValues | null;
+    if (!parsed) continue;
+    const after: PlantCollectionValues = { ...parsed, sinks: merged.sinks, destination: destinationOfSink(merged.sinks[0]) };
+    const model = c.assetModel(x.owner);
+    report(x, collectionProblems(after, { ...model, dataPaths: postPaths.get(x.owner) ?? none }), problems);
+    // the collector must be one the importer may see when it is named anew
+    report(x, refProblems({ collector: after.collector, destinations: [] }, before ? { collector: before.collector, destinations: [] } : null), problems);
+    plannedCollections.set(k, after);
+    const position = cur ? cur.position : 1_000_000 + x.position;
+    pushWrite(
+      writes,
+      mode,
+      'collection',
+      siteId,
+      k,
+      after.name,
+      before,
+      after,
+      cur,
+      () => upsertCollection(x.owner, after, position, c.meta),
+      () => db().run('UPDATE plant_collections SET import_id = ?, not_in_source = 0 WHERE asset_id = ? AND id = ?', c.importId, x.owner, after.id),
+    );
+  }
+
+  // the sinks of the asset's data collections (0.12): the collection must exist (or be in the files); the file's list
+  // replaces the stored one
   for (const [k, x] of p.sinks) {
     const siteId = okAssets.get(x.owner);
     if (!siteId) continue;
     const row = collectionRowOf(x.owner, x.values.id);
-    if (!row) {
+    const planned = plannedCollections.get(k);
+    if (!row && !planned) {
       problems.push({ file: x.file, path: `${x.path}.collection`, message: `Asset "${x.owner}" has no data collection "${x.values.id}"` });
       continue;
     }
-    const before = { sinks: sinksOf(row) };
+    const before = { sinks: row ? sinksOf(row) : [] };
     const after = { sinks: x.values.sinks ?? [] };
     const ids = new Set<string>();
     after.sinks.forEach((sk, i) => {
@@ -706,7 +867,7 @@ export function computeNetwork(c: NetContext): void {
       'collection_sinks',
       siteId,
       k,
-      row.name,
+      row?.name ?? planned!.name,
       before,
       after,
       undefined,
@@ -911,12 +1072,13 @@ export function assetNetworksOut(assetIds: string[]): Record<string, unknown>[] 
   };
   const devices = group(db().all<DeviceRow>('SELECT * FROM plant_devices ORDER BY asset_id, position, id'));
   const paths = group(db().all<DataPathRow>('SELECT * FROM plant_data_paths ORDER BY asset_id, position, id'));
-  // 0.12: the sinks of its data collections (those that have any)
-  const sinks = group(
-    db()
-      .all<CollectionRow>('SELECT * FROM plant_collections ORDER BY asset_id, position, id')
-      .filter((r) => sinksOf(r).length > 0),
-  );
+  // 0.12: its data collections, and the sinks of those that have any
+  const collections = group(db().all<CollectionRow>('SELECT * FROM plant_collections ORDER BY asset_id, position, id'));
+  const sinks = new Map<string, CollectionRow[]>();
+  for (const [a, rows] of collections) {
+    const withSinks = rows.filter((r) => sinksOf(r).length > 0);
+    if (withSinks.length) sinks.set(a, withSinks);
+  }
   const checks = new Map(
     db()
       .all<AssetChecksRow>('SELECT * FROM plant_asset_checks')
@@ -926,7 +1088,7 @@ export function assetNetworksOut(assetIds: string[]): Record<string, unknown>[] 
   const ctx = liveContext();
   const seen = (list: PlantStatusCheck[]) => list.filter((c) => checkVisible(c, ctx)).map(checkOut);
   return assetIds
-    .filter((a) => devices.has(a) || paths.has(a) || checks.has(a) || sinks.has(a))
+    .filter((a) => devices.has(a) || paths.has(a) || checks.has(a) || collections.has(a))
     .map((a) => ({
       asset: a,
       ...(checks.has(a) ? { checks: seen(checks.get(a)!) } : {}),
@@ -969,6 +1131,7 @@ export function assetNetworksOut(assetIds: string[]): Record<string, unknown>[] 
             notes: x.notes,
           }),
         ),
+        collections: (collections.get(a) ?? []).map((r) => collectionOut(collectionValuesOf(r))),
         collection_sinks: (sinks.get(a) ?? []).map((r) => ({ collection: r.id, sinks: sinksOf(r).map(sinkOut) })),
       }),
     }));

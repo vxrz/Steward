@@ -368,7 +368,8 @@
       "profile": "Device profile",
       "kpi": "KPI definition",
       "assignment": "Assignment",
-      "collection_sinks": "Sinks of a data collection"
+      "collection_sinks": "Sinks of a data collection",
+      "collection": "Data collection"
     },
     "checks_one": "{{count}} note of the checks",
     "checks_other": "{{count}} notes of the checks",
