@@ -77,7 +77,8 @@ async function tabs(page: Page, api: APIRequestContext, mobile: boolean) {
   const dialog = page.getByRole('dialog');
   await expect(dialog.getByRole('textbox', { name: 'Name' }).first()).toHaveValue('Confluent Cloud (demo): API key CONNECTKEY');
   await expectAccessible(page, 'confluent: register draft');
-  await dialog.getByRole('button', { name: 'Cancel' }).click();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
   await noSecrets(page);
 }
 
