@@ -307,7 +307,15 @@ export const interfaceSchema = z
     client: text(L.text).describe('The client it needs (a gateway, a driver, manual)'),
     notes: long,
     groups: z
-      .array(z.object({ name: z.string().min(1).max(L.text), description: long, data_points: z.array(dataPointSchema).max(L.dataPoints).optional() }).strict())
+      .array(
+        z
+          .object({
+            name: z.string().min(1).max(L.text),
+            description: long.describe('Plain text. An inherited group’s entry describes it anew (0.12.0); left out or empty: the inherited description'),
+            data_points: z.array(dataPointSchema).max(L.dataPoints).optional(),
+          })
+          .strict(),
+      )
       .max(L.groups)
       .optional()
       .describe('Data point groups'),
@@ -331,7 +339,7 @@ export const profileSchema = z
     model: text(PLANT_LIMITS.text),
     version: versionText.describe('Firmware or product version the profile describes'),
     category: text(100),
-    description: long,
+    description: long.describe('Plain text. A profile that extends another inherits its base’s description while it has none (0.12.0)'),
     notes: long,
     interfaces: z.array(interfaceSchema).max(L.interfaces).optional(),
   })

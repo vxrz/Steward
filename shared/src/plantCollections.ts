@@ -52,6 +52,8 @@ export interface PlantCollectionItem {
   /** The data point of the asset's model it is; null: raw (not mapped) */
   dataPoint: string | null;
   transform: PlantCollectionTransform;
+  /** 0.12.0: what the value is, in plain text (optional) */
+  description: string;
   notes: string;
 }
 
@@ -92,6 +94,8 @@ export interface PlantCollectionValues {
   /** Buffering, events, time sync and other settings of the collector */
   settings: { key: string; value: string }[];
   items: PlantCollectionItem[];
+  /** 0.12.0: what the collection is for, in plain text (optional) */
+  description: string;
   notes: string;
   /** The importer that wrote it (empty: entered by hand) and the file's name */
   format: CollectionFormat | '';

@@ -153,12 +153,16 @@ describe('the registry of reference columns', () => {
       'destination',
       'access',
       'settings',
+      'description',
       'notes',
       'format',
       'source_file',
       'position',
     ],
     plant_collection_mappings: ['collector_key', 'gateway_name'],
+    // 0.12.0: an assistant's proposal – its document names plant ids as a file does; an old id in it is read through the
+    // aliases when it is applied (as in a file), so a rename never needs to rewrite it
+    plant_proposals: ['id', 'title', 'document', 'sha256', 'preview', 'fingerprint'],
     // written by the rename core itself (ids.ts writeAlias)
     plant_id_aliases: ['kind', 'old_id', 'new_id', 'renamed_at'],
   };

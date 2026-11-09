@@ -5,7 +5,16 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { IconArrowBackUp, IconDownload, IconEdit, IconEyeOff, IconFile, IconPlus, IconTrash } from '@tabler/icons-react';
 import { Menu } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
-import type { PlantDataPoint, PlantInterface, PlantModelOrigin, PlantProfileDetail, PlantProfileSummary, PlantProfileValues } from '@sm/shared';
+import {
+  PLANT_DATA_LIMITS,
+  plantOriginKey,
+  type PlantDataPoint,
+  type PlantInterface,
+  type PlantModelOrigin,
+  type PlantProfileDetail,
+  type PlantProfileSummary,
+  type PlantProfileValues,
+} from '@sm/shared';
 import { apiUrl, del, get, notifyError, put } from '../api';
 import { DetailState, EmptyState } from '../components/common';
 import { useAliasRedirect, useChangeId } from '../components/plant/ids';
@@ -19,8 +28,12 @@ import { NotInSourceBadge, PreviewBadge, useNameOf, usePlantLabel } from '../com
 import { FormButtons } from '../components/plant/forms';
 import { AssetBriefLink, DataPointTable, ProtocolBadge, RowMenu } from '../components/plant/data';
 import {
+  describeFileSet,
+  describeGroup,
+  describeInterface,
   ordered,
   removePoint as removeOwnPoint,
+  resetPointDescription,
   resetInterface,
   resetPoint,
   saveGroup,
@@ -31,6 +44,7 @@ import {
 } from '../components/plant/profileEdit';
 import { DataPointFormModal, InterfaceFormModal, ProfileFormModal } from '../components/plant/dataForms';
 import { SourceLine } from './PlantSite';
+import { DescribedText, DescriptionModal } from '../components/plant/describe';
 
 /** Where an interface or data point of a derived profile comes from (0.11.0); nothing on a profile without a base. */
 function OriginBadge({ origin, derived, nameOf }: { origin: PlantModelOrigin | undefined; derived: boolean; nameOf: (id: string) => string }) {
@@ -59,7 +73,9 @@ type Dialog =
   | { kind: 'profile' }
   | { kind: 'interface'; iface?: PlantInterface }
   | { kind: 'point'; iface: PlantInterface; group: string; point?: PlantDataPoint }
-  | { kind: 'group'; iface: PlantInterface; group: string; description: string };
+  | { kind: 'group'; iface: PlantInterface; group: string; description: string }
+  /** 0.12.0: a description written here – the profile's, or one of an inherited item */
+  | { kind: 'describe'; title: string; value: string; help?: string; apply: (text: string) => PlantProfileValues };
 
 /**
  * A device profile (#219): its interfaces with their data point groups and data points, the files a file-transfer
@@ -100,7 +116,16 @@ export function PlantProfilePage() {
   const nameOf2 = (id: string) => (id === p.id ? p.name : (p.bases.find((b) => b.id === id)?.name ?? id));
   const inheritedIface = (id: string) => p.origins.interfaces[id]?.kind !== undefined && p.origins.interfaces[id]?.kind !== 'own';
   const inheritedPoint = (id: string) => p.origins.points[id]?.kind !== undefined && p.origins.points[id]?.kind !== 'own';
+  const inheritedGroup = (iface: string, group: string) =>
+    inheritedIface(iface) && !!p.base?.interfaces.find((x) => x.id === iface)?.groups.some((x) => x.name === group);
+  const inheritedFileSet = (iface: string, id: string) =>
+    inheritedIface(iface) && !!p.base?.interfaces.find((x) => x.id === iface)?.fileSets.some((x) => x.id === id);
   const act = (next: PlantProfileValues) => void save(next).catch(notifyError);
+  /** Where an item's description comes from (0.12.0): inherited from a base (its name) or changed here */
+  const described = (origin: PlantModelOrigin | undefined) => ({
+    inheritedFrom: derived && origin && origin.descriptionFrom !== p.id ? nameOf2(origin.descriptionFrom) : null,
+    changedHere: derived && !!origin && origin.kind !== 'own' && origin.descriptionFrom === p.id,
+  });
   const allPoints = p.interfaces.flatMap((i) => i.groups.flatMap((g) => g.dataPoints.map((d) => d.id)));
   const remove = async () => {
     if (!(await confirmDanger({ action: 'delete', message: t('profile.deleteConfirm', { name: p.name }) }))) return;
@@ -128,6 +153,7 @@ export function PlantProfilePage() {
     origin: PlantModelOrigin | undefined,
     reset: () => PlantProfileValues,
     drop: () => PlantProfileValues,
+    resetDescription?: () => PlantProfileValues,
   ) => (
     <RowMenu
       label={label}
@@ -137,6 +163,11 @@ export function PlantProfilePage() {
           {origin?.kind === 'overridden' && (
             <Menu.Item leftSection={<IconArrowBackUp size={14} />} onClick={() => act(reset())}>
               {t('plantModel:actions.reset')}
+            </Menu.Item>
+          )}
+          {resetDescription && origin?.fields.includes('description') && (
+            <Menu.Item leftSection={<IconArrowBackUp size={14} />} onClick={() => act(resetDescription())}>
+              {t('plantModel:describe.reset')}
             </Menu.Item>
           )}
           <Menu.Item leftSection={<IconEyeOff size={14} />} onClick={() => act(drop())}>
@@ -196,10 +227,30 @@ export function PlantProfilePage() {
       <Grid gap="lg">
         <Grid.Col span={{ base: 12, md: 8 }}>
           <Stack gap="lg">
-            {p.description && (
-              <Text size="sm" style={{ whiteSpace: 'pre-line' }}>
-                {p.description}
-              </Text>
+            {derived ? (
+              <DescribedText
+                text={p.description}
+                inheritedFrom={p.descriptionFrom !== p.id ? nameOf2(p.descriptionFrom) : null}
+                changedHere={!!values.description && p.descriptionFrom === p.id}
+                editable={p.canManage}
+                onEdit={() =>
+                  setDialog({
+                    kind: 'describe',
+                    title: t('plantModel:describe.profileTitle', { name: p.name }),
+                    value: values.description,
+                    help: t('plantModel:describe.inheritedHelp', { from: nameOf2(p.bases[0]?.id ?? '') }),
+                    apply: (text) => ({ ...values, description: text }),
+                  })
+                }
+                onReset={() => act({ ...values, description: '' })}
+                testId="profile-description"
+              />
+            ) : (
+              p.description && (
+                <Text size="sm" style={{ whiteSpace: 'pre-line' }}>
+                  {p.description}
+                </Text>
+              )
             )}
             {derived && (
               <Paper withBorder p="sm" data-testid="profile-bases">
@@ -342,6 +393,7 @@ export function PlantProfilePage() {
                               p.origins.interfaces[iface.id],
                               () => resetInterface(p, iface.id),
                               () => setInterfacePresent(p, iface.id, false),
+                              () => describeInterface(p, iface.id, null),
                             )
                           ) : (
                             <RowMenu
@@ -353,11 +405,21 @@ export function PlantProfilePage() {
                         </Group>
                       )}
                     </Group>
-                    {iface.description && (
-                      <Text size="sm" style={{ whiteSpace: 'pre-line' }}>
-                        {iface.description}
-                      </Text>
-                    )}
+                    <DescribedText
+                      text={iface.description}
+                      {...described(p.origins.interfaces[iface.id])}
+                      editable={p.canManage && inheritedIface(iface.id)}
+                      onEdit={() =>
+                        setDialog({
+                          kind: 'describe',
+                          title: t('plantModel:describe.itemTitle', { name: iface.name || iface.id }),
+                          value: iface.description,
+                          apply: (text) => describeInterface(p, iface.id, text),
+                        })
+                      }
+                      onReset={() => act(describeInterface(p, iface.id, null))}
+                      testId={`interface-description-${iface.id}`}
+                    />
                     {iface.notes && (
                       <Text size="xs" c="dimmed" style={{ whiteSpace: 'pre-line' }}>
                         {iface.notes}
@@ -370,20 +432,29 @@ export function PlantProfilePage() {
                             <Text size="sm" fw={600}>
                               {g.name || t('data.ungrouped')}
                             </Text>
-                            {g.description && (
-                              <Text size="xs" c="dimmed">
-                                {g.description}
-                              </Text>
-                            )}
+                            <DescribedText
+                              size="xs"
+                              text={g.description}
+                              {...described(p.origins.groups[plantOriginKey(iface.id, g.name)])}
+                              editable={p.canManage && inheritedGroup(iface.id, g.name)}
+                              onEdit={() =>
+                                setDialog({
+                                  kind: 'describe',
+                                  title: t('plantModel:describe.itemTitle', { name: g.name }),
+                                  value: g.description,
+                                  apply: (text) => describeGroup(p, iface.id, g.name, text),
+                                })
+                              }
+                              onReset={() => act(describeGroup(p, iface.id, g.name, ''))}
+                              testId={`group-description-${iface.id}-${g.name}`}
+                            />
                           </div>
-                          {p.canManage &&
-                            g.name &&
-                            !(inheritedIface(iface.id) && p.base?.interfaces.find((x) => x.id === iface.id)?.groups.some((x) => x.name === g.name)) && (
-                              <RowMenu
-                                label={t('data.groupActions', { name: g.name })}
-                                onEdit={() => setDialog({ kind: 'group', iface, group: g.name, description: g.description })}
-                              />
-                            )}
+                          {p.canManage && g.name && !inheritedGroup(iface.id, g.name) && (
+                            <RowMenu
+                              label={t('data.groupActions', { name: g.name })}
+                              onEdit={() => setDialog({ kind: 'group', iface, group: g.name, description: g.description })}
+                            />
+                          )}
                         </Group>
                         <DataPointTable
                           profileId={p.id}
@@ -402,6 +473,7 @@ export function PlantProfilePage() {
                                 p.origins.points[point.id],
                                 () => resetPoint(p, point.id),
                                 () => setPointPresent(p, point.id, false),
+                                () => resetPointDescription(p, point.id),
                               )
                             ) : (
                               <RowMenu
@@ -441,9 +513,25 @@ export function PlantProfilePage() {
                                   .filter(Boolean)
                                   .join(' · ')}
                               </Text>
-                              {(f.description || f.notes) && (
+                              <DescribedText
+                                size="xs"
+                                text={f.description}
+                                {...described(p.origins.fileSets[plantOriginKey(iface.id, f.id)])}
+                                editable={p.canManage && inheritedFileSet(iface.id, f.id)}
+                                onEdit={() =>
+                                  setDialog({
+                                    kind: 'describe',
+                                    title: t('plantModel:describe.itemTitle', { name: f.name || f.id }),
+                                    value: f.description,
+                                    apply: (text) => describeFileSet(p, iface.id, f.id, text),
+                                  })
+                                }
+                                onReset={() => act(describeFileSet(p, iface.id, f.id, ''))}
+                                testId={`file-set-description-${iface.id}-${f.id}`}
+                              />
+                              {f.notes && (
                                 <Text size="xs" style={{ whiteSpace: 'pre-line' }}>
-                                  {[f.description, f.notes].filter(Boolean).join('\n')}
+                                  {f.notes}
                                 </Text>
                               )}
                             </Stack>
@@ -580,6 +668,16 @@ export function PlantProfilePage() {
           inherited={!!dialog.point && inheritedPoint(dialog.point.id)}
           onClose={() => setDialog(null)}
           onSave={(point, group) => save(savePoint(p, dialog.iface.id, point, group, dialog.point?.id ?? null))}
+        />
+      )}
+      {dialog?.kind === 'describe' && (
+        <DescriptionModal
+          title={dialog.title}
+          value={dialog.value}
+          help={dialog.help}
+          max={PLANT_DATA_LIMITS.longText}
+          onClose={() => setDialog(null)}
+          onSave={(text) => save(dialog.apply(text))}
         />
       )}
       {dialog?.kind === 'group' && (

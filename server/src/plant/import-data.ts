@@ -10,6 +10,7 @@ import {
   type PlantChangeKind,
   type PlantCheck,
   type PlantDataPoint,
+  type PlantFieldDiff,
   type PlantImportMode,
   type PlantImportProblem,
   type PlantInterface,
@@ -26,6 +27,7 @@ import { db } from '../db.js';
 import type { AuthUser } from '../auth/context.js';
 import { canManageCatalogue } from './access.js';
 import { changedKeys, type AssetRow, type SiteRow } from './model.js';
+import { fieldDiff } from './diff.js';
 import type { AssignmentFile, DataPointFile, InterfaceFile, KpiFile, PlantFile, ProfileFile } from './format.js';
 import {
   assignmentProblems,
@@ -75,6 +77,8 @@ export interface Write {
   note?: string;
   /** What to write (add, change, unchanged: adopt; mark: flag) */
   apply: () => void;
+  /** 0.12.0: a change's differences, field by field (computed for the preview's first changes only) */
+  diff?: () => PlantFieldDiff[];
 }
 
 export function pushWrite<V extends object>(
@@ -94,7 +98,7 @@ export function pushWrite<V extends object>(
   if (mode === 'add') return void writes.push({ kind, action: 'skip', siteId, id, name, note: 'exists (add only)', apply: () => undefined });
   const fields = changedKeys(before, after);
   if (cur?.not_in_source) fields.push('notInSource');
-  if (fields.length) writes.push({ kind, action: 'change', siteId, id, name, fields, apply: write });
+  if (fields.length) writes.push({ kind, action: 'change', siteId, id, name, fields, apply: write, diff: () => fieldDiff(before, after) });
   else writes.push({ kind, action: 'unchanged', siteId, id, name, apply: adopt });
 }
 
@@ -235,7 +239,8 @@ export function splitInterfaces(
           else if (d.present !== undefined) problems.push({ file, path: `${dat}.present`, message: `The base has no data point "${d.id}"` });
           else added.push(pointFromFile(d, { file, path: dat }, problems));
         });
-        if (added.length || !inheritedGroups.has(name)) o.groups.push({ name, description, dataPoints: added });
+        // an inherited group's entry with a description describes it anew (0.12.0); empty: the inherited description
+        if (added.length || description || !inheritedGroups.has(name)) o.groups.push({ name, description, dataPoints: added });
       }
     }
     interfaceOverrides.push(o);
@@ -896,7 +901,9 @@ function inheritedOut(p: PlantProfileValues, base: PlantResolvedProfile): Record
       }
     const order = iface.groups.map((g) => g.name);
     for (const g of io?.groups ?? []) {
-      const x = groups.get(g.name) ?? { description: order.includes(g.name) ? '' : g.description, points: [] };
+      const x = groups.get(g.name) ?? { description: '', points: [] };
+      // an own group's description, or the one this profile gives an inherited group (0.12.0)
+      if (g.description) x.description = g.description;
       x.points.push(...g.dataPoints.map(pointOut));
       groups.set(g.name, x);
     }

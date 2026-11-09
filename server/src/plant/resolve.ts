@@ -6,12 +6,14 @@ import {
   PROFILE_POINT_FIELDS,
   type PlantAssignmentValues,
   type PlantDataPoint,
+  type PlantFileSet,
   type PlantInterface,
   type PlantInterfaceOverride,
   type PlantModelOrigin,
   type PlantProfilePointOverride,
   type PlantProfileValues,
   type PlantResolvedProfile,
+  plantOriginKey,
 } from '@sm/shared';
 
 /**
@@ -29,20 +31,36 @@ const clone = <T>(v: T): T => structuredClone(v);
 /** The own part of every profile, by id, as `resolveAll` reads it. */
 export type OwnProfiles = Map<string, PlantProfileValues>;
 
-const ownOrigin = (id: string): PlantModelOrigin => ({ kind: 'own', from: id, fields: [], changedBy: [] });
+const ownOrigin = (id: string): PlantModelOrigin => ({ kind: 'own', from: id, fields: [], changedBy: [], descriptionFrom: id });
+const key = plantOriginKey;
+
+/** The origins of an own interface: it, its groups, data points and file sets (into `o`). */
+function ownInterface(o: PlantResolvedProfile['origins'], i: PlantInterface, id: string): void {
+  o.interfaces[i.id] = ownOrigin(id);
+  for (const g of i.groups) {
+    o.groups[key(i.id, g.name)] = ownOrigin(id);
+    for (const d of g.dataPoints) o.points[d.id] = ownOrigin(id);
+  }
+  for (const f of i.fileSets) o.fileSets[key(i.id, f.id)] = ownOrigin(id);
+}
 
 /** A profile without a base, as a resolved profile. */
 function plain(p: PlantProfileValues): PlantResolvedProfile {
-  const points: Record<string, PlantModelOrigin> = {};
-  for (const i of p.interfaces) for (const g of i.groups) for (const d of g.dataPoints) points[d.id] = ownOrigin(p.id);
+  const origins: PlantResolvedProfile['origins'] = { interfaces: {}, points: {}, groups: {}, fileSets: {} };
+  for (const i of p.interfaces) ownInterface(origins, i, p.id);
   return {
     ...clone(p),
     chain: [p.id],
-    origins: { interfaces: Object.fromEntries(p.interfaces.map((i) => [i.id, ownOrigin(p.id)])), points },
+    descriptionFrom: p.id,
+    origins,
     notPresent: { interfaces: [], points: [] },
     unusedOverrides: { interfaces: [], points: [] },
   };
 }
+
+const FILE_SET_FIELDS = ['name', 'description', 'format', 'direction', 'pathPattern', 'producedPer', 'retention', 'encoding', 'notes'] as const;
+/** The fields in which a file set differs from the one it replaces. */
+const fileSetChanges = (a: PlantFileSet, b: PlantFileSet): string[] => FILE_SET_FIELDS.filter((k) => a[k] !== b[k]);
 
 /** Whether a value was set in an override (a key left out reads as inherited). */
 const given = (o: object, k: string) => Object.prototype.hasOwnProperty.call(o, k) && (o as Record<string, unknown>)[k] !== undefined;
@@ -59,10 +77,14 @@ export function resolveOver(p: PlantProfileValues, base: PlantResolvedProfile | 
     from: o.from,
     fields: [],
     changedBy: [...o.changedBy, ...(o.kind === 'overridden' ? [base.id] : [])],
+    descriptionFrom: o.descriptionFrom,
   });
-  const origins = {
-    interfaces: Object.fromEntries(Object.entries(base.origins.interfaces).map(([k, o]) => [k, inherit(o)])),
-    points: Object.fromEntries(Object.entries(base.origins.points).map(([k, o]) => [k, inherit(o)])),
+  const inheritAll = (r: Record<string, PlantModelOrigin>) => Object.fromEntries(Object.entries(r).map(([k, o]) => [k, inherit(o)]));
+  const origins: PlantResolvedProfile['origins'] = {
+    interfaces: inheritAll(base.origins.interfaces),
+    points: inheritAll(base.origins.points),
+    groups: inheritAll(base.origins.groups),
+    fileSets: inheritAll(base.origins.fileSets),
   };
   const notPresent = clone(base.notPresent);
   const unused = { interfaces: [] as string[], points: [] as string[] };
@@ -70,6 +92,7 @@ export function resolveOver(p: PlantProfileValues, base: PlantResolvedProfile | 
     if (!o || !fields.length) return;
     o.kind = 'overridden';
     o.fields = [...new Set([...o.fields, ...fields])];
+    if (fields.includes('description')) o.descriptionFrom = p.id;
   };
 
   // inherited interfaces: changed, not present, data points and files added
@@ -83,7 +106,11 @@ export function resolveOver(p: PlantProfileValues, base: PlantResolvedProfile | 
     if (!io.present) {
       interfaces.splice(at, 1);
       notPresent.interfaces.push({ id: iface.id, name: iface.name || iface.id, by: p.id });
-      for (const g of iface.groups) for (const d of g.dataPoints) delete origins.points[d.id];
+      for (const g of iface.groups) {
+        delete origins.groups[key(iface.id, g.name)];
+        for (const d of g.dataPoints) delete origins.points[d.id];
+      }
+      for (const f of iface.fileSets) delete origins.fileSets[key(iface.id, f.id)];
       delete origins.interfaces[iface.id];
       continue;
     }
@@ -93,14 +120,32 @@ export function resolveOver(p: PlantProfileValues, base: PlantResolvedProfile | 
     for (const g of io.groups) {
       const into = iface.groups.find((x) => x.name === g.name);
       const added = clone(g.dataPoints);
-      if (into) into.dataPoints.push(...added);
-      else iface.groups.push({ name: g.name, description: g.description, dataPoints: added });
+      if (into) {
+        into.dataPoints.push(...added);
+        // 0.12.0: a description replaces the inherited group's; an empty one inherits it
+        if (g.description) {
+          into.description = g.description;
+          touch(origins.groups[key(iface.id, g.name)], ['description']);
+        }
+      } else {
+        iface.groups.push({ name: g.name, description: g.description, dataPoints: added });
+        origins.groups[key(iface.id, g.name)] = ownOrigin(p.id);
+      }
       for (const d of added) origins.points[d.id] = ownOrigin(p.id);
     }
     for (const f of io.fileSets) {
       const same = iface.fileSets.findIndex((x) => x.id === f.id);
-      if (same >= 0) iface.fileSets[same] = clone(f);
-      else iface.fileSets.push(clone(f));
+      if (same >= 0) {
+        const inherited = iface.fileSets[same]!;
+        // a file set of the same id replaces the inherited one; an empty description inherits it (0.12.0)
+        const next = { ...clone(f), description: f.description || inherited.description };
+        const fields = fileSetChanges(inherited, next);
+        iface.fileSets[same] = next;
+        touch(origins.fileSets[key(iface.id, f.id)], fields);
+      } else {
+        iface.fileSets.push(clone(f));
+        origins.fileSets[key(iface.id, f.id)] = ownOrigin(p.id);
+      }
     }
   }
 
@@ -131,8 +176,7 @@ export function resolveOver(p: PlantProfileValues, base: PlantResolvedProfile | 
   // own interfaces
   for (const i of p.interfaces) {
     interfaces.push(clone(i));
-    origins.interfaces[i.id] = ownOrigin(p.id);
-    for (const g of i.groups) for (const d of g.dataPoints) origins.points[d.id] = ownOrigin(p.id);
+    ownInterface(origins, i, p.id);
   }
 
   // the data points without a group come last (as everywhere)
@@ -143,6 +187,9 @@ export function resolveOver(p: PlantProfileValues, base: PlantResolvedProfile | 
     manufacturer: p.manufacturer || base.manufacturer,
     model: p.model || base.model,
     category: p.category || base.category,
+    // 0.12.0: the description, too (the own part keeps it empty; the export writes only the own part)
+    description: p.description || base.description,
+    descriptionFrom: p.description ? p.id : base.descriptionFrom,
     interfaces,
     chain: [p.id, ...base.chain],
     origins,
@@ -321,13 +368,19 @@ export function normalizeOwnPart(p: PlantProfileValues, base: PlantResolvedProfi
       const inherited = base.interfaces.find((x) => x.id === o.interface);
       const names = inherited?.groups.map((g) => g.name) ?? [];
       const groupAt = new Map(names.map((g, i) => [g, i]));
-      const kept = o.groups.filter((g) => g.dataPoints.length || !groupAt.has(g.name));
+      // a group of an inherited name stays when it adds data points or describes the group (0.12.0)
+      const kept = o.groups.filter((g) => g.dataPoints.length || g.description || !groupAt.has(g.name));
+      // a file set that only repeats the inherited one (an empty description inherits) is no change
+      const fileSets = o.fileSets.filter((f) => {
+        const was = inherited?.fileSets.find((x) => x.id === f.id);
+        return !was || fileSetChanges(was, { ...f, description: f.description || was.description }).length > 0;
+      });
       const inheritedGroups = order(
         kept.filter((g) => groupAt.has(g.name)),
         (g) => g.name,
         groupAt,
       );
-      return { ...o, groups: [...inheritedGroups, ...kept.filter((g) => !groupAt.has(g.name))] };
+      return { ...o, groups: [...inheritedGroups, ...kept.filter((g) => !groupAt.has(g.name))], fileSets };
     })
     // an override that changes and adds nothing is no override
     .filter((o) => !o.present || PROFILE_INTERFACE_FIELDS.some((k) => given(o, k)) || o.groups.length || o.fileSets.length);

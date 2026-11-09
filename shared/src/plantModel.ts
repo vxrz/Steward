@@ -49,9 +49,12 @@ export interface PlantInterfaceOverride {
   authentication?: PlantAuthKind;
   client?: string;
   notes?: string;
-  /** Data points added to it; a group of the same name as an inherited one adds to that group */
+  /**
+   * Data points added to it; a group of the same name as an inherited one adds to that group, and its description
+   * (when not empty) replaces the inherited group's (0.12.0)
+   */
   groups: PlantPointGroup[];
-  /** Files added to it; the same id as an inherited file set replaces that one */
+  /** Files added to it; the same id as an inherited file set replaces that one (an empty description inherits, 0.12.0) */
   fileSets: PlantFileSet[];
 }
 
@@ -73,6 +76,9 @@ export interface PlantProfilePointOverride {
   publications?: PlantDataPoint['publications'];
 }
 
+/** The key of a group or file set in `PlantResolvedProfile.origins` (interface ids hold no "/"). */
+export const plantOriginKey = (iface: string, name: string): string => `${iface}/${name}`;
+
 /** Where an item of a resolved profile comes from, seen from that profile. */
 export type PlantModelOriginKind = 'own' | 'inherited' | 'overridden';
 
@@ -84,6 +90,8 @@ export interface PlantModelOrigin {
   fields: string[];
   /** Profiles between the defining one and this one that changed it */
   changedBy: string[];
+  /** 0.12.0: the profile whose description of it is in effect (inherited descriptions say where they come from) */
+  descriptionFrom: string;
 }
 
 /**
@@ -94,9 +102,15 @@ export interface PlantModelOrigin {
 export interface PlantResolvedProfile extends PlantProfileValues {
   /** The profile and its bases, nearest first: [this, base, base of the base …] */
   chain: string[];
+  /** 0.12.0: the profile whose description is in effect (a derived profile without its own inherits its base's) */
+  descriptionFrom: string;
   origins: {
     interfaces: Record<string, PlantModelOrigin>;
     points: Record<string, PlantModelOrigin>;
+    /** 0.12.0: data point groups, by `<interface>/<group name>` (the group without a name: `<interface>/`) */
+    groups: Record<string, PlantModelOrigin>;
+    /** 0.12.0: file sets, by `<interface>/<file set id>` */
+    fileSets: Record<string, PlantModelOrigin>;
   };
   /** Inherited items this profile (or a base between) marks as not present */
   notPresent: {

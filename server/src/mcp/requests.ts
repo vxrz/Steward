@@ -4,6 +4,7 @@ import {
   MCP_REQUEST_LIMITS,
   type McpCatalogueProposal,
   type McpMappingsProposal,
+  type McpPlantProposal,
   type McpProposalSummary,
   type McpProposalSelection,
   type McpRequest,
@@ -93,9 +94,16 @@ export interface ReviewKind {
   describe: (r: Row) => string;
   /** What the proposal is about, for lists (cheap: no comparison, no lookups) */
   summary: (r: Row) => McpProposalSummary;
-  view: (r: Row, u: AuthUser) => McpCatalogueProposal | McpMappingsProposal;
+  view: (r: Row, u: AuthUser) => McpCatalogueProposal | McpMappingsProposal | McpPlantProposal;
   /** Applies what the reviewer accepted, as the reviewer; the result is stored with the request */
   apply: (r: Row, selection: McpProposalSelection | undefined, u: AuthUser) => { body: unknown; error?: string };
+  /**
+   * 0.12.0: checked as the reviewer before the request is claimed – a refusal (an HttpError) leaves the request open,
+   * for example when what it would apply changed since it was proposed and the reviewer has not confirmed that
+   */
+  precheck?: (r: Row, selection: McpProposalSelection | undefined, u: AuthUser) => void;
+  /** 0.12.0: called in the transaction that rejects or withdraws it (an audit entry of the module, for example) */
+  onRejected?: (r: Row, u: AuthUser, o: { withdrawn: boolean; comment: string }) => void;
 }
 const REVIEW_KINDS = new Map<McpRequestKind, ReviewKind>();
 export function registerReviewKind(kind: McpRequestKind, def: ReviewKind): void {
@@ -574,6 +582,7 @@ export async function decide(
         ).changes !== 1
       )
         throw new HttpError(409, 'The request is no longer open', 'MCP_REQUEST_DECIDE');
+      reviewOf(r)?.onRejected?.(r, u, { withdrawn: own, comment });
       audit({
         action: own ? 'mcp.request_withdrawn' : 'mcp.request_rejected',
         entityType: 'mcp_request',
@@ -598,6 +607,9 @@ export async function decide(
       'MCP_REQUEST_APPROVE',
     );
   if (r.mode === 'fourEyes') noteFourEyes('mcp.write', [r.requested_by], u, { itemRequires: true });
+  // a proposal's own check as the reviewer: refused, the request stays open (0.12.0)
+  const pre = reviewOf(r)?.precheck;
+  if (pre) runAs(u, () => pre(r, input.selection, u));
   // claim it: whoever gets here first runs it, exactly once
   const at = nowIso();
   if (

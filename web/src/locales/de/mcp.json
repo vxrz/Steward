@@ -99,7 +99,8 @@
     "result": "Antwort der Plattform: HTTP {{status}}",
     "kinds": {
       "catalogue": "Kontrollkatalog",
-      "mappings": "Zuordnungen zu Kontrollen"
+      "mappings": "Zuordnungen zu Kontrollen",
+      "plant": "Anlagenverzeichnis"
     },
     "acceptProposal_one": "{{count}} Eintrag übernehmen",
     "acceptProposal_other": "{{count}} Einträge übernehmen",
@@ -229,5 +230,28 @@
     },
     "resultCatalogue": "Katalog {{key}}: {{added}} ergänzt, {{updated}} geändert, {{removed}} entfernt.",
     "resultMappings": "{{mapped}} zugeordnet, {{skipped}} übersprungen (schon zugeordnet, Kontrolle fehlt oder nicht sichtbar)."
+  },
+  "plantProposal": {
+    "added_one": "Ergänzt ({{count}} Eintrag)",
+    "added_other": "Ergänzt ({{count}} Einträge)",
+    "changed_one": "Geändert ({{count}} Eintrag)",
+    "changed_other": "Geändert ({{count}} Einträge)",
+    "countAdded_one": "{{count}} ergänzt",
+    "countAdded_other": "{{count}} ergänzt",
+    "countChanged_one": "{{count}} geändert",
+    "countChanged_other": "{{count}} geändert",
+    "onlyAddChange": "Ein Vorschlag ergänzt und ändert nur Einträge: Er entfernt oder benennt nie etwas um. Das Übernehmen führt den Import mit Ihren Rechten in einer Transaktion aus.",
+    "hidden_one": "{{count}} Eintrag in einem Standort, den Sie nicht sehen dürfen, ist ausgelassen.",
+    "hidden_other": "{{count}} Einträge in Standorten, die Sie nicht sehen dürfen, sind ausgelassen.",
+    "appliedAs": "Übernommen als Import {{id}}.",
+    "problemsTitle": "Der Vorschlag lässt sich jetzt nicht übernehmen",
+    "changedSinceTitle": "Das Verzeichnis hat sich seit dem Vorschlag geändert",
+    "changedSinceText": "Was das Übernehmen jetzt ändern würde, unterscheidet sich vom Vorschlag des Assistenten. Vergleichen Sie die aktuelle Vorschau mit der des Vorschlags, bevor Sie ihn übernehmen.",
+    "confirm": "Ich habe die aktuelle Vorschau geprüft und möchte sie übernehmen",
+    "previewNow": "Was das Übernehmen jetzt ändert",
+    "previewProposed": "Was der Vorschlag beim Einreichen änderte",
+    "warnings": "Warnungen",
+    "checks": "Was Steward nach dem Übernehmen prüft",
+    "result": "{{added}} ergänzt, {{changed}} geändert."
   }
 }

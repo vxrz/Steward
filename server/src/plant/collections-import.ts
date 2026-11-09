@@ -285,11 +285,14 @@ function plan(assetId: string, input: CollectionImportInput, problems: PlantColl
       continue;
     }
     const before = new Map((prev?.v.items ?? []).filter((i) => i.dataPoint).map((i) => [`${i.outputName}\u0000${i.address}`, i.dataPoint!]));
+    const prevDescription = new Map((prev?.v.items ?? []).filter((i) => i.description).map((i) => [`${i.outputName}\u0000${i.address}`, i.description]));
     const items: PlantCollectionPreviewItem[] = c.items.map((it, index) => {
       const s = suggest(it, ctx, protocol, mapping, remembered, collectorAliases, before);
       const point = s.suggestion.dataPoint ? ctx.points.find((p) => p.id === s.suggestion.dataPoint) : undefined;
       return {
         ...it,
+        // a description written by hand stays when the file has none (0.12.0)
+        description: it.description || prevDescription.get(`${it.outputName}\u0000${it.address}`) || '',
         dataPoint: s.suggestion.accepted ? s.suggestion.dataPoint : null,
         index,
         suggestion: s.suggestion,
@@ -313,6 +316,7 @@ function plan(assetId: string, input: CollectionImportInput, problems: PlantColl
       access: c.access,
       settings: c.settings.slice(0, L.settings),
       items: items.map(({ index: _i, suggestion: _s, alternatives: _a, pointAddress: _p, newAlias: _n, ...x }) => x),
+      description: prev?.v.description ?? '',
       notes: c.notes || prev?.v.notes || '',
       format,
       sourceFile: input.files
