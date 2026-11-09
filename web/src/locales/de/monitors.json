@@ -11,7 +11,10 @@
     "checks_one": "{{count}} Prüfung",
     "checks_other": "{{count}} Prüfungen",
     "uptimeSince": "Verfügbarkeit 24 h {{uptime}} · Status seit {{since}}",
-    "acknowledgedBy": "bestätigt von {{user}}"
+    "acknowledgedBy": "bestätigt von {{user}}",
+    "hideOff": "Aus ausblenden",
+    "offAgree": "{{state}} – alle Prüfungen stimmen überein",
+    "offSettling": "{{state}} · stellt sich ein, {{minutes}} min"
   },
   "title": "Monitore",
   "description": "Zusammensetzbare Statusprüfungen mit Abhängigkeiten: Jede Prüfung läuft nach eigenem Zeitplan; Verknüpfungen erklären Ausfälle (Ursachen) und halten Folgealarme zurück.",
@@ -126,6 +129,9 @@
     "downAfterMissed": "Ausgefallen nach verpassten",
     "downOlderThan": "Ausgefallen, wenn älter als (s)",
     "degradedOlderThan": "Beeinträchtigt, wenn älter als (s)",
+    "allowedDelay": "Erlaubte Verzögerung (s)",
+    "allowedDelayHintCadence": "So viel später als ihr Zeitstempel dürfen die Daten ankommen (Upload-Zyklus des Gateways, Aufnahme): Verpasste Intervalle zählen ab dem Alter abzüglich dieses Werts. Standard 0.",
+    "allowedDelayHintMaxAge": "So viel später als ihr Zeitstempel dürfen die Daten ankommen (Upload-Zyklus des Gateways, Aufnahme): Ausgefallen erst, wenn älter als das Höchstalter plus dieser Wert. Standard 0.",
     "optional": "optional",
     "checkId": "Prüfungs-ID",
     "checkIdHint": "Buchstaben, Ziffern, _ und -; verwendet in Verknüpfungen, Item-Keys und der API",
@@ -610,7 +616,16 @@
     "teamsChannel": "Teams-Kanal",
     "teamsChannelHint": "Eine Plattform der Art „Microsoft-Teams-Kanal (Workflows)“: Sie speichert die Workflows-URL verschlüsselt, ihre Zugriffsliste bestimmt, wer dorthin posten darf",
     "urgent": "Dringend – unterbricht Ruhezeiten",
-    "urgentHint": "Ein Wechsel auf ausgefallen erreicht Personen und Kanäle sofort, auch in ihrer Ruhezeit (außer sie haben das ausgeschaltet)."
+    "urgentHint": "Ein Wechsel auf ausgefallen erreicht Personen und Kanäle sofort, auch in ihrer Ruhezeit (außer sie haben das ausgeschaltet).",
+    "stateChanges": "Zustandswechsel mitteilen",
+    "stateChangesHint": "Monitore mit Zuständen: zusätzlich eine Nachricht zur Information, wenn der Zustand wechselt, z. B. Läuft → Aus (nie dringend)",
+    "whileOff": "Während aus",
+    "whileOffHint": "Was Gatus erhält, während der Monitor aus ist; ein Widerspruch und Aus über den Höchstwert hinaus sind immer Fehler",
+    "whileOffValues": {
+      "success": "Während aus: Erfolg",
+      "failure": "Während aus: Fehler",
+      "skip": "Während aus: nichts senden"
+    }
   },
   "heartbeat": {
     "endpoint": "Heartbeat-Endpunkt",
@@ -637,6 +652,7 @@
     "description": "Fügen Sie Prüfungen aus der Palette hinzu und verbinden Sie sie: Ziehen Sie vom unteren Anfasser einer Prüfung zu der Prüfung, die von ihr abhängt.",
     "tabs": {
       "graph": "Prüfungen und Verknüpfungen",
+      "states": "Zustände",
       "settings": "Einstellungen"
     },
     "palette": "Prüfungspalette",
@@ -734,7 +750,8 @@
     "down": "Ausgefallen",
     "unknown": "Unbekannt",
     "blocked": "Blockiert",
-    "maintenance": "Wartung"
+    "maintenance": "Wartung",
+    "off": "Aus"
   },
   "statusLower": {
     "up": "ok",
@@ -742,7 +759,8 @@
     "down": "ausgefallen",
     "unknown": "unbekannt",
     "blocked": "blockiert",
-    "maintenance": "in Wartung"
+    "maintenance": "in Wartung",
+    "off": "aus"
   },
   "statusInfo": {
     "up": "In Ordnung",
@@ -750,7 +768,8 @@
     "down": "Fehlschlag",
     "unknown": "Noch keine Daten, oder die Prüfung selbst konnte nicht laufen",
     "blocked": "Nicht ausgewertet, weil eine harte Abhängigkeit ausgefallen ist",
-    "maintenance": "Im Wartungsfenster – Alarme ruhen"
+    "maintenance": "Im Wartungsfenster – Alarme ruhen",
+    "off": "Aus – alle Prüfungen stimmen mit einem erwarteten Zustand überein (kein Alarm)"
   },
   "checkTypes": {
     "ping": {
@@ -914,5 +933,130 @@
     "message": "Meldung",
     "skipped": "übersprungen",
     "notRecorded": "keine Aufzeichnung"
+  },
+  "observed": {
+    "title": "Höchstes Alter vor neuen Daten ({{days}} Tage)",
+    "figures_one": "Median {{median}}, 95 % {{p95}}, Maximum {{max}} · Verzögerung {{delay}} · {{count}} Messung · geprüft alle {{every}}",
+    "figures_other": "Median {{median}}, 95 % {{p95}}, Maximum {{max}} · Verzögerung {{delay}} · {{count}} Messungen · geprüft alle {{every}}",
+    "none": "Noch keine Messung: Eine entsteht, wenn ein Lesen einen neueren Wert sieht als das Lesen davor (geprüft alle {{every}}).",
+    "worstVariable": "Werte und Vorschlag der Variable, die am ältesten wird: {{name}}",
+    "excluded": "Nicht verwendet: {{list}}",
+    "failedReads_one": "{{count}} fehlgeschlagenes Lesen",
+    "failedReads_other": "{{count}} fehlgeschlagene Lesevorgänge",
+    "wentBackwards_one": "{{count}} Lesen, das zurücksprang",
+    "wentBackwards_other": "{{count}} Lesevorgänge, die zurücksprangen",
+    "futureTimestamps_one": "{{count}} Zeitstempel in der Zukunft (Uhrabweichung)",
+    "futureTimestamps_other": "{{count}} Zeitstempel in der Zukunft (Uhrabweichung)",
+    "maintenance_one": "{{count}} Messung während einer Wartung",
+    "maintenance_other": "{{count}} Messungen während einer Wartung",
+    "notEnough_one": "Ein Vorschlag braucht {{hours}} Stunden und {{samples}} Messungen – bisher {{coverage}} und {{count}} Messung.",
+    "notEnough_other": "Ein Vorschlag braucht {{hours}} Stunden und {{samples}} Messungen – bisher {{coverage}} und {{count}} Messungen.",
+    "note": "Obergrenzen: Ein Wert kann bis zu ein Prüfintervall zu hoch sein – wählen Sie während der Messung ein kurzes Intervall. Abweichungen der Geräteuhr sind in den Werten enthalten (erkennbar ist nur eine vorgehende Uhr).",
+    "suggestion": "Vorgeschlagen aus dem 95-%-Wert des höchsten Alters von {{p95}}, auf die Minute aufgerundet, plus ein Prüfintervall ({{margin}}):",
+    "field": {
+      "allowedDelaySeconds": "Erlaubte Verzögerung",
+      "maxAgeSeconds": "Ausgefallen, wenn älter als",
+      "degradedAgeSeconds": "Beeinträchtigt, wenn älter als"
+    },
+    "notSet": "nicht gesetzt",
+    "apply": "Vorschlag übernehmen",
+    "covered": "Die aktuellen Einstellungen decken das beobachtete höchste Alter bereits ab."
+  },
+  "states": {
+    "offTime": "Erwartungsgemäß aus 24 h {{h24}} · 7 T {{d7}} · 30 T {{d30}} (zählt nicht)",
+    "verdict": {
+      "agrees": "stimmt",
+      "contradicts": "widerspricht",
+      "settling": "stellt sich ein",
+      "unknown": "nicht geprüft"
+    },
+    "offBanner": "{{state}} – alle Prüfungen stimmen überein",
+    "offSince": "Aus seit {{date}}",
+    "settlingUntil": "stellt sich ein bis {{date}}",
+    "offOfMax": "aus {{off}} von {{max}}",
+    "plannedDowntime": "jetzt geplante Stillstandszeit (zählt nicht)",
+    "unknownChecks_one": "{{count}} Prüfung konnte nicht geprüft werden",
+    "unknownChecks_other": "{{count}} Prüfungen konnten nicht geprüft werden",
+    "whyTitle": "Warum dieser Zustand",
+    "current": "Zustand: {{state}}",
+    "otherwise": "Sonst",
+    "since": "seit {{date}}",
+    "reason": {
+      "agree": "Alle Prüfungen stimmen überein",
+      "settling": "Stellt sich ein",
+      "contradiction": "Widerspruch",
+      "required": "Voraussetzung nicht erfüllt",
+      "maxOff": "Länger aus als erwartet",
+      "flapping": "Wechselt zu oft den Zustand",
+      "unknown": "Nicht bekannt",
+      "otherwise": "Kein Zustand passt"
+    },
+    "closest": "Nächster Zustand: {{state}}.",
+    "deviates": "{{check}}: erwartet {{expected}}, ist {{actual}}",
+    "cell": {
+      "up": "In Betrieb",
+      "down": "Ausgefallen",
+      "off": "Aus"
+    },
+    "role": "Rolle",
+    "check": "Prüfung",
+    "expected": "Erwartet",
+    "actual": "Ist",
+    "verdictTitle": "Ergebnis",
+    "roles": {
+      "when": "Gewählt durch",
+      "requires": "Vorausgesetzt",
+      "expect": "Erwartet"
+    },
+    "changesLastHour_one": "{{count}} Zustandswechsel in der letzten Stunde",
+    "changesLastHour_other": "{{count}} Zustandswechsel in der letzten Stunde",
+    "intro": "Zustände sagen, wann die Prüfungen ausfallen dürfen: Eine absichtlich ausgeschaltete Maschine ist grau und still (Aus), und nur Prüfungen, die dem Zustand widersprechen, lösen einen Alarm aus. Die erste Zeile, deren Bedingung passt, gilt; Sonst wertet den Monitor aus wie ohne Zustände.",
+    "enable": "Zustände hinzufügen",
+    "defaultRunning": "Läuft",
+    "defaultOff": "Aus",
+    "disable": "Zustände entfernen",
+    "follows": "Folgt dem Zustand von",
+    "followsHint": "Für einen Monitor, der seinen Zustand nicht selbst erkennen kann: Seine Zeilen nennen die Zustands-IDs des anderen Monitors",
+    "maxOff": "Höchste Aus-Zeit (Stunden)",
+    "maxOffHint": "Länger aus ist eingeschränkt und benachrichtigt; leer: {{hours}} h, 0: kein Höchstwert",
+    "leaderIds": "Zustände des Monitors, dem er folgt: {{ids}}",
+    "legend": "In Betrieb, Ausgefallen und Aus sind Erwartungen; Zellen mit „wählt“ sind die Bedingung des Zustands; vorausgesetzte Prüfungen müssen in Betrieb sein, damit dem Zustand vertraut wird.",
+    "order": "Reihenfolge",
+    "state": "Zustand",
+    "shows": "Zeigt",
+    "settle": "Einschwingzeit",
+    "maxOffShort": "Max. aus",
+    "remove": "Entfernen",
+    "moveUp": "{{state}} nach oben",
+    "moveDown": "{{state}} nach unten",
+    "name": "Name von Zustand {{n}}",
+    "id": "ID von Zustand {{n}}",
+    "matchesNow": "Passt jetzt",
+    "showsOf": "{{state}} zeigt",
+    "cellLabel": "{{state}} – {{check}}",
+    "choice": {
+      "any": "Beliebig",
+      "up": "In Betrieb",
+      "down": "Ausgefallen",
+      "off": "Aus",
+      "when_up": "In Betrieb · wählt",
+      "when_down": "Ausgefallen · wählt",
+      "when_off": "Aus · wählt",
+      "requires": "Vorausgesetzt"
+    },
+    "settleOf": "Einschwingzeit von {{state}} (Minuten)",
+    "derived": "{{value}} (abgeleitet)",
+    "maxOffOf": "Höchste Aus-Zeit von {{state}} (Stunden)",
+    "removeState": "{{state}} entfernen",
+    "otherwiseHint": "wie ohne Zustände",
+    "add": "Zustand",
+    "warning": "Warnung",
+    "rowRef": "Zustand {{n}}",
+    "tryTitle": "Ausprobieren",
+    "tryHint": "Setzen Sie jede Prüfung auf einen Status: welcher Zustand gilt und was der Monitor melden würde (nichts wird gespeichert; Einschwingzeiten bleiben unberücksichtigt).",
+    "leaderState": "Zustand des führenden Monitors",
+    "try": "Ausprobieren",
+    "wins": "{{state}} gilt",
+    "otherwiseWins": "Kein Zustand passt – ausgewertet wie ohne Zustände"
   }
 }

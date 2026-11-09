@@ -90,8 +90,12 @@
     "unknown": "Status unknown: {{where}}",
     "blocked": "Blocked: {{where}}",
     "maintenance": "Maintenance: {{where}}",
+    "off": "Off: {{where}}",
     "rootCause": "Root cause: {{causes}}.",
-    "hiddenMonitor": "a monitor you cannot view"
+    "hiddenMonitor": "a monitor you cannot view",
+    "stateChanged": "{{where}}: {{from}} → {{to}}",
+    "stateAgree": "All checks agree with the state {{to}}.",
+    "stateNone": "no state"
   },
   "credentialDue": {
     "kinds": {

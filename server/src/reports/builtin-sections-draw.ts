@@ -76,6 +76,8 @@ export interface MonitorAvail {
   uptime: number | null;
   outages: { from: string; to: string | null; durationMs: number }[];
   downtimeMs: number;
+  /** Monitors with states (ADR 0021): time off as expected, not counted in the uptime (missing: none) */
+  offMs?: number;
   avgMs: number | null;
   p95Ms: number | null;
 }
@@ -172,6 +174,8 @@ export const availabilitySectionDraw: ReportSectionDraw<AvailabilityData> = {
     const targets = new Set(d.monitors.map((m) => rowTarget(d, m)));
     const single = targets.size === 1 ? [...targets][0]! : null;
     if (d.monitors.some((m) => m.targetFrom === 'objective')) w.paragraph(st(lang, 'slaFromObjectives'), { tone: 'muted', size: 8 });
+    // the column "Off" only when a monitor with states was off in the period (reports without it look as before)
+    const withOff = d.monitors.some((m) => (m.offMs ?? 0) > 0);
     uptimeBars(
       w,
       st(lang, 'chartMonitors', { min }),
@@ -185,6 +189,7 @@ export const availabilitySectionDraw: ReportSectionDraw<AvailabilityData> = {
         { header: single !== null ? `${st(lang, 'sla')} ${pctText(lang, single)}` : st(lang, 'sla'), width: 1.4 },
         { header: st(lang, 'incidents'), width: 1.1, align: 'right' },
         { header: st(lang, 'downtime'), width: 1.4, align: 'right' },
+        ...(withOff ? [{ header: st(lang, 'offTime'), width: 1.2, align: 'right' as const }] : []),
         { header: st(lang, 'avgMs'), width: 1.1, align: 'right' },
         { header: st(lang, 'p95Ms'), width: 1.1, align: 'right' },
       ],
@@ -194,6 +199,7 @@ export const availabilitySectionDraw: ReportSectionDraw<AvailabilityData> = {
         slaCell(lang, m.uptime, rowTarget(d, m), single === null),
         String(m.outages.length),
         m.downtimeMs ? tr.duration(m.downtimeMs) : '–',
+        ...(withOff ? [m.offMs ? tr.duration(m.offMs) : '–'] : []),
         m.avgMs === null ? '–' : String(m.avgMs),
         m.p95Ms === null ? '–' : String(m.p95Ms),
       ]),

@@ -72,6 +72,10 @@
       "status": {
         "label": "Monitor-Status",
         "info": "Ein Monitor, den Sie besitzen oder abonniert haben, hat seinen Status geändert (nur Ursachen)"
+      },
+      "state": {
+        "label": "Monitorzustand",
+        "info": "Ein Monitor mit Zuständen hat seinen Zustand gewechselt, z. B. Läuft → Aus (zur Information, wenn seine Benachrichtigungsausgabe es vorsieht)"
       }
     },
     "credential": {

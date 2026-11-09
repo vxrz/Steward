@@ -55,6 +55,7 @@ import { PageHeader } from '../components/common';
 import { MonitorGraph, NODE_H, NODE_W, autoLayout } from '../components/monitors/MonitorGraph';
 import { CheckForm } from '../components/monitors/CheckForm';
 import { OutputsEditor } from '../components/monitors/OutputsEditor';
+import { StatesEditor } from '../components/monitors/StatesEditor';
 import { CHECK_ICONS, newCheck } from '../components/monitors/checkMeta';
 import { SecretsModal } from '../components/monitors/dialogs';
 import { MonitorStatusBadge, checkTypeHelp, checkTypeLabel } from '../components/monitors/status';
@@ -442,6 +443,11 @@ export function MonitorEditorPage() {
       <Tabs value={tab} onChange={setTab} keepMounted={false}>
         <Tabs.List mb="sm">
           {!isTemplate && <Tabs.Tab value="graph">{t('editor.tabs.graph')}</Tabs.Tab>}
+          {!isTemplate && (
+            <Tabs.Tab value="states" data-testid="tab-states">
+              {t('editor.tabs.states')}
+            </Tabs.Tab>
+          )}
           <Tabs.Tab value="settings">{t('editor.tabs.settings')}</Tabs.Tab>
           {!isTemplate && <Tabs.Tab value="outputs">{t('outputs.title')}</Tabs.Tab>}
           <Tabs.Tab value="yaml">YAML</Tabs.Tab>
@@ -569,6 +575,7 @@ export function MonitorEditorPage() {
                         const hb = idFixed(selected!, selIndex) ? existing.data?.checks.find((x) => x.checkId === sel.id)?.heartbeat : undefined;
                         return hb ? { at: hb.lastPushAt, report: hb.lastPush } : null;
                       })()}
+                      observedDelay={idFixed(selected!, selIndex) ? existing.data?.checks.find((x) => x.checkId === sel.id)?.observedDelay : null}
                       errors={errorsOf(selIndex)}
                     />
                   </Stack>
@@ -692,6 +699,15 @@ export function MonitorEditorPage() {
               />
             )}
           </Stack>
+        </Tabs.Panel>
+        <Tabs.Panel value="states">
+          <StatesEditor
+            def={def}
+            onChange={(d) => setDef(d)}
+            current={existing.data ?? null}
+            monitors={monitors.data ?? []}
+            selfId={existing.data?.id ?? null}
+          />
         </Tabs.Panel>
         <Tabs.Panel value="outputs">
           {!canManage && (

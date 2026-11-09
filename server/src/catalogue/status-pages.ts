@@ -251,6 +251,8 @@ const STATE_OF: Record<MonitorStatus, ServiceState> = {
   up: 'operational',
   unknown: 'unknown',
   blocked: 'unknown',
+  // off (ADR 0021): the service is as planned
+  off: 'operational',
 };
 const RANK: ServiceState[] = ['outage', 'degraded', 'maintenance', 'unknown', 'operational'];
 const worst = (list: ServiceState[]): ServiceState => (list.length ? RANK.find((s) => list.includes(s))! : 'unknown');

@@ -294,6 +294,124 @@ describe('check types', () => {
     expect(after - before).toBeGreaterThanOrEqual(1);
   });
 
+  it('Insights Hub freshness: the allowed delay and the observed delay (engine, API, mock data path)', async () => {
+    const { clearBatchCaches } = await import('../src/monitors/batch.js');
+    const asset = 'delay-test-asset';
+    // values every second, readable 100 s after their timestamp; every 4th read fails
+    await fetch(`${s.base}/mock/ih/test/timeseries/pipeline`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        assetId: asset,
+        aspect: 'Hydraulics',
+        variables: ['pressure'],
+        pipeline: { cadenceSeconds: 1, ingestDelaySeconds: 100, failEvery: 4 },
+      }),
+    });
+    const { monitor } = await dana('POST', '/monitors', {
+      definition: {
+        name: 'IH delay',
+        failuresBeforeDown: 1,
+        checks: [
+          {
+            id: 'ih',
+            name: 'Hydraulics in Insights Hub',
+            type: 'freshness',
+            platform: 'Insights Hub (demo)',
+            assetId: asset,
+            aspect: 'Hydraulics',
+            variables: ['pressure'],
+            mode: 'maxAge',
+            maxAgeSeconds: 60,
+            allowedDelaySeconds: 90,
+          },
+        ],
+      },
+    });
+    const run = async () => {
+      clearBatchCaches();
+      const m = await evaluate(monitor.id);
+      await new Promise((r) => setTimeout(r, 1100));
+      return m;
+    };
+    let m = await run();
+    expect(check(m, 'ih').status).toBe('up');
+    expect(check(m, 'ih').last.message).toMatch(/^Newest value of pressure is 10[01] s old, 90 s of it allowed delay$/);
+    expect(check(m, 'ih').observedDelay.worst).toBeNull(); // the first read: nothing to compare with
+    for (let i = 0; i < 4; i++) m = await run();
+    const od = check(m, 'ih').observedDelay;
+    // 5 reads, one of them failed: 3 samples of a value that became readable 100 s after its timestamp
+    expect(od.excluded).toEqual({ failedReads: 1, wentBackwards: 0, futureTimestamps: 0, maintenance: 0 });
+    expect(od.worst.name).toBe('pressure');
+    expect(od.worst.samples).toBe(3);
+    expect(od.worst.delay.high).toBeGreaterThanOrEqual(100);
+    expect(od.worst.delay.high).toBeLessThanOrEqual(104);
+    expect(od.worst.peakAge.max).toBeLessThanOrEqual(106);
+    expect(od.enough).toBe(false);
+    expect(od.suggestion).toBeNull();
+    expect(od.intervalSeconds).toBe(60);
+    // the public API returns it on the check's status
+    const { token } = await dana('POST', '/me/tokens', { name: 'delay read', scope: 'read' });
+    const v1 = await (await fetch(`${s.base}/api/v1/monitors/${monitor.id}/status`, { headers: { authorization: `Bearer ${token}` } })).json();
+    expect(v1.checks[0].observedDelay.worst.samples).toBe(3);
+    // the YAML export carries the allowance, and an import keeps it
+    const yaml = await s.api('GET', `/monitors/${monitor.id}/export`);
+    expect(yaml).toMatch(/allowedDelaySeconds: 90/);
+    const copy = await dana('POST', '/monitors/import', { yaml, key: 'ih-delay-copy' });
+    expect(copy.monitor.definition.checks[0].allowedDelaySeconds).toBe(90);
+    // a threshold change keeps the series, a change of the source starts a new one
+    const def = m.definition;
+    await dana('PUT', `/monitors/${monitor.id}`, { definition: { ...def, checks: [{ ...def.checks[0], maxAgeSeconds: 120, allowedDelaySeconds: 30 }] } });
+    expect(check(await s.api('GET', `/monitors/${monitor.id}`), 'ih').observedDelay.worst.samples).toBe(3);
+    await dana('PUT', `/monitors/${monitor.id}`, { definition: { ...def, checks: [{ ...def.checks[0], variables: ['pressure', 'temperature'] }] } });
+    expect(check(await s.api('GET', `/monitors/${monitor.id}`), 'ih').observedDelay).toBeNull();
+    await fetch(`${s.base}/mock/ih/test/timeseries/pipeline`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ assetId: asset, aspect: 'Hydraulics', pipeline: null }),
+    });
+  });
+
+  it('Insights Hub freshness: a lagging read does not make data look older', async () => {
+    const { clearBatchCaches } = await import('../src/monitors/batch.js');
+    const pipeline = (assetId: string, body: Record<string, unknown>) =>
+      fetch(`${s.base}/mock/ih/test/timeseries/pipeline`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ assetId, aspect: 'Lagging', ...body }),
+      });
+    // uploads every 10 minutes; every 2nd read answers as of one upload earlier
+    await pipeline('lag-asset', { variables: ['level'], pipeline: { cadenceSeconds: 60, uploadEverySeconds: 600, backwardsEvery: 2 } });
+    const { monitor } = await dana('POST', '/monitors', {
+      definition: {
+        name: 'IH lagging',
+        failuresBeforeDown: 1,
+        checks: [
+          {
+            id: 'ih',
+            name: 'Level',
+            type: 'freshness',
+            platform: 'Insights Hub (demo)',
+            assetId: 'lag-asset',
+            aspect: 'Lagging',
+            variables: ['level'],
+            mode: 'maxAge',
+            maxAgeSeconds: 610,
+          },
+        ],
+      },
+    });
+    clearBatchCaches();
+    const first = await evaluate(monitor.id);
+    expect(check(first, 'ih').status).toBe('up');
+    clearBatchCaches();
+    // the lagging read sees a value 10 minutes older: the status keeps the newest seen
+    const second = await evaluate(monitor.id);
+    expect(check(second, 'ih').status).toBe('up');
+    expect(check(second, 'ih').observedDelay.excluded.wentBackwards).toBe(1);
+    await pipeline('lag-asset', { pipeline: null });
+  });
+
   it('Insights Hub freshness finds the newest value past the first page of the look-back (oldest records come first)', async () => {
     const { clearBatchCaches } = await import('../src/monitors/batch.js');
     await fetch(`${s.base}/mock/ih/test/timeseries/reset`, { method: 'POST' });
@@ -338,6 +456,8 @@ describe('check types', () => {
     // an incomplete read is unknown, never down
     expect(check(f, 'flood').status).toBe('unknown');
     expect(check(f, 'flood').last.message).toMatch(/Too much data to find the newest value/);
+    // and for the observed delay a failed read: counted, not used
+    expect(check(f, 'flood').observedDelay.excluded.failedReads).toBe(1);
   });
 
   it('Gatus endpoint status', async () => {

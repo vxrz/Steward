@@ -13,17 +13,20 @@ import type { AclEntry } from './api.js';
 import { boundedRecord } from './zodLimits.js';
 import { DB_LIMITS } from './database.js';
 import { tagInput } from './tags.js';
+import type { ObservedDelay } from './freshnessDelay.js';
+import type { MonitorStateInfo } from './monitorStates.js';
 import { AWS_REGION_RE } from './aws.js';
 import { PAGE_WATCH_LIMITS, PAGE_WATCH_UUID_RE } from './changedetection.js';
 import { COST_CHECK_PERIODS, COST_SCOPES, currencyCode, toMicros } from './costs.js';
 
 // ---------- statuses ----------
 
-export const MONITOR_STATUSES = ['up', 'degraded', 'down', 'unknown', 'blocked', 'maintenance'] as const;
+/** `off` (0.13, ADR 0021): a monitor or check in a state with status off, every check agreeing – never an alert. */
+export const MONITOR_STATUSES = ['up', 'degraded', 'down', 'unknown', 'blocked', 'maintenance', 'off'] as const;
 export type MonitorStatus = (typeof MONITOR_STATUSES)[number];
 
-/** Numeric codes used by Prometheus, Zabbix and other number-only consumers. */
-export const MONITOR_STATUS_CODE: Record<MonitorStatus, number> = { up: 0, degraded: 1, down: 2, unknown: 3, blocked: 4, maintenance: 5 };
+/** Numeric codes used by Prometheus, Zabbix and other number-only consumers (codes 0–5 never move; off is 6). */
+export const MONITOR_STATUS_CODE: Record<MonitorStatus, number> = { up: 0, degraded: 1, down: 2, unknown: 3, blocked: 4, maintenance: 5, off: 6 };
 
 export const MONITOR_STATUS_INFO: Record<MonitorStatus, string> = {
   up: 'Healthy',
@@ -32,10 +35,14 @@ export const MONITOR_STATUS_INFO: Record<MonitorStatus, string> = {
   unknown: 'No data yet, or the check itself could not run',
   blocked: 'Not evaluated because a hard dependency is down',
   maintenance: 'In a maintenance window – alerts are silenced',
+  off: 'Off – all checks agree with an expected state (no alert)',
 };
 
-/** Ranking used to aggregate statuses ("worst" wins). */
-const RANK: Record<MonitorStatus, number> = { up: 0, maintenance: 1, blocked: 2, unknown: 3, degraded: 4, down: 5 };
+/**
+ * Ranking used to aggregate statuses ("worst" wins). `off` ranks below `up`: a monitor whose sub-monitor is off is up,
+ * and off only when all its checks are (ADR 0021).
+ */
+const RANK: Record<MonitorStatus, number> = { off: -1, up: 0, maintenance: 1, blocked: 2, unknown: 3, degraded: 4, down: 5 };
 export function worstStatus(list: MonitorStatus[]): MonitorStatus {
   if (!list.length) return 'unknown';
   return list.reduce((a, b) => (RANK[b] > RANK[a] ? b : a));
@@ -80,6 +87,8 @@ export const AGGREGATE_RULES = ['worst', 'critical', 'quorum'] as const;
 export const FRESHNESS_MODES = ['cadence', 'maxAge'] as const;
 export const HEARTBEAT_AUTH_MODES = ['token', 'hmac', 'either'] as const;
 export const OUTPUT_TYPES = ['notification', 'webhook', 'gatus', 'zabbix', 'process'] as const;
+/** Gatus outputs while a monitor is off (ADR 0021): success (default), failure, or send nothing */
+export const GATUS_WHILE_OFF = ['success', 'failure', 'skip'] as const;
 export type OutputType = (typeof OUTPUT_TYPES)[number];
 export const MONITOR_PERMISSIONS = ['view', 'acknowledge', 'edit', 'manage'] as const;
 export type MonitorPermission = (typeof MONITOR_PERMISSIONS)[number];
@@ -128,6 +137,11 @@ const freshnessLimits = {
   maxAgeSeconds: seconds(1, 365 * 86400).optional(),
   /** maxAge: degraded when the newest value is older (optional) */
   degradedAgeSeconds: seconds(1, 365 * 86400).optional(),
+  /**
+   * Both modes (0.13): the data may arrive this much later than its timestamp (upload cycle, ingestion) – maxAge: down
+   * after maxAgeSeconds + this; cadence: missed intervals count from the age minus this. Default 0.
+   */
+  allowedDelaySeconds: seconds(0, 86400).optional(),
 };
 const freshnessFields = { mode: z.enum(FRESHNESS_MODES).default('cadence'), ...freshnessLimits };
 
@@ -640,6 +654,8 @@ export const outputSchema = z.discriminatedUnion('type', [
     holdSeconds: seconds(0, 3600).optional(),
     /** Urgent – a change to down interrupts quiet hours (0.10.0, ADR 0012) */
     urgent: z.boolean().optional(),
+    /** Monitors with states (ADR 0021): also tell state changes as information (event monitor.state, never urgent) */
+    stateChanges: z.boolean().optional(),
   }),
   z.object({
     ...outputBase,
@@ -663,6 +679,11 @@ export const outputSchema = z.discriminatedUnion('type', [
     endpointKey: z.string().min(1).max(300),
     /** Name of the platform credential holding the external endpoint token (default externalToken) */
     tokenSecret: z.string().max(100).optional(),
+    /**
+     * What Gatus gets while off (ADR 0021): success (default), failure, or skip (nothing is sent). A contradiction and
+     * Off beyond the maximum are failures whatever this says.
+     */
+    whileOff: z.enum(GATUS_WHILE_OFF).optional(),
   }),
   z.object({
     ...outputBase,
@@ -674,7 +695,7 @@ export const outputSchema = z.discriminatedUnion('type', [
     host: z.string().max(300).optional(),
     itemKeyMonitor: z.string().max(500).optional(),
     itemKeyCheck: z.string().max(500).optional(),
-    /** code: 0 up, 1 degraded, 2 down, 3 unknown, 4 blocked, 5 maintenance; text: the status word */
+    /** code: 0 up, 1 degraded, 2 down, 3 unknown, 4 blocked, 5 maintenance, 6 off; text: the status word */
     value: z.enum(['code', 'text']).default('code'),
   }),
   z.object({
@@ -701,6 +722,54 @@ export const templateParamSchema = z.object({
 });
 export type TemplateParam = z.output<typeof templateParamSchema>;
 
+// ---------- states (0.13, ADR 0021) ----------
+
+/** A cell of the decision table: up (up or degraded), down (down or blocked), off (a sub-monitor that is off), any */
+export const STATE_CELLS = ['up', 'down', 'off', 'any'] as const;
+export type StateCell = (typeof STATE_CELLS)[number];
+export const STATE_LIMITS = {
+  cases: 10,
+  /** Settle time of a state (seconds) */
+  settleMin: 60,
+  settleMax: 86400,
+  /** Maximum off time when the monitor does not set one (hours) */
+  defaultMaxOffHours: 8,
+  maxOffHoursMax: 8760,
+  /** More state changes than this within an hour make the monitor degraded */
+  changesPerHour: 4,
+} as const;
+const cells = boundedRecord(z.enum(STATE_CELLS), 100);
+
+export const stateCaseSchema = z.object({
+  /** The state's id (as a check id); a follower names the leader's state ids */
+  id: z.string().regex(CHECK_ID_RE, 'letters, digits, _ and - (max. 48)'),
+  name: z.string().trim().max(120).optional(),
+  /** The status shown while every check agrees: up (default) or off */
+  status: z.enum(['up', 'off']).optional(),
+  /** The condition: check id → cell (the first row whose condition matches wins) */
+  when: cells.optional(),
+  /** Checks that must be up for the state to be trusted (a gateway's own heartbeat) */
+  requires: z.array(z.string().regex(CHECK_ID_RE)).max(20).optional(),
+  /** Expected statuses of the other checks */
+  expect: cells.optional(),
+  /** Deviations do not count this long after a change to this state (default: derived from the checks) */
+  settleSeconds: seconds(STATE_LIMITS.settleMin, STATE_LIMITS.settleMax).optional(),
+  /** Off rows: the maximum off time of this state (default: the monitor's; 0 = none) */
+  maxOffHours: z.number().min(0).max(STATE_LIMITS.maxOffHoursMax).optional(),
+  /** What a contradiction makes the monitor: down (default) or degraded */
+  contradiction: z.enum(['down', 'degraded']).optional(),
+});
+export type StateCase = z.output<typeof stateCaseSchema>;
+
+export const statesSchema = z.object({
+  /** Follow another monitor's state (its id or key): the cases name its state ids and have no condition */
+  from: z.string().trim().min(1).max(200).optional(),
+  /** Maximum off time in hours (default 8; 0 = none) */
+  maxOffHours: z.number().min(0).max(STATE_LIMITS.maxOffHoursMax).optional(),
+  cases: z.array(stateCaseSchema).max(STATE_LIMITS.cases).default([]),
+});
+export type StatesDef = z.output<typeof statesSchema>;
+
 export const monitorDefinitionSchema = z.object({
   name: z.string().trim().min(1).max(160),
   description: z.string().max(4000).default(''),
@@ -715,6 +784,8 @@ export const monitorDefinitionSchema = z.object({
   outputs: z.array(outputSchema).max(30).default([]),
   /** Templates only: parameters substituted as {{ params.<name> }} when an instance is created */
   parameters: z.array(templateParamSchema).max(50).optional(),
+  /** States and expected statuses (0.13, ADR 0021); without them the monitor behaves as before */
+  states: statesSchema.optional(),
 });
 export type MonitorDefinition = z.output<typeof monitorDefinitionSchema>;
 export type MonitorDefinitionInput = z.input<typeof monitorDefinitionSchema>;
@@ -730,6 +801,8 @@ export interface DefinitionIssue {
   path: string;
   message: string;
   checkId?: string;
+  /** Shown, but does not stop saving (a state that can never match) */
+  warning?: boolean;
 }
 
 /** Structural rules beyond the schema: unique ids, valid links, no cycles, sensible check settings. */
@@ -796,7 +869,69 @@ export function definitionIssues(def: MonitorDefinition, opts: { template?: bool
   if (def.aggregate.rule === 'quorum' && !def.aggregate.quorum)
     issues.push({ path: 'aggregate.quorum', message: 'the quorum rule needs k (checks that must be up)' });
   if (!opts.template && def.parameters?.length) issues.push({ path: 'parameters', message: 'only templates have parameters' });
+  // warnings (a state that can never match) are the editor's: stateIssues lists them
+  if (def.states) issues.push(...stateIssues(def).filter((i) => !i.warning));
   return issues;
+}
+
+/**
+ * The rules of the decision table (ADR 0021): unique state ids, cells that name existing enabled checks, a condition
+ * per row (none for a follower), `off` only on a sub-monitor column, a required check in no other cell of its row, and
+ * a warning for a row that can never match. Warnings have `warning: true` and do not stop saving.
+ */
+export function stateIssues(def: MonitorDefinition): DefinitionIssue[] {
+  const st = def.states;
+  if (!st) return [];
+  const out: DefinitionIssue[] = [];
+  const checks = new Map(def.checks.map((c) => [c.id, c]));
+  const ids = new Set<string>();
+  const follower = !!st.from;
+  st.cases.forEach((r, i) => {
+    const at = `states.cases.${i}`;
+    if (ids.has(r.id)) out.push({ path: `${at}.id`, message: `duplicate state id "${r.id}"` });
+    ids.add(r.id);
+    const cellsOf = (field: 'when' | 'expect') => Object.entries(r[field] ?? {});
+    for (const field of ['when', 'expect'] as const) {
+      for (const [cid, cell] of cellsOf(field)) {
+        const c = checks.get(cid);
+        if (!c) out.push({ path: `${at}.${field}.${cid}`, message: `unknown check "${cid}"` });
+        else if (c.enabled === false) out.push({ path: `${at}.${field}.${cid}`, message: `the check "${c.name}" is disabled`, checkId: cid });
+        else if (cell === 'off' && c.type !== 'monitor')
+          out.push({ path: `${at}.${field}.${cid}`, message: 'off is only for sub-monitor checks', checkId: cid });
+      }
+    }
+    for (const cid of Object.keys(r.when ?? {}))
+      if (r.expect && cid in r.expect) out.push({ path: `${at}.expect.${cid}`, message: `"${cid}" is a condition of this state already`, checkId: cid });
+    for (const cid of r.requires ?? []) {
+      const c = checks.get(cid);
+      if (!c) out.push({ path: `${at}.requires`, message: `unknown check "${cid}"` });
+      else if (c.enabled === false) out.push({ path: `${at}.requires`, message: `the check "${c.name}" is disabled`, checkId: cid });
+      if ((r.when && cid in r.when) || (r.expect && cid in r.expect))
+        out.push({ path: `${at}.requires`, message: `a required check is no other cell of its state ("${cid}")`, checkId: cid });
+    }
+    const condition = cellsOf('when').filter(([, v]) => v !== 'any');
+    if (follower && r.when && Object.keys(r.when).length)
+      out.push({ path: `${at}.when`, message: 'a state that follows another monitor has no condition of its own' });
+    if (!follower && !condition.length) out.push({ path: `${at}.when`, message: 'a state needs at least one condition cell' });
+    if (!follower && r.status !== 'off' && r.maxOffHours !== undefined)
+      out.push({ path: `${at}.maxOffHours`, message: 'only an off state has a maximum off time' });
+    // a row that an earlier row always wins against: every condition cell of the earlier row is in this one, the same
+    if (!follower && condition.length) {
+      const earlier = st.cases.slice(0, i).find((e) => {
+        const ec = Object.entries(e.when ?? {}).filter(([, v]) => v !== 'any');
+        return ec.length > 0 && ec.every(([k, v]) => r.when?.[k] === v) && !(e.requires ?? []).length;
+      });
+      if (earlier)
+        out.push({
+          path: `${at}.when`,
+          message: `this state can never match: "${earlier.name || earlier.id}" comes first with the same or a wider condition`,
+          warning: true,
+        });
+    }
+  });
+  if (follower && st.maxOffHours !== undefined)
+    out.push({ path: 'states.maxOffHours', message: 'a state that follows another monitor has no maximum off time of its own' });
+  return out;
 }
 
 /** method, headers and body of a freshness check: only with the platform source, a body only with POST (#233). */
@@ -943,6 +1078,8 @@ export interface CheckState {
   /** e.g. "Down while 2 dependent checks are healthy – the check itself may be broken" */
   note: string | null;
   uptime: UptimeSet;
+  /** Freshness checks (0.13): the peak age and delay Steward observed over the last days, and what it suggests */
+  observedDelay?: ObservedDelay | null;
   /** Heartbeat checks */
   heartbeat?: { path: string; secretPrefix: string | null; authMode: string; lastPushAt: string | null; lastPush: unknown };
   /** Sub-monitor checks (hidden: a monitor the viewer may not view – id, key and name are empty) */
@@ -984,6 +1121,10 @@ export interface MonitorSummary {
   permissions: MonitorPermission[];
   updatedAt: string;
   lastEvaluatedAt: string | null;
+  /** Monitors with states (0.13, ADR 0021): the selected state and why the status is what it is; null without states */
+  state: MonitorStateInfo | null;
+  /** Hours off as expected in the uptime windows (not counted in the uptime); null when never off */
+  offHours: UptimeSet | null;
 }
 
 export interface MonitorDetail extends MonitorSummary {
@@ -1001,6 +1142,8 @@ export interface MonitorHistoryEntry {
   ts: string;
   checkId: string | null;
   status: MonitorStatus;
+  /** Monitors with states: the state at this entry (null: none, or before 0.13) */
+  state?: string | null;
   previous: MonitorStatus | null;
   message: string;
   causedBy: CauseRef[];

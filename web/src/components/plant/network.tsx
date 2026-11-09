@@ -100,7 +100,12 @@ export function LiveChecks({ live, empty }: { live: PlantLiveStatus; empty?: str
         const name = c.visible ? c.label || c.ref : t('live.hiddenCheck');
         return (
           <Group key={i} gap={6} wrap="nowrap" align="flex-start">
-            <Badge color={LIVE_COLOR[c.state]} variant={c.state === 'unknown' ? 'outline' : 'light'} size="xs" style={{ minWidth: 'max-content' }}>
+            <Badge
+              color={c.reason === 'off' ? TONE.neutral : LIVE_COLOR[c.state]}
+              variant={c.state === 'unknown' ? 'outline' : 'light'}
+              size="xs"
+              style={{ minWidth: 'max-content' }}
+            >
               {t(`live.${c.state}`)}
             </Badge>
             <Stack gap={0} style={{ minWidth: 0 }}>

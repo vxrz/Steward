@@ -3,7 +3,10 @@
 #   name,machine,pmHost,pmPort,pmAssetId,machineAssetId
 #   Machine 18 – PowerMeter,m18,10.20.18.5,502,dbfa9e622382fa83e88a45aadfd71b1e,85f82206529dc06be0d931dad284d778
 # {{ params.x }} is replaced once when an instance is created; "Re-sync" applies a
-# newer template version to an instance.
+# newer template version to an instance (existing instances get the states with it).
+# States (0.13): switched off on purpose, the machine is Off – grey and quiet – while the
+# gateway monitor proves the gateway is alive (import 09-gateway-hall-2.yaml, or name
+# your gateway's monitor in gatewayMonitor); only contradictions raise an alert.
 kind: monitorTemplate
 key: powermeter-machine
 name: "{{ params.title }}"
@@ -19,6 +22,13 @@ parameters:
   - { name: machineAssetId, label: Insights Hub asset of the machine }
   - { name: pmCadence, label: PowerMeter cadence (s), type: number, default: 60 }
   - { name: machineMaxAge, label: Maximum age of machine data (s), type: number, default: 600 }
+  - {
+      name: gatewayMonitor,
+      label: Monitor of the gateway (key),
+      default: gateway-hall-2,
+      description: "Its heartbeat proves that data would arrive (required for Off)",
+    }
+  - { name: maxOffHours, label: Maximum off time (h), type: number, default: 8, description: "Off for longer is degraded and notifies; 0: no maximum" }
 checks:
   - { id: pm-reachable, name: PowerMeter reachable, type: ping, host: "{{ params.pmHost }}", fallbackPort: "{{ params.pmPort }}", x: 0, y: 0 }
   - id: pm-reports
@@ -62,10 +72,27 @@ checks:
     maxAgeSeconds: "{{ params.machineMaxAge + 300 }}"
     x: 160
     y: 320
+  - { id: gateway, name: Gateway alive, type: monitor, monitor: "{{ params.gatewayMonitor }}", x: 320, y: 0 }
 links:
   - { from: pm-reachable, to: pm-reports }
   - { from: pm-reports, to: pm-ih }
   - { from: pm-reachable, to: machine-reports }
   - { from: machine-reports, to: machine-ih }
+  # the gateway forwards the PowerMeter and machine data: its failure is their root cause
+  - { from: gateway, to: pm-reports }
+  - { from: gateway, to: machine-reports }
 outputs:
   - { id: notify, type: notification, subscribers: ["role:operator"] }
+states:
+  maxOffHours: "{{ params.maxOffHours }}"
+  cases:
+    - id: running
+      name: Running
+      when: { pm-reachable: up }
+      expect: { gateway: up, pm-reports: up, pm-ih: up, machine-reports: up, machine-ih: up }
+    - id: off
+      name: Off
+      status: off
+      when: { pm-reachable: down }
+      requires: [gateway]
+      expect: { pm-reports: down, pm-ih: down, machine-reports: down, machine-ih: down }

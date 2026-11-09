@@ -45,6 +45,9 @@ const mapMonitor = (m: MonitorSummary) => ({
   templateId: m.templateId,
   updatedAt: m.updatedAt,
   lastEvaluatedAt: m.lastEvaluatedAt,
+  state: m.state
+    ? { id: m.state.id, name: m.state.name, since: m.state.since, settlingUntil: m.state.settlingUntil, reason: m.state.reason, message: m.state.message }
+    : null,
 });
 
 const ref = (name: keyof typeof A.MONITOR_COMPONENTS & string) => ({ $ref: `${name}#` });
@@ -140,7 +143,8 @@ export async function monitorApiRoutes(_app: FastifyInstance, get: Get): Promise
       operationId: 'getMonitorStatus',
       tag: 'Monitors',
       summary: 'Current status of a monitor and all its checks',
-      description: 'For pull integrations (Zabbix HTTP agent, scripts). Status codes: 0 up, 1 degraded, 2 down, 3 unknown, 4 blocked, 5 maintenance.',
+      description:
+        'For pull integrations (Zabbix HTTP agent, scripts). Status codes: 0 up, 1 degraded, 2 down, 3 unknown, 4 blocked, 5 maintenance, 6 off (a monitor with states, every check agreeing).',
       params: { monitorId: 'Monitor id or key' },
       response: ref('MonitorStatusReport'),
     },
@@ -165,6 +169,7 @@ export async function monitorApiRoutes(_app: FastifyInstance, get: Get): Promise
           causedBy: c.causedBy,
           note: c.note,
           uptime: c.uptime,
+          ...(c.observedDelay !== undefined ? { observedDelay: c.observedDelay } : {}),
         })),
         time: new Date().toISOString(),
       };

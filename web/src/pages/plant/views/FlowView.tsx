@@ -2,7 +2,7 @@ import { useMemo, useState, type ReactNode } from 'react';
 import { Anchor, Badge, Button, Grid, Group, Paper, ScrollArea, Stack, Table, Text, TextInput, Title } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { Link } from 'react-router-dom';
-import { IconAlertTriangle, IconCircleCheck, IconCircleDashed, IconCircleX, IconPlugConnectedX, IconSearch } from '@tabler/icons-react';
+import { IconAlertTriangle, IconCircleCheck, IconCircleDashed, IconCircleX, IconPlugConnectedX, IconPower, IconSearch } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { PlantFlowGraph, PlantFlowNode, PlantFlowPath } from '@sm/shared';
 import { ProtocolBadge, useCheckText } from '../../../components/plant/data';
@@ -191,12 +191,20 @@ export function PathStatus({ p }: { p: PlantFlowPath }) {
   const { t } = useTranslation('plantViews');
   if (p.kind === 'path') {
     const state = p.live ?? null;
-    const I = state ? PATH_LIVE[state] : IconCircleDashed;
+    // offline as planned (a monitor that is off, ADR 0021): grey with its own icon and word, not red
+    const off = state === 'offline' && !!p.offPlanned;
+    const I = off ? IconPower : state ? PATH_LIVE[state] : IconCircleDashed;
     return (
-      <Group gap={3} wrap="nowrap" component="span" c={state === 'online' ? 'var(--pv-ok)' : state === 'offline' ? 'var(--pv-fail)' : 'dimmed'}>
+      <Group
+        gap={3}
+        wrap="nowrap"
+        component="span"
+        c={off ? 'dimmed' : state === 'online' ? 'var(--pv-ok)' : state === 'offline' ? 'var(--pv-fail)' : 'dimmed'}
+        data-live={off ? 'off' : (state ?? 'notWatched')}
+      >
         <I size={13} aria-hidden />
         <Text span size="xs" c={state ? 'var(--mantine-color-text)' : 'dimmed'}>
-          {state ? t(`path.live.${state}`) : t('path.live.notWatched')}
+          {off ? t('path.live.off') : state ? t(`path.live.${state}`) : t('path.live.notWatched')}
         </Text>
       </Group>
     );

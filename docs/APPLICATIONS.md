@@ -295,6 +295,8 @@ While a window lasts:
 - **Pause run messages** (default off): check and run messages of runs bound to an affected platform go to the app only.
 - **Availability objectives** of affected services and applications, and objectives whose source is an affected monitor, record a breach but send no message. Each window shows the planned minutes next to the figures ([SCORECARD.md](SCORECARD.md)).
 
+**Planned downtime** (0.13, `kind: downtime`, _Kind: Planned downtime_ in the form): weekends, holidays and shutdowns of machines that are off on purpose. It uses the same form, calendar, targets, reach, rights, audit and `.ics`, but does something else: monitor statuses stay as they are; monitors with [states](MONITORS.md#states-off-is-not-an-outage) do not count the time towards their maximum off time and still alert contradictions; monitors without states, objectives and run messages are not affected; and it announces nothing unless a reminder is set (default 0).
+
 Announcements (notification event _Maintenance_, see [NOTIFICATIONS.md](NOTIFICATIONS.md)) go to the responsible people and the owners of what the window lists and reaches: when it is planned, a reminder before each occurrence (24 hours by default, 0 for none), when it starts and when it ends. Each is sent once per occurrence.
 
 The details offer the window as a calendar file (_Add to calendar (.ics)_, with its repetition), the next occurrences and how many platforms, monitors, applications and services it reaches. A window can name the change record that approves it. Platform, system, application and service pages show the maintenance going on and the next windows, with _Plan maintenance_ for those who may change the item.

@@ -1,4 +1,15 @@
-import { worstStatus, type CauseRef, type CheckDef, type MonitorDefinition, type MonitorStatus } from '@sm/shared';
+import {
+  evaluateStates,
+  foldDeviations,
+  hasStates,
+  worstStatus,
+  type CauseRef,
+  type CheckDef,
+  type MonitorDefinition,
+  type MonitorStatus,
+  type StateInput,
+  type StateOutcome,
+} from '@sm/shared';
 
 /**
  * Pure status logic of the monitor engine (no I/O): flapping control,
@@ -40,6 +51,12 @@ export function applyResult(prev: Counters, raw: MonitorStatus, t: { failuresBef
       cs = 0;
       status = 'blocked';
       break;
+    case 'off':
+      // a sub-monitor that is off (ADR 0021): not a failure
+      cs++;
+      cf = 0;
+      if (prev.status !== 'down' || cs >= t.successesBeforeUp) status = 'off';
+      break;
     default:
       if (prev.status !== 'down') status = raw === 'maintenance' ? prev.status : 'unknown';
   }
@@ -55,6 +72,8 @@ export interface FreshnessConfig {
   downAfterMissed?: number;
   maxAgeSeconds?: number;
   degradedAgeSeconds?: number;
+  /** The data may arrive this much later than its timestamp (0.13; default 0) */
+  allowedDelaySeconds?: number;
 }
 
 export function fmtAge(seconds: number): string {
@@ -65,10 +84,18 @@ export function fmtAge(seconds: number): string {
   return `${Math.round(s / 86400)} days`;
 }
 
-/** Window (seconds) after which data is certainly "down" – used to size look-back queries. */
+const allowanceOf = (c: FreshnessConfig) => Math.max(0, c.allowedDelaySeconds ?? 0);
+
+/** Window (seconds) after which data is certainly "down", the allowed delay included – used in messages. */
 export function freshnessWindowSeconds(c: FreshnessConfig): number {
-  if (c.mode === 'maxAge') return c.maxAgeSeconds ?? 3600;
-  return (c.expectedIntervalSeconds ?? 60) * (c.downAfterMissed ?? 4);
+  const base = c.mode === 'maxAge' ? (c.maxAgeSeconds ?? 3600) : (c.expectedIntervalSeconds ?? 60) * (c.downAfterMissed ?? 4);
+  return base + allowanceOf(c);
+}
+
+/** Look-back of queries for the newest value: the window and a half, plus the allowed delay. */
+export function freshnessLookbackSeconds(c: FreshnessConfig): number {
+  const a = allowanceOf(c);
+  return Math.ceil((freshnessWindowSeconds(c) - a) * 1.5) + a;
 }
 
 /** Status for the newest timestamp of a source (null = no data at all). */
@@ -80,18 +107,21 @@ export function freshnessStatus(
 ): { status: MonitorStatus; message: string; ageSeconds: number | null } {
   if (latestMs === null) return { status: 'down', message: `No ${what} within the last ${fmtAge(freshnessWindowSeconds(c))}`, ageSeconds: null };
   const age = Math.max(0, (now - latestMs) / 1000);
+  const allowed = allowanceOf(c);
+  // the allowance in words: "22 min old, 15 min of it allowed delay" (nothing without one)
+  const old = `${fmtAge(age)} old${allowed ? (age > allowed ? `, ${fmtAge(allowed)} of it allowed delay` : ` (within the allowed delay of ${fmtAge(allowed)})`) : ''}`;
   if (c.mode === 'maxAge') {
     const max = c.maxAgeSeconds ?? 3600;
-    if (age > max) return { status: 'down', message: `Newest ${what} is ${fmtAge(age)} old (maximum ${fmtAge(max)})`, ageSeconds: age };
-    if (c.degradedAgeSeconds && age > c.degradedAgeSeconds)
-      return { status: 'degraded', message: `Newest ${what} is ${fmtAge(age)} old (warning after ${fmtAge(c.degradedAgeSeconds)})`, ageSeconds: age };
-    return { status: 'up', message: `Newest ${what} is ${fmtAge(age)} old`, ageSeconds: age };
+    if (age > max + allowed) return { status: 'down', message: `Newest ${what} is ${old} (maximum ${fmtAge(max)})`, ageSeconds: age };
+    if (c.degradedAgeSeconds && age > c.degradedAgeSeconds + allowed)
+      return { status: 'degraded', message: `Newest ${what} is ${old} (warning after ${fmtAge(c.degradedAgeSeconds)})`, ageSeconds: age };
+    return { status: 'up', message: `Newest ${what} is ${old}`, ageSeconds: age };
   }
   const every = c.expectedIntervalSeconds ?? 60;
-  const missed = Math.floor(age / every);
+  const missed = Math.floor(Math.max(0, age - allowed) / every);
   const degradedAfter = c.degradedAfterMissed ?? 2;
   const downAfter = c.downAfterMissed ?? 4;
-  const base = `Newest ${what} is ${fmtAge(age)} old, expected every ${fmtAge(every)}`;
+  const base = `Newest ${what} is ${old}, expected every ${fmtAge(every)}`;
   if (missed >= downAfter) return { status: 'down', message: `${base} (${missed} intervals missed)`, ageSeconds: age };
   if (missed >= degradedAfter) return { status: 'degraded', message: `${base} (${missed} intervals missed)`, ageSeconds: age };
   return { status: 'up', message: base, ageSeconds: age };
@@ -109,6 +139,8 @@ export interface Analysis {
   checks: Map<string, CheckView>;
   status: MonitorStatus;
   rootCauses: CauseRef[];
+  /** Monitors with states (ADR 0021): the outcome of the decision table */
+  state?: StateOutcome;
 }
 
 const failing = (s: MonitorStatus | undefined) => s === 'down' || s === 'blocked';
@@ -124,7 +156,13 @@ export function analyze(
   monitor: { id: string; key: string; name: string; def: MonitorDefinition },
   statuses: Map<string, MonitorStatus>,
   /** pendingDown: checks whose latest result failed but that are not confirmed down yet (they still explain their children) */
-  opts: { maintenance?: boolean; subRoots?: (check: CheckDef) => CauseRef[]; pendingDown?: Set<string> } = {},
+  opts: {
+    maintenance?: boolean;
+    subRoots?: (check: CheckDef) => CauseRef[];
+    pendingDown?: Set<string>;
+    /** Monitors with states: what the decision table needs besides the definition and the statuses */
+    states?: Omit<StateInput, 'def' | 'statuses'>;
+  } = {},
 ): Analysis {
   const checks = monitor.def.checks.filter((c) => c.enabled !== false);
   const byId = new Map(checks.map((c) => [c.id, c]));
@@ -187,7 +225,7 @@ export function analyze(
   if (!checks.length) status = 'unknown';
   else if (rule === 'quorum') {
     const critical = checks.filter((c) => c.critical !== false);
-    const healthy = critical.filter((c) => ['up', 'degraded'].includes(views.get(c.id)!.status));
+    const healthy = critical.filter((c) => ['up', 'degraded', 'off'].includes(views.get(c.id)!.status));
     const k = Math.min(monitor.def.aggregate.quorum ?? critical.length, critical.length);
     if (healthy.length >= k && k > 0) {
       status = worstStatus(healthy.map((c) => views.get(c.id)!.status));
@@ -198,11 +236,35 @@ export function analyze(
     status = worstStatus(checks.map(effective).map((s) => (s === 'blocked' ? 'down' : s)));
   }
   // every failing check is explained by its causes, or is a root cause itself
-  const rootCauses = dedupe(
+  let rootCauses = dedupe(
     checks.filter((c) => views.get(c.id)!.status === 'down').flatMap((c) => (views.get(c.id)!.causedBy.length ? views.get(c.id)!.causedBy : ref(c))),
   );
+  // states (ADR 0021): after the check views, before the maintenance override; a definition without them is untouched
+  let state: StateOutcome | undefined;
+  if (opts.states && hasStates(monitor.def)) {
+    state = evaluateStates({ def: monitor.def, statuses, ...opts.states });
+    for (const id of state.offChecks) {
+      const v = views.get(id);
+      if (v) views.set(id, { status: 'off', causedBy: [], note: null });
+    }
+    if (state.status !== null) {
+      status = state.status;
+      if (state.causes.length) {
+        const deviating = new Set(state.causes);
+        // deviations fold along links as failures do; a sub-monitor expands to its own root causes
+        rootCauses = dedupe(
+          foldDeviations(monitor.def, state.causes).flatMap((id) => {
+            const c = byId.get(id);
+            if (!c) return [];
+            const kept = views.get(id)!.causedBy.filter((x) => x.monitorId !== monitor.id || deviating.has(x.checkId));
+            return kept.length && views.get(id)!.status === 'down' ? kept : ref(c);
+          }),
+        );
+      } else rootCauses = [];
+    } else if (state.flapping && (status === 'up' || status === 'off')) status = 'degraded';
+  }
   if (opts.maintenance) status = 'maintenance';
-  return { checks: views, status, rootCauses };
+  return { checks: views, status, rootCauses, ...(state ? { state } : {}) };
 }
 
 function dedupe(list: CauseRef[]): CauseRef[] {

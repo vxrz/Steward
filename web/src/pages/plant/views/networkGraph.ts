@@ -53,7 +53,8 @@ export function liveOf(l: PlantLiveStatus): PlantLive | null {
   const c = l.checks.find((x) => x.state === 'offline') ?? l.checks.find((x) => x.state !== 'online') ?? l.checks[0];
   return {
     source: c?.kind ?? 'monitor',
-    state: l.state === 'online' ? 'ok' : l.state === 'offline' ? 'fail' : 'unknown',
+    // offline as planned (a monitor that is off, ADR 0021) is grey, not red
+    state: l.state === 'online' ? 'ok' : l.state === 'offline' && c?.reason !== 'off' ? 'fail' : 'unknown',
     status: c?.reason ?? 'unknown',
     label: c?.visible ? c.label : '',
     path: c?.path ?? null,
@@ -242,6 +243,9 @@ export function networkGraph(
     if (!nodes.has(asset)) continue;
     const l = live.get(dp.assetId);
     const state: LiveState | null = l?.watched ? l.state : null;
+    // offline as planned (monitors that are off, ADR 0021): the path says so in grey, its edges are not drawn as failing
+    const offPlanned = state === 'offline' && !!l && l.checks.filter((c) => c.state === 'offline').every((c) => c.reason === 'off');
+    const edgeState: LiveState | null = offPlanned ? 'unknown' : state;
     const p: PlantFlowPath = {
       id: pid,
       kind: 'path',
@@ -250,6 +254,7 @@ export function networkGraph(
       delivers: true,
       reason: null,
       live: state,
+      ...(offPlanned ? { offPlanned: true } : {}),
       nodes: [asset],
       edges: [],
     };
@@ -265,10 +270,10 @@ export function networkGraph(
       const zb = zoneOf(to);
       const cdt = za && zb && za !== zb ? conduitBetween.get(`${za}|${zb}`) : undefined;
       if (cdt) {
-        p.edges.push(addEdge(from, cdt, pid, label, state), addEdge(cdt, to, pid, '', state));
+        p.edges.push(addEdge(from, cdt, pid, label, edgeState), addEdge(cdt, to, pid, '', edgeState));
         touch(cdt);
       } else {
-        const id = addEdge(from, to, pid, label, state);
+        const id = addEdge(from, to, pid, label, edgeState);
         if (za && zb && za !== zb) edges.get(id)!.noConduit = true;
         p.edges.push(id);
       }

@@ -30,6 +30,7 @@ const TO_DATASET: Record<MonitorStatus, DatasetStatus> = {
   blocked: 'serious',
   unknown: 'unknown',
   maintenance: 'unknown',
+  off: 'unknown',
 };
 
 export function publishDirtyDatasets(): number {
@@ -48,11 +49,18 @@ export function publishDirtyDatasets(): number {
         .map((r) => [r.check_id, r]),
     );
     const uptimes = checkUptimes([id]);
+    // checks that agree with an expected down show off (ADR 0021)
+    const off = new Set(
+      parseJson<{ offChecks?: string[] } | null>(
+        db().get<{ state_detail: string | null }>('SELECT state_detail FROM monitor_state WHERE monitor_id = ?', id)?.state_detail,
+        null,
+      )?.offChecks ?? [],
+    );
     const out: DatasetRow[] = (def.checks ?? []).map((c) => {
       const r = rows.get(c.id);
       const last = parseJson<{ message?: string } | null>(r?.last_result, null);
       const causes = parseCauses(r?.caused_by);
-      const status = (r?.status ?? 'unknown') as MonitorStatus;
+      const status = (off.has(c.id) ? 'off' : (r?.status ?? 'unknown')) as MonitorStatus;
       // messages stored before they became generic may name the sub-monitor
       const message = c.type === 'monitor' && last ? subMonitorMessage(status) : (last?.message ?? '');
       const causedBy = [...new Set(causes.map(causeName))].join(', ');
@@ -147,7 +155,7 @@ function publishOverview(): void {
     dryRun: false,
     columns: ['Monitor', 'Key', 'Status', 'Since (UTC)', 'Uptime 24 h (%)', 'Root cause'],
     rows,
-    metrics: { monitors: rows.length, up: count('up'), degraded: count('degraded'), down: count('down'), unknown: count('unknown') },
+    metrics: { monitors: rows.length, up: count('up'), degraded: count('degraded'), down: count('down'), unknown: count('unknown'), off: count('off') },
   });
 }
 

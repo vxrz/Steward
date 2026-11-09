@@ -72,6 +72,10 @@
       "status": {
         "label": "Monitor status",
         "info": "A monitor you own or subscribed to changed its status (root causes only)"
+      },
+      "state": {
+        "label": "Monitor state",
+        "info": "A monitor with states changed its state, e.g. Running → Off (information, when its notification output asks for it)"
       }
     },
     "credential": {

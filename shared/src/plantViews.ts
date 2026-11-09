@@ -193,6 +193,8 @@ export interface PlantFlowPath {
   reason: 'interface_inactive' | 'unavailable' | null;
   /** A data path of the OT network: the live status of its asset (null: nothing watches it) */
   live?: LiveState | null;
+  /** Offline as planned: every offline check of the asset is a monitor that is off (ADR 0021) – drawn grey, not red */
+  offPlanned?: boolean;
   nodes: string[];
   edges: string[];
 }

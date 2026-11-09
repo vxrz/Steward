@@ -89,15 +89,22 @@ export interface IhPlan {
   windowSeconds: number;
 }
 
-/** Newest timestamp (ms) per variable; null = no value in the look-back window. */
-export type IhLatest = Map<string, number | null>;
+/**
+ * Newest timestamp (ms) per variable (null = no value in the look-back window), and when the read started and its
+ * last answer arrived – the observed delay (delay.ts) is measured against these, not against the check's schedule.
+ */
+export interface IhLatest {
+  values: Map<string, number | null>;
+  startedAt: number;
+  receivedAt: number;
+}
 
 const tsBase = (p: Platform, assetId: string, aspect: string) => {
   const path = String(p.config.variables?.tsPath || '/api/iottimeseries/v3').replace(/\/+$/, '');
   return `${path}/timeseries/${encodeURIComponent(assetId)}/${encodeURIComponent(aspect)}`;
 };
 
-function latestPerVariable(records: unknown, vars: string[], into: IhLatest): void {
+function latestPerVariable(records: unknown, vars: string[], into: Map<string, number | null>): void {
   if (!Array.isArray(records)) return;
   for (const rec of records as Record<string, unknown>[]) {
     const t = Date.parse(String(rec?._time ?? ''));
@@ -129,7 +136,7 @@ async function newestInRange(
   vars: string[],
   from: number,
   to: number,
-  into: IhLatest,
+  into: Map<string, number | null>,
   maxPages = IH_MAX_PAGES,
 ): Promise<boolean> {
   let start = from;
@@ -167,7 +174,8 @@ async function fetchIh(key: string, plan: IhPlan): Promise<IhLatest> {
   const [platformId, assetId, aspect] = key.split('|') as [string, string, string];
   const { platform, secrets } = platformFor(plan.owner, platformId);
   const url = tsBase(platform, assetId, aspect);
-  const out: IhLatest = new Map(plan.vars.map((v) => [v, null]));
+  const out = new Map<string, number | null>(plan.vars.map((v) => [v, null]));
+  const startedAt = Date.now();
   const first = await platformRequest(platform, secrets, { method: 'GET', url, query: { latestRecord: 'true' } }, AbortSignal.timeout(30000));
   if (!first.ok) throw new SourceError(`Insights Hub time series API answered HTTP ${first.status}`, first.status);
   latestPerVariable(first.body, plan.vars, out);
@@ -175,14 +183,15 @@ async function fetchIh(key: string, plan: IhPlan): Promise<IhLatest> {
   const oldest = to - Math.min(plan.windowSeconds, 7 * 86400) * 1000;
   const firstMissing = plan.vars.filter((v) => out.get(v) === null);
   // sparse data (the usual case): one page holds the whole look-back window
-  if (!firstMissing.length || (await newestInRange(platform, secrets, url, firstMissing, oldest, to, out, 1))) return out;
+  const done = (): IhLatest => ({ values: out, startedAt, receivedAt: Date.now() });
+  if (!firstMissing.length || (await newestInRange(platform, secrets, url, firstMissing, oldest, to, out, 1))) return done();
   // dense data: the first page held only the oldest records – read time slices from now backwards instead
   let sliceEnd = to;
   for (const seconds of IH_SLICES_SECONDS) {
     if (sliceEnd <= oldest) break;
     const sliceStart = Math.max(oldest, to - seconds * 1000);
     if (sliceStart >= sliceEnd) continue;
-    const found: IhLatest = new Map(firstMissing.map((v) => [v, null]));
+    const found = new Map<string, number | null>(firstMissing.map((v) => [v, null]));
     if (!(await newestInRange(platform, secrets, url, firstMissing, sliceStart, sliceEnd, found)))
       throw new SourceError(
         `Too much data to find the newest value: more than ${IH_PAGE * IH_MAX_PAGES} records between ${new Date(sliceStart).toISOString()} and ${new Date(sliceEnd).toISOString()}`,
@@ -193,7 +202,7 @@ async function fetchIh(key: string, plan: IhPlan): Promise<IhLatest> {
     if (!firstMissing.length) break;
     sliceEnd = sliceStart - 1;
   }
-  return out;
+  return done();
 }
 
 export const ihFetch = new SharedFetch<IhPlan, IhLatest>(

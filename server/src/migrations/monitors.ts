@@ -157,4 +157,24 @@ export const MONITOR_MIGRATIONS: NamedMigration[] = [
       ALTER TABLE monitor_maintenance ADD COLUMN migrated_at TEXT;
     `,
   },
+  {
+    // 0.13: the observed delay of freshness checks (monitors/delay.ts) – per variable the newest timestamp seen and a
+    // bounded window of samples (7 days, at most 500 per variable), JSON; null until the first read
+    name: 'monitors-003-observed-delay',
+    sql: `
+      ALTER TABLE monitor_checks ADD COLUMN observed_delay TEXT;
+    `,
+  },
+  {
+    // 0.13 (ADR 0021): monitor states – the selected state, since when, the end of its settle time and what the "why"
+    // panel shows (with the recent state changes, JSON); history rows name the state (null before, and without states)
+    name: 'monitors-004-states',
+    sql: `
+      ALTER TABLE monitor_state ADD COLUMN state_id TEXT;
+      ALTER TABLE monitor_state ADD COLUMN state_since TEXT;
+      ALTER TABLE monitor_state ADD COLUMN settle_until TEXT;
+      ALTER TABLE monitor_state ADD COLUMN state_detail TEXT;
+      ALTER TABLE monitor_history ADD COLUMN state TEXT;
+    `,
+  },
 ];

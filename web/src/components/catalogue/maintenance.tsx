@@ -5,8 +5,10 @@ import { Link } from 'react-router-dom';
 import { IconCalendarEvent, IconDownload, IconEdit, IconPlus, IconTool, IconX } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import {
+  MAINTENANCE_KINDS,
   MAINTENANCE_LIMITS,
   MAINTENANCE_TARGET_KINDS,
+  type MaintenanceKind,
   type ApplicationSummary,
   type MaintenanceFreq,
   type MaintenanceList,
@@ -137,7 +139,13 @@ export function MaintenanceFormModal({
   const [changeRecordId, setChangeRecordId] = useState<string | null>(w?.changeRecord?.id ?? null);
   const [quietMonitors, setQuiet] = useState(w?.quietMonitors ?? true);
   const [pauseMessages, setPause] = useState(w?.pauseMessages ?? false);
+  const [kind, setKind] = useState<MaintenanceKind>(w?.kind ?? 'maintenance');
+  // planned downtime announces nothing by default (ADR 0021): no reminder unless one is set
   const [reminderHours, setReminder] = useState<number>(w?.reminderHours ?? 24);
+  const changeKind = (k: MaintenanceKind) => {
+    setKind(k);
+    if (!w) setReminder(k === 'downtime' ? 0 : 24);
+  };
   const [enabled, setEnabled] = useState(w?.enabled ?? true);
   const [busy, setBusy] = useState(false);
 
@@ -183,6 +191,7 @@ export function MaintenanceFormModal({
     if (!v.validate()) return;
     setBusy(true);
     const body = {
+      kind,
       title: title.trim(),
       note,
       startsAt: startIso,
@@ -228,6 +237,15 @@ export function MaintenanceFormModal({
             onChange={(e) => setTitle(e.currentTarget.value)}
             error={v.error('title')}
             data-autofocus
+          />
+          <Select
+            label={t('maintenance.kind')}
+            description={kind === 'downtime' ? t('maintenance.kindDowntimeHelp') : t('maintenance.kindMaintenanceHelp')}
+            allowDeselect={false}
+            data={MAINTENANCE_KINDS.map((k) => ({ value: k, label: t(`maintenance.kinds.${k}`) }))}
+            value={kind}
+            onChange={(x) => changeKind((x ?? 'maintenance') as MaintenanceKind)}
+            data-testid="maintenance-kind"
           />
           <Group grow align="flex-start">
             <TextInput
@@ -329,12 +347,14 @@ export function MaintenanceFormModal({
             value={changeRecordId}
             onChange={setChangeRecordId}
           />
-          <Switch
-            label={t('maintenance.quietMonitors')}
-            description={t('maintenance.quietMonitorsHelp')}
-            checked={quietMonitors}
-            onChange={(e) => setQuiet(e.currentTarget.checked)}
-          />
+          {kind === 'maintenance' && (
+            <Switch
+              label={t('maintenance.quietMonitors')}
+              description={t('maintenance.quietMonitorsHelp')}
+              checked={quietMonitors}
+              onChange={(e) => setQuiet(e.currentTarget.checked)}
+            />
+          )}
           <Switch
             label={t('maintenance.pauseMessages')}
             description={t('maintenance.pauseMessagesHelp')}
@@ -443,7 +463,12 @@ export function MaintenanceDetailModal({ id, onClose, startEditing }: { id: stri
               </Text>
             )}
             <Group gap="xs">
-              {w.quietMonitors && (
+              {w.kind === 'downtime' && (
+                <Badge size="sm" variant="light" color="gray" tt="none" data-testid="maintenance-downtime-badge">
+                  {t('maintenance.kinds.downtime')}
+                </Badge>
+              )}
+              {w.quietMonitors && w.kind !== 'downtime' && (
                 <Badge size="sm" variant="light" tt="none">
                   {t('maintenance.quietMonitors')}
                 </Badge>

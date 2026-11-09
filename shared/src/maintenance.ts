@@ -11,6 +11,14 @@ export const MAINTENANCE_TARGET_KINDS = ['platform', 'system', 'application', 's
 export type MaintenanceTargetKind = (typeof MAINTENANCE_TARGET_KINDS)[number];
 
 export const MAINTENANCE_FREQS = ['weekly', 'monthly'] as const;
+
+/**
+ * What a window does (0.13, ADR 0021): maintenance silences the affected monitors; planned downtime (weekends,
+ * holidays, shutdowns) leaves their status as it is, suspends the maximum off time of monitors with states and still
+ * alerts contradictions. Monitors without states are not affected by downtime. Downtime announces nothing by default.
+ */
+export const MAINTENANCE_KINDS = ['maintenance', 'downtime'] as const;
+export type MaintenanceKind = (typeof MAINTENANCE_KINDS)[number];
 export type MaintenanceFreq = (typeof MAINTENANCE_FREQS)[number];
 
 export const MAINTENANCE_LIMITS = {
@@ -41,6 +49,8 @@ export interface MaintenanceTarget {
 
 export interface MaintenanceWindowSummary {
   id: string;
+  /** maintenance (default) or downtime (ADR 0021) */
+  kind: MaintenanceKind;
   title: string;
   note: string;
   /** The first occurrence */

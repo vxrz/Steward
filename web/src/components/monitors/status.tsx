@@ -1,4 +1,5 @@
 import { Badge, Tooltip } from '@mantine/core';
+import { IconPower } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { CHECK_TYPE_INFO, MONITOR_STATUS_INFO, type CauseRef, type CheckType, type MonitorStatus, type UptimeSet } from '@sm/shared';
 import i18n from '../../i18n';
@@ -12,6 +13,8 @@ export const MONITOR_COLORS: Record<MonitorStatus, string> = {
   unknown: TONE.neutral,
   blocked: TONE.attention,
   maintenance: TONE.active,
+  // grey like unknown, never told by colour alone: its own icon and word (ADR 0021)
+  off: TONE.neutral,
 };
 
 /** English defaults; the UI shows monitors:status.<status>. */
@@ -22,6 +25,7 @@ const MONITOR_LABELS: Record<MonitorStatus, string> = {
   unknown: 'Unknown',
   blocked: 'Blocked',
   maintenance: 'Maintenance',
+  off: 'Off',
 };
 
 const tx = (key: string, defaultValue: string, vars?: Record<string, unknown>): string => i18n.t(key as 'common:add', { defaultValue, ...vars }) as string;
@@ -48,7 +52,14 @@ export function MonitorStatusBadge({
   useTranslation('monitors'); // re-render on a language switch
   return (
     <Tooltip label={monitorStatusInfo(status)} withArrow>
-      <Badge color={MONITOR_COLORS[status]} size={size} variant={variant} data-status={status} style={{ minWidth: 'max-content' }}>
+      <Badge
+        color={MONITOR_COLORS[status]}
+        size={size}
+        variant={status === 'off' && variant === 'filled' ? 'outline' : variant}
+        data-status={status}
+        leftSection={status === 'off' ? <IconPower size={11} aria-hidden /> : undefined}
+        style={{ minWidth: 'max-content' }}
+      >
         {monitorStatusLabel(status)}
       </Badge>
     </Tooltip>

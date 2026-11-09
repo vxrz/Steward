@@ -3,6 +3,8 @@
 # PowerMeter monitor breaks – "Machine 17 – PowerMeter" includes it as a sub-monitor.
 # Replace the asset id with your own; the platform is resolved by name, or the only
 # Insights Hub platform is used.
+# States (0.13): it cannot tell by itself whether the machine is off, so it follows the
+# state of "Machine 17 – PowerMeter" – when that is Off, missing machine data is expected.
 kind: monitor
 key: machine-17-machine-data
 name: Machine 17 – machine data
@@ -38,3 +40,8 @@ outputs:
   - id: notify
     type: notification
     subscribers: [role:operator]
+states:
+  from: machine-17-powermeter
+  cases:
+    - { id: running, name: Running, expect: { machine-reports: up, machine-ih: up } }
+    - { id: off, name: Off, status: off, expect: { machine-reports: down, machine-ih: down } }

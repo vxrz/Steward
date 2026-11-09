@@ -166,6 +166,7 @@
     "live": {
       "online": "Online",
       "offline": "Offline",
+      "off": "Planmäßig aus",
       "unknown": "Keine Daten",
       "notWatched": "Nicht überwacht"
     }

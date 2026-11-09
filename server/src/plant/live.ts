@@ -52,6 +52,8 @@ const MONITOR_STATE: Record<MonitorStatus, [LiveState, LiveReason]> = {
   unknown: ['unknown', 'unknown'],
   blocked: ['unknown', 'unknown'],
   maintenance: ['unknown', 'maintenance'],
+  // off (ADR 0021): offline as planned – drawn grey, not red
+  off: ['offline', 'off'],
 };
 
 // ---------- who may see what (one rule for the OT network and the visualizations) ----------

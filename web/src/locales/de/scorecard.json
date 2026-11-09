@@ -110,6 +110,7 @@
     "monitor": "Monitor",
     "monitorHidden": "Monitor verborgen",
     "plannedMonitor": "Geplante Wartung: {{list}} (Zeit in Wartung zählt in den Werten des Monitors nicht)",
+    "offMonitor": "Erwartungsgemäß aus: {{list}} (Zustände des Monitors; diese Zeit zählt in seinen Werten nicht)",
     "hintMonitor": "Die Werte sind die eigene Verfügbarkeit der Monitore aus ihren aufgezeichneten Zuständen. Steward speichert 90 Tage lang einen Wert pro Stunde."
   },
   "duties": {

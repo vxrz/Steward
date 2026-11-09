@@ -2,7 +2,11 @@
 # (reported by the IoT gateway) → does the data reach Insights Hub; plus the machine
 # data branch as a sub-monitor. Links are "soft": every check still runs, but when a
 # parent fails too, a child is reported as "likely caused by" it and only the root
-# cause is alerted. Import "Machine 17 – machine data" first.
+# cause is alerted. Import "Gateway Hall 2" and "Machine 17 – machine data" first.
+# States (0.13): when the PowerMeter is unreachable and every data path agrees, the
+# machine is Off – grey and quiet – as long as the gateway proves it is alive. Only a
+# contradiction (PowerMeter unreachable but its data arrives, or the other way round),
+# a silent gateway or Off for longer than 8 hours raise an alert.
 kind: monitor
 key: machine-17-powermeter
 name: Machine 17 – PowerMeter
@@ -43,6 +47,9 @@ checks:
     expectedIntervalSeconds: 60
     degradedAfterMissed: 3
     downAfterMissed: 6
+    # the gateway uploads every 5 minutes and Insights Hub needs about a minute more: the newest value gets
+    # up to ~6.5 minutes old before the next upload is readable. See the check's "observed delay".
+    allowedDelaySeconds: 360
     x: -160
     y: 320
   - id: machine
@@ -51,11 +58,34 @@ checks:
     monitor: machine-17-machine-data
     x: 160
     y: 160
+  - id: gateway
+    name: Gateway Hall 2 alive
+    type: monitor
+    monitor: gateway-hall-2
+    x: 160
+    y: 0
 links:
   - { from: pm-reachable, to: pm-reports }
   - { from: pm-reports, to: pm-ih }
   - { from: pm-reachable, to: machine }
+  # the gateway forwards the PowerMeter and machine data: its failure is their root cause
+  - { from: gateway, to: pm-reports }
+  - { from: gateway, to: machine }
 outputs:
   - id: notify
     type: notification
     subscribers: [role:operator]
+states:
+  maxOffHours: 8
+  cases:
+    - id: running
+      name: Running
+      when: { pm-reachable: up }
+      expect: { gateway: up, pm-reports: up, pm-ih: up, machine: up }
+    - id: off
+      name: Off
+      status: off
+      when: { pm-reachable: down }
+      requires: [gateway]
+      expect: { pm-reports: down, pm-ih: down, machine: off }
+      # settleSeconds left out: derived from the checks (17 minutes – the machine data's Insights Hub check)

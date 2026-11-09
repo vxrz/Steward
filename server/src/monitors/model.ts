@@ -58,6 +58,8 @@ export interface CheckRow {
   secret_rotated_at: string | null;
   last_push_at: string | null;
   last_push: string | null;
+  /** Freshness checks (0.13): the observed delay state (delay.ts), JSON */
+  observed_delay: string | null;
   created_at: string;
 }
 
@@ -70,6 +72,11 @@ export interface StateRow {
   ack_by: string | null;
   ack_at: string | null;
   ack_comment: string | null;
+  /** States (0.13, ADR 0021): the selected state (null: none), since when, the end of its settle time, the "why" detail (JSON) */
+  state_id?: string | null;
+  state_since?: string | null;
+  settle_until?: string | null;
+  state_detail?: string | null;
 }
 
 export interface GatewayRow {
