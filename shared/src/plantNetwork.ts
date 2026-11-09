@@ -406,6 +406,32 @@ export interface PlantAssetLive {
   paths: number;
 }
 
+/**
+ * What looks wrong in the documentation of a site's devices (0.12, docs/PLANT.md#data-quality-hints): an IP address,
+ * MAC or host name that two devices share, a device without a VLAN, a VLAN a device names that the site does not have,
+ * and switch names that differ only by letter case. Retired devices are left out.
+ */
+export const DATA_QUALITY_KINDS = ['duplicate_address', 'duplicate_mac', 'duplicate_hostname', 'vlan_missing', 'no_vlan', 'switch_case'] as const;
+export type DataQualityKind = (typeof DATA_QUALITY_KINDS)[number];
+
+/** A device a data quality hint names. */
+export interface PlantDeviceRef {
+  assetId: string;
+  assetName: string;
+  deviceId: string;
+  hostname: string;
+}
+
+export interface PlantDataQualityHint {
+  kind: DataQualityKind;
+  /** The value they share (address, MAC, host name, the missing VLAN's id); empty for `no_vlan` */
+  value: string;
+  /** `switch_case`: the spellings of the switch name, the most used first (else empty) */
+  variants: string[];
+  /** The devices it concerns (`switch_case`: those not written in the most used spelling) */
+  devices: PlantDeviceRef[];
+}
+
 /** GET /api/plant/sites/:siteId/network: the OT network of a site – everything a diagram needs, in one answer. */
 export interface PlantSiteNetwork {
   site: { id: string; code: string; name: string; names: Record<string, string> };
@@ -421,6 +447,8 @@ export interface PlantSiteNetwork {
   statusCounts: Record<LiveState, number>;
   /** The Steward systems the data paths name (hosts), as the reader may see them */
   hosts: PlantItemRef[];
+  /** What looks wrong in the documentation of its devices (0.12) */
+  dataQuality: PlantDataQualityHint[];
 }
 
 /** GET /api/plant/assets/:assetId/network: an asset's devices, data paths, own checks and live status. */

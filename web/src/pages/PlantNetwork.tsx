@@ -1,5 +1,5 @@
 import { lazy, Suspense, useState } from 'react';
-import { Alert, Anchor, Badge, Button, Group, Menu, Paper, SimpleGrid, Stack, Table, Text, TextInput, Title, Tooltip } from '@mantine/core';
+import { Alert, Anchor, Badge, Button, Group, Menu, Paper, SimpleGrid, Stack, Table, Text, Title, Tooltip } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
@@ -15,7 +15,6 @@ import {
   IconNetwork,
   IconPlus,
   IconRoute,
-  IconSearch,
   IconShieldLock,
 } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
@@ -29,9 +28,9 @@ import { confirmDanger } from '../components/confirm';
 import { plantKeys } from '../queryKeys';
 import { AssetStatusBadge, NotInSourceBadge, PreviewBadge, useNameOf, usePlantLabel } from '../components/plant/common';
 import { RowMenu } from '../components/plant/data';
-import { CriticalityBadge, ItemRefView, LiveBadge, LiveCounts, NetField, SlBadge } from '../components/plant/network';
+import { anyWatched, CriticalityBadge, ItemRefView, LiveBadge, LiveCounts, liveCountsOf, NetField, NotWatchedHint, SlBadge } from '../components/plant/network';
+import { SiteDevices, SiteNetworkAddButton, SitePaths, useSiteNetworkEdit } from '../components/plant/SiteNetworkLists';
 import { ConduitModal, SegmentModal, VlanModal, ZoneModal } from '../components/plant/networkForms';
-import { DataPathSummary, DeviceHints } from '../components/plant/AssetNetwork';
 
 const TABS = ['', 'diagram', 'vlans', 'zones', 'devices', 'paths'] as const;
 type Tab = (typeof TABS)[number];
@@ -94,20 +93,40 @@ function Section({
  * paths of its assets. One request holds everything (the diagram of #230 draws from the same answer).
  */
 export function PlantNetworkPage() {
-  const { t } = useTranslation(['plantNetwork', 'plant', 'common']);
-  const label = usePlantLabel();
-  const nameOf = useNameOf();
   const { siteId, tab: rawTab } = useParams();
   const tab: Tab = (TABS as readonly string[]).includes(rawTab ?? '') ? ((rawTab ?? '') as Tab) : '';
-  const qc = useQueryClient();
   const narrow = useMediaQuery('(max-width: 48em)') ?? false;
   const q = useQuery({ queryKey: plantKeys.network(siteId), queryFn: () => get<PlantSiteNetwork>(`/plant/sites/${encodeURIComponent(siteId!)}/network`) });
   const hierarchy = useQuery({ queryKey: plantKeys.hierarchy, queryFn: () => get<PlantHierarchySite[]>('/plant/hierarchy'), enabled: !!q.data?.canManage });
   const [dialog, setDialog] = useState<Dialog | null>(null);
-  const [search, setSearch] = useState('');
   const n = q.data;
   useAliasRedirect([[siteId, n?.site.id]]);
   if (!n) return <DetailState query={q} back="plantSites" />;
+  return <NetworkPage n={n} siteId={siteId} tab={tab} narrow={narrow} hierarchy={hierarchy.data} dialog={dialog} setDialog={setDialog} />;
+}
+
+function NetworkPage({
+  n,
+  siteId,
+  tab,
+  narrow,
+  hierarchy,
+  dialog,
+  setDialog,
+}: {
+  n: PlantSiteNetwork;
+  siteId: string | undefined;
+  tab: Tab;
+  narrow: boolean;
+  hierarchy: PlantHierarchySite[] | undefined;
+  dialog: Dialog | null;
+  setDialog: (d: Dialog | null) => void;
+}) {
+  const { t } = useTranslation(['plantNetwork', 'plant', 'common']);
+  const label = usePlantLabel();
+  const nameOf = useNameOf();
+  const qc = useQueryClient();
+  const edit = useSiteNetworkEdit(n);
   const siteBase = `/plant/sites/${encodeURIComponent(n.site.id)}`;
   const base = `${siteBase}/network`;
   const can = n.canManage;
@@ -137,10 +156,7 @@ export function PlantNetworkPage() {
     devices: n.devices.length,
     paths: n.dataPaths.length,
   };
-  const s = search.trim().toLowerCase();
-  const devices = s
-    ? n.devices.filter((d) => [d.id, d.hostname, d.address, d.mac, d.assetName, d.switch, d.switchPort].some((x) => x.toLowerCase().includes(s)))
-    : n.devices;
+  const assetsWatched = anyWatched(n.assets);
 
   return (
     <>
@@ -185,8 +201,31 @@ export function PlantNetworkPage() {
         {tab === '' && (
           <Stack gap="lg">
             <Section title={t('overview.title')} help={t('overview.help')}>
-              <LiveCounts counts={n.statusCounts} />
+              <LiveCounts counts={liveCountsOf(n.assets)} />
+              {!assetsWatched && n.assets.length > 0 && <NotWatchedHint />}
             </Section>
+            {n.devices.length > 0 && (
+              <Paper withBorder p="sm" data-testid="quality-summary">
+                <Group gap="xs" justify="space-between" wrap="wrap">
+                  <Group gap={6} wrap="nowrap">
+                    <Text size="sm" fw={600}>
+                      {t('quality.title')}
+                    </Text>
+                    <Badge size="sm" radius="sm" variant={n.dataQuality.length ? 'light' : 'default'} color={n.dataQuality.length ? 'orange' : 'gray'}>
+                      {n.dataQuality.length}
+                    </Badge>
+                    <Text size="sm" c="dimmed">
+                      {n.dataQuality.length ? t('quality.summary', { count: n.dataQuality.length }) : t('quality.none')}
+                    </Text>
+                  </Group>
+                  {n.dataQuality.length > 0 && (
+                    <Anchor component={Link} to={`${base}/devices#data-quality`} size="sm" data-testid="quality-open">
+                      {t('quality.open')}
+                    </Anchor>
+                  )}
+                </Group>
+              </Paper>
+            )}
             <Section title={label('asset', true)} testId="network-assets">
               {n.assets.length === 0 ? (
                 <EmptyState compact icon={IconGauge} title={t('overview.noAssets', { type: label('asset', true, true) })} />
@@ -198,7 +237,7 @@ export function PlantNetworkPage() {
                         <Anchor component={Link} to={`/plant/assets/${encodeURIComponent(a.id)}`} size="sm" fw={500} style={{ minWidth: 0 }}>
                           {a.name}
                         </Anchor>
-                        <LiveBadge live={a.live} size="xs" />
+                        {assetsWatched && <LiveBadge live={a.live} size="xs" />}
                       </Group>
                       <Text size="xs" c="dimmed">
                         {t('overview.counts', { devices: a.devices, paths: a.paths })}
@@ -213,7 +252,7 @@ export function PlantNetworkPage() {
                       <Table.Tr>
                         <Table.Th>{t('plant:form.name')}</Table.Th>
                         <Table.Th>{t('overview.status')}</Table.Th>
-                        <Table.Th>{t('overview.live')}</Table.Th>
+                        {assetsWatched && <Table.Th>{t('overview.live')}</Table.Th>}
                         <Table.Th>{t('device.title')}</Table.Th>
                         <Table.Th>{t('path.title')}</Table.Th>
                       </Table.Tr>
@@ -229,9 +268,11 @@ export function PlantNetworkPage() {
                           <Table.Td>
                             <AssetStatusBadge status={a.status as Parameters<typeof AssetStatusBadge>[0]['status']} size="xs" />
                           </Table.Td>
-                          <Table.Td>
-                            <LiveBadge live={a.live} size="xs" />
-                          </Table.Td>
+                          {assetsWatched && (
+                            <Table.Td>
+                              <LiveBadge live={a.live} size="xs" />
+                            </Table.Td>
+                          )}
                           <Table.Td>{a.devices}</Table.Td>
                           <Table.Td>{a.paths}</Table.Td>
                         </Table.Tr>
@@ -534,125 +575,24 @@ export function PlantNetworkPage() {
         )}
 
         {tab === 'devices' && (
-          <Section title={t('device.title')} help={t('device.siteHelp')} testId="network-devices">
-            {n.devices.length === 0 ? (
-              <EmptyState icon={IconDevices} title={t('device.emptyTitle')} whoCanAct={can ? undefined : t('whoCanAct')}>
-                {t('device.emptyText', { type: label('asset', false, true) })}
-              </EmptyState>
-            ) : (
-              <>
-                <TextInput
-                  leftSection={<IconSearch size={14} aria-hidden />}
-                  placeholder={t('device.search')}
-                  aria-label={t('device.search')}
-                  value={search}
-                  onChange={(e) => setSearch(e.currentTarget.value)}
-                  maw={360}
-                />
-                {devices.length === 0 ? (
-                  <Text size="sm" c="dimmed">
-                    {t('device.noMatch')}
-                  </Text>
-                ) : narrow ? (
-                  <Stack gap="xs">
-                    {devices.map((d) => (
-                      <Paper key={`${d.assetId}/${d.id}`} withBorder p="sm" data-testid={`site-device-${d.id}`}>
-                        <Group justify="space-between" wrap="nowrap" gap="xs" align="flex-start">
-                          <Stack gap={2} style={{ minWidth: 0 }}>
-                            <Text size="sm" fw={500} className="mono" style={{ overflowWrap: 'anywhere' }}>
-                              {d.hostname || d.id}
-                            </Text>
-                            <Anchor component={Link} to={`/plant/assets/${encodeURIComponent(d.assetId)}`} size="xs">
-                              {d.assetName}
-                            </Anchor>
-                            <Text size="xs" className="mono">
-                              {[d.address, d.mac].filter(Boolean).join(' · ') || '–'}
-                            </Text>
-                            <Text size="xs" c="dimmed">
-                              {[vlanName(d.vlan), [d.switch, d.switchPort].filter(Boolean).join(' ')].filter((x) => x && x !== '–').join(' · ')}
-                            </Text>
-                            <DeviceHints device={d} />
-                          </Stack>
-                          <LiveBadge live={d.live} size="xs" />
-                        </Group>
-                      </Paper>
-                    ))}
-                  </Stack>
-                ) : (
-                  <div className="table-scroll" tabIndex={0} role="region" aria-label={t('device.title')}>
-                    <Table fz="sm" aria-label={t('device.title')} miw={760}>
-                      <Table.Thead>
-                        <Table.Tr>
-                          <Table.Th>{t('device.hostname')}</Table.Th>
-                          <Table.Th>{label('asset')}</Table.Th>
-                          <Table.Th>{t('device.address')}</Table.Th>
-                          <Table.Th>{t('device.mac')}</Table.Th>
-                          <Table.Th>{t('device.vlan')}</Table.Th>
-                          <Table.Th>{t('device.port')}</Table.Th>
-                          <Table.Th>{t('device.state')}</Table.Th>
-                          <Table.Th>{t('overview.live')}</Table.Th>
-                        </Table.Tr>
-                      </Table.Thead>
-                      <Table.Tbody>
-                        {devices.map((d) => (
-                          <Table.Tr key={`${d.assetId}/${d.id}`} data-testid={`site-device-${d.id}`}>
-                            <Table.Td>
-                              <Text size="sm" fw={500} className="mono">
-                                {d.hostname || d.id}
-                              </Text>
-                              <DeviceHints device={d} />
-                            </Table.Td>
-                            <Table.Td>
-                              <Anchor component={Link} to={`/plant/assets/${encodeURIComponent(d.assetId)}`} size="sm">
-                                {d.assetName}
-                              </Anchor>
-                            </Table.Td>
-                            <Table.Td className="mono">
-                              {d.address || '–'}
-                              {d.addressType && (
-                                <Text size="xs" c="dimmed">
-                                  {t(`addressTypes.${d.addressType}`)}
-                                </Text>
-                              )}
-                            </Table.Td>
-                            <Table.Td className="mono">{d.mac || '–'}</Table.Td>
-                            <Table.Td>{vlanName(d.vlan)}</Table.Td>
-                            <Table.Td className="mono">{[d.switch, d.switchPort].filter(Boolean).join(' · ') || '–'}</Table.Td>
-                            <Table.Td>{t(`deviceStates.${d.state}`)}</Table.Td>
-                            <Table.Td>
-                              <LiveBadge live={d.live} size="xs" />
-                            </Table.Td>
-                          </Table.Tr>
-                        ))}
-                      </Table.Tbody>
-                    </Table>
-                  </div>
-                )}
-              </>
-            )}
+          <Section
+            title={t('device.title')}
+            help={t('device.siteHelp')}
+            action={<SiteNetworkAddButton n={n} edit={edit} what="device" testId="add-site-device" />}
+            testId="network-devices"
+          >
+            <SiteDevices n={n} edit={edit} narrow={narrow} />
           </Section>
         )}
 
         {tab === 'paths' && (
-          <Section title={t('path.title')} help={t('path.siteHelp')} testId="network-paths">
-            {n.dataPaths.length === 0 ? (
-              <EmptyState icon={IconRoute} title={t('path.emptyTitle')} whoCanAct={can ? undefined : t('whoCanAct')}>
-                {t('path.emptyText', { type: label('asset', false, true) })}
-              </EmptyState>
-            ) : (
-              <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="sm">
-                {n.dataPaths.map((p) => (
-                  <Paper key={`${p.assetId}/${p.id}`} withBorder p="sm" data-testid={`site-path-${p.id}`}>
-                    <Stack gap={4}>
-                      <Text size="sm" fw={600}>
-                        {p.subject}
-                      </Text>
-                      <DataPathSummary path={p} withAsset />
-                    </Stack>
-                  </Paper>
-                ))}
-              </SimpleGrid>
-            )}
+          <Section
+            title={t('path.title')}
+            help={t('path.siteHelp')}
+            action={<SiteNetworkAddButton n={n} edit={edit} what="path" testId="add-site-path" />}
+            testId="network-paths"
+          >
+            <SitePaths n={n} edit={edit} />
           </Section>
         )}
       </div>
@@ -660,11 +600,12 @@ export function PlantNetworkPage() {
         <VlanModal
           network={n}
           vlan={dialog.vlan}
-          sites={(hierarchy.data ?? []).map((x) => ({ id: x.id, name: nameOf(x) }))}
+          sites={(hierarchy ?? []).map((x) => ({ id: x.id, name: nameOf(x) }))}
           onClose={() => setDialog(null)}
           onSaved={saved}
         />
       )}
+      {edit.modals}
       {dialog?.kind === 'segment' && <SegmentModal siteId={n.site.id} vlan={dialog.vlan} onClose={() => setDialog(null)} onSaved={saved} />}
       {dialog?.kind === 'zone' && <ZoneModal network={n} zone={dialog.zone} onClose={() => setDialog(null)} onSaved={saved} />}
       {dialog?.kind === 'conduit' && (

@@ -859,5 +859,16 @@
     "nonePossible": "Keine KPI-Definition: Keine liest nur Datenpunkte, die diese Anlage liefert.",
     "nonePossibleNoProfile": "Ordnen Sie zuerst ein Geräteprofil zu: KPIs lesen dessen Datenpunkte.",
     "instantiated": "hat eine Instanz"
+  },
+  "move": {
+    "menu": "Verschieben nach…",
+    "nodeTitle": "{{type}} {{name}} verschieben",
+    "nodeHelp": "Die {{type}} kommt unter eine andere {{parent}} dieses Standorts, mit allem darunter und ihren Anlagen.",
+    "newParent": "Neue {{type}}",
+    "nothingFound": "Nichts gefunden",
+    "siteOnly": "{{site}} (nur der Standort)",
+    "assetTitle": "{{name}} verschieben",
+    "assetHelp": "Wählen Sie den Platz der {{type}} in der Hierarchie dieses Standorts. Alles andere bleibt, wie es ist.",
+    "newPlace": "Neuer Platz"
   }
 }

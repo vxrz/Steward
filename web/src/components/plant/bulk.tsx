@@ -5,6 +5,9 @@ import { IconEdit, IconShieldLock, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import {
   ASSET_STATUSES,
+  DEVICE_CONFIDENCE,
+  DEVICE_FLAG_SUGGESTIONS,
+  DEVICE_STATES,
   PLANT_BULK_FIELDS,
   type PlantBulkItem,
   type PlantBulkKind,
@@ -95,6 +98,8 @@ export function SelectAllBox({ sel, ids }: { sel: Selection; ids: string[] }) {
 export interface BulkEntry {
   id: string;
   scope?: string;
+  /** The key of its selection when the id alone is not unique (a device: `<asset>/<device>`); default the id */
+  key?: string;
   name: string;
   /** The site of an asset (building and place need one site) */
   siteId?: string;
@@ -123,7 +128,7 @@ export function BulkBar({
 }) {
   const { t } = useTranslation('plantIds');
   const [open, setOpen] = useState<'edit' | 'remove' | null>(null);
-  const chosen = entries.filter((e) => sel.has(e.id));
+  const chosen = entries.filter((e) => sel.has(e.key ?? e.id));
   const editable = canEdit && PLANT_BULK_FIELDS[kind].length > 0;
   return (
     <>
@@ -338,10 +343,16 @@ function BulkModal({
 }
 
 const UNCHANGED = '__unchanged__';
+/** A device flag as stored: snake_case */
+const flagOf = (f: string) =>
+  f
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, '_');
 const NONE = '__none__';
 
 function EditFields({ kind, entries, set, change }: { kind: PlantBulkKind; entries: BulkEntry[]; set: PlantBulkSet; change: (p: PlantBulkSet) => void }) {
-  const { t } = useTranslation(['plantIds', 'plant']);
+  const { t } = useTranslation(['plantIds', 'plant', 'plantNetwork']);
   const nameOf = useNameOf();
   const fields = PLANT_BULK_FIELDS[kind];
   const has = (f: keyof PlantBulkSet) => fields.includes(f);
@@ -383,8 +394,32 @@ function EditFields({ kind, entries, set, change }: { kind: PlantBulkKind; entri
       {has('state') &&
         choice(
           'state',
-          ['planned', 'active', 'inactive', 'retired'].map((s) => ({ value: s, label: s })),
+          DEVICE_STATES.map((s) => ({ value: s, label: t(`plantNetwork:deviceStates.${s}`) })),
         )}
+      {has('confidence') &&
+        choice(
+          'confidence',
+          DEVICE_CONFIDENCE.map((s) => ({ value: s, label: t(`plantNetwork:confidence.${s}`) })),
+          true,
+        )}
+      {has('addFlags') && (
+        <TagsInput
+          size="xs"
+          label={t('bulk.fields.addFlags')}
+          data={[...DEVICE_FLAG_SUGGESTIONS]}
+          value={set.addFlags ?? []}
+          onChange={(v) => change({ addFlags: v.length ? v.map(flagOf) : undefined })}
+        />
+      )}
+      {has('removeFlags') && (
+        <TagsInput
+          size="xs"
+          label={t('bulk.fields.removeFlags')}
+          data={[...DEVICE_FLAG_SUGGESTIONS]}
+          value={set.removeFlags ?? []}
+          onChange={(v) => change({ removeFlags: v.length ? v.map(flagOf) : undefined })}
+        />
+      )}
       {has('addTags') && (
         <TagsInput size="xs" label={t('bulk.fields.addTags')} value={set.addTags ?? []} onChange={(v) => change({ addTags: v.length ? v : undefined })} />
       )}

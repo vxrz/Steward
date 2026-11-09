@@ -49,9 +49,18 @@ A **site** has a code (short, unique, e.g. `RVS`), a name with translations, a d
 
 On the site page:
 
-- **Hierarchy**: areas (with an optional manufacturing domain), their work centers and work units; add, edit, move (a work center to another area, a work unit to another work center – its assets follow) and remove (only empty nodes). Each node names its building or inherits it. The areas start open and the work centers folded; the arrow beside a node folds it, _Expand all_ and _Collapse all_ do it for the whole tree. A link to `#node-<id>` opens the path to that node.
+- **Hierarchy**: areas (with an optional manufacturing domain), their work centers and work units; add, edit, [move](#move-to) (a work center to another area, a work unit to another work center – its assets follow) and remove (only empty nodes). Each node names its building or inherits it. The areas start open and the work centers folded; the arrow beside a node folds it, _Expand all_ and _Collapse all_ do it for the whole tree. A link to `#node-<id>` opens the path to that node.
 - **Buildings**: buildings, halls, floors, rooms and outdoor areas; a floor or room names the building it is in (no cycles). A building that something names cannot be removed.
 - The site's assets by status, its links, its access list and owning teams.
+
+### Move to
+
+Since 0.12. **Move to…** in the menu of a work center or work unit in the site's hierarchy, and in the menu of an asset's page, opens a dialog with one searchable choice (keyboard only works too; there is no drag and drop):
+
+- a **work center** moves to another area, a **work unit** to another work center of the same site – with everything below it; it is placed last below its new parent, and the assets in it follow (their area and work center change with it). Areas sit directly below their site and do not move. The server checks the levels, so a node never moves below itself or what is below it (`PLANT_NODE_PARENT`);
+- an **asset** moves to any area, work center or work unit of its site, or to the site itself; everything else about it stays.
+
+A move is an ordinary change of the node (`site.node_changed` with `parentId`) or the asset (`asset.updated`), through `PUT /api/plant/sites/:siteId/nodes/:nodeId` and `PUT /api/plant/assets/:assetId`. Many assets move at once with _Edit selected_ → _Place_ in the asset list ([Changing many entries at once](#changing-many-entries-at-once)).
 
 ## Assets
 
@@ -276,13 +285,32 @@ The **level** says where a zone sits, bottom to top: _Level 0 – field devices_
 
 ### Devices of an asset
 
-On the asset page, section **OT network → Devices** – the network identity of the asset, often a small box next to the machine: **host name and domain**, purpose, **MAC** (EUI-48), serial number; **VLAN** (of the asset's site), **address type** (dynamic, reserved, static) and **address**; **switch, switch port, wall outlet, CMDB port name**; **state** (planned, active, inactive, retired), **flags** (snake_case: `device_ordered`, `port_ordered`, `address_ordered` …) and a **confidence** (high, medium, low: how sure the documentation is); **owner**, the **monitoring** that watches it (text) and its **linked checks**. A device shows a hint when its VLAN does not exist (any more), its address is outside the VLAN's subnets or in a blocked range. _OT network → Devices_ lists the devices of every asset of the site, with a search.
+On the asset page, section **OT network → Devices** – the network identity of the asset, often a small box next to the machine: **host name and domain**, purpose, **MAC** (EUI-48), serial number; **VLAN** (of the asset's site), **address type** (dynamic, reserved, static) and **address**; **switch, switch port, wall outlet, CMDB port name**; **state** (planned, active, inactive, retired), **flags** (snake_case: `device_ordered`, `port_ordered`, `address_ordered` …) and a **confidence** (high, medium, low: how sure the documentation is); **owner**, the **monitoring** that watches it (text) and its **linked checks**. A device shows a hint when its VLAN does not exist (any more), its address is outside the VLAN's subnets or in a blocked range. _OT network → Devices_ lists the devices of every asset of the site – see [Editing in place](#editing-in-place).
 
 ### Data paths of an asset
 
 **OT network → Data paths**: what data leaves the asset – a **subject** (machine state, NC programs), the **devices** it covers, the **collector** (a Steward **application**, **platform** or **process**, or a **job** elsewhere by name, optionally with the Steward **system** it runs on), its **transfers** (protocol, **push or pull**, port, the **peer**: a device of the asset, a Steward system or text) and its **destinations** (a Steward system with a path, a Steward dataset, or text).
 
 **Hosts are Steward systems**, so chains of services – _pull job → file share → archive job_ – can be followed link by link: a data path **continues in** every data path that reads (as a transfer peer or the collector's host) from a system it writes to, and **comes from** those that write to a system it reads from, across assets and sites the reader may see – at most 50 each, with the number of the others ("and 120 more"; `nextMore` and `previousMore` in the API). A device that a data path names cannot be removed (`PLANT_DEVICE_IN_USE`).
+
+### Editing in place
+
+Since 0.12 the site's **Devices** and **Data paths** tabs are where the OT network is kept by hand – Steward is the place where this documentation is maintained, and an import loads or syncs it. Who manages the site:
+
+- **adds** a device or data path with _Add device_ / _Add data path_ (choosing the asset it belongs to when the site has more than one), and **edits** or **removes** one from its row's menu – with the same forms, rules and audit as on the asset's page;
+- selects devices and uses **Edit selected** or **Remove selected** ([Changing many entries at once](#changing-many-entries-at-once): state, confidence, owner, flags). Data paths have no bulk change; they are changed one at a time.
+
+Both lists sort by every column, filter (devices by VLAN – or _No VLAN_ –, state and asset, data paths by asset, both with a search) and say how many entries they show. Inactive and retired devices are shown quieter. Identifiers – host names, addresses, MAC addresses, VLANs, switches and ports – never break inside; a wide table scrolls sideways. A device without an address shows its address type alone (_Dynamic (DHCP)_). On a phone the rows are cards.
+
+### Data quality hints
+
+Above the devices, **Data quality (N)** lists what looks wrong in the documentation of the site's devices, open when there is something and folded when all is well (the overview tab shows the count):
+
+- an **IP address**, a **MAC address** or a **host name** (with its domain, without letter case) that two or more devices share;
+- a device **without a VLAN**, and a device that names a **VLAN the site does not have**;
+- **switch names that differ only by letter case** (`SW-Hall1-01` and `sw-hall1-01`) – most likely one switch written two ways; the hint names the devices not written in the most used spelling.
+
+Retired devices are left out. Each hint names its devices; a device leads to its row (all filters off) and to its asset. Steward computes the hints when the network is read (`dataQuality` in `GET /api/plant/sites/:siteId/network` and `/api/v1`); whoever sees the site sees them, as they see its devices. They are hints: nothing is refused or changed because of them.
 
 ### Live status
 
@@ -291,7 +319,7 @@ An asset or device is **online**, **offline** or **unknown** – **only from its
 - a **monitor** (by key or id) or **one of its checks** (by check id or key): Gatus endpoints, CheckMk services, the MQTT silent-device check, Kafka and every other check type ([MONITORS.md](MONITORS.md)). _Up_ and _degraded_ are online (degraded with its reason), _down_ is offline; no result yet, blocked, maintenance or a monitor or check that is turned off is unknown;
 - the **freshness of a dataset** (the last value of an aspect on an IoT platform, published by a process): optionally only the rows whose **column** has a **value** (the row of this asset or device), the **time column** of the last value and a **maximum age** in minutes (empty: the dataset's own freshness, [DASHBOARDS.md](DASHBOARDS.md)). Newer is online, older offline; no data under the key, no row or no readable time is unknown.
 
-A device is offline when any of its checks says offline, online only when **every** check says online, unknown otherwise – and **unknown when nothing is linked**. An asset combines its own checks with those of its devices that have checks (a device without checks says nothing): offline wins, unknown is never shown as online. The status is shown on the asset page, on the **site page** (a card with the counts) and on the site's **overview dashboard** _OT network → Status_ (online, offline and unknown assets, each with its devices and data paths). It is read when the page is read; Steward stores no status history of its own (the monitors and datasets have theirs).
+A device is offline when any of its checks says offline, online only when **every** check says online, unknown otherwise. **Nothing linked** is shown as **Not watched** (quiet, no alarm colour; `watched: false` in the API, where `state` stays `unknown`) – _Unknown_ means a linked check has no result. When nothing on a site is watched, its overview and device lists leave out the _Live_ column and say where checks are linked. An asset combines its own checks with those of its devices that have checks (a device without checks says nothing): offline wins, unknown is never shown as online. The status is shown on the asset page, on the **site page** (a card with the counts) and on the site's **overview dashboard** _OT network → Status_ (online, offline, unknown and not watched assets, each with its devices and data paths). It is read when the page is read; Steward stores no status history of its own (the monitors and datasets have theirs).
 
 **An asset's status reveals the state of its linked checks to everyone who sees the asset** – that is why a Plant viewer, who may see no monitor at all, sees the real status. What a reader learns of a check depends on whether they may see what it checks:
 
@@ -826,7 +854,7 @@ The preview lists the renames apart from what is added, changed and removed. It 
 
 Since 0.11.0. Every bulk change shows a preview first – what changes, what is **skipped** (an entry you may not change) and what is **refused** (a rule or a reference, with the reason) – and applies in one transaction. Removing more than one entry, or editing more than 25, asks for a step-up (`plant.bulkChange`). One audit entry per action, with the entries in its details: `plant.bulk_changed`, `plant.bulk_removed`.
 
-**In the lists:** the asset, site, device profile and KPI definition lists have a checkbox per row (and _Select all shown_). _Edit selected_ sets fields that are safe to set on many entries:
+**In the lists:** the asset, site, device profile and KPI definition lists and a site's devices (0.12) have a checkbox per row (and _Select all shown_). _Edit selected_ sets fields that are safe to set on many entries:
 
 | Kind           | Fields                                                                                                                                               |
 | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -834,7 +862,7 @@ Since 0.11.0. Every bulk change shows a preview first – what changes, what is 
 | Device profile | category, manufacturer                                                                                                                               |
 | KPI definition | category                                                                                                                                             |
 | VLAN (API)     | type, managed by, restricted, owner                                                                                                                  |
-| Device (API)   | state, confidence, owner, add or remove flags                                                                                                        |
+| Device         | state, confidence, owner, add or remove flags (the site's _OT network → Devices_ tab)                                                                |
 
 A place or building must be one of the asset's site. A new device profile is refused for an asset whose assignment has interface settings for its old profile (change it on the asset's page). Owning teams of many sites are set with `POST /api/owning-teams/bulk` and `resources: [{ kind: site, id }]` (administrators, [TEAMS.md](TEAMS.md)). _Remove selected_ works for every list above.
 
