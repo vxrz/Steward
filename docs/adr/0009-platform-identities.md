@@ -252,7 +252,8 @@ Each step is its own PR. Each is backward compatible: until someone adds a secon
 7. **Matching**: literals compare case-insensitively when deciding (a server that ignores case cannot be used to slip past a more specific operation); on a tie every tied operation must be allowed; `;` path parameters are refused.
 8. **Connector types**: a template with `default: true` names and flags the new platform's default identity; the privileged flag is not carried (step 4). Filter references are `METHOD /specPath` of the bundled specs.
 9. **Copy specs**: an identity of the same name on the target gets the filter only when that does not widen it (otherwise it is skipped and listed – widening needs its managers' step-up on the target).
-10. **Not built in this step**: the contract check and the Postman export use the default identity; debug runs (step-through and single node) and `request_run` use default identities; run reports show the identity in the run detail and `run.started`, not yet in the PDF; database platforms show _Read only_ fixed in the dialog, the flag itself is not stored.
+10. **Writing steps on a slot without `identity.writes`**: the process editor's _Connections_ panel shows a hint next to the slot's switch _Needs an identity that can write_; the server's process check does not warn.
+11. **Not built in this step**: the contract check and the Postman export use the default identity; debug runs (step-through and single node) and `request_run` use default identities; run reports show the identity in the run detail and `run.started`, not yet in the PDF; database platforms show _Read only_ fixed in the dialog, the flag itself is not stored.
 
 ## Decided after review
 

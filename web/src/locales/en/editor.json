@@ -822,7 +822,9 @@
     "kind": "Platform kind",
     "anyKind": "any",
     "description": "Description",
-    "add": "Add connection"
+    "add": "Add connection",
+    "needsWrites": "Needs an identity that can write",
+    "writesHint": "A step writes through this connection. Turn on “Needs an identity that can write” so that read-only identities are not offered for it."
   },
   "constants": {
     "notMapping": "Constants must be a mapping (key: value)",
