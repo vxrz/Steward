@@ -61,20 +61,35 @@ export function usePrinting(): boolean {
 // ---------- a group of sections: Expand all / Collapse all ----------
 
 interface GroupMember {
-  setOpen: (open: boolean) => void;
+  /** `persist` false: Expand all / Collapse all change the view, not the remembered choices */
+  setOpen: (open: boolean, persist?: boolean) => void;
 }
 interface GroupApi {
   register: (id: string, member: GroupMember) => () => void;
   count: number;
   setAll: (open: boolean) => void;
+  /** Sections without their own `remember` remember the user's choice under `section.<scope>.<id>` */
+  rememberScope?: string;
 }
 const GroupContext = createContext<GroupApi | null>(null);
 
 /**
  * Sections of one page (or one tree): registers them and offers "Expand all" / "Collapse all" once there are
  * `min` or more (long pages, rule 6). `controls="none"`: the buttons are placed with <SectionGroupControls />.
+ * `rememberScope` (the kind of page, never a record id): the user's choice per section is remembered for every
+ * page of that kind. Shared panels (`onlyInGroup`) fold only inside a group; elsewhere (tabs) they stay open.
  */
-export function SectionGroup({ children, min = 5, controls = 'top' }: { children: ReactNode; min?: number; controls?: 'top' | 'none' }) {
+export function SectionGroup({
+  children,
+  min = 5,
+  controls = 'top',
+  rememberScope,
+}: {
+  children: ReactNode;
+  min?: number;
+  controls?: 'top' | 'none';
+  rememberScope?: string;
+}) {
   const members = useRef(new Map<string, GroupMember>());
   const [count, setCount] = useState(0);
   const register = useCallback((id: string, member: GroupMember) => {
@@ -86,9 +101,9 @@ export function SectionGroup({ children, min = 5, controls = 'top' }: { children
     };
   }, []);
   const setAll = useCallback((open: boolean) => {
-    for (const m of members.current.values()) m.setOpen(open);
+    for (const m of members.current.values()) m.setOpen(open, false);
   }, []);
-  const api = useMemo(() => ({ register, count, setAll }), [register, count, setAll]);
+  const api = useMemo(() => ({ register, count, setAll, rememberScope }), [register, count, setAll, rememberScope]);
   return (
     <GroupContext.Provider value={api}>
       {controls === 'top' && count >= min && <SectionGroupControls mb="xs" />}
@@ -115,14 +130,14 @@ export function SectionGroupControls({ mb, min = 1 }: { mb?: string; min?: numbe
 }
 
 /** Joins the surrounding <SectionGroup> (if any; not with an empty id), so "Expand all" / "Collapse all" reach this part. */
-export function useSectionGroupMember(id: string, setOpen: (open: boolean) => void) {
+export function useSectionGroupMember(id: string, setOpen: (open: boolean, persist?: boolean) => void) {
   const group = useContext(GroupContext);
   const register = group?.register;
   const ref = useRef(setOpen);
   useEffect(() => {
     ref.current = setOpen;
   });
-  useEffect(() => (id && register ? register(id, { setOpen: (o) => ref.current(o) }) : undefined), [register, id]);
+  useEffect(() => (id && register ? register(id, { setOpen: (o, persist) => ref.current(o, persist) }) : undefined), [register, id]);
 }
 
 // ---------- the state of one folded part ----------
@@ -134,8 +149,11 @@ export interface CollapsibleOptions {
   defaultOpen: boolean | (() => boolean);
   /** Opens the part whenever it becomes true (an error, a search hit, the path to the selected node) */
   forceOpen?: boolean;
-  /** Pref name under which the user's choice is remembered (sections that recur on many records only) */
-  remember?: string;
+  /**
+   * Pref name under which the user's choice is remembered (sections that recur on many records only); default
+   * inside a <SectionGroup rememberScope>: `section.<scope>.<id>`; false: never
+   */
+  remember?: string | false;
   /** With `remember`: where an older version kept the choice ("1" open, "0" folded) */
   rememberLegacyKey?: string;
   /** With `remember`: what needs attention now (e.g. the ids of failed items); a folded part opens again when it changes */
@@ -148,7 +166,9 @@ export interface CollapsibleOptions {
  * Open or folded: the user's choice (this page view, or remembered), else forced open (error, #id, print), else the
  * default. Returns `open`, `setOpen` and `toggle`; also used by rows and toggles that are not a whole section.
  */
-export function useCollapsible({ id, defaultOpen, forceOpen = false, remember, rememberLegacyKey, alertKey, inGroup = true }: CollapsibleOptions) {
+export function useCollapsible({ id, defaultOpen, forceOpen = false, remember: rememberOpt, rememberLegacyKey, alertKey, inGroup = true }: CollapsibleOptions) {
+  const scope = useContext(GroupContext)?.rememberScope;
+  const remember = rememberOpt === false ? undefined : (rememberOpt ?? (inGroup && scope ? `section.${scope}.${id}` : undefined));
   const { hash } = useLocation();
   const isPrinting = usePrinting();
   const hashHit = hash === `#${id}`;
@@ -170,9 +190,9 @@ export function useCollapsible({ id, defaultOpen, forceOpen = false, remember, r
   const base = typeof defaultOpen === 'function' ? defaultOpen() : defaultOpen;
   const open = isPrinting || (choice ?? (forced || base));
   const setOpen = useCallback(
-    (o: boolean) => {
+    (o: boolean, persist = true) => {
       setChoice(o);
-      if (remember) {
+      if (remember && persist) {
         writePref(remember, o ? '1' : '0');
         if (alertKey !== undefined) writePref(`${remember}.seen`, o ? null : alertKey);
       }
@@ -216,6 +236,8 @@ export interface CollapsibleSectionProps extends Omit<CollapsibleOptions, 'defau
   variant?: 'plain' | 'card';
   /** Base of the test ids (default `section-<id>`): `<base>`, `<base>-toggle`, `<base>-body` */
   testId?: string;
+  /** A panel shared with tabbed pages: folds only inside a <SectionGroup>, elsewhere a plain heading and its content */
+  onlyInGroup?: boolean;
   children: ReactNode;
 }
 
@@ -243,38 +265,48 @@ export function CollapsibleSection({
   icon,
   variant = 'plain',
   testId = `section-${id}`,
+  onlyInGroup,
   children,
 }: CollapsibleSectionProps) {
   const narrow = useMediaQuery('(max-width: 48em)', false, { getInitialValueInEffect: false });
-  const {
-    open,
-    toggle,
-    printing: isPrinting,
-  } = useCollapsible({
+  const group = useContext(GroupContext);
+  const isStatic = !!onlyInGroup && !group;
+  const state = useCollapsible({
     id,
     defaultOpen: () => (collapseOnPhone && narrow ? false : typeof defaultOpen === 'function' ? defaultOpen() : defaultOpen),
     forceOpen: forceOpen || tone === 'error',
-    remember,
+    remember: isStatic ? false : remember,
     rememberLegacyKey,
     alertKey,
-    inGroup,
+    inGroup: !isStatic && inGroup,
   });
+  const open = isStatic || state.open;
+  const { toggle, printing: isPrinting } = state;
   const bodyId = `${id}-body`;
   const countColor = tone === 'error' ? 'red' : tone === 'warning' ? 'orange' : 'gray';
+  const label = (
+    <>
+      {icon}
+      <span id={`${id}-title`}>{title}</span>
+      {count !== undefined && (
+        <Badge component="span" size="sm" variant={tone ? 'light' : 'default'} color={countColor} radius="sm" className="sm-section-count">
+          {count}
+        </Badge>
+      )}
+    </>
+  );
   const header = (
     <Group justify="space-between" wrap="nowrap" align="flex-start" gap="xs">
       <Group gap={6} wrap="wrap" align="center" style={{ minWidth: 0, flex: 1, rowGap: 2 }}>
         <Title order={order} size={size ?? (order === 2 ? 'h4' : 'h5')} style={{ minWidth: 0 }}>
-          <UnstyledButton onClick={toggle} aria-expanded={open} aria-controls={bodyId} className="sm-section-toggle" data-testid={`${testId}-toggle`}>
-            <IconChevronDown size={16} aria-hidden className="sm-section-chevron" data-open={open} />
-            {icon}
-            <span id={`${id}-title`}>{title}</span>
-            {count !== undefined && (
-              <Badge component="span" size="sm" variant={tone ? 'light' : 'default'} color={countColor} radius="sm" className="sm-section-count">
-                {count}
-              </Badge>
-            )}
-          </UnstyledButton>
+          {isStatic ? (
+            <span className="sm-section-label">{label}</span>
+          ) : (
+            <UnstyledButton onClick={toggle} aria-expanded={open} aria-controls={bodyId} className="sm-section-toggle" data-testid={`${testId}-toggle`}>
+              <IconChevronDown size={16} aria-hidden className="sm-section-chevron" data-open={open} />
+              {label}
+            </UnstyledButton>
+          )}
         </Title>
         {summary}
       </Group>
@@ -285,16 +317,23 @@ export function CollapsibleSection({
       )}
     </Group>
   );
-  const body = (
+  const content = (
+    <Box pt="xs">
+      {description && (
+        <Text size="xs" c="dimmed" mb="xs">
+          {description}
+        </Text>
+      )}
+      {children}
+    </Box>
+  );
+  const body = isStatic ? (
+    <div id={bodyId} data-testid={`${testId}-body`}>
+      {content}
+    </div>
+  ) : (
     <Collapse expanded={open} id={bodyId} data-testid={`${testId}-body`} transitionDuration={isPrinting ? 0 : 150}>
-      <Box pt="xs">
-        {description && (
-          <Text size="xs" c="dimmed" mb="xs">
-            {description}
-          </Text>
-        )}
-        {children}
-      </Box>
+      {content}
     </Collapse>
   );
   const props = {

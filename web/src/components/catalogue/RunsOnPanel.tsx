@@ -9,6 +9,7 @@ import { del, get, notifyError, post, put } from '../../api';
 import { confirmDanger } from '../confirm';
 import { EnvironmentBadge, EnvironmentInput, sortByEnvironment, useEnvironmentList } from './environments';
 import { StackBadges } from './ComponentsPanel';
+import { CollapsibleSection } from '../page/CollapsibleSection';
 
 /**
  * "Runs on" (#129): the systems an application runs on, grouped by environment, next to its platforms. Whoever may
@@ -30,76 +31,82 @@ export function RunsOnPanel({ app, onSaved }: { app: ApplicationDetail; onSaved:
     }
   };
   return (
-    <Stack gap="xs" data-testid="application-runs-on">
-      <Group justify="space-between">
-        <Text fw={600} id="runs-on-title">
-          {t('runsOn.title')}
-        </Text>
-        {editable && (
+    <CollapsibleSection
+      id="runs-on"
+      collapseOnPhone
+      testId="application-runs-on"
+      onlyInGroup
+      size="h5"
+      title={t('runsOn.title')}
+      count={app.systems.length}
+      defaultOpen={app.systems.length > 0}
+      description={t('runsOn.help')}
+      actions={
+        editable && (
           <Button size="xs" variant="default" leftSection={<IconPlus size={14} />} onClick={() => setEditing('new')}>
             {t('runsOn.add')}
           </Button>
-        )}
-      </Group>
-      <Text size="xs" c="dimmed">
-        {t('runsOn.help')}
-      </Text>
-      {app.systems.length === 0 ? (
-        <Text size="sm" c="dimmed">
-          {t('runsOn.empty')}
-        </Text>
-      ) : (
-        <Stack gap="sm" aria-labelledby="runs-on-title">
-          {groups.map((env) => (
-            <Stack key={env} gap={4} data-testid={`runs-on-${env || 'all'}`}>
-              <Group gap={6}>
-                <EnvironmentBadge value={env} />
-              </Group>
-              {app.systems
-                .filter((s) => s.environment === env)
-                .map((l) => (
-                  <Paper key={l.id} withBorder p="xs">
-                    <Group justify="space-between" wrap="nowrap" align="flex-start">
-                      <Stack gap={4} style={{ minWidth: 0 }}>
-                        <Group gap={6}>
-                          <Anchor component={Link} to={`/systems/${l.systemId}`} size="sm" fw={500}>
-                            {l.name}
-                          </Anchor>
-                          <Badge size="xs" variant="default">
-                            {t(`systems.kinds.${l.kind}`)}
-                          </Badge>
-                          {l.vendor && (
-                            <Text span size="xs" c="dimmed">
-                              {l.vendor}
+        )
+      }
+    >
+      <Stack gap="xs">
+        {app.systems.length === 0 ? (
+          <Text size="sm" c="dimmed">
+            {t('runsOn.empty')}
+          </Text>
+        ) : (
+          <Stack gap="sm" aria-labelledby="runs-on-title">
+            {groups.map((env) => (
+              <Stack key={env} gap={4} data-testid={`runs-on-${env || 'all'}`}>
+                <Group gap={6}>
+                  <EnvironmentBadge value={env} />
+                </Group>
+                {app.systems
+                  .filter((s) => s.environment === env)
+                  .map((l) => (
+                    <Paper key={l.id} withBorder p="xs">
+                      <Group justify="space-between" wrap="nowrap" align="flex-start">
+                        <Stack gap={4} style={{ minWidth: 0 }}>
+                          <Group gap={6}>
+                            <Anchor component={Link} to={`/systems/${l.systemId}`} size="sm" fw={500}>
+                              {l.name}
+                            </Anchor>
+                            <Badge size="xs" variant="default">
+                              {t(`systems.kinds.${l.kind}`)}
+                            </Badge>
+                            {l.vendor && (
+                              <Text span size="xs" c="dimmed">
+                                {l.vendor}
+                              </Text>
+                            )}
+                          </Group>
+                          {l.note && (
+                            <Text size="xs" c="dimmed">
+                              {l.note}
                             </Text>
                           )}
-                        </Group>
-                        {l.note && (
-                          <Text size="xs" c="dimmed">
-                            {l.note}
-                          </Text>
+                          <StackBadges stack={l.stack} holder={{ kind: 'system', id: l.systemId }} />
+                        </Stack>
+                        {editable && (
+                          <Group gap={0} wrap="nowrap">
+                            <ActionIcon variant="subtle" aria-label={t('runsOn.edit', { name: l.name })} onClick={() => setEditing(l)}>
+                              <IconEdit size={16} />
+                            </ActionIcon>
+                            <ActionIcon variant="subtle" color="red" aria-label={t('runsOn.remove', { name: l.name })} onClick={() => void remove(l)}>
+                              <IconTrash size={16} />
+                            </ActionIcon>
+                          </Group>
                         )}
-                        <StackBadges stack={l.stack} holder={{ kind: 'system', id: l.systemId }} />
-                      </Stack>
-                      {editable && (
-                        <Group gap={0} wrap="nowrap">
-                          <ActionIcon variant="subtle" aria-label={t('runsOn.edit', { name: l.name })} onClick={() => setEditing(l)}>
-                            <IconEdit size={16} />
-                          </ActionIcon>
-                          <ActionIcon variant="subtle" color="red" aria-label={t('runsOn.remove', { name: l.name })} onClick={() => void remove(l)}>
-                            <IconTrash size={16} />
-                          </ActionIcon>
-                        </Group>
-                      )}
-                    </Group>
-                  </Paper>
-                ))}
-            </Stack>
-          ))}
-        </Stack>
-      )}
-      {editing && <RunsOnModal app={app} link={editing === 'new' ? null : editing} onClose={() => setEditing(null)} onSaved={onSaved} />}
-    </Stack>
+                      </Group>
+                    </Paper>
+                  ))}
+              </Stack>
+            ))}
+          </Stack>
+        )}
+        {editing && <RunsOnModal app={app} link={editing === 'new' ? null : editing} onClose={() => setEditing(null)} onSaved={onSaved} />}
+      </Stack>
+    </CollapsibleSection>
   );
 }
 

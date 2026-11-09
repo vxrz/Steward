@@ -344,6 +344,12 @@ p .mantine-Anchor-root,
   overflow-wrap: anywhere;
   border-radius: var(--mantine-radius-sm);
 }
+.sm-section-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  overflow-wrap: anywhere;
+}
 .sm-section-toggle:hover {
   background: var(--mantine-color-default-hover);
 }

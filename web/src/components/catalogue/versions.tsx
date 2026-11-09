@@ -54,6 +54,7 @@ import { fmtDate, fmtDay, fmtRelative } from '../../format';
 import { platformKeys, versionKeys } from '../../queryKeys';
 import { EmptyState } from '../common';
 import { LifecycleBadge, lifecycleText } from './lifecycle';
+import { CollapsibleSection } from '../page/CollapsibleSection';
 
 /**
  * Version watch (#241): the newest version of every tech stack entry, how far behind it is and where it was found –
@@ -216,11 +217,17 @@ export function StackVersions({ app }: { app: ApplicationDetail }) {
       </Text>
     );
   return (
-    <Stack gap={6} data-testid="stack-versions">
-      <Group justify="space-between" gap="xs">
-        <Text fw={600} id="versions-title">
-          {t('versions.title')}
-        </Text>
+    <CollapsibleSection
+      id="versions"
+      collapseOnPhone
+      testId="stack-versions"
+      onlyInGroup
+      size="h5"
+      title={t('versions.title')}
+      count={rows.length}
+      tone={count('major') || rows.some((r) => r.entry.lifecycle?.state === 'eol') ? 'warning' : undefined}
+      description={t('versions.help')}
+      summary={
         <Group gap={4}>
           {(['major', 'minor', 'patch', 'current'] as const).map((lag) =>
             count(lag) ? (
@@ -230,113 +237,113 @@ export function StackVersions({ app }: { app: ApplicationDetail }) {
             ) : null,
           )}
         </Group>
-      </Group>
-      <Text size="xs" c="dimmed">
-        {t('versions.help')}
-      </Text>
-      {phone ? (
-        <Stack gap="xs" role="list" aria-labelledby="versions-title">
-          {rows.map((r) => (
-            <Card key={r.key} withBorder padding="xs" role="listitem" data-testid="version-row">
-              <Group justify="space-between" wrap="nowrap" align="flex-start">
-                <Stack gap={4} style={{ minWidth: 0 }}>
-                  <Group gap={6}>
-                    <LifecycleBadge text={[r.entry.label, r.entry.version].filter(Boolean).join(' ')} lifecycle={r.entry.lifecycle} />
-                    {r.entry.watch && <LagBadge watch={r.entry.watch} />}
-                  </Group>
-                  <Text size="sm" style={{ overflowWrap: 'anywhere' }}>
-                    {r.entry.watch?.newest ? t('versions.newestAt', { version: r.entry.watch.newest, where: r.entry.watch.where }) : t('versions.noNewest')}
-                  </Text>
-                  <Text size="xs" c="dimmed" style={{ overflowWrap: 'anywhere' }}>
-                    {where(r)}
-                    {r.entry.watch?.daysBehind ? ` · ${t('versions.daysBehind', { count: r.entry.watch.daysBehind })}` : ''}
-                  </Text>
-                </Stack>
-                {details(r)}
-              </Group>
-            </Card>
-          ))}
-        </Stack>
-      ) : (
-        <div className="table-scroll">
-          <Table fz="sm" aria-labelledby="versions-title" verticalSpacing={4}>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>{t('versions.columns.installed')}</Table.Th>
-                <Table.Th>{t('versions.columns.newest')}</Table.Th>
-                <Table.Th>{t('versions.columns.behind')}</Table.Th>
-                <Table.Th>{t('versions.columns.eol')}</Table.Th>
-                {withDt && <Table.Th>{t('versions.columns.vulnerabilities')}</Table.Th>}
-                <Table.Th aria-label={t('components.actions')} />
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {rows.map((r) => {
-                const w = r.entry.watch!;
-                return (
-                  <Table.Tr key={r.key} data-testid="version-row">
-                    <Table.Td>
-                      <Stack gap={2} align="flex-start">
-                        <LifecycleBadge text={[r.entry.label, r.entry.version].filter(Boolean).join(' ')} lifecycle={r.entry.lifecycle} />
-                        <Text span size="xs" c="dimmed" style={{ overflowWrap: 'anywhere' }}>
-                          {where(r)}
-                        </Text>
-                      </Stack>
-                    </Table.Td>
-                    <Table.Td>
-                      {w.newest ? (
-                        <Stack gap={0}>
-                          <Text span size="sm" className="mono nowrap">
-                            {w.newest}
-                          </Text>
-                          <Text span size="xs" c="dimmed">
-                            {w.where}
+      }
+    >
+      <Stack gap={6}>
+        {phone ? (
+          <Stack gap="xs" role="list" aria-labelledby="versions-title">
+            {rows.map((r) => (
+              <Card key={r.key} withBorder padding="xs" role="listitem" data-testid="version-row">
+                <Group justify="space-between" wrap="nowrap" align="flex-start">
+                  <Stack gap={4} style={{ minWidth: 0 }}>
+                    <Group gap={6}>
+                      <LifecycleBadge text={[r.entry.label, r.entry.version].filter(Boolean).join(' ')} lifecycle={r.entry.lifecycle} />
+                      {r.entry.watch && <LagBadge watch={r.entry.watch} />}
+                    </Group>
+                    <Text size="sm" style={{ overflowWrap: 'anywhere' }}>
+                      {r.entry.watch?.newest ? t('versions.newestAt', { version: r.entry.watch.newest, where: r.entry.watch.where }) : t('versions.noNewest')}
+                    </Text>
+                    <Text size="xs" c="dimmed" style={{ overflowWrap: 'anywhere' }}>
+                      {where(r)}
+                      {r.entry.watch?.daysBehind ? ` · ${t('versions.daysBehind', { count: r.entry.watch.daysBehind })}` : ''}
+                    </Text>
+                  </Stack>
+                  {details(r)}
+                </Group>
+              </Card>
+            ))}
+          </Stack>
+        ) : (
+          <div className="table-scroll">
+            <Table fz="sm" aria-labelledby="versions-title" verticalSpacing={4}>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>{t('versions.columns.installed')}</Table.Th>
+                  <Table.Th>{t('versions.columns.newest')}</Table.Th>
+                  <Table.Th>{t('versions.columns.behind')}</Table.Th>
+                  <Table.Th>{t('versions.columns.eol')}</Table.Th>
+                  {withDt && <Table.Th>{t('versions.columns.vulnerabilities')}</Table.Th>}
+                  <Table.Th aria-label={t('components.actions')} />
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {rows.map((r) => {
+                  const w = r.entry.watch!;
+                  return (
+                    <Table.Tr key={r.key} data-testid="version-row">
+                      <Table.Td>
+                        <Stack gap={2} align="flex-start">
+                          <LifecycleBadge text={[r.entry.label, r.entry.version].filter(Boolean).join(' ')} lifecycle={r.entry.lifecycle} />
+                          <Text span size="xs" c="dimmed" style={{ overflowWrap: 'anywhere' }}>
+                            {where(r)}
                           </Text>
                         </Stack>
-                      ) : (
-                        <Tooltip label={w.error ?? t('versions.noNewest')} multiline maw={320}>
-                          <Text span size="sm" c="dimmed">
-                            {t('versions.noNewest')}
-                          </Text>
-                        </Tooltip>
-                      )}
-                    </Table.Td>
-                    <Table.Td className="nowrap">
-                      <Stack gap={0}>
-                        <span>
-                          <LagBadge watch={w} />
-                        </span>
-                        {w.daysBehind ? (
-                          <Text span size="xs" c="dimmed">
-                            {t('versions.forDays', { count: w.daysBehind })}
-                          </Text>
-                        ) : null}
-                      </Stack>
-                    </Table.Td>
-                    <Table.Td className="nowrap">{eol(r.entry.lifecycle)}</Table.Td>
-                    {withDt && (
-                      <Table.Td className="nowrap">
-                        <Vulns r={r.dtrack} />
                       </Table.Td>
-                    )}
-                    <Table.Td>{details(r)}</Table.Td>
-                  </Table.Tr>
-                );
-              })}
-            </Table.Tbody>
-          </Table>
-        </div>
-      )}
-      {open && (
-        <VersionEntryModal
-          holder={open.holder}
-          id={open.holderId}
-          product={open.entry.product}
-          lifecycle={open.entry.lifecycle}
-          onClose={() => setOpen(null)}
-        />
-      )}
-    </Stack>
+                      <Table.Td>
+                        {w.newest ? (
+                          <Stack gap={0}>
+                            <Text span size="sm" className="mono nowrap">
+                              {w.newest}
+                            </Text>
+                            <Text span size="xs" c="dimmed">
+                              {w.where}
+                            </Text>
+                          </Stack>
+                        ) : (
+                          <Tooltip label={w.error ?? t('versions.noNewest')} multiline maw={320}>
+                            <Text span size="sm" c="dimmed">
+                              {t('versions.noNewest')}
+                            </Text>
+                          </Tooltip>
+                        )}
+                      </Table.Td>
+                      <Table.Td className="nowrap">
+                        <Stack gap={0}>
+                          <span>
+                            <LagBadge watch={w} />
+                          </span>
+                          {w.daysBehind ? (
+                            <Text span size="xs" c="dimmed">
+                              {t('versions.forDays', { count: w.daysBehind })}
+                            </Text>
+                          ) : null}
+                        </Stack>
+                      </Table.Td>
+                      <Table.Td className="nowrap">{eol(r.entry.lifecycle)}</Table.Td>
+                      {withDt && (
+                        <Table.Td className="nowrap">
+                          <Vulns r={r.dtrack} />
+                        </Table.Td>
+                      )}
+                      <Table.Td>{details(r)}</Table.Td>
+                    </Table.Tr>
+                  );
+                })}
+              </Table.Tbody>
+            </Table>
+          </div>
+        )}
+        {open && (
+          <VersionEntryModal
+            holder={open.holder}
+            id={open.holderId}
+            product={open.entry.product}
+            lifecycle={open.entry.lifecycle}
+            onClose={() => setOpen(null)}
+          />
+        )}
+      </Stack>
+    </CollapsibleSection>
   );
 }
 
