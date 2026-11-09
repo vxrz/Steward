@@ -84,7 +84,7 @@ test('add a read-only identity, run a process with it – the write is refused �
   const dialog = page.getByRole('dialog', { name: 'Add an identity' });
   await dialog.getByRole('textbox', { name: 'Name' }).fill(identityName);
   await dialog.getByRole('textbox', { name: 'Description' }).fill('Reads the directory');
-  await dialog.getByText('Read only', { exact: true }).click();
+  await dialog.getByRole('switch', { name: 'Read only' }).check();
   await expect(dialog.getByRole('switch', { name: 'Read only' })).toBeChecked();
   await dialog.getByTestId('identity-save').click();
   const edit = page.getByRole('dialog', { name: `Identity “${identityName}”` });

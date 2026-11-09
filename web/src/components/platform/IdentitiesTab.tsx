@@ -110,6 +110,7 @@ export function IdentitiesTab({ platform, onOpenTab }: { platform: Platform; onO
                 <Field label={t('identities.mcpLabel')}>{mcpText(t, i)}</Field>
                 <Field label={t('identities.operations')}>{filterText(t, i)}</Field>
                 <Field label={t('identities.whoMayUse')}>{whoText(t, i)}</Field>
+                <Field label={t('identities.you')}>{i.mayUse ? t('identities.youMayUse') : t('identities.youMayNotUse')}</Field>
               </SimpleGrid>
             </Paper>
           )}
