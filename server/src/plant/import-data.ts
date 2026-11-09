@@ -235,7 +235,8 @@ export function splitInterfaces(
           else if (d.present !== undefined) problems.push({ file, path: `${dat}.present`, message: `The base has no data point "${d.id}"` });
           else added.push(pointFromFile(d, { file, path: dat }, problems));
         });
-        if (added.length || !inheritedGroups.has(name)) o.groups.push({ name, description, dataPoints: added });
+        // an inherited group's entry with a description describes it anew (0.12.0); empty: the inherited description
+        if (added.length || description || !inheritedGroups.has(name)) o.groups.push({ name, description, dataPoints: added });
       }
     }
     interfaceOverrides.push(o);
@@ -896,7 +897,9 @@ function inheritedOut(p: PlantProfileValues, base: PlantResolvedProfile): Record
       }
     const order = iface.groups.map((g) => g.name);
     for (const g of io?.groups ?? []) {
-      const x = groups.get(g.name) ?? { description: order.includes(g.name) ? '' : g.description, points: [] };
+      const x = groups.get(g.name) ?? { description: '', points: [] };
+      // an own group's description, or the one this profile gives an inherited group (0.12.0)
+      if (g.description) x.description = g.description;
       x.points.push(...g.dataPoints.map(pointOut));
       groups.set(g.name, x);
     }
