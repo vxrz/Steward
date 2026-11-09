@@ -1,5 +1,5 @@
 import type { AssetStatus, PlantLevel, Translations } from './plant.js';
-import type { PlantAssetBrief, PlantCheck, PlantCheckCode, PlantDirection, PlantProtocol, PlantUnitMismatch } from './plantData.js';
+import type { PlantAssetBrief, PlantAssetRef, PlantCheck, PlantCheckCode, PlantDirection, PlantProtocol, PlantUnitMismatch } from './plantData.js';
 import type { LiveState } from './plantNetwork.js';
 
 /**
@@ -244,6 +244,16 @@ export interface PlantCoverageCell {
   collected?: boolean;
   /** 0.12.0, could and has: data point inputs the asset delivers in another unit than the KPI expects */
   units?: PlantUnitMismatch[];
+  /**
+   * 0.13, a KPI that rolls up from parts: the state comes from this part of the asset (its job, or the inputs it
+   * delivers and collects) – the asset itself has no job and does not deliver every input
+   */
+  via?: PlantAssetRef;
+  /**
+   * 0.13, a KPI that rolls up from parts: this asset is a part of that one, which counts the KPI once for both – the
+   * cell is not counted again in the totals and the KPI potential
+   */
+  rolledUp?: PlantAssetRef;
 }
 
 /** 0.12.0: KPI potential – of the cells that could have a KPI, those whose data is collected and those that need a collection. */

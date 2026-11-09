@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   IconAlertTriangle,
+  IconArrowUpRight,
   IconCircleCheck,
   IconCircleDashed,
   IconCircleMinus,
@@ -81,7 +82,12 @@ function useCellText() {
     const units = (c.units ?? []).map((u) =>
       checkText(fake({ code: 'kpi_unit_mismatch', params: { kpi, point: u.point, expected: u.expected, actual: u.actual, relation: u.relation } })),
     );
-    const details = [...(c.gaps ?? []).map((g) => checkText(fake(g))), ...(c.checks ?? []).map((x) => checkText(x)), ...units];
+    // 0.13: a KPI that rolls up from parts – the part the cell comes from, or the machine a part counts for
+    const rollUp = [
+      ...(c.via ? [`${t('coverage.via', { name: c.via.name })} – ${t('coverage.viaHint')}`] : []),
+      ...(c.rolledUp ? [t('coverage.rolledUpHint', { name: c.rolledUp.name })] : []),
+    ];
+    const details = [...rollUp, ...(c.gaps ?? []).map((g) => checkText(fake(g))), ...(c.checks ?? []).map((x) => checkText(x)), ...units];
     const shown = shownOf(c);
     return { state: t(`coverage.states.${shown}`), explain: t(`coverage.legend.${shown}`), details, jobs: c.jobs ?? [] };
   };
@@ -376,8 +382,9 @@ function CoverageLegend() {
   );
 }
 
+/** Where a cell leads: the asset – 0.13: the part a rolled-up cell comes from – its data flow, or its overview. */
 const cellPath = (assetId: string, c: PlantCoverageCell) =>
-  `/plant/assets/${encodeURIComponent(assetId)}${c.state === 'has' || c.state === 'cannot' ? '/flow' : ''}`;
+  `/plant/assets/${encodeURIComponent(c.via?.id ?? assetId)}${c.state === 'has' || c.state === 'cannot' ? '/flow' : ''}`;
 
 function MatrixRow({
   row,
@@ -433,6 +440,8 @@ function MatrixRow({
                 data-potential={c.state === 'could' ? shownOf(c) : undefined}
                 data-units={c.units?.length ? 'differ' : undefined}
                 data-inactive={c.inactive || undefined}
+                data-via={c.via ? true : undefined}
+                data-rolled-up={c.rolledUp ? true : undefined}
                 aria-label={aria}
                 title={[x.state, x.explain, ...x.details].join('\n')}
                 onFocus={() => onFocus(j)}
@@ -442,6 +451,7 @@ function MatrixRow({
               >
                 <I size={14} aria-hidden />
                 <span aria-hidden>{t(`coverage.short.${shownOf(c)}`)}</span>
+                {c.via && <IconArrowUpRight size={12} aria-hidden />}
               </Link>
             </td>
           );

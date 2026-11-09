@@ -11,6 +11,7 @@ import {
   type PlantExtractCandidates,
   type PlantExtractInput,
   type PlantExtractPreview,
+  type PlantProtocol,
   type PlantProfileSummary,
 } from '@sm/shared';
 import { notifyError, post } from '../../api';
@@ -42,6 +43,8 @@ export function ExtractBaseModal({ profiles, preselect, onClose }: { profiles: P
   const [description, setDescription] = useState('');
   const [template, setTemplate] = useState(true);
   const [rows, setRows] = useState<Row[]>([]);
+  // 0.13: the base's id of each leading interface that holds shared data points (left out: the same)
+  const [ifaceIds, setIfaceIds] = useState<Record<string, string>>({});
   const [preview, setPreview] = useState<{ key: string; result: PlantExtractPreview } | null>(null);
   const [busy, setBusy] = useState(false);
   const lead = leading && chosen.includes(leading) ? leading : null;
@@ -77,11 +80,46 @@ export function ExtractBaseModal({ profiles, preselect, onClose }: { profiles: P
       points: rows
         .filter((r) => r.include && others.every((o) => !!r.from[o]))
         .map((r) => ({ id: r.id.trim(), from: Object.fromEntries(Object.entries(r.from).filter(([, v]) => !!v)) as Record<string, string> })),
+      ...(Object.entries(ifaceIds).some(([from, to]) => to.trim() && to.trim() !== from)
+        ? {
+            interfaces: Object.fromEntries(
+              Object.entries(ifaceIds)
+                .filter(([from, to]) => to.trim() && to.trim() !== from)
+                .map(([f, x]) => [f, x.trim()]),
+            ),
+          }
+        : {}),
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lead, chosen, rows, id.id, name, description, template]);
+  }, [lead, chosen, rows, id.id, name, description, template, ifaceIds]);
   const key = JSON.stringify(input);
-  const valid = !!input && PLANT_ID_RE.test(input.id) && !!input.name && input.points.length > 0 && input.points.every((p) => PLANT_NAME_RE.test(p.id));
+  const valid =
+    !!input &&
+    PLANT_ID_RE.test(input.id) &&
+    !!input.name &&
+    input.points.length > 0 &&
+    input.points.every((p) => PLANT_NAME_RE.test(p.id)) &&
+    Object.values(input.interfaces ?? {}).every((x) => PLANT_NAME_RE.test(x));
+  // 0.13: the leading interfaces that hold shared data points, with each profile's protocol there
+  const sharedIfaces = (() => {
+    const c = candidates.data;
+    if (!c || !lead) return [];
+    const ifaceOf = (pid: string, point: string | null) => c.profiles.find((p) => p.id === pid)?.dataPoints.find((d) => d.id === point)?.interface;
+    const protocolOf = (pid: string, iface: string | undefined) => c.profiles.find((p) => p.id === pid)?.interfaces.find((i) => i.id === iface)?.protocol;
+    const out = new Map<string, Set<string>>();
+    rows.forEach((r, i) => {
+      if (!r.include || !others.every((o) => !!r.from[o])) return;
+      const li = c.points[i]!.interface;
+      const set = out.get(li) ?? new Set<string>();
+      set.add(c.points[i]!.protocol);
+      for (const o of others) {
+        const pr = protocolOf(o, ifaceOf(o, r.from[o] ?? null));
+        if (pr) set.add(pr);
+      }
+      out.set(li, set);
+    });
+    return [...out].map(([iface, protocols]) => ({ iface, protocols: [...protocols] }));
+  })();
   const current = preview && preview.key === key ? preview.result : null;
   const problemOf = new Map((current?.points ?? []).map((p) => [p.id, p.problem]));
   const optionsOf = (profileId: string) =>
@@ -238,6 +276,38 @@ export function ExtractBaseModal({ profiles, preselect, onClose }: { profiles: P
                 </Table.Tbody>
               </Table>
             </div>
+            {sharedIfaces.length > 0 && (
+              <Stack gap={4} data-testid="extract-interfaces">
+                <Text size="sm" fw={600}>
+                  {t('extract.interfaces')}
+                </Text>
+                <Text size="xs" c="dimmed">
+                  {t('extract.interfacesHelp')}
+                </Text>
+                {sharedIfaces.map((x) => {
+                  const value = ifaceIds[x.iface] ?? x.iface;
+                  return (
+                    <Group key={x.iface} gap="sm" align="flex-start" wrap="wrap">
+                      <TextInput
+                        size="xs"
+                        label={t('extract.interfaceId', { interface: x.iface })}
+                        value={value}
+                        onChange={(e) => setIfaceIds((m) => ({ ...m, [x.iface]: e.currentTarget.value }))}
+                        classNames={{ input: 'mono' }}
+                        error={!PLANT_NAME_RE.test(value.trim()) ? t('plant:form.idInvalid') : undefined}
+                        w={220}
+                        data-testid={`extract-interface-${x.iface}`}
+                      />
+                      {x.protocols.length > 1 && (
+                        <Text size="xs" c="dimmed" mt={26} data-testid={`extract-mixed-${x.iface}`}>
+                          {t('extract.mixed', { protocols: x.protocols.map((p) => t(`plant:data.protocols.${p as PlantProtocol}`)).join(', ') })}
+                        </Text>
+                      )}
+                    </Group>
+                  );
+                })}
+              </Stack>
+            )}
             <Group gap="sm" align="flex-start" wrap="wrap">
               <TextInput
                 label={t('extract.name')}

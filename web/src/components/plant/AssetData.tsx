@@ -108,6 +108,43 @@ function Part({
  * where, data points that differ on this asset, where its data points are published, its KPI instances, what Steward
  * finds wrong with them and the KPIs it can have.
  */
+/**
+ * A KPI the asset can have: its data collected or not, units that differ, an instance already – or "Add this"; 0.13: a
+ * KPI that rolls up from parts names the part that delivers the inputs (its job is set up there).
+ */
+function PossibleKpi({ kpi: k, onAdd }: { kpi: PlantAssignmentView['possibleKpis'][number]; onAdd?: () => void }) {
+  const { t } = useTranslation(['plant', 'plantViews']);
+  const nameOf = useNameOf();
+  return (
+    <Group gap={4} wrap="nowrap" data-testid={`possible-kpi-${k.id}`}>
+      <Anchor component={Link} to={`/plant/kpis/${encodeURIComponent(k.id)}`} size="sm">
+        {nameOf(k)}
+      </Anchor>
+      {k.via && (
+        <Text size="xs" c="dimmed" data-testid="possible-via">
+          <Anchor component={Link} to={`/plant/assets/${encodeURIComponent(k.via.id)}`} size="xs" title={t('plantViews:coverage.viaHint')}>
+            {t('plantViews:coverage.via', { name: k.via.name })}
+          </Anchor>
+        </Text>
+      )}
+      {!k.instantiated && k.collected !== undefined && <CollectedBadge collected={k.collected} />}
+      <UnitsBadge units={k.units} />
+      {k.instantiated ? (
+        <Badge size="xs" variant="light" color="green">
+          {t('explore.instantiated')}
+        </Badge>
+      ) : (
+        onAdd &&
+        !k.via && (
+          <Button size="compact-xs" variant="subtle" onClick={onAdd}>
+            {t('assignment.addThis')}
+          </Button>
+        )
+      )}
+    </Group>
+  );
+}
+
 export function AssetDataSection({ assetId }: { assetId: string }) {
   const { t } = useTranslation(['plant', 'common', 'plantModel']);
   const label = usePlantLabel();
@@ -249,21 +286,38 @@ export function AssetDataSection({ assetId }: { assetId: string }) {
         )}
       </Group>
       {!v.assignment ? (
-        <EmptyState
-          compact
-          icon={IconCpu}
-          title={t('assignment.emptyTitle')}
-          whoCanAct={canManage ? undefined : t('assignment.whoCanAct')}
-          action={
-            canManage && (
-              <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setDialog({ kind: 'assignment' })}>
-                {t('assignment.assign')}
-              </Button>
-            )
-          }
-        >
-          {t('assignment.emptyText', { type: label('asset', false, true) })}
-        </EmptyState>
+        <>
+          <EmptyState
+            compact
+            icon={IconCpu}
+            title={t('assignment.emptyTitle')}
+            whoCanAct={canManage ? undefined : t('assignment.whoCanAct')}
+            action={
+              canManage && (
+                <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setDialog({ kind: 'assignment' })}>
+                  {t('assignment.assign')}
+                </Button>
+              )
+            }
+          >
+            {t('assignment.emptyText', { type: label('asset', false, true) })}
+          </EmptyState>
+          {/* 0.13: KPIs that roll up from parts – the asset (a machine) may have them through a part */}
+          {v.possibleKpis.length > 0 && (
+            <Paper withBorder p="md" mt="sm" data-testid="assignment-possible">
+              <Stack gap="xs">
+                <Title order={3} fz="h6">
+                  {t('assignment.possible')}
+                </Title>
+                <Group gap={6} wrap="wrap">
+                  {v.possibleKpis.map((k) => (
+                    <PossibleKpi key={k.id} kpi={k} />
+                  ))}
+                </Group>
+              </Stack>
+            </Paper>
+          )}
+        </>
       ) : (
         <Paper withBorder p="md">
           <Stack gap="md">
@@ -658,24 +712,7 @@ export function AssetDataSection({ assetId }: { assetId: string }) {
               ) : (
                 <Group gap={6} wrap="wrap">
                   {v.possibleKpis.map((k) => (
-                    <Group key={k.id} gap={4} wrap="nowrap">
-                      <Anchor component={Link} to={`/plant/kpis/${encodeURIComponent(k.id)}`} size="sm">
-                        {nameOf(k)}
-                      </Anchor>
-                      {!k.instantiated && k.collected !== undefined && <CollectedBadge collected={k.collected} />}
-                      <UnitsBadge units={k.units} />
-                      {k.instantiated ? (
-                        <Badge size="xs" variant="light" color="green">
-                          {t('explore.instantiated')}
-                        </Badge>
-                      ) : (
-                        canManage && (
-                          <Button size="compact-xs" variant="subtle" onClick={() => setDialog({ kind: 'kpi', index: null, kpi: k.id })}>
-                            {t('assignment.addThis')}
-                          </Button>
-                        )
-                      )}
-                    </Group>
+                    <PossibleKpi key={k.id} kpi={k} onAdd={canManage ? () => setDialog({ kind: 'kpi', index: null, kpi: k.id }) : undefined} />
                   ))}
                 </Group>
               )}

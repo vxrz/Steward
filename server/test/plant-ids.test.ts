@@ -95,6 +95,8 @@ describe('the registry of reference columns', () => {
       'result_columns',
       'computation',
       'notes',
+      // 0.13: none or parts
+      'roll_up',
     ],
     plant_assignments: ['firmware', 'notes'],
     plant_vlans: [
@@ -211,6 +213,7 @@ describe('the registry of reference columns', () => {
     access_findings: 'a finding kind',
     control_tags: 'CONTROL_TAG_KINDS: processes, record types, records, monitors, report schedules, access checks',
     identity_aliases: 'users and teams',
+    maintenance_windows: 'a window kind: maintenance or downtime',
     eol_notices: 'components',
     systems: 'the system kind',
     maintenance_targets: 'MAINTENANCE_TARGET_KINDS: platforms, systems, applications, services, monitors',

@@ -5,6 +5,7 @@ import {
   KPI_AUDIENCES,
   KPI_COLUMN_KINDS,
   KPI_INPUT_KINDS,
+  KPI_ROLL_UPS,
   KPI_METHODOLOGIES,
   KPI_PARAM_TYPES,
   KPI_TIMINGS,
@@ -220,11 +221,14 @@ const Interface = z.object({
 
 /** 0.12.0: a data point input delivered in another unit than the KPI expects. */
 const UnitMismatch = z.object({
-  point: z.string(),
+  point: z.string().describe('The data point of the asset'),
+  input: z.string().optional().describe('0.13: the input’s data point, where a mapping gives the asset’s another id'),
   expected: z.string().describe('UCUM code the KPI expects'),
   actual: z.string().describe('UCUM code the asset delivers'),
   relation: z.enum(['convertible', 'incompatible']).describe('convertible: by a pure factor (W.h and kW.h)'),
 });
+
+const PartRef = z.object({ id: z.string(), name: z.string() });
 
 const AssetBrief = z.object({ id: z.string(), name: z.string(), status: z.enum(ASSET_STATUSES), siteId: z.string(), site: Place.extend({ code: z.string() }) });
 
@@ -317,15 +321,26 @@ export const PlantKpiDetailEntry = PlantKpiEntry.extend({
   strategy: z.string(),
   implementation: z.string(),
   dynamicColumns: z.boolean(),
+  rollUp: z
+    .enum(KPI_ROLL_UPS)
+    .describe('0.13: parts – an asset counts as able to have the KPI (potential, coverage) when one of its parts delivers the inputs; none: off'),
   inputs: z.array(
     z.object({
       kind: z.enum(KPI_INPUT_KINDS),
-      profile: z.string(),
+      profile: z.string().describe('The device profile (empty: whatever profile the asset has); with `profiles` the first of them'),
+      profiles: z
+        .array(z.string())
+        .optional()
+        .describe('0.13: any of these device profiles (two or more) – the first one an asset’s profile is or extends counts'),
       dataPoints: z.array(z.string()),
       units: z
         .record(z.string(), z.string())
         .optional()
-        .describe('0.12.0: the unit expected per data point (UCUM); a data point left out expects its unit in the input’s profile'),
+        .describe('0.12.0: the unit expected per data point (UCUM); a data point left out expects its unit in the input’s (first) profile'),
+      mapping: z
+        .record(z.string(), z.record(z.string(), z.string()))
+        .optional()
+        .describe('0.13: per profile (id), the input’s data point → that profile’s data point; a data point left out has the same id there'),
       notes: z.string(),
     }),
   ),
@@ -344,7 +359,14 @@ export const PlantKpiDetailEntry = PlantKpiEntry.extend({
   instances: z.array(z.object({ asset: AssetBrief, job: z.string(), active: z.boolean(), problems: z.number().int() })),
   candidates: z.array(AssetBrief).describe('Assets that deliver every input but have no instance'),
   candidateInfo: z
-    .record(z.string(), z.object({ collected: z.boolean(), units: z.array(UnitMismatch) }))
+    .record(
+      z.string(),
+      z.object({
+        collected: z.boolean(),
+        units: z.array(UnitMismatch),
+        via: PartRef.optional().describe('0.13, a KPI that rolls up from parts: the part of the asset that delivers the inputs'),
+      }),
+    )
     .optional()
     .describe('0.12.0, per candidate (asset id): whether a data collection maps every input already, and inputs delivered in another unit'),
   createdAt: ts(),
@@ -417,6 +439,7 @@ export const PlantAssignmentEntry = z.object({
       instantiated: z.boolean(),
       units: z.array(UnitMismatch).optional().describe('0.12.0: inputs the asset delivers in another unit than the KPI expects'),
       collected: z.boolean().optional().describe('0.12.0: a data collection of the asset maps every data point input'),
+      via: PartRef.optional().describe('0.13, a KPI that rolls up from parts: the part of this asset that delivers the inputs (the asset itself does not)'),
     }),
   ),
   ...source,

@@ -5,7 +5,7 @@ import {
   PLANT_LIMITS,
   PROFILE_INTERFACE_FIELDS,
   PROFILE_POINT_FIELDS,
-  unitRelation,
+  matchPoints,
   type PlantDataPoint,
   type PlantExtractCandidates,
   type PlantExtractInput,
@@ -29,7 +29,6 @@ import { allAssignments, ownProfiles, pointName, pointsOf, upsertProfile } from 
 import { assetModel, resolveAll, type OwnProfiles } from './resolve.js';
 import { checkRename, dryRun, profileFamily, renameEntry } from './rename.js';
 import { checkedProfile, visibleAssets } from './catalogue.js';
-import { nameKey } from './collections-model.js';
 
 /**
  * Extract a base profile (0.12.0, docs/PLANT.md "Extracting a base profile"): two or more device profiles without a
@@ -38,7 +37,9 @@ import { nameKey } from './collections-model.js';
  *
  * - matched by id; where a profile's id differs, it is renamed to the base's with the rename core (rename.ts): the old
  *   id stays an alias, and assets, KPI definitions and data collections follow. Interfaces holding shared data points
- *   are matched the same way (the leading profile's id), and must have the same protocol (mixed-protocol bases: later);
+ *   are matched the same way (the leading profile's id, or the id the input gives the base's interface); 0.13: where
+ *   their protocols differ, the base's interface has the protocol `other` and its data points no address – each profile
+ *   sets its protocol and the addresses as overrides;
  * - the base's data points take name, description, data type, unit, access and values from the leading profile;
  *   address, update rate, known-as names, notes and publications only where every profile agrees (else empty);
  * - each profile keeps, as overrides, only the fields that differ from the base; what it does not share stays its own;
@@ -65,6 +66,8 @@ export const extractInput = z
       .array(z.object({ id: pointName, from: boundedRecord(pointName, 20) }).strict())
       .min(1)
       .max(L.dataPoints),
+    // 0.13: the base's interface ids, by the leading profile's interface id (left out: the same)
+    interfaces: boundedRecord(pointName, L.interfaces).optional(),
   })
   .strict();
 
@@ -102,29 +105,22 @@ export function extractCandidates(input: z.infer<typeof candidatesInput>): Plant
   for (const [assetId, a] of allAssignments()) if (a.profileId && v.assets.has(assetId)) using.set(a.profileId, (using.get(a.profileId) ?? 0) + 1);
   const lead = resolved.get(input.leading)!;
   const others = ids.filter((id) => id !== input.leading);
-  const taken = new Map(others.map((id) => [id, new Set<string>()]));
-  const keys = (d: PlantDataPoint) => new Set([d.id, ...d.aliases].map(nameKey).filter(Boolean));
-  const points: PlantExtractCandidates['points'] = pointsOf(lead).map(({ iface, group, point }) => {
+  const leadPoints = pointsOf(lead);
+  // 0.13: the matching is shared with a KPI input's mapping (shared matchPoints)
+  const found = new Map(
+    others.map((id) => [
+      id,
+      matchPoints(
+        leadPoints.map((x) => x.point),
+        pointsOf(resolved.get(id)!).map((x) => x.point),
+      ),
+    ]),
+  );
+  const points: PlantExtractCandidates['points'] = leadPoints.map(({ iface, group, point }, n) => {
     const matches: PlantExtractCandidates['points'][number]['matches'] = {};
     for (const id of others) {
-      const list = pointsOf(resolved.get(id)!).filter((x) => !taken.get(id)!.has(x.point.id));
-      const mine = keys(point);
-      const scored = list
-        .map((x) => {
-          const by: ('id' | 'known_as' | 'name' | 'unit')[] = [];
-          if (x.point.id === point.id) by.push('id');
-          if ([...keys(x.point)].some((k) => mine.has(k)) && x.point.id !== point.id) by.push('known_as');
-          if (nameKey(x.point.name) && nameKey(x.point.name) === nameKey(point.name)) by.push('name');
-          if (point.unit && x.point.unit && unitRelation(point.unit, x.point.unit) === 'same') by.push('unit');
-          const score = (by.includes('id') ? 8 : 0) + (by.includes('known_as') ? 4 : 0) + (by.includes('name') ? 2 : 0) + (by.includes('unit') ? 1 : 0);
-          return { x, by, score };
-        })
-        // a unit alone is no match
-        .filter((s) => s.score > 1)
-        .sort((a, b) => b.score - a.score);
-      const best = scored[0];
-      if (best) taken.get(id)!.add(best.x.point.id);
-      matches[id] = best ? { id: best.x.point.id, name: best.x.point.name, unit: best.x.point.unit, by: best.by } : null;
+      const best = found.get(id)![n];
+      matches[id] = best ? { id: best.point.id, name: best.point.name, unit: best.point.unit, by: best.by } : null;
     }
     return { id: point.id, name: point.name, unit: point.unit, interface: iface.id, protocol: iface.protocol, group, matches };
   });
@@ -138,6 +134,7 @@ export function extractCandidates(input: z.infer<typeof candidatesInput>): Plant
         template: p.template,
         assets: using.get(id) ?? 0,
         dataPoints: pointsOf(resolved.get(id)!).map((x) => ({ id: x.point.id, name: x.point.name, unit: x.point.unit, interface: x.iface.id })),
+        interfaces: resolved.get(id)!.interfaces.map((i) => ({ id: i.id, name: i.name, protocol: i.protocol })),
       };
     }),
     points,
@@ -186,6 +183,8 @@ function analyse(input: PlantExtractInput, own: OwnProfiles): Analysis {
   const reverse = new Map(ids.map((id) => [id, new Map<string, string>()]));
   const used = new Map(ids.map((id) => [id, new Set<string>()]));
   const names = new Map(ids.map((id) => [id, own.get(id)!.name]));
+  // 0.13: the base's id of a leading interface (the input's, else the same)
+  const target = (leadIface: string) => input.interfaces?.[leadIface] || leadIface;
   for (const bp of input.points) {
     let problem: PointProblem | null = null;
     const fail = (code: PlantExtractPointProblem, message: string, params: Record<string, string>) => (problem ??= { code, message, params });
@@ -206,13 +205,8 @@ function analyse(input: PlantExtractInput, own: OwnProfiles): Analysis {
         fail('twice', `Data point "${src}" of "${names.get(id)}" is matched twice`, { profile: id, point: src });
       seen.add(`${id}/${src}`);
       if (!lead) continue;
-      if (at.iface.protocol !== lead.iface.protocol)
-        fail(
-          'protocol',
-          `Data point "${src}" of "${names.get(id)}" is on a ${at.iface.protocol} interface, in the leading profile on ${lead.iface.protocol} – a base holds one protocol per interface`,
-          { profile: id, point: src, protocol: at.iface.protocol, leading: lead.iface.protocol },
-        );
-      else if (at.group !== lead.group)
+      // 0.13: interfaces of different protocols share a base interface of protocol "other" (no refusal any more)
+      if (at.group !== lead.group)
         fail(
           'group',
           `Data point "${src}" of "${names.get(id)}" is in group "${at.group}", in the leading profile in "${lead.group}" – rename the group first`,
@@ -226,7 +220,10 @@ function analyse(input: PlantExtractInput, own: OwnProfiles): Analysis {
       else {
         const mapped = ifaces.get(id)!.get(at.iface.id);
         const back = reverse.get(id)!.get(lead.iface.id);
-        if ((mapped && mapped !== lead.iface.id) || (back && back !== at.iface.id))
+        const to = target(lead.iface.id);
+        // two leading interfaces given the same base id
+        const clash = [...reverse.get(input.leading)!.keys()].some((li) => li !== lead.iface.id && target(li) === to);
+        if ((mapped && mapped !== to) || (back && back !== at.iface.id) || clash)
           fail(
             'interface',
             `Data point "${src}" of "${names.get(id)}" is on interface "${at.iface.id}", which other shared data points place elsewhere – a base interface stands for one interface of each profile`,
@@ -235,7 +232,7 @@ function analyse(input: PlantExtractInput, own: OwnProfiles): Analysis {
         else {
           // the ids it gets: the interface's and the data point's (the rename core's rules: free in the family, no old id of another)
           const renames: [kind: 'interface' | 'data_point', from: string, to: string][] = [];
-          if (!mapped && at.iface.id !== lead.iface.id) renames.push(['interface', at.iface.id, lead.iface.id]);
+          if (!mapped && at.iface.id !== to) renames.push(['interface', at.iface.id, to]);
           if (src !== bp.id) renames.push(['data_point', src, bp.id]);
           for (const [kind, from, to] of renames) {
             const c = checkRename(kind, id, from, to);
@@ -260,7 +257,7 @@ function analyse(input: PlantExtractInput, own: OwnProfiles): Analysis {
     for (const id of ids) {
       const at = where.get(id)!.get(bp.from[id]!)!;
       used.get(id)!.add(bp.from[id]!);
-      ifaces.get(id)!.set(at.iface.id, lead.iface.id);
+      ifaces.get(id)!.set(at.iface.id, target(lead.iface.id));
       reverse.get(id)!.set(lead.iface.id, at.iface.id);
     }
   }
@@ -329,6 +326,9 @@ function buildBase(input: PlantExtractInput, own: OwnProfiles, shared: string[])
   const sharedSet = new Set(shared);
   const interfaces: PlantInterface[] = [];
   for (const li of lead.interfaces) {
+    // 0.13: the profiles' interfaces of different protocols share one of protocol "other", without addresses
+    const theirs = ids.map((id) => own.get(id)!.interfaces.find((x) => x.id === li.id)).filter((x) => !!x);
+    const mixed = theirs.some((x) => x.protocol !== li.protocol);
     const groups = li.groups
       .map((g) => {
         const pts = g.dataPoints.filter((d) => sharedSet.has(d.id));
@@ -351,10 +351,12 @@ function buildBase(input: PlantExtractInput, own: OwnProfiles, shared: string[])
               description: d.description,
               dataType: d.dataType,
               unit: d.unit,
-              address: agree(
-                all.map((x) => x.address),
-                '',
-              ),
+              address: mixed
+                ? ''
+                : agree(
+                    all.map((x) => x.address),
+                    '',
+                  ),
               access: d.access,
               updateRateMs: agree(
                 all.map((x) => x.updateRateMs),
@@ -379,7 +381,24 @@ function buildBase(input: PlantExtractInput, own: OwnProfiles, shared: string[])
       })
       .filter((g) => g !== null);
     if (!groups.length) continue;
-    interfaces.push({ ...structuredClone(li), groups, fileSets: [] });
+    const base: PlantInterface = { ...structuredClone(li), groups, fileSets: [] };
+    if (mixed) {
+      base.protocol = 'other';
+      // what every profile's interface agrees on; the rest each profile sets
+      base.defaultPort = agree(
+        theirs.map((x) => x.defaultPort),
+        null,
+      );
+      base.version = agree(
+        theirs.map((x) => x.version),
+        '',
+      );
+      base.client = agree(
+        theirs.map((x) => x.client),
+        '',
+      );
+    }
+    interfaces.push(base);
   }
   const field = (k: 'manufacturer' | 'model' | 'version' | 'category') =>
     agree(

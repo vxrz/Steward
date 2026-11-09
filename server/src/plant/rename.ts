@@ -1,5 +1,7 @@
 import {
+  kpiInputProfiles,
   PLANT_ID_SCOPE,
+  type KpiInput,
   type PlantIdKind,
   type PlantInterface,
   type PlantReferenceCount,
@@ -302,7 +304,18 @@ export const REFERENCES: readonly RefSpec[] = [
   // 0.11.0: a profile that extends it
   col('plant_profiles', 'base_id', 'profile', 'profile'),
   col('plant_assignments', 'profile_id', 'profile', 'assignment'),
-  json<{ profile: string }[]>('plant_kpis', 'inputs', 'profile', 'profile', 'kpi', ['id'], inObjects('profile')),
+  // 0.13: also the input's "any of these" profiles and the keys of its mapping
+  json<KpiInput[]>('plant_kpis', 'inputs', 'profile', 'profile', 'kpi', ['id'], (v, r) =>
+    v.reduce((hit, i) => {
+      let changed = inObjects<{ profile: string }>('profile')([i], r);
+      if (inList(i.profiles, r)) changed = true;
+      if (i.mapping && Object.prototype.hasOwnProperty.call(i.mapping, r.from) && !Object.prototype.hasOwnProperty.call(i.mapping, r.to)) {
+        i.mapping = Object.fromEntries(Object.entries(i.mapping).map(([k, x]) => [k === r.from ? r.to : k, x]));
+        changed = true;
+      }
+      return changed || hit;
+    }, false),
+  ),
   // 0.12: records that link to it
   pair('item_links', 'to_kind', 'device-profile', 'to_id', 'profile', 'link'),
   pair('copied_from', 'kind', 'device-profile', 'id', 'profile', 'copy'),
@@ -380,27 +393,42 @@ export const REFERENCES: readonly RefSpec[] = [
   // inputs that name the profile (or one that extends it); an input without a profile names a data point of whatever
   // profile an asset has: kept
   // (0.12.0: and the units the input expects, by data point)
-  json<{ profile: string; dataPoints: string[]; units?: Record<string, string> }[]>(
-    'plant_kpis',
-    'inputs',
-    'dataPoints',
-    'data_point',
-    'kpi',
-    ['id'],
-    (v, r) => {
-      const family = profileFamily(r.scope);
-      return v.reduce((hit, i) => {
-        if (!family.includes(i.profile)) return hit;
-        const listed = inList(i.dataPoints, r);
-        const u = i.units;
-        if (u && Object.prototype.hasOwnProperty.call(u, r.from) && !Object.prototype.hasOwnProperty.call(u, r.to)) {
-          i.units = Object.fromEntries(Object.entries(u).map(([k, x]) => [k === r.from ? r.to : k, x]));
-          return true;
-        }
-        return listed || hit;
-      }, false);
-    },
-  ),
+  // 0.13: an input of several profiles reads the data point under its id in each (its mapping, else the same id): a
+  // mapping to the old id follows; where the input reads it unmapped, its own id follows when every profile it names
+  // has the data point renamed (all in the family), else that profile's mapping keeps the input's id
+  json<KpiInput[]>('plant_kpis', 'inputs', 'dataPoints', 'data_point', 'kpi', ['id'], (v, r) => {
+    const family = profileFamily(r.scope);
+    const renameKey = <T>(o: Record<string, T> | undefined): Record<string, T> | undefined =>
+      o && Object.prototype.hasOwnProperty.call(o, r.from) && !Object.prototype.hasOwnProperty.call(o, r.to)
+        ? Object.fromEntries(Object.entries(o).map(([k, x]) => [k === r.from ? r.to : k, x]))
+        : o;
+    return v.reduce((hit, i) => {
+      if (i.kind && i.kind !== 'data_point') return hit;
+      const names = kpiInputProfiles(i);
+      const mine = names.filter((n) => family.includes(n));
+      if (!mine.length) return hit;
+      let changed = false;
+      for (const n of mine)
+        for (const [k, to] of Object.entries(i.mapping?.[n] ?? {}))
+          if (to === r.from) {
+            if (k === r.to) delete i.mapping![n]![k];
+            else i.mapping![n]![k] = r.to;
+            changed = true;
+          }
+      const unmapped = mine.filter((n) => i.dataPoints.includes(r.from) && !Object.prototype.hasOwnProperty.call(i.mapping?.[n] ?? {}, r.from));
+      if (unmapped.length && mine.length === names.length) {
+        inList(i.dataPoints, r);
+        i.units = renameKey(i.units);
+        if (i.mapping) i.mapping = Object.fromEntries(Object.entries(i.mapping).map(([n, m]) => [n, renameKey(m)!]));
+        changed = true;
+      } else if (unmapped.length) {
+        i.mapping ??= {};
+        for (const n of unmapped) i.mapping[n] = { ...(i.mapping[n] ?? {}), [r.from]: r.to };
+        changed = true;
+      }
+      return changed || hit;
+    }, false);
+  }),
   // 0.11.0: a derived profile's own data points in inherited interfaces, and its changes to inherited ones
   json<{ groups: { dataPoints: { id: string }[] }[] }[]>(
     'plant_profiles',

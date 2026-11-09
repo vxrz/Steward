@@ -114,7 +114,8 @@ export function resolveOver(p: PlantProfileValues, base: PlantResolvedProfile | 
       delete origins.interfaces[iface.id];
       continue;
     }
-    const fields = PROFILE_INTERFACE_FIELDS.filter((k) => given(io, k));
+    // 0.13: the protocol only of an interface whose inherited protocol is "other" (a base across protocols)
+    const fields = PROFILE_INTERFACE_FIELDS.filter((k) => given(io, k) && (k !== 'protocol' || iface.protocol === 'other'));
     for (const k of fields) (iface as unknown as Record<string, unknown>)[k] = clone(io[k]);
     touch(origins.interfaces[iface.id], fields);
     for (const g of io.groups) {
@@ -288,6 +289,15 @@ export function extendsProblems(id: string, base: string | null, own: OwnProfile
  */
 export function resolvedProblems(r: PlantResolvedProfile): ModelProblem[] {
   const out: ModelProblem[] = [];
+  // 0.13: a protocol this profile sets on an inherited interface whose base has one now (not "other" any more)
+  for (const o of r.interfaceOverrides) {
+    const iface = r.interfaces.find((i) => i.id === o.interface);
+    if (o.present && o.protocol && iface && iface.protocol !== o.protocol)
+      out.push({
+        path: 'interfaces',
+        message: `Interface "${o.interface}" has protocol ${iface.protocol} in the base – only an inherited interface of protocol "other" gets its protocol in the profile that extends it`,
+      });
+  }
   const ifaces = new Set<string>();
   const points = new Set<string>();
   let count = 0;
@@ -324,9 +334,16 @@ export function ownPartProblems(p: PlantProfileValues, base: PlantResolvedProfil
     seen.add(o.interface);
     const inherited = base?.interfaces.find((x) => x.id === o.interface);
     if (!inherited) return;
+    // 0.13: an inherited interface gets a protocol only where the base leaves it open ("other")
+    if (o.protocol && o.protocol !== inherited.protocol && inherited.protocol !== 'other')
+      out.push({
+        path: `interface_overrides[${i}].protocol`,
+        message: `Interface "${o.interface}" is inherited with protocol ${inherited.protocol}: only an inherited interface of protocol "other" gets its protocol here`,
+      });
+    const protocol = inherited.protocol === 'other' ? (o.protocol ?? 'other') : inherited.protocol;
     o.groups.forEach((g, j) =>
       g.dataPoints.forEach((d, k) => {
-        const a = addressProblem(inherited.protocol, d.address);
+        const a = addressProblem(protocol, d.address);
         if (a) out.push({ path: `interface_overrides[${i}].groups[${j}].data_points[${k}].address`, message: a });
       }),
     );

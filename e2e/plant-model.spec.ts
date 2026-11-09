@@ -65,13 +65,17 @@ async function fixture(api: APIRequestContext, tag: string) {
       },
     }),
   );
-  await ok(api.post('/api/plant/assets', { data: { id: asset, siteId: 'riverside', name: `E2E mill ${tag}` } }));
+  // a site of its own: the demo sites' figures stay as other specs expect them
+  const site = `e2e-model-site-${tag}`.toLowerCase();
+  await ok(api.post('/api/plant/sites', { data: { id: site, name: `E2E model works ${tag}` } }));
+  await ok(api.post('/api/plant/assets', { data: { id: asset, siteId: site, name: `E2E mill ${tag}` } }));
   await ok(api.put(`/api/plant/assets/${asset}/assignment`, { data: { profileId: child, interfaces: [{ interface: 'cnc', active: true }] } }));
-  return { base, child, asset };
+  return { base, child, asset, site };
 }
 
-async function cleanup(api: APIRequestContext, f: { base: string; child: string; asset: string }) {
+async function cleanup(api: APIRequestContext, f: { base: string; child: string; asset: string; site: string }) {
   await api.delete(`/api/plant/assets/${f.asset}`);
+  await api.delete(`/api/plant/sites/${f.site}`);
   await api.delete(`/api/plant/profiles/${f.child}`);
   await api.delete(`/api/plant/profiles/${f.base}`);
 }

@@ -11,7 +11,7 @@ import { LIVE_REFRESH_MS } from './prefs';
 
 /**
  * The overview of a site as a tile (#230, Plant → Sites): its assets by status as a small bar, the KPI coverage in per
- * cent, the open plant checks, the linked monitors' state where there are any – linking into the structure and the
+ * cent and (0.13) the KPI potential (ready, in need of a collection), the open plant checks, the linked monitors' state where there are any – linking into the structure and the
  * coverage matrix. One request for all tiles (shared by the cards of the list).
  */
 export function useSiteTiles() {
@@ -46,6 +46,14 @@ export function SiteTileStats({ siteId, compact }: { siteId: string; compact?: b
             )}
           </Group>
         </Tooltip>
+        {/* 0.13: KPI potential – collected already (ready for a job) and in need of a data collection */}
+        {tile.potential.ready + tile.potential.collect > 0 && (
+          <Tooltip label={t('tiles.potentialHint')} withArrow multiline maw={300}>
+            <Text size="xs" tabIndex={0} data-testid="tile-potential">
+              {t('tiles.potential', { ready: tile.potential.ready, collect: tile.potential.collect })}
+            </Text>
+          </Tooltip>
+        )}
         <Group gap={4} wrap="nowrap" data-testid="tile-checks">
           {tile.checks > 0 ? (
             <IconAlertTriangle size={14} aria-hidden style={{ color: 'var(--pv-problem)' }} />

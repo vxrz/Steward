@@ -1923,6 +1923,21 @@
             "null"
           ]
         },
+        "roll_up": {
+          "description": "0.13: parts – an asset counts as able to have the KPI (potential and coverage) when one of its parts delivers the inputs; none (default)",
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "none",
+                "parts"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "inputs": {
           "maxItems": 50,
           "type": "array",
@@ -1947,6 +1962,16 @@
                   }
                 ]
               },
+              "profiles": {
+                "description": "0.13: any of these device profiles – an asset whose profile is (or extends) one of them delivers the input; the first one that matches counts",
+                "maxItems": 20,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$",
+                  "description": "Stable id: lower-case letters, digits, \".\", \"_\" and \"-\"; never changes"
+                }
+              },
               "data_points": {
                 "maxItems": 500,
                 "type": "array",
@@ -1957,7 +1982,7 @@
                 }
               },
               "units": {
-                "description": "0.12.0: the unit the computation expects per data point (UCUM code, usual spellings such as kWh are read as their code); a data point left out expects its unit in the input’s profile",
+                "description": "0.12.0: the unit the computation expects per data point (UCUM code, usual spellings such as kWh are read as their code); a data point left out expects its unit in the input’s (first) profile",
                 "maxProperties": 500,
                 "type": "object",
                 "propertyNames": {
@@ -1973,6 +1998,26 @@
                       "type": "null"
                     }
                   ]
+                }
+              },
+              "mapping": {
+                "description": "0.13: per profile (id), the input’s data point → that profile’s data point; a data point left out has the same id there",
+                "maxProperties": 20,
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "maxProperties": 500,
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9_][A-Za-z0-9._-]{0,119}$",
+                    "description": "Id of a data point, interface, parameter or column: letters, digits, \".\", \"_\" and \"-\""
+                  }
                 }
               },
               "notes": {

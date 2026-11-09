@@ -480,4 +480,10 @@ export const PLANT_MIGRATIONS: NamedMigration[] = [
     name: 'plant-012-profile-template',
     sql: `ALTER TABLE plant_profiles ADD COLUMN template INTEGER NOT NULL DEFAULT 0;`,
   },
+  {
+    // 0.13: a KPI's potential and coverage may roll up from an asset's parts to the asset (docs/PLANT.md "KPI
+    // coverage"): none (the default) or parts
+    name: 'plant-015-kpi-roll-up',
+    sql: `ALTER TABLE plant_kpis ADD COLUMN roll_up TEXT NOT NULL DEFAULT 'none';`,
+  },
 ];

@@ -8,6 +8,7 @@ import type {
   PlantProfileValues,
   PlantProtocol,
 } from './plantData.js';
+import { unitRelation } from './plantData.js';
 
 /**
  * Plant registry, 0.11.0: more modelling for device profiles and assets (docs/PLANT.md, "Profile inheritance and asset
@@ -24,8 +25,21 @@ import type {
 /** At most this many profiles in a chain (the profile and its bases). */
 export const PLANT_PROFILE_MAX_DEPTH = 8;
 
-/** Fields of an inherited interface a derived profile may change (its protocol stays). */
-export const PROFILE_INTERFACE_FIELDS = ['name', 'direction', 'description', 'version', 'defaultPort', 'authentication', 'client', 'notes'] as const;
+/**
+ * Fields of an inherited interface a derived profile may change. Its protocol only where the inherited one is `other`
+ * (0.13: a base across protocols); everywhere else it stays.
+ */
+export const PROFILE_INTERFACE_FIELDS = [
+  'name',
+  'protocol',
+  'direction',
+  'description',
+  'version',
+  'defaultPort',
+  'authentication',
+  'client',
+  'notes',
+] as const;
 export type ProfileInterfaceField = (typeof PROFILE_INTERFACE_FIELDS)[number];
 
 /** Fields of an inherited data point a derived profile may change (its id, interface and group stay). */
@@ -51,6 +65,11 @@ export interface PlantInterfaceOverride {
   /** False: the derived device does not have it (nor its data points) */
   present: boolean;
   name?: string;
+  /**
+   * 0.13: the protocol – only for an inherited interface whose protocol is `other` (a base across protocols: the derived
+   * profile says which one its device speaks, and the data points' addresses)
+   */
+  protocol?: PlantProtocol;
   direction?: PlantDirection;
   description?: string;
   version?: string;
@@ -177,9 +196,18 @@ export interface PlantExtractInput {
   /** The profiles that extend the base afterwards (2 or more, none with a base yet) */
   profiles: string[];
   points: PlantExtractPoint[];
+  /**
+   * 0.13: the base's id of an interface, by the leading profile's interface id (left out: the same id). Each profile's
+   * interface that holds the shared data points gets it – useful where the profiles' interfaces have different
+   * protocols (the base's is then `other`)
+   */
+  interfaces?: Record<string, string>;
 }
 
-/** Why a data point cannot go into the base (it is refused; leave it out or change the profiles first). */
+/**
+ * Why a data point cannot go into the base (it is refused; leave it out or change the profiles first). `protocol` is no
+ * longer used since 0.13 (interfaces of different protocols share a base interface of protocol `other`).
+ */
 export const PLANT_EXTRACT_POINT_PROBLEMS = ['missing', 'twice', 'protocol', 'group', 'interface', 'id_taken'] as const;
 export type PlantExtractPointProblem = (typeof PLANT_EXTRACT_POINT_PROBLEMS)[number];
 
@@ -198,6 +226,8 @@ export interface PlantExtractCandidates {
     assets: number;
     /** Its data points, to match by hand */
     dataPoints: { id: string; name: string; unit: string; interface: string }[];
+    /** 0.13: its interfaces with their protocols */
+    interfaces: { id: string; name: string; protocol: PlantProtocol }[];
   }[];
   points: {
     id: string;
@@ -232,4 +262,47 @@ export interface PlantExtractPreview {
   problems: { code: PlantExtractProblem; message: string; params: Record<string, string> }[];
   /** Nothing refused: the extraction can be applied */
   ok: boolean;
+}
+
+// ---------- 0.13: matching data points of two profiles ----------
+
+/** Why a data point matches another: the same id, a known-as name, the name, the unit. */
+export type PlantPointMatchBy = 'id' | 'known_as' | 'name' | 'unit';
+
+type MatchablePoint = { id: string; name: string; unit: string; aliases?: string[] };
+
+const matchKey = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '');
+
+/**
+ * How well a candidate matches a data point (extracting a base profile, a KPI input's mapping): the same id (8), a
+ * known-as name or id in common (4), the same name (2), the same unit (1). A unit alone is no match (score ≤ 1).
+ */
+export function pointMatch(point: MatchablePoint, candidate: MatchablePoint): { by: PlantPointMatchBy[]; score: number } {
+  const keys = (d: MatchablePoint) => new Set([d.id, ...(d.aliases ?? [])].map(matchKey).filter(Boolean));
+  const mine = keys(point);
+  const by: PlantPointMatchBy[] = [];
+  if (candidate.id === point.id) by.push('id');
+  if (candidate.id !== point.id && [...keys(candidate)].some((k) => mine.has(k))) by.push('known_as');
+  if (matchKey(candidate.name) && matchKey(candidate.name) === matchKey(point.name)) by.push('name');
+  if (point.unit && candidate.unit && unitRelation(point.unit, candidate.unit) === 'same') by.push('unit');
+  const score = (by.includes('id') ? 8 : 0) + (by.includes('known_as') ? 4 : 0) + (by.includes('name') ? 2 : 0) + (by.includes('unit') ? 1 : 0);
+  return { by, score };
+}
+
+/**
+ * The best match of each data point among the candidates, in the points' order; a candidate matches one data point at
+ * most (null: none matches better than a unit alone).
+ */
+export function matchPoints<C extends MatchablePoint>(points: MatchablePoint[], candidates: C[]): ({ point: C; by: PlantPointMatchBy[] } | null)[] {
+  const taken = new Set<string>();
+  return points.map((point) => {
+    const best = candidates
+      .filter((c) => !taken.has(c.id))
+      .map((c) => ({ c, ...pointMatch(point, c) }))
+      .filter((x) => x.score > 1)
+      .sort((a, b) => b.score - a.score)[0];
+    if (!best) return null;
+    taken.add(best.c.id);
+    return { point: best.c, by: best.by };
+  });
 }

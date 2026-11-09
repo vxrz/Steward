@@ -90,7 +90,6 @@ Themes of this release (details in the CHANGELOG once released):
 - **Monitor states** (0.13 or later, proposed in [ADR 0021](adr/0021-monitor-states.md)): a monitor's checks are judged against states such as _Running_ and _Off_ in a decision table – a machine switched off on purpose shows _off_ and stays quiet, only contradicting checks alert, after a settle time; a maximum off time, planned downtime windows and the gateway's own heartbeat keep a real outage from hiding as Off; Off time is left out of uptime. The open questions are listed in the record.
 - **Platform identities, steps 2–4** (steps 2 and 3 in 0.13, step 4 planned for 0.14; rest of [#228](https://github.com/vxrz/Steward/issues/228), [ADR 0009](adr/0009-platform-identities.md)): further identities per platform, each with its own access list, MCP mode, read-only flag and optional operation filter; the PAM checkout gets its own decision record first. When they come is still open.
 - **Postman import** (rest of [#204](https://github.com/vxrz/Steward/issues/204)): requests and sign-in from a collection.
-- **Plant registry: KPI potential across profiles and parts (0.13)**: base profiles across interfaces of different protocols (0.12.0 refuses them when extracting a base), KPI inputs that read _any of these profiles_ with a data point mapping per profile, and KPI potential rolled up from parts (a power meter) to the machine they belong to.
 
 ## Ideas parked
 

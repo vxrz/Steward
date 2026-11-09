@@ -111,8 +111,41 @@ function occurrences(name: string, f: PlantFile): Occurrence[] {
   for (const [k, path] of kpis) {
     add('kpi', k, 'id', '', true, path);
     list(k.inputs).forEach((x, i) => {
-      add('profile', x, 'profile', '', false, `${path}.inputs[${i}]`);
-      addList('data_point', x, 'data_points', typeof x.profile === 'string' && x.profile ? x.profile : null, `${path}.inputs[${i}]`);
+      const at = `${path}.inputs[${i}]`;
+      add('profile', x, 'profile', '', false, at);
+      // 0.13: any of several profiles (the first is the input's profile) and the mapping per profile
+      addList('profile', x, 'profiles', '', at);
+      const mapping = isObj(x.mapping) ? x.mapping : null;
+      const names = [
+        ...(typeof x.profile === 'string' && x.profile ? [x.profile] : []),
+        ...(Array.isArray(x.profiles) ? x.profiles.filter((v): v is string => typeof v === 'string' && !!v) : []),
+      ];
+      // an input's data point is the id in its profiles that do not map it: read in the first of them
+      const arr = x.data_points;
+      if (Array.isArray(arr))
+        arr.forEach((v, n) => {
+          if (typeof v !== 'string' || !v) return;
+          const scope = names.length ? (names.find((pk) => !(isObj(mapping?.[pk]) && typeof (mapping![pk] as Obj)[v] === 'string')) ?? null) : null;
+          if (names.length && !scope) return;
+          out.push({ kind: 'data_point', id: v, scope, def: false, file: name, path: `${at}.data_points[${n}]`, set: (y) => (arr[n] = y) });
+        });
+      for (const pk of Object.keys(mapping ?? {})) {
+        const m = mapping![pk];
+        if (isObj(m)) for (const dk of Object.keys(m)) add('data_point', m, dk, pk, false, `${at}.mapping.${pk}`);
+        out.push({
+          kind: 'profile',
+          id: pk,
+          scope: '',
+          def: false,
+          file: name,
+          path: `${at}.mapping`,
+          set: (v) => {
+            if (v === pk || !mapping) return;
+            mapping[v] = mapping[pk];
+            delete mapping[pk];
+          },
+        });
+      }
     });
   }
   const assignments: [Obj, string][] = isObj(file.assignment)
