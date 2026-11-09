@@ -412,7 +412,9 @@ export function setIdentityAccess(platformId: string, identityId: string, aclInp
 /** Whether a new access list adds someone (a step-up, ADR 0009). */
 export function accessAddsSubjects(platformId: string, identityId: string, aclInput: unknown): boolean {
   const r = identityRow(platformId, identityId);
-  if (!r || !Array.isArray(aclInput)) return true;
+  // not a list: refused by the route's validation, nobody gains anything
+  if (!Array.isArray(aclInput)) return false;
+  if (!r) return true;
   const before = new Set(parseJson<AclEntry<'use'>[]>(r.acl, []).map((e) => e.subject));
   return aclInput.some(
     (e) =>
