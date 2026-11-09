@@ -80,6 +80,7 @@ Every page of Steward's documentation, grouped by what you want to do. New here?
 | [DATA-CONTRACTS.md](DATA-CONTRACTS.md)                                   | Data contracts in ODCS v3: schema, quality rules, tests and their evidence                  |
 | [STATUS-PAGES.md](STATUS-PAGES.md)                                       | Service status pages for people outside the service team                                    |
 | [PLANT.md](PLANT.md)                                                     | The plant registry (preview): sites, assets, device profiles, KPIs, OT network              |
+| [ADVISORIES.md](ADVISORIES.md)                                           | Security advisories (CSAF 2.0) for OT devices, matched to assets by model and firmware      |
 | [plant/plant-registry-1.schema.json](plant/plant-registry-1.schema.json) | JSON Schema of the plant registry import format                                             |
 
 ## Integrations by platform

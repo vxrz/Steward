@@ -55,6 +55,8 @@ The bell in the header lists the newest 50 notifications, grouped by event. Grou
 | Emergency access                | `security.emergency`    | The administrators, when someone signs in with emergency access from the server command line ([INSTALL.md](INSTALL.md#locked-out-of-single-sign-on))                                                      |
 | Daily summary                   | `summary.daily`         | People who turned it on (below) – in-app and e-mail only, never Teams or webhooks                                                                                                                         |
 
+Since 0.14 also **`plant.advisory_matched`** (_Security advisory affects a site_): the managers of a plant site (and its owning teams' channels), once per match, when a security advisory rated high or critical newly matches one of its assets exactly ([ADVISORIES.md](ADVISORIES.md#notifications)).
+
 ## Notification policy of automated runs
 
 A process that runs every few minutes and is expected to find failures (the Gatus uptime overview, where some endpoints are always down) should not fill mailboxes. Every **source that repeats runs** has one notification policy: a **schedule**, a **webhook trigger** and a **monitor output** that starts a process. Runs started by hand are not affected; a **sub-process** follows the source of its parent.

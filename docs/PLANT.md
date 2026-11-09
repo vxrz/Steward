@@ -13,6 +13,7 @@ The plant registry documents the factories of the enterprise an installation ser
 - [Device profiles, data points and KPIs](#device-profiles-data-points-and-kpis)
 - [Profile inheritance and asset additions](#profile-inheritance-and-asset-additions)
 - [Part 3: OT network](#part-3-ot-network)
+- [Security advisories](#security-advisories)
 - [Data collections](#data-collections)
 - [Visualizations](#visualizations)
 - [Map](#map)
@@ -368,6 +369,10 @@ Linking a monitor or a dataset needs the right to see it – in the editor, the 
 ### Rights
 
 The OT network follows its site ([Permissions](#permissions)): who **sees the site** sees its VLANs, zones, conduits and the devices, data paths and live status of its assets – the role _Plant viewer_ included; who **manages the site** changes them. Status viewers never reach it, and nothing of it is shown on status pages. A site or asset someone may not see answers `404`, in the import too ("There is no site …", "You may not add or change asset …"); a VLAN's other sites (`sites` and `otherSites`, in the internal API, `/api/v1` and the export) and the conduit link targets leave out sites they may not see – a save or an import keeps those, as they cannot name or remove them. Linking a monitor or a dataset as a check, a segment, a collector or a host needs to see it (an item that was linked before may stay); a dataset as a data path's destination is documentation and may be one that is published later. Every change is audited on its site or asset: `site.vlan_added|vlan_changed|vlan_removed`, `site.zone_*`, `site.conduit_*`, `asset.device_added|device_changed|device_removed`, `asset.data_path_*`, `asset.checks_set`; creating a segment from a VLAN is also `system.created`.
+
+## Security advisories
+
+Since 0.14 _Plant → Advisories_ matches **CSAF 2.0 security advisories** of device vendors and CISA to the assets by manufacturer, model and firmware – the asset's own and its device profile's, with the assignment's _controller firmware_: which assets of which sites and zones (with their SL-T) are affected, how badly, and which firmware fixes it. Only an exact (normalised) vendor and model with the firmware in the affected range counts; weaker matches are _possible matches_ that a person confirms or dismisses. Each affected asset has a remediation status (open, planned, mitigated, accepted risk, not affected), a site can mark an advisory not applicable, and new high and critical matches notify the site's managers. Advisories come from sources an administrator adds (none by default) or are uploaded as files – the way for plants without internet access. The asset page has a section _Advisories_. Everything about sources, matching rules, statuses, rights and limits is in [ADVISORIES.md](ADVISORIES.md).
 
 ## Data collections
 
@@ -1069,7 +1074,8 @@ The public, read-only API ([API.md](API.md), tag _Plant_):
 - `GET /api/v1/plant/sites/{siteId}/network` – the OT network of a site: VLANs (with the linked segment and the hint), zones, conduits (with the records that link to them), the devices and data paths of its assets and every asset's live status;
 - `GET /api/v1/plant/assets/{assetId}/network` – an asset's devices, data paths, own checks and live status;
 - `GET /api/v1/plant/assets/{assetId}/collections` – an asset's data collections with their items, mapping and coverage (0.11.0);
-- `GET /api/v1/plant/export?site=|part=catalogue|profile=|kpi=&format=yaml|json` – the registry in the import format (with the OT network).
+- `GET /api/v1/plant/export?site=|part=catalogue|profile=|kpi=&format=yaml|json` – the registry in the import format (with the OT network);
+- `GET /api/v1/plant/advisories`, `GET /api/v1/plant/advisories/{advisoryId}`, `GET /api/v1/plant/assets/{assetId}/advisories` – security advisories with their matches at the sites the token owner may see (0.14, [ADVISORIES.md](ADVISORIES.md#api-and-assistants)).
 
 They answer `404` while the module is off.
 
