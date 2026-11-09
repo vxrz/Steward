@@ -78,6 +78,7 @@ Themes of this release (details in the CHANGELOG once released):
 ## Later
 
 - **Plant change sets (0.13, [ADR 0020](adr/0020-plant-change-sets.md))**: imports, assistant proposals, bulk changes and people's edits become drafts that are reviewed and applied in one step; each entry keeps its history with undo; and the import preview flags fields changed in Steward since the last import – Steward is the source of truth, an import loads or syncs.
+- **Monitor states** (0.13 or later, proposed in [ADR 0021](adr/0021-monitor-states.md)): a monitor's checks are judged against states such as _Running_ and _Off_ in a decision table – a machine switched off on purpose shows _off_ and stays quiet, only contradicting checks alert, after a settle time; a maximum off time, planned downtime windows and the gateway's own heartbeat keep a real outage from hiding as Off; Off time is left out of uptime. The open questions are listed in the record.
 - **Platform identities, steps 2–4** (rest of [#228](https://github.com/vxrz/Steward/issues/228), [ADR 0009](adr/0009-platform-identities.md)): further identities per platform, each with its own access list, MCP mode, read-only flag and optional operation filter; the PAM checkout gets its own decision record first. When they come is still open.
 - **Postman import** (rest of [#204](https://github.com/vxrz/Steward/issues/204)): requests and sign-in from a collection.
 
