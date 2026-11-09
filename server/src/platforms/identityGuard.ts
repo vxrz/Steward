@@ -52,7 +52,17 @@ export interface IdentityRequest {
 /** "Snowflake · Read only" (the default identity's name only where it matters: always here, it names who refused). */
 export const identityLabel = (p: Pick<Platform, 'name'>, identityName: string) => `${p.name} · ${identityName}`;
 
-function refuse(p: WithIdentity, identity: { id: string; name: string }, code: string, message: string, params: Record<string, string>): never {
+/** The two refusals (their codes literal, so the translations stay checked: i18n-errors.test.ts). */
+const refusal = (code: 'IDENTITY_READ_ONLY' | 'IDENTITY_OPERATION_REFUSED', message: string, params: Record<string, string>): HttpError =>
+  code === 'IDENTITY_READ_ONLY' ? new HttpError(403, message, 'IDENTITY_READ_ONLY', params) : new HttpError(403, message, 'IDENTITY_OPERATION_REFUSED', params);
+
+function refuse(
+  p: WithIdentity,
+  identity: { id: string; name: string },
+  code: 'IDENTITY_READ_ONLY' | 'IDENTITY_OPERATION_REFUSED',
+  message: string,
+  params: Record<string, string>,
+): never {
   try {
     audit({
       action: 'platform.identity_refused',
@@ -64,7 +74,7 @@ function refuse(p: WithIdentity, identity: { id: string; name: string }, code: s
   } catch {
     /* the refusal stands without its audit entry (vault locked) */
   }
-  throw Object.assign(new HttpError(403, message, code, { platform: p.name, identity: identity.name, ...params }), { retryable: false });
+  throw Object.assign(refusal(code, message, { platform: p.name, identity: identity.name, ...params }), { retryable: false });
 }
 
 /** The platform's operations (all specs), read once per check. */
