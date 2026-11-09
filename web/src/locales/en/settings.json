@@ -564,7 +564,8 @@
     "modules": {
       "title": "Modules",
       "description": "Switch optional areas on or off (costs, data contracts, compliance, status pages and others), with how mature each one is; the plant registry and its map."
-    }
+    },
+    "current": "Area: {{area}}"
   },
   "endOfLife": {
     "title": "End of life",
