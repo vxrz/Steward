@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Badge, Button, Code, Group, Stack, Table, Text } from '@mantine/core';
+import { Badge, Button, Code, Group, Paper, Stack, Table, Text } from '@mantine/core';
+import { useMediaQuery } from '@mantine/hooks';
 import { useTranslation } from 'react-i18next';
 import type { PlantChange, PlantChangeAction, PlantChangeKind, PlantFieldDiff, PlantRecordType } from '@sm/shared';
 import { usePlantLabel } from './common';
@@ -71,7 +72,58 @@ export function ChangeTable({
   diffsOpen?: boolean;
 }) {
   const { t } = useTranslation('plant');
+  const narrow = useMediaQuery('(max-width: 48em)') ?? false;
   const shown = changes.slice(0, 500);
+  const what = (c: PlantChange) => (
+    <>
+      {c.fields?.length ? (
+        <Group gap={4}>
+          {c.fields.map((f) => (
+            <Badge key={f} size="xs" variant="default">
+              {t(`import.fields.${f as 'name'}`, { defaultValue: f })}
+            </Badge>
+          ))}
+        </Group>
+      ) : null}
+      {c.diff && <FieldDiffs diff={c.diff} open={diffsOpen} />}
+      {c.note && (
+        <Text size="xs" c="dimmed">
+          {noteKey(c.note) === 'other' ? c.note : t(`import.notes.${noteKey(c.note) as Exclude<ReturnType<typeof noteKey>, 'other'>}`)}
+        </Text>
+      )}
+    </>
+  );
+  const more = changes.length > shown.length && (
+    <Text size="xs" c="dimmed" mt={4}>
+      {t('import.more', { count: changes.length - shown.length })}
+    </Text>
+  );
+  // a phone: one card per entry, the differences at full width
+  if (narrow)
+    return (
+      <Stack gap="xs" role="list" aria-label={t('import.changes')} data-testid="import-changes">
+        {shown.map((c) => (
+          <Paper key={`${c.kind}:${c.siteId}:${c.id}:${c.action}`} withBorder p="xs" role="listitem">
+            <Group gap="xs" wrap="wrap">
+              <Badge size="sm" color={ACTION_COLOR[c.action]} variant="light">
+                {t(`import.actions.${c.action}`)}
+              </Badge>
+              <Text size="xs" c="dimmed">
+                {kindLabel(c.kind)}
+              </Text>
+            </Group>
+            <Text size="sm" mt={4} style={{ overflowWrap: 'anywhere' }}>
+              {c.name}
+            </Text>
+            <Text size="xs" c="dimmed" className="mono" style={{ overflowWrap: 'anywhere' }}>
+              {c.kind === 'site' || !c.siteId ? c.id : `${c.siteId} / ${c.id}`}
+            </Text>
+            {what(c)}
+          </Paper>
+        ))}
+        {more}
+      </Stack>
+    );
   return (
     <div className="table-scroll" tabIndex={0} role="region" aria-label={t('import.changes')}>
       <Table fz="sm" aria-label={t('import.changes')} data-testid="import-changes">
@@ -86,7 +138,7 @@ export function ChangeTable({
         <Table.Tbody>
           {shown.map((c) => (
             <Table.Tr key={`${c.kind}:${c.siteId}:${c.id}:${c.action}`}>
-              <Table.Td>
+              <Table.Td className="nowrap">
                 <Badge size="sm" color={ACTION_COLOR[c.action]} variant="light">
                   {t(`import.actions.${c.action}`)}
                 </Badge>
@@ -98,32 +150,12 @@ export function ChangeTable({
                   {c.kind === 'site' || !c.siteId ? c.id : `${c.siteId} / ${c.id}`}
                 </Text>
               </Table.Td>
-              <Table.Td>
-                {c.fields?.length ? (
-                  <Group gap={4}>
-                    {c.fields.map((f) => (
-                      <Badge key={f} size="xs" variant="default">
-                        {t(`import.fields.${f as 'name'}`, { defaultValue: f })}
-                      </Badge>
-                    ))}
-                  </Group>
-                ) : null}
-                {c.diff && <FieldDiffs diff={c.diff} open={diffsOpen} />}
-                {c.note && (
-                  <Text size="xs" c="dimmed">
-                    {noteKey(c.note) === 'other' ? c.note : t(`import.notes.${noteKey(c.note) as Exclude<ReturnType<typeof noteKey>, 'other'>}`)}
-                  </Text>
-                )}
-              </Table.Td>
+              <Table.Td>{what(c)}</Table.Td>
             </Table.Tr>
           ))}
         </Table.Tbody>
       </Table>
-      {changes.length > shown.length && (
-        <Text size="xs" c="dimmed" mt={4}>
-          {t('import.more', { count: changes.length - shown.length })}
-        </Text>
-      )}
+      {more}
     </div>
   );
 }
