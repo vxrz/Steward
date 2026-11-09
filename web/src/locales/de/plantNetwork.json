@@ -54,6 +54,7 @@
     "down": "Der Monitor ist ausgefallen.",
     "unknown": "Der Monitor hat noch kein Ergebnis.",
     "maintenance": "In Wartung – er sagt jetzt nichts.",
+    "off": "Planmäßig aus – alle Prüfungen des Monitors stimmen überein.",
     "disabled": "Der Monitor oder die Prüfung ist ausgeschaltet.",
     "not_found": "Der {{kind}} existiert nicht (mehr).",
     "fresh": "Aktuelle Daten.",

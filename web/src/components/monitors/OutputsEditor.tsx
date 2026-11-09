@@ -20,6 +20,7 @@ import { IconPlus, IconTrash } from '@tabler/icons-react';
 import {
   DEFAULT_QUIET_HOURS,
   DEFAULT_TRIGGER_NOTIFY,
+  GATUS_WHILE_OFF,
   MONITOR_STATUSES,
   type CheckDef,
   type OutputDef,
@@ -157,6 +158,13 @@ export function OutputsEditor({ outputs, onChange, checks, platforms, processes,
                   checked={!!o.urgent}
                   onChange={(e) => update(i, { urgent: e.currentTarget.checked || undefined })}
                 />
+                <Switch
+                  label={t('outputs.stateChanges')}
+                  description={t('outputs.stateChangesHint')}
+                  disabled={disabled}
+                  checked={!!o.stateChanges}
+                  onChange={(e) => update(i, { stateChanges: e.currentTarget.checked || undefined })}
+                />
               </>
             )}
             {o.type === 'webhook' && (
@@ -256,6 +264,15 @@ export function OutputsEditor({ outputs, onChange, checks, platforms, processes,
                   disabled={disabled}
                   value={o.tokenSecret ?? ''}
                   onChange={(e) => update(i, { tokenSecret: e.currentTarget.value || undefined })}
+                />
+                <Select
+                  label={t('outputs.whileOff')}
+                  description={t('outputs.whileOffHint')}
+                  disabled={disabled}
+                  allowDeselect={false}
+                  data={GATUS_WHILE_OFF.map((v) => ({ value: v, label: t(`outputs.whileOffValues.${v}`) }))}
+                  value={o.whileOff ?? 'success'}
+                  onChange={(v) => update(i, { whileOff: v === 'success' || !v ? undefined : (v as (typeof GATUS_WHILE_OFF)[number]) })}
                 />
               </Group>
             )}

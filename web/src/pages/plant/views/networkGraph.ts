@@ -53,7 +53,8 @@ export function liveOf(l: PlantLiveStatus): PlantLive | null {
   const c = l.checks.find((x) => x.state === 'offline') ?? l.checks.find((x) => x.state !== 'online') ?? l.checks[0];
   return {
     source: c?.kind ?? 'monitor',
-    state: l.state === 'online' ? 'ok' : l.state === 'offline' ? 'fail' : 'unknown',
+    // offline as planned (a monitor that is off, ADR 0021) is grey, not red
+    state: l.state === 'online' ? 'ok' : l.state === 'offline' && c?.reason !== 'off' ? 'fail' : 'unknown',
     status: c?.reason ?? 'unknown',
     label: c?.visible ? c.label : '',
     path: c?.path ?? null,

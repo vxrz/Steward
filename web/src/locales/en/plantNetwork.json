@@ -54,6 +54,7 @@
     "down": "The monitor is down.",
     "unknown": "The monitor has no result yet.",
     "maintenance": "In maintenance – it says nothing now.",
+    "off": "Off as planned – every check of the monitor agrees.",
     "disabled": "The monitor or check is turned off.",
     "not_found": "The {{kind}} does not exist (any more).",
     "fresh": "Fresh data.",

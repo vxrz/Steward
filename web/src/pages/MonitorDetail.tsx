@@ -38,6 +38,7 @@ import { MonitorGraph } from '../components/monitors/MonitorGraph';
 import { TestRunButton } from '../components/monitors/TestRunButton';
 import { ObservedDelaySummary } from '../components/monitors/ObservedDelay';
 import { MONITOR_COLORS, MonitorStatusBadge, causeText, checkTypeLabel, fmtUptime, monitorStatusLabel, uptimeText } from '../components/monitors/status';
+import { OffBanner, WhyThisState, offText } from '../components/monitors/StatePanel';
 import { AcknowledgeModal, CopyBlock, InstantiateModal, SecretsModal, gatewayCurl, heartbeatCurl } from '../components/monitors/dialogs';
 import { MaintenanceDetailModal, MaintenanceFormModal, TargetBadges, useRepeatLabel } from '../components/catalogue/maintenance';
 import { confirmDanger, confirmDialog } from '../components/confirm';
@@ -181,7 +182,7 @@ export function MonitorDetailPage() {
                     {t('maintenance.plan')}
                   </Menu.Item>
                 )}
-                {!m.isTemplate && can('acknowledge') && m.status !== 'up' && !m.acknowledged && (
+                {!m.isTemplate && can('acknowledge') && m.status !== 'up' && m.status !== 'off' && !m.acknowledged && (
                   <Menu.Item leftSection={<IconCheck size={14} />} onClick={() => setAck(true)}>
                     {t('detail.acknowledgeProblem')}
                   </Menu.Item>
@@ -221,10 +222,17 @@ export function MonitorDetailPage() {
         {!m.isTemplate && (
           <Text size="sm" c="dimmed">
             {t('detail.uptime', { uptime: uptimeText(m.uptime) })}
+            {m.offHours ? ` · ${offText(m.offHours)}` : ''}
           </Text>
         )}
+        <OffBanner monitor={m} />
         {!m.isTemplate && m.rootCauses.length > 0 && (
-          <Alert color="red" icon={<IconAlertTriangle size={18} />} title={t('list.rootCause')}>
+          <Alert color="red" icon={<IconAlertTriangle size={18} />} title={t('list.rootCause')} data-testid="monitor-root-cause">
+            {(m.state?.reason === 'contradiction' || m.state?.reason === 'required') && (
+              <Text size="sm" fw={600} mb={4} data-testid="monitor-contradiction">
+                {m.state.message}
+              </Text>
+            )}
             {m.rootCauses.map((c) => (
               <Text key={`${c.monitorId}/${c.checkId}`} size="sm">
                 {c.hidden ? (
@@ -327,6 +335,7 @@ export function MonitorDetailPage() {
               <Text size="xs" c="dimmed" mt={4}>
                 {t('detail.graphHint')}
               </Text>
+              {!m.isTemplate && <WhyThisState monitor={m} onSelect={select} />}
               {!m.isTemplate && <ChecksTable monitor={m} onSelect={select} />}
             </Grid.Col>
             {sel && !isMobile && (
