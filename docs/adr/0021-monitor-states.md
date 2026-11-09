@@ -1,6 +1,6 @@
 # 0021. Monitor states and expected statuses
 
-- **Status:** Proposed – the owner's decisions are taken (listed at the end); everything marked _Recommendation_ is open to change
+- **Status:** Accepted (owner decision 2026-11-09) – every _Recommendation_ below was taken as recommended, except the Gatus output, which became a per-output setting (see _Owner decisions_)
 - **Date:** 2026-11-09
 - **Since:** planned for 0.13 or later – monitors ([MONITORS.md](../MONITORS.md))
 
@@ -136,7 +136,7 @@ Off is only trusted when something proves that the data would arrive if there we
 
 - **Off is excluded** from uptime and availability objectives, like maintenance: `upAndDown` counts `off` neither way and also returns the off time. Figures read **"Up 97 % · Off 31 h"** – on the monitor page (24 h, 7 d, 30 d), in objectives with the monitor as source (next to the planned minutes they already show) and in the reports' availability section (a column _Off_). Check samples count a check in `off` as _other_, as in maintenance.
 - **Settling** counts as the new state: after → Off as off, after → Running as up.
-- **Off beyond the maximum** is `degraded`, and the existing rule counts `degraded` as **available** (`upAndDown`: `up` and `degraded` are available time). So time over the maximum no longer counts as Off, does not lower the figure, and is listed apart: "Off beyond maximum 5 h". (See open question 3.)
+- **Off beyond the maximum** is `degraded`, and the existing rule counts `degraded` as **available** (`upAndDown`: `up` and `degraded` are available time). So time over the maximum no longer counts as Off, does not lower the figure, and is listed apart: "Off beyond maximum 5 h". (Owner decision 11.)
 - **A contradiction** is `down` (or `degraded`) and counts as such.
 - Objectives on Gatus or PromQL keep their tools' figures.
 
@@ -168,7 +168,7 @@ states:
 | Zabbix push (`sendZabbix`)                     | code 0–5 or the word                              | `6` or `off`; the value map needs a row 6 → Off. Triggers on `=2` are unaffected; triggers on `>1` already fire on maintenance (5) and will on 6       |
 | Zabbix pull (`/api/v1/…/status`)               | `statusCode`                                      | `6`; `state` added to the answer                                                                                                                       |
 | Prometheus (`metrics.ts`, `sm_monitor_status`) | 0–5                                               | `6`; new gauge `sm_monitor_state{monitor,state}` = 1 for the current state. `== 2` rules are unaffected                                                |
-| Gatus output (`sendGatus`)                     | `success` = up or degraded; maintenance not sent  | _Recommendation:_ `success=true` (Gatus knows only success or failure; see open question 4)                                                            |
+| Gatus output (`sendGatus`)                     | `success` = up or degraded; maintenance not sent  | per output, `whileOff`: `success` (default), `failure` or `skip` (send nothing); a contradiction and Off beyond the maximum are always failures        |
 | Status pages (`status-pages.ts`)               | `down` → outage … `maintenance` → maintenance     | `operational` – the service is as planned                                                                                                              |
 | Plant live state (`plant/live.ts`)             | `down` → offline                                  | `offline` with a new reason `off`, drawn grey on the OT network and plant views, not red                                                               |
 | Datasets (`datasets.ts`)                       | `maintenance` → unknown                           | `unknown`; a new metric `off` in `monitors.status`                                                                                                     |
@@ -250,6 +250,16 @@ Taken on 2026-11-09:
 7. Sub-monitors, root causes, notifications (state changes are not alerts; information optional), the wall, the outputs, the YAML format (`states:`, backward compatible), templates and the examples are covered as above.
 8. **Later:** site-wide correlation; states from a production calendar or the plant asset's state.
 
+The open questions of the proposal, decided on 2026-11-09 – each the recommended answer except question 4:
+
+9. **Machine data as its own monitor:** it _follows_ the PowerMeter monitor's state (`states.from`, section 7); both monitors and their own alerts stay.
+10. **Maximum off time when not set:** 8 hours, shown in the editor; `0` means no maximum.
+11. **Off beyond the maximum in uptime:** `degraded`, which counts as available by the existing rule; the over-time is listed apart.
+12. **Gatus output for `off`:** a **setting per Gatus output**, `whileOff: success | failure | skip` (labels _While off: success / failure / send nothing_), default `success`. A contradiction and Off beyond the maximum are always sent as failures, whatever the setting.
+13. **Information on state changes:** an opt-in output option `stateChanges` with its own event `monitor.state`.
+14. **Planned downtime announcements:** off by default.
+15. **States that change too often:** more than 4 changes within an hour make the monitor `degraded`.
+
 ## Consequences
 
 - A machine switched off on purpose is grey and quiet; a stop that is not consistent, too long, or hidden by a silent gateway still alerts – with the check that does not fit as the root cause.
@@ -258,13 +268,3 @@ Taken on 2026-11-09:
 - One window concept, two kinds. Downtime windows are planned like maintenance and do something different; the form has to make that plain.
 - Uptime becomes honest for machines that do not run around the clock, and objectives stop counting nights as outages.
 - Revisit when tables need arithmetic across checks (the JSONata escape hatch), when several leaders per follower are asked for, or when correlation across monitors arrives.
-
-## Open questions for the owner
-
-1. **Machine data as its own monitor:** (a) it _follows_ the PowerMeter monitor's state (`states.from`, section 7) – recommended, keeps both monitors and their own alerts; (b) merge both into one monitor with states.
-2. **Maximum off time when not set:** (a) 8 hours, shown in the editor – recommended; (b) required for every off state; (c) no maximum.
-3. **Off beyond the maximum in uptime:** (a) `degraded` counts as available, the over-time is listed apart – recommended, the existing rule; (b) count it as down, so long unplanned stops lower availability.
-4. **Gatus output for `off`:** (a) send `success=true` – recommended, keeps Gatus heartbeats green but Gatus counts Off as up; (b) send nothing, as for maintenance – Gatus marks the endpoint failed after its heartbeat interval.
-5. **Information on state changes:** (a) an opt-in output option `stateChanges` with its own event `monitor.state` – recommended; (b) only by listing `off` in an output's `statuses`.
-6. **Planned downtime announcements:** (a) off by default – recommended; (b) like maintenance, a reminder 24 hours before.
-7. **States that change too often:** (a) more than 4 changes per hour make the monitor degraded – recommended; (b) no limit in the first version.
