@@ -74,6 +74,8 @@ export interface StateMemory {
   settleUntil: number | null;
   /** Times of the state changes within the last hour */
   changes: number[];
+  /** A state was selected before (the first selection – a new monitor, states just added – starts no settle time) */
+  known?: boolean;
 }
 
 export interface StateInput {
@@ -252,9 +254,11 @@ export function evaluateStates(input: StateInput): StateOutcome {
   const changes = mem.changes.filter((t) => t > now - HOUR);
   if (changed && input.memory) changes.push(now);
   const since = changed ? now : (mem.since ?? now);
-  const settleUntil = !row ? null : changed ? now + settleSecondsOf(def, row, input.subSettle) * 1000 : mem.settleUntil;
+  // a state change starts the settle time; the very first state (nothing selected before) is taken as it is
+  const wasKnown = !!input.memory && (input.memory.id !== null || !!input.memory.known);
+  const settleUntil = !row ? null : changed ? (wasKnown ? now + settleSecondsOf(def, row, input.subSettle) * 1000 : null) : mem.settleUntil;
   const settling = settleUntil !== null && now < settleUntil;
-  const memory: StateMemory = { id: nextId, since, settleUntil, changes };
+  const memory: StateMemory = { id: nextId, since, settleUntil, changes, known: wasKnown || !!row };
   const flapping = changes.length > STATE_LIMITS.changesPerHour;
   const info: MonitorStateInfo = {
     id: nextId,

@@ -183,6 +183,18 @@ describe('decision table (pure)', () => {
       now: 112 * MIN,
     });
     expect(later.status).toBe('down');
+    // the very first state (a new monitor, states just added) starts no settle time: what is wrong is told at once
+    const first = evaluateStates({ def: MACHINE, statuses: st({ pm: 'up', data: 'down', ih: 'up', machine: 'up', gw: 'up' }), memory: null, now: 0 });
+    expect(first.memory.settleUntil).toBeNull();
+    expect(first.status).toBe('down');
+    // nor after "no state" when nothing was ever selected (the selector was not known yet)
+    const after = evaluateStates({
+      def: MACHINE,
+      statuses: st({ pm: 'up', data: 'down', ih: 'up', machine: 'up', gw: 'up' }),
+      memory: { id: null, since: 0, settleUntil: null, changes: [] },
+      now: MIN,
+    });
+    expect(after.status).toBe('down');
     // an override per row
     const fixed = def({ ...MACHINE, states: { cases: [MACHINE.states!.cases[0]!, { ...MACHINE.states!.cases[1]!, settleSeconds: 120 }] } });
     expect(evaluateStates({ def: fixed, statuses: st({ pm: 'down' }), memory: settled('running'), now: 0 }).memory.settleUntil).toBe(120000);

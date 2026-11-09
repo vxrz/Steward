@@ -85,6 +85,8 @@ const offChecks = new Map<string, Set<string>>();
 /** What the engine stores per monitor with states (monitor_state.state_detail). */
 interface StateDetail {
   changes: number[];
+  /** A state was selected before */
+  known?: boolean;
   offChecks: string[];
   info: MonitorStateInfo;
 }
@@ -658,6 +660,7 @@ export async function recompute(mid: string, now = clock()): Promise<void> {
           since: prev?.state_since ? Date.parse(prev.state_since) : null,
           settleUntil: prev?.settle_until ? Date.parse(prev.settle_until) : null,
           changes: detail.changes ?? [],
+          known: !!detail.known,
         }
       : null;
   const leader = leaderOf(m);
@@ -683,7 +686,7 @@ export async function recompute(mid: string, now = clock()): Promise<void> {
   const stateChanged = !!st && st.changed && !!memory;
   if (withStates) offChecks.set(mid, new Set(st?.offChecks ?? []));
   else offChecks.delete(mid);
-  const nextDetail: StateDetail | null = st ? { changes: st.memory.changes, offChecks: [...st.offChecks], info: st.info } : null;
+  const nextDetail: StateDetail | null = st ? { changes: st.memory.changes, known: !!st.memory.known, offChecks: [...st.offChecks], info: st.info } : null;
   db().tx(() => {
     for (const c of enabledChecks) {
       const v = a.checks.get(c.id)!;
