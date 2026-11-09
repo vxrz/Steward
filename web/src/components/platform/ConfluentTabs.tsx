@@ -129,7 +129,7 @@ export function ConfluentClustersTab({ platform }: { platform: Platform }) {
             <Text size="sm" data-testid="confluent-summary">
               {t('confluent.summary', { environments: v.environments.length, clusters: v.clusters.length, connectors: v.connectors.length })}
             </Text>
-            <div className="table-scroll">
+            <div className="table-scroll" tabIndex={0} role="region" aria-label={t('confluent.parts.clusters')}>
               <Table fz="sm" data-testid="confluent-clusters">
                 <Table.Thead>
                   <Table.Tr>
@@ -211,7 +211,7 @@ export function ConfluentSchemasTab({ platform }: { platform: Platform }) {
       {(v) => (
         <>
           {v.schemaRegistries.length > 0 && (
-            <div className="table-scroll">
+            <div className="table-scroll" tabIndex={0} role="region" aria-label={t('confluent.parts.schemaRegistries')}>
               <Table fz="sm" data-testid="confluent-registries">
                 <Table.Thead>
                   <Table.Tr>
@@ -246,7 +246,7 @@ export function ConfluentSchemasTab({ platform }: { platform: Platform }) {
                 {t('confluent.registryRead', { url: v.registry.url, count: v.registry.subjects.length, level: v.registry.compatibility ?? '–' })}
               </Text>
               {v.registry.truncated && <Hint>{t('confluent.subjectsTruncated')}</Hint>}
-              <div className="table-scroll">
+              <div className="table-scroll" tabIndex={0} role="region" aria-label={t('confluent.parts.subjects')}>
                 <Table fz="sm" data-testid="confluent-subjects">
                   <Table.Thead>
                     <Table.Tr>
@@ -453,7 +453,7 @@ export function ConfluentKeysTab({ platform }: { platform: Platform }) {
             <Text size="sm" data-testid="confluent-keys-summary">
               {t('confluent.keysSummary', { count: v.apiKeys.length, accounts: v.serviceAccounts?.length ?? 0 })}
             </Text>
-            <div className="table-scroll">
+            <div className="table-scroll" tabIndex={0} role="region" aria-label={t('confluent.parts.apiKeys')}>
               <Table fz="sm" data-testid="confluent-keys">
                 <Table.Thead>
                   <Table.Tr>
@@ -530,7 +530,7 @@ export function ConfluentKeysTab({ platform }: { platform: Platform }) {
             </div>
             <Hint>{t('confluent.keysHint')}</Hint>
             {!!v.serviceAccounts?.length && (
-              <div className="table-scroll">
+              <div className="table-scroll" tabIndex={0} role="region" aria-label={t('confluent.parts.serviceAccounts')}>
                 <Table fz="sm" data-testid="confluent-accounts">
                   <Table.Thead>
                     <Table.Tr>
