@@ -513,6 +513,8 @@ async function crawl(token: string): Promise<{ template: string; url: string; re
   // part 3 (#220): the OT network of a site and of assets (the example imports devices and data paths of two)
   for (const x of await listAll('/plant/sites', '/plant/sites')) await get('/plant/sites/{siteId}/network', `/plant/sites/${x.id}/network`);
   for (const id of ['rvs-mill-01', 'rvs-mill-02']) await get('/plant/assets/{assetId}/network', `/plant/assets/${id}/network`);
+  // data collections (0.11): what collectors read from an asset
+  for (const id of ['rvs-mill-01', 'rvs-mill-02']) await get('/plant/assets/{assetId}/collections', `/plant/assets/${id}/collections`);
   // what Steward checks, and the export in the import format (YAML; JSON is the same document)
   await listAll('/plant/checks', '/plant/checks');
   await get('/plant/export', '/plant/export');

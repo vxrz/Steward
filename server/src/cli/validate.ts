@@ -78,6 +78,8 @@ export interface FileResult {
 
 /** Folders of the bundled examples that hold no Steward definitions (deployment manifests, alert rules); tested elsewhere. */
 const NOT_STEWARD = new Set(['kubernetes', 'prometheus']);
+/** Collector configurations (gateway, Node-RED, Industrial Edge, tables) imported into a data collection, not Steward files; tested in plant-collections. */
+const FOREIGN_FORMATS = [path.join('examples', 'plant', 'collections')];
 
 function files(p: string, top = true): string[] {
   const st = fs.statSync(p);
@@ -85,6 +87,7 @@ function files(p: string, top = true): string[] {
     return fs
       .readdirSync(p)
       .filter((f) => !(top && NOT_STEWARD.has(f) && path.basename(p) === 'examples'))
+      .filter((f) => !FOREIGN_FORMATS.some((d) => path.join(p, f).endsWith(d)))
       .flatMap((f) => files(path.join(p, f), false));
   return /\.(ya?ml|json)$/i.test(p) ? [p] : [];
 }
