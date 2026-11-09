@@ -357,7 +357,8 @@
     "kinds": {
       "profile": "Geräteprofil",
       "kpi": "KPI-Definition",
-      "assignment": "Zuordnung"
+      "assignment": "Zuordnung",
+      "collection_sinks": "Ziele einer Datenerfassung"
     },
     "checks_one": "{{count}} Hinweis der Prüfungen",
     "checks_other": "{{count}} Hinweise der Prüfungen",

@@ -34,7 +34,7 @@ const KIND_TYPE: Partial<Record<PlantChangeKind, PlantRecordType>> = {
   asset: 'asset',
 };
 /** Kinds of part 2 (#219) without an own display name */
-type DataKind = 'profile' | 'kpi' | 'assignment';
+type DataKind = 'profile' | 'kpi' | 'assignment' | 'collection_sinks';
 const ACTION_COLOR: Record<PlantChangeAction, string> = { add: 'green', change: 'blue', remove: 'red', mark: 'orange', unchanged: 'gray', skip: 'gray' };
 const ACTIONS: PlantChangeAction[] = ['add', 'change', 'remove', 'mark', 'unchanged', 'skip'];
 

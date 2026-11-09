@@ -350,6 +350,205 @@ describe('the gateway configuration document', () => {
   });
 });
 
+describe('sinks in the YAML format', () => {
+  it('exports the sinks of collections and imports them back; an unknown collection or target is refused', async () => {
+    const YAML = (await import('yaml')).default;
+    const exported = YAML.parse(await s.api('GET', '/plant/export?site=north'));
+    const net = (exported.asset_networks ?? [exported.asset_network]).find((a: { asset: string }) => a.asset === 'north-mill-1');
+    expect(net.collection_sinks).toEqual([
+      {
+        collection: 'state',
+        sinks: [
+          {
+            id: 'historian',
+            name: 'historian',
+            ref: 'mqtt.example.com:8883',
+            object: 'plant/north/mill',
+            format: 'json',
+            schedule: 'batchSize: 50',
+            description: 'From the section "outputs" of the file',
+            mappings: [{ item: 'ProgStatus', target: 'prog_status' }],
+          },
+        ],
+      },
+    ]);
+    const file = (sinks: object[], collection = 'state') => ({
+      name: 'sinks.plant.yaml',
+      content: YAML.stringify({ version: 1, asset_networks: [{ asset: 'north-mill-1', collection_sinks: [{ collection, sinks }] }] }),
+    });
+    const sinks = [
+      {
+        id: 'warehouse',
+        name: 'Warehouse',
+        object: 'plant.machine_state',
+        transforms: [
+          { kind: 'aggregate', field: 'ProgStatus', window: '1 min', function: 'last' },
+          { kind: 'compute', expression: 'status_text = lookup(ProgStatus)' },
+        ],
+        mappings: [{ item: 'OpMode', target: 'op_mode', transform: 'int → text' }],
+      },
+    ];
+    const pre = await s.api('POST', '/plant/import/preview', { files: [file(sinks)], mode: 'update' });
+    expect(pre.problems).toEqual([]);
+    expect(pre.changes.filter((c: { kind: string }) => c.kind === 'collection_sinks')).toMatchObject([{ action: 'change', id: 'north-mill-1/state' }]);
+    await s.api('POST', '/plant/import', { files: [file(sinks)], mode: 'update' });
+    const c = await s.api('GET', '/plant/assets/north-mill-1/collections/state');
+    expect(c.sinks).toMatchObject([{ id: 'warehouse', imported: false, transforms: [{ kind: 'aggregate', window: '1 min' }, { kind: 'compute' }] }]);
+    expect(c.destination).toMatchObject({ ref: '', path: 'plant.machine_state' });
+    // the same file again: nothing changes
+    const again = await s.api('POST', '/plant/import/preview', { files: [file(sinks)], mode: 'update' });
+    expect(again.changes.find((x: { kind: string }) => x.kind === 'collection_sinks').action).toBe('unchanged');
+    const bad = await s.api('POST', '/plant/import/preview', { files: [file(sinks, 'nope')], mode: 'update' });
+    expect(bad.problems.map((x: { message: string }) => x.message)).toEqual(['Asset "north-mill-1" has no data collection "nope"']);
+    const hidden = await s.api('POST', '/plant/import/preview', {
+      files: [file([{ id: 'x', name: 'x', kind: 'system', ref: 'no-such-system' }])],
+      mode: 'update',
+    });
+    expect(hidden.problems.map((x: { message: string }) => x.message)).toEqual(['There is no system "no-such-system"']);
+    // an import that drops a sink keeps the links to it (a later import may name it again); an edit by hand takes them along
+    expect((await docs('data-sink', 'north-mill-1/state/historian').catch((e: { status: number }) => e)).status).toBe(404);
+    await apply('north-mill-1', { files: [{ name: 'gateway.json', content: gateway('/Bag/State/opMode[u6]') }] });
+    const merged = await s.api('GET', '/plant/assets/north-mill-1/collections/state');
+    // a re-import puts the file's sink back and keeps the sink entered by file (not an import's)
+    expect(merged.sinks.map((x: { id: string }) => x.id)).toEqual(['historian', 'warehouse']);
+    expect(titles((await docs('data-sink', 'north-mill-1/state/historian')).own)).toEqual(['Historian topics']);
+  });
+
+  it('an edit that removes a sink takes the links of records to it along (audited)', async () => {
+    const r = await s.api('POST', '/records', {
+      type: 'DOC',
+      title: 'Warehouse load',
+      links: [{ kind: 'data-sink', id: 'north-mill-1/state/warehouse', note: '' }],
+    });
+    const c = await s.api('GET', '/plant/assets/north-mill-1/collections/state');
+    const {
+      id: _i,
+      assetId: _a,
+      assetName: _n,
+      siteId: _s,
+      collectorRef: _c,
+      collectorHost: _h,
+      destinationRef: _d,
+      sinkRefs: _r,
+      points: _p,
+      coverage: _v,
+      writes: _w,
+      importId: _m,
+      notInSource: _x,
+      updatedAt: _u,
+      updatedBy: _b,
+      ...body
+    } = c;
+    await s.api('PUT', '/plant/assets/north-mill-1/collections/state', {
+      ...body,
+      destination: null,
+      sinks: c.sinks.filter((x: { id: string }) => x.id !== 'warehouse'),
+    });
+    expect((await s.api('GET', `/records/${r.id}`)).links).toEqual([]);
+    expect((await s.api('GET', '/audit?action=plant.collection_updated'))[0].details.linksRemoved).toBe(1);
+  });
+});
+
+describe('importers fill the sinks', () => {
+  it('a re-import keeps what people wrote on a sink; the connector export names the Databus, its topic unknown', async () => {
+    const c = await s.api('GET', '/plant/assets/north-mill-1/collections/state');
+    const {
+      id: _i,
+      assetId: _a,
+      assetName: _n,
+      siteId: _s,
+      collectorRef: _c,
+      collectorHost: _h,
+      destinationRef: _d,
+      sinkRefs: _r,
+      points: _p,
+      coverage: _v,
+      writes: _w,
+      importId: _m,
+      notInSource: _x,
+      updatedAt: _u,
+      updatedBy: _b,
+      ...body
+    } = c;
+    const sinks = c.sinks.map((x: { id: string }) => (x.id === 'historian' ? { ...x, description: 'Run by the IT team', owner: 'ot-platform' } : x));
+    await s.api('PUT', '/plant/assets/north-mill-1/collections/state', { ...body, destination: null, sinks });
+    await apply('north-mill-1', { files: [{ name: 'gateway.json', content: gateway('/Bag/State/opMode[u7]') }] });
+    const after = await s.api('GET', '/plant/assets/north-mill-1/collections/state');
+    expect(after.sinks.find((x: { id: string }) => x.id === 'historian')).toMatchObject({
+      description: 'Run by the IT team',
+      owner: 'ot-platform',
+      imported: true,
+    });
+    const ie = await s.api('POST', '/plant/assets/north-mill-1/collections/import/preview', {
+      collector: GW,
+      files: [example('example-ie-opcua-connector.json')],
+    });
+    expect(ie.collections[0].values.sinks).toMatchObject([{ name: 'Databus', object: '', description: expect.stringContaining('unknown') }]);
+  });
+});
+
+describe('lineage', () => {
+  it('a sink on a Steward system: the data paths that read from it are named only where the reader sees their site', async () => {
+    const sys = await s.api('POST', '/systems', { name: 'Example historian', kind: 'vm' });
+    await s.api('POST', '/plant/assets/south-mill-1/paths', {
+      id: 'from-historian',
+      subject: 'Historian export',
+      transfers: [{ protocol: 'https', mode: 'pull', peerKind: 'system', peer: sys.id }],
+    });
+    const c = await s.api('GET', '/plant/assets/north-mill-1/collections/state');
+    const {
+      id: _i,
+      assetId: _a,
+      assetName: _n,
+      siteId: _s,
+      collectorRef: _c,
+      collectorHost: _h,
+      destinationRef: _d,
+      sinkRefs: _r,
+      points: _p,
+      coverage: _v,
+      writes: _w,
+      importId: _m,
+      notInSource: _x,
+      updatedAt: _u,
+      updatedBy: _b,
+      ...body
+    } = c;
+    const sinks = [
+      ...c.sinks,
+      {
+        id: 'db',
+        name: 'Historian database',
+        kind: 'system',
+        ref: sys.id,
+        object: 'machine_state',
+        format: '',
+        schedule: '',
+        owner: '',
+        description: '',
+        transforms: [],
+        mappings: [],
+        imported: false,
+      },
+    ];
+    await s.api('PUT', '/plant/assets/north-mill-1/collections/state', { ...body, destination: null, sinks });
+    const flow = await s.api('GET', '/plant/assets/north-mill-1/collections/state/flow');
+    const db = flow.sinks.find((x: { id: string }) => x.id === 'db');
+    expect(db.targetRef).toMatchObject({ label: 'Example historian', visible: true });
+    expect(db.downstream).toMatchObject({ paths: [{ assetId: 'south-mill-1', pathId: 'from-historian', subject: 'Historian export' }], hidden: 0 });
+    expect(flow.items[0].sinks.find((x: { sink: string }) => x.sink === 'historian')).toMatchObject({ target: 'prog_status' });
+    // the data point page says where it goes
+    const point = await s.api('GET', '/plant/profiles/example-cnc-5x/points/program_status/collections');
+    expect(point[0].goesTo.map((x: { name: string }) => x.name)).toEqual(expect.arrayContaining(['historian', 'Historian database']));
+    // a reader who may not see the other site: the data path is counted, not named
+    await s.api('PUT', '/plant/sites/south/access', { acl: [{ subject: 'role:admin', permissions: ['view', 'manage'] }] });
+    const v = (await u.vera!('GET', '/plant/assets/north-mill-1/collections/state/flow')).sinks.find((x: { id: string }) => x.id === 'db');
+    expect(v.downstream).toMatchObject({ paths: [], hidden: 1 });
+    expect(JSON.stringify(v)).not.toContain('Historian export');
+    await s.api('PUT', '/plant/sites/south/access', { acl: [] });
+  });
+});
+
 describe('renames and removals', () => {
   it('renaming a profile or an asset updates the links to it, its collections and sinks, and the kept files', async () => {
     await s.api('POST', '/plant/ids/rename', { kind: 'profile', scope: '', id: 'example-cnc', newId: 'example-cnc-base' });
