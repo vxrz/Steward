@@ -521,8 +521,9 @@ export function RunDetailPage() {
                   <b>{slot}</b> →{' '}
                   <Anchor inherit component={Link} to={`/platforms/${b.platformId}`}>
                     {b.platformName}
-                  </Anchor>{' '}
-                  <span className="mono">{b.baseUrl}</span>
+                  </Anchor>
+                  {/* the identity the slot used (0.13.0, ADR 0009): "Snowflake · Read only" */}
+                  {b.identityName && b.identityName !== 'Default' ? ` · ${b.identityName}` : ''} <span className="mono">{b.baseUrl}</span>
                 </Text>
               ))}
               <Text fw={600} size="sm">

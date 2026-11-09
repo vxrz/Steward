@@ -59,6 +59,7 @@ const emptyDraft = (): Draft => ({
   timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
   inputs: {},
   bindings: {},
+  identities: {},
   dryRun: false,
   enabled: true,
   allowOverlap: false,
@@ -406,7 +407,7 @@ function ScheduleModal({ draft, onClose, onSave }: { draft: Draft; onClose: () =
           searchable
           data={(processes.data ?? []).filter((p) => p.permissions.includes('run')).map((p) => ({ value: p.id, label: p.name }))}
           value={d.processId || null}
-          onChange={(p) => setD({ ...d, processId: p ?? '', inputs: {}, bindings: {} })}
+          onChange={(p) => setD({ ...d, processId: p ?? '', inputs: {}, bindings: {}, identities: {} })}
           error={v.error('process')}
         />
         <TextInput label={t('form.name')} required value={d.name} onChange={(e) => setD({ ...d, name: e.currentTarget.value })} error={v.error('name')} />
@@ -449,7 +450,13 @@ function ScheduleModal({ draft, onClose, onSave }: { draft: Draft; onClose: () =
         {proc.data && (
           <>
             <Divider label={t('form.connectionsInputs')} labelPosition="left" />
-            <BindingsForm process={proc.data} value={d.bindings} onChange={(b) => setD({ ...d, bindings: b })} />
+            <BindingsForm
+              process={proc.data}
+              value={d.bindings}
+              onChange={(b) => setD((x) => ({ ...x, bindings: b }))}
+              identities={d.identities ?? {}}
+              onIdentitiesChange={(identities) => setD((x) => ({ ...x, identities }))}
+            />
             <InputsForm defs={proc.data.definition.inputs} value={d.inputs} onChange={(i) => setD({ ...d, inputs: i })} />
           </>
         )}

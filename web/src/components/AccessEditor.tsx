@@ -8,6 +8,8 @@ import { get } from '../api';
 import i18n from '../i18n';
 
 type Perm = 'view' | 'run' | 'edit' | 'approve' | 'manage' | 'use' | 'acknowledge';
+/** A platform identity (0.13.0, ADR 0009): its access list gives "use" only */
+const IDENTITY_PERMISSIONS = ['use'] as const;
 
 /** Translated label of a subject from /subjects (users keep the server label "Name (login)"). */
 export function subjectOptionLabel(s: Subject): string {
@@ -20,8 +22,8 @@ export function subjectOptionLabel(s: Subject): string {
 }
 
 export interface AccessEditorProps {
-  /** site: a site of the plant registry (#218) – view and manage, no owner */
-  kind: 'process' | 'platform' | 'monitor' | 'site';
+  /** site: a site of the plant registry (#218) – view and manage, no owner; identity: a platform identity (0.13.0) – use only */
+  kind: 'process' | 'platform' | 'monitor' | 'site' | 'identity';
   acl: AclEntry[];
   /** Process owner (user name) – the owner always has all rights. */
   owner?: string | null;
@@ -34,10 +36,19 @@ export function AccessEditor({ kind, acl, owner, onSave, readOnly }: AccessEdito
   const { t } = useTranslation(['access', 'common']);
   const subjects = useQuery({ queryKey: ['subjects'], queryFn: () => get<Subject[]>('/subjects') });
   const perms: readonly string[] =
-    kind === 'process' ? PROCESS_PERMISSIONS : kind === 'monitor' ? MONITOR_PERMISSIONS : kind === 'site' ? PLANT_PERMISSIONS : PLATFORM_PERMISSIONS;
-  const owned = kind !== 'platform' && kind !== 'site';
+    kind === 'process'
+      ? PROCESS_PERMISSIONS
+      : kind === 'monitor'
+        ? MONITOR_PERMISSIONS
+        : kind === 'site'
+          ? PLANT_PERMISSIONS
+          : kind === 'identity'
+            ? IDENTITY_PERMISSIONS
+            : PLATFORM_PERMISSIONS;
+  const owned = kind !== 'platform' && kind !== 'site' && kind !== 'identity';
   // the rights explained for the kind (a site's view and manage cover its hierarchy and assets)
-  const help = (p: string) => (kind === 'site' ? t(`helpSite.${p as 'view' | 'manage'}`) : t(`help.${p as Perm}`));
+  const help = (p: string) =>
+    kind === 'site' ? t(`helpSite.${p as 'view' | 'manage'}`) : kind === 'identity' ? t('helpIdentity.use') : t(`help.${p as Perm}`);
   const [rows, setRows] = useState<AclEntry[]>(acl);
   const [own, setOwn] = useState<string | null>(owner ?? null);
   const [draft, setDraft] = useState('');
@@ -63,7 +74,7 @@ export function AccessEditor({ kind, acl, owner, onSave, readOnly }: AccessEdito
 
   const add = () => {
     if (!subject || rows.some((r) => r.subject === subject)) return;
-    setRows([...rows, { subject, permissions: kind === 'platform' ? ['use'] : ['view'] }]);
+    setRows([...rows, { subject, permissions: kind === 'platform' || kind === 'identity' ? ['use'] : ['view'] }]);
     setDraft('');
   };
 
@@ -82,14 +93,32 @@ export function AccessEditor({ kind, acl, owner, onSave, readOnly }: AccessEdito
             <Trans
               t={t}
               i18nKey={
-                kind === 'process' ? 'restrictedProcess' : kind === 'monitor' ? 'restrictedMonitor' : kind === 'site' ? 'restrictedSite' : 'restrictedPlatform'
+                kind === 'process'
+                  ? 'restrictedProcess'
+                  : kind === 'monitor'
+                    ? 'restrictedMonitor'
+                    : kind === 'site'
+                      ? 'restrictedSite'
+                      : kind === 'identity'
+                        ? 'restrictedIdentity'
+                        : 'restrictedPlatform'
               }
               components={{ b: <b /> }}
             />
           ) : (
             <Trans
               t={t}
-              i18nKey={kind === 'process' ? 'defaultsProcess' : kind === 'monitor' ? 'defaultsMonitor' : kind === 'site' ? 'defaultsSite' : 'defaultsPlatform'}
+              i18nKey={
+                kind === 'process'
+                  ? 'defaultsProcess'
+                  : kind === 'monitor'
+                    ? 'defaultsMonitor'
+                    : kind === 'site'
+                      ? 'defaultsSite'
+                      : kind === 'identity'
+                        ? 'defaultsIdentity'
+                        : 'defaultsPlatform'
+              }
               components={{ b: <b /> }}
             />
           )}

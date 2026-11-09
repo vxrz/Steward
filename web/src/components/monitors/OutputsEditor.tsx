@@ -34,6 +34,7 @@ import { useZoneList } from '../notifications/QuietHoursCard';
 import { browserZone } from '../notifications/DailySummaryCard';
 import { useTranslation } from 'react-i18next';
 import { Hint, KeyValueEditor } from '../common';
+import { IdentitySelect, platformByRef } from '../platform/IdentitySelect';
 import i18n from '../../i18n';
 import { monitorStatusLabel } from './status';
 
@@ -133,6 +134,16 @@ export function OutputsEditor({ outputs, onChange, checks, platforms, processes,
               </Group>
             </Group>
             <Hint>{typeHelp(o.type)}</Hint>
+            {/* the identity it sends with, where the platform has several – never a read-only one (0.13.0, ADR 0009) */}
+            {'platform' in o && o.platform && (
+              <IdentitySelect
+                platform={platformByRef(platforms, o.platform)}
+                value={o.identity}
+                onChange={(identity) => update(i, { identity })}
+                needsWrites
+                disabled={disabled}
+              />
+            )}
             {o.type === 'notification' && (
               <>
                 <TagsInput

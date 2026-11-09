@@ -1,3 +1,4 @@
+import { IdentitySelect, platformByRef } from '../platform/IdentitySelect';
 import { Alert, Divider, Group, NumberInput, Stack, Switch, Text, TextInput, Textarea } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 import type { CheckDef, MonitorSummary, ObservedDelay, Platform } from '@sm/shared';
@@ -134,6 +135,10 @@ export function CheckForm({ check: c, onChange, platforms, monitors, monitorKey,
         lastReport={lastReport}
         observedDelay={observedDelay}
       />
+      {/* the identity it reads with, where the platform has several (0.13.0, ADR 0009) */}
+      {'platform' in c && typeof c.platform === 'string' && c.platform && (
+        <IdentitySelect platform={platformByRef(platforms, c.platform)} value={c.identity} onChange={(identity) => set({ identity })} disabled={disabled} />
+      )}
 
       <Divider label={t('form.schedule')} labelPosition="left" />
       <Group grow align="flex-start">
