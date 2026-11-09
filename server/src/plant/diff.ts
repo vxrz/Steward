@@ -63,3 +63,43 @@ export function fieldDiff(before: object, after: object): PlantFieldDiff[] {
   walk(before, after, '', out);
   return out;
 }
+
+/**
+ * Items a change drops from a list inside an entry (0.12.0: an assistant's proposal may not): an entry of a list of
+ * entries whose id is gone, a value of a list of values that is gone, or – a list of entries without ids – a shorter
+ * list. Changed fields of an item that stays are no drop. Paths as in `fieldDiff`; at most `max` of them.
+ */
+export function droppedItems(before: unknown, after: unknown, max = 20): string[] {
+  const out: string[] = [];
+  const go = (b: unknown, a: unknown, path: string) => {
+    if (out.length >= max || same(b, a)) return;
+    if (Array.isArray(b)) {
+      if (!b.length) return;
+      const list = Array.isArray(a) ? a : [];
+      const k = listKey(b, list);
+      if (k) {
+        const now = new Map(list.map((x) => [(x as Record<string, string>)[k]!, x]));
+        for (const x of b) {
+          const id = (x as Record<string, string>)[k]!;
+          if (!now.has(id)) out.push(`${path}[${id}]`);
+          else go(x, now.get(id), `${path}[${id}]`);
+          if (out.length >= max) return;
+        }
+        return;
+      }
+      if (b.every((x) => x === null || typeof x !== 'object')) {
+        const now = new Set(list.map((x) => JSON.stringify(x)));
+        for (const x of b) if (!now.has(JSON.stringify(x)) && out.length < max) out.push(`${path}: ${String(x).slice(0, PLANT_DIFF_LIMITS.text)}`);
+        return;
+      }
+      if (list.length < b.length) out.push(`${path} (${b.length} → ${list.length})`);
+      return;
+    }
+    if (isObj(b)) {
+      const o = isObj(a) ? a : {};
+      for (const key of Object.keys(b)) go(b[key], o[key], path ? `${path}.${key}` : key);
+    }
+  };
+  go(before, after, '');
+  return out;
+}

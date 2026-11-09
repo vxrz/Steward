@@ -76,11 +76,25 @@ const REFUSED_KEYS: Record<string, string> = {
   replaces: 'A proposal cannot replace an earlier import: it only adds and changes',
 };
 
+/** Items the changes would drop from lists inside their entries (a proposal may change an item, never drop it). */
+function dropsOf(p: PlantImportPreview): { entry: string; path: string }[] {
+  return p.changes.flatMap((c) => (c.drops ?? []).map((path) => ({ entry: `${c.kind} "${c.id}"`, path })));
+}
+const dropText = (d: { entry: string; path: string }) => `${d.entry} would lose ${d.path}`;
+
 /** What a preview may not hold for a proposal (also when applied: the registry may have changed). */
 function refusedByPreview(p: PlantImportPreview): string | null {
   if (p.renames.length) return 'A proposal cannot change ids';
   if (p.counts.remove || p.counts.mark || p.removals?.items.length) return 'A proposal may only add and change entries';
+  const drops = dropsOf(p);
+  if (drops.length) return `A proposal may not drop items from an entry: ${drops.slice(0, 5).map(dropText).join('; ')}`;
   return null;
+}
+
+/** The first item a preview would drop, as the refusal of applying it. */
+function refuseDrops(p: PlantImportPreview): void {
+  const d = dropsOf(p)[0];
+  if (d) throw new HttpError(409, `A proposal may not drop items from an entry: ${dropText(d)}`, 'PLANT_PROPOSAL_REMOVES', d);
 }
 
 /** The preview reduced to what a proposal shows: added and changed entries (unchanged and skipped ones are left out). */
@@ -183,6 +197,8 @@ function precheck(r: Row, selection: McpProposalSelection | undefined, u: AuthUs
   if (!p) throw new HttpError(404, `Request ${r.id} not found`, 'MCP_REQUEST_NOT_FOUND', { id: r.id });
   const n = previewNow(p);
   if (!n) throw new HttpError(403, 'You may not change the plant registry', 'MCP_REQUEST_APPROVE');
+  // the registry may have changed since: what applying it would drop now is refused, too
+  refuseDrops(n.preview);
   const refused = refusedByPreview(n.preview);
   if (!n.preview.ok || refused)
     throw new HttpError(
@@ -206,6 +222,7 @@ function apply(r: Row, selection: McpProposalSelection | undefined, u: AuthUser)
   if (!p) throw new HttpError(404, `Request ${r.id} not found`, 'MCP_REQUEST_NOT_FOUND', { id: r.id });
   return db().tx(() => {
     const result = applyImport(inputOf(p.document));
+    refuseDrops(result);
     const refused = refusedByPreview(result);
     // the same check as before the claim (one synchronous step): a difference rolls everything back
     const expected = selection?.plant?.fingerprint ?? p.fingerprint;
@@ -275,7 +292,7 @@ export const plantProposalTools: ToolDef[] = [
     name: 'propose_plant_changes',
     title: 'Propose changes to the plant registry',
     description: [
-      `Proposes additions and changes to the plant registry as a document of the plant import format (JSON Schema ${SCHEMA_ID}; get_plant_import_format describes it). Steward checks it with the import's preview – nothing is written – and a person who may change the registry reviews it in Steward (AI requests) and applies or rejects it. Only adding and changing: \`remove\`, renaming ids and removing what the document leaves out are refused.`,
+      `Proposes additions and changes to the plant registry as a document of the plant import format (JSON Schema ${SCHEMA_ID}; get_plant_import_format describes it). Steward checks it with the import's preview – nothing is written – and a person who may change the registry reviews it in Steward (AI requests) and applies or rejects it. Only adding and changing: \`remove\`, renaming ids, removing what the document leaves out and dropping an item from a list inside an entry are refused – a list given replaces the list, so send it with every item it has now.`,
       'The document: { "version": 1, ... } with any of sites (each with areas → work_centers → work_units, buildings, assets), assets, device_profiles, kpi_definitions, assignments, ot_networks, asset_networks. Entries are matched by id; an existing entry is updated with the keys the document gives (keys left out keep their values; a list given replaces the list).',
       'Device profiles with inheritance: a profile names its base with "extends" and lists in "interfaces" only what it adds or changes – an entry with an inherited id changes that interface (only the keys it gives; inherited data points in its groups or data_points with the keys that change, e.g. { "id": "spindle_speed", "address": "ns=3;s=…" }); an entry with a new id is an own interface and needs "protocol". Descriptions are inherited too: give one only to describe an item anew.',
       'Asset-specific implementations go in an assignment: { "asset": "<id>", "profile": "<profile id>", "interfaces": [{ "interface": "opc-ua", "endpoint": "opc.tcp://…" }], "overrides": [{ "data_point": "<id>", "address": "<this asset’s address>", "notes": "…" }], "additions": { "interfaces": [ … ], "data_points": [{ "interface": "<id>", "group": "…", "id": "…", "address": "…", "description": "…" }] } }.',
@@ -328,6 +345,14 @@ export const plantProposalTools: ToolDef[] = [
           `The document has ${preview.problems.length} problem(s) – nothing was proposed. Fix them and send it again:\n${preview.problems
             .slice(0, 30)
             .map((p) => `- ${p.path}: ${p.message}`)
+            .join('\n')}`,
+        );
+      const drops = dropsOf(preview);
+      if (drops.length)
+        throw new ToolError(
+          `A proposal may only add and change: it may change an item of a list, never drop one – nothing was proposed. Send the lists with every item they have now (get_device_profile, get_plant_asset and get_kpi_definition return them), plus your changes:\n${drops
+            .slice(0, 20)
+            .map((d) => `- ${dropText(d)}`)
             .join('\n')}`,
         );
       const refused = refusedByPreview(preview);
