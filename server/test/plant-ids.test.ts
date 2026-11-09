@@ -253,7 +253,6 @@ describe('the registry of reference columns', () => {
     systems: 'the system kind',
     maintenance_targets: 'MAINTENANCE_TARGET_KINDS: platforms, systems, applications, services, monitors',
     maintenance_notices: 'a notice kind',
-    maintenance_windows: 'a window kind (maintenance, planned downtime)',
     stack_version_watch: 'applications and systems',
     service_duties: 'an interval',
     duty_periods: 'an interval',
