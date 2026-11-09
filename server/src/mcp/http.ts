@@ -213,7 +213,8 @@ function admit(req: FastifyRequest, reply: FastifyReply, principal: McpPrincipal
   // a status viewer (#26) sees the status pages only – also with a token made before they became one
   if (isStatusViewer(toAuthUser(r.user as UserInfo).roles))
     return void refuse(reply, 403, STEWARD_ERRORS.forbidden, 'Status viewers only see the status pages – MCP clients are not for them', 'forbidden');
-  // a plant viewer (#218) sees the plant registry only, which has no MCP tools
+  // a plant viewer (#218) sees the plant registry only: MCP clients are not for them (the plant tools of 0.12.0 are for
+  // the other roles, with their site rights)
   if (plantOnly(toAuthUser(r.user as UserInfo)))
     return void refuse(reply, 403, STEWARD_ERRORS.forbidden, 'Plant viewers only see the plant registry – MCP clients are not for them', 'forbidden');
   if (!vault().unlocked) {
@@ -402,6 +403,11 @@ export async function mcpRoutes(app: FastifyInstance): Promise<void> {
                 .strict()
                 .optional(),
               mappings: z.array(z.number().int()).max(1000).optional(),
+              // plant registry changes (0.12.0): the preview the reviewer saw
+              plant: z
+                .object({ fingerprint: z.string().max(100) })
+                .strict()
+                .optional(),
             })
             .strict()
             .optional(),
