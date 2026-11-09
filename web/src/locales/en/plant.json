@@ -519,7 +519,13 @@
     "fileSets": "Files",
     "pathPatternIs": "path {{pattern}}",
     "formatIs": "format {{format}}",
-    "producedPerIs": "one per {{per}}"
+    "producedPerIs": "one per {{per}}",
+    "pointCount_one": "{{count}} data point",
+    "pointCount_other": "{{count}} data points",
+    "groupCount_one": "{{count}} group",
+    "groupCount_other": "{{count}} groups",
+    "fileSetCount_one": "{{count}} file",
+    "fileSetCount_other": "{{count}} files"
   },
   "point": {
     "of": "Data point of {{iface}} › {{group}}",
