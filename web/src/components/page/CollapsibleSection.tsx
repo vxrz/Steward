@@ -142,6 +142,13 @@ export function useSectionGroupMember(id: string, setOpen: (open: boolean, persi
 
 // ---------- the state of one folded part ----------
 
+/** Whether `now` (comma-separated ids) holds an id that `seen` (the ids when the part was folded) did not. */
+function hasNew(seen: string | null, now: string | undefined): boolean {
+  if (!now) return false;
+  const before = new Set((seen ?? '').split(','));
+  return now.split(',').some((id) => id && !before.has(id));
+}
+
 export interface CollapsibleOptions {
   /** The element id: a link to `#<id>` opens the part */
   id: string;
@@ -156,7 +163,10 @@ export interface CollapsibleOptions {
   remember?: string | false;
   /** With `remember`: where an older version kept the choice ("1" open, "0" folded) */
   rememberLegacyKey?: string;
-  /** With `remember`: what needs attention now (e.g. the ids of failed items); a folded part opens again when it changes */
+  /**
+   * With `remember`: what needs attention now, comma-separated ids (e.g. of failed checks); a folded part opens again
+   * when an id appears that was not there when it was folded (fewer items keep it folded)
+   */
   alertKey?: string;
   /** Takes part in the surrounding <SectionGroup> (default true) */
   inGroup?: boolean;
@@ -179,13 +189,13 @@ export function useCollapsible({ id, defaultOpen, forceOpen = false, remember: r
     if (stored === '1') return true;
     if (stored !== '0') return null;
     // folded earlier: stays folded unless something new needs attention
-    return alertKey && readPref(`${remember}.seen`) !== alertKey ? null : false;
+    return hasNew(readPref(`${remember}.seen`), alertKey) ? null : false;
   });
   // remembered as folded: opens again once what needs attention differs from what was there when it was folded
   const [prevAlert, setPrevAlert] = useState(alertKey);
   if (alertKey !== prevAlert) {
     setPrevAlert(alertKey);
-    if (remember && alertKey && choice === false && readPref(`${remember}.seen`) !== alertKey) setChoice(null);
+    if (remember && choice === false && hasNew(readPref(`${remember}.seen`), alertKey)) setChoice(null);
   }
   // forced open again whenever the reason appears (a new error, another link to it)
   const [wasForced, setWasForced] = useState(forced);

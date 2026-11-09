@@ -141,7 +141,6 @@ export function ComponentsPanel({ app, onSaved }: { app: ApplicationDetail; onSa
   return (
     <CollapsibleSection
       id="components"
-      collapseOnPhone
       testId="application-components"
       onlyInGroup
       size="h5"
