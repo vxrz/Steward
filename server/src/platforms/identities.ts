@@ -4,7 +4,7 @@
  *
  * This module only reads and maps rows; the seal is in integrity.ts, the resolver (getConnection) in service.ts.
  */
-import type { IdentityMcp, McpGatewayConfig, McpWriteMode, PlatformIdentity } from '@sm/shared';
+import type { AclEntry, IdentityMcp, McpGatewayConfig, McpWriteMode, PlatformIdentity } from '@sm/shared';
 import { db } from '../db.js';
 import { parseJson } from '../util.js';
 
@@ -132,8 +132,12 @@ export function allIdentityRows(): Map<string, IdentityRow[]> {
 }
 
 /** Names and flags of an identity – never secrets, the sign-in settings or variables. */
-export function toIdentity(r: IdentityRow, extra: { secretKeys: string[]; integrity: PlatformIdentity['integrity']; mayUse: boolean }): PlatformIdentity {
+export function toIdentity(
+  r: IdentityRow,
+  extra: { secretKeys: string[]; integrity: PlatformIdentity['integrity']; mayUse: boolean; staleOperations?: number },
+): PlatformIdentity {
   const filter = parseJson<PlatformIdentity['operationFilter']>(r.operation_filter, null);
+  const acl = parseJson<AclEntry<'use'>[]>(r.acl, []);
   return {
     id: r.id,
     platformId: r.platform_id,
@@ -151,6 +155,9 @@ export function toIdentity(r: IdentityRow, extra: { secretKeys: string[]; integr
     secretKeys: extra.secretKeys,
     integrity: extra.integrity,
     mayUse: extra.mayUse,
+    ...(extra.staleOperations ? { staleOperations: extra.staleOperations } : {}),
+    // the default identity is open to everyone with "use" on the platform: it has no list of its own
+    ...(flag(r.is_default) ? {} : { acl: Array.isArray(acl) ? acl : [] }),
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };

@@ -44,7 +44,8 @@ import { paramSchema, requestBodyInfo, resolveRef, successStatuses } from './ope
 import { currentUser } from '../auth/context.js';
 import { cleanAcl, platformPermissions } from '../auth/permissions.js';
 import { PLATFORM_PERMISSIONS, type AclEntry, type PlatformPermission } from '@sm/shared';
-import { assignCreatorTeams, forgetOwningTeams } from '../auth/policy.js';
+import { assignCreatorTeams, forgetOwningTeams, identityAccess } from '../auth/policy.js';
+import { staleRefs } from './operationFilter.js';
 
 interface PlatformRow {
   id: string;
@@ -92,12 +93,25 @@ function toPlatform(r: PlatformRow, idents: IdentityRow[]): Platform {
   const mcpGateway = gatewayView(stored.mcpGateway, def ? parseMcp(def.mcp) : mcpFromGateway(stored.mcpGateway));
   const { mcpGateway: _stored, ...rest } = stored;
   const cfg = { ...rest, ...(mcpGateway ? { mcpGateway } : {}) } as PlatformConfig;
+  // operation filters with chosen operations: references that no longer resolve are stale (read once per platform)
+  let ops: ApiOperation[] | undefined;
+  const staleOf = (i: IdentityRow): number => {
+    const f = parseJson<PlatformIdentity['operationFilter']>(i.operation_filter, null);
+    if (!f?.operations?.length) return 0;
+    ops ??= listOperations(r.id);
+    return staleRefs(f, ops).length;
+  };
+  const user = currentUser();
   const identities: PlatformIdentity[] = idents.map((i) =>
     toIdentity(i, {
       secretKeys: secretNames(i.secrets),
       integrity: identityIntegrity(i),
-      // step 1: the default identity is open to everybody with "use" on the platform (ADR 0009); there are no others yet
-      mayUse: (Number(i.is_default) === 1 || i.is_default === true) && permissions.includes('use'),
+      // the default identity is open to everybody with "use" on the platform; any other is closed by default (ADR 0009)
+      mayUse:
+        permissions.includes('use') &&
+        identityAccess(user, { id: r.id, acl }, { id: i.id, default: Number(i.is_default) === 1 || i.is_default === true, acl: parseJson(i.acl, []) })
+          .permissions.length > 0,
+      staleOperations: staleOf(i),
     }),
   );
   const own = platformIntegrity(r);
@@ -749,6 +763,7 @@ export function addSpec(
         serverUrl: parsed.serverUrl,
         pathPrefix,
         ...(opts.copiedFrom ? { copiedFrom: { platformId: opts.copiedFrom.platformId, specId: opts.copiedFrom.specId } } : {}),
+        ...withIdentities(platformId, [id]),
       },
     });
   });
@@ -768,11 +783,30 @@ export function setSpecPathPrefix(platformId: string, specId: string, pathPrefix
       entityType: 'platform',
       entityId: platformId,
       summary: `API spec "${r.name}": path prefix ${before ? `"${before}"` : '(none)'} → ${next ? `"${next}"` : '(none)'}`,
-      details: { specId, before: { pathPrefix: before }, after: { pathPrefix: next } },
+      details: { specId, before: { pathPrefix: before }, after: { pathPrefix: next }, ...withIdentities(platformId, [specId]) },
     });
   });
   return toSpec(getSpecRow(platformId, specId), basePath);
 }
+
+/**
+ * The identities whose operation filter a change of these specs affects (0.13.0, ADR 0009): filters with the read preset
+ * follow every spec, chosen references their spec. Listed in the spec's audit entry (references that no longer resolve
+ * are stale: they match nothing).
+ */
+function filterIdentities(platformId: string, specIds: string[]): { id: string; name: string }[] {
+  const ids = new Set(specIds);
+  return identityRows(platformId)
+    .filter((r) => {
+      const f = parseJson<{ preset?: string; operations?: { specId?: string }[] } | null>(r.operation_filter, null);
+      return !!f && (f.preset === 'read' || (f.operations ?? []).some((o) => ids.has(o.specId ?? '')));
+    })
+    .map((r) => ({ id: r.id, name: r.name }));
+}
+const withIdentities = (platformId: string, specIds: string[]) => {
+  const identities = filterIdentities(platformId, specIds);
+  return identities.length ? { identities } : {};
+};
 
 /** Most platforms a specification can be copied to in one request. */
 export const SPEC_COPY_MAX_TARGETS = 50;
@@ -879,6 +913,7 @@ function replaceSpecContent(
         version: parsed.version,
         pathPrefix: prefix,
         copiedFrom: { platformId: copiedFrom.platformId, specId: copiedFrom.specId },
+        ...withIdentities(platformId, [existing.id]),
       },
     });
   });
@@ -907,7 +942,14 @@ export function deleteSpec(platformId: string, specId: string): void {
   const r = getSpecRow(platformId, specId);
   db().tx(() => {
     db().run('DELETE FROM platform_specs WHERE id = ?', specId);
-    audit({ action: 'platform.spec_deleted', entityType: 'platform', entityId: platformId, summary: `API spec "${r.name}" removed` });
+    const affected = filterIdentities(platformId, [specId]);
+    audit({
+      action: 'platform.spec_deleted',
+      entityType: 'platform',
+      entityId: platformId,
+      summary: `API spec "${r.name}" removed${affected.length ? ` – operation filters affected: ${affected.map((i) => i.name).join(', ')}` : ''}`,
+      ...(affected.length ? { details: { specId, identities: affected } } : {}),
+    });
   });
   legacyPrefixes.delete(specId);
 }

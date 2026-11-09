@@ -22,6 +22,7 @@ import { PRESET_SPECS } from '../platforms/presets.js';
 import { moduleOfPlatformKind } from '@sm/shared';
 import { moduleEnabled } from '../modules/registry.js';
 import { params } from './params.js';
+import { platformIdentityRoutes } from './platform-identities.js';
 
 const platformBody = z.object({
   name: z.string().min(1).max(200),
@@ -56,6 +57,8 @@ const redact = redactSecrets;
 
 /** Platforms, connector types, API specifications and documentation (mounted under /api). */
 export async function platformRoutes(app: FastifyInstance): Promise<void> {
+  // identities of a platform (0.13.0, ADR 0009 step 2)
+  await platformIdentityRoutes(app);
   // ---------- platforms ----------
   // connectors of a switched-off module are not offered (ADR 0016); platforms of that kind stay as they are
   app.get('/platform-presets', async () =>
@@ -210,18 +213,26 @@ export async function platformRoutes(app: FastifyInstance): Promise<void> {
         query: boundedRecord(z.string().max(8000), 200).optional(),
         headers: boundedRecord(z.string().max(8000), 100).optional(),
         body: z.any().optional(),
+        // one of the platform's identities (0.13.0, ADR 0009): the caller must be allowed to use it; missing: the default
+        identityId: z.string().max(100).optional(),
       })
       .parse(req.body);
     const write = !(b.method === 'GET' || b.method === 'HEAD');
     requirePlatform(id, write ? 'manage' : 'use', write ? 'send changing requests to this platform' : 'use this platform');
-    const { platform: p, secrets } = platforms.getConnection(id);
+    if (b.identityId) {
+      const { mayUseIdentity, requireIdentity } = await import('../platforms/identityService.js');
+      const row = requireIdentity(id, b.identityId);
+      if (!mayUseIdentity(me(), platforms.getPlatform(id), row))
+        throw new HttpError(403, `You are not allowed to use the identity "${row.name}"`, 'IDENTITY_NOT_ALLOWED', { identity: row.name });
+    }
+    const { platform: p, secrets } = platforms.getConnection(id, b.identityId);
     const res = await platformRequest(p, secrets, { method: b.method, url: b.path, query: b.query, headers: b.headers, body: b.body });
     audit({
       action: write ? 'api.adhoc_write' : 'api.adhoc_read',
       entityType: 'platform',
       entityId: id,
-      summary: `Ad-hoc ${b.method} ${b.path} on "${p.name}" → HTTP ${res.status}`,
-      details: { query: b.query, body: write ? redact(b.body, secrets) : undefined },
+      summary: `Ad-hoc ${b.method} ${b.path} on "${p.name}${(p.identities?.length ?? 0) > 1 ? ` · ${p.identityName}` : ''}" → HTTP ${res.status}`,
+      details: { query: b.query, body: write ? redact(b.body, secrets) : undefined, identityId: p.identityId },
     });
     return redact(res, secrets);
   });
@@ -269,11 +280,21 @@ export async function platformRoutes(app: FastifyInstance): Promise<void> {
     const id = params(req).id!;
     requirePlatform(id, 'manage', 'copy API specifications');
     const b = z
-      .object({ targets: z.array(z.string().min(1).max(100)).min(1).max(platforms.SPEC_COPY_MAX_TARGETS), replace: z.boolean().optional() })
+      .object({
+        targets: z.array(z.string().min(1).max(100)).min(1).max(platforms.SPEC_COPY_MAX_TARGETS),
+        replace: z.boolean().optional(),
+        // "Also copy the operation filters" (0.13.0, ADR 0009): identities of the same name get the filter, or are created closed
+        copyFilters: z.boolean().optional(),
+      })
       .strict()
       .parse(req.body);
     for (const t of new Set(b.targets)) if (t !== id) requirePlatform(t, 'manage', 'add API specifications to this platform');
-    return platforms.copySpec(id, params(req).specId!, b.targets, { replace: b.replace });
+    const result = platforms.copySpec(id, params(req).specId!, b.targets, { replace: b.replace });
+    if (!b.copyFilters) return result;
+    const { copyIdentityFilters } = await import('../platforms/identityService.js');
+    const filters: Record<string, { created: string[]; updated: string[]; skipped: string[] }> = {};
+    for (const c of result.copied) filters[c.platformId] = copyIdentityFilters(id, c.platformId, new Map([[params(req).specId!, c.specId]]));
+    return { ...result, filters };
   });
   app.delete('/platforms/:id/specs/:specId', async (req) => {
     requirePlatform(params(req).id!, 'manage', 'remove API specifications');

@@ -54,6 +54,9 @@ const identitiesInsert = (enabled: string, writes: string) => `
  * - platforms-004: what Steward last read from a Kafka Connect cluster (0.9.0, #223, kafkaconnect/service.ts): connectors,
  *   tasks and plugins – never a connector configuration.
  * - platforms-005: identities (0.9.0, #228, ADR 0009) – one default identity per platform, no change in behaviour.
+ * - platforms-006: choosing identities (0.13.0, ADR 0009 step 2) – the identity per connection slot of schedules and
+ *   webhook triggers (JSON slot → identity id; '{}': every slot uses the default identity, as before) and the identity
+ *   of an MCP request waiting for approval (NULL: the default identity).
  * - platforms-003: the periodic connection test of a platform (v0.4.0, platforms/health.ts): off by default.
  * - platforms-002: recorded responses for test runs (#105).
  * - platforms-001: the path prefix of an API specification (the path of its server URL, editable per spec). NULL for
@@ -122,5 +125,14 @@ export const PLATFORM_MIGRATIONS: NamedMigration[] = [
     name: 'platforms-005-identities',
     sql: IDENTITIES_DDL + identitiesInsert("json_extract(config, '$.mcpGateway.enabled') = 1", "json_extract(config, '$.mcpGateway.writes')"),
     pg: pgDdl(IDENTITIES_DDL) + identitiesInsert("(config::jsonb #>> '{mcpGateway,enabled}') = 'true'", "(config::jsonb #>> '{mcpGateway,writes}')"),
+  },
+  {
+    // Choosing identities (0.13.0, ADR 0009 step 2): additive, nothing changes until someone names another identity
+    name: 'platforms-006-identity-choices',
+    sql: `
+      ALTER TABLE schedules ADD COLUMN identities TEXT NOT NULL DEFAULT '{}';
+      ALTER TABLE webhook_triggers ADD COLUMN identities TEXT NOT NULL DEFAULT '{}';
+      ALTER TABLE mcp_requests ADD COLUMN identity_id TEXT;
+    `,
   },
 ];

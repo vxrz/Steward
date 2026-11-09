@@ -37,7 +37,9 @@ export function redactSecrets<T>(v: T, secrets: Record<string, string>): T {
  */
 export async function runConnectionTest(p: Platform, secrets: Record<string, string>, opts: { periodic?: boolean } = {}): Promise<ConnectionTestResult> {
   const actor = opts.periodic ? { actor: 'system' } : {};
-  const extra = opts.periodic ? { periodic: true } : {};
+  // the identity tested (0.13.0, ADR 0009): getConnection merged it in; the periodic test uses the default identity
+  const identityId = (p as Platform & { identityId?: string }).identityId;
+  const extra = { ...(opts.periodic ? { periodic: true } : {}), ...(identityId ? { identityId } : {}) };
   const done = (r: ConnectionTestResult, summary: string): ConnectionTestResult => {
     audit({
       ...actor,

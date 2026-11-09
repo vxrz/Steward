@@ -117,10 +117,10 @@ function signInOf(auth: string | null): PlatformConfirmReview['identities'][numb
 }
 
 /**
- * What an administrator confirms (0.9.0): per identity its MCP mode, the names of its credentials and the settings an
- * identity cannot have in this release – variables, its own sign-in, flags, an operation filter, a credential source.
- * Step 1 (ADR 0009) has only the default identity and none of these: confirming resets them to the platform's, and
- * removes every other identity (rows that only a change in the database can have made).
+ * What an administrator confirms (0.9.0): per identity its MCP mode, the names of its credentials, its variables, own
+ * sign-in, flags, operation filter and access list. Since 0.13.0 (ADR 0009 step 2) a platform can have several
+ * identities with all of these: confirming keeps and seals every identity as shown (action "keep"). Only a credential
+ * source – reserved for PAM, not built – is reset (action "reset").
  */
 export function confirmReview(id: string): PlatformConfirmReview {
   const r = db().get<SealedPlatformRow>('SELECT id, name, kind, base_url, environment, config, secrets, config_mac FROM platforms WHERE id = ?', id);
@@ -147,7 +147,10 @@ export function confirmReview(id: string): PlatformConfirmReview {
       secretKeys = []; // an unreadable blob: it holds no usable credential
     }
     const signIn = signInOf(i.auth);
-    const changed = Object.keys(variables).length > 0 || !!signIn || flags.length > 0;
+    const access = parseJson<{ subject?: unknown }[]>(i.acl, [])
+      .map((e) => (typeof e?.subject === 'string' ? e.subject.slice(0, 200) : ''))
+      .filter(Boolean)
+      .slice(0, 100);
     return {
       id: i.id,
       name: i.name,
@@ -158,17 +161,17 @@ export function confirmReview(id: string): PlatformConfirmReview {
       variables,
       signIn,
       flags,
-      action: (!isDefault ? 'remove' : changed ? 'reset' : 'keep') as 'keep' | 'reset' | 'remove',
+      access: isDefault ? [] : access,
+      action: (i.credential_source ? 'reset' : 'keep') as 'keep' | 'reset' | 'remove',
     };
   });
   return { baseUrl: r.base_url, integrity: platformIntegrity(r), identities };
 }
 
 /**
- * An administrator has reviewed the current settings: seal them again – the platform and its default identity. What
- * the platform page does not show is not sealed unseen (0.9.0): the default identity's variables, sign-in, flags,
- * operation filter and credential source go back to the platform's (step 1 has none of them), and every other identity
- * is removed (confirmReview lists both; the audit entry records them).
+ * An administrator has reviewed the current settings: seal them again – the platform and every identity, as the review
+ * showed them (0.13.0: identities are kept, ADR 0009 step 2). A credential source (reserved for PAM, not built) is reset.
+ * The audit entry records what was reviewed.
  */
 export function confirmPlatformConfig(id: string): void {
   const r = db().get<SealedPlatformRow>('SELECT id, name, kind, base_url, environment, config, secrets, config_mac FROM platforms WHERE id = ?', id);
@@ -178,19 +181,14 @@ export function confirmPlatformConfig(id: string): void {
   const identitiesBefore = Object.fromEntries(review.identities.map((i) => [i.id, i.integrity]));
   db().tx(() => {
     const removed = review.identities.filter((i) => i.action === 'remove');
-    for (const i of removed) db().run('DELETE FROM platform_identities WHERE id = ? AND platform_id = ?', i.id, id);
     const def = review.identities.find((i) => i.default);
     // a platform that was not intact at the one-time step still has the old layout: the confirmed settings move now
     if (r.secrets !== null || hasLegacyGateway(r.config) || !def) moveToDefaultIdentity(id);
-    else {
-      db().run(
-        'UPDATE platform_identities SET auth = NULL, variables = ?, mcp = ?, read_only = 0, privileged = 0, operation_filter = NULL, credential_source = NULL WHERE id = ?',
-        '{}',
-        JSON.stringify(def.mcp),
-        def.id,
-      );
-      sealIdentity(def.id);
-      sealPlatform(id);
+    else sealPlatform(id);
+    // every identity as reviewed (the default one too); only a credential source goes (PAM is not built)
+    for (const i of review.identities) {
+      if (i.action === 'reset') db().run('UPDATE platform_identities SET credential_source = NULL WHERE id = ? AND platform_id = ?', i.id, id);
+      sealIdentity(i.id);
     }
     const reset = review.identities.filter((i) => i.action === 'reset');
     audit({
@@ -199,7 +197,7 @@ export function confirmPlatformConfig(id: string): void {
       entityId: id,
       summary:
         `Connection settings of "${r.name}" confirmed by an administrator (were: ${before})` +
-        (reset.length ? ` – settings of the default identity reset to the platform's` : '') +
+        (reset.length ? ` – credential source of ${reset.map((i) => `"${i.name}"`).join(', ')} reset` : '') +
         (removed.length ? ` – ${removed.length} other identit${removed.length === 1 ? 'y' : 'ies'} removed` : ''),
       details: {
         baseUrl: r.base_url,
@@ -216,6 +214,7 @@ export function confirmPlatformConfig(id: string): void {
           variables: i.variables,
           signIn: i.signIn,
           flags: i.flags,
+          access: i.access,
           action: i.action,
         })),
       },
