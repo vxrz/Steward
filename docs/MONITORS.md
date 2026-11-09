@@ -525,7 +525,7 @@ A template is a monitor definition with parameters. `{{ params.<name> }}` placeh
 
 - _Monitors → Templates → New monitors_: one instance with a form, or **many from CSV** (header line = parameter names, optional `name` and `key` columns; `,` or `;`). All rows are validated first; a bad row creates nothing.
 - An instance remembers its template, the template version and its parameters. When the template changes, the instance shows _template updated_; **Re-sync** renders the current version again (heartbeat endpoints and secrets stay).
-- `examples/monitors/30-powermeter-machine-template.yaml` is a complete template for a machine with a PowerMeter.
+- `examples/monitors/30-powermeter-machine-template.yaml` is a complete template for a machine with a PowerMeter. Since 0.13 it has [states](#states-off-is-not-an-outage) (Running, Off) with the gateway's monitor as required check (parameter `gatewayMonitor`, default `gateway-hall-2`) and the maximum off time as a parameter (`maxOffHours`, default 8); existing instances get them with **Re-sync**, and a CSV of 30 machines creates 30 monitors with states.
 
 **Save as template** (in the editor of a saved monitor): turns the monitor into a new template. Choose the fields that become parameters – host names, URLs, asset ids and keys are chosen from the start – and their names; the same name for several fields makes one parameter. Each parameter's default is the value it had. The monitor stays as it is; the template records that it was copied from it (`monitor.duplicated` with `asTemplate`).
 
