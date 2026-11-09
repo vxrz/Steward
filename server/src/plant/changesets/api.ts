@@ -53,6 +53,7 @@ import {
 } from './core.js';
 import { addOperation, checkOpenLimits, currentDraftRow, documentOperation, editableDraft, ensureDraft, operationOf } from './drafts.js';
 import { entryHistory, revert } from './history.js';
+import { notifyDecided, notifyProposed, registerChangeSetHeldCheck } from './notify.js';
 
 /**
  * The change sets' API (0.13.0, internal, docs/PLANT.md "Change sets"), under /api/plant:
@@ -209,6 +210,8 @@ async function viaRequest(r: CsRow, approve: boolean, comment: string, fingerpri
 
 export async function changeSetRoutes(app: FastifyInstance): Promise<void> {
   const writeLimit = { config: { rateLimit: ROUTE_LIMITS.action } };
+  // held messages about change sets (quiet hours, digests) are checked again when they are released
+  await registerChangeSetHeldCheck();
 
   app.get('/plant/change-sets', async (req) => listChangeSets(listQuery.parse(req.query ?? {})));
   app.post('/plant/change-sets', writeLimit, async (req) => {
@@ -348,6 +351,7 @@ export async function changeSetRoutes(app: FastifyInstance): Promise<void> {
         },
       );
     });
+    notifyProposed(r.id);
     return detail(r.id, u);
   });
   app.post('/plant/change-sets/:changeSetId/withdraw', writeLimit, async (req) => {
@@ -387,6 +391,7 @@ export async function changeSetRoutes(app: FastifyInstance): Promise<void> {
         comment,
       });
     });
+    notifyDecided(r.id, 'returned', u.username, comment);
     return detail(r.id, u);
   });
   app.post('/plant/change-sets/:changeSetId/resolve', writeLimit, async (req) => {
@@ -424,7 +429,11 @@ export async function changeSetRoutes(app: FastifyInstance): Promise<void> {
       const r = visibleRow((req.params as { changeSetId: string }).changeSetId, u);
       const { fingerprint } = plantChangeApplyInput.parse(req.body);
       if (r.source === 'assistant' && r.mcp_request_id) await viaRequest(r, true, '', fingerprint);
-      else applyStored(r.id, fingerprint, u);
+      else {
+        applyStored(r.id, fingerprint, u);
+        // its other authors learn that it was applied (who applied it is not told)
+        notifyDecided(r.id, 'applied', u.username);
+      }
       return detail(r.id, u);
     },
   );
@@ -450,6 +459,7 @@ export async function changeSetRoutes(app: FastifyInstance): Promise<void> {
           throw new HttpError(409, 'The change set is no longer open', 'PLANT_CHANGESET_DECIDE', { id: r.id });
         auditCs(r, 'rejected', `Plant change set "${r.title}" rejected by ${u.username}${comment ? ` – ${comment.slice(0, 200)}` : ''}`, { comment });
       });
+    if (r.source !== 'assistant') notifyDecided(r.id, 'rejected', u.username, comment);
     return detail(r.id, u);
   });
   app.post('/plant/change-sets/:changeSetId/revert', writeLimit, async (req) => {

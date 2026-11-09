@@ -297,6 +297,12 @@ export function expireChangeSets(now = nowIso()): number {
       summary: `Plant change set "${r.title}" expired without a decision (${r.state})`,
       details: { state: r.state, source: r.source, createdBy: r.created_by },
     });
+    // its authors learn that nobody decided in time (a lazy import: the messages need this module)
+    if (r.state === 'proposed')
+      void import('./notify.js').then(
+        (m) => m.notifyDecided(r.id, 'expired', null),
+        () => undefined,
+      );
   }
   return n;
 }

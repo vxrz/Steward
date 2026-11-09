@@ -539,5 +539,34 @@
     "query": "Query",
     "body": "Body",
     "reason": "The assistant's reason"
+  },
+  "plantChange": {
+    "proposedTitle": "Plant change to review: {{title}}",
+    "proposedBody_one": "{{author}} proposes {{count}} change to the plant registry ({{where}}). You may apply it: review it in Steward under Plant → Changes. Without a decision it expires on {{expires}}.",
+    "proposedBody_other": "{{author}} proposes {{count}} changes to the plant registry ({{where}}). You may apply them: review them in Steward under Plant → Changes. Without a decision they expire on {{expires}}.",
+    "proposedChannelTitle": "Plant change proposed by {{author}}",
+    "proposedChannelBody": "A change to the plant registry waits for a second person. Review it in Steward under Plant → Changes.",
+    "sites": "sites {{sites}}",
+    "catalogue": "device profiles and KPI definitions",
+    "decidedTitle": {
+      "applied": "Your plant change was applied: {{title}}",
+      "rejected": "Your plant change was rejected: {{title}}",
+      "returned": "Your plant change was returned to you: {{title}}",
+      "expired": "Your plant change expired: {{title}}"
+    },
+    "decidedBody": {
+      "applied": "{{by}} applied your change set.",
+      "rejected": "{{by}} rejected your change set. You can copy it into a new draft.",
+      "returned": "{{by}} returned your change set to you as a draft: change it and propose it again.",
+      "expired": "Nobody decided on your change set in time. You can copy it into a new draft and propose it again."
+    },
+    "comment": "Comment: {{comment}}",
+    "decidedChannelTitle": {
+      "applied": "Plant change by {{author}} applied",
+      "rejected": "Plant change by {{author}} rejected",
+      "returned": "Plant change by {{author}} returned to its author",
+      "expired": "Plant change by {{author}} expired"
+    },
+    "decidedChannelBody": "Open it in Steward under Plant → Changes."
   }
 }

@@ -62,6 +62,7 @@ import {
 } from './changesets/core.js';
 import { changeSetConfig, changeSetRoutes } from './changesets/api.js';
 import { checkOpenLimits, documentOperation } from './changesets/drafts.js';
+import { notifyProposed } from './changesets/notify.js';
 import { revisionOf } from './changesets/entries.js';
 import type { EntryChange, Region } from './changesets/track.js';
 import { me } from '../auth/access.js';
@@ -183,6 +184,7 @@ function proposed(kind: 'import' | 'bulk' | 'rename', title: string, op: Paramet
     summary: `Plant change set "${title}" (${kind}) proposed by ${u.username} – changes here need a second person`,
     details: { source: kind, createdBy: u.username, sites: sites.slice(0, 50) },
   });
+  notifyProposed(id);
   return summaryOf(r, u);
 }
 

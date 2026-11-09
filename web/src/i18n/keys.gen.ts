@@ -7203,6 +7203,10 @@ export interface Resources {
     'events.cost.budget.info': string;
     'events.contract.failed.label': string;
     'events.contract.failed.info': string;
+    'events.plant.change_proposed.label': string;
+    'events.plant.change_proposed.info': string;
+    'events.plant.change_decided.label': string;
+    'events.plant.change_decided.info': string;
     'quiet.title': string;
     'quiet.intro': string;
     'quiet.notAllowed': string;

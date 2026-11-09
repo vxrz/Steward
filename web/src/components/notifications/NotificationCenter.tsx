@@ -64,6 +64,8 @@ const EVENT_COLORS: Record<string, string> = {
   'cost.budget': 'orange',
   'contract.failed': 'red',
   'monitor.state': 'gray',
+  'plant.change_proposed': 'violet',
+  'plant.change_decided': 'blue',
 };
 
 /** Bell with unread badge; opens a drawer with the latest notifications. */
