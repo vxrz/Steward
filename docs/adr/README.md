@@ -23,5 +23,6 @@ Short records of decisions that shape Steward's design: the context, what was de
 | [0017](0017-audit-retention.md)                        | Audit retention: archives keep the chain verifiable     | Accepted                                                               |
 | [0018](0018-one-maintenance-window-concept.md)         | One maintenance-window concept; monitors as a source    | Accepted                                                               |
 | [0019](0019-data-collections.md)                       | Data collections: what a collector reads, mapped        | Accepted                                                               |
+| [0020](0020-plant-change-sets.md)                      | Plant change sets: one path for every change            | Proposed                                                               |
 
 New record: copy [template.md](template.md) to `NNNN-short-title.md`, fill it in, add it to the table, and link it from [ARCHITECTURE.md](../ARCHITECTURE.md) where it applies.

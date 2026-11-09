@@ -77,6 +77,7 @@ Themes of this release (details in the CHANGELOG once released):
 
 ## Later
 
+- **Plant change sets** (0.13, proposed in [ADR 0020](adr/0020-plant-change-sets.md)): one path for every change to plant data – edits, imports, bulk changes, id changes and assistants' proposals become change sets with a preview, an optional review by a second person, one apply and a history per entry; people without the manage right propose changes, and imports respect what was edited in Steward. The open questions are listed in the record.
 - **Platform identities, steps 2–4** (rest of [#228](https://github.com/vxrz/Steward/issues/228), [ADR 0009](adr/0009-platform-identities.md)): further identities per platform, each with its own access list, MCP mode, read-only flag and optional operation filter; the PAM checkout gets its own decision record first. When they come is still open.
 - **Postman import** (rest of [#204](https://github.com/vxrz/Steward/issues/204)): requests and sign-in from a collection.
 
