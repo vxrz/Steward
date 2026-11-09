@@ -162,7 +162,9 @@ export function confirmReview(id: string): PlatformConfirmReview {
       signIn,
       flags,
       access: isDefault ? [] : access,
-      action: (i.credential_source ? 'reset' : 'keep') as 'keep' | 'reset' | 'remove',
+      disabled: Number(i.disabled) === 1 || i.disabled === true,
+      // the default identity follows the platform's confirmation; any other is kept active only when its own seal verified
+      action: (!isDefault && identityIntegrity(i) !== 'ok' ? 'disable' : i.credential_source ? 'reset' : 'keep') as 'keep' | 'reset' | 'remove' | 'disable',
     };
   });
   return { baseUrl: r.base_url, integrity: platformIntegrity(r), identities };
@@ -188,8 +190,11 @@ export function confirmPlatformConfig(id: string): void {
     // every identity as reviewed (the default one too); only a credential source goes (PAM is not built)
     for (const i of review.identities) {
       if (i.action === 'reset') db().run('UPDATE platform_identities SET credential_source = NULL WHERE id = ? AND platform_id = ?', i.id, id);
+      // added or changed outside Steward: kept, shown, but disabled – sealed as such, enabled one by one with a step-up
+      if (i.action === 'disable') db().run('UPDATE platform_identities SET disabled = 1, credential_source = NULL WHERE id = ? AND platform_id = ?', i.id, id);
       sealIdentity(i.id);
     }
+    const disabled = review.identities.filter((i) => i.action === 'disable');
     const reset = review.identities.filter((i) => i.action === 'reset');
     audit({
       action: 'platform.config_confirmed',
@@ -198,6 +203,9 @@ export function confirmPlatformConfig(id: string): void {
       summary:
         `Connection settings of "${r.name}" confirmed by an administrator (were: ${before})` +
         (reset.length ? ` – credential source of ${reset.map((i) => `"${i.name}"`).join(', ')} reset` : '') +
+        (disabled.length
+          ? ` – ${disabled.length} identit${disabled.length === 1 ? 'y' : 'ies'} disabled: ${disabled.map((i) => `"${i.name}"`).join(', ')}`
+          : '') +
         (removed.length ? ` – ${removed.length} other identit${removed.length === 1 ? 'y' : 'ies'} removed` : ''),
       details: {
         baseUrl: r.base_url,
@@ -239,9 +247,11 @@ export type SealedIdentityRow = Pick<
   | 'operation_filter'
   | 'mcp'
   | 'credential_source'
+  | 'disabled'
 > & { config_mac?: string | null };
 
-const IDENTITY_SEALED_COLUMNS = 'id, platform_id, name, is_default, auth, variables, secrets, read_only, privileged, operation_filter, mcp, credential_source';
+export const IDENTITY_SEALED_COLUMNS =
+  'id, platform_id, name, is_default, auth, variables, secrets, read_only, privileged, operation_filter, mcp, credential_source, disabled';
 
 const identityFields = (r: SealedIdentityRow) => ({
   v: 1,
@@ -257,6 +267,8 @@ const identityFields = (r: SealedIdentityRow) => ({
   operationFilter: parseJson<unknown>(r.operation_filter, null),
   mcp: parseJson<unknown>(r.mcp, null),
   credentialSource: parseJson<unknown>(r.credential_source, null),
+  // only when set (0.13.0): the seals of active identities stay as they were; enabling one in the database breaks its seal
+  ...(Number(r.disabled) === 1 || r.disabled === true ? { disabled: true } : {}),
 });
 
 export function identityIntegrity(r: SealedIdentityRow): IntegrityState {

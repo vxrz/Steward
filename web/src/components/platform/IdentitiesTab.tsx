@@ -46,6 +46,7 @@ import { AccessEditor } from '../AccessEditor';
 import { OwningTeams } from '../OwningTeams';
 import { DataTable, type DataColumn } from '../DataTable';
 import { confirmDanger } from '../confirm';
+import { useMe } from '../../auth';
 
 /**
  * The identities of a platform (ADR 0009; 0.13.0: editable). A row per identity; its managers add identities and change
@@ -181,6 +182,11 @@ function IdentityName({ identity: i }: { identity: PlatformIdentity }) {
       {changed && (
         <Badge variant="light" color="red" size="sm" leftSection={<IconAlertTriangle size={12} />}>
           {t('identities.changedOutside')}
+        </Badge>
+      )}
+      {i.disabled && (
+        <Badge variant="light" color="gray" size="sm" data-testid="identity-disabled">
+          {t('identities.disabled')}
         </Badge>
       )}
     </Group>
@@ -374,6 +380,13 @@ function GeneralForm({
       t('identities.tokenRenewed'),
       t('identities.tokenNotRenewed'),
     );
+  const { isAdmin } = useMe();
+  const enable = async () => {
+    const who = identity!.acl?.length ? identity!.acl.map((e) => e.subject).join(', ') : t('identities.closed');
+    if (!(await confirmDanger({ action: 'confirm', message: t('identities.enableText', { name: identity!.name, who }), confirmLabel: t('identities.enable') })))
+      return;
+    await action(() => post(`${base(platform, identity!)}/enable`), t('identities.enabled', { name: identity!.name }), t('identities.notSaved'));
+  };
   const remove = async () => {
     if (!(await confirmDanger({ action: 'delete', message: t('identities.deleteText', { name: identity!.name }) }))) return;
     if (await action(() => del(base(platform, identity!)), t('identities.deleted', { name: identity!.name }), t('identities.notDeleted'))) onDeleted?.();
@@ -398,6 +411,16 @@ function GeneralForm({
       }}
     >
       <Stack>
+        {identity?.disabled && (
+          <Alert color="orange" variant="light" icon={<IconAlertTriangle size={16} />} data-testid="identity-disabled-alert">
+            <Text size="sm">{t('identities.disabledText')}</Text>
+            {manage && isAdmin && (
+              <Button size="xs" mt="xs" color="orange" variant="light" onClick={enable} disabled={busy} data-testid="identity-enable">
+                {t('identities.enable')}
+              </Button>
+            )}
+          </Alert>
+        )}
         <TextInput label={t('common:name')} value={name} onChange={(e) => setName(e.currentTarget.value)} required disabled={!manage} maxLength={100} />
         <Textarea
           label={t('identities.description')}
@@ -450,7 +473,7 @@ function GeneralForm({
         {manage && (
           <Group justify="space-between" wrap="wrap">
             <Group gap="xs" wrap="wrap">
-              {identity && !identity.default && (
+              {identity && !identity.default && !identity.disabled && (
                 <Button variant="default" leftSection={<IconStar size={16} />} onClick={makeDefault} disabled={busy}>
                   {t('identities.makeDefault')}
                 </Button>

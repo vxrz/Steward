@@ -354,7 +354,12 @@
     "filterSaved": "Operationsfilter gespeichert",
     "renewToken": "Neues Token holen",
     "tokenRenewed": "Neues Token geholt",
-    "tokenNotRenewed": "Kein neues Token"
+    "tokenNotRenewed": "Kein neues Token",
+    "disabled": "Deaktiviert",
+    "disabledText": "Diese Identität wurde außerhalb von Steward hinzugefügt oder geändert. Beim Bestätigen der Plattformeinstellungen wurde sie behalten, aber deaktiviert: Nichts kann sie verwenden, und mit ihr werden keine Zugangsdaten gesendet. Prüfen Sie ihre Einstellungen und ihre Zugriffsliste, bevor ein Administrator sie aktiviert.",
+    "enable": "Aktivieren",
+    "enableText": "Die Identität „{{name}}“ aktivieren? Ihre Zugangsdaten können dann wieder verwendet werden – von Administratoren, ihren zuständigen Teams und: {{who}}. Prüfen Sie vorher ihre Einstellungen, Zugangsdaten und Zugriffsliste.",
+    "enabled": "Identität „{{name}}“ aktiviert"
   },
   "settings": {
     "kind": "Art",
@@ -569,7 +574,9 @@
       "remove": "Diese Identität wird beim Bestätigen entfernt.",
       "keep": "Wird wie angezeigt übernommen und versiegelt:",
       "access": "Wer sie neben Administratoren und den zuständigen Teams verwenden darf: {{subjects}}",
-      "accessClosed": "niemand sonst (geschlossen)"
+      "accessClosed": "niemand sonst (geschlossen)",
+      "disable": "Außerhalb von Steward hinzugefügt oder geändert: Sie wird beim Bestätigen behalten, aber deaktiviert – mit ihr werden keine Zugangsdaten gesendet, bis ein Administrator sie nach Prüfung ihrer Zugriffsliste aktiviert.",
+      "keepDisabled": "Wird wie angezeigt übernommen und bleibt deaktiviert:"
     }
   },
   "recordings": {

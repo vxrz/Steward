@@ -23,6 +23,8 @@ export interface IdentityRow {
   operation_filter: string | null;
   mcp: string;
   credential_source: string | null;
+  /** 0.13.0: kept but not usable (added or changed outside Steward, confirmed by an administrator) – 1, enabled again one by one */
+  disabled?: number | boolean | null;
   config_mac: string | null;
   created_at: string;
   created_by: string;
@@ -156,6 +158,7 @@ export function toIdentity(
     integrity: extra.integrity,
     mayUse: extra.mayUse,
     ...(extra.staleOperations ? { staleOperations: extra.staleOperations } : {}),
+    ...(flag(r.disabled) ? { disabled: true } : {}),
     // the default identity is open to everyone with "use" on the platform: it has no list of its own
     ...(flag(r.is_default) ? {} : { acl: Array.isArray(acl) ? acl : [] }),
     createdAt: r.created_at,

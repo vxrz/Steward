@@ -237,7 +237,7 @@ async function withChangedSettings(page: Page, api: APIRequestContext, id: strin
         signIn: null,
         flags: [],
         access: ['user:mallory'],
-        action: 'keep',
+        action: 'disable',
       },
     ],
   };
@@ -254,7 +254,7 @@ async function withChangedSettings(page: Page, api: APIRequestContext, id: strin
   return confirmed;
 }
 
-test('confirming changed settings lists every identity it keeps and seals', async ({ page, apiAs }) => {
+test('confirming changed settings keeps what verified and disables what was changed outside Steward', async ({ page, apiAs }) => {
   const api = await apiAs('admin');
   const id = await platformId(api, 'insights-hub');
   const confirmed = await withChangedSettings(page, api, id);
@@ -268,7 +268,10 @@ test('confirming changed settings lists every identity it keeps and seals', asyn
   await expect(dialog).toContainText('Variables: port = 8443, region = eu-west');
   await expect(dialog).toContainText('Its own sign-in: token_request at https://login.example.net/token');
   await expect(dialog).toContainText('Flags: readOnly');
-  await expect(dialog.getByTestId('confirm-identity-keep').last()).toContainText('Who may use it besides administrators and its owning teams: user:mallory');
+  const planted = dialog.getByTestId('confirm-identity-disable');
+  await expect(planted).toContainText('Identity “Planted”');
+  await expect(planted).toContainText('it is kept, but disabled when you confirm');
+  await expect(planted).toContainText('Who may use it besides administrators and its owning teams: user:mallory');
   await expectAccessible(page, 'confirm changed platform settings');
   await dialog.getByTestId('confirm-dialog-confirm').click();
   await expect(page.getByText('Settings confirmed')).toBeVisible();
@@ -285,4 +288,45 @@ test('the confirmation of changed settings on a phone @mobile', async ({ page, a
   await expectNoHorizontalScroll(page);
   await expectAccessible(page, 'confirm changed platform settings (phone)');
   await page.getByRole('dialog').getByRole('button', { name: 'Cancel' }).click();
+});
+
+test('a disabled identity says why and offers administrators to enable it', async ({ page, apiAs }) => {
+  const api = await apiAs('admin');
+  const id = await platformId(api, 'insights-hub');
+  const platform = await json(await api.get(`/api/platforms/${id}`));
+  const planted = {
+    ...platform.identities[0],
+    id: 'pi_planted_e2e',
+    name: 'Planted',
+    default: false,
+    disabled: true,
+    mayUse: false,
+    acl: [{ subject: 'user:mallory', permissions: ['use'] }],
+  };
+  const enabled: string[] = [];
+  await page.route(`**/api/platforms/${id}`, async (route) => {
+    if (route.request().method() !== 'GET') return route.continue();
+    await route.fulfill({ json: { ...platform, identities: [...platform.identities, planted] } });
+  });
+  await page.route(`**/api/platforms/${id}/identities/pi_planted_e2e/enable`, async (route) => {
+    enabled.push(route.request().method());
+    await route.fulfill({ json: { ...planted, disabled: false } });
+  });
+  await page.route(`**/api/platforms/${id}/identities/pi_planted_e2e/settings`, (route) =>
+    route.fulfill({ json: { auth: null, variables: {}, fixedVariables: [], operations: [] } }),
+  );
+  const panel = await openIdentities(page, id);
+  const row = panel.getByTestId('identity-row').filter({ hasText: 'Planted' });
+  await expect(row.getByTestId('identity-disabled')).toHaveText('Disabled');
+  await expect(row).toContainText('You may not use it');
+  await row.click();
+  const dialog = page.getByRole('dialog', { name: 'Identity “Planted”' });
+  await expect(dialog.getByTestId('identity-disabled-alert')).toContainText('it is disabled: nothing can use it');
+  await expectAccessible(page, 'disabled identity');
+  await dialog.getByTestId('identity-enable').click();
+  const confirm = page.getByRole('dialog').filter({ has: page.getByTestId('confirm-dialog-confirm') });
+  await expect(confirm).toContainText('user:mallory');
+  await confirm.getByTestId('confirm-dialog-confirm').click();
+  await expect(page.getByText('Identity “Planted” enabled')).toBeVisible();
+  expect(enabled).toEqual(['POST']);
 });

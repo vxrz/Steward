@@ -754,6 +754,11 @@ export interface PlatformIdentity {
   staleOperations?: number;
   /** Who may use it besides the platform's users (0.13.0): never set on the default identity (everyone with "use") */
   acl?: AclEntry<'use'>[];
+  /**
+   * Kept but not usable (0.13.0): it was added or changed outside Steward when an administrator confirmed the platform's
+   * settings – no credentials are sent with it until an administrator enables it (POST …/identities/:iid/enable).
+   */
+  disabled?: boolean;
   /** Whether the identity signs in with its own settings (false: the platform's sign-in settings) */
   ownSignIn: boolean;
   /** Names of its stored secrets (values are never returned) */
@@ -807,8 +812,9 @@ export interface PlatformIdentityInput {
 /**
  * What an administrator confirms for a platform whose settings were changed outside Steward (0.9.0,
  * GET /platforms/:id/confirm-config): per identity what the platform page does not show. Since 0.13.0 (ADR 0009 step 2)
- * every identity is kept with what the review shows – its variables, own sign-in, flags, operation filter and access
- * list – and sealed (action "keep"); only a credential source (reserved for PAM, not built) is reset ("reset").
+ * the default identity and every identity whose own seal verified are kept as shown and sealed (action "keep"); any
+ * other identity – added or changed outside Steward – is kept disabled ("disable") until an administrator enables it.
+ * Only a credential source (reserved for PAM, not built) is reset ("reset").
  */
 export interface PlatformConfirmReview {
   baseUrl: string;
@@ -829,7 +835,10 @@ export interface PlatformConfirmReview {
     flags: string[];
     /** Its access list (subjects; 0.13.0) – not sealed, shown so nobody is given an identity unseen */
     access?: string[];
-    action: 'keep' | 'reset' | 'remove';
+    /** Disabled already (0.13.0) */
+    disabled?: boolean;
+    /** disable (0.13.0): an identity other than the default whose seal did not verify – kept, but disabled until enabled */
+    action: 'keep' | 'reset' | 'remove' | 'disable';
   }[];
 }
 

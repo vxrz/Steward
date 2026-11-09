@@ -240,10 +240,10 @@ describe('managing identities', () => {
     expect(lastFor('/users')?.key).toBe('least-key-1234567');
   });
 
-  it('detects an identity changed in the database and keeps every identity when an administrator confirms', async () => {
+  it('detects an identity changed in the database; confirming keeps it disabled until an administrator enables it', async () => {
     const p = await platform('Directory D');
     const i = await identity(p, { name: 'Writer' }, 'writer-key-1234567');
-    await identity(p, { name: 'Reader', readOnly: true });
+    await identity(p, { name: 'Reader', readOnly: true }, 'reader-key-1234567');
     const d = await db();
     d.run('UPDATE platform_identities SET read_only = 0 WHERE platform_id = ? AND name = ?', p.id, 'Reader');
     const after = await s.api('GET', `/platforms/${p.id}`);
@@ -257,13 +257,36 @@ describe('managing identities', () => {
     d.run('UPDATE platform_identities SET platform_id = ? WHERE id = ?', other.id, i.id);
     expect((await s.api('GET', `/platforms/${other.id}`)).identities.find((x: any) => x.id === i.id).integrity).toBe('mismatch');
     d.run('UPDATE platform_identities SET platform_id = ? WHERE id = ?', p.id, i.id);
+    // the default identity and an identity whose seal verified are kept; the changed one is kept disabled
     const review = await s.api('GET', `/platforms/${p.id}/confirm-config`);
-    expect(review.identities.map((x: any) => x.action)).toEqual(['keep', 'keep', 'keep']);
+    expect(review.identities.map((x: any) => [x.name, x.action])).toEqual([
+      ['Default', 'keep'],
+      ['Reader', 'disable'],
+      ['Writer', 'keep'],
+    ]);
     await s.api('POST', `/platforms/${p.id}/confirm-config`);
     const confirmed = await s.api('GET', `/platforms/${p.id}`);
     expect(confirmed.integrity).toBe('ok');
     expect(confirmed.identities).toHaveLength(3);
+    expect(confirmed.identities.find((x: any) => x.name === 'Reader')).toMatchObject({ disabled: true, mayUse: false, integrity: 'ok' });
     expect(getConnection(p.id, i.id).secrets).toEqual({ apiKey: 'writer-key-1234567' });
+    // disabled: nothing is handed out, it cannot be chosen or made the default
+    expect(() => getConnection(p.id, reader.id)).toThrow(/disabled/);
+    const proc = await process('Read directory D', [['GET', '/users']]);
+    await expect(s.api('POST', '/runs', { processId: proc, bindings: { api: p.id }, identities: { api: reader.id } })).rejects.toMatchObject({ status: 403 });
+    await expect(s.api('POST', `/platforms/${p.id}/identities/${reader.id}/default`)).rejects.toMatchObject({ body: { code: 'IDENTITY_DISABLED' } });
+    // enabling it in the database breaks its seal
+    d.run('UPDATE platform_identities SET disabled = 0 WHERE id = ?', reader.id);
+    expect((await s.api('GET', `/platforms/${p.id}`)).integrity).toBe('mismatch');
+    d.run('UPDATE platform_identities SET disabled = 1 WHERE id = ?', reader.id);
+    expect((await s.api('GET', `/platforms/${p.id}`)).integrity).toBe('ok');
+    // an administrator enables it (step-up, audited with what it gives)
+    await s.api('POST', `/platforms/${p.id}/identities/${reader.id}/enable`);
+    expect((await s.api('GET', `/platforms/${p.id}`)).identities.find((x: any) => x.name === 'Reader')).toMatchObject({ mayUse: true, integrity: 'ok' });
+    expect(getConnection(p.id, reader.id).secrets).toEqual({ apiKey: 'reader-key-1234567' });
+    const enabled = (await auditOf(`entityId=${p.id}&action=platform.identity_enabled`))[0];
+    expect(enabled.details).toMatchObject({ identityName: 'Reader', acl: [], secretKeys: ['apiKey'] });
+    expect(JSON.stringify(enabled)).not.toContain('reader-key-1234567');
   });
 
   it('refuses deleting an identity a schedule still names, and an identity of another platform anywhere', async () => {

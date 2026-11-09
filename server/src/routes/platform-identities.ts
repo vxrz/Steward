@@ -10,6 +10,8 @@ import { redactSecrets, runConnectionTest } from '../platforms/testConnection.js
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { requirePlatform } from './helpers.js';
 import { params } from './params.js';
+import { ACCESS, me } from '../auth/access.js';
+import { requireCapability } from '../auth/permissions.js';
 
 /**
  * Platform identities (0.13.0, ADR 0009 step 2), mounted under /api with the platform routes:
@@ -23,6 +25,7 @@ import { params } from './params.js';
  *   PUT    /platforms/:id/identities/:identityId/access           manage; adding someone: step-up (grantAccess)
  *   PUT    /platforms/:id/identities/:identityId/mcp              manage; approved writes on: step-up (allowMcpWrites)
  *   POST   /platforms/:id/identities/:identityId/default          manage; step-up (everyone with "use" gets it)
+ *   POST   /platforms/:id/identities/:identityId/enable           administrators with manage; step-up (a disabled identity)
  *   POST   /platforms/:id/identities/:identityId/test             manage (audited platform.tested with the identity)
  *   POST   /platforms/:id/identities/:identityId/token/renew      manage
  *
@@ -135,6 +138,18 @@ export async function platformIdentityRoutes(app: FastifyInstance): Promise<void
       const { id, identityId } = ids(req);
       requirePlatform(id, 'manage', 'change the default identity of this platform');
       return identities.makeDefaultIdentity(id, identityId);
+    },
+  );
+  // an identity kept disabled at the confirmation of settings changed outside Steward (0.13.0): administrators enable it
+  // one by one, after reading its access list, with a step-up – like the confirmation itself
+  app.post(
+    '/platforms/:id/identities/:identityId/enable',
+    { config: { access: ACCESS.admin, stepUp: { action: 'grantAccess', who: manages } } },
+    async (req) => {
+      const { id, identityId } = ids(req);
+      requireCapability(me(), 'createPlatforms', 'enable identities');
+      requirePlatform(id, 'manage', 'enable identities of this platform');
+      return identities.enableIdentity(id, identityId);
     },
   );
   app.post('/platforms/:id/identities/:identityId/test', { config: { rateLimit: ROUTE_LIMITS.action } }, async (req) => {

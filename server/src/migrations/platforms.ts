@@ -57,6 +57,8 @@ const identitiesInsert = (enabled: string, writes: string) => `
  * - platforms-006: choosing identities (0.13.0, ADR 0009 step 2) – the identity per connection slot of schedules and
  *   webhook triggers (JSON slot → identity id; '{}': every slot uses the default identity, as before) and the identity
  *   of an MCP request waiting for approval (NULL: the default identity).
+ * - platforms-007: disabled identities (0.13.0, ADR 0009) – an identity that was added or changed outside Steward is kept
+ *   disabled when an administrator confirms the platform's settings, until enabled one by one.
  * - platforms-003: the periodic connection test of a platform (v0.4.0, platforms/health.ts): off by default.
  * - platforms-002: recorded responses for test runs (#105).
  * - platforms-001: the path prefix of an API specification (the path of its server URL, editable per spec). NULL for
@@ -134,5 +136,10 @@ export const PLATFORM_MIGRATIONS: NamedMigration[] = [
       ALTER TABLE webhook_triggers ADD COLUMN identities TEXT NOT NULL DEFAULT '{}';
       ALTER TABLE mcp_requests ADD COLUMN identity_id TEXT;
     `,
+  },
+  {
+    // Disabled identities (0.13.0, ADR 0009): additive, 0 = active (every identity so far)
+    name: 'platforms-007-identity-disabled',
+    sql: `ALTER TABLE platform_identities ADD COLUMN disabled INTEGER NOT NULL DEFAULT 0;`,
   },
 ];

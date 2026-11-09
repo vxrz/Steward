@@ -33,7 +33,13 @@ function IdentityReview({ identity }: { identity: ReviewedIdentity }) {
         </Text>
       ) : (
         <>
-          <Text size="sm">{t('integrity.review.keep')}</Text>
+          {identity.action === 'disable' ? (
+            <Text size="sm" c="red">
+              {t('integrity.review.disable')}
+            </Text>
+          ) : (
+            <Text size="sm">{identity.disabled ? t('integrity.review.keepDisabled') : t('integrity.review.keep')}</Text>
+          )}
           <List size="sm" spacing={2}>
             <List.Item>{t('integrity.review.mcp', { mode: mcp })}</List.Item>
             <List.Item>

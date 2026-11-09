@@ -551,6 +551,11 @@ export function makeDefaultIdentity(platformId: string, identityId: string): Pla
   const r = requireIdentity(platformId, identityId);
   mutable(p, r);
   if (flag(r.is_default)) return view(platformId, r.id);
+  if (flag(r.disabled))
+    throw new HttpError(409, `The identity "${r.name}" is disabled – an administrator enables it first`, 'IDENTITY_DISABLED', {
+      identity: r.name,
+      platform: p.name,
+    });
   const before = identityRows(platformId).find((x) => flag(x.is_default));
   const ts = nowIso();
   db().tx(() => {
@@ -567,6 +572,38 @@ export function makeDefaultIdentity(platformId: string, identityId: string): Pla
   });
   // plain platform objects stand for the default identity in the caches: all of the platform's entries go
   invalidatePlatformCaches(platformId);
+  return view(platformId, r.id);
+}
+
+/**
+ * Enable an identity that was kept disabled when an administrator confirmed settings changed outside Steward (0.13.0,
+ * ADR 0009). The caller is an administrator who confirmed with a step-up after reading its access list; the audit entry
+ * records what was enabled – access list, credential names, sign-in, MCP mode.
+ */
+export function enableIdentity(platformId: string, identityId: string): PlatformIdentity {
+  const p = platformForChange(platformId);
+  const r = requireIdentity(platformId, identityId);
+  mutable(p, r);
+  if (!flag(r.disabled)) return view(platformId, r.id);
+  db().tx(() => {
+    db().run(
+      'UPDATE platform_identities SET disabled = 0, updated_at = ?, updated_by = ? WHERE id = ? AND platform_id = ?',
+      nowIso(),
+      actor(),
+      r.id,
+      platformId,
+    );
+    sealIdentity(r.id);
+    audited(p, r, 'platform.identity_enabled', 'identity enabled after it was added or changed outside Steward', {
+      acl: parseJson<AclEntry<'use'>[]>(r.acl, []),
+      secretKeys: secretNames(r.secrets),
+      signIn: parseJson<AuthConfig | null>(r.auth, null)?.type ?? null,
+      variables: Object.keys(parseJson<Record<string, string>>(r.variables, {})),
+      mcp: parseMcp(r.mcp),
+      readOnly: flag(r.read_only),
+    });
+  });
+  invalidateIdentityCaches(platformId, r.id);
   return view(platformId, r.id);
 }
 

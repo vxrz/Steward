@@ -109,6 +109,7 @@ function toPlatform(r: PlatformRow, idents: IdentityRow[]): Platform {
       // the default identity is open to everybody with "use" on the platform; any other is closed by default (ADR 0009)
       mayUse:
         permissions.includes('use') &&
+        !(Number(i.disabled) === 1 || i.disabled === true) &&
         identityAccess(user, { id: r.id, acl }, { id: i.id, default: Number(i.is_default) === 1 || i.is_default === true, acl: parseJson(i.acl, []) })
           .permissions.length > 0,
       staleOperations: staleOf(i),
@@ -207,6 +208,14 @@ export function getConnection(platformId: string, identityId?: string): Connecti
     );
   }
   requireIdentityIntact(i, r.name);
+  // kept but not usable: added or changed outside Steward (0.13.0) – no credentials are handed out
+  if (Number(i.disabled) === 1 || i.disabled === true)
+    throw new HttpError(
+      409,
+      `The identity "${i.name}" of "${r.name}" is disabled: it was added or changed outside ${BRAND.name} – an administrator enables it on the platform's Identities tab`,
+      'IDENTITY_DISABLED',
+      { identity: i.name, platform: r.name },
+    );
   const p = toPlatform(r, identityRows(platformId));
   const identity = p.identities!.find((x) => x.id === i.id)!;
   // the variables used where requests go (base URL, token URLs, trusted origins) stay the platform's (IDENTITY_VARIABLE_FIXED)

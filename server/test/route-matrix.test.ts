@@ -344,6 +344,7 @@ const EXPECT: Record<string, Access> = {
   'PUT /api/platforms/:id/identities/:identityId/access': ADMIN,
   'PUT /api/platforms/:id/identities/:identityId/mcp': ADMIN,
   'POST /api/platforms/:id/identities/:identityId/default': ADMIN,
+  'POST /api/platforms/:id/identities/:identityId/enable': ADMIN,
   'POST /api/platforms/:id/identities/:identityId/test': ADMIN,
   'POST /api/platforms/:id/identities/:identityId/token/renew': ADMIN,
   // Kafka peek (#112): platform managers only, and only where the platform allows it
@@ -1332,6 +1333,7 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
   },
   'PUT /api/platforms/:id/identities/:identityId/mcp': { sensitive: { mode: 'writes', writes: 'confirm' }, harmless: { mode: 'read' } },
   'POST /api/platforms/:id/identities/:identityId/default': 'always',
+  'POST /api/platforms/:id/identities/:identityId/enable': 'always',
   // raising an AI budget (the fixtures set 1,000 tokens a day for the installation); lowering it needs no confirmation
   'PUT /api/ai/budgets': {
     sensitive: { scope: 'installation', scopeId: '', tokensPerDay: 2000, tokensPerMonth: null },

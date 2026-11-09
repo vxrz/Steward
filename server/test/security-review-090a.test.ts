@@ -224,9 +224,10 @@ describe('1b: a request to the origin of a platform with kind rules gets those r
 // ---------------------------------------------------------------------------------------------------------------
 
 describe('2: confirming the settings never seals what the platform page does not show', () => {
-  // 0.13.0 (ADR 0009 step 2): identities are kept – the dialog shows everything confirming seals, and a planted variable
-  // that decides where requests go is still never used
-  it('a variable and an identity planted in the database are shown before confirming; the fixed variable is never used', async () => {
+  // 0.13.0 (ADR 0009 step 2): the dialog shows everything confirming seals; an identity planted in the database is kept
+  // disabled (shown, never used) until an administrator enables it; a planted variable that decides where requests go is
+  // never used
+  it('a planted identity is kept disabled at confirm, a planted fixed variable is never used', async () => {
     const p = await s.api('POST', '/platforms', {
       name: 'templated',
       kind: 'generic',
@@ -261,7 +262,7 @@ describe('2: confirming the settings never seals what the platform page does not
       expect.objectContaining({
         default: false,
         name: 'planted',
-        action: 'keep',
+        action: 'disable',
         access: ['user:mallory'],
         integrity: 'unsealed',
         signIn: { type: 'token_request', url: `${echo2Base}/login` },
@@ -276,16 +277,24 @@ describe('2: confirming the settings never seals what the platform page does not
     expect(hits2).toHaveLength(0);
     expect(hits[0]?.headers['x-api-key']).toBe('tpl-SECRET-key-987654321');
     const after = await s.api('GET', `/platforms/${p.id}`);
-    expect(after.identities.map((i: any) => [i.name, i.integrity])).toEqual([
-      ['Default', 'ok'],
-      ['planted', 'ok'],
+    expect(after.identities.map((i: any) => [i.name, i.integrity, !!i.disabled])).toEqual([
+      ['Default', 'ok', false],
+      ['planted', 'ok', true],
     ]);
+    // disabled: nothing is handed out – its sign-in (at the second server) is never asked
+    const { getConnection } = await import('../src/platforms/service.js');
+    expect(() => getConnection(p.id, `pi_planted_${p.id}`)).toThrow(/disabled/);
+    await expect(s.api('POST', `/platforms/${p.id}/request`, { method: 'GET', path: '/api/v1/watch', identityId: `pi_planted_${p.id}` })).rejects.toMatchObject(
+      { status: 409, body: { code: 'IDENTITY_DISABLED' } },
+    );
+    expect(hits2).toHaveLength(0);
     const audit = await s.api('GET', '/audit?limit=50');
     const entry = (audit.items ?? audit).find((e: any) => e.action === 'platform.config_confirmed' && e.entityId === p.id);
     expect(entry.details.reviewed).toEqual([
       expect.objectContaining({ name: 'Default', action: 'keep', variables: { port: echo2Base.split(':').pop() } }),
-      expect.objectContaining({ name: 'planted', action: 'keep', access: ['user:mallory'] }),
+      expect.objectContaining({ name: 'planted', action: 'disable', access: ['user:mallory'] }),
     ]);
+    expect(entry.summary).toMatch(/1 identity disabled: "planted"/);
     expect(JSON.stringify(entry)).not.toContain('tpl-SECRET-key-987654321');
   });
 
