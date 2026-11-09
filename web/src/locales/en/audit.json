@@ -29,7 +29,8 @@
     "action": "Action",
     "summary": "Summary",
     "run": "run",
-    "hash": "hash {{hash}}"
+    "hash": "hash {{hash}}",
+    "details": "Details of entry {{seq}}"
   },
   "loadOlder": "Load older entries",
   "verifyAnchor": "Verify against checkpoint",

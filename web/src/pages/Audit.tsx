@@ -1,9 +1,9 @@
 import { Fragment, useState } from 'react';
-import { Alert, Anchor, Button, Collapse, Group, List, Menu, Modal, Select, Stack, Table, Text, TextInput, Textarea } from '@mantine/core';
+import { Alert, Anchor, Button, Group, List, Menu, Modal, Select, Stack, Table, Text, TextInput, Textarea, UnstyledButton } from '@mantine/core';
 import { useDebouncedValue } from '@mantine/hooks';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { IconAnchor, IconDownload, IconSearch, IconShieldCheck } from '@tabler/icons-react';
+import { IconAnchor, IconChevronDown, IconChevronRight, IconDownload, IconSearch, IconShieldCheck } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { AuditEntry, AuditVerifyResult } from '@sm/shared';
 import { apiUrl, confirmedDownload, get, notifyError, post } from '../api';
@@ -23,7 +23,14 @@ export function AuditPage() {
   const [debounced] = useDebouncedValue(q, 300);
   const [action, setAction] = useState<string | null>(null);
   const [verify, setVerify] = useState<AuditVerifyResult | null>(null);
-  const [open, setOpen] = useState<number | null>(null);
+  // entries whose details are open (several at a time, this page view)
+  const [open, setOpen] = useState<ReadonlySet<number>>(new Set());
+  const toggle = (seq: number) =>
+    setOpen((cur) => {
+      const next = new Set(cur);
+      if (!next.delete(seq)) next.add(seq);
+      return next;
+    });
   const [anchorOpen, setAnchorOpen] = useState(false);
   const [anchorText, setAnchorText] = useState('');
   const { caps } = useMe();
@@ -176,8 +183,25 @@ export function AuditPage() {
           <Table.Tbody>
             {rows.map((a) => (
               <Fragment key={a.seq}>
-                <Table.Tr className="clickable" onClick={() => setOpen(open === a.seq ? null : a.seq)}>
-                  <Table.Td>{a.seq}</Table.Td>
+                {/* the number is the toggle (a button: keyboard and screen readers); a click on the row works too */}
+                <Table.Tr className="clickable" onClick={() => toggle(a.seq)} data-testid="audit-row">
+                  <Table.Td>
+                    <UnstyledButton
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggle(a.seq);
+                      }}
+                      aria-expanded={open.has(a.seq)}
+                      aria-controls={open.has(a.seq) ? `audit-entry-${a.seq}` : undefined}
+                      aria-label={t('table.details', { seq: a.seq })}
+                      mih={24}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}
+                      data-testid="audit-row-toggle"
+                    >
+                      {open.has(a.seq) ? <IconChevronDown size={14} aria-hidden /> : <IconChevronRight size={14} aria-hidden />}
+                      {a.seq}
+                    </UnstyledButton>
+                  </Table.Td>
                   <Table.Td className="nowrap">{fmtDate(a.ts)}</Table.Td>
                   <Table.Td>{a.actor}</Table.Td>
                   <Table.Td className="mono nowrap">{a.action}</Table.Td>
@@ -193,15 +217,13 @@ export function AuditPage() {
                     )}
                   </Table.Td>
                 </Table.Tr>
-                {open === a.seq && (
-                  <Table.Tr>
+                {open.has(a.seq) && (
+                  <Table.Tr id={`audit-entry-${a.seq}`} data-testid="audit-row-details">
                     <Table.Td colSpan={5}>
-                      <Collapse expanded>
-                        <Text size="xs" c="dimmed" className="mono" mb={4}>
-                          {t('table.hash', { hash: a.hash })}
-                        </Text>
-                        {a.details != null && <JsonView value={a.details} maxHeight={240} />}
-                      </Collapse>
+                      <Text size="xs" c="dimmed" className="mono" mb={4}>
+                        {t('table.hash', { hash: a.hash })}
+                      </Text>
+                      {a.details != null && <JsonView value={a.details} maxHeight={240} />}
                     </Table.Td>
                   </Table.Tr>
                 )}
