@@ -38,6 +38,10 @@ export const NOT_MOVED: Record<string, string> = {
   aws_account_cache: 'a cache of what Steward read from AWS accounts (read again on the target)',
   mcp_requests: 'short-lived requests of MCP clients waiting for a person (they expire after 24 hours)',
   plant_proposals: 'plant registry changes proposed by AI assistants (0.12.0): they belong to their MCP requests, which are not moved',
+  // 0.13.0 (ADR 0020): open change sets are not moved, as MCP requests are not; the history and the import baselines are
+  plant_change_sets: 'plant change sets (0.13.0): drafts and proposals belong to this instance (as MCP requests); the history of their entries is moved',
+  plant_change_ops: 'the operations of plant change sets (not moved, as their change sets)',
+  plant_change_sources: 'the documents of plant change sets (not moved, as their change sets)',
   status_pages: 'status pages name services by id and carry the secret of their public link: set them up again on the target',
   mqtt_topics: 'when an MQTT topic last had a message and how many (read again from the broker)',
   eol_notices: 'send bookkeeping of the source (a component past its end of life is reported again on the target)',
@@ -204,6 +208,9 @@ export const HISTORY_COLUMNS: string[] = [
   'plant_collection_sources.imported_by',
   // old ids of renamed plant entries (0.11.0)
   'plant_id_aliases.renamed_by',
+  // the history of plant entries (0.13.0): who wrote a change and who applied it
+  'plant_entry_history.author',
+  'plant_entry_history.applied_by',
   'access_checks.updated_by',
   'application_components.created_by',
   'platform_recordings.created_by',

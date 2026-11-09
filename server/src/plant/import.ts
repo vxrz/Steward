@@ -103,6 +103,8 @@ export const importInput = z
     removeMissing: z.boolean().default(false),
     /** 0.11.0: removals take what belongs to an entry along (otherwise such an entry is refused) */
     cascade: z.boolean().default(false),
+    /** 0.13.0: the preview's fingerprint – a different result is refused (PLANT_IMPORT_CHANGED); without it (scripts) the import applies as before */
+    fingerprint: z.string().trim().max(80).optional(),
   })
   .strict();
 export type ImportInput = z.infer<typeof importInput>;

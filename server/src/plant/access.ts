@@ -17,14 +17,15 @@ import { parseJson } from '../util.js';
  *   manage it.
  */
 export const DEFAULT_PLANT: Record<Role, PlantPermission[]> = {
-  admin: ['view', 'manage'],
-  designer: ['view', 'manage'],
-  operator: ['view'],
-  approver: ['view'],
+  admin: ['view', 'propose', 'manage'],
+  designer: ['view', 'propose', 'manage'],
+  // 0.13.0: who knows the data best may keep drafts and propose changes (ADR 0020, owner decision 1) – never apply them
+  operator: ['view', 'propose'],
+  approver: ['view', 'propose'],
   auditor: ['view'],
   viewer: ['view'],
   status: [],
-  plant: ['view'],
+  plant: ['view', 'propose'],
 };
 
 /** Who may add sites (and import files with new sites). */
@@ -36,14 +37,47 @@ export function siteAccess(
 ): { permissions: PlantPermission[]; reasons: AccessReason[] } {
   const acl = typeof s.acl === 'string' ? parseJson<AclEntry<PlantPermission>[]>(s.acl, []) : s.acl;
   const d = decide(u, { kind: 'site', id: s.id, acl }, PLANT_PERMISSIONS, DEFAULT_PLANT, 'view');
-  // managing a site includes seeing it
-  if (d.permissions.includes('manage') && !d.permissions.includes('view')) d.permissions = [...PLANT_PERMISSIONS];
+  // managing a site includes seeing it and proposing changes; proposing includes seeing it
+  if (d.permissions.includes('manage')) d.permissions = [...PLANT_PERMISSIONS];
+  else if (d.permissions.includes('propose') && !d.permissions.includes('view')) d.permissions = ['view', 'propose'];
+  // a proposer's dry run (the preview of their draft): they may do what they propose, in a transaction rolled back
+  if (proposerElevation > 0 && d.permissions.includes('propose') && !d.permissions.includes('manage')) d.permissions = [...PLANT_PERMISSIONS];
   return d;
 }
 
 export const sitePermissions = (s: { id: string; acl: string }, u: AuthUser | null = currentUser()): PlantPermission[] => siteAccess(u, s).permissions;
 
-export const canCreateSites = (u: AuthUser | null = currentUser()): boolean => hasRole(u, SITE_CREATORS);
+export const canCreateSites = (u: AuthUser | null = currentUser()): boolean => hasRole(u, SITE_CREATORS) || (proposerElevation > 0 && plantProposesSome(u));
+
+/**
+ * A proposer's preview (0.13.0, change sets): what their draft would do is computed with the rights they propose with
+ * – inside a transaction that is always rolled back (asProposer refuses to run outside one). Nothing is ever written
+ * with these rights: applying runs as the person who applies, with their own rights.
+ */
+let proposerElevation = 0;
+export function asProposer<T>(fn: () => T): T {
+  if (!db().inTransaction) throw new Error('asProposer runs only inside a transaction that is rolled back (dryRun)');
+  proposerElevation++;
+  try {
+    return fn();
+  } finally {
+    proposerElevation--;
+  }
+}
+
+/** Whether someone may keep drafts and propose changes: the propose right on some site (or on any site they may add). */
+export function plantProposesSome(u: AuthUser | null = currentUser()): boolean {
+  if (hasRole(u, SITE_CREATORS)) return true;
+  const saved = proposerElevation;
+  proposerElevation = 0;
+  try {
+    return db()
+      .all<{ id: string; acl: string }>('SELECT id, acl FROM plant_sites')
+      .some((r) => sitePermissions(r, u).includes('propose'));
+  } finally {
+    proposerElevation = saved;
+  }
+}
 
 /**
  * Who manages the catalogues of part 2 (#219) – device profiles and KPI definitions, which belong to no site: whoever

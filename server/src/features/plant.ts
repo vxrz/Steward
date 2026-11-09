@@ -4,7 +4,7 @@ import { PLANT_LINK_KINDS } from '../plant/links.js';
 import { PLANT_MIGRATIONS } from '../migrations/plant.js';
 import { plantReadTools } from '../plant/mcp.js';
 import { plantProposalTools } from '../plant/proposals.js';
-import { defineFeature } from './define.js';
+import { MINUTE, defineFeature } from './define.js';
 
 /** The plant registry (#218, opt-in): sites, assets, their network and map. Its routes answer 404 while it is off. */
 export default defineFeature({
@@ -16,4 +16,14 @@ export default defineFeature({
   // 0.12.0: read tools and proposals for AI assistants (docs/MCP.md); not listed while the module is off
   mcpTools: [...plantReadTools, ...plantProposalTools],
   migrations: [PLANT_MIGRATIONS],
+  jobs: [
+    // 0.13.0 (ADR 0020): open change sets expire; closed ones go after 90 days, the history of removed entries after 3 years
+    {
+      name: 'plant-changes',
+      intervalMs: 24 * 60 * MINUTE,
+      firstRunAfterMs: 10 * MINUTE,
+      timeoutMs: 10 * MINUTE,
+      run: () => import('../plant/changesets/core.js').then((m) => m.cleanUpChangeSets()),
+    },
+  ],
 });

@@ -127,6 +127,10 @@ const summaryOf = (
     canManage: perms.includes('manage'),
     importId: r.import_id,
     notInSource: !!r.not_in_source,
+    revision: Number(r.revision ?? 1),
+    // 0.13.0: the site's switch "Changes need a second person" (plant.changeSet optional)
+    review: Number((r as SiteRow & { review?: number }).review ?? 0) === 1,
+    canPropose: perms.includes('propose'),
     updatedAt: r.updated_at,
   };
 };
@@ -160,7 +164,8 @@ export function getSite(id: string): PlantSiteDetail {
     areas: nodeTree(index, placed),
     buildings: buildingList(index, assets),
     acl: perms.includes('manage') ? parseJson<AclEntry<PlantPermission>[]>(row.acl, []) : null,
-    permissions: perms,
+    // as before 0.13: view and manage (the propose right is canPropose – clients that compare the list keep working)
+    permissions: perms.filter((x) => x !== 'propose'),
     links: listLinks('site', id),
     backlinks: listBacklinks('site', id),
     createdAt: row.created_at,
@@ -607,6 +612,7 @@ function summary(a: AssetRow, site: SiteRow, index: SiteIndex | undefined, child
     hasImage,
     importId: a.import_id,
     notInSource: !!a.not_in_source,
+    revision: Number(a.revision ?? 1),
     updatedAt: a.updated_at,
   };
 }
@@ -652,6 +658,9 @@ export function getAsset(id: string): PlantAssetDetail {
     parent: parent ? assetRef(parent, rights) : null,
     children: children.map((c) => assetRef(c, rights)),
     canManage: perms.includes('manage'),
+    // 0.13.0: may keep drafts of changes to it; its site's switch "Changes need a second person"
+    canPropose: perms.includes('propose'),
+    siteReview: Number((site as SiteRow & { review?: number }).review ?? 0) === 1,
     links: listLinks('asset', id),
     backlinks: listBacklinks('asset', id),
     createdAt: row.created_at,

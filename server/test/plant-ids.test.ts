@@ -185,8 +185,43 @@ describe('the registry of reference columns', () => {
     plant_proposals: ['id', 'title', 'document', 'sha256', 'preview', 'fingerprint'],
     // written by the rename core itself (ids.ts writeAlias)
     plant_id_aliases: ['kind', 'old_id', 'new_id', 'renamed_at'],
+    // 0.13.0: change sets (ADR 0020) – a site's switch; the change sets, their operations and documents; the history and
+    // the import baselines (their entry columns are in REFERENCES; operations' values name ids as a file does and are
+    // read through the aliases when applied)
+    plant_change_sets: [
+      'id',
+      'state',
+      'source',
+      'title',
+      'authors',
+      'catalogue',
+      'current_of',
+      'mcp_request_id',
+      'import_id',
+      'reverts',
+      'copied_from',
+      'preview',
+      'fingerprint',
+      'resolutions',
+      'counts',
+      'bytes',
+      'review',
+      'proposed_at',
+      'proposed_by',
+      'decided_at',
+      'decided_by',
+      'comment',
+      'expires_at',
+      'ops_sha256',
+      'history_sha256',
+    ],
+    plant_change_ops: ['change_set_id', 'seq', 'op', 'kind', 'name', 'origin', 'author', 'base_revision', 'base', 'value'],
+    plant_change_sources: ['change_set_id', 'seq', 'content', 'sha256'],
+    plant_entry_history: ['id', 'kind', 'revision', 'change_set_id', 'op', 'at', 'author', 'applied_by', 'before_values', 'after_values', 'removed_at'],
+    plant_import_baselines: ['kind', 'field_values'],
   };
-  const SOURCE = ['import_id', 'not_in_source', 'created_at', 'created_by', 'updated_at', 'updated_by', 'renamed_by'];
+  // 0.13.0: every entry's revision; a site's switch "Changes need a second person"
+  const SOURCE = ['import_id', 'not_in_source', 'created_at', 'created_by', 'updated_at', 'updated_by', 'renamed_by', 'revision', 'review'];
   /**
    * Tables outside the module with a kind column (polymorphic references) that never hold a plant kind – the ones
    * that do are in REFERENCES (item_links, resource_teams, copied_from, plant_refs; credentials' used_by by its JSON).
@@ -215,6 +250,7 @@ describe('the registry of reference columns', () => {
     systems: 'the system kind',
     maintenance_targets: 'MAINTENANCE_TARGET_KINDS: platforms, systems, applications, services, monitors',
     maintenance_notices: 'a notice kind',
+    maintenance_windows: 'a window kind (maintenance, planned downtime)',
     stack_version_watch: 'applications and systems',
     service_duties: 'an interval',
     duty_periods: 'an interval',

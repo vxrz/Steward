@@ -110,6 +110,7 @@ export function getAssignment(assetId: string): PlantAssignmentView {
     canManage: perms.includes('manage'),
     importId: r?.import_id ?? null,
     notInSource: !!r?.not_in_source,
+    ...(r ? { revision: Number(r.revision ?? 1) } : {}),
     updatedAt: r?.updated_at ?? null,
     updatedBy: r?.updated_by ?? null,
   };
