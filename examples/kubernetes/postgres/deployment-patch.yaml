@@ -8,10 +8,21 @@ metadata:
 spec:
   template:
     spec:
+      # The same as in ../deployment.yaml: repeated so that the patch read on its own (by a scanner) asks for no root
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: steward
           securityContext:
             runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
           env:
             - name: SM_DATABASE_URL_FILE
               value: /run/secrets/steward-database/url
