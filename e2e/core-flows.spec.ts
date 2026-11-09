@@ -297,8 +297,21 @@ test.describe('the demo shows the service half (U5)', () => {
     const counts = card.getByTestId('failed-checks-counts');
     const t = (await title.boundingBox())!;
     const c = (await counts.boundingBox())!;
-    // one line for the title, the counts below it starting at the title's left edge
-    expect(t.height).toBeLessThan(30);
+    // one line for the title (counted from its text, not its height: the toggle button around it has a 24 px target),
+    // the counts below it starting at the title's left edge
+    const titleLines = await title.evaluate((el) => {
+      // the line boxes of the heading's text only (its chevron icon sits at another height)
+      const tops: number[] = [];
+      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+      for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+        if (!n.textContent?.trim()) continue;
+        const range = document.createRange();
+        range.selectNodeContents(n);
+        for (const r of range.getClientRects()) if (r.width > 0 && !tops.some((y) => Math.abs(y - r.top) < 4)) tops.push(r.top);
+      }
+      return tops.length;
+    });
+    expect(titleLines).toBe(1);
     expect(c.y).toBeGreaterThanOrEqual(t.y + t.height - 2);
     expect(Math.abs(c.x - t.x)).toBeLessThan(4);
     await expectNoHorizontalScroll(page);
