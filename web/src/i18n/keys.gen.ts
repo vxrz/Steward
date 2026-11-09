@@ -4355,6 +4355,10 @@ export interface Resources {
     'codes.MONITOR_NOT_FOUND': string;
     'codes.MONITOR_INVALID': string;
     'codes.MONITOR_KEY_INVALID': string;
+    'codes.STATES_CYCLE': string;
+    'codes.STATES_LEADER_NOT_FOUND': string;
+    'codes.STATES_LEADER_REQUIRED': string;
+    'codes.STATES_LEADER_TEMPLATE': string;
     'codes.MONITOR_KEY_RESERVED': string;
     'codes.MONITOR_KEY_USED': string;
     'codes.MONITOR_TEMPLATE_SWITCH': string;
@@ -8727,6 +8731,24 @@ export interface Resources {
     'extract.problems.no_points': string;
     'extract.problems.base_taken': string;
     'extract.problems.rules': string;
+    'extract.interfaces': string;
+    'extract.interfacesHelp': string;
+    'extract.interfaceId': string;
+    'extract.mixed': string;
+    'anyOf.profiles': string;
+    'anyOf.profilesHelp': string;
+    'anyOf.dataPoints': string;
+    'anyOf.mapping': string;
+    'anyOf.mappingHelp': string;
+    'anyOf.inputPoint': string;
+    'anyOf.pointIn': string;
+    'anyOf.missing': string;
+    'anyOf.anyOfThese': string;
+    'anyOf.mappedIn': string;
+    'rollUp.label': string;
+    'rollUp.help': string;
+    'rollUp.badge': string;
+    'protocolOther.help': string;
   };
   plantNetwork: {
     title: string;
@@ -9310,6 +9332,10 @@ export interface Resources {
     'coverage.cannotWith': string;
     'coverage.openMatrix': string;
     'coverage.exportTitle': string;
+    'coverage.via': string;
+    'coverage.viaHint': string;
+    'coverage.rolledUp': string;
+    'coverage.rolledUpHint': string;
     'explore.coverage': string;
     'tiles.coverage': string;
     'tiles.coverageHint': string;
@@ -9318,6 +9344,8 @@ export interface Resources {
     'tiles.structure': string;
     'tiles.coverageLink': string;
     'tiles.title': string;
+    'tiles.potential': string;
+    'tiles.potentialHint': string;
     'info.hint': string;
     'network.title': string;
     'network.help': string;
