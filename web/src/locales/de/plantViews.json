@@ -308,7 +308,9 @@
     "checks_other": "{{count}} offene Prüfungen",
     "structure": "Struktur",
     "coverageLink": "KPI-Abdeckung",
-    "title": "Überblick"
+    "title": "Überblick",
+    "potential": "{{ready}} bereit · {{collect}} brauchen eine Erfassung",
+    "potentialHint": "KPI-Potenzial: von den KPIs, die die Anlagen des Standorts haben könnten, diejenigen, deren Daten eine Datenerfassung bereits zuordnet (bereit für einen Job), und diejenigen, die zuerst eine Datenerfassung brauchen."
   },
   "info": {
     "hint": "Zeigen Sie auf eine Anlage, ein VLAN oder eine Zone, um ihre Geräte, Subnetze und VLANs zu sehen."

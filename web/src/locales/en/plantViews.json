@@ -308,7 +308,9 @@
     "checks_other": "{{count}} open checks",
     "structure": "Structure",
     "coverageLink": "KPI coverage",
-    "title": "Overview"
+    "title": "Overview",
+    "potential": "{{ready}} ready · {{collect}} need a collection",
+    "potentialHint": "KPI potential: of the KPIs the site’s assets could have, those whose data a data collection maps already (ready for a job) and those that need a data collection first."
   },
   "info": {
     "hint": "Point at an asset, a VLAN or a zone to see its devices, subnets and VLANs."
