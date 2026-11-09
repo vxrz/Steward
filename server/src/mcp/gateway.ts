@@ -16,9 +16,20 @@
  *   cannot starve runs and monitors of the platform's connection slots;
  * - every call (and every refusal) is written to the audit log, with control characters escaped.
  */
-import { defaultIdentityRows, parseMcp } from '../platforms/identities.js';
+import { allIdentityRows, parseMcp } from '../platforms/identities.js';
+import { allowedOperations } from '../platforms/operationFilter.js';
 import { z } from 'zod';
-import { boundedRecord, DATABASE_KIND, DB_CATALOGS, DB_LIMITS, MCP_REQUEST_LIMITS, type ApiOperation, type McpWriteMode, type Platform } from '@sm/shared';
+import {
+  boundedRecord,
+  DATABASE_KIND,
+  DB_CATALOGS,
+  DB_LIMITS,
+  MCP_REQUEST_LIMITS,
+  type ApiOperation,
+  type McpWriteMode,
+  type Platform,
+  type PlatformIdentity,
+} from '@sm/shared';
 import { audit } from '../audit.js';
 import { logger } from '../log.js';
 import * as platforms from '../platforms/service.js';
@@ -59,13 +70,20 @@ function gatewaySemaphore(p: Platform): Semaphore {
  * only as a request a person approves in Steward first (the token owner, or a second person) – never directly.
  */
 export function writeDecision(platform: Platform, op: { method: string }): { allowed: boolean; mode: McpWriteMode; reason: string } {
+  // the identity the call uses (0.13.0, ADR 0009): its MCP mode decides; a plain platform object stands for its default identity
+  const identity = identityOf(platform);
+  const configured: McpWriteMode = identity
+    ? identity.mcp.mode === 'writes'
+      ? (identity.mcp.writes ?? 'off')
+      : 'off'
+    : (platform.config.mcpGateway?.writes ?? 'off');
   // the assurance policy can require a second person for every platform (mcp.write): "confirm" becomes "fourEyes"
-  const mode = effectiveMcpMode(platform.config.mcpGateway?.writes ?? 'off');
+  const mode = effectiveMcpMode(configured);
   if (mode === 'off')
     return {
       allowed: false,
       mode,
-      reason: `${op.method} operations are not available through MCP on "${platform.name}": its gateway is read-only (GET and HEAD only)`,
+      reason: `${op.method} operations are not available through MCP on "${labelOf(platform)}": its gateway is read-only (GET and HEAD only)`,
     };
   return {
     allowed: true,
@@ -79,17 +97,48 @@ export function writeDecision(platform: Platform, op: { method: string }): { all
 
 // ---------- platforms and operations ----------
 
-/** A gateway-enabled platform the token owner may use; anything else looks like "not found" (no probing). */
-function gatewayPlatform(id: string): Platform {
+/** A platform as the gateway uses it: with the identity the call goes through (0.13.0, ADR 0009). */
+export type GatewayPlatform = Platform & { mcpIdentity?: PlatformIdentity };
+
+/** The identity a gateway platform object stands for: the one chosen, else the platform's default identity. */
+export function identityOf(p: Platform): PlatformIdentity | undefined {
+  return (p as GatewayPlatform).mcpIdentity ?? p.identities?.find((i) => i.default);
+}
+
+/** "Snowflake · Read only" where a platform has more than one identity, else the platform's name. */
+export function labelOf(p: Platform): string {
+  const i = identityOf(p);
+  return i && (p.identities?.length ?? 0) > 1 ? `${p.name} · ${i.name}` : p.name;
+}
+
+/** The identities of a platform the token owner may use over MCP (mode not off). */
+export function mcpIdentities(p: Platform): PlatformIdentity[] {
+  return p.permissions.includes('use') ? (p.identities ?? []).filter((i) => i.mayUse && i.mcp.mode !== 'off') : [];
+}
+
+/**
+ * A platform whose gateway is open to the token owner, with the identity the call uses (0.13.0, ADR 0009): the one the
+ * client names (`identity`: its name or id) or – without one – the default identity. The owner must be allowed to use it
+ * and its MCP mode must not be off. Anything else looks like "not found" (no probing).
+ */
+function gatewayPlatform(id: string, identityRef?: string): GatewayPlatform {
   let p: Platform;
   try {
     p = platforms.getPlatform(id);
   } catch {
     throw new ToolError(`Platform ${id} not found, or not open to MCP clients for you. ${GATEWAY_HINT}`);
   }
-  if (!p.config.mcpGateway?.enabled || !p.permissions.includes('use'))
-    throw new ToolError(`Platform ${id} not found, or not open to MCP clients for you. ${GATEWAY_HINT}`);
-  return p;
+  const open = mcpIdentities(p);
+  const ref = identityRef?.trim();
+  const identity = ref ? (open.find((i) => i.id === ref) ?? open.find((i) => i.name.toLowerCase() === ref.toLowerCase())) : open.find((i) => i.default);
+  if (!identity) {
+    if (!ref && open.length)
+      throw new ToolError(
+        `The default identity of platform ${id} is not open to MCP clients – name one with \`identity\`: ${open.map((i) => JSON.stringify(i.name)).join(', ')}`,
+      );
+    throw new ToolError(`Platform ${id}${ref ? ` (identity "${auditText(ref, 100)}")` : ''} not found, or not open to MCP clients for you. ${GATEWAY_HINT}`);
+  }
+  return { ...p, mcpIdentity: identity };
 }
 
 /**
@@ -100,10 +149,10 @@ function gatewayPlatform(id: string): Platform {
 const GATEWAY_HINT =
   "list_platforms shows the platforms with mcpGateway: true. A platform's managers turn it on under Platform → MCP (Allow access for MCP clients), and the token owner needs the use right on the platform.";
 
-/** Whether the current token owner may use the gateway of at least one platform. */
+/** Whether the current token owner may use the gateway of at least one platform (through one of its identities). */
 export function anyGatewayPlatform(): boolean {
   try {
-    return platforms.listPlatforms().some((p) => p.config.mcpGateway?.enabled && p.permissions.includes('use'));
+    return platforms.listPlatforms().some((p) => mcpIdentities(p).length > 0);
   } catch {
     return false;
   }
@@ -314,8 +363,9 @@ export function auditCall(
       action: e.outcome === 'ok' || e.outcome === 'http_error' ? 'mcp.gateway_call' : 'mcp.gateway_refused',
       entityType: 'platform',
       entityId: p.id,
-      summary: `MCP gateway: ${auditText(e.method, 10)} ${auditText(e.pathTemplate)} on "${p.name}" → ${e.status ? `HTTP ${e.status}` : e.outcome}${e.reason ? ` (${auditText(e.reason, 160)})` : ''}`,
+      summary: `MCP gateway: ${auditText(e.method, 10)} ${auditText(e.pathTemplate)} on "${labelOf(p)}" → ${e.status ? `HTTP ${e.status}` : e.outcome}${e.reason ? ` (${auditText(e.reason, 160)})` : ''}`,
       details: {
+        ...(identityOf(p) ? { identityId: identityOf(p)!.id, identityName: identityOf(p)!.name } : {}),
         operationId: e.operation === null ? null : auditText(e.operation, 600),
         method: auditText(e.method, 10),
         pathTemplate: auditText(e.pathTemplate),
@@ -338,6 +388,14 @@ export function auditCall(
 // ---------- the tools ----------
 
 const platformArg = z.string().min(1).max(200).describe('Platform id (from list_platforms; the MCP gateway must be on for it)');
+const identityArg = z
+  .string()
+  .min(1)
+  .max(200)
+  .optional()
+  .describe(
+    "Name of one of the platform's identities open to you over MCP (list_platforms shows them). Without it: the default identity – a changing call only where that allows changing calls",
+  );
 const scalar = z.union([z.string().max(2000), z.number(), z.boolean()]);
 
 export const gatewayTools: ToolDef[] = [
@@ -349,6 +407,7 @@ export const gatewayTools: ToolDef[] = [
     input: z
       .object({
         platformId: platformArg,
+        identity: identityArg,
         query: z.string().max(200).optional().describe('Words that must all appear (case-insensitive) in operation id, path, summary, tag or description'),
         tag: z.string().max(100).optional(),
         cursor: cursorArg,
@@ -357,9 +416,10 @@ export const gatewayTools: ToolDef[] = [
       .strict(),
     gateway: true,
     handler: (a) => {
-      const p = gatewayPlatform(a.platformId);
-      const all = platforms.listOperations(p.id);
-      const writes = effectiveMcpMode(p.config.mcpGateway?.writes ?? 'off');
+      const p = gatewayPlatform(a.platformId, a.identity);
+      // only the operations the identity's read-only flag and operation filter allow (0.13.0, ADR 0009)
+      const all = allowedForIdentity(p, platforms.listOperations(p.id));
+      const writes = writeDecision(p, { method: 'POST' }).mode;
       const read = all.filter((o) => READ_METHODS.has(o.method) || writes !== 'off');
       const words = (a.query ?? '').toLowerCase().split(/\s+/).filter(Boolean);
       const hits = read
@@ -378,7 +438,7 @@ export const gatewayTools: ToolDef[] = [
         }));
       const page = pageArray(hits, (o) => [o.path, o.method, o.operation], a, { platformId: p.id, query: a.query, tag: a.tag });
       return {
-        platform: { id: p.id, name: p.name },
+        platform: { id: p.id, name: p.name, ...(p.mcpIdentity ? { identity: p.mcpIdentity.name } : {}) },
         ...page,
         totalMatches: hits.length,
         writeOperationsHidden: all.length - read.length,
@@ -400,12 +460,13 @@ export const gatewayTools: ToolDef[] = [
     input: z
       .object({
         platformId: platformArg,
+        identity: identityArg,
         operation: z.string().min(1).max(600).describe('`operation` from platform_find_operations: an operationId or "GET /path/{param}"'),
       })
       .strict(),
     gateway: true,
     handler: (a) => {
-      const p = gatewayPlatform(a.platformId);
+      const p = gatewayPlatform(a.platformId, a.identity);
       const op = findOperation(p.id, a.operation);
       const doc = specDoc(op.specId);
       const decision = READ_METHODS.has(op.method) ? { allowed: true, mode: 'off' as const, reason: '' } : writeDecision(p, op);
@@ -440,6 +501,7 @@ export const gatewayTools: ToolDef[] = [
     input: z
       .object({
         platformId: platformArg,
+        identity: identityArg,
         operation: z.string().min(1).max(600).optional().describe('`operation` from platform_find_operations'),
         path: z.string().min(1).max(2000).optional().describe('Literal path below one of the allowed path prefixes (platforms without a specification)'),
         pathParams: boundedRecord(scalar, 50).optional().describe('Values for the {placeholders} of the operation path'),
@@ -468,7 +530,7 @@ export const gatewayTools: ToolDef[] = [
     gateway: true,
     asks: true,
     handler: async (a, ctx) => {
-      const p = gatewayPlatform(a.platformId);
+      const p = gatewayPlatform(a.platformId, a.identity);
       let op: ApiOperation | null = null;
       let method: string = a.method ?? 'GET';
       let pathTemplate = '';
@@ -522,6 +584,16 @@ export const gatewayTools: ToolDef[] = [
         return refuse('invalid_request', (e as Error).message);
       }
 
+      // the identity's read-only flag and operation filter (0.13.0, ADR 0009): refused before anything is asked or sent
+      try {
+        const c = platforms.getConnection(p.id, p.mcpIdentity?.id);
+        const { assertIdentityAllows } = await import('../platforms/identityGuard.js');
+        const base = await resolveBaseUrl(c.platform, c.secrets).catch(() => '');
+        await assertIdentityAllows(c.platform, c.secrets, { method, url: base + path, baseUrl: base });
+      } catch (e) {
+        if (e instanceof ToolError) throw e;
+        return refuse('identity_refused', (e as Error).message);
+      }
       if (!READ_METHODS.has(method)) {
         // a changing call (#11): it waits for a person in Steward; nothing is sent now
         return createGatewayRequest(ctx, p, {
@@ -553,6 +625,7 @@ gatewayTools.push(
     input: z
       .object({
         platformId: platformArg,
+        identity: identityArg,
         sql: z.string().min(1).max(DB_LIMITS.sqlChars).optional().describe('One SELECT or WITH … SELECT'),
         catalog: z.enum(DB_CATALOGS).optional().describe('A catalog query instead of sql'),
         params: z
@@ -565,7 +638,7 @@ gatewayTools.push(
       .refine((x) => !!x.sql !== !!x.catalog, 'Give either `sql` or `catalog`'),
     gateway: true,
     handler: async (a, ctx) => {
-      const p = gatewayPlatform(a.platformId);
+      const p = gatewayPlatform(a.platformId, a.identity);
       const who = callerOf(ctx);
       const what = a.catalog ? `catalog:${a.catalog}` : auditText(a.sql ?? '', 2000);
       const record = (outcome: string, durationMs: number, reason?: string) =>
@@ -576,8 +649,8 @@ gatewayTools.push(
         throw new ToolError(`Rate limit of ${rate.limit} gateway calls per minute for this platform reached – retry after ${rate.retryAfterSeconds} s`);
       let secrets: Record<string, string>;
       try {
-        // the default identity (ADR 0009: naming another one with the identity argument comes in step 2)
-        secrets = platforms.getConnection(p.id).secrets;
+        // the identity named with `identity` (0.13.0, ADR 0009), else the default identity
+        secrets = platforms.getConnection(p.id, p.mcpIdentity?.id).secrets;
       } catch (e) {
         record('refused', 0, (e as Error).message);
         throw new ToolError((e as Error).message);
@@ -592,7 +665,7 @@ gatewayTools.push(
         const signal = AbortSignal.any([ctx.signal, AbortSignal.timeout(GATEWAY_TIMEOUT_MS)]);
         release = await gatewaySemaphore(p).acquire(signal);
         out = await runQuery(
-          p,
+          platforms.getConnection(p.id, p.mcpIdentity?.id).platform,
           secrets,
           { sql: a.sql, catalog: a.catalog, params: a.params ?? [], limits: { maxRows: MCP_DB_ROWS, maxMb: MCP_DB_MB, onLimit: 'truncate' } },
           signal,
@@ -651,9 +724,13 @@ export async function executeGatewayCall(p: Platform, who: GatewayCaller, userId
     throw new ToolError(`Rate limit of ${rate.limit} gateway calls per minute for this platform reached – retry after ${rate.retryAfterSeconds} s`);
 
   let secrets: Record<string, string>;
+  let connected: Platform;
   try {
-    // the default identity (ADR 0009); refused when the platform or the identity was changed outside Steward
-    secrets = platforms.getConnection(p.id).secrets;
+    // the identity of the call (0.13.0, ADR 0009; default: the default identity); refused when the platform or the
+    // identity was changed outside Steward
+    const c = platforms.getConnection(p.id, identityOf(p)?.id);
+    secrets = c.secrets;
+    connected = c.platform;
   } catch (e) {
     return refuseCall('refused', (e as Error).message);
   }
@@ -680,7 +757,7 @@ export async function executeGatewayCall(p: Platform, who: GatewayCaller, userId
   try {
     release = await gatewaySemaphore(p).acquire(signal);
     res = await platformRequest(
-      p,
+      connected,
       secrets,
       {
         method,
@@ -737,7 +814,19 @@ export async function executeGatewayCall(p: Platform, who: GatewayCaller, userId
   };
 }
 
-/** Gateway enabled-platform count for the status page (the mode is on the default identity, ADR 0009). */
+/** Gateway enabled-platform count for the status page: platforms with at least one identity open to MCP (ADR 0009). */
 export function gatewayPlatformCount(): number {
-  return [...defaultIdentityRows().values()].filter((i) => parseMcp(i.mcp).mode !== 'off').length;
+  return [...allIdentityRows().values()].filter((list) => list.some((i) => parseMcp(i.mcp).mode !== 'off')).length;
+}
+
+/**
+ * The operations an identity may call (0.13.0, ADR 0009): its operation filter's, and of a read-only identity only GET and
+ * HEAD – plus changing operations the filter chose one by one.
+ */
+export function allowedForIdentity(p: Platform, ops: ApiOperation[]): ApiOperation[] {
+  const i = identityOf(p);
+  if (!i || (!i.readOnly && !i.operationFilter)) return ops;
+  const allowed = i.operationFilter ? allowedOperations(i.operationFilter, ops) : new Set(ops);
+  const chosen = i.operationFilter ? allowedOperations({ preset: 'chosen', operations: i.operationFilter.operations }, ops) : new Set<ApiOperation>();
+  return ops.filter((o) => allowed.has(o) && (!i.readOnly || READ_METHODS.has(o.method) || chosen.has(o)));
 }

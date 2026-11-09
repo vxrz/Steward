@@ -20,7 +20,7 @@ import { logger } from '../log.js';
 import { config } from '../config.js';
 import { runAs, type AuthUser } from '../auth/context.js';
 import { isAdmin } from '../auth/permissions.js';
-import { effectiveMcpMode, noteFourEyes, samePerson } from '../auth/assurance.js';
+import { noteFourEyes, samePerson } from '../auth/assurance.js';
 import { findUserByName, listUsers, toAuthUser } from '../auth/users.js';
 import * as platforms from '../platforms/service.js';
 import { getProcess } from '../processes/service.js';
@@ -28,7 +28,7 @@ import { engine } from '../engine/index.js';
 import { startProblem } from '../engine/commands.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { ToolError, cap, defineTool, type ToolContext, type ToolDef } from './tooling.js';
-import { executeGatewayCall, writeDecision, type QueryValue } from './gateway.js';
+import { executeGatewayCall, writeDecision, type GatewayPlatform, type QueryValue } from './gateway.js';
 import { mcpRunRequests } from './config.js';
 import { t } from '../i18n/index.js';
 import { mcpCardParts } from '../msteams/cards.js';
@@ -56,6 +56,8 @@ export interface Row {
   created_at: string;
   expires_at: string;
   platform_id: string | null;
+  /** The platform identity of a gateway request (0.13.0, ADR 0009); null: the default identity */
+  identity_id?: string | null;
   operation: string | null;
   method: string | null;
   path: string | null;
@@ -121,11 +123,16 @@ const incomplete = (r: Row): boolean => {
 
 const same = (a: string | null | undefined, b: string | null | undefined) => !!a && !!b && a.toLowerCase() === b.toLowerCase();
 
-/** Whether `u` may use the platform (and so see what is asked of it). */
-function usesPlatform(u: AuthUser, platformId: string | null): boolean {
+/** Whether `u` may use the platform (and so see what is asked of it) – and the request's identity (0.13.0, ADR 0009). */
+function usesPlatform(u: AuthUser, platformId: string | null, identityId?: string | null): boolean {
   if (!platformId) return false;
   try {
-    return runAs(u, () => platforms.getPlatform(platformId).permissions.includes('use'));
+    return runAs(u, () => {
+      const p = platforms.getPlatform(platformId);
+      if (!p.permissions.includes('use')) return false;
+      const i = identityId ? p.identities?.find((x) => x.id === identityId) : p.identities?.find((x) => x.default);
+      return !p.identities?.length || !!i?.mayUse;
+    });
   } catch {
     return false;
   }
@@ -134,7 +141,8 @@ function usesPlatform(u: AuthUser, platformId: string | null): boolean {
 const isOpen = (r: Row) => r.status === 'pending' && r.expires_at > nowIso();
 /** fourEyes: an approver or administrator other than the token owner, who may use the platform */
 // (by identity: former names and a linked single sign-on identity are the token owner too, auth/assurance.ts)
-const secondPerson = (u: AuthUser, r: Row) => !samePerson(r.requested_by, u) && (isAdmin(u) || hasRole(u, ['approver'])) && usesPlatform(u, r.platform_id);
+const secondPerson = (u: AuthUser, r: Row) =>
+  !samePerson(r.requested_by, u) && (isAdmin(u) || hasRole(u, ['approver'])) && usesPlatform(u, r.platform_id, r.identity_id);
 const mayApprove = (u: AuthUser, r: Row) => {
   if (!isOpen(r)) return false;
   const review = reviewOf(r);
@@ -166,6 +174,8 @@ function toRequest(r: Row, u: AuthUser, detail = true): McpRequest {
     expiresAt: r.expires_at,
     platformId: r.platform_id,
     platformName: r.platform_id ? (platformName(u, r.platform_id) ?? null) : null,
+    identityId: r.identity_id ?? null,
+    identityName: r.platform_id && r.identity_id ? (identityName(u, r.platform_id, r.identity_id) ?? null) : null,
     operation: r.operation,
     method: r.method,
     path: r.path,
@@ -189,6 +199,14 @@ function toRequest(r: Row, u: AuthUser, detail = true): McpRequest {
     canApprove: mayApprove(u, r),
     canReject: mayReject(u, r),
   };
+}
+
+function identityName(u: AuthUser, platformId: string, identityId: string): string | undefined {
+  try {
+    return runAs(u, () => platforms.getPlatform(platformId).identities?.find((i) => i.id === identityId)?.name);
+  } catch {
+    return undefined;
+  }
 }
 
 function platformName(u: AuthUser, id: string): string | undefined {
@@ -286,8 +304,8 @@ function insert(r: Row): void {
   db().tx(() => {
     db().run(
       `INSERT INTO mcp_requests (id, kind, status, mode, requested_by, token_id, token_name, reason, created_at, expires_at, platform_id, operation, method, path,
-         path_template, query, body, process_id, process_name, inputs, dry_run, payload)
-       VALUES (?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         path_template, query, body, process_id, process_name, inputs, dry_run, payload, identity_id)
+       VALUES (?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       r.id,
       r.kind,
       r.mode,
@@ -309,6 +327,7 @@ function insert(r: Row): void {
       r.inputs,
       r.dry_run,
       r.payload,
+      r.identity_id ?? null,
     );
     audit({
       action: 'mcp.request_created',
@@ -320,6 +339,7 @@ function insert(r: Row): void {
         mode: r.mode,
         tokenId: r.token_id,
         platformId: r.platform_id,
+        ...(r.identity_id ? { identityId: r.identity_id } : {}),
         method: r.method,
         pathTemplate: r.path_template,
         processId: r.process_id,
@@ -456,6 +476,8 @@ export function createGatewayRequest(
   const r = base(ctx, 'gateway', d.mode as Row['mode'], c.reason);
   Object.assign(r, {
     platform_id: p.id,
+    // the identity of the call (0.13.0, ADR 0009): approval re-checks its rights, mode and flags
+    identity_id: (p as GatewayPlatform).mcpIdentity?.id ?? null,
     operation: c.operation,
     method: c.method,
     path: c.path,
@@ -699,15 +721,19 @@ async function execute(r: Row): Promise<{ status?: number; body?: unknown; runId
         });
         return { runId };
       }
-      let p: Platform;
+      let p: GatewayPlatform;
       try {
         p = platforms.getPlatform(r.platform_id!);
       } catch {
         return { error: 'The platform is gone, or the token owner may no longer use it' };
       }
-      if (!p.config.mcpGateway?.enabled || !p.permissions.includes('use'))
+      // the identity of the request (0.13.0, ADR 0009) – its rights, MCP mode and flags of now
+      const identity = r.identity_id ? p.identities?.find((i) => i.id === r.identity_id) : p.identities?.find((i) => i.default);
+      if (p.identities?.length && !identity) return { error: 'The identity of the request no longer exists' };
+      if (!p.permissions.includes('use') || (identity && (!identity.mayUse || identity.mcp.mode === 'off')) || (!identity && !p.config.mcpGateway?.enabled))
         return { error: 'The MCP gateway of the platform was turned off, or the token owner may no longer use it' };
-      const now = effectiveMcpMode(p.config.mcpGateway.writes ?? 'off');
+      if (identity) p = { ...p, mcpIdentity: identity };
+      const now = writeDecision(p, { method: r.method ?? 'POST' }).mode;
       if (now === 'off') return { error: 'Changing calls through MCP were turned off for this platform in the meantime' };
       if (now === 'fourEyes' && r.mode === 'confirm') return { error: 'The platform now needs a second person to approve changing calls – ask again' };
       const query = parseJson<Record<string, QueryValue>>(r.query, {});
