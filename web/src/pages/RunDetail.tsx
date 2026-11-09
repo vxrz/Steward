@@ -1,6 +1,24 @@
 import { memo, useMemo, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { Alert, Anchor, Badge, Button, Card, Collapse, Group, Image, Menu, Paper, SimpleGrid, Stack, Table, Tabs, Text, Tooltip } from '@mantine/core';
+import { useParams, Link, useLocation } from 'react-router-dom';
+import {
+  Alert,
+  Anchor,
+  Badge,
+  Button,
+  Card,
+  Collapse,
+  Group,
+  Image,
+  Menu,
+  Paper,
+  SimpleGrid,
+  Stack,
+  Table,
+  Tabs,
+  Text,
+  Tooltip,
+  UnstyledButton,
+} from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Trans, useTranslation } from 'react-i18next';
 import {
@@ -27,6 +45,8 @@ import { DecideFromLinkNotice, TaskPanel } from '../components/TaskPanel';
 import { RunDialog } from '../components/RunDialog';
 import { GenerateReportDialog, RunReportsPanel, canReport } from '../components/reports/RunReports';
 import { DetailHeader } from '../components/page/DetailPage';
+import { useCollapsible } from '../components/page/CollapsibleSection';
+import { ShowAll, useShowMore } from '../components/page/ShowAll';
 import { processKeys, runKeys } from '../queryKeys';
 import { useMe } from '../auth';
 
@@ -36,6 +56,8 @@ const STEP_PAGE = 500;
 const LOG_PAGE = 1000;
 /** Findings listed at the top of a run that completed with findings (all of them: the Checks tab). */
 const FINDINGS_SHOWN = 5;
+/** Failed steps whose details are open when the run is opened (a for-each can fail thousands of times). */
+const FAILED_OPEN = 20;
 
 export function RunDetailPage() {
   const { t } = useTranslation(['runs', 'common']);
@@ -43,8 +65,6 @@ export function RunDetailPage() {
   const { id } = useParams<{ id: string }>();
   const qc = useQueryClient();
   const [rerun, setRerun] = useState(false);
-  const [stepLimit, setStepLimit] = useState(STEP_PAGE);
-  const [logLimit, setLogLimit] = useState(LOG_PAGE);
   const [pdfOpen, setPdfOpen] = useState(false);
   const run = useQuery({
     queryKey: runKeys.detail(id),
@@ -73,6 +93,20 @@ export function RunDetailPage() {
     for (const c of run.data?.children ?? []) if (c.parentStepKey) m.set(c.parentStepKey, [...(m.get(c.parentStepKey) ?? []), c]);
     return m;
   }, [run.data?.children]);
+  const steps = useShowMore(run.data?.steps ?? [], STEP_PAGE, { page: STEP_PAGE });
+  const logs = useShowMore(run.data?.logs ?? [], LOG_PAGE, { page: LOG_PAGE });
+  // the details of failed steps start open (the first few), a link to #step-<id> opens that step
+  const openFailed = useMemo(
+    () =>
+      new Set(
+        (run.data?.steps ?? [])
+          .filter((s) => s.status === 'failed')
+          .slice(0, FAILED_OPEN)
+          .map((s) => s.id),
+      ),
+    [run.data?.steps],
+  );
+  const { hash } = useLocation();
   const r = run.data;
   if (!r) return <DetailState query={run} back="runs" />;
 
@@ -295,7 +329,7 @@ export function RunDetailPage() {
 
         {(r.children?.length ?? 0) > 0 && <ChildRuns runs={r.children!} />}
 
-        <Tabs defaultValue={r.reports.length ? 'reports' : 'timeline'} keepMounted={false}>
+        <Tabs defaultValue={r.reports.length && !hash.startsWith('#step-') ? 'reports' : 'timeline'} keepMounted={false}>
           <Tabs.List>
             <Tabs.Tab value="timeline">{t('detail.tabs.steps')}</Tabs.Tab>
             {r.reports.length > 0 && <Tabs.Tab value="reports">{t('detail.tabs.reports', { count: r.reports.length })}</Tabs.Tab>}
@@ -311,10 +345,14 @@ export function RunDetailPage() {
           <Tabs.Panel value="timeline" pt="sm">
             <Stack gap={4}>
               {r.steps.length === 0 && <Text c="dimmed">{t('detail.noSteps')}</Text>}
-              {r.steps.slice(0, stepLimit).map((s) => (
-                <StepRow key={s.id} runId={r.id} step={s} childRuns={childrenByStep.get(s.key)} />
+              {steps.items.map((s) => (
+                <StepRow key={s.id} runId={r.id} step={s} childRuns={childrenByStep.get(s.key)} defaultOpen={openFailed.has(s.id)} />
               ))}
-              <ShowMore shown={Math.min(stepLimit, r.steps.length)} total={r.steps.length} page={STEP_PAGE} what="steps" onShow={setStepLimit} />
+              <ShowAll
+                state={steps}
+                id="steps"
+                label={(shown, total) => t('detail.showMore.steps', { shown: fmtNumber(shown), count: total, total: fmtNumber(total) })}
+              />
             </Stack>
           </Tabs.Panel>
 
@@ -444,7 +482,7 @@ export function RunDetailPage() {
             <div className="table-scroll">
               <Table fz="sm" verticalSpacing={2}>
                 <Table.Tbody>
-                  {r.logs.slice(0, logLimit).map((l) => (
+                  {logs.items.map((l) => (
                     <Table.Tr key={l.id}>
                       <Table.Td className="nowrap mono">{fmtTime(l.ts)}</Table.Td>
                       <Table.Td>
@@ -466,7 +504,11 @@ export function RunDetailPage() {
                 </Table.Tbody>
               </Table>
             </div>
-            <ShowMore shown={Math.min(logLimit, r.logs.length)} total={r.logs.length} page={LOG_PAGE} what="logLines" onShow={setLogLimit} />
+            <ShowAll
+              state={logs}
+              id="log"
+              label={(shown, total) => t('detail.showMore.logLines', { shown: fmtNumber(shown), count: total, total: fmtNumber(total) })}
+            />
           </Tabs.Panel>
 
           <Tabs.Panel value="inputs" pt="sm">
@@ -525,36 +567,6 @@ export function RunDetailPage() {
   );
 }
 
-function ShowMore({
-  shown,
-  total,
-  page,
-  what,
-  onShow,
-}: {
-  shown: number;
-  total: number;
-  page: number;
-  what: 'steps' | 'logLines';
-  onShow: (limit: number) => void;
-}) {
-  const { t } = useTranslation('runs');
-  if (shown >= total) return null;
-  return (
-    <Group gap="xs" mt={4}>
-      <Text size="xs" c="dimmed">
-        {t(`detail.showMore.${what}`, { shown: fmtNumber(shown), count: total, total: fmtNumber(total) })}
-      </Text>
-      <Button size="compact-xs" variant="light" onClick={() => onShow(shown + page)}>
-        {t('detail.showMore.more', { count: Math.min(page, total - shown) })}
-      </Button>
-      <Button size="compact-xs" variant="subtle" onClick={() => onShow(Infinity)}>
-        {t('detail.showMore.all')}
-      </Button>
-    </Group>
-  );
-}
-
 /** One number of the run; `tone` (TONE / severity colour) marks it as needing attention. */
 function Stat({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: string }) {
   const color = tone && tone !== TONE.neutral ? `var(--mantine-color-${tone}-text)` : undefined;
@@ -610,10 +622,22 @@ function ChildRuns({ runs }: { runs: RunChild[] }) {
  * changed steps re-render), and the details are only mounted while open: Collapse keeps its
  * children mounted, which for thousands of steps meant thousands of hidden JSON views.
  */
-const StepRow = memo(function StepRow({ runId, step, childRuns }: { runId: string; step: RunStepRecord; childRuns?: RunChild[] }) {
+const StepRow = memo(function StepRow({
+  runId,
+  step,
+  childRuns,
+  defaultOpen,
+}: {
+  runId: string;
+  step: RunStepRecord;
+  childRuns?: RunChild[];
+  defaultOpen: boolean;
+}) {
   const { t } = useTranslation('runs');
   const { t: tDebug } = useTranslation('debug');
-  const [open, setOpen] = useState(false);
+  const rowId = `step-${step.id}`;
+  // a step's own state for this page view; failed steps start open, a link to #step-<id> opens it
+  const { open, toggle } = useCollapsible({ id: rowId, defaultOpen, inGroup: false });
   const [full, setFull] = useState<RunStepRecord | null>(null);
   const depth = step.key.split('/').length - 1;
   const s = full ?? step;
@@ -621,9 +645,18 @@ const StepRow = memo(function StepRow({ runId, step, childRuns }: { runId: strin
   const findingSeverity =
     step.type === 'check' && step.status === 'failed' && !step.error ? ((step.output as { severity?: string } | null)?.severity ?? 'error') : null;
   return (
-    <Paper withBorder p={6} ml={Math.min(depth, 6) * 16}>
-      <Group gap="xs" wrap="nowrap" className="clickable" onClick={() => setOpen((o) => !o)}>
-        {open ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
+    <Paper withBorder p={6} ml={Math.min(depth, 6) * 16} id={rowId} className="sm-anchor" data-testid="run-step" data-open={open}>
+      {/* the whole row is the toggle: a button, so the keyboard opens it too */}
+      <UnstyledButton
+        onClick={toggle}
+        aria-expanded={open}
+        aria-controls={`${rowId}-details`}
+        w="100%"
+        mih={24}
+        style={{ display: 'flex', alignItems: 'center', gap: 'var(--mantine-spacing-xs)', flexWrap: 'nowrap', borderRadius: 'var(--mantine-radius-sm)' }}
+        data-testid="run-step-toggle"
+      >
+        {open ? <IconChevronDown size={14} aria-hidden style={{ flex: 'none' }} /> : <IconChevronRight size={14} aria-hidden style={{ flex: 'none' }} />}
         {findingSeverity ? (
           <Badge
             color={SEVERITY_COLORS[findingSeverity] ?? TONE.attention}
@@ -660,8 +693,8 @@ const StepRow = memo(function StepRow({ runId, step, childRuns }: { runId: strin
         <Text size="xs" c="dimmed" className="nowrap" visibleFrom="sm">
           {fmtDuration(step.durationMs)}
         </Text>
-      </Group>
-      <Collapse expanded={open}>
+      </UnstyledButton>
+      <Collapse expanded={open} id={`${rowId}-details`}>
         {open && (
           <Stack gap="xs" mt="xs">
             <Text size="xs" c="dimmed" className="mono">
