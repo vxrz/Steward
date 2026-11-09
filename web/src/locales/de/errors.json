@@ -1140,7 +1140,8 @@
     "IDENTITY_FILTER_INVALID": "Der Operationsfilter ist ungültig: Wählen Sie Operationen aus den API-Spezifikationen der Plattform.",
     "IDENTITY_FILTER_NOT_AVAILABLE": "Ein Operationsfilter setzt eine API-Spezifikation von {{name}} voraus.",
     "IDENTITY_LIMIT": "Eine Plattform kann höchstens {{max}} Identitäten haben.",
-    "IDENTITY_MCP_INVALID": "Freigegebene Schreibzugriffe benötigen eine Freigabeart: Der Besitzer des Tokens bestätigt, oder eine zweite Person gibt frei."
+    "IDENTITY_MCP_INVALID": "Freigegebene Schreibzugriffe benötigen eine Freigabeart: Der Besitzer des Tokens bestätigt, oder eine zweite Person gibt frei.",
+    "IDENTITY_AUTH_ORIGIN": "Die Anmeldeeinstellung {{field}} würde die Zugangsdaten der Identität an {{origin}} senden. Eine Identität darf sich nur bei den eigenen Ursprüngen der Plattform anmelden: {{allowed}}."
   },
   "boundary": {
     "title": "Auf dieser Seite ist ein Fehler aufgetreten",

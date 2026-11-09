@@ -1140,7 +1140,8 @@
     "IDENTITY_FILTER_INVALID": "The operation filter is not valid: choose operations of the platform’s API specifications.",
     "IDENTITY_FILTER_NOT_AVAILABLE": "An operation filter needs an API specification of {{name}}.",
     "IDENTITY_LIMIT": "A platform can have at most {{max}} identities.",
-    "IDENTITY_MCP_INVALID": "Approved writes need an approval mode: the token owner confirms, or a second person approves."
+    "IDENTITY_MCP_INVALID": "Approved writes need an approval mode: the token owner confirms, or a second person approves.",
+    "IDENTITY_AUTH_ORIGIN": "The sign-in setting {{field}} would send the identity’s credentials to {{origin}}. An identity may only sign in at the platform’s own origins: {{allowed}}."
   },
   "boundary": {
     "title": "Something went wrong on this page",

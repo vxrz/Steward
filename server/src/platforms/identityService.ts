@@ -127,6 +127,75 @@ function cleanVariables(platformId: string, input: unknown, auth: AuthConfig | n
   return out;
 }
 
+/** The URLs of sign-in settings that credentials go to: token URL, login and refresh requests, the AWS STS endpoint. */
+function authUrls(a: AuthConfig | null | undefined): { field: string; url: string }[] {
+  if (!a) return [];
+  const out: { field: string; url: string }[] = [];
+  const add = (field: string, v: unknown) => typeof v === 'string' && v.trim() && out.push({ field, url: v.trim() });
+  add('tokenUrl', a.tokenUrl);
+  add('request.url', a.request?.url);
+  add('refresh.request.url', a.refresh?.request?.url);
+  add('aws.stsEndpoint', a.aws?.stsEndpoint);
+  return out;
+}
+
+/**
+ * A URL template with only {{ baseUrl }} and {{ vars.x }} filled in – synchronously, so the check needs no expression
+ * engine. Anything else in {{ … }} cannot be checked: null.
+ */
+function fillUrl(template: string, baseUrl: string, vars: Record<string, string>): string | null {
+  const filled = template.replace(/\{\{\s*(baseUrl|vars\.([A-Za-z_][A-Za-z0-9_]*))\s*\}\}/g, (_m, what: string, name?: string) =>
+    what === 'baseUrl' ? baseUrl.replace(/\/+$/, '') : (vars[name!] ?? ''),
+  );
+  return filled.includes('{{') || filled.includes('}}') ? null : filled;
+}
+
+const originOf = (url: string | null): string | null => {
+  if (!url) return null;
+  try {
+    const u = new URL(url);
+    return u.protocol === 'https:' || u.protocol === 'http:' ? u.origin : null;
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * An identity's own sign-in settings may send its credentials only to the platform's own origins (0.13.0, ADR 0009): the
+ * base URL's, the trusted origins and the origins of the platform's own sign-in (token URL, login, refresh, STS endpoint).
+ * A relative URL goes to the base URL. A URL that names anything else – or uses an expression that cannot be checked
+ * without the credentials – is refused (IDENTITY_AUTH_ORIGIN).
+ */
+function checkAuthOrigins(platformId: string, auth: AuthConfig | null, variables: Record<string, string>): void {
+  if (!auth) return;
+  const stored = storedConfig(platformId);
+  const p = getPlatform(platformId);
+  const platformVars = stored.variables ?? {};
+  const base = fillUrl(p.baseUrl, '', platformVars) ?? '';
+  const allowed = new Set<string>();
+  const addOrigin = (url: string | null) => {
+    const o = originOf(url);
+    if (o) allowed.add(o);
+  };
+  addOrigin(base);
+  for (const t of stored.http?.trustedOrigins ?? []) addOrigin(fillUrl(t, base, platformVars));
+  for (const { url } of authUrls(stored.auth)) addOrigin(url.startsWith('/') ? null : fillUrl(url, base, platformVars));
+  // the identity's variables over the platform's (those that decide where requests go cannot be set: cleanVariables)
+  const vars = { ...platformVars, ...variables };
+  for (const { field, url } of authUrls(auth)) {
+    if (url.startsWith('/') && !url.startsWith('//')) continue;
+    const filled = fillUrl(url, base, vars);
+    const origin = originOf(filled);
+    if (!origin || !allowed.has(origin))
+      throw new HttpError(
+        400,
+        `The sign-in setting ${field} sends the identity's credentials to ${origin ?? 'an address that cannot be checked'} – an identity may only sign in at the platform's own origins (${[...allowed].join(', ') || 'none'})`,
+        'IDENTITY_AUTH_ORIGIN',
+        { field, origin: origin ?? url.slice(0, 200), allowed: [...allowed].join(', ') },
+      );
+  }
+}
+
 /** An operation filter: only for platforms with an API specification; references must name operations of its specs. */
 function checkedFilter(platform: Platform, input: unknown): IdentityOperationFilter | null {
   if (input === undefined || input === null) return null;
@@ -170,6 +239,7 @@ export function createIdentity(platformId: string, input: PlatformIdentityInput)
   const name = cleanName(platformId, input.name);
   const auth = cleanAuth(input.auth);
   const variables = cleanVariables(platformId, input.variables, auth);
+  checkAuthOrigins(platformId, auth, variables);
   const filter = checkedFilter(p, input.operationFilter);
   const id = newId('pi_');
   const ts = nowIso();
@@ -223,6 +293,8 @@ export function updateIdentity(platformId: string, identityId: string, input: Pa
   const variables = input.variables !== undefined ? cleanVariables(platformId, input.variables, auth) : parseJson<Record<string, string>>(r.variables, {});
   // the identity's own sign-in may not make a variable it already sets decide where requests go
   if (input.auth !== undefined && input.variables === undefined) cleanVariables(platformId, variables, auth);
+  // its own sign-in only at the platform's own origins (with its variables of now)
+  if (input.auth !== undefined || input.variables !== undefined) checkAuthOrigins(platformId, auth, variables);
   const beforeFilter = parseJson<IdentityOperationFilter | null>(r.operation_filter, null);
   const filter = input.operationFilter !== undefined ? checkedFilter(p, input.operationFilter) : beforeFilter;
   const readOnly = input.readOnly !== undefined ? input.readOnly : flag(r.read_only);

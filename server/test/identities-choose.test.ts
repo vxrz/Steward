@@ -152,6 +152,45 @@ describe('managing identities', () => {
     expect(renamed.details).toMatchObject({ previousName: 'Reader' });
   });
 
+  it('signs in with its own settings only at the platform’s own origins (IDENTITY_AUTH_ORIGIN)', async () => {
+    const p = await s.api('POST', '/platforms', {
+      name: 'Directory sign-in',
+      kind: 'generic',
+      baseUrl: echoBase,
+      config: {
+        variables: { tenant: 'plant-a' },
+        http: { proxy: 'none', trustedOrigins: ['https://login.example.com'] },
+        auth: { type: 'oauth2_client_credentials', tokenUrl: 'https://idp.example.com/{{ vars.tenant }}/token', clientAuth: 'body' },
+      },
+    });
+    const own = (tokenUrl: string, variables: Record<string, string> = {}) => ({
+      name: `Own ${Math.random().toString(36).slice(2, 8)}`,
+      auth: { type: 'oauth2_client_credentials', tokenUrl, clientAuth: 'body' },
+      variables,
+    });
+    // the platform's origins: its base URL, a trusted origin, its own token URL's origin; a relative URL
+    for (const ok of [`${echoBase}/oauth/token`, 'https://login.example.com/token', 'https://idp.example.com/other/token', '{{ baseUrl }}/token', '/token'])
+      await s.api('POST', `/platforms/${p.id}/identities`, own(ok));
+    // another host, an expression that cannot be checked, a variable that takes it elsewhere, a protocol-relative URL
+    for (const bad of [
+      'https://evil.example.net/token',
+      '{{ $string(secrets.x) }}/token',
+      'https://{{ vars.tenant }}.evil.example.net/token',
+      '//evil.example.net/token',
+    ])
+      await expect(s.api('POST', `/platforms/${p.id}/identities`, own(bad)), bad).rejects.toMatchObject({
+        status: 400,
+        body: { code: 'IDENTITY_AUTH_ORIGIN' },
+      });
+    // a change of the sign-in settings is checked as well
+    const i = await s.api('POST', `/platforms/${p.id}/identities`, { name: 'Changed later' });
+    await expect(
+      s.api('PUT', `/platforms/${p.id}/identities/${i.id}`, {
+        auth: { type: 'token_request', request: { method: 'POST', url: 'https://evil.example.net/login' } },
+      }),
+    ).rejects.toMatchObject({ body: { code: 'IDENTITY_AUTH_ORIGIN' } });
+  });
+
   it('is used by administrators, its access list and owning-team members – not by everyone with "use" on the platform', async () => {
     const p = await platform('Directory B');
     const i = await identity(p, { name: 'Admin' }, 'admin-key-1234567');
