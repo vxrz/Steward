@@ -337,6 +337,19 @@ const EXPECT: Record<string, Access> = {
   'PUT /api/platforms/:id/recordings/:recId': ADMIN,
   'DELETE /api/platforms/:id/recordings/:recId': ADMIN,
   'POST /api/platforms/:id/token/renew': ADMIN,
+  // platform identities (0.13.0, ADR 0009): listed for whoever sees the platform, managed with "manage"
+  'GET /api/platforms/:id/identities': USE,
+  'POST /api/platforms/:id/identities': ADMIN,
+  'GET /api/platforms/:id/identities/:identityId/settings': ADMIN,
+  'PUT /api/platforms/:id/identities/:identityId': ADMIN,
+  'DELETE /api/platforms/:id/identities/:identityId': ADMIN,
+  'PUT /api/platforms/:id/identities/:identityId/secrets': ADMIN,
+  'PUT /api/platforms/:id/identities/:identityId/access': ADMIN,
+  'PUT /api/platforms/:id/identities/:identityId/mcp': ADMIN,
+  'POST /api/platforms/:id/identities/:identityId/default': ADMIN,
+  'POST /api/platforms/:id/identities/:identityId/enable': ADMIN,
+  'POST /api/platforms/:id/identities/:identityId/test': ADMIN,
+  'POST /api/platforms/:id/identities/:identityId/token/renew': ADMIN,
   // Kafka peek (#112): platform managers only, and only where the platform allows it
   'POST /api/platforms/:id/kafka/peek': ADMIN,
   // Kafka Connect (#223): the readout for who sees the platform, "Read now" and a connector's configuration (audited) for who may use it
@@ -1340,6 +1353,15 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
   'PUT /api/catalogue/cia-scale': 'always',
   'PUT /api/backups/settings': 'always',
   'PUT /api/platforms/:id/mcp-gateway': { sensitive: { enabled: true, writes: 'confirm' }, harmless: { enabled: true } },
+  // identities (0.13.0, ADR 0009): loosening (read-only off), adding someone to the list, MCP writes on, a new default
+  'PUT /api/platforms/:id/identities/:identityId': { sensitive: { readOnly: false }, harmless: { description: 'Matrix' } },
+  'PUT /api/platforms/:id/identities/:identityId/access': {
+    sensitive: { acl: [{ subject: 'user:vera', permissions: ['use'] }] },
+    harmless: { acl: 'not a list' },
+  },
+  'PUT /api/platforms/:id/identities/:identityId/mcp': { sensitive: { mode: 'writes', writes: 'confirm' }, harmless: { mode: 'read' } },
+  'POST /api/platforms/:id/identities/:identityId/default': 'always',
+  'POST /api/platforms/:id/identities/:identityId/enable': 'always',
   // raising an AI budget (the fixtures set 1,000 tokens a day for the installation); lowering it needs no confirmation
   'PUT /api/ai/budgets': {
     sensitive: { scope: 'installation', scopeId: '', tokensPerDay: 2000, tokensPerMonth: null },
@@ -1490,6 +1512,7 @@ function fill(url: string): string {
       .replace(/:platformId/g, url.startsWith('/api/gatus') ? fx.gatusPlatform! : url.startsWith('/api/changedetection') ? fx.cdPlatform! : fx.platform!)
       .replace(/:uuid/g, '7d3c1a90-5b2e-4f61-8c47-1a2b3c4d5e01')
       .replace(/:specId/g, fx.spec!)
+      .replace(/:identityId/g, fx.identity!)
       .replace(/:docId/g, fx.doc!)
       .replace(/:processId/g, fx.process!)
       // a test run of the demo's data contract (#221)
@@ -2042,6 +2065,8 @@ beforeAll(async () => {
     step: String(run.steps[0].id),
     node: run.steps[0].stepId,
     platform: plat.id,
+    // a read-only identity of the platform (0.13.0, ADR 0009)
+    identity: (await a('POST', `/platforms/${plat.id}/identities`, { name: 'Matrix read only', readOnly: true })).id,
     platformKind: (await a('POST', '/platform-types', { fromPlatformId: gatus.id, kind: 'matrix-connector', label: 'Matrix connector' })).kind,
     gatusPlatform: gatus.id,
     doc: doc.id,

@@ -219,7 +219,16 @@ const Check = z.object({
 export const RunDetail = Run.extend({
   inputs: jsonObject('Inputs the run was started with'),
   bindings: z
-    .record(z.string(), z.object({ platformId: z.string(), platformName: z.string(), baseUrl: z.string() }))
+    .record(
+      z.string(),
+      z.object({
+        platformId: z.string(),
+        platformName: z.string(),
+        baseUrl: z.string(),
+        identityId: z.string().optional().describe('The platform identity the slot used (0.13.0; runs before: missing – the default identity)'),
+        identityName: z.string().optional().describe('Its name when the run started'),
+      }),
+    )
     .describe('Connection slot → platform used by this run'),
   definitionHash: z.string().describe('Hash of the pinned process version'),
   outputs: jsonObject('Evaluated process outputs').nullable(),
@@ -384,6 +393,7 @@ export const Schedule = z.object({
   allowOverlap: z.boolean(),
   inputs: jsonObject('Preset inputs'),
   bindings: z.record(z.string(), z.string()).describe('Connection slot → platform id'),
+  identities: z.record(z.string(), z.string()).describe('Connection slot → platform identity id (0.13.0); a missing slot uses the default identity'),
   owner: z.string().nullable().describe('Scheduled runs use the rights of this user'),
   nextRunAt: nullableTs('Next planned run (null when disabled or the scheduler is stopped)'),
   lastRunAt: nullableTs('Last run'),

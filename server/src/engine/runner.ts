@@ -413,10 +413,10 @@ async function startQueued(runId: string): Promise<void> {
   if (!r || r.status !== 'queued' || active.has(runId)) return;
   try {
     const proc = getProcess(r.process_id, r.process_version);
-    const bindingInfo = parseJson<Record<string, { platformId: string }>>(r.bindings, {});
+    const stored = storedBindings(r.bindings);
     // outside any request: the run is not attributed to whoever happened to free the slot
     const bindings = await runAs(null, () =>
-      resolveBindings(proc.definition, Object.fromEntries(Object.entries(bindingInfo).map(([k, v]) => [k, v.platformId]))),
+      resolveBindings(proc.definition, stored.requested, { identities: stored.identities, identityNames: stored.identityNames }),
     );
     const startedAt = nowIso();
     // cancelled while its bindings were resolved?
@@ -524,7 +524,14 @@ export function resumeAcceptingRuns(): void {
 async function resolveBindings(
   def: ProcessDefinition,
   requested: Record<string, string>,
-  o: { only?: Set<string>; offline?: boolean } = {},
+  o: {
+    only?: Set<string>;
+    offline?: boolean;
+    /** Slot → identity id (ADR 0009); a missing slot: the platform's default identity */
+    identities?: Record<string, string>;
+    /** Slot → the identity's name when the run was started (a queued or resumed run whose identity is gone says which) */
+    identityNames?: Record<string, string>;
+  } = {},
 ): Promise<Record<string, Binding>> {
   const out: Record<string, Binding> = {};
   for (const slot of def.connections) {
@@ -535,11 +542,73 @@ async function resolveBindings(
     }
     const pid = requested[slot.slot];
     if (!pid) throw new HttpError(400, `Select a platform for connection "${slot.slot}"`);
-    // the platform with its default identity (0.9.0, ADR 0009: choosing another one per slot comes in step 2)
-    const { platform, secrets } = getConnection(pid);
+    // the platform with the slot's identity (0.13.0, ADR 0009) – never switched to another one silently
+    const iid = o.identities?.[slot.slot];
+    let c: ReturnType<typeof getConnection>;
+    try {
+      c = getConnection(pid, iid || undefined);
+    } catch (e) {
+      if ((e as HttpError).code === 'IDENTITY_NOT_FOUND' && iid)
+        throw new HttpError(
+          409,
+          `The identity "${o.identityNames?.[slot.slot] ?? iid}" of connection "${slot.slot}" no longer exists – the run is not switched to another identity`,
+          'IDENTITY_NOT_FOUND',
+          { id: o.identityNames?.[slot.slot] ?? iid },
+        );
+      throw e;
+    }
+    const { platform, secrets, identity } = c;
+    // a slot that needs writes never runs with a read-only identity (also a sub-process slot mapped to one)
+    if (slot.identity?.writes && identity.readOnly)
+      throw new HttpError(
+        403,
+        `Connection "${slot.slot}" needs an identity that can write – "${identity.name}" of "${platform.name}" is read-only`,
+        'IDENTITY_WRITE_REQUIRED',
+        { slot: slot.slot, identity: identity.name, platform: platform.name },
+      );
     out[slot.slot] = { platform, secrets, baseUrl: await resolveBaseUrl(platform, secrets) };
   }
   return out;
+}
+
+/** What a run stores per slot (runs.bindings): the platform and – since 0.13.0 – the identity it used. */
+function bindingInfoOf(bindings: Record<string, Binding>): Record<string, StoredBinding> {
+  return Object.fromEntries(
+    Object.entries(bindings).map(([k, b]) => {
+      const p = b.platform as Platform & { identityId?: string; identityName?: string };
+      return [
+        k,
+        {
+          platformId: b.platform.id,
+          platformName: b.platform.name,
+          baseUrl: b.baseUrl,
+          ...(p.identityId ? { identityId: p.identityId, identityName: p.identityName ?? '' } : {}),
+        },
+      ];
+    }),
+  );
+}
+
+interface StoredBinding {
+  platformId: string;
+  platformName?: string;
+  baseUrl?: string;
+  identityId?: string;
+  identityName?: string;
+}
+
+/** The stored bindings of a run as resolveBindings takes them back (queued and resumed runs). */
+function storedBindings(json: string): { requested: Record<string, string>; identities: Record<string, string>; identityNames: Record<string, string> } {
+  const info = parseJson<Record<string, StoredBinding>>(json, {});
+  const requested: Record<string, string> = {};
+  const identities: Record<string, string> = {};
+  const identityNames: Record<string, string> = {};
+  for (const [slot, b] of Object.entries(info)) {
+    requested[slot] = b.platformId;
+    if (b.identityId) identities[slot] = b.identityId;
+    if (b.identityName) identityNames[slot] = b.identityName;
+  }
+  return { requested, identities, identityNames };
 }
 
 /** The placeholder of an offline single-node run: nothing behind it is ever contacted. */
@@ -640,13 +709,14 @@ async function startRunInner(
   // inputs of type "secret": only stored encrypted, "***" in the protocol and the audit log
   const { visible: storedInputs, sealed } = sealInputs(def.inputs, inputs);
   const offline = debug?.spec.answers === 'offline';
-  const bindings = await resolveBindings(def, req.bindings ?? {}, node ? { only: nodeSlots(node), offline } : {});
+  const bindings = await resolveBindings(def, req.bindings ?? {}, {
+    ...(node ? { only: nodeSlots(node), offline } : {}),
+    identities: req.identities ?? {},
+  });
   const runId = newId('run_');
   const actor = opts.actor ?? currentActor();
   const startedAt = nowIso();
-  const bindingInfo = Object.fromEntries(
-    Object.entries(bindings).map(([k, b]) => [k, { platformId: b.platform.id, platformName: b.platform.name, baseUrl: b.baseUrl }]),
-  );
+  const bindingInfo = bindingInfoOf(bindings);
   // all slots taken (or others waiting before it, or shutting down: a sub-process run then starts after the restart);
   // a single-node debug run executes one node at once
   const queued = !node && (!accepting || runQueue.length > 0 || !slotFree());
@@ -801,8 +871,8 @@ export async function resumeRun(runId: string, actor = currentActor()): Promise<
   // a debug run lives in one session of its debugger: it is never resumed (ADR 0010)
   if (r.debug) throw new HttpError(409, 'A debug run cannot be resumed – start a new one', 'DEBUG_NOT_RESUMABLE');
   const proc = getProcess(r.process_id, r.process_version);
-  const bindingInfo = parseJson<Record<string, { platformId: string }>>(r.bindings, {});
-  const bindings = await resolveBindings(proc.definition, Object.fromEntries(Object.entries(bindingInfo).map(([k, v]) => [k, v.platformId])));
+  const stored = storedBindings(r.bindings);
+  const bindings = await resolveBindings(proc.definition, stored.requested, { identities: stored.identities, identityNames: stored.identityNames });
   store.setRunStatus(runId, 'running');
   audit({ actor, action: 'run.resumed', entityType: 'run', entityId: runId, runId, summary: `Run resumed (was ${r.status})` });
   launch(
@@ -1835,6 +1905,7 @@ export const builtinEngine: RunEngine = {
         version: cmd.version,
         inputs: cmd.inputs,
         bindings: cmd.bindings,
+        ...(cmd.identities ? { identities: cmd.identities } : {}),
         dryRun: cmd.mode !== 'live',
         recorded: cmd.mode === 'test',
       },

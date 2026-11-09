@@ -168,6 +168,8 @@ export async function testGateway(p: Platform, secrets: Record<string, string>):
         body: req.body,
         bodyType: 'json',
         maxResponseBytes: 1024 * 1024,
+        // an LLM call reads (ADR 0009: a read-only identity lets it through)
+        intent: 'read',
       });
       const durationMs = Date.now() - t0;
       if (!res.ok) {

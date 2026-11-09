@@ -185,7 +185,7 @@ All tools read only (`annotations.readOnlyHint: true`), except `platform_call_op
 | `list_dashboards`             | Dashboard definitions and the datasets they show                                                                                                                                | everyone                                                 |
 | `list_datasets`               | Datasets: columns, row count, status counts, metrics, staleness                                                                                                                 | publishing process `view`                                |
 | `read_dataset`                | Rows of a dataset, filter by status                                                                                                                                             | publishing process `view`                                |
-| `list_platforms`              | Platforms you have rights on – metadata only, never credentials or variables; whether the gateway is on                                                                         | platform permission                                      |
+| `list_platforms`              | Platforms you have rights on – metadata only, never credentials or variables; whether the gateway is on, and the identities open to you over MCP                                | platform permission                                      |
 | `list_ticket_references`      | Ticket references (ServiceNow incidents, vendor tickets) – open ones by default; affected items only when you may see them                                                      | everyone                                                 |
 | `list_schedules`              | Schedules: cron, time zone, enabled, next and last run                                                                                                                          | process `view`                                           |
 | `list_triggers`               | Webhook triggers: process, enabled, last firing, counts – never secrets                                                                                                         | process `view`                                           |
@@ -259,6 +259,16 @@ Platforms **without an API specification** can still be read: list GET path pref
 - **Responses** are read up to 512 kB (the rest is cut and marked `truncated`). Credential values – also in encoded forms – and fields such as `authorization`, `password`, `access_token` are masked. Only harmless response headers are returned (`content-type`, `etag`, `link`, …), never cookies.
 - **Integrity.** If the platform's connection settings were changed outside Steward, the gateway refuses the call until an administrator confirms them.
 - **Fair use.** Gateway calls are rate-limited per user and platform (more tokens do not raise the limit). At most 2 gateway calls per platform run at the same time (`SM_MCP_GATEWAY_CONCURRENCY`, never more than half of the platform's _max. concurrent requests_), so MCP clients cannot block runs and monitors.
+
+### Identities
+
+The gateway's mode is **per platform identity** ([ADR 0009](adr/0009-platform-identities.md)): _off_, _read_ or _approved writes_ (confirmed by the token owner or approved by a second person), set under _Platform → Identities → (identity) → MCP_ by people with _manage_ (approved writes on needs a fresh confirmation). The _MCP_ tab of a platform sets the default identity's mode, as before. New identities, copies and connector types start _off_.
+
+- `platform_find_operations`, `platform_describe_operation`, `platform_call_operation` and `database_query` take an optional **`identity`** (its name). Without it, reads use the **default identity**; a changing call without it uses the default identity only where that allows approved writes.
+- The token owner must be allowed to use the identity (the default one: _use_ on the platform; any other: its access list or owning teams), and its MCP mode must not be off. Otherwise the call answers like a platform that is not open – without one, a call says which identities to name.
+- The identity's **read-only flag and operation filter** apply: `platform_find_operations` lists only the operations they allow, and a call they refuse is refused before anything is sent or a request is created.
+- `list_platforms` shows per platform `mcpIdentities`: the identities open to the token owner over MCP with their mode and read-only flag (`mcpGateway` is true when there is one).
+- A request for an approved write records its identity; approving it re-checks the identity's rights, mode and flags at that moment, and a second person must be allowed to use the identity. `mcp.gateway_call` and `mcp.gateway_refused` audit entries name platform and identity ("Snowflake · Read only").
 
 ## Approved writes
 

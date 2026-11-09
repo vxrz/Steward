@@ -43,20 +43,24 @@ async function execSubprocess(step: NodeOf<'subprocess'>, ctx: StepContext, key:
     if (denied) throw new Error(`${ctx.actor} may not run process "${step.process}" (needs the "run" right)`);
     const proc = getProcess(step.process, step.version);
     const bindings: Record<string, string> = {};
+    // the child inherits the identity of the parent's slot (ADR 0009): it cannot choose another one
+    const identities: Record<string, string> = {};
     for (const slot of proc.definition.connections) {
       const parentSlot = step.connections?.[slot.slot] ?? slot.slot;
       const b = ctx.bindings[parentSlot];
       if (!b) throw new Error(`Sub-process connection "${slot.slot}" needs connection "${parentSlot}" of this process, which is not bound`);
       bindings[slot.slot] = b.platform.id;
+      const iid = (b.platform as { identityId?: string }).identityId;
+      if (iid) identities[slot.slot] = iid;
     }
-    // … and (since 0.10.0) use on every platform the child is bound to
-    const unusable = startProblem(ctx.actor, { processId: step.process, bindings });
+    // … and (since 0.10.0) use on every platform the child is bound to – and (0.13.0) on its identity, checked again
+    const unusable = startProblem(ctx.actor, { processId: step.process, bindings, identities });
     if (unusable) throw new Error(`Sub-process "${step.process}": ${unusable.text}`);
     const inputs = (await ctx.render(step.inputs ?? {})) as Record<string, unknown>;
     const request = { process: step.process, version: step.version ?? proc.currentVersion, inputs, bindings };
     store.updateStepInput(ctx.runId, key, ctx.redactor.apply(request));
     // in the run's mode, as its actor; the child of a debug run is a debug run without pauses (ADR 0010)
-    const id = await ctx.startChild(key, { processId: step.process, version: step.version, inputs, bindings });
+    const id = await ctx.startChild(key, { processId: step.process, version: step.version, inputs, bindings, identities });
     store.updateStepInput(ctx.runId, key, ctx.redactor.apply({ ...request, childRunId: id }));
     ctx.log('info', `Started sub-process run ${id} of "${proc.name}"${ctx.dryRun ? ' (dry run)' : ''}`, key);
     child = { id, status: 'running' };

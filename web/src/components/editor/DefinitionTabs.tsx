@@ -260,6 +260,17 @@ export function ConnectionsPanel({ def, onChange }: { def: Def; onChange: SetDef
   const conns = def.connections ?? [];
   const set = (next: ConnectionSlot[]) => onChange({ ...def, connections: next });
   const patch = (i: number, p: Partial<ConnectionSlot>) => set(conns.map((c, j) => (j === i ? strip({ ...c, ...p }) : c)));
+  // the slots a step writes through (0.13.0, ADR 0009): a hint where the slot does not ask for an identity that can write
+  const writing = new Set(
+    (def.nodes ?? []).flatMap((n) => {
+      const x = n as { type: string; connection?: string; method?: string; mutating?: boolean };
+      const writes =
+        (x.type === 'http' && (typeof x.mutating === 'boolean' ? x.mutating : !['GET', 'HEAD'].includes(String(x.method ?? 'GET').toUpperCase()))) ||
+        x.type === 'accessChange' ||
+        (x.type === 'browser' && !!x.mutating);
+      return writes && x.connection ? [x.connection] : [];
+    }),
+  );
   return (
     <Stack>
       <Text size="sm" c="dimmed">
@@ -296,6 +307,18 @@ export function ConnectionsPanel({ def, onChange }: { def: Def; onChange: SetDef
               <IconTrash size={14} />
             </ActionIcon>
           </Group>
+          <Switch
+            size="xs"
+            mt="xs"
+            label={t('connections.needsWrites')}
+            checked={!!c.identity?.writes}
+            onChange={(e) => patch(i, { identity: e.currentTarget.checked ? { writes: true } : undefined })}
+          />
+          {writing.has(c.slot) && !c.identity?.writes && (
+            <Text size="xs" c="dimmed" mt={4}>
+              {t('connections.writesHint')}
+            </Text>
+          )}
         </Paper>
       ))}
       <Group>

@@ -36,6 +36,8 @@ interface ScheduleRow {
   inputs: string;
   sealed_inputs?: string | null;
   bindings: string;
+  /** Slot → identity id (0.13.0, ADR 0009) */
+  identities?: string;
   dry_run: number;
   enabled: number;
   allow_overlap: number;
@@ -72,6 +74,7 @@ function toSchedule(r: ScheduleRow): Schedule {
     timezone: r.timezone ?? undefined,
     inputs: parseJson(r.inputs, {}),
     bindings: parseJson(r.bindings, {}),
+    identities: parseJson(r.identities ?? '{}', {}),
     dryRun: !!r.dry_run,
     enabled: !!r.enabled,
     allowOverlap: !!r.allow_overlap,
@@ -238,6 +241,8 @@ export function saveSchedule(input: ScheduleInput, id?: string): Schedule {
       );
       db().run('UPDATE schedules SET sealed_inputs = ? WHERE id = ?', sealed, sid);
     }
+    // the identity per slot (0.13.0): missing in the input (an older client) – unchanged
+    if (input.identities !== undefined) db().run('UPDATE schedules SET identities = ? WHERE id = ?', JSON.stringify(input.identities), sid);
     // missing in the input (an older client): unchanged
     if (input.catchUp !== undefined || !id) db().run('UPDATE schedules SET catch_up = ? WHERE id = ?', input.catchUp === 'once' ? 'once' : 'none', sid);
     db().run(
@@ -261,6 +266,7 @@ export function saveSchedule(input: ScheduleInput, id?: string): Schedule {
         timezone: input.timezone,
         inputs: input.inputs,
         bindings: input.bindings,
+        ...(input.identities && Object.keys(input.identities).length ? { identities: input.identities } : {}),
         notify,
         ...(input.catchUp ? { catchUp: input.catchUp } : {}),
       },
@@ -361,16 +367,21 @@ export async function fire(id: string, manual = false, opts: { catchUp?: boolean
   // `text` is English (log and audit); code + vars let notifications say the same in the recipient's language.
   type Problem = { text: string; code: ScheduleSkipReason; vars: Record<string, string> };
   // the command layer's start check (ADR 0011), as the owner
-  const sp = runner ? startProblem(runner, { processId: r.process_id, bindings: parseJson<Record<string, string>>(r.bindings, {}) }) : null;
+  const identities = parseJson<Record<string, string>>(r.identities ?? '{}', {});
+  const sp = runner ? startProblem(runner, { processId: r.process_id, bindings: parseJson<Record<string, string>>(r.bindings, {}), identities }) : null;
   const problem: Problem | null = !runner
     ? { text: `owner ${r.owner ?? '(none)'} is missing or disabled`, code: 'ownerMissing', vars: { owner: r.owner ?? '–' } }
     : !sp
       ? null
       : sp.code === 'mayNotUsePlatform' || sp.code === 'platformMissing'
         ? { text: sp.text, code: 'mayNotUsePlatform', vars: { user: runner.username, platform: sp.vars.platform ?? '' } }
-        : sp.code === 'actorMissing'
-          ? { text: sp.text, code: 'ownerMissing', vars: { owner: r.owner ?? '–' } }
-          : { text: `${runner.username} may not run this process`, code: 'mayNotRun', vars: { user: runner.username } };
+        : sp.code === 'identityMissing'
+          ? { text: sp.text, code: 'identityMissing', vars: { platform: sp.vars.platform ?? '', identity: sp.vars.identity ?? '' } }
+          : sp.code === 'mayNotUseIdentity' || sp.code === 'identityWriteRequired'
+            ? { text: sp.text, code: 'mayNotUseIdentity', vars: { user: runner.username, platform: sp.vars.platform ?? '', identity: sp.vars.identity ?? '' } }
+            : sp.code === 'actorMissing'
+              ? { text: sp.text, code: 'ownerMissing', vars: { owner: r.owner ?? '–' } }
+              : { text: `${runner.username} may not run this process`, code: 'mayNotRun', vars: { user: runner.username } };
   if (problem) {
     logger.warn({ scheduleId: id, reason: problem.text }, 'schedule skipped');
     audit({ actor: 'scheduler', action: 'schedule.skipped', entityType: 'schedule', entityId: id, summary: `Schedule "${r.name}" skipped: ${problem.text}` });
@@ -383,6 +394,7 @@ export async function fire(id: string, manual = false, opts: { catchUp?: boolean
         processId: r.process_id,
         inputs: openInputs(parseJson(r.inputs, {}), r.sealed_inputs),
         bindings: parseJson(r.bindings, {}),
+        identities,
         mode: r.dry_run ? 'dry' : 'live',
         actor: runner!.username,
         origin: { trigger: 'schedule', scheduleId: id },

@@ -36,6 +36,7 @@ import { audit } from '../audit.js';
 import { vault } from '../vault.js';
 import { config } from '../config.js';
 import { errorParam, HttpError, newId, nowIso, parseJson, pathInside, sha256, slugify } from '../util.js';
+import { startProblem } from '../engine/commands.js';
 import { parseYaml } from '../yaml-safe.js';
 
 /** Largest monitor file (the import route accepts 512 KB). */
@@ -470,6 +471,32 @@ export function applyPlatformMap(definition: Record<string, unknown>, map: Recor
   return out;
 }
 
+/**
+ * The identity a check or output names (0.13.0, ADR 0009) – by id or name – as its id; the editor must be allowed to use
+ * it. `writes`: an output sends with it, so it must not be read-only (also the default identity when none is named).
+ */
+function resolveIdentity(platformId: string, ref: string | undefined, what: string, writes: boolean): string | undefined {
+  const p = getPlatform(platformId);
+  const name = ref?.trim();
+  const i = name
+    ? (p.identities?.find((x) => x.id === name) ?? p.identities?.find((x) => x.name.toLowerCase() === name.toLowerCase()))
+    : p.identities?.find((x) => x.default);
+  if (name && !i)
+    throw new HttpError(400, `${what}: the identity "${name.slice(0, 100)}" of "${p.name}" does not exist`, 'IDENTITY_NOT_FOUND', { id: name.slice(0, 100) });
+  if (!i) return undefined;
+  if (name && !i.mayUse)
+    throw new HttpError(403, `${what}: you are not allowed to use the identity "${i.name}" of "${p.name}"`, 'IDENTITY_NOT_ALLOWED', {
+      identity: i.name,
+      platform: p.name,
+    });
+  if (writes && i.readOnly)
+    throw new HttpError(400, `${what}: the identity "${i.name}" of "${p.name}" is read-only – an output needs one that can write`, 'IDENTITY_READ_ONLY', {
+      identity: i.name,
+      platform: p.name,
+    });
+  return name ? i.id : undefined;
+}
+
 /** The editor's "use" right on a platform; one they may not see answers like a missing one (no name, no kind). */
 function requirePlatformUse(id: string, ref: string = id, kind?: string): void {
   const p = requireVisiblePlatform(id, ref, kind);
@@ -545,7 +572,11 @@ function resolveReferences(def: MonitorDefinition, selfId: string | null, selfKe
       // the type's own rules (checks.ts): an MQTT topic pattern, one of the Git kinds …
       validateCheckPlatform(c, p);
       c.platform = p.id;
-    }
+      // the identity it reads with (0.13.0, ADR 0009): stored by id
+      const identity = resolveIdentity(p.id, c.identity, `Check "${c.name}"`, false);
+      if (identity) c.identity = identity;
+      else delete c.identity;
+    } else if (c.identity) delete c.identity;
     // the system of a schema check: one the editor may not see answers like a missing one
     if (c.type === 'db-schema' && c.system) requireVisibleSystem(c.name, c.system);
     // the application of a version check (#241): one the editor may not see answers like a missing one
@@ -583,7 +614,11 @@ function resolveReferences(def: MonitorDefinition, selfId: string | null, selfKe
       // an output type tied to platform kinds (Gatus, Zabbix): a platform of one of them
       validateOutputPlatform(o, p);
       o.platform = p.id;
-    }
+      // the identity it sends with (0.13.0, ADR 0009): stored by id, never a read-only one
+      const identity = resolveIdentity(p.id, o.identity, `Output "${o.id}"`, true);
+      if (identity) o.identity = identity;
+      else delete o.identity;
+    } else if (o.identity) delete o.identity;
     if (o.type === 'process') {
       const perms = permissionsFor(o.processId);
       if (!perms.includes('view'))
@@ -595,6 +630,17 @@ function resolveReferences(def: MonitorDefinition, selfId: string | null, selfKe
         });
       const proc = getProcess(o.processId);
       for (const pid of Object.values(o.bindings)) requirePlatformUse(pid);
+      // the identities of its slots (0.13.0, ADR 0009): the command layer's check, as the editor
+      const problem = startProblem(undefined, { processId: o.processId, bindings: o.bindings, identities: o.identities });
+      if (problem && (problem.code === 'identityMissing' || problem.code === 'mayNotUseIdentity' || problem.code === 'identityWriteRequired'))
+        throw new HttpError(
+          problem.status,
+          `Output "${o.id}": ${problem.text}`,
+          problem.code === 'identityMissing' ? 'IDENTITY_NOT_FOUND' : 'IDENTITY_NOT_ALLOWED',
+          {
+            identity: problem.vars.identity ?? '',
+          },
+        );
       const names = new Set((proc.definition.inputs ?? []).map((i) => i.name));
       for (const k of Object.keys(o.inputs))
         if (!names.has(k)) throw new HttpError(400, `Output "${o.id}": the process has no input "${k}"`, 'OUTPUT_PROCESS_INPUT', { output: o.id, input: k });

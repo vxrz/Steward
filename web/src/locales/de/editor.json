@@ -822,7 +822,9 @@
     "kind": "Plattformart",
     "anyKind": "beliebig",
     "description": "Beschreibung",
-    "add": "Verbindung hinzufügen"
+    "add": "Verbindung hinzufügen",
+    "needsWrites": "Benötigt eine Identität, die schreiben darf",
+    "writesHint": "Ein Schritt schreibt über diese Verbindung. Schalten Sie „Benötigt eine Identität, die schreiben darf“ ein, damit schreibgeschützte Identitäten dafür nicht angeboten werden."
   },
   "constants": {
     "notMapping": "Konstanten müssen eine Zuordnung sein (Schlüssel: Wert)",

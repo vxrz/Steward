@@ -2,7 +2,7 @@ import { EventEmitter } from 'node:events';
 import { logger } from './log.js';
 
 /** Why a schedule did not start a run (translated in notifications). */
-export type ScheduleSkipReason = 'overlap' | 'ownerMissing' | 'mayNotRun' | 'mayNotUsePlatform' | 'missed';
+export type ScheduleSkipReason = 'overlap' | 'ownerMissing' | 'mayNotRun' | 'mayNotUsePlatform' | 'mayNotUseIdentity' | 'identityMissing' | 'missed';
 
 /**
  * In-process domain events. Producers (engine, scheduler, datasets, HTTP client)

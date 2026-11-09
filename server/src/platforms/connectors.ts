@@ -1,6 +1,16 @@
 import { z } from 'zod';
 import { Agent } from 'undici';
-import { AUTH_TYPES, CONNECTOR_FORMATS, type ConnectorPackage, type PlatformPreset } from '@sm/shared';
+import {
+  AUTH_TYPES,
+  CONNECTOR_FORMATS,
+  type ConnectorIdentityTemplate,
+  type ConnectorPackage,
+  type IdentityOperationFilter,
+  type Platform,
+  type PlatformPreset,
+} from '@sm/shared';
+import { createIdentity, updateIdentity } from './identityService.js';
+import { refOf, resolveOperationRef, specPathOf } from './operationFilter.js';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { HttpError, nowIso, parseJson, slugify } from '../util.js';
@@ -13,6 +23,7 @@ import {
   getSecretsUnchecked,
   listDocs,
   listSpecs,
+  listOperations,
   getSpecContent,
   listPlatforms,
   type PlatformInput,
@@ -54,6 +65,24 @@ const packageSchema = z.object({
     )
     .max(100)
     .default([]),
+  // identity templates (0.13.0, ADR 0009): names, flags and filters – never secrets, access lists or MCP modes
+  identities: z
+    .array(
+      z
+        .object({
+          name: z.string().trim().min(1).max(100),
+          description: z.string().max(2000).optional(),
+          default: z.boolean().optional(),
+          readOnly: z.boolean().optional(),
+          operationFilter: z
+            .object({ preset: z.enum(['read', 'chosen']), operations: z.array(z.string().max(2100)).max(2000).default([]) })
+            .nullable()
+            .optional(),
+        })
+        .strip(),
+    )
+    .max(50)
+    .optional(),
 });
 
 function rows(): { kind: string; package: string; created_at: string }[] {
@@ -123,6 +152,8 @@ export function createTypeFromPlatform(platformId: string, opts: { kind?: string
       .filter((d) => d.kind === 'link' && d.url)
       .map((d) => ({ title: d.title, url: d.url! })),
     specs: listSpecs(platformId).map((s) => ({ name: s.name, content: getSpecContent(s.id), pathPrefix: s.pathPrefix })),
+    // its identities as templates (0.13.0, ADR 0009): names, read-only and filters – never credentials, access or MCP
+    identities: identityTemplates(p),
   };
   return store(pkg, 'connector.created');
 }
@@ -156,7 +187,54 @@ export function createPlatformFromType(input: PlatformInput & { typeKind?: strin
   const specs: ConnectorPackage['specs'] = pkg ? pkg.specs : (PRESET_SPECS[platform.kind]?.() ?? []);
   // a connector type keeps the path prefix of each spec; without one it is derived from the spec's server URL
   for (const s of specs) addSpec(platform.id, s.name, s.content, { pathPrefix: s.pathPrefix });
+  if (pkg?.identities?.length) applyIdentityTemplates(platform.id, pkg.identities);
   return getPlatform(platform.id);
+}
+
+/** A platform's identities as connector templates: the filter as "METHOD /path" of the specs (the spec's own path). */
+function identityTemplates(p: Platform): ConnectorIdentityTemplate[] {
+  const ops = listOperations(p.id);
+  return (p.identities ?? []).map((i) => ({
+    name: i.name,
+    ...(i.description ? { description: i.description } : {}),
+    ...(i.default ? { default: true } : {}),
+    ...(i.readOnly ? { readOnly: true } : {}),
+    ...(i.operationFilter
+      ? {
+          operationFilter: {
+            preset: i.operationFilter.preset,
+            operations: i.operationFilter.operations.filter((r) => resolveOperationRef(r, ops)).map((r) => `${r.method} ${r.specPath}`),
+          },
+        }
+      : {}),
+  }));
+}
+
+/**
+ * The identities of a connector type on a new platform (ADR 0009): the default template renames and flags the default
+ * identity; every other one is created without credentials, closed, MCP off. Filter references that name no operation of
+ * the bundled specs are left out.
+ */
+function applyIdentityTemplates(platformId: string, templates: ConnectorIdentityTemplate[]): void {
+  const ops = listOperations(platformId);
+  const filterOf = (t: ConnectorIdentityTemplate): IdentityOperationFilter | null => {
+    if (!t.operationFilter || !ops.length) return null;
+    const refs = t.operationFilter.operations.flatMap((text) => {
+      const m = /^([A-Za-z]+)\s+(\S+)$/.exec(text.trim());
+      const o = m ? ops.find((x) => x.method.toUpperCase() === m[1]!.toUpperCase() && specPathOf(x) === m[2]) : undefined;
+      return o ? [refOf(o)] : [];
+    });
+    return { preset: t.operationFilter.preset, operations: refs };
+  };
+  const def = getPlatform(platformId).identities?.find((i) => i.default);
+  const seen = new Set<string>();
+  for (const t of templates) {
+    if (seen.has(t.name.toLowerCase())) continue;
+    seen.add(t.name.toLowerCase());
+    const input = { name: t.name, description: t.description ?? '', readOnly: !!t.readOnly, operationFilter: filterOf(t) };
+    if (t.default && def) updateIdentity(platformId, def.id, input);
+    else if (!t.default) createIdentity(platformId, input);
+  }
 }
 
 /** Largest API specification, fetched from a URL or sent as text. */

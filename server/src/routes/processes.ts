@@ -144,17 +144,20 @@ export async function processRoutes(app: FastifyInstance): Promise<void> {
         version: z.number().int().optional(),
         inputs: boundedRecord(z.unknown(), 200).optional(),
         bindings: boundedRecord(z.string(), 100).optional(),
+        // slot → identity id (0.13.0, ADR 0009); a missing slot: the platform's default identity
+        identities: boundedRecord(z.string().max(100), 100).optional(),
         dryRun: z.boolean().optional(),
         recorded: z.boolean().optional(),
       })
       .parse(req.body) as StartRunRequest;
-    // the command layer (ADR 0011): process run, use on each bound platform
-    authorizeStart(undefined, { processId: b.processId, bindings: b.bindings });
+    // the command layer (ADR 0011): process run, use on each bound platform and its identity
+    authorizeStart(undefined, { processId: b.processId, bindings: b.bindings, identities: b.identities });
     const { runId } = await engine().start({
       processId: b.processId,
       version: b.version,
       inputs: b.inputs ?? {},
       bindings: b.bindings ?? {},
+      ...(b.identities ? { identities: b.identities } : {}),
       mode: modeOf(b),
       actor: currentActor(),
       origin: { trigger: 'manual' },
@@ -299,6 +302,8 @@ export async function processRoutes(app: FastifyInstance): Promise<void> {
     timezone: z.string().max(64).optional(),
     inputs: boundedRecord(z.unknown(), 200).default({}),
     bindings: boundedRecord(z.string(), 100).default({}),
+    // slot → identity id (0.13.0, ADR 0009); checked against the owner when saved and at every fire
+    identities: boundedRecord(z.string().max(100), 100).optional(),
     dryRun: z.boolean().default(false),
     enabled: z.boolean().default(true),
     allowOverlap: z.boolean().default(false),
@@ -309,13 +314,13 @@ export async function processRoutes(app: FastifyInstance): Promise<void> {
   app.get('/schedules', async () => scheduler.listSchedules());
   app.post('/schedules', async (req) => {
     const b = scheduleBody.parse(req.body);
-    authorizeStart(undefined, { processId: b.processId, bindings: b.bindings });
+    authorizeStart(undefined, { processId: b.processId, bindings: b.bindings, identities: b.identities });
     return scheduler.saveSchedule(b);
   });
   app.put('/schedules/:id', async (req) => {
     scheduler.requireScheduleEdit(params(req).id!);
     const b = scheduleBody.parse(req.body);
-    authorizeStart(undefined, { processId: b.processId, bindings: b.bindings });
+    authorizeStart(undefined, { processId: b.processId, bindings: b.bindings, identities: b.identities });
     return scheduler.saveSchedule(b, params(req).id);
   });
   // pause and resume the messages of a schedule's runs (#139); runs and checks are not affected
@@ -334,7 +339,7 @@ export async function processRoutes(app: FastifyInstance): Promise<void> {
   });
   app.post('/schedules/:id/run', { config: { rateLimit: ROUTE_LIMITS.action } }, async (req) => {
     const s = scheduler.getSchedule(params(req).id!);
-    authorizeStart(undefined, { processId: s.processId, bindings: s.bindings });
+    authorizeStart(undefined, { processId: s.processId, bindings: s.bindings, identities: s.identities });
     const id = await scheduler.fire(s.id, true);
     if (!id) throw new HttpError(409, 'Run was not started – see audit log');
     return { id };

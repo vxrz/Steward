@@ -124,6 +124,11 @@ const checkBase = {
   successesBeforeUp: seconds(1, 20).optional(),
   x: z.number().optional(),
   y: z.number().optional(),
+  /**
+   * Checks on a platform: the identity it reads with (0.13.0, ADR 0009) – its id or name; missing: the platform's
+   * default identity. The monitor's owner must be allowed to use it.
+   */
+  identity: z.string().trim().min(1).max(200).optional(),
 };
 
 const freshnessLimits = {
@@ -641,6 +646,11 @@ const outputBase = {
   checks: z.array(z.string()).max(100).optional(),
   /** Leave out checks whose failure is explained by a failing parent (default: true for notification and process) */
   suppressDependents: z.boolean().optional(),
+  /**
+   * Outputs to a platform: the identity it sends with (0.13.0, ADR 0009) – its id or name; missing: the platform's
+   * default identity. It must not be read-only; the monitor's owner must be allowed to use it.
+   */
+  identity: z.string().trim().min(1).max(200).optional(),
 };
 
 /** Output targets may use ${monitor.key}, ${monitor.name}, ${check.id}, ${check.key}, ${check.name} placeholders. */
@@ -703,6 +713,8 @@ export const outputSchema = z.discriminatedUnion('type', [
     type: z.literal('process'),
     processId: z.string().min(1).max(200),
     bindings: boundedRecord(z.string(), 100).default({}),
+    /** Slot → identity id (0.13.0, ADR 0009); a missing slot uses the platform's default identity */
+    identities: boundedRecord(z.string().max(200), 100).optional(),
     /** Process input → JSONata over { monitor, check, event } */
     inputs: boundedRecord(z.string().max(2000), 200).default({}),
     dryRun: z.boolean().default(false),

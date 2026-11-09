@@ -382,6 +382,8 @@ export async function runAiStep(step: NodeOf<'ai'>, io: AiStepIo): Promise<{ out
         body: req.body,
         bodyType: 'json',
         maxResponseBytes: 20 * 1024 * 1024,
+        // an LLM call reads (ADR 0009: a read-only identity lets it through)
+        intent: 'read',
       },
       io.signal,
     );

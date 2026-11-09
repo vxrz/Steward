@@ -224,7 +224,10 @@ describe('1b: a request to the origin of a platform with kind rules gets those r
 // ---------------------------------------------------------------------------------------------------------------
 
 describe('2: confirming the settings never seals what the platform page does not show', () => {
-  it('a variable planted on the identity is reset at confirm; the dialog data and the audit entry name it', async () => {
+  // 0.13.0 (ADR 0009 step 2): the dialog shows everything confirming seals; an identity planted in the database is kept
+  // disabled (shown, never used) until an administrator enables it; a planted variable that decides where requests go is
+  // never used
+  it('a planted identity is kept disabled at confirm, a planted fixed variable is never used', async () => {
     const p = await s.api('POST', '/platforms', {
       name: 'templated',
       kind: 'generic',
@@ -238,10 +241,10 @@ describe('2: confirming the settings never seals what the platform page does not
     });
     const { db } = await import('../src/db.js');
     db().run('UPDATE platform_identities SET variables = ? WHERE platform_id = ?', JSON.stringify({ port: echo2Base.split(':').pop() }), p.id);
-    // a second identity, only a change in the database can make in this release
+    // a second identity, made in the database
     db().run(
-      `INSERT INTO platform_identities (id, platform_id, name, is_default, auth, variables, mcp, created_at, created_by, updated_at, updated_by)
-       VALUES (?, ?, 'planted', 0, ?, '{}', '{"mode":"read"}', '2026-01-01', 'x', '2026-01-01', 'x')`,
+      `INSERT INTO platform_identities (id, platform_id, name, is_default, auth, variables, acl, mcp, created_at, created_by, updated_at, updated_by)
+       VALUES (?, ?, 'planted', 0, ?, '{}', '[{"subject":"user:mallory","permissions":["use"]}]', '{"mode":"read"}', '2026-01-01', 'x', '2026-01-01', 'x')`,
       `pi_planted_${p.id}`,
       p.id,
       JSON.stringify({ type: 'token_request', request: { method: 'POST', url: `${echo2Base}/login?x=1` } }),
@@ -251,29 +254,47 @@ describe('2: confirming the settings never seals what the platform page does not
     expect(review.identities).toEqual([
       expect.objectContaining({
         default: true,
-        action: 'reset',
+        action: 'keep',
         variables: { port: echo2Base.split(':').pop() },
         secretKeys: ['apiKey'],
         mcp: { mode: 'off' },
       }),
-      expect.objectContaining({ default: false, name: 'planted', action: 'remove', signIn: { type: 'token_request', url: `${echo2Base}/login` } }),
+      expect.objectContaining({
+        default: false,
+        name: 'planted',
+        action: 'disable',
+        access: ['user:mallory'],
+        integrity: 'unsealed',
+        signIn: { type: 'token_request', url: `${echo2Base}/login` },
+      }),
     ]);
     await s.api('POST', `/platforms/${p.id}/confirm-config`);
     hits.length = 0;
     hits2.length = 0;
     // (echoBase is also the changedetection.io platform's origin above: a path its rules allow)
     await s.api('POST', `/platforms/${p.id}/request`, { method: 'GET', path: '/api/v1/watch' });
+    // the planted port decides where requests go: never used (IDENTITY_VARIABLE_FIXED)
     expect(hits2).toHaveLength(0);
     expect(hits[0]?.headers['x-api-key']).toBe('tpl-SECRET-key-987654321');
     const after = await s.api('GET', `/platforms/${p.id}`);
-    expect(after.identities.map((i: any) => i.name)).toEqual(['Default']);
+    expect(after.identities.map((i: any) => [i.name, i.integrity, !!i.disabled])).toEqual([
+      ['Default', 'ok', false],
+      ['planted', 'ok', true],
+    ]);
+    // disabled: nothing is handed out – its sign-in (at the second server) is never asked
+    const { getConnection } = await import('../src/platforms/service.js');
+    expect(() => getConnection(p.id, `pi_planted_${p.id}`)).toThrow(/disabled/);
+    await expect(s.api('POST', `/platforms/${p.id}/request`, { method: 'GET', path: '/api/v1/watch', identityId: `pi_planted_${p.id}` })).rejects.toMatchObject(
+      { status: 409, body: { code: 'IDENTITY_DISABLED' } },
+    );
+    expect(hits2).toHaveLength(0);
     const audit = await s.api('GET', '/audit?limit=50');
     const entry = (audit.items ?? audit).find((e: any) => e.action === 'platform.config_confirmed' && e.entityId === p.id);
-    expect(entry.summary).toMatch(/reset to the platform's – 1 other identity removed/);
     expect(entry.details.reviewed).toEqual([
-      expect.objectContaining({ name: 'Default', action: 'reset', variables: { port: echo2Base.split(':').pop() } }),
-      expect.objectContaining({ name: 'planted', action: 'remove' }),
+      expect.objectContaining({ name: 'Default', action: 'keep', variables: { port: echo2Base.split(':').pop() } }),
+      expect.objectContaining({ name: 'planted', action: 'disable', access: ['user:mallory'] }),
     ]);
+    expect(entry.summary).toMatch(/1 identity disabled: "planted"/);
     expect(JSON.stringify(entry)).not.toContain('tpl-SECRET-key-987654321');
   });
 

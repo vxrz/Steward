@@ -978,6 +978,14 @@
                 },
                 "baseUrl": {
                   "type": "string"
+                },
+                "identityId": {
+                  "type": "string",
+                  "description": "The platform identity the slot used (0.13.0; runs before: missing – the default identity)"
+                },
+                "identityName": {
+                  "type": "string",
+                  "description": "Its name when the run started"
                 }
               },
               "required": [
@@ -2176,6 +2184,13 @@
             },
             "description": "Connection slot → platform id"
           },
+          "identities": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Connection slot → platform identity id (0.13.0); a missing slot uses the default identity"
+          },
           "owner": {
             "type": [
               "null",
@@ -2414,6 +2429,7 @@
           "allowOverlap",
           "inputs",
           "bindings",
+          "identities",
           "owner",
           "nextRunAt",
           "lastRunAt",

@@ -38,7 +38,7 @@ type PromBody = { status?: string; error?: string; errorType?: string; data?: { 
 /** The series of an instant query: a vector (one per label set) or a scalar (one series without labels). */
 export async function promInstant(platform: Platform, secrets: Record<string, string>, query: string, signal?: AbortSignal): Promise<PromSeries[]> {
   const sig = signal ?? AbortSignal.timeout(30000);
-  let r = await platformRequest(platform, secrets, { method: 'POST', url: '/api/v1/query', body: { query }, bodyType: 'form' }, sig);
+  let r = await platformRequest(platform, secrets, { method: 'POST', url: '/api/v1/query', body: { query }, bodyType: 'form', intent: 'read' }, sig);
   // a server (or a proxy in front of it) that only takes GET
   if (r.status === 405) r = await platformRequest(platform, secrets, { method: 'GET', url: '/api/v1/query', query: { query } }, sig);
   const body = (isJson(r) ? r.body : null) as PromBody;

@@ -544,6 +544,20 @@ A process can create instances too: `POST /api/monitors/<template id>/instances`
 
 Designers and administrators create monitors and gateways; the creator becomes the owner. An access list (users, teams, roles) narrows the rights like for processes. Checks and outputs that use a platform need the _use_ right of the editor when saving and of the **owner** when they run (checked again at least once a minute). The audit log records `monitor.created`, `monitor.updated` (with added, removed and changed checks), `monitor.deleted`, `monitor.access_changed`, `monitor.secret_rotated`, `monitor.maintenance_added`/`_ended` (deprecated maintenance routes), `monitor.acknowledged`, `monitor.resynced`, `monitor.gateway_*`, `monitor.report_rejected`, `monitor.test_run` and `monitor.check_previewed`.
 
+### Identities
+
+A check or output on a platform reads or sends with the platform's **default identity** – or the identity it names (`identity`: its id or name; the editor shows a choice where the platform has several, [ADR 0009](adr/0009-platform-identities.md)). The editor must be allowed to use the identity when saving, the monitor's **owner** at every run (checked again at least once a minute); a check whose owner may no longer use it reports why, like a platform the owner may not use. Outputs write: they never send with a read-only identity (`IDENTITY_READ_ONLY` when saving). A shared read of several checks (Insights Hub, Gatus, CheckMk) is shared only among checks with the same identity. The identity's operation filter applies to the check's requests; an identity named by a monitor cannot be deleted. Process outputs name the identity per slot (`identities`, as schedules do). See [PLATFORM-SIGN-IN.md](PLATFORM-SIGN-IN.md#identities).
+
+```yaml
+checks:
+  - id: users
+    name: Users answer
+    type: platform
+    platform: Directory
+    identity: Monitoring # read with this identity instead of the default
+    path: /users
+```
+
 ## Engine, storage and limits
 
 - **Scheduler.** A light scheduler next to the process engine (monitor checks do **not** create process runs). Each check runs on a fixed grid of its interval with a stable phase per check, so shared reads land in the same cycle and restarts keep the rhythm. Active checks run with a global concurrency limit (`SM_MONITOR_CONCURRENCY`, default 8), a timeout each and the platform's own concurrency limit; OpenTelemetry spans `monitor check <type>` are recorded when tracing is on.

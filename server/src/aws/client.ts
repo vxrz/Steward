@@ -96,6 +96,8 @@ export class AwsClient {
         bodyType: 'text',
         aws: { service, region },
         maxResponseBytes: o.maxBytes ?? 16 * 1024 * 1024,
+        // Steward's own reads (cost, IAM, DynamoDB queries): a read-only identity lets them through (ADR 0009)
+        intent: 'read',
       },
       this.signal,
     );
@@ -117,6 +119,7 @@ export class AwsClient {
         rawText: true,
         aws: { service, region },
         maxResponseBytes: 16 * 1024 * 1024,
+        intent: 'read',
       },
       this.signal,
     );

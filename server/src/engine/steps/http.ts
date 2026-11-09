@@ -66,6 +66,13 @@ async function execHttp(step: NodeOf<'http'>, ctx: StepContext, key: string): Pr
     secretBindings(ctx, step.connection).filter((x) => x.foreign),
   );
 
+  // the identity's read-only flag and operation filter (0.13.0, ADR 0009): a dry run or a test run refuses what the live
+  // run would refuse, before a write is skipped or a recording is looked up (live requests: platformRequest checks)
+  if (ctx.dryRun) {
+    const { assertIdentityAllows, restricts } = await import('../../platforms/identityGuard.js');
+    if (restricts(b.platform)) await assertIdentityAllows(b.platform, b.secrets, { method: step.method, url: await buildUrl(b.platform, b.secrets, p, query) });
+  }
+
   // a single-node debug run's pasted answer stands in for the platform (it is never stored as a recording)
   const pasted = ctx.debugNode?.answer;
   // test run: a write with a recorded response gets that answer; without one it is skipped as in a dry run

@@ -69,6 +69,7 @@ const emptyDraft = (): Draft => ({
   dryRun: false,
   inputMapping: {},
   bindings: {},
+  identities: {},
   authMode: 'token',
   allowedCidrs: [],
   allowedHeaders: [],
@@ -89,6 +90,7 @@ const toDraft = (tr: WebhookTrigger): Draft => ({
   dryRun: tr.dryRun,
   inputMapping: tr.inputMapping,
   bindings: tr.bindings,
+  identities: tr.identities ?? {},
   authMode: tr.authMode,
   allowedCidrs: tr.allowedCidrs,
   allowedHeaders: tr.allowedHeaders,
@@ -518,7 +520,7 @@ function TriggerModal({ draft, onClose, onSave }: { draft: Draft; onClose: () =>
             searchable
             data={(processes.data ?? []).filter((p) => p.permissions.includes('run')).map((p) => ({ value: p.id, label: p.name }))}
             value={d.processId || null}
-            onChange={(v) => setD({ ...d, processId: v ?? '', inputMapping: {}, bindings: {}, processVersion: null })}
+            onChange={(v) => setD({ ...d, processId: v ?? '', inputMapping: {}, bindings: {}, identities: {}, processVersion: null })}
           />
           <NumberInput
             label={t('form.pinVersion')}
@@ -540,7 +542,13 @@ function TriggerModal({ draft, onClose, onSave }: { draft: Draft; onClose: () =>
         {proc.data && (
           <>
             <Divider label={t('form.connections')} labelPosition="left" />
-            <BindingsForm process={proc.data} value={d.bindings} onChange={(b) => setD({ ...d, bindings: b })} />
+            <BindingsForm
+              process={proc.data}
+              value={d.bindings}
+              onChange={(b) => setD((x) => ({ ...x, bindings: b }))}
+              identities={d.identities ?? {}}
+              onIdentitiesChange={(identities) => setD((x) => ({ ...x, identities }))}
+            />
             <Divider label={t('form.inputs')} labelPosition="left" />
             <Text size="xs" c="dimmed">
               <Trans t={t} i18nKey="form.inputsHint" values={{ example: '"fixed value"' }} components={{ c: <Code /> }} />

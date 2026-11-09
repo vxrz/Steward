@@ -56,6 +56,8 @@
       "ownerMissing": "the owner {{owner}} is missing or deactivated",
       "mayNotRun": "{{user}} may not run this process",
       "mayNotUsePlatform": "{{user}} may not use the platform {{platform}}",
+      "mayNotUseIdentity": "{{user}} may not use the identity {{identity}} of the platform {{platform}}",
+      "identityMissing": "the identity {{identity}} of the platform {{platform}} no longer exists",
       "missed": "it was due {{count}} time(s) while Steward was not running"
     }
   },

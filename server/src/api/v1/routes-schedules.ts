@@ -21,6 +21,7 @@ const mapSchedule = (s: ReturnType<typeof scheduler.getSchedule>) => ({
   allowOverlap: s.allowOverlap,
   inputs: s.inputs,
   bindings: s.bindings,
+  identities: s.identities ?? {},
   owner: s.owner ?? null,
   nextRunAt: s.nextRunAt ?? null,
   lastRunAt: s.lastRunAt ?? null,

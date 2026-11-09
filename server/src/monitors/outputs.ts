@@ -377,7 +377,7 @@ async function sendWebhook(o: Extract<OutputDef, { type: 'webhook' }>, m: Loaded
   if (o.format === 'teams') return sendTeamsCards(o, m, events);
   const body = { source: BRAND.slug, monitor: { id: m.id, key: m.key, name: m.name }, events: events.map(payload) };
   if (o.platform) {
-    const { platform, secrets } = platformFor(m.owner, o.platform);
+    const { platform, secrets } = platformFor(m.owner, o.platform, o.identity);
     const r = await platformRequest(
       platform,
       secrets,
@@ -395,7 +395,7 @@ async function sendWebhook(o: Extract<OutputDef, { type: 'webhook' }>, m: Loaded
  * `webhookUrl` (encrypted like every credential) is the Workflows URL. Saving refuses anything else.
  */
 async function sendTeamsCards(o: Extract<OutputDef, { type: 'webhook' }>, m: LoadedMonitor, events: OutEvent[]): Promise<void> {
-  const { platform, secrets } = platformFor(m.owner, o.platform ?? '');
+  const { platform, secrets } = platformFor(m.owner, o.platform ?? '', o.identity);
   if (platform.kind !== 'teams') throw new Error(`Platform "${platform.name}" is not a Microsoft Teams channel`);
   if (!secrets.webhookUrl) throw new Error(`Platform "${platform.name}" has no credential "webhookUrl" (the Teams Workflows URL)`);
   const now = Date.now();
@@ -433,7 +433,7 @@ registerOutboxTarget('output', (rest) => {
   const m = r ? loadMonitor(r) : null;
   const o = m?.def.outputs.find((x) => x.id === outputId);
   if (!m || !o || o.type !== 'webhook' || o.format !== 'teams' || o.enabled === false) return null;
-  const { platform, secrets } = platformFor(m.owner, o.platform ?? '');
+  const { platform, secrets } = platformFor(m.owner, o.platform ?? '', o.identity);
   const url = platform.kind === 'teams' ? secrets.webhookUrl : undefined;
   return {
     personal: false,
@@ -445,7 +445,7 @@ registerOutboxTarget('output', (rest) => {
 });
 
 async function sendGatus(o: Extract<OutputDef, { type: 'gatus' }>, m: LoadedMonitor, events: OutEvent[]): Promise<void> {
-  const { platform, secrets } = platformFor(m.owner, o.platform);
+  const { platform, secrets } = platformFor(m.owner, o.platform, o.identity);
   const token = secrets[o.tokenSecret || 'externalToken'];
   if (!token) throw new Error(`Platform "${platform.name}" has no credential "${o.tokenSecret || 'externalToken'}" (external endpoint token)`);
   for (const e of events) {
@@ -474,7 +474,7 @@ async function sendGatus(o: Extract<OutputDef, { type: 'gatus' }>, m: LoadedMoni
 export const DEFAULT_ZABBIX_KEYS = { monitor: 'steward.monitor.status[${monitor.key}]', check: 'steward.check.status[${monitor.key},${check.id}]' };
 
 async function sendZabbix(o: Extract<OutputDef, { type: 'zabbix' }>, m: LoadedMonitor, events: OutEvent[]): Promise<void> {
-  const { platform, secrets } = platformFor(m.owner, o.platform);
+  const { platform, secrets } = platformFor(m.owner, o.platform, o.identity);
   const vars = platform.config.variables ?? {};
   const items = events.map((e) => {
     const ph = placeholders(m, e);
@@ -546,12 +546,13 @@ async function startProcesses(o: Extract<OutputDef, { type: 'process' }>, m: Loa
     }
     const { runId } = await runAs(user, () => {
       // the command layer's start check (ADR 0011), as the monitor's owner: since 0.10.0 also `use` on the bound platforms
-      const p = startProblem(user, { processId: o.processId, bindings: o.bindings });
+      const p = startProblem(user, { processId: o.processId, bindings: o.bindings, identities: o.identities });
       if (p) throw new Error(p.code === 'mayNotRun' || p.code === 'processNotFound' ? `${m.owner} may not run process ${o.processId}` : p.text);
       return engine().start({
         processId: o.processId,
         inputs,
         bindings: o.bindings ?? {},
+        ...(o.identities ? { identities: o.identities } : {}),
         mode: o.dryRun ? 'dry' : 'live',
         actor: m.owner,
         origin: { trigger: 'monitor', webhook: { triggerId: m.id, triggerName: m.name, output: o.id } },
