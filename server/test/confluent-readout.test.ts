@@ -5,7 +5,8 @@ import { setup, startTestServer, type Client, type TestServer } from './helpers.
 /**
  * Confluent Cloud as a platform (0.14.0, #123, docs/CONFLUENT.md): the descriptor, the readout of environments,
  * clusters, Schema Registry, service accounts, API keys and managed connectors from the simulated Cloud API (paged,
- * part by part), the links to the Kafka platform and its topic components, never a secret, read-only, who sees what,
+ * part by part), the links to the Kafka platform and its topic components, never a secret (also not from a process's
+ * write), who sees what,
  * the outbound policy, the monitor check "confluent" with its kind guard, and the Costs API in platform costs.
  */
 
@@ -24,7 +25,13 @@ let kafka: typeof import('../src/mock/mockKafka.js');
 let eng: typeof import('../src/monitors/engine.js');
 
 /** Values that must never leave Steward: the demo's secrets and the token in a connector's error. */
-const SECRETS = () => [mock.DEMO_CONFLUENT.cloudSecret, mock.DEMO_CONFLUENT.clusterSecret, kafka.DEMO_KAFKA.registrySecret, 'demo-http-source-token'];
+const SECRETS = () => [
+  mock.DEMO_CONFLUENT.cloudSecret,
+  mock.DEMO_CONFLUENT.clusterSecret,
+  mock.DEMO_CONFLUENT.newKeySecret,
+  kafka.DEMO_KAFKA.registrySecret,
+  'demo-http-source-token',
+];
 const noSecrets = (v: unknown) => {
   const text = typeof v === 'string' ? v : JSON.stringify(v);
   for (const secret of SECRETS()) expect(text).not.toContain(secret);
@@ -197,7 +204,7 @@ describe('the readout', () => {
   });
 });
 
-describe('rights, read-only and the outbound policy', () => {
+describe('rights, writes and the outbound policy', () => {
   it('names only what the reader may see; who may not use the platform sees nothing of it', async () => {
     // a platform is seen by who may use it (an operator by default), with its service accounts and keys
     const v = await olivia('GET', `/platforms/${ccId}/confluent`);
@@ -229,18 +236,29 @@ describe('rights, read-only and the outbound policy', () => {
     await expect(s.api('GET', `/platforms/${kafkaId}/confluent`)).rejects.toMatchObject({ status: 400, body: { code: 'CONFLUENT_PLATFORM' } });
   });
 
-  it('refuses every changing request, whoever asks', async () => {
+  it('lets processes change Confluent Cloud, but never passes a secret on', async () => {
+    // not a read-only kind: a changing request goes out (the mock knows only key creation; the others answer 404)
     for (const [method, path] of [
-      ['POST', '/iam/v2/api-keys'],
       ['DELETE', '/iam/v2/api-keys/DEMOKEY'],
       ['PUT', '/connect/v1/environments/env-demo1/clusters/lkc-demo1/connectors/orders-s3-sink/pause'],
       ['PATCH', '/cmk/v2/clusters/lkc-demo1'],
-      ['POST', '/iam/v2/role-bindings'],
-    ])
-      await expect(s.api('POST', `/platforms/${ccId}/request`, { method, path })).rejects.toMatchObject({
-        status: 403,
-        body: { code: 'PLATFORM_METHOD_DENIED' },
-      });
+    ]) {
+      const r = await s.api('POST', `/platforms/${ccId}/request`, { method, path });
+      expect(r.status, `${method} ${path}`).toBe(404);
+    }
+    // a key created through Steward: its secret is removed from the answer
+    const created = await s.api('POST', `/platforms/${ccId}/request`, {
+      method: 'POST',
+      path: '/iam/v2/api-keys',
+      body: { spec: { display_name: 'rotated', owner: { id: 'sa-orders' } } },
+    });
+    expect(created.status).toBe(202);
+    expect(created.body).toMatchObject({ id: 'NEWKEY01', spec: { display_name: 'rotated' } });
+    expect(created.body.spec).not.toHaveProperty('secret');
+    expect(JSON.stringify(created)).not.toContain(mock.DEMO_CONFLUENT.newKeySecret);
+    noSecrets(created);
+    const audit = await s.api('GET', `/audit?entityType=platform&entityId=${ccId}&limit=50`);
+    expect(JSON.stringify(audit)).not.toContain(mock.DEMO_CONFLUENT.newKeySecret);
     // a read through the explorer: no "secret" key passed on, a connector configuration redacted
     const r = await s.api('POST', `/platforms/${ccId}/request`, {
       method: 'GET',

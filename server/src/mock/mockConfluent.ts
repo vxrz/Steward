@@ -39,6 +39,8 @@ export const DEMO_CONFLUENT = {
   cloudSecret: 'demo-confluent-cloud-secret',
   clusterKey: 'CLUSTERKEY',
   clusterSecret: 'demo-confluent-cluster-secret',
+  /** The secret of a key created through the mock (tests: never passed on by Steward) */
+  newKeySecret: 'demo-confluent-new-key-secret',
   org: 'org-demo',
   environment: 'env-demo1',
   cluster: 'lkc-demo1',
@@ -517,6 +519,19 @@ export async function mockConfluent(app: FastifyInstance): Promise<void> {
         )
       : reply,
   );
+  // creating a key (for tests: a process that rotates a key through Steward): the answer holds the new secret, as
+  // Confluent's does once; nothing is kept
+  app.post(`${R}/iam/v2/api-keys`, async (req, reply) => {
+    if (!authorized(req, reply, false)) return reply;
+    const spec = ((req.body as { spec?: Record<string, unknown> } | null)?.spec ?? {}) as Record<string, unknown>;
+    return reply.code(202).send({
+      api_version: 'iam/v2',
+      kind: 'ApiKey',
+      id: 'NEWKEY01',
+      metadata: { created_at: new Date().toISOString() },
+      spec: { display_name: String(spec.display_name ?? ''), secret: DEMO_CONFLUENT.newKeySecret, owner: spec.owner ?? null },
+    });
+  });
   app.get(`${R}/connect/v1/environments/:env/clusters/:cluster/connectors`, async (req, reply) => {
     if (!authorized(req, reply, false)) return reply;
     const { env: e, cluster } = req.params as { env: string; cluster: string };

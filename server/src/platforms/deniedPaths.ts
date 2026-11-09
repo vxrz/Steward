@@ -138,10 +138,11 @@ export function deniedPath(kind: string, url: string): string | null {
  * Kinds that are only read (0.9.0): Kafka Connect (#223) – no connector is created, changed, restarted, paused or
  * resumed –, changedetection.io (#242) – no watch, tag, notification or history is created, changed or deleted – and
  * container registries (the version watch reads image tags) through Steward, whoever asks (process steps, the explorer,
- * the MCP gateway, monitors, recordings, redirect hops). 0.14.0: Confluent Cloud (#123) – no cluster, connector, key or
- * role binding is created, changed, paused or deleted.
+ * the MCP gateway, monitors, recordings, redirect hops). Confluent Cloud (#123) is not one of them: processes may manage
+ * it through Steward (e.g. rotating an API key with approvals); Steward's own readers only send GET, and a team that
+ * wants no change at all marks the platform's identity read-only (ADR 0009).
  */
-const READ_ONLY_KINDS: ReadonlySet<string> = new Set([KAFKA_CONNECT_KIND, CHANGEDETECTION_KIND, CONTAINER_REGISTRY_KIND, CONFLUENT_KIND]);
+const READ_ONLY_KINDS: ReadonlySet<string> = new Set([KAFKA_CONNECT_KIND, CHANGEDETECTION_KIND, CONTAINER_REGISTRY_KIND]);
 
 /**
  * Kinds with rules of their own – read-only, refused paths or values removed from answers. Their rules also apply to a
@@ -249,7 +250,7 @@ const URL_KEYS = new Set(['url', 'link']);
 
 /**
  * A Confluent Cloud answer (0.14.0, #123) as Steward passes it on: no "secret" key at any depth (an API key's secret is
- * only in the answer that creates it – which this read-only kind never sends – but never passed on either way), and a
+ * only in the answer that creates it – a process that creates a key never gets it through Steward), and a
  * managed connector's configuration and status ("config" and "status" objects) with their secret-looking values
  * removed and error traces trimmed, like Kafka Connect's.
  * Everything else – pagination links included – stays as it is.
