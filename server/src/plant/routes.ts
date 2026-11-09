@@ -26,6 +26,7 @@ import * as net from './network.js';
 import * as coll from './collections.js';
 import { applyCollectionImport, collectionImportInput, previewCollectionImport } from './collections-import.js';
 import { assetFlow, coverage, hostPlacement, overview, pointLineage, siteStructure } from './views.js';
+import { candidatesInput, extractBase, extractCandidates, extractInput, previewExtract } from './extract.js';
 import {
   changesMapSource,
   checkBody,
@@ -54,6 +55,7 @@ import type { Fetched } from './mapTiles.js';
  *   …       /api/plant/sites[/:siteId[/nodes|/buildings|/links|/access]]
  *   …       /api/plant/assets[/:assetId[/image|/links|/assignment]]
  *   …       /api/plant/profiles[/:profileId[/points/:pointId]], /api/plant/kpis[/:kpiId]   the catalogues of part 2 (#219)
+ *   POST    /api/plant/profiles/extract-base[/candidates|/preview]   a base profile from the shared data points (0.12.0)
  *   GET     /api/plant/explore/points, /api/plant/checks
  *   …       /api/plant/sites/:siteId/network, …/vlans[/:vlanId[/segment]], …/zones[/:zoneId], …/conduits[/:conduitId]   the OT network (#220)
  *   …       /api/plant/assets/:assetId/network, …/devices[/:deviceId], …/paths[/:pathId], …/checks
@@ -269,6 +271,10 @@ export async function plantRoutes(app: FastifyInstance): Promise<void> {
   // ---------- device profiles and KPI definitions: catalogues of the installation (#219) ----------
   app.get('/plant/profiles', async () => cat.listProfiles());
   app.post('/plant/profiles', async (req) => cat.createProfile(cat.profileInput.parse(req.body)));
+  // 0.12.0: extract a base profile from two or more profiles (the shared data points; docs/PLANT.md)
+  app.post('/plant/profiles/extract-base/candidates', async (req) => extractCandidates(candidatesInput.parse(req.body)));
+  app.post('/plant/profiles/extract-base/preview', async (req) => previewExtract(extractInput.parse(req.body)));
+  app.post('/plant/profiles/extract-base', async (req) => extractBase(extractInput.parse(req.body)));
   app.get('/plant/profiles/:profileId', async (req) => cat.getProfile(p(req).profileId!));
   app.put('/plant/profiles/:profileId', async (req) => cat.updateProfile(p(req).profileId!, cat.profileUpdate.parse(req.body)));
   app.delete('/plant/profiles/:profileId', async (req) => {

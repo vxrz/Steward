@@ -1,5 +1,5 @@
 import type { AssetStatus, PlantLevel, Translations } from './plant.js';
-import type { PlantAssetBrief, PlantCheck, PlantCheckCode, PlantDirection, PlantProtocol } from './plantData.js';
+import type { PlantAssetBrief, PlantCheck, PlantCheckCode, PlantDirection, PlantProtocol, PlantUnitMismatch } from './plantData.js';
 import type { LiveState } from './plantNetwork.js';
 
 /**
@@ -235,6 +235,28 @@ export interface PlantCoverageCell {
   gaps?: PlantGap[];
   /** problem: the checks that fail */
   checks?: PlantCheck[];
+  /**
+   * 0.12.0, could: whether the data is collected already – a data collection of the asset (any collector) maps every
+   * data point input ("Collected – ready"), or not ("Device delivers, not collected")
+   */
+  collected?: boolean;
+  /** 0.12.0, could and has: data point inputs the asset delivers in another unit than the KPI expects */
+  units?: PlantUnitMismatch[];
+}
+
+/** 0.12.0: KPI potential – of the cells that could have a KPI, those whose data is collected and those that need a collection. */
+export interface PlantKpiPotential {
+  ready: number;
+  collect: number;
+}
+
+/** 0.12.0: the totals of one site (areaId null) or one area of it, over every asset that matches the filters. */
+export interface PlantCoverageGroup {
+  siteId: string;
+  areaId: string | null;
+  assets: number;
+  totals: Record<PlantCoverageState, number>;
+  potential: PlantKpiPotential;
 }
 
 export interface PlantCoverageRow {
@@ -251,6 +273,10 @@ export interface PlantCoverage {
   rows: PlantCoverageRow[];
   /** Cells by state, over every row that matches (also those left out) */
   totals: Record<PlantCoverageState, number>;
+  /** 0.12.0: the "could" cells split by whether their data is collected */
+  potential: PlantKpiPotential;
+  /** 0.12.0: totals per site and per area of a site, over every row that matches */
+  groups: PlantCoverageGroup[];
   /** Rows that match; `rows` holds at most PLANT_VIEW_LIMITS.coverageCells / kpis of them */
   total: number;
   truncated: boolean;
@@ -276,6 +302,8 @@ export interface PlantSiteTile {
   counts: Partial<Record<AssetStatus, number>>;
   total: number;
   coverage: Record<PlantCoverageState, number>;
+  /** 0.12.0: KPI potential – could-have cells whose data is collected, and those that need a collection */
+  potential: PlantKpiPotential;
   /** Failing plant checks of the site's assets */
   checks: number;
   /** Assets with a linked monitor, by its state */

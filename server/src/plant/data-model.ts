@@ -85,6 +85,8 @@ export interface ProfileRow extends Source {
   base_id: string | null;
   interface_overrides: string;
   point_overrides: string;
+  /** 0.12.0: 1 – a template, only for other profiles to extend */
+  template: number;
 }
 
 export interface KpiRow extends Source {
@@ -145,6 +147,7 @@ export const profileValuesOf = (r: ProfileRow): PlantProfileValues => ({
   notes: r.notes,
   interfaces: parseJson<PlantInterface[]>(r.interfaces, []).map(interfaceDefaults),
   extends: r.base_id ?? null,
+  template: !!Number(r.template ?? 0),
   interfaceOverrides: parseJson<PlantInterfaceOverride[]>(r.interface_overrides, []).map((o) => ({
     ...o,
     groups: o.groups.map((g) => ({ ...g, dataPoints: g.dataPoints.map(pointDefaults) })),
@@ -411,6 +414,8 @@ export const profileInput = z
     notes: text(L.longText),
     interfaces: z.array(interfaceInput).max(L.interfaces).default([]),
     extends: plantId.nullable().default(null),
+    // 0.12.0: only for other profiles to extend (no asset may have it)
+    template: z.boolean().default(false),
     interfaceOverrides: z.array(interfaceOverrideInput).max(L.interfaces).default([]),
     pointOverrides: z.array(pointOverrideInput).max(L.dataPoints).default([]),
   })
@@ -418,6 +423,15 @@ export const profileInput = z
 export const profileUpdate = profileInput.omit({ id: true });
 
 const paramValue = z.union([z.string().max(2000), z.number().finite(), z.boolean(), z.null()]);
+
+/** The units a KPI input expects (0.12.0): data point id → UCUM code; empty units are left out, the field when none is left. */
+export const kpiInputUnits = boundedRecord(z.string().trim().max(40), L.inputPoints)
+  .optional()
+  .transform((o) => {
+    const out: Record<string, string> = {};
+    for (const [k, v] of Object.entries(safeEntries(o ?? {}))) if (v.trim()) out[k] = unitCode(v);
+    return Object.keys(out).length ? out : undefined;
+  });
 
 export const kpiInput = z
   .object({
@@ -446,6 +460,8 @@ export const kpiInput = z
             // a profile id, or empty: whatever profile the asset has
             profile: z.union([z.literal(''), plantId]).default(''),
             dataPoints: z.array(pointName).max(L.inputPoints).default([]),
+            // 0.12.0: the unit expected per data point (a data point left out: its unit in the input's profile)
+            units: kpiInputUnits,
             notes: text(L.longText),
           })
           .strict(),
@@ -659,8 +675,20 @@ export function kpiProblems(k: PlantKpiValues): RuleProblem[] {
     cols.add(c.name);
   });
   if (k.rangeMin !== null && k.rangeMax !== null && k.rangeMin > k.rangeMax) out.push({ path: 'range', message: 'The lower end is above the upper end' });
+  // 0.12.0: a unit is stated for a data point the input reads
+  k.inputs.forEach((i, n) => {
+    for (const [dp, u] of Object.entries(i.units ?? {})) {
+      if (!NAME_RE.test(dp) || !i.dataPoints.includes(dp))
+        out.push({ path: `inputs[${n}].units`, message: `A unit is given for data point "${dp}", which the input does not read` });
+      else if (u.length > 40) out.push({ path: `inputs[${n}].units`, message: 'A unit has at most 40 characters' });
+    }
+  });
   return out;
 }
+
+/** Why an asset may not have a template profile (0.12.0): the message of the refusal, the import's problem and the proposal's. */
+export const templateMessage = (name: string) =>
+  `Device profile "${name}" is a template – only for other profiles to extend; give the asset a profile that extends it`;
 
 /**
  * What an assignment may not hold when it is saved: a profile, interface, data point or KPI definition that does not
@@ -668,11 +696,13 @@ export function kpiProblems(k: PlantKpiValues): RuleProblem[] {
  */
 export function assignmentProblems(
   a: PlantAssignmentValues,
-  profile: PlantProfileValues | null | undefined,
+  profile: (Pick<PlantProfileValues, 'id' | 'name' | 'interfaces'> & { template?: boolean }) | null | undefined,
   kpiExists: (id: string) => boolean,
 ): RuleProblem[] {
   const out: RuleProblem[] = [];
   if (a.profileId && !profile) out.push({ path: 'profile', message: `There is no device profile "${a.profileId}"` });
+  // 0.12.0: a template is only for other profiles to extend
+  if (profile?.template) out.push({ path: 'profile', message: templateMessage(profile.name || profile.id) });
   out.push(...additionProblems(a, profile));
   // the asset's model: the profile with the asset's additions (0.11.0)
   const model = assetModel(a, profile);
@@ -770,12 +800,12 @@ const keep = (opts: { keepSource?: boolean }) => (opts.keepSource ? '' : 'import
 export function upsertProfile(v: PlantProfileValues, m: Meta, opts: { keepSource?: boolean } = {}): void {
   db().run(
     `INSERT INTO plant_profiles (id, name, manufacturer, model, version, category, description, notes, interfaces, base_id, interface_overrides, point_overrides,
-       import_id, not_in_source, created_at, created_by, updated_at, updated_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       template, import_id, not_in_source, created_at, created_by, updated_at, updated_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT (id) DO UPDATE SET name = excluded.name, manufacturer = excluded.manufacturer, model = excluded.model, version = excluded.version,
        category = excluded.category, description = excluded.description, notes = excluded.notes, interfaces = excluded.interfaces,
        base_id = excluded.base_id, interface_overrides = excluded.interface_overrides, point_overrides = excluded.point_overrides,
-       ${keep(opts)} updated_at = excluded.updated_at, updated_by = excluded.updated_by`,
+       template = excluded.template, ${keep(opts)} updated_at = excluded.updated_at, updated_by = excluded.updated_by`,
     v.id,
     v.name,
     v.manufacturer,
@@ -788,6 +818,7 @@ export function upsertProfile(v: PlantProfileValues, m: Meta, opts: { keepSource
     v.extends ?? null,
     JSON.stringify(v.interfaceOverrides ?? []),
     JSON.stringify(v.pointOverrides ?? []),
+    v.template ? 1 : 0,
     ...src(m),
     m.at,
     m.by,

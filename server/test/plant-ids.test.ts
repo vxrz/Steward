@@ -73,7 +73,7 @@ describe('the registry of reference columns', () => {
     // kind: site or asset (registered as pairs)
     plant_refs: ['kind', 'position', 'system', 'ref_id', 'url', 'label'],
     plant_imports: ['id', 'mode', 'missing', 'replaces', 'files', 'sha256', 'counts'],
-    plant_profiles: ['name', 'manufacturer', 'model', 'version', 'category', 'description', 'notes'],
+    plant_profiles: ['name', 'manufacturer', 'model', 'version', 'category', 'description', 'notes', 'template'],
     plant_kpis: [
       'name',
       'names',

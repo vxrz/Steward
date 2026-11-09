@@ -42,6 +42,7 @@ import {
   removeAssignmentRow,
   removeKpiRow,
   removeProfileRow,
+  safeEntries,
   upsertAssignment,
   upsertKpi,
   upsertProfile,
@@ -310,8 +311,16 @@ function profileFromFile(p: ProfileFile, o: Origin): PlannedProfile {
   const v: PlannedProfile['values'] = { id: p.id, name: p.name.trim() };
   for (const k of ['manufacturer', 'model', 'version', 'category', 'description', 'notes'] as const) if (has(p, k)) v[k] = str(p[k]);
   if (has(p, 'extends')) v.extends = p.extends ?? null;
+  if (has(p, 'template')) v.template = !!p.template;
   // the interfaces are read once the base is known (computeData): an entry may change an inherited interface
   return { ...o, values: v, groupPaths: [], raw: has(p, 'interfaces') ? (p.interfaces ?? []) : null };
+}
+
+/** A KPI input's expected units (0.12.0) as stored: UCUM codes, empty ones left out, no field when none is left. */
+function unitsFromFile(units: Record<string, string | null | undefined> | null | undefined): { units?: Record<string, string> } {
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(safeEntries(units ?? {}))) if (str(v)) out[k] = unitCode(str(v));
+  return Object.keys(out).length ? { units: out } : {};
 }
 
 function kpiFromFile(k: KpiFile, o: Origin): PlannedKpi {
@@ -333,6 +342,7 @@ function kpiFromFile(k: KpiFile, o: Origin): PlannedKpi {
       kind: (i.kind ?? 'data_point').toLowerCase() === 'other' ? 'other' : 'data_point',
       profile: i.profile ?? '',
       dataPoints: [...new Set(i.data_points ?? [])],
+      ...unitsFromFile(i.units),
       notes: str(i.notes),
     }));
   if (has(k, 'parameters'))
@@ -473,6 +483,7 @@ const PROFILE_DEFAULTS = (id: string): PlantProfileValues => ({
   notes: '',
   interfaces: [],
   extends: null,
+  template: false,
   interfaceOverrides: [],
   pointOverrides: [],
 });
@@ -734,6 +745,18 @@ export function computeData(c: DataContext): PlantCheck[] {
     );
   }
 
+  // 0.12.0: a profile of the files that is a template while an asset (not in the files) has it: the import stops
+  for (const pp of p.profiles.values()) {
+    if (!postOwn.get(pp.values.id)?.template) continue;
+    // (no count: assets in sites the caller may not see count, too)
+    if ([...postAssignments].some(([assetId, a]) => a.profileId === pp.values.id && !p.assignments.has(assetId)))
+      problems.push({
+        file: pp.file,
+        path: `${pp.path}.template`,
+        message: `Device profile "${pp.values.id}" is a template, but assets have it – give them a profile that extends it first`,
+      });
+  }
+
   // ---- what the earlier import wrote and the files no longer have
   if (full && prevId) {
     const catalogue = canManageCatalogue(c.user);
@@ -967,6 +990,7 @@ export function profileOut(p: PlantProfileValues, base: PlantResolvedProfile | n
     id: p.id,
     name: p.name,
     extends: p.extends,
+    template: p.template,
     manufacturer: p.manufacturer,
     model: p.model,
     version: p.version,
@@ -1012,7 +1036,9 @@ export function kpiOut(k: PlantKpiValues): Record<string, unknown> {
     strategy: k.strategy,
     implementation: k.implementation,
     dynamic_columns: k.dynamicColumns,
-    inputs: k.inputs.map((i) => clean({ kind: i.kind === 'data_point' ? '' : i.kind, profile: i.profile, data_points: i.dataPoints, notes: i.notes })),
+    inputs: k.inputs.map((i) =>
+      clean({ kind: i.kind === 'data_point' ? '' : i.kind, profile: i.profile, data_points: i.dataPoints, units: i.units ?? {}, notes: i.notes }),
+    ),
     parameters: k.parameters.map((p) =>
       // a default of 0 or false is a value: kept
       ({

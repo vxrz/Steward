@@ -44,7 +44,8 @@ import {
   upsertKpi,
   upsertProfile,
 } from './data-model.js';
-import { assignmentChecks, canHave, deliveries, kpiChecks } from './checks.js';
+import { assignmentChecks, canHave, deliveries, kpiChecks, unitMismatches } from './checks.js';
+import { collectedPoints, isCollected } from './potential.js';
 import { descendantsOf, extendsProblems, isOrExtends, normalizeOwnPart, ownPartProblems, resolveAll, resolvedProblems } from './resolve.js';
 
 /**
@@ -124,6 +125,7 @@ function profileSummary(
     dataPointCount: countPoints(r),
     assetCount,
     extends: r.extends,
+    template: r.template,
     importId: r.importId,
     notInSource: r.notInSource,
     updatedAt: r.updatedAt,
@@ -295,6 +297,7 @@ export function updateProfile(id: string, input: z.infer<typeof profileUpdate>):
   if (!r) throw profileNotFound(id);
   const before = profileValuesOf(r);
   const v = profileValues(id, input);
+  if (v.template && !before.template) refuseTemplateInUse(id);
   const c = profileChanges(before, v);
   if (!c.changed) return getProfile(id);
   db().tx(() => {
@@ -313,6 +316,24 @@ export function updateProfile(id: string, input: z.infer<typeof profileUpdate>):
     });
   });
   return getProfile(id);
+}
+
+/**
+ * 0.12.0: a profile that assets have cannot become a template – with the count only when the caller sees every asset
+ * that has it (as deleteProfile).
+ */
+function refuseTemplateInUse(id: string): void {
+  const users = db().all<{ asset_id: string }>('SELECT asset_id FROM plant_assignments WHERE profile_id = ?', id);
+  if (!users.length) return;
+  const seen = visibleAssets().assets;
+  if (users.some((u) => !seen.has(u.asset_id)))
+    throw new HttpError(409, 'Assets have the profile – it cannot become a template', 'PLANT_PROFILE_TEMPLATE_IN_USE_HIDDEN');
+  throw new HttpError(
+    409,
+    `${users.length} assets have the profile – give them another profile (one that extends it) before it becomes a template`,
+    'PLANT_PROFILE_TEMPLATE_IN_USE',
+    { count: users.length },
+  );
 }
 
 export function deleteProfile(id: string): void {
@@ -488,6 +509,8 @@ export function getKpi(id: string): PlantKpiDetail {
   const v = visibleAssets();
   const instances: PlantKpiDetail['instances'] = [];
   const candidates: PlantKpiDetail['candidates'] = [];
+  const candidateInfo: NonNullable<PlantKpiDetail['candidateInfo']> = {};
+  const collected = collectedPoints();
   for (const [assetId, a] of allAssignments()) {
     const brief = v.briefs.get(assetId);
     if (!brief) continue;
@@ -498,7 +521,11 @@ export function getKpi(id: string): PlantKpiDetail {
         (c) => c.job !== undefined,
       );
       for (const x of mine) instances.push({ asset: brief, job: x.job, active: x.active, problems: checks.filter((c) => c.job === x.job).length });
-    } else if (canHave(k, a, profile)) candidates.push(brief);
+    } else if (canHave(k, a, profile)) {
+      candidates.push(brief);
+      // 0.12.0: KPI potential – whether its data is collected already, and inputs in another unit
+      candidateInfo[assetId] = { collected: isCollected(k, collected.get(assetId)), units: unitMismatches(k, a, profile, profiles) };
+    }
   }
   const byName = (a: { name: string; id: string }, b: { name: string; id: string }) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id);
   instances.sort((a, b) => byName(a.asset, b.asset) || a.job.localeCompare(b.job));
@@ -514,6 +541,7 @@ export function getKpi(id: string): PlantKpiDetail {
     checks,
     instances,
     candidates,
+    candidateInfo,
     canManage: canManageCatalogue(),
     createdAt: r.created_at,
     createdBy: r.created_by,

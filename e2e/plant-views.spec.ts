@@ -209,7 +209,7 @@ test.describe('as a designer', () => {
       matrix.getByRole('link', { name: /Milling centre 1, Energy consumption: Cannot.*reads data points of profile example-meters-pm200/ }),
     ).toBeVisible();
     await expect(page.getByTestId('coverage-summary')).toContainText('KPI coverage 100 %');
-    await expect(page.getByTestId('coverage-legend')).toContainText('Could have it');
+    await expect(page.getByTestId('coverage-legend')).toContainText('Device delivers, not collected');
     await expectAccessible(page, 'KPI coverage matrix');
     // a hovered cell says what is missing
     await matrix.getByRole('link', { name: /Milling centre 2, Time in machine state/ }).hover();

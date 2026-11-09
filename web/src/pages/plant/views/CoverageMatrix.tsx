@@ -1,17 +1,26 @@
 import { useMemo, useState } from 'react';
-import { Anchor, Button, Group, Paper, Select, Stack, Text, Title } from '@mantine/core';
+import { Anchor, Button, Group, Paper, Select, Stack, Table, Text, Title } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
-import { IconAlertTriangle, IconCircleCheck, IconCircleDashed, IconCircleMinus, IconCirclePlus, IconGridDots, type Icon } from '@tabler/icons-react';
+import {
+  IconAlertTriangle,
+  IconCircleCheck,
+  IconCircleDashed,
+  IconCircleMinus,
+  IconCirclePlus,
+  IconDatabase,
+  IconGridDots,
+  type Icon,
+} from '@tabler/icons-react';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import {
-  PLANT_COVERAGE_STATES,
   coveragePct,
   type PlantCheck,
   type PlantCoverage,
   type PlantCoverageCell,
+  type PlantKpiPotential,
   type PlantCoverageRow,
   type PlantCoverageState,
 } from '@sm/shared';
@@ -39,6 +48,26 @@ export const COVERAGE_ICON: Record<PlantCoverageState, Icon> = {
 };
 export const coverageVar = (s: PlantCoverageState) => `var(--pv-${s === 'unchecked' ? 'cannot' : s})`;
 
+/**
+ * 0.12.0: a cell as shown – "could have it" is split by KPI potential into collected ("Collected – ready") and not
+ * collected yet ("Device delivers, not collected"); the other states as they are.
+ */
+export type CoverageShown = Exclude<PlantCoverageState, 'could'> | 'ready' | 'collect';
+export const SHOWN_STATES: CoverageShown[] = ['has', 'problem', 'ready', 'collect', 'cannot', 'unchecked'];
+export const shownOf = (c: Pick<PlantCoverageCell, 'state' | 'collected'>): CoverageShown =>
+  c.state === 'could' ? (c.collected ? 'ready' : 'collect') : c.state;
+const SHOWN_ICON: Record<CoverageShown, Icon> = { ...COVERAGE_ICON, ready: IconDatabase, collect: IconCirclePlus };
+const shownVar = (s: CoverageShown) => coverageVar(s === 'ready' || s === 'collect' ? 'could' : s);
+/** Totals by the states as shown. */
+const shownTotals = (totals: PlantCoverage['totals'], potential: PlantKpiPotential | undefined): Record<CoverageShown, number> => ({
+  has: totals.has,
+  problem: totals.problem,
+  ready: potential?.ready ?? 0,
+  collect: potential ? potential.collect : totals.could,
+  cannot: totals.cannot,
+  unchecked: totals.unchecked,
+});
+
 /** A cell in words: the state and, for "cannot" and "problem", what is missing or fails. */
 function useCellText() {
   const { t } = useTranslation('plantViews');
@@ -49,8 +78,12 @@ function useCellText() {
       message: g.code,
       subject: { kind: 'kpi', id: '', name: kpi },
     });
-    const details = [...(c.gaps ?? []).map((g) => checkText(fake(g))), ...(c.checks ?? []).map((x) => checkText(x))];
-    return { state: t(`coverage.states.${c.state}`), details, jobs: c.jobs ?? [] };
+    const units = (c.units ?? []).map((u) =>
+      checkText(fake({ code: 'kpi_unit_mismatch', params: { kpi, point: u.point, expected: u.expected, actual: u.actual, relation: u.relation } })),
+    );
+    const details = [...(c.gaps ?? []).map((g) => checkText(fake(g))), ...(c.checks ?? []).map((x) => checkText(x)), ...units];
+    const shown = shownOf(c);
+    return { state: t(`coverage.states.${shown}`), explain: t(`coverage.legend.${shown}`), details, jobs: c.jobs ?? [] };
   };
 }
 
@@ -153,7 +186,8 @@ export function CoverageMatrix({ embedded }: { embedded?: boolean }) {
       ) : (
         c && (
           <>
-            <CoverageSummary totals={c.totals} pct={pct} />
+            <CoverageSummary totals={c.totals} potential={c.potential} pct={pct} />
+            <PotentialByPlace coverage={c} />
             <ViewToolbar mode={mode} onMode={setMode} motion={false} pictureIcon={IconGridDots} onExport={mode === 'picture' ? exportSvg : null} />
             {mode === 'picture' ? (
               <Stack gap="xs">
@@ -222,9 +256,20 @@ export function CoverageMatrix({ embedded }: { embedded?: boolean }) {
 }
 
 /** Totals of a selection as a bar, the coverage in per cent and the counts by state (icon + word + number). */
-export function CoverageSummary({ totals, pct, compact }: { totals: PlantCoverage['totals']; pct: number | null; compact?: boolean }) {
+export function CoverageSummary({
+  totals,
+  potential,
+  pct,
+  compact,
+}: {
+  totals: PlantCoverage['totals'];
+  potential?: PlantKpiPotential;
+  pct: number | null;
+  compact?: boolean;
+}) {
   const { t } = useTranslation('plantViews');
-  const shown = PLANT_COVERAGE_STATES.filter((s) => s !== 'unchecked' || totals.unchecked);
+  const counts = shownTotals(totals, potential);
+  const shown = SHOWN_STATES.filter((s) => s !== 'unchecked' || totals.unchecked);
   return (
     <Paper withBorder p="sm" radius="md" data-testid="coverage-summary">
       <Stack gap={8}>
@@ -239,25 +284,79 @@ export function CoverageSummary({ totals, pct, compact }: { totals: PlantCoverag
           )}
         </Group>
         <CountBar
-          parts={PLANT_COVERAGE_STATES.map((s) => ({ key: s, value: totals[s], color: coverageVar(s), text: `${t(`coverage.states.${s}`)}: ${totals[s]}` }))}
+          parts={SHOWN_STATES.map((s) => ({ key: s, value: counts[s], color: shownVar(s), text: `${t(`coverage.states.${s}`)}: ${counts[s]}` }))}
           height={10}
-          label={shown.map((s) => `${t(`coverage.states.${s}`)}: ${totals[s]}`).join(', ')}
+          label={shown.map((s) => `${t(`coverage.states.${s}`)}: ${counts[s]}`).join(', ')}
         />
         <Group gap="md" wrap="wrap">
           {shown.map((s) => {
-            const I = COVERAGE_ICON[s];
+            const I = SHOWN_ICON[s];
             return (
-              <Group key={s} gap={4} wrap="nowrap" data-testid={`coverage-total-${s}`}>
-                <I size={14} aria-hidden style={{ color: coverageVar(s) }} />
+              <Group key={s} gap={4} wrap="nowrap" data-testid={`coverage-total-${s}`} title={t(`coverage.legend.${s}`)}>
+                <I size={14} aria-hidden style={{ color: shownVar(s) }} />
                 <Text size="xs">
-                  {t(`coverage.states.${s}`)}: <b>{totals[s]}</b>
+                  {t(`coverage.states.${s}`)}: <b>{counts[s]}</b>
                 </Text>
               </Group>
             );
           })}
         </Group>
+        {potential && potential.ready + potential.collect > 0 && (
+          <Text size="xs" data-testid="coverage-potential">
+            {t('coverage.potential', { ready: potential.ready, collect: potential.collect })}
+          </Text>
+        )}
       </Stack>
     </Paper>
+  );
+}
+
+/**
+ * 0.12.0: KPI potential per site and area (every asset that matches the filters): has, ready (collected), needs a
+ * collection, cannot – shown when the answer spans more than one site or area.
+ */
+function PotentialByPlace({ coverage: c }: { coverage: PlantCoverage }) {
+  const { t } = useTranslation('plantViews');
+  const nameOf = useNameOf();
+  const groups = c.groups ?? [];
+  if (groups.length < 2) return null;
+  const sites = new Map(c.options.sites.map((s) => [s.id, s]));
+  const areas = new Map(c.options.areas.map((a) => [`${a.siteId}/${a.id}`, a]));
+  const name = (g: (typeof groups)[number]) => {
+    const site = sites.get(g.siteId);
+    const area = g.areaId ? areas.get(`${g.siteId}/${g.areaId}`) : undefined;
+    return area ? nameOf(area) : site ? nameOf(site) : g.siteId;
+  };
+  const order = [...groups].sort(
+    (a, b) =>
+      name({ ...a, areaId: null }).localeCompare(name({ ...b, areaId: null })) || (a.areaId ? 1 : 0) - (b.areaId ? 1 : 0) || name(a).localeCompare(name(b)),
+  );
+  return (
+    <div className="table-scroll" tabIndex={0} role="region" aria-label={t('coverage.byPlace')}>
+      <Table fz="xs" withTableBorder aria-label={t('coverage.byPlace')} data-testid="coverage-by-place">
+        <Table.Thead>
+          <Table.Tr>
+            <Table.Th>{t('coverage.place')}</Table.Th>
+            {(['has', 'ready', 'collect', 'cannot'] as const).map((s) => (
+              <Table.Th key={s} title={t(`coverage.legend.${s}`)}>
+                {t(`coverage.states.${s}`)}
+              </Table.Th>
+            ))}
+          </Table.Tr>
+        </Table.Thead>
+        <Table.Tbody>
+          {order.map((g) => (
+            <Table.Tr key={`${g.siteId}/${g.areaId ?? ''}`} data-testid={`coverage-place-${g.siteId}${g.areaId ? `-${g.areaId}` : ''}`}>
+              <Table.Td style={{ paddingLeft: g.areaId ? 24 : undefined, fontWeight: g.areaId ? 400 : 600 }}>{name(g)}</Table.Td>
+              <Table.Td>{g.totals.has + g.totals.problem}</Table.Td>
+              <Table.Td>{g.potential.ready}</Table.Td>
+              <Table.Td>{g.potential.collect}</Table.Td>
+              <Table.Td>{g.totals.cannot}</Table.Td>
+            </Table.Tr>
+          ))}
+        </Table.Tbody>
+      </Table>
+    </div>
   );
 }
 
@@ -265,10 +364,10 @@ function CoverageLegend() {
   const { t } = useTranslation('plantViews');
   return (
     <ViewLegend live={t('coverage.live')} testId="coverage-legend">
-      {PLANT_COVERAGE_STATES.map((s) => {
-        const I = COVERAGE_ICON[s];
+      {SHOWN_STATES.map((s) => {
+        const I = SHOWN_ICON[s];
         return (
-          <LegendItem key={s} mark={<I size={14} style={{ color: coverageVar(s) }} />}>
+          <LegendItem key={s} mark={<I size={14} style={{ color: shownVar(s) }} />}>
             {t(`coverage.legend.${s}`)}
           </LegendItem>
         );
@@ -320,7 +419,7 @@ function MatrixRow({
           </Text>
         </th>
         {row.cells.map((c, j) => {
-          const I = COVERAGE_ICON[c.state];
+          const I = SHOWN_ICON[shownOf(c)];
           const x = cellText(c, kpiName(j));
           const aria = [`${row.asset.name}, ${kpiName(j)}: ${x.state}`, x.jobs.length ? t('coverage.jobs', { jobs: x.jobs.join(', ') }) : '', ...x.details]
             .filter(Boolean)
@@ -331,16 +430,18 @@ function MatrixRow({
                 to={cellPath(row.asset.id, c)}
                 className="pv-cell"
                 data-state={c.state}
+                data-potential={c.state === 'could' ? shownOf(c) : undefined}
+                data-units={c.units?.length ? 'differ' : undefined}
                 data-inactive={c.inactive || undefined}
                 aria-label={aria}
-                title={[x.state, ...x.details].join('\n')}
+                title={[x.state, x.explain, ...x.details].join('\n')}
                 onFocus={() => onFocus(j)}
                 onMouseEnter={() => onFocus(j)}
                 data-testid={`cell-${row.asset.id}-${j}`}
                 style={{ textDecoration: 'none' }}
               >
                 <I size={14} aria-hidden />
-                <span aria-hidden>{t(`coverage.short.${c.state}`)}</span>
+                <span aria-hidden>{t(`coverage.short.${shownOf(c)}`)}</span>
               </Link>
             </td>
           );
@@ -354,7 +455,7 @@ function MatrixRow({
 function CellDetail({ row, kpi, cell }: { row: PlantCoverageRow; kpi: string; cell: PlantCoverageCell }) {
   const { t } = useTranslation('plantViews');
   const text = useCellText()(cell, kpi);
-  const I = COVERAGE_ICON[cell.state];
+  const I = SHOWN_ICON[shownOf(cell)];
   return (
     <Paper withBorder p="sm" radius="md" data-testid="coverage-detail" aria-live="polite">
       <Stack gap={4}>
@@ -379,7 +480,10 @@ function CellDetail({ row, kpi, cell }: { row: PlantCoverageRow; kpi: string; ce
             {d}
           </Text>
         ))}
-        {cell.state === 'could' && <Text size="xs">{t('coverage.couldHint')}</Text>}
+        <Text size="xs" c="dimmed">
+          {text.explain}
+        </Text>
+        {cell.state === 'could' && <Text size="xs">{t(cell.collected ? 'coverage.couldHint' : 'coverage.collectHint')}</Text>}
       </Stack>
     </Paper>
   );
@@ -415,7 +519,7 @@ function CoverageList({
             </div>
             <Stack gap={4} role="list" aria-label={t('coverage.kpisOf', { name: r.asset.name, type: label('asset', false, true) })}>
               {r.cells.map((c, j) => {
-                const I = COVERAGE_ICON[c.state];
+                const I = SHOWN_ICON[shownOf(c)];
                 const x = cellText(c, kpis[j]!);
                 return (
                   <Group key={kpiIds[j]} gap={6} wrap="nowrap" align="flex-start" role="listitem">
@@ -468,7 +572,7 @@ function matrixSvg(c: PlantCoverage, rows: PlantCoverageRow[], t: TFn, nameOf: (
       const filled = cell.state === 'has' || cell.state === 'problem';
       out.push(
         `<rect x="${x + 3}" y="${y + 3}" width="${cw - 6}" height="${ch - 6}" rx="5" fill="${filled ? color(cell.state) : th.background}" stroke="${color(cell.state)}" stroke-width="1.5"/>`,
-        `<text x="${x + cw / 2}" y="${y + 19}" font-size="10.5" text-anchor="middle" fill="${filled ? '#ffffff' : th.text}">${escapeXml(t(`coverage.short.${cell.state}`))}</text>`,
+        `<text x="${x + cw / 2}" y="${y + 19}" font-size="10.5" text-anchor="middle" fill="${filled ? '#ffffff' : th.text}">${escapeXml(t(`coverage.short.${shownOf(cell)}`))}</text>`,
       );
     });
   });
@@ -478,7 +582,7 @@ function matrixSvg(c: PlantCoverage, rows: PlantCoverageRow[], t: TFn, nameOf: (
       width,
       height,
       title: t('coverage.exportTitle'),
-      subtitle: `${pct === null ? t('coverage.pctNone') : t('coverage.pct', { pct })} · ${PLANT_COVERAGE_STATES.map((s) => `${t(`coverage.states.${s}`)} ${c.totals[s]}`).join(' · ')}`,
+      subtitle: `${pct === null ? t('coverage.pctNone') : t('coverage.pct', { pct })} · ${SHOWN_STATES.map((s) => `${t(`coverage.states.${s}`)} ${shownTotals(c.totals, c.potential)[s]}`).join(' · ')}`,
       body: out.join(''),
     }),
     width,
@@ -504,7 +608,7 @@ export function KpiCoverageCard({ kpiId }: { kpiId: string }) {
         <QueryState query={q} />
         {c && (
           <>
-            <CoverageSummary totals={c.totals} pct={coveragePct(c.totals)} compact />
+            <CoverageSummary totals={c.totals} potential={c.potential} pct={coveragePct(c.totals)} compact />
             {cannot.length > 0 && (
               <Stack gap={4}>
                 <Text size="xs" fw={600}>

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Anchor, Badge, Button, Grid, Group, List, Modal, Paper, Stack, Text, TextInput, Textarea, Title } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { IconArrowBackUp, IconDownload, IconEdit, IconEyeOff, IconFile, IconPlus, IconTrash } from '@tabler/icons-react';
+import { IconArrowBackUp, IconDownload, IconEdit, IconEyeOff, IconFile, IconHierarchy2, IconPlus, IconTrash } from '@tabler/icons-react';
 import { Menu } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 import {
@@ -25,6 +25,8 @@ import { CopiedFromNote, DuplicateButton } from '../components/duplicate/Duplica
 import { fmtDate } from '../format';
 import { plantKeys } from '../queryKeys';
 import { NotInSourceBadge, PreviewBadge, useNameOf, usePlantLabel } from '../components/plant/common';
+import { TemplateBadge } from '../components/plant/potential';
+import { ExtractBaseModal } from '../components/plant/ExtractBaseModal';
 import { FormButtons } from '../components/plant/forms';
 import { AssetBriefLink, DataPointTable, ProtocolBadge, RowMenu } from '../components/plant/data';
 import {
@@ -93,6 +95,7 @@ export function PlantProfilePage() {
   const [search, setSearch] = useSearchParams();
   const q = useQuery({ queryKey: plantKeys.profile(profileId), queryFn: () => get<PlantProfileDetail>(`/plant/profiles/${encodeURIComponent(profileId!)}`) });
   const [dialog, setDialog] = useState<Dialog | null>(null);
+  const [extracting, setExtracting] = useState(false);
   const p = q.data;
   const profiles = useQuery({ queryKey: plantKeys.profiles, queryFn: () => get<PlantProfileSummary[]>('/plant/profiles'), enabled: !!p?.canManage });
   // ?edit=1 (after Duplicate): open the form once the profile is loaded
@@ -188,6 +191,7 @@ export function PlantProfilePage() {
         status={
           <>
             {p.category && <Badge variant="default">{p.category}</Badge>}
+            {p.template && <TemplateBadge size="sm" />}
             {p.notInSource && <NotInSourceBadge />}
             <PreviewBadge />
           </>
@@ -218,6 +222,17 @@ export function PlantProfilePage() {
             ? {
                 items: [
                   ...(changeId.item ? [changeId.item] : []),
+                  // 0.12.0: a base from the data points this profile shares with others (only a profile without a base)
+                  ...(!p.extends
+                    ? [
+                        {
+                          label: t('plantModel:extract.buttonProfile'),
+                          icon: IconHierarchy2,
+                          onClick: () => setExtracting(true),
+                          testId: 'profile-extract-base',
+                        },
+                      ]
+                    : []),
                   { label: t('profile.delete'), icon: IconTrash, color: 'red', onClick: () => void remove(), testId: 'profile-delete' },
                 ],
               }
@@ -225,6 +240,7 @@ export function PlantProfilePage() {
         }
       />
       {changeId.modal}
+      {extracting && profiles.data && <ExtractBaseModal profiles={profiles.data} preselect={[p.id]} onClose={() => setExtracting(false)} />}
       <CopiedFromNote kind="device-profile" id={p.id} pathOf={(id) => `/plant/profiles/${encodeURIComponent(id)}`} />
       <Grid gap="lg">
         <Grid.Col span={{ base: 12, md: 8 }}>

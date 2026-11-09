@@ -162,6 +162,7 @@ export function ProfileFormModal({
   const [category, setCategory] = useState(profile?.category ?? '');
   const [description, setDescription] = useState(profile?.description ?? '');
   const [notes, setNotes] = useState(profile?.notes ?? '');
+  const [template, setTemplate] = useState(profile?.template ?? false);
   const v = useFieldErrors({ name: !name.trim() && t('common:validation.required'), id: !PLANT_ID_RE.test(id.id) && t('form.idInvalid') });
   return (
     <FormModal
@@ -180,6 +181,7 @@ export function ProfileFormModal({
           notes,
           interfaces: profile?.interfaces ?? [],
           extends: base,
+          template,
           // another base has other interfaces and data points: what changed the old one's goes
           interfaceOverrides: base && base === profile?.extends ? profile.interfaceOverrides : [],
           pointOverrides: base && base === profile?.extends ? profile.pointOverrides : [],
@@ -208,6 +210,13 @@ export function ProfileFormModal({
         clearable
         searchable
         data-testid="profile-extends"
+      />
+      <Switch
+        label={t('plantModel:template.label')}
+        description={t('plantModel:template.help')}
+        checked={template}
+        onChange={(e) => setTemplate(e.currentTarget.checked)}
+        data-testid="profile-template"
       />
       <SimpleGrid cols={{ base: 1, sm: 2 }}>
         <TextInput label={t('asset.manufacturer')} maxLength={200} value={manufacturer} onChange={(e) => setManufacturer(e.currentTarget.value)} />
@@ -718,14 +727,16 @@ export function KpiFormModal({ kpi, onClose, onSave }: { kpi?: PlantKpiValues; o
   );
 }
 
-/** A profile's data points as choices (loaded when a profile is chosen). */
-export function usePointOptions(profileId: string | null | undefined): { value: string; label: string }[] {
+/** A profile's data points as choices (loaded when a profile is chosen), with their unit (0.12.0). */
+export function usePointOptions(profileId: string | null | undefined): { value: string; label: string; unit: string }[] {
   const q = useQuery({
     queryKey: plantKeys.profile(profileId),
     queryFn: () => get<PlantProfileDetail>(`/plant/profiles/${encodeURIComponent(profileId!)}`),
     enabled: !!profileId,
   });
-  return (q.data?.interfaces ?? []).flatMap((i) => i.groups.flatMap((g) => g.dataPoints.map((d) => ({ value: d.id, label: `${d.name} (${d.id})` }))));
+  return (q.data?.interfaces ?? []).flatMap((i) =>
+    i.groups.flatMap((g) => g.dataPoints.map((d) => ({ value: d.id, label: `${d.name} (${d.id})`, unit: d.unit }))),
+  );
 }
 
 export function KpiInputModal({
@@ -739,12 +750,14 @@ export function KpiInputModal({
   onClose: () => void;
   onSave: Save<KpiInput>;
 }) {
-  const { t } = useTranslation(['plant', 'common']);
+  const { t } = useTranslation(['plant', 'common', 'plantModel']);
   const [kind, setKind] = useState(input?.kind ?? 'data_point');
   const [profile, setProfile] = useState<string | null>(input?.profile || null);
   const [points, setPoints] = useState<string[]>(input?.dataPoints ?? []);
+  const [units, setUnits] = useState<Record<string, string>>(input?.units ?? {});
   const [notes, setNotes] = useState(input?.notes ?? '');
   const options = usePointOptions(kind === 'data_point' ? profile : null);
+  const unitOf = new Map(options.map((o) => [o.value, o.unit]));
   // data points that are named but not in the profile (any more) stay choosable, so they can be removed
   const data = [...(options ?? []), ...points.filter((p) => !(options ?? []).some((o) => o.value === p)).map((p) => ({ value: p, label: p }))];
   return (
@@ -753,7 +766,17 @@ export function KpiInputModal({
       size="md"
       onClose={onClose}
       onSubmit={async () => {
-        await onSave({ kind, profile: kind === 'data_point' ? (profile ?? '') : '', dataPoints: kind === 'data_point' ? points : [], notes });
+        // 0.12.0: the units it expects (a data point without one: its unit in the profile)
+        const expected = Object.fromEntries(
+          points.filter((p) => units[p]?.trim() && unitCode(units[p]!) !== unitOf.get(p)).map((p) => [p, unitCode(units[p]!)]),
+        );
+        await onSave({
+          kind,
+          profile: kind === 'data_point' ? (profile ?? '') : '',
+          dataPoints: kind === 'data_point' ? points : [],
+          ...(kind === 'data_point' && Object.keys(expected).length ? { units: expected } : {}),
+          notes,
+        });
       }}
     >
       <Select
@@ -787,6 +810,32 @@ export function KpiInputModal({
             maxValues={500}
             nothingFoundMessage={t('data.noPoints')}
           />
+          {points.length > 0 && points.length <= 30 && (
+            <Stack gap={4} data-testid="kpi-input-units">
+              <Text size="sm" fw={500}>
+                {t('plantModel:units.label')}
+              </Text>
+              <Text size="xs" c="dimmed">
+                {t('plantModel:units.help')}
+              </Text>
+              <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="xs">
+                {points.map((p) => (
+                  <Autocomplete
+                    key={p}
+                    size="xs"
+                    label={p}
+                    placeholder={unitOf.get(p) ? t('plantModel:units.fromProfile', { unit: unitOf.get(p) }) : t('plantModel:units.none')}
+                    data={UNITS}
+                    value={units[p] ?? ''}
+                    onChange={(x) => setUnits((u) => ({ ...u, [p]: x }))}
+                    maxLength={40}
+                    limit={60}
+                    data-testid={`kpi-input-unit-${p}`}
+                  />
+                ))}
+              </SimpleGrid>
+            </Stack>
+          )}
         </>
       )}
       <Textarea label={t('data.notes')} autosize minRows={1} maxRows={5} maxLength={8000} value={notes} onChange={(e) => setNotes(e.currentTarget.value)} />
