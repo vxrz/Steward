@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { ActionIcon, Anchor, Card, CloseButton, Group, Kbd, List, Progress, Stack, Text, ThemeIcon, Title, Tooltip, VisuallyHidden } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { Link } from 'react-router-dom';
@@ -6,19 +6,14 @@ import { useTranslation } from 'react-i18next';
 import { IconCheck, IconChevronDown, IconChevronRight, IconRocket } from '@tabler/icons-react';
 import type { DashboardSetup } from '@sm/shared';
 import { useMe } from '../../auth';
+import { useSectionPref } from '../page/prefs';
 
-const HIDDEN_KEY = 'sm.gettingStarted.hidden';
+/** Hidden by the administrator (before 0.12: once per browser, that value still counts until they choose again). */
+const HIDDEN_PREF = 'dashboard.gettingStarted.hidden';
+const LEGACY_HIDDEN_KEY = 'sm.gettingStarted.hidden';
 /** Folded or not, per user ("1" folded, "0" open; unset: folded on phones, open on wider screens). */
-const collapsedKey = (user: string) => `sm.gettingStarted.collapsed.${user}`;
-
-function readCollapsed(user: string): boolean | null {
-  try {
-    const v = localStorage.getItem(collapsedKey(user));
-    return v === null ? null : v === '1';
-  } catch {
-    return null;
-  }
-}
+const COLLAPSED_PREF = 'dashboard.gettingStarted.collapsed';
+const legacyCollapsedKey = (user: string) => `sm.gettingStarted.collapsed.${user}`;
 
 type StepKey = 'platform' | 'process' | 'run' | 'schedule' | 'monitor' | 'credential' | 'users' | 'report';
 
@@ -34,18 +29,10 @@ const STEPS: { key: StepKey; to: string; done: (s: DashboardSetup) => boolean }[
   { key: 'report', to: '/reports?new=1', done: (s) => s.reportSchedules > 0 },
 ];
 
-function readHidden(): boolean {
-  try {
-    return localStorage.getItem(HIDDEN_KEY) === '1';
-  } catch {
-    return false;
-  }
-}
-
 /**
  * First-run checklist for administrators on the start page: what is set up, what is next (each step
  * links to the page or its create dialog) and a few features worth knowing. Hidden once everything is
- * done or when the administrator hides it (remembered per browser). It folds to its progress and the next
+ * done or when the administrator hides it (remembered per user). It folds to its progress and the next
  * step – folded by default on phones, the choice remembered per user; the Help and user menus open it again.
  */
 /** `forceShow`: opened from the Help menu – shown (and no longer hidden) even when every step is done. */
@@ -53,41 +40,20 @@ export function GettingStarted({ setup, demoAction, forceShow }: { setup: Dashbo
   const { t } = useTranslation('dashboard');
   const { username } = useMe();
   const narrow = useMediaQuery('(max-width: 48em)', false, { getInitialValueInEffect: false });
-  const [hidden, setHidden] = useState(readHidden);
+  const [hidden, setHidden] = useSectionPref(HIDDEN_PREF, false, LEGACY_HIDDEN_KEY);
   // the user's choice; without one folded on phones (the list would fill the whole first screen)
-  const [choice, setChoice] = useState<boolean | null>(() => readCollapsed(username));
+  const [choice, setChoice] = useSectionPref(COLLAPSED_PREF, null, legacyCollapsedKey(username));
   const collapsed = choice ?? !!narrow;
   useEffect(() => {
     if (!forceShow) return;
     setHidden(false);
     setChoice(false);
-    try {
-      localStorage.removeItem(HIDDEN_KEY);
-      localStorage.setItem(collapsedKey(username), '0');
-    } catch {
-      /* storage blocked */
-    }
-  }, [forceShow, username]);
-  const toggle = () => {
-    const next = !collapsed;
-    setChoice(next);
-    try {
-      localStorage.setItem(collapsedKey(username), next ? '1' : '0');
-    } catch {
-      /* storage blocked: only for this page view */
-    }
-  };
+  }, [forceShow, setHidden, setChoice]);
+  const toggle = () => setChoice(!collapsed);
   const done = STEPS.filter((s) => s.done(setup)).length;
   if (hidden || (!forceShow && done === STEPS.length)) return null;
   const next = STEPS.find((s) => !s.done(setup));
-  const hide = () => {
-    setHidden(true);
-    try {
-      localStorage.setItem(HIDDEN_KEY, '1');
-    } catch {
-      /* storage blocked: hidden for this page view */
-    }
-  };
+  const hide = () => setHidden(true);
   return (
     <Card withBorder mb="md" component="section" aria-labelledby="getting-started-title" data-testid="getting-started">
       <Group justify="space-between" align="flex-start" wrap="nowrap" mb="xs">

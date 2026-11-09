@@ -133,8 +133,6 @@
     "failedTimes_one": "einmal fehlgeschlagen in 7 Tagen",
     "failedTimes_other": "{{count}}-mal fehlgeschlagen in 7 Tagen",
     "failedRuns": "Ausführungen mit Befunden",
-    "showAll": "Alle {{count}} zeigen",
-    "showFewer": "Weniger zeigen",
     "failedName": "Nicht erfüllt: {{name}}",
     "expected": "Erwartet: {{name}}"
   },
