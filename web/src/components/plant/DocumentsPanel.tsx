@@ -92,7 +92,7 @@ export function PlantDocumentsPanel({ kind, id }: { kind: PlantDocKind; id: stri
     </Group>
   );
   const inheritedCount = d?.inherited.reduce((n, g) => n + g.documents.length + g.hidden, 0) ?? 0;
-  // a section of the page like the others (docs/UX.md "Collapsible content"): open; the inherited part folds once it is long
+  // a section of the page like the others (docs/reviews/UX-REVIEW.md "v0.12.0: collapsible content"): open; the inherited part folds once it is long
   return (
     <CollapsibleSection
       id={titleId}
