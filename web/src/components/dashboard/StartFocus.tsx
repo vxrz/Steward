@@ -86,7 +86,8 @@ export function ComplianceCard() {
       title={t('focus.compliance.title')}
       count={open + submitted || undefined}
       remember="section.dashboard.start-compliance"
-      alertKey={reviews.data ? `${open}/${submitted}` : undefined}
+      // one id per review to do: more of them than when it was folded open it again
+      alertKey={reviews.data ? Array.from({ length: open + submitted }, (_, i) => `review-${i + 1}`).join(',') : undefined}
     >
       <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="xs">
         <Entry
