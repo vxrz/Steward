@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { ActionIcon, Anchor, Badge, Box, Button, Grid, Group, Menu, Paper, Stack, Table, Text, Title, Tooltip } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, useNavigate, useParams } from 'react-router-dom';
-import { IconBuilding, IconDots, IconDownload, IconEdit, IconId, IconMap, IconPencil, IconPlus, IconTrash } from '@tabler/icons-react';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { IconBuilding, IconChevronDown, IconDots, IconDownload, IconEdit, IconId, IconMap, IconPencil, IconPlus, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import {
   ASSET_STATUSES,
@@ -36,7 +36,9 @@ import {
 } from '../components/plant/common';
 import { AssetFormModal, BuildingFormModal, NodeFormModal, SiteFormModal } from '../components/plant/forms';
 import { SiteNetworkCard } from '../components/plant/network';
+import { PlantDocumentsPanel } from '../components/plant/DocumentsPanel';
 import { PlantSiteTabPage, SiteTabs } from './plant/views/tabs';
+import { SectionGroup, SectionGroupControls, useCollapsible } from '../components/page/CollapsibleSection';
 
 type NodeDialog = { level: PlantLevel; parentId: string | null; node?: PlantNode } | null;
 
@@ -59,6 +61,9 @@ export function PlantSitePage() {
   const [newAsset, setNewAsset] = useState(false);
   // Change id of a node or building (0.11.0)
   const [idOf, setIdOf] = useState<EntryRef | null>(null);
+  // a link to #node-<id> opens the path to that node
+  const { hash } = useLocation();
+  const target = hash.startsWith('#node-') ? decodeURIComponent(hash.slice(6)) : null;
   const s = q.data;
   // an old id in the address (0.11.0): the entry's id replaces it
   useAliasRedirect([[siteId, s?.id]]);
@@ -188,44 +193,51 @@ export function PlantSitePage() {
           <Stack gap="lg">
             {/* on phones the asset summary comes first, before the long tree */}
             <Box hiddenFrom="md">{assetsCard}</Box>
-            <Stack gap="xs" data-testid="plant-hierarchy">
-              <Group justify="space-between" wrap="wrap" gap="xs">
-                <div>
-                  <Title order={2} fz="h4">
-                    {t('hierarchy.title')}
-                  </Title>
-                  <Text size="xs" c="dimmed">
-                    {t('hierarchy.help')}
-                  </Text>
-                </div>
-                {canManage && (
-                  <Button size="xs" variant="default" leftSection={<IconPlus size={14} />} onClick={() => setNodeDialog({ level: 'area', parentId: null })}>
-                    {t('hierarchy.add', { type: label('area', false, true) })}
-                  </Button>
+            {/* areas open, the levels below them folded; Expand all / Collapse all for the whole tree */}
+            <SectionGroup controls="none">
+              <Stack gap="xs" data-testid="plant-hierarchy">
+                <Group justify="space-between" wrap="wrap" gap="xs">
+                  <div>
+                    <Title order={2} fz="h4">
+                      {t('hierarchy.title')}
+                    </Title>
+                    <Text size="xs" c="dimmed">
+                      {t('hierarchy.help')}
+                    </Text>
+                  </div>
+                  <Group gap="xs">
+                    <SectionGroupControls />
+                    {canManage && (
+                      <Button size="xs" variant="default" leftSection={<IconPlus size={14} />} onClick={() => setNodeDialog({ level: 'area', parentId: null })}>
+                        {t('hierarchy.add', { type: label('area', false, true) })}
+                      </Button>
+                    )}
+                  </Group>
+                </Group>
+                {s.areas.length === 0 ? (
+                  <EmptyState compact title={t('hierarchy.emptyTitle')} whoCanAct={canManage ? undefined : t('hierarchy.whoCanAct')}>
+                    {t('hierarchy.emptyText')}
+                  </EmptyState>
+                ) : (
+                  <ul className="plant-tree" aria-label={t('hierarchy.title')}>
+                    {s.areas.map((a) => (
+                      <NodeItem
+                        key={a.id}
+                        node={a}
+                        site={s}
+                        buildingName={buildingName}
+                        canManage={canManage}
+                        onAdd={(level, parentId) => setNodeDialog({ level, parentId })}
+                        onEdit={(n) => setNodeDialog({ level: n.level, parentId: n.parentId, node: n })}
+                        onRemove={(n) => void removeNode(n)}
+                        onChangeId={(n) => setIdOf({ kind: 'node', scope: s.id, id: n.id, name: nameOf(n) })}
+                        target={target}
+                      />
+                    ))}
+                  </ul>
                 )}
-              </Group>
-              {s.areas.length === 0 ? (
-                <EmptyState compact title={t('hierarchy.emptyTitle')} whoCanAct={canManage ? undefined : t('hierarchy.whoCanAct')}>
-                  {t('hierarchy.emptyText')}
-                </EmptyState>
-              ) : (
-                <ul className="plant-tree" aria-label={t('hierarchy.title')}>
-                  {s.areas.map((a) => (
-                    <NodeItem
-                      key={a.id}
-                      node={a}
-                      site={s}
-                      buildingName={buildingName}
-                      canManage={canManage}
-                      onAdd={(level, parentId) => setNodeDialog({ level, parentId })}
-                      onEdit={(n) => setNodeDialog({ level: n.level, parentId: n.parentId, node: n })}
-                      onRemove={(n) => void removeNode(n)}
-                      onChangeId={(n) => setIdOf({ kind: 'node', scope: s.id, id: n.id, name: nameOf(n) })}
-                    />
-                  ))}
-                </ul>
-              )}
-            </Stack>
+              </Stack>
+            </SectionGroup>
 
             <Stack gap="xs" data-testid="plant-buildings">
               <Group justify="space-between" wrap="wrap" gap="xs">
@@ -323,6 +335,7 @@ export function PlantSitePage() {
               )}
             </Stack>
 
+            <PlantDocumentsPanel kind="site" id={s.id} />
             <LinksPanel
               links={s.links}
               backlinks={s.backlinks}
@@ -460,6 +473,8 @@ export function SourceLine({ importId }: { importId: string | null }) {
 }
 
 const CHILD: Record<PlantLevel, PlantLevel | null> = { area: 'work_center', work_center: 'work_unit', work_unit: null };
+/** Whether `id` is below `node` in the tree */
+const holds = (node: PlantNode, id: string): boolean => node.children.some((c) => c.id === id || holds(c, id));
 
 /** One node of the tree with its children: name, ISA-95 kind, domain, the building that applies, its assets. */
 function NodeItem({
@@ -471,7 +486,10 @@ function NodeItem({
   onEdit,
   onRemove,
   onChangeId,
+  target,
 }: {
+  /** The node a link (#node-<id>) points to: the nodes above it open */
+  target: string | null;
   node: PlantNode;
   site: PlantSiteDetail;
   buildingName: (id: string | null) => string;
@@ -487,10 +505,40 @@ function NodeItem({
   const child = CHILD[node.level];
   const own = !!node.buildingId;
   const building = node.effectiveBuildingId;
+  const hasChildren = node.children.length > 0;
+  // areas open, the levels below folded (this page view); the path to a linked node opens
+  const { open, toggle } = useCollapsible({
+    id: `node-${node.id}`,
+    defaultOpen: node.level === 'area',
+    forceOpen: !!target && holds(node, target),
+    inGroup: hasChildren,
+  });
   return (
-    <li className="plant-tree-item" data-level={node.level} data-testid={`node-${node.id}`}>
+    <li
+      className="plant-tree-item sm-anchor"
+      id={`node-${node.id}`}
+      data-level={node.level}
+      data-testid={`node-${node.id}`}
+      data-open={hasChildren ? open : undefined}
+    >
       <Group gap="xs" justify="space-between" wrap="nowrap" className="plant-tree-row">
         <Group gap={6} wrap="wrap" style={{ minWidth: 0 }}>
+          {hasChildren ? (
+            <ActionIcon
+              variant="subtle"
+              color="gray"
+              size="md"
+              onClick={toggle}
+              aria-expanded={open}
+              aria-controls={`node-${node.id}-children`}
+              aria-label={t('hierarchy.levelsBelow', { name: nameOf(node) })}
+              data-testid={`node-${node.id}-toggle`}
+            >
+              <IconChevronDown size={16} className="sm-section-chevron" data-open={open} aria-hidden />
+            </ActionIcon>
+          ) : (
+            <Box w={28} style={{ flex: 'none' }} aria-hidden />
+          )}
           <Badge size="xs" variant="light" color={node.level === 'area' ? 'blue' : node.level === 'work_center' ? 'teal' : 'gray'}>
             {label(LEVEL_RECORD_TYPE[node.level])}
           </Badge>
@@ -521,6 +569,11 @@ function NodeItem({
             </Tooltip>
           )}
           {node.notInSource && <NotInSourceBadge size="xs" />}
+          {hasChildren && !open && (
+            <Text size="xs" c="dimmed" data-testid="node-below">
+              {t('hierarchy.below', { count: node.children.length })}
+            </Text>
+          )}
         </Group>
         <Group gap={4} wrap="nowrap" style={{ flexShrink: 0 }}>
           {node.assetCount > 0 && (
@@ -555,8 +608,9 @@ function NodeItem({
           )}
         </Group>
       </Group>
-      {node.children.length > 0 && (
-        <ul className="plant-tree">
+      {hasChildren && (
+        // folded: hidden, not removed, so Expand all and the path to a linked node reach every level
+        <ul className="plant-tree" id={`node-${node.id}-children`} hidden={!open}>
           {node.children.map((c) => (
             <NodeItem
               key={c.id}
@@ -568,6 +622,7 @@ function NodeItem({
               onEdit={onEdit}
               onRemove={onRemove}
               onChangeId={onChangeId}
+              target={target}
             />
           ))}
         </ul>

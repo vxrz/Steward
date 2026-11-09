@@ -64,7 +64,9 @@
     "collection_one": "{{count}} Datenerfassung",
     "collection_other": "{{count}} Datenerfassungen",
     "collection_mapping_one": "{{count}} gemerkter Gateway-Name",
-    "collection_mapping_other": "{{count}} gemerkte Gateway-Namen"
+    "collection_mapping_other": "{{count}} gemerkte Gateway-Namen",
+    "collection_source_one": "{{count}} aufbewahrte Datei eines Erfassungsimports",
+    "collection_source_other": "{{count}} aufbewahrte Dateien von Erfassungsimporten"
   },
   "problems": {
     "PLANT_ID_FORMAT": "Verwenden Sie Kleinbuchstaben, Ziffern, „.“, „_“ und „-“, beginnend mit einem Buchstaben oder einer Ziffer (höchstens 80).",

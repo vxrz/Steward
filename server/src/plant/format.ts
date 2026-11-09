@@ -31,6 +31,9 @@ import {
   DEVICE_STATES,
   PEER_KINDS,
   PLANT_NETWORK_LIMITS as NL,
+  PLANT_COLLECTION_LIMITS as CL,
+  COLLECTION_DESTINATION_KINDS,
+  SINK_TRANSFORM_KINDS,
   TRANSFER_MODES,
   VLAN_RANGE_TYPES,
   ZONE_CRITICALITIES,
@@ -717,6 +720,59 @@ export const dataPathSchema = z
   .strict()
   .meta({ id: 'DataPath', description: 'What data leaves an asset, who collects it, how it is transferred and where it ends up' });
 
+// 0.12: where the data of an asset's data collections goes – their sinks, transformation steps and item mapping
+export const sinkSchema = z
+  .object({
+    id,
+    name: z.string().min(1).max(CL.text),
+    kind: z.enum(COLLECTION_DESTINATION_KINDS).optional().describe('system, platform, application, dataset, publication or other (default)'),
+    ref: text(CL.text).describe('A Steward system, platform or application id, a dataset key, or text'),
+    object: text(CL.address).describe('Where there: a topic, a table, an asset/aspect, a bucket path'),
+    format: text(CL.text).describe('Message format or protocol'),
+    schedule: text(2000).describe('When it is written: schedule, batching'),
+    owner: text(CL.text),
+    description: text(CL.longText),
+    transforms: z
+      .array(
+        z
+          .object({
+            kind: z.enum(SINK_TRANSFORM_KINDS),
+            field: text(CL.text),
+            expression: text(CL.longText).describe('A new name, a factor, a condition, an expression or code – text, never run'),
+            window: text(CL.text),
+            function: text(CL.text),
+            description: text(2000),
+          })
+          .strict(),
+      )
+      .max(CL.transforms)
+      .optional()
+      .describe('The transformation steps on the way, in order (documentation only)'),
+    mappings: z
+      .array(
+        z
+          .object({
+            item: z.string().min(1).max(CL.address).describe('The item’s output name, else its address'),
+            target: text(CL.address),
+            transform: text(2000),
+          })
+          .strict(),
+      )
+      .max(CL.items)
+      .optional()
+      .describe('The name of an item in the sink, and a transformation for it only'),
+  })
+  .strict()
+  .meta({ id: 'Sink', description: 'Where a data collection’s data goes after it is loaded (and perhaps transformed)' });
+
+export const collectionSinksSchema = z
+  .object({
+    collection: id.describe('A data collection of the asset (collections are made by their import or by hand)'),
+    sinks: z.array(sinkSchema).max(CL.sinks).describe('All its sinks: the list replaces the stored one'),
+  })
+  .strict()
+  .meta({ id: 'CollectionSinks', description: 'The sinks of one data collection of the asset' });
+
 export const assetNetworkSchema = z
   .object({
     asset: id.describe('The asset'),
@@ -724,9 +780,10 @@ export const assetNetworkSchema = z
     checks,
     devices: z.array(deviceSchema).max(NL.devicesPerAsset).optional(),
     data_paths: z.array(dataPathSchema).max(NL.pathsPerAsset).optional(),
+    collection_sinks: z.array(collectionSinksSchema).max(CL.collectionsPerAsset).optional().describe('0.12: the sinks of its data collections'),
   })
   .strict()
-  .meta({ id: 'AssetNetwork', description: 'The OT network of an asset: its devices, data paths and live-status checks' });
+  .meta({ id: 'AssetNetwork', description: 'The OT network of an asset: its devices, data paths and live-status checks, and where its collected data goes' });
 
 // 0.11.0 (docs/PLANT.md#changing-many-entries-at-once): entries the import removes, by kind and id
 export const removeSchema = z

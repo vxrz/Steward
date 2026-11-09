@@ -55,6 +55,10 @@ import { OwningTeams } from '../components/OwningTeams';
 import { ListPage } from '../components/page/ListPage';
 import { CopiedFromNote, DuplicateButton } from '../components/duplicate/DuplicateButton';
 import { EntraImportButton } from '../components/credentials/EntraImport';
+import { ShowAll, useShowMore } from '../components/page/ShowAll';
+
+/** "Used by" entries listed before "Show all" */
+const USED_BY_FIRST = 5;
 
 export const CREDENTIAL_TYPE_IDS: CredentialType[] = ['apiClient', 'technicalUser', 'password', 'token', 'certificate', 'agentCertificate', 'sshKey', 'other'];
 export const CREDENTIAL_STATUS_IDS: CredentialStatus[] = ['ok', 'dueSoon', 'overdue', 'expired'];
@@ -667,33 +671,7 @@ function CredentialDrawer({
             </Stack>
           </Field>
           <Field label={t('fields.usedBy')}>
-            <Stack gap={2}>
-              {c.usedBy.text && <Text size="sm">{c.usedBy.text}</Text>}
-              {c.usedBy.links.map((l) => (
-                <Text size="sm" key={`${l.kind}:${l.id}`}>
-                  {t(`linkKinds.${l.kind}`, { defaultValue: l.kind })}:{' '}
-                  {l.label ? (
-                    <LinkTo kind={l.kind} id={l.id} label={l.label} />
-                  ) : (
-                    <Text span c="dimmed">
-                      {t('detail.notVisible')}
-                    </Text>
-                  )}
-                </Text>
-              ))}
-              {c.usedBy.urls.map((x) => (
-                <Text size="sm" key={x.url}>
-                  <Anchor href={x.url} target="_blank" rel="noopener noreferrer nofollow" size="sm" style={{ overflowWrap: 'anywhere' }}>
-                    {x.label || x.url}
-                  </Anchor>
-                </Text>
-              ))}
-              {!c.usedBy.text && !c.usedBy.links.length && !c.usedBy.urls.length && (
-                <Text size="sm" c="dimmed">
-                  –
-                </Text>
-              )}
-            </Stack>
+            <UsedBy usedBy={c.usedBy} />
           </Field>
           <Field label={t('fields.roles')}>
             {c.roles.length ? (
@@ -797,6 +775,51 @@ function CredentialDrawer({
         </Stack>
       )}
     </Drawer>
+  );
+}
+
+/** "Used by": the first five entries (items, then addresses), "Show all N" for the rest. */
+function UsedBy({ usedBy }: { usedBy: Credential['usedBy'] }) {
+  const { t } = useTranslation('credentials');
+  const entries = useShowMore(
+    [...usedBy.links.map((link) => ({ link })), ...usedBy.urls.map((address) => ({ address }))] as (
+      | { link: (typeof usedBy.links)[number] }
+      | {
+          address: (typeof usedBy.urls)[number];
+        }
+    )[],
+    USED_BY_FIRST,
+  );
+  return (
+    <Stack gap={2}>
+      {usedBy.text && <Text size="sm">{usedBy.text}</Text>}
+      {entries.items.map((e) =>
+        'link' in e ? (
+          <Text size="sm" key={`${e.link.kind}:${e.link.id}`}>
+            {t(`linkKinds.${e.link.kind}`, { defaultValue: e.link.kind })}:{' '}
+            {e.link.label ? (
+              <LinkTo kind={e.link.kind} id={e.link.id} label={e.link.label} />
+            ) : (
+              <Text span c="dimmed">
+                {t('detail.notVisible')}
+              </Text>
+            )}
+          </Text>
+        ) : (
+          <Text size="sm" key={e.address.url}>
+            <Anchor href={e.address.url} target="_blank" rel="noopener noreferrer nofollow" size="sm" style={{ overflowWrap: 'anywhere' }}>
+              {e.address.label || e.address.url}
+            </Anchor>
+          </Text>
+        ),
+      )}
+      {!usedBy.text && !entries.total && (
+        <Text size="sm" c="dimmed">
+          –
+        </Text>
+      )}
+      <ShowAll state={entries} id="used-by" />
+    </Stack>
   );
 }
 

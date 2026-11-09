@@ -3422,13 +3422,21 @@
           "items": {
             "$ref": "#/$defs/DataPath"
           }
+        },
+        "collection_sinks": {
+          "description": "0.12: the sinks of its data collections",
+          "maxItems": 200,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CollectionSinks"
+          }
         }
       },
       "required": [
         "asset"
       ],
       "additionalProperties": false,
-      "description": "The OT network of an asset: its devices, data paths and live-status checks"
+      "description": "The OT network of an asset: its devices, data paths and live-status checks, and where its collected data goes"
     },
     "StatusCheck": {
       "type": "object",
@@ -3977,6 +3985,259 @@
       ],
       "additionalProperties": false,
       "description": "What data leaves an asset, who collects it, how it is transferred and where it ends up"
+    },
+    "CollectionSinks": {
+      "type": "object",
+      "properties": {
+        "collection": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$",
+          "description": "A data collection of the asset (collections are made by their import or by hand)"
+        },
+        "sinks": {
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Sink"
+          },
+          "description": "All its sinks: the list replaces the stored one"
+        }
+      },
+      "required": [
+        "collection",
+        "sinks"
+      ],
+      "additionalProperties": false,
+      "description": "The sinks of one data collection of the asset"
+    },
+    "Sink": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$",
+          "description": "Stable id: lower-case letters, digits, \".\", \"_\" and \"-\"; never changes"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "kind": {
+          "description": "system, platform, application, dataset, publication or other (default)",
+          "type": "string",
+          "enum": [
+            "system",
+            "dataset",
+            "publication",
+            "other",
+            "platform",
+            "application"
+          ]
+        },
+        "ref": {
+          "description": "A Steward system, platform or application id, a dataset key, or text",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 200
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "object": {
+          "description": "Where there: a topic, a table, an asset/aspect, a bucket path",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 500
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "format": {
+          "description": "Message format or protocol",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 200
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "schedule": {
+          "description": "When it is written: schedule, batching",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 2000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "owner": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 200
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 8000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "transforms": {
+          "description": "The transformation steps on the way, in order (documentation only)",
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "rename",
+                  "scale",
+                  "unit",
+                  "aggregate",
+                  "filter",
+                  "enrich",
+                  "compute",
+                  "format",
+                  "other"
+                ]
+              },
+              "field": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "expression": {
+                "description": "A new name, a factor, a condition, an expression or code – text, never run",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 8000
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "window": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "function": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "description": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "mappings": {
+          "description": "The name of an item in the sink, and a transformation for it only",
+          "maxItems": 5000,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "item": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500,
+                "description": "The item’s output name, else its address"
+              },
+              "target": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 500
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "transform": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "item"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "additionalProperties": false,
+      "description": "Where a data collection’s data goes after it is loaded (and perhaps transformed)"
     },
     "Removal": {
       "type": "object",

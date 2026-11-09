@@ -564,7 +564,8 @@
     "modules": {
       "title": "Module",
       "description": "Optionale Bereiche ein- oder ausschalten (Kosten, Datenverträge, Compliance, Statusseiten und andere), mit dem Reifegrad jedes Bereichs; das Werksregister und seine Karte."
-    }
+    },
+    "current": "Bereich: {{area}}"
   },
   "endOfLife": {
     "title": "Supportende",

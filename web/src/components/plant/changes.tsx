@@ -19,7 +19,7 @@ const KIND_TYPE: Partial<Record<PlantChangeKind, PlantRecordType>> = {
   asset: 'asset',
 };
 /** Kinds of part 2 (#219) without an own display name */
-type DataKind = 'profile' | 'kpi' | 'assignment';
+type DataKind = 'profile' | 'kpi' | 'assignment' | 'collection_sinks';
 export const ACTION_COLOR: Record<PlantChangeAction, string> = { add: 'green', change: 'blue', remove: 'red', mark: 'orange', unchanged: 'gray', skip: 'gray' };
 
 /** The name of an entry's kind: the installation's label of a record type, else the kind's own. */

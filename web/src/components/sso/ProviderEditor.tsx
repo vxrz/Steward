@@ -46,6 +46,7 @@ import i18n from '../../i18n';
 import { ClaimFields, LinkingAndRequired, ProfileAndSync, StableIdField, type ProviderForm } from './ClaimSettings';
 import { ConfigWarnings } from './ConfigWarnings';
 import { TestSignIn } from './TestSignIn';
+import { useCollapsible } from '../page/CollapsibleSection';
 
 const ENTRA_PREFIX = 'https://login.microsoftonline.com/';
 const entraIssuer = (tenant: string) => `${ENTRA_PREFIX}${tenant.trim()}/v2.0`;
@@ -62,6 +63,26 @@ const SERVER_WARNINGS = new Set(['USERNAME_COLLISIONS', 'EMAIL_VERIFIED_NOW_REQU
 
 /** Where the provider-side steps of a preset are described. */
 export const presetDocsUrl = (preset: SsoPreset) => `${BRAND.repoUrl}/blob/HEAD/docs/SSO.md#${SSO_PRESET_INFO[preset].docsAnchor}`;
+
+/** The settings under "Scopes and claims" and under "Accounts" (their count of changes shows while folded). */
+const CLAIM_KEYS: (keyof ProviderForm)[] = [
+  'scopes',
+  'useUserinfo',
+  'usernameClaim',
+  'usernameTransform',
+  'stripDomains',
+  'emailClaim',
+  'emailVerifiedByProvider',
+  'displayNameClaim',
+  'displayNameTemplate',
+  'firstNameClaim',
+  'lastNameClaim',
+  'groupsClaim',
+  'groupValues',
+  'stableIdClaims',
+  'stableIdConfirmedClaims',
+];
+const ACCOUNT_KEYS: (keyof ProviderForm)[] = ['linkExisting', 'requiredClaims', 'profileFields', 'sync'];
 
 /** A new provider's settings from a preset (pre-fill only: everything stays editable). */
 function presetForm(preset: SsoPreset, buttonLabel: string): ProviderForm {
@@ -99,8 +120,6 @@ export function ProviderEditor({ provider, onClose, onSaved }: { provider: SsoPr
   const [secret, setSecret] = useState('');
   const [removeSecret, setRemoveSecret] = useState(false);
   const [keepLinks, setKeepLinks] = useState(false);
-  const [advanced, setAdvanced] = useState(false);
-  const [accounts, setAccounts] = useState(false);
   const [discovery, setDiscovery] = useState<SsoDiscoveryResult | null>(null);
   const [testing, setTesting] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -181,6 +200,17 @@ export function ProviderEditor({ provider, onClose, onSaved }: { provider: SsoPr
       (w) => SERVER_WARNINGS.has(w.code) && (w.code !== 'EMAIL_VERIFIED_NOW_REQUIRED' || (form.emailVerificationNotice && !form.emailVerifiedByProvider)),
     ),
   ];
+  // the folded parts open for a problem in them, or when settings differ from the preset's
+  const base = presetForm(preset, '');
+  const changed = (keys: (keyof ProviderForm)[]) => keys.filter((k) => JSON.stringify(form[k] ?? null) !== JSON.stringify(base[k] ?? null)).length;
+  const claimsChanged = changed(CLAIM_KEYS) + (kind === 'entra' ? changed(['clientAuth']) : 0);
+  const accountsChanged = changed(ACCOUNT_KEYS);
+  const claimsProblem =
+    !!stableIdProblem(form.stableIdClaims, form.stableIdConfirmedClaims) ||
+    (form.usernameTransform === 'stripDomain' && (form.stripDomains.length === 0 || !form.stripDomains.every((d) => SSO_DOMAIN.test(d))));
+  const accountsProblem = form.requiredClaims.some((r) => r.claim.trim() && r.values.length === 0);
+  const advanced = useCollapsible({ id: 'sso-claims', defaultOpen: claimsChanged > 0, forceOpen: claimsProblem, inGroup: false });
+  const accounts = useCollapsible({ id: 'sso-accounts', defaultOpen: accountsChanged > 0, forceOpen: accountsProblem, inGroup: false });
   const needsSecret = form.clientAuth !== 'none';
   const valid =
     form.displayName.trim() &&
@@ -349,15 +379,22 @@ export function ProviderEditor({ provider, onClose, onSaved }: { provider: SsoPr
           </Stack>
         )}
 
-        <UnstyledButton onClick={() => setAdvanced((a) => !a)} aria-expanded={advanced}>
-          <Group gap={4}>
-            {advanced ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
-            <Text size="sm" fw={500}>
-              {t('provider.scopesClaims')}
+        <Group gap="xs">
+          <UnstyledButton onClick={advanced.toggle} aria-expanded={advanced.open} aria-controls="sso-claims-body" mih={24}>
+            <Group gap={4}>
+              {advanced.open ? <IconChevronDown size={14} aria-hidden /> : <IconChevronRight size={14} aria-hidden />}
+              <Text size="sm" fw={500}>
+                {t('provider.scopesClaims')}
+              </Text>
+            </Group>
+          </UnstyledButton>
+          {claimsChanged > 0 && (
+            <Text size="xs" c="dimmed" data-testid="sso-claims-changed">
+              {t('provider.changedCount', { count: claimsChanged })}
             </Text>
-          </Group>
-        </UnstyledButton>
-        <Collapse expanded={advanced}>
+          )}
+        </Group>
+        <Collapse expanded={advanced.open} id="sso-claims-body">
           <Stack gap="xs">
             {kind === 'entra' && (
               <Select
@@ -377,15 +414,22 @@ export function ProviderEditor({ provider, onClose, onSaved }: { provider: SsoPr
           </Stack>
         </Collapse>
 
-        <UnstyledButton onClick={() => setAccounts((a) => !a)} aria-expanded={accounts}>
-          <Group gap={4}>
-            {accounts ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
-            <Text size="sm" fw={500}>
-              {t('provider.accountsSection')}
+        <Group gap="xs">
+          <UnstyledButton onClick={accounts.toggle} aria-expanded={accounts.open} aria-controls="sso-accounts-body" mih={24}>
+            <Group gap={4}>
+              {accounts.open ? <IconChevronDown size={14} aria-hidden /> : <IconChevronRight size={14} aria-hidden />}
+              <Text size="sm" fw={500}>
+                {t('provider.accountsSection')}
+              </Text>
+            </Group>
+          </UnstyledButton>
+          {accountsChanged > 0 && (
+            <Text size="xs" c="dimmed" data-testid="sso-accounts-changed">
+              {t('provider.changedCount', { count: accountsChanged })}
             </Text>
-          </Group>
-        </UnstyledButton>
-        <Collapse expanded={accounts}>
+          )}
+        </Group>
+        <Collapse expanded={accounts.open} id="sso-accounts-body">
           <Stack gap="sm">
             <LinkingAndRequired form={form} set={set} />
             <ProfileAndSync form={form} set={set} />

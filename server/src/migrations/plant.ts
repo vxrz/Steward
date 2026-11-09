@@ -441,4 +441,37 @@ export const PLANT_MIGRATIONS: NamedMigration[] = [
       );
     `,
   },
+  {
+    // 0.12: the files of collection imports as Steward keeps them – secrets removed, never the original – one version
+    // per import of a collector on an asset (docs/PLANT.md "Gateway configurations"); a collection's gateway
+    // configuration document (a record) that each import updates
+    name: 'plant-010-collection-sources',
+    sql: `
+      CREATE TABLE plant_collection_sources (
+        id TEXT PRIMARY KEY,
+        asset_id TEXT NOT NULL,
+        collector_key TEXT NOT NULL,
+        collector TEXT NOT NULL,
+        version INTEGER NOT NULL,
+        file_name TEXT NOT NULL,
+        format TEXT NOT NULL,
+        sha256 TEXT NOT NULL,
+        size INTEGER NOT NULL,
+        content TEXT NOT NULL,
+        redacted_sha256 TEXT NOT NULL,
+        redacted_paths TEXT NOT NULL DEFAULT '[]',
+        collections TEXT NOT NULL DEFAULT '[]',
+        imported_by TEXT NOT NULL,
+        imported_at TEXT NOT NULL
+      );
+      CREATE INDEX plant_collection_sources_asset ON plant_collection_sources(asset_id, collector_key, version);
+      ALTER TABLE plant_collections ADD COLUMN document_id TEXT;
+    `,
+  },
+  {
+    // 0.12: where a collection's data goes – its sinks with their transformations and item mapping (JSON). The single
+    // destination of 0.11 is read as the first sink until the collection is saved again (docs/adr/0019, "Update 0.12")
+    name: 'plant-011-collection-sinks',
+    sql: `ALTER TABLE plant_collections ADD COLUMN sinks TEXT NOT NULL DEFAULT '[]';`,
+  },
 ];

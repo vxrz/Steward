@@ -141,7 +141,10 @@
     "assetCount_other": "{{count}} Anlagen",
     "buildingOwn": "Das Gebäude, das dieser Teil nennt",
     "buildingInherited": "Von der Ebene darüber übernommen",
-    "actionsNamed": "Aktionen für {{name}}"
+    "actionsNamed": "Aktionen für {{name}}",
+    "levelsBelow": "Ebenen unter {{name}}",
+    "below_one": "{{count}} darunter",
+    "below_other": "{{count}} darunter"
   },
   "node": {
     "newTitle": "Neu: {{type}}",
@@ -364,7 +367,8 @@
     "kinds": {
       "profile": "Geräteprofil",
       "kpi": "KPI-Definition",
-      "assignment": "Zuordnung"
+      "assignment": "Zuordnung",
+      "collection_sinks": "Ziele einer Datenerfassung"
     },
     "checks_one": "{{count}} Hinweis der Prüfungen",
     "checks_other": "{{count}} Hinweise der Prüfungen",
@@ -526,7 +530,13 @@
     "fileSets": "Dateien",
     "pathPatternIs": "Pfad {{pattern}}",
     "formatIs": "Format {{format}}",
-    "producedPerIs": "eine je {{per}}"
+    "producedPerIs": "eine je {{per}}",
+    "pointCount_one": "{{count}} Datenpunkt",
+    "pointCount_other": "{{count}} Datenpunkte",
+    "groupCount_one": "{{count}} Gruppe",
+    "groupCount_other": "{{count}} Gruppen",
+    "fileSetCount_one": "{{count}} Datei",
+    "fileSetCount_other": "{{count}} Dateien"
   },
   "point": {
     "of": "Datenpunkt von {{iface}} › {{group}}",
@@ -779,7 +789,13 @@
     "possible": "KPIs, die diese Anlage haben kann",
     "possibleHelp": "KPI-Definitionen, deren Datenpunkt-Eingänge diese Anlage alle liefert.",
     "addThis": "Hinzufügen",
-    "removeConfirm": "{{what}} von dieser Anlage entfernen?"
+    "removeConfirm": "{{what}} von dieser Anlage entfernen?",
+    "activeCount_one": "{{count}} aktiv",
+    "activeCount_other": "{{count}} aktiv",
+    "notSetUpCount_one": "{{count}} nicht eingerichtet",
+    "notSetUpCount_other": "{{count}} nicht eingerichtet",
+    "notDeliveredCount_one": "{{count}} nicht geliefert",
+    "notDeliveredCount_other": "{{count}} nicht geliefert"
   },
   "checks": {
     "title": "Prüfungen",

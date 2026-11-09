@@ -42,6 +42,7 @@ import { ApiError, api, apiUrl, del, get, notifyError, notifyOk, post } from '..
 import { PageHeader, QueryState } from '../components/common';
 import { useMe } from '../auth';
 import { fmtBytes, fmtDate, fmtNumber } from '../format';
+import { useCollapsible } from '../components/page/CollapsibleSection';
 
 const MIN_TRANSFER = 12;
 
@@ -359,8 +360,10 @@ function ImportCard() {
 
 function PlanSummary({ plan }: { plan: MigrationPlan }) {
   const { t } = useTranslation('settings');
-  const [more, setMore] = useState(false);
   const rows = plan.counts.reduce((s, c) => s + c.rows, 0);
+  // what is not moved: folded, its count beside the toggle
+  const notMoved = plan.notMoved.length + plan.settings.notApplied.length;
+  const more = useCollapsible({ id: 'migration-details', defaultOpen: false, inGroup: false });
   return (
     <Stack gap="xs" data-testid="migration-plan">
       <Title order={6}>{t('migration.plan.title')}</Title>
@@ -400,15 +403,20 @@ function PlanSummary({ plan }: { plan: MigrationPlan }) {
           {w}
         </Alert>
       ))}
-      <UnstyledButton onClick={() => setMore((v) => !v)} aria-expanded={more}>
+      <UnstyledButton onClick={more.toggle} aria-expanded={more.open} aria-controls="migration-details-body" mih={24}>
         <Group gap={4} wrap="nowrap">
-          {more ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
+          {more.open ? <IconChevronDown size={14} aria-hidden /> : <IconChevronRight size={14} aria-hidden />}
           <Text size="sm" c="dimmed">
             {t('migration.plan.details')}
           </Text>
+          {notMoved > 0 && (
+            <Badge size="sm" variant="default" component="span">
+              {notMoved}
+            </Badge>
+          )}
         </Group>
       </UnstyledButton>
-      <Collapse expanded={more}>
+      <Collapse expanded={more.open} id="migration-details-body">
         <Stack gap="xs">
           <Text size="sm">
             {t('migration.plan.notApplied')}: {plan.settings.notApplied.join(', ') || '–'}

@@ -26187,7 +26187,9 @@
                             "system",
                             "dataset",
                             "publication",
-                            "other"
+                            "other",
+                            "platform",
+                            "application"
                           ]
                         },
                         "ref": {
@@ -26211,7 +26213,145 @@
                     {
                       "type": "null"
                     }
-                  ]
+                  ],
+                  "description": "The first sink (0.11; see sinks)"
+                },
+                "sinks": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "system",
+                          "dataset",
+                          "publication",
+                          "other",
+                          "platform",
+                          "application"
+                        ]
+                      },
+                      "ref": {
+                        "type": "string",
+                        "description": "A Steward system, platform or application id, a dataset key, or text"
+                      },
+                      "object": {
+                        "type": "string",
+                        "description": "Where there: a topic, a table, an asset/aspect, a bucket path"
+                      },
+                      "format": {
+                        "type": "string"
+                      },
+                      "schedule": {
+                        "type": "string"
+                      },
+                      "owner": {
+                        "type": "string"
+                      },
+                      "description": {
+                        "type": "string"
+                      },
+                      "transforms": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "rename",
+                                "scale",
+                                "unit",
+                                "aggregate",
+                                "filter",
+                                "enrich",
+                                "compute",
+                                "format",
+                                "other"
+                              ]
+                            },
+                            "field": {
+                              "type": "string"
+                            },
+                            "expression": {
+                              "type": "string",
+                              "description": "Text: Steward never runs it"
+                            },
+                            "window": {
+                              "type": "string"
+                            },
+                            "function": {
+                              "type": "string"
+                            },
+                            "description": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "field",
+                            "expression",
+                            "window",
+                            "function",
+                            "description"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "description": "The transformation steps on the way, in order (documentation only)"
+                      },
+                      "mappings": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "item": {
+                              "type": "string",
+                              "description": "The item’s output name, else its address"
+                            },
+                            "target": {
+                              "type": "string"
+                            },
+                            "transform": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "item",
+                            "target",
+                            "transform"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "imported": {
+                        "type": "boolean",
+                        "description": "Written by an import (the next import replaces it)"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name",
+                      "kind",
+                      "ref",
+                      "object",
+                      "format",
+                      "schedule",
+                      "owner",
+                      "description",
+                      "transforms",
+                      "mappings",
+                      "imported"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "description": "Where the data goes (0.12)"
                 },
                 "access": {
                   "type": "object",
@@ -26507,6 +26647,57 @@
                     }
                   ]
                 },
+                "sinkRefs": {
+                  "type": "array",
+                  "items": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "system",
+                              "application",
+                              "platform",
+                              "process",
+                              "dataset",
+                              "job"
+                            ]
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string",
+                            "description": "Its name (empty when the token owner may not see it)"
+                          },
+                          "path": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "visible": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "id",
+                          "label",
+                          "path",
+                          "visible"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "description": "Per sink: the Steward item it names"
+                },
                 "points": {
                   "type": "array",
                   "items": {
@@ -26676,6 +26867,7 @@
                 "triggers",
                 "composition",
                 "destination",
+                "sinks",
                 "access",
                 "settings",
                 "items",
@@ -26690,6 +26882,7 @@
                 "collectorRef",
                 "collectorHost",
                 "destinationRef",
+                "sinkRefs",
                 "points",
                 "coverage",
                 "writes",

@@ -18,6 +18,7 @@ import { AssetStatusBadge, FieldValuesView, NotInSourceBadge, PreviewBadge, Refs
 import { AssetFormModal } from '../components/plant/forms';
 import { AssetDataSection } from '../components/plant/AssetData';
 import { AssetNetworkSection } from '../components/plant/AssetNetwork';
+import { PlantDocumentsPanel } from '../components/plant/DocumentsPanel';
 import { SourceLine } from './PlantSite';
 import { AssetTabs, PlantAssetTabPage } from './plant/views/tabs';
 
@@ -217,6 +218,7 @@ export function PlantAssetPage() {
             </Stack>
             <AssetDataSection assetId={a.id} />
             <AssetNetworkSection assetId={a.id} />
+            <PlantDocumentsPanel kind="asset" id={a.id} />
             <LinksPanel
               links={a.links}
               backlinks={a.backlinks}

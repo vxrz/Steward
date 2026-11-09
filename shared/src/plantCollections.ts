@@ -1,6 +1,7 @@
 import type { PlantSource } from './plant.js';
 import type { PlantDirection, PlantProtocol } from './plantData.js';
 import type { PlantCollector, PlantItemRef } from './plantNetwork.js';
+import type { PlantSourceDocumentResult } from './plantDocs.js';
 
 /**
  * Plant registry, 0.11.0: data collections (docs/adr/0019-data-collections.md, docs/PLANT.md "Data collections").
@@ -15,8 +16,11 @@ import type { PlantCollector, PlantItemRef } from './plantNetwork.js';
 export const COLLECTION_MODES = ['interval', 'on_change', 'trigger', 'other'] as const;
 export type CollectionMode = (typeof COLLECTION_MODES)[number];
 
-/** Where a collection loads its data: a Steward system (with a path), a Steward dataset, a publication target, text. */
-export const COLLECTION_DESTINATION_KINDS = ['system', 'dataset', 'publication', 'other'] as const;
+/**
+ * Where a collection loads its data: a Steward system (with a path), a Steward dataset, a publication target, text;
+ * since 0.12 also a Steward platform or application (a sink's target).
+ */
+export const COLLECTION_DESTINATION_KINDS = ['system', 'dataset', 'publication', 'other', 'platform', 'application'] as const;
 export type CollectionDestinationKind = (typeof COLLECTION_DESTINATION_KINDS)[number];
 
 /** The importers (the format of the collector's configuration). */
@@ -74,6 +78,64 @@ export interface PlantCollectionDestination {
   notes: string;
 }
 
+// ---------- sinks and transformations (0.12) ----------
+
+/**
+ * What a transformation step does (documentation only – Steward never runs one): rename, scale or convert units,
+ * aggregate over a window, filter, enrich or join, compute an expression, format the message, or something else.
+ */
+export const SINK_TRANSFORM_KINDS = ['rename', 'scale', 'unit', 'aggregate', 'filter', 'enrich', 'compute', 'format', 'other'] as const;
+export type SinkTransformKind = (typeof SINK_TRANSFORM_KINDS)[number];
+
+/** One step on the way to a sink, in order. Expressions and code are text: never run. */
+export interface PlantSinkTransform {
+  kind: SinkTransformKind;
+  /** The field or item it applies to (empty: all) */
+  field: string;
+  /** A new name, a factor, a condition, an expression or code (text) */
+  expression: string;
+  /** Aggregation: the window (e.g. 1 min, 100 values) and the function (avg, max …) */
+  window: string;
+  function: string;
+  description: string;
+}
+
+/** An item of the collection as the sink knows it: its target name or field there, and its own transformation. */
+export interface PlantSinkMapping {
+  /** The item: its output name, else its address */
+  item: string;
+  target: string;
+  /** A transformation for this item only (overrides the sink's steps for it; text) */
+  transform: string;
+}
+
+/**
+ * A sink: where the collected data goes after it is loaded (and perhaps transformed) – a broker topic, a table, an
+ * asset and aspect, a bucket path. The target is a Steward system, platform, application or dataset where one exists,
+ * else text.
+ */
+export interface PlantCollectionSink {
+  /** Stable id, unique in the collection */
+  id: string;
+  name: string;
+  kind: CollectionDestinationKind;
+  /** The target: a Steward item's id (system, platform, application), a dataset key, or text */
+  ref: string;
+  /** Where there: a topic, a table, an asset/aspect, a bucket path */
+  object: string;
+  /** Message format or protocol (JSON over MQTT, SQL insert, CSV file …) */
+  format: string;
+  /** When it is written: schedule, batching */
+  schedule: string;
+  /** Who looks after it (a person or team, free text) */
+  owner: string;
+  description: string;
+  transforms: PlantSinkTransform[];
+  mappings: PlantSinkMapping[];
+  /** Written by an import (an import replaces it; one added by hand stays) */
+  imported: boolean;
+}
+
 export interface PlantCollectionValues {
   /** Stable id, unique per asset */
   id: string;
@@ -89,7 +151,10 @@ export interface PlantCollectionValues {
   triggers: PlantCollectionTrigger[];
   /** How the triggers combine, or how the values are composed (free text) */
   composition: string;
+  /** The first sink as the destination of 0.11 (kept for older clients; `sinks` is what is stored) */
   destination: PlantCollectionDestination | null;
+  /** Where the data goes (0.12): one or more sinks, each with its transformations and item mapping */
+  sinks: PlantCollectionSink[];
   access: PlantCollectionAccess;
   /** Buffering, events, time sync and other settings of the collector */
   settings: { key: string; value: string }[];
@@ -137,6 +202,8 @@ export interface PlantCollectionView extends PlantCollectionValues, PlantSource 
   collectorRef: PlantItemRef | null;
   collectorHost: PlantItemRef | null;
   destinationRef: PlantItemRef | null;
+  /** Per sink: the Steward item it names (null: text, a publication target) */
+  sinkRefs: (PlantItemRef | null)[];
   /** Per item: the data point it is mapped to, as the asset's model has it (null: raw or stale) */
   points: (PlantCollectionPoint | null)[];
   coverage: PlantCollectionCoverage;
@@ -176,6 +243,49 @@ export interface PlantCollectionBrief {
   writes: boolean;
   /** On a data point's page: the collector's names for it */
   outputNames?: string[];
+  /** On a data point's page (0.12): where the data point goes – the sinks of the collection, with its target name there */
+  goesTo?: PlantSinkTarget[];
+}
+
+/** A sink as the data point page names it: what the reader may see of its target. */
+export interface PlantSinkTarget {
+  sink: string;
+  name: string;
+  kind: CollectionDestinationKind;
+  /** The target's name (empty: a Steward item the reader may not see) */
+  label: string;
+  path: string | null;
+  object: string;
+  /** The item's name in the sink (its mapping), if documented */
+  target: string;
+}
+
+/** Where a sink's data goes next, as far as Steward knows it: data paths that read from its system, a dataset's dashboards. */
+export interface PlantSinkDownstream {
+  paths: { assetId: string; assetName: string; pathId: string; subject: string }[];
+  /** More visible data paths than listed */
+  more: number;
+  /** Data paths of sites the reader may not see (counted, not named) */
+  hidden: number;
+  dashboards: { id: string; name: string; path: string }[];
+  /** Dashboards the reader may not see */
+  hiddenDashboards: number;
+}
+
+/** GET …/collections/:collectionId/flow (0.12): items → transformations → sinks → downstream, documentation only. */
+export interface PlantCollectionFlow {
+  assetId: string;
+  collectionId: string;
+  items: {
+    index: number;
+    address: string;
+    outputName: string;
+    /** The data point it is (null: raw) */
+    dataPoint: { id: string; name: string } | null;
+    /** The sinks it goes to, with its target name and own transformation there */
+    sinks: { sink: string; target: string; transform: string }[];
+  }[];
+  sinks: (PlantCollectionSink & { targetRef: PlantItemRef | null; downstream: PlantSinkDownstream })[];
 }
 
 // ---------- import ----------
@@ -250,6 +360,10 @@ export interface PlantCollectionImportResult {
   addresses: number;
   aliases: { profile: number; collector: number };
   added: { asset: number; profile: number };
+  /** 0.12: the files kept (secrets removed), one version per import */
+  sources: { id: string; version: number; fileName: string; redactedPaths: number }[];
+  /** 0.12: the gateway configuration document of each collection */
+  documents: PlantSourceDocumentResult[];
 }
 
 export const PLANT_COLLECTION_LIMITS = {
@@ -263,4 +377,9 @@ export const PLANT_COLLECTION_LIMITS = {
   longText: 8000,
   files: 10,
   fileBytes: 4 * 1024 * 1024,
+  /** 0.12: sinks per collection, transformation steps per sink */
+  sinks: 20,
+  transforms: 50,
+  /** 0.12: versions of a collector's configuration kept per asset (the oldest go first) */
+  sourceVersions: 50,
 } as const;

@@ -200,6 +200,8 @@ export const HISTORY_COLUMNS: string[] = [
   'plant_collections.created_by',
   'plant_collections.updated_by',
   'plant_collection_mappings.created_by',
+  // the kept files of collection imports (0.12)
+  'plant_collection_sources.imported_by',
   // old ids of renamed plant entries (0.11.0)
   'plant_id_aliases.renamed_by',
   'access_checks.updated_by',

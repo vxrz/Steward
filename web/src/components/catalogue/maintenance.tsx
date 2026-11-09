@@ -28,6 +28,7 @@ import { fmtDate, fmtDay } from '../../format';
 import { monitorKeys, platformKeys } from '../../queryKeys';
 import { useMe } from '../../auth';
 import { CopiedFromNote, DuplicateButton } from '../duplicate/DuplicateButton';
+import { CollapsibleSection } from '../page/CollapsibleSection';
 
 /**
  * Maintenance windows (#108): forms, details and the panel on platform, system, application, service and monitor pages.
@@ -517,37 +518,47 @@ export function MaintenancePanel({ kind, id, canPlan }: { kind: MaintenanceTarge
     .slice(0, 3);
   if (!q.data || (!occ.length && !canPlan)) return null;
   return (
-    <Stack gap="xs" data-testid="maintenance-panel">
-      <Group justify="space-between">
-        <Text fw={600}>{t('maintenance.panelTitle')}</Text>
-        {canPlan && (
-          <Button size="compact-xs" variant="subtle" leftSection={<IconPlus size={12} />} onClick={() => setPlanning(true)}>
+    <CollapsibleSection
+      id="maintenance"
+      testId="maintenance-panel"
+      onlyInGroup
+      size="h5"
+      title={t('maintenance.panelTitle')}
+      count={active.length + next.length}
+      tone={active.length ? 'warning' : undefined}
+      defaultOpen={active.length + next.length > 0}
+      actions={
+        canPlan && (
+          <Button size="compact-sm" variant="subtle" leftSection={<IconPlus size={12} />} onClick={() => setPlanning(true)}>
             {t('maintenance.new')}
           </Button>
+        )
+      }
+    >
+      <Stack gap="xs">
+        {active.map((o) => (
+          <Alert key={`${o.windowId}${o.startsAt}`} color="orange" icon={<IconTool size={16} />} p="xs">
+            <Anchor size="sm" onClick={() => setOpen(o.windowId)}>
+              {t('maintenance.panelActive', { title: o.title, end: fmtDate(o.endsAt) })}
+            </Anchor>
+          </Alert>
+        ))}
+        {next.map((o) => (
+          <Group key={`${o.windowId}${o.startsAt}`} gap={6} wrap="nowrap">
+            <IconCalendarEvent size={14} />
+            <Anchor size="sm" onClick={() => setOpen(o.windowId)}>
+              {t('maintenance.panelNext', { title: o.title, start: fmtDate(o.startsAt) })}
+            </Anchor>
+          </Group>
+        ))}
+        {!active.length && !next.length && (
+          <Text size="sm" c="dimmed">
+            {t('maintenance.panelEmpty')}
+          </Text>
         )}
-      </Group>
-      {active.map((o) => (
-        <Alert key={`${o.windowId}${o.startsAt}`} color="orange" icon={<IconTool size={16} />} p="xs">
-          <Anchor size="sm" onClick={() => setOpen(o.windowId)}>
-            {t('maintenance.panelActive', { title: o.title, end: fmtDate(o.endsAt) })}
-          </Anchor>
-        </Alert>
-      ))}
-      {next.map((o) => (
-        <Group key={`${o.windowId}${o.startsAt}`} gap={6} wrap="nowrap">
-          <IconCalendarEvent size={14} />
-          <Anchor size="sm" onClick={() => setOpen(o.windowId)}>
-            {t('maintenance.panelNext', { title: o.title, start: fmtDate(o.startsAt) })}
-          </Anchor>
-        </Group>
-      ))}
-      {!active.length && !next.length && (
-        <Text size="sm" c="dimmed">
-          {t('maintenance.panelEmpty')}
-        </Text>
-      )}
-      {open && <MaintenanceDetailModal id={open} onClose={() => setOpen(null)} />}
-      {planning && <MaintenanceFormModal preset={{ kind, id }} onClose={() => setPlanning(false)} onSaved={() => void q.refetch()} />}
-    </Stack>
+        {open && <MaintenanceDetailModal id={open} onClose={() => setOpen(null)} />}
+        {planning && <MaintenanceFormModal preset={{ kind, id }} onClose={() => setPlanning(false)} onSaved={() => void q.refetch()} />}
+      </Stack>
+    </CollapsibleSection>
   );
 }

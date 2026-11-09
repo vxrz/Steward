@@ -39,23 +39,24 @@ import { assetModel, isOrExtends } from './resolve.js';
 import { collectionRows, collectionValuesOf, collectorKey } from './collections-model.js';
 import type { PlantCollectionValues } from '@sm/shared';
 
-/** A collection's destination as a node of a flow (a dataset, else a target); null: none documented. */
-function destinationNode(g: GraphBuilder, c: PlantCollectionValues): string | null {
-  const d = c.destination;
-  if (!d) return null;
-  if (d.kind === 'dataset') {
-    const id = g.node({ id: `ds:${d.ref}`, kind: 'dataset', label: d.ref, detail: '', path: null, live: datasetLive(d.ref) });
-    g.nodes.get(id)!.path = g.nodes.get(id)!.live?.path ?? null;
-    return id;
-  }
-  const label = d.kind === 'system' ? (resolveTarget('system', d.ref)?.label ?? '') : d.ref;
-  return g.node({
-    id: `tgt:${norm(`${d.kind}:${d.ref}`)}`,
-    kind: 'target',
-    label: label || '–',
-    detail: d.path,
-    path: null,
-    hidden: d.kind === 'system' && !label,
+/** A collection's sinks (0.12; the destination of 0.11 is the first) as nodes of a flow: a dataset, else a target. */
+function destinationNodes(g: GraphBuilder, c: PlantCollectionValues): string[] {
+  return c.sinks.map((d) => {
+    if (d.kind === 'dataset') {
+      const id = g.node({ id: `ds:${d.ref}`, kind: 'dataset', label: d.ref, detail: '', path: null, live: datasetLive(d.ref) });
+      g.nodes.get(id)!.path = g.nodes.get(id)!.live?.path ?? null;
+      return id;
+    }
+    const item = d.kind === 'system' || d.kind === 'platform' || d.kind === 'application';
+    const label = item ? (resolveTarget(d.kind, d.ref)?.label ?? '') : d.ref || d.name;
+    return g.node({
+      id: `tgt:${norm(`${d.kind}:${d.ref || d.name}`)}`,
+      kind: 'target',
+      label: label || '–',
+      detail: d.object,
+      path: null,
+      hidden: item && !label,
+    });
   });
 }
 
@@ -577,12 +578,12 @@ export function assetFlow(assetId: string): PlantFlowGraph {
           const cId = collectorNode(g, c, c.name);
           if (!path.nodes.includes(cId)) path.nodes.push(cId);
           path.edges.push(g.edge(ifId, cId, point.id));
-          const dId = destinationNode(g, c);
-          if (dId) {
+          const dIds = destinationNodes(g, c);
+          for (const dId of dIds) {
             if (!path.nodes.includes(dId)) path.nodes.push(dId);
             path.edges.push(g.edge(cId, dId, point.id));
           }
-          last.push(dId ?? cId);
+          last.push(...(dIds.length ? dIds : [cId]));
         }
         if (!pubs.length) {
           if (!last.length) last.push(client ? collector(client) : ifId);
@@ -731,9 +732,9 @@ export function pointLineage(profileId: string, pointId: string): PlantFlowGraph
         .filter((x) => x.items.some((i) => i.dataPoint === pointId))) {
         const cId = collectorNode(g, c, '');
         add(cId, g.edge(holder, cId, asset.id));
-        const dId = destinationNode(g, c);
-        if (dId) add(dId, g.edge(cId, dId, asset.id));
-        last.push(dId ?? cId);
+        const dIds = destinationNodes(g, c);
+        for (const dId of dIds) add(dId, g.edge(cId, dId, asset.id));
+        last.push(...(dIds.length ? dIds : [cId]));
       }
     if (d.delivers)
       for (const p of a.publications.filter((x) => x.dataPoint === pointId)) {

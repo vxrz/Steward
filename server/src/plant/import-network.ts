@@ -13,6 +13,7 @@ import {
   type PlantStatusCheck,
   type PlantVlanValues,
   type PlantZoneValues,
+  type PlantCollectionSink,
 } from '@sm/shared';
 import { db } from '../db.js';
 import type { AssetRow, SiteRow } from './model.js';
@@ -20,6 +21,8 @@ import type { AssetNetworkFile, OtNetworkFile, PlantFile, StatusCheckFile } from
 import { clean, pushWrite, type Origin, type Write } from './import-data.js';
 import { refProblems, withHiddenSites } from './network.js';
 import { checkVisible, liveContext, withStoredHiddenChecks } from './live.js';
+import { resolveTarget } from '../records/links.js';
+import { collectionRowOf, destinationOfSink, sinksOf, type CollectionRow } from './collections-model.js';
 import { siteRights } from './access.js';
 import {
   assetChecksInput,
@@ -89,6 +92,8 @@ export interface NetPlan {
   assets: Map<string, PlannedAssetNet>;
   devices: Map<string, Planned<PlantDeviceValues>>;
   paths: Map<string, Planned<PlantDataPathValues>>;
+  /** 0.12: the sinks of data collections, by asset/collection */
+  sinks: Map<string, Planned<{ id: string; sinks: PlantCollectionSink[] }>>;
 }
 
 export const emptyNetPlan = (): NetPlan => ({
@@ -99,6 +104,7 @@ export const emptyNetPlan = (): NetPlan => ({
   assets: new Map(),
   devices: new Map(),
   paths: new Map(),
+  sinks: new Map(),
 });
 export const netPlanEmpty = (p: NetPlan) => !p.sites.size && !p.assets.size;
 
@@ -271,8 +277,58 @@ export function planNetwork(p: NetPlan, f: PlantFile, file: string, problems: Pl
       if (fx) return twice(ro, `Data path "${x.id}"`, fx);
       p.paths.set(k, { ...ro, owner: a.asset, position: i, values: pathFromFile(x) });
     });
+    (a.collection_sinks ?? []).forEach((x, i) => {
+      const ro = { file, path: `${path}.collection_sinks[${i}]` };
+      const k = key(a.asset, x.collection);
+      const fx = p.sinks.get(k);
+      if (fx) return twice(ro, `The sinks of data collection "${x.collection}"`, fx);
+      p.sinks.set(k, { ...ro, owner: a.asset, position: i, values: { id: x.collection, sinks: x.sinks.map(sinkFromFile) } });
+    });
   }
 }
+
+type SinkFile = NonNullable<AssetNetworkFile['collection_sinks']>[number]['sinks'][number];
+
+/** A sink of the file (0.12): what a file has is no import's guess, so it counts as entered by hand. */
+const sinkFromFile = (x: SinkFile): PlantCollectionSink => ({
+  id: x.id,
+  name: x.name,
+  kind: x.kind ?? 'other',
+  ref: str(x.ref),
+  object: str(x.object),
+  format: str(x.format),
+  schedule: str(x.schedule),
+  owner: str(x.owner),
+  description: str(x.description),
+  transforms: (x.transforms ?? []).map((t) => ({
+    kind: t.kind,
+    field: str(t.field),
+    expression: str(t.expression),
+    window: str(t.window),
+    function: str(t.function),
+    description: str(t.description),
+  })),
+  mappings: (x.mappings ?? []).map((m) => ({ item: m.item, target: str(m.target), transform: str(m.transform) })),
+  imported: false,
+});
+
+/** A sink in the file format: empty and default values left out. */
+const sinkOut = (x: PlantCollectionSink) =>
+  clean({
+    id: x.id,
+    name: x.name,
+    kind: x.kind === 'other' ? '' : x.kind,
+    ref: x.ref,
+    object: x.object,
+    format: x.format,
+    schedule: x.schedule,
+    owner: x.owner,
+    description: x.description,
+    transforms: x.transforms.map((t) =>
+      clean({ kind: t.kind, field: t.field, expression: t.expression, window: t.window, function: t.function, description: t.description }),
+    ),
+    mappings: x.mappings.map((m) => clean({ item: m.item, target: m.target, transform: m.transform })),
+  });
 
 // ---------- comparing with what is stored ----------
 
@@ -623,6 +679,51 @@ export function computeNetwork(c: NetContext): void {
     );
   }
 
+  // the sinks of the asset's data collections (0.12): the collection must exist; the file's list replaces the stored one
+  for (const [k, x] of p.sinks) {
+    const siteId = okAssets.get(x.owner);
+    if (!siteId) continue;
+    const row = collectionRowOf(x.owner, x.values.id);
+    if (!row) {
+      problems.push({ file: x.file, path: `${x.path}.collection`, message: `Asset "${x.owner}" has no data collection "${x.values.id}"` });
+      continue;
+    }
+    const before = { sinks: sinksOf(row) };
+    const after = { sinks: x.values.sinks ?? [] };
+    const ids = new Set<string>();
+    after.sinks.forEach((sk, i) => {
+      if (ids.has(sk.id)) problems.push({ file: x.file, path: `${x.path}.sinks[${i}].id`, message: `Sink "${sk.id}" is there twice` });
+      ids.add(sk.id);
+      // a Steward item named anew must be one the importer may see
+      const item = sk.kind === 'system' || sk.kind === 'platform' || sk.kind === 'application';
+      if (item && !before.sinks.some((b) => b.kind === sk.kind && b.ref === sk.ref) && !resolveTarget(sk.kind, sk.ref))
+        problems.push({ file: x.file, path: `${x.path}.sinks[${i}].ref`, message: `There is no ${sk.kind} "${sk.ref}"` });
+    });
+    // a stored row of 0.11 has its destination as its sink: the same sinks are unchanged
+    pushWrite(
+      writes,
+      mode === 'add' && before.sinks.length === 0 ? 'update' : mode,
+      'collection_sinks',
+      siteId,
+      k,
+      row.name,
+      before,
+      after,
+      undefined,
+      () =>
+        db().run(
+          'UPDATE plant_collections SET sinks = ?, destination = ?, updated_at = ?, updated_by = ? WHERE asset_id = ? AND id = ?',
+          JSON.stringify(after.sinks),
+          after.sinks.length ? JSON.stringify(destinationOfSink(after.sinks[0])) : null,
+          c.meta.at,
+          c.meta.by,
+          x.owner,
+          x.values.id,
+        ),
+      () => undefined,
+    );
+  }
+
   // ---- what the earlier import wrote and the files no longer have
   if (!full || !c.prevId) return;
   const gone = (
@@ -810,6 +911,12 @@ export function assetNetworksOut(assetIds: string[]): Record<string, unknown>[] 
   };
   const devices = group(db().all<DeviceRow>('SELECT * FROM plant_devices ORDER BY asset_id, position, id'));
   const paths = group(db().all<DataPathRow>('SELECT * FROM plant_data_paths ORDER BY asset_id, position, id'));
+  // 0.12: the sinks of its data collections (those that have any)
+  const sinks = group(
+    db()
+      .all<CollectionRow>('SELECT * FROM plant_collections ORDER BY asset_id, position, id')
+      .filter((r) => sinksOf(r).length > 0),
+  );
   const checks = new Map(
     db()
       .all<AssetChecksRow>('SELECT * FROM plant_asset_checks')
@@ -819,7 +926,7 @@ export function assetNetworksOut(assetIds: string[]): Record<string, unknown>[] 
   const ctx = liveContext();
   const seen = (list: PlantStatusCheck[]) => list.filter((c) => checkVisible(c, ctx)).map(checkOut);
   return assetIds
-    .filter((a) => devices.has(a) || paths.has(a) || checks.has(a))
+    .filter((a) => devices.has(a) || paths.has(a) || checks.has(a) || sinks.has(a))
     .map((a) => ({
       asset: a,
       ...(checks.has(a) ? { checks: seen(checks.get(a)!) } : {}),
@@ -862,6 +969,7 @@ export function assetNetworksOut(assetIds: string[]): Record<string, unknown>[] 
             notes: x.notes,
           }),
         ),
+        collection_sinks: (sinks.get(a) ?? []).map((r) => ({ collection: r.id, sinks: sinksOf(r).map(sinkOut) })),
       }),
     }));
 }

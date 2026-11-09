@@ -12,6 +12,7 @@ import {
   DEFAULT_RECORD_TYPES,
   LINK_KINDS,
   PLANT_LINK_KINDS,
+  PLANT_SOURCE_RECORD_TYPE,
   RECORD_STATUS_COLORS,
   type Backlink,
   type ItemLink,
@@ -25,6 +26,11 @@ import { useMe } from '../../auth';
 import { confirmDanger } from '../confirm';
 import { useFieldErrors } from '../common';
 import { LinkTypeIconView, linkTypeOf, useLinkTypeName, useLinkTypes } from './linkTypes';
+import { CollapsibleSection } from '../page/CollapsibleSection';
+import { ShowAll, useShowMore } from '../page/ShowAll';
+
+/** Links listed before "Show all"; more backlinks than this start folded. */
+const LINKS_FIRST = 10;
 
 export const useRecordTypes = (archived = false) =>
   useQuery({ queryKey: ['record-types', archived], queryFn: () => get<RecordType[]>(`/record-types${archived ? '?archived=1' : ''}`), staleTime: 30_000 });
@@ -34,7 +40,9 @@ export function useTypeName() {
   const { t } = useTranslation('records');
   return (type: Pick<RecordType, 'key' | 'name' | 'builtin'> | undefined | null, fallback = ''): string => {
     if (!type) return fallback;
-    const def = [...DEFAULT_RECORD_TYPES, ACCESS_RECORD_TYPE, DOCUMENT_RECORD_TYPE, INCIDENT_RECORD_TYPE].find((d) => d.key === type.key);
+    const def = [...DEFAULT_RECORD_TYPES, ACCESS_RECORD_TYPE, DOCUMENT_RECORD_TYPE, INCIDENT_RECORD_TYPE, PLANT_SOURCE_RECORD_TYPE].find(
+      (d) => d.key === type.key,
+    );
     if (type.builtin && def && def.name === type.name) return t(`builtinTypes.${type.key as 'CR'}`, { defaultValue: type.name });
     return type.name;
   };
@@ -88,7 +96,12 @@ export function LinksPanel({
     const i = (types.data ?? []).findIndex((x) => x.key === key);
     return key === 'other' ? Number.MAX_SAFE_INTEGER : i < 0 ? Number.MAX_SAFE_INTEGER - 1 : i;
   };
-  const external = [...groups.values()].sort((a, b) => order(a.type.key) - order(b.type.key));
+  const sorted = [...groups.values()].sort((a, b) => order(a.type.key) - order(b.type.key));
+  // the first 10 links (internal ones first, then by type), "Show all N" for the rest
+  const more = useShowMore([...internal, ...sorted.flatMap((g) => g.links)], LINKS_FIRST);
+  const visible = new Set(more.items.map((l) => l.id));
+  const internalShown = internal.filter((l) => visible.has(l.id));
+  const external = sorted.map((g) => ({ ...g, shown: g.links.filter((l) => visible.has(l.id)) })).filter((g) => g.shown.length);
   const linkName = (l: ItemLink) => l.label || l.url || t('links.notVisible');
   // links to items the reader cannot see can be removed, not edited
   const editButton = (l: ItemLink) =>
@@ -121,140 +134,155 @@ export function LinksPanel({
     </Tooltip>
   );
   return (
-    <Stack gap="md">
-      <Group justify="space-between">
-        <Text fw={600}>{t('links.title')}</Text>
-        {canEdit && (
+    <CollapsibleSection
+      id="links"
+      collapseOnPhone
+      onlyInGroup
+      size="h5"
+      title={t('links.title')}
+      count={links.length}
+      defaultOpen={links.length + backlinks.length > 0}
+      actions={
+        canEdit && (
           <Button size="xs" variant="default" leftSection={<IconPlus size={14} />} onClick={() => setAdding(true)}>
             {t('links.add')}
           </Button>
+        )
+      }
+    >
+      <Stack gap="md">
+        {links.length === 0 && (
+          <Text size="sm" c="dimmed">
+            {t('links.empty')}
+          </Text>
         )}
-      </Group>
-      {links.length === 0 && (
-        <Text size="sm" c="dimmed">
-          {t('links.empty')}
-        </Text>
-      )}
-      {internal.length > 0 && (
-        <div className="table-scroll">
-          <Table fz="sm" aria-label={t('links.title')}>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>{t('links.kind')}</Table.Th>
-                <Table.Th>{t('links.target')}</Table.Th>
-                <Table.Th>{t('links.note')}</Table.Th>
-                {canEdit && <Table.Th aria-label={t('links.actions')} />}
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {internal.map((l) => (
-                <Table.Tr key={l.id}>
-                  <Table.Td className="nowrap">{t(`links.kinds.${l.kind ?? 'external'}`)}</Table.Td>
-                  <Table.Td style={{ overflowWrap: 'anywhere' }}>
-                    {l.kind === null ? (
-                      <Anchor href={l.url ?? undefined} target="_blank" rel="noopener noreferrer nofollow" size="sm">
-                        {l.label || l.url} <IconExternalLink size={12} aria-hidden />
-                      </Anchor>
-                    ) : l.visible && l.path ? (
-                      <>
-                        <Anchor component={Link} to={l.path} size="sm">
-                          {l.label}
-                        </Anchor>
-                        {l.edition && (
-                          <Badge size="xs" variant="light" color="green" ml={6}>
-                            {t('document.editionShort', { edition: l.edition })}
-                          </Badge>
-                        )}
-                      </>
-                    ) : l.visible ? (
-                      // a name without a page to open (a plant viewer's view of linked systems, #218)
-                      <Text size="sm">{l.label}</Text>
-                    ) : (
-                      <Text size="sm" c="dimmed">
-                        {t('links.notVisible')}
-                      </Text>
-                    )}
-                  </Table.Td>
-                  <Table.Td>{l.note}</Table.Td>
-                  {canEdit && <Table.Td>{actions(l)}</Table.Td>}
+        {internalShown.length > 0 && (
+          <div className="table-scroll">
+            <Table fz="sm" aria-label={t('links.title')}>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>{t('links.kind')}</Table.Th>
+                  <Table.Th>{t('links.target')}</Table.Th>
+                  <Table.Th>{t('links.note')}</Table.Th>
+                  {canEdit && <Table.Th aria-label={t('links.actions')} />}
                 </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-        </div>
-      )}
-      {external.length > 0 && (
-        <Stack gap="sm" data-testid="external-links">
-          <Text fw={600}>{t('links.external')}</Text>
-          {external.map(({ type, links: group }) => {
-            const name = typeName(type);
-            return (
-              <div key={type.key} data-link-type={type.key}>
-                <Group gap={6} mb={4} wrap="nowrap">
-                  <LinkTypeIconView icon={type.icon} />
-                  <Text size="sm" fw={500}>
-                    {name}
-                  </Text>
-                  <Text size="xs" c="dimmed">
-                    ({group.length})
-                  </Text>
-                </Group>
-                <Stack gap={4} role="list" aria-label={t('links.typeGroup', { type: name })} pl={22}>
-                  {group.map((l) => (
-                    <Group key={l.id} role="listitem" gap={6} wrap="nowrap" justify="space-between">
-                      <Text size="sm" style={{ overflowWrap: 'anywhere', minWidth: 0 }}>
+              </Table.Thead>
+              <Table.Tbody>
+                {internalShown.map((l) => (
+                  <Table.Tr key={l.id}>
+                    <Table.Td className="nowrap">{t(`links.kinds.${l.kind ?? 'external'}`)}</Table.Td>
+                    <Table.Td style={{ overflowWrap: 'anywhere' }}>
+                      {l.kind === null ? (
                         <Anchor href={l.url ?? undefined} target="_blank" rel="noopener noreferrer nofollow" size="sm">
                           {l.label || l.url} <IconExternalLink size={12} aria-hidden />
                         </Anchor>
-                        {l.note && (
-                          <Text span size="xs" c="dimmed">
-                            {' '}
-                            · {l.note}
-                          </Text>
-                        )}
-                      </Text>
-                      {canEdit && actions(l)}
-                    </Group>
-                  ))}
-                </Stack>
-              </div>
-            );
-          })}
-        </Stack>
-      )}
-      <div>
-        <Text fw={600} mb={4}>
-          {t('links.backlinks')}
-        </Text>
-        {backlinks.length === 0 ? (
-          <Text size="sm" c="dimmed">
-            {t('links.noBacklinks')}
-          </Text>
-        ) : (
-          <Stack gap={4}>
-            {backlinks.map((b) => (
-              <Group key={b.linkId} gap={6} wrap="nowrap">
-                <IconLink size={14} aria-hidden />
-                <Text size="sm">
-                  {t(`links.kinds.${b.kind}`)}:{' '}
-                  <Anchor component={Link} to={b.path} size="sm">
-                    {b.label}
-                  </Anchor>
-                  {b.note && (
-                    <Text span size="xs" c="dimmed">
-                      {' '}
-                      · {b.note}
+                      ) : l.visible && l.path ? (
+                        <>
+                          <Anchor component={Link} to={l.path} size="sm">
+                            {l.label}
+                          </Anchor>
+                          {l.edition && (
+                            <Badge size="xs" variant="light" color="green" ml={6}>
+                              {t('document.editionShort', { edition: l.edition })}
+                            </Badge>
+                          )}
+                        </>
+                      ) : l.visible ? (
+                        // a name without a page to open (a plant viewer's view of linked systems, #218)
+                        <Text size="sm">{l.label}</Text>
+                      ) : (
+                        <Text size="sm" c="dimmed">
+                          {t('links.notVisible')}
+                        </Text>
+                      )}
+                    </Table.Td>
+                    <Table.Td>{l.note}</Table.Td>
+                    {canEdit && <Table.Td>{actions(l)}</Table.Td>}
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </div>
+        )}
+        {external.length > 0 && (
+          <Stack gap="sm" data-testid="external-links">
+            <Text fw={600}>{t('links.external')}</Text>
+            {external.map(({ type, links: group, shown }) => {
+              const name = typeName(type);
+              return (
+                <div key={type.key} data-link-type={type.key}>
+                  <Group gap={6} mb={4} wrap="nowrap">
+                    <LinkTypeIconView icon={type.icon} />
+                    <Text size="sm" fw={500}>
+                      {name}
                     </Text>
-                  )}
-                </Text>
-              </Group>
-            ))}
+                    <Text size="xs" c="dimmed">
+                      ({group.length})
+                    </Text>
+                  </Group>
+                  <Stack gap={4} role="list" aria-label={t('links.typeGroup', { type: name })} pl={22}>
+                    {shown.map((l) => (
+                      <Group key={l.id} role="listitem" gap={6} wrap="nowrap" justify="space-between">
+                        <Text size="sm" style={{ overflowWrap: 'anywhere', minWidth: 0 }}>
+                          <Anchor href={l.url ?? undefined} target="_blank" rel="noopener noreferrer nofollow" size="sm">
+                            {l.label || l.url} <IconExternalLink size={12} aria-hidden />
+                          </Anchor>
+                          {l.note && (
+                            <Text span size="xs" c="dimmed">
+                              {' '}
+                              · {l.note}
+                            </Text>
+                          )}
+                        </Text>
+                        {canEdit && actions(l)}
+                      </Group>
+                    ))}
+                  </Stack>
+                </div>
+              );
+            })}
           </Stack>
         )}
-      </div>
-      {adding && <LinkModal self={self} onClose={() => setAdding(false)} onSave={(l) => onAdd(l as LinkInput)} />}
-      {editing && onUpdate && <LinkModal link={editing} onClose={() => setEditing(null)} onSave={(l) => onUpdate(editing.id, l)} />}
-    </Stack>
+        <ShowAll state={more} id="links" />
+        <CollapsibleSection
+          id="backlinks"
+          order={3}
+          title={t('links.backlinks')}
+          count={backlinks.length}
+          // the same choice on every page with links; long lists start folded
+          remember="section.links.backlinks"
+          defaultOpen={backlinks.length > 0 && backlinks.length <= LINKS_FIRST}
+        >
+          {backlinks.length === 0 ? (
+            <Text size="sm" c="dimmed">
+              {t('links.noBacklinks')}
+            </Text>
+          ) : (
+            <Stack gap={4}>
+              {backlinks.map((b) => (
+                <Group key={b.linkId} gap={6} wrap="nowrap">
+                  <IconLink size={14} aria-hidden />
+                  <Text size="sm">
+                    {t(`links.kinds.${b.kind}`)}:{' '}
+                    <Anchor component={Link} to={b.path} size="sm">
+                      {b.label}
+                    </Anchor>
+                    {b.note && (
+                      <Text span size="xs" c="dimmed">
+                        {' '}
+                        · {b.note}
+                      </Text>
+                    )}
+                  </Text>
+                </Group>
+              ))}
+            </Stack>
+          )}
+        </CollapsibleSection>
+        {adding && <LinkModal self={self} onClose={() => setAdding(false)} onSave={(l) => onAdd(l as LinkInput)} />}
+        {editing && onUpdate && <LinkModal link={editing} onClose={() => setEditing(null)} onSave={(l) => onUpdate(editing.id, l)} />}
+      </Stack>
+    </CollapsibleSection>
   );
 }
 

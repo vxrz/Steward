@@ -11,7 +11,10 @@ import { HttpError } from '../util.js';
 import { plantSettings, plantSettingsInput, requirePlant, updatePlantSettings } from './settings.js';
 import * as svc from './service.js';
 import { applyImport, exportYaml, importInput, importStepUpPoints, listImports, previewImport } from './import.js';
-import { plantBulkInput, plantRenameInput, PLANT_ID_KINDS } from '@sm/shared';
+import { plantBulkInput, plantRenameInput, PLANT_DOC_KINDS, PLANT_ID_KINDS } from '@sm/shared';
+import { contentDisposition } from '../records/attachments.js';
+import { diffSources, listSources, sourceFile } from './collections-sources.js';
+import { plantDocuments } from './documents.js';
 import { currentParams, currentQuery, listAliases, removeAlias } from './ids.js';
 import { previewRename, renameId } from './rename.js';
 import { applyBulk, bulkNeedsStepUp, previewBulk } from './bulk.js';
@@ -54,7 +57,9 @@ import type { Fetched } from './mapTiles.js';
  *   GET     /api/plant/explore/points, /api/plant/checks
  *   …       /api/plant/sites/:siteId/network, …/vlans[/:vlanId[/segment]], …/zones[/:zoneId], …/conduits[/:conduitId]   the OT network (#220)
  *   …       /api/plant/assets/:assetId/network, …/devices[/:deviceId], …/paths[/:pathId], …/checks
- *   …       /api/plant/assets/:assetId/collections[/:collectionId[/mapping]], …/collections/import[/preview]   data collections (0.11.0)
+ *   …       /api/plant/assets/:assetId/collections[/:collectionId[/mapping|/flow]], …/collections/import[/preview]   data collections (0.11.0; flow 0.12)
+ *   GET     /api/plant/assets/:assetId/collection-sources[/diff | /:sourceId/file]   the kept files of collection imports (0.12)
+ *   GET     /api/plant/documents?kind=&id=                the Documents panel of plant pages (0.12)
  *   GET     /api/plant/collections?collectorKind=&collectorRef=, …/profiles/:profileId/points/:pointId/collections
  *   GET     /api/plant/views/overview | /views/coverage, …/structure, …/flow, …/lineage   the visualizations (#230)
  *   POST    /api/plant/import/preview | /api/plant/import, GET /api/plant/imports, GET /api/plant/export
@@ -320,7 +325,29 @@ export async function plantRoutes(app: FastifyInstance): Promise<void> {
   app.put('/plant/assets/:assetId/collections/:collectionId', async (req) =>
     coll.updateCollection(p(req).assetId!, p(req).collectionId!, coll.collectionUpdate.parse(req.body)),
   );
-  app.delete('/plant/assets/:assetId/collections/:collectionId', async (req) => coll.deleteCollection(p(req).assetId!, p(req).collectionId!));
+  app.delete('/plant/assets/:assetId/collections/:collectionId', async (req) => {
+    // records that link to it refuse it unless "also remove what belongs to it" (0.12)
+    const q = z.object({ cascade: z.enum(['0', '1', 'true', 'false']).default('0') }).parse(req.query);
+    return coll.deleteCollection(p(req).assetId!, p(req).collectionId!, q.cascade === '1' || q.cascade === 'true');
+  });
+  // 0.12: where the data goes – items → transformations → sinks → downstream
+  app.get('/plant/assets/:assetId/collections/:collectionId/flow', async (req) => coll.collectionFlow(p(req).assetId!, p(req).collectionId!));
+  // 0.12: the kept files of collection imports (secrets removed): the versions, one file, two versions compared
+  app.get('/plant/assets/:assetId/collection-sources', async (req) => {
+    const q = z.object({ collection: z.string().min(1).max(100).optional() }).parse(req.query);
+    return { assetId: p(req).assetId!, sources: listSources(p(req).assetId!, q.collection) };
+  });
+  app.get('/plant/assets/:assetId/collection-sources/diff', async (req) => {
+    const q = z.object({ from: z.string().min(1).max(100), to: z.string().min(1).max(100) }).parse(req.query);
+    return diffSources(p(req).assetId!, q.from, q.to);
+  });
+  app.get('/plant/assets/:assetId/collection-sources/:sourceId/file', async (req, reply) => {
+    const x = sourceFile(p(req).assetId!, p(req).sourceId!);
+    reply.header('content-disposition', contentDisposition(x.filename));
+    reply.header('cache-control', 'no-store');
+    reply.header('x-content-type-options', 'nosniff');
+    return reply.type(x.contentType).send(x.content);
+  });
   app.get('/plant/assets/:assetId/collections/:collectionId/mapping', async (req, reply) => {
     const q = z.object({ format: z.enum(['csv', 'yaml']).default('csv') }).parse(req.query);
     const x = coll.mappingFile(p(req).assetId!, p(req).collectionId!, q.format);
@@ -339,6 +366,21 @@ export async function plantRoutes(app: FastifyInstance): Promise<void> {
     return coll.collectorCollections(q.collectorKind, q.collectorRef);
   });
   app.get('/plant/profiles/:profileId/points/:pointId/collections', async (req) => coll.pointCollections(p(req).profileId!, p(req).pointId!));
+
+  // ---------- 0.12: the records linked to a plant entry and those it inherits (the Documents panel) ----------
+  app.get('/plant/documents', async (req) => {
+    const q = z.object({ kind: z.enum(PLANT_DOC_KINDS), id: z.string().min(1).max(300) }).parse(req.query);
+    // a read takes old ids (aliases) of sites, assets and profiles as the entries they lead to
+    const id =
+      q.kind === 'site'
+        ? currentParams({ siteId: q.id }).siteId!
+        : q.kind === 'asset'
+          ? currentParams({ assetId: q.id }).assetId!
+          : q.kind === 'device-profile'
+            ? currentParams({ profileId: q.id }).profileId!
+            : q.id;
+    return plantDocuments(q.kind, id);
+  });
 
   // ---------- visualizations (#230): read-only aggregates, the same rights as the pages they picture ----------
   app.get('/plant/views/overview', async () => overview());

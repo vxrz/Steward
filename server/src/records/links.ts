@@ -323,7 +323,7 @@ interface LinkRow {
 }
 
 /** The registry's own kinds: the only ones a plant viewer (#218) may open. */
-const PLANT_KINDS = new Set(['site', 'asset']);
+const PLANT_KINDS = new Set(['site', 'asset', 'device-profile', 'data-collection', 'data-sink']);
 
 function toLink(r: LinkRow, plantViewer = plantOnly(currentUser())): ItemLink {
   if (!r.to_kind) {

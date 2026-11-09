@@ -278,6 +278,8 @@ describe('asset additions and data collections', () => {
       collectorRef: _c,
       collectorHost: _h,
       destinationRef: _d,
+      // 0.12: derived from the sinks, as destinationRef
+      sinkRefs: _r,
       points: _p,
       coverage: _v,
       writes: _w,

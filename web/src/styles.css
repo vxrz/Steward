@@ -323,3 +323,63 @@ p .mantine-Anchor-root,
     padding-left: var(--mantine-spacing-md);
   }
 }
+
+/*
+ * Folded sections (components/page/CollapsibleSection.tsx): the heading's button is the toggle, at least 28 px high
+ * (WCAG 2.5.8); an opened section or a link target stays clear of the sticky header (WCAG 2.4.11).
+ */
+.sm-section,
+.sm-anchor {
+  scroll-margin-top: calc(var(--app-shell-header-height, 52px) + var(--mantine-spacing-md));
+}
+.sm-section-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  max-width: 100%;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  overflow-wrap: anywhere;
+  border-radius: var(--mantine-radius-sm);
+}
+.sm-section-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  overflow-wrap: anywhere;
+}
+.sm-section-toggle:hover {
+  background: var(--mantine-color-default-hover);
+}
+.sm-section-chevron {
+  flex: none;
+  transition: transform 150ms ease;
+}
+.sm-section-chevron[data-open='false'] {
+  transform: rotate(-90deg);
+}
+.sm-section-count {
+  flex: none;
+  text-transform: none;
+}
+
+/*
+ * Printing and "Save as PDF": folded sections and shortened lists open (beforeprint, usePrinting), the app's
+ * navigation and the fold controls stay off the paper.
+ */
+@media print {
+  .mantine-AppShell-header,
+  .mantine-AppShell-navbar,
+  .sm-no-print {
+    display: none !important;
+  }
+  .mantine-AppShell-main {
+    padding-inline-start: 0 !important;
+    padding-top: 0 !important;
+  }
+  .sm-section-chevron {
+    display: none;
+  }
+}

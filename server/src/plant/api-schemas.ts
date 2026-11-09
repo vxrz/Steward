@@ -17,6 +17,7 @@ import {
   ADDRESS_TYPES,
   COLLECTOR_KINDS,
   COLLECTION_DESTINATION_KINDS,
+  SINK_TRANSFORM_KINDS,
   COLLECTION_MODES,
   CONDUIT_DIRECTIONS,
   DESTINATION_KINDS,
@@ -661,7 +662,39 @@ const Collection = z.object({
   debounceMs: z.number().int().nullable(),
   triggers: z.array(z.object({ name: z.string(), condition: z.string(), referencePoint: z.string(), referenceValue: z.string() })),
   composition: z.string(),
-  destination: z.object({ kind: z.enum(COLLECTION_DESTINATION_KINDS), ref: z.string(), path: z.string(), notes: z.string() }).nullable(),
+  destination: z
+    .object({ kind: z.enum(COLLECTION_DESTINATION_KINDS), ref: z.string(), path: z.string(), notes: z.string() })
+    .nullable()
+    .describe('The first sink (0.11; see sinks)'),
+  sinks: z
+    .array(
+      z.object({
+        id: z.string(),
+        name: z.string(),
+        kind: z.enum(COLLECTION_DESTINATION_KINDS),
+        ref: z.string().describe('A Steward system, platform or application id, a dataset key, or text'),
+        object: z.string().describe('Where there: a topic, a table, an asset/aspect, a bucket path'),
+        format: z.string(),
+        schedule: z.string(),
+        owner: z.string(),
+        description: z.string(),
+        transforms: z
+          .array(
+            z.object({
+              kind: z.enum(SINK_TRANSFORM_KINDS),
+              field: z.string(),
+              expression: z.string().describe('Text: Steward never runs it'),
+              window: z.string(),
+              function: z.string(),
+              description: z.string(),
+            }),
+          )
+          .describe('The transformation steps on the way, in order (documentation only)'),
+        mappings: z.array(z.object({ item: z.string().describe('The item’s output name, else its address'), target: z.string(), transform: z.string() })),
+        imported: z.boolean().describe('Written by an import (the next import replaces it)'),
+      }),
+    )
+    .describe('Where the data goes (0.12)'),
   access: z
     .object({ read: z.array(z.string()), write: z.array(z.string()), create: z.array(z.string()), delete: z.array(z.string()) })
     .describe('The collector’s address patterns; write, create and delete change the machine'),
@@ -686,6 +719,7 @@ const Collection = z.object({
   collectorRef: ItemRef.nullable(),
   collectorHost: ItemRef.nullable(),
   destinationRef: ItemRef.nullable(),
+  sinkRefs: z.array(ItemRef.nullable()).describe('Per sink: the Steward item it names'),
   points: z.array(CollectionPoint.nullable()),
   coverage: z.object({
     mapped: z.number().int(),

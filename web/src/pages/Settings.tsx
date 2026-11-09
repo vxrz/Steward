@@ -5,6 +5,7 @@ import {
   Button,
   Card,
   Code,
+  Collapse,
   Grid,
   Group,
   NavLink,
@@ -23,6 +24,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   IconBell,
   IconBuildingFactory2,
+  IconChevronDown,
   IconLanguage,
   IconMapPinOff,
   IconPalette,
@@ -38,6 +40,7 @@ import {
   type Icon,
 } from '@tabler/icons-react';
 import { Link, Navigate, useLocation, useParams } from 'react-router-dom';
+import { useMediaQuery } from '@mantine/hooks';
 import { Trans, useTranslation } from 'react-i18next';
 import { DEBUG_LIMITS, allowListEntryProblem, allowListLines, type ApiToken, type AuthStatus, type MaintenanceStatus, type Settings } from '@sm/shared';
 import { BRAND } from '../../../shared/src/brand';
@@ -176,6 +179,14 @@ export function SettingsPage({ browserAvailable }: { browserAvailable: boolean }
   // settings are the administrators' (the server checks it); others see where their own settings are
   const readOnly = !caps.manageSettings;
   const d = useInstanceSettings(!readOnly);
+  // on phones the ten areas fold behind "Area: <current>" (open until an area is chosen)
+  const narrow = useMediaQuery('(max-width: 48em)', false, { getInitialValueInEffect: false });
+  const [navOpen, setNavOpen] = useState(false);
+  const [navFor, setNavFor] = useState(area);
+  if (navFor !== area) {
+    setNavFor(area);
+    setNavOpen(false);
+  }
   // the area's former address (0.3.0) and links in messages
   const renamed = area && FORMER_AREAS[area];
   if (renamed) return <Navigate to={`/settings/${renamed}`} replace />;
@@ -209,11 +220,32 @@ export function SettingsPage({ browserAvailable }: { browserAvailable: boolean }
       })}
     </Stack>
   );
+  const areaNav = narrow ? (
+    <Stack gap={4}>
+      <Button
+        variant="default"
+        fullWidth
+        justify="space-between"
+        rightSection={<IconChevronDown size={16} className="sm-section-chevron" data-open={navOpen} aria-hidden />}
+        onClick={() => setNavOpen((o) => !o)}
+        aria-expanded={navOpen}
+        aria-controls="settings-areas"
+        data-testid="settings-area-toggle"
+      >
+        {t('areas.current', { area: t(`areas.${area}.title`) })}
+      </Button>
+      <Collapse expanded={navOpen} id="settings-areas" keepMountedMode="display-none">
+        {nav}
+      </Collapse>
+    </Stack>
+  ) : (
+    nav
+  );
   return (
     <>
       <PageHeader title={t('title')} description={t(`areas.${area}.description`)} actions={caps.viewAudit || !readOnly ? <SystemStatusLink /> : undefined} />
       <Grid gap="lg">
-        <Grid.Col span={{ base: 12, md: 3 }}>{nav}</Grid.Col>
+        <Grid.Col span={{ base: 12, md: 3 }}>{areaNav}</Grid.Col>
         <Grid.Col span={{ base: 12, md: 9 }}>
           <Stack maw={760}>
             <ScopeNote>

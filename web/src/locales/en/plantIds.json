@@ -64,7 +64,9 @@
     "collection_one": "{{count}} data collection",
     "collection_other": "{{count}} data collections",
     "collection_mapping_one": "{{count}} remembered gateway name",
-    "collection_mapping_other": "{{count}} remembered gateway names"
+    "collection_mapping_other": "{{count}} remembered gateway names",
+    "collection_source_one": "{{count}} kept file of a collection import",
+    "collection_source_other": "{{count}} kept files of collection imports"
   },
   "problems": {
     "PLANT_ID_FORMAT": "Use lower-case letters, digits, “.”, “_” and “-”, starting with a letter or digit (at most 80).",

@@ -55,6 +55,7 @@ import { EnvironmentBadge, EnvironmentInput, sortByEnvironment, useEnvironmentLi
 import { CredentialEditor, type CredentialDraft } from '../credentials/CredentialEditor';
 import { platformKeys } from '../../queryKeys';
 import { TopicOffers, TopicPrefixModal } from './TopicPrefix';
+import { CollapsibleSection } from '../page/CollapsibleSection';
 
 export const formatLabel = (f: string) => (f === 'cyclonedx' ? 'CycloneDX' : 'SPDX');
 
@@ -138,13 +139,18 @@ export function ComponentsPanel({ app, onSaved }: { app: ApplicationDetail; onSa
     }
   };
   return (
-    <Stack gap="xs" data-testid="application-components">
-      <Group justify="space-between">
-        <Text fw={600} id="components-title">
-          {t('components.title')}
-        </Text>
-        {editable && (
-          <Group gap="xs">
+    <CollapsibleSection
+      id="components"
+      collapseOnPhone
+      testId="application-components"
+      onlyInGroup
+      size="h5"
+      title={t('components.title')}
+      count={app.components.length}
+      defaultOpen={app.components.length > 0}
+      actions={
+        editable && (
+          <>
             {/* Kafka topics by prefix (v0.4.0) */}
             <Button size="xs" variant="subtle" onClick={() => setByPrefix(true)} data-testid="add-topics-by-prefix">
               {t('topicPrefix.button')}
@@ -152,146 +158,153 @@ export function ComponentsPanel({ app, onSaved }: { app: ApplicationDetail; onSa
             <Button size="xs" variant="default" leftSection={<IconPlus size={14} />} onClick={() => setEditing('new')}>
               {t('components.add')}
             </Button>
-          </Group>
-        )}
-      </Group>
-      {byPrefix && <TopicPrefixModal app={app} onClose={() => setByPrefix(false)} onSaved={onSaved} />}
-      <TopicOffers app={app} editable={editable} onSaved={onSaved} />
-      <Text size="xs" c="dimmed">
-        {t('components.help')}
-      </Text>
-      {withEnv && (
-        <SegmentedControl
-          size="xs"
-          style={{ alignSelf: 'flex-start' }}
-          aria-label={t('environments.filter')}
-          data-testid="components-environment-filter"
-          value={env ?? '*'}
-          onChange={(v) => setEnv(v === '*' ? null : v)}
-          data={[{ value: '*', label: t('environments.any') }, ...envs.filter((e) => e).map((e) => ({ value: e, label: e }))]}
-        />
-      )}
-      {app.components.length === 0 ? (
-        <Text size="sm" c="dimmed">
-          {t('components.empty')}
+          </>
+        )
+      }
+    >
+      <Stack gap="xs">
+        {byPrefix && <TopicPrefixModal app={app} onClose={() => setByPrefix(false)} onSaved={onSaved} />}
+        <TopicOffers app={app} editable={editable} onSaved={onSaved} />
+        <Text size="xs" c="dimmed">
+          {t('components.help')}
         </Text>
-      ) : (
-        <div className="table-scroll">
-          <Table fz="sm" aria-labelledby="components-title">
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>{t('components.type')}</Table.Th>
-                <Table.Th>{t('components.name')}</Table.Th>
-                {withEnv && <Table.Th>{t('environments.label')}</Table.Th>}
-                <Table.Th>{t('components.stack')}</Table.Th>
-                {editable && <Table.Th aria-label={t('components.actions')} />}
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {shown.map((c) => (
-                <Table.Tr key={c.id}>
-                  <Table.Td className="nowrap">
-                    <Badge size="sm" variant="default">
-                      {t(`components.types.${c.type}`)}
-                    </Badge>
-                  </Table.Td>
-                  <Table.Td style={{ overflowWrap: 'anywhere' }}>
-                    {c.url ? (
-                      <Anchor href={c.url} target="_blank" rel="noopener noreferrer nofollow" size="sm">
-                        {c.name} <IconExternalLink size={12} aria-hidden />
-                      </Anchor>
-                    ) : (
-                      <Text span size="sm">
-                        {c.name}
-                      </Text>
-                    )}
-                    {c.note && (
-                      <Text size="xs" c="dimmed">
-                        {c.note}
-                      </Text>
-                    )}
-                    {c.sbom && <SbomLine sbom={c.sbom} />}
-                    {c.type === 'kubernetes-namespace' && <ClusterLine component={c} />}
-                    {c.type === 'repository' && c.platformId && <RepositoryLine component={c} onRegister={editable ? setDrafting : undefined} />}
-                    {c.type === 'kafka-topic' && c.platformId && <TopicLine component={c} />}
-                    {c.type === 'snowflake-database' && c.platformId && <SnowflakeLine component={c} />}
-                    {c.dependencyTrack && <DtrackLine component={c} />}
-                    {c.type === 'cloud-account' && c.platformId && <AwsLine component={c} onRegister={editable ? setDrafting : undefined} />}
-                  </Table.Td>
-                  {withEnv && (
+        {withEnv && (
+          <SegmentedControl
+            size="xs"
+            style={{ alignSelf: 'flex-start' }}
+            aria-label={t('environments.filter')}
+            data-testid="components-environment-filter"
+            value={env ?? '*'}
+            onChange={(v) => setEnv(v === '*' ? null : v)}
+            data={[{ value: '*', label: t('environments.any') }, ...envs.filter((e) => e).map((e) => ({ value: e, label: e }))]}
+          />
+        )}
+        {app.components.length === 0 ? (
+          <Text size="sm" c="dimmed">
+            {t('components.empty')}
+          </Text>
+        ) : (
+          <div className="table-scroll">
+            <Table fz="sm" aria-labelledby="components-title">
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>{t('components.type')}</Table.Th>
+                  <Table.Th>{t('components.name')}</Table.Th>
+                  {withEnv && <Table.Th>{t('environments.label')}</Table.Th>}
+                  <Table.Th>{t('components.stack')}</Table.Th>
+                  {editable && <Table.Th aria-label={t('components.actions')} />}
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {shown.map((c) => (
+                  <Table.Tr key={c.id}>
                     <Table.Td className="nowrap">
-                      <EnvironmentBadge value={c.environment} />
+                      <Badge size="sm" variant="default">
+                        {t(`components.types.${c.type}`)}
+                      </Badge>
                     </Table.Td>
-                  )}
-                  <Table.Td>
-                    <StackBadges stack={c.stack} holder={{ kind: 'component', id: c.id }} />
-                  </Table.Td>
-                  {editable && (
-                    <Table.Td className="nowrap">
-                      <Group gap={0} wrap="nowrap">
-                        <ActionIcon variant="subtle" aria-label={t('components.edit', { name: c.name })} onClick={() => setEditing(c)}>
-                          <IconEdit size={16} />
-                        </ActionIcon>
-                        {c.type === 'kubernetes-namespace' && c.platformId ? (
-                          <ActionIcon variant="subtle" aria-label={t('components.cluster.readNow', { name: c.name })} onClick={() => void readCluster(c)}>
-                            <IconRefresh size={16} />
+                    <Table.Td style={{ overflowWrap: 'anywhere' }}>
+                      {c.url ? (
+                        <Anchor href={c.url} target="_blank" rel="noopener noreferrer nofollow" size="sm">
+                          {c.name} <IconExternalLink size={12} aria-hidden />
+                        </Anchor>
+                      ) : (
+                        <Text span size="sm">
+                          {c.name}
+                        </Text>
+                      )}
+                      {c.note && (
+                        <Text size="xs" c="dimmed">
+                          {c.note}
+                        </Text>
+                      )}
+                      {c.sbom && <SbomLine sbom={c.sbom} />}
+                      {c.type === 'kubernetes-namespace' && <ClusterLine component={c} />}
+                      {c.type === 'repository' && c.platformId && <RepositoryLine component={c} onRegister={editable ? setDrafting : undefined} />}
+                      {c.type === 'kafka-topic' && c.platformId && <TopicLine component={c} />}
+                      {c.type === 'snowflake-database' && c.platformId && <SnowflakeLine component={c} />}
+                      {c.dependencyTrack && <DtrackLine component={c} />}
+                      {c.type === 'cloud-account' && c.platformId && <AwsLine component={c} onRegister={editable ? setDrafting : undefined} />}
+                    </Table.Td>
+                    {withEnv && (
+                      <Table.Td className="nowrap">
+                        <EnvironmentBadge value={c.environment} />
+                      </Table.Td>
+                    )}
+                    <Table.Td>
+                      <StackBadges stack={c.stack} holder={{ kind: 'component', id: c.id }} />
+                    </Table.Td>
+                    {editable && (
+                      <Table.Td className="nowrap">
+                        <Group gap={0} wrap="nowrap">
+                          <ActionIcon variant="subtle" aria-label={t('components.edit', { name: c.name })} onClick={() => setEditing(c)}>
+                            <IconEdit size={16} />
                           </ActionIcon>
-                        ) : c.type === 'kafka-topic' && c.platformId ? (
-                          <>
-                            <ActionIcon variant="subtle" aria-label={t('components.topic.readNow', { name: c.name })} onClick={() => void readTopic(c)}>
+                          {c.type === 'kubernetes-namespace' && c.platformId ? (
+                            <ActionIcon variant="subtle" aria-label={t('components.cluster.readNow', { name: c.name })} onClick={() => void readCluster(c)}>
                               <IconRefresh size={16} />
                             </ActionIcon>
-                            <ActionIcon variant="subtle" aria-label={t('components.topic.peek', { name: c.name })} onClick={() => setPeeking(c)}>
-                              <IconEye size={16} />
+                          ) : c.type === 'kafka-topic' && c.platformId ? (
+                            <>
+                              <ActionIcon variant="subtle" aria-label={t('components.topic.readNow', { name: c.name })} onClick={() => void readTopic(c)}>
+                                <IconRefresh size={16} />
+                              </ActionIcon>
+                              <ActionIcon variant="subtle" aria-label={t('components.topic.peek', { name: c.name })} onClick={() => setPeeking(c)}>
+                                <IconEye size={16} />
+                              </ActionIcon>
+                            </>
+                          ) : c.type === 'snowflake-database' && c.platformId ? (
+                            <ActionIcon variant="subtle" aria-label={t('components.snowflake.readNow', { name: c.name })} onClick={() => void readSnowflake(c)}>
+                              <IconRefresh size={16} />
                             </ActionIcon>
-                          </>
-                        ) : c.type === 'snowflake-database' && c.platformId ? (
-                          <ActionIcon variant="subtle" aria-label={t('components.snowflake.readNow', { name: c.name })} onClick={() => void readSnowflake(c)}>
-                            <IconRefresh size={16} />
+                          ) : c.type === 'cloud-account' && c.platformId ? (
+                            <ActionIcon variant="subtle" aria-label={t('components.aws.readNow', { name: c.name })} onClick={() => void readAws(c)}>
+                              <IconRefresh size={16} />
+                            </ActionIcon>
+                          ) : c.type === 'repository' && c.platformId ? (
+                            <ActionIcon
+                              variant="subtle"
+                              aria-label={t('components.repository.readNow', { name: c.name })}
+                              onClick={() => void readRepository(c)}
+                            >
+                              <IconRefresh size={16} />
+                            </ActionIcon>
+                          ) : (
+                            <ActionIcon variant="subtle" aria-label={t('components.sbom.import', { name: c.name })} onClick={() => setImporting(c)}>
+                              <IconFileImport size={16} />
+                            </ActionIcon>
+                          )}
+                          {c.dependencyTrack && (
+                            <ActionIcon variant="subtle" aria-label={t('components.dtrack.readNow', { name: c.name })} onClick={() => void readDtrack(c)}>
+                              <IconShieldCheck size={16} />
+                            </ActionIcon>
+                          )}
+                          <ActionIcon variant="subtle" color="red" aria-label={t('components.remove', { name: c.name })} onClick={() => void remove(c)}>
+                            <IconTrash size={16} />
                           </ActionIcon>
-                        ) : c.type === 'cloud-account' && c.platformId ? (
-                          <ActionIcon variant="subtle" aria-label={t('components.aws.readNow', { name: c.name })} onClick={() => void readAws(c)}>
-                            <IconRefresh size={16} />
-                          </ActionIcon>
-                        ) : c.type === 'repository' && c.platformId ? (
-                          <ActionIcon variant="subtle" aria-label={t('components.repository.readNow', { name: c.name })} onClick={() => void readRepository(c)}>
-                            <IconRefresh size={16} />
-                          </ActionIcon>
-                        ) : (
-                          <ActionIcon variant="subtle" aria-label={t('components.sbom.import', { name: c.name })} onClick={() => setImporting(c)}>
-                            <IconFileImport size={16} />
-                          </ActionIcon>
-                        )}
-                        {c.dependencyTrack && (
-                          <ActionIcon variant="subtle" aria-label={t('components.dtrack.readNow', { name: c.name })} onClick={() => void readDtrack(c)}>
-                            <IconShieldCheck size={16} />
-                          </ActionIcon>
-                        )}
-                        <ActionIcon variant="subtle" color="red" aria-label={t('components.remove', { name: c.name })} onClick={() => void remove(c)}>
-                          <IconTrash size={16} />
-                        </ActionIcon>
-                      </Group>
-                    </Table.Td>
-                  )}
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-        </div>
-      )}
-      {app.stack.length > 0 && <StackRollup app={app} />}
-      {editing && <ComponentFormModal app={app} component={editing === 'new' ? null : editing} onClose={() => setEditing(null)} onSaved={onSaved} />}
-      {peeking && <PeekModal component={peeking} onClose={() => setPeeking(null)} />}
-      {drafting && <CredentialEditor initial={null} draft={drafting} onClose={() => setDrafting(null)} onSaved={() => setDrafting(null)} />}
-      {importing && (
-        <SbomImportModal
-          title={t('components.sbom.title', { name: importing.name })}
-          base={`/applications/${app.id}/components/${importing.id}/sbom`}
-          onClose={() => setImporting(null)}
-          onApplied={(r: { preview: SbomPreview; application: ApplicationDetail }) => onSaved(r.application)}
-        />
-      )}
-    </Stack>
+                        </Group>
+                      </Table.Td>
+                    )}
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </div>
+        )}
+        {app.stack.length > 0 && <StackRollup app={app} />}
+        {editing && <ComponentFormModal app={app} component={editing === 'new' ? null : editing} onClose={() => setEditing(null)} onSaved={onSaved} />}
+        {peeking && <PeekModal component={peeking} onClose={() => setPeeking(null)} />}
+        {drafting && <CredentialEditor initial={null} draft={drafting} onClose={() => setDrafting(null)} onSaved={() => setDrafting(null)} />}
+        {importing && (
+          <SbomImportModal
+            title={t('components.sbom.title', { name: importing.name })}
+            base={`/applications/${app.id}/components/${importing.id}/sbom`}
+            onClose={() => setImporting(null)}
+            onApplied={(r: { preview: SbomPreview; application: ApplicationDetail }) => onSaved(r.application)}
+          />
+        )}
+      </Stack>
+    </CollapsibleSection>
   );
 }
 
