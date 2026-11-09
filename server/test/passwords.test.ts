@@ -79,9 +79,22 @@ describe('the password rule', () => {
 describe('password hashes', () => {
   it('new hashes use scrypt N=2^17, r=8, p=1 of the NFKC form; old ones still verify and are marked for an upgrade', async () => {
     const { hashPassword, needsRehash, verifyPassword, verifyPasswordAsync } = await import('../src/auth/passwords.js');
-    const h = hashPassword('ｃｏｒｒｅｃｔ horse battery');
-    expect(h).toMatch(/^scrypt\$131072\$8\$1\$[^$]+\$[^$]+\$nfkc$/);
-    expect(needsRehash(h)).toBe(false);
+    // the server test runner hashes cheaper (passwords.ts); this test checks the cost Steward really uses
+    process.env.STEWARD_TEST_REAL_PASSWORD_COST = '1';
+    let h: string;
+    try {
+      h = hashPassword('ｃｏｒｒｅｃｔ horse battery');
+      expect(h).toMatch(/^scrypt\$131072\$8\$1\$[^$]+\$[^$]+\$nfkc$/);
+      expect(needsRehash(h)).toBe(false);
+      // a hash cheaper than the real cost is replaced at the next sign-in
+      delete process.env.STEWARD_TEST_REAL_PASSWORD_COST;
+      const cheap = hashPassword('cheap enough here');
+      expect(cheap).toMatch(/^scrypt\$4096\$/);
+      process.env.STEWARD_TEST_REAL_PASSWORD_COST = '1';
+      expect(needsRehash(cheap)).toBe(true);
+    } finally {
+      delete process.env.STEWARD_TEST_REAL_PASSWORD_COST;
+    }
     expect(await verifyPasswordAsync('correct horse battery', h)).toBe(true);
     expect(verifyPassword('correct horse batterY', h)).toBe(false);
     const old = legacyHash('Old-password-1');
@@ -95,6 +108,13 @@ describe('password hashes', () => {
 });
 
 describe('passwords on a server', () => {
+  // these tests check the hashes the server writes: at the real cost, not the test runner's cheaper one (passwords.ts)
+  beforeAll(() => {
+    process.env.STEWARD_TEST_REAL_PASSWORD_COST = '1';
+  });
+  afterAll(() => {
+    delete process.env.STEWARD_TEST_REAL_PASSWORD_COST;
+  });
   const refusal = (p: Promise<unknown>) =>
     p.then(
       () => null,

@@ -76,7 +76,13 @@ describe('demo data', () => {
       'git.repositories',
     ])
       if (!((await s.api('GET', `/datasets/${key}`)).rowCount > 0)) empty.push(key);
-    expect(empty).toEqual([]);
+    // when a dataset stays empty, say which demo runs did not succeed and why (a failure on a busy CI runner)
+    const unfinished = empty.length
+      ? ((await s.api('GET', '/runs?limit=200')) as { processName: string; status: string; error?: string | null }[])
+          .filter((r) => r.status !== 'succeeded')
+          .map((r) => `${r.processName}: ${r.status}${r.error ? ` – ${r.error}` : ''}`)
+      : [];
+    expect(empty, unfinished.join('\n')).toEqual([]);
     const repos = await s.api('GET', '/datasets/git.repositories');
     expect(new Set(repos.rows.map((r: any) => r.Host))).toEqual(new Set(['GitHub', 'GitLab', 'Forgejo']));
     // the end of life of the stacks read from the repository and the namespace
