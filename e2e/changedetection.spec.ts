@@ -110,6 +110,8 @@ async function watchesOfTheDemo(page: Page, api: APIRequestContext, mobile: bool
 
   // the application lists its watches among the backlinks; one opens the platform's watch
   await page.goto(`/applications/${shop.id}`);
+  // on a phone the links (with the backlinks) start folded, their count in the header
+  if (mobile) await page.getByTestId('section-links-toggle').tap();
   const backlink = page.getByRole('link', { name: 'Zentrova Cloud – Terms of service' });
   await backlink.scrollIntoViewIfNeeded();
   await expect(page.getByText('Page watch:').first()).toBeVisible();
