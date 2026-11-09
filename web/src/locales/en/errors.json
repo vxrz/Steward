@@ -214,6 +214,8 @@
     "PROCESS_ID_TAKEN": "A process with the id “{{id}}” exists already. Choose another id.",
     "RUN_CURSOR_SORT": "“before” continues the newest-first list. Use “after” with the id of the last run for a sorted list.",
     "RUN_CURSOR_UNKNOWN": "The run to continue after is unknown. Load the list again.",
+    "AUDIT_CURSOR_SORT": "“beforeSeq” continues the newest-first audit log. Use “afterSeq” with the number of the last entry for a sorted list.",
+    "AUDIT_CURSOR_UNKNOWN": "The audit entry to continue after is no longer in the database. Load the list again.",
     "SERVICE_EXISTS": "A service named “{{name}}” exists already.",
     "APPLICATION_NOT_FOUND": "Application {{id}} not found.",
     "APPLICATION_EXISTS": "An application named “{{name}}” exists already.",

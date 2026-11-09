@@ -32585,7 +32585,7 @@
         "tags": [
           "Audit"
         ],
-        "description": "Auditors and administrators; others only with `runId` of a run they may view. Newest first.",
+        "description": "Auditors and administrators; others only with `runId` of a run they may view. Newest first unless `sort`/`order` choose another order (keyset pagination, stable while sorted).",
         "parameters": [
           {
             "schema": {
@@ -32685,6 +32685,34 @@
             "name": "to",
             "required": false,
             "description": "Before this time (ISO 8601)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "time",
+                "actor",
+                "action",
+                "target"
+              ]
+            },
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "description": "Sort by: `time` (default; the order of the hash chain), `actor`, `action` or `target` (entity type, then id). Ties keep the chain order"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            },
+            "in": "query",
+            "name": "order",
+            "required": false,
+            "description": "Direction (default `desc`: newest or Z first). A `nextCursor` continues in the same order"
           }
         ],
         "responses": {

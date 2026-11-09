@@ -1,9 +1,9 @@
 import crypto from 'node:crypto';
-import type { AuditCheckpoint, AuditEntry, AuditVerifyResult, ImportedHistoryRef } from '@sm/shared';
+import type { AuditCheckpoint, AuditEntry, AuditFacets, AuditSortKey, AuditVerifyResult, ImportedHistoryRef } from '@sm/shared';
 import { db } from './db.js';
 import { likeEscape } from './database/sql.js';
 import { vault, verifySignature } from './vault.js';
-import { canonicalJson, nowIso, parseJson, sha256 } from './util.js';
+import { HttpError, canonicalJson, nowIso, parseJson, sha256 } from './util.js';
 import { currentActor, currentStore, currentUser } from './auth/context.js';
 import { logger } from './log.js';
 
@@ -253,6 +253,29 @@ export const toEntry = (r: AuditRow): AuditEntry => ({
 /** Only real entries: sequence numbers start at 1 (rows with seq < 1 can only come from outside the app and are flagged by verify). */
 export const VALID_SEQ = 'seq >= 1';
 
+export interface AuditSort {
+  key: AuditSortKey;
+  dir: 'asc' | 'desc';
+}
+export const DEFAULT_AUDIT_SORT: AuditSort = { key: 'time', dir: 'desc' };
+
+/**
+ * The columns a sort key orders by, before the sequence number that breaks ties (and is the whole order of `time`).
+ * Each has an index in the same shape: (actor, seq), (action, seq), (entity_type, COALESCE(entity_id, ''), seq).
+ */
+function auditSortColumns(key: AuditSortKey): string[] {
+  switch (key) {
+    case 'actor':
+      return ['actor'];
+    case 'action':
+      return ['action'];
+    case 'target':
+      return ['entity_type', "COALESCE(entity_id, '')"];
+    default:
+      return [];
+  }
+}
+
 export function queryAudit(f: {
   runId?: string;
   entityType?: string;
@@ -265,7 +288,12 @@ export function queryAudit(f: {
   from?: string;
   /** ts < to (ISO 8601) */
   to?: string;
+  /** Entries older than this one (the "load older" cursor of the default order, newest first) */
   beforeSeq?: number;
+  /** Sort order (0.13); default: newest first. Ties are broken by the sequence number in the same direction. */
+  sort?: AuditSort;
+  /** Continue after this entry (its seq; exclusive) in the sort order – the "load more" cursor of a sorted list */
+  afterSeq?: number;
   limit?: number;
 }): AuditEntry[] {
   const where: string[] = [VALID_SEQ];
@@ -285,11 +313,47 @@ export function queryAudit(f: {
   if (f.from) (where.push('ts >= ?'), params.push(f.from));
   if (f.to) (where.push('ts < ?'), params.push(f.to));
   if (f.beforeSeq) (where.push('seq < ?'), params.push(f.beforeSeq));
-  const sql = `SELECT * FROM audit_log WHERE ${where.join(' AND ')} ORDER BY seq DESC LIMIT ?`;
+  const sort = f.sort ?? DEFAULT_AUDIT_SORT;
+  const cols = auditSortColumns(sort.key);
+  const dir = sort.dir === 'asc' ? 'ASC' : 'DESC';
+  if (f.afterSeq) {
+    // keyset on (columns…, seq): the values of the entry the page ended with (entries never change; only the
+    // retention can delete old ones)
+    const cmp = sort.dir === 'asc' ? '>' : '<';
+    if (!cols.length) (where.push(`seq ${cmp} ?`), params.push(f.afterSeq));
+    else {
+      const at = db().get<Record<string, unknown>>(`SELECT ${cols.map((c, i) => `${c} AS v${i}`).join(', ')} FROM audit_log WHERE seq = ?`, f.afterSeq);
+      if (!at) throw new HttpError(400, 'The audit entry to continue after is no longer in the database – start the list again', 'AUDIT_CURSOR_UNKNOWN');
+      where.push(`(${[...cols, 'seq'].join(', ')}) ${cmp} (${[...cols, 'seq'].map(() => '?').join(', ')})`);
+      params.push(...cols.map((_, i) => at[`v${i}`]), f.afterSeq);
+    }
+  }
+  const order = [...cols, 'seq'].map((c) => `${c} ${dir}`).join(', ');
+  const sql = `SELECT * FROM audit_log WHERE ${where.join(' AND ')} ORDER BY ${order} LIMIT ?`;
   params.push(Math.min(Math.max(1, f.limit ?? 200), 5000));
   return db()
     .all<AuditRow>(sql, ...params)
     .map(toEntry);
+}
+
+/**
+ * The actors and target types in the audit log, for the filters of the audit page: a loose index scan over (actor, seq)
+ * and (entity_type, …) – one index lookup per distinct value, not a pass over the whole log – at most `limit` each.
+ */
+export function auditFacets(limit = 500): AuditFacets {
+  const distinct = (col: string) =>
+    db()
+      .all<{ v: string }>(
+        `WITH RECURSIVE d(v) AS (
+           SELECT MIN(${col}) FROM audit_log
+           UNION ALL
+           SELECT (SELECT MIN(${col}) FROM audit_log WHERE ${col} > d.v) FROM d WHERE d.v IS NOT NULL
+         )
+         SELECT v FROM d WHERE v IS NOT NULL LIMIT ?`,
+        limit,
+      )
+      .map((r) => r.v);
+  return { actors: distinct('actor'), entityTypes: distinct('entity_type') };
 }
 
 /** The entries after `afterSeq` in order (the chain an export holds). */

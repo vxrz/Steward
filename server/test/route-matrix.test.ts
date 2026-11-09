@@ -212,6 +212,7 @@ const EXPECT: Record<string, Access> = {
 
   // ---- audit ----
   'GET /api/audit': ADMIN_AUDITOR,
+  'GET /api/audit/facets': ADMIN_AUDITOR,
   'GET /api/audit/verify': ADMIN_AUDITOR,
   'POST /api/audit/verify': ADMIN_AUDITOR,
   'GET /api/audit/anchoring': ADMIN_AUDITOR,
