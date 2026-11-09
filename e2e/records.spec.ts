@@ -115,7 +115,10 @@ test('a service is created and linked to a record, with backlinks both ways', as
   const form = page.getByRole('dialog', { name: 'New service' });
   await form.getByRole('textbox', { name: 'Name', exact: true }).fill(name);
   await form.getByRole('textbox', { name: 'E-mail' }).first().fill('erika@example.com');
-  await chooseOption(page, 'Criticality', 'High');
+  // the list behind the dialog has a Criticality filter of its own
+  await form.getByRole('combobox', { name: 'Criticality' }).click();
+  await animationsDone(page);
+  await page.getByRole('option', { name: 'High' }).click();
   await form.getByRole('textbox', { name: 'System' }).fill('ServiceNow');
   await form.getByRole('textbox', { name: 'ID' }).fill('CI0042');
   await form.getByRole('textbox', { name: 'Link to the entry' }).fill('https://example.service-now.com/ci/CI0042');

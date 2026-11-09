@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { Fragment, useMemo, useState, type ReactNode } from 'react';
 import { ActionIcon, Button, Group, Select, Stack, Table, Text, UnstyledButton } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { useNavigate } from 'react-router-dom';
@@ -80,6 +80,7 @@ export function DataTable<T>({
   card,
   footer,
   rowProps,
+  rowDetail,
   defaultSort = null,
   rememberSort,
   sort: controlledSort,
@@ -99,6 +100,8 @@ export function DataTable<T>({
   card?: (row: T) => ReactNode;
   footer?: ReactNode;
   rowProps?: (row: T) => Record<string, unknown>;
+  /** Shown below a row over the full width while it returns something (e.g. the steps of an opened row); not in the cards */
+  rowDetail?: (row: T) => ReactNode;
   defaultSort?: SortState | null;
   /** Remembers the chosen sort order under this name (per user, in this browser) */
   rememberSort?: string;
@@ -213,20 +216,25 @@ export function DataTable<T>({
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
-            {sorted.map((row) => (
-              <Table.Tr
-                key={rowKey(row)}
-                className={clickable ? 'clickable' : undefined}
-                onClick={clickable ? () => activate(row) : undefined}
-                {...rowProps?.(row)}
-              >
-                {columns.map((c) => (
-                  <Table.Td key={c.key} className={c.nowrap ? 'nowrap' : undefined} {...c.tdProps?.(row)}>
-                    {c.cell(row)}
-                  </Table.Td>
-                ))}
-              </Table.Tr>
-            ))}
+            {sorted.map((row) => {
+              const detail = rowDetail?.(row);
+              return (
+                <Fragment key={rowKey(row)}>
+                  <Table.Tr className={clickable ? 'clickable' : undefined} onClick={clickable ? () => activate(row) : undefined} {...rowProps?.(row)}>
+                    {columns.map((c) => (
+                      <Table.Td key={c.key} className={c.nowrap ? 'nowrap' : undefined} {...c.tdProps?.(row)}>
+                        {c.cell(row)}
+                      </Table.Td>
+                    ))}
+                  </Table.Tr>
+                  {detail && (
+                    <Table.Tr>
+                      <Table.Td colSpan={columns.length}>{detail}</Table.Td>
+                    </Table.Tr>
+                  )}
+                </Fragment>
+              );
+            })}
           </Table.Tbody>
         </Table>
       </div>
