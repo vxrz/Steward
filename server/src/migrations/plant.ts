@@ -419,4 +419,65 @@ export const PLANT_MIGRATIONS: NamedMigration[] = [
     name: 'plant-007-zone-level',
     sql: `ALTER TABLE plant_zones ADD COLUMN level TEXT;`,
   },
+  {
+    // 0.12.0: a data collection's own description (its items keep theirs in the items JSON)
+    name: 'plant-008-collection-description',
+    sql: `ALTER TABLE plant_collections ADD COLUMN description TEXT NOT NULL DEFAULT '';`,
+  },
+  {
+    // 0.12.0: changes to the registry proposed by AI assistants (docs/PLANT.md "Proposals from assistants"), one per MCP
+    // request (mcp_requests: who, when, the rationale, the decision): the document, its preview when it was proposed and
+    // the import that applied it
+    name: 'plant-009-proposals',
+    sql: `
+      CREATE TABLE plant_proposals (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        document TEXT NOT NULL,
+        sha256 TEXT NOT NULL,
+        preview TEXT NOT NULL,
+        fingerprint TEXT NOT NULL,
+        import_id TEXT
+      );
+    `,
+  },
+  {
+    // 0.12: the files of collection imports as Steward keeps them – secrets removed, never the original – one version
+    // per import of a collector on an asset (docs/PLANT.md "Gateway configurations"); a collection's gateway
+    // configuration document (a record) that each import updates
+    name: 'plant-010-collection-sources',
+    sql: `
+      CREATE TABLE plant_collection_sources (
+        id TEXT PRIMARY KEY,
+        asset_id TEXT NOT NULL,
+        collector_key TEXT NOT NULL,
+        collector TEXT NOT NULL,
+        version INTEGER NOT NULL,
+        file_name TEXT NOT NULL,
+        format TEXT NOT NULL,
+        sha256 TEXT NOT NULL,
+        size INTEGER NOT NULL,
+        content TEXT NOT NULL,
+        redacted_sha256 TEXT NOT NULL,
+        redacted_paths TEXT NOT NULL DEFAULT '[]',
+        collections TEXT NOT NULL DEFAULT '[]',
+        imported_by TEXT NOT NULL,
+        imported_at TEXT NOT NULL
+      );
+      CREATE INDEX plant_collection_sources_asset ON plant_collection_sources(asset_id, collector_key, version);
+      ALTER TABLE plant_collections ADD COLUMN document_id TEXT;
+    `,
+  },
+  {
+    // 0.12: where a collection's data goes – its sinks with their transformations and item mapping (JSON). The single
+    // destination of 0.11 is read as the first sink until the collection is saved again (docs/adr/0019, "Update 0.12")
+    name: 'plant-011-collection-sinks',
+    sql: `ALTER TABLE plant_collections ADD COLUMN sinks TEXT NOT NULL DEFAULT '[]';`,
+  },
+  {
+    // 0.12.0: a device profile may be a template – only for other profiles to extend, no asset may have it
+    // (docs/PLANT.md "Profile inheritance and asset additions")
+    name: 'plant-012-profile-template',
+    sql: `ALTER TABLE plant_profiles ADD COLUMN template INTEGER NOT NULL DEFAULT 0;`,
+  },
 ];

@@ -1,10 +1,11 @@
-import { Anchor, Badge, Group, Paper, Stack, Text, Title } from '@mantine/core';
+import { Anchor, Badge, Group, Stack, Text } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import type { PlantCollectionBrief } from '@sm/shared';
+import type { PlantCollectionBrief, PlantSinkTarget } from '@sm/shared';
 import { get } from '../../api';
 import { useModuleOn } from '../../modules';
+import { CollapsibleSection } from '../page/CollapsibleSection';
 
 /**
  * The data collections a collector runs (0.11.0, ADR 0019), on the page of the application, platform or process that
@@ -43,33 +44,67 @@ function CollectionBriefs({
 }) {
   const { t } = useTranslation('plantModel');
   return (
-    <Paper withBorder p="md" data-testid={testId}>
+    <CollapsibleSection
+      id={testId}
+      collapseOnPhone
+      testId={testId}
+      onlyInGroup
+      variant="card"
+      size="h5"
+      title={t(`collections.${title}`)}
+      count={list.length}
+      defaultOpen={list.length > 0}
+    >
       <Stack gap="xs">
-        <Title order={2} fz="h5">
-          {t(`collections.${title}`)}
-        </Title>
         {!list.length && empty && (
           <Text size="sm" c="dimmed">
             {t('collections.noneRead')}
           </Text>
         )}
         {list.map((c) => (
-          <Group key={`${c.assetId}/${c.id}`} gap={6} wrap="wrap">
-            <Anchor component={Link} to={`/plant/assets/${encodeURIComponent(c.assetId)}/collections?collection=${encodeURIComponent(c.id)}`} size="sm">
-              {c.assetName} · {c.name}
-            </Anchor>
-            {c.writes && (
-              <Badge size="xs" color="red" variant="light" tt="none">
-                {t('collections.writes')}
-              </Badge>
-            )}
-            <Text size="xs" c="dimmed" style={{ overflowWrap: 'anywhere' }}>
-              {c.outputNames?.length ? t('collections.asNames', { names: c.outputNames.join(', ') }) : t('collections.itemsCount', { count: c.items })}
-              {title === 'pointTitle' ? ` · ${c.collectorLabel}` : ''}
-            </Text>
-          </Group>
+          <Stack key={`${c.assetId}/${c.id}`} gap={2}>
+            <Group gap={6} wrap="wrap">
+              <Anchor component={Link} to={`/plant/assets/${encodeURIComponent(c.assetId)}/collections?collection=${encodeURIComponent(c.id)}`} size="sm">
+                {c.assetName} · {c.name}
+              </Anchor>
+              {c.writes && (
+                <Badge size="xs" color="red" variant="light" tt="none">
+                  {t('collections.writes')}
+                </Badge>
+              )}
+              <Text size="xs" c="dimmed" style={{ overflowWrap: 'anywhere' }}>
+                {c.outputNames?.length ? t('collections.asNames', { names: c.outputNames.join(', ') }) : t('collections.itemsCount', { count: c.items })}
+                {title === 'pointTitle' ? ` · ${c.collectorLabel}` : ''}
+              </Text>
+            </Group>
+            {c.goesTo && c.goesTo.length > 0 && <GoesTo list={c.goesTo} />}
+          </Stack>
         ))}
       </Stack>
-    </Paper>
+    </CollapsibleSection>
+  );
+}
+
+/** Where the data point goes through a collection (0.12): its sinks, a target the reader may not see unnamed. */
+function GoesTo({ list }: { list: PlantSinkTarget[] }) {
+  const { t } = useTranslation('plantDocs');
+  return (
+    <Text size="xs" style={{ overflowWrap: 'anywhere' }} data-testid="point-goes-to">
+      {t('flow.goesTo')}{' '}
+      {list.map((x, i) => (
+        <span key={x.sink}>
+          {i > 0 && '; '}
+          {x.path ? (
+            <Anchor component={Link} to={x.path} size="xs">
+              {x.label || x.name}
+            </Anchor>
+          ) : (
+            x.label || (x.kind === 'system' || x.kind === 'platform' || x.kind === 'application' ? t('flow.hiddenTarget') : x.name)
+          )}
+          {x.object && <span className="mono"> {x.object}</span>}
+          {x.target && <> {t('flow.asTarget', { target: x.target })}</>}
+        </span>
+      ))}
+    </Text>
   );
 }

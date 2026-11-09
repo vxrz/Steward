@@ -49,9 +49,18 @@ A **site** has a code (short, unique, e.g. `RVS`), a name with translations, a d
 
 On the site page:
 
-- **Hierarchy**: areas (with an optional manufacturing domain), their work centers and work units; add, edit, move (a work center to another area, a work unit to another work center – its assets follow) and remove (only empty nodes). Each node names its building or inherits it.
+- **Hierarchy**: areas (with an optional manufacturing domain), their work centers and work units; add, edit, [move](#move-to) (a work center to another area, a work unit to another work center – its assets follow) and remove (only empty nodes). Each node names its building or inherits it. The areas start open and the work centers folded; the arrow beside a node folds it, _Expand all_ and _Collapse all_ do it for the whole tree. A link to `#node-<id>` opens the path to that node.
 - **Buildings**: buildings, halls, floors, rooms and outdoor areas; a floor or room names the building it is in (no cycles). A building that something names cannot be removed.
 - The site's assets by status, its links, its access list and owning teams.
+
+### Move to
+
+Since 0.12. **Move to…** in the menu of a work center or work unit in the site's hierarchy, and in the menu of an asset's page, opens a dialog with one searchable choice (keyboard only works too; there is no drag and drop):
+
+- a **work center** moves to another area, a **work unit** to another work center of the same site – with everything below it; it is placed last below its new parent, and the assets in it follow (their area and work center change with it). Areas sit directly below their site and do not move. The server checks the levels, so a node never moves below itself or what is below it (`PLANT_NODE_PARENT`);
+- an **asset** moves to any area, work center or work unit of its site, or to the site itself; everything else about it stays.
+
+A move is an ordinary change of the node (`site.node_changed` with `parentId`) or the asset (`asset.updated`), through `PUT /api/plant/sites/:siteId/nodes/:nodeId` and `PUT /api/plant/assets/:assetId`. Many assets move at once with _Edit selected_ → _Place_ in the asset list ([Changing many entries at once](#changing-many-entries-at-once)).
 
 ## Assets
 
@@ -66,12 +75,32 @@ The asset list filters by site, place, domain (the asset's or its area's), statu
 
 ## Links to Steward items
 
-`site` and `asset` are link kinds like systems or services:
+`site` and `asset` are link kinds like systems or services – and since 0.12 `device-profile`, `data-collection` (written `<asset>/<collection>`) and `data-sink` (`<asset>/<collection>/<sink>`):
 
 - documents, records, firewall changes, ticket references (as affected items), services and applications link to them;
 - an asset links to the **systems** (a PLC gateway server, a network segment), **applications** (a connectivity gateway) and **platforms** it uses; the system page lists the assets under _Linked from_.
 
-The module references Steward items instead of copying them: a gateway stays a Steward application or platform, a network segment stays a system. A reader sees a link's target only when they may see its site – otherwise "not visible", as for every link kind. While the module is off, links to sites and assets stay but resolve to "not visible".
+The module references Steward items instead of copying them: a gateway stays a Steward application or platform, a network segment stays a system. A reader sees a link's target only when they may see its site – otherwise "not visible", as for every link kind; a device profile, which belongs to no site, everyone who sees the registry. While the module is off, links to plant entries stay but resolve to "not visible".
+
+A changed id ([Changing ids](#changing-ids)) reaches the links: of a profile, and of an asset's collections and sinks (the asset part of `<asset>/<collection>`). Links to a removed entry go with it only with _Also remove what belongs to it_; without it, records that link to a profile or a collection refuse its removal (`PLANT_REMOVE_HAS_ENTRIES` in _Remove selected_ and the import, `PLANT_PROFILE_LINKED` and `PLANT_COLLECTION_LINKED` for a single delete – the collection's dialog asks again and then takes the links along). A sink removed by editing its collection takes the links to it along (the audit entry counts them); a sink an import no longer names keeps them, so a later import that names it again finds them.
+
+## Documents
+
+Since 0.12 sites, assets, device profiles and data collections have a **Documents** panel: the records linked to the entry – living documents with their edition, and other records – with its type, status and number of files. Who may create records has three buttons:
+
+- **New document**: a living document (DOC unless you choose another type) that starts with the link to the entry; its editor opens next;
+- **Link existing**: a record you may change gets a link to the entry (the link is the record's: its editors remove it there);
+- **Upload file**: a new living document named after the file, linked to the entry, with the file attached through the usual attachment checks ([RECORDS.md](RECORDS.md#attachments)).
+
+Below them, read-only and marked _Inherited_, the panel lists what the entry inherits:
+
+| Page                     | Inherited documents                                                                                      |
+| ------------------------ | -------------------------------------------------------------------------------------------------------- |
+| A derived device profile | those of its base profiles, nearest first (_From base profile …_)                                        |
+| An asset                 | those of its profile and the profile's bases (_From profile …_), of its data collections and their sinks |
+| A data collection        | those of its sinks                                                                                       |
+
+A record is listed once: where the entry has it itself, else under the first entry it comes from. A record the reader may not read is counted (_1 more document you may not read_), not named; a plant viewer reads no records and sees only the counts. `GET /api/plant/documents?kind=site|asset|device-profile|data-collection|data-sink&id=…` answers the panel, with the rights of the page it belongs to.
 
 ## Own fields and display names
 
@@ -103,7 +132,9 @@ _Plant → Device profiles_: a kind of controller or device – **manufacturer, 
 - **data point groups** (machine state, energy …) and **data points**: a stable id (unique in the profile; capitals allowed, as devices name them), name, **data type**, **unit**, **address** (OPC UA NodeId, Modbus address, an MQTT topic, a file path or column …), **access**, **update rate** (ms), the **values** of a state or code, notes and where it is usually published;
 - **files** of a file-transfer interface (id, name, format, path pattern, one per …, retention, encoding).
 
-A data point has its own page: what it is (a Modbus address also says what it reads: “Input registers 13–14 (2) · function code 04”), **which assets deliver it** and the KPI definitions that read it. _Duplicate_ copies a profile with its interfaces and data points (for the next firmware generation). A profile that an asset has cannot be deleted.
+On the profile page each interface folds; its header keeps the protocol and the number of data points and groups. A profile with up to three interfaces shows them open, a longer one folded (with _Expand all_ and _Collapse all_). A link to `#iface-<id>` opens that interface.
+
+A data point has its own page: what it is (a Modbus address also says what it reads: “Input registers 13–14 (2) · function code 04”), **which assets deliver it** (the first 20, then _Show all_) and the KPI definitions that read it. _Duplicate_ copies a profile with its interfaces and data points (for the next firmware generation). A profile that an asset has cannot be deleted.
 
 ### Assignment of an asset
 
@@ -116,18 +147,27 @@ The asset page has the section **Data and KPIs**:
 - its **KPI instances**: the KPI definition, the **job** name (unique per asset), active, the **parameters** and where the result is shown – a Steward **dashboard** (id) and/or **dataset** (key), linked for readers who may see them;
 - the **checks** of the asset and the **KPIs it can have**.
 
+Each part folds and shows its count in the header – the interfaces also how many are active and not set up, the differences how many data points are not delivered. A part with entries starts open, an empty one folded; KPI instances with a problem always open.
+
 A data point counts as **delivered** when the profile has it, its interface is listed and active in the assignment, and no difference says the asset lacks it. _Duplicate_ of an asset copies its profile, firmware, interfaces and differences – not the endpoints, publications or KPI instances (they belong to the original).
 
 ### KPI definitions
 
 _Plant → KPI definitions_: id, name (with translations), **category** (availability, performance, quality, energy …), type, description and the ISO 22400-2 attributes (formula, unit, range, trend, timing, audience, production methodology); the computing system's **method** and **where its code lives**, and whether its columns vary from run to run.
 
-- **Inputs**: a profile and the data points of it the computation reads (empty profile: whatever profile the asset has), or an _other_ input that is not checked.
+- **Inputs**: a profile and the data points of it the computation reads (empty profile: whatever profile the asset has), or an _other_ input that is not checked. Since 0.12.0 an input may state the **unit it expects** per data point (UCUM; `kWh` is read as `kW.h`); a data point without one expects the unit it has in the input's profile – for an input that names a base, the base's. See [Units of KPI inputs](#units-of-kpi-inputs).
 - **Parameters**: name, **aliases** (other spellings a job may use), type (number, whole number, text, yes/no), default, required, lowest and highest value, unit, description.
 - **Result columns**: name, **kind** – _sum_ (summed over a longer period), _ratio_ (numerator / denominator × scale, both summed first: the only correct way to combine percentages over a period) or _ignore_ (descriptive) –, scope (which windows it is written for), unit, description.
 - **Computation**: a summary, steps (what, why), identities (what always holds between the columns), **limits** (what the computation cannot tell) and a diagram as text.
 
-The page lists the assets with an instance and **the assets that could have it** (they deliver every input but have no instance). _Duplicate_ makes the next version.
+The page lists the assets with an instance and **the assets that could have it** (they deliver every input but have no instance) – since 0.12.0 each marked _Collected – ready_ or _Not collected_ ([KPI potential](#kpi-coverage)) and, where an input arrives in another unit, _1 unit differs_ (the list on hover). _Duplicate_ makes the next version.
+
+#### Units of KPI inputs
+
+Since 0.12.0 Steward compares the unit a KPI expects with the unit each asset delivers: the input's unit for the data point, else the data point's unit in the input's profile; on the asset, an override's unit, else its model's. Units are compared as UCUM codes (`kWh` = `kW.h`). A difference is the check **`kpi_unit_mismatch`**, which says whether the two units convert by a **pure factor** (W.h and kW.h, J and kW.h, bar and kPa, % and 1, mm/s and m/min – _convertible, differs_: the job has to convert) or **not** (kW and kW.h; °C, K and °F differ by an offset and count as not convertible). Nothing is compared where either unit is empty, or for a data point the asset lacks (that is a missing input).
+
+- On a **KPI job** of an asset the difference is a check of the job: the asset's checks, _Plant → Checks_, and the coverage cell turns _Problem_.
+- An asset **without a job** still could have the KPI – the device delivers the data, in another unit: the coverage cell stays _Could have it_ (collected or not) and names the difference, the KPI page and the asset's _KPIs it can have_ mark it. Fix the input's unit, give the asset a difference (`overrides[].unit`) where it really delivers another unit, or let the job convert.
 
 ### Checks
 
@@ -137,6 +177,7 @@ Steward checks the data; a problem never stops a save, it is shown on the asset,
 | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | a KPI instance   | the definition exists; **every data point input is delivered** (the asset has a profile, the profile the input names, the data point, its interface is active, no difference says it lacks it) |
 | a KPI instance   | **the parameters are the definition's**: known names or aliases, each once, of their type, within their range; required ones without a default are given                                       |
+| a KPI instance   | 0.12.0: **the units are the expected ones** (`kpi_unit_mismatch`: convertible by a factor, or not – [Units of KPI inputs](#units-of-kpi-inputs))                                               |
 | a KPI definition | **a ratio has its numerator and denominator** and they are columns of the definition (unless its columns vary); its inputs name profiles and data points that exist                            |
 | an assignment    | the profile, interfaces and data points it names exist (they are checked on save, too; a data point removed from its profile later shows here)                                                 |
 
@@ -166,13 +207,34 @@ The **resolved profile** – the effective model – is computed in one place on
 
 Every data point may also have **known-as names** (`aliases`): names tools commonly use for it, such as a gateway's variable names. The import of data collections matches them ([Data collections](#data-collections)).
 
+**Template profiles** (0.12.0): a profile can be marked _Template – only for other profiles to extend_ (_Edit_, `template: true` in the file format). No asset can have a template: an assignment naming it is refused (`PLANT_PROFILE_TEMPLATE`), as is _Edit selected → Device profile_, an import or a proposal that gives it to an asset. A profile that assets have cannot become a template (`PLANT_PROFILE_TEMPLATE_IN_USE`, with the count when you see every one of them) – give them a profile that extends it first. The flag is not inherited: a profile that extends a template is a device profile. The list shows a _Template_ badge and filters by _Kind_ (templates or device profiles).
+
+#### Extracting a base profile
+
+Two power meters of one vendor – say _Meter A100_ and _Meter A300_ – deliver largely the same quantities, and both profiles were written first (by hand or from proposals). **Extract base profile** (_Plant → Device profiles_, or the menu of a profile without a base) turns what they share into a base profile that each of them extends, so a KPI input can name the base and read both:
+
+1. Choose **two or more profiles** and the **leading** one. The leading profile's data points are listed with their **match** in each other profile: the same id, else a known-as name, else the name (the same unit preferred). Change a match by hand, leave a data point out, or give it another id in the base.
+2. Name the base (id, name, description); it is a **template** unless you turn that off.
+3. **Preview**: the base's interfaces and data points, per profile the ids renamed (with the references that follow), the data points whose fields differ from the base (they stay as the profile's overrides), what stays its own, and its assets (unchanged). Data points that cannot go into the base are refused with the reason.
+4. **Extract base profile**: one transaction, audited as `device_profile.base_extracted`.
+
+What it does: a data point whose id differs from the base's is **renamed** in its profile with the [id rename](#changing-ids) (the old id stays an alias; assignments, KPI definitions, data collections and the profiles that extend it follow); an interface holding shared data points gets the leading profile's interface id the same way. The base takes **name, description, data type, unit, access and values** of each data point from the leading profile, and **address, update rate, known-as names, notes and publications** only where every profile agrees (else they are empty in the base); the base's interfaces take the leading profile's fields, a group's description where every profile agrees. Each profile then **extends the base** and keeps, as overrides, only the fields that differ (an address, a unit, an interface's name); its other interfaces and data points stay its own. **No asset changes**: Steward compares the model of every asset of the profiles (and of every profile that extends one of them) before and after – the same interfaces, groups and data points with the same fields, ids renamed as mapped – and stops when one would differ. Only the order may change (inherited items come first).
+
+Limits in 0.12.0: a profile that **extends another already** cannot be included (extract from profiles without a base); a profile that extends one of them must stay within 8 profiles in a chain; a data point is refused when its **interface has another protocol** than the leading profile's (a base holds one protocol per interface), when it is in **another group** (an override cannot move a data point – rename the group first), when its interface is split differently between the profiles, or when its new id is taken. Needs the right to manage device profiles (designers, administrators). Internal routes: `POST /api/plant/profiles/extract-base/candidates`, `…/extract-base/preview`, `POST /api/plant/profiles/extract-base`. The MCP tools read the result like any profile.
+
+**Descriptions** (0.12.0) are optional plain text on a profile, an interface, a data point group, a data point and a file set. A derived profile **inherits** each of them: the profile page shows an inherited description with _Inherited from …_. An editor writes it anew for this profile (_Describe it here_) – stored in the profile's own part like other changed fields – and goes back with _Back to the inherited description_; the next profile in the chain inherits the new text. The profile's own description, a group's and a file set's are inherited while they are empty; an interface's and a data point's are changed fields of their override (so they can also be made empty). The data point page says where its description comes from. Profiles and their items keep their length limit of 8000 characters.
+
 ### Asset additions
 
 Next to the **differences** of an assignment, an asset may **add** data points to an interface of its profile and whole **interfaces** of its own (_Data and KPIs → Interfaces_, the menu of an interface: _Add data point_; _Add interface_). They count as **delivered** like the profile's data points – when their interface is listed and active in the assignment (a new interface is added as active) – and appear in the checks, KPI inputs, coverage, data flow and lineage. An added data point needs an id the profile does not have; when the profile gets the same id later, the profile's counts and the asset shows the check _Data point … is added on this asset, but its device profile has it now, too_. _Duplicate_ of an asset copies its additions.
 
+Added data points and interfaces have their own **description**. A note about an inherited data point **on this asset only** ("on this mill: the main spindle") is the _notes_ of its difference (`overrides[].notes` in the file format).
+
 ### In the file format
 
 A derived profile names its base with `extends:` and uses **the same keys** as any profile, written with only its own part: an `interfaces` entry whose id is inherited changes that interface – the keys it gives, `present: false`, and in its `groups` (or `data_points`) entries for inherited data points (the keys they give, or `present: false`) and new data points; an entry with a new id is an own interface and needs its `protocol`. The export writes the same, so a file imports back unchanged.
+
+An inherited group's entry with a `description` describes that group anew (it may list no data points); the profile's own `description` is left out of the export while it inherits its base's.
 
 ```yaml
 version: 1
@@ -246,13 +308,32 @@ The **level** says where a zone sits, bottom to top: _Level 0 – field devices_
 
 ### Devices of an asset
 
-On the asset page, section **OT network → Devices** – the network identity of the asset, often a small box next to the machine: **host name and domain**, purpose, **MAC** (EUI-48), serial number; **VLAN** (of the asset's site), **address type** (dynamic, reserved, static) and **address**; **switch, switch port, wall outlet, CMDB port name**; **state** (planned, active, inactive, retired), **flags** (snake_case: `device_ordered`, `port_ordered`, `address_ordered` …) and a **confidence** (high, medium, low: how sure the documentation is); **owner**, the **monitoring** that watches it (text) and its **linked checks**. A device shows a hint when its VLAN does not exist (any more), its address is outside the VLAN's subnets or in a blocked range. _OT network → Devices_ lists the devices of every asset of the site, with a search.
+On the asset page, section **OT network → Devices** – the network identity of the asset, often a small box next to the machine: **host name and domain**, purpose, **MAC** (EUI-48), serial number; **VLAN** (of the asset's site), **address type** (dynamic, reserved, static) and **address**; **switch, switch port, wall outlet, CMDB port name**; **state** (planned, active, inactive, retired), **flags** (snake_case: `device_ordered`, `port_ordered`, `address_ordered` …) and a **confidence** (high, medium, low: how sure the documentation is); **owner**, the **monitoring** that watches it (text) and its **linked checks**. A device shows a hint when its VLAN does not exist (any more), its address is outside the VLAN's subnets or in a blocked range. _OT network → Devices_ lists the devices of every asset of the site – see [Editing in place](#editing-in-place).
 
 ### Data paths of an asset
 
 **OT network → Data paths**: what data leaves the asset – a **subject** (machine state, NC programs), the **devices** it covers, the **collector** (a Steward **application**, **platform** or **process**, or a **job** elsewhere by name, optionally with the Steward **system** it runs on), its **transfers** (protocol, **push or pull**, port, the **peer**: a device of the asset, a Steward system or text) and its **destinations** (a Steward system with a path, a Steward dataset, or text).
 
 **Hosts are Steward systems**, so chains of services – _pull job → file share → archive job_ – can be followed link by link: a data path **continues in** every data path that reads (as a transfer peer or the collector's host) from a system it writes to, and **comes from** those that write to a system it reads from, across assets and sites the reader may see – at most 50 each, with the number of the others ("and 120 more"; `nextMore` and `previousMore` in the API). A device that a data path names cannot be removed (`PLANT_DEVICE_IN_USE`).
+
+### Editing in place
+
+Since 0.12 the site's **Devices** and **Data paths** tabs are where the OT network is kept by hand – Steward is the place where this documentation is maintained, and an import loads or syncs it. Who manages the site:
+
+- **adds** a device or data path with _Add device_ / _Add data path_ (choosing the asset it belongs to when the site has more than one), and **edits** or **removes** one from its row's menu – with the same forms, rules and audit as on the asset's page;
+- selects devices and uses **Edit selected** or **Remove selected** ([Changing many entries at once](#changing-many-entries-at-once): state, confidence, owner, flags). Data paths have no bulk change; they are changed one at a time.
+
+Both lists sort by every column, filter (devices by VLAN – or _No VLAN_ –, state and asset, data paths by asset, both with a search) and say how many entries they show. Inactive and retired devices are shown quieter. Identifiers – host names, addresses, MAC addresses, VLANs, switches and ports – never break inside; a wide table scrolls sideways. A device without an address shows its address type alone (_Dynamic (DHCP)_). On a phone the rows are cards.
+
+### Data quality hints
+
+Above the devices, **Data quality (N)** lists what looks wrong in the documentation of the site's devices, open when there is something and folded when all is well (the overview tab shows the count):
+
+- an **IP address**, a **MAC address** or a **host name** (with its domain, without letter case) that two or more devices share;
+- a device **without a VLAN**, and a device that names a **VLAN the site does not have**;
+- **switch names that differ only by letter case** (`SW-Hall1-01` and `sw-hall1-01`) – most likely one switch written two ways; the hint names the devices not written in the most used spelling.
+
+Retired devices are left out. Each hint names its devices; a device leads to its row (all filters off) and to its asset. Steward computes the hints when the network is read (`dataQuality` in `GET /api/plant/sites/:siteId/network` and `/api/v1`); whoever sees the site sees them, as they see its devices. They are hints: nothing is refused or changed because of them.
 
 ### Live status
 
@@ -261,7 +342,7 @@ An asset or device is **online**, **offline** or **unknown** – **only from its
 - a **monitor** (by key or id) or **one of its checks** (by check id or key): Gatus endpoints, CheckMk services, the MQTT silent-device check, Kafka and every other check type ([MONITORS.md](MONITORS.md)). _Up_ and _degraded_ are online (degraded with its reason), _down_ is offline; no result yet, blocked, maintenance or a monitor or check that is turned off is unknown;
 - the **freshness of a dataset** (the last value of an aspect on an IoT platform, published by a process): optionally only the rows whose **column** has a **value** (the row of this asset or device), the **time column** of the last value and a **maximum age** in minutes (empty: the dataset's own freshness, [DASHBOARDS.md](DASHBOARDS.md)). Newer is online, older offline; no data under the key, no row or no readable time is unknown.
 
-A device is offline when any of its checks says offline, online only when **every** check says online, unknown otherwise – and **unknown when nothing is linked**. An asset combines its own checks with those of its devices that have checks (a device without checks says nothing): offline wins, unknown is never shown as online. The status is shown on the asset page, on the **site page** (a card with the counts) and on the site's **overview dashboard** _OT network → Status_ (online, offline and unknown assets, each with its devices and data paths). It is read when the page is read; Steward stores no status history of its own (the monitors and datasets have theirs).
+A device is offline when any of its checks says offline, online only when **every** check says online, unknown otherwise. **Nothing linked** is shown as **Not watched** (quiet, no alarm colour; `watched: false` in the API, where `state` stays `unknown`) – _Unknown_ means a linked check has no result. When nothing on a site is watched, its overview and device lists leave out the _Live_ column and say where checks are linked. An asset combines its own checks with those of its devices that have checks (a device without checks says nothing): offline wins, unknown is never shown as online. The status is shown on the asset page, on the **site page** (a card with the counts) and on the site's **overview dashboard** _OT network → Status_ (online, offline, unknown and not watched assets, each with its devices and data paths). It is read when the page is read; Steward stores no status history of its own (the monitors and datasets have theirs).
 
 **An asset's status reveals the state of its linked checks to everyone who sees the asset** – that is why a Plant viewer, who may see no monitor at all, sees the real status. What a reader learns of a check depends on whether they may see what it checks:
 
@@ -288,9 +369,11 @@ Everywhere both names are shown: the data point's name first, the collector's af
 
 ### A collection
 
-A **data collection** belongs to an asset and to a **collector** – a Steward application, platform or process, or a job elsewhere by name (as a data path's collector) – and may name a **data path** of the asset. It reads from one **interface** of the asset's model or an unknown one, and has a name, a **mode** (_every interval_, _on change_, _on a trigger_, _other_), an interval and a debounce in ms, **triggers** (name, condition, reference address or data point, reference value) and how they combine, a **destination** (a Steward system with a path, a Steward dataset, a publication target or text), the collector's **access patterns** – what it may read, **write, create and delete** (the last three are shown in red: the collector can change the machine) –, other **settings** (buffering, events, time sync) and its **items**: address, output name and type, the data point, a transform (a note, optionally scale, offset, cast) and notes.
+A **data collection** belongs to an asset and to a **collector** – a Steward application, platform or process, or a job elsewhere by name (as a data path's collector) – and may name a **data path** of the asset. It reads from one **interface** of the asset's model or an unknown one, and has a name, a **mode** (_every interval_, _on change_, _on a trigger_, _other_), an interval and a debounce in ms, **triggers** (name, condition, reference address or data point, reference value) and how they combine, its **sinks** – where the data goes ([Sinks and transformations](#sinks-and-transformations); a collection of 0.11 had one destination, read as its first sink) –, the collector's **access patterns** – what it may read, **write, create and delete** (the last three are shown in red: the collector can change the machine) –, other **settings** (buffering, events, time sync) and its **items**: address, output name and type, the data point, a transform (a note, optionally scale, offset, cast) and notes.
 
-**Coverage.** A collection counts its **mapped** items, its **raw** items – an address no data point of the asset has (_Add as data point_: an asset addition with the collector's name as known-as name; or on the profile, for whoever may manage profiles) or a data point the asset no longer has – and the data points of its interface (or of the whole model) that **no collection of the asset reads**. Two items mapped to one data point in one collection are allowed and flagged. The asset's **data flow** and a data point's **lineage** run through the collections: interface → collector → destination. A data point's page lists the collections that read it (and under which names); an application's and a platform's page the collections it runs.
+A collection and each of its items may have an optional **description** (plain text, at most 4000 characters; 0.12.0). The table format reads it from a `description` column; a re-import keeps an item's description written in Steward when the file has none.
+
+**Coverage.** A collection counts its **mapped** items, its **raw** items – an address no data point of the asset has (_Add as data point_: an asset addition with the collector's name as known-as name; or on the profile, for whoever may manage profiles) or a data point the asset no longer has – and the data points of its interface (or of the whole model) that **no collection of the asset reads**. Two items mapped to one data point in one collection are allowed and flagged. The asset's **data flow** and a data point's **lineage** run through the collections: interface → collector → each sink. A data point's page lists the collections that read it (and under which names); an application's and a platform's page the collections it runs.
 
 ### Import
 
@@ -315,11 +398,50 @@ A collection's **mapping** downloads as CSV (`gateway_name,address,data_point`) 
 
 Each importer produces collections for one asset and collector. Steward recognises a format by its **structure**, not by product names or the value of a `type` key, and runs nothing it reads.
 
-- **Gateway JSON – datasets of data points** (`example-gateway-datasets.json`): `datasets[]` with `name`, `mode` (`interval` or `onchange`), `interval` and `debounce` (ms), `unavailable`, `new`, `readings`, `triggercomposition`, `triggers[]` (`condition` such as `anychange`, `name`, `referenceDatapoint`, `referenceValue`) and `datapoints[]` (`address`, `name`, `type` – int, float, string, bool). One dataset is one collection. The file's `readPatterns`, `writePatterns`, `createPatterns`, `deletePatterns` and `patterns[]` (`path` with `read`, `write`, `delete`, `create`) are the access patterns of every collection; `type`, `whitelistedAddresses`, `bufferEnabled`, `maxBufferSize`, `plcTimeSync`, `sendEvents` and `eventsToIgnore` its settings. Addresses are CNC variables (`/Channel/State/progStatus[u1]`, `/Nck/MachineAxis/measPos1[2]`, NC user data `/NC/_N_…/NAME`) or PLC addresses (`DB13.DBX2.0`).
-- **Table – CSV or YAML** (`example-table.csv`, `example-table.yaml`): one row per item with the columns `collection`, `mode` (`interval`, `on_change`, `trigger`, `other`), `interval_ms`, `debounce_ms`, `source_address` **or** `data_point`, `output_name`, `output_type`, `transform`, `destination`, `notes`. A CSV needs a header row and may use `;` instead of `,`; a YAML file is a list of entries with the same keys (or `items:` with the list). Rows with the same `collection` are one collection; its first row gives the mode, interval, debounce and destination.
-- **Industrial Edge OPC UA connector** – _preview_ (`example-ie-opcua-connector.json`): the connector's exported configuration, `UIConfig.datapoints.OPCUA[]` with one entry per connection (`name`, `OPCUAUrl`, `portNumber`) and its `tags[]` (`name`, `address` – the NodeId –, `dataType`, `acquisitionCycle` in ms, `acquisitionMode` – `Cyclic` or `CyclicOnChange` –, `accessMode` – `r`, `rw` –, `comments`). One collection per connection, cycle and mode; a tag with write access is a write pattern; the destination is the Industrial Edge Databus (the export does not name the topic). The user, password and certificate passwords of the export are never read. The importer is built from the structure of a public example export and is marked _preview_ until it has seen more.
-- **Node-RED flow export** (`example-node-red-flow.json`): a JSON array of nodes (`id`, `type`, `z`, `wires` …). Source nodes – OPC UA items (`item`, `datatype`), S7 in (`variable`), Modbus reads (`dataType`, `adr`, `quantity`, `rate`), MQTT in (`topic`) – are followed along their `wires` to sink nodes – MQTT out, HTTP request, file and database nodes; a `debug` node ends a way. Each sink is a collection with the sources that reach it as items; `function`, `change` (with its rules), `template` and similar nodes on the way become the item's transform note (their names; code is never run); an `inject` node before a source gives its interval. Node-RED `credentials` are never imported.
+- **Gateway JSON – datasets of data points** (`example-gateway-datasets.json`): `datasets[]` with `name`, `mode` (`interval` or `onchange`), `interval` and `debounce` (ms), `unavailable`, `new`, `readings`, `triggercomposition`, `triggers[]` (`condition` such as `anychange`, `name`, `referenceDatapoint`, `referenceValue`) and `datapoints[]` (`address`, `name`, `type` – int, float, string, bool). One dataset is one collection. The file's `readPatterns`, `writePatterns`, `createPatterns`, `deletePatterns` and `patterns[]` (`path` with `read`, `write`, `delete`, `create`) are the access patterns of every collection; `type`, `whitelistedAddresses`, `bufferEnabled`, `maxBufferSize`, `plcTimeSync`, `sendEvents` and `eventsToIgnore` its settings. **Sinks** (0.12) are found by structure too: an object – or a list of objects – of the file (for every dataset) or of a dataset (for that one) that names a target object (`topic`, `table`, `bucket`, `measurement`, `queue`, `stream`, `exchange`, `aspect`; `path`, `filename`, `collection` or `index` only beside a host or format key) is a sink, its target the host of `broker`, `host`, `server`, `endpoint`, `url` …, its format `format` or `protocol`, its schedule `interval`, `batchSize`, `qos` and similar keys. A data point's `target`, `targetName`, `field` or `column` is its name in every sink. Addresses are CNC variables (`/Channel/State/progStatus[u1]`, `/Nck/MachineAxis/measPos1[2]`, NC user data `/NC/_N_…/NAME`) or PLC addresses (`DB13.DBX2.0`).
+- **Table – CSV or YAML** (`example-table.csv`, `example-table.yaml`): one row per item with the columns `collection`, `mode` (`interval`, `on_change`, `trigger`, `other`), `interval_ms`, `debounce_ms`, `source_address` **or** `data_point`, `output_name`, `output_type`, `transform`, `destination`, `notes` and (0.12) `description`, `sink` and `target`. A row's item goes to the sink named in `sink` (its target the `destination`), else to a sink named after the `destination`; `target` is the item's name there and `transform` also its own transformation in that sink. A CSV needs a header row and may use `;` instead of `,`; a YAML file is a list of entries with the same keys (or `items:` with the list). Rows with the same `collection` are one collection; its first row gives the mode, interval, debounce and destination.
+- **Industrial Edge OPC UA connector** – _preview_ (`example-ie-opcua-connector.json`): the connector's exported configuration, `UIConfig.datapoints.OPCUA[]` with one entry per connection (`name`, `OPCUAUrl`, `portNumber`) and its `tags[]` (`name`, `address` – the NodeId –, `dataType`, `acquisitionCycle` in ms, `acquisitionMode` – `Cyclic` or `CyclicOnChange` –, `accessMode` – `r`, `rw` –, `comments`). One collection per connection, cycle and mode; a tag with write access is a write pattern; the sink is the Industrial Edge Databus – with its topic when the connection has a key with "topic" in its name, else marked as unknown. The user, password and certificate passwords of the export are never read. The importer is built from the structure of a public example export and is marked _preview_ until it has seen more.
+- **Node-RED flow export** (`example-node-red-flow.json`): a JSON array of nodes (`id`, `type`, `z`, `wires` …). Source nodes – OPC UA items (`item`, `datatype`), S7 in (`variable`), Modbus reads (`dataType`, `adr`, `quantity`, `rate`), MQTT in (`topic`) – are followed along their `wires` to sink nodes – MQTT out, HTTP request, file and database nodes; a `debug` node ends a way. Each sink node is a collection with the sources that reach it as items and itself as the collection's **sink** – its target the host of the config node it uses (a broker, a database server) or of its URL, its object the topic, URL path, file or table. `function`, `change` (with its rules), `template`, `switch`, `range`, `json`, `csv` and `join` nodes on the way become the item's transform note and the sink's **transformation steps**; a `function` node's code is kept as the step's text – **never run**. An `inject` node before a source gives its interval. A node's `credentials` are dropped before any importer looks at the flow: never read, never stored.
 - **Mapping file**: CSV with the header `gateway_name,address,data_point` (either name or address per line), or YAML `mapping: [{ gateway_name, address, data_point }]`.
+
+### Sinks and transformations
+
+Since 0.12 a collection documents **where its data goes** after it is loaded – and how it is changed on the way. Collection → **Where the data goes**. A collection has any number of **sinks**:
+
+- **name**, **kind** – a Steward system, platform, application or dataset where one exists, a publication target, or another target as text –, the **target** (the Steward item's id, the dataset's key, or text such as a broker), **where there** (a topic, a table, an asset and aspect, a bucket path), **format or protocol**, **schedule and batching**, an **owner** and a **description**;
+- **transformation steps**, in order: _rename_, _scale_, _unit conversion_, _aggregate_ (a window and a function), _filter_, _enrich or join_, _compute_ (an expression or code as text), _format_, _other_ – each with the field it applies to, its expression and a description;
+- an **item mapping**: an item's name in the sink and, optionally, a transformation for that item only.
+
+Everything is documentation: Steward runs no step, no expression and no code. Every item goes to every sink; the mapping names it there. The page shows the flow _items → transformation steps → sinks_, per sink its steps and items, and what reads its data **next** as far as Steward knows it: the data paths that read from the sink's Steward system (the next link of a chain, as on the data path page) and the dashboards that show its dataset. A data point's page says per collection where the data point **goes** (sink, target, its name there). The asset's data flow and the data point's lineage draw every sink. Rights: a target, data path or dashboard the reader may not see is not named – a target reads _a target you may not see_, the others are counted.
+
+Importers fill sinks where the format names them (see [Formats](#formats)). A re-import replaces the sinks it wrote earlier and keeps what people added: a sink entered by hand (or from a YAML file) stays, and on a sink of the import the description, owner and item names the file does not have stay. In the [YAML format](#yaml-import-and-export) an asset network takes `collections` (0.12, the collections with their items) and `collection_sinks`.
+
+### Gateway configurations
+
+Since 0.12 each import **keeps the collector's files** – as Steward stores them, **with secrets removed** – one **version** per import of a collector on an asset (_Gateway configuration_ tab of the collection). An import whose files are the same as the last version's makes no new version. Of each file the list shows the name, who imported it when, the SHA-256 of the original (only the hash and size of the original are stored) and how many values were removed, with the paths – never the values. A version **downloads** as `<name>.v<version>.redacted.<json|yaml|csv>`, and two versions are **compared**: JSON and YAML by path (added, removed, changed values), every file line by line. At most 50 versions per asset and collector are kept (the oldest go first); they go with the asset, and with the last collection they belong to. The import's audit entry (`plant.collection_imported`) names the version: its id, the hashes and the number of removed values.
+
+**What is removed before anything is stored** (`server/src/plant/collections-redact.ts`):
+
+| In               | Removed                                                                                                                                                                                                                                                                                                                                                      |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| JSON and YAML    | at any depth, the value (also a whole object or list) of a key that looks secret: `password`, `passwd`, `pwd`, `passphrase`, anything ending in `password`, `secret`, `token`, `apikey`/`api_key`, `private key`, `credentials`, `auth`, `Authorization`, `Cookie`, `X-Api-Key`, connection strings, client secrets, access keys, key store passwords, `pin` |
+| Name/value pairs | the value of a pair whose name is such a key (`{ "key": "Authorization", "value": "Bearer …" }`, Node-RED's HTTP headers)                                                                                                                                                                                                                                    |
+| URLs             | the password of `scheme://user:password@host` in any string and any format (the user stays)                                                                                                                                                                                                                                                                  |
+| Node-RED         | a node's `credentials`, entirely – dropped before the importer reads the flow; never stored, not even as `[redacted]`                                                                                                                                                                                                                                        |
+| CSV              | the values of a column whose header looks secret; the rest is kept as it is                                                                                                                                                                                                                                                                                  |
+
+Keys that name a setting stay (`authenticationMode`, `tokenEndpoint`, `tokenLifetime`). A removed value reads `[redacted]`. YAML is written anew (comments are not kept). The same rules apply to what the importers write into the collections (a sink's target, settings). The files of one import may be at most 4 MB together, as the import itself.
+
+**The gateway configuration document.** Each import also keeps **one living document per collection** up to date: the built-in type **GWC – Gateway configuration** (created with the first import that writes one; no periodic review), titled _Gateway configuration – \<asset\> – \<collector\> – \<collection\>_, linked to the asset and the collection. Its section `## Gateway configuration (generated)` holds a summary – asset, collector, collection, format, items (mapped and raw), collections in the files, sinks, version and date, files with the hash of the original and the number of removed values – and is **rewritten by every import**; the text under the next heading is yours and stays. The kept file is attached (the files of earlier imports are replaced). By the document's status:
+
+| Status          | What the import does                                                                                                         |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Draft, revising | updates the generated section and the file                                                                                   |
+| Published       | starts the next edition (as _New edition_ does) and updates it; the published edition stays valid until the next is approved |
+| In review       | leaves it as it is (the version is kept all the same)                                                                        |
+| Withdrawn, gone | writes a new document                                                                                                        |
+
+The document is written with the importer's rights on records: who may import but not create or change records gets the import without it – the import's result says so per collection (`documents[].action`: created, updated, revised, skipped with `forbidden` or `in_review`). Routes: `GET /api/plant/assets/:assetId/collection-sources[?collection=]`, `GET …/collection-sources/:sourceId/file`, `GET …/collection-sources/diff?from=&to=`, `GET …/collections/:collectionId/flow`.
 
 ### Rights and API
 
@@ -359,15 +481,17 @@ A data point's page ends with its **lineage**: the same flow, fanned out from th
 
 _Plant → Explore data → KPI coverage_ and the KPI page (**Coverage**): assets × KPI definitions, each cell one of
 
-| State             | Means                                                                                                                         |
-| ----------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| **Has it**        | a KPI job is set up on the asset                                                                                              |
-| **Problem**       | a job is set up, and a plant check of it fails                                                                                |
-| **Could have it** | the asset delivers every data point input, but has no job yet                                                                 |
-| **Cannot**        | inputs are missing – the cell says which (no profile, another profile, an interface not active, a data point the asset lacks) |
-| **Not checked**   | the KPI reads no data points, so Steward cannot tell                                                                          |
+| State                                | Means                                                                                                                                                     |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Has it**                           | a KPI job is set up on the asset                                                                                                                          |
+| **Problem**                          | a job is set up, and a plant check of it fails                                                                                                            |
+| **Could have it**                    | the asset delivers every data point input, but has no job yet – split by KPI potential (0.12.0) into the two states below                                 |
+| ↳ **Collected – ready**              | the device delivers every input **and** a data collection of the asset (any collector: gateway, ETL job …) maps an item to each of them – a job can start |
+| ↳ **Device delivers, not collected** | every input is delivered, but no data collection of the asset maps all of them yet                                                                        |
+| **Cannot**                           | inputs are missing – the cell says which (no profile, another profile, an interface not active, a data point the asset lacks)                             |
+| **Not checked**                      | the KPI reads no data points, so Steward cannot tell                                                                                                      |
 
-The **KPI coverage** in per cent is the jobs set up of all the KPIs the assets could have (has + problem over has + problem + could). Filters: site, area, device profile (and a KPI, from the KPI page) – part of the address. Pointing at a cell explains it; a click opens the asset (its data flow, or its overview where a job is to be added or a check is shown). Phones show a list per asset. One answer holds at most 20,000 cells (at most 2,000 assets); the totals count every asset that matches.
+The **KPI coverage** in per cent is the jobs set up of all the KPIs the assets could have (has + problem over has + problem + could). **KPI potential** (0.12.0): of the cells that could have a KPI, those whose data is collected already (_N ready_) and those that need a data collection (_M need a data collection_) – collections have no state of their own, so every documented collection counts. The summary shows both, a table **per site and area** (when the answer spans more than one) lists jobs, ready, need a collection and cannot; the site overview answer counts them, too (`potential`). A cell whose inputs arrive in another unit names the difference ([Units of KPI inputs](#units-of-kpi-inputs)). The answer keeps the state `could` and adds `collected` to the cell, `potential` and `groups` to the answer (additive). Filters: site, area, device profile (and a KPI, from the KPI page) – part of the address. Pointing at a cell explains it; a click opens the asset (its data flow, or its overview where a job is to be added or a check is shown). Phones show a list per asset. One answer holds at most 20,000 cells (at most 2,000 assets); the totals count every asset that matches.
 
 ### OT network diagram
 
@@ -590,7 +714,7 @@ assignment:
     - { kpi: energy-consumption, job: rvs-mill-01-energy, active: true, params: { closest_point_max_distance_ms: 600000 }, dataset: plant.energy }
 ```
 
-(Three files in one block for brevity; each `---` part is its own file.) Keys: a profile has `id`, `name`, `manufacturer`, `model`, `version`, `category`, `description`, `notes`, `interfaces`; an interface `id`, `name`, `protocol`, `direction`, `description`, `version`, `default_port`, `authentication`, `client`, `notes`, `groups` (`name`, `description`, `data_points`), `data_points`, `file_sets` (`id`, `name`, `description`, `format`, `direction`, `path_pattern`, `produced_per`, `retention`, `encoding`, `notes`); a data point `id`, `name`, `description`, `data_type`, `unit`, `address` (or `node_id` / `modbus_address`), `access`, `update_rate_ms`, `enum_values`, `aliases`, `notes`, `publications` (`target`, `path`, `name`). Since 0.11.0 a profile also has `extends`, and an interface or data point of a derived profile `present` ([Profile inheritance](#in-the-file-format)). A KPI definition has `id`, `name`, `names`, `category`, `type`, `description`, `formula`, `unit`, `range` (`min`, `max`), `trend`, `timing`, `audience`, `methodology`, `strategy`, `implementation`, `dynamic_columns`, `inputs` (`kind`, `profile`, `data_points`, `notes`), `parameters` (`name`, `aliases`, `description`, `type`, `default`, `required`, `min`, `max`, `unit`), `columns` (`name`, `kind`, `scope`, `unit`, `numerator`, `denominator`, `scale`, `description`), `computation` (`summary`, `diagram`, `steps` with `name`, `does`, `why`, `identities` with `relation`, `note`, `limits`), `notes`. An assignment has `asset`, `site`, `profile`, `firmware`, `interfaces` (`interface`, `active`, `endpoint`, `notes`), `overrides` (`data_point`, `available`, `address`, `unit`, `data_type`, `update_rate_ms`, `notes`), `additions` (`interfaces`, `data_points` with `interface` and `group`; 0.11.0), `publications` (`data_point`, `target`, `path`, `name`, `published_by`, `notes`), `kpis` (`kpi`, `job`, `active`, `params`, `dashboard`, `dataset`, `notes`), `notes`.
+(Three files in one block for brevity; each `---` part is its own file.) Keys: a profile has `id`, `name`, `manufacturer`, `model`, `version`, `category`, `description`, `notes`, `interfaces`; an interface `id`, `name`, `protocol`, `direction`, `description`, `version`, `default_port`, `authentication`, `client`, `notes`, `groups` (`name`, `description`, `data_points`), `data_points`, `file_sets` (`id`, `name`, `description`, `format`, `direction`, `path_pattern`, `produced_per`, `retention`, `encoding`, `notes`); a data point `id`, `name`, `description`, `data_type`, `unit`, `address` (or `node_id` / `modbus_address`), `access`, `update_rate_ms`, `enum_values`, `aliases`, `notes`, `publications` (`target`, `path`, `name`). Since 0.11.0 a profile also has `extends`, and an interface or data point of a derived profile `present` ([Profile inheritance](#in-the-file-format)); since 0.12.0 a profile has `template` and a KPI input `units` (data point → unit, e.g. `units: { active_energy_import: kWh }`). A KPI definition has `id`, `name`, `names`, `category`, `type`, `description`, `formula`, `unit`, `range` (`min`, `max`), `trend`, `timing`, `audience`, `methodology`, `strategy`, `implementation`, `dynamic_columns`, `inputs` (`kind`, `profile`, `data_points`, `notes`), `parameters` (`name`, `aliases`, `description`, `type`, `default`, `required`, `min`, `max`, `unit`), `columns` (`name`, `kind`, `scope`, `unit`, `numerator`, `denominator`, `scale`, `description`), `computation` (`summary`, `diagram`, `steps` with `name`, `does`, `why`, `identities` with `relation`, `note`, `limits`), `notes`. An assignment has `asset`, `site`, `profile`, `firmware`, `interfaces` (`interface`, `active`, `endpoint`, `notes`), `overrides` (`data_point`, `available`, `address`, `unit`, `data_type`, `update_rate_ms`, `notes`), `additions` (`interfaces`, `data_points` with `interface` and `group`; 0.11.0), `publications` (`data_point`, `target`, `path`, `name`, `published_by`, `notes`), `kpis` (`kpi`, `job`, `active`, `params`, `dashboard`, `dataset`, `notes`), `notes`.
 
 Values are read in their usual spellings: protocols `OPC-UA`, `Modbus/TCP`, `SMB/CIFS`, `HTTP`; sign-in `username-password`; data types `int`, `float[]`, `bool`; units `kWh`, `°C`, `rpm`; an input kind `datapoint`. Files of other tools import after renaming their keys, for example `profile_id`/`kpi_id` → `id`, `display_name` → `name`, `type` (of an interface) → `protocol`, `requires_client` → `client`, `datapoint_groups` → `groups`, `group` → `name`, `datapoints` → `data_points`, `type` (of a data point) → `data_type`, `opc_node_id` → `node_id`, `typical_update_rate_ms` → `update_rate_ms`, `params` → `parameters`, `variables` → `data_points`, `arity` → `scope`; in an assignment `asset_id` → `asset`, `controller_profile` → `profile`, `controller_firmware` → `firmware`, `connectivity` → `interfaces`, `interface_id` → `interface`, `endpoint_url` → `endpoint`, `datapoint_overrides` → `overrides`, publications' `datapoint` → `data_point`, `aspect` → `path`, `variable` → `name`, `job_name` → `job`; attributes of the asset itself (its tags, its name) go into the asset, not the assignment. A profile and a KPI definition are matched by their `id`, an assignment by its asset.
 
@@ -665,9 +789,34 @@ asset_network:
         - { protocol: opc-ua, mode: pull, peer_kind: device, peer: rvs-mill-01-ipc, port: 4840 }
       destinations:
         - { ref: IoT platform, path: rvs-mill-01/state } # kind: system (a Steward system id), dataset (a key) or other
+  collections: # 0.12: what collectors read from the asset (added and changed by an import, never removed)
+    - id: machine-state
+      name: Edge gateway – machine state
+      collector: { kind: job, ref: rvs-edge-gateway } # required for a new collection
+      interface: opc-ua
+      mode: on_change # interval (default), on_change, trigger or other
+      debounce_ms: 500
+      access: { read: ['/Channel/*'] } # write, create, delete: the collector can change the machine
+      items:
+        - { address: '/Channel/State/progStatus[u1]', output_name: ProgStatus, data_point: program_status, description: For the availability KPI }
+        - { address: '/Channel/State/acProg[u1]', output_name: ActiveProgram } # no data_point: raw
+  collection_sinks: # 0.12: where the data of a data collection of the asset goes (stored, or in collections above)
+    - collection: machine-state
+      sinks:
+        - id: plant-broker
+          name: Plant broker
+          ref: mqtt.example.com:8883 # kind: system, platform, application (Steward ids), dataset (a key), publication or other
+          object: plant/riverside/mill-01
+          format: JSON over MQTT
+          schedule: on change, QoS 1
+          transforms: # in order; documentation only – never run
+            - { kind: rename, field: ProgStatus, expression: program_status }
+            - { kind: aggregate, field: SpindleSpeed, window: 1 min, function: avg }
+          mappings:
+            - { item: ProgStatus, target: program_status }
 ```
 
-Keys: an OT network has `site`, `vlans`, `zones`, `conduits`; a VLAN `id`, `name`, `vid`, `type`, `owner`, `description`, `subnets` (`cidr`, `gateway`, `description`, `ranges` with `start`, `end`, `type`, `notes`), `restricted`, `managed_by`, `rules_at`, `sites`, `location`, `segment`, `notes`; a zone `id`, `name`, `description`, `criticality`, `level`, `vlans`, `owner`, `sl_t`, `risk_assessment`, `assessed_at`, `notes`; a conduit `id`, `name`, `description`, `zones` (two), `direction`, `protocols`, `controls`, `notes`. An asset network has `asset`, `site`, `checks`, `devices`, `data_paths`; a device `id`, `hostname`, `domain`, `purpose`, `mac`, `serial`, `vlan`, `address_type`, `address`, `switch`, `switch_port`, `wall_outlet`, `cmdb_port`, `state`, `flags`, `confidence`, `owner`, `monitoring`, `checks`, `notes`; a data path `id`, `subject`, `description`, `devices`, `collector` (`kind`, `ref`, `host`), `transfers` (`protocol`, `mode`, `peer_kind`, `peer`, `port`, `notes`), `destinations` (`kind`, `ref`, `path`, `notes`), `notes`; a check either `monitor` (with `check`) or `dataset` (with `column`, `value`, `time_column`, `max_age_minutes`), and `note`. A VLAN, zone and conduit are matched by their site and id, a device and data path by their asset and id, the checks by their asset. The same rules as an edit apply; in _replace_ with _remove_, a VLAN, zone or device that goes while a record that stays names it stops the import. `examples/plant/brightwater-ot-network.plant.yaml` is an invented OT network of the example enterprise (import it after `brightwater.plant.yaml`).
+Keys: an OT network has `site`, `vlans`, `zones`, `conduits`; a VLAN `id`, `name`, `vid`, `type`, `owner`, `description`, `subnets` (`cidr`, `gateway`, `description`, `ranges` with `start`, `end`, `type`, `notes`), `restricted`, `managed_by`, `rules_at`, `sites`, `location`, `segment`, `notes`; a zone `id`, `name`, `description`, `criticality`, `level`, `vlans`, `owner`, `sl_t`, `risk_assessment`, `assessed_at`, `notes`; a conduit `id`, `name`, `description`, `zones` (two), `direction`, `protocols`, `controls`, `notes`. An asset network has `asset`, `site`, `checks`, `devices`, `data_paths` and (0.12) `collections` – a data collection's `id`, `name`, `collector` (`kind`, `ref`, `host`; required for a new one), `data_path`, `interface`, `mode`, `interval_ms`, `debounce_ms`, `triggers` (`name`, `condition`, `reference_point`, `reference_value`), `composition`, `access` (`read`, `write`, `create`, `delete`), `settings` (`key`, `value`), `items` (`address`, `output_name`, `output_type`, `data_point`, `transform` with `note`, `scale`, `offset`, `cast`, `description`, `notes`), `description` and `notes`; matched by the asset and id, keys left out keep their values, a list given replaces the list; a data point an item names must be in the asset's model after the import (the same file may add it); an import adds and changes collections but never removes one (remove it on the asset page); the importer and file a collection came from stay as they are – and `collection_sinks` – per data collection its id and all its sinks (`id`, `name`, `kind`, `ref`, `object`, `format`, `schedule`, `owner`, `description`, `transforms` with `kind`, `field`, `expression`, `window`, `function`, `description`, and `mappings` with `item`, `target`, `transform`); the list replaces the collection's sinks; the collection is a stored one or one in `collections` of the files; a device `id`, `hostname`, `domain`, `purpose`, `mac`, `serial`, `vlan`, `address_type`, `address`, `switch`, `switch_port`, `wall_outlet`, `cmdb_port`, `state`, `flags`, `confidence`, `owner`, `monitoring`, `checks`, `notes`; a data path `id`, `subject`, `description`, `devices`, `collector` (`kind`, `ref`, `host`), `transfers` (`protocol`, `mode`, `peer_kind`, `peer`, `port`, `notes`), `destinations` (`kind`, `ref`, `path`, `notes`), `notes`; a check either `monitor` (with `check`) or `dataset` (with `column`, `value`, `time_column`, `max_age_minutes`), and `note`. A VLAN, zone and conduit are matched by their site and id, a device and data path by their asset and id, the checks by their asset. The same rules as an edit apply; in _replace_ with _remove_, a VLAN, zone or device that goes while a record that stays names it stops the import. `examples/plant/brightwater-ot-network.plant.yaml` is an invented OT network of the example enterprise (import it after `brightwater.plant.yaml`).
 
 ### Modes
 
@@ -681,7 +830,7 @@ _Plant → Import_ (or `POST /api/plant/import`): choose the files and the mode,
 
 - Records are matched by their stable ids. Every record remembers the import that wrote it last; replacing an import adopts its records into the new one, so the next replace finds them again. A marked record that comes back into a file loses its mark.
 - Records entered by hand are never removed by an import. When they name something that is removed (an asset in a removed work unit, a node in a removed building), they lose that reference – the preview shows it as a change; a node added by hand below a removed node stops the import (add it to the file, or keep and mark). A site that still holds records that stay is marked instead of removed.
-- The **preview** lists every record as _add, change, remove, mark, unchanged_ or _skip_, with the fields that change, and the counts per kind. It needs the import's own right (adding sites, or managing one) and names nothing of sites you may not see: an earlier import of such a site counts as not found, a code or asset id taken there gets a message without that site, and its records are left out. **Problems** name the file and the place in it (`sites[0].areas[1].work_centers[0].type: Use one of: production_line, …`); a file with problems imports nothing. The import applies all or nothing, in one transaction.
+- The **preview** lists every record as _add, change, remove, mark, unchanged_ or _skip_, with the fields that change, and the counts per kind. Since 0.12.0 a changed record also shows **what differs**, field by field, with the stored and the new value (`interfaceOverrides[opc].groups[State].description`; lists of entries by their ids; long values shortened; the first 500 changed records). It needs the import's own right (adding sites, or managing one) and names nothing of sites you may not see: an earlier import of such a site counts as not found, a code or asset id taken there gets a message without that site, and its records are left out. **Problems** name the file and the place in it (`sites[0].areas[1].work_centers[0].type: Use one of: production_line, …`); a file with problems imports nothing. The import applies all or nothing, in one transaction.
 - Since 0.11.0 an import that removes or renames more than one record asks you to confirm that it is you (step-up, control point `plant.bulkChange` of the [assurance policy](ASSURANCE.md)) – also _replace_ with _remove_; renaming one asks only when `plant.renameId` is turned on. The preview says so.
 - Every import is audited (`plant.imported`) with mode, counts, the files with their size and SHA-256, and the SHA-256 of all files together; the import page lists earlier imports.
 - Device profiles and KPI definitions need the right to manage the catalogues (designers and administrators), an assignment the manage right on its asset's site; an asset in a site you may not see reads like one you may not change. An assignment names an asset, profile, interfaces, data points and KPI definitions that exist after the import (in the files or in Steward). In _replace_ with _remove_, a profile or KPI definition that goes while an assignment that stays still names it stops the import; an assignment goes with its asset.
@@ -730,7 +879,7 @@ The preview lists the renames apart from what is added, changed and removed. It 
 
 Since 0.11.0. Every bulk change shows a preview first – what changes, what is **skipped** (an entry you may not change) and what is **refused** (a rule or a reference, with the reason) – and applies in one transaction. Removing more than one entry, or editing more than 25, asks for a step-up (`plant.bulkChange`). One audit entry per action, with the entries in its details: `plant.bulk_changed`, `plant.bulk_removed`.
 
-**In the lists:** the asset, site, device profile and KPI definition lists have a checkbox per row (and _Select all shown_). _Edit selected_ sets fields that are safe to set on many entries:
+**In the lists:** the asset, site, device profile and KPI definition lists and a site's devices (0.12) have a checkbox per row (and _Select all shown_). _Edit selected_ sets fields that are safe to set on many entries:
 
 | Kind           | Fields                                                                                                                                               |
 | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -738,7 +887,7 @@ Since 0.11.0. Every bulk change shows a preview first – what changes, what is 
 | Device profile | category, manufacturer                                                                                                                               |
 | KPI definition | category                                                                                                                                             |
 | VLAN (API)     | type, managed by, restricted, owner                                                                                                                  |
-| Device (API)   | state, confidence, owner, add or remove flags                                                                                                        |
+| Device         | state, confidence, owner, add or remove flags (the site's _OT network → Devices_ tab)                                                                |
 
 A place or building must be one of the asset's site. A new device profile is refused for an asset whose assignment has interface settings for its old profile (change it on the asset's page). Owning teams of many sites are set with `POST /api/owning-teams/bulk` and `resources: [{ kind: site, id }]` (administrators, [TEAMS.md](TEAMS.md)). _Remove selected_ works for every list above.
 
@@ -766,6 +915,48 @@ An explicit list is easy to review in a diff; the option suits a file that is th
 - an area or work center: the nodes below it and the assets in them; a building: its floors and rooms; a zone: its conduits; a conduit: the links to it; a KPI definition: its KPI instances (refused when one is on an asset you may not change).
 
 External references, owning teams and the image always go with their entry. **References from other entries** always refuse a removal unless those entries go too: a node or asset in a building, an assignment of a device profile, a zone or device naming a VLAN, a data path naming a device. A removed id is free again; aliases that led to the entry are removed with it.
+
+## Proposals from assistants
+
+Since 0.12.0 an AI assistant connected through [MCP](MCP.md#plant-registry) can read the registry and **propose** additions and changes: for example a device profile built from a vendor's manual, with a base profile and derived ones, the asset-specific addresses of a line read from a gateway configuration, or the known-as names of its variables. Nothing is written until a person applies it.
+
+**What the assistant sends.** A `title`, a `rationale` (where the information comes from) and a document of the [file format](#yaml-import-and-export) as JSON – the same keys as a file, at most 48 kB. Steward runs the import's preview in mode _update_ with the token owner's rights: a document with problems is refused with the problems, so the assistant can fix it; a document that changes nothing is refused too. The proposal then waits under **AI requests** for up to 14 days.
+
+**Data collections, end to end.** An assistant documents a gateway, an ETL job or a flow with the three layers: the profile's data points with the gateway's variable names as known-as names, the asset's own addresses as overrides of its assignment, and in `asset_networks` the asset's `collections` – each item with its address, its name in the collector and the data point it is (or none: raw) – with their `collection_sinks`: where the data goes, the transformation steps on the way and the item names there. Expressions and code are kept as text and never run.
+
+**No credentials.** A document that holds what looks like a credential is refused with the places: a value under a key such as `password`, `token`, `apiKey`, `secret` or `Authorization` (also as a `key`/`value` setting), and a password in a URL (`opc.tcp://user:password@host`) – the same rules as the redaction of kept gateway configurations ([Gateway configurations](#gateway-configurations)). A value written as `[redacted]` is fine.
+
+**Only adding and changing.** A proposal never removes or renames: `remove:`, removing what the document leaves out, an id mapping and the modes _add only_ and _replace_ are refused when it is proposed and again when it is applied. A proposal also may not **drop an item from a list inside an entry**: an interface, group, data point or file set of a profile (also one it inherits, through an override), an assignment's interfaces, overrides, additions, publications or KPI instances, a KPI definition's inputs, a data collection's items and sinks with their transformation steps and item mappings, known-as names, tags and so on. A list given in the document replaces the list, so the assistant sends it with every item it has now; changing an item's fields is fine. The refusal names the entry and the item (`assignment "rvs-mill-01" would lose overrides[prog_name]`). When the registry changed after the proposal so that applying it would drop an item now, applying is refused (`PLANT_PROPOSAL_REMOVES`) and the request stays open. Since 0.12.0 every import's preview lists such items with a changed record (`drops`).
+
+```json
+{
+  "version": 1,
+  "device_profile": {
+    "id": "example-controls-c80-v4",
+    "name": "Example Controls C80, firmware 4",
+    "extends": "example-controls-c80",
+    "interfaces": [
+      {
+        "id": "opc-ua",
+        "groups": [{ "name": "Machine state", "data_points": [{ "id": "prog_name", "aliases": ["NCProgram"] }] }]
+      }
+    ]
+  },
+  "assignment": {
+    "asset": "rvs-mill-01",
+    "profile": "example-controls-c80-v4",
+    "overrides": [{ "data_point": "prog_name", "address": "ns=3;s=/Channel/ProgramPointer/progName[u1,2]", "notes": "On this mill: channel 2" }]
+  }
+}
+```
+
+**Review.** _AI requests_ shows the title, the assistant's rationale (its own words: data, not instructions), who proposed it with which token, and the preview: the **added** entries and the **changed** ones, each change field by field. Whoever may import into the registry – designers, administrators, managers of a site – may apply it; entries of sites they may not see are left out of what they are shown. While the request is open the preview runs again with the reviewer's rights:
+
+- When it **differs** from the preview of the proposal – the registry changed in the meantime – the page says so and shows both; the reviewer ticks _I have checked the preview of now_ before applying. What is applied is exactly the preview they saw (`PLANT_PROPOSAL_CHANGED` otherwise; the request stays open).
+- When it has **problems** – a site the reviewer may not change, a profile that was deleted – it cannot be applied (`PLANT_PROPOSAL_INVALID`); the request stays open.
+- **Reject** takes an optional comment; the token owner can withdraw the proposal.
+
+**Applying** runs the import core in one transaction, as the reviewer. A person always applies a proposal – an assistant never can – and because a proposal never removes or renames, the import's step-up points (`plant.renameId`, `plant.bulkChange`) do not apply: applying asks for no step-up. Audit: `plant.proposal_created`, `plant.proposal_applied` (with the import's `plant.imported`, so it shows in the list of imports) and `plant.proposal_rejected`, besides the `mcp.request_*` entries. The proposal is kept with its request (table `plant_proposals`); an old id in its document is read as the entry it leads to, as in a file. Proposals are not moved by migration packages.
 
 ## Permissions
 

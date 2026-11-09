@@ -36,6 +36,7 @@ import {
   kpiValuesOf,
   profileRowOf,
   profileValuesOf,
+  templateMessage,
   upsertAssignment,
   upsertKpi,
   upsertProfile,
@@ -103,8 +104,12 @@ function editAsset(id: string, set: PlantBulkSet, rights: Map<string, PlantPermi
     const cur = assignmentRowOf(id);
     const a = cur ? assignmentValuesOf(cur) : ASSIGNMENT_DEFAULTS();
     if (a.profileId !== set.profileId) {
-      if (set.profileId && !profileRowOf(set.profileId))
+      const target = set.profileId ? profileRowOf(set.profileId) : undefined;
+      if (set.profileId && !target)
         return { item: { ...base, outcome: 'refused', reason: reason('PLANT_PROFILE_NOT_FOUND', `There is no device profile "${set.profileId}"`) } };
+      // 0.12.0: a template is only for other profiles to extend
+      if (target && Number(target.template))
+        return { item: { ...base, outcome: 'refused', reason: reason('PLANT_PROFILE_TEMPLATE', templateMessage(target.name)) } };
       // interfaces, differences and publications name the old profile's interfaces and data points
       if (a.profileId && (a.interfaces.length || a.overrides.length || a.publications.length))
         return {

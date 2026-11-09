@@ -168,7 +168,9 @@ describe('importers', () => {
     expect(p).toMatchObject({ format: 'node_red', problems: [] });
     expect(p.collections.map((c: { name: string }) => c.name)).toEqual(['broker', 'energy API']);
     const [mqtt, http] = p.collections;
-    expect(mqtt.values).toMatchObject({ intervalMs: 5000, destination: { ref: 'mqtt out', path: 'plant/rvs-mill-01/spindle' } });
+    // the sink node is the collection's sink (0.12): its target is the broker the config node names (never its credentials)
+    expect(mqtt.values).toMatchObject({ intervalMs: 5000, destination: { ref: 'mqtt.example.com:8883', path: 'plant/rvs-mill-01/spindle' } });
+    expect(mqtt.values.sinks).toMatchObject([{ name: 'broker', ref: 'mqtt.example.com:8883', object: 'plant/rvs-mill-01/spindle', imported: true }]);
     expect(mqtt.items.map((i: Item) => `${i.outputName}@${i.address}`)).toEqual([
       'SpindleSpeed@ns=2;s=Spindle1.ActualSpeed',
       'SpindleLoad@ns=2;s=Spindle1.Load',
@@ -293,6 +295,7 @@ describe('applying an import', () => {
       collectorRef: _c,
       collectorHost: _h,
       destinationRef: _d,
+      sinkRefs: _r,
       points: _p,
       coverage: _v,
       writes: _w,

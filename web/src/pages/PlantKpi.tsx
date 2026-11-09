@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { IconAlertTriangle, IconDownload, IconEdit, IconPlus, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import type { KpiColumn, KpiInput, KpiParameter, PlantKpiDetail, PlantKpiValues, PlantProfileSummary } from '@sm/shared';
+import { unitSymbol, type KpiColumn, type KpiInput, type KpiParameter, type PlantKpiDetail, type PlantKpiValues, type PlantProfileSummary } from '@sm/shared';
 import { apiUrl, del, get, notifyError, put } from '../api';
 import { DetailState } from '../components/common';
 import { useAliasRedirect, useChangeId } from '../components/plant/ids';
@@ -19,6 +19,7 @@ import { AssetBriefLink, Breakable, ChecksList, RowMenu, UnitText } from '../com
 import { ComputationModal, KpiColumnModal, KpiFormModal, KpiInputModal, KpiParameterModal } from '../components/plant/dataForms';
 import { SourceLine } from './PlantSite';
 import { KpiCoverageCard } from './plant/views/CoverageMatrix';
+import { CollectedBadge, UnitsBadge } from '../components/plant/potential';
 
 const valuesOf = (k: PlantKpiDetail): PlantKpiValues => ({
   id: k.id,
@@ -258,10 +259,12 @@ export function PlantKpiPage() {
                                       style={{ cursor: 'pointer' }}
                                     >
                                       <span className="mono">{d}</span>
+                                      {input.units?.[d] && <span data-testid={`kpi-input-unit-${d}`}> · {unitSymbol(input.units[d])}</span>}
                                     </Badge>
                                   ) : (
                                     <Badge key={d} variant="default" tt="none" size="sm">
                                       <span className="mono">{d}</span>
+                                      {input.units?.[d] && <span data-testid={`kpi-input-unit-${d}`}> · {unitSymbol(input.units[d])}</span>}
                                     </Badge>
                                   ),
                                 )}
@@ -570,9 +573,17 @@ export function PlantKpiPage() {
                   </Text>
                 ) : (
                   <Stack gap={4}>
-                    {k.candidates.map((a) => (
-                      <AssetBriefLink key={a.id} asset={a} />
-                    ))}
+                    {k.candidates.map((a) => {
+                      // 0.12.0: KPI potential (collected or not) and inputs in another unit
+                      const info = k.candidateInfo?.[a.id];
+                      return (
+                        <Group key={a.id} gap={6} wrap="wrap" data-testid={`kpi-candidate-${a.id}`}>
+                          <AssetBriefLink asset={a} />
+                          {info && <CollectedBadge collected={info.collected} />}
+                          {info && <UnitsBadge units={info.units} />}
+                        </Group>
+                      );
+                    })}
                   </Stack>
                 )}
               </Stack>

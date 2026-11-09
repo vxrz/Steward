@@ -908,6 +908,10 @@
     "PLANT_ASSIGNMENT_INVALID": "Die Zuordnung kann nicht gespeichert werden – {{path}}: {{message}}",
     "PLANT_PROFILE_IN_USE": "Das Geräteprofil ist noch Assets zugeordnet ({{count}}) – entfernen Sie diese Zuordnungen zuerst.",
     "PLANT_PROFILE_IN_USE_HIDDEN": "Das Geräteprofil wird verwendet – es kann nicht gelöscht werden.",
+    "PLANT_PROFILE_TEMPLATE": "Das Geräteprofil {{name}} ist eine Vorlage – nur zum Erweitern durch andere Profile. Geben Sie dem Asset ein Profil, das diese Vorlage erweitert.",
+    "PLANT_PROFILE_TEMPLATE_IN_USE": "{{count}} Assets haben das Geräteprofil – geben Sie ihnen ein anderes Profil (eines, das es erweitert), bevor es eine Vorlage wird.",
+    "PLANT_PROFILE_TEMPLATE_IN_USE_HIDDEN": "Assets haben das Geräteprofil – es kann keine Vorlage werden.",
+    "PLANT_EXTRACT_REFUSED": "Das Basisprofil kann nicht herausgelöst werden: {{message}}",
     "PLANT_KPI_IN_USE": "Assets haben noch KPI-Instanzen dieser Definition ({{count}}) – entfernen Sie diese zuerst.",
     "PLANT_KPI_IN_USE_HIDDEN": "Die KPI-Definition wird verwendet – sie kann nicht gelöscht werden.",
     "PLANT_NETWORK_INVALID": "Das lässt sich nicht speichern – {{path}}: {{message}}",
@@ -1111,8 +1115,16 @@
     "CONFIRMATION_MISMATCH": "Geben Sie zur Bestätigung den Benutzernamen {{username}} ein.",
     "PLANT_PROFILE_EXTENDED": "Andere Geräteprofile erweitern dieses ({{profiles}}) – ändern oder löschen Sie diese zuerst.",
     "PLANT_COLLECTION_NOT_FOUND": "Datenerfassung {{id}} nicht gefunden.",
+    "PLANT_PROFILE_LINKED": "{{count}} Dokumente verweisen auf das Geräteprofil – entfernen Sie zuerst die Verknüpfungen oder entfernen Sie es mit „Auswahl entfernen“ und „Auch entfernen, was dazugehört“.",
+    "PLANT_COLLECTION_LINKED": "{{count}} Dokumente verweisen auf die Datenerfassung – wählen Sie „Auch entfernen, was dazugehört“, um die Verknüpfungen mit zu entfernen.",
+    "PLANT_SOURCE_NOT_FOUND": "Die aufbewahrte Datei {{id}} wurde nicht gefunden.",
+    "PLANT_SINK_NOT_FOUND": "Ziel {{id}} nicht gefunden.",
+    "PLANT_DOC_ID": "„{{id}}“ ist keine ID einer Datenerfassung oder eines Ziels.",
     "PLANT_COLLECTION_INVALID": "Die Datenerfassung kann nicht gespeichert werden – {{path}}: {{message}}",
-    "PLANT_COLLECTION_IMPORT_INVALID": "Die Datenerfassungen können nicht importiert werden – {{path}}: {{message}}"
+    "PLANT_COLLECTION_IMPORT_INVALID": "Die Datenerfassungen können nicht importiert werden – {{path}}: {{message}}",
+    "PLANT_PROPOSAL_CHANGED": "Was der Vorschlag ändert, ist nicht mehr dasselbe wie zuvor – sehen Sie sich die aktuelle Vorschau an und bestätigen Sie sie.",
+    "PLANT_PROPOSAL_INVALID": "Der Vorschlag lässt sich jetzt nicht übernehmen ({{count}} Probleme) – siehe die aktuelle Vorschau.",
+    "PLANT_PROPOSAL_REMOVES": "Ein Vorschlag darf Einträge ändern, aber nichts daraus entfernen: {{entry}} würde {{path}} verlieren."
   },
   "boundary": {
     "title": "Auf dieser Seite ist ein Fehler aufgetreten",

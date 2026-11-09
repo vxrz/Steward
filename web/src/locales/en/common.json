@@ -272,5 +272,17 @@
     "copiedAt": "on {{date}} by {{by}}",
     "copiedFromHidden": "A copy, made on {{date}} by {{by}} (the original is gone or not visible to you).",
     "systemNote": "The copy has the attributes and the stack entered by hand, and is in the same segments without the original’s addresses. The CMDB entry, the platform and the systems in a segment are not copied."
+  },
+  "sections": {
+    "expandAll": "Expand all",
+    "collapseAll": "Collapse all"
+  },
+  "showMore": {
+    "all": "Show all {{count}}",
+    "fewer": "Show fewer",
+    "more_one": "Show {{count}} more",
+    "more_other": "Show {{count}} more",
+    "shown_one": "Showing {{shown}} of {{total}}",
+    "shown_other": "Showing {{shown}} of {{total}}"
   }
 }

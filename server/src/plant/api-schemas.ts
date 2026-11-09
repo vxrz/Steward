@@ -17,6 +17,7 @@ import {
   ADDRESS_TYPES,
   COLLECTOR_KINDS,
   COLLECTION_DESTINATION_KINDS,
+  SINK_TRANSFORM_KINDS,
   COLLECTION_MODES,
   CONDUIT_DIRECTIONS,
   DESTINATION_KINDS,
@@ -24,6 +25,7 @@ import {
   DEVICE_STATES,
   LIVE_REASONS,
   LIVE_STATES,
+  DATA_QUALITY_KINDS,
   PEER_KINDS,
   STATUS_CHECK_KINDS,
   TRANSFER_MODES,
@@ -216,6 +218,14 @@ const Interface = z.object({
   ),
 });
 
+/** 0.12.0: a data point input delivered in another unit than the KPI expects. */
+const UnitMismatch = z.object({
+  point: z.string(),
+  expected: z.string().describe('UCUM code the KPI expects'),
+  actual: z.string().describe('UCUM code the asset delivers'),
+  relation: z.enum(['convertible', 'incompatible']).describe('convertible: by a pure factor (W.h and kW.h)'),
+});
+
 const AssetBrief = z.object({ id: z.string(), name: z.string(), status: z.enum(ASSET_STATUSES), siteId: z.string(), site: Place.extend({ code: z.string() }) });
 
 export const PlantProfileEntry = z.object({
@@ -230,6 +240,7 @@ export const PlantProfileEntry = z.object({
   dataPointCount: z.number().int(),
   assetCount: z.number().int().describe('Assets with this profile in sites the token owner may see'),
   extends: z.string().nullable().describe('The base profile this one extends (its interfaces and data points are inherited), or null'),
+  template: z.boolean().describe('0.12.0: a template – only for other profiles to extend; no asset has it'),
   ...source,
   updatedAt: ts(),
 });
@@ -306,7 +317,18 @@ export const PlantKpiDetailEntry = PlantKpiEntry.extend({
   strategy: z.string(),
   implementation: z.string(),
   dynamicColumns: z.boolean(),
-  inputs: z.array(z.object({ kind: z.enum(KPI_INPUT_KINDS), profile: z.string(), dataPoints: z.array(z.string()), notes: z.string() })),
+  inputs: z.array(
+    z.object({
+      kind: z.enum(KPI_INPUT_KINDS),
+      profile: z.string(),
+      dataPoints: z.array(z.string()),
+      units: z
+        .record(z.string(), z.string())
+        .optional()
+        .describe('0.12.0: the unit expected per data point (UCUM); a data point left out expects its unit in the input’s profile'),
+      notes: z.string(),
+    }),
+  ),
   parameters: z.array(KpiParameter),
   columns: z.array(KpiColumn),
   computation: z.object({
@@ -321,6 +343,10 @@ export const PlantKpiDetailEntry = PlantKpiEntry.extend({
   checks: z.array(Check),
   instances: z.array(z.object({ asset: AssetBrief, job: z.string(), active: z.boolean(), problems: z.number().int() })),
   candidates: z.array(AssetBrief).describe('Assets that deliver every input but have no instance'),
+  candidateInfo: z
+    .record(z.string(), z.object({ collected: z.boolean(), units: z.array(UnitMismatch) }))
+    .optional()
+    .describe('0.12.0, per candidate (asset id): whether a data collection maps every input already, and inputs delivered in another unit'),
   createdAt: ts(),
   createdBy: z.string(),
   updatedBy: z.string(),
@@ -382,7 +408,17 @@ export const PlantAssignmentEntry = z.object({
     }),
   ),
   checks: z.array(Check),
-  possibleKpis: z.array(z.object({ id: z.string(), name: z.string(), names, category: z.string(), instantiated: z.boolean() })),
+  possibleKpis: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      names,
+      category: z.string(),
+      instantiated: z.boolean(),
+      units: z.array(UnitMismatch).optional().describe('0.12.0: inputs the asset delivers in another unit than the KPI expects'),
+      collected: z.boolean().optional().describe('0.12.0: a data collection of the asset maps every data point input'),
+    }),
+  ),
   ...source,
   updatedAt: ts().nullable(),
   updatedBy: z.string().nullable(),
@@ -629,6 +665,22 @@ export const PlantSiteNetworkEntry = z.object({
   assets: z.array(AssetLive).describe('Every asset of the site with its live status'),
   statusCounts: z.object({ online: z.number().int(), offline: z.number().int(), unknown: z.number().int() }),
   hosts: z.array(ItemRef).describe('The Steward systems the data paths name'),
+  dataQuality: z
+    .array(
+      z.object({
+        kind: z
+          .enum(DATA_QUALITY_KINDS)
+          .describe(
+            'duplicate_address, duplicate_mac, duplicate_hostname (two devices share it), vlan_missing (a VLAN the site does not have), no_vlan, switch_case (switch names that differ only by letter case)',
+          ),
+        value: z.string().describe('The value they share, or the missing VLAN’s id (empty for no_vlan)'),
+        variants: z.array(z.string()).describe('switch_case: the spellings of the switch name, the most used first'),
+        devices: z
+          .array(z.object({ assetId: z.string(), assetName: z.string(), deviceId: z.string(), hostname: z.string() }))
+          .describe('The devices it concerns (switch_case: those not written in the most used spelling)'),
+      }),
+    )
+    .describe('What looks wrong in the documentation of the site’s devices (retired devices left out)'),
 });
 
 export const PlantAssetNetworkEntry = z.object({
@@ -661,7 +713,39 @@ const Collection = z.object({
   debounceMs: z.number().int().nullable(),
   triggers: z.array(z.object({ name: z.string(), condition: z.string(), referencePoint: z.string(), referenceValue: z.string() })),
   composition: z.string(),
-  destination: z.object({ kind: z.enum(COLLECTION_DESTINATION_KINDS), ref: z.string(), path: z.string(), notes: z.string() }).nullable(),
+  destination: z
+    .object({ kind: z.enum(COLLECTION_DESTINATION_KINDS), ref: z.string(), path: z.string(), notes: z.string() })
+    .nullable()
+    .describe('The first sink (0.11; see sinks)'),
+  sinks: z
+    .array(
+      z.object({
+        id: z.string(),
+        name: z.string(),
+        kind: z.enum(COLLECTION_DESTINATION_KINDS),
+        ref: z.string().describe('A Steward system, platform or application id, a dataset key, or text'),
+        object: z.string().describe('Where there: a topic, a table, an asset/aspect, a bucket path'),
+        format: z.string(),
+        schedule: z.string(),
+        owner: z.string(),
+        description: z.string(),
+        transforms: z
+          .array(
+            z.object({
+              kind: z.enum(SINK_TRANSFORM_KINDS),
+              field: z.string(),
+              expression: z.string().describe('Text: Steward never runs it'),
+              window: z.string(),
+              function: z.string(),
+              description: z.string(),
+            }),
+          )
+          .describe('The transformation steps on the way, in order (documentation only)'),
+        mappings: z.array(z.object({ item: z.string().describe('The item’s output name, else its address'), target: z.string(), transform: z.string() })),
+        imported: z.boolean().describe('Written by an import (the next import replaces it)'),
+      }),
+    )
+    .describe('Where the data goes (0.12)'),
   access: z
     .object({ read: z.array(z.string()), write: z.array(z.string()), create: z.array(z.string()), delete: z.array(z.string()) })
     .describe('The collector’s address patterns; write, create and delete change the machine'),
@@ -686,6 +770,7 @@ const Collection = z.object({
   collectorRef: ItemRef.nullable(),
   collectorHost: ItemRef.nullable(),
   destinationRef: ItemRef.nullable(),
+  sinkRefs: z.array(ItemRef.nullable()).describe('Per sink: the Steward item it names'),
   points: z.array(CollectionPoint.nullable()),
   coverage: z.object({
     mapped: z.number().int(),

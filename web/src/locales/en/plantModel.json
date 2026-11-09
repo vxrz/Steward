@@ -19,6 +19,19 @@
     "notPresent": "Not present on this device",
     "restore": "Restore"
   },
+  "describe": {
+    "label": "Description",
+    "add": "Add a description",
+    "edit": "Change the description",
+    "override": "Describe it here",
+    "reset": "Back to the inherited description",
+    "inherited": "Inherited from {{from}}",
+    "changedHere": "Described here",
+    "profileTitle": "Description of {{name}}",
+    "itemTitle": "Description of {{name}}",
+    "inheritedHelp": "Empty: the description inherited from {{from}}.",
+    "plainText": "Plain text."
+  },
   "notPresent": {
     "title": "Inherited, but not present",
     "interface": "Interface {{name}}",
@@ -79,6 +92,7 @@
     "duplicate": "The same data point as item {{items}}",
     "unknownAddress": "No data point of this asset has this address",
     "map": "Map",
+    "describe": "Describe",
     "addPoint": "Add as data point",
     "notCollected": "Data points no collection reads",
     "settings": "Settings",
@@ -177,5 +191,78 @@
     "nameTaken": "The asset has a collection with this name already",
     "mode": "Mode",
     "intervalMs": "Interval (ms)"
+  },
+  "template": {
+    "label": "Template – only for other profiles to extend",
+    "help": "A template is no device of its own: no asset can have it. Profiles that extend it can (a template is not inherited).",
+    "badge": "Template",
+    "badgeHelp": "Only for other profiles to extend – no asset can have this profile.",
+    "filter": "Kind",
+    "filterTemplates": "Templates",
+    "filterDevices": "Device profiles (no template)"
+  },
+  "units": {
+    "label": "Expected units",
+    "help": "The unit the computation expects per data point. Left empty: the unit the data point has in the profile. An asset that delivers another unit is flagged.",
+    "fromProfile": "{{unit}} (from the profile)",
+    "none": "No unit in the profile",
+    "differ_one": "{{count}} unit differs",
+    "differ_other": "{{count}} units differ",
+    "line": "{{point}}: expects {{expected}}, delivers {{actual}} – not convertible by a factor",
+    "lineConvertible": "{{point}}: expects {{expected}}, delivers {{actual}} – convertible by a factor"
+  },
+  "potential": {
+    "ready": "Collected – ready",
+    "collect": "Not collected",
+    "readyHelp": "A data collection of the asset maps every data point the KPI reads: a job can start.",
+    "collectHelp": "The device delivers every input, but no data collection of the asset maps all of them yet."
+  },
+  "extract": {
+    "button": "Extract base profile",
+    "buttonProfile": "Extract a base profile",
+    "title": "Extract a base profile",
+    "help": "The data points that two or more profiles share become a new base profile that each of them extends. Ids that differ are renamed to the base’s (the old id still leads there; assets, KPI definitions and data collections follow), fields that differ stay as each profile’s overrides – no asset changes.",
+    "profiles": "Profiles",
+    "profilesHelp": "Two or more, none that extends another already",
+    "leading": "Leading profile",
+    "leadingHelp": "The base takes the name, data type, unit and description of its data points",
+    "points": "Shared data points",
+    "pointsHelp": "Suggested by the same id, a known-as name and the name (same unit preferred). Change a match where it is wrong; a data point that one profile lacks cannot be shared.",
+    "all": "All data points",
+    "include": "Share {{point}}",
+    "baseId": "Id in the base",
+    "baseIdOf": "Id of {{point}} in the base",
+    "matchIn": "{{point}} in {{profile}}",
+    "noMatch": "No match",
+    "by": {
+      "id": "same id",
+      "known_as": "known as",
+      "name": "same name",
+      "unit": "same unit"
+    },
+    "name": "Name of the base profile",
+    "templateHelp": "On: no asset can have the base – only the profiles that extend it.",
+    "preview": "Preview",
+    "apply": "Extract base profile",
+    "refusedPoints_one": "{{count}} data point cannot go into the base – leave it out or change the profiles first.",
+    "refusedPoints_other": "{{count}} data points cannot go into the base – leave them out or change the profiles first.",
+    "ok": "The base gets {{points}} data points on {{interfaces}} interfaces. Every asset’s data points stay as they are.",
+    "summary": "{{renames}} ids renamed · {{overrides}} data points differ from the base · keeps {{interfaces}} own interfaces and {{points}} own data points · {{assets}} assets (unchanged)",
+    "differs": "Overrides: {{list}}",
+    "problems": {
+      "missing": "{{profile}} has no data point {{point}}.",
+      "twice": "{{point}} is matched twice.",
+      "protocol": "{{point}} of {{profile}} is on a {{protocol}} interface, in the leading profile on {{leading}} – a base holds one protocol per interface.",
+      "group": "{{point}} of {{profile}} is in group “{{group}}”, in the leading profile in “{{leading}}” – rename the group first.",
+      "interface": "{{point}} of {{profile}} is on interface {{interface}}, which other shared data points place elsewhere.",
+      "id_taken": "{{point}} of {{profile}} cannot get the id {{id}}: it is taken.",
+      "profile_unknown": "There is no device profile {{profile}}.",
+      "has_base": "{{profile}} extends {{base}} already – only profiles without a base can get a new one.",
+      "not_enough": "Choose two or more device profiles.",
+      "leading": "The leading profile is one of the chosen profiles.",
+      "no_points": "Choose at least one data point every profile can share.",
+      "base_taken": "A device profile with the id {{id}} exists already.",
+      "rules": "The result breaks a rule of device profiles: {{message}}"
+    }
   }
 }

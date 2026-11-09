@@ -1134,6 +1134,13 @@
             }
           ]
         },
+        "template": {
+          "description": "0.12.0: a template – only for other profiles to extend; no asset may have it (an assignment naming it is refused)",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
         "manufacturer": {
           "anyOf": [
             {
@@ -1187,6 +1194,7 @@
           ]
         },
         "description": {
+          "description": "Plain text. A profile that extends another inherits its base’s description while it has none (0.12.0)",
           "anyOf": [
             {
               "type": "string",
@@ -1352,6 +1360,7 @@
                 "maxLength": 200
               },
               "description": {
+                "description": "Plain text. An inherited group’s entry describes it anew (0.12.0); left out or empty: the inherited description",
                 "anyOf": [
                   {
                     "type": "string",
@@ -1945,6 +1954,25 @@
                   "type": "string",
                   "pattern": "^[A-Za-z0-9_][A-Za-z0-9._-]{0,119}$",
                   "description": "Id of a data point, interface, parameter or column: letters, digits, \".\", \"_\" and \"-\""
+                }
+              },
+              "units": {
+                "description": "0.12.0: the unit the computation expects per data point (UCUM code, usual spellings such as kWh are read as their code); a data point left out expects its unit in the input’s profile",
+                "maxProperties": 500,
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 40
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 }
               },
               "notes": {
@@ -3420,13 +3448,29 @@
           "items": {
             "$ref": "#/$defs/DataPath"
           }
+        },
+        "collections": {
+          "description": "0.12: its data collections (added and changed, never removed by an import)",
+          "maxItems": 200,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DataCollection"
+          }
+        },
+        "collection_sinks": {
+          "description": "0.12: the sinks of its data collections (stored ones, or ones in `collections`)",
+          "maxItems": 200,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CollectionSinks"
+          }
         }
       },
       "required": [
         "asset"
       ],
       "additionalProperties": false,
-      "description": "The OT network of an asset: its devices, data paths and live-status checks"
+      "description": "The OT network of an asset: its devices, data paths and live-status checks, and where its collected data goes"
     },
     "StatusCheck": {
       "type": "object",
@@ -3975,6 +4019,665 @@
       ],
       "additionalProperties": false,
       "description": "What data leaves an asset, who collects it, how it is transferred and where it ends up"
+    },
+    "DataCollection": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$",
+          "description": "Stable id: lower-case letters, digits, \".\", \"_\" and \"-\"; never changes"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "collector": {
+          "description": "Who reads: required for a new collection",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "application",
+                "platform",
+                "process",
+                "job"
+              ],
+              "description": "application, platform, process (a Steward item) or job (elsewhere, by name)"
+            },
+            "ref": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "description": "Its id (the name of a job)"
+            },
+            "host": {
+              "description": "The Steward system it runs on",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 100
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "ref"
+          ],
+          "additionalProperties": false
+        },
+        "data_path": {
+          "description": "A data path of the asset it belongs to",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$",
+              "description": "Stable id: lower-case letters, digits, \".\", \"_\" and \"-\"; never changes"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "interface": {
+          "description": "The interface of the asset’s model it reads (empty: unknown)",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 120
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "mode": {
+          "description": "interval (default), on_change, trigger or other",
+          "type": "string",
+          "enum": [
+            "interval",
+            "on_change",
+            "trigger",
+            "other"
+          ]
+        },
+        "interval_ms": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2678400000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "debounce_ms": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2678400000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "triggers": {
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "condition": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "reference_point": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 500
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "reference_value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "composition": {
+          "description": "How the triggers combine, or how the values are composed",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 2000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "access": {
+          "description": "What the collector may do on the machine, as address patterns; write, create and delete can change it",
+          "type": "object",
+          "properties": {
+            "read": {
+              "maxItems": 500,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              }
+            },
+            "write": {
+              "maxItems": 500,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              }
+            },
+            "create": {
+              "maxItems": 500,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              }
+            },
+            "delete": {
+              "maxItems": 500,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "settings": {
+          "description": "Other settings of the collector (buffering, events) – never credentials",
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "key"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "items": {
+          "description": "What it reads; the list replaces the stored one",
+          "maxItems": 5000,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CollectionItem"
+          }
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 4000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "notes": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 8000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "additionalProperties": false,
+      "description": "What a collector (a gateway, an ETL job, a flow) reads from the asset (0.12); its sinks are in collection_sinks"
+    },
+    "CollectionItem": {
+      "type": "object",
+      "properties": {
+        "address": {
+          "description": "The address the collector reads (an OPC UA NodeId, a register, a variable path)",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 500
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "output_name": {
+          "description": "The collector’s name for the value (a gateway’s variable name)",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 200
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "output_type": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 60
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "data_point": {
+          "description": "The data point of the asset’s model it is (of its profile or its additions); empty: raw, not mapped",
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "transform": {
+          "type": "object",
+          "properties": {
+            "note": {
+              "description": "Rename, conversion, scaling, an expression – text, never run",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 2000
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "scale": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "offset": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "cast": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 40
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 4000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "notes": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 2000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "description": "A value a collector reads: its address, its name there and the data point it is"
+    },
+    "CollectionSinks": {
+      "type": "object",
+      "properties": {
+        "collection": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$",
+          "description": "A data collection of the asset (stored, or in `collections` of the file)"
+        },
+        "sinks": {
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Sink"
+          },
+          "description": "All its sinks: the list replaces the stored one"
+        }
+      },
+      "required": [
+        "collection",
+        "sinks"
+      ],
+      "additionalProperties": false,
+      "description": "The sinks of one data collection of the asset"
+    },
+    "Sink": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$",
+          "description": "Stable id: lower-case letters, digits, \".\", \"_\" and \"-\"; never changes"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "kind": {
+          "description": "system, platform, application, dataset, publication or other (default)",
+          "type": "string",
+          "enum": [
+            "system",
+            "dataset",
+            "publication",
+            "other",
+            "platform",
+            "application"
+          ]
+        },
+        "ref": {
+          "description": "A Steward system, platform or application id, a dataset key, or text",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 200
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "object": {
+          "description": "Where there: a topic, a table, an asset/aspect, a bucket path",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 500
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "format": {
+          "description": "Message format or protocol",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 200
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "schedule": {
+          "description": "When it is written: schedule, batching",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 2000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "owner": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 200
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 8000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "transforms": {
+          "description": "The transformation steps on the way, in order (documentation only)",
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "rename",
+                  "scale",
+                  "unit",
+                  "aggregate",
+                  "filter",
+                  "enrich",
+                  "compute",
+                  "format",
+                  "other"
+                ]
+              },
+              "field": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "expression": {
+                "description": "A new name, a factor, a condition, an expression or code – text, never run",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 8000
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "window": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "function": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "description": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "mappings": {
+          "description": "The name of an item in the sink, and a transformation for it only",
+          "maxItems": 5000,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "item": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500,
+                "description": "The item’s output name, else its address"
+              },
+              "target": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 500
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "transform": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "item"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "additionalProperties": false,
+      "description": "Where a data collection’s data goes after it is loaded (and perhaps transformed)"
     },
     "Removal": {
       "type": "object",

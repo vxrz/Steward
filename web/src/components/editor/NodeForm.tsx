@@ -119,7 +119,6 @@ export function NodeForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [node.id, node.type],
   );
-  const [advanced, setAdvanced] = useState<string | null>(null);
   const fieldOf = (f: (typeof fields)[number]) => (
     <Fragment key={f.key}>
       {!(node.type === 'subprocess' && (f.key === 'inputs' || f.key === 'connections')) && !(node.type === 'query' && f.key === 'sql') && (
@@ -173,6 +172,23 @@ export function NodeForm({
   const shown = fields.filter((f) => !hidden.has(f.key));
   const basicFields = shown.filter((f) => basicKeys.has(f.key));
   const advancedFields = shown.filter((f) => !basicKeys.has(f.key));
+  // how many settings under Advanced are set (shown while it is folded): it opens with the step when there are any
+  const isSet = (v: unknown) => v !== undefined && v !== '' && v !== null;
+  const advancedSet =
+    advancedFields.filter((f) => isSet(rec[f.key])).length + (executable ? commonFields.filter((f) => isSet(rec[f.key])).length + (node.retry ? 1 : 0) : 0);
+  const [advanced, setAdvanced] = useState<string | null>(() => (advancedSet > 0 ? 'advanced' : null));
+  const [advancedFor, setAdvancedFor] = useState(node.id);
+  if (advancedFor !== node.id) {
+    setAdvancedFor(node.id);
+    setAdvanced(advancedSet > 0 ? 'advanced' : null);
+  }
+  // an invalid node id (under Advanced) opens it
+  const idProblem = idDraft !== node.id && !!idError;
+  const [idProblemShown, setIdProblemShown] = useState(idProblem);
+  if (idProblem !== idProblemShown) {
+    setIdProblemShown(idProblem);
+    if (idProblem) setAdvanced('advanced');
+  }
   const idInput = (
     <TextInput
       label={t('form.nodeId')}
@@ -229,9 +245,16 @@ export function NodeForm({
           <Accordion variant="contained" chevronPosition="left" value={advanced} onChange={setAdvanced} data-testid="node-advanced">
             <Accordion.Item value="advanced">
               <Accordion.Control>
-                <Text size="sm" fw={500}>
-                  {t('form.advanced')}
-                </Text>
+                <Group gap={6}>
+                  <Text size="sm" fw={500}>
+                    {t('form.advanced')}
+                  </Text>
+                  {advancedSet > 0 && (
+                    <Badge size="sm" variant="default" tt="none" data-testid="node-advanced-set">
+                      {t('form.advancedSet', { count: advancedSet })}
+                    </Badge>
+                  )}
+                </Group>
                 <Text size="xs" c="dimmed">
                   {t('form.advancedHint')}
                 </Text>

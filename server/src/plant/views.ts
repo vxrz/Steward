@@ -6,7 +6,9 @@ import {
   type PlantCheck,
   type PlantCoverage,
   type PlantCoverageCell,
+  type PlantCoverageGroup,
   type PlantCoverageRow,
+  type PlantKpiPotential,
   type PlantCoverageState,
   type PlantFlowEdge,
   type PlantFlowGraph,
@@ -34,28 +36,30 @@ import { assetBuilding, loadAllIndexes, loadIndex, type AssetRow, type SiteRow }
 import { visibleAsset, visibleSite } from './service.js';
 import { briefOf, kpiNotFound, pointNotFound, profileNotFound } from './catalogue.js';
 import { allAssignments, allKpis, allProfiles, assignmentRowOf, assignmentValuesOf, pointsOf, profileRowOf, resolvedProfile } from './data-model.js';
-import { assignmentChecks, deliveries, inputGaps } from './checks.js';
+import { assignmentChecks, deliveries, inputGaps, unitMismatches } from './checks.js';
+import { collectedPoints, isCollected } from './potential.js';
 import { assetModel, isOrExtends } from './resolve.js';
 import { collectionRows, collectionValuesOf, collectorKey } from './collections-model.js';
 import type { PlantCollectionValues } from '@sm/shared';
 
-/** A collection's destination as a node of a flow (a dataset, else a target); null: none documented. */
-function destinationNode(g: GraphBuilder, c: PlantCollectionValues): string | null {
-  const d = c.destination;
-  if (!d) return null;
-  if (d.kind === 'dataset') {
-    const id = g.node({ id: `ds:${d.ref}`, kind: 'dataset', label: d.ref, detail: '', path: null, live: datasetLive(d.ref) });
-    g.nodes.get(id)!.path = g.nodes.get(id)!.live?.path ?? null;
-    return id;
-  }
-  const label = d.kind === 'system' ? (resolveTarget('system', d.ref)?.label ?? '') : d.ref;
-  return g.node({
-    id: `tgt:${norm(`${d.kind}:${d.ref}`)}`,
-    kind: 'target',
-    label: label || '–',
-    detail: d.path,
-    path: null,
-    hidden: d.kind === 'system' && !label,
+/** A collection's sinks (0.12; the destination of 0.11 is the first) as nodes of a flow: a dataset, else a target. */
+function destinationNodes(g: GraphBuilder, c: PlantCollectionValues): string[] {
+  return c.sinks.map((d) => {
+    if (d.kind === 'dataset') {
+      const id = g.node({ id: `ds:${d.ref}`, kind: 'dataset', label: d.ref, detail: '', path: null, live: datasetLive(d.ref) });
+      g.nodes.get(id)!.path = g.nodes.get(id)!.live?.path ?? null;
+      return id;
+    }
+    const item = d.kind === 'system' || d.kind === 'platform' || d.kind === 'application';
+    const label = item ? (resolveTarget(d.kind, d.ref)?.label ?? '') : d.ref || d.name;
+    return g.node({
+      id: `tgt:${norm(`${d.kind}:${d.ref || d.name}`)}`,
+      kind: 'target',
+      label: label || '–',
+      detail: d.object,
+      path: null,
+      hidden: item && !label,
+    });
   });
 }
 
@@ -281,6 +285,12 @@ const planOf = (def: PlantKpiValues): KpiPlan => {
   return { def, data: inputs.length > 0, profiles: new Set(inputs.map((i) => i.profile).filter(Boolean)) };
 };
 
+/** What a cell reads besides the asset (0.12.0): every profile resolved, the data points its collections map. */
+interface CellContext {
+  profiles: Map<string, PlantResolvedProfile>;
+  collected: Set<string> | undefined;
+}
+
 /** The cell of one asset and one KPI definition; `checks` are the asset's checks (assignmentChecks). */
 function cellOf(
   plan: KpiPlan,
@@ -288,6 +298,7 @@ function cellOf(
   profile: PlantResolvedProfile | undefined,
   checks: PlantCheck[],
   details: boolean,
+  ctx: CellContext,
 ): PlantCoverageCell {
   const { def } = plan;
   const mine = a?.kpis.filter((k) => k.kpi === def.id) ?? [];
@@ -306,11 +317,22 @@ function cellOf(
   // a KPI of another profile: no need to look at every data point (the common case on a large site)
   if ([...plan.profiles].some((p) => !isOrExtends(profile, p)) && !details) return { state: 'cannot' };
   const gaps = inputGaps(def, a, profile);
-  if (!gaps.length) return { state: 'could' };
+  if (!gaps.length) {
+    // 0.12.0: KPI potential – collected already, or the device delivers and a collection is missing; a unit that differs
+    // is shown (the asset still could have the KPI: its job converts, or the input's unit is corrected)
+    const units = details ? unitMismatches(def, a, profile, ctx.profiles) : [];
+    return { state: 'could', collected: isCollected(def, ctx.collected), ...(units.length ? { units } : {}) };
+  }
   return { state: 'cannot', ...(details ? { gaps: gaps.map((g) => ({ code: g.code, params: g.params })) } : {}) };
 }
 
 const emptyTotals = (): Record<PlantCoverageState, number> => ({ has: 0, problem: 0, could: 0, cannot: 0, unchecked: 0 });
+
+/** Counts a cell into totals and KPI potential (0.12.0). */
+function count(into: { totals: Record<PlantCoverageState, number>; potential: PlantKpiPotential }, c: PlantCoverageCell): void {
+  into.totals[c.state]++;
+  if (c.state === 'could') into.potential[c.collected ? 'ready' : 'collect']++;
+}
 
 // ---------- 4. the coverage matrix ----------
 
@@ -348,16 +370,27 @@ export function coverage(f: CoverageFilter): PlantCoverage {
   const siteName = (id: string) => v.sites.get(id)?.name ?? '';
   assets = [...assets].sort((a, b) => siteName(a.site_id).localeCompare(siteName(b.site_id)) || (a.site_id < b.site_id ? -1 : a.site_id > b.site_id ? 1 : 0));
   const maxRows = Math.min(PLANT_VIEW_LIMITS.coverageRows, Math.floor(PLANT_VIEW_LIMITS.coverageCells / Math.max(1, plans.length)));
-  const totals = emptyTotals();
+  const all = { totals: emptyTotals(), potential: { ready: 0, collect: 0 } };
   const rows: PlantCoverageRow[] = [];
+  const collected = collectedPoints(new Set(assets.map((a) => a.id)));
+  // 0.12.0: totals per site (area null) and per area of a site
+  const groups = new Map<string, PlantCoverageGroup>();
+  const groupOf = (siteId: string, areaId: string | null) => {
+    const key = `${siteId}\u0000${areaId ?? ''}`;
+    let g = groups.get(key);
+    if (!g) groups.set(key, (g = { siteId, areaId, assets: 0, totals: emptyTotals(), potential: { ready: 0, collect: 0 } }));
+    return g;
+  };
   for (const asset of assets) {
     const a = assignments.get(asset.id);
     const profile = a?.profileId ? profiles.get(a.profileId) : undefined;
     const site = v.sites.get(asset.site_id)!;
     const checks = a ? assignmentChecks({ kind: 'asset', id: asset.id, name: asset.name, siteId: asset.site_id }, a, profiles, kpiMap) : [];
     const details = rows.length < maxRows;
-    const cells = plans.map((p) => cellOf(p, a, profile, checks, details));
-    for (const c of cells) totals[c.state]++;
+    const cells = plans.map((p) => cellOf(p, a, profile, checks, details, { profiles, collected: collected.get(asset.id) }));
+    const into = [all, groupOf(asset.site_id, null), ...(asset.area_id ? [groupOf(asset.site_id, asset.area_id)] : [])];
+    for (const g of into.slice(1)) (g as PlantCoverageGroup).assets++;
+    for (const c of cells) for (const g of into) count(g, c);
     if (!details) continue;
     const area = asset.area_id ? indexes.get(asset.site_id)?.nodes.get(asset.area_id) : undefined;
     rows.push({
@@ -371,7 +404,9 @@ export function coverage(f: CoverageFilter): PlantCoverage {
   return {
     kpis: defs.map((d) => ({ id: d.id, name: d.name, names: d.names, category: d.category })),
     rows,
-    totals,
+    totals: all.totals,
+    potential: all.potential,
+    groups: [...groups.values()],
     total: assets.length,
     truncated: assets.length > rows.length,
     options: {
@@ -396,8 +431,12 @@ export function overview(): PlantSiteTile[] {
   const plans = [...kpiMap.values()].map(planOf);
   const assignments = allAssignments();
   const monitors = assetMonitors(new Set(v.assets.map((a) => a.id)));
+  const collected = collectedPoints(new Set(v.assets.map((a) => a.id)));
   const tiles = new Map<string, PlantSiteTile>(
-    [...v.sites.keys()].map((id) => [id, { siteId: id, counts: {}, total: 0, coverage: emptyTotals(), checks: 0, live: {} }]),
+    [...v.sites.keys()].map((id) => [
+      id,
+      { siteId: id, counts: {}, total: 0, coverage: emptyTotals(), potential: { ready: 0, collect: 0 }, checks: 0, live: {} },
+    ]),
   );
   for (const asset of v.assets) {
     const t = tiles.get(asset.site_id)!;
@@ -409,7 +448,11 @@ export function overview(): PlantSiteTile[] {
     const profile = a?.profileId ? profiles.get(a.profileId) : undefined;
     const checks = a ? assignmentChecks({ kind: 'asset', id: asset.id, name: asset.name, siteId: asset.site_id }, a, profiles, kpiMap) : [];
     t.checks += checks.length;
-    for (const p of plans) t.coverage[cellOf(p, a, profile, checks, false).state]++;
+    for (const p of plans) {
+      const c = cellOf(p, a, profile, checks, false, { profiles, collected: collected.get(asset.id) });
+      t.coverage[c.state]++;
+      if (c.state === 'could') t.potential[c.collected ? 'ready' : 'collect']++;
+    }
   }
   return [...tiles.values()];
 }
@@ -577,12 +620,12 @@ export function assetFlow(assetId: string): PlantFlowGraph {
           const cId = collectorNode(g, c, c.name);
           if (!path.nodes.includes(cId)) path.nodes.push(cId);
           path.edges.push(g.edge(ifId, cId, point.id));
-          const dId = destinationNode(g, c);
-          if (dId) {
+          const dIds = destinationNodes(g, c);
+          for (const dId of dIds) {
             if (!path.nodes.includes(dId)) path.nodes.push(dId);
             path.edges.push(g.edge(cId, dId, point.id));
           }
-          last.push(dId ?? cId);
+          last.push(...(dIds.length ? dIds : [cId]));
         }
         if (!pubs.length) {
           if (!last.length) last.push(client ? collector(client) : ifId);
@@ -731,9 +774,9 @@ export function pointLineage(profileId: string, pointId: string): PlantFlowGraph
         .filter((x) => x.items.some((i) => i.dataPoint === pointId))) {
         const cId = collectorNode(g, c, '');
         add(cId, g.edge(holder, cId, asset.id));
-        const dId = destinationNode(g, c);
-        if (dId) add(dId, g.edge(cId, dId, asset.id));
-        last.push(dId ?? cId);
+        const dIds = destinationNodes(g, c);
+        for (const dId of dIds) add(dId, g.edge(cId, dId, asset.id));
+        last.push(...(dIds.length ? dIds : [cId]));
       }
     if (d.delivers)
       for (const p of a.publications.filter((x) => x.dataPoint === pointId)) {

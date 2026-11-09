@@ -11,6 +11,7 @@ import { useMe } from '../auth';
 import { EmptyState, PageHeader, QueryState, TONE } from '../components/common';
 import { fmtDate, fmtRelative } from '../format';
 import { CatalogueProposalReview, MappingsProposalReview } from '../components/mcp/ProposalReview';
+import { PlantProposalReview } from '../components/mcp/PlantProposalReview';
 
 const STATUS_COLOR: Record<McpRequest['status'], string> = {
   pending: TONE.attention,
@@ -35,9 +36,11 @@ const what = (r: McpRequest) =>
     ? `${r.proposalSummary.key} – ${r.proposalSummary.name}`
     : r.proposalSummary?.type === 'mappings'
       ? `${r.proposalSummary.catalogueKey} · ${r.proposalSummary.mappings} ↔`
-      : r.kind === 'gateway'
-        ? `${r.method} ${r.path}`
-        : (r.processName ?? r.processId ?? '');
+      : r.proposalSummary?.type === 'plant'
+        ? r.proposalSummary.title
+        : r.kind === 'gateway'
+          ? `${r.method} ${r.path}`
+          : (r.processName ?? r.processId ?? '');
 
 /** AI requests (#11): changing calls and runs that MCP clients asked for, waiting for a person. */
 export function McpRequestsPage() {
@@ -175,6 +178,7 @@ export function McpRequestDetailPage() {
         </Paper>
         {r.proposal?.type === 'catalogue' && <CatalogueProposalReview p={r.proposal} editable={r.canApprove} onChange={onSelection} />}
         {r.proposal?.type === 'mappings' && <MappingsProposalReview p={r.proposal} editable={r.canApprove} onChange={onSelection} />}
+        {r.proposal?.type === 'plant' && <PlantProposalReview p={r.proposal} editable={r.canApprove} onChange={onSelection} />}
         {!r.proposal && (
           <Paper withBorder p="sm">
             {r.kind === 'gateway' ? (
@@ -256,7 +260,9 @@ export function McpRequestDetailPage() {
               <Text size="sm" mt={4}>
                 {r.proposal.type === 'catalogue'
                   ? t('proposals.resultCatalogue', r.resultBody as Record<string, number>)
-                  : t('proposals.resultMappings', r.resultBody as Record<string, number>)}
+                  : r.proposal.type === 'plant'
+                    ? t('plantProposal.result', r.resultBody as Record<string, number>)
+                    : t('proposals.resultMappings', r.resultBody as Record<string, number>)}
               </Text>
             )}
             {r.runId && (

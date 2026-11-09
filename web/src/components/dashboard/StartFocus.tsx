@@ -9,6 +9,7 @@ import { get } from '../../api';
 import { useMe } from '../../auth';
 import { fmtNumber, fmtRelative } from '../../format';
 import { dashboardKeys } from '../../queryKeys';
+import { CollapsibleSection } from '../page/CollapsibleSection';
 
 /** What the start page focuses on: operations (admins, designers, operators), compliance (auditors) or the viewer's dashboards. */
 export type StartFocus = 'operations' | 'compliance' | 'viewer';
@@ -76,10 +77,18 @@ export function ComplianceCard() {
   const submitted = (reviews.data ?? []).filter((r) => r.status === 'submitted').length;
   const ready = (packs.data ?? []).filter((p) => p.status === 'ready').length;
   return (
-    <Card withBorder component="section" aria-labelledby="start-compliance" data-testid="start-compliance">
-      <Title order={5} mb="xs" id="start-compliance">
-        {t('focus.compliance.title')}
-      </Title>
+    // folds like the failed checks (remembered per user); new reviews to do open it again
+    <CollapsibleSection
+      id="start-compliance"
+      testId="start-compliance"
+      variant="card"
+      size="h5"
+      title={t('focus.compliance.title')}
+      count={open + submitted || undefined}
+      remember="section.dashboard.start-compliance"
+      // one id per review to do: more of them than when it was folded open it again
+      alertKey={reviews.data ? Array.from({ length: open + submitted }, (_, i) => `review-${i + 1}`).join(',') : undefined}
+    >
       <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="xs">
         <Entry
           icon={IconClipboardCheck}
@@ -97,7 +106,7 @@ export function ComplianceCard() {
         <Entry icon={IconShieldCheck} to="/compliance/controls" label={t('focus.compliance.controls')} detail={t('focus.compliance.controlsText')} />
         {caps.viewAudit && <Entry icon={IconListCheck} to="/audit" label={t('focus.compliance.audit')} detail={t('focus.compliance.auditText')} />}
       </SimpleGrid>
-    </Card>
+    </CollapsibleSection>
   );
 }
 

@@ -16,6 +16,7 @@ import type {
   PlantProfileSummary,
   PlantPublication,
 } from '@sm/shared';
+import { CollectedBadge, UnitsBadge } from './potential';
 import { del, get, notifyError, put } from '../../api';
 import { EmptyState, QueryState } from '../common';
 import { confirmDanger } from '../confirm';
@@ -34,6 +35,7 @@ import {
   PublicationModal,
 } from './dataForms';
 import { placePoint } from './profileEdit';
+import { CollapsibleSection } from '../page/CollapsibleSection';
 
 const EMPTY: PlantAssignmentValues = {
   profileId: null,
@@ -57,36 +59,47 @@ type Dialog =
 
 const putAt = <T,>(list: T[], index: number | null, item: T) => (index === null ? [...list, item] : list.map((x, i) => (i === index ? item : x)));
 
+/**
+ * One part of the asset's data (0.12: folds, this page view): its count and status in the header, open while it has
+ * entries (interfaces: at most three, as on the profile) or something needs attention.
+ */
 function Part({
   title,
   help,
   action,
   children,
   testId,
+  count,
+  summary,
+  tone,
+  defaultOpen = true,
 }: {
   title: string;
   help?: string;
   action?: React.ReactNode;
   children: React.ReactNode;
-  testId?: string;
+  testId: string;
+  count?: number;
+  summary?: React.ReactNode;
+  tone?: 'error' | 'warning';
+  defaultOpen?: boolean;
 }) {
   return (
-    <Stack gap={6} data-testid={testId}>
-      <Group justify="space-between" wrap="nowrap" align="flex-start" gap="xs">
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <Text size="sm" fw={600}>
-            {title}
-          </Text>
-          {help && (
-            <Text size="xs" c="dimmed">
-              {help}
-            </Text>
-          )}
-        </div>
-        {action}
-      </Group>
-      {children}
-    </Stack>
+    <CollapsibleSection
+      id={testId}
+      testId={testId}
+      order={3}
+      size="h6"
+      title={title}
+      description={help}
+      actions={action}
+      count={count}
+      summary={summary}
+      tone={tone}
+      defaultOpen={defaultOpen}
+    >
+      <Stack gap={6}>{children}</Stack>
+    </CollapsibleSection>
   );
 }
 
@@ -198,6 +211,9 @@ export function AssetDataSection({ assetId }: { assetId: string }) {
     );
   const kpiAt = (k: PlantKpiInstance) => v.kpis.find((x) => x.job === k.job);
   const problemsOf = (job: string) => v.checks.filter((c) => c.job === job).length;
+  const active = model.filter((i) => a.interfaces.some((x) => x.interface === i.id && x.active)).length;
+  const notSetUp = model.filter((i) => !a.interfaces.some((x) => x.interface === i.id)).length;
+  const notDelivered = a.overrides.filter((o) => !o.available).length;
   return (
     <Stack gap="sm" data-testid="asset-data">
       <Group justify="space-between" wrap="nowrap" align="flex-start" gap="xs">
@@ -283,6 +299,23 @@ export function AssetDataSection({ assetId }: { assetId: string }) {
                 help={t('assignment.interfacesHelp')}
                 action={add(t('plantModel:additions.addInterface'), { kind: 'addInterface' }, 'add-asset-interface')}
                 testId="assignment-interfaces"
+                count={model.length}
+                defaultOpen={model.length <= 3 || notSetUp > 0}
+                tone={notSetUp > 0 ? 'warning' : undefined}
+                summary={
+                  <>
+                    {active > 0 && (
+                      <Badge size="xs" color="green" variant="light">
+                        {t('assignment.activeCount', { count: active })}
+                      </Badge>
+                    )}
+                    {notSetUp > 0 && (
+                      <Badge size="xs" color="orange" variant="light">
+                        {t('assignment.notSetUpCount', { count: notSetUp })}
+                      </Badge>
+                    )}
+                  </>
+                }
               >
                 <Stack gap={6}>
                   {model.map((iface) => {
@@ -310,6 +343,11 @@ export function AssetDataSection({ assetId }: { assetId: string }) {
                               </Badge>
                             )}
                           </Group>
+                          {addedIface(iface.id) && iface.description && (
+                            <Text size="xs" style={{ whiteSpace: 'pre-line', overflowWrap: 'anywhere' }}>
+                              {iface.description}
+                            </Text>
+                          )}
                           {set?.endpoint && (
                             <Text size="xs" className="mono code-wrap">
                               <Breakable text={set.endpoint} />
@@ -349,7 +387,7 @@ export function AssetDataSection({ assetId }: { assetId: string }) {
               </Part>
             )}
             {addedPoints.length > 0 && (
-              <Part title={t('plantModel:additions.title')} help={t('plantModel:additions.help')} testId="assignment-additions">
+              <Part title={t('plantModel:additions.title')} help={t('plantModel:additions.help')} testId="assignment-additions" count={addedPoints.length}>
                 <Stack gap={4}>
                   {addedPoints.map(({ iface, group, point }) => (
                     <Group key={point.id} justify="space-between" wrap="nowrap" gap="xs" data-testid={`added-point-${point.id}`}>
@@ -365,6 +403,11 @@ export function AssetDataSection({ assetId }: { assetId: string }) {
                         <Text size="xs" c="dimmed" style={{ overflowWrap: 'anywhere' }}>
                           {[iface.name || iface.id, group, point.address, point.dataType].filter(Boolean).join(' · ')}
                         </Text>
+                        {point.description && (
+                          <Text size="xs" style={{ whiteSpace: 'pre-line', overflowWrap: 'anywhere' }}>
+                            {point.description}
+                          </Text>
+                        )}
                       </Stack>
                       {canManage && (
                         <RowMenu
@@ -384,6 +427,16 @@ export function AssetDataSection({ assetId }: { assetId: string }) {
                 help={t('assignment.overridesHelp')}
                 action={add(t('assignment.addOverride'), { kind: 'override', index: null })}
                 testId="assignment-overrides"
+                count={a.overrides.length}
+                defaultOpen={a.overrides.length > 0}
+                tone={notDelivered > 0 ? 'warning' : undefined}
+                summary={
+                  notDelivered > 0 && (
+                    <Badge size="xs" color="orange" variant="light">
+                      {t('assignment.notDeliveredCount', { count: notDelivered })}
+                    </Badge>
+                  )
+                }
               >
                 {a.overrides.length === 0 ? (
                   <Text size="sm" c="dimmed">
@@ -438,6 +491,8 @@ export function AssetDataSection({ assetId }: { assetId: string }) {
                 help={t('assignment.publicationsHelp')}
                 action={add(t('assignment.addPublication'), { kind: 'publication', index: null })}
                 testId="assignment-publications"
+                count={a.publications.length}
+                defaultOpen={a.publications.length > 0}
               >
                 {a.publications.length === 0 ? (
                   <Text size="sm" c="dimmed">
@@ -514,6 +569,10 @@ export function AssetDataSection({ assetId }: { assetId: string }) {
               help={t('assignment.kpisHelp')}
               action={add(t('assignment.addKpi'), { kind: 'kpi', index: null }, 'add-kpi-instance')}
               testId="assignment-kpis"
+              count={a.kpis.length}
+              defaultOpen={a.kpis.length > 0}
+              // KPI instances with problems open the part
+              tone={a.kpis.some((k) => problemsOf(k.job) > 0) ? 'error' : undefined}
             >
               {a.kpis.length === 0 ? (
                 <Text size="sm" c="dimmed">
@@ -585,7 +644,13 @@ export function AssetDataSection({ assetId }: { assetId: string }) {
                 </Stack>
               )}
             </Part>
-            <Part title={t('assignment.possible')} help={t('assignment.possibleHelp')} testId="assignment-possible">
+            <Part
+              title={t('assignment.possible')}
+              help={t('assignment.possibleHelp')}
+              testId="assignment-possible"
+              count={v.possibleKpis.length}
+              defaultOpen={v.possibleKpis.some((k) => !k.instantiated)}
+            >
               {v.possibleKpis.length === 0 ? (
                 <Text size="sm" c="dimmed">
                   {profile ? t('explore.nonePossible') : t('explore.nonePossibleNoProfile')}
@@ -597,6 +662,8 @@ export function AssetDataSection({ assetId }: { assetId: string }) {
                       <Anchor component={Link} to={`/plant/kpis/${encodeURIComponent(k.id)}`} size="sm">
                         {nameOf(k)}
                       </Anchor>
+                      {!k.instantiated && k.collected !== undefined && <CollectedBadge collected={k.collected} />}
+                      <UnitsBadge units={k.units} />
                       {k.instantiated ? (
                         <Badge size="xs" variant="light" color="green">
                           {t('explore.instantiated')}

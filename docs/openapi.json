@@ -18447,6 +18447,7 @@
               "kpi_point_unknown",
               "kpi_point_unavailable",
               "kpi_interface_inactive",
+              "kpi_unit_mismatch",
               "param_unknown",
               "param_type",
               "param_range",
@@ -20687,6 +20688,10 @@
             ],
             "description": "The base profile this one extends (its interfaces and data points are inherited), or null"
           },
+          "template": {
+            "type": "boolean",
+            "description": "0.12.0: a template – only for other profiles to extend; no asset has it"
+          },
           "importId": {
             "type": [
               "null",
@@ -20716,6 +20721,7 @@
           "dataPointCount",
           "assetCount",
           "extends",
+          "template",
           "importId",
           "notInSource",
           "updatedAt"
@@ -20779,6 +20785,10 @@
               "string"
             ],
             "description": "The base profile this one extends (its interfaces and data points are inherited), or null"
+          },
+          "template": {
+            "type": "boolean",
+            "description": "0.12.0: a template – only for other profiles to extend; no asset has it"
           },
           "importId": {
             "type": [
@@ -21239,6 +21249,7 @@
           "dataPointCount",
           "assetCount",
           "extends",
+          "template",
           "importId",
           "notInSource",
           "updatedAt",
@@ -21519,6 +21530,13 @@
                     "type": "string"
                   }
                 },
+                "units": {
+                  "description": "0.12.0: the unit expected per data point (UCUM); a data point left out expects its unit in the input’s profile",
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                },
                 "notes": {
                   "type": "string"
                 }
@@ -21747,6 +21765,7 @@
                     "kpi_point_unknown",
                     "kpi_point_unavailable",
                     "kpi_interface_inactive",
+                    "kpi_unit_mismatch",
                     "param_unknown",
                     "param_type",
                     "param_range",
@@ -21962,6 +21981,57 @@
               "additionalProperties": false
             },
             "description": "Assets that deliver every input but have no instance"
+          },
+          "candidateInfo": {
+            "description": "0.12.0, per candidate (asset id): whether a data collection maps every input already, and inputs delivered in another unit",
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "collected": {
+                  "type": "boolean"
+                },
+                "units": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "point": {
+                        "type": "string"
+                      },
+                      "expected": {
+                        "type": "string",
+                        "description": "UCUM code the KPI expects"
+                      },
+                      "actual": {
+                        "type": "string",
+                        "description": "UCUM code the asset delivers"
+                      },
+                      "relation": {
+                        "type": "string",
+                        "enum": [
+                          "convertible",
+                          "incompatible"
+                        ],
+                        "description": "convertible: by a pure factor (W.h and kW.h)"
+                      }
+                    },
+                    "required": [
+                      "point",
+                      "expected",
+                      "actual",
+                      "relation"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "collected",
+                "units"
+              ],
+              "additionalProperties": false
+            }
           },
           "createdAt": {
             "type": "string",
@@ -23342,6 +23412,7 @@
                     "kpi_point_unknown",
                     "kpi_point_unavailable",
                     "kpi_interface_inactive",
+                    "kpi_unit_mismatch",
                     "param_unknown",
                     "param_type",
                     "param_range",
@@ -23431,6 +23502,45 @@
                 },
                 "instantiated": {
                   "type": "boolean"
+                },
+                "units": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "point": {
+                        "type": "string"
+                      },
+                      "expected": {
+                        "type": "string",
+                        "description": "UCUM code the KPI expects"
+                      },
+                      "actual": {
+                        "type": "string",
+                        "description": "UCUM code the asset delivers"
+                      },
+                      "relation": {
+                        "type": "string",
+                        "enum": [
+                          "convertible",
+                          "incompatible"
+                        ],
+                        "description": "convertible: by a pure factor (W.h and kW.h)"
+                      }
+                    },
+                    "required": [
+                      "point",
+                      "expected",
+                      "actual",
+                      "relation"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "description": "0.12.0: inputs the asset delivers in another unit than the KPI expects"
+                },
+                "collected": {
+                  "type": "boolean",
+                  "description": "0.12.0: a data collection of the asset maps every data point input"
                 }
               },
               "required": [
@@ -25036,6 +25146,73 @@
               "additionalProperties": false
             },
             "description": "The Steward systems the data paths name"
+          },
+          "dataQuality": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "duplicate_address",
+                    "duplicate_mac",
+                    "duplicate_hostname",
+                    "vlan_missing",
+                    "no_vlan",
+                    "switch_case"
+                  ],
+                  "description": "duplicate_address, duplicate_mac, duplicate_hostname (two devices share it), vlan_missing (a VLAN the site does not have), no_vlan, switch_case (switch names that differ only by letter case)"
+                },
+                "value": {
+                  "type": "string",
+                  "description": "The value they share, or the missing VLAN’s id (empty for no_vlan)"
+                },
+                "variants": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "switch_case: the spellings of the switch name, the most used first"
+                },
+                "devices": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "assetId": {
+                        "type": "string"
+                      },
+                      "assetName": {
+                        "type": "string"
+                      },
+                      "deviceId": {
+                        "type": "string"
+                      },
+                      "hostname": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "assetId",
+                      "assetName",
+                      "deviceId",
+                      "hostname"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "description": "The devices it concerns (switch_case: those not written in the most used spelling)"
+                }
+              },
+              "required": [
+                "kind",
+                "value",
+                "variants",
+                "devices"
+              ],
+              "additionalProperties": false
+            },
+            "description": "What looks wrong in the documentation of the site’s devices (retired devices left out)"
           }
         },
         "required": [
@@ -25047,7 +25224,8 @@
           "dataPaths",
           "assets",
           "statusCounts",
-          "hosts"
+          "hosts",
+          "dataQuality"
         ],
         "additionalProperties": false
       },
@@ -26187,7 +26365,9 @@
                             "system",
                             "dataset",
                             "publication",
-                            "other"
+                            "other",
+                            "platform",
+                            "application"
                           ]
                         },
                         "ref": {
@@ -26211,7 +26391,145 @@
                     {
                       "type": "null"
                     }
-                  ]
+                  ],
+                  "description": "The first sink (0.11; see sinks)"
+                },
+                "sinks": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "system",
+                          "dataset",
+                          "publication",
+                          "other",
+                          "platform",
+                          "application"
+                        ]
+                      },
+                      "ref": {
+                        "type": "string",
+                        "description": "A Steward system, platform or application id, a dataset key, or text"
+                      },
+                      "object": {
+                        "type": "string",
+                        "description": "Where there: a topic, a table, an asset/aspect, a bucket path"
+                      },
+                      "format": {
+                        "type": "string"
+                      },
+                      "schedule": {
+                        "type": "string"
+                      },
+                      "owner": {
+                        "type": "string"
+                      },
+                      "description": {
+                        "type": "string"
+                      },
+                      "transforms": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "rename",
+                                "scale",
+                                "unit",
+                                "aggregate",
+                                "filter",
+                                "enrich",
+                                "compute",
+                                "format",
+                                "other"
+                              ]
+                            },
+                            "field": {
+                              "type": "string"
+                            },
+                            "expression": {
+                              "type": "string",
+                              "description": "Text: Steward never runs it"
+                            },
+                            "window": {
+                              "type": "string"
+                            },
+                            "function": {
+                              "type": "string"
+                            },
+                            "description": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "field",
+                            "expression",
+                            "window",
+                            "function",
+                            "description"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "description": "The transformation steps on the way, in order (documentation only)"
+                      },
+                      "mappings": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "item": {
+                              "type": "string",
+                              "description": "The item’s output name, else its address"
+                            },
+                            "target": {
+                              "type": "string"
+                            },
+                            "transform": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "item",
+                            "target",
+                            "transform"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "imported": {
+                        "type": "boolean",
+                        "description": "Written by an import (the next import replaces it)"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name",
+                      "kind",
+                      "ref",
+                      "object",
+                      "format",
+                      "schedule",
+                      "owner",
+                      "description",
+                      "transforms",
+                      "mappings",
+                      "imported"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "description": "Where the data goes (0.12)"
                 },
                 "access": {
                   "type": "object",
@@ -26507,6 +26825,57 @@
                     }
                   ]
                 },
+                "sinkRefs": {
+                  "type": "array",
+                  "items": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "system",
+                              "application",
+                              "platform",
+                              "process",
+                              "dataset",
+                              "job"
+                            ]
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string",
+                            "description": "Its name (empty when the token owner may not see it)"
+                          },
+                          "path": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "visible": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "id",
+                          "label",
+                          "path",
+                          "visible"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "description": "Per sink: the Steward item it names"
+                },
                 "points": {
                   "type": "array",
                   "items": {
@@ -26676,6 +27045,7 @@
                 "triggers",
                 "composition",
                 "destination",
+                "sinks",
                 "access",
                 "settings",
                 "items",
@@ -26690,6 +27060,7 @@
                 "collectorRef",
                 "collectorHost",
                 "destinationRef",
+                "sinkRefs",
                 "points",
                 "coverage",
                 "writes",
@@ -37123,6 +37494,7 @@
                 "kpi_point_unknown",
                 "kpi_point_unavailable",
                 "kpi_interface_inactive",
+                "kpi_unit_mismatch",
                 "param_unknown",
                 "param_type",
                 "param_range",

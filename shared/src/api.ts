@@ -8,6 +8,7 @@ import type { ScheduleNotify } from './notifyPolicy.js';
 import type { Column, FlowNode, ManualFieldType, ManualUse, ProcessDefinition } from './process.js';
 import type { Locale } from './locales.js';
 import type { DailySummaryPrefs } from './dailySummary.js';
+import type { PlantChange, PlantImportProblem } from './plant.js';
 import type { DigestPrefs, QuietHours } from './quietHours.js';
 import type {
   SsoConfigWarning,
@@ -1843,8 +1844,11 @@ export interface McpOAuthConsent {
 
 // ---------- requests from MCP clients (#11) ----------
 
-/** gateway: a changing platform call; run: a run; catalogue, mappings: a control catalogue or control mappings for review (#74) */
-export const MCP_REQUEST_KINDS = ['gateway', 'run', 'catalogue', 'mappings'] as const;
+/**
+ * gateway: a changing platform call; run: a run; catalogue, mappings: a control catalogue or control mappings for review
+ * (#74); plant: changes to the plant registry for review (0.12.0)
+ */
+export const MCP_REQUEST_KINDS = ['gateway', 'run', 'catalogue', 'mappings', 'plant'] as const;
 export type McpRequestKind = (typeof MCP_REQUEST_KINDS)[number];
 /** pending → approved → done | failed; or rejected / expired / withdrawn */
 export const MCP_REQUEST_STATUSES = ['pending', 'rejected', 'withdrawn', 'expired', 'done', 'failed'] as const;
@@ -1874,7 +1878,9 @@ export const MCP_REQUEST_LIMITS = {
 
 /** A proposal in the list of AI requests (#74): what it is about, without its content. */
 export type McpProposalSummary =
-  { type: 'catalogue'; key: string; name: string; controls: number } | { type: 'mappings'; catalogueKey: string; mappings: number };
+  | { type: 'catalogue'; key: string; name: string; controls: number }
+  | { type: 'mappings'; catalogueKey: string; mappings: number }
+  | { type: 'plant'; title: string; added: number; changed: number };
 
 /** A control catalogue proposed by an AI assistant (#74), as the reviewer sees it: compared with the catalogue of that key. */
 export interface McpCatalogueProposal {
@@ -1922,6 +1928,39 @@ export interface McpMappingsProposal {
   }[];
 }
 
+/** What a plant proposal's import preview shows (0.12.0): only additions and changes – proposals never remove or rename. */
+export interface McpPlantPreview {
+  counts: { add: number; change: number };
+  /** The entries added and changed, a changed one with its differences field by field */
+  changes: PlantChange[];
+  warnings: PlantImportProblem[];
+  /** What Steward checks in the entries once applied (they do not stop it) */
+  checks: { code: string; message: string }[];
+}
+
+/**
+ * Changes to the plant registry proposed by an AI assistant (0.12.0, docs/PLANT.md "Proposals from assistants"): a
+ * document of the plant import format, previewed without writing. The reviewer sees the preview of when it was proposed
+ * and the preview of now, as themselves; entries of sites the reviewer may not see are left out of both.
+ */
+export interface McpPlantProposal {
+  type: 'plant';
+  title: string;
+  incomplete: boolean;
+  /** Size and SHA-256 of the proposed document */
+  document: { bytes: number; sha256: string };
+  /** The preview when it was proposed (with the proposer's rights) */
+  proposed: McpPlantPreview;
+  /** The preview now, with the reader's rights; null when the request is decided or the reader may not apply it */
+  now: (McpPlantPreview & { ok: boolean; problems: PlantImportProblem[]; fingerprint: string }) | null;
+  /** The preview now differs from the one when proposed: applying needs the reviewer's confirmation */
+  changedSince: boolean;
+  /** Entries in sites the reader may not see (left out above) */
+  hidden: number;
+  /** The import that applied it */
+  importId: string | null;
+}
+
 /**
  * What the reviewer accepts (#74). A catalogue: every proposed control except `skip`, with the reviewer's `edits`, and
  * the existing controls to `remove`. Mappings: by index.
@@ -1929,6 +1968,11 @@ export interface McpMappingsProposal {
 export interface McpProposalSelection {
   catalogue?: { skip: string[]; edits: { ref: string; title: string; description: string }[]; remove: string[] };
   mappings?: number[];
+  /**
+   * Plant registry changes (0.12.0): the fingerprint of the preview the reviewer saw. Needed when the preview changed
+   * since the proposal was made; applying is refused when the preview is no longer the one the reviewer saw.
+   */
+  plant?: { fingerprint: string };
 }
 
 export interface McpRequest {
@@ -1969,8 +2013,8 @@ export interface McpRequest {
   resultBody: unknown;
   runId: string | null;
   error: string | null;
-  /** Control catalogue or mapping proposals (#74): the full comparison in the detail only */
-  proposal: McpCatalogueProposal | McpMappingsProposal | null;
+  /** Control catalogue or mapping proposals (#74), plant registry changes (0.12.0): the full comparison in the detail only */
+  proposal: McpCatalogueProposal | McpMappingsProposal | McpPlantProposal | null;
   /** What a proposal is about, also in lists */
   proposalSummary: McpProposalSummary | null;
   /** For the reader */

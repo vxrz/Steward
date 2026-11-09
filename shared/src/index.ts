@@ -60,6 +60,7 @@ export * from './plant.js';
 export * from './plantData.js';
 export * from './plantModel.js';
 export * from './plantCollections.js';
+export * from './plantDocs.js';
 export * from './plantNetwork.js';
 export * from './plantNetworkLevels.js';
 export * from './plantViews.js';

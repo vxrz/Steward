@@ -353,10 +353,15 @@ export function updateNode(siteId: string, nodeId: string, input: z.infer<typeof
   const before = nodeValuesOf(cur);
   const changes = changedKeys(before, v);
   if (!changes.length) return getSite(siteId);
-  // moving a node takes its assets along: they are placed below it (their upper levels follow)
+  // moving a node (Move to…, 0.12) puts it last below its new parent and takes its assets along: they are placed
+  // below it (their upper levels follow)
+  const moved = changes.includes('parentId');
+  const position = moved
+    ? Math.max(-1, ...[...index.nodes.values()].filter((n) => n.parent_id === v.parentId && n.id !== nodeId).map((n) => n.position)) + 1
+    : cur.position;
   db().tx(() => {
-    upsertNode(siteId, v, cur.position, { at: nowIso(), by: me().username }, { keepSource: true });
-    if (changes.includes('parentId')) relocateAssets(siteId);
+    upsertNode(siteId, v, position, { at: nowIso(), by: me().username }, { keepSource: true });
+    if (moved) relocateAssets(siteId);
     touchSite(siteId);
     audit({
       action: 'site.node_changed',

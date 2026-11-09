@@ -148,10 +148,10 @@ Markdown is rendered without HTML: `<script>` or `<b>` in the text is shown as t
 
 A document or service links to:
 
-- internal items: processes, runs, monitors, platforms, dashboards, other documents, services, credentials register entries;
+- internal items: processes, runs, monitors, platforms, dashboards, other documents, services, credentials register entries; with the plant registry on, sites, assets, conduits and (0.12) device profiles, data collections and their sinks ([PLANT.md](PLANT.md#documents));
 - external pages: the entry in your CMDB, a ticket, a wiki page (`http` and `https` only).
 
-Every link has an optional note, e.g. _affected_, _implements_, _ServiceNow ticket_. Both sides show the link: the target lists it under _Linked from_ (documents and services), and `GET /api/backlinks?kind=platform&id=…` returns the documents and services that link to any item. Credentials register entries that name the item under _Used by_ (e.g. a technical user used by a service) are listed there too, for people who may read the entry.
+Every link has an optional note, e.g. _affected_, _implements_, _ServiceNow ticket_. A page lists its first 10 links and _Show all_. Both sides show the link: the target lists it under _Linked from_ (documents and services; it folds, starts folded with more than 10 entries, and your choice is kept for every page), and `GET /api/backlinks?kind=platform&id=…` returns the documents and services that link to any item. Credentials register entries that name the item under _Used by_ (e.g. a technical user used by a service) are listed there too, for people who may read the entry.
 
 You can only link items you can see. If a reader may not see a linked process, platform or credential, the link shows as "not visible" without its name or id (in the API, `targetId` is `null`), and `GET /api/backlinks` answers 404 for items the reader may not see. The same holds for _superseded by_ and _replaced by_: if the reader may not read that document (an access change entry, say), the document page, the PDF and the API only say that it is not visible (`supersededBy: { visible: false, id: null, number: null, title: null }`). Credentials follow the register's read rules ([CREDENTIALS.md](CREDENTIALS.md#who-may-do-what)): viewers only see entries they own. Links of closed documents (_closed_, _cancelled_, _superseded_, _deprecated_) cannot change any more.
 
@@ -196,13 +196,13 @@ Links are stored generically as `{ kind, id }`. A new kind needs an entry in `LI
 
 Drafts take documents and e-mails, up to 20 MB each and 50 per document:
 
-| Kind    | Extensions                                                                |
-| ------- | ------------------------------------------------------------------------- |
-| PDF     | `.pdf`                                                                    |
-| Images  | `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`                                  |
-| E-mails | `.eml`, `.msg`                                                            |
-| Office  | `.docx`, `.xlsx`, `.pptx`, `.doc`, `.xls`, `.ppt`, `.odt`, `.ods`, `.odp` |
-| Text    | `.txt`, `.md`, `.csv`                                                     |
+| Kind    | Extensions                                                                  |
+| ------- | --------------------------------------------------------------------------- |
+| PDF     | `.pdf`                                                                      |
+| Images  | `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`                                    |
+| E-mails | `.eml`, `.msg`                                                              |
+| Office  | `.docx`, `.xlsx`, `.pptx`, `.doc`, `.xls`, `.ppt`, `.odt`, `.ods`, `.odp`   |
+| Text    | `.txt`, `.md`, `.csv`, `.json`, `.yaml`, `.yml` (configuration files, 0.12) |
 
 Steward checks that the content matches the extension (PDF header, image signatures, OLE and ZIP containers, e-mail headers, UTF-8 text without NUL bytes) and rejects everything else. File names are cleaned. Files are written once, read-only, to `data/records/<record id>/`, and their SHA-256 is recorded and checked on every download. Downloads are always attachments with a sandbox content security policy, never shown inline.
 

@@ -17,6 +17,7 @@ import { useMe } from '../auth';
 import { useState } from 'react';
 import { dashboardKeys } from '../queryKeys';
 import { IfModule } from '../components/modules/ModuleOff';
+import { CollapsibleSection } from '../components/page/CollapsibleSection';
 
 /** The tiles of each start page focus, most relevant first (operations: all of them). */
 const FOCUS_TILES: Record<StartFocus, readonly TileKey[] | undefined> = {
@@ -99,11 +100,21 @@ export function DashboardPage({ demo }: { demo: boolean }) {
           )}
 
           {data.openTasks.length > 0 && (
-            <Card withBorder>
-              <Group mb="xs" gap="xs" wrap="nowrap">
-                <IconInbox size={18} />
-                <Title order={5}>{t('waiting')}</Title>
-              </Group>
+            // folds like the failed checks (remembered per user); a new decision opens it again
+            <CollapsibleSection
+              id="waiting-tasks"
+              variant="card"
+              size="h5"
+              title={t('waiting')}
+              icon={<IconInbox size={18} aria-hidden style={{ flex: 'none' }} />}
+              count={data.openTasks.length}
+              tone="warning"
+              remember="section.dashboard.waiting-tasks"
+              alertKey={data.openTasks
+                .map((task) => task.id)
+                .sort()
+                .join(',')}
+            >
               <Stack gap={6}>
                 {data.openTasks.map((task) => (
                   <Group key={task.id} justify="space-between" gap={4} wrap="wrap">
@@ -116,7 +127,7 @@ export function DashboardPage({ demo }: { demo: boolean }) {
                   </Group>
                 ))}
               </Stack>
-            </Card>
+            </CollapsibleSection>
           )}
 
           {view !== 'viewer' && <FailedChecksCard checks={data.failedChecks} />}

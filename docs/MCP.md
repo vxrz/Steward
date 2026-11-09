@@ -170,7 +170,7 @@ Steward only accepts requests whose `Host` (and, behind a trusted proxy, `X-Forw
 
 ## Tools
 
-All tools read only (`annotations.readOnlyHint: true`), except `platform_call_operation`, `request_run`, `propose_control_catalogue` and `propose_control_mappings`, which can create a request that waits for a person ([Approved writes](#approved-writes), [Control proposals](#control-proposals)). Lists are paginated: a result has `items` and `nextCursor`; pass `nextCursor` back as `cursor` for the next page. Long texts are shortened.
+All tools read only (`annotations.readOnlyHint: true`), except `platform_call_operation`, `request_run`, `propose_control_catalogue`, `propose_control_mappings` and `propose_plant_changes`, which can create a request that waits for a person ([Approved writes](#approved-writes), [Control proposals](#control-proposals), [Plant registry](#plant-registry)). Lists are paginated: a result has `items` and `nextCursor`; pass `nextCursor` back as `cursor` for the next page. Long texts are shortened.
 
 | Tool                          | What it returns                                                                                                                                                                 | Who                                                      |
 | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
@@ -200,6 +200,20 @@ All tools read only (`annotations.readOnlyHint: true`), except `platform_call_op
 | `find_mapping_targets`        | Items of one kind to map to controls (processes, document types, documents, monitors, report schedules, access checks) – only what you may see                                  |
 | `propose_control_catalogue`   | Proposes a control catalogue, in parts of up to 200 controls, for an administrator to review                                                                                    |
 | `propose_control_mappings`    | Proposes mappings of controls to Steward items with a reason each, for review                                                                                                   |
+| `list_plant_sites`            | Sites of the plant registry: code, name, description, counts ([plant registry](#plant-registry))                                                                                | sites you may see; module on                             |
+| `get_plant_site`              | One site: its areas, work centers, work units and buildings – no contacts, no access list                                                                                       | site `view`                                              |
+| `list_plant_assets`           | Assets, filter by site, device profile (and data point), status, text; with the profile of their assignment                                                                     | assets of sites you may see                              |
+| `get_plant_asset`             | One asset with its assignment: profile, endpoints, overrides, additions, publications, KPI instances, checks; `assignmentFile` in the import format                             | site `view`                                              |
+| `list_device_profiles`        | Device profiles: manufacturer, model, version, the profile they extend, counts                                                                                                  | everyone who sees the registry                           |
+| `get_device_profile`          | One profile resolved: interfaces, groups, data points (with known-as names) and file sets with where each comes from, its bases; `file`: its own part in the import format      | everyone who sees the registry                           |
+| `search_data_points`          | Data points whose id, name, address, description or known-as name contains a text                                                                                               | everyone who sees the registry                           |
+| `get_data_point`              | One data point: which assets deliver it (their addresses), KPI definitions and collections that read it                                                                         | assets of sites you may see                              |
+| `list_kpi_definitions`        | KPI definitions: category, unit, profiles of their inputs, counts                                                                                                               | everyone who sees the registry                           |
+| `get_kpi_definition`          | One KPI definition in the import format, its instances and candidates, its checks                                                                                               | everyone who sees the registry                           |
+| `list_data_collections`       | The data collections of an asset: collector, mode, items, coverage                                                                                                              | site `view`                                              |
+| `get_data_collection`         | One collection: items (paged) with their data points, access patterns, triggers, destination, coverage                                                                          | site `view`                                              |
+| `get_plant_import_format`     | The JSON Schema of the plant import format, as a whole or one part                                                                                                              | everyone who sees the registry                           |
+| `propose_plant_changes`       | Proposes additions and changes as a document of the import format, for a person to apply                                                                                        | who may import into the registry                         |
 
 `tools/list` only shows the tools the token owner can use (for example no `search_audit_log` for a viewer). The three gateway tools are the exception: they are always listed, because MCP clients keep the tool list of their first connection – a platform that opens its gateway later would otherwise stay out of reach until the client reconnects. Without a platform the owner may use through the gateway, their calls answer how to get one. The tools check the rights again on every call.
 
@@ -285,6 +299,20 @@ An assistant can turn a company's own control set – an ISMS policy, group-wide
 
 How to ask and what to check: [Compliance → Proposals from an AI assistant](COMPLIANCE.md#proposals-from-an-ai-assistant).
 
+## Plant registry
+
+Since 0.12.0 an assistant can read the [plant registry](PLANT.md) and propose changes to it. The tools are listed only while the module is on (_Settings → Modules_); a call while it is off is refused. Plant viewers (role _Plant viewer_) still cannot use MCP clients.
+
+- **Reading** works as in the web app, as the token owner: sites, their assets, assignments and data collections only where the owner may see the site; the catalogues (device profiles, KPI definitions) for everyone who sees the registry. Access lists, contacts and the rights of others are not returned. Lists are paged; `get_device_profile` takes `interfaceId` and `points: false` for a large profile, `get_data_collection` pages its items.
+- **Proposing** (`propose_plant_changes`) needs the right to import into the registry (designers, administrators, managers of a site). The assistant sends a `title`, a `rationale` and a `document` of the [plant import format](PLANT.md#yaml-import-and-export) as JSON (at most 48 kB; `get_plant_import_format` describes the format, and `get_device_profile`, `get_kpi_definition` and `get_plant_asset` return the current entries in it). Steward runs the import's preview with the token owner's rights – nothing is written – and answers with the problems, or stores the proposal under **AI requests** for up to 14 days.
+- **Data collections** (0.12) are part of the format: an asset's `collections` with their items mapped to data points and their `collection_sinks` with transformation steps, next to known-as names on the profile and the asset's own addresses – a gateway or ETL integration end to end. `get_data_collection` with `file: true` returns a collection and its sinks in the format.
+- **No credentials.** A document with a password, token, key or similar value (by its key, also as a `key`/`value` setting) or a password in a URL is refused with the places, by the rules that redact kept gateway configurations.
+- **Only additions and changes.** `remove:` in the document, `removeMissing`, `idMap` (renames), `mode`, `missing` and `replaces` are refused with a reason, when proposed and again when applied. So is a change that would **drop an item from a list** inside an entry – an override, an interface, a data point, a known-as name, a tag, a KPI input …; a list given in the document replaces the list, so the assistant sends it with every item it has now. Changing an item's fields is fine. When the registry changed so that applying would drop an item now, applying is refused (`PLANT_PROPOSAL_REMOVES`).
+- **A person applies it**: whoever may import into the registry. The review shows the preview grouped into added and changed entries, each change field by field. While the request is open, the preview runs again as the reviewer; if it differs from the one of the proposal (the registry changed in the meantime), the reviewer ticks that they checked the new one before applying – applying is refused otherwise (`PLANT_PROPOSAL_CHANGED`). A preview with problems, for example a site the reviewer may not change, cannot be applied (`PLANT_PROPOSAL_INVALID`); the request stays open. Entries of sites the reviewer may not see are left out of what they are shown. Applying runs the import core in one transaction. A person always applies a proposal – an MCP token cannot – so applying asks for no extra step-up.
+- **Audit:** `plant.proposal_created`, `plant.proposal_applied` (with the import's own `plant.imported`) and `plant.proposal_rejected`, besides the `mcp.request_*` entries of every request.
+
+What a proposal looks like and what to check: [Plant registry → Proposals from assistants](PLANT.md#proposals-from-assistants).
+
 ## Security model
 
 - **Off by default** – globally (administrator setting, `SM_MCP=off`) and per platform for the gateway.
@@ -295,6 +323,7 @@ How to ask and what to check: [Compliance → Proposals from an AI assistant](CO
 - **Output limits.** Pages of at most 100–200 items, long texts shortened, results above about 200 kB refused with a hint to page.
 - **Time limits.** 30 s per tool call, 20 s per gateway call; a client that closes the connection cancels its request.
 - **Rate limits** per token (and per IP address without a valid token), and per user and platform for gateway calls; a concurrency cap per platform for gateway calls.
+- **Proposals never write.** Control and plant proposals wait for a person in Steward, who applies them with their own rights; an MCP token cannot decide a request.
 - **No sessions, no server-initiated messages.** The server keeps no state between requests and never sends requests to the client.
 
 ## Limits

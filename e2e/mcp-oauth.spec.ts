@@ -48,6 +48,8 @@ test('a person allows an MCP client on the consent page and revokes it in the pr
     await expectAccessible(page, 'OAuth consent');
     await page.getByRole('button', { name: 'Allow' }).click();
     await expect.poll(() => returned).toContain('code=');
+    // the redirect to the client finishes before the next page is opened
+    await page.waitForURL((u) => u.port === '33419' && u.pathname === '/callback');
     const back = new URL(returned);
     expect(back.searchParams.get('state')).toBe('e2e-state');
 

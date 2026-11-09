@@ -41,6 +41,7 @@ import { requireManage, siteRights, sitePermissions } from './access.js';
 import { plantEnabled } from './settings.js';
 import { changedKeys, siteRowOf, type AssetRow, type SiteRow } from './model.js';
 import { visibleAsset, visibleSite } from './service.js';
+import { dataQuality } from './network-quality.js';
 import { assetLive, checksForReader, liveContext, liveOf, monitorVisible, readableDataset, withHiddenChecks, type LiveContext } from './live.js';
 import {
   assetChecksInput,
@@ -365,6 +366,25 @@ function chainOf(idx: PathIndex, side: 'readers' | 'writers', hosts: string[]): 
   return out;
 }
 
+/**
+ * The data paths that read from a host (a Steward system): where a sink's data goes next (0.12). Paths of sites the
+ * reader may not see are counted, not named.
+ */
+export function pathsReadingFrom(host: string): { paths: PlantPathLink[]; more: number; hidden: number } {
+  const rights = siteRights(db().all<{ id: string; acl: string }>('SELECT id, acl FROM plant_sites'));
+  const idx = pathIndex(rights);
+  const c = chainOf(idx, 'readers', [host]);
+  const all = db()
+    .all<DataPathRow>('SELECT * FROM plant_data_paths')
+    .filter((r) => hostsOf(dataPathValuesOf(r)).from.includes(host)).length;
+  const shown = c.first.slice(0, L.chainLinks);
+  return {
+    paths: shown.map((x) => ({ assetId: x.r.asset_id, assetName: x.r.asset_name, pathId: x.v.id, subject: x.v.subject, via: host })),
+    more: Math.max(0, c.count - shown.length),
+    hidden: Math.max(0, all - c.count),
+  };
+}
+
 function pathView(r: DataPathRow, assetName: string, idx: PathIndex, refs: Map<string, PlantItemRef>): PlantDataPathView {
   const v = dataPathValuesOf(r);
   const ref = (kind: PlantItemRef['kind'], id: string) => {
@@ -475,6 +495,7 @@ export function siteNetwork(siteId: string): PlantSiteNetwork {
     assets,
     statusCounts,
     hosts,
+    dataQuality: dataQuality(devices, new Set(vlanValues.keys())),
   };
 }
 

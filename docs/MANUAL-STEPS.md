@@ -99,7 +99,7 @@ Existing user tasks (`select`, `approve`) are unchanged.
 
 Evidence files are stored like record attachments ([RECORDS.md](RECORDS.md)):
 
-- Allowed types: PDF, PNG, JPEG, GIF, WebP, e-mail (`.eml`, `.msg`), Office and OpenDocument files, text, Markdown and CSV. The content must match the extension.
+- Allowed types: PDF, PNG, JPEG, GIF, WebP, e-mail (`.eml`, `.msg`), Office and OpenDocument files, text, Markdown, CSV and (0.12) JSON and YAML. The content must match the extension.
 - Files are written once, read-only, below `<data>/artifacts/<run id>/evidence/`, with their SHA-256. A file changed on disk is refused at download.
 - Downloads are always attachments (`Content-Disposition: attachment`, a sandbox CSP, `nosniff`): a file is never shown as a page.
 - Whoever may see the run may download them. Only the person working on the step adds or removes them, and only until the step is completed: an upload that is still running when the step is completed, sent back or cancelled is refused and its file deleted.

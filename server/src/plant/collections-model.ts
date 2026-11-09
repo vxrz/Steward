@@ -6,6 +6,11 @@ import {
   COLLECTOR_KINDS,
   modbusAddress,
   PLANT_COLLECTION_LIMITS as L,
+  PLANT_ID_RE,
+  SINK_TRANSFORM_KINDS,
+  type PlantCollectionDestination,
+  type PlantCollectionSink,
+  PLANT_LIMITS,
   type PlantAssignmentValues,
   type PlantCollectionCoverage,
   type PlantCollectionItem,
@@ -45,9 +50,15 @@ export interface CollectionRow {
   access: string;
   settings: string;
   items: string;
+  /** 0.12.0 (plant-008) */
+  description: string;
   notes: string;
   format: string;
   source_file: string;
+  /** 0.12: the sinks (JSON); '[]' with a destination: the destination is the first sink */
+  sinks: string;
+  /** 0.12: the gateway configuration document the imports keep up to date */
+  document_id: string | null;
   position: number;
   import_id: string | null;
   not_in_source: number;
@@ -69,6 +80,61 @@ export interface MappingRow {
 
 export const collectorKey = (c: PlantCollector) => `${c.kind}:${c.ref}`;
 
+/** A plant id made from a name (sinks, collections): lower case, the rest replaced by "-". */
+export const idOf = (name: string, fallback = 'sink'): string => {
+  const x = name
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[^a-z0-9._-]+/g, '-')
+    .replace(/^[^a-z0-9]+|-+$/g, '')
+    .slice(0, 80);
+  return PLANT_ID_RE.test(x) ? x : fallback;
+};
+
+/** The single destination of 0.11 as a sink (stored rows that were never saved with sinks). */
+export const sinkOfDestination = (d: PlantCollectionDestination): PlantCollectionSink => ({
+  id: idOf(d.ref),
+  name: d.ref,
+  kind: d.kind,
+  ref: d.ref,
+  object: d.path,
+  format: '',
+  schedule: '',
+  owner: '',
+  description: d.notes,
+  transforms: [],
+  mappings: [],
+  imported: false,
+});
+
+/** The first sink as the destination of 0.11 (older clients and the API read it). */
+export const destinationOfSink = (s: PlantCollectionSink | undefined): PlantCollectionDestination | null =>
+  s ? { kind: s.kind, ref: s.ref, path: s.object, notes: s.description } : null;
+
+/** A stored sink with every field (rows written by an older version may lack new ones). */
+const fullSink = (x: Partial<PlantCollectionSink>): PlantCollectionSink => ({
+  id: x.id ?? 'sink',
+  name: x.name ?? '',
+  kind: x.kind ?? 'other',
+  ref: x.ref ?? '',
+  object: x.object ?? '',
+  format: x.format ?? '',
+  schedule: x.schedule ?? '',
+  owner: x.owner ?? '',
+  description: x.description ?? '',
+  transforms: x.transforms ?? [],
+  mappings: x.mappings ?? [],
+  imported: x.imported ?? false,
+});
+
+/** The sinks of a row: the stored ones, else the 0.11 destination as the first one. */
+export function sinksOf(r: Pick<CollectionRow, 'sinks' | 'destination'>): PlantCollectionSink[] {
+  const stored = parseJson<Partial<PlantCollectionSink>[]>(r.sinks ?? '[]', []);
+  if (stored.length) return stored.map(fullSink);
+  const d = r.destination ? parseJson<PlantCollectionDestination | null>(r.destination, null) : null;
+  return d ? [sinkOfDestination(d)] : [];
+}
+
 export const collectionValuesOf = (r: CollectionRow): PlantCollectionValues => ({
   id: r.id,
   name: r.name,
@@ -80,10 +146,13 @@ export const collectionValuesOf = (r: CollectionRow): PlantCollectionValues => (
   debounceMs: r.debounce_ms === null ? null : Number(r.debounce_ms),
   triggers: parseJson(r.triggers, []),
   composition: r.composition,
-  destination: r.destination ? parseJson(r.destination, null) : null,
+  destination: destinationOfSink(sinksOf(r)[0]),
+  sinks: sinksOf(r),
   access: { read: [], write: [], create: [], delete: [], ...parseJson<Partial<PlantCollectionValues['access']>>(r.access, {}) },
   settings: parseJson(r.settings, []),
-  items: parseJson(r.items, []),
+  // an item stored before 0.12.0 has no description
+  items: parseJson<PlantCollectionItem[]>(r.items, []).map((i) => ({ ...i, description: i.description ?? '' })),
+  description: r.description ?? '',
   notes: r.notes,
   format: (r.format || '') as PlantCollectionValues['format'],
   sourceFile: r.source_file,
@@ -120,7 +189,43 @@ export const collectionItemInput = z
       })
       .strict()
       .default({ note: '', scale: null, offset: null, cast: '' }),
+    description: text(PLANT_LIMITS.description),
     notes: text(2000),
+  })
+  .strict();
+
+const sinkInput = z
+  .object({
+    id: plantId,
+    name: z.string().trim().min(1).max(L.text),
+    kind: z.enum(COLLECTION_DESTINATION_KINDS).default('other'),
+    ref: text(L.text),
+    object: text(L.address),
+    format: text(),
+    schedule: text(2000),
+    owner: text(),
+    description: text(L.longText),
+    transforms: z
+      .array(
+        z
+          .object({
+            kind: z.enum(SINK_TRANSFORM_KINDS).default('other'),
+            field: text(),
+            // an expression or code, kept as text: never run
+            expression: text(L.longText),
+            window: text(),
+            function: text(),
+            description: text(2000),
+          })
+          .strict(),
+      )
+      .max(L.transforms)
+      .default([]),
+    mappings: z
+      .array(z.object({ item: z.string().trim().min(1).max(L.address), target: text(L.address), transform: text(2000) }).strict())
+      .max(L.items)
+      .default([]),
+    imported: z.boolean().default(false),
   })
   .strict();
 
@@ -155,18 +260,32 @@ export const collectionInput = z
       .strict()
       .nullable()
       .default(null),
+    /** 0.12: where the data goes; missing: the destination (0.11) is the only sink */
+    sinks: z.array(sinkInput).max(L.sinks).optional(),
     access: z.object({ read: patterns, write: patterns, create: patterns, delete: patterns }).strict().default({ read: [], write: [], create: [], delete: [] }),
     settings: z
       .array(z.object({ key: z.string().trim().min(1).max(L.text), value: text(2000) }).strict())
       .max(L.settings)
       .default([]),
     items: z.array(collectionItemInput).max(L.items).default([]),
+    description: text(PLANT_LIMITS.description),
     notes: text(L.longText),
     format: z.union([z.enum(COLLECTION_FORMATS), z.literal('')]).default(''),
     sourceFile: text(),
   })
   .strict();
 export const collectionUpdate = collectionInput.omit({ id: true });
+
+/**
+ * The values of an input: its sinks, or – from a client of 0.11 that sends only a destination – the destination as
+ * the one sink. The destination is always the first sink.
+ */
+export function withSinks<T extends { destination: PlantCollectionDestination | null; sinks?: PlantCollectionSink[] }>(
+  input: T,
+): Omit<T, 'sinks'> & { sinks: PlantCollectionSink[]; destination: PlantCollectionDestination | null } {
+  const sinks = input.sinks ?? (input.destination ? [sinkOfDestination(input.destination)] : []);
+  return { ...input, sinks, destination: destinationOfSink(sinks[0]) };
+}
 
 // ---------- normalising ----------
 
@@ -289,6 +408,12 @@ export function collectionProblems(
   const out: { path: string; message: string }[] = [];
   if (v.interfaceId && !ctx.interfaces.has(v.interfaceId)) out.push({ path: 'interfaceId', message: `The asset has no interface "${v.interfaceId}"` });
   if (v.dataPathId && !ctx.dataPaths.has(v.dataPathId)) out.push({ path: 'dataPathId', message: `The asset has no data path "${v.dataPathId}"` });
+  const sinkIds = new Set<string>();
+  v.sinks.forEach((x, i) => {
+    if (sinkIds.has(x.id)) out.push({ path: `sinks[${i}].id`, message: `Sink "${x.id}" is there twice` });
+    sinkIds.add(x.id);
+    if (x.kind !== 'other' && x.kind !== 'publication' && !x.ref) out.push({ path: `sinks[${i}].ref`, message: 'Name the target' });
+  });
   v.items.forEach((it, i) => {
     if (!it.address && !it.dataPoint) out.push({ path: `items[${i}]`, message: 'An item needs an address or a data point' });
     if (it.dataPoint && !ctx.points.has(it.dataPoint)) out.push({ path: `items[${i}].dataPoint`, message: `The asset has no data point "${it.dataPoint}"` });
@@ -311,12 +436,13 @@ export function upsertCollection(assetId: string, v: PlantCollectionValues, posi
   const j = (x: unknown) => JSON.stringify(x);
   db().run(
     `INSERT INTO plant_collections (asset_id, id, name, collector, data_path_id, interface_id, mode, interval_ms, debounce_ms, triggers, composition,
-       destination, access, settings, items, notes, format, source_file, position, import_id, not_in_source, created_at, created_by, updated_at, updated_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)
+       destination, sinks, access, settings, items, description, notes, format, source_file, position, import_id, not_in_source, created_at, created_by, updated_at, updated_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)
      ON CONFLICT (asset_id, id) DO UPDATE SET name = excluded.name, collector = excluded.collector, data_path_id = excluded.data_path_id,
        interface_id = excluded.interface_id, mode = excluded.mode, interval_ms = excluded.interval_ms, debounce_ms = excluded.debounce_ms,
-       triggers = excluded.triggers, composition = excluded.composition, destination = excluded.destination, access = excluded.access,
-       settings = excluded.settings, items = excluded.items, notes = excluded.notes, format = excluded.format, source_file = excluded.source_file,
+       triggers = excluded.triggers, composition = excluded.composition, destination = excluded.destination, sinks = excluded.sinks, access = excluded.access,
+       settings = excluded.settings, items = excluded.items, description = excluded.description, notes = excluded.notes, format = excluded.format,
+       source_file = excluded.source_file,
        import_id = COALESCE(excluded.import_id, plant_collections.import_id), updated_at = excluded.updated_at, updated_by = excluded.updated_by`,
     assetId,
     v.id,
@@ -329,10 +455,13 @@ export function upsertCollection(assetId: string, v: PlantCollectionValues, posi
     v.debounceMs,
     j(v.triggers),
     v.composition,
-    v.destination ? j(v.destination) : null,
+    // the first sink as the destination of 0.11, for readers of older versions (a backup restored elsewhere)
+    v.sinks.length ? j(destinationOfSink(v.sinks[0])) : null,
+    j(v.sinks),
     j(v.access),
     j(v.settings),
     j(v.items),
+    v.description,
     v.notes,
     v.format,
     v.sourceFile,

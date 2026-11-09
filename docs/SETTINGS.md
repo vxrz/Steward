@@ -12,7 +12,7 @@ People who are not administrators see in _Settings_ that instance settings are t
 
 ## Instance settings by area
 
-Each area has a stable address. Old links to `/settings` open _General_, and `/settings#notifications` (in messages) opens _Notifications_. Administrators also find every setting in the command palette (`Ctrl+K`): type its name, for example "data retention".
+Each area has a stable address. On a phone the list of areas folds behind _Area: <current area>_. Old links to `/settings` open _General_, and `/settings#notifications` (in messages) opens _Notifications_. Administrators also find every setting in the command palette (`Ctrl+K`): type its name, for example "data retention".
 
 | Area                   | Address                   | Settings                                                                                                                                                                             |
 | ---------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |

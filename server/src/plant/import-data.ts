@@ -10,6 +10,7 @@ import {
   type PlantChangeKind,
   type PlantCheck,
   type PlantDataPoint,
+  type PlantFieldDiff,
   type PlantImportMode,
   type PlantImportProblem,
   type PlantInterface,
@@ -26,6 +27,7 @@ import { db } from '../db.js';
 import type { AuthUser } from '../auth/context.js';
 import { canManageCatalogue } from './access.js';
 import { changedKeys, type AssetRow, type SiteRow } from './model.js';
+import { droppedItems, fieldDiff } from './diff.js';
 import type { AssignmentFile, DataPointFile, InterfaceFile, KpiFile, PlantFile, ProfileFile } from './format.js';
 import {
   assignmentProblems,
@@ -40,6 +42,7 @@ import {
   removeAssignmentRow,
   removeKpiRow,
   removeProfileRow,
+  safeEntries,
   upsertAssignment,
   upsertKpi,
   upsertProfile,
@@ -75,6 +78,10 @@ export interface Write {
   note?: string;
   /** What to write (add, change, unchanged: adopt; mark: flag) */
   apply: () => void;
+  /** 0.12.0: a change's differences, field by field (computed for the preview's first changes only) */
+  diff?: () => PlantFieldDiff[];
+  /** 0.12.0: the items a change drops from lists inside the entry */
+  drops?: () => string[];
 }
 
 export function pushWrite<V extends object>(
@@ -94,7 +101,18 @@ export function pushWrite<V extends object>(
   if (mode === 'add') return void writes.push({ kind, action: 'skip', siteId, id, name, note: 'exists (add only)', apply: () => undefined });
   const fields = changedKeys(before, after);
   if (cur?.not_in_source) fields.push('notInSource');
-  if (fields.length) writes.push({ kind, action: 'change', siteId, id, name, fields, apply: write });
+  if (fields.length)
+    writes.push({
+      kind,
+      action: 'change',
+      siteId,
+      id,
+      name,
+      fields,
+      apply: write,
+      diff: () => fieldDiff(before, after),
+      drops: () => droppedItems(before, after),
+    });
   else writes.push({ kind, action: 'unchanged', siteId, id, name, apply: adopt });
 }
 
@@ -235,7 +253,8 @@ export function splitInterfaces(
           else if (d.present !== undefined) problems.push({ file, path: `${dat}.present`, message: `The base has no data point "${d.id}"` });
           else added.push(pointFromFile(d, { file, path: dat }, problems));
         });
-        if (added.length || !inheritedGroups.has(name)) o.groups.push({ name, description, dataPoints: added });
+        // an inherited group's entry with a description describes it anew (0.12.0); empty: the inherited description
+        if (added.length || description || !inheritedGroups.has(name)) o.groups.push({ name, description, dataPoints: added });
       }
     }
     interfaceOverrides.push(o);
@@ -292,8 +311,16 @@ function profileFromFile(p: ProfileFile, o: Origin): PlannedProfile {
   const v: PlannedProfile['values'] = { id: p.id, name: p.name.trim() };
   for (const k of ['manufacturer', 'model', 'version', 'category', 'description', 'notes'] as const) if (has(p, k)) v[k] = str(p[k]);
   if (has(p, 'extends')) v.extends = p.extends ?? null;
+  if (has(p, 'template')) v.template = !!p.template;
   // the interfaces are read once the base is known (computeData): an entry may change an inherited interface
   return { ...o, values: v, groupPaths: [], raw: has(p, 'interfaces') ? (p.interfaces ?? []) : null };
+}
+
+/** A KPI input's expected units (0.12.0) as stored: UCUM codes, empty ones left out, no field when none is left. */
+function unitsFromFile(units: Record<string, string | null | undefined> | null | undefined): { units?: Record<string, string> } {
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(safeEntries(units ?? {}))) if (str(v)) out[k] = unitCode(str(v));
+  return Object.keys(out).length ? { units: out } : {};
 }
 
 function kpiFromFile(k: KpiFile, o: Origin): PlannedKpi {
@@ -315,6 +342,7 @@ function kpiFromFile(k: KpiFile, o: Origin): PlannedKpi {
       kind: (i.kind ?? 'data_point').toLowerCase() === 'other' ? 'other' : 'data_point',
       profile: i.profile ?? '',
       dataPoints: [...new Set(i.data_points ?? [])],
+      ...unitsFromFile(i.units),
       notes: str(i.notes),
     }));
   if (has(k, 'parameters'))
@@ -455,6 +483,7 @@ const PROFILE_DEFAULTS = (id: string): PlantProfileValues => ({
   notes: '',
   interfaces: [],
   extends: null,
+  template: false,
   interfaceOverrides: [],
   pointOverrides: [],
 });
@@ -521,6 +550,8 @@ export interface DataContext {
   /** Sites the files name themselves (a refused one is named there already) */
   fileSites: Set<string>;
   needManage: (siteId: string, o: Origin) => void;
+  /** 0.12: the assignments and resolved profiles after the import (the OT network's data collections read them) */
+  onPost?: (assignments: Map<string, PlantAssignmentValues>, profiles: Map<string, PlantResolvedProfile>) => void;
 }
 
 /** Compares the part-2 records of the files with what is stored; returns what Steward checks in them. */
@@ -618,6 +649,17 @@ export function computeData(c: DataContext): PlantCheck[] {
   }
   // every profile that extends one of the files' still resolves; the checks read the resolved profiles
   const postProfiles = resolveAll(postOwn);
+  // 0.12.0: what a changed profile drops is also what its model in effect loses (an inherited known-as name replaced …)
+  const preProfiles = resolveAll(new Map([...storedProfiles].map(([id, r]) => [id, profileValuesOf(r)])));
+  for (const w of writes)
+    if (w.kind === 'profile' && w.action === 'change') {
+      const own = w.drops;
+      const was = preProfiles.get(w.id);
+      const now = postProfiles.get(w.id);
+      w.drops = () => [
+        ...new Set([...(own?.() ?? []), ...(was ? droppedItems(was.interfaces, now?.interfaces ?? []).map((x) => `in effect: interfaces${x}`) : [])]),
+      ];
+    }
   const told = new Set<string>();
   for (const pp of p.profiles.values())
     for (const d of descendantsOf(pp.values.id, postOwn)) {
@@ -701,6 +743,18 @@ export function computeData(c: DataContext): PlantCheck[] {
       () => upsertAssignment(pa.assetId, after, c.meta),
       () => db().run('UPDATE plant_assignments SET import_id = ?, not_in_source = 0 WHERE asset_id = ?', c.importId, pa.assetId),
     );
+  }
+
+  // 0.12.0: a profile of the files that is a template while an asset (not in the files) has it: the import stops
+  for (const pp of p.profiles.values()) {
+    if (!postOwn.get(pp.values.id)?.template) continue;
+    // (no count: assets in sites the caller may not see count, too)
+    if ([...postAssignments].some(([assetId, a]) => a.profileId === pp.values.id && !p.assignments.has(assetId)))
+      problems.push({
+        file: pp.file,
+        path: `${pp.path}.template`,
+        message: `Device profile "${pp.values.id}" is a template, but assets have it – give them a profile that extends it first`,
+      });
   }
 
   // ---- what the earlier import wrote and the files no longer have
@@ -802,6 +856,7 @@ export function computeData(c: DataContext): PlantCheck[] {
     const k = postKpis.get(pk.values.id);
     if (k) checks.push(...kpiChecks(k, postProfiles));
   }
+  c.onPost?.(postAssignments, postProfiles);
   return checks.slice(0, 500);
 }
 
@@ -896,7 +951,9 @@ function inheritedOut(p: PlantProfileValues, base: PlantResolvedProfile): Record
       }
     const order = iface.groups.map((g) => g.name);
     for (const g of io?.groups ?? []) {
-      const x = groups.get(g.name) ?? { description: order.includes(g.name) ? '' : g.description, points: [] };
+      const x = groups.get(g.name) ?? { description: '', points: [] };
+      // an own group's description, or the one this profile gives an inherited group (0.12.0)
+      if (g.description) x.description = g.description;
       x.points.push(...g.dataPoints.map(pointOut));
       groups.set(g.name, x);
     }
@@ -933,6 +990,7 @@ export function profileOut(p: PlantProfileValues, base: PlantResolvedProfile | n
     id: p.id,
     name: p.name,
     extends: p.extends,
+    template: p.template,
     manufacturer: p.manufacturer,
     model: p.model,
     version: p.version,
@@ -978,7 +1036,9 @@ export function kpiOut(k: PlantKpiValues): Record<string, unknown> {
     strategy: k.strategy,
     implementation: k.implementation,
     dynamic_columns: k.dynamicColumns,
-    inputs: k.inputs.map((i) => clean({ kind: i.kind === 'data_point' ? '' : i.kind, profile: i.profile, data_points: i.dataPoints, notes: i.notes })),
+    inputs: k.inputs.map((i) =>
+      clean({ kind: i.kind === 'data_point' ? '' : i.kind, profile: i.profile, data_points: i.dataPoints, units: i.units ?? {}, notes: i.notes }),
+    ),
     parameters: k.parameters.map((p) =>
       // a default of 0 or false is a value: kept
       ({

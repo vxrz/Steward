@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Anchor, Badge, Button, FileButton, Grid, Group, Image, List, Paper, Stack, Text, Title } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { IconBuilding, IconChevronRight, IconEdit, IconPhoto, IconTrash, IconUpload } from '@tabler/icons-react';
+import { IconArrowMoveRight, IconBuilding, IconChevronRight, IconEdit, IconPhoto, IconTrash, IconUpload } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { PLANT_LIMITS, type PlantAssetDetail } from '@sm/shared';
 import { apiUrl, del, get, notifyError, patch, post, put } from '../api';
@@ -16,8 +16,10 @@ import { fmtDate, fmtDay } from '../format';
 import { plantKeys } from '../queryKeys';
 import { AssetStatusBadge, FieldValuesView, NotInSourceBadge, PreviewBadge, RefsView, useNameOf, usePlantLabel } from '../components/plant/common';
 import { AssetFormModal } from '../components/plant/forms';
+import { MoveAssetModal } from '../components/plant/MoveTo';
 import { AssetDataSection } from '../components/plant/AssetData';
 import { AssetNetworkSection } from '../components/plant/AssetNetwork';
+import { PlantDocumentsPanel } from '../components/plant/DocumentsPanel';
 import { SourceLine } from './PlantSite';
 import { AssetTabs, PlantAssetTabPage } from './plant/views/tabs';
 
@@ -37,6 +39,7 @@ export function PlantAssetPage() {
   const [search, setSearch] = useSearchParams();
   const q = useQuery({ queryKey: plantKeys.asset(assetId), queryFn: () => get<PlantAssetDetail>(`/plant/assets/${encodeURIComponent(assetId!)}`) });
   const [editing, setEditing] = useState(false);
+  const [moving, setMoving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const resetImage = useRef<() => void>(null);
   const a = q.data;
@@ -143,6 +146,7 @@ export function PlantAssetPage() {
           a.canManage
             ? {
                 items: [
+                  { label: t('move.menu'), icon: IconArrowMoveRight, onClick: () => setMoving(true), testId: 'move-to' },
                   ...(changeId.item ? [changeId.item] : []),
                   { label: t('asset.delete'), icon: IconTrash, color: 'red', onClick: () => void remove(), testId: 'asset-delete' },
                 ],
@@ -217,6 +221,7 @@ export function PlantAssetPage() {
             </Stack>
             <AssetDataSection assetId={a.id} />
             <AssetNetworkSection assetId={a.id} />
+            <PlantDocumentsPanel kind="asset" id={a.id} />
             <LinksPanel
               links={a.links}
               backlinks={a.backlinks}
@@ -363,6 +368,7 @@ export function PlantAssetPage() {
         </Grid.Col>
       </Grid>
       {editing && <AssetFormModal asset={a} onClose={() => setEditing(false)} onSaved={saved} />}
+      {moving && <MoveAssetModal asset={a} onClose={() => setMoving(false)} onSaved={saved} />}
     </>
   );
 }

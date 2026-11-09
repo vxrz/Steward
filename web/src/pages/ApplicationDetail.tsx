@@ -31,6 +31,7 @@ import { CopiedFromNote, DuplicateButton } from '../components/duplicate/Duplica
 import { useMe } from '../auth';
 import { IfModule } from '../components/modules/ModuleOff';
 import { CollectorCollections } from '../components/plant/CollectorCollections';
+import { CollapsibleSection, SectionGroup } from '../components/page/CollapsibleSection';
 
 export function ApplicationDetailPage() {
   const { t } = useTranslation(['applications', 'common']);
@@ -108,117 +109,127 @@ export function ApplicationDetailPage() {
           </>
         }
       />
-      <Grid gap="lg">
-        <Grid.Col span={{ base: 12, md: 8 }}>
-          <Stack gap="lg">
-            <MaintenancePanel kind="application" id={a.id} canPlan={a.canEdit && !a.archived} />
-            {a.description.trim() ? (
-              <MarkdownView text={a.description} />
-            ) : (
-              <Text c="dimmed" size="sm">
-                {t('noDescription')}
-              </Text>
-            )}
-            <RatingPanel app={a} onSaved={refresh} />
-            <ComponentsPanel app={a} onSaved={refresh} />
-            {a.stack.length > 0 && (
-              <IfModule module="versionWatch">
-                <StackVersions app={a} />
-              </IfModule>
-            )}
-            <RunsOnPanel app={a} onSaved={refresh} />
-            <IntegrationsPanel app={a} onSaved={refresh} />
-            <CollectorCollections kind="application" id={a.id} />
-            <Stack gap="xs" data-testid="application-services">
-              <Text fw={600}>{t('services.title')}</Text>
-              {a.services.length === 0 ? (
-                <Text size="sm" c="dimmed">
-                  {t('services.empty')}
-                </Text>
+      {/* sections fold (their state remembered per user for every application page); description and facts stay open */}
+      <SectionGroup rememberScope="application">
+        <Grid gap="lg">
+          <Grid.Col span={{ base: 12, md: 8 }}>
+            <Stack gap="lg">
+              <MaintenancePanel kind="application" id={a.id} canPlan={a.canEdit && !a.archived} />
+              {a.description.trim() ? (
+                <MarkdownView text={a.description} />
               ) : (
-                <Stack gap={4}>
-                  {a.services.map((s) => (
-                    <Text key={s.id} size="sm">
-                      <Anchor component={Link} to={`/services/${s.id}`} size="sm">
-                        {s.name}
-                      </Anchor>{' '}
-                      · {roleLabel(s.role, s.roleText)}
-                    </Text>
-                  ))}
-                </Stack>
+                <Text c="dimmed" size="sm">
+                  {t('noDescription')}
+                </Text>
               )}
-            </Stack>
-            <ApplicationCredentials app={a} />
-            <ApplicationDocuments documents={a.documents} />
-            <DutiesPanel applicationId={a.id} />
-            <LinksPanel
-              links={a.links}
-              backlinks={a.backlinks}
-              canEdit={a.canEdit}
-              self={{ kind: 'application', id: a.id }}
-              onAdd={async (l) => {
-                await post(`/applications/${a.id}/links`, l);
-                refresh();
-              }}
-              onUpdate={async (lid, l) => {
-                await patch(`/applications/${a.id}/links/${lid}`, l);
-                refresh();
-              }}
-              onRemove={async (lid) => {
-                await del(`/applications/${a.id}/links/${lid}`);
-                refresh();
-              }}
-            />
-          </Stack>
-        </Grid.Col>
-        <Grid.Col span={{ base: 12, md: 4 }}>
-          <Paper withBorder p="sm">
-            <Stack gap="sm">
-              <Field label={t('vendor')}>
-                <Text size="sm">{[a.vendor, a.version].filter(Boolean).join(' · ') || '–'}</Text>
-              </Field>
-              {a.url && (
-                <Field label={t('url')}>
-                  <Anchor href={a.url} target="_blank" rel="noopener noreferrer nofollow" size="sm" style={{ overflowWrap: 'anywhere' }}>
-                    {t('openUrl')} <IconExternalLink size={12} aria-hidden />
-                  </Anchor>
-                </Field>
+              <RatingPanel app={a} onSaved={refresh} />
+              <ComponentsPanel app={a} onSaved={refresh} />
+              {a.stack.length > 0 && (
+                <IfModule module="versionWatch">
+                  <StackVersions app={a} />
+                </IfModule>
               )}
-              <Field label={t('owners')}>
-                <Text size="sm">{a.owners.map(subjectLabel).join(', ') || '–'}</Text>
-              </Field>
-              <Field label={t('cmdb')}>
-                {a.cmdb ? (
-                  <Text size="sm">
-                    {[a.cmdb.system, a.cmdb.id].filter(Boolean).join(' · ')}
-                    {a.cmdb.url && (
-                      <>
-                        {' '}
-                        <Anchor href={a.cmdb.url} target="_blank" rel="noopener noreferrer nofollow" size="sm">
-                          {t('openCmdb')} <IconExternalLink size={12} aria-hidden />
-                        </Anchor>
-                      </>
-                    )}
+              <RunsOnPanel app={a} onSaved={refresh} />
+              <IntegrationsPanel app={a} onSaved={refresh} />
+              <CollectorCollections kind="application" id={a.id} />
+              <CollapsibleSection
+                id="application-services"
+                collapseOnPhone
+                testId="application-services"
+                size="h5"
+                title={t('services.title')}
+                count={a.services.length}
+                defaultOpen={a.services.length > 0}
+              >
+                {a.services.length === 0 ? (
+                  <Text size="sm" c="dimmed">
+                    {t('services.empty')}
                   </Text>
                 ) : (
-                  <Text size="sm" c="dimmed">
-                    {t('noCmdb')}
-                  </Text>
+                  <Stack gap={4}>
+                    {a.services.map((s) => (
+                      <Text key={s.id} size="sm">
+                        <Anchor component={Link} to={`/services/${s.id}`} size="sm">
+                          {s.name}
+                        </Anchor>{' '}
+                        · {roleLabel(s.role, s.roleText)}
+                      </Text>
+                    ))}
+                  </Stack>
                 )}
-              </Field>
-              {a.tags.length > 0 && (
-                <Field label={t('tags')}>
-                  <TagBadges size="sm" tags={a.tags} linkTo={(tag) => `/applications?tag=${encodeURIComponent(tag)}`} />
-                </Field>
-              )}
-              <Text size="xs" c="dimmed">
-                {t('created', { user: a.createdBy, date: fmtDate(a.createdAt) })}
-              </Text>
+              </CollapsibleSection>
+              <ApplicationCredentials app={a} />
+              <ApplicationDocuments documents={a.documents} />
+              <DutiesPanel applicationId={a.id} />
+              <LinksPanel
+                links={a.links}
+                backlinks={a.backlinks}
+                canEdit={a.canEdit}
+                self={{ kind: 'application', id: a.id }}
+                onAdd={async (l) => {
+                  await post(`/applications/${a.id}/links`, l);
+                  refresh();
+                }}
+                onUpdate={async (lid, l) => {
+                  await patch(`/applications/${a.id}/links/${lid}`, l);
+                  refresh();
+                }}
+                onRemove={async (lid) => {
+                  await del(`/applications/${a.id}/links/${lid}`);
+                  refresh();
+                }}
+              />
             </Stack>
-          </Paper>
-          <OwningTeams kind="application" id={a.id} mt="md" />
-        </Grid.Col>
-      </Grid>
+          </Grid.Col>
+          <Grid.Col span={{ base: 12, md: 4 }}>
+            <Paper withBorder p="sm">
+              <Stack gap="sm">
+                <Field label={t('vendor')}>
+                  <Text size="sm">{[a.vendor, a.version].filter(Boolean).join(' · ') || '–'}</Text>
+                </Field>
+                {a.url && (
+                  <Field label={t('url')}>
+                    <Anchor href={a.url} target="_blank" rel="noopener noreferrer nofollow" size="sm" style={{ overflowWrap: 'anywhere' }}>
+                      {t('openUrl')} <IconExternalLink size={12} aria-hidden />
+                    </Anchor>
+                  </Field>
+                )}
+                <Field label={t('owners')}>
+                  <Text size="sm">{a.owners.map(subjectLabel).join(', ') || '–'}</Text>
+                </Field>
+                <Field label={t('cmdb')}>
+                  {a.cmdb ? (
+                    <Text size="sm">
+                      {[a.cmdb.system, a.cmdb.id].filter(Boolean).join(' · ')}
+                      {a.cmdb.url && (
+                        <>
+                          {' '}
+                          <Anchor href={a.cmdb.url} target="_blank" rel="noopener noreferrer nofollow" size="sm">
+                            {t('openCmdb')} <IconExternalLink size={12} aria-hidden />
+                          </Anchor>
+                        </>
+                      )}
+                    </Text>
+                  ) : (
+                    <Text size="sm" c="dimmed">
+                      {t('noCmdb')}
+                    </Text>
+                  )}
+                </Field>
+                {a.tags.length > 0 && (
+                  <Field label={t('tags')}>
+                    <TagBadges size="sm" tags={a.tags} linkTo={(tag) => `/applications?tag=${encodeURIComponent(tag)}`} />
+                  </Field>
+                )}
+                <Text size="xs" c="dimmed">
+                  {t('created', { user: a.createdBy, date: fmtDate(a.createdAt) })}
+                </Text>
+              </Stack>
+            </Paper>
+            <OwningTeams kind="application" id={a.id} mt="md" />
+          </Grid.Col>
+        </Grid>
+      </SectionGroup>
       {editing && a.canEdit && <ApplicationFormModal app={a} onClose={() => setEditing(false)} onSaved={(x) => refresh(x)} />}
     </>
   );
@@ -237,65 +248,71 @@ function IntegrationsPanel({ app, onSaved }: { app: ApplicationDetail; onSaved: 
     }
   };
   return (
-    <Stack gap="xs" data-testid="application-integrations">
-      <Group justify="space-between">
-        <Text fw={600} id="integrations-title">
-          {t('integrations.title')}
-        </Text>
-        {app.canEdit && !app.archived && (
+    <CollapsibleSection
+      id="integrations"
+      collapseOnPhone
+      testId="application-integrations"
+      size="h5"
+      title={t('integrations.title')}
+      count={app.integrations.length}
+      defaultOpen={app.integrations.length > 0}
+      description={t('integrations.help')}
+      actions={
+        app.canEdit &&
+        !app.archived && (
           <Button size="xs" variant="default" leftSection={<IconPlus size={14} />} onClick={() => setAdding(true)}>
             {t('integrations.add')}
           </Button>
-        )}
-      </Group>
-      <Text size="xs" c="dimmed">
-        {t('integrations.help')}
-      </Text>
-      {app.integrations.length === 0 ? (
-        <Text size="sm" c="dimmed">
-          {t('integrations.empty')}
-        </Text>
-      ) : (
-        <Stack gap={4} role="list" aria-labelledby="integrations-title">
-          {app.integrations.map((i, n) => (
-            <Group key={i.platformId ?? `hidden-${n}`} justify="space-between" wrap="nowrap" role="listitem">
-              <Box style={{ minWidth: 0 }}>
-                {i.visible && i.path ? (
-                  <Text size="sm">
-                    <Anchor component={Link} to={i.path} size="sm">
-                      {i.name}
-                    </Anchor>
-                    {i.environment && (
-                      <Badge ml={6} size="xs" variant="outline">
-                        {i.environment}
-                      </Badge>
-                    )}
+        )
+      }
+    >
+      <Stack gap="xs">
+        {app.integrations.length === 0 ? (
+          <Text size="sm" c="dimmed">
+            {t('integrations.empty')}
+          </Text>
+        ) : (
+          <Stack gap={4} role="list" aria-labelledby="integrations-title">
+            {app.integrations.map((i, n) => (
+              <Group key={i.platformId ?? `hidden-${n}`} justify="space-between" wrap="nowrap" role="listitem">
+                <Box style={{ minWidth: 0 }}>
+                  {i.visible && i.path ? (
+                    <Text size="sm">
+                      <Anchor component={Link} to={i.path} size="sm">
+                        {i.name}
+                      </Anchor>
+                      {i.environment && (
+                        <Badge ml={6} size="xs" variant="outline">
+                          {i.environment}
+                        </Badge>
+                      )}
+                    </Text>
+                  ) : (
+                    <Text size="sm" c="dimmed" fs="italic">
+                      {t('integrations.notVisible')}
+                    </Text>
+                  )}
+                  <Text size="xs" c="dimmed">
+                    {t('integrations.mappedBy', { user: i.mappedBy, date: fmtDate(i.mappedAt) })}
                   </Text>
-                ) : (
-                  <Text size="sm" c="dimmed" fs="italic">
-                    {t('integrations.notVisible')}
-                  </Text>
+                </Box>
+                {app.canEdit && i.canManage && i.platformId && (
+                  <ActionIcon
+                    variant="subtle"
+                    color="red"
+                    aria-label={t('integrations.remove', { name: i.name })}
+                    onClick={() => void remove(i.platformId!, i.name)}
+                  >
+                    <IconTrash size={16} />
+                  </ActionIcon>
                 )}
-                <Text size="xs" c="dimmed">
-                  {t('integrations.mappedBy', { user: i.mappedBy, date: fmtDate(i.mappedAt) })}
-                </Text>
-              </Box>
-              {app.canEdit && i.canManage && i.platformId && (
-                <ActionIcon
-                  variant="subtle"
-                  color="red"
-                  aria-label={t('integrations.remove', { name: i.name })}
-                  onClick={() => void remove(i.platformId!, i.name)}
-                >
-                  <IconTrash size={16} />
-                </ActionIcon>
-              )}
-            </Group>
-          ))}
-        </Stack>
-      )}
-      {adding && <AddPlatformModal app={app} onClose={() => setAdding(false)} onSaved={onSaved} />}
-    </Stack>
+              </Group>
+            ))}
+          </Stack>
+        )}
+        {adding && <AddPlatformModal app={app} onClose={() => setAdding(false)} onSaved={onSaved} />}
+      </Stack>
+    </CollapsibleSection>
   );
 }
 
@@ -359,69 +376,75 @@ function AddPlatformModal({ app, onClose, onSaved }: { app: ApplicationDetail; o
 function ApplicationDocuments({ documents }: { documents: ApplicationDocument[] }) {
   const { t } = useTranslation(['applications', 'services']);
   return (
-    <Stack gap="xs" data-testid="application-documents">
-      <Text fw={600} id="application-documents-title">
-        {t('documents.title')}
-      </Text>
-      <Text size="xs" c="dimmed">
-        {t('documents.help')}
-      </Text>
-      {documents.length === 0 ? (
-        <Text size="sm" c="dimmed">
-          {t('documents.empty')}
-        </Text>
-      ) : (
-        <div className="table-scroll">
-          <Table fz="sm" aria-labelledby="application-documents-title">
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>{t('services:documents.document')}</Table.Th>
-                <Table.Th>{t('services:documents.edition')}</Table.Th>
-                <Table.Th>{t('services:documents.status')}</Table.Th>
-                <Table.Th>{t('services:documents.review')}</Table.Th>
-                <Table.Th>{t('services:documents.nextReview')}</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {documents.map((d) => (
-                <Table.Tr key={d.id}>
-                  <Table.Td style={{ overflowWrap: 'anywhere' }}>
-                    <Text span size="xs" c="dimmed" className="mono nowrap">
-                      {d.number}
-                    </Text>{' '}
-                    <Anchor component={Link} to={`/records/${d.id}`} size="sm">
-                      {d.title}
-                    </Anchor>
-                  </Table.Td>
-                  <Table.Td className="nowrap">
-                    {d.edition ? (
-                      <Box w="max-content">
-                        <EditionBadge edition={d.edition} size="sm" />
-                      </Box>
-                    ) : (
-                      <Text span size="sm" c="dimmed">
-                        {t('services:documents.draft')}
-                      </Text>
-                    )}
-                  </Table.Td>
-                  <Table.Td className="nowrap">
-                    <Box w="max-content">
-                      <RecordStatusBadge status={d.status} />
-                    </Box>
-                  </Table.Td>
-                  <Table.Td className="nowrap">
-                    <Box w="max-content">
-                      <ReviewStatusBadge status={d.reviewStatus} />
-                    </Box>
-                  </Table.Td>
-                  <Table.Td className="nowrap">{fmtDay(d.nextReviewAt)}</Table.Td>
+    <CollapsibleSection
+      id="application-documents"
+      collapseOnPhone
+      testId="application-documents"
+      size="h5"
+      title={t('documents.title')}
+      count={documents.length}
+      tone={documents.some((d) => d.reviewStatus === 'overdue') ? 'warning' : undefined}
+      defaultOpen={documents.length > 0}
+      description={t('documents.help')}
+    >
+      <Stack gap="xs">
+        {documents.length === 0 ? (
+          <Text size="sm" c="dimmed">
+            {t('documents.empty')}
+          </Text>
+        ) : (
+          <div className="table-scroll">
+            <Table fz="sm" aria-labelledby="application-documents-title">
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>{t('services:documents.document')}</Table.Th>
+                  <Table.Th>{t('services:documents.edition')}</Table.Th>
+                  <Table.Th>{t('services:documents.status')}</Table.Th>
+                  <Table.Th>{t('services:documents.review')}</Table.Th>
+                  <Table.Th>{t('services:documents.nextReview')}</Table.Th>
                 </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-        </div>
-      )}
-    </Stack>
+              </Table.Thead>
+              <Table.Tbody>
+                {documents.map((d) => (
+                  <Table.Tr key={d.id}>
+                    <Table.Td style={{ overflowWrap: 'anywhere' }}>
+                      <Text span size="xs" c="dimmed" className="mono nowrap">
+                        {d.number}
+                      </Text>{' '}
+                      <Anchor component={Link} to={`/records/${d.id}`} size="sm">
+                        {d.title}
+                      </Anchor>
+                    </Table.Td>
+                    <Table.Td className="nowrap">
+                      {d.edition ? (
+                        <Box w="max-content">
+                          <EditionBadge edition={d.edition} size="sm" />
+                        </Box>
+                      ) : (
+                        <Text span size="sm" c="dimmed">
+                          {t('services:documents.draft')}
+                        </Text>
+                      )}
+                    </Table.Td>
+                    <Table.Td className="nowrap">
+                      <Box w="max-content">
+                        <RecordStatusBadge status={d.status} />
+                      </Box>
+                    </Table.Td>
+                    <Table.Td className="nowrap">
+                      <Box w="max-content">
+                        <ReviewStatusBadge status={d.reviewStatus} />
+                      </Box>
+                    </Table.Td>
+                    <Table.Td className="nowrap">{fmtDay(d.nextReviewAt)}</Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </div>
+        )}
+      </Stack>
+    </CollapsibleSection>
   );
 }
 

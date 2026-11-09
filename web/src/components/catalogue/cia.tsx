@@ -16,6 +16,7 @@ import {
 import { get, notifyError, put } from '../../api';
 import { useFieldErrors } from '../common';
 import { fmtDate } from '../../format';
+import { CollapsibleSection } from '../page/CollapsibleSection';
 
 /** The CIA scale in use (levels per dimension, lowest first). */
 export function useCiaScale() {
@@ -137,70 +138,80 @@ export function RatingPanel({ app, onSaved }: { app: ApplicationDetail; onSaved:
   const [editing, setEditing] = useState(false);
   const level = useLevel();
   const invalid = !!useCiaScale().data?.storedInvalid;
+  const rated = CIA_DIMENSIONS.some((d) => app.rating[d]);
+  const stale = CIA_DIMENSIONS.some((d) => app.rating[d]?.needsRerating);
   return (
-    <Stack gap="xs" data-testid="cia-rating">
-      <Group justify="space-between">
-        <Text fw={600} id="cia-rating-title">
-          {t('cia.title')}
-        </Text>
-        {app.canEdit && !invalid && (
+    <CollapsibleSection
+      id="cia-rating"
+      testId="cia-rating"
+      onlyInGroup
+      size="h5"
+      title={t('cia.title')}
+      summary={<RatingBadges rating={app.rating} />}
+      tone={invalid ? 'error' : stale ? 'warning' : undefined}
+      // rated (or to be rated again): open; not rated yet: folded, the Rate button beside it
+      defaultOpen={rated}
+      description={t('cia.help')}
+      actions={
+        app.canEdit &&
+        !invalid && (
           <Button size="xs" variant="default" leftSection={<IconShieldHalf size={14} />} onClick={() => setEditing(true)}>
             {t('cia.rate')}
           </Button>
-        )}
-      </Group>
-      <Text size="xs" c="dimmed">
-        {t('cia.help')}
-      </Text>
-      {invalid && <ScaleInvalidAlert />}
-      <div className="table-scroll">
-        <Table fz="sm" aria-labelledby="cia-rating-title">
-          <Table.Tbody>
-            {CIA_DIMENSIONS.map((d) => {
-              const r = app.rating[d];
-              return (
-                <Table.Tr key={d}>
-                  <Table.Th scope="row" w="30%">
-                    {t(`cia.dimensions.${d}`)}
-                  </Table.Th>
-                  <Table.Td>
-                    {r ? (
-                      <Stack gap={2}>
-                        <Group gap={6}>
-                          <Badge color={r.needsRerating ? 'yellow' : (level(d, r.level)?.color ?? 'gray')} variant="light" tt="none">
-                            {level(d, r.level)?.label ?? r.level}
-                          </Badge>
-                          {r.needsRerating && (
-                            <Badge color="yellow" variant="outline" tt="none" leftSection={<IconAlertTriangle size={11} aria-hidden />}>
-                              {t('cia.needsRerating')}
+        )
+      }
+    >
+      <Stack gap="xs">
+        {invalid && <ScaleInvalidAlert />}
+        <div className="table-scroll">
+          <Table fz="sm" aria-labelledby="cia-rating-title">
+            <Table.Tbody>
+              {CIA_DIMENSIONS.map((d) => {
+                const r = app.rating[d];
+                return (
+                  <Table.Tr key={d}>
+                    <Table.Th scope="row" w="30%">
+                      {t(`cia.dimensions.${d}`)}
+                    </Table.Th>
+                    <Table.Td>
+                      {r ? (
+                        <Stack gap={2}>
+                          <Group gap={6}>
+                            <Badge color={r.needsRerating ? 'yellow' : (level(d, r.level)?.color ?? 'gray')} variant="light" tt="none">
+                              {level(d, r.level)?.label ?? r.level}
                             </Badge>
-                          )}
-                        </Group>
-                        <Text size="sm" style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
-                          {r.justification}
+                            {r.needsRerating && (
+                              <Badge color="yellow" variant="outline" tt="none" leftSection={<IconAlertTriangle size={11} aria-hidden />}>
+                                {t('cia.needsRerating')}
+                              </Badge>
+                            )}
+                          </Group>
+                          <Text size="sm" style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
+                            {r.justification}
+                          </Text>
+                          <Text size="xs" c="dimmed">
+                            {t('cia.ratedBy', { user: r.ratedBy, date: fmtDate(r.ratedAt) })}
+                            {r.previousLabel &&
+                              (r.needsRerating
+                                ? ` · ${t('cia.needsReratingHint', { label: r.previousLabel })}`
+                                : ` · ${t('cia.mapped', { label: r.previousLabel })}`)}
+                          </Text>
+                        </Stack>
+                      ) : (
+                        <Text size="sm" c="dimmed">
+                          {t('cia.notRated')}
                         </Text>
-                        <Text size="xs" c="dimmed">
-                          {t('cia.ratedBy', { user: r.ratedBy, date: fmtDate(r.ratedAt) })}
-                          {r.previousLabel &&
-                            (r.needsRerating
-                              ? ` · ${t('cia.needsReratingHint', { label: r.previousLabel })}`
-                              : ` · ${t('cia.mapped', { label: r.previousLabel })}`)}
-                        </Text>
-                      </Stack>
-                    ) : (
-                      <Text size="sm" c="dimmed">
-                        {t('cia.notRated')}
-                      </Text>
-                    )}
-                  </Table.Td>
-                </Table.Tr>
-              );
-            })}
-          </Table.Tbody>
-        </Table>
-      </div>
-      {editing && <RatingModal app={app} onClose={() => setEditing(false)} onSaved={onSaved} />}
-    </Stack>
+                      )}
+                    </Table.Td>
+                  </Table.Tr>
+                );
+              })}
+            </Table.Tbody>
+          </Table>
+        </div>
+        {editing && <RatingModal app={app} onClose={() => setEditing(false)} onSaved={onSaved} />}
+      </Stack>
+    </CollapsibleSection>
   );
 }
 

@@ -259,5 +259,15 @@
   "maxBufferSize": 10000,
   "plcTimeSync": false,
   "sendEvents": true,
-  "eventsToIgnore": ["heartbeat"]
+  "eventsToIgnore": ["heartbeat"],
+  "outputs": [
+    {
+      "name": "plant-broker",
+      "broker": "mqtts://mqtt.example.com:8883",
+      "topic": "plant/riverside/mill-01",
+      "format": "json",
+      "qos": 1,
+      "batchSize": 20
+    }
+  ]
 }

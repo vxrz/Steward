@@ -35,6 +35,13 @@ test('failed checks are grouped per check and the card folds and stays folded', 
   );
   try {
     for (let i = 0; i < 3; i++) await waitForRun(api, await startRunApi(api, proc.id, { bindings: {} }), ['succeeded', 'failed']);
+    // only this test's check on the card: a check that starts failing in another test would open a folded card again
+    await page.route('**/api/dashboard', async (route) => {
+      const res = await route.fetch();
+      const body = (await res.json()) as { failedChecks: { processId: string }[] };
+      body.failedChecks = body.failedChecks.filter((c) => c.processId === proc.id);
+      await route.fulfill({ response: res, json: body });
+    });
     await page.goto('/');
     await settle(page);
     const card = page.getByTestId('failed-checks');

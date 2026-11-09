@@ -202,6 +202,35 @@ Nothing left from this review. The three ideas for later were done in 0.11.0 (wi
 
 ## v0.4.0: areas and page templates
 
-- The sidebar has six areas (Home, Operate, Automate, Catalogue, Compliance, Admin, `NAV_GROUPS` in `web/src/components/AppNav.tsx`). The area of the current page opens; the user's opened and folded areas and pinned entries are kept per user in the browser (`sm.nav.groups.<user>`, `sm.nav.pins.<user>`). Schedules, Triggers and Git sync are tabs of Processes (`AUTOMATE_TABS`, `AutomateTabs`).
+- The sidebar has six areas (Home, Operate, Automate, Catalogue, Compliance, Admin, `NAV_GROUPS` in `web/src/components/AppNav.tsx`). The area of the current page opens; the user's opened and folded areas and pinned entries are kept per user in the browser (`sm.pref.<user>.nav.groups`, `sm.pref.<user>.nav.pins`; since 0.12 – the keys of before, `sm.nav.groups.<user>` and `sm.nav.pins.<user>`, are read until the user changes something). Schedules, Triggers and Git sync are tabs of Processes (`AUTOMATE_TABS`, `AutomateTabs`).
 - `ListPage` and `DetailPage`/`DetailHeader` in `web/src/components/page/` are the templates of list and detail pages; `LinkTabs` are tabs that are addresses (Automate, the service hub `/services/<id>/<tab>`).
 - The command palette's _Recently opened_ comes from `DetailHeader`'s `recent` and from entries opened in the palette (`sm.recent.<user>`, the last ten).
+
+## v0.12.0: collapsible content
+
+Long detail pages fold their secondary content; the main content stays open.
+
+**Rules**
+
+1. Fold secondary content, not the main content: no fold in a short tab; tables, descriptions, documents and diffs stay open. Not folded: page headers and status, the run's findings summary, list-page tables, the run comparison, the monitor graph and checks table, Markdown descriptions and a record's content tab, the settings cards inside a save bar, and the tabbed hubs (service, record, platform, monitor) – no fold inside a tab.
+2. The content decides the default: problems or entries open, empty or all-OK folded. Long lists show their first entries (10 links or people, 20 data points, 5 _Used by_ entries) and _Show all N_.
+3. A folded header says what is inside: the count and the status (an error count in red, a warning in orange).
+4. A section opens by itself for an error, a validation problem or a required empty field; for the target of a link (`#<id>`), a search hit or the path to the selected tree node; and for printing.
+5. The user's choice is remembered (per user, in this browser) only where a section recurs on many records: backlinks, the start page cards, the sections of the application page. Per-record parts (an interface, a tree node, a run step) keep it for the page view.
+6. Pages with five or more sections offer _Expand all_ / _Collapse all_ (they change the view, not the remembered choices).
+7. Accessibility: the heading (h2/h3) holds a `<button aria-expanded aria-controls>`; actions (Add, menus) sit outside it; folded content is `display: none`; targets are at least 24 px; an opened section or link target scrolls clear of the sticky header.
+8. Phones (below 48em): sections with secondary lists start folded, their count visible.
+9. Printing and _Save as PDF_ open everything and list every entry.
+
+**Pieces** (`web/src/components/page/`)
+
+- `CollapsibleSection`: `id`, `title`, `order` (2, 3), `count`, `summary` (badges beside the toggle), `tone` (`error` opens it, `warning` colours the count), `defaultOpen` (a value or a function), `collapseOnPhone`, `forceOpen`, `remember` (pref name `section.<page kind>.<id>`, never a record id), `alertKey` (comma-separated ids of what needs attention: a remembered folded section opens again when an id appears that was not there when it was folded), `actions`, `description`, `variant="card"`, `onlyInGroup` (panels shared with tabbed pages fold only inside a `SectionGroup`). Test ids `section-<id>`, `section-<id>-toggle`, `section-<id>-body` (or the `testId` given).
+- `SectionGroup`: registers its sections, shows _Expand all_ / _Collapse all_ (`sections-expand-all`, `sections-collapse-all`; `SectionGroupControls` places them elsewhere); `rememberScope` remembers each section's choice for every page of that kind.
+- `useCollapsible`: the same state for rows and toggles that are not a whole section (run steps, tree nodes, the editor's problem list, advanced settings).
+- `useShowMore(items, first, { page })` and `<ShowAll>`: _Show all N_ / _Show fewer_, or with `page` _Show N more_ / _Show all_ (run steps and log). Test id `show-all-<id>`.
+- `usePrinting()` is true while the page prints (`beforeprint`, `matchMedia('print')`); the print styles in `web/src/styles.css` hide the app's navigation.
+- `useSectionPref(name, default)` in `prefs.ts`: a remembered yes/no per user (the getting-started checklist; the sidebar and the failed-checks card use the same per-user keys, `sm.pref.<user>.<name>`, and read their keys of before).
+
+**Where:** process editor problem list, application page, device profile interfaces, run steps, links and backlinks, an asset's data and KPIs, the site hierarchy, the start page cards, a credential's _Used by_, the firewall panel, a data point's assets, the advanced settings of a step, an SSO provider and the migration plan, audit log entries, and the settings areas on phones.
+
+**Tests:** `e2e/collapsible.spec.ts` (desktop and phone, axe in light and dark mode).

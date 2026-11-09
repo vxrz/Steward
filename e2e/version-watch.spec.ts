@@ -110,6 +110,8 @@ test('versions on a phone: cards instead of the table @mobile', async ({ page, a
   try {
     await page.goto(`/applications/${id}`);
     const versions = page.getByTestId('stack-versions');
+    // on a phone the section starts folded, its count in the header
+    await versions.getByTestId('stack-versions-toggle').tap();
     const card = versions.getByRole('listitem').filter({ hasText: 'React 18.3.1' });
     await expect(card).toContainText('Newest 19.2.0 (npm)');
     await card.getByRole('button', { name: 'Version watch of React in ghcr.io/acme/shop-ui' }).click();

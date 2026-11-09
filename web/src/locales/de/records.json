@@ -12,7 +12,8 @@
     "DOC": "Servicedokumentation",
     "PIR": "Incident-Review",
     "FWC": "Firewall-Änderung",
-    "FWR": "Freigegebene Firewall-Regeln"
+    "FWR": "Freigegebene Firewall-Regeln",
+    "GWC": "Gateway-Konfiguration"
   },
   "builtin": {
     "types": {
@@ -51,6 +52,9 @@
       "FWR": {
         "description": "Die freigegebenen Firewall-Regeln eines Netzsegments oder Systems. Jede abgeschlossene Firewall-Änderung entwirft die nächste Ausgabe, die eine freigebende Person bestätigt; die Regeln werden jährlich rezertifiziert.",
         "template": "## Geltungsbereich\n\n\n## Hinweise\n\n"
+      },
+      "GWC": {
+        "description": "Die Konfiguration eines Sammlers (eines Gateways, eines ETL-Jobs), wie ein Import von Datenerfassungen sie gelesen hat: eine Zusammenfassung, die jeder Import neu schreibt, die Datei ohne Geheimnisse und Ihre eigenen Notizen darunter."
       }
     },
     "fields": {
@@ -359,7 +363,10 @@
       "site": "Standort",
       "asset": "Anlage",
       "conduit": "Conduit (OT-Netzwerk)",
-      "page-watch": "Seitenüberwachung"
+      "page-watch": "Seitenüberwachung",
+      "device-profile": "Geräteprofil",
+      "data-collection": "Datenerfassung",
+      "data-sink": "Ziel einer Datenerfassung"
     },
     "target": "Ziel",
     "search": "Zum Suchen tippen",

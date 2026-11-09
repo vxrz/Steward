@@ -46,6 +46,10 @@ const ALLOWED: Record<string, { family: Family; mime: string }> = {
   txt: { family: 'text', mime: 'text/plain' },
   md: { family: 'text', mime: 'text/markdown' },
   csv: { family: 'text', mime: 'text/csv' },
+  // 0.12: configuration files (the gateway configurations of the plant registry keep theirs, secrets removed)
+  json: { family: 'text', mime: 'application/json' },
+  yaml: { family: 'text', mime: 'application/yaml' },
+  yml: { family: 'text', mime: 'application/yaml' },
 };
 export const ATTACHMENT_EXTENSIONS = Object.keys(ALLOWED).map((e) => '.' + e);
 

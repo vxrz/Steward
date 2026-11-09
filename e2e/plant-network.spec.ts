@@ -40,8 +40,10 @@ test.describe('as a designer', () => {
     await card.getByTestId('open-network').click();
     await expect(page).toHaveURL(/\/plant\/sites\/riverside\/network$/);
     await expect(page.getByRole('heading', { name: /OT network/, level: 1 })).toBeVisible();
-    // nothing is linked: unknown, never online
-    await expect(page.getByTestId('live-rvs-mill-01').getByTestId('live-badge')).toHaveAttribute('data-state', 'unknown');
+    // nothing is linked to it: "Not watched" (or, while nothing on the site is watched, no Live column and a hint)
+    await expect(
+      page.getByTestId('live-not-watched-hint').or(page.getByTestId('live-rvs-mill-01').locator('[data-testid="live-badge"][data-state="not_watched"]')),
+    ).toBeVisible();
     await expectAccessible(page, 'OT network status');
 
     await tab(page, 'VLANs').click();
@@ -89,7 +91,7 @@ test.describe('as a designer', () => {
     await tab(page, 'Devices').click();
     const devices = page.getByTestId('network-devices');
     await expect(devices.getByTestId('site-device-rvs-mill-01-ipc')).toContainText('10.20.110.21');
-    await devices.getByRole('textbox', { name: 'Search host, address, MAC, port' }).fill('53-21');
+    await devices.getByRole('searchbox', { name: 'Search host, address, MAC, port' }).fill('53-21');
     await expect(devices.getByTestId('site-device-rvs-mill-02-ipc')).toBeVisible();
     await expect(devices.getByTestId('site-device-rvs-mill-01-ipc')).toBeHidden();
     await expectAccessible(page, 'OT network devices');

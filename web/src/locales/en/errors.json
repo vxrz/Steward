@@ -908,6 +908,10 @@
     "PLANT_ASSIGNMENT_INVALID": "The assignment cannot be saved – {{path}}: {{message}}",
     "PLANT_PROFILE_IN_USE": "The device profile is still assigned to assets ({{count}}) – remove those assignments first.",
     "PLANT_PROFILE_IN_USE_HIDDEN": "The device profile is in use – it cannot be deleted.",
+    "PLANT_PROFILE_TEMPLATE": "Device profile {{name}} is a template – only for other profiles to extend. Give the asset a profile that extends it.",
+    "PLANT_PROFILE_TEMPLATE_IN_USE": "{{count}} assets have the device profile – give them another profile (one that extends it) before it becomes a template.",
+    "PLANT_PROFILE_TEMPLATE_IN_USE_HIDDEN": "Assets have the device profile – it cannot become a template.",
+    "PLANT_EXTRACT_REFUSED": "The base profile cannot be extracted: {{message}}",
     "PLANT_KPI_IN_USE": "Assets still have KPI instances of this definition ({{count}}) – remove those first.",
     "PLANT_KPI_IN_USE_HIDDEN": "The KPI definition is in use – it cannot be deleted.",
     "PLANT_NETWORK_INVALID": "It cannot be saved – {{path}}: {{message}}",
@@ -1111,8 +1115,16 @@
     "CONFIRMATION_MISMATCH": "Type the user name {{username}} to confirm.",
     "PLANT_PROFILE_EXTENDED": "Other device profiles extend this one ({{profiles}}) – change or delete those first.",
     "PLANT_COLLECTION_NOT_FOUND": "Data collection {{id}} not found.",
+    "PLANT_PROFILE_LINKED": "{{count}} documents link to the device profile – remove the links first, or remove it with “Remove selected” and “Also remove what belongs to it”.",
+    "PLANT_COLLECTION_LINKED": "{{count}} documents link to the data collection – choose “Also remove what belongs to it” to remove the links with it.",
+    "PLANT_SOURCE_NOT_FOUND": "The kept file {{id}} was not found.",
+    "PLANT_SINK_NOT_FOUND": "Sink {{id}} not found.",
+    "PLANT_DOC_ID": "“{{id}}” is not the id of a data collection or sink.",
     "PLANT_COLLECTION_INVALID": "The data collection cannot be saved – {{path}}: {{message}}",
-    "PLANT_COLLECTION_IMPORT_INVALID": "The data collections cannot be imported – {{path}}: {{message}}"
+    "PLANT_COLLECTION_IMPORT_INVALID": "The data collections cannot be imported – {{path}}: {{message}}",
+    "PLANT_PROPOSAL_CHANGED": "What the proposal changes is no longer what it was – look at the preview of now and confirm it.",
+    "PLANT_PROPOSAL_INVALID": "The proposal cannot be applied now ({{count}} problems) – see the preview of now.",
+    "PLANT_PROPOSAL_REMOVES": "A proposal may change items of an entry, never drop one: {{entry}} would lose {{path}}."
   },
   "boundary": {
     "title": "Something went wrong on this page",

@@ -37,6 +37,7 @@ import type plantViews from '../locales/en/plantViews.json';
 import type plantMap from '../locales/en/plantMap.json';
 import type plantModel from '../locales/en/plantModel.json';
 import type plantIds from '../locales/en/plantIds.json';
+import type plantDocs from '../locales/en/plantDocs.json';
 import type costs from '../locales/en/costs.json';
 import type contracts from '../locales/en/contracts.json';
 import type libraries from '../locales/en/libraries.json';
@@ -92,6 +93,7 @@ export interface Resources {
   plantMap: typeof plantMap;
   plantModel: typeof plantModel;
   plantIds: typeof plantIds;
+  plantDocs: typeof plantDocs;
   costs: typeof costs;
   contracts: typeof contracts;
   libraries: typeof libraries;

@@ -22,10 +22,10 @@ import {
 import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { me } from '../auth/access.js';
-import { HttpError, nowIso, sha256 } from '../util.js';
+import { HttpError, nowIso, parseJson, sha256 } from '../util.js';
 import { parseYaml } from '../yaml-safe.js';
 import { canManageCatalogue, requireManage } from './access.js';
-import { changedKeys } from './model.js';
+import { changedKeys, removeCollectionLinks } from './model.js';
 import { visibleAsset } from './service.js';
 import { checkedProfile } from './catalogue.js';
 import {
@@ -44,6 +44,7 @@ import {
   collectionRows,
   collectionValuesOf,
   collectorKey,
+  destinationOfSink,
   mappingsOf,
   nameKey,
   rememberMapping,
@@ -52,6 +53,10 @@ import {
   upsertCollection,
 } from './collections-model.js';
 import { detectFormat, parseCsvRows, parseGateway, parseIeOpcUa, parseNodeRed, parseTable, type ParsedCollection } from './collections-formats.js';
+import { redactFile, scrubParsed } from './collections-redact.js';
+import { keepSources, pruneSources, type KeptFile } from './collections-sources.js';
+import { writeSourceDocument } from './collections-documents.js';
+import type { PlantCollectionSink, PlantSourceDocumentResult } from '@sm/shared';
 
 /**
  * The import of data collections (0.11.0, docs/adr/0019-data-collections.md): a collector's configuration files are
@@ -107,12 +112,25 @@ export type CollectionImportInput = z.infer<typeof collectionImportInput>;
 
 // ---------- reading the files ----------
 
-function readFiles(input: CollectionImportInput, problems: PlantCollectionImportProblem[]): { format: CollectionFormat; collections: ParsedCollection[] } {
+/** Node-RED keeps sign-in data in a node's `credentials`: dropped before any importer looks at the flow. */
+const withoutCredentials = (doc: unknown[]): unknown[] =>
+  doc.map((n) => {
+    if (!n || typeof n !== 'object' || Array.isArray(n)) return n;
+    const { credentials: _c, ...rest } = n as Record<string, unknown>;
+    return rest;
+  });
+
+function readFiles(
+  input: CollectionImportInput,
+  problems: PlantCollectionImportProblem[],
+): { format: CollectionFormat; collections: ParsedCollection[]; kept: KeptFile[] } {
   const total = input.files.reduce((n, f) => n + Buffer.byteLength(f.content), 0);
   if (total > L.fileBytes)
     throw new HttpError(413, `The files are too large (at most ${L.fileBytes / 1024 / 1024} MB)`, 'PLANT_IMPORT_TOO_LARGE', { mb: L.fileBytes / 1024 / 1024 });
   let format: CollectionFormat | null = input.format === 'auto' ? null : input.format;
   const collections: ParsedCollection[] = [];
+  // the files as Steward keeps them (0.12): secrets removed here, the original is never written anywhere
+  const kept: KeptFile[] = [];
   for (const f of input.files) {
     const csv = /\.(csv|txt)$/i.test(f.name);
     let doc: unknown;
@@ -133,6 +151,8 @@ function readFiles(input: CollectionImportInput, problems: PlantCollectionImport
     if (format && found && found !== format && input.format === 'auto')
       problems.push({ file: f.name, path: '(file)', message: 'All files of one import must have the same format' });
     format = use;
+    kept.push({ name: f.name, original: f.content, redacted: redactFile(f.content, doc, { csv, nodeRed: use === 'node_red' }) });
+    if (use === 'node_red' && Array.isArray(doc)) doc = withoutCredentials(doc);
     if (use === 'gateway_json') {
       if (!doc || typeof doc !== 'object' || !Array.isArray((doc as { datasets?: unknown }).datasets)) {
         problems.push({ file: f.name, path: 'datasets', message: 'Expected datasets of data points' });
@@ -164,7 +184,35 @@ function readFiles(input: CollectionImportInput, problems: PlantCollectionImport
   }
   const items = collections.reduce((n, c) => n + c.items.length, 0);
   if (items > L.items) problems.push({ file: '(files)', path: '(files)', message: `At most ${L.items} items in one import` });
-  return { format: format ?? 'table', collections };
+  // no password of a URL or secret setting gets into a collection either
+  return { format: format ?? 'table', collections: collections.map((c) => scrubParsed(c)), kept };
+}
+
+/**
+ * The sinks after a re-import: the file's sinks with what people wrote on the stored ones kept (description, owner,
+ * schedule, item targets the file does not name), and the sinks added by hand. A collection stored before 0.12 has its
+ * destination as a sink by hand: when the file names sinks, they take its place.
+ */
+function mergeSinks(fresh: PlantCollectionSink[], stored: PlantCollectionSink[], legacy: boolean): PlantCollectionSink[] {
+  const out = fresh.map((s) => {
+    const prev = stored.find((x) => x.id === s.id) ?? stored.find((x) => x.name === s.name);
+    if (!prev) return s;
+    const mapped = new Set(s.mappings.map((m) => m.item));
+    return {
+      ...s,
+      id: prev.id,
+      kind: prev.kind !== 'other' && !s.ref ? prev.kind : s.kind,
+      ref: s.ref || prev.ref,
+      description: prev.description || s.description,
+      owner: prev.owner || s.owner,
+      schedule: s.schedule || prev.schedule,
+      format: s.format || prev.format,
+      transforms: s.transforms.length ? s.transforms : prev.transforms,
+      mappings: [...s.mappings, ...prev.mappings.filter((m) => !mapped.has(m.item))],
+    };
+  });
+  const manual = legacy && fresh.length ? [] : stored.filter((x) => !x.imported && !out.some((o) => o.id === x.id));
+  return [...out, ...manual].slice(0, L.sinks);
 }
 
 /** gateway_name or address → data point, from a CSV (gateway_name,address,data_point) or YAML ({ mapping: [...] }) file. */
@@ -203,6 +251,9 @@ interface Plan {
   entries: { id: string; values: PlantCollectionValues; before: PlantCollectionValues | null; position: number | null; items: PlantCollectionPreviewItem[] }[];
   removed: { id: string; name: string }[];
   format: CollectionFormat;
+  kept: KeptFile[];
+  /** Collections the files had */
+  found: number;
 }
 
 function suggest(
@@ -257,7 +308,7 @@ function suggest(
 }
 
 function plan(assetId: string, input: CollectionImportInput, problems: PlantCollectionImportProblem[], warnings: PlantCollectionImportProblem[]): Plan {
-  const { format, collections } = readFiles(input, problems);
+  const { format, collections, kept } = readFiles(input, problems);
   const mapping = readMapping(input.mappingFile, problems);
   const ctx = assetContext(assetId);
   if (input.interfaceId && !ctx.interfaces.some((i) => i.id === input.interfaceId))
@@ -285,11 +336,14 @@ function plan(assetId: string, input: CollectionImportInput, problems: PlantColl
       continue;
     }
     const before = new Map((prev?.v.items ?? []).filter((i) => i.dataPoint).map((i) => [`${i.outputName}\u0000${i.address}`, i.dataPoint!]));
+    const prevDescription = new Map((prev?.v.items ?? []).filter((i) => i.description).map((i) => [`${i.outputName}\u0000${i.address}`, i.description]));
     const items: PlantCollectionPreviewItem[] = c.items.map((it, index) => {
       const s = suggest(it, ctx, protocol, mapping, remembered, collectorAliases, before);
       const point = s.suggestion.dataPoint ? ctx.points.find((p) => p.id === s.suggestion.dataPoint) : undefined;
       return {
         ...it,
+        // a description written by hand stays when the file has none (0.12.0)
+        description: it.description || prevDescription.get(`${it.outputName}\u0000${it.address}`) || '',
         dataPoint: s.suggestion.accepted ? s.suggestion.dataPoint : null,
         index,
         suggestion: s.suggestion,
@@ -309,10 +363,12 @@ function plan(assetId: string, input: CollectionImportInput, problems: PlantColl
       debounceMs: c.debounceMs,
       triggers: c.triggers,
       composition: c.composition,
-      destination: c.destination ?? prev?.v.destination ?? null,
+      destination: null,
+      sinks: mergeSinks(c.sinks, prev?.v.sinks ?? [], !!prev && (prev.r.sinks ?? '[]') === '[]'),
       access: c.access,
       settings: c.settings.slice(0, L.settings),
       items: items.map(({ index: _i, suggestion: _s, alternatives: _a, pointAddress: _p, newAlias: _n, ...x }) => x),
+      description: prev?.v.description ?? '',
       notes: c.notes || prev?.v.notes || '',
       format,
       sourceFile: input.files
@@ -320,13 +376,14 @@ function plan(assetId: string, input: CollectionImportInput, problems: PlantColl
         .join(', ')
         .slice(0, 200),
     };
+    values.destination = destinationOfSink(values.sinks[0]);
     entries.push({ id, values, before: prev?.v ?? null, position: prev?.r.position ?? null, items });
   }
   const removed = input.replace ? mine.filter((x) => !entries.some((e) => e.id === x.r.id)).map((x) => ({ id: x.r.id, name: x.r.name })) : [];
   for (const e of entries)
     for (const p of checkCollection(assetId, e.values, e.before, ctx))
       if (!p.path.startsWith('items')) problems.push({ file: '(import)', path: `${e.id}.${p.path}`, message: p.message });
-  return { ctx, collector: input.collector, entries, removed, format };
+  return { ctx, collector: input.collector, entries, removed, format, kept, found: collections.length };
 }
 
 const action = (e: Plan['entries'][number]): PlantCollectionPreviewEntry['action'] =>
@@ -405,6 +462,8 @@ export function applyCollectionImport(assetId: string, input: CollectionImportIn
     addresses: 0,
     aliases: { profile: 0, collector: 0 },
     added: { asset: 0, profile: 0 },
+    sources: [],
+    documents: [],
   };
   // what the decisions write besides the collections: the assignment (addresses, additions, known-as names of added
   // data points) and the profile (known-as names, new data points)
@@ -517,6 +576,7 @@ export function applyCollectionImport(assetId: string, input: CollectionImportIn
   const profileChanged = !!profile && JSON.stringify(profile) !== JSON.stringify(profileBefore);
   if (profile && profileChanged) profile = checkedProfile(profile, new Map(profiles), (probs) => failed(probs.map((x) => ({ file: '(profile)', ...x }))));
   // collections that now name data points added above are checked against the model after the import
+  let kept: ReturnType<typeof keepSources> = { rows: [], added: false };
   db().tx(() => {
     const meta = { at, by };
     if (profile && profileChanged) {
@@ -546,7 +606,27 @@ export function applyCollectionImport(assetId: string, input: CollectionImportIn
       if (act === 'unchanged') continue;
       upsertCollection(assetId, e.values, e.position ?? next++, meta);
     }
-    for (const x of p.removed) db().run('DELETE FROM plant_collections WHERE asset_id = ? AND id = ?', assetId, x.id);
+    // collections the files no longer have go with the links of records to them ("replace" is the person's choice)
+    for (const x of p.removed) {
+      db().run('DELETE FROM plant_collections WHERE asset_id = ? AND id = ?', assetId, x.id);
+      removeCollectionLinks(assetId, x.id);
+    }
+    // the files as Steward keeps them, secrets removed (0.12): the next version of this collector's configuration
+    kept = keepSources(
+      assetId,
+      p.collector,
+      p.format,
+      p.kept,
+      p.entries.map((e) => e.id),
+      meta,
+    );
+    if (p.removed.length) pruneSources(assetId);
+    result.sources = kept.rows.map((r) => ({
+      id: r.id,
+      version: Number(r.version),
+      fileName: r.file_name,
+      redactedPaths: parseJson<string[]>(r.redacted_paths, []).length,
+    }));
     const seen = new Set<string>();
     for (const e of p.entries)
       for (const it of e.values.items)
@@ -567,10 +647,40 @@ export function applyCollectionImport(assetId: string, input: CollectionImportIn
         collector: p.collector,
         ...result,
         files: input.files.map((f) => ({ name: f.name, sha256: sha256(f.content) })),
+        // the kept version (secrets removed): its id, the paths where values were removed (never the values)
+        sources: kept.rows.map((r) => ({
+          id: r.id,
+          version: Number(r.version),
+          file: r.file_name,
+          sha256: r.sha256,
+          redactedSha256: r.redacted_sha256,
+          redactedPaths: parseJson<string[]>(r.redacted_paths, []).length,
+          new: kept.added,
+        })),
         ...(input.mappingFile ? { mappingFile: { name: input.mappingFile.name, sha256: sha256(input.mappingFile.content) } } : {}),
       },
     });
   });
+  // the gateway configuration document of each collection (0.12): written with the importer's rights on records,
+  // after the import (a refusal or a document in review never undoes the import; the result says what happened)
+  const documents: PlantSourceDocumentResult[] = [];
+  for (const e of p.entries) {
+    const row = db().get<{ document_id: string | null }>('SELECT document_id FROM plant_collections WHERE asset_id = ? AND id = ?', assetId, e.id);
+    const d = writeSourceDocument({
+      assetId,
+      assetName: a.row.name,
+      collection: e.values,
+      fileCollections: p.found,
+      format: p.format,
+      sources: kept.rows,
+      newVersion: kept.added,
+      documentId: row?.document_id ?? null,
+    });
+    if (d.recordId && d.recordId !== row?.document_id)
+      db().run('UPDATE plant_collections SET document_id = ? WHERE asset_id = ? AND id = ?', d.recordId, assetId, e.id);
+    documents.push(d);
+  }
+  result.documents = documents;
   return { ...result, preview: previewCollectionImport(assetId, { ...input, decisions: [] }) };
 }
 

@@ -31,6 +31,10 @@ import {
   DEVICE_STATES,
   PEER_KINDS,
   PLANT_NETWORK_LIMITS as NL,
+  PLANT_COLLECTION_LIMITS as CL,
+  COLLECTION_DESTINATION_KINDS,
+  COLLECTION_MODES,
+  SINK_TRANSFORM_KINDS,
   TRANSFER_MODES,
   VLAN_RANGE_TYPES,
   ZONE_CRITICALITIES,
@@ -307,7 +311,15 @@ export const interfaceSchema = z
     client: text(L.text).describe('The client it needs (a gateway, a driver, manual)'),
     notes: long,
     groups: z
-      .array(z.object({ name: z.string().min(1).max(L.text), description: long, data_points: z.array(dataPointSchema).max(L.dataPoints).optional() }).strict())
+      .array(
+        z
+          .object({
+            name: z.string().min(1).max(L.text),
+            description: long.describe('Plain text. An inherited group’s entry describes it anew (0.12.0); left out or empty: the inherited description'),
+            data_points: z.array(dataPointSchema).max(L.dataPoints).optional(),
+          })
+          .strict(),
+      )
       .max(L.groups)
       .optional()
       .describe('Data point groups'),
@@ -327,11 +339,16 @@ export const profileSchema = z
       .describe(
         'The base profile this one extends (0.11.0): its interfaces, data points and files are inherited; `interfaces` then lists only what this profile adds or changes',
       ),
+    template: z
+      .boolean()
+      .nullable()
+      .optional()
+      .describe('0.12.0: a template – only for other profiles to extend; no asset may have it (an assignment naming it is refused)'),
     manufacturer: text(PLANT_LIMITS.text),
     model: text(PLANT_LIMITS.text),
     version: versionText.describe('Firmware or product version the profile describes'),
     category: text(100),
-    description: long,
+    description: long.describe('Plain text. A profile that extends another inherits its base’s description while it has none (0.12.0)'),
     notes: long,
     interfaces: z.array(interfaceSchema).max(L.interfaces).optional(),
   })
@@ -371,6 +388,11 @@ export const kpiSchema = z
               .describe('data_point (default) or other'),
             profile: id.nullable().optional().describe('The device profile the data points belong to'),
             data_points: z.array(pointId).max(L.inputPoints).optional(),
+            units: boundedRecord(text(40), L.inputPoints)
+              .optional()
+              .describe(
+                '0.12.0: the unit the computation expects per data point (UCUM code, usual spellings such as kWh are read as their code); a data point left out expects its unit in the input’s profile',
+              ),
             notes: long,
           })
           .strict(),
@@ -709,6 +731,143 @@ export const dataPathSchema = z
   .strict()
   .meta({ id: 'DataPath', description: 'What data leaves an asset, who collects it, how it is transferred and where it ends up' });
 
+// 0.12: where the data of an asset's data collections goes – their sinks, transformation steps and item mapping
+export const sinkSchema = z
+  .object({
+    id,
+    name: z.string().min(1).max(CL.text),
+    kind: z.enum(COLLECTION_DESTINATION_KINDS).optional().describe('system, platform, application, dataset, publication or other (default)'),
+    ref: text(CL.text).describe('A Steward system, platform or application id, a dataset key, or text'),
+    object: text(CL.address).describe('Where there: a topic, a table, an asset/aspect, a bucket path'),
+    format: text(CL.text).describe('Message format or protocol'),
+    schedule: text(2000).describe('When it is written: schedule, batching'),
+    owner: text(CL.text),
+    description: text(CL.longText),
+    transforms: z
+      .array(
+        z
+          .object({
+            kind: z.enum(SINK_TRANSFORM_KINDS),
+            field: text(CL.text),
+            expression: text(CL.longText).describe('A new name, a factor, a condition, an expression or code – text, never run'),
+            window: text(CL.text),
+            function: text(CL.text),
+            description: text(2000),
+          })
+          .strict(),
+      )
+      .max(CL.transforms)
+      .optional()
+      .describe('The transformation steps on the way, in order (documentation only)'),
+    mappings: z
+      .array(
+        z
+          .object({
+            item: z.string().min(1).max(CL.address).describe('The item’s output name, else its address'),
+            target: text(CL.address),
+            transform: text(2000),
+          })
+          .strict(),
+      )
+      .max(CL.items)
+      .optional()
+      .describe('The name of an item in the sink, and a transformation for it only'),
+  })
+  .strict()
+  .meta({ id: 'Sink', description: 'Where a data collection’s data goes after it is loaded (and perhaps transformed)' });
+
+// 0.12: an asset's data collections – what a collector reads and what each value is (its sinks: collection_sinks)
+const patternList = z.array(z.string().min(1).max(CL.address)).max(CL.patterns).optional();
+export const collectionItemSchema = z
+  .object({
+    address: text(CL.address).describe('The address the collector reads (an OPC UA NodeId, a register, a variable path)'),
+    output_name: text(CL.text).describe('The collector’s name for the value (a gateway’s variable name)'),
+    output_type: text(60),
+    data_point: z
+      .string()
+      .min(1)
+      .max(120)
+      .nullable()
+      .optional()
+      .describe('The data point of the asset’s model it is (of its profile or its additions); empty: raw, not mapped'),
+    transform: z
+      .object({
+        note: text(2000).describe('Rename, conversion, scaling, an expression – text, never run'),
+        scale: z.number().nullable().optional(),
+        offset: z.number().nullable().optional(),
+        cast: text(40),
+      })
+      .strict()
+      .optional(),
+    description: text(PLANT_LIMITS.description),
+    notes: text(2000),
+  })
+  .strict()
+  .meta({ id: 'CollectionItem', description: 'A value a collector reads: its address, its name there and the data point it is' });
+
+export const collectionSchema = z
+  .object({
+    id,
+    name: z.string().min(1).max(CL.text),
+    collector: z
+      .object({
+        kind: z.enum(COLLECTOR_KINDS).describe('application, platform, process (a Steward item) or job (elsewhere, by name)'),
+        ref: z.string().min(1).max(CL.text).describe('Its id (the name of a job)'),
+        host: text(100).describe('The Steward system it runs on'),
+      })
+      .strict()
+      .optional()
+      .describe('Who reads: required for a new collection'),
+    data_path: ref.describe('A data path of the asset it belongs to'),
+    interface: z.string().max(120).nullable().optional().describe('The interface of the asset’s model it reads (empty: unknown)'),
+    mode: z.enum(COLLECTION_MODES).optional().describe('interval (default), on_change, trigger or other'),
+    interval_ms: z
+      .number()
+      .int()
+      .min(0)
+      .max(31 * 86_400_000)
+      .nullable()
+      .optional(),
+    debounce_ms: z
+      .number()
+      .int()
+      .min(0)
+      .max(31 * 86_400_000)
+      .nullable()
+      .optional(),
+    triggers: z
+      .array(z.object({ name: text(CL.text), condition: text(CL.text), reference_point: text(CL.address), reference_value: text(CL.text) }).strict())
+      .max(CL.triggers)
+      .optional(),
+    composition: text(2000).describe('How the triggers combine, or how the values are composed'),
+    access: z
+      .object({ read: patternList, write: patternList, create: patternList, delete: patternList })
+      .strict()
+      .optional()
+      .describe('What the collector may do on the machine, as address patterns; write, create and delete can change it'),
+    settings: z
+      .array(z.object({ key: z.string().min(1).max(CL.text), value: text(2000) }).strict())
+      .max(CL.settings)
+      .optional()
+      .describe('Other settings of the collector (buffering, events) – never credentials'),
+    items: z.array(collectionItemSchema).max(CL.items).optional().describe('What it reads; the list replaces the stored one'),
+    description: text(PLANT_LIMITS.description),
+    notes: text(CL.longText),
+  })
+  .strict()
+  .meta({
+    id: 'DataCollection',
+    description: 'What a collector (a gateway, an ETL job, a flow) reads from the asset (0.12); its sinks are in collection_sinks',
+  });
+
+export const collectionSinksSchema = z
+  .object({
+    collection: id.describe('A data collection of the asset (stored, or in `collections` of the file)'),
+    sinks: z.array(sinkSchema).max(CL.sinks).describe('All its sinks: the list replaces the stored one'),
+  })
+  .strict()
+  .meta({ id: 'CollectionSinks', description: 'The sinks of one data collection of the asset' });
+
 export const assetNetworkSchema = z
   .object({
     asset: id.describe('The asset'),
@@ -716,9 +875,19 @@ export const assetNetworkSchema = z
     checks,
     devices: z.array(deviceSchema).max(NL.devicesPerAsset).optional(),
     data_paths: z.array(dataPathSchema).max(NL.pathsPerAsset).optional(),
+    collections: z
+      .array(collectionSchema)
+      .max(CL.collectionsPerAsset)
+      .optional()
+      .describe('0.12: its data collections (added and changed, never removed by an import)'),
+    collection_sinks: z
+      .array(collectionSinksSchema)
+      .max(CL.collectionsPerAsset)
+      .optional()
+      .describe('0.12: the sinks of its data collections (stored ones, or ones in `collections`)'),
   })
   .strict()
-  .meta({ id: 'AssetNetwork', description: 'The OT network of an asset: its devices, data paths and live-status checks' });
+  .meta({ id: 'AssetNetwork', description: 'The OT network of an asset: its devices, data paths and live-status checks, and where its collected data goes' });
 
 // 0.11.0 (docs/PLANT.md#changing-many-entries-at-once): entries the import removes, by kind and id
 export const removeSchema = z

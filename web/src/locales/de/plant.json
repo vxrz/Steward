@@ -141,7 +141,10 @@
     "assetCount_other": "{{count}} Anlagen",
     "buildingOwn": "Das Gebäude, das dieser Teil nennt",
     "buildingInherited": "Von der Ebene darüber übernommen",
-    "actionsNamed": "Aktionen für {{name}}"
+    "actionsNamed": "Aktionen für {{name}}",
+    "levelsBelow": "Ebenen unter {{name}}",
+    "below_one": "{{count}} darunter",
+    "below_other": "{{count}} darunter"
   },
   "node": {
     "newTitle": "Neu: {{type}}",
@@ -250,6 +253,11 @@
     "title": "Quelle",
     "import": "Importlauf {{id}}",
     "importOf": "{{files}}, importiert am {{when}}",
+    "importOfMany_one": "Import von {{count}} Datei, importiert am {{when}}",
+    "importOfMany_other": "Import von {{count}} Dateien, importiert am {{when}}",
+    "showFiles": "Alle Dateien anzeigen",
+    "hideFiles": "Dateien ausblenden",
+    "perEntry": "Ein Import bewahrt seine Dateien auf, nicht, aus welcher Datei jeder Eintrag stammt.",
     "manual": "In Steward erfasst"
   },
   "export": {
@@ -354,10 +362,19 @@
       "status": "Status",
       "notInSource": "wieder in der Quelle"
     },
+    "diff": {
+      "show_one": "{{count}} Unterschied zeigen",
+      "show_other": "{{count}} Unterschiede zeigen",
+      "hide": "Unterschiede ausblenden",
+      "before": "Vorher",
+      "after": "Nachher"
+    },
     "kinds": {
       "profile": "Geräteprofil",
       "kpi": "KPI-Definition",
-      "assignment": "Zuordnung"
+      "assignment": "Zuordnung",
+      "collection_sinks": "Ziele einer Datenerfassung",
+      "collection": "Datenerfassung"
     },
     "checks_one": "{{count}} Hinweis der Prüfungen",
     "checks_other": "{{count}} Hinweise der Prüfungen",
@@ -519,7 +536,13 @@
     "fileSets": "Dateien",
     "pathPatternIs": "Pfad {{pattern}}",
     "formatIs": "Format {{format}}",
-    "producedPerIs": "eine je {{per}}"
+    "producedPerIs": "eine je {{per}}",
+    "pointCount_one": "{{count}} Datenpunkt",
+    "pointCount_other": "{{count}} Datenpunkte",
+    "groupCount_one": "{{count}} Gruppe",
+    "groupCount_other": "{{count}} Gruppen",
+    "fileSetCount_one": "{{count}} Datei",
+    "fileSetCount_other": "{{count}} Dateien"
   },
   "point": {
     "of": "Datenpunkt von {{iface}} › {{group}}",
@@ -772,7 +795,13 @@
     "possible": "KPIs, die diese Anlage haben kann",
     "possibleHelp": "KPI-Definitionen, deren Datenpunkt-Eingänge diese Anlage alle liefert.",
     "addThis": "Hinzufügen",
-    "removeConfirm": "{{what}} von dieser Anlage entfernen?"
+    "removeConfirm": "{{what}} von dieser Anlage entfernen?",
+    "activeCount_one": "{{count}} aktiv",
+    "activeCount_other": "{{count}} aktiv",
+    "notSetUpCount_one": "{{count}} nicht eingerichtet",
+    "notSetUpCount_other": "{{count}} nicht eingerichtet",
+    "notDeliveredCount_one": "{{count}} nicht geliefert",
+    "notDeliveredCount_other": "{{count}} nicht geliefert"
   },
   "checks": {
     "title": "Prüfungen",
@@ -799,6 +828,8 @@
       "kpi_point_unknown": "Die KPI „{{kpi}}“ liest den Datenpunkt {{point}}, den das Profil „{{profile}}“ nicht hat.",
       "kpi_point_unavailable": "Die KPI „{{kpi}}“ liest den Datenpunkt {{point}}, den diese Anlage nicht liefert (Abweichung).",
       "kpi_interface_inactive": "Die KPI „{{kpi}}“ liest den Datenpunkt {{point}}, aber die Schnittstelle „{{interface}}“ ist an dieser Anlage nicht als aktiv eingerichtet.",
+      "kpi_unit_mismatch": "Die KPI „{{kpi}}“ erwartet den Datenpunkt {{point}} in {{expected}}; diese Anlage liefert ihn in {{actual}} – nicht über einen Faktor umrechenbar.",
+      "kpi_unit_mismatch_convertible": "Die KPI „{{kpi}}“ erwartet den Datenpunkt {{point}} in {{expected}}; diese Anlage liefert ihn in {{actual}} – über einen Faktor umrechenbar, der Job muss ihn aber umrechnen.",
       "param_unknown": "{{param}} ist kein Parameter der KPI „{{kpi}}“.",
       "param_type": "Der Parameter {{param}} muss vom Typ {{type}} sein.",
       "param_range": "Der Parameter {{param}} ist {{value}}, außerhalb von {{min}} bis {{max}}.",
@@ -835,5 +866,16 @@
     "nonePossible": "Keine KPI-Definition: Keine liest nur Datenpunkte, die diese Anlage liefert.",
     "nonePossibleNoProfile": "Ordnen Sie zuerst ein Geräteprofil zu: KPIs lesen dessen Datenpunkte.",
     "instantiated": "hat eine Instanz"
+  },
+  "move": {
+    "menu": "Verschieben nach…",
+    "nodeTitle": "{{type}} {{name}} verschieben",
+    "nodeHelp": "Die {{type}} kommt unter eine andere {{parent}} dieses Standorts, mit allem darunter und ihren Anlagen.",
+    "newParent": "Neue {{type}}",
+    "nothingFound": "Nichts gefunden",
+    "siteOnly": "{{site}} (nur der Standort)",
+    "assetTitle": "{{name}} verschieben",
+    "assetHelp": "Wählen Sie den Platz der {{type}} in der Hierarchie dieses Standorts. Alles andere bleibt, wie es ist.",
+    "newPlace": "Neuer Platz"
   }
 }

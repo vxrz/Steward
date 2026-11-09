@@ -141,7 +141,10 @@
     "assetCount_other": "{{count}} assets",
     "buildingOwn": "The building this part names",
     "buildingInherited": "Inherited from the level above",
-    "actionsNamed": "Actions for {{name}}"
+    "actionsNamed": "Actions for {{name}}",
+    "levelsBelow": "Levels below {{name}}",
+    "below_one": "{{count}} below",
+    "below_other": "{{count}} below"
   },
   "node": {
     "newTitle": "New {{type}}",
@@ -250,6 +253,11 @@
     "title": "Source",
     "import": "Import {{id}}",
     "importOf": "{{files}}, imported {{when}}",
+    "importOfMany_one": "Import of {{count}} file, imported {{when}}",
+    "importOfMany_other": "Import of {{count}} files, imported {{when}}",
+    "showFiles": "Show all files",
+    "hideFiles": "Hide the files",
+    "perEntry": "An import keeps its files, not which file each entry came from.",
     "manual": "Entered in Steward"
   },
   "export": {
@@ -354,10 +362,19 @@
       "status": "status",
       "notInSource": "back in the source"
     },
+    "diff": {
+      "show_one": "Show {{count}} difference",
+      "show_other": "Show {{count}} differences",
+      "hide": "Hide the differences",
+      "before": "Before",
+      "after": "After"
+    },
     "kinds": {
       "profile": "Device profile",
       "kpi": "KPI definition",
-      "assignment": "Assignment"
+      "assignment": "Assignment",
+      "collection_sinks": "Sinks of a data collection",
+      "collection": "Data collection"
     },
     "checks_one": "{{count}} note of the checks",
     "checks_other": "{{count}} notes of the checks",
@@ -519,7 +536,13 @@
     "fileSets": "Files",
     "pathPatternIs": "path {{pattern}}",
     "formatIs": "format {{format}}",
-    "producedPerIs": "one per {{per}}"
+    "producedPerIs": "one per {{per}}",
+    "pointCount_one": "{{count}} data point",
+    "pointCount_other": "{{count}} data points",
+    "groupCount_one": "{{count}} group",
+    "groupCount_other": "{{count}} groups",
+    "fileSetCount_one": "{{count}} file",
+    "fileSetCount_other": "{{count}} files"
   },
   "point": {
     "of": "Data point of {{iface}} › {{group}}",
@@ -772,7 +795,13 @@
     "possible": "KPIs this asset can have",
     "possibleHelp": "KPI definitions whose every data point input this asset delivers.",
     "addThis": "Add",
-    "removeConfirm": "Remove {{what}} from this asset?"
+    "removeConfirm": "Remove {{what}} from this asset?",
+    "activeCount_one": "{{count}} active",
+    "activeCount_other": "{{count}} active",
+    "notSetUpCount_one": "{{count}} not set up",
+    "notSetUpCount_other": "{{count}} not set up",
+    "notDeliveredCount_one": "{{count}} not delivered",
+    "notDeliveredCount_other": "{{count}} not delivered"
   },
   "checks": {
     "title": "Checks",
@@ -799,6 +828,8 @@
       "kpi_point_unknown": "KPI “{{kpi}}” reads data point {{point}}, which profile “{{profile}}” does not have.",
       "kpi_point_unavailable": "KPI “{{kpi}}” reads data point {{point}}, which this asset does not deliver (override).",
       "kpi_interface_inactive": "KPI “{{kpi}}” reads data point {{point}}, but interface “{{interface}}” is not set up as active on this asset.",
+      "kpi_unit_mismatch": "KPI “{{kpi}}” expects data point {{point}} in {{expected}}; this asset delivers it in {{actual}} – not convertible by a factor.",
+      "kpi_unit_mismatch_convertible": "KPI “{{kpi}}” expects data point {{point}} in {{expected}}; this asset delivers it in {{actual}} – convertible by a factor, but the job has to convert it.",
       "param_unknown": "Parameter {{param}} is not a parameter of KPI “{{kpi}}”.",
       "param_type": "Parameter {{param}} must be of type {{type}}.",
       "param_range": "Parameter {{param}} is {{value}}, outside {{min}} to {{max}}.",
@@ -835,5 +866,16 @@
     "nonePossible": "No KPI definition: none reads only data points this asset delivers.",
     "nonePossibleNoProfile": "Assign a device profile first: KPIs read its data points.",
     "instantiated": "has an instance"
+  },
+  "move": {
+    "menu": "Move to…",
+    "nodeTitle": "Move {{type}} {{name}}",
+    "nodeHelp": "The {{type}} moves below another {{parent}} of this site, with everything below it and its assets.",
+    "newParent": "New {{type}}",
+    "nothingFound": "Nothing found",
+    "siteOnly": "{{site}} (the site only)",
+    "assetTitle": "Move {{name}}",
+    "assetHelp": "Choose the place of the {{type}} in this site's hierarchy. Everything else stays as it is.",
+    "newPlace": "New place"
   }
 }
