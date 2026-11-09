@@ -497,19 +497,32 @@ export async function setupDemo(opts: { applications?: boolean; services?: boole
     platforms++;
   }
   if (!existing.has('Confluent Cloud (demo)')) {
-    // Confluent Cloud (#226): the simulated Cloud API – role bindings for access reviews and the Costs API; the costs of
-    // its cluster lkc-demo1 belong to "Kafka (demo)" (variable confluentClusterId there)
+    // Confluent Cloud (#226, #123): the simulated Cloud API – role bindings for access reviews, the Costs API and the
+    // readout (environments, clusters, keys, connectors); the costs of its cluster lkc-demo1 belong to "Kafka (demo)"
+    // (variable confluentClusterId there), and its Schema Registry is the one of "Kafka (demo)" (the same mock)
     const preset = PRESETS.find((x) => x.kind === 'confluent-cloud')!;
-    createPlatform({
+    const cc = createPlatform({
       name: 'Confluent Cloud (demo)',
       kind: 'confluent-cloud',
       environment: 'demo',
       description:
-        'Simulated Confluent Cloud API served by the built-in mock: role bindings, users, service accounts and the Costs API. See docs/CONFLUENT.md and docs/COSTS.md.',
+        'Simulated Confluent Cloud API served by the built-in mock: environments, Kafka clusters, managed connectors, service accounts, API keys, the Schema Registry, role bindings and the Costs API. See docs/CONFLUENT.md and docs/COSTS.md.',
       baseUrl: `${base}/confluent`,
-      config: { ...preset.config, http: { ...preset.config.http, proxy: 'none' } },
-      secrets: { username: DEMO_CONFLUENT.cloudKey, password: DEMO_CONFLUENT.cloudSecret },
+      config: {
+        ...preset.config,
+        variables: { ...preset.config.variables, schemaRegistryUrl: `${base}/schema-registry` },
+        http: { ...preset.config.http, proxy: 'none' },
+      },
+      secrets: {
+        username: DEMO_CONFLUENT.cloudKey,
+        password: DEMO_CONFLUENT.cloudSecret,
+        registryKey: DEMO_KAFKA.registryKey,
+        registrySecret: DEMO_KAFKA.registrySecret,
+      },
     });
+    await import('../confluent/service.js')
+      .then((m) => m.refreshConfluent(cc.id, currentActor()))
+      .catch((err) => logger.warn({ err: (err as Error).message }, 'demo Confluent Cloud not read'));
     platforms++;
   }
   if (!existing.has('Shop database (demo)')) {

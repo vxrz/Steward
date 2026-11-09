@@ -343,6 +343,9 @@ const EXPECT: Record<string, Access> = {
   'GET /api/platforms/:id/kafka-connect': USE,
   'POST /api/platforms/:id/kafka-connect/read': USE,
   'GET /api/platforms/:id/kafka-connect/connectors/:name/config': USE,
+  // Confluent Cloud (#123): the readout for who sees the platform, "Read now" for who may use it
+  'GET /api/platforms/:id/confluent': USE,
+  'POST /api/platforms/:id/confluent/read': USE,
   'GET /api/platforms/:id/specs': USE,
   'POST /api/platforms/:id/specs': ADMIN,
   'DELETE /api/platforms/:id/specs/:specId': ADMIN,
@@ -1484,6 +1487,8 @@ function fill(url: string): string {
       // Kafka Connect (#223): the demo cluster and its Debezium connector
       .replace(/\/api\/platforms\/:id\/kafka-connect/, `/api/platforms/${fx.connectPlatform}/kafka-connect`)
       .replace(/:name\/config/, 'shop-cdc/config')
+      // Confluent Cloud (#123): the demo organisation
+      .replace(/\/api\/platforms\/:id\/confluent/, `/api/platforms/${fx.confluentPlatform}/confluent`)
       // platform costs (#226): the demo platform
       .replace(/\/api\/(v1\/)?costs\/:scope\/:id/, `/api/$1costs/platform/${fx.platform}`)
       .replace(/\/api\/costs\/platform\/:id/, `/api/costs/platform/${fx.platform}`)
@@ -2098,6 +2103,7 @@ beforeAll(async () => {
   // database schemas (#222): a read of the demo database platform, a tbls import for the matrix system
   fx.dbPlatform = platforms.find((p: { kind: string }) => p.kind === 'database').id;
   fx.connectPlatform = platforms.find((p: { kind: string }) => p.kind === 'kafka-connect').id;
+  fx.confluentPlatform = platforms.find((p: { kind: string }) => p.kind === 'confluent-cloud').id;
   // changedetection.io (#242): the demo platform, read by the demo setup
   fx.cdPlatform = platforms.find((p: { kind: string }) => p.kind === 'changedetection').id;
   // a cost budget (#226), so raising it is a sensitive change (STEP_UP)

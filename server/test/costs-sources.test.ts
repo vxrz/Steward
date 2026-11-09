@@ -112,9 +112,10 @@ describe('Confluent Cloud', () => {
     expect(kafka.currencies[0].currency).toBe('USD');
     expect(kafka.byService.map((x: { service: string }) => x.service)).toEqual(['KAFKA']);
     expect(kafka.parts[0]).toMatchObject({ kind: 'application', name: 'Webshop (demo)' });
-    // the connector and the environment's governance stay on the Confluent platform, unassigned
+    // the connectors, the cluster no Kafka platform names (lkc-demo2) and the environment's governance stay on the
+    // Confluent platform, unassigned
     const conf = await s.api('GET', `/costs/platform/${id}`);
-    expect(conf.byService.map((x: { service: string }) => x.service).sort()).toEqual(['CONNECT', 'STREAM_GOVERNANCE']);
+    expect(conf.byService.map((x: { service: string }) => x.service).sort()).toEqual(['CONNECT', 'KAFKA', 'STREAM_GOVERNANCE']);
     const { confluentRanges } = await import('../src/costs/readers.js');
     const r = confluentRanges('2026-01-15', Date.parse('2026-03-10T12:00:00Z'));
     expect(r).toEqual([

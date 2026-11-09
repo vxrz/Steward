@@ -204,6 +204,9 @@ function seedSchemas(): Record<string, Version[]> {
 
 let schemas = seedSchemas();
 
+/** Subjects with a compatibility level of their own (the others follow the registry's BACKWARD). */
+const OWN_LEVELS: Record<string, string> = { 'orders-value': 'BACKWARD', 'payments-value': 'FULL' };
+
 /** For tests and the demo: register a new schema version of a subject. */
 export function registerSchema(subject: string, schema: string, schemaType = 'AVRO'): number {
   const list = (schemas[subject] ??= []);
@@ -224,7 +227,15 @@ const notFound = (reply: FastifyReply, what: string) => reply.code(404).send({ e
 
 export async function mockSchemaRegistry(app: FastifyInstance): Promise<void> {
   const R = '/schema-registry';
-  app.get(`${R}/subjects`, async (req, reply) => (authorized(req, reply) ? Object.keys(schemas) : reply));
+  app.get(`${R}/subjects`, async (req, reply) => {
+    if (!authorized(req, reply)) return reply;
+    // offset and limit (a negative limit: all), like Confluent's
+    const q = req.query as Record<string, string | undefined>;
+    const offset = Math.max(0, Number(q.offset ?? 0) || 0);
+    const limit = Number(q.limit ?? -1);
+    const all = Object.keys(schemas);
+    return limit >= 0 ? all.slice(offset, offset + limit) : all.slice(offset);
+  });
   app.get(`${R}/subjects/:subject/versions`, async (req, reply) => {
     if (!authorized(req, reply)) return reply;
     const list = schemas[(req.params as { subject: string }).subject];
@@ -238,7 +249,15 @@ export async function mockSchemaRegistry(app: FastifyInstance): Promise<void> {
     const v = version === 'latest' ? list.at(-1) : list.find((x) => x.version === Number(version));
     return v ? { subject, ...v } : notFound(reply, 'Version');
   });
-  app.get(`${R}/config/:subject`, async (req, reply) => (authorized(req, reply) ? { compatibilityLevel: 'BACKWARD' } : reply));
+  // the registry's level, and the subjects' own (0.14.0: a subject without one answers 40408, like Confluent's)
+  app.get(`${R}/config`, async (req, reply) => (authorized(req, reply) ? { compatibilityLevel: 'BACKWARD' } : reply));
+  app.get(`${R}/config/:subject`, async (req, reply) => {
+    if (!authorized(req, reply)) return reply;
+    const level = OWN_LEVELS[(req.params as { subject: string }).subject];
+    return level
+      ? { compatibilityLevel: level }
+      : reply.code(404).send({ error_code: 40408, message: 'Subject does not have subject-level compatibility configured' });
+  });
   app.post(`${R}/compatibility/subjects/:subject/versions/:version`, async (req, reply) => {
     if (!authorized(req, reply)) return reply;
     const body = req.body as { schema?: string } | null;

@@ -51,14 +51,18 @@ interface KafkaAcl {
   permission?: string;
 }
 
-/** Every item of a paged list: the first page from `path`, the next ones from metadata.next while it stays on `origin`. */
-/** Every item of a paged list (also the Costs API of platform costs, #226). */
+/**
+ * Every item of a paged list: the first page from `path`, the next ones from metadata.next while it stays on the API's
+ * origin (also the Costs API of platform costs, #226, and the readout of 0.14.0, confluent/client.ts).
+ */
 export async function confluentPages<T>(
   platform: Platform,
   secrets: Record<string, string>,
   path: string,
   query: Record<string, string>,
   what: string,
+  /** What a 403 means for this list (default: the role bindings of an access review) */
+  forbidden = 'the API key may not read this (OrganizationAdmin or a role that may list role bindings)',
 ): Promise<T[]> {
   const base = await resolveBaseUrl(platform, secrets);
   const origin = new URL(base).origin;
@@ -73,9 +77,7 @@ export async function confluentPages<T>(
       AbortSignal.timeout(CONFLUENT_LIMITS.timeoutMs),
     );
     if (!r.ok)
-      throw new Error(
-        `${what} answered HTTP ${r.status}${r.status === 401 ? ' – check the API key and secret' : r.status === 403 ? ' – the API key may not read this (OrganizationAdmin or a role that may list role bindings)' : ''}`,
-      );
+      throw new Error(`${what} answered HTTP ${r.status}${r.status === 401 ? ' – check the API key and secret' : r.status === 403 ? ` – ${forbidden}` : ''}`);
     const body = (r.body ?? {}) as Page<T>;
     if (Array.isArray(body.data)) out.push(...body.data);
     const next = typeof body.metadata?.next === 'string' ? body.metadata.next : '';

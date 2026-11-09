@@ -65,6 +65,7 @@ export const CHECK_TYPES = [
   'git',
   'kafka',
   'kafka-connect',
+  'confluent',
   'mqtt',
   'snowflake',
   'database',
@@ -583,6 +584,22 @@ export const checkSchema = z.discriminatedUnion('type', [
     /** Debezium source connectors: quietAs when none of its topics got a message for this many minutes */
     quietMinutes: z.number().int().min(1).max(43200).optional(),
     quietAs: z.enum(['down', 'degraded']).default('degraded'),
+  }),
+  z.object({
+    ...checkBase,
+    type: z.literal('confluent'),
+    /** A Confluent Cloud platform (#123) */
+    platform: platformRef,
+    /** clusters: the Kafka clusters are PROVISIONED; connectors: the managed connectors and their tasks are RUNNING */
+    target: z.enum(['clusters', 'connectors']).default('connectors'),
+    /** One cluster (id lkc-… or name) or connector (name or id lcc-…); empty: every one */
+    resource: z.string().trim().max(255).optional(),
+    /** Status of a FAILED cluster, connector or task (default down) */
+    notRunningAs: z.enum(['down', 'degraded']).default('down'),
+    /** Status of a PAUSED connector (default degraded) */
+    pausedAs: z.enum(['up', 'degraded', 'down']).default('degraded'),
+    /** A failed task counts as notRunningAs only once it has failed for this many minutes (degraded before) */
+    failedMinutes: z.number().int().min(1).max(10080).optional(),
   }),
   z.object({
     ...checkBase,

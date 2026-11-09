@@ -170,6 +170,7 @@ describe('background jobs', () => {
       'repositories',
       'kafka',
       'kafka-connect',
+      'confluent',
       'aws',
       'snowflake',
       'dependency-track',
