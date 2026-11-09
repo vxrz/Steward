@@ -34,7 +34,7 @@ import type { DelayObservation } from './delay.js';
 import { promInstant, seriesName } from '../platforms/prometheus.js';
 import { readNamespace } from '../catalogue/kubernetes.js';
 import { assertRepositoryPath, gitHost } from '../catalogue/repositories.js';
-import { checkmkFetch, checkmkServiceKey, gatusFetch, ihFetch, ihKey, SourceError } from './batch.js';
+import { checkmkFetch, checkmkServiceKey, gatusFetch, ihFetch, ihKey, SourceError, sourceKey } from './batch.js';
 import { CheckSetupError, platformFor } from './platforms.js';
 import { kindName, kindNames, storedKindProblem, wrongKind } from './kinds.js';
 import { endpointState, metricsEnabled, sourceRow } from '../gatus/metrics.js';
@@ -371,7 +371,7 @@ async function checkHttp(c: CheckOf<'http'>, ctx: ExecContext): Promise<RawResul
 // ---------- platform API ----------
 
 async function checkPlatform(c: CheckOf<'platform'>, ctx: ExecContext): Promise<RawResult> {
-  const { platform, secrets } = platformFor(ctx.owner, c.platform);
+  const { platform, secrets } = platformFor(ctx.owner, c.platform, c.identity);
   const t0 = Date.now();
   let r;
   try {
@@ -409,7 +409,7 @@ async function checkPlatform(c: CheckOf<'platform'>, ctx: ExecContext): Promise<
 /** Registers the shared read of an Insights Hub freshness check (called for all due checks before they run). */
 function planFreshness(c: CheckOf<'freshness'>, owner: string): void {
   if (c.source !== 'insightsHub' || !c.assetId || !c.aspect) return;
-  ihFetch.plan(ihKey(c.platform, c.assetId, c.aspect), { owner, vars: c.variables ?? [], windowSeconds: freshnessLookbackSeconds(c) });
+  ihFetch.plan(ihKey(c.platform, c.assetId, c.aspect, c.identity), { owner, vars: c.variables ?? [], windowSeconds: freshnessLookbackSeconds(c) });
 }
 
 async function checkFreshness(c: CheckOf<'freshness'>, ctx: ExecContext): Promise<RawResult> {
@@ -417,11 +417,11 @@ async function checkFreshness(c: CheckOf<'freshness'>, ctx: ExecContext): Promis
   const t0 = Date.now();
   const failed = (): DelayObservation => ({ failed: true, at: Date.now() });
   if (c.source === 'insightsHub') {
-    platformFor(ctx.owner, c.platform); // the owner's rights, also when the answer comes from the shared read
+    platformFor(ctx.owner, c.platform, c.identity); // the owner's rights, also when the answer comes from the shared read
     const vars = c.variables ?? [];
     let read;
     try {
-      read = await ihFetch.get(ihKey(c.platform, c.assetId!, c.aspect!), { owner: ctx.owner, vars, windowSeconds: freshnessLookbackSeconds(c) });
+      read = await ihFetch.get(ihKey(c.platform, c.assetId!, c.aspect!, c.identity), { owner: ctx.owner, vars, windowSeconds: freshnessLookbackSeconds(c) });
     } catch (e) {
       if (e instanceof CheckSetupError) throw e;
       return { status: 'unknown', message: `Freshness could not be read: ${(e as Error).message}`, durationMs: Date.now() - t0, observation: failed() };
@@ -443,7 +443,7 @@ async function checkFreshness(c: CheckOf<'freshness'>, ctx: ExecContext): Promis
       : `All ${per.length} variables are fresh (oldest ${fmtAge(Math.max(...per.map((p) => p.ageSeconds ?? 0)))})`;
     return { status: worst.status, message, durationMs: Date.now() - t0, value: ages, observation };
   }
-  const { platform, secrets } = platformFor(ctx.owner, c.platform);
+  const { platform, secrets } = platformFor(ctx.owner, c.platform, c.identity);
   let r;
   const startedAt = Date.now();
   try {
@@ -504,7 +504,7 @@ const useMetrics = (c: CheckOf<'gatus'>): boolean => c.source === 'metrics' || (
 
 function planGatus(c: CheckOf<'gatus'>, owner: string): void {
   if (useMetrics(c)) return;
-  gatusFetch.plan(c.platform, { owner, pageSize: Math.max(1, c.degradedOnRecentFailures ?? 1) });
+  gatusFetch.plan(sourceKey(c.platform, c.identity), { owner, pageSize: Math.max(1, c.degradedOnRecentFailures ?? 1) });
 }
 
 /** Reads the state Steward scraped from Gatus' /metrics (no call to Gatus). */
@@ -547,12 +547,12 @@ function checkGatusMetrics(c: CheckOf<'gatus'>, ctx: ExecContext): RawResult {
 }
 
 async function checkGatus(c: CheckOf<'gatus'>, ctx: ExecContext): Promise<RawResult> {
-  platformFor(ctx.owner, c.platform);
+  platformFor(ctx.owner, c.platform, c.identity);
   if (useMetrics(c)) return checkGatusMetrics(c, ctx);
   const t0 = Date.now();
   let all;
   try {
-    all = await gatusFetch.get(c.platform, { owner: ctx.owner, pageSize: Math.max(1, c.degradedOnRecentFailures ?? 1) });
+    all = await gatusFetch.get(sourceKey(c.platform, c.identity), { owner: ctx.owner, pageSize: Math.max(1, c.degradedOnRecentFailures ?? 1) });
   } catch (e) {
     if (e instanceof CheckSetupError) throw e;
     return { status: 'unknown', message: `Gatus could not be read: ${(e as Error).message}`, durationMs: Date.now() - t0 };
@@ -587,7 +587,7 @@ async function checkGatus(c: CheckOf<'gatus'>, ctx: ExecContext): Promise<RawRes
 const cmkPlan = (c: CheckOf<'checkmk'>, owner: string) => ({ owner, hosts: c.service ? [] : [c.host], serviceHosts: c.service ? [c.host] : [] });
 
 function planCheckmk(c: CheckOf<'checkmk'>, owner: string): void {
-  checkmkFetch.plan(c.platform, cmkPlan(c, owner));
+  checkmkFetch.plan(sourceKey(c.platform, c.identity), cmkPlan(c, owner));
 }
 
 const HOST_STATES: Record<number, { word: string; status: RawResult['status'] }> = {
@@ -607,7 +607,7 @@ async function checkCheckmk(c: CheckOf<'checkmk'>, ctx: ExecContext): Promise<Ra
   const t0 = Date.now();
   let data;
   try {
-    data = await checkmkFetch.get(c.platform, cmkPlan(c, ctx.owner));
+    data = await checkmkFetch.get(sourceKey(c.platform, c.identity), cmkPlan(c, ctx.owner));
   } catch (e) {
     if (e instanceof CheckSetupError) throw e;
     return { status: 'unknown', message: `CheckMk could not be read: ${(e as Error).message}`.slice(0, 500), durationMs: Date.now() - t0 };
@@ -640,7 +640,7 @@ const fmtNum = (v: number) =>
 /** A PromQL query against WARN and CRIT levels (#110): every series is judged, the worst one counts. */
 async function checkPrometheus(c: CheckOf<'prometheus'>, ctx: ExecContext): Promise<RawResult> {
   const t0 = Date.now();
-  const { platform, secrets } = platformFor(ctx.owner, c.platform);
+  const { platform, secrets } = platformFor(ctx.owner, c.platform, c.identity);
   let series;
   try {
     series = await promInstant(platform, secrets, c.query, ctx.signal);
@@ -683,7 +683,7 @@ async function checkPrometheus(c: CheckOf<'prometheus'>, ctx: ExecContext): Prom
 /** Deployments ready and no pod crash-looping (#111): none ready → down; fewer ready than wanted, or unwell pods → degraded. */
 async function checkKubernetes(c: CheckOf<'kubernetes'>, ctx: ExecContext): Promise<RawResult> {
   const t0 = Date.now();
-  const { platform, secrets } = platformFor(ctx.owner, c.platform);
+  const { platform, secrets } = platformFor(ctx.owner, c.platform, c.identity);
   let r;
   try {
     r = await readNamespace(platform, secrets, c.namespace);
@@ -725,7 +725,7 @@ async function checkKubernetes(c: CheckOf<'kubernetes'>, ctx: ExecContext): Prom
 /** The pipeline of a branch (#107): failed → down (or degraded), running → up while the last finished run passed, none → unknown; too many open alerts → degraded. */
 async function checkGit(c: CheckOf<'git'>, ctx: ExecContext): Promise<RawResult> {
   const t0 = Date.now();
-  const { platform, secrets } = platformFor(ctx.owner, c.platform);
+  const { platform, secrets } = platformFor(ctx.owner, c.platform, c.identity);
   if (!isGitPlatformKind(platform.kind))
     return { status: 'unknown', message: `Check could not run: "${platform.name}" is not a GitHub, GitLab or Forgejo/Gitea platform` };
   let pipeline;
@@ -772,7 +772,7 @@ async function checkGit(c: CheckOf<'git'>, ctx: ExecContext): Promise<RawResult>
 /** A Snowflake table's freshness, failing tasks or a warehouse's credits (#115). */
 async function checkSnowflake(c: CheckOf<'snowflake'>, ctx: ExecContext): Promise<RawResult> {
   const t0 = Date.now();
-  const { platform, secrets } = platformFor(ctx.owner, c.platform);
+  const { platform, secrets } = platformFor(ctx.owner, c.platform, c.identity);
   if (platform.kind !== 'snowflake') return { status: 'unknown', message: `Check could not run: "${platform.name}" is not a Snowflake platform` };
   const { snowflakeCheck } = await import('../snowflake/service.js');
   try {
@@ -790,7 +790,7 @@ async function checkSnowflake(c: CheckOf<'snowflake'>, ctx: ExecContext): Promis
 /** A database platform (#203): the connection, the replication lag or the value of a read-only query. */
 async function checkDatabase(c: CheckOf<'database'>, ctx: ExecContext): Promise<RawResult> {
   const t0 = Date.now();
-  const { platform, secrets } = platformFor(ctx.owner, c.platform);
+  const { platform, secrets } = platformFor(ctx.owner, c.platform, c.identity);
   if (platform.kind !== DATABASE_KIND) return { status: 'unknown', message: `Check could not run: "${platform.name}" is not a database platform` };
   if (ctx.recorded) {
     // a test run never connects: the recorded response POST /sql/<check id> stands for the answer
@@ -829,7 +829,7 @@ async function checkDatabase(c: CheckOf<'database'>, ctx: ExecContext): Promise<
 /** A DynamoDB table on an AWS platform (#233): the newest item per partition key, the write activity or the table's hygiene. */
 async function checkDynamoDb(c: CheckOf<'dynamodb'>, ctx: ExecContext): Promise<RawResult> {
   const t0 = Date.now();
-  const { platform, secrets } = platformFor(ctx.owner, c.platform);
+  const { platform, secrets } = platformFor(ctx.owner, c.platform, c.identity);
   if (platform.kind !== AWS_KIND) return { status: 'unknown', message: `Check could not run: "${platform.name}" is not an AWS platform` };
   const { dynamoDbCheck, dynamoDbEndpoints } = await import('../aws/dynamodb.js');
   const { redactSecrets } = await import('../platforms/testConnection.js');
@@ -887,7 +887,7 @@ async function checkCost(c: CheckOf<'cost'>, ctx: ExecContext): Promise<RawResul
 /** Expiring app credentials or Microsoft 365 service health of an Entra ID tenant (v0.5.0). */
 async function checkEntra(c: CheckOf<'entra'>, ctx: ExecContext): Promise<RawResult> {
   const t0 = Date.now();
-  const { platform, secrets } = platformFor(ctx.owner, c.platform);
+  const { platform, secrets } = platformFor(ctx.owner, c.platform, c.identity);
   if (platform.kind !== 'microsoft-graph') return { status: 'unknown', message: `Check could not run: "${platform.name}" is not a Microsoft Graph platform` };
   await assertOutboundAllowed(await buildUrl(platform, secrets, '/', {}), outboundContext());
   const { entraCheck, signInHint } = await import('../entra/service.js');
@@ -906,7 +906,7 @@ const dtrackSeen = new Map<string, { at: number; read: Awaited<ReturnType<import
 /** Open findings and policy violations of a Dependency-Track project (#119). */
 async function checkDtrack(c: CheckOf<'dependency-track'>, ctx: ExecContext): Promise<RawResult> {
   const t0 = Date.now();
-  const { platform, secrets } = platformFor(ctx.owner, c.platform);
+  const { platform, secrets } = platformFor(ctx.owner, c.platform, c.identity);
   if (platform.kind !== 'dependency-track') return { status: 'unknown', message: `Check could not run: "${platform.name}" is not a Dependency-Track platform` };
   const key = `${platform.id}|${c.project}`;
   let read;
@@ -956,7 +956,7 @@ const pageWatchSeen = new Map<string, { at: number; read: Awaited<ReturnType<imp
 /** Watches of changedetection.io (#242): changed within N hours, failing, not checked for too long, paused. Metadata only. */
 async function checkPageWatch(c: CheckOf<'page-watch'>, ctx: ExecContext): Promise<RawResult> {
   const t0 = Date.now();
-  const { platform, secrets } = platformFor(ctx.owner, c.platform);
+  const { platform, secrets } = platformFor(ctx.owner, c.platform, c.identity);
   if (platform.kind !== CHANGEDETECTION_KIND)
     return { status: 'unknown', message: `Check could not run: "${platform.name}" is not a changedetection.io platform` };
   let read;
@@ -1031,7 +1031,7 @@ const vaultSeen = new Map<string, { at: number; read: Awaited<ReturnType<typeof 
 /** Hygiene of the vault's secrets (#205): heartbeat, rotation, expiry, automatic changing, owner, checkout and approval. */
 async function checkPrivilegeVault(c: CheckOf<'privilege-vault'>, ctx: ExecContext): Promise<RawResult> {
   const t0 = Date.now();
-  const { platform, secrets } = platformFor(ctx.owner, c.platform);
+  const { platform, secrets } = platformFor(ctx.owner, c.platform, c.identity);
   if (platform.kind !== PVAULT_KIND)
     return { status: 'unknown', message: `Check could not run: "${platform.name}" is not an IBM Verify Privilege Vault platform` };
   const opts = {
@@ -1109,7 +1109,7 @@ const worst = (a: MonitorStatus, b: MonitorStatus): MonitorStatus => ((STATUS_RA
 /** A topic (#112): new messages within the window, a consumer group's lag and whether it is stuck, the schema version. */
 async function checkKafka(c: CheckOf<'kafka'>, ctx: ExecContext): Promise<RawResult> {
   const t0 = Date.now();
-  const { platform, secrets } = platformFor(ctx.owner, c.platform);
+  const { platform, secrets } = platformFor(ctx.owner, c.platform, c.identity);
   if (platform.kind !== 'kafka') return { status: 'unknown', message: `Check could not run: "${platform.name}" is not a Kafka platform` };
   const { withKafka, kafkaError } = await import('../kafka/client.js');
   const { assertTopic, lagOf, schemaOf } = await import('../kafka/service.js');
@@ -1180,7 +1180,7 @@ async function checkKafka(c: CheckOf<'kafka'>, ctx: ExecContext): Promise<RawRes
 
 /** Topics of a pattern (#113), from what the broker's listener saw: any message within the window, or every topic (silent devices). */
 async function checkMqtt(c: CheckOf<'mqtt'>, ctx: ExecContext): Promise<RawResult> {
-  const { platform } = platformFor(ctx.owner, c.platform);
+  const { platform } = platformFor(ctx.owner, c.platform, c.identity);
   if (platform.kind !== 'mqtt') return { status: 'unknown', message: `Check could not run: "${platform.name}" is not an MQTT platform` };
   const { mqttState } = await import('../mqtt/listener.js');
   const st = await mqttState(platform.id, c.topic, c.minClients !== undefined);

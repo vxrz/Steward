@@ -171,8 +171,8 @@ async function newestInRange(
  * (`latestValue=true` reads aggregates that can lag 1–2 hours behind, so it is not used.)
  */
 async function fetchIh(key: string, plan: IhPlan): Promise<IhLatest> {
-  const [platformId, assetId, aspect] = key.split('|') as [string, string, string];
-  const { platform, secrets } = platformFor(plan.owner, platformId);
+  const [source, assetId, aspect] = key.split('|') as [string, string, string];
+  const { platform, secrets } = platformFor(plan.owner, ...splitSource(source));
   const url = tsBase(platform, assetId, aspect);
   const out = new Map<string, number | null>(plan.vars.map((v) => [v, null]));
   const startedAt = Date.now();
@@ -210,7 +210,17 @@ export const ihFetch = new SharedFetch<IhPlan, IhLatest>(
   (have, want) => want.vars.every((v) => have.vars.includes(v)) && have.windowSeconds >= want.windowSeconds,
   fetchIh,
 );
-export const ihKey = (platformId: string, assetId: string, aspect: string) => `${platformId}|${assetId}|${aspect}`;
+export const ihKey = (platformId: string, assetId: string, aspect: string, identity?: string) => `${sourceKey(platformId, identity)}|${assetId}|${aspect}`;
+
+/**
+ * The key of a shared read: the platform, and the identity the check names (0.13.0, ADR 0009) – checks that read with
+ * different identities never share an answer.
+ */
+export const sourceKey = (platformId: string, identity?: string | null): string => (identity ? `${platformId}#${identity}` : platformId);
+function splitSource(key: string): [string, string | undefined] {
+  const i = key.indexOf('#');
+  return i < 0 ? [key, undefined] : [key.slice(0, i), key.slice(i + 1)];
+}
 
 // ---------- Gatus ----------
 
@@ -225,8 +235,8 @@ export interface GatusEndpoint {
   results: { success: boolean; timestamp: string; duration?: number; errors?: string[]; status?: number }[];
 }
 
-async function fetchGatus(platformId: string, plan: GatusPlan): Promise<Map<string, GatusEndpoint>> {
-  const { platform, secrets } = platformFor(plan.owner, platformId);
+async function fetchGatus(source: string, plan: GatusPlan): Promise<Map<string, GatusEndpoint>> {
+  const { platform, secrets } = platformFor(plan.owner, ...splitSource(source));
   const r = await platformRequest(
     platform,
     secrets,
@@ -297,8 +307,8 @@ const rowsOf = (body: unknown): Record<string, unknown>[] =>
  * `GET /domain-types/host/collections/all` for the host states and `GET /domain-types/service/collections/all` for the
  * services of the hosts asked for, both filtered with a Livestatus query.
  */
-async function fetchCheckmk(platformId: string, plan: CheckmkPlan): Promise<CheckmkData> {
-  const { platform, secrets } = platformFor(plan.owner, platformId);
+async function fetchCheckmk(source: string, plan: CheckmkPlan): Promise<CheckmkData> {
+  const { platform, secrets } = platformFor(plan.owner, ...splitSource(source));
   const out: CheckmkData = { hosts: new Map(), services: new Map() };
   const call = async (path: string, column: string, values: string[], extra: string[]) => {
     const r = await platformRequest(
