@@ -98,6 +98,21 @@
       "secretHelp": {
         "apiKey": "Der Wert von DATACONTRACT_CLI_API_KEY des Dienstes (gesendet als x-api-key)"
       }
+    },
+    "confluent-cloud-api-read-only": {
+      "description": "Die Confluent-Cloud-API (https://api.confluent.cloud), nur lesend: Steward liest die Umgebungen, Kafka-Cluster, Schema-Registry-Cluster, Dienstkonten, die Metadaten der API-Schlüssel (Eigentümer, Ressource, Erstellung, Ablauf – nie ein Geheimnis) und die verwalteten Connectoren mit ihren Tasks, stündlich oder mit „Jetzt lesen“; Cluster verweisen auf die Kafka-Plattform, deren Variable confluentClusterId sie nennt; Monitore prüfen, dass Cluster bereitgestellt sind und Connectoren und Tasks laufen. Mit der Variable schemaRegistryUrl und einem Schlüssel dieser Schema Registry (registryKey/registrySecret) auch ihre Subjects. Zugriffsprüfungen der Quelle „Confluent“ erfassen Rollenbindungen (und mit kafkaRestUrl, clusterId und dem API-Schlüssel des Clusters seine ACLs); Plattformkosten lesen die Costs-API. Zugangsdaten: ein Cloud-API-Schlüssel mit Geheimnis eines Dienstkontos – OrganizationAdmin liest alles. Ändernde Anfragen werden abgelehnt. Siehe docs/CONFLUENT.md.",
+      "secrets": {
+        "username": "Cloud-API-Schlüssel",
+        "password": "Cloud-API-Geheimnis",
+        "registryKey": "API-Schlüssel der Schema Registry (optional, für Subjects)",
+        "registrySecret": "API-Geheimnis der Schema Registry (optional)",
+        "clusterApiKey": "API-Schlüssel des Kafka-Clusters (optional, für ACLs)",
+        "clusterApiSecret": "API-Geheimnis des Kafka-Clusters (optional, für ACLs)"
+      },
+      "secretHelp": {
+        "username": "Ein Cloud-API-Schlüssel (Ressource „Cloud resource management“), kein Schlüssel eines Kafka-Clusters",
+        "registryKey": "Ein Schlüssel der Schema Registry, die die Variable schemaRegistryUrl nennt"
+      }
     }
   },
   "title": "Plattformen",
@@ -227,7 +242,10 @@
       "ai": "KI-Modelle",
       "aiUsage": "KI-Nutzung",
       "connectors": "Connectoren",
-      "watches": "Überwachungen"
+      "watches": "Überwachungen",
+      "clusters": "Cluster",
+      "subjects": "Schemas",
+      "apiKeys": "API-Schlüssel"
     },
     "deleteText": "Damit wird <b>{{name}}</b> einschließlich gespeicherter Zugangsdaten, API-Spezifikationen und Dokumente gelöscht. Prozesse und Zeitpläne, die sie verwenden, schlagen fehl, bis eine andere Plattform gewählt wird. Das Audit-Log bleibt erhalten.",
     "typeToConfirm": "Zur Bestätigung „{{name}}“ eingeben"
@@ -1113,6 +1131,92 @@
     "taskError": "Task {{id}}",
     "failedSince": "fehlgeschlagen {{when}}",
     "traceHint": "Gekürzt; Werte, die geheim aussehen, sind entfernt."
+  },
+  "confluent": {
+    "readNow": "Jetzt lesen",
+    "readFailed": "Confluent Cloud konnte nicht gelesen werden",
+    "read": "Gelesen {{when}} · stündlich und mit „Jetzt lesen“",
+    "readError": "Das letzte Lesen ist fehlgeschlagen – angezeigt werden die Werte davor",
+    "partErrors": "Teile, die nicht gelesen werden konnten (angezeigt werden ihre letzten Werte)",
+    "parts": {
+      "environments": "Umgebungen",
+      "clusters": "Kafka-Cluster",
+      "schemaRegistries": "Schema-Registry-Cluster",
+      "serviceAccounts": "Dienstkonten",
+      "apiKeys": "API-Schlüssel",
+      "connectors": "Connectoren",
+      "subjects": "Subjects der Schema Registry"
+    },
+    "notRead": "Noch nicht gelesen",
+    "notReadHint": "„Jetzt lesen“ liest die Umgebungen, Cluster, Connectoren, Dienstkonten und API-Schlüssel der Organisation.",
+    "clustersTitle": "Kafka-Cluster",
+    "clustersHelp": "Die Umgebungen und Kafka-Cluster der Confluent-Cloud-Organisation, nur lesend über die Cloud-API. Ein Cluster gehört zu der Kafka-Plattform, deren Variable confluentClusterId ihn nennt – dort stehen seine Topics, der Rückstand der Consumer und seine Kosten.",
+    "noClusters": "Keine Kafka-Cluster",
+    "noClustersHint": "Die Organisation hat keinen Cluster, oder der Cloud-API-Schlüssel darf sie nicht auflisten (OrganizationAdmin oder EnvironmentAdmin auf jeder Umgebung).",
+    "summary": "{{environments}} Umgebungen, {{clusters}} Cluster, {{connectors}} verwaltete Connectoren",
+    "cluster": "Cluster",
+    "environment": "Umgebung",
+    "type": "Typ",
+    "location": "Cloud und Region",
+    "status": "Status",
+    "kafkaPlatform": "Kafka-Plattform",
+    "cku_one": "{{count}} CKU",
+    "cku_other": "{{count}} CKUs",
+    "availability": {
+      "multi": "Mehrere Zonen",
+      "single": "Eine Zone"
+    },
+    "noKafkaPlatform": "Keine – setzen Sie confluentClusterId an einer Kafka-Plattform",
+    "kafkaPlatformHint": "Um die Topics, den Rückstand und die Schemas eines Clusters zu lesen, legen Sie eine Kafka-Cluster-Plattform mit seinen Bootstrap-Servern an und setzen ihre Variable confluentClusterId auf die Cluster-ID (lkc-…).",
+    "emptyEnvironments": "Umgebungen ohne Kafka-Cluster: {{names}}",
+    "schemasTitle": "Schema Registry",
+    "schemasHelp": "Die Schema-Registry-Cluster der Umgebungen und – mit der Variable schemaRegistryUrl und einem Schlüssel dieser Registry (registryKey, registrySecret) – ihre Subjects mit Versionen und Kompatibilität. Nur lesend.",
+    "registry": "Schema Registry",
+    "package": "Paket",
+    "endpoint": "Endpunkt",
+    "noRegistry": "Keine Subjects gelesen",
+    "noRegistryHint": "Setzen Sie die Variable schemaRegistryUrl auf den Endpunkt einer Schema Registry (oben aufgeführt) und ihren API-Schlüssel unter Zugangsdaten in registryKey und registrySecret. Die Ausgangsrichtlinie muss den Endpunkt erlauben.",
+    "registryRead": "{{url}}: {{count}} Subjects, Kompatibilität der Registry {{level}}",
+    "subjectsTruncated": "Nicht jedes Subject wurde vollständig gelesen: Versionen und Kompatibilität werden für die ersten 200 Subjects gelesen.",
+    "subject": "Subject",
+    "versions": "Versionen",
+    "compatibility": "Kompatibilität",
+    "versionCount_one": "{{count}} Version (neueste {{latest}})",
+    "versionCount_other": "{{count}} Versionen (neueste {{latest}})",
+    "ownLevel": "eigene",
+    "registryLevel": "Vorgabe der Registry",
+    "connectorsTitle": "Verwaltete Connectoren",
+    "connectorsHelp": "Die vollständig verwalteten Connectoren jedes Clusters mit ihren Tasks und dem Fehler eines fehlgeschlagenen, nur lesend – Steward legt nie einen Connector an, pausiert, setzt fort oder löscht ihn und speichert keine Konfiguration. Ihre Topics verweisen auf die Kafka-Topic-Komponenten der Kafka-Plattform des Clusters.",
+    "noConnectors": "Keine verwalteten Connectoren",
+    "noConnectorsHint": "Die Cluster haben keinen verwalteten Connector, oder der Cloud-API-Schlüssel darf sie nicht auflisten.",
+    "onCluster": "auf {{cluster}}",
+    "keysTitle": "Dienstkonten und API-Schlüssel",
+    "keysHelp": "Die API-Schlüssel der Organisation mit Eigentümer, Ressource, Erstellung und Ablauf – nur Metadaten: Confluent gibt in dieser Liste nie ein Geheimnis zurück, und Steward speichert keines. Das Auflisten der API-Schlüssel braucht OrganizationAdmin.",
+    "keysHidden": "Nur wer die Plattform nutzen darf, sieht ihre Dienstkonten und API-Schlüssel.",
+    "noKeys": "Keine API-Schlüssel",
+    "noKeysHint": "Die Organisation hat keinen API-Schlüssel, oder der Cloud-API-Schlüssel darf sie nicht auflisten (OrganizationAdmin).",
+    "keysSummary_one": "{{count}} API-Schlüssel, {{accounts}} Dienstkonten",
+    "keysSummary_other": "{{count}} API-Schlüssel, {{accounts}} Dienstkonten",
+    "key": "API-Schlüssel",
+    "owner": "Eigentümer",
+    "resource": "Ressource",
+    "created": "Erstellt",
+    "expires": "Läuft ab",
+    "never": "Nie",
+    "cloudKey": "Cloud (Organisation)",
+    "hints": {
+      "expired": "Abgelaufen",
+      "expiring": "Läuft bald ab",
+      "rotate": "Älter als ein Jahr – rotieren"
+    },
+    "keysHint": "Die API von Confluent sagt nicht, wann ein Schlüssel zuletzt benutzt wurde. Ein Schlüssel, der älter als ein Jahr ist, bekommt einen Hinweis zum Rotieren; einer, der innerhalb von 30 Tagen abläuft, wird markiert.",
+    "register": "Ins Zugangsdaten-Register aufnehmen",
+    "registerKey": "Den API-Schlüssel {{key}} ins Zugangsdaten-Register aufnehmen",
+    "keyEntryName": "{{platform}}: API-Schlüssel {{key}}",
+    "keyEntryDescription": "Confluent-Cloud-API-Schlüssel „{{name}}“ von {{owner}} für {{resource}}",
+    "serviceAccount": "Dienstkonto",
+    "description": "Beschreibung",
+    "keyCount": "API-Schlüssel"
   },
   "watches": {
     "intro": "Die Überwachungen von changedetection.io sind die Komponenten dieser Plattform: Steward liest Titel, Seite, Tags, letzte Prüfung, letzte Änderung und Fehler – nie die Inhalte der Seiten. Verknüpfen Sie eine Überwachung mit einer Anwendung, einem Service oder einem Hersteller; die Monitorprüfung „Seitenüberwachung“ bewertet sie.",

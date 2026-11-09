@@ -55,6 +55,8 @@ export const platformKeys = {
   /** Kafka Connect (0.9.0): the connectors Steward last read; a connector's configuration (read on request, never cached) */
   kafkaConnect: (id: string | null | undefined) => ['platform', id, 'kafka-connect'] as const,
   kafkaConnectConfig: (id: string | null | undefined, name: string) => ['platform', id, 'kafka-connect', 'config', name] as const,
+  /** Confluent Cloud (0.14.0): what Steward last read – clusters, subjects, connectors, keys (prefix ['platform', id]) */
+  confluent: (id: string | null | undefined) => ['platform', id, 'confluent'] as const,
   /** changedetection.io (0.9.0): the watches as components of the platform (prefix ['platform', id]) */
   watches: (id: string | null | undefined) => ['platform', id, 'watches'] as const,
   watchHistory: (id: string | null | undefined, uuid: string) => ['platform', id, 'watches', uuid, 'history'] as const,

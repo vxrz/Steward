@@ -27,9 +27,10 @@ import {
   IconSchema,
   IconArrowsExchange,
   IconFileDiff,
+  IconServer2,
 } from '@tabler/icons-react';
 import { Trans, useTranslation } from 'react-i18next';
-import { CHANGEDETECTION_KIND, DATABASE_KIND, KAFKA_CONNECT_KIND, LLM_GATEWAY_KIND, type AclEntry, type Platform } from '@sm/shared';
+import { CHANGEDETECTION_KIND, CONFLUENT_KIND, DATABASE_KIND, KAFKA_CONNECT_KIND, LLM_GATEWAY_KIND, type AclEntry, type Platform } from '@sm/shared';
 import { apiUrl, del, get, notifyError, notifyOk, post, put } from '../api';
 import { CopyId } from '../components/CopyId';
 import { AccessEditor } from '../components/AccessEditor';
@@ -52,6 +53,7 @@ import { AiModelsTab } from '../components/platform/AiModelsTab';
 import { AiUsageTab } from '../components/platform/AiUsageTab';
 import { DatabaseTab } from '../components/platform/DatabaseTab';
 import { KafkaConnectTab } from '../components/platform/KafkaConnectTab';
+import { ConfluentClustersTab, ConfluentConnectorsTab, ConfluentKeysTab, ConfluentSchemasTab } from '../components/platform/ConfluentTabs';
 import { SchemaView } from '../components/dbschema/SchemaView';
 import { McpGatewayTab } from '../components/mcp/McpGatewayTab';
 import { TicketsPanel } from '../components/tickets/TicketsPanel';
@@ -116,11 +118,13 @@ export function PlatformDetailPage() {
   const isDatabase = p.kind === DATABASE_KIND;
   // a Kafka Connect platform (0.9.0) opens on its connectors
   const isConnect = p.kind === KAFKA_CONNECT_KIND;
+  // Confluent Cloud (0.14.0) opens on its clusters
+  const isConfluent = p.kind === CONFLUENT_KIND;
   // changedetection.io (#242) opens on its watches, the components of the platform
   const isChangedetection = p.kind === CHANGEDETECTION_KIND && moduleOn(caps, 'changedetection');
   // an LLM gateway's models and usage belong to the AI models module (ADR 0016)
   const isAi = p.kind === LLM_GATEWAY_KIND && moduleOn(caps, 'ai');
-  const activeTab = tab ?? (isDatabase ? 'database' : isConnect ? 'connectors' : isChangedetection ? 'watches' : 'settings');
+  const activeTab = tab ?? (isDatabase ? 'database' : isConnect ? 'connectors' : isConfluent ? 'clusters' : isChangedetection ? 'watches' : 'settings');
   const canManage = p.permissions.includes('manage');
   const canUse = p.permissions.includes('use');
   // who sees the platform may export it for Postman (#204): its settings without the secrets
@@ -357,6 +361,22 @@ export function PlatformDetailPage() {
               {t('detail.tabs.connectors')}
             </Tabs.Tab>
           )}
+          {isConfluent && (
+            <>
+              <Tabs.Tab value="clusters" leftSection={<IconServer2 size={16} />} data-testid="platform-tab-clusters">
+                {t('detail.tabs.clusters')}
+              </Tabs.Tab>
+              <Tabs.Tab value="subjects" leftSection={<IconSchema size={16} />} data-testid="platform-tab-subjects">
+                {t('detail.tabs.subjects')}
+              </Tabs.Tab>
+              <Tabs.Tab value="connectors" leftSection={<IconArrowsExchange size={16} />} data-testid="platform-tab-connectors">
+                {t('detail.tabs.connectors')}
+              </Tabs.Tab>
+              <Tabs.Tab value="keys" leftSection={<IconKey size={16} />} data-testid="platform-tab-keys">
+                {t('detail.tabs.apiKeys')}
+              </Tabs.Tab>
+            </>
+          )}
           {isChangedetection && (
             <Tabs.Tab value="watches" leftSection={<IconFileDiff size={16} />} data-testid="platform-tab-watches">
               {t('detail.tabs.watches')}
@@ -431,6 +451,22 @@ export function PlatformDetailPage() {
           <Tabs.Panel value="connectors">
             <KafkaConnectTab platform={p} />
           </Tabs.Panel>
+        )}
+        {isConfluent && (
+          <>
+            <Tabs.Panel value="clusters">
+              <ConfluentClustersTab platform={p} />
+            </Tabs.Panel>
+            <Tabs.Panel value="subjects">
+              <ConfluentSchemasTab platform={p} />
+            </Tabs.Panel>
+            <Tabs.Panel value="connectors">
+              <ConfluentConnectorsTab platform={p} />
+            </Tabs.Panel>
+            <Tabs.Panel value="keys">
+              <ConfluentKeysTab platform={p} />
+            </Tabs.Panel>
+          </>
         )}
         <Tabs.Panel value="settings">
           <SettingsTab platform={p} readOnly={!canManage} />

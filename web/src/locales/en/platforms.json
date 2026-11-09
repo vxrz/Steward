@@ -98,6 +98,21 @@
       "secretHelp": {
         "apiKey": "The value of DATACONTRACT_CLI_API_KEY of the service (sent as x-api-key)"
       }
+    },
+    "confluent-cloud-api-read-only": {
+      "description": "The Confluent Cloud API (https://api.confluent.cloud), read-only: Steward reads the environments, Kafka clusters, Schema Registry clusters, service accounts, the metadata of API keys (owner, resource, created, expiry – never a secret) and the managed connectors with their tasks, every hour or on Read now; clusters link to the Kafka platform whose variable confluentClusterId names them; monitors check that clusters are provisioned and connectors and tasks run. With the variable schemaRegistryUrl and a key of that Schema Registry (registryKey/registrySecret) also its subjects. Access checks of source \"Confluent\" snapshot role bindings (and, with kafkaRestUrl, clusterId and the cluster's API key, its ACLs); platform costs read the Costs API. Credentials: a Cloud API key and secret of a service account – OrganizationAdmin reads everything. Changing requests are refused. See docs/CONFLUENT.md.",
+      "secrets": {
+        "username": "Cloud API key",
+        "password": "Cloud API secret",
+        "registryKey": "Schema Registry API key (optional, for subjects)",
+        "registrySecret": "Schema Registry API secret (optional)",
+        "clusterApiKey": "Kafka cluster API key (optional, for ACLs)",
+        "clusterApiSecret": "Kafka cluster API secret (optional, for ACLs)"
+      },
+      "secretHelp": {
+        "username": "A Cloud API key (resource \"Cloud resource management\"), not a Kafka cluster key",
+        "registryKey": "A key of the Schema Registry the variable schemaRegistryUrl names"
+      }
     }
   },
   "title": "Platforms",
@@ -227,7 +242,10 @@
       "ai": "AI models",
       "aiUsage": "AI usage",
       "connectors": "Connectors",
-      "watches": "Watches"
+      "watches": "Watches",
+      "clusters": "Clusters",
+      "subjects": "Schemas",
+      "apiKeys": "API keys"
     },
     "deleteText": "This deletes <b>{{name}}</b> including its stored credentials, API specs and documents. Processes and schedules that use it will fail until another platform is selected. The audit log is kept.",
     "typeToConfirm": "Type \"{{name}}\" to confirm"
@@ -1113,6 +1131,92 @@
     "taskError": "Task {{id}}",
     "failedSince": "failed {{when}}",
     "traceHint": "Shortened; values that look secret are removed."
+  },
+  "confluent": {
+    "readNow": "Read now",
+    "readFailed": "Confluent Cloud could not be read",
+    "read": "Read {{when}} · every hour and with Read now",
+    "readError": "The last read failed – the values before it are shown",
+    "partErrors": "Parts that could not be read (their last values are shown)",
+    "parts": {
+      "environments": "Environments",
+      "clusters": "Kafka clusters",
+      "schemaRegistries": "Schema Registry clusters",
+      "serviceAccounts": "Service accounts",
+      "apiKeys": "API keys",
+      "connectors": "Connectors",
+      "subjects": "Schema Registry subjects"
+    },
+    "notRead": "Not read yet",
+    "notReadHint": "Read now reads the environments, clusters, connectors, service accounts and API keys of the organisation.",
+    "clustersTitle": "Kafka clusters",
+    "clustersHelp": "The environments and Kafka clusters of the Confluent Cloud organisation, read-only through the Cloud API. A cluster belongs to the Kafka platform whose variable confluentClusterId names it – its topics, consumer lag and costs are there.",
+    "noClusters": "No Kafka clusters",
+    "noClustersHint": "The organisation has no cluster, or the Cloud API key may not list them (OrganizationAdmin, or EnvironmentAdmin on each environment).",
+    "summary": "{{environments}} environments, {{clusters}} clusters, {{connectors}} managed connectors",
+    "cluster": "Cluster",
+    "environment": "Environment",
+    "type": "Type",
+    "location": "Cloud and region",
+    "status": "Status",
+    "kafkaPlatform": "Kafka platform",
+    "cku_one": "{{count}} CKU",
+    "cku_other": "{{count}} CKUs",
+    "availability": {
+      "multi": "Multi-zone",
+      "single": "Single zone"
+    },
+    "noKafkaPlatform": "None – set confluentClusterId on a Kafka platform",
+    "kafkaPlatformHint": "To read a cluster's topics, lag and schemas, add a Kafka cluster platform with its bootstrap servers and set its variable confluentClusterId to the cluster id (lkc-…).",
+    "emptyEnvironments": "Environments without a Kafka cluster: {{names}}",
+    "schemasTitle": "Schema Registry",
+    "schemasHelp": "The Schema Registry clusters of the environments and – with the variable schemaRegistryUrl and a key of that registry (registryKey, registrySecret) – its subjects with their versions and compatibility. Read-only.",
+    "registry": "Schema Registry",
+    "package": "Package",
+    "endpoint": "Endpoint",
+    "noRegistry": "No subjects read",
+    "noRegistryHint": "Set the variable schemaRegistryUrl to a Schema Registry's endpoint (listed above) and its API key in registryKey and registrySecret under Credentials. The outbound policy must allow the endpoint.",
+    "registryRead": "{{url}}: {{count}} subjects, registry compatibility {{level}}",
+    "subjectsTruncated": "Not every subject was read in full: versions and compatibility are read for the first 200 subjects.",
+    "subject": "Subject",
+    "versions": "Versions",
+    "compatibility": "Compatibility",
+    "versionCount_one": "{{count}} version (latest {{latest}})",
+    "versionCount_other": "{{count}} versions (latest {{latest}})",
+    "ownLevel": "own",
+    "registryLevel": "registry default",
+    "connectorsTitle": "Managed connectors",
+    "connectorsHelp": "The fully managed connectors of every cluster with their tasks and the error of a failed one, read-only – Steward never creates, pauses, resumes or deletes a connector and keeps no configuration. Their topics link to the Kafka topic components of the cluster's Kafka platform.",
+    "noConnectors": "No managed connectors",
+    "noConnectorsHint": "The clusters have no managed connector, or the Cloud API key may not list them.",
+    "onCluster": "on {{cluster}}",
+    "keysTitle": "Service accounts and API keys",
+    "keysHelp": "The organisation's API keys with owner, resource, creation and expiry – metadata only: Confluent never returns a secret in this list, and Steward keeps none. Listing API keys needs OrganizationAdmin.",
+    "keysHidden": "Only who may use the platform sees its service accounts and API keys.",
+    "noKeys": "No API keys",
+    "noKeysHint": "The organisation has no API key, or the Cloud API key may not list them (OrganizationAdmin).",
+    "keysSummary_one": "{{count}} API key, {{accounts}} service accounts",
+    "keysSummary_other": "{{count}} API keys, {{accounts}} service accounts",
+    "key": "API key",
+    "owner": "Owner",
+    "resource": "Resource",
+    "created": "Created",
+    "expires": "Expires",
+    "never": "Never",
+    "cloudKey": "Cloud (organisation)",
+    "hints": {
+      "expired": "Expired",
+      "expiring": "Expires soon",
+      "rotate": "Older than a year – rotate"
+    },
+    "keysHint": "Confluent's API does not say when a key was last used. A key older than a year has a rotation hint; one that expires within 30 days is marked.",
+    "register": "Add to the credentials register",
+    "registerKey": "Add the API key {{key}} to the credentials register",
+    "keyEntryName": "{{platform}}: API key {{key}}",
+    "keyEntryDescription": "Confluent Cloud API key \"{{name}}\" of {{owner}} for {{resource}}",
+    "serviceAccount": "Service account",
+    "description": "Description",
+    "keyCount": "API keys"
   },
   "watches": {
     "intro": "The watches of changedetection.io are the components of this platform: Steward reads their title, page, tags, last check, last change and errors – never the page contents. Link a watch to an application, a service or a vendor; the monitor check \"Page watch\" judges them.",
