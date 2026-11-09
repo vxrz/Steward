@@ -39,6 +39,7 @@ Steward's monitors cover the checks that belong to its procedures and services: 
 | `unknown`     | 3    | No data yet, or the check itself could not run (platform missing, vault locked, expression error, the data source answered with an error) |
 | `blocked`     | 4    | Not evaluated because a hard dependency is down                                                                                           |
 | `maintenance` | 5    | In a maintenance window: alerts are silenced, the time does not count against uptime                                                      |
+| `off`         | 6    | A monitor with [states](#states-off-is-not-an-outage) in an off state, every check agreeing: grey, no alert, not counted in the uptime    |
 
 **Flapping control.** A check goes `down` after _N_ consecutive failing results (`failuresBeforeDown`, default 2) and back after _M_ consecutive good results (`successesBeforeUp`, default 1). `up` ↔ `degraded` switch immediately. An `unknown` result (the check could not run) does not end a confirmed outage. A failing result that is not confirmed yet already explains failing children.
 
@@ -65,10 +66,11 @@ PowerMeter reachable (ping, TCP fallback 502)
 └─▶ Machine data flow (sub-monitor "Machine 17 – machine data")
         Machine data reported by the gateway (heartbeat, on change: max. age 10 min)
           └─▶ Machine data in Insights Hub (freshness: MachineData/spindleSpeed, max. age 15 min)
+Gateway Hall 2 alive (sub-monitor "Gateway Hall 2", 0.13) ─▶ parent of the data the gateway forwards
 ```
 
 1. **Platforms.** An _Insights Hub_ platform (service credentials). Optionally _Gatus_ and _Zabbix_ platforms for outputs.
-2. **Import the examples** (_Monitors → Import → From the example library_): first _Machine 17 – machine data_ (`examples/monitors/10-…`), then _Machine 17 – PowerMeter_ (`11-…`). Platforms are referenced by name; "Insights Hub" also finds "Insights Hub (production)" when it is the only one, otherwise the only platform of the right kind is used. When the name fits several of your platforms (e.g. "Insights Hub (modev)" and "Insights Hub (prod)") or none, the dialog shows a **platform picker per reference** – with the platforms of the right kind you may use, and the one the name resolves to preselected – and imports the monitor with your choice. The same works for pasted or loaded YAML and for templates; the API takes it as `platforms: { "<name in the file>": "<platform id>" }` on `POST /api/monitors/import` and `POST /api/monitors/examples/{file}`, and lists the references with `…/preview`. Replace the IP address and the asset ids (_Edit_ → select a check).
+2. **Import the examples** (_Monitors → Import → From the example library_): first _Gateway Hall 2_ (`examples/monitors/09-…`) and _Machine 17 – machine data_ (`10-…`), then _Machine 17 – PowerMeter_ (`11-…`). Since 0.13 the two machine monitors have [states](#states-off-is-not-an-outage): switched off on purpose, the machine is _Off_ – grey and quiet – instead of down. Platforms are referenced by name; "Insights Hub" also finds "Insights Hub (production)" when it is the only one, otherwise the only platform of the right kind is used. When the name fits several of your platforms (e.g. "Insights Hub (modev)" and "Insights Hub (prod)") or none, the dialog shows a **platform picker per reference** – with the platforms of the right kind you may use, and the one the name resolves to preselected – and imports the monitor with your choice. The same works for pasted or loaded YAML and for templates; the API takes it as `platforms: { "<name in the file>": "<platform id>" }` on `POST /api/monitors/import` and `POST /api/monitors/examples/{file}`, and lists the references with `…/preview`. Replace the IP address and the asset ids (_Edit_ → select a check).
 3. **Heartbeat secrets.** Saving shows the URL and secret of every heartbeat check **once**. A save with an API token gets no secrets (`secrets: []`): rotate the secret signed in. Configure the gateway – one call per check, or a [gateway](#gateway-batch) for all checks.
 4. **Outputs.** _Edit → Outputs_: notification subscribers (e.g. `team:maintenance`), Zabbix, Gatus, a webhook or a runbook.
 5. **Watch it.** The detail page shows the graph coloured by status, the root cause, and per check the latest results, status changes and uptime. _Monitors → Status wall_ is made for a screen in the control room.
@@ -82,7 +84,114 @@ What happens when …
 | The machine branch fails on its own                | The sub-monitor goes down with its own root cause and its own alert; the PowerMeter monitor shows the sub-monitor node down with that root cause.                                                                                                              |
 | Insights Hub answers with an error                 | The freshness checks are `unknown` (the data path could not be checked), not `down`.                                                                                                                                                                           |
 
-In demo mode (`npm run demo` → _Load demo data_) all of this runs against simulated platforms: an **IoT gateway simulator** reports every 30 s through the real batch endpoint, and the PowerMeter of _Machine 18_ (created from the template) stopped reporting 25 minutes ago, so its monitor shows a realistic root cause.
+In demo mode (`npm run demo` → _Load demo data_) all of this runs against simulated platforms: an **IoT gateway simulator** reports every 30 s through the real batch endpoint, and the PowerMeter of _Machine 18_ (created from the template) stopped reporting 25 minutes ago, so its monitor shows a realistic root cause. Two more monitors show [states](#states-off-is-not-an-outage): _Lathe 5 – PowerMeter_ is switched off and every check agrees (grey _Off_), while the PowerMeter of _Mill 6 – PowerMeter_ does not answer although its data still arrives (a contradiction, red, root cause the PowerMeter check).
+
+## States: off is not an outage
+
+A machine switched off on purpose makes every check of its monitor fail – one after the other, as the data paths go stale. Without states that is an alert every evening. With **states** (0.13, [ADR 0021](adr/0021-monitor-states.md)) a monitor knows when its checks are _expected_ to fail: when every check agrees that the machine is off, the monitor is **Off** – grey and quiet. It raises an issue only when **checks contradict each other**, when the gateway that would bring the data is silent, or when the machine is off for longer than expected. A monitor without `states:` behaves exactly as before.
+
+### The decision table
+
+Each state (Running, Off, Standby …) is a row of a decision table whose columns are the monitor's checks. A row has
+
+- a **condition** – cells that select the state (`when`); the first row whose condition matches wins, a last row _Otherwise_ is fixed and evaluates the monitor as without states;
+- **required** checks (`requires`) – a precondition that must be up for the state to be trusted (the gateway, below);
+- **expected statuses** of the other checks (`expect`);
+- the status it **shows** while everything agrees: `up` (default) or `off`;
+- optionally its own settle time (`settleSeconds`), maximum off time (`maxOffHours`) and what a contradiction makes the monitor (`contradiction: down`, the default, or `degraded`).
+
+A cell is `up` (matches up and degraded), `down` (matches down; `blocked` counts as down, since a check skipped by a hard link agrees with its parent being down) or `any` (no expectation). A sub-monitor column also offers `off`. A check a row does not name is `any`.
+
+```yaml
+# examples/monitors/11-machine-17-powermeter.yaml (shortened)
+checks:
+  # … pm-reachable, pm-reports, pm-ih, machine
+  - { id: gateway, name: Gateway Hall 2 alive, type: monitor, monitor: gateway-hall-2 }
+links:
+  - { from: gateway, to: pm-reports }
+  - { from: gateway, to: machine }
+states:
+  maxOffHours: 8
+  cases:
+    - id: running
+      name: Running
+      when: { pm-reachable: up }
+      expect: { gateway: up, pm-reports: up, pm-ih: up, machine: up }
+    - id: off
+      name: Off
+      status: off
+      when: { pm-reachable: down }
+      requires: [gateway]
+      expect: { pm-reports: down, pm-ih: down, machine: off }
+```
+
+Name the checks that react first in the condition (the direct check of the device – the ping) and the data paths that lag behind it as expectations: the state changes when the fast check changes, and the slow ones get time to follow.
+
+**Evaluation.** The state is selected with the **confirmed** statuses (after flapping control), so one lost ping never switches Running to Off. Each `up` and `down` cell of the selected row is compared with its check:
+
+| The checks …                     | The monitor                                                                                                                                                                                    |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| agree                            | the row's status: `off`, or for an `up` row the aggregation over the checks expected up (a degraded check still degrades). A check whose `down` agrees with its state shows `off` everywhere.  |
+| contradict the state             | `down` (or `degraded` when the row says so or the deviating check has `critical: false`) – after the settle time                                                                               |
+| could not be checked (`unknown`) | the state holds with the note _2 checks could not be checked_; `unknown` when none of its expected checks is known. In a condition `unknown` keeps the current state and selects no other one. |
+
+**Root cause of a contradiction:** the deviating cells of the **closest** row – the row with the fewest contradicted cells, the selected row winning a tie – folded along links like failures. _PowerMeter reachable, machine data missing_: Running is selected and closest, the root cause is the machine data (expanded to the sub-monitor's own root cause), "Running, but Machine data flow is down". _PowerMeter unreachable, but its data still arrives_: Off is selected, Running is closest, so the PowerMeter check is blamed – "PowerMeter reachable is down, but 3 checks say Running" – not the three checks that disagree with it.
+
+**Saving checks** that state ids are unique (at most 10 states), every cell names an existing, enabled check, every row has a condition, `off` is only on a sub-monitor column and a required check is no other cell of its row; a row that can never match (an earlier row has the same or a wider condition) is a warning.
+
+### Settle time
+
+A state change (also from or to _Otherwise_) starts a **settle time**: until it ends, a deviation from the new state's expectations does not count – the check shows its own status with _settling_, the monitor the new state with _settling until 18:19_. The data paths go stale minutes after a power-off and come back minutes after a power-on; the settle time covers exactly that. By default it is derived per row from its expected checks – the largest _freshness window + interval × confirmations_ (the freshness window of `freshness` and `heartbeat` checks, 0 for others; `failuresBeforeDown` for a check expected down, `successesBeforeUp` for one expected up; a sub-monitor column: its monitor's largest value). Example 11's Off row: 900 s + 2 × 60 s of the machine data's Insights Hub check – **17 minutes**. `settleSeconds` (60 s to 24 h) overrides it. A state change during settling restarts it; a required check and the condition are never delayed.
+
+**States that change too often:** more than 4 state changes within 60 minutes make the monitor `degraded` ("Changes state too often: 6 times in the last hour") until an hour passes with fewer – a flapping selector cannot hide contradictions behind restarted settle times. State, since when and the end of the settle time are stored, so a restart neither restarts nor skips a settle time.
+
+### Maximum off time and planned downtime
+
+A consistent Off is quiet only up to the **maximum off time** (`states.maxOffHours`, default **8 hours**; a row may set its own; `0` means no maximum). Past it the monitor is `degraded` – "Off for longer than expected (9 h, maximum 8 h)" – and notifies once, like any degraded status. It counts from the time the state became Off and ends when the state changes.
+
+**Planned downtime** is a kind of [maintenance window](APPLICATIONS.md#maintenance-windows) (`kind: downtime`): weekends, holidays, shutdowns. Unlike maintenance it leaves the status as it is (`off`, `up` …), **suspends the maximum off time** – the time inside a window is not counted as off time, and while one lasts the maximum is not checked – and **still alerts contradictions**. Monitors without states are not affected. It announces nothing unless a reminder is set. A machine off since Friday 22:00 with a weekend window (Friday 22:00 to Monday 06:00) stays quiet over the weekend; still off on Monday 14:00, it is `degraded`. Maintenance stays as it is: it overrides the status with `maintenance`; the state is still selected underneath.
+
+### Gateway liveness: a required check
+
+Off is only trusted when something proves that data would arrive if there were any. A gateway whose machines are all off looks exactly like a dead one, so give each gateway a small monitor with a heartbeat on a key of its own that it reports in every batch call – [`09-gateway-hall-2.yaml`](../examples/monitors/09-gateway-hall-2.yaml), key `gw-hall2.alive` – include it in each machine monitor as a sub-monitor check, list it in `requires` of the off row and link it as parent of the checks it forwards. If a required check is not up while the rest of the condition matches, the state is not taken: the monitor is `down` **at once** (no settle time), root cause the gateway, "Gateway Hall 2 alive is silent – Off cannot be told from an outage". In Running a dead gateway is the root cause through the links.
+
+### Following another monitor
+
+A monitor that cannot tell its state itself – _Machine 17 – machine data_ has only data checks – **follows** another one: `states.from` names it (id or key), and its rows name the leader's state ids with this monitor's own expectations and no condition. It changes state when the leader does, with its own settle time and no maximum off time (the leader reports that). Saving refuses a leader whose condition or required checks use a monitor that follows it (`STATES_CYCLE`). The leader may be named by the key of a monitor that is imported later (the two examples refer to each other); until it exists, the follower is evaluated as without states.
+
+```yaml
+# examples/monitors/10-machine-17-machine-data.yaml (states)
+states:
+  from: machine-17-powermeter
+  cases:
+    - { id: running, name: Running, expect: { machine-reports: up, machine-ih: up } }
+    - { id: off, name: Off, status: off, expect: { machine-reports: down, machine-ih: down } }
+```
+
+### Outputs, notifications and the wall
+
+| Output                     | `off`                                                                                                                                                                                                  |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Notifications, Teams cards | never an alert: sent only when `off` is in the output's `statuses`, or as a recovery after `down` or `degraded`. An acknowledgement ends when the monitor is up or off.                                |
+| State changes              | a notification output with `stateChanges: true` also sends the event `monitor.state` – "Machine 17: Running → Off" – as information, never urgent, held by quiet hours and digests                     |
+| Webhook (JSON)             | `"status": "off"`, `"statusCode": 6`; the monitor's event has `state` (`id`, `name`, `since`, `settlingUntil`) and on a contradiction `contradiction` (`closest`, the checks with expected and actual) |
+| Zabbix push and pull       | `6` (or `off`); add a row 6 → Off to the value map. Triggers on `=2` are unaffected; triggers on `>1` fire on maintenance (5) and off (6). The pull API's answer has `state`.                          |
+| Prometheus                 | `sm_monitor_status` 6; `sm_monitor_state{monitor,state}` is 1 for the current state. `== 2` rules are unaffected.                                                                                      |
+| Gatus                      | per output, `whileOff`: `success` (default), `failure` or `skip` (send nothing). A contradiction and Off beyond the maximum are always failures.                                                       |
+| Status pages               | `operational` – the service is as planned                                                                                                                                                              |
+| Plant live states          | `offline` with the reason _off_, drawn grey, not red                                                                                                                                                   |
+| Datasets                   | `unknown`; the metric `off` in `monitors.status`                                                                                                                                                       |
+| Runbooks (`process`)       | not started (down only by default)                                                                                                                                                                     |
+
+The **status wall** sorts `down`, `degraded`, `unknown`, `blocked`, `maintenance`, `off`, `up`; an off tile shows the state's name with a power icon (_Off · settling 12 min_ while settling), and _Hide off_ leaves them out (remembered in the browser). The **monitor page** shows a grey _Off – all checks agree_ banner instead of the red root cause, and the panel **Why this state**: since when, the settle time, the off time of its maximum, and each cell – selected by, required, expected – with what the check is and whether it agrees (words and signs, never colour alone). On a contradiction it names the closest state and each deviating check, expected and actual.
+
+### The editor's States tab
+
+_Edit → States_ (between _Graph_ and _Settings_) edits the table: one row per state with its name, id and what it shows, a select per check (_Any_, _Up_, _Down_, _Off_ for sub-monitors, the same with _selects_ for the condition, or _Required_), the settle time (_derived_ until overridden) and the maximum off time; rows move with buttons, the order is the priority. Each row is marked _Matches now_ from the current statuses. **Try it** sets each check to a status and shows which row wins and what the monitor would report, with the "why" text – computed in the browser by the same code as the engine (`shared/src/monitorStates.ts`); nothing is stored. Problems show below the table; a row that can never match is a warning.
+
+### Uptime and objectives
+
+Off is **excluded** from uptime and availability objectives, like maintenance – it counts neither way and is shown apart: "Up 97 % · Off as expected 31 h" on the monitor page, _Off as expected_ next to the figures of objectives with the monitor as source, and a column _Off_ in the reports' availability section (when a monitor was off in the period). Settling counts as the new state. Off beyond the maximum is `degraded`, which counts as available by the existing rule. A contradiction is `down` (or `degraded`) and counts as such. Check samples count a check that shows `off` as neither up nor down.
 
 ## The editor
 
@@ -261,6 +370,8 @@ Outputs are configured per monitor (_Edit → Outputs_). Because they act in the
 | `webhook`, `zabbix` | monitor and checks              | sent with status `maintenance` (code 5) |
 | `gatus`             | monitor and checks              | not sent                                |
 
+While a monitor with states is **off**, people-facing outputs stay quiet and the others send `off` (code 6); Gatus outputs choose with `whileOff` – see [States](#outputs-notifications-and-the-wall).
+
 **Platform kinds.** A `gatus` output needs a Gatus platform, a `zabbix` output a Zabbix platform (a Teams card: a _Microsoft Teams channel_ platform). Saving refuses another kind with `OUTPUT_PLATFORM_KIND`; an import or a Git sync update offers only platforms of that kind. A stored output whose platform is of another kind (saved before 0.11.0, or the platform's kind changed) sends nothing and reads no credential: the failure is recorded on the output and logged (`monitor output failed`), and the start-up warning about checks lists such outputs too.
 
 ### Notifications
@@ -319,7 +430,7 @@ external-endpoints:
       interval: 10m
 ```
 
-Output: `type: gatus`, the Gatus platform, `endpointKey: steward_${monitor.key}`, credential `externalToken` on the platform (or `tokenSecret`). Steward sends `POST /api/v1/endpoints/<key>/external?success=true|false&error=…&duration=…ms` with `Authorization: Bearer <token>`. `up` and `degraded` count as success. See [GATUS.md](GATUS.md#3-push-steward-check-results-into-gatus).
+Output: `type: gatus`, the Gatus platform, `endpointKey: steward_${monitor.key}`, credential `externalToken` on the platform (or `tokenSecret`). Steward sends `POST /api/v1/endpoints/<key>/external?success=true|false&error=…&duration=…ms` with `Authorization: Bearer <token>`. `up` and `degraded` count as success. While a monitor with states is **off**, `whileOff` decides: `success` (default), `failure`, or `skip` (nothing is sent – Gatus marks the endpoint failed after its heartbeat interval); a contradiction and Off beyond the maximum are always failures. See [GATUS.md](GATUS.md#3-push-steward-check-results-into-gatus).
 
 ### Zabbix push
 
@@ -330,9 +441,9 @@ Default item keys (change them with `itemKeyMonitor` / `itemKeyCheck`):
 - `steward.monitor.status[<monitor key>]`
 - `steward.check.status[<monitor key>,<check id>]`
 
-Values: `0` up, `1` degraded, `2` down, `3` unknown, `4` blocked, `5` maintenance – or the status word with `value: text`.
+Values: `0` up, `1` degraded, `2` down, `3` unknown, `4` blocked, `5` maintenance, `6` off (0.13: a monitor with [states](#states-off-is-not-an-outage), every check agreeing) – or the status word with `value: text`.
 
-**a) Sender / trapper protocol** (`via: sender`, default). In Zabbix create items of type **Zabbix trapper** with these keys (type of information _Numeric (unsigned)_, a value map 0–5), and put Steward's address into _Allowed hosts_. Steward speaks the `zabbix_sender` protocol over TCP: header `ZBXD` + `0x01`, 4-byte little-endian data length, 4 reserved bytes, then `{"request":"sender data","data":[{"host","key","value","clock","ns"}]}`; the answer's `info` (`processed: 2; failed: 0; total: 2; seconds spent: …`) is checked – any `failed` value is reported as an output error (usually a wrong host name, item key or item type). TLS/PSK for the trapper connection is not supported; allow unencrypted connections for this host or use the API mode over HTTPS.
+**a) Sender / trapper protocol** (`via: sender`, default). In Zabbix create items of type **Zabbix trapper** with these keys (type of information _Numeric (unsigned)_, a value map 0–6 – add the row 6 → Off when updating to 0.13), and put Steward's address into _Allowed hosts_. Steward speaks the `zabbix_sender` protocol over TCP: header `ZBXD` + `0x01`, 4-byte little-endian data length, 4 reserved bytes, then `{"request":"sender data","data":[{"host","key","value","clock","ns"}]}`; the answer's `info` (`processed: 2; failed: 0; total: 2; seconds spent: …`) is checked – any `failed` value is reported as an output error (usually a wrong host name, item key or item type). TLS/PSK for the trapper connection is not supported; allow unencrypted connections for this host or use the API mode over HTTPS.
 
 **b) API `history.push`** (`via: api`, Zabbix **7.0** or later). The same trapper items (or HTTP agent items with _Enable trapping_); the Zabbix frontend's address must be in the items' _Allowed hosts_. Steward calls `history.push` with `[{host, key, value, clock, ns}]` and `Authorization: Bearer <API token>` and reports per-value errors from the answer.
 
@@ -384,7 +495,10 @@ sm_monitor_status{monitor="machine-17-powermeter",check=""} 0            # the m
 sm_monitor_status{monitor="machine-17-powermeter",check="pm-reports"} 2
 sm_monitor_last_ok_timestamp_seconds{monitor="machine-17-powermeter",check="pm-reports"} 1792656000
 sm_monitor_evaluations_total{type="heartbeat",result="up"} 1234
+sm_monitor_state{monitor="machine-17-powermeter",state="running"} 1   # monitors with states (0.13)
 ```
+
+`sm_monitor_status` is `6` while a monitor with states is off; `== 2` rules are unaffected, rules on `> 1` also fire on maintenance (5) and off (6).
 
 Until 0.10 these were `steward_monitor_status`, `steward_monitor_last_ok_timestamp` and `steward_monitor_evaluations_total`. 0.11 still serves the old names (deprecated); 0.12 removes them.
 

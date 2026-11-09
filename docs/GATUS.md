@@ -151,6 +151,8 @@ external-endpoints:
 2. _From template → Gatus – Report a Steward check to Gatus_ (`72-gatus-report-check.yaml`). Inputs: the endpoint key (`steward_steward-checks` for the snippet above), the path to check on the `target` platform, the latency limit and the name of the token credential (one credential per external endpoint if you push to several).
 3. Schedule it more often than the heartbeat interval.
 
+A **monitor output** of type `gatus` pushes a Steward monitor's status the same way ([MONITORS.md](MONITORS.md#gatus-external-endpoints)): `up` and `degraded` are success. While a monitor with states is **off** (0.13), the output's `whileOff` decides – _While off: success_ (default), _failure_ or _send nothing_; a contradiction and Off beyond the maximum are always sent as failures ([MONITORS.md](MONITORS.md#states-off-is-not-an-outage)).
+
 The first two steps are the check; replace them with any check of your own. Only `success`, `error` and `duration` are sent: `POST /api/v1/endpoints/<key>/external?success=true|false&error=…&duration=<ms>ms` with `Authorization: Bearer <token>`. That token belongs to the external endpoint, not to the Gatus login; the step sets the header itself. It is read with `$secret()` and redacted from the protocol. Dry runs record the POST without sending it.
 
 ## 4. Gatus alerts start a Steward runbook
