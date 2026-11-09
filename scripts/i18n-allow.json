@@ -198,7 +198,9 @@
       "Maven",
       "Releases",
       "OpenStreetMap",
-      "{{count}} offline"
+      "{{count}} offline",
+      "Firmware",
+      "Aggregator"
     ]
   }
 }

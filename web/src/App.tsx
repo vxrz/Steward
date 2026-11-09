@@ -121,6 +121,8 @@ const PlantExplorePage = page(() => import('./pages/PlantExplore'), 'PlantExplor
 const PlantChecksPage = page(() => import('./pages/PlantChecks'), 'PlantChecksPage');
 const PlantChangesPage = page(() => import('./pages/PlantChanges'), 'PlantChangesPage');
 const PlantChangeSetPage = page(() => import('./pages/PlantChangeSet'), 'PlantChangeSetPage');
+const PlantAdvisoriesPage = page(() => import('./pages/PlantAdvisories'), 'PlantAdvisoriesPage');
+const PlantAdvisoryPage = page(() => import('./pages/PlantAdvisory'), 'PlantAdvisoryPage');
 const PlantNetworkPage = page(() => import('./pages/PlantNetwork'), 'PlantNetworkPage');
 const PlantMapPage = page(() => import('./pages/PlantMap'), 'PlantMapPage');
 
@@ -369,6 +371,8 @@ function Shell({ status }: { status: AuthStatus }) {
                     {caps.plant && <Route path="/plant/changes" element={<PlantChangesPage />} />}
                     {caps.plant && <Route path="/plant/changes/:changeSetId" element={<PlantChangeSetPage />} />}
                     {caps.plant && <Route path="/plant/map" element={<PlantMapPage />} />}
+                    {caps.plant && <Route path="/plant/advisories" element={<PlantAdvisoriesPage />} />}
+                    {caps.plant && <Route path="/plant/advisories/:advisoryId" element={<PlantAdvisoryPage />} />}
                     <Route path="/plant" element={<Navigate to="/plant/sites" replace />} />
                     <Route path="/profile" element={<ProfilePage />} />
                     <Route path="/about" element={<AboutPage />} />
@@ -714,6 +718,23 @@ function Shell({ status }: { status: AuthStatus }) {
                       element={
                         <ModuleGate module="plant">
                           <PlantChangeSetPage />
+                        </ModuleGate>
+                      }
+                    />
+                    {/* 0.14: security advisories (CSAF) matched to assets */}
+                    <Route
+                      path="/plant/advisories"
+                      element={
+                        <ModuleGate module="plant">
+                          <PlantAdvisoriesPage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/plant/advisories/:advisoryId"
+                      element={
+                        <ModuleGate module="plant">
+                          <PlantAdvisoryPage />
                         </ModuleGate>
                       }
                     />

@@ -150,6 +150,12 @@ export const plantKeys = {
   changeSetPreview: (id: string | null | undefined) => ['plant', 'change-set', id, 'preview'] as const,
   openChanges: (key: string) => ['plant', 'open-changes', key] as const,
   history: (key: string) => ['plant', 'history', key] as const,
+  // security advisories (0.14): the list, one advisory, an asset's, the start page's tile and the sources
+  advisories: (key: string) => ['plant', 'advisories', 'list', key] as const,
+  advisory: (id: string | null | undefined) => ['plant', 'advisories', 'one', id] as const,
+  assetAdvisories: (assetId: string | null | undefined) => ['plant', 'advisories', 'asset', assetId] as const,
+  advisoryTile: ['plant', 'advisories', 'tile'] as const,
+  advisorySources: ['plant', 'advisories', 'sources'] as const,
 };
 
 /** Database schemas (#222): per platform or system, its snapshots and comparisons. */

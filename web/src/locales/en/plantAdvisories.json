@@ -1,0 +1,243 @@
+{
+  "title": "Advisories",
+  "description": "Security advisories (CSAF 2.0) of device vendors and CISA, matched to the assets of your sites by manufacturer, model and firmware.",
+  "severity": {
+    "critical": "Critical",
+    "high": "High",
+    "medium": "Medium",
+    "low": "Low",
+    "none": "None",
+    "unknown": "Unrated"
+  },
+  "status": {
+    "open": "Open",
+    "mitigated": "Mitigated",
+    "not_applicable": "Not applicable",
+    "unaffected": "No asset affected"
+  },
+  "kind": {
+    "exact": "Match",
+    "possible": "Possible match – confirm"
+  },
+  "decision": {
+    "confirmed": "Confirmed",
+    "dismissed": "Dismissed"
+  },
+  "remediation": {
+    "open": "Open",
+    "planned": "Planned",
+    "mitigated": "Mitigated",
+    "accepted": "Accepted risk",
+    "not_affected": "Not affected",
+    "expired": "Accepted risk – expired"
+  },
+  "integrity": {
+    "sha512": "SHA-512 of the provider checked",
+    "sha256": "SHA-256 of the provider checked",
+    "none": "The provider publishes no hash",
+    "uploaded": "Uploaded",
+    "uploaded_sha256": "Uploaded, SHA-256 checked"
+  },
+  "origin": {
+    "feed": "From {{source}}",
+    "feedUnknown": "From a source",
+    "upload": "Uploaded"
+  },
+  "list": {
+    "advisory": "Advisory",
+    "severity": "Severity",
+    "affected": "Affected assets",
+    "affectedCount_one": "{{count}} asset",
+    "affectedCount_other": "{{count}} assets",
+    "openCount": "{{count}} open",
+    "possibleCount_one": "{{count}} possible match",
+    "possibleCount_other": "{{count}} possible matches",
+    "sites": "Sites",
+    "zones": "Zones",
+    "updated": "Updated",
+    "published": "Published",
+    "status": "Status",
+    "search": "Title, id, vendor or CVE",
+    "affecting": "Only advisories affecting my sites",
+    "anySeverity": "Any severity",
+    "anyStatus": "Any status",
+    "site": "Site",
+    "allSites": "All sites",
+    "label": "Security advisories",
+    "card": "{{publisher}} · {{updated}}",
+    "more_one": "{{count}} more advisory is not listed – narrow the filters.",
+    "more_other": "{{count}} more advisories are not listed – narrow the filters.",
+    "emptyTitle": "No advisories yet",
+    "emptyText": "Upload a CSAF document (JSON) of a device vendor or CISA – or let an administrator add a provider's feed under Sources. Nothing is read from the internet until someone does.",
+    "noMatch": "No advisory fits the filters.",
+    "noAffecting": "No advisory affects your sites. Turn off “Only advisories affecting my sites” to see all of them."
+  },
+  "upload": {
+    "button": "Upload CSAF file",
+    "done": "{{id}}: {{result}} – {{matches}} matching assets, {{possible}} possible matches",
+    "result": {
+      "created": "added",
+      "updated": "updated to a newer release",
+      "unchanged": "already known, unchanged",
+      "older": "an older release – the newer one stays"
+    }
+  },
+  "detail": {
+    "back": "Advisories",
+    "summary": "Summary",
+    "facts": "About the document",
+    "publisher": "Publisher",
+    "trackingId": "Tracking id",
+    "version": "Version",
+    "published": "First released",
+    "updated": "Current release",
+    "category": "Category",
+    "tlp": "TLP",
+    "integrity": "Integrity",
+    "signature": "OpenPGP signature",
+    "signatureNote": "published, not checked by Steward",
+    "source": "Source",
+    "download": "Download the CSAF file",
+    "delete": "Remove advisory",
+    "deleteConfirm": "Remove the advisory {{id}} with its matches, decisions and remediation records? It comes back with its source's next read, without them.",
+    "references": "References",
+    "vulnerabilities": "Vulnerabilities",
+    "cvss": "CVSS {{score}}",
+    "exploitation": "Exploitation",
+    "remediations": "Remediations",
+    "remediationCategory": {
+      "mitigation": "Mitigation",
+      "no_fix_planned": "No fix planned",
+      "none_available": "None available",
+      "vendor_fix": "Vendor fix",
+      "workaround": "Workaround"
+    },
+    "products": "Products",
+    "moreProducts_one": "and {{count}} more product",
+    "moreProducts_other": "and {{count}} more products",
+    "affected": "Affected assets",
+    "affectedHint": "Exact matches (vendor, model and firmware) and confirmed possible matches, by site and zone. The target security level (SL-T) is the zone's.",
+    "noAffected": "No asset of your sites is affected.",
+    "hidden_one": "{{count}} more matching asset is at a site you may not see.",
+    "hidden_other": "{{count}} more matching assets are at sites you may not see.",
+    "possible": "Possible matches – confirm",
+    "possibleHint": "Similar vendor or model, firmware not recorded, a version range Steward does not read, or a product under investigation. They count only once someone confirms them.",
+    "dismissed": "Dismissed matches",
+    "zoneNone": "No zone",
+    "zoneSl": "{{zone}} · SL-T {{sl}}",
+    "zoneSlOpen": "{{zone}} · SL-T open",
+    "asset": "Asset",
+    "firmware": "Firmware",
+    "why": "Why",
+    "fix": "Fixed firmware",
+    "fixFromRange": "{{version}} (end of the affected range)",
+    "remediationColumn": "Remediation",
+    "actions": "Actions",
+    "profiles": "Device profiles",
+    "profilesHint": "Device profiles whose manufacturer and model the advisory names – every asset with such a profile is checked with its own firmware.",
+    "siteNa": "Not applicable at {{site}}",
+    "siteNaBy": "Not applicable – {{reason}} ({{by}}, {{at}})",
+    "siteNaUndo": "Applies again",
+    "siteNaReason": "Why does the advisory not apply to this site?",
+    "notApplicableBadge": "Not applicable at the site"
+  },
+  "reason": {
+    "line": "{{vendor}} · {{model}} · {{version}}",
+    "vendor": {
+      "same": "vendor {{value}}",
+      "normalised": "vendor {{value}} (as written: {{asset}})",
+      "similar": "vendor similar: {{value}} ≈ {{asset}}"
+    },
+    "model": {
+      "same": "model {{value}}",
+      "normalised": "model {{value}} (as written: {{asset}})",
+      "model_number": "model number {{value}}",
+      "similar": "model similar: {{value}} ≈ {{asset}}"
+    },
+    "version": {
+      "in_range": "firmware {{asset}} in {{value}}",
+      "equal": "firmware {{asset}} = {{value}}",
+      "all": "all versions",
+      "unknown": "firmware not recorded (affected: {{value}})",
+      "unparsed": "firmware {{asset}} – range “{{value}}” not understood"
+    },
+    "viaProfile": "via device profile {{profile}}",
+    "underInvestigation": "the vendor is still investigating"
+  },
+  "match": {
+    "confirm": "Confirm",
+    "dismiss": "Dismiss",
+    "undo": "Undo decision",
+    "confirmTitle": "Confirm the match on {{asset}}",
+    "dismissTitle": "Dismiss the match on {{asset}}",
+    "reason": "Reason",
+    "reasonDismiss": "Why does it not apply?",
+    "decidedBy": "{{decision}} by {{by}}, {{at}}"
+  },
+  "fix": {
+    "set": "Set status",
+    "title": "Remediation of {{asset}}",
+    "status": "Status",
+    "reason": "Reason",
+    "until": "Accepted until",
+    "window": "Maintenance window",
+    "windowNone": "None",
+    "changeSet": "Change set",
+    "changeSetNone": "None",
+    "note": "Note",
+    "suggested": "The advisory names firmware {{versions}} as the fix.",
+    "by": "{{by}}, {{at}}",
+    "planned": "Planned: {{what}}"
+  },
+  "asset": {
+    "title": "Advisories",
+    "none": "No advisory matches this asset.",
+    "open_one": "{{count}} open",
+    "open_other": "{{count}} open",
+    "possible": "possible – confirm on the advisory",
+    "dismissed": "dismissed"
+  },
+  "tile": {
+    "title": "Advisories affecting your sites",
+    "open_one": "{{count}} open advisory",
+    "open_other": "{{count}} open advisories",
+    "assets_one": "{{count}} asset to deal with",
+    "assets_other": "{{count}} assets to deal with",
+    "critical": "{{count}} critical",
+    "high": "{{count}} high",
+    "possible_one": "{{count}} possible match to confirm",
+    "possible_other": "{{count}} possible matches to confirm",
+    "site": "{{site}}: {{advisories}} advisories, {{assets}} assets",
+    "open": "Open advisories"
+  },
+  "sources": {
+    "button": "Sources",
+    "title": "Advisory sources",
+    "intro": "CSAF providers (their provider-metadata.json, usually under /.well-known/csaf/), aggregators (aggregator.json) or one ROLIE feed. Steward reads them through the outbound policy and keeps only documents whose published hash matches. None is set up by default; offline plants upload files instead.",
+    "none": "No source yet.",
+    "add": "Add source",
+    "edit": "Edit source",
+    "name": "Name",
+    "url": "Address",
+    "urlHint": "e.g. https://psirt.example.com/.well-known/csaf/provider-metadata.json",
+    "enabled": "Read on a schedule",
+    "interval": "Every … hours",
+    "publishers": "Only publishers (aggregator)",
+    "publishersHint": "Words in the publisher's name, one per line – empty: the first {{max}} providers",
+    "since": "Only documents released since",
+    "kind": {
+      "provider": "Provider",
+      "aggregator": "Aggregator",
+      "rolie": "ROLIE feed"
+    },
+    "fetch": "Read now",
+    "fetched": "{{name}}: {{created}} new, {{updated}} updated, {{failed}} failed",
+    "lastRun": "Last read {{when}}",
+    "never": "Not read yet",
+    "off": "Off",
+    "advisories_one": "{{count}} advisory",
+    "advisories_other": "{{count}} advisories",
+    "delete": "Remove",
+    "deleteConfirm": "Remove the source {{name}}? Its advisories stay."
+  }
+}

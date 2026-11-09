@@ -19,6 +19,7 @@ import { AssetFormModal } from '../components/plant/forms';
 import { MoveAssetModal } from '../components/plant/MoveTo';
 import { AssetDataSection } from '../components/plant/AssetData';
 import { AssetNetworkSection } from '../components/plant/AssetNetwork';
+import { AssetAdvisoriesSection } from '../components/plant/advisories/AssetAdvisories';
 import { PlantDocumentsPanel } from '../components/plant/DocumentsPanel';
 import { SourceLine } from './PlantSite';
 import { AssetTabs, PlantAssetTabPage } from './plant/views/tabs';
@@ -227,6 +228,7 @@ export function PlantAssetPage() {
             </Stack>
             <AssetDataSection assetId={a.id} />
             <AssetNetworkSection assetId={a.id} />
+            <AssetAdvisoriesSection assetId={a.id} />
             <PlantDocumentsPanel kind="asset" id={a.id} />
             <LinksPanel
               links={a.links}

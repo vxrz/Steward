@@ -1,0 +1,243 @@
+{
+  "title": "Sicherheitshinweise",
+  "description": "Sicherheitshinweise (CSAF 2.0) von Geräteherstellern und der CISA, abgeglichen mit den Anlagen Ihrer Standorte nach Hersteller, Modell und Firmware.",
+  "severity": {
+    "critical": "Kritisch",
+    "high": "Hoch",
+    "medium": "Mittel",
+    "low": "Niedrig",
+    "none": "Keine",
+    "unknown": "Ohne Bewertung"
+  },
+  "status": {
+    "open": "Offen",
+    "mitigated": "Behoben",
+    "not_applicable": "Nicht zutreffend",
+    "unaffected": "Keine Anlage betroffen"
+  },
+  "kind": {
+    "exact": "Treffer",
+    "possible": "Möglicher Treffer – bestätigen"
+  },
+  "decision": {
+    "confirmed": "Bestätigt",
+    "dismissed": "Verworfen"
+  },
+  "remediation": {
+    "open": "Offen",
+    "planned": "Geplant",
+    "mitigated": "Behoben",
+    "accepted": "Risiko akzeptiert",
+    "not_affected": "Nicht betroffen",
+    "expired": "Akzeptiertes Risiko – abgelaufen"
+  },
+  "integrity": {
+    "sha512": "SHA-512 des Anbieters geprüft",
+    "sha256": "SHA-256 des Anbieters geprüft",
+    "none": "Der Anbieter veröffentlicht keinen Hash",
+    "uploaded": "Hochgeladen",
+    "uploaded_sha256": "Hochgeladen, SHA-256 geprüft"
+  },
+  "origin": {
+    "feed": "Aus {{source}}",
+    "feedUnknown": "Aus einer Quelle",
+    "upload": "Hochgeladen"
+  },
+  "list": {
+    "advisory": "Sicherheitshinweis",
+    "severity": "Schweregrad",
+    "affected": "Betroffene Anlagen",
+    "affectedCount_one": "{{count}} Anlage",
+    "affectedCount_other": "{{count}} Anlagen",
+    "openCount": "{{count}} offen",
+    "possibleCount_one": "{{count}} möglicher Treffer",
+    "possibleCount_other": "{{count}} mögliche Treffer",
+    "sites": "Standorte",
+    "zones": "Zonen",
+    "updated": "Aktualisiert",
+    "published": "Veröffentlicht",
+    "status": "Status",
+    "search": "Titel, Kennung, Hersteller oder CVE",
+    "affecting": "Nur Hinweise, die meine Standorte betreffen",
+    "anySeverity": "Jeder Schweregrad",
+    "anyStatus": "Jeder Status",
+    "site": "Standort",
+    "allSites": "Alle Standorte",
+    "label": "Sicherheitshinweise",
+    "card": "{{publisher}} · {{updated}}",
+    "more_one": "{{count}} weiterer Hinweis wird nicht angezeigt – grenzen Sie die Filter ein.",
+    "more_other": "{{count}} weitere Hinweise werden nicht angezeigt – grenzen Sie die Filter ein.",
+    "emptyTitle": "Noch keine Sicherheitshinweise",
+    "emptyText": "Laden Sie ein CSAF-Dokument (JSON) eines Geräteherstellers oder der CISA hoch – oder lassen Sie einen Administrator unter Quellen den Feed eines Anbieters hinzufügen. Bis dahin liest Steward nichts aus dem Internet.",
+    "noMatch": "Kein Sicherheitshinweis passt zu den Filtern.",
+    "noAffecting": "Kein Sicherheitshinweis betrifft Ihre Standorte. Schalten Sie „Nur Hinweise, die meine Standorte betreffen“ aus, um alle zu sehen."
+  },
+  "upload": {
+    "button": "CSAF-Datei hochladen",
+    "done": "{{id}}: {{result}} – {{matches}} passende Anlagen, {{possible}} mögliche Treffer",
+    "result": {
+      "created": "hinzugefügt",
+      "updated": "auf eine neuere Fassung aktualisiert",
+      "unchanged": "bereits bekannt, unverändert",
+      "older": "eine ältere Fassung – die neuere bleibt"
+    }
+  },
+  "detail": {
+    "back": "Sicherheitshinweise",
+    "summary": "Zusammenfassung",
+    "facts": "Zum Dokument",
+    "publisher": "Herausgeber",
+    "trackingId": "Kennung",
+    "version": "Version",
+    "published": "Erstmals veröffentlicht",
+    "updated": "Aktuelle Fassung",
+    "category": "Kategorie",
+    "tlp": "TLP",
+    "integrity": "Integrität",
+    "signature": "OpenPGP-Signatur",
+    "signatureNote": "veröffentlicht, von Steward nicht geprüft",
+    "source": "Quelle",
+    "download": "CSAF-Datei herunterladen",
+    "delete": "Sicherheitshinweis entfernen",
+    "deleteConfirm": "Den Sicherheitshinweis {{id}} mit seinen Treffern, Entscheidungen und Behebungen entfernen? Beim nächsten Lesen seiner Quelle kommt er ohne diese wieder.",
+    "references": "Verweise",
+    "vulnerabilities": "Schwachstellen",
+    "cvss": "CVSS {{score}}",
+    "exploitation": "Ausnutzung",
+    "remediations": "Abhilfen",
+    "remediationCategory": {
+      "mitigation": "Abschwächung",
+      "no_fix_planned": "Keine Korrektur geplant",
+      "none_available": "Keine verfügbar",
+      "vendor_fix": "Korrektur des Herstellers",
+      "workaround": "Umgehung"
+    },
+    "products": "Produkte",
+    "moreProducts_one": "und {{count}} weiteres Produkt",
+    "moreProducts_other": "und {{count}} weitere Produkte",
+    "affected": "Betroffene Anlagen",
+    "affectedHint": "Genaue Treffer (Hersteller, Modell und Firmware) und bestätigte mögliche Treffer, nach Standort und Zone. Das Ziel-Sicherheitsniveau (SL-T) ist das der Zone.",
+    "noAffected": "Keine Anlage Ihrer Standorte ist betroffen.",
+    "hidden_one": "{{count}} weitere passende Anlage steht an einem Standort, den Sie nicht sehen dürfen.",
+    "hidden_other": "{{count}} weitere passende Anlagen stehen an Standorten, die Sie nicht sehen dürfen.",
+    "possible": "Mögliche Treffer – bestätigen",
+    "possibleHint": "Ähnlicher Hersteller oder ähnliches Modell, keine Firmware erfasst, ein Versionsbereich, den Steward nicht liest, oder ein Produkt in Untersuchung. Sie zählen erst, wenn jemand sie bestätigt.",
+    "dismissed": "Verworfene Treffer",
+    "zoneNone": "Keine Zone",
+    "zoneSl": "{{zone}} · SL-T {{sl}}",
+    "zoneSlOpen": "{{zone}} · SL-T offen",
+    "asset": "Anlage",
+    "firmware": "Firmware",
+    "why": "Warum",
+    "fix": "Korrigierte Firmware",
+    "fixFromRange": "{{version}} (Ende des betroffenen Bereichs)",
+    "remediationColumn": "Behebung",
+    "actions": "Aktionen",
+    "profiles": "Geräteprofile",
+    "profilesHint": "Geräteprofile, deren Hersteller und Modell der Hinweis nennt – jede Anlage mit einem solchen Profil wird mit ihrer eigenen Firmware geprüft.",
+    "siteNa": "Nicht zutreffend für {{site}}",
+    "siteNaBy": "Nicht zutreffend – {{reason}} ({{by}}, {{at}})",
+    "siteNaUndo": "Trifft wieder zu",
+    "siteNaReason": "Warum trifft der Hinweis für diesen Standort nicht zu?",
+    "notApplicableBadge": "Für den Standort nicht zutreffend"
+  },
+  "reason": {
+    "line": "{{vendor}} · {{model}} · {{version}}",
+    "vendor": {
+      "same": "Hersteller {{value}}",
+      "normalised": "Hersteller {{value}} (erfasst als: {{asset}})",
+      "similar": "Hersteller ähnlich: {{value}} ≈ {{asset}}"
+    },
+    "model": {
+      "same": "Modell {{value}}",
+      "normalised": "Modell {{value}} (erfasst als: {{asset}})",
+      "model_number": "Modellnummer {{value}}",
+      "similar": "Modell ähnlich: {{value}} ≈ {{asset}}"
+    },
+    "version": {
+      "in_range": "Firmware {{asset}} in {{value}}",
+      "equal": "Firmware {{asset}} = {{value}}",
+      "all": "alle Versionen",
+      "unknown": "keine Firmware erfasst (betroffen: {{value}})",
+      "unparsed": "Firmware {{asset}} – Bereich „{{value}}“ nicht verstanden"
+    },
+    "viaProfile": "über Geräteprofil {{profile}}",
+    "underInvestigation": "der Hersteller untersucht noch"
+  },
+  "match": {
+    "confirm": "Bestätigen",
+    "dismiss": "Verwerfen",
+    "undo": "Entscheidung zurücknehmen",
+    "confirmTitle": "Treffer für {{asset}} bestätigen",
+    "dismissTitle": "Treffer für {{asset}} verwerfen",
+    "reason": "Begründung",
+    "reasonDismiss": "Warum trifft er nicht zu?",
+    "decidedBy": "{{decision}} von {{by}}, {{at}}"
+  },
+  "fix": {
+    "set": "Status setzen",
+    "title": "Behebung für {{asset}}",
+    "status": "Status",
+    "reason": "Begründung",
+    "until": "Akzeptiert bis",
+    "window": "Wartungsfenster",
+    "windowNone": "Keines",
+    "changeSet": "Änderungssatz",
+    "changeSetNone": "Keiner",
+    "note": "Notiz",
+    "suggested": "Der Hinweis nennt Firmware {{versions}} als Korrektur.",
+    "by": "{{by}}, {{at}}",
+    "planned": "Geplant: {{what}}"
+  },
+  "asset": {
+    "title": "Sicherheitshinweise",
+    "none": "Kein Sicherheitshinweis passt zu dieser Anlage.",
+    "open_one": "{{count}} offen",
+    "open_other": "{{count}} offen",
+    "possible": "möglich – auf dem Hinweis bestätigen",
+    "dismissed": "verworfen"
+  },
+  "tile": {
+    "title": "Sicherheitshinweise für Ihre Standorte",
+    "open_one": "{{count}} offener Sicherheitshinweis",
+    "open_other": "{{count}} offene Sicherheitshinweise",
+    "assets_one": "{{count}} Anlage zu bearbeiten",
+    "assets_other": "{{count}} Anlagen zu bearbeiten",
+    "critical": "{{count}} kritisch",
+    "high": "{{count}} hoch",
+    "possible_one": "{{count}} möglicher Treffer zu bestätigen",
+    "possible_other": "{{count}} mögliche Treffer zu bestätigen",
+    "site": "{{site}}: {{advisories}} Hinweise, {{assets}} Anlagen",
+    "open": "Offene Hinweise"
+  },
+  "sources": {
+    "button": "Quellen",
+    "title": "Quellen für Sicherheitshinweise",
+    "intro": "CSAF-Anbieter (ihre provider-metadata.json, meist unter /.well-known/csaf/), Aggregatoren (aggregator.json) oder ein einzelner ROLIE-Feed. Steward liest sie über die Richtlinie für ausgehende Verbindungen und behält nur Dokumente, deren veröffentlichter Hash passt. Standardmäßig ist keine eingerichtet; Werke ohne Internetzugang laden Dateien hoch.",
+    "none": "Noch keine Quelle.",
+    "add": "Quelle hinzufügen",
+    "edit": "Quelle bearbeiten",
+    "name": "Name",
+    "url": "Adresse",
+    "urlHint": "z. B. https://psirt.example.com/.well-known/csaf/provider-metadata.json",
+    "enabled": "Regelmäßig lesen",
+    "interval": "Alle … Stunden",
+    "publishers": "Nur Herausgeber (Aggregator)",
+    "publishersHint": "Wörter im Namen des Herausgebers, eines pro Zeile – leer: die ersten {{max}} Anbieter",
+    "since": "Nur Dokumente veröffentlicht seit",
+    "kind": {
+      "provider": "Anbieter",
+      "aggregator": "Aggregator",
+      "rolie": "ROLIE-Feed"
+    },
+    "fetch": "Jetzt lesen",
+    "fetched": "{{name}}: {{created}} neu, {{updated}} aktualisiert, {{failed}} fehlgeschlagen",
+    "lastRun": "Zuletzt gelesen {{when}}",
+    "never": "Noch nicht gelesen",
+    "off": "Aus",
+    "advisories_one": "{{count}} Hinweis",
+    "advisories_other": "{{count}} Hinweise",
+    "delete": "Entfernen",
+    "deleteConfirm": "Die Quelle {{name}} entfernen? Ihre Sicherheitshinweise bleiben."
+  }
+}
