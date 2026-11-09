@@ -126,6 +126,65 @@ for (const tag of ['', ' @mobile'])
         expect(after.interfaces[0]!.groups[0]!.dataPoints[0]!.address).toBe('ns=3;s=Running');
       });
 
+      test('an assistant documents a gateway end to end: a data collection with its items and a sink', async ({ page, apiAs }, info) => {
+        const admin = await apiAs('admin');
+        const dana = await apiAs('dana');
+        await plantOn(admin);
+        const f = await profiles(dana, `${info.project.name}-${Date.now()}g`);
+        const asset = `e2e-passet-${f.child}`.slice(0, 80);
+        await ok(dana.post('/api/plant/assets', { data: { id: asset, siteId: 'riverside', name: `E2E press ${f.child}` } }));
+        await ok(dana.put(`/api/plant/assets/${asset}/assignment`, { data: { profileId: f.child, interfaces: [{ interface: 'opc', active: true }] } }));
+        const token = (await json<{ token: string }>(await dana.post('/api/me/tokens', { data: { name: `e2e plant g ${f.child}`, scope: 'mcp' } }))).token;
+        const { requestId } = await mcpCall(token, 'propose_plant_changes', {
+          title: 'Edge gateway of the press',
+          rationale: 'From the gateway’s exported configuration (example)',
+          document: {
+            version: 1,
+            asset_networks: [
+              {
+                asset,
+                collections: [
+                  {
+                    id: 'edge',
+                    name: 'Edge gateway',
+                    collector: { kind: 'job', ref: 'example-edge-gateway' },
+                    interface: 'opc',
+                    mode: 'on_change',
+                    items: [
+                      { address: 'ns=2;s=Running', output_name: 'PressRunning', data_point: 'running', description: 'For the availability KPI' },
+                      { address: 'ns=2;s=Pressure', output_name: 'Pressure' },
+                    ],
+                  },
+                ],
+                collection_sinks: [
+                  {
+                    collection: 'edge',
+                    sinks: [
+                      { id: 'broker', name: 'Broker', object: 'plant/press', transforms: [{ kind: 'rename', field: 'PressRunning', expression: 'running' }] },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        });
+
+        await page.goto(`/mcp-requests/${requestId}`);
+        const review = page.getByTestId('plant-proposal');
+        const added = review.getByTestId('plant-proposal-preview-added');
+        await expect(added).toContainText('Data collection');
+        await expect(added).toContainText('Edge gateway');
+        await expect(review.getByTestId('plant-proposal-preview-changed')).toContainText('Sinks of a data collection');
+        await expectAccessible(page, 'plant proposal with a collection');
+        await expectNoHorizontalScroll(page);
+        await page.getByRole('button', { name: 'Accept 2 entries' }).click();
+        await expect(page.getByText('1 added, 1 changed.')).toBeVisible();
+        const c = await json<{ items: { dataPoint: string | null }[]; sinks: { id: string }[] }>(await dana.get(`/api/plant/assets/${asset}/collections/edge`));
+        expect(c.items.map((i) => i.dataPoint)).toEqual(['running', null]);
+        expect(c.sinks.map((x) => x.id)).toEqual(['broker']);
+        await dana.delete(`/api/plant/assets/${asset}?cascade=true`);
+      });
+
       test('a preview that changed since the proposal is confirmed before it is applied', async ({ page, apiAs }, info) => {
         const admin = await apiAs('admin');
         const dana = await apiAs('dana');

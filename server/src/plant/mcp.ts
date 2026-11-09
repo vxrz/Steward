@@ -12,6 +12,7 @@ import { assetCollections, getCollection, pointCollections } from './collections
 import { allAssignments, allProfiles, ownProfiles, pointsOf } from './data-model.js';
 import { assignmentOut, kpiOut, profileOut } from './import-data.js';
 import { plantJsonSchema, SCHEMA_ID } from './format.js';
+import { collectionOut, sinkOut } from './import-network.js';
 
 /**
  * The plant registry for AI assistants (0.12.0, docs/MCP.md "Plant registry"): read tools over sites, assets with their
@@ -475,11 +476,15 @@ export const plantReadTools: ToolDef[] = [
     name: 'get_data_collection',
     title: 'Get a data collection',
     description:
-      'One data collection of an asset: its items (address read, the collector’s output name, the data point it is mapped to – or raw –, the asset’s address of that data point, description), access patterns, triggers, destination and coverage. Items are paged.',
+      'One data collection of an asset: its items (address read, the collector’s output name, the data point it is mapped to – or raw –, the asset’s address of that data point, description), access patterns, triggers, its sinks (where the data goes, with transformation steps) and coverage. Items are paged; `file: true` adds the collection and its sinks in the plant import format.',
     input: z
       .object({
         assetId: plantId('Asset id'),
         collectionId: z.string().min(1).max(120).describe('Collection id (from list_data_collections)'),
+        file: z
+          .boolean()
+          .default(false)
+          .describe('true: also the collection and its sinks in the plant import format (`file`, all items) – to change and send with propose_plant_changes'),
         cursor: cursorArg,
         limit: limitArg(500, 100),
       })
@@ -511,7 +516,18 @@ export const plantReadTools: ToolDef[] = [
           intervalMs: c.intervalMs,
           debounceMs: c.debounceMs,
           triggers: c.triggers.slice(0, 50),
-          destination: c.destination ? { kind: c.destination.kind, ref: c.destinationRef?.label || c.destination.ref, path: c.destination.path } : null,
+          sinks: c.sinks.map((x) => ({
+            id: x.id,
+            name: x.name,
+            kind: x.kind,
+            ref: x.ref,
+            object: x.object,
+            ...(x.description ? { description: short(x.description) } : {}),
+            transforms: x.transforms
+              .slice(0, 50)
+              .map((t) => ({ kind: t.kind, field: t.field, expression: short(t.expression, 500), description: short(t.description) })),
+            mappings: x.mappings.length,
+          })),
           access: c.access,
           writesToMachine: c.writes,
           coverage: {
@@ -524,6 +540,15 @@ export const plantReadTools: ToolDef[] = [
           },
           items: page.items,
           nextCursor: page.nextCursor,
+          ...(a.file
+            ? {
+                file: {
+                  asset: c.assetId,
+                  collections: [collectionOut(c)],
+                  ...(c.sinks.length ? { collection_sinks: [{ collection: c.id, sinks: c.sinks.map(sinkOut) }] } : {}),
+                },
+              }
+            : {}),
         };
       }),
   }),

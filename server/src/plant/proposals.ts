@@ -22,6 +22,7 @@ import { canManageCatalogue, plantManagesSome, siteRights } from './access.js';
 import { plantEnabled } from './settings.js';
 import { applyImport, importInput, previewImport, type ImportInput } from './import.js';
 import { SCHEMA_ID } from './format.js';
+import { redactValue } from './collections-redact.js';
 
 /**
  * Changes to the plant registry proposed by AI assistants (0.12.0, docs/PLANT.md "Proposals from assistants"). An
@@ -75,6 +76,29 @@ const REFUSED_KEYS: Record<string, string> = {
   missing: 'A proposal may only add and change entries: entries the document does not have stay as they are',
   replaces: 'A proposal cannot replace an earlier import: it only adds and changes',
 };
+
+/**
+ * Where a document holds something that looks like a credential (0.12): the values the redaction of kept collector
+ * configurations would remove – a secret-looking key or name/value pair (password, token, API key, Authorization …),
+ * a password in a URL. A proposal never carries one: it is refused, nothing is stored.
+ */
+function secretPaths(doc: unknown): string[] {
+  const { value } = redactValue(doc);
+  const out: string[] = [];
+  const walk = (a: unknown, b: unknown, at: string) => {
+    if (out.length >= 20) return;
+    if (typeof a === 'string' || typeof b === 'string') {
+      if (a !== b) out.push(at || '(document)');
+      return;
+    }
+    if (a && b && typeof a === 'object' && typeof b === 'object')
+      for (const k of Object.keys(a as object))
+        walk((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k], Array.isArray(a) ? `${at}[${k}]` : at ? `${at}.${k}` : k);
+    else if (JSON.stringify(a) !== JSON.stringify(b)) out.push(at || '(document)');
+  };
+  walk(doc, value, '');
+  return out;
+}
 
 /** Items the changes would drop from lists inside their entries (a proposal may change an item, never drop it). */
 function dropsOf(p: PlantImportPreview): { entry: string; path: string }[] {
@@ -296,7 +320,8 @@ export const plantProposalTools: ToolDef[] = [
       'The document: { "version": 1, ... } with any of sites (each with areas → work_centers → work_units, buildings, assets), assets, device_profiles, kpi_definitions, assignments, ot_networks, asset_networks. Entries are matched by id; an existing entry is updated with the keys the document gives (keys left out keep their values; a list given replaces the list).',
       'Device profiles with inheritance: a profile names its base with "extends" and lists in "interfaces" only what it adds or changes – an entry with an inherited id changes that interface (only the keys it gives; inherited data points in its groups or data_points with the keys that change, e.g. { "id": "spindle_speed", "address": "ns=3;s=…" }); an entry with a new id is an own interface and needs "protocol". Descriptions are inherited too: give one only to describe an item anew.',
       'Asset-specific implementations go in an assignment: { "asset": "<id>", "profile": "<profile id>", "interfaces": [{ "interface": "opc-ua", "endpoint": "opc.tcp://…" }], "overrides": [{ "data_point": "<id>", "address": "<this asset’s address>", "notes": "…" }], "additions": { "interfaces": [ … ], "data_points": [{ "interface": "<id>", "group": "…", "id": "…", "address": "…", "description": "…" }] } }.',
-      'Gateway names for data collections: put a gateway’s variable names as known-as names on the data points ("aliases": ["Spindle_speedActSP1"]) and the asset’s addresses as overrides; the import of a collector’s configuration then maps its items by these names. Data collections themselves are imported by a person on the asset page.',
+      'A gateway or ETL integration, end to end, in three layers: (1) the profile’s data points with the gateway’s variable names as known-as names ("aliases": ["Spindle_speedActSP1"]); (2) the asset’s own addresses as assignment overrides; (3) in "asset_networks": [{ "asset": "<id>", "collections": [ … ], "collection_sinks": [ … ] }] a data collection per dataset or flow – { "id", "name", "collector": { "kind": "job" | "application" | "platform" | "process", "ref": "<name or id>" }, "interface": "<interface id>", "mode": "interval" | "on_change" | "trigger" | "other", "interval_ms", "items": [{ "address": "<what it reads>", "output_name": "<its name in the gateway>", "data_point": "<data point id, or leave out: raw>", "description": "…" }], "access": { "read": [ … ], "write": [ … ] }, "settings": [{ "key", "value" }] } – and per collection its sinks: { "collection": "<id>", "sinks": [{ "id", "name", "kind": "system" | "platform" | "application" | "dataset" | "publication" | "other", "ref", "object": "<topic, table, aspect>", "transforms": [{ "kind", "field", "expression", "description" }], "mappings": [{ "item": "<output name>", "target": "<its name there>" }] }] }. Expressions and code are kept as text and never run. Never send credentials: a password, token, key or a password in a URL refuses the document.',
+      'Lists replace lists: send an existing collection’s items and sinks, an assignment’s overrides and a profile’s data points with every item they have now (get_data_collection, get_plant_asset and get_device_profile return them), plus your additions and changes – a proposal that would drop an item is refused.',
       `Start from what is there: get_device_profile and get_kpi_definition return \`file\`, get_plant_asset \`assignmentFile\`, in this format. At most ${PLANT_PROPOSAL_LIMITS.documentBytes / 1024} KB per document; larger changes in several proposals. Give a short \`title\` and a \`rationale\` (where the information comes from); the reviewer sees both.`,
     ].join('\n\n'),
     input: z
@@ -326,6 +351,11 @@ export const plantProposalTools: ToolDef[] = [
       }
       const doc = a.document as Record<string, unknown>;
       for (const k of ['remove']) if (k in doc) throw new ToolError(REFUSED_KEYS[k]!);
+      const secrets = secretPaths(doc);
+      if (secrets.length)
+        throw new ToolError(
+          `The document holds what looks like a credential – nothing was proposed. Leave out passwords, tokens, keys and passwords in URLs (Steward never keeps them; a setting may say "[redacted]"):\n${secrets.map((p) => `- ${p}`).join('\n')}`,
+        );
       const document = JSON.stringify(doc);
       const bytes = Buffer.byteLength(document);
       if (bytes > PLANT_PROPOSAL_LIMITS.documentBytes)

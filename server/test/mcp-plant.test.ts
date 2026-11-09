@@ -465,6 +465,67 @@ describe('proposals', () => {
     await s.api('POST', `/mcp-requests/${rid}/decision`, { approve: false, comment: '' });
   });
 
+  it('take data collections and their sinks end to end; never credentials, never a dropped item', async () => {
+    const current = (await call(tok.dana, 'get_data_collection', { assetId: 'north-mill-1', collectionId: 'gw', file: true })).data;
+    expect(current.file.collections[0]).toMatchObject({ id: 'gw', items: [{ output_name: 'Spindle_speedActSP1' }, { output_name: 'Mystery' }] });
+    const net = (extra: object) => ({ version: 1, asset_networks: [{ asset: 'north-mill-1', ...extra }] });
+    // a new collection with an item mapped, a raw one, and a sink with a transformation step
+    const collection = {
+      id: 'etl',
+      name: 'Nightly ETL',
+      collector: { kind: 'job', ref: 'example-etl' },
+      interface: 'opc',
+      items: [
+        { address: 'ns=3;s=/Mill1/Speed', output_name: 'speed', data_point: 'spindle_speed', description: 'Averaged per minute' },
+        { address: 'ns=3;s=/Mill1/Temp', output_name: 'temp' },
+      ],
+      settings: [{ key: 'bufferEnabled', value: 'true' }],
+    };
+    const sinks = {
+      collection: 'etl',
+      sinks: [{ id: 'lake', name: 'Data lake', object: 'raw/mill1', transforms: [{ kind: 'aggregate', field: 'speed', window: '1 min', function: 'avg' }] }],
+    };
+    // a credential anywhere is refused, a redacted one is fine
+    const secret = await propose(tok.dana, {
+      title: 'ETL',
+      document: net({ collections: [{ ...collection, settings: [{ key: 'password', value: 'hunter2' }] }], collection_sinks: [sinks] }),
+    });
+    expect(secret).toMatchObject({ isError: true, data: expect.stringMatching(/looks like a credential[\s\S]*collections\[0\]\.settings\[0\]\.value/) });
+    const url = await propose(tok.dana, {
+      title: 'Endpoint',
+      document: {
+        version: 1,
+        assignment: { asset: 'north-mill-1', interfaces: [{ interface: 'opc', endpoint: 'opc.tcp://ops:s3cret@north-mill-1.example.com:4840' }] },
+      },
+    });
+    expect(url).toMatchObject({ isError: true, data: expect.stringMatching(/credential[\s\S]*assignment\.interfaces\[0\]\.endpoint/) });
+    // dropping an item of an existing collection, or one of its sinks, is refused
+    const fewer = await propose(tok.dana, {
+      title: 'Fewer',
+      document: net({ collections: [{ ...current.file.collections[0], items: current.file.collections[0].items.slice(0, 1) }] }),
+    });
+    expect(fewer).toMatchObject({ isError: true, data: expect.stringMatching(/collection "north-mill-1\/gw" would lose items\[ns=3;s=\/Mill1\/Unknown\]/) });
+    const ok = await propose(tok.dana, {
+      title: 'Nightly ETL of mill 1',
+      document: net({ collections: [{ ...collection, settings: [{ key: 'apiKey', value: '[redacted]' }] }], collection_sinks: [sinks] }),
+    });
+    expect(ok.isError, ok.data).toBe(false);
+    expect(ok.data).toMatchObject({ added: 1, changed: 1 });
+    const detail = await s.api('GET', `/mcp-requests/${ok.data.requestId}`);
+    expect(detail.proposal.proposed.changes.map((c: any) => `${c.kind}:${c.action}:${c.id}`)).toEqual([
+      'collection:add:north-mill-1/etl',
+      'collection_sinks:change:north-mill-1/etl',
+    ]);
+    const done = await s.api('POST', `/mcp-requests/${ok.data.requestId}/decision`, { approve: true, comment: '' });
+    expect(done.status).toBe('done');
+    const etl = await s.api('GET', '/plant/assets/north-mill-1/collections/etl');
+    expect(etl).toMatchObject({ collector: { ref: 'example-etl' }, sinks: [{ id: 'lake', transforms: [{ kind: 'aggregate', window: '1 min' }] }] });
+    expect(etl.items.map((i: any) => i.dataPoint)).toEqual(['spindle_speed', null]);
+    // now a sink less is a dropped item
+    const noSink = await propose(tok.dana, { title: 'No sink', document: net({ collection_sinks: [{ collection: 'etl', sinks: [] }] }) });
+    expect(noSink).toMatchObject({ isError: true, data: expect.stringMatching(/would lose sinks\[lake\]/) });
+  });
+
   it('expires like other proposals; the module off hides the tools again', async () => {
     const r = await propose(tok.dana, {
       title: 'New KPI',
