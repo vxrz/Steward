@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import {
+  boundedRecord,
   MCP_REQUEST_LIMITS,
   PLANT_FORMAT_VERSION,
   PLANT_PROPOSAL_LIMITS,
@@ -333,7 +334,7 @@ export const plantProposalTools: ToolDef[] = [
           .min(5)
           .max(MCP_REQUEST_LIMITS.reason)
           .describe('Why, and where the information comes from (a document, a configuration) – the reviewer sees it'),
-        document: z.record(z.string(), z.unknown()).describe(`A document of the plant import format (${SCHEMA_ID}), version ${PLANT_FORMAT_VERSION}`),
+        document: boundedRecord(z.unknown(), 64).describe(`A document of the plant import format (${SCHEMA_ID}), version ${PLANT_FORMAT_VERSION}`),
       })
       // keys of the import that remove or rename are refused with a reason, not as unknown arguments
       .catchall(z.unknown()),

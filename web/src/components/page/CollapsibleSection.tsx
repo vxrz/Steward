@@ -8,7 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { readPref, writePref } from './prefs';
 
 /*
- * Folded sections (docs/UX.md, "Collapsible content"): secondary content folds, the main content stays open.
+ * Folded sections (docs/reviews/UX-REVIEW.md, "v0.12.0: collapsible content"): secondary content folds, the main content stays open.
  * A section opens by itself for an error, the target of a link (#id) and while the page is printed; a choice the
  * user makes lasts for the page view, or – for sections that recur on many records – is remembered per user.
  */
