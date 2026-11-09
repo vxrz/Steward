@@ -6,6 +6,7 @@ import {
   COLLECTOR_KINDS,
   modbusAddress,
   PLANT_COLLECTION_LIMITS as L,
+  PLANT_LIMITS,
   type PlantAssignmentValues,
   type PlantCollectionCoverage,
   type PlantCollectionItem,
@@ -45,6 +46,8 @@ export interface CollectionRow {
   access: string;
   settings: string;
   items: string;
+  /** 0.12.0 (plant-008) */
+  description: string;
   notes: string;
   format: string;
   source_file: string;
@@ -83,7 +86,9 @@ export const collectionValuesOf = (r: CollectionRow): PlantCollectionValues => (
   destination: r.destination ? parseJson(r.destination, null) : null,
   access: { read: [], write: [], create: [], delete: [], ...parseJson<Partial<PlantCollectionValues['access']>>(r.access, {}) },
   settings: parseJson(r.settings, []),
-  items: parseJson(r.items, []),
+  // an item stored before 0.12.0 has no description
+  items: parseJson<PlantCollectionItem[]>(r.items, []).map((i) => ({ ...i, description: i.description ?? '' })),
+  description: r.description ?? '',
   notes: r.notes,
   format: (r.format || '') as PlantCollectionValues['format'],
   sourceFile: r.source_file,
@@ -120,6 +125,7 @@ export const collectionItemInput = z
       })
       .strict()
       .default({ note: '', scale: null, offset: null, cast: '' }),
+    description: text(PLANT_LIMITS.description),
     notes: text(2000),
   })
   .strict();
@@ -161,6 +167,7 @@ export const collectionInput = z
       .max(L.settings)
       .default([]),
     items: z.array(collectionItemInput).max(L.items).default([]),
+    description: text(PLANT_LIMITS.description),
     notes: text(L.longText),
     format: z.union([z.enum(COLLECTION_FORMATS), z.literal('')]).default(''),
     sourceFile: text(),
@@ -311,12 +318,12 @@ export function upsertCollection(assetId: string, v: PlantCollectionValues, posi
   const j = (x: unknown) => JSON.stringify(x);
   db().run(
     `INSERT INTO plant_collections (asset_id, id, name, collector, data_path_id, interface_id, mode, interval_ms, debounce_ms, triggers, composition,
-       destination, access, settings, items, notes, format, source_file, position, import_id, not_in_source, created_at, created_by, updated_at, updated_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)
+       destination, access, settings, items, description, notes, format, source_file, position, import_id, not_in_source, created_at, created_by, updated_at, updated_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)
      ON CONFLICT (asset_id, id) DO UPDATE SET name = excluded.name, collector = excluded.collector, data_path_id = excluded.data_path_id,
        interface_id = excluded.interface_id, mode = excluded.mode, interval_ms = excluded.interval_ms, debounce_ms = excluded.debounce_ms,
        triggers = excluded.triggers, composition = excluded.composition, destination = excluded.destination, access = excluded.access,
-       settings = excluded.settings, items = excluded.items, notes = excluded.notes, format = excluded.format, source_file = excluded.source_file,
+       settings = excluded.settings, items = excluded.items, description = excluded.description, notes = excluded.notes, format = excluded.format, source_file = excluded.source_file,
        import_id = COALESCE(excluded.import_id, plant_collections.import_id), updated_at = excluded.updated_at, updated_by = excluded.updated_by`,
     assetId,
     v.id,
@@ -333,6 +340,7 @@ export function upsertCollection(assetId: string, v: PlantCollectionValues, posi
     j(v.access),
     j(v.settings),
     j(v.items),
+    v.description,
     v.notes,
     v.format,
     v.sourceFile,

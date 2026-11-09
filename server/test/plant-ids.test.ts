@@ -153,6 +153,7 @@ describe('the registry of reference columns', () => {
       'destination',
       'access',
       'settings',
+      'description',
       'notes',
       'format',
       'source_file',

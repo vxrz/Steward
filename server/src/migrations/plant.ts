@@ -419,4 +419,9 @@ export const PLANT_MIGRATIONS: NamedMigration[] = [
     name: 'plant-007-zone-level',
     sql: `ALTER TABLE plant_zones ADD COLUMN level TEXT;`,
   },
+  {
+    // 0.12.0: a data collection's own description (its items keep theirs in the items JSON)
+    name: 'plant-008-collection-description',
+    sql: `ALTER TABLE plant_collections ADD COLUMN description TEXT NOT NULL DEFAULT '';`,
+  },
 ];
