@@ -25,9 +25,9 @@ test.describe('lists as tables (U6)', () => {
     await name.getByRole('button').click();
     await expect(name).toHaveAttribute('aria-sort', 'descending');
     expect(await names()).toEqual([...asc].reverse());
-    // 54 processes no longer make a 4,400 px page
-    const height = await page.evaluate(() => document.documentElement.scrollHeight);
-    expect(height).toBeLessThan(4000);
+    // compact rows (about 66 px; the cards of before took about 80 px, 4,400 px for 54 processes); per row, so processes other specs add meanwhile don't count
+    const rowHeight = await table.locator('tbody').evaluate((b) => b.getBoundingClientRect().height / b.querySelectorAll('tr').length);
+    expect(rowHeight).toBeLessThan(72);
     await expectAccessible(page, 'processes table');
 
     // the sort order is remembered

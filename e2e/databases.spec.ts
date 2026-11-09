@@ -52,7 +52,10 @@ async function wizard(page: Page, api: APIRequestContext, mobile: boolean) {
 }
 
 async function databaseTab(page: Page, api: APIRequestContext, mobile: boolean) {
-  const db = (await json<{ id: string; name: string; kind: string }[]>(await api.get('/api/platforms'))).find((x) => x.kind === 'database')!;
+  // the demo database by name: other specs add and remove database platforms of their own at the same time
+  const db = (await json<{ id: string; name: string; kind: string }[]>(await api.get('/api/platforms'))).find(
+    (x) => x.kind === 'database' && x.name === 'Shop database (demo)',
+  )!;
   await page.goto(`/platforms/${db.id}`);
   const tab = page.getByTestId('database-tab');
   // a database platform opens on its connection; it has no API specification or explorer
