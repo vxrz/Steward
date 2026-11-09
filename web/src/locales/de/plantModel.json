@@ -269,6 +269,23 @@
     "interfaceId": "ID von {{interface}} in der Basis",
     "mixed": "Protokolle unterscheiden sich ({{protocols}}): „Andere“ in der Basis"
   },
+  "anyOf": {
+    "profiles": "Geräteprofile",
+    "profilesHelp": "Leer: das Profil, das die Anlage hat. Mehrere: eines davon – eine Anlage, deren Profil eines davon ist (oder erweitert), liefert die Eingabe. Die Datenpunkte sind die des ersten Profils.",
+    "dataPoints": "Datenpunkte (von {{profile}})",
+    "mapping": "Datenpunkte in den anderen Profilen",
+    "mappingHelp": "Je Profil sein Datenpunkt für jede Eingabe – vorgeschlagen nach gleicher ID, einem Auch-bekannt-als-Namen, dem Namen und der Einheit. Ändern Sie einen Vorschlag, wo er nicht passt.",
+    "inputPoint": "Eingabe",
+    "pointIn": "{{point}} im Profil {{profile}}",
+    "missing": "Diesen Datenpunkt gibt es nicht – wählen Sie einen",
+    "anyOfThese": "Eines dieser Profile",
+    "mappedIn": "Im Profil {{profile}}: {{list}}"
+  },
+  "rollUp": {
+    "label": "Von Teilen übernehmen",
+    "help": "Eine Anlage zählt als eine, die die KPI haben kann, wenn eines ihrer Teile (der Stromzähler einer Maschine) einen Job hat oder die Eingaben liefert: KPI-Abdeckung und -Potenzial zählen sie einmal, für die Anlage. Standardmäßig aus – die Daten eines Teils stehen nur dort für die ganze Anlage, wo es sie ganz misst.",
+    "badge": "Von Teilen übernommen"
+  },
   "protocolOther": {
     "help": "Die Basis lässt das Protokoll offen („Andere“): Wählen Sie das, das dieses Gerät spricht, und geben Sie dann seinen Datenpunkten ihre Adressen."
   }

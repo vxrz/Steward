@@ -712,6 +712,8 @@ export interface PlantAssignmentView extends PlantSource {
     units?: PlantUnitMismatch[];
     /** 0.12.0: a data collection of the asset maps every data point input (the data is collected) */
     collected?: boolean;
+    /** 0.13, a KPI that rolls up from parts: the part of this asset that delivers the inputs (the asset itself does not) */
+    via?: PlantAssetRef;
   }[];
   canManage: boolean;
   updatedAt: string | null;
@@ -739,16 +741,39 @@ export type KpiInputKind = (typeof KPI_INPUT_KINDS)[number];
 
 export interface KpiInput {
   kind: KpiInputKind;
-  /** Data points: the profile and its data points the computation reads */
+  /** Data points: the profile and its data points the computation reads (with `profiles`: the first of them) */
   profile: string;
+  /**
+   * 0.13: any of these profiles (two or more; one is `profile` alone): an asset whose profile is, or extends, one of them
+   * delivers the input – the first that matches counts. Left out for one profile or none.
+   */
+  profiles?: string[];
   dataPoints: string[];
   /**
    * 0.12.0: the unit the computation expects, per data point (UCUM code). A data point not listed expects the unit it
-   * has in the input's profile (none without a profile: not checked). See the check kpi_unit_mismatch.
+   * has in the input's (first) profile (none without a profile: not checked). See the check kpi_unit_mismatch.
    */
   units?: Record<string, string>;
+  /**
+   * 0.13: per profile (id), the input's data point → that profile's data point, for models that do not share a base.
+   * A data point left out has the same id in the profile.
+   */
+  mapping?: Record<string, Record<string, string>>;
   notes: string;
 }
+
+/** 0.13: the profiles a data point input names – any of them (empty: whatever profile the asset has). */
+export const kpiInputProfiles = (i: Pick<KpiInput, 'profile' | 'profiles'>): string[] => (i.profiles?.length ? i.profiles : i.profile ? [i.profile] : []);
+
+/** 0.13: the id an input's data point has in one of its profiles: its mapping, else the same id. */
+export const kpiInputPoint = (i: Pick<KpiInput, 'mapping'>, profile: string, point: string): string => i.mapping?.[profile]?.[point] ?? point;
+
+/**
+ * 0.13: whether a KPI's potential and coverage count for the asset its parts belong to (a machine whose power meter
+ * delivers the inputs) – opt-in per definition.
+ */
+export const KPI_ROLL_UPS = ['none', 'parts'] as const;
+export type KpiRollUp = (typeof KPI_ROLL_UPS)[number];
 
 export interface KpiParameter {
   name: string;
@@ -810,6 +835,8 @@ export interface PlantKpiValues {
   implementation: string;
   /** The columns vary from run to run (the list names the fixed ones) */
   dynamicColumns: boolean;
+  /** 0.13: KPI potential and coverage of an asset count its parts' (none: off, the default) */
+  rollUp: KpiRollUp;
   inputs: KpiInput[];
   parameters: KpiParameter[];
   columns: KpiColumn[];
@@ -847,7 +874,7 @@ export interface PlantKpiDetail extends PlantKpiSummary, PlantStamp, PlantKpiVal
    * 0.12.0: per candidate (asset id) whether its data is collected already (a data collection maps every data point
    * input) and the inputs it delivers in another unit
    */
-  candidateInfo?: Record<string, { collected: boolean; units: PlantUnitMismatch[] }>;
+  candidateInfo?: Record<string, { collected: boolean; units: PlantUnitMismatch[]; via?: PlantAssetRef }>;
   canManage: boolean;
 }
 
@@ -857,8 +884,17 @@ export interface PlantKpiDetail extends PlantKpiSummary, PlantStamp, PlantKpiVal
  * 0.12.0: a data point input an asset delivers in another unit than the KPI expects (the KPI input's unit, else the
  * unit of the data point in the input's profile). Convertible: by a pure factor (W.h and kW.h); else not at all.
  */
+/** 0.13: an asset by id and name (a part a KPI's potential comes from, the machine a part counts for). */
+export interface PlantAssetRef {
+  id: string;
+  name: string;
+}
+
 export interface PlantUnitMismatch {
+  /** The data point of the asset (with a mapping: the profile's id) */
   point: string;
+  /** 0.13: the input's data point, where a mapping gives the asset's another id */
+  input?: string;
   expected: string;
   actual: string;
   relation: 'convertible' | 'incompatible';
@@ -922,6 +958,8 @@ export const PLANT_DATA_LIMITS = {
   publicationsPerPoint: 10,
   inputs: 50,
   inputPoints: 500,
+  /** 0.13: profiles of one input ("any of these") */
+  inputProfiles: 20,
   parameters: 100,
   aliases: 10,
   columns: 1000,

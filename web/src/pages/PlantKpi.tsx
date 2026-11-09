@@ -1,10 +1,19 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { Alert, Anchor, Badge, Button, Code, Grid, Group, List, Paper, Stack, Table, Text, Title } from '@mantine/core';
+import { Alert, Anchor, Badge, Button, Code, Grid, Group, List, Paper, Stack, Table, Text, Title, Tooltip } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { IconAlertTriangle, IconDownload, IconEdit, IconPlus, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import { unitSymbol, type KpiColumn, type KpiInput, type KpiParameter, type PlantKpiDetail, type PlantKpiValues, type PlantProfileSummary } from '@sm/shared';
+import {
+  kpiInputProfiles,
+  unitSymbol,
+  type KpiColumn,
+  type KpiInput,
+  type KpiParameter,
+  type PlantKpiDetail,
+  type PlantKpiValues,
+  type PlantProfileSummary,
+} from '@sm/shared';
 import { apiUrl, del, get, notifyError, put } from '../api';
 import { DetailState } from '../components/common';
 import { useAliasRedirect, useChangeId } from '../components/plant/ids';
@@ -39,6 +48,7 @@ const valuesOf = (k: PlantKpiDetail): PlantKpiValues => ({
   strategy: k.strategy,
   implementation: k.implementation,
   dynamicColumns: k.dynamicColumns,
+  rollUp: k.rollUp,
   inputs: k.inputs,
   parameters: k.parameters,
   columns: k.columns,
@@ -78,12 +88,82 @@ function Section({ title, help, action, children, testId }: { title: string; hel
 }
 
 /**
+ * A data point input: its profile – 0.13: any of several, with the data points each reads under another id (its
+ * mapping) – and its data points (linked to the first profile's data point pages) with the units they expect.
+ */
+function KpiInputView({ input, profileNames }: { input: KpiInput; profileNames: Record<string, string | null> }) {
+  const { t } = useTranslation(['plant', 'plantModel']);
+  const names = kpiInputProfiles(input);
+  const first = names[0];
+  const profileLink = (id: string) =>
+    profileNames[id] ? (
+      <Anchor key={id} component={Link} to={`/plant/profiles/${encodeURIComponent(id)}`} size="sm" fw={500} w="fit-content">
+        {profileNames[id]}
+      </Anchor>
+    ) : (
+      <Text key={id} size="sm" c="orange.8" className="mono" span>
+        {id}
+      </Text>
+    );
+  return (
+    <>
+      {names.length === 0 ? (
+        <Text size="sm">{t('kpi.anyProfile')}</Text>
+      ) : names.length === 1 ? (
+        profileLink(names[0]!)
+      ) : (
+        <Group gap={6} wrap="wrap" data-testid="kpi-input-profiles">
+          <Text size="xs" c="dimmed">
+            {t('plantModel:anyOf.anyOfThese')}:
+          </Text>
+          {names.map((n) => profileLink(n))}
+        </Group>
+      )}
+      <Group gap={4} wrap="wrap">
+        {input.dataPoints.map((d) => {
+          const unit = input.units?.[d] && <span data-testid={`kpi-input-unit-${d}`}> · {unitSymbol(input.units[d])}</span>;
+          return first && profileNames[first] ? (
+            <Badge
+              key={d}
+              variant="default"
+              tt="none"
+              size="sm"
+              component={Link}
+              to={`/plant/profiles/${encodeURIComponent(first)}/points/${encodeURIComponent(input.mapping?.[first]?.[d] ?? d)}`}
+              style={{ cursor: 'pointer' }}
+            >
+              <span className="mono">{d}</span>
+              {unit}
+            </Badge>
+          ) : (
+            <Badge key={d} variant="default" tt="none" size="sm">
+              <span className="mono">{d}</span>
+              {unit}
+            </Badge>
+          );
+        })}
+      </Group>
+      {Object.entries(input.mapping ?? {}).map(([p, m]) => (
+        <Text key={p} size="xs" c="dimmed" data-testid={`kpi-input-mapping-${p}`}>
+          {t('plantModel:anyOf.mappedIn', {
+            profile: profileNames[p] ?? p,
+            list: Object.entries(m)
+              .map(([from, to]) => `${from} → ${to}`)
+              .join(', '),
+          })}
+        </Text>
+      ))}
+    </>
+  );
+}
+
+/**
  * A KPI definition (#219): its ISO 22400-2 attributes, the data points it reads, its parameters, the columns it writes
  * (sum, ratio, ignore), how it is computed and what it cannot tell, what Steward finds wrong with it, the assets with
  * an instance and those that could have one.
  */
 export function PlantKpiPage() {
-  const { t } = useTranslation(['plant', 'common']);
+  const { t } = useTranslation(['plant', 'common', 'plantModel', 'plantViews']);
   const label = usePlantLabel();
   const nameOf = useNameOf();
   const { kpiId } = useParams();
@@ -232,44 +312,7 @@ export function PlantKpiPage() {
                       <Group justify="space-between" wrap="nowrap" align="flex-start" gap="xs">
                         <Stack gap={4} style={{ minWidth: 0 }}>
                           {input.kind === 'data_point' ? (
-                            <>
-                              {input.profile ? (
-                                k.profileNames[input.profile] ? (
-                                  <Anchor component={Link} to={`/plant/profiles/${encodeURIComponent(input.profile)}`} size="sm" fw={500} w="fit-content">
-                                    {k.profileNames[input.profile]}
-                                  </Anchor>
-                                ) : (
-                                  <Text size="sm" c="orange.8" className="mono">
-                                    {input.profile}
-                                  </Text>
-                                )
-                              ) : (
-                                <Text size="sm">{t('kpi.anyProfile')}</Text>
-                              )}
-                              <Group gap={4} wrap="wrap">
-                                {input.dataPoints.map((d) =>
-                                  input.profile && k.profileNames[input.profile] ? (
-                                    <Badge
-                                      key={d}
-                                      variant="default"
-                                      tt="none"
-                                      size="sm"
-                                      component={Link}
-                                      to={`/plant/profiles/${encodeURIComponent(input.profile)}/points/${encodeURIComponent(d)}`}
-                                      style={{ cursor: 'pointer' }}
-                                    >
-                                      <span className="mono">{d}</span>
-                                      {input.units?.[d] && <span data-testid={`kpi-input-unit-${d}`}> · {unitSymbol(input.units[d])}</span>}
-                                    </Badge>
-                                  ) : (
-                                    <Badge key={d} variant="default" tt="none" size="sm">
-                                      <span className="mono">{d}</span>
-                                      {input.units?.[d] && <span data-testid={`kpi-input-unit-${d}`}> · {unitSymbol(input.units[d])}</span>}
-                                    </Badge>
-                                  ),
-                                )}
-                              </Group>
-                            </>
+                            <KpiInputView input={input} profileNames={k.profileNames} />
                           ) : (
                             <Text size="sm" fw={500}>
                               {t('kpi.inputKinds.other')}
@@ -579,6 +622,18 @@ export function PlantKpiPage() {
                       return (
                         <Group key={a.id} gap={6} wrap="wrap" data-testid={`kpi-candidate-${a.id}`}>
                           <AssetBriefLink asset={a} />
+                          {/* 0.13: a KPI that rolls up from parts – through this part */}
+                          {info?.via && (
+                            <Anchor
+                              component={Link}
+                              to={`/plant/assets/${encodeURIComponent(info.via.id)}`}
+                              size="xs"
+                              title={t('plantViews:coverage.viaHint')}
+                              data-testid="candidate-via"
+                            >
+                              {t('plantViews:coverage.via', { name: info.via.name })}
+                            </Anchor>
+                          )}
                           {info && <CollectedBadge collected={info.collected} />}
                           {info && <UnitsBadge units={info.units} />}
                         </Group>
@@ -593,6 +648,13 @@ export function PlantKpiPage() {
                 <Field label={t('form.id')}>
                   <span className="mono">{k.id}</span>
                 </Field>
+                {k.rollUp === 'parts' && (
+                  <Tooltip label={t('plantModel:rollUp.help')} withArrow multiline maw={320}>
+                    <Badge variant="light" color="blue" w="fit-content" tabIndex={0} data-testid="kpi-roll-up-badge">
+                      {t('plantModel:rollUp.badge')}
+                    </Badge>
+                  </Tooltip>
+                )}
                 {k.type && <Field label={t('kpi.type')}>{k.type}</Field>}
                 {k.strategy && (
                   <Field label={t('kpi.strategy')}>

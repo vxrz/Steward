@@ -11,6 +11,7 @@ import {
   KPI_METHODOLOGIES,
   KPI_PARAM_TYPES,
   KPI_TIMINGS,
+  KPI_ROLL_UPS,
   KPI_TRENDS,
   PLANT_AUTH_KINDS,
   PLANT_DATA_LIMITS as L,
@@ -376,6 +377,11 @@ export const kpiSchema = z
     strategy: text(L.text).describe('The computing system’s name of the method'),
     implementation: text(500).describe('Where its code lives'),
     dynamic_columns: z.boolean().nullable().optional().describe('The columns vary from run to run'),
+    roll_up: z
+      .enum(KPI_ROLL_UPS)
+      .nullable()
+      .optional()
+      .describe('0.13: parts – an asset counts as able to have the KPI (potential and coverage) when one of its parts delivers the inputs; none (default)'),
     inputs: z
       .array(
         z
@@ -387,12 +393,22 @@ export const kpiSchema = z
               .optional()
               .describe('data_point (default) or other'),
             profile: id.nullable().optional().describe('The device profile the data points belong to'),
+            profiles: z
+              .array(id)
+              .max(L.inputProfiles)
+              .optional()
+              .describe(
+                '0.13: any of these device profiles – an asset whose profile is (or extends) one of them delivers the input; the first one that matches counts',
+              ),
             data_points: z.array(pointId).max(L.inputPoints).optional(),
             units: boundedRecord(text(40), L.inputPoints)
               .optional()
               .describe(
-                '0.12.0: the unit the computation expects per data point (UCUM code, usual spellings such as kWh are read as their code); a data point left out expects its unit in the input’s profile',
+                '0.12.0: the unit the computation expects per data point (UCUM code, usual spellings such as kWh are read as their code); a data point left out expects its unit in the input’s (first) profile',
               ),
+            mapping: boundedRecord(boundedRecord(pointId, L.inputPoints), L.inputProfiles)
+              .optional()
+              .describe('0.13: per profile (id), the input’s data point → that profile’s data point; a data point left out has the same id there'),
             notes: long,
           })
           .strict(),

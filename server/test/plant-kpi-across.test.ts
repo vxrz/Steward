@@ -1,12 +1,22 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import YAML from 'yaml';
-import type { PlantAssignmentView, PlantExtractPreview, PlantKpiDetail, PlantProfileDetail } from '@sm/shared';
+import type {
+  PlantAssignmentView,
+  PlantCoverage,
+  PlantDataPointDetail,
+  PlantExtractPreview,
+  PlantKpiDetail,
+  PlantProfileDetail,
+  PlantSiteTile,
+} from '@sm/shared';
 import { setup, startTestServer, type TestServer } from './helpers.js';
 
 /**
- * The plant registry, 0.13: base profiles across protocols (an inherited interface of protocol "other" gets its
- * protocol in the profile that extends it; extracting a base no longer refuses interfaces of different protocols, and
- * every asset's model stays as it was).
+ * The plant registry, 0.13: KPI potential across profiles and parts – base profiles across protocols (an inherited
+ * interface of protocol "other" gets its protocol in the profile that extends it; extracting a base no longer refuses
+ * interfaces of different protocols, and every asset's model stays as it was), KPI inputs of "any of these profiles"
+ * with a data point mapping per profile, and KPI potential and coverage rolled up from parts to the machine they belong
+ * to (opt-in per KPI definition).
  */
 
 process.env.SM_GATUS_AUTOSTART = '0';
@@ -301,5 +311,294 @@ describe('extracting a base across protocols', () => {
     const k = (await s.api('GET', '/plant/kpis/energy-base')) as PlantKpiDetail;
     expect(k.candidates.map((c) => c.id)).toEqual(['north-meter-a', 'north-meter-b']);
     expect(k.candidateInfo!['north-meter-b']!.units).toEqual([{ point: 'energy_total', expected: 'kW.h', actual: 'W.h', relation: 'convertible' }]);
+  });
+});
+
+describe('KPI inputs of any of several profiles, with a mapping', () => {
+  /** Two models that cannot share a base: other ids, another unit. */
+  const C1 = {
+    id: 'meter-c1',
+    name: 'Meter C1',
+    interfaces: [
+      {
+        id: 'mqtt',
+        protocol: 'mqtt',
+        groups: [{ name: '', dataPoints: [{ id: 'e_total', name: 'Energy', unit: 'kWh', address: 'c1/energy' }] }],
+      },
+    ],
+  };
+  const D2 = {
+    id: 'meter-d2',
+    name: 'Meter D2',
+    interfaces: [
+      {
+        id: 'opc',
+        protocol: 'opc_ua',
+        groups: [
+          {
+            name: '',
+            dataPoints: [
+              { id: 'EnergyImport', name: 'Energy import', unit: 'Wh', address: 'ns=2;s=EnergyImport' },
+              { id: 'Spare', name: 'Spare', address: 'ns=2;s=Spare' },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+  const KPI = {
+    id: 'energy-any',
+    name: 'Energy (any meter)',
+    inputs: [{ profiles: ['meter-c1', 'meter-d2'], dataPoints: ['e_total'], mapping: { 'meter-d2': { e_total: 'EnergyImport' } } }],
+  };
+
+  beforeAll(async () => {
+    await s.api('POST', '/plant/profiles', C1);
+    await s.api('POST', '/plant/profiles', D2);
+    for (const id of ['north-c1', 'north-d2', 'north-d2-off', 'north-other'])
+      await s.api('POST', '/plant/assets', { id, siteId: 'north', name: id.replace('north-', 'North ') });
+    await assign('north-c1', 'meter-c1', 'mqtt');
+    await assign('north-d2', 'meter-d2', 'opc');
+    await assign('north-d2-off', 'meter-d2', 'opc', { overrides: [{ dataPoint: 'EnergyImport', available: false }] });
+    await assign('north-other', 'meter-a100', 'meter');
+  });
+
+  it('stores profiles and mapping (profile: the first) and refuses a mapping the profiles cannot follow', async () => {
+    await s.api('POST', '/plant/kpis', KPI);
+    const k = (await s.api('GET', '/plant/kpis/energy-any')) as PlantKpiDetail;
+    expect(k.inputs[0]).toMatchObject({ profile: 'meter-c1', profiles: ['meter-c1', 'meter-d2'], mapping: { 'meter-d2': { e_total: 'EnergyImport' } } });
+    expect(k.profiles).toEqual(['meter-c1', 'meter-d2']);
+    expect(k.profileNames).toEqual({ 'meter-c1': 'Meter C1', 'meter-d2': 'Meter D2' });
+    expect(k.checks).toEqual([]);
+    const bad = (over: Record<string, unknown>) => status(s.api('POST', '/plant/kpis', { id: 'bad', name: 'Bad', inputs: [{ ...KPI.inputs[0], ...over }] }));
+    // a data point the profile lacks
+    const lacks = await bad({ mapping: { 'meter-d2': { e_total: 'Nope' } } });
+    expect(lacks).toMatchObject({ status: 400, code: 'PLANT_KPI_INVALID' });
+    expect(lacks.message).toContain('Profile "Meter D2" has no data point "Nope"');
+    // a profile the input does not name; a data point it does not read; a profile not among profiles; two read one
+    expect((await bad({ mapping: { 'meter-a100': { e_total: 'power' } } })).message).toContain('which the input does not name');
+    expect((await bad({ mapping: { 'meter-d2': { power: 'EnergyImport' } } })).message).toContain('the input does not read it');
+    expect((await bad({ profile: 'meter-a100' })).message).toContain('is not one of the input');
+    expect((await bad({ dataPoints: ['e_total', 'Spare'], mapping: { 'meter-d2': { e_total: 'Spare' } } })).message).toContain(
+      'both read its data point "Spare"',
+    );
+    // one profile only: written as `profile`, no `profiles`
+    await s.api('POST', '/plant/kpis', { id: 'energy-one', name: 'Energy (one)', inputs: [{ profiles: ['meter-d2'], dataPoints: ['EnergyImport'] }] });
+    const one = (await s.api('GET', '/plant/kpis/energy-one')) as PlantKpiDetail;
+    expect(one.inputs[0]!.profile).toBe('meter-d2');
+    expect(one.inputs[0]!.profiles).toBeUndefined();
+  });
+
+  it('reads each asset through its profile and the mapping: candidates, gaps, units, collected', async () => {
+    const k = (await s.api('GET', '/plant/kpis/energy-any')) as PlantKpiDetail;
+    expect(k.candidates.map((c) => c.id)).toEqual(['north-c1', 'north-d2']);
+    // the expected unit is the first profile's (kWh): the D2 delivers Wh
+    expect(k.candidateInfo!['north-c1']!.units).toEqual([]);
+    expect(k.candidateInfo!['north-d2']!.units).toEqual([
+      { point: 'EnergyImport', input: 'e_total', expected: 'kW.h', actual: 'W.h', relation: 'convertible' },
+    ]);
+    const cov = (await s.api('GET', '/plant/views/coverage?kpi=energy-any')) as PlantCoverage;
+    const cell = (id: string) => cov.rows.find((r) => r.asset.id === id)!.cells[0]!;
+    expect(cell('north-d2')).toMatchObject({ state: 'could', collected: false });
+    expect(cell('north-d2-off')).toMatchObject({ state: 'cannot', gaps: [{ code: 'kpi_point_unavailable', params: { point: 'EnergyImport' } }] });
+    expect(cell('north-other')).toMatchObject({ state: 'cannot', gaps: [{ code: 'kpi_other_profile', params: { profile: 'meter-c1, meter-d2' } }] });
+    // a collection that maps the D2's data point: collected
+    await s.api('POST', '/plant/assets/north-d2/collections', {
+      id: 'gw',
+      name: 'Gateway',
+      collector: { kind: 'job', ref: 'energy-etl' },
+      interfaceId: 'opc',
+      items: [{ address: 'ns=2;s=EnergyImport', outputName: 'Energy', dataPoint: 'EnergyImport' }],
+    });
+    expect(((await s.api('GET', '/plant/kpis/energy-any')) as PlantKpiDetail).candidateInfo!['north-d2']!.collected).toBe(true);
+    // a job on the D2: its unit check names the asset's data point
+    await assign('north-d2', 'meter-d2', 'opc', { kpis: [{ kpi: 'energy-any', job: 'north-d2-energy' }] });
+    const v = (await s.api('GET', '/plant/assets/north-d2/assignment')) as PlantAssignmentView;
+    expect(v.checks.map((c) => [c.code, c.params.point])).toEqual([['kpi_unit_mismatch', 'EnergyImport']]);
+    // with the input's own unit for it, nothing differs
+    await s.api('PUT', '/plant/kpis/energy-any', { ...KPI, id: undefined, inputs: [{ ...KPI.inputs[0], units: { e_total: 'Wh' } }] });
+    expect(((await s.api('GET', '/plant/assets/north-d2/assignment')) as PlantAssignmentView).checks).toEqual([]);
+    await s.api('PUT', '/plant/kpis/energy-any', { ...KPI, id: undefined });
+    // the data point pages and the profile page name the KPI
+    const d = (await s.api('GET', '/plant/profiles/meter-d2/points/EnergyImport')) as PlantDataPointDetail;
+    expect(d.kpis.map((x) => x.id)).toContain('energy-any');
+    const p = (await s.api('GET', '/plant/profiles/meter-d2')) as PlantProfileDetail;
+    expect(p.kpis.find((x) => x.id === 'energy-any')!.dataPoints).toEqual(['EnergyImport']);
+  });
+
+  it('imports and exports profiles and mapping (an unknown data point is a problem)', async () => {
+    const yaml = {
+      version: 1,
+      kpi_definitions: [
+        {
+          id: 'energy-file',
+          name: 'Energy (file)',
+          inputs: [{ profiles: ['meter-c1', 'meter-d2'], data_points: ['e_total'], mapping: { 'meter-d2': { e_total: 'EnergyImport' } } }],
+        },
+      ],
+    };
+    const prev = (await s.api('POST', '/plant/import/preview', { files: [file('k.yaml', yaml)], mode: 'update' })) as { problems: unknown[] };
+    expect(prev.problems).toEqual([]);
+    await s.api('POST', '/plant/import', { files: [file('k.yaml', yaml)], mode: 'update' });
+    const k = (await s.api('GET', '/plant/kpis/energy-file')) as PlantKpiDetail;
+    expect(k.inputs[0]).toMatchObject({ profile: 'meter-c1', profiles: ['meter-c1', 'meter-d2'], mapping: { 'meter-d2': { e_total: 'EnergyImport' } } });
+    const out = String(await s.api('GET', '/plant/export?part=catalogue'));
+    const exported = (YAML.parseAllDocuments(out).map((d) => d.toJSON()) as { kpi_definitions?: { id: string; inputs: unknown[] }[] }[])
+      .flatMap((d) => d.kpi_definitions ?? [])
+      .find((x) => x.id === 'energy-file')!;
+    expect(exported.inputs).toEqual([{ profiles: ['meter-c1', 'meter-d2'], data_points: ['e_total'], mapping: { 'meter-d2': { e_total: 'EnergyImport' } } }]);
+    // the export imports back unchanged
+    const again = (await s.api('POST', '/plant/import/preview', {
+      files: [file('out.yaml', YAML.parse(YAML.stringify({ version: 1, kpi_definitions: [exported] })))],
+      mode: 'update',
+    })) as {
+      problems: unknown[];
+      summary: { kpis: { changed: number } };
+    };
+    expect(again.problems).toEqual([]);
+    const wrong = (await s.api('POST', '/plant/import/preview', {
+      files: [
+        file('w.yaml', {
+          version: 1,
+          kpi_definitions: [
+            {
+              ...yaml.kpi_definitions[0],
+              mapping: undefined,
+              inputs: [{ ...yaml.kpi_definitions[0]!.inputs[0], mapping: { 'meter-d2': { e_total: 'Gone' } } }],
+            },
+          ],
+        }),
+      ],
+      mode: 'update',
+    })) as { problems: { path: string; message: string }[] };
+    expect(wrong.problems[0]).toMatchObject({ path: 'kpi_definitions[0].inputs[0].mapping.meter-d2.e_total' });
+    expect(wrong.problems[0]!.message).toContain('has no data point "Gone"');
+  });
+
+  it('follows renames: a mapped data point, a profile, and a data point of one profile while the others keep the id', async () => {
+    const rename = (kind: string, id: string, newId: string, scope = '') => s.api('POST', '/plant/ids/rename', { kind, scope, id, newId });
+    await rename('data_point', 'EnergyImport', 'energy_import', 'meter-d2');
+    let k = (await s.api('GET', '/plant/kpis/energy-any')) as PlantKpiDetail;
+    expect(k.inputs[0]!.mapping).toEqual({ 'meter-d2': { e_total: 'energy_import' } });
+    await rename('profile', 'meter-d2', 'meter-d2x');
+    k = (await s.api('GET', '/plant/kpis/energy-any')) as PlantKpiDetail;
+    expect(k.inputs[0]).toMatchObject({ profiles: ['meter-c1', 'meter-d2x'], mapping: { 'meter-d2x': { e_total: 'energy_import' } } });
+    // the C1's e_total renamed: the input keeps its id, the C1 gets a mapping
+    await rename('data_point', 'e_total', 'energy', 'meter-c1');
+    k = (await s.api('GET', '/plant/kpis/energy-any')) as PlantKpiDetail;
+    expect(k.inputs[0]).toMatchObject({ dataPoints: ['e_total'], mapping: { 'meter-c1': { e_total: 'energy' }, 'meter-d2x': { e_total: 'energy_import' } } });
+    expect(k.checks).toEqual([]);
+    expect(k.candidates.map((c) => c.id)).toEqual(['north-c1']);
+    expect(k.instances.map((x) => x.asset.id)).toEqual(['north-d2']);
+  });
+});
+
+describe('KPI potential rolled up from parts', () => {
+  const inputs = [
+    { profiles: ['meter-c1', 'meter-d2x'], dataPoints: ['e_total'], mapping: { 'meter-c1': { e_total: 'energy' }, 'meter-d2x': { e_total: 'energy_import' } } },
+  ];
+
+  beforeAll(async () => {
+    // two machines without a device profile; a meter is part of each
+    await s.api('POST', '/plant/assets', { id: 'north-press', siteId: 'north', name: 'North press' });
+    await s.api('POST', '/plant/assets', { id: 'north-oven', siteId: 'north', name: 'North oven' });
+    await s.api('POST', '/plant/assets', { id: 'north-press-meter', siteId: 'north', name: 'North press meter', parentId: 'north-press' });
+    await s.api('POST', '/plant/assets', { id: 'north-oven-meter', siteId: 'north', name: 'North oven meter', parentId: 'north-oven' });
+    await assign('north-press-meter', 'meter-c1', 'mqtt');
+    await assign('north-oven-meter', 'meter-d2x', 'opc');
+    await s.api('POST', '/plant/kpis', { id: 'machine-plain', name: 'Machine energy (no roll-up)', inputs });
+    await s.api('POST', '/plant/kpis', { id: 'machine-energy', name: 'Machine energy', rollUp: 'parts', inputs });
+  });
+  const coverage = async () => {
+    const cov = (await s.api('GET', '/plant/views/coverage?site=north')) as PlantCoverage;
+    const at = (kpi: string) => cov.kpis.findIndex((k) => k.id === kpi);
+    return { cov, cell: (asset: string, kpi: string) => cov.rows.find((r) => r.asset.id === asset)!.cells[at(kpi)]! };
+  };
+
+  it('is off by default: a machine whose part delivers the inputs cannot have the KPI itself', async () => {
+    const k = (await s.api('GET', '/plant/kpis/machine-plain')) as PlantKpiDetail;
+    expect(k.rollUp).toBe('none');
+    const { cell } = await coverage();
+    expect(cell('north-press', 'machine-plain')).toMatchObject({ state: 'cannot' });
+    expect(cell('north-press', 'machine-plain').via).toBeUndefined();
+    expect(cell('north-press-meter', 'machine-plain')).toMatchObject({ state: 'could' });
+    expect(cell('north-press-meter', 'machine-plain').rolledUp).toBeUndefined();
+  });
+
+  it('counts the part for the machine, once: coverage cells, totals per site, site tiles', async () => {
+    const one = await coverage();
+    expect(one.cell('north-press', 'machine-energy')).toMatchObject({
+      state: 'could',
+      collected: false,
+      via: { id: 'north-press-meter', name: 'North press meter' },
+    });
+    expect(one.cell('north-press-meter', 'machine-energy')).toMatchObject({ state: 'could', rolledUp: { id: 'north-press', name: 'North press' } });
+    // the oven's meter is collected already (its collection maps the data point): the oven is ready
+    await s.api('POST', '/plant/assets/north-oven-meter/collections', {
+      id: 'gw',
+      name: 'Gateway',
+      collector: { kind: 'job', ref: 'energy-etl' },
+      interfaceId: 'opc',
+      items: [{ address: 'ns=2;s=EnergyImport', outputName: 'Energy', dataPoint: 'energy_import' }],
+    });
+    const { cov, cell } = await coverage();
+    expect(cell('north-oven', 'machine-energy')).toMatchObject({ state: 'could', collected: true, via: { id: 'north-oven-meter' } });
+    // per KPI: the plain one counts both meters, the rolled-up one both machines (not their meters again)
+    const could = (kpi: string) =>
+      cov.rows.filter((r) => {
+        const c = r.cells[cov.kpis.findIndex((k) => k.id === kpi)]!;
+        return c.state === 'could' && !c.rolledUp;
+      }).length;
+    expect(could('machine-plain')).toBe(could('machine-energy'));
+    const plainRows = cov.rows.map((r) => r.cells[cov.kpis.findIndex((k) => k.id === 'machine-plain')]!).filter((c) => c.state === 'could').length;
+    const rolledRows = cov.rows.map((r) => r.cells[cov.kpis.findIndex((k) => k.id === 'machine-energy')]!).filter((c) => c.state === 'could').length;
+    expect(rolledRows).toBe(plainRows + 2);
+    // the totals: one ready and one in need of a collection more for the rolled-up KPI (the machines), not four
+    const only = (await s.api('GET', '/plant/views/coverage?site=north&kpi=machine-energy')) as PlantCoverage;
+    const plain = (await s.api('GET', '/plant/views/coverage?site=north&kpi=machine-plain')) as PlantCoverage;
+    expect(only.totals.could).toBe(plain.totals.could);
+    expect(only.potential).toEqual(plain.potential);
+    expect(only.groups.find((g) => g.siteId === 'north' && g.areaId === null)!.potential).toEqual(only.potential);
+    // the site tile counts the same as the coverage of the site
+    const tiles = (await s.api('GET', '/plant/views/overview')) as PlantSiteTile[];
+    const t = tiles.find((x) => x.siteId === 'north')!;
+    expect(t.coverage).toEqual(cov.totals);
+    expect(t.potential).toEqual(cov.potential);
+  });
+
+  it('a job on the part: the machine has the KPI through it', async () => {
+    await assign('north-press-meter', 'meter-c1', 'mqtt', { kpis: [{ kpi: 'machine-energy', job: 'press-energy' }] });
+    const { cell } = await coverage();
+    expect(cell('north-press', 'machine-energy')).toMatchObject({ state: 'has', jobs: ['press-energy'], via: { id: 'north-press-meter' } });
+    expect(cell('north-press-meter', 'machine-energy')).toMatchObject({ state: 'has', rolledUp: { id: 'north-press' } });
+    const only = (await s.api('GET', '/plant/views/coverage?site=north&kpi=machine-energy')) as PlantCoverage;
+    expect(only.totals.has).toBe(1);
+    await assign('north-press-meter', 'meter-c1', 'mqtt');
+  });
+
+  it('lists the machine with its part on the asset page and the KPI page; the file format has roll_up', async () => {
+    const v = (await s.api('GET', '/plant/assets/north-oven/assignment')) as PlantAssignmentView;
+    expect(v.possibleKpis.map((p) => [p.id, p.via?.id, p.collected])).toEqual([['machine-energy', 'north-oven-meter', true]]);
+    const k = (await s.api('GET', '/plant/kpis/machine-energy')) as PlantKpiDetail;
+    expect(k.candidates.map((c) => c.id)).toEqual(['north-c1', 'north-d2', 'north-oven', 'north-oven-meter', 'north-press', 'north-press-meter']);
+    expect(k.candidateInfo!['north-oven']).toMatchObject({ collected: true, via: { id: 'north-oven-meter', name: 'North oven meter' } });
+    expect(((await s.api('GET', '/plant/kpis/machine-plain')) as PlantKpiDetail).candidates.map((c) => c.id)).not.toContain('north-oven');
+    const out = String(await s.api('GET', '/plant/export?part=catalogue'));
+    expect(out).toMatch(/id: machine-energy\n\s+name: Machine energy\n\s+roll_up: parts/);
+    const yaml = {
+      version: 1,
+      kpi_definitions: [
+        {
+          id: 'machine-file',
+          name: 'Machine (file)',
+          roll_up: 'parts',
+          inputs: [{ profiles: inputs[0]!.profiles, data_points: ['e_total'], mapping: inputs[0]!.mapping }],
+        },
+      ],
+    };
+    const pv = (await s.api('POST', '/plant/import/preview', { files: [file('m.yaml', yaml)], mode: 'update' })) as { problems: unknown[] };
+    expect(pv.problems).toEqual([]);
+    await s.api('POST', '/plant/import', { files: [file('m.yaml', yaml)], mode: 'update' });
+    expect(((await s.api('GET', '/plant/kpis/machine-file')) as PlantKpiDetail).rollUp).toBe('parts');
   });
 });

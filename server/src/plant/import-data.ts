@@ -35,6 +35,7 @@ import {
   cleanParams,
   EMPTY_COMPUTATION,
   kpiProblems,
+  normalizeKpiInputs,
   kpiValuesOf,
   pointsOf,
   profileProblems,
@@ -340,12 +341,18 @@ function kpiFromFile(k: KpiFile, o: Origin): PlannedKpi {
   if (has(k, 'audience')) v.audience = [...new Set(k.audience ?? [])];
   if (has(k, 'methodology')) v.methodology = k.methodology ?? null;
   if (has(k, 'dynamic_columns')) v.dynamicColumns = !!k.dynamic_columns;
+  if (has(k, 'roll_up')) v.rollUp = k.roll_up === 'parts' ? 'parts' : 'none';
   if (has(k, 'inputs'))
     v.inputs = (k.inputs ?? []).map((i) => ({
       kind: (i.kind ?? 'data_point').toLowerCase() === 'other' ? 'other' : 'data_point',
-      profile: i.profile ?? '',
+      // 0.13: any of several profiles – `profile` alone for one (both: it is one of `profiles`)
+      profile: i.profile ?? i.profiles?.[0] ?? '',
+      ...(i.profiles?.length ? { profiles: [...new Set(i.profiles)] } : {}),
       dataPoints: [...new Set(i.data_points ?? [])],
       ...unitsFromFile(i.units),
+      ...(i.mapping && Object.keys(i.mapping).length
+        ? { mapping: Object.fromEntries(Object.entries(safeEntries(i.mapping)).map(([p, m]) => [p, { ...safeEntries(m ?? {}) }])) }
+        : {}),
       notes: str(i.notes),
     }));
   if (has(k, 'parameters'))
@@ -508,6 +515,7 @@ const KPI_DEFAULTS = (id: string): PlantKpiValues => ({
   strategy: '',
   implementation: '',
   dynamicColumns: false,
+  rollUp: 'none',
   inputs: [],
   parameters: [],
   columns: [],
@@ -684,8 +692,10 @@ export function computeData(c: DataContext): PlantCheck[] {
   for (const pk of p.kpis.values()) {
     const cur = storedKpis.get(pk.values.id);
     const before = cur ? kpiValuesOf(cur) : null;
-    const after: PlantKpiValues = { ...(before && !full ? before : KPI_DEFAULTS(pk.values.id)), ...pk.values };
-    for (const pr of kpiProblems(after)) problems.push({ file: pk.file, path: `${pk.path}.${pr.path}`, message: pr.message });
+    const planned: PlantKpiValues = { ...(before && !full ? before : KPI_DEFAULTS(pk.values.id)), ...pk.values };
+    // 0.13: a mapping to a data point a profile (as the files leave it) lacks is a problem
+    for (const pr of kpiProblems(planned, postProfiles)) problems.push({ file: pk.file, path: `${pk.path}.${pr.path}`, message: pr.message });
+    const after: PlantKpiValues = { ...planned, inputs: normalizeKpiInputs(planned.inputs) };
     postKpis.set(after.id, after);
     pushWrite(
       writes,
@@ -1040,8 +1050,17 @@ export function kpiOut(k: PlantKpiValues): Record<string, unknown> {
     strategy: k.strategy,
     implementation: k.implementation,
     dynamic_columns: k.dynamicColumns,
+    roll_up: k.rollUp === 'parts' ? 'parts' : '',
     inputs: k.inputs.map((i) =>
-      clean({ kind: i.kind === 'data_point' ? '' : i.kind, profile: i.profile, data_points: i.dataPoints, units: i.units ?? {}, notes: i.notes }),
+      clean({
+        kind: i.kind === 'data_point' ? '' : i.kind,
+        // 0.13: several profiles as `profiles` (the first is the input's profile), one as `profile`
+        ...(i.profiles && i.profiles.length > 1 ? { profiles: i.profiles } : { profile: i.profile }),
+        data_points: i.dataPoints,
+        units: i.units ?? {},
+        mapping: i.mapping ?? {},
+        notes: i.notes,
+      }),
     ),
     parameters: k.parameters.map((p) =>
       // a default of 0 or false is a value: kept

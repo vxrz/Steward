@@ -292,7 +292,11 @@
     "noMatch": "Nothing matches the filters.",
     "cannotWith": "{{type}} with a profile that cannot have it",
     "openMatrix": "Open the coverage matrix",
-    "exportTitle": "KPI coverage"
+    "exportTitle": "KPI coverage",
+    "via": "via part {{name}}",
+    "viaHint": "The KPI rolls up from parts: this part has the job or delivers the inputs, and counts for the asset.",
+    "rolledUp": "counted for {{name}}",
+    "rolledUpHint": "The KPI rolls up from parts: this asset is a part of {{name}}, which counts the KPI once for both – not counted again in the totals."
   },
   "explore": {
     "coverage": "KPI coverage"

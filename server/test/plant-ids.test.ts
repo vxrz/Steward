@@ -95,6 +95,8 @@ describe('the registry of reference columns', () => {
       'result_columns',
       'computation',
       'notes',
+      // 0.13: none or parts
+      'roll_up',
     ],
     plant_assignments: ['firmware', 'notes'],
     plant_vlans: [

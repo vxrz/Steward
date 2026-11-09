@@ -1,7 +1,9 @@
 import {
+  kpiInputProfiles,
   PLANT_VIEW_LIMITS,
   worstLive,
   type AssetStatus,
+  type PlantAssetRef,
   type PlantAssignmentValues,
   type PlantCheck,
   type PlantCoverage,
@@ -36,7 +38,7 @@ import { assetBuilding, loadAllIndexes, loadIndex, type AssetRow, type SiteRow }
 import { visibleAsset, visibleSite } from './service.js';
 import { briefOf, kpiNotFound, pointNotFound, profileNotFound } from './catalogue.js';
 import { allAssignments, allKpis, allProfiles, assignmentRowOf, assignmentValuesOf, pointsOf, profileRowOf, resolvedProfile } from './data-model.js';
-import { assignmentChecks, deliveries, inputGaps, unitMismatches } from './checks.js';
+import { assetInputPoints, assignmentChecks, deliveries, inputGaps, matchedProfile, namedInputPoints, unitMismatches } from './checks.js';
 import { collectedPoints, isCollected } from './potential.js';
 import { assetModel, isOrExtends } from './resolve.js';
 import { collectionRows, collectionValuesOf, collectorKey } from './collections-model.js';
@@ -185,14 +187,14 @@ function datasetLive(key: string): PlantLive {
 
 // ---------- the assets the caller may see ----------
 
-type SlimAsset = Pick<AssetRow, 'id' | 'name' | 'status' | 'site_id' | 'area_id' | 'work_center_id' | 'work_unit_id'>;
+type SlimAsset = Pick<AssetRow, 'id' | 'name' | 'status' | 'site_id' | 'area_id' | 'work_center_id' | 'work_unit_id' | 'parent_id'>;
 
 function visible(): { sites: Map<string, SiteRow>; assets: SlimAsset[] } {
   const rows = db().all<SiteRow>('SELECT id, code, name, names, acl FROM plant_sites');
   const rights = siteRights(rows);
   const sites = new Map(rows.filter((s) => rights.get(s.id)!.includes('view')).map((s) => [s.id, s]));
   const assets = db()
-    .all<SlimAsset>('SELECT id, name, status, site_id, area_id, work_center_id, work_unit_id FROM plant_assets')
+    .all<SlimAsset>('SELECT id, name, status, site_id, area_id, work_center_id, work_unit_id, parent_id FROM plant_assets')
     .filter((a) => sites.has(a.site_id));
   // sorted here, not in SQL: the same order on every database
   assets.sort((a, b) => a.name.localeCompare(b.name) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
@@ -276,13 +278,13 @@ interface KpiPlan {
   def: PlantKpiValues;
   /** It reads data points (else nothing can be checked) */
   data: boolean;
-  /** The profiles its inputs name (an asset with another profile cannot have it) */
-  profiles: Set<string>;
+  /** Its data point inputs that name profiles (an asset whose profile matches none of an input's cannot have it) */
+  named: PlantKpiValues['inputs'];
 }
 
 const planOf = (def: PlantKpiValues): KpiPlan => {
   const inputs = def.inputs.filter((i) => i.kind === 'data_point');
-  return { def, data: inputs.length > 0, profiles: new Set(inputs.map((i) => i.profile).filter(Boolean)) };
+  return { def, data: inputs.length > 0, named: inputs.filter((i) => kpiInputProfiles(i).length > 0) };
 };
 
 /** What a cell reads besides the asset (0.12.0): every profile resolved, the data points its collections map. */
@@ -315,23 +317,66 @@ function cellOf(
   if (!plan.data) return { state: 'unchecked' };
   if (!a || !a.profileId || !profile) return { state: 'cannot', ...(details ? { gaps: [{ code: 'kpi_no_profile', params: { kpi: def.name } }] } : {}) };
   // a KPI of another profile: no need to look at every data point (the common case on a large site)
-  if ([...plan.profiles].some((p) => !isOrExtends(profile, p)) && !details) return { state: 'cannot' };
+  if (!details && plan.named.some((i) => matchedProfile(i, profile) === null)) return { state: 'cannot' };
   const gaps = inputGaps(def, a, profile);
   if (!gaps.length) {
     // 0.12.0: KPI potential – collected already, or the device delivers and a collection is missing; a unit that differs
     // is shown (the asset still could have the KPI: its job converts, or the input's unit is corrected)
     const units = details ? unitMismatches(def, a, profile, ctx.profiles) : [];
-    return { state: 'could', collected: isCollected(def, ctx.collected), ...(units.length ? { units } : {}) };
+    return { state: 'could', collected: isCollected(def, ctx.collected, profile), ...(units.length ? { units } : {}) };
   }
   return { state: 'cannot', ...(details ? { gaps: gaps.map((g) => ({ code: g.code, params: g.params })) } : {}) };
 }
 
 const emptyTotals = (): Record<PlantCoverageState, number> => ({ has: 0, problem: 0, could: 0, cannot: 0, unchecked: 0 });
 
-/** Counts a cell into totals and KPI potential (0.12.0). */
+/** Counts a cell into totals and KPI potential (0.12.0); a part's cell its machine counts (0.13) is not counted again. */
 function count(into: { totals: Record<PlantCoverageState, number>; potential: PlantKpiPotential }, c: PlantCoverageCell): void {
+  if (c.rolledUp) return;
   into.totals[c.state]++;
   if (c.state === 'could') into.potential[c.collected ? 'ready' : 'collect']++;
+}
+
+/** The states a part contributes to its machine (0.13): a job, or the inputs it delivers. */
+const COUNTS_FOR_MACHINE = new Set<PlantCoverageState>(['has', 'problem', 'could']);
+
+/**
+ * 0.13, KPIs that roll up from parts (`rollUp: parts`, docs/PLANT.md "KPI coverage"): the cell of an asset with parts
+ * (assets that are part of it, direct ones, among `cells`) takes a part's state where it has none itself – a part's job
+ * where the asset has none, else a part that delivers the inputs where the asset does not (collected first) – marked
+ * `via` the part. Every part that has a job or delivers the inputs is marked `rolledUp` to the asset: the KPI counts once
+ * per machine. Decided on the cells as they were (a part's own state, not one it has from its parts).
+ */
+function rollUpParts(plans: KpiPlan[], cells: Map<string, PlantCoverageCell[]>, assets: SlimAsset[]): void {
+  const which = plans.map((p, j) => (p.def.rollUp === 'parts' ? j : -1)).filter((j) => j >= 0);
+  if (!which.length) return;
+  const partsOf = new Map<string, SlimAsset[]>();
+  for (const a of assets)
+    if (a.parent_id && a.parent_id !== a.id && cells.has(a.parent_id) && cells.has(a.id)) partsOf.set(a.parent_id, [...(partsOf.get(a.parent_id) ?? []), a]);
+  if (!partsOf.size) return;
+  const byId = new Map(assets.map((a) => [a.id, a]));
+  const own = new Map([...cells].map(([id, list]) => [id, [...list]]));
+  const ref = (a: SlimAsset): PlantAssetRef => ({ id: a.id, name: a.name });
+  for (const [machineId, parts] of partsOf) {
+    const machine = byId.get(machineId)!;
+    for (const j of which) {
+      const mine = own.get(machineId)![j]!;
+      const counted = parts.map((p) => ({ p, c: own.get(p.id)![j]! })).filter((x) => COUNTS_FOR_MACHINE.has(x.c.state));
+      if (!counted.length) continue;
+      let next = mine;
+      if (mine.state !== 'has' && mine.state !== 'problem') {
+        const job = counted.find((x) => x.c.state === 'has') ?? counted.find((x) => x.c.state === 'problem');
+        const could = counted.find((x) => x.c.state === 'could' && x.c.collected) ?? counted.find((x) => x.c.state === 'could');
+        const from = job ?? (mine.state === 'could' ? undefined : could);
+        if (from) {
+          const { rolledUp: _r, ...c } = from.c;
+          next = { ...c, via: ref(from.p) };
+        }
+      }
+      cells.get(machineId)![j] = { ...next, ...(cells.get(machineId)![j]!.rolledUp ? { rolledUp: cells.get(machineId)![j]!.rolledUp } : {}) };
+      for (const x of counted) cells.get(x.p.id)![j] = { ...cells.get(x.p.id)![j]!, rolledUp: ref(machine) };
+    }
+  }
 }
 
 // ---------- 4. the coverage matrix ----------
@@ -381,13 +426,26 @@ export function coverage(f: CoverageFilter): PlantCoverage {
     if (!g) groups.set(key, (g = { siteId, areaId, assets: 0, totals: emptyTotals(), potential: { ready: 0, collect: 0 } }));
     return g;
   };
+  // the rows shown, and their parts (0.13: a row's cell may come from a part's, with its details)
+  const shown = new Set(assets.slice(0, maxRows).map((a) => a.id));
+  const withDetails = new Set([...shown, ...assets.filter((a) => a.parent_id && shown.has(a.parent_id)).map((a) => a.id)]);
+  const cellsOf = new Map<string, PlantCoverageCell[]>();
+  for (const asset of assets) {
+    const a = assignments.get(asset.id);
+    const profile = a?.profileId ? profiles.get(a.profileId) : undefined;
+    const checks = a ? assignmentChecks({ kind: 'asset', id: asset.id, name: asset.name, siteId: asset.site_id }, a, profiles, kpiMap) : [];
+    cellsOf.set(
+      asset.id,
+      plans.map((p) => cellOf(p, a, profile, checks, withDetails.has(asset.id), { profiles, collected: collected.get(asset.id) })),
+    );
+  }
+  rollUpParts(plans, cellsOf, assets);
   for (const asset of assets) {
     const a = assignments.get(asset.id);
     const profile = a?.profileId ? profiles.get(a.profileId) : undefined;
     const site = v.sites.get(asset.site_id)!;
-    const checks = a ? assignmentChecks({ kind: 'asset', id: asset.id, name: asset.name, siteId: asset.site_id }, a, profiles, kpiMap) : [];
-    const details = rows.length < maxRows;
-    const cells = plans.map((p) => cellOf(p, a, profile, checks, details, { profiles, collected: collected.get(asset.id) }));
+    const details = shown.has(asset.id);
+    const cells = cellsOf.get(asset.id)!;
     const into = [all, groupOf(asset.site_id, null), ...(asset.area_id ? [groupOf(asset.site_id, asset.area_id)] : [])];
     for (const g of into.slice(1)) (g as PlantCoverageGroup).assets++;
     for (const c of cells) for (const g of into) count(g, c);
@@ -438,6 +496,7 @@ export function overview(): PlantSiteTile[] {
       { siteId: id, counts: {}, total: 0, coverage: emptyTotals(), potential: { ready: 0, collect: 0 }, checks: 0, live: {} },
     ]),
   );
+  const cellsOf = new Map<string, PlantCoverageCell[]>();
   for (const asset of v.assets) {
     const t = tiles.get(asset.site_id)!;
     t.counts[asset.status] = (t.counts[asset.status] ?? 0) + 1;
@@ -448,11 +507,16 @@ export function overview(): PlantSiteTile[] {
     const profile = a?.profileId ? profiles.get(a.profileId) : undefined;
     const checks = a ? assignmentChecks({ kind: 'asset', id: asset.id, name: asset.name, siteId: asset.site_id }, a, profiles, kpiMap) : [];
     t.checks += checks.length;
-    for (const p of plans) {
-      const c = cellOf(p, a, profile, checks, false, { profiles, collected: collected.get(asset.id) });
-      t.coverage[c.state]++;
-      if (c.state === 'could') t.potential[c.collected ? 'ready' : 'collect']++;
-    }
+    cellsOf.set(
+      asset.id,
+      plans.map((p) => cellOf(p, a, profile, checks, false, { profiles, collected: collected.get(asset.id) })),
+    );
+  }
+  // 0.13: KPIs that roll up from parts count once per machine
+  rollUpParts(plans, cellsOf, v.assets);
+  for (const asset of v.assets) {
+    const t = tiles.get(asset.site_id)!;
+    for (const c of cellsOf.get(asset.id)!) count({ totals: t.coverage, potential: t.potential }, c);
   }
   return [...tiles.values()];
 }
@@ -664,7 +728,8 @@ export function assetFlow(assetId: string): PlantFlowGraph {
       inactive: !k.active,
       checks: jobChecks,
     });
-    const inputs = (def?.inputs ?? []).filter((i) => i.kind === 'data_point' && (!i.profile || isOrExtends(profile, i.profile))).flatMap((i) => i.dataPoints);
+    // 0.13: through the input's profile the asset's matches, with its mapping
+    const inputs = def ? assetInputPoints(def, profile).map((x) => x.point) : [];
     const reached: { nodes: string[]; edges: string[] }[] = [];
     for (const dp of new Set(inputs)) {
       const from = ends.get(dp);
@@ -703,11 +768,7 @@ export function pointLineage(profileId: string, pointId: string): PlantFlowGraph
   const v = visible();
   const assignments = allAssignments();
   const kpis = allKpis();
-  const readers = new Set(
-    [...kpis.values()]
-      .filter((k) => k.inputs.some((i) => i.kind === 'data_point' && !!i.profile && isOrExtends(profile, i.profile) && i.dataPoints.includes(pointId)))
-      .map((k) => k.id),
-  );
+  const readers = new Set([...kpis.values()].filter((k) => namedInputPoints(k, profile).includes(pointId)).map((k) => k.id));
   // assets of this profile and of the profiles that extend it, unless theirs drops the data point (0.11.0)
   const theirs = (assetId: string) => profiles.get(assignments.get(assetId)?.profileId ?? '');
   const holders = v.assets.filter((x) => {

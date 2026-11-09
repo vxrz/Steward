@@ -269,6 +269,23 @@
     "interfaceId": "Id of {{interface}} in the base",
     "mixed": "Protocols differ ({{protocols}}): “other” in the base"
   },
+  "anyOf": {
+    "profiles": "Device profiles",
+    "profilesHelp": "Empty: whatever profile the asset has. Several: any of them – an asset whose profile is (or extends) one of them delivers the input. The data points are the first profile’s.",
+    "dataPoints": "Data points (of {{profile}})",
+    "mapping": "Data points in the other profiles",
+    "mappingHelp": "Per profile, its data point for each input – suggested by the same id, a known-as name, the name and the unit. Change a suggestion where it is wrong.",
+    "inputPoint": "Input",
+    "pointIn": "{{point}} in {{profile}}",
+    "missing": "No such data point – choose one",
+    "anyOfThese": "Any of these profiles",
+    "mappedIn": "In {{profile}}: {{list}}"
+  },
+  "rollUp": {
+    "label": "Roll up from parts",
+    "help": "An asset counts as able to have the KPI when one of its parts (the power meter of a machine) has a job or delivers the inputs: KPI coverage and potential count it once, for the asset. Off by default – a part’s data stands for the whole asset only where it measures all of it.",
+    "badge": "Rolls up from parts"
+  },
   "protocolOther": {
     "help": "The base leaves the protocol open (“other”): choose the one this device speaks, then give its data points their addresses."
   }
