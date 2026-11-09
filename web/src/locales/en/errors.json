@@ -1111,6 +1111,11 @@
     "CONFIRMATION_MISMATCH": "Type the user name {{username}} to confirm.",
     "PLANT_PROFILE_EXTENDED": "Other device profiles extend this one ({{profiles}}) – change or delete those first.",
     "PLANT_COLLECTION_NOT_FOUND": "Data collection {{id}} not found.",
+    "PLANT_PROFILE_LINKED": "{{count}} records link to the device profile – remove the links first, or remove it with “Remove selected” and “Also remove what belongs to it”.",
+    "PLANT_COLLECTION_LINKED": "{{count}} records link to the data collection – choose “Also remove what belongs to it” to remove the links with it.",
+    "PLANT_SOURCE_NOT_FOUND": "The kept file {{id}} was not found.",
+    "PLANT_SINK_NOT_FOUND": "Sink {{id}} not found.",
+    "PLANT_DOC_ID": "“{{id}}” is not the id of a data collection or sink.",
     "PLANT_COLLECTION_INVALID": "The data collection cannot be saved – {{path}}: {{message}}",
     "PLANT_COLLECTION_IMPORT_INVALID": "The data collections cannot be imported – {{path}}: {{message}}"
   },

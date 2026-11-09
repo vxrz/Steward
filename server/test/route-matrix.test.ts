@@ -1114,6 +1114,12 @@ const EXPECT: Record<string, Access> = {
   'GET /api/plant/assets/:assetId/collections/:collectionId/mapping': PLANT,
   'POST /api/plant/assets/:assetId/collections/import/preview': DESIGN,
   'POST /api/plant/assets/:assetId/collections/import': DESIGN,
+  // 0.12: where the data goes, the kept files of imports (secrets removed) and the Documents panel: who sees the entry
+  'GET /api/plant/assets/:assetId/collections/:collectionId/flow': PLANT,
+  'GET /api/plant/assets/:assetId/collection-sources': PLANT,
+  'GET /api/plant/assets/:assetId/collection-sources/diff': PLANT,
+  'GET /api/plant/assets/:assetId/collection-sources/:sourceId/file': PLANT,
+  'GET /api/plant/documents': PLANT,
   'GET /api/plant/collections': PLANT,
   'GET /api/plant/profiles/:profileId/points/:pointId/collections': PLANT,
 };
@@ -1501,6 +1507,7 @@ function fill(url: string): string {
       .replace(/:profileId/g, 'matrix-profile')
       .replace(/:pointId/g, 'matrix_point')
       .replace(/:collectionId/g, 'matrix-collection')
+      .replace(/:sourceId/g, 'pcs_matrix')
       .replace(/:kpiId/g, 'matrix-kpi')
       .replace(
         /:linkId/g,
@@ -1566,6 +1573,8 @@ function fill(url: string): string {
 /** Query strings some routes need. */
 const QUERY: Record<string, string> = {
   'GET /api/plant/collections': '?collectorKind=job&collectorRef=matrix-job',
+  'GET /api/plant/assets/:assetId/collection-sources/diff': '?from=pcs_matrix&to=pcs_matrix',
+  'GET /api/plant/documents': '?kind=device-profile&id=matrix-profile',
   'GET /api/records/:id/timeline': '?from=2026-01-01T00:00:00Z&to=2026-01-02T00:00:00Z',
   'GET /api/link-targets': '?kind=record&q=',
   'GET /api/backlinks': '', // filled in beforeAll (needs the record id)
@@ -1902,6 +1911,12 @@ beforeAll(async () => {
     collector: { kind: 'job', ref: 'matrix-job' },
     items: [{ address: 'ns=2;s=X', outputName: 'x', dataPoint: 'matrix_point' }],
   });
+  // 0.12: a kept file of a collection import (secrets removed), as an import writes it
+  (await import('../src/db.js')).db().run(
+    `INSERT INTO plant_collection_sources (id, asset_id, collector_key, collector, version, file_name, format, sha256, size, content, redacted_sha256,
+         redacted_paths, collections, imported_by, imported_at) VALUES ('pcs_matrix', 'matrix-asset', 'job:matrix-job', '{"kind":"job","ref":"matrix-job","host":null}',
+         1, 'matrix.csv', 'table', 'x', 1, 'a,b', 'y', '[]', '["matrix-collection"]', 'admin', '2026-01-01T00:00:00.000Z')`,
+  );
   await a('PUT', '/plant/assets/matrix-asset/image', { contentBase64: tinyPng().toString('base64') });
   const siteLink = (await a('POST', '/plant/sites/matrix-site/links', { url: 'https://cmdb.example.com/4', label: 'x' })).id;
   const assetLink = (await a('POST', '/plant/assets/matrix-asset/links', { url: 'https://cmdb.example.com/5', label: 'x' })).id;

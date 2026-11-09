@@ -329,6 +329,17 @@ export function deleteProfile(id: string): void {
       'PLANT_PROFILE_EXTENDED',
       { count: children.length, profiles: children.map((c) => c.id).join(', ') },
     );
+  // 0.12: records link to it – the removal core takes them along only when asked ("also remove what belongs to it")
+  const links = Number(db().get<{ n: number }>("SELECT COUNT(*) AS n FROM item_links WHERE to_kind = 'device-profile' AND to_id = ?", id)?.n ?? 0);
+  if (links)
+    throw new HttpError(
+      409,
+      `${links} records link to the profile – remove the links first, or remove it with "Remove selected" and what belongs to it`,
+      'PLANT_PROFILE_LINKED',
+      {
+        count: links,
+      },
+    );
   if (users.length) {
     const seen = visibleAssets().assets;
     if (users.some((u) => !seen.has(u.asset_id))) throw new HttpError(409, 'The profile is in use – it cannot be deleted', 'PLANT_PROFILE_IN_USE_HIDDEN');

@@ -768,10 +768,40 @@ export function removeAssetRow(id: string): void {
   for (const t of ['plant_devices', 'plant_data_paths', 'plant_asset_checks']) db().run(`DELETE FROM ${t} WHERE asset_id = ?`, id);
   // its data collections and the mappings remembered for it (0.11.0)
   for (const t of ['plant_collections', 'plant_collection_mappings']) db().run(`DELETE FROM ${t} WHERE asset_id = ?`, id);
+  // 0.12: the kept files of its collection imports, and the links of records to its collections and their sinks
+  db().run('DELETE FROM plant_collection_sources WHERE asset_id = ?', id);
+  removeCollectionLinks(id);
   db().run("DELETE FROM plant_refs WHERE kind = 'asset' AND item_id = ?", id);
   db().run("DELETE FROM item_links WHERE from_kind = 'asset' AND from_id = ?", id);
   db().run("DELETE FROM copied_from WHERE kind = 'asset' AND id = ?", id);
   db().run('DELETE FROM plant_assets WHERE id = ?', id);
+}
+
+/**
+ * Removes the links of records to an asset's data collections and sinks (0.12; linked as `<asset>/<collection>` and
+ * `<asset>/<collection>/<sink>`), or to one collection and its sinks. An exact prefix, no pattern (ids may hold "_").
+ */
+export function removeCollectionLinks(assetId: string, collectionId?: string): number {
+  return collectionLinks(assetId, collectionId).reduce((n, l) => n + db().run('DELETE FROM item_links WHERE id = ?', l.id).changes, 0);
+}
+
+/** The links of records to an asset's data collections and sinks (or to one collection and its sinks). */
+export function collectionLinks(assetId: string, collectionId?: string): { id: string; to_kind: string; to_id: string }[] {
+  const prefix = collectionId ? `${assetId}/${collectionId}` : assetId;
+  return db()
+    .all<{ id: string; to_kind: string; to_id: string }>(
+      "SELECT id, to_kind, to_id FROM item_links WHERE to_kind IN ('data-collection', 'data-sink') AND substr(to_id, 1, ?) = ?",
+      prefix.length + 1,
+      `${prefix}/`,
+    )
+    .concat(
+      collectionId
+        ? db().all<{ id: string; to_kind: string; to_id: string }>(
+            "SELECT id, to_kind, to_id FROM item_links WHERE to_kind = 'data-collection' AND to_id = ?",
+            prefix,
+          )
+        : [],
+    );
 }
 
 /** Removes a site with its hierarchy, buildings and OT network (its assets must be gone already). */

@@ -863,6 +863,8 @@ export function upsertAssignment(assetId: string, v: PlantAssignmentValues, m: M
 
 export const removeProfileRow = (id: string) => {
   db().run("DELETE FROM copied_from WHERE kind = 'device-profile' AND id = ?", id);
+  // 0.12: the links of records to it (the removal core refuses them without "also remove what belongs to it")
+  db().run("DELETE FROM item_links WHERE to_kind = 'device-profile' AND to_id = ?", id);
   db().run('DELETE FROM plant_profiles WHERE id = ?', id);
 };
 export const removeKpiRow = (id: string) => {

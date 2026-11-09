@@ -12,7 +12,8 @@
     "DOC": "Service documentation",
     "PIR": "Incident review",
     "FWC": "Firewall change",
-    "FWR": "Approved firewall rules"
+    "FWR": "Approved firewall rules",
+    "GWC": "Gateway configuration"
   },
   "builtin": {
     "types": {
@@ -51,6 +52,10 @@
       "FWR": {
         "description": "The approved firewall rules of a network segment or system. Each closed firewall change drafts the next edition, which an approver confirms; the rules are recertified once a year.",
         "template": "## Scope\n\n\n## Notes\n\n"
+      },
+      "GWC": {
+        "description": "The configuration of a collector (a gateway, an ETL job) as an import of data collections read it: a summary that each import rewrites, the file with its secrets removed, and your own notes below it.",
+        "template": ""
       }
     },
     "fields": {
@@ -359,7 +364,10 @@
       "site": "Site",
       "asset": "Asset",
       "conduit": "Conduit (OT network)",
-      "page-watch": "Page watch"
+      "page-watch": "Page watch",
+      "device-profile": "Device profile",
+      "data-collection": "Data collection",
+      "data-sink": "Sink of a data collection"
     },
     "target": "Target",
     "search": "Type to search",

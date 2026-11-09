@@ -235,9 +235,9 @@ function ensureIncidentType(): void {
 /**
  * A built-in type with a fixed id (#208), also in installations created before it existed: created once with the
  * first free key of the list; an administrator's own type with that key stays as it is. Archiving it keeps it out
- * of new records.
+ * of new records. Modules create theirs when they first need it (the plant registry's gateway configurations, 0.12).
  */
-function ensureBuiltinType(id: string, t: RecordTypeDefinition, keys: string[]): void {
+export function ensureBuiltinType(id: string, t: RecordTypeDefinition, keys: string[]): void {
   if (db().get('SELECT 1 FROM record_types WHERE id = ?', id)) return;
   db().tx(() => {
     if (db().get('SELECT 1 FROM record_types WHERE id = ?', id)) return;

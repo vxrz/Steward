@@ -270,6 +270,23 @@ export const REFERENCES: readonly RefSpec[] = [
   col('plant_collection_mappings', 'asset_id', 'asset', 'collection_mapping'),
   pair('item_links', 'from_kind', 'asset', 'from_id', 'asset', 'link'),
   pair('item_links', 'to_kind', 'asset', 'to_id', 'asset', 'link'),
+  // 0.12: the kept files of its collection imports; links to its collections and sinks (<asset>/<collection>[/<sink>])
+  col('plant_collection_sources', 'asset_id', 'asset', 'collection_source'),
+  {
+    table: 'item_links',
+    column: 'to_id[to_kind=data-collection|data-sink, asset part]',
+    kind: 'asset',
+    what: 'link',
+    apply: (r) =>
+      db()
+        .all<{ id: string; to_id: string }>(
+          // an exact prefix (no pattern: ids may hold "_")
+          "SELECT id, to_id FROM item_links WHERE to_kind IN ('data-collection', 'data-sink') AND substr(to_id, 1, ?) = ?",
+          r.from.length + 1,
+          `${r.from}/`,
+        )
+        .reduce((n, l) => n + run('UPDATE item_links SET to_id = ? WHERE id = ?', `${r.to}${l.to_id.slice(r.from.length)}`, l.id), 0),
+  },
   usedBy('asset', 'asset', (r, s) => r[s]),
   pair('copied_from', 'kind', 'asset', 'id', 'asset', 'copy'),
   pair('copied_from', 'kind', 'asset', 'source_id', 'asset', 'copy'),
@@ -286,6 +303,8 @@ export const REFERENCES: readonly RefSpec[] = [
   col('plant_profiles', 'base_id', 'profile', 'profile'),
   col('plant_assignments', 'profile_id', 'profile', 'assignment'),
   json<{ profile: string }[]>('plant_kpis', 'inputs', 'profile', 'profile', 'kpi', ['id'], inObjects('profile')),
+  // 0.12: records that link to it
+  pair('item_links', 'to_kind', 'device-profile', 'to_id', 'profile', 'link'),
   pair('copied_from', 'kind', 'device-profile', 'id', 'profile', 'copy'),
   pair('copied_from', 'kind', 'device-profile', 'source_id', 'profile', 'copy'),
   {

@@ -457,9 +457,23 @@ export const LINK_KINDS = [
   'site',
   'asset',
   'conduit',
+  'device-profile',
+  'data-collection',
+  'data-sink',
 ] as const;
-/** Link kinds of the plant registry module: offered only while the module is on (conduits of the OT network, #220). */
-export const PLANT_LINK_KINDS = ['site', 'asset', 'conduit'] as const satisfies readonly (typeof LINK_KINDS)[number][];
+/**
+ * Link kinds of the plant registry module: offered only while the module is on (conduits of the OT network, #220;
+ * device profiles, data collections and their sinks, 0.12). A data collection is linked as `<asset>/<collection>`, a
+ * sink as `<asset>/<collection>/<sink>`.
+ */
+export const PLANT_LINK_KINDS = [
+  'site',
+  'asset',
+  'conduit',
+  'device-profile',
+  'data-collection',
+  'data-sink',
+] as const satisfies readonly (typeof LINK_KINDS)[number][];
 export type LinkKind = (typeof LINK_KINDS)[number];
 
 /**

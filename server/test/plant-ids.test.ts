@@ -157,8 +157,28 @@ describe('the registry of reference columns', () => {
       'format',
       'source_file',
       'position',
+      // 0.12: where the data goes (sinks name Steward items and text, not plant entries); the gateway configuration record
+      'sinks',
+      'document_id',
     ],
     plant_collection_mappings: ['collector_key', 'gateway_name'],
+    // 0.12: the kept files of collection imports (their asset is in REFERENCES; `collections` are ids within the asset)
+    plant_collection_sources: [
+      'id',
+      'collector_key',
+      'collector',
+      'version',
+      'file_name',
+      'format',
+      'sha256',
+      'size',
+      'content',
+      'redacted_sha256',
+      'redacted_paths',
+      'collections',
+      'imported_by',
+      'imported_at',
+    ],
     // written by the rename core itself (ids.ts writeAlias)
     plant_id_aliases: ['kind', 'old_id', 'new_id', 'renamed_at'],
   };

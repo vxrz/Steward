@@ -6,6 +6,7 @@ import {
   type RecordTableColumn,
   type RecordType,
   INCIDENT_RECORD_TYPE,
+  PLANT_SOURCE_RECORD_TYPE,
 } from '@sm/shared';
 import i18n from '../../i18n';
 import { setBuiltinFieldLabel } from '../../i18n/errors';
@@ -22,7 +23,8 @@ import { setBuiltinFieldLabel } from '../../i18n/errors';
 
 type TypeRef = Pick<RecordType, 'key'> & Partial<Pick<RecordType, 'builtin'>>;
 
-const defaultType = (key: string) => [...DEFAULT_RECORD_TYPES, ACCESS_RECORD_TYPE, DOCUMENT_RECORD_TYPE, INCIDENT_RECORD_TYPE].find((d) => d.key === key);
+const defaultType = (key: string) =>
+  [...DEFAULT_RECORD_TYPES, ACCESS_RECORD_TYPE, DOCUMENT_RECORD_TYPE, INCIDENT_RECORD_TYPE, PLANT_SOURCE_RECORD_TYPE].find((d) => d.key === key);
 const defaultField = (typeKey: string, fieldKey: string) => defaultType(typeKey)?.fields.find((f) => f.key === fieldKey);
 /** False for types an administrator created (built-in is unknown for frozen field definitions: the English text decides). */
 const maybeBuiltin = (type: TypeRef) => type.builtin !== false;

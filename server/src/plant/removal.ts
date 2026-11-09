@@ -3,7 +3,7 @@ import { db } from '../db.js';
 import { parseJson } from '../util.js';
 import { allAssignments, removeKpiRow, removeProfileRow, upsertAssignment } from './data-model.js';
 import { allSiteRights, entryOf, entryPermissions, pruneAliases, type Entry } from './ids.js';
-import { removeAssetRow, removeSiteRows } from './model.js';
+import { collectionLinks, removeAssetRow, removeSiteRows } from './model.js';
 
 /**
  * The removal core of the plant registry (0.11.0, docs/PLANT.md#changing-many-entries-at-once): what goes with an
@@ -12,7 +12,8 @@ import { removeAssetRow, removeSiteRows } from './model.js';
  *
  * - **What belongs to an entry** goes with it, but only when the person asks for it ("also remove what belongs to it"):
  *   a site's hierarchy, buildings, assets and OT network; an asset's parts (the assets that are part of it), its
- *   assignment and KPI instances, devices, data paths, linked checks and links; a node's nodes below it and the assets
+ *   assignment and KPI instances, devices, data paths, linked checks and links (0.12: also the links to its data
+ *   collections and sinks; a profile's links); a node's nodes below it and the assets
  *   in them; a building's floors and rooms; a zone's conduits; the KPI instances of a KPI definition; the links of
  *   records to it. Without it, an entry that has any of these is refused and the preview says what it has.
  * - **References from other entries** always refuse a removal – a node or asset in a building, an assignment of a
@@ -40,7 +41,7 @@ interface Belongings {
   details: PlantReferenceCount[];
 }
 
-const DETAILS = new Set(['external_ref', 'owning_team', 'image', 'collection_mapping']);
+const DETAILS = new Set(['external_ref', 'owning_team', 'image', 'collection_mapping', 'collection_source']);
 const part = (what: string, count: number): PlantReferenceCount[] => (count ? [{ what, count }] : []);
 
 function belongings(t: Target): Belongings {
@@ -95,7 +96,9 @@ function belongings(t: Target): Belongings {
           ),
           ...part(
             'link',
-            n("SELECT COUNT(*) AS n FROM item_links WHERE (from_kind = 'asset' AND from_id = ?) OR (to_kind = 'asset' AND to_id = ?)", t.id, t.id),
+            n("SELECT COUNT(*) AS n FROM item_links WHERE (from_kind = 'asset' AND from_id = ?) OR (to_kind = 'asset' AND to_id = ?)", t.id, t.id) +
+              // 0.12: links of records to its data collections and their sinks
+              collectionLinks(t.id).length,
           ),
         ],
         details: [
@@ -103,6 +106,8 @@ function belongings(t: Target): Belongings {
           ...part('image', n('SELECT COUNT(*) AS n FROM plant_asset_images WHERE asset_id = ?', t.id)),
           // the gateway names remembered for it go with it
           ...part('collection_mapping', n('SELECT COUNT(*) AS n FROM plant_collection_mappings WHERE asset_id = ?', t.id)),
+          // 0.12: the kept files of its collection imports go with it
+          ...part('collection_source', n('SELECT COUNT(*) AS n FROM plant_collection_sources WHERE asset_id = ?', t.id)),
         ],
       };
     }
@@ -168,6 +173,8 @@ function belongings(t: Target): Belongings {
         details: [],
       };
     case 'profile':
+      // 0.12: the links of records to it go with it, and refuse it without "also remove"
+      return { entries: [], parts: part('link', n("SELECT COUNT(*) AS n FROM item_links WHERE to_kind = 'device-profile' AND to_id = ?", t.id)), details: [] };
     case 'vlan':
     case 'device':
       return { entries: [], parts: [], details: [] };
