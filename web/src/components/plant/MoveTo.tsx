@@ -110,6 +110,7 @@ export function MoveNodeModal({
           buildingId: node.buildingId,
           description: node.description,
           fields: cleanFieldValues(node.fields),
+          revision: node.revision,
         }),
       );
       onClose();
@@ -160,6 +161,8 @@ export function assetAt(a: PlantAssetDetail, node: PlantNode | null) {
     imageName: a.imageName,
     refs: cleanRefs(a.refs),
     fields: cleanFieldValues(a.fields),
+    // 0.13.0: the revision it loaded (409 PLANT_ENTRY_CHANGED when someone else changed it since)
+    revision: a.revision,
   };
 }
 

@@ -33,6 +33,7 @@ import { plantKeys } from '../../queryKeys';
 import { MapChunkBoundary, PositionPicker } from './map/MapPanel';
 import { hasWebGl2 } from './map/mapShared';
 import { cleanRefs, FieldInputs, RefsEditor, refsValid, slugId, TranslationsInput, useNameOf, usePlantConfig, usePlantLabel } from './common';
+import { draftSave } from './changes/common';
 
 /** Every node of a site's tree, flat (pickers). */
 export function flatNodes(areas: PlantNode[]): PlantNode[] {
@@ -151,7 +152,9 @@ export function SiteFormModal({ site, onClose, onSaved }: { site?: PlantSiteDeta
     try {
       onSaved(
         site
-          ? await put<PlantSiteDetail>(`/plant/sites/${encodeURIComponent(site.id)}`, body)
+          ? // 0.13.0: the revision it loaded (409 PLANT_ENTRY_CHANGED when someone else changed it since); who may only
+            // propose saves into their draft
+            await draftSave(site.canManage, () => put<PlantSiteDetail>(`/plant/sites/${encodeURIComponent(site.id)}`, { ...body, revision: site.revision }))
           : await post<PlantSiteDetail>('/plant/sites', { id: id.id, ...body }),
       );
       onClose();
@@ -399,7 +402,9 @@ export function NodeFormModal({
     const base = `/plant/sites/${encodeURIComponent(site.id)}/nodes`;
     try {
       onSaved(
-        node ? await put<PlantSiteDetail>(`${base}/${encodeURIComponent(node.id)}`, body) : await post<PlantSiteDetail>(base, { id: id.id, level, ...body }),
+        node
+          ? await put<PlantSiteDetail>(`${base}/${encodeURIComponent(node.id)}`, { ...body, revision: node.revision })
+          : await post<PlantSiteDetail>(base, { id: id.id, level, ...body }),
       );
       onClose();
     } catch (e) {
@@ -533,7 +538,9 @@ export function BuildingFormModal({
     const base = `/plant/sites/${encodeURIComponent(site.id)}/buildings`;
     try {
       onSaved(
-        building ? await put<PlantSiteDetail>(`${base}/${encodeURIComponent(building.id)}`, body) : await post<PlantSiteDetail>(base, { id: id.id, ...body }),
+        building
+          ? await put<PlantSiteDetail>(`${base}/${encodeURIComponent(building.id)}`, { ...body, revision: building.revision })
+          : await post<PlantSiteDetail>(base, { id: id.id, ...body }),
       );
       onClose();
     } catch (e) {
@@ -708,7 +715,9 @@ export function AssetFormModal({
     try {
       onSaved(
         asset
-          ? await put<PlantAssetDetail>(`/plant/assets/${encodeURIComponent(asset.id)}`, body)
+          ? await draftSave(asset.canManage, () =>
+              put<PlantAssetDetail>(`/plant/assets/${encodeURIComponent(asset.id)}`, { ...body, revision: asset.revision }),
+            )
           : await post<PlantAssetDetail>('/plant/assets', { id: id.id, ...body }),
       );
       onClose();

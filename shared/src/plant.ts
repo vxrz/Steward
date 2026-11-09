@@ -3,6 +3,7 @@ import type { AclEntry, AccessReason } from './api.js';
 import type { Backlink, ItemLink } from './records.js';
 import type { PlantCheck } from './plantData.js';
 import type { PlantAliasUse, PlantPlannedRename, PlantRemovalPlan } from './plantIds.js';
+import type { PlantChangeSetConfig } from './plantChanges.js';
 
 /**
  * Plant registry (#217, #218): an opt-in module, off by default (Settings → Modules). The sites of the enterprise
@@ -36,8 +37,8 @@ export type BuildingKind = (typeof BUILDING_KINDS)[number];
 export const ASSET_STATUSES = ['planned', 'commissioning', 'operational', 'maintenance', 'out_of_service', 'decommissioned'] as const;
 export type AssetStatus = (typeof ASSET_STATUSES)[number];
 
-/** Rights on a site (and everything in it): see it, change it. */
-export const PLANT_PERMISSIONS = ['view', 'manage'] as const;
+/** Rights on a site (and everything in it): see it, propose changes to it (0.13.0: drafts and change sets, never apply), change it. */
+export const PLANT_PERMISSIONS = ['view', 'propose', 'manage'] as const;
 export type PlantPermission = (typeof PLANT_PERMISSIONS)[number];
 
 /** Stable ids: lower case letters, digits and . _ - (the import file's ids, so they read well in YAML and URLs). */
@@ -111,6 +112,11 @@ export interface PlantSource {
   importId: string | null;
   /** Kept although the import that replaced its earlier one did not contain it any more */
   notInSource: boolean;
+  /**
+   * 0.13.0: the entry's revision (one more with every change). An edit form sends it back with its save: a save of an
+   * older revision is refused with 409 PLANT_ENTRY_CHANGED (docs/PLANT.md "Change sets"); without it a save writes as before.
+   */
+  revision?: number;
 }
 
 export interface PlantStamp {
@@ -172,6 +178,10 @@ export interface PlantSiteSummary extends PlantSource {
   /** Assets by status */
   statusCounts: Partial<Record<AssetStatus, number>>;
   canManage: boolean;
+  /** 0.13.0: may keep drafts of changes to it (propose) */
+  canPropose?: boolean;
+  /** 0.13.0: "Changes need a second person" (the site's switch, used while plant.changeSet is optional) */
+  review?: boolean;
   updatedAt: string;
 }
 
@@ -248,6 +258,10 @@ export interface PlantAssetDetail extends PlantAssetSummary, PlantStamp {
   parent: AssetRef | null;
   children: AssetRef[];
   canManage: boolean;
+  /** 0.13.0: may keep drafts of changes to it (propose) */
+  canPropose?: boolean;
+  /** 0.13.0: its site's switch "Changes need a second person" */
+  siteReview?: boolean;
   links: ItemLink[];
   backlinks: Backlink[];
 }
@@ -299,6 +313,8 @@ export interface PlantConfig {
   canManageCatalogue: boolean;
   /** The map of sites (#234): off until an administrator turns it on */
   map: PlantMapClient;
+  /** 0.13.0: change sets – the policy, whether the person may keep drafts, their current draft */
+  changeSets?: PlantChangeSetConfig;
 }
 
 /** GET /api/plant/hierarchy: the sites with their trees and buildings (pickers and filters). */
@@ -425,6 +441,8 @@ export interface PlantImportPreview {
   removals: PlantRemovalPlan | null;
   /** 0.11.0: importing asks for a step-up (more than one entry renamed or removed) */
   stepUp: boolean;
+  /** 0.13.0: what importing writes – send it with the import: a different result is refused (PLANT_IMPORT_CHANGED) */
+  fingerprint?: string;
 }
 
 export interface PlantImportSummary {

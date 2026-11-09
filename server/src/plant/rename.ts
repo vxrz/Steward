@@ -45,6 +45,8 @@ export interface RefSpec {
   what: string;
   /** Updates the references of one rename; the number of rows changed */
   apply(r: RenameOf): number;
+  /** 0.13.0: bookkeeping that follows the entry (history, baselines, open change sets) – not counted in the preview */
+  silent?: boolean;
 }
 
 const run = (sql: string, ...p: unknown[]) => db().run(sql, ...p).changes;
@@ -207,7 +209,7 @@ const ofFamilyAssets = (table: string, column: string, kind: PlantIdKind, what: 
 const bySite = { sql: 'site_id = ?', params: (r: RenameOf) => [r.scope] };
 const byAsset = { sql: 'asset_id = ?', params: (r: RenameOf) => [r.scope] };
 
-export const REFERENCES: readonly RefSpec[] = [
+const REFERENCES_ALL: RefSpec[] = [
   // ---- sites
   col('plant_sites', 'id', 'site', 'site'),
   col('plant_nodes', 'site_id', 'site', 'node'),
@@ -514,6 +516,53 @@ export const REFERENCES: readonly RefSpec[] = [
   // 0.11.0: a data collection of the asset may belong to one of its data paths
   col('plant_collections', 'data_path_id', 'data_path', 'collection', 'asset_id'),
 ];
+export const REFERENCES: readonly RefSpec[] = REFERENCES_ALL;
+
+/**
+ * 0.13.0: tables of the change sets that name entries by (kind, scope, entry_id): the history, the import baselines
+ * and the operations of open change sets follow a rename (silent: the preview does not count them).
+ */
+function entryRefs(table: string): RefSpec[] {
+  const kinds: PlantIdKind[] = ['site', 'building', 'node', 'asset', 'profile', 'kpi', 'vlan', 'zone', 'conduit', 'device', 'data_path'];
+  return [
+    ...kinds.map((k): RefSpec => ({
+      table,
+      column: `entry_id[kind=${k}]`,
+      kind: k,
+      what: 'history',
+      silent: true,
+      apply: (r) => run(`UPDATE ${table} SET entry_id = ? WHERE kind = ? AND scope = ? AND entry_id = ?`, r.to, k, r.scope, r.from),
+    })),
+    {
+      table,
+      column: 'entry_id[kind=assignment|asset_checks]',
+      kind: 'asset',
+      what: 'history',
+      silent: true,
+      apply: (r) => run(`UPDATE ${table} SET entry_id = ? WHERE kind IN ('assignment', 'asset_checks') AND entry_id = ?`, r.to, r.from),
+    },
+    {
+      table,
+      column: 'scope[site-scoped kinds]',
+      kind: 'site',
+      what: 'history',
+      silent: true,
+      apply: (r) => run(`UPDATE ${table} SET scope = ? WHERE scope = ? AND kind IN (${SITE_KINDS.map(() => '?').join(', ')})`, r.to, r.from, ...SITE_KINDS),
+    },
+    {
+      table,
+      column: 'scope[asset-scoped kinds]',
+      kind: 'asset',
+      what: 'history',
+      silent: true,
+      apply: (r) => run(`UPDATE ${table} SET scope = ? WHERE scope = ? AND kind IN ('device', 'data_path', 'collection')`, r.to, r.from),
+    },
+  ];
+}
+REFERENCES_ALL.push(...entryRefs('plant_entry_history'), ...entryRefs('plant_import_baselines'), ...entryRefs('plant_change_ops'), {
+  ...json<string[]>('plant_change_sets', 'sites', '[]', 'site', 'change_set', ['id'], inList),
+  silent: true,
+});
 
 /** The table and column of the entry itself, per kind (the rest are references). */
 const SELF: Record<PlantIdKind, string> = {
@@ -538,7 +587,7 @@ function applyReferences(r: RenameOf): PlantReferenceCount[] {
   for (const ref of REFERENCES) {
     if (ref.kind !== r.kind) continue;
     const n = ref.apply(r);
-    if (`${ref.table}.${ref.column}` === SELF[r.kind]) continue;
+    if (ref.silent || `${ref.table}.${ref.column}` === SELF[r.kind]) continue;
     if (n) counts.set(ref.what, (counts.get(ref.what) ?? 0) + n);
   }
   return [...counts].map(([what, count]) => ({ what, count })).sort((a, b) => a.what.localeCompare(b.what));
@@ -597,10 +646,17 @@ function familyHas(kind: PlantIdKind, scope: string, id: string): boolean {
  */
 export function renameEntry(r: RenameOf, by: string): PlantReferenceCount[] {
   const counts = applyReferences(r);
+  renameListener?.(r);
   const aliases = writeAlias(r.kind, r.scope, r.from, r.to, by);
   if (aliases) counts.push({ what: 'alias', count: aliases });
   return counts;
 }
+
+/** 0.13.0: the change sets' tracker follows renames (changesets/track.ts). */
+let renameListener: ((r: RenameOf) => void) | null = null;
+export const setRenameListener = (fn: (r: RenameOf) => void): void => {
+  renameListener = fn;
+};
 
 class Rollback extends Error {}
 

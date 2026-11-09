@@ -91,6 +91,7 @@
   "no": "No",
   "permissions": {
     "view": "view",
+    "propose": "propose",
     "run": "run",
     "edit": "edit",
     "approve": "approve",

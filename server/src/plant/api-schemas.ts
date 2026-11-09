@@ -44,6 +44,7 @@ const fields = z.record(z.string(), z.union([z.string(), z.number(), z.boolean()
 const source = {
   importId: z.string().nullable().describe('The last import that wrote the record (null: entered in Steward)'),
   notInSource: z.boolean().describe('Kept although the import that replaced its earlier one no longer contained it'),
+  revision: z.number().int().min(1).optional().describe('0.13.0: the entry’s revision – one more with every change (docs/PLANT.md "Change sets")'),
 };
 const ExternalRef = z.object({
   system: z.string().describe('The other tool (erp, cmms, inventory, …)'),

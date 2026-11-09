@@ -118,6 +118,42 @@ function withAssurance(input: AuditInput): AuditInput {
   };
 }
 
+/**
+ * Details every entry written inside fn carries (0.13.0: the plant registry's change set – `changeSetId` – on the
+ * existing actions of edits, imports, bulk changes, renames and proposals). fn is synchronous (a transaction).
+ */
+const extraDetails: Record<string, unknown>[] = [];
+export function withAuditDetails<T>(extra: Record<string, unknown>, fn: () => T): T {
+  extraDetails.push(extra);
+  try {
+    return fn();
+  } finally {
+    extraDetails.pop();
+  }
+}
+/**
+ * A dry run in a transaction that is rolled back (0.13.0: previews of plant change sets run the routes' services):
+ * nothing is audited – an entry written and rolled back would leave the chain's memory (lastWritten) ahead of the log.
+ */
+let silenced = 0;
+export function withoutAudit<T>(fn: () => T): T {
+  silenced++;
+  try {
+    return fn();
+  } finally {
+    silenced--;
+  }
+}
+function withExtra(input: AuditInput): AuditInput {
+  if (!extraDetails.length) return input;
+  const d = input.details;
+  const plain = d !== null && typeof d === 'object' && !Array.isArray(d);
+  return {
+    ...input,
+    details: { ...(plain ? (d as Record<string, unknown>) : d === undefined || d === null ? {} : { value: d }), ...Object.assign({}, ...extraDetails) },
+  };
+}
+
 /** Entries of a session opened with emergency access carry the flag in the summary and the details. */
 function flagEmergency(input: AuditInput, grantId: string): AuditInput {
   const d = input.details;
@@ -130,11 +166,13 @@ function flagEmergency(input: AuditInput, grantId: string): AuditInput {
 }
 
 export function audit(input: AuditInput): AuditEntry {
+  if (silenced > 0)
+    return { seq: 0, ts: nowIso(), actor: input.actor ?? currentActor(), action: input.action, entityType: input.entityType, summary: input.summary, hash: '' };
   // entries attributed to the person signed in with emergency access – also when a service names them as the actor
   // explicitly (a check run, a report); entries of someone else (such as "system") stay unflagged
   const user = currentUser();
   const emergency = user?.emergency && (input.actor === undefined || input.actor === user.username) ? user.emergency : undefined;
-  const c = capped(withAssurance(emergency ? flagEmergency(input, emergency.grantId) : input));
+  const c = capped(withAssurance(withExtra(emergency ? flagEmergency(input, emergency.grantId) : input)));
   if (!vault().unlocked) {
     const e = { ...c, actor: c.actor ?? capText(currentActor(), LIMITS.actor), ts: nowIso() };
     if (pending.length >= PENDING_MAX) {

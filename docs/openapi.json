@@ -19472,6 +19472,11 @@
             "type": "boolean",
             "description": "Kept although the import that replaced its earlier one no longer contained it"
           },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "0.13.0: the entry’s revision – one more with every change (docs/PLANT.md \"Change sets\")"
+          },
           "updatedAt": {
             "type": "string",
             "format": "date-time",
@@ -19597,6 +19602,11 @@
           "notInSource": {
             "type": "boolean",
             "description": "Kept although the import that replaced its earlier one no longer contained it"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "0.13.0: the entry’s revision – one more with every change (docs/PLANT.md \"Change sets\")"
           },
           "updatedAt": {
             "type": "string",
@@ -19760,6 +19770,11 @@
                   "type": "boolean",
                   "description": "Kept although the import that replaced its earlier one no longer contained it"
                 },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "0.13.0: the entry’s revision – one more with every change (docs/PLANT.md \"Change sets\")"
+                },
                 "children": {
                   "type": "array",
                   "items": {
@@ -19844,6 +19859,11 @@
                         "type": "boolean",
                         "description": "Kept although the import that replaced its earlier one no longer contained it"
                       },
+                      "revision": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "0.13.0: the entry’s revision – one more with every change (docs/PLANT.md \"Change sets\")"
+                      },
                       "children": {
                         "type": "array",
                         "items": {
@@ -19927,6 +19947,11 @@
                             "notInSource": {
                               "type": "boolean",
                               "description": "Kept although the import that replaced its earlier one no longer contained it"
+                            },
+                            "revision": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "description": "0.13.0: the entry’s revision – one more with every change (docs/PLANT.md \"Change sets\")"
                             },
                             "children": {
                               "type": "array",
@@ -20069,6 +20094,11 @@
                 "notInSource": {
                   "type": "boolean",
                   "description": "Kept although the import that replaced its earlier one no longer contained it"
+                },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "0.13.0: the entry’s revision – one more with every change (docs/PLANT.md \"Change sets\")"
                 }
               },
               "required": [
@@ -20273,6 +20303,11 @@
             "type": "boolean",
             "description": "Kept although the import that replaced its earlier one no longer contained it"
           },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "0.13.0: the entry’s revision – one more with every change (docs/PLANT.md \"Change sets\")"
+          },
           "children": {
             "type": "array",
             "items": {
@@ -20357,6 +20392,11 @@
                   "type": "boolean",
                   "description": "Kept although the import that replaced its earlier one no longer contained it"
                 },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "0.13.0: the entry’s revision – one more with every change (docs/PLANT.md \"Change sets\")"
+                },
                 "children": {
                   "type": "array",
                   "items": {
@@ -20440,6 +20480,11 @@
                       "notInSource": {
                         "type": "boolean",
                         "description": "Kept although the import that replaced its earlier one no longer contained it"
+                      },
+                      "revision": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "0.13.0: the entry’s revision – one more with every change (docs/PLANT.md \"Change sets\")"
                       },
                       "children": {
                         "type": "array",
@@ -20579,6 +20624,11 @@
           "notInSource": {
             "type": "boolean",
             "description": "Kept although the import that replaced its earlier one no longer contained it"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "0.13.0: the entry’s revision – one more with every change (docs/PLANT.md \"Change sets\")"
           }
         },
         "required": [
@@ -20896,6 +20946,11 @@
           "notInSource": {
             "type": "boolean",
             "description": "Kept although the import that replaced its earlier one no longer contained it"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "0.13.0: the entry’s revision – one more with every change (docs/PLANT.md \"Change sets\")"
           },
           "updatedAt": {
             "type": "string",
@@ -21225,6 +21280,11 @@
             "type": "boolean",
             "description": "Kept although the import that replaced its earlier one no longer contained it"
           },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "0.13.0: the entry’s revision – one more with every change (docs/PLANT.md \"Change sets\")"
+          },
           "updatedAt": {
             "type": "string",
             "format": "date-time",
@@ -21530,6 +21590,11 @@
             "type": "boolean",
             "description": "Kept although the import that replaced its earlier one no longer contained it"
           },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "0.13.0: the entry’s revision – one more with every change (docs/PLANT.md \"Change sets\")"
+          },
           "updatedAt": {
             "type": "string",
             "format": "date-time",
@@ -21627,6 +21692,11 @@
           "notInSource": {
             "type": "boolean",
             "description": "Kept although the import that replaced its earlier one no longer contained it"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "0.13.0: the entry’s revision – one more with every change (docs/PLANT.md \"Change sets\")"
           },
           "updatedAt": {
             "type": "string",
@@ -22164,6 +22234,11 @@
             "type": "boolean",
             "description": "Kept although the import that replaced its earlier one no longer contained it"
           },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "0.13.0: the entry’s revision – one more with every change (docs/PLANT.md \"Change sets\")"
+          },
           "updatedAt": {
             "type": "string",
             "format": "date-time",
@@ -22258,6 +22333,11 @@
           "notInSource": {
             "type": "boolean",
             "description": "Kept although the import that replaced its earlier one no longer contained it"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "0.13.0: the entry’s revision – one more with every change (docs/PLANT.md \"Change sets\")"
           },
           "updatedAt": {
             "type": "string",
@@ -24462,6 +24542,11 @@
             "type": "boolean",
             "description": "Kept although the import that replaced its earlier one no longer contained it"
           },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "0.13.0: the entry’s revision – one more with every change (docs/PLANT.md \"Change sets\")"
+          },
           "updatedAt": {
             "anyOf": [
               {
@@ -24658,6 +24743,11 @@
                 "notInSource": {
                   "type": "boolean",
                   "description": "Kept although the import that replaced its earlier one no longer contained it"
+                },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "0.13.0: the entry’s revision – one more with every change (docs/PLANT.md \"Change sets\")"
                 },
                 "segment": {
                   "anyOf": [
@@ -24908,6 +24998,11 @@
                   "type": "boolean",
                   "description": "Kept although the import that replaced its earlier one no longer contained it"
                 },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "0.13.0: the entry’s revision – one more with every change (docs/PLANT.md \"Change sets\")"
+                },
                 "conduits": {
                   "type": "array",
                   "items": {
@@ -24992,6 +25087,11 @@
                 "notInSource": {
                   "type": "boolean",
                   "description": "Kept although the import that replaced its earlier one no longer contained it"
+                },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "0.13.0: the entry’s revision – one more with every change (docs/PLANT.md \"Change sets\")"
                 },
                 "linkId": {
                   "type": "string",
@@ -25217,6 +25317,11 @@
                 "notInSource": {
                   "type": "boolean",
                   "description": "Kept although the import that replaced its earlier one no longer contained it"
+                },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "0.13.0: the entry’s revision – one more with every change (docs/PLANT.md \"Change sets\")"
                 },
                 "assetId": {
                   "type": "string"
@@ -25530,6 +25635,11 @@
                 "notInSource": {
                   "type": "boolean",
                   "description": "Kept although the import that replaced its earlier one no longer contained it"
+                },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "0.13.0: the entry’s revision – one more with every change (docs/PLANT.md \"Change sets\")"
                 },
                 "assetId": {
                   "type": "string"
@@ -26497,6 +26607,11 @@
                   "type": "boolean",
                   "description": "Kept although the import that replaced its earlier one no longer contained it"
                 },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "0.13.0: the entry’s revision – one more with every change (docs/PLANT.md \"Change sets\")"
+                },
                 "assetId": {
                   "type": "string"
                 },
@@ -26809,6 +26924,11 @@
                 "notInSource": {
                   "type": "boolean",
                   "description": "Kept although the import that replaced its earlier one no longer contained it"
+                },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "0.13.0: the entry’s revision – one more with every change (docs/PLANT.md \"Change sets\")"
                 },
                 "assetId": {
                   "type": "string"
@@ -27576,6 +27696,11 @@
                 "notInSource": {
                   "type": "boolean",
                   "description": "Kept although the import that replaced its earlier one no longer contained it"
+                },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "0.13.0: the entry’s revision – one more with every change (docs/PLANT.md \"Change sets\")"
                 },
                 "assetId": {
                   "type": "string"

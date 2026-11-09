@@ -1,0 +1,197 @@
+{
+  "title": "Änderungen",
+  "description": "Entwürfe, Vorschläge und übernommene Änderungen am Werksregister: Bearbeitungen, Importe, Änderungen vieler Einträge, Kennungsänderungen und Vorschläge von Assistenten. Wo ein Standort eine zweite Person braucht, wird jede Änderung hier vorgeschlagen und von jemand anderem übernommen.",
+  "boxes": {
+    "drafts": "Meine Entwürfe",
+    "review": "Zu prüfen",
+    "applied": "Übernommen",
+    "closed": "Abgeschlossen"
+  },
+  "states": {
+    "draft": "Entwurf",
+    "proposed": "Vorgeschlagen",
+    "applied": "Übernommen",
+    "rejected": "Abgelehnt",
+    "withdrawn": "Zurückgezogen",
+    "expired": "Abgelaufen"
+  },
+  "sources": {
+    "edit": "Bearbeitung",
+    "draft": "Entwurf",
+    "import": "Importieren",
+    "bulk": "Viele auf einmal",
+    "rename": "Kennung ändern",
+    "assistant": "Assistent",
+    "revert": "Rückgängig"
+  },
+  "kinds": {
+    "site": "Standort",
+    "node": "Hierarchieknoten",
+    "building": "Gebäude",
+    "asset": "Anlage",
+    "assignment": "Zuordnung",
+    "asset_checks": "Verknüpfte Prüfungen",
+    "profile": "Geräteprofil",
+    "kpi": "KPI-Definition",
+    "vlan": "VLAN",
+    "zone": "Sicherheitszone",
+    "conduit": "Verbindungskanal (Conduit)",
+    "device": "Gerät",
+    "data_path": "Datenpfad",
+    "collection": "Datenerfassung",
+    "document": "Dokument"
+  },
+  "ops": {
+    "set": "Ändern",
+    "add": "Hinzufügen",
+    "remove": "Entfernen",
+    "rename": "Kennung ändern",
+    "import": "Importieren",
+    "bulk": "Viele auf einmal"
+  },
+  "actions": {
+    "change": "Geändert",
+    "add": "Hinzugefügt",
+    "remove": "Entfernt",
+    "rename": "Umbenannt"
+  },
+  "groups": {
+    "change": "Geänderte Einträge",
+    "add": "Hinzugefügte Einträge",
+    "rename": "Umbenannte Einträge",
+    "remove": "Entfernte Einträge"
+  },
+  "list": {
+    "title": "Titel",
+    "state": "Status",
+    "source": "Quelle",
+    "sites": "Standorte",
+    "changes": "Änderungen",
+    "by": "Von",
+    "updated": "Geändert",
+    "catalogue": "Katalog",
+    "newDraft": "Neuer Entwurf",
+    "boxes": "Änderungssätze",
+    "allSites": "Nur {{site}} – alle zeigen",
+    "card_one": "{{count}} Änderung · {{by}} · {{when}}",
+    "card_other": "{{count}} Änderungen · {{by}} · {{when}}"
+  },
+  "settings": {
+    "catalogue": "Änderungen an Geräteprofilen und KPI-Definitionen brauchen eine zweite Person",
+    "catalogueHint": "Wer eine Änderung am Katalog vorschlägt, übernimmt sie nie selbst."
+  },
+  "empty": {
+    "drafts": "Sie haben keine Entwürfe. Änderungen, die eine zweite Person brauchen oder die Sie nur vorschlagen dürfen, landen in einem Entwurf.",
+    "review": "Nichts zu prüfen.",
+    "applied": "Noch nichts übernommen.",
+    "closed": "Keine abgelehnten, zurückgezogenen oder abgelaufenen Änderungssätze."
+  },
+  "bar": {
+    "skip": "Zu Ihrem Entwurf springen",
+    "label": "Ihr Entwurf",
+    "draft": "Entwurf: {{title}}",
+    "short": "Entwurf",
+    "count_one": "{{count}} Änderung",
+    "count_other": "{{count}} Änderungen",
+    "none": "Änderungen hier landen zuerst in einem Entwurf.",
+    "unfold": "Entwurf zeigen",
+    "fold": "Entwurf einklappen",
+    "review": "Prüfen und vorschlagen",
+    "switch": "Entwürfe",
+    "start": "Neuen Entwurf beginnen",
+    "all": "Alle meine Entwürfe",
+    "newTitle": "Meine Änderungen"
+  },
+  "chip": {
+    "open_one": "{{count}} offene Änderung",
+    "open_other": "{{count}} offene Änderungen",
+    "mine": "In Ihrem Entwurf geändert"
+  },
+  "history": {
+    "label": "Verlauf",
+    "emptyTitle": "Noch kein Verlauf",
+    "emptyText": "Änderungen ab 0.13 werden hier Feld für Feld festgehalten.",
+    "ops": {
+      "add": "Hinzugefügt",
+      "set": "Geändert",
+      "remove": "Entfernt",
+      "rename": "Umbenannt"
+    },
+    "byOne": "Von {{by}}",
+    "byTwo": "Von {{by}}, übernommen von {{appliedBy}}",
+    "revision": "Stand {{revision}}",
+    "revert": "Rückgängig machen",
+    "before": "Frühere Änderungen:",
+    "audit": "das Prüfprotokoll"
+  },
+  "entryChanged": {
+    "title": "Von jemand anderem geändert",
+    "intro": "Jemand anderes hat diesen Eintrag geändert, seit Sie ihn geöffnet haben. Dessen Änderungen an Feldern, die Sie nicht geändert haben, bleiben erhalten. Wählen Sie für jedes Feld, das Sie beide geändert haben.",
+    "taken": "Aus der anderen Änderung übernommen: {{fields}}",
+    "none": "Kein Feld wurde auf beiden Seiten geändert – Ihre Änderung wird mit der anderen gespeichert.",
+    "save": "Mit dieser Auswahl speichern"
+  },
+  "conflict": {
+    "base": "Als Sie ihn öffneten",
+    "takeTheirs": "Die andere übernehmen",
+    "keepMine": "Meine behalten",
+    "title": "Seither in Steward geändert",
+    "intro": "Diese Felder wurden in Steward geändert, nachdem die Änderung geschrieben wurde. Wählen Sie für jedes; die Vorschau wird neu berechnet.",
+    "legend": "Änderung {{seq}}: {{path}}",
+    "drafted": "Beim Entwurf",
+    "now": "Jetzt in Steward",
+    "this": "Diese Änderung"
+  },
+  "detail": {
+    "previewReady_one": "Vorschau bereit: {{count}} Eintrag, {{conflicts}} Konflikte zu entscheiden.",
+    "previewReady_other": "Vorschau bereit: {{count}} Einträge, {{conflicts}} Konflikte zu entscheiden.",
+    "applied": "Der Änderungssatz ist übernommen.",
+    "review": "Braucht eine zweite Person",
+    "by": "Von {{by}}, {{when}}",
+    "decided": {
+      "applied": "übernommen von {{by}} {{when}}",
+      "other": "entschieden von {{by}} {{when}}"
+    },
+    "where": "Betrifft: {{sites}}",
+    "request": "KI-Anfrage öffnen",
+    "reverts": "Macht einen früheren Änderungssatz rückgängig",
+    "propose": "Vorschlagen",
+    "apply": "Übernehmen",
+    "reject": "Ablehnen",
+    "return": "Zurück an die Autorin oder den Autor",
+    "rename": "Umbenennen",
+    "withdraw": "Zurückziehen",
+    "revert": "Rückgängig machen",
+    "copy": "In einen neuen Entwurf kopieren",
+    "comment": "Kommentar",
+    "commentLabel": "Kommentar (für die Autorin oder den Autor sichtbar)",
+    "stepUp": "Beim Übernehmen bestätigen Sie, dass Sie es sind.",
+    "previewing": "Was es ändern würde, wird berechnet …",
+    "problems": "So lässt es sich nicht übernehmen",
+    "change": "Änderung {{seq}}",
+    "stale": "Seither in Steward geändert",
+    "hidden_one": "{{count}} Eintrag eines Standorts, den Sie nicht sehen dürfen, ist ausgelassen.",
+    "hidden_other": "{{count}} Einträge von Standorten, die Sie nicht sehen dürfen, sind ausgelassen.",
+    "operations": "Änderungen wie geschrieben",
+    "hiddenOps_one": "{{count}} Änderung eines Standorts, den Sie nicht sehen dürfen, ist ausgelassen.",
+    "hiddenOps_other": "{{count}} Änderungen von Standorten, die Sie nicht sehen dürfen, sind ausgelassen.",
+    "opBy": "von {{by}}",
+    "remove": "Entfernen",
+    "removeOp": "Änderung {{seq}} entfernen"
+  },
+  "blocked": {
+    "PLANT_CHANGESET_OWN": "Eine zweite Person übernimmt ihn: Sie haben ihn geschrieben.",
+    "PLANT_CHANGESET_PROPOSE_FIRST": "Änderungen hier brauchen eine zweite Person: Schlagen Sie den Entwurf zuerst vor.",
+    "FORBIDDEN": "Sie dürfen nicht alles ändern, was er betrifft – jemand, der es verwaltet, übernimmt ihn.",
+    "PLANT_CHANGESET_DRAFT": "Einen Entwurf übernimmt seine Autorin oder sein Autor.",
+    "PLANT_CHANGESET_CLOSED": "Der Änderungssatz ist nicht mehr offen."
+  },
+  "siteReview": {
+    "label": "Änderungen brauchen eine zweite Person",
+    "hint": "Jede Änderung an diesem Standort – auch Ihre und Importe – wird zuerst vorgeschlagen und von jemand anderem übernommen, der den Standort verwaltet."
+  },
+  "form": {
+    "draftHint": "Sie dürfen hier Änderungen vorschlagen: Was Sie speichern, landet in Ihrem Entwurf; jemand, der den Standort verwaltet, übernimmt es.",
+    "proposeEdit": "Änderung vorschlagen"
+  }
+}

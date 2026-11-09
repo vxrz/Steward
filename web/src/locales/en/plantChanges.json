@@ -1,0 +1,197 @@
+{
+  "title": "Changes",
+  "description": "Drafts, proposals and applied changes to the plant registry: edits, imports, changes of many entries, id changes and assistants’ proposals. Where a site needs a second person, every change is proposed here and someone else applies it.",
+  "boxes": {
+    "drafts": "My drafts",
+    "review": "To review",
+    "applied": "Applied",
+    "closed": "Closed"
+  },
+  "states": {
+    "draft": "Draft",
+    "proposed": "Proposed",
+    "applied": "Applied",
+    "rejected": "Rejected",
+    "withdrawn": "Withdrawn",
+    "expired": "Expired"
+  },
+  "sources": {
+    "edit": "Edit",
+    "draft": "Draft",
+    "import": "Import",
+    "bulk": "Many at once",
+    "rename": "Change id",
+    "assistant": "Assistant",
+    "revert": "Revert"
+  },
+  "kinds": {
+    "site": "Site",
+    "node": "Hierarchy node",
+    "building": "Building",
+    "asset": "Asset",
+    "assignment": "Assignment",
+    "asset_checks": "Linked checks",
+    "profile": "Device profile",
+    "kpi": "KPI definition",
+    "vlan": "VLAN",
+    "zone": "Zone",
+    "conduit": "Conduit",
+    "device": "Device",
+    "data_path": "Data path",
+    "collection": "Data collection",
+    "document": "Document"
+  },
+  "ops": {
+    "set": "Change",
+    "add": "Add",
+    "remove": "Remove",
+    "rename": "Change id",
+    "import": "Import",
+    "bulk": "Many at once"
+  },
+  "actions": {
+    "change": "Changed",
+    "add": "Added",
+    "remove": "Removed",
+    "rename": "Renamed"
+  },
+  "groups": {
+    "change": "Changed entries",
+    "add": "Added entries",
+    "rename": "Renamed entries",
+    "remove": "Removed entries"
+  },
+  "list": {
+    "title": "Title",
+    "state": "State",
+    "source": "Source",
+    "sites": "Sites",
+    "changes": "Changes",
+    "by": "By",
+    "updated": "Updated",
+    "catalogue": "Catalogue",
+    "newDraft": "New draft",
+    "boxes": "Change sets",
+    "allSites": "Only {{site}} – show all",
+    "card_one": "{{count}} change · {{by}} · {{when}}",
+    "card_other": "{{count}} changes · {{by}} · {{when}}"
+  },
+  "settings": {
+    "catalogue": "Changes to device profiles and KPI definitions need a second person",
+    "catalogueHint": "Whoever proposes a change to the catalogue never applies it themselves."
+  },
+  "empty": {
+    "drafts": "You have no drafts. Changes you make where a second person is needed, or that you may only propose, are kept in a draft.",
+    "review": "Nothing to review.",
+    "applied": "Nothing applied yet.",
+    "closed": "No rejected, withdrawn or expired change sets."
+  },
+  "bar": {
+    "skip": "Skip to your draft",
+    "label": "Your draft",
+    "draft": "Draft: {{title}}",
+    "short": "Draft",
+    "count_one": "{{count}} change",
+    "count_other": "{{count}} changes",
+    "none": "Changes here go into a draft first.",
+    "unfold": "Show the draft",
+    "fold": "Fold the draft",
+    "review": "Review and propose",
+    "switch": "Drafts",
+    "start": "Start a new draft",
+    "all": "All my drafts",
+    "newTitle": "My changes"
+  },
+  "chip": {
+    "open_one": "{{count}} open change",
+    "open_other": "{{count}} open changes",
+    "mine": "Changed in your draft"
+  },
+  "history": {
+    "label": "History",
+    "emptyTitle": "No history yet",
+    "emptyText": "Changes from 0.13 on are kept here, field by field.",
+    "ops": {
+      "add": "Added",
+      "set": "Changed",
+      "remove": "Removed",
+      "rename": "Renamed"
+    },
+    "byOne": "By {{by}}",
+    "byTwo": "By {{by}}, applied by {{appliedBy}}",
+    "revision": "revision {{revision}}",
+    "revert": "Revert",
+    "before": "Earlier changes:",
+    "audit": "the audit log"
+  },
+  "entryChanged": {
+    "title": "Changed by someone else",
+    "intro": "Someone else changed this entry since you opened it. Their changes to fields you did not touch are kept. Choose for each field you both changed.",
+    "taken": "Kept from the other change: {{fields}}",
+    "none": "No field was changed on both sides – your change is saved with theirs.",
+    "save": "Save with these choices"
+  },
+  "conflict": {
+    "base": "When you opened it",
+    "takeTheirs": "Take theirs",
+    "keepMine": "Keep mine",
+    "title": "Changed in Steward since",
+    "intro": "These fields were changed in Steward after the change was written. Choose for each one; the preview is computed again.",
+    "legend": "Change {{seq}}: {{path}}",
+    "drafted": "When drafted",
+    "now": "Now in Steward",
+    "this": "This change"
+  },
+  "detail": {
+    "previewReady_one": "Preview ready: {{count}} entry, {{conflicts}} conflicts to choose.",
+    "previewReady_other": "Preview ready: {{count}} entries, {{conflicts}} conflicts to choose.",
+    "applied": "The change set is applied.",
+    "review": "Needs a second person",
+    "by": "By {{by}}, {{when}}",
+    "decided": {
+      "applied": "applied by {{by}} {{when}}",
+      "other": "decided by {{by}} {{when}}"
+    },
+    "where": "Touches: {{sites}}",
+    "request": "Open the AI request",
+    "reverts": "Reverts an earlier change set",
+    "propose": "Propose",
+    "apply": "Apply",
+    "reject": "Reject",
+    "return": "Back to the author",
+    "rename": "Rename",
+    "withdraw": "Withdraw",
+    "revert": "Revert",
+    "copy": "Copy into a new draft",
+    "comment": "Comment",
+    "commentLabel": "Comment (the author sees it)",
+    "stepUp": "Applying it asks you to confirm it is you.",
+    "previewing": "Computing what it would change …",
+    "problems": "It cannot be applied like this",
+    "change": "Change {{seq}}",
+    "stale": "Changed in Steward since",
+    "hidden_one": "{{count}} entry of a site you may not see is left out.",
+    "hidden_other": "{{count}} entries of sites you may not see are left out.",
+    "operations": "Changes as written",
+    "hiddenOps_one": "{{count}} change of a site you may not see is left out.",
+    "hiddenOps_other": "{{count}} changes of sites you may not see are left out.",
+    "opBy": "by {{by}}",
+    "remove": "Remove",
+    "removeOp": "Remove change {{seq}}"
+  },
+  "blocked": {
+    "PLANT_CHANGESET_OWN": "A second person applies it: you wrote it.",
+    "PLANT_CHANGESET_PROPOSE_FIRST": "Changes here need a second person: propose the draft first.",
+    "FORBIDDEN": "You may not change everything it touches – someone who manages it applies it.",
+    "PLANT_CHANGESET_DRAFT": "A draft is applied by its author.",
+    "PLANT_CHANGESET_CLOSED": "The change set is no longer open."
+  },
+  "siteReview": {
+    "label": "Changes need a second person",
+    "hint": "Every change to this site – also yours and imports – is proposed first and applied by someone else who manages the site."
+  },
+  "form": {
+    "draftHint": "You may propose changes here: what you save goes into your draft, someone who manages the site applies it.",
+    "proposeEdit": "Propose a change"
+  }
+}

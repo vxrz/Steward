@@ -7,7 +7,7 @@ import { MONITOR_PERMISSIONS, PLANT_PERMISSIONS, PLATFORM_PERMISSIONS, PROCESS_P
 import { get } from '../api';
 import i18n from '../i18n';
 
-type Perm = 'view' | 'run' | 'edit' | 'approve' | 'manage' | 'use' | 'acknowledge';
+type Perm = 'view' | 'propose' | 'run' | 'edit' | 'approve' | 'manage' | 'use' | 'acknowledge';
 
 /** Translated label of a subject from /subjects (users keep the server label "Name (login)"). */
 export function subjectOptionLabel(s: Subject): string {
@@ -37,7 +37,7 @@ export function AccessEditor({ kind, acl, owner, onSave, readOnly }: AccessEdito
     kind === 'process' ? PROCESS_PERMISSIONS : kind === 'monitor' ? MONITOR_PERMISSIONS : kind === 'site' ? PLANT_PERMISSIONS : PLATFORM_PERMISSIONS;
   const owned = kind !== 'platform' && kind !== 'site';
   // the rights explained for the kind (a site's view and manage cover its hierarchy and assets)
-  const help = (p: string) => (kind === 'site' ? t(`helpSite.${p as 'view' | 'manage'}`) : t(`help.${p as Perm}`));
+  const help = (p: string) => (kind === 'site' ? t(`helpSite.${p as 'view' | 'propose' | 'manage'}`) : t(`help.${p as Exclude<Perm, 'propose'>}`));
   const [rows, setRows] = useState<AclEntry[]>(acl);
   const [own, setOwn] = useState<string | null>(owner ?? null);
   const [draft, setDraft] = useState('');

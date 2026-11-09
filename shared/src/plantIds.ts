@@ -76,8 +76,10 @@ export const plantEntryRefInput = z
   })
   .strict();
 
-/** POST /api/plant/ids/rename[/preview] */
-export const plantRenameInput = plantEntryRefInput.extend({ newId: z.string().trim().min(1).max(120) }).strict();
+/** POST /api/plant/ids/rename[/preview]; 0.13.0: `fingerprint` – the preview's: a different result is refused (PLANT_RENAME_CHANGED) */
+export const plantRenameInput = plantEntryRefInput
+  .extend({ newId: z.string().trim().min(1).max(120), fingerprint: z.string().trim().max(80).optional() })
+  .strict();
 export type PlantRenameInput = z.infer<typeof plantRenameInput>;
 
 /** How many references of one kind a rename updates (tables and fields that name the entry). */
@@ -98,6 +100,8 @@ export interface PlantRenamePreview {
   references: PlantReferenceCount[];
   /** Old ids of the entry that keep working (with the one this rename adds) */
   aliases: string[];
+  /** 0.13.0: what renaming writes (send it with the rename: a different result is refused) */
+  fingerprint?: string;
 }
 
 export interface PlantRenameResult extends PlantRenamePreview {
@@ -271,6 +275,8 @@ export const plantBulkInput = z
     set: plantBulkSetInput.default({}),
     /** remove: also remove what belongs to each entry */
     cascade: z.boolean().default(false),
+    /** 0.13.0: the preview's fingerprint – a different result is refused (PLANT_BULK_CHANGED); without it applies as before */
+    fingerprint: z.string().trim().max(80).optional(),
   })
   .strict();
 export type PlantBulkInput = z.infer<typeof plantBulkInput>;
@@ -296,4 +302,6 @@ export interface PlantBulkResult {
   counts: Record<PlantBulkItem['outcome'], number>;
   /** Whether applying it asks for a step-up */
   stepUp: boolean;
+  /** 0.13.0: the preview's fingerprint of what applying writes */
+  fingerprint?: string;
 }

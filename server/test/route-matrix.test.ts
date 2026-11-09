@@ -60,6 +60,8 @@ const ADMIN: Role[] = ['admin'];
 const ADMIN_AUDITOR: Role[] = ['admin', 'auditor'];
 /** Roles that may create processes, dashboards, monitors, records and credentials. */
 const DESIGN: Role[] = ['admin', 'designer'];
+/** 0.13.0: who may keep drafts of plant changes and propose them (the right "propose": operators, approvers, plant viewers) */
+const PROPOSE: Role[] = ['admin', 'designer', 'operator', 'approver', 'plant'];
 /** Roles that run processes (operator and designer by default). */
 const RUN: Role[] = ['admin', 'designer', 'operator'];
 /** Everyone but read-only accounts (viewer, auditor). */
@@ -1062,6 +1064,31 @@ const EXPECT: Record<string, Access> = {
   // many entries at once (0.11.0): whoever manages a site or the catalogues; entries they may not change are skipped
   'POST /api/plant/bulk/preview': DESIGN,
   'POST /api/plant/bulk': DESIGN,
+  // change sets (0.13.0, ADR 0020): whoever sees the registry reads what they may see; who may propose keeps drafts;
+  // who manages what a change set touches applies, rejects or returns it (never its author under review)
+  'GET /api/plant/change-sets': PLANT,
+  'POST /api/plant/change-sets': PROPOSE,
+  'GET /api/plant/change-sets/open': PLANT,
+  'GET /api/plant/change-sets/settings': PLANT,
+  'PUT /api/plant/change-sets/settings': DESIGN,
+  'GET /api/plant/change-sets/:changeSetId': PLANT,
+  'PATCH /api/plant/change-sets/:changeSetId': PROPOSE,
+  'POST /api/plant/change-sets/:changeSetId/operations': PROPOSE,
+  'PUT /api/plant/change-sets/:changeSetId/operations/:seq': PROPOSE,
+  'DELETE /api/plant/change-sets/:changeSetId/operations/:seq': PROPOSE,
+  'POST /api/plant/change-sets/:changeSetId/preview': PLANT,
+  'POST /api/plant/change-sets/:changeSetId/propose': PROPOSE,
+  'POST /api/plant/change-sets/:changeSetId/withdraw': PROPOSE,
+  'POST /api/plant/change-sets/:changeSetId/return': DESIGN,
+  'POST /api/plant/change-sets/:changeSetId/resolve': PROPOSE,
+  'POST /api/plant/change-sets/:changeSetId/apply': DESIGN,
+  'POST /api/plant/change-sets/:changeSetId/reject': DESIGN,
+  'POST /api/plant/change-sets/:changeSetId/revert': PROPOSE,
+  'POST /api/plant/change-sets/:changeSetId/copy': PROPOSE,
+  'GET /api/plant/history': PLANT,
+  'POST /api/plant/history/:historyId/revert': PROPOSE,
+  // the site's switch "Changes need a second person": who manages the site, confirmed like an access grant
+  'PUT /api/plant/sites/:siteId/review': DESIGN,
   // part 2 (#219): device profiles and KPI definitions (catalogues of the installation), an asset's assignment
   'GET /api/plant/profiles': PLANT,
   'POST /api/plant/profiles': DESIGN,
@@ -1353,6 +1380,12 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
       return { scope: 'service', scopeId: fx.service, amount: '500', currency: 'USD' };
     },
   },
+  // 0.13.0: the site's switch "Changes need a second person" and the catalogue's, confirmed like access grants
+  'PUT /api/plant/sites/:siteId/review': 'always',
+  'PUT /api/plant/change-sets/settings': 'always',
+  // applying a change set that removes or renames more than one entry (the fixture's removes two); without a valid body
+  // nothing is asked (the route answers 400)
+  'POST /api/plant/change-sets/:changeSetId/apply': { sensitive: { fingerprint: 'matrix' }, harmless: {} },
   // many plant entries at once (0.11.0): removing more than one; one is harmless (here: one that does not exist)
   'POST /api/plant/bulk': {
     sensitive: { kind: 'asset', action: 'remove', items: [{ id: 'nothing-a' }, { id: 'nothing-b' }] },
@@ -1465,6 +1498,10 @@ function fill(url: string): string {
       .replace(/:stepId/g, fx.step!)
       .replace(/:nodeId/g, fx.node!)
       .replace(/:taskId/g, 'tsk_none')
+      // plant change sets (0.13.0): a proposed one that removes two entries; one operation; no history row
+      .replace(/:changeSetId/g, fx.changeSet!)
+      .replace(/:seq/g, '1')
+      .replace(/:historyId/g, 'peh_none')
       .replace(/:triggerId/g, fx.trigger!)
       .replace(/:scheduleId/g, fx.schedule!)
       .replace(/:datasetKey/g, fx.dataset!)
@@ -1580,6 +1617,8 @@ const QUERY: Record<string, string> = {
   'GET /api/plant/collections': '?collectorKind=job&collectorRef=matrix-job',
   'GET /api/plant/assets/:assetId/collection-sources/diff': '?from=pcs_matrix&to=pcs_matrix',
   'GET /api/plant/documents': '?kind=device-profile&id=matrix-profile',
+  'GET /api/plant/history': '?kind=site&id=matrix-site&children=1',
+  'GET /api/plant/change-sets/open': '?site=matrix-site',
   'GET /api/records/:id/timeline': '?from=2026-01-01T00:00:00Z&to=2026-01-02T00:00:00Z',
   'GET /api/link-targets': '?kind=record&q=',
   'GET /api/backlinks': '', // filled in beforeAll (needs the record id)
@@ -1923,6 +1962,11 @@ beforeAll(async () => {
          1, 'matrix.csv', 'table', 'x', 1, 'a,b', 'y', '[]', '["matrix-collection"]', 'admin', '2026-01-01T00:00:00.000Z')`,
   );
   await a('PUT', '/plant/assets/matrix-asset/image', { contentBase64: tinyPng().toString('base64') });
+  // 0.13.0: a proposed change set that removes two entries (applying it asks for a step-up)
+  const changeSet = (await a('POST', '/plant/change-sets', { title: 'Matrix changes', current: false })).id;
+  await a('POST', `/plant/change-sets/${changeSet}/operations`, { op: 'remove', kind: 'building', scope: 'matrix-site', id: 'matrix-building', value: {} });
+  await a('POST', `/plant/change-sets/${changeSet}/operations`, { op: 'remove', kind: 'node', scope: 'matrix-site', id: 'matrix-area', value: {} });
+  await a('POST', `/plant/change-sets/${changeSet}/propose`, {});
   const siteLink = (await a('POST', '/plant/sites/matrix-site/links', { url: 'https://cmdb.example.com/4', label: 'x' })).id;
   const assetLink = (await a('POST', '/plant/assets/matrix-asset/links', { url: 'https://cmdb.example.com/5', label: 'x' })).id;
   const procs = await a('GET', '/processes');
@@ -2045,6 +2089,7 @@ beforeAll(async () => {
     asset: 'matrix-asset',
     plantNode: 'matrix-area',
     building: 'matrix-building',
+    changeSet,
     siteLink,
     assetLink,
   };

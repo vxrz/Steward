@@ -117,6 +117,7 @@
   "defaultsSite": "<b>Es gelten die Rollenrechte</b> (alle, die in Steward arbeiten, sehen den Standort, Designer verwalten ihn). Fügen Sie Einträge hinzu, um den Zugriff auf bestimmte Benutzer, Teams oder Rollen zu beschränken.",
   "helpSite": {
     "view": "Den Standort, seine Hierarchie, Gebäude und Anlagen sehen",
+    "propose": "Entwürfe von Änderungen anlegen und vorschlagen; jemand, der den Standort verwaltet, übernimmt sie",
     "manage": "Den Standort, seine Hierarchie, Gebäude und Anlagen ändern; in ihn importieren"
   }
 }

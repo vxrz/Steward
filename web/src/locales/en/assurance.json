@@ -311,6 +311,10 @@
       "bulkChange": {
         "label": "Change many plant entries at once",
         "description": "Renaming or removing more than one entry of the plant registry at once (in the lists or with an import), or editing more than 25."
+      },
+      "changeSet": {
+        "label": "Apply plant changes (second person)",
+        "description": "Who applies a change to the plant registry. Optional: each site decides with its switch \"Changes need a second person\" (the catalogue in the plant settings); required: every change. Under review every change goes through a draft and no author applies it, administrators included."
       }
     },
     "library": {

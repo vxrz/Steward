@@ -169,7 +169,7 @@ export function AssetDataSection({ assetId }: { assetId: string }) {
     void qc.invalidateQueries({ queryKey: plantKeys.profiles });
     void qc.invalidateQueries({ queryKey: plantKeys.kpis });
   };
-  const save = async (next: PlantAssignmentValues) => done(await put<PlantAssignmentView>(base, next));
+  const save = async (next: PlantAssignmentValues) => done(await put<PlantAssignmentView>(base, { ...next, revision: v.revision }));
   const removeAt = async <K extends 'overrides' | 'publications' | 'kpis'>(key: K, index: number, what: string) => {
     if (!(await confirmDanger({ action: 'remove', message: t('assignment.removeConfirm', { what }) }))) return;
     await save({ ...a, [key]: a[key].filter((_, i) => i !== index) }).catch(notifyError);

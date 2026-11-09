@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ActionIcon, Anchor, Badge, Box, Button, Grid, Group, Menu, Paper, Stack, Table, Text, Title, Tooltip } from '@mantine/core';
+import { ActionIcon, Anchor, Badge, Box, Button, Grid, Group, Menu, Paper, Stack, Switch, Table, Text, Title, Tooltip } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
@@ -52,6 +52,7 @@ import { SiteNetworkCard } from '../components/plant/network';
 import { PlantDocumentsPanel } from '../components/plant/DocumentsPanel';
 import { PlantSiteTabPage, SiteTabs } from './plant/views/tabs';
 import { SectionGroup, SectionGroupControls, useCollapsible } from '../components/page/CollapsibleSection';
+import { OpenChangesChip, ProposeEditButton, useChangeSetConfig } from '../components/plant/changes/common';
 
 type NodeDialog = { level: PlantLevel; parentId: string | null; node?: PlantNode } | null;
 
@@ -167,6 +168,8 @@ export function PlantSitePage() {
             {s.code && <Badge variant="default">{s.code}</Badge>}
             {s.notInSource && <NotInSourceBadge />}
             <PreviewBadge />
+            {/* 0.13.0: open change sets that touch the site */}
+            <OpenChangesChip query={{ site: s.id }} />
           </>
         }
         description={s.description || undefined}
@@ -177,6 +180,7 @@ export function PlantSitePage() {
                 {t('common:edit')}
               </Button>
             )}
+            {!canManage && s.canPropose && <ProposeEditButton onClick={() => setEditing(true)} testId="site-propose-edit" />}
             <Button
               size="xs"
               variant="default"
@@ -370,6 +374,7 @@ export function PlantSitePage() {
                 refresh();
               }}
             />
+            {canManage && <SiteReviewSwitch site={s} onSaved={saved} />}
             {canManage && s.acl && (
               <Stack gap="xs" data-testid="site-access">
                 <Title order={2} fz="h4">
@@ -685,5 +690,27 @@ function NodeItem({
         </ul>
       )}
     </li>
+  );
+}
+
+/**
+ * 0.13.0: the site's switch "Changes need a second person" (plant.changeSet optional) – set by who manages the site,
+ * confirmed like an access grant (step-up); under "required" every site needs one, under "off" none.
+ */
+function SiteReviewSwitch({ site, onSaved }: { site: PlantSiteDetail; onSaved: (s: PlantSiteDetail) => void }) {
+  const { t } = useTranslation('plantChanges');
+  const cfg = useChangeSetConfig();
+  if (cfg?.level !== 'optional') return null;
+  return (
+    <Switch
+      checked={!!site.review}
+      onChange={(e) => {
+        const review = e.currentTarget.checked;
+        put<PlantSiteDetail>(`/plant/sites/${encodeURIComponent(site.id)}/review`, { review }).then(onSaved, notifyError);
+      }}
+      label={t('siteReview.label')}
+      description={t('siteReview.hint')}
+      data-testid="site-review"
+    />
   );
 }

@@ -192,10 +192,10 @@ export const MODULES: readonly ModuleDef[] = [
     maturity: 'preview',
     defaultOn: false,
     switchable: true,
-    nav: ['plantSites', 'plantAssets', 'plantMap', 'plantProfiles', 'plantKpis', 'plantExplore', 'plantChecks', 'plantImport'],
+    nav: ['plantSites', 'plantAssets', 'plantMap', 'plantProfiles', 'plantKpis', 'plantExplore', 'plantChecks', 'plantImport', 'plantChanges'],
     pages: ['/plant'],
     routes: ['/api/plant', '/api/v1/plant'],
-    jobs: [],
+    jobs: ['plant-changes'],
   },
   {
     id: 'plantMap',

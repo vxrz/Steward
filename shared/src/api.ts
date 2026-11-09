@@ -1972,6 +1972,8 @@ export interface McpPlantProposal {
   hidden: number;
   /** The import that applied it */
   importId: string | null;
+  /** 0.13.0: the change set it is (Plant → Changes shows it too) */
+  changeSetId?: string | null;
 }
 
 /**

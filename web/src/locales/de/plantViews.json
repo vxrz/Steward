@@ -5,12 +5,14 @@
     "assetLabel": "Seiten von {{name}}",
     "site": {
       "overview": "Überblick",
-      "structure": "Struktur"
+      "structure": "Struktur",
+      "history": "Verlauf"
     },
     "asset": {
       "overview": "Überblick",
       "flow": "Datenfluss",
-      "collections": "Datenerfassungen"
+      "collections": "Datenerfassungen",
+      "history": "Verlauf"
     }
   },
   "toolbar": {

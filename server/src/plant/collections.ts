@@ -107,6 +107,7 @@ function viewOf(r: CollectionRow, asset: { id: string; name: string; site_id: st
     writes: writes(v),
     importId: r.import_id,
     notInSource: !!r.not_in_source,
+    revision: Number((r as { revision?: number }).revision ?? 1),
     updatedAt: r.updated_at,
     updatedBy: r.updated_by,
   };

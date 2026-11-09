@@ -311,6 +311,10 @@
       "bulkChange": {
         "label": "Viele Anlageneinträge auf einmal ändern",
         "description": "Mehr als einen Eintrag des Anlagenregisters auf einmal umbenennen oder entfernen (in den Listen oder mit einem Import) oder mehr als 25 bearbeiten."
+      },
+      "changeSet": {
+        "label": "Anlagenänderungen übernehmen (zweite Person)",
+        "description": "Wer eine Änderung am Anlagenregister übernimmt. Optional: Jeder Standort entscheidet mit seinem Schalter „Änderungen brauchen eine zweite Person“ (der Katalog in den Einstellungen des Anlagenregisters); erforderlich: jede Änderung. Unter Prüfung geht jede Änderung über einen Entwurf, und niemand übernimmt seine eigene – auch Administratoren nicht."
       }
     },
     "library": {

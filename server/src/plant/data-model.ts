@@ -69,6 +69,8 @@ export const safeEntries = <V>(o: Record<string, V>): Record<string, V> => Objec
 interface Source {
   import_id: string | null;
   not_in_source: number;
+  /** 0.13.0: the entry's revision (changesets/track.ts raises it) */
+  revision?: number;
   created_at: string;
   created_by: string;
   updated_at: string;
