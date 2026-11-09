@@ -35,6 +35,7 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- **Insights Hub freshness checks no longer report fresh data as old when the look-back holds more than 2,000 records** ([docs/MONITORS.md](docs/MONITORS.md)). For variables missing from the newest record the check reads a time window, and the API answers its oldest records first: with dense data the newest value found was the last of the first 2,000 – up to an hour old. A full page now makes the check read the window again in slices from now backwards, each paged to its end; a slice too dense to page through makes the check _unknown_ with the reason, never _down_. The built-in Insights Hub simulator now answers oldest records first, like the real API.
 - **Tab counts of two or more digits are shown in full** (they were cut to a round badge), also in the sidebar and the diagram's filter button; tab bars no longer show a stray vertical scrollbar.
 - **Identifiers no longer break at a hyphen** in the site's device list and the asset's device cards (MAC and IP addresses, VLANs, switches and ports, host names); the table scrolls sideways instead.
 - **Run steps open with the keyboard.** Each step of a run is a button with `aria-expanded`; failed steps start open, and a link to `#step-<id>` opens that step.

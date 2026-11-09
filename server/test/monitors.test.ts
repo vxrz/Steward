@@ -294,6 +294,52 @@ describe('check types', () => {
     expect(after - before).toBeGreaterThanOrEqual(1);
   });
 
+  it('Insights Hub freshness finds the newest value past the first page of the look-back (oldest records come first)', async () => {
+    const { clearBatchCaches } = await import('../src/monitors/batch.js');
+    await fetch(`${s.base}/mock/ih/test/timeseries/reset`, { method: 'POST' });
+    clearBatchCaches();
+    const set = (variable: string, cadenceSeconds: number, lagSeconds: number) =>
+      fetch(`${s.base}/mock/ih/test/timeseries`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ assetId: 'paging-asset', aspect: 'Dense', variable, cadenceSeconds, lagSeconds }),
+      });
+    // "tick" holds the newest record, so "dense" is read from the look-back window: one value a second for
+    // 5,400 s (the window of maxAge 3600) – more than one page of 2,000 records
+    await set('tick', 1, 0);
+    await set('dense', 1, 5);
+    // "flood": 100 values a second – too many to page through in a time slice
+    await set('flood', 0.01, 5);
+    const fresh = (id: string, variable: string) => ({
+      id,
+      name: id,
+      type: 'freshness',
+      platform: 'Insights Hub (demo)',
+      assetId: 'paging-asset',
+      aspect: 'Dense',
+      variables: [variable],
+      mode: 'maxAge',
+      maxAgeSeconds: 3600,
+    });
+    const { monitor } = await dana('POST', '/monitors', {
+      definition: { name: 'IH paging', failuresBeforeDown: 1, checks: [fresh('dense', 'dense')] },
+    });
+    const m = await evaluate(monitor.id);
+    expect(check(m, 'dense').status).toBe('up');
+    // before 0.12.0 the newest value found was the last of the 2,000 OLDEST records: about 3,400 s old
+    const age = String(check(m, 'dense').last.message).match(/^Newest value of dense is (\d+) s old$/);
+    expect(age, check(m, 'dense').last.message).not.toBeNull();
+    expect(Number(age![1])).toBeLessThan(60);
+    clearBatchCaches();
+    const { monitor: flood } = await dana('POST', '/monitors', {
+      definition: { name: 'IH paging flood', failuresBeforeDown: 1, checks: [fresh('flood', 'flood')] },
+    });
+    const f = await evaluate(flood.id);
+    // an incomplete read is unknown, never down
+    expect(check(f, 'flood').status).toBe('unknown');
+    expect(check(f, 'flood').last.message).toMatch(/Too much data to find the newest value/);
+  });
+
   it('Gatus endpoint status', async () => {
     const { monitor } = await dana('POST', '/monitors', {
       definition: {
