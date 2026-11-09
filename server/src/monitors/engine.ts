@@ -19,6 +19,7 @@ import {
   type MonitorRow,
   type StateRow,
 } from './model.js';
+import { delayIdentity, observeDelay, parseDelayState, type DelayObservation } from './delay.js';
 import { analyze, applyResult, freshnessStatus, freshnessWindowSeconds, fmtAge, nextDue, phaseOffset } from './logic.js';
 import { isActive, planCheck, runActiveCheck, toMillis, type RawResult } from './checks.js';
 import { storedKindMismatch } from './kinds.js';
@@ -307,6 +308,7 @@ export function evaluateCheck(mid: string, cid: string, now = clock()): Promise<
         );
       } else raw = { status: 'unknown', message: 'Unsupported check type' };
       if (abort.signal.aborted) return;
+      if (raw.observation) recordObservation(m, c, row, raw.observation);
       persistResult(m, c, row, raw, clock() > now ? clock() : now);
       countEvaluation(c.type, raw.status);
       scheduleRecompute(m.id);
@@ -421,6 +423,18 @@ function evaluateSubMonitor(c: CheckOf<'monitor'>): RawResult {
   const s = (sub.status ?? 'unknown') as MonitorStatus;
   const status: MonitorStatus = s === 'maintenance' ? 'up' : s === 'blocked' ? 'unknown' : s;
   return { status, message: subMonitorMessage(s) };
+}
+
+/** The observed delay (delay.ts): one read of a freshness check's source, with the monitor's maintenance windows. */
+function recordObservation(m: LoadedMonitor, c: CheckDef, row: CheckRow, obs: DelayObservation): void {
+  const identity = delayIdentity(c);
+  if (!identity) return;
+  try {
+    const next = observeDelay(parseDelayState(row.observed_delay), identity, obs, (t) => !!activeMaintenance(m.id, t));
+    db().run('UPDATE monitor_checks SET observed_delay = ? WHERE monitor_id = ? AND check_id = ?', JSON.stringify(next), m.id, c.id);
+  } catch (err) {
+    logger.warn({ err, monitor: m.id, check: c.id }, 'observed delay not recorded');
+  }
 }
 
 function bucketOf(ms: number): string {

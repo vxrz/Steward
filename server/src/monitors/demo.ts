@@ -7,7 +7,10 @@ import { vault } from '../vault.js';
 import { logger } from '../log.js';
 import { createPlatform } from '../platforms/service.js';
 import { DEMO_ZABBIX } from '../mock/mockZabbix.js';
-import { DEMO_IOT_ASSETS } from '../mock/mockIot.js';
+import { DEMO_IOT_ASSETS, demoPm17Pipeline } from '../mock/mockIot.js';
+import { simulateReads } from '../mock/delaySimulation.js';
+import { delayIdentity } from './delay.js';
+import { parseDefinition } from './model.js';
 import * as svc from './service.js';
 import { parseYaml } from '../yaml-safe.js';
 import { createGateway, gatewayRow } from './gateways.js';
@@ -126,10 +129,39 @@ export async function setupMonitorDemo(): Promise<number> {
         .catch((err) => logger.warn({ err: (err as Error).message }, 'demo template instance not created'));
     }
   }
+  seedObservedDelay();
   startGatewaySimulator();
   // the stopped PowerMeter of machine 18 reported for the last time 25 minutes ago
   void simulateOnce(true);
   return created;
+}
+
+/**
+ * The PowerMeter of machine 17 uploads every 5 minutes (mockIot.ts): its Insights Hub check shows the observed delay
+ * of the last week right away – simulated reads of the same data path, every minute, ending now.
+ */
+function seedObservedDelay(): void {
+  const row = db().get<{ id: string; definition: string }>('SELECT id, definition FROM monitors WHERE key = ?', 'machine-17-powermeter');
+  const def = row ? parseDefinition(row.definition) : undefined;
+  const c = def?.checks.find((x) => x.id === 'pm-ih');
+  const identity = c ? delayIdentity(c) : null;
+  if (!row || !c || c.type !== 'freshness' || !identity) return;
+  const have = db().get<{ observed_delay: string | null }>('SELECT observed_delay FROM monitor_checks WHERE monitor_id = ? AND check_id = ?', row.id, c.id);
+  if (!have || have.observed_delay) return;
+  const now = Date.now();
+  const state = simulateReads(demoPm17Pipeline(now), {
+    identity,
+    variables: c.variables ?? [],
+    from: now - 7 * 86400000,
+    to: now - 60000,
+    intervalSeconds: c.intervalSeconds ?? def!.intervalSeconds,
+  });
+  db().run(
+    'UPDATE monitor_checks SET observed_delay = ? WHERE monitor_id = ? AND check_id = ? AND observed_delay IS NULL',
+    JSON.stringify(state),
+    row.id,
+    c.id,
+  );
 }
 
 // ---------- IoT gateway simulator ----------

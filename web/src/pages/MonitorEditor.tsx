@@ -569,6 +569,7 @@ export function MonitorEditorPage() {
                         const hb = idFixed(selected!, selIndex) ? existing.data?.checks.find((x) => x.checkId === sel.id)?.heartbeat : undefined;
                         return hb ? { at: hb.lastPushAt, report: hb.lastPush } : null;
                       })()}
+                      observedDelay={idFixed(selected!, selIndex) ? existing.data?.checks.find((x) => x.checkId === sel.id)?.observedDelay : null}
                       errors={errorsOf(selIndex)}
                     />
                   </Stack>

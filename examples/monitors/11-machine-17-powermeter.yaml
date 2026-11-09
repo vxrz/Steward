@@ -43,6 +43,9 @@ checks:
     expectedIntervalSeconds: 60
     degradedAfterMissed: 3
     downAfterMissed: 6
+    # the gateway uploads every 5 minutes and Insights Hub needs about a minute more: the newest value gets
+    # up to ~6.5 minutes old before the next upload is readable. See the check's "observed delay".
+    allowedDelaySeconds: 360
     x: -160
     y: 320
   - id: machine

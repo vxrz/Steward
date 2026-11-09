@@ -24,6 +24,7 @@ export * from './locales.js';
 export * from './reports.js';
 export * from './triggers.js';
 export * from './monitors.js';
+export * from './freshnessDelay.js';
 export * from './scrub.js';
 export * from './theme.js';
 export * from './system.js';

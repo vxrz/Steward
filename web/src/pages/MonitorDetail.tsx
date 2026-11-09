@@ -36,6 +36,7 @@ import { AccessEditor } from '../components/AccessEditor';
 import { fmtDate, fmtNumber, fmtRelative } from '../format';
 import { MonitorGraph } from '../components/monitors/MonitorGraph';
 import { TestRunButton } from '../components/monitors/TestRunButton';
+import { ObservedDelaySummary } from '../components/monitors/ObservedDelay';
 import { MONITOR_COLORS, MonitorStatusBadge, causeText, checkTypeLabel, fmtUptime, monitorStatusLabel, uptimeText } from '../components/monitors/status';
 import { AcknowledgeModal, CopyBlock, InstantiateModal, SecretsModal, gatewayCurl, heartbeatCurl } from '../components/monitors/dialogs';
 import { MaintenanceDetailModal, MaintenanceFormModal, TargetBadges, useRepeatLabel } from '../components/catalogue/maintenance';
@@ -545,6 +546,7 @@ function CheckPanel({
           </Anchor>
         ))}
       {c.heartbeat && <HeartbeatCard monitor={monitor} check={c} onSecret={onSecret} />}
+      {c.observedDelay && <ObservedDelaySummary observed={c.observedDelay} />}
       <Text size="sm" fw={600} mt="xs">
         {t('detail.statusChanges')}
       </Text>

@@ -55,6 +55,8 @@ export interface FreshnessConfig {
   downAfterMissed?: number;
   maxAgeSeconds?: number;
   degradedAgeSeconds?: number;
+  /** The data may arrive this much later than its timestamp (0.13; default 0) */
+  allowedDelaySeconds?: number;
 }
 
 export function fmtAge(seconds: number): string {
@@ -65,10 +67,18 @@ export function fmtAge(seconds: number): string {
   return `${Math.round(s / 86400)} days`;
 }
 
-/** Window (seconds) after which data is certainly "down" – used to size look-back queries. */
+const allowanceOf = (c: FreshnessConfig) => Math.max(0, c.allowedDelaySeconds ?? 0);
+
+/** Window (seconds) after which data is certainly "down", the allowed delay included – used in messages. */
 export function freshnessWindowSeconds(c: FreshnessConfig): number {
-  if (c.mode === 'maxAge') return c.maxAgeSeconds ?? 3600;
-  return (c.expectedIntervalSeconds ?? 60) * (c.downAfterMissed ?? 4);
+  const base = c.mode === 'maxAge' ? (c.maxAgeSeconds ?? 3600) : (c.expectedIntervalSeconds ?? 60) * (c.downAfterMissed ?? 4);
+  return base + allowanceOf(c);
+}
+
+/** Look-back of queries for the newest value: the window and a half, plus the allowed delay. */
+export function freshnessLookbackSeconds(c: FreshnessConfig): number {
+  const a = allowanceOf(c);
+  return Math.ceil((freshnessWindowSeconds(c) - a) * 1.5) + a;
 }
 
 /** Status for the newest timestamp of a source (null = no data at all). */
@@ -80,18 +90,21 @@ export function freshnessStatus(
 ): { status: MonitorStatus; message: string; ageSeconds: number | null } {
   if (latestMs === null) return { status: 'down', message: `No ${what} within the last ${fmtAge(freshnessWindowSeconds(c))}`, ageSeconds: null };
   const age = Math.max(0, (now - latestMs) / 1000);
+  const allowed = allowanceOf(c);
+  // the allowance in words: "22 min old, 15 min of it allowed delay" (nothing without one)
+  const old = `${fmtAge(age)} old${allowed ? (age > allowed ? `, ${fmtAge(allowed)} of it allowed delay` : ` (within the allowed delay of ${fmtAge(allowed)})`) : ''}`;
   if (c.mode === 'maxAge') {
     const max = c.maxAgeSeconds ?? 3600;
-    if (age > max) return { status: 'down', message: `Newest ${what} is ${fmtAge(age)} old (maximum ${fmtAge(max)})`, ageSeconds: age };
-    if (c.degradedAgeSeconds && age > c.degradedAgeSeconds)
-      return { status: 'degraded', message: `Newest ${what} is ${fmtAge(age)} old (warning after ${fmtAge(c.degradedAgeSeconds)})`, ageSeconds: age };
-    return { status: 'up', message: `Newest ${what} is ${fmtAge(age)} old`, ageSeconds: age };
+    if (age > max + allowed) return { status: 'down', message: `Newest ${what} is ${old} (maximum ${fmtAge(max)})`, ageSeconds: age };
+    if (c.degradedAgeSeconds && age > c.degradedAgeSeconds + allowed)
+      return { status: 'degraded', message: `Newest ${what} is ${old} (warning after ${fmtAge(c.degradedAgeSeconds)})`, ageSeconds: age };
+    return { status: 'up', message: `Newest ${what} is ${old}`, ageSeconds: age };
   }
   const every = c.expectedIntervalSeconds ?? 60;
-  const missed = Math.floor(age / every);
+  const missed = Math.floor(Math.max(0, age - allowed) / every);
   const degradedAfter = c.degradedAfterMissed ?? 2;
   const downAfter = c.downAfterMissed ?? 4;
-  const base = `Newest ${what} is ${fmtAge(age)} old, expected every ${fmtAge(every)}`;
+  const base = `Newest ${what} is ${old}, expected every ${fmtAge(every)}`;
   if (missed >= downAfter) return { status: 'down', message: `${base} (${missed} intervals missed)`, ageSeconds: age };
   if (missed >= degradedAfter) return { status: 'degraded', message: `${base} (${missed} intervals missed)`, ageSeconds: age };
   return { status: 'up', message: base, ageSeconds: age };

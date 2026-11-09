@@ -1,6 +1,6 @@
 import { AWS_REGION_RE, DYNAMODB_LIMITS, type CheckOf, type MonitorStatus, type Platform } from '@sm/shared';
 import { AwsClient, endpointFor, homeRegion } from './client.js';
-import { freshnessStatus, freshnessWindowSeconds, fmtAge, type FreshnessConfig } from '../monitors/logic.js';
+import { freshnessLookbackSeconds, freshnessStatus, fmtAge, type FreshnessConfig } from '../monitors/logic.js';
 
 /**
  * The DynamoDB monitor check (#233): is the data in a table current? Signed per service like the other AWS calls
@@ -47,6 +47,7 @@ const freshnessOf = (c: Check): FreshnessConfig => ({
   downAfterMissed: c.downAfterMissed,
   maxAgeSeconds: c.maxAgeSeconds,
   degradedAgeSeconds: c.degradedAgeSeconds,
+  allowedDelaySeconds: c.allowedDelaySeconds,
 });
 
 /** The check's region (or the platform's main region); it becomes part of the endpoint's host name, so it must be one. */
@@ -85,7 +86,7 @@ const MAX_LOOKBACK_SECONDS = 455 * 86400;
 
 /** The GetMetricData request of the write activity: the window and a half, at most about 1500 data points. */
 export function writeActivityRequest(c: Check, now: number): { body: Record<string, unknown>; periodSeconds: number; lookbackSeconds: number } {
-  const lookbackSeconds = Math.min(Math.ceil(freshnessWindowSeconds(freshnessOf(c)) * 1.5), MAX_LOOKBACK_SECONDS);
+  const lookbackSeconds = Math.min(freshnessLookbackSeconds(freshnessOf(c)), MAX_LOOKBACK_SECONDS);
   const periodSeconds = PERIODS.find((p) => lookbackSeconds / p <= 1440) ?? 86400;
   const end = Math.ceil(now / 1000 / 60) * 60;
   const start = end - Math.ceil(lookbackSeconds / periodSeconds) * periodSeconds;

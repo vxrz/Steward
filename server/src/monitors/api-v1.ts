@@ -165,6 +165,7 @@ export async function monitorApiRoutes(_app: FastifyInstance, get: Get): Promise
           causedBy: c.causedBy,
           note: c.note,
           uptime: c.uptime,
+          ...(c.observedDelay !== undefined ? { observedDelay: c.observedDelay } : {}),
         })),
         time: new Date().toISOString(),
       };

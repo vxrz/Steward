@@ -126,6 +126,9 @@
     "downAfterMissed": "Down after missed",
     "downOlderThan": "Down when older than (s)",
     "degradedOlderThan": "Degraded when older than (s)",
+    "allowedDelay": "Allowed delay (s)",
+    "allowedDelayHintCadence": "How much later than its timestamp the data may arrive (gateway upload cycle, ingestion): missed intervals are counted from the age minus this. Default 0.",
+    "allowedDelayHintMaxAge": "How much later than its timestamp the data may arrive (gateway upload cycle, ingestion): down only when older than the maximum age plus this. Default 0.",
     "optional": "optional",
     "checkId": "Check id",
     "checkIdHint": "Letters, digits, _ and -; used in links, item keys and the API",
@@ -914,5 +917,33 @@
     "message": "Message",
     "skipped": "skipped",
     "notRecorded": "no recording"
+  },
+  "observed": {
+    "title": "Peak age before new data ({{days}} days)",
+    "figures_one": "median {{median}}, 95 % {{p95}}, max {{max}} · delay {{delay}} · {{count}} sample · checked every {{every}}",
+    "figures_other": "median {{median}}, 95 % {{p95}}, max {{max}} · delay {{delay}} · {{count}} samples · checked every {{every}}",
+    "none": "No sample yet: one is taken when a read sees a newer value than the read before (checked every {{every}}).",
+    "worstVariable": "Figures and suggestion of the variable that gets oldest: {{name}}",
+    "excluded": "Not used: {{list}}",
+    "failedReads_one": "{{count}} failed read",
+    "failedReads_other": "{{count}} failed reads",
+    "wentBackwards_one": "{{count}} read that went backwards",
+    "wentBackwards_other": "{{count}} reads that went backwards",
+    "futureTimestamps_one": "{{count}} timestamp in the future (clock skew)",
+    "futureTimestamps_other": "{{count}} timestamps in the future (clock skew)",
+    "maintenance_one": "{{count}} sample during maintenance",
+    "maintenance_other": "{{count}} samples during maintenance",
+    "notEnough_one": "A suggestion needs {{hours}} hours and {{samples}} samples – so far {{coverage}} and {{count}} sample.",
+    "notEnough_other": "A suggestion needs {{hours}} hours and {{samples}} samples – so far {{coverage}} and {{count}} samples.",
+    "note": "Upper bounds: a figure can be up to one check interval too high, so use a short interval while measuring. Differences of the device clock are part of the figures (only a clock that is ahead can be detected).",
+    "suggestion": "Suggested from the 95 % peak age of {{p95}}, rounded up to the minute, plus one check interval ({{margin}}):",
+    "field": {
+      "allowedDelaySeconds": "Allowed delay",
+      "maxAgeSeconds": "Down when older than",
+      "degradedAgeSeconds": "Degraded when older than"
+    },
+    "notSet": "not set",
+    "apply": "Apply suggestion",
+    "covered": "The current settings already cover the observed peak age."
   }
 }

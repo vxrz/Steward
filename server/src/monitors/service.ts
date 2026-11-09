@@ -12,8 +12,11 @@ import {
   definitionIssues,
   issueLabel,
   findCycle,
+  suggestFreshness,
   type AclEntry,
   type CheckDef,
+  type CheckOf,
+  type ObservedDelay,
   type CheckResultInfo,
   type CheckState,
   type MaintenanceWindow,
@@ -63,6 +66,7 @@ import { checkUptimes, monitorUptime } from './stats.js';
 import { coerceParams, renderTemplate } from './templates.js';
 import { checkExpressions, parseDefinitionInput, validateTemplate } from './validation.js';
 import * as engine from './engine.js';
+import { delayIdentity, parseDelayState, summarizeDelay } from './delay.js';
 import { endMonitorWindow, forgetMonitorInWindows, monitorWindows, planMonitorWindow } from '../catalogue/maintenance.js';
 import { checkMessage, monitorVisibility, redactCauses, redactDefinition, rootCauseMessage, type MonitorVisibility } from './redact.js';
 import { me } from '../auth/access.js';
@@ -221,6 +225,7 @@ function checkStates(r: Joined, def: MonitorDefinition, canView: MonitorVisibili
       note: x?.note ?? null,
       uptime: uptimes.get(`${r.id}/${c.id}`) ?? { h24: null, d7: null, d30: null },
     };
+    if (c.type === 'freshness') st.observedDelay = observedDelayOf(c, def, x?.observed_delay);
     if (c.type === 'heartbeat') {
       st.heartbeat = {
         path: x?.hook_id ? heartbeatPath(x.hook_id) : '',
@@ -236,6 +241,14 @@ function checkStates(r: Joined, def: MonitorDefinition, canView: MonitorVisibili
     }
     return st;
   });
+}
+
+/** The observed delay of a freshness check (delay.ts) with its suggestion; null when there is none for its current source. */
+function observedDelayOf(c: CheckOf<'freshness'>, def: MonitorDefinition, stored: string | null | undefined): ObservedDelay | null {
+  const st = parseDelayState(stored);
+  if (!st || st.id !== delayIdentity(c)) return null;
+  const sum = summarizeDelay(st, c.intervalSeconds ?? def.intervalSeconds, Date.now());
+  return sum ? { ...sum, suggestion: suggestFreshness(sum, c) } : null;
 }
 
 function usedBy(id: string): { id: string; key: string; name: string }[] {

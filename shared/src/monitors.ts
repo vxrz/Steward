@@ -13,6 +13,7 @@ import type { AclEntry } from './api.js';
 import { boundedRecord } from './zodLimits.js';
 import { DB_LIMITS } from './database.js';
 import { tagInput } from './tags.js';
+import type { ObservedDelay } from './freshnessDelay.js';
 import { AWS_REGION_RE } from './aws.js';
 import { PAGE_WATCH_LIMITS, PAGE_WATCH_UUID_RE } from './changedetection.js';
 import { COST_CHECK_PERIODS, COST_SCOPES, currencyCode, toMicros } from './costs.js';
@@ -128,6 +129,11 @@ const freshnessLimits = {
   maxAgeSeconds: seconds(1, 365 * 86400).optional(),
   /** maxAge: degraded when the newest value is older (optional) */
   degradedAgeSeconds: seconds(1, 365 * 86400).optional(),
+  /**
+   * Both modes (0.13): the data may arrive this much later than its timestamp (upload cycle, ingestion) – maxAge: down
+   * after maxAgeSeconds + this; cadence: missed intervals count from the age minus this. Default 0.
+   */
+  allowedDelaySeconds: seconds(0, 86400).optional(),
 };
 const freshnessFields = { mode: z.enum(FRESHNESS_MODES).default('cadence'), ...freshnessLimits };
 
@@ -943,6 +949,8 @@ export interface CheckState {
   /** e.g. "Down while 2 dependent checks are healthy – the check itself may be broken" */
   note: string | null;
   uptime: UptimeSet;
+  /** Freshness checks (0.13): the peak age and delay Steward observed over the last days, and what it suggests */
+  observedDelay?: ObservedDelay | null;
   /** Heartbeat checks */
   heartbeat?: { path: string; secretPrefix: string | null; authMode: string; lastPushAt: string | null; lastPush: unknown };
   /** Sub-monitor checks (hidden: a monitor the viewer may not view – id, key and name are empty) */

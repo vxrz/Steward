@@ -4369,6 +4369,297 @@
             ],
             "additionalProperties": false,
             "description": "Uptime in percent over 24 hours, 7 and 30 days (null without data); down vs. up/degraded, other time does not count"
+          },
+          "observedDelay": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "windowDays": {
+                    "type": "integer"
+                  },
+                  "since": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "Start of this series (first read, or the source changed)"
+                  },
+                  "intervalSeconds": {
+                    "type": "number",
+                    "description": "The check interval: the resolution of every figure"
+                  },
+                  "worst": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "description": "The variable ('' for an API source with one timestamp)"
+                          },
+                          "samples": {
+                            "type": "integer"
+                          },
+                          "coverageSeconds": {
+                            "type": "number",
+                            "description": "From the first sample's start to the last sample's end"
+                          },
+                          "peakAge": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "median": {
+                                    "type": "number"
+                                  },
+                                  "p95": {
+                                    "type": "number"
+                                  },
+                                  "max": {
+                                    "type": "number"
+                                  }
+                                },
+                                "required": [
+                                  "median",
+                                  "p95",
+                                  "max"
+                                ],
+                                "additionalProperties": false,
+                                "description": "Seconds: median, 95th percentile (nearest rank), maximum"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "Upper bounds of how old the newest value became before a newer one was readable"
+                          },
+                          "delay": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "low": {
+                                    "type": "number"
+                                  },
+                                  "high": {
+                                    "type": "number"
+                                  }
+                                },
+                                "required": [
+                                  "low",
+                                  "high"
+                                ],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "Delay of new values after their timestamp: median of the lower and of the upper bounds (seconds)"
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "samples",
+                          "coverageSeconds",
+                          "peakAge",
+                          "delay"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "The variable with the highest 95th percentile peak age"
+                  },
+                  "variables": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "description": "The variable ('' for an API source with one timestamp)"
+                        },
+                        "samples": {
+                          "type": "integer"
+                        },
+                        "coverageSeconds": {
+                          "type": "number",
+                          "description": "From the first sample's start to the last sample's end"
+                        },
+                        "peakAge": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "median": {
+                                  "type": "number"
+                                },
+                                "p95": {
+                                  "type": "number"
+                                },
+                                "max": {
+                                  "type": "number"
+                                }
+                              },
+                              "required": [
+                                "median",
+                                "p95",
+                                "max"
+                              ],
+                              "additionalProperties": false,
+                              "description": "Seconds: median, 95th percentile (nearest rank), maximum"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "Upper bounds of how old the newest value became before a newer one was readable"
+                        },
+                        "delay": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "low": {
+                                  "type": "number"
+                                },
+                                "high": {
+                                  "type": "number"
+                                }
+                              },
+                              "required": [
+                                "low",
+                                "high"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "Delay of new values after their timestamp: median of the lower and of the upper bounds (seconds)"
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "samples",
+                        "coverageSeconds",
+                        "peakAge",
+                        "delay"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "excluded": {
+                    "type": "object",
+                    "properties": {
+                      "failedReads": {
+                        "type": "integer"
+                      },
+                      "wentBackwards": {
+                        "type": "integer"
+                      },
+                      "futureTimestamps": {
+                        "type": "integer"
+                      },
+                      "maintenance": {
+                        "type": "integer"
+                      }
+                    },
+                    "required": [
+                      "failedReads",
+                      "wentBackwards",
+                      "futureTimestamps",
+                      "maintenance"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Reads and samples that were not used"
+                  },
+                  "enough": {
+                    "type": "boolean",
+                    "description": "At least 24 hours and 20 samples (worst variable): a suggestion is made"
+                  },
+                  "suggestion": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "changes": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "field": {
+                                  "type": "string",
+                                  "enum": [
+                                    "allowedDelaySeconds",
+                                    "maxAgeSeconds",
+                                    "degradedAgeSeconds"
+                                  ]
+                                },
+                                "from": {
+                                  "type": [
+                                    "number",
+                                    "null"
+                                  ]
+                                },
+                                "to": {
+                                  "type": [
+                                    "number",
+                                    "null"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "field",
+                                "from",
+                                "to"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "basedOnSeconds": {
+                            "type": "number",
+                            "description": "95th percentile peak age (upper bounds) of the worst variable"
+                          },
+                          "marginSeconds": {
+                            "type": "number",
+                            "description": "One check interval"
+                          }
+                        },
+                        "required": [
+                          "changes",
+                          "basedOnSeconds",
+                          "marginSeconds"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "windowDays",
+                  "since",
+                  "intervalSeconds",
+                  "worst",
+                  "variables",
+                  "excluded",
+                  "enough",
+                  "suggestion"
+                ],
+                "additionalProperties": false,
+                "description": "Freshness checks (0.13): the peak age and delay observed over the last 7 days (docs/MONITORS.md, \"How fresh is fresh\")"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Freshness checks (0.13): the peak age and delay observed over the last 7 days (docs/MONITORS.md, \"How fresh is fresh\")"
           }
         },
         "required": [
@@ -4799,6 +5090,297 @@
                   ],
                   "additionalProperties": false,
                   "description": "Uptime in percent over 24 hours, 7 and 30 days (null without data); down vs. up/degraded, other time does not count"
+                },
+                "observedDelay": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "windowDays": {
+                          "type": "integer"
+                        },
+                        "since": {
+                          "type": "string",
+                          "format": "date-time",
+                          "description": "Start of this series (first read, or the source changed)"
+                        },
+                        "intervalSeconds": {
+                          "type": "number",
+                          "description": "The check interval: the resolution of every figure"
+                        },
+                        "worst": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "name": {
+                                  "type": "string",
+                                  "description": "The variable ('' for an API source with one timestamp)"
+                                },
+                                "samples": {
+                                  "type": "integer"
+                                },
+                                "coverageSeconds": {
+                                  "type": "number",
+                                  "description": "From the first sample's start to the last sample's end"
+                                },
+                                "peakAge": {
+                                  "anyOf": [
+                                    {
+                                      "type": "object",
+                                      "properties": {
+                                        "median": {
+                                          "type": "number"
+                                        },
+                                        "p95": {
+                                          "type": "number"
+                                        },
+                                        "max": {
+                                          "type": "number"
+                                        }
+                                      },
+                                      "required": [
+                                        "median",
+                                        "p95",
+                                        "max"
+                                      ],
+                                      "additionalProperties": false,
+                                      "description": "Seconds: median, 95th percentile (nearest rank), maximum"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ],
+                                  "description": "Upper bounds of how old the newest value became before a newer one was readable"
+                                },
+                                "delay": {
+                                  "anyOf": [
+                                    {
+                                      "type": "object",
+                                      "properties": {
+                                        "low": {
+                                          "type": "number"
+                                        },
+                                        "high": {
+                                          "type": "number"
+                                        }
+                                      },
+                                      "required": [
+                                        "low",
+                                        "high"
+                                      ],
+                                      "additionalProperties": false
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ],
+                                  "description": "Delay of new values after their timestamp: median of the lower and of the upper bounds (seconds)"
+                                }
+                              },
+                              "required": [
+                                "name",
+                                "samples",
+                                "coverageSeconds",
+                                "peakAge",
+                                "delay"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "The variable with the highest 95th percentile peak age"
+                        },
+                        "variables": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string",
+                                "description": "The variable ('' for an API source with one timestamp)"
+                              },
+                              "samples": {
+                                "type": "integer"
+                              },
+                              "coverageSeconds": {
+                                "type": "number",
+                                "description": "From the first sample's start to the last sample's end"
+                              },
+                              "peakAge": {
+                                "anyOf": [
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "median": {
+                                        "type": "number"
+                                      },
+                                      "p95": {
+                                        "type": "number"
+                                      },
+                                      "max": {
+                                        "type": "number"
+                                      }
+                                    },
+                                    "required": [
+                                      "median",
+                                      "p95",
+                                      "max"
+                                    ],
+                                    "additionalProperties": false,
+                                    "description": "Seconds: median, 95th percentile (nearest rank), maximum"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ],
+                                "description": "Upper bounds of how old the newest value became before a newer one was readable"
+                              },
+                              "delay": {
+                                "anyOf": [
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "low": {
+                                        "type": "number"
+                                      },
+                                      "high": {
+                                        "type": "number"
+                                      }
+                                    },
+                                    "required": [
+                                      "low",
+                                      "high"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ],
+                                "description": "Delay of new values after their timestamp: median of the lower and of the upper bounds (seconds)"
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "samples",
+                              "coverageSeconds",
+                              "peakAge",
+                              "delay"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "excluded": {
+                          "type": "object",
+                          "properties": {
+                            "failedReads": {
+                              "type": "integer"
+                            },
+                            "wentBackwards": {
+                              "type": "integer"
+                            },
+                            "futureTimestamps": {
+                              "type": "integer"
+                            },
+                            "maintenance": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "failedReads",
+                            "wentBackwards",
+                            "futureTimestamps",
+                            "maintenance"
+                          ],
+                          "additionalProperties": false,
+                          "description": "Reads and samples that were not used"
+                        },
+                        "enough": {
+                          "type": "boolean",
+                          "description": "At least 24 hours and 20 samples (worst variable): a suggestion is made"
+                        },
+                        "suggestion": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "changes": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "field": {
+                                        "type": "string",
+                                        "enum": [
+                                          "allowedDelaySeconds",
+                                          "maxAgeSeconds",
+                                          "degradedAgeSeconds"
+                                        ]
+                                      },
+                                      "from": {
+                                        "type": [
+                                          "number",
+                                          "null"
+                                        ]
+                                      },
+                                      "to": {
+                                        "type": [
+                                          "number",
+                                          "null"
+                                        ]
+                                      }
+                                    },
+                                    "required": [
+                                      "field",
+                                      "from",
+                                      "to"
+                                    ],
+                                    "additionalProperties": false
+                                  }
+                                },
+                                "basedOnSeconds": {
+                                  "type": "number",
+                                  "description": "95th percentile peak age (upper bounds) of the worst variable"
+                                },
+                                "marginSeconds": {
+                                  "type": "number",
+                                  "description": "One check interval"
+                                }
+                              },
+                              "required": [
+                                "changes",
+                                "basedOnSeconds",
+                                "marginSeconds"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "windowDays",
+                        "since",
+                        "intervalSeconds",
+                        "worst",
+                        "variables",
+                        "excluded",
+                        "enough",
+                        "suggestion"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Freshness checks (0.13): the peak age and delay observed over the last 7 days (docs/MONITORS.md, \"How fresh is fresh\")"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Freshness checks (0.13): the peak age and delay observed over the last 7 days (docs/MONITORS.md, \"How fresh is fresh\")"
                 }
               },
               "required": [

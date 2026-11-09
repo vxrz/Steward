@@ -29,7 +29,8 @@ import {
   validMqttFilter,
   type PvFindingKind,
 } from '@sm/shared';
-import { freshnessStatus, freshnessWindowSeconds, fmtAge, statusMatcher } from './logic.js';
+import { freshnessLookbackSeconds, freshnessStatus, fmtAge, statusMatcher } from './logic.js';
+import type { DelayObservation } from './delay.js';
 import { promInstant, seriesName } from '../platforms/prometheus.js';
 import { readNamespace } from '../catalogue/kubernetes.js';
 import { assertRepositoryPath, gitHost } from '../catalogue/repositories.js';
@@ -49,6 +50,8 @@ export interface RawResult {
   message: string;
   durationMs?: number;
   value?: unknown;
+  /** Freshness checks (0.13): the read the observed delay is measured from (delay.ts), or that it failed */
+  observation?: DelayObservation;
 }
 
 export interface ExecContext {
@@ -395,38 +398,43 @@ async function checkPlatform(c: CheckOf<'platform'>, ctx: ExecContext): Promise<
 /** Registers the shared read of an Insights Hub freshness check (called for all due checks before they run). */
 function planFreshness(c: CheckOf<'freshness'>, owner: string): void {
   if (c.source !== 'insightsHub' || !c.assetId || !c.aspect) return;
-  ihFetch.plan(ihKey(c.platform, c.assetId, c.aspect), { owner, vars: c.variables ?? [], windowSeconds: Math.ceil(freshnessWindowSeconds(c) * 1.5) });
+  ihFetch.plan(ihKey(c.platform, c.assetId, c.aspect), { owner, vars: c.variables ?? [], windowSeconds: freshnessLookbackSeconds(c) });
 }
 
 async function checkFreshness(c: CheckOf<'freshness'>, ctx: ExecContext): Promise<RawResult> {
   const now = ctx.now();
   const t0 = Date.now();
+  const failed = (): DelayObservation => ({ failed: true, at: Date.now() });
   if (c.source === 'insightsHub') {
     platformFor(ctx.owner, c.platform); // the owner's rights, also when the answer comes from the shared read
     const vars = c.variables ?? [];
-    let latest;
+    let read;
     try {
-      latest = await ihFetch.get(ihKey(c.platform, c.assetId!, c.aspect!), {
-        owner: ctx.owner,
-        vars,
-        windowSeconds: Math.ceil(freshnessWindowSeconds(c) * 1.5),
-      });
+      read = await ihFetch.get(ihKey(c.platform, c.assetId!, c.aspect!), { owner: ctx.owner, vars, windowSeconds: freshnessLookbackSeconds(c) });
     } catch (e) {
       if (e instanceof CheckSetupError) throw e;
-      return { status: 'unknown', message: `Freshness could not be read: ${(e as Error).message}`, durationMs: Date.now() - t0 };
+      return { status: 'unknown', message: `Freshness could not be read: ${(e as Error).message}`, durationMs: Date.now() - t0, observation: failed() };
     }
+    const latest = read.values;
+    // the times of the shared read itself: its answer may be a few seconds older than this check
+    const observation: DelayObservation = {
+      start: read.startedAt,
+      end: read.receivedAt,
+      newest: Object.fromEntries(vars.map((v) => [v, latest.get(v) ?? null])),
+    };
     const per = vars.map((v) => ({ v, ...freshnessStatus(latest.get(v) ?? null, now, c, `value of ${v}`) }));
     const worst = per.reduce((a, b) => (rank(b.status) > rank(a.status) ? b : a), per[0]!);
     const ages = Object.fromEntries(per.map((p) => [p.v, p.ageSeconds === null ? null : Math.round(p.ageSeconds)]));
-    if (per.length === 1) return { status: worst.status, message: worst.message, durationMs: Date.now() - t0, value: ages };
+    if (per.length === 1) return { status: worst.status, message: worst.message, durationMs: Date.now() - t0, value: ages, observation };
     const bad = per.filter((p) => p.status !== 'up');
     const message = bad.length
       ? bad.map((p) => p.message).join('; ')
       : `All ${per.length} variables are fresh (oldest ${fmtAge(Math.max(...per.map((p) => p.ageSeconds ?? 0)))})`;
-    return { status: worst.status, message, durationMs: Date.now() - t0, value: ages };
+    return { status: worst.status, message, durationMs: Date.now() - t0, value: ages, observation };
   }
   const { platform, secrets } = platformFor(ctx.owner, c.platform);
   let r;
+  const startedAt = Date.now();
   try {
     const method = c.method ?? 'GET';
     const res = await checkRequest(ctx, platform, secrets, {
@@ -439,19 +447,33 @@ async function checkFreshness(c: CheckOf<'freshness'>, ctx: ExecContext): Promis
     if ('missing' in res) return { status: 'unknown', message: res.missing.slice(0, 500), durationMs: 0 };
     r = res;
   } catch (e) {
-    return { status: 'unknown', message: `Freshness could not be read: ${(e as Error).message}`.slice(0, 500), durationMs: Date.now() - t0 };
+    return {
+      status: 'unknown',
+      message: `Freshness could not be read: ${(e as Error).message}`.slice(0, 500),
+      durationMs: Date.now() - t0,
+      observation: failed(),
+    };
   }
-  if (!r.ok) return { status: 'unknown', message: `Freshness could not be read: HTTP ${r.status} from "${platform.name}"`, durationMs: r.durationMs };
+  const receivedAt = Date.now();
+  if (!r.ok)
+    return {
+      status: 'unknown',
+      message: `Freshness could not be read: HTTP ${r.status} from "${platform.name}"`,
+      durationMs: r.durationMs,
+      observation: failed(),
+    };
   let ts: unknown;
   try {
     ts = await evalExpr(c.timestamp!, r.body, {}, GUARD);
   } catch (e) {
-    return { status: 'unknown', message: `Timestamp expression failed: ${(e as Error).message}`, durationMs: r.durationMs };
+    return { status: 'unknown', message: `Timestamp expression failed: ${(e as Error).message}`, durationMs: r.durationMs, observation: failed() };
   }
   const times = (Array.isArray(ts) ? ts : [ts]).map(toMillis).filter((x): x is number => x !== undefined);
   const latest = times.length ? Math.max(...times) : null;
   const f = freshnessStatus(latest, now, c);
-  return { status: f.status, message: f.message, durationMs: r.durationMs, value: latest ? new Date(latest).toISOString() : null };
+  // a recorded answer (test run) is no observation of the source
+  const observation: DelayObservation | undefined = ctx.recorded ? undefined : { start: startedAt, end: receivedAt, newest: { '': latest } };
+  return { status: f.status, message: f.message, durationMs: r.durationMs, value: latest ? new Date(latest).toISOString() : null, observation };
 }
 
 const rank = (s: MonitorStatus) => ({ up: 0, maintenance: 1, blocked: 2, unknown: 3, degraded: 4, down: 5 })[s];

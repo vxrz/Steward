@@ -58,6 +58,8 @@ export interface CheckRow {
   secret_rotated_at: string | null;
   last_push_at: string | null;
   last_push: string | null;
+  /** Freshness checks (0.13): the observed delay state (delay.ts), JSON */
+  observed_delay: string | null;
   created_at: string;
 }
 

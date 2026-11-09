@@ -126,6 +126,9 @@
     "downAfterMissed": "Ausgefallen nach verpassten",
     "downOlderThan": "Ausgefallen, wenn älter als (s)",
     "degradedOlderThan": "Beeinträchtigt, wenn älter als (s)",
+    "allowedDelay": "Erlaubte Verzögerung (s)",
+    "allowedDelayHintCadence": "So viel später als ihr Zeitstempel dürfen die Daten ankommen (Upload-Zyklus des Gateways, Aufnahme): Verpasste Intervalle zählen ab dem Alter abzüglich dieses Werts. Standard 0.",
+    "allowedDelayHintMaxAge": "So viel später als ihr Zeitstempel dürfen die Daten ankommen (Upload-Zyklus des Gateways, Aufnahme): Ausgefallen erst, wenn älter als das Höchstalter plus dieser Wert. Standard 0.",
     "optional": "optional",
     "checkId": "Prüfungs-ID",
     "checkIdHint": "Buchstaben, Ziffern, _ und -; verwendet in Verknüpfungen, Item-Keys und der API",
@@ -914,5 +917,33 @@
     "message": "Meldung",
     "skipped": "übersprungen",
     "notRecorded": "keine Aufzeichnung"
+  },
+  "observed": {
+    "title": "Höchstes Alter vor neuen Daten ({{days}} Tage)",
+    "figures_one": "Median {{median}}, 95 % {{p95}}, Maximum {{max}} · Verzögerung {{delay}} · {{count}} Messung · geprüft alle {{every}}",
+    "figures_other": "Median {{median}}, 95 % {{p95}}, Maximum {{max}} · Verzögerung {{delay}} · {{count}} Messungen · geprüft alle {{every}}",
+    "none": "Noch keine Messung: Eine entsteht, wenn ein Lesen einen neueren Wert sieht als das Lesen davor (geprüft alle {{every}}).",
+    "worstVariable": "Werte und Vorschlag der Variable, die am ältesten wird: {{name}}",
+    "excluded": "Nicht verwendet: {{list}}",
+    "failedReads_one": "{{count}} fehlgeschlagenes Lesen",
+    "failedReads_other": "{{count}} fehlgeschlagene Lesevorgänge",
+    "wentBackwards_one": "{{count}} Lesen, das zurücksprang",
+    "wentBackwards_other": "{{count}} Lesevorgänge, die zurücksprangen",
+    "futureTimestamps_one": "{{count}} Zeitstempel in der Zukunft (Uhrabweichung)",
+    "futureTimestamps_other": "{{count}} Zeitstempel in der Zukunft (Uhrabweichung)",
+    "maintenance_one": "{{count}} Messung während einer Wartung",
+    "maintenance_other": "{{count}} Messungen während einer Wartung",
+    "notEnough_one": "Ein Vorschlag braucht {{hours}} Stunden und {{samples}} Messungen – bisher {{coverage}} und {{count}} Messung.",
+    "notEnough_other": "Ein Vorschlag braucht {{hours}} Stunden und {{samples}} Messungen – bisher {{coverage}} und {{count}} Messungen.",
+    "note": "Obergrenzen: Ein Wert kann bis zu ein Prüfintervall zu hoch sein – wählen Sie während der Messung ein kurzes Intervall. Abweichungen der Geräteuhr sind in den Werten enthalten (erkennbar ist nur eine vorgehende Uhr).",
+    "suggestion": "Vorgeschlagen aus dem 95-%-Wert des höchsten Alters von {{p95}}, auf die Minute aufgerundet, plus ein Prüfintervall ({{margin}}):",
+    "field": {
+      "allowedDelaySeconds": "Erlaubte Verzögerung",
+      "maxAgeSeconds": "Ausgefallen, wenn älter als",
+      "degradedAgeSeconds": "Beeinträchtigt, wenn älter als"
+    },
+    "notSet": "nicht gesetzt",
+    "apply": "Vorschlag übernehmen",
+    "covered": "Die aktuellen Einstellungen decken das beobachtete höchste Alter bereits ab."
   }
 }

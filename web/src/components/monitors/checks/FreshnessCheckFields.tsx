@@ -6,7 +6,7 @@ import { Hint, KeyValueEditor } from '../../common';
 import { PlatformSelect, FreshnessFields, BodyInput, type CheckFieldsProps } from './common';
 
 /** The newest timestamp of an Insights Hub time series or of an API answer. */
-export function FreshnessCheckFields({ c, set, platforms, disabled, err }: CheckFieldsProps<'freshness'>) {
+export function FreshnessCheckFields({ c, set, platforms, disabled, err, observedDelay }: CheckFieldsProps<'freshness'>) {
   const { t } = useTranslation('monitors');
   return (
     <>
@@ -116,7 +116,7 @@ export function FreshnessCheckFields({ c, set, platforms, disabled, err }: Check
           />
         </>
       )}
-      <FreshnessFields c={c} set={set} disabled={disabled} what="data" err={err} />
+      <FreshnessFields c={c} set={set} disabled={disabled} what="data" err={err} observedDelay={observedDelay} />
     </>
   );
 }

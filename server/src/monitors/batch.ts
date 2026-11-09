@@ -89,15 +89,22 @@ export interface IhPlan {
   windowSeconds: number;
 }
 
-/** Newest timestamp (ms) per variable; null = no value in the look-back window. */
-export type IhLatest = Map<string, number | null>;
+/**
+ * Newest timestamp (ms) per variable (null = no value in the look-back window), and when the read started and its
+ * last answer arrived – the observed delay (delay.ts) is measured against these, not against the check's schedule.
+ */
+export interface IhLatest {
+  values: Map<string, number | null>;
+  startedAt: number;
+  receivedAt: number;
+}
 
 const tsBase = (p: Platform, assetId: string, aspect: string) => {
   const path = String(p.config.variables?.tsPath || '/api/iottimeseries/v3').replace(/\/+$/, '');
   return `${path}/timeseries/${encodeURIComponent(assetId)}/${encodeURIComponent(aspect)}`;
 };
 
-function latestPerVariable(records: unknown, vars: string[], into: IhLatest): void {
+function latestPerVariable(records: unknown, vars: string[], into: Map<string, number | null>): void {
   if (!Array.isArray(records)) return;
   for (const rec of records as Record<string, unknown>[]) {
     const t = Date.parse(String(rec?._time ?? ''));
@@ -120,7 +127,8 @@ async function fetchIh(key: string, plan: IhPlan): Promise<IhLatest> {
   const [platformId, assetId, aspect] = key.split('|') as [string, string, string];
   const { platform, secrets } = platformFor(plan.owner, platformId);
   const url = tsBase(platform, assetId, aspect);
-  const out: IhLatest = new Map(plan.vars.map((v) => [v, null]));
+  const out = new Map<string, number | null>(plan.vars.map((v) => [v, null]));
+  const startedAt = Date.now();
   const first = await platformRequest(platform, secrets, { method: 'GET', url, query: { latestRecord: 'true' } }, AbortSignal.timeout(30000));
   if (!first.ok) throw new SourceError(`Insights Hub time series API answered HTTP ${first.status}`, first.status);
   latestPerVariable(first.body, plan.vars, out);
@@ -137,7 +145,7 @@ async function fetchIh(key: string, plan: IhPlan): Promise<IhLatest> {
     if (!second.ok) throw new SourceError(`Insights Hub time series API answered HTTP ${second.status}`, second.status);
     latestPerVariable(second.body, missing, out);
   }
-  return out;
+  return { values: out, startedAt, receivedAt: Date.now() };
 }
 
 export const ihFetch = new SharedFetch<IhPlan, IhLatest>(

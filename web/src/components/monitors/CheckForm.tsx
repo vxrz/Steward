@@ -1,6 +1,6 @@
 import { Alert, Divider, Group, NumberInput, Stack, Switch, Text, TextInput, Textarea } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
-import type { CheckDef, MonitorSummary, Platform } from '@sm/shared';
+import type { CheckDef, MonitorSummary, ObservedDelay, Platform } from '@sm/shared';
 import { checkTypeHelp, checkTypeLabel } from './status';
 import { CheckFields } from './checks';
 import { num, type FieldError, type Patch } from './checks/common';
@@ -8,6 +8,7 @@ import { num, type FieldError, type Patch } from './checks/common';
 /** Fields this form shows a problem on; the others are listed at the top. */
 const FORM_FIELDS = [
   'allowedCidrs',
+  'allowedDelaySeconds',
   'application',
   'changedWithinHours',
   'maxCheckAgeHours',
@@ -74,10 +75,12 @@ export interface CheckFormProps {
   errors?: Map<string, string>;
   /** Heartbeat checks of a saved monitor: the last report received, to write the condition against (v0.3.1) */
   lastReport?: { at: string | null; report: unknown } | null;
+  /** Freshness checks of a saved monitor: the observed delay (0.13) */
+  observedDelay?: ObservedDelay | null;
 }
 
 /** Settings of one check (the monitor editor's inspector). */
-export function CheckForm({ check: c, onChange, platforms, monitors, monitorKey, disabled, isNew, errors, lastReport }: CheckFormProps) {
+export function CheckForm({ check: c, onChange, platforms, monitors, monitorKey, disabled, isNew, errors, lastReport, observedDelay }: CheckFormProps) {
   const set: Patch = (p) => onChange({ ...c, ...p } as CheckDef);
   const { t } = useTranslation('monitors');
   const err: FieldError = (field) => errors?.get(field);
@@ -120,7 +123,17 @@ export function CheckForm({ check: c, onChange, platforms, monitors, monitorKey,
       />
 
       {/* the fields of the check's type (checks/index.ts) */}
-      <CheckFields c={c} set={set} platforms={platforms} monitors={monitors} monitorKey={monitorKey} disabled={disabled} err={err} lastReport={lastReport} />
+      <CheckFields
+        c={c}
+        set={set}
+        platforms={platforms}
+        monitors={monitors}
+        monitorKey={monitorKey}
+        disabled={disabled}
+        err={err}
+        lastReport={lastReport}
+        observedDelay={observedDelay}
+      />
 
       <Divider label={t('form.schedule')} labelPosition="left" />
       <Group grow align="flex-start">
