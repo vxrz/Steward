@@ -204,6 +204,127 @@ test.describe('lists as sortable tables', () => {
   });
 });
 
+test.describe('more lists as sortable tables (0.13, second part)', () => {
+  test('applications: sorted by name, criticality by severity, filters in the address', async ({ page, apiAs }) => {
+    const api = await apiAs('admin');
+    const tag = uniq('E2E list');
+    const apps = [
+      await json<{ id: string }>(await api.post('/api/applications', { data: { name: `${tag} app 10`, criticality: 'low', owners: [] } })),
+      await json<{ id: string }>(await api.post('/api/applications', { data: { name: `${tag} app 9`, criticality: 'critical', owners: [] } })),
+    ];
+    try {
+      await page.goto(`/applications?q=${encodeURIComponent(tag)}`);
+      await settle(page);
+      await expect(page.getByRole('searchbox', { name: 'Search' })).toHaveValue(tag);
+      const table = page.getByRole('table', { name: 'Applications' });
+      await expect(table.getByRole('columnheader', { name: 'Name' })).toHaveAttribute('aria-sort', 'ascending');
+      await expect.poll(() => namesIn(page, 'Applications')).toEqual([`${tag} app 9`, `${tag} app 10`]);
+      const criticality = table.getByRole('columnheader', { name: 'Criticality' });
+      await criticality.getByRole('button').click();
+      await expect(criticality).toHaveAttribute('aria-sort', 'ascending');
+      await expect.poll(() => namesIn(page, 'Applications')).toEqual([`${tag} app 10`, `${tag} app 9`]);
+      await expectAccessible(page, 'applications table');
+      await page.goto(`/applications?q=${encodeURIComponent(tag)}&criticality=critical`);
+      await expect(table.getByRole('row')).toHaveCount(2);
+      await expect(table).toContainText(`${tag} app 9`);
+    } finally {
+      for (const a of apps) await api.post(`/api/applications/${a.id}/archive`, { data: { archived: true } });
+    }
+  });
+
+  test('plant sites, assets, device profiles and KPI definitions: sortable, the selection kept, the search in the address', async ({ page, apiAs }) => {
+    const res = await (
+      await apiAs('admin')
+    ).put('/api/settings/plant', { data: { enabled: true, enterprise: 'Brightwater Components', labels: {}, fields: {} } });
+    expect(res.ok(), await res.text()).toBe(true);
+    await page.goto('/plant/sites');
+    await settle(page);
+    const sites = page.getByTestId('plant-site-table');
+    await expect(sites.getByRole('columnheader', { name: 'Name' })).toHaveAttribute('aria-sort', 'ascending');
+    await expect(sites.getByTestId('select-all')).toBeVisible();
+
+    await page.goto('/plant/assets?site=riverside');
+    await settle(page);
+    const assets = page.getByTestId('plant-asset-table');
+    await expect(assets.getByRole('columnheader', { name: 'Name' })).toHaveAttribute('aria-sort', 'ascending');
+    const names = await namesIn(page, 'Assets', 2);
+    expect(names.length).toBeGreaterThan(2);
+    expect(names).toEqual([...names].sort(collate));
+    const status = assets.getByRole('columnheader', { name: 'Status' });
+    await status.getByRole('button').click();
+    await expect(status).toHaveAttribute('aria-sort', 'ascending');
+    // the selection column and the bulk bar stay
+    await assets.getByTestId('select-all').check();
+    await expect(page.getByTestId('bulk-bar')).toContainText(`${names.length} selected`);
+    await assets.getByTestId('select-all').uncheck();
+    await expectAccessible(page, 'plant assets table');
+    // the search goes into the address with the other filters
+    await page.getByRole('searchbox', { name: 'Search' }).fill('milling');
+    await expect(page).toHaveURL(/site=riverside.*q=milling|q=milling.*site=riverside/);
+    await page.reload();
+    await expect(page.getByRole('searchbox', { name: 'Search' })).toHaveValue('milling');
+    await expect(assets.getByRole('link', { name: 'Milling centre 1', exact: true })).toBeVisible();
+
+    await page.goto('/plant/profiles?kind=template');
+    await settle(page);
+    await expect(page.getByTestId('profile-kind-filter')).toHaveValue('Templates');
+    await page.goto('/plant/profiles?q=example');
+    const profiles = page.getByTestId('plant-profile-table');
+    await expect(profiles.getByRole('columnheader', { name: 'Name' })).toHaveAttribute('aria-sort', 'ascending');
+    await profiles.getByRole('columnheader', { name: 'Data points' }).getByRole('button').click();
+    await expect(profiles.getByRole('columnheader', { name: 'Data points' })).toHaveAttribute('aria-sort', 'ascending');
+
+    await page.goto('/plant/kpis');
+    await settle(page);
+    const kpis = page.getByTestId('plant-kpi-table');
+    await expect(kpis.getByRole('columnheader', { name: 'Name' })).toHaveAttribute('aria-sort', 'ascending');
+    await expectAccessible(page, 'KPI definitions table');
+  });
+
+  test('duties, maintenance, evidence packs and AI requests: sortable, filters in the address', async ({ page, apiAs }) => {
+    await page.goto('/duties?level=mandatory');
+    await settle(page);
+    const duties = page.getByRole('table', { name: 'Duties' });
+    await expect(duties.getByRole('columnheader', { name: 'Name' })).toHaveAttribute('aria-sort', 'ascending');
+    await expect(duties.getByRole('row').nth(1)).toContainText('Mandatory');
+    await duties.getByRole('columnheader', { name: 'Level' }).getByRole('button').click();
+    await expect(duties.getByRole('columnheader', { name: 'Level' })).toHaveAttribute('aria-sort', 'ascending');
+    await expectAccessible(page, 'duties table');
+
+    await page.goto('/maintenance');
+    await settle(page);
+    const windows = page.getByRole('table', { name: 'Maintenance' });
+    await expect(windows.getByRole('columnheader', { name: 'Current or next' })).toHaveAttribute('aria-sort', 'ascending');
+    await page.getByRole('switch', { name: 'Show cancelled' }).click({ force: true });
+    await expect(page).toHaveURL(/cancelled=1/);
+
+    const api = await apiAs('admin');
+    const service = (await json<{ id: string }[]>(await api.get('/api/services')))[0]!;
+    const title = uniq('E2E list pack');
+    const to = new Date();
+    const from = new Date(to.getTime() - 7 * 86_400_000);
+    await json(
+      await api.post('/api/compliance/evidence-packs', {
+        data: { title, scope: { serviceId: service.id }, from: from.toISOString(), to: to.toISOString() },
+      }),
+    );
+    await page.goto('/compliance/evidence-packs');
+    await settle(page);
+    const packs = page.getByRole('table', { name: 'Evidence packs' });
+    await expect(packs.getByRole('columnheader', { name: 'Created by' })).toHaveAttribute('aria-sort', 'descending');
+    await expect(packs.getByRole('row').filter({ hasText: title })).toHaveCount(1);
+    await page.goto('/compliance/evidence-packs?status=expired');
+    await expect(packs.getByRole('row').filter({ hasText: title })).toHaveCount(0);
+    await expectAccessible(page, 'evidence packs table');
+
+    await page.goto('/mcp-requests?scope=mine');
+    await settle(page);
+    await expect(page.getByRole('radio', { name: 'My assistants' })).toBeChecked();
+    await page.getByText('To decide', { exact: true }).click();
+    await expect(page).not.toHaveURL(/scope=/);
+  });
+});
+
 test.describe('lists on phones @mobile', () => {
   test('systems, services, schedules and triggers are cards with a sort menu', async ({ page, apiAs }) => {
     const api = await apiAs('admin');
@@ -229,5 +350,23 @@ test.describe('lists on phones @mobile', () => {
     } finally {
       await cleanup();
     }
+  });
+
+  test('applications, duties and maintenance are cards with a sort menu', async ({ page }) => {
+    for (const [path, label] of [
+      ['/applications', 'Applications'],
+      ['/duties', 'Duties'],
+      ['/maintenance', 'Maintenance'],
+    ] as const) {
+      await page.goto(path);
+      await settle(page);
+      const items = page.getByRole('list', { name: label }).getByRole('listitem');
+      await expect(items.first(), path).toBeVisible();
+      await expect(page.getByRole('main').locator('table'), path).toHaveCount(0);
+      // the sort menu once there is something to sort (the demo plans a single maintenance window)
+      await expect(page.getByTestId('list-sort'), path).toHaveCount((await items.count()) > 1 ? 1 : 0);
+      await expectNoHorizontalScroll(page);
+    }
+    await expectAccessible(page, 'maintenance cards');
   });
 });

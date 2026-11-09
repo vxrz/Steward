@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
-import { Alert, Anchor, Badge, Button, Group, Paper, SegmentedControl, Stack, Switch, Table, Text, Textarea } from '@mantine/core';
+import { Alert, Anchor, Badge, Button, Group, Paper, SegmentedControl, Stack, Switch, Text, Textarea } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { IconBrandGit, IconCheck, IconExternalLink, IconX } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { SYNC_RETENTION_DAYS, type ProcessDefinition, type SyncKind, type SyncUpdate, type SyncUpdateDetail, type SyncUpdateStatus } from '@sm/shared';
@@ -10,6 +10,8 @@ import { get, notifyError, notifyOk, post } from '../api';
 import { useMe } from '../auth';
 import { EmptyState, QueryState, TONE } from '../components/common';
 import { ListPage } from '../components/page/ListPage';
+import { useListParams } from '../components/page/params';
+import { DataTable, type DataColumn } from '../components/DataTable';
 import { AutomateTabs } from '../components/page/LinkTabs';
 import { DetailHeader } from '../components/page/DetailPage';
 import { SummaryView, summarize, UnifiedDiff } from '../components/editor/VersionDiff';
@@ -63,14 +65,61 @@ function UpdateBadges({ u }: { u: SyncUpdate }) {
 export function GitUpdatesPage() {
   const { t } = useTranslation(['gitSync', 'common']);
   const { caps } = useMe();
-  const [params] = useSearchParams();
+  // ?show= (open, invalid, decided) and ?source= live in the address, so the view can be shared
+  const { params, set } = useListParams();
   const source = params.get('source') ?? undefined;
-  const [filter, setFilter] = useState<keyof typeof FILTERS>('open');
+  const shown = params.get('show');
+  const filter: keyof typeof FILTERS = shown === 'invalid' || shown === 'decided' ? shown : 'open';
+  const setFilter = (v: keyof typeof FILTERS) => set('show', v === 'open' ? null : v);
   const list = useQuery({
     queryKey: ['sync-updates', filter, source],
     queryFn: () => get<SyncUpdate[]>(`/sync-updates?status=${FILTERS[filter].join(',')}${source ? `&sourceId=${encodeURIComponent(source)}` : ''}`),
     enabled: caps.createProcesses,
   });
+  const itemOf = (u: SyncUpdate) => (
+    <>
+      <Anchor size="sm" component={Link} to={`/git-updates/${u.id}`} fw={500} onClick={(e) => e.stopPropagation()}>
+        {u.entityName ?? u.path.split('/').pop()}
+      </Anchor>
+      <Text size="xs" c="dimmed">
+        {u.kind ? t(`form.kind.${u.kind}`) : t('updates.invalid')}
+      </Text>
+    </>
+  );
+  const columns: DataColumn<SyncUpdate>[] = [
+    { key: 'item', header: t('updates.item'), sortValue: (u) => u.entityName ?? u.path.split('/').pop(), cell: itemOf },
+    {
+      key: 'file',
+      header: t('updates.file'),
+      sortValue: (u) => u.path,
+      cell: (u) => (
+        <>
+          <Text size="sm" className="mono" style={{ overflowWrap: 'anywhere' }}>
+            {u.path}
+          </Text>
+          <Text size="xs" c="dimmed" className="mono">
+            {u.commit.slice(0, 10)}
+          </Text>
+        </>
+      ),
+    },
+    { key: 'source', header: t('updates.source'), sortValue: (u) => u.sourceName, cell: (u) => u.sourceName },
+    {
+      key: 'fetched',
+      header: t('updates.fetched'),
+      sortValue: (u) => u.createdAt,
+      nowrap: true,
+      tdProps: (u) => ({ title: fmtDate(u.createdAt) }),
+      cell: (u) => fmtRelative(u.createdAt),
+    },
+    {
+      key: 'state',
+      header: t('updates.state'),
+      // conflicts and invalid files first
+      sortValue: (u) => (u.status === 'pending' && u.conflict ? 0 : u.status === 'invalid' ? 1 : u.status === 'pending' ? 2 : 3),
+      cell: (u) => <UpdateBadges u={u} />,
+    },
+  ];
   if (!caps.createProcesses) return <ListPage tabs={<AutomateTabs active="/git-updates" />} title={t('updates.title')} description={t('updates.noAccess')} />;
   return (
     <ListPage tabs={<AutomateTabs active="/git-updates" />} title={t('updates.title')} description={t('updates.description')}>
@@ -89,46 +138,32 @@ export function GitUpdatesPage() {
         </EmptyState>
       )}
       {!!list.data?.length && (
-        <Table.ScrollContainer minWidth={640}>
-          <Table striped highlightOnHover verticalSpacing="xs">
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>{t('updates.item')}</Table.Th>
-                <Table.Th>{t('updates.file')}</Table.Th>
-                <Table.Th>{t('updates.source')}</Table.Th>
-                <Table.Th>{t('updates.fetched')}</Table.Th>
-                <Table.Th>{t('updates.state')}</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {list.data.map((u) => (
-                <Table.Tr key={u.id} data-testid="sync-update">
-                  <Table.Td>
-                    <Anchor size="sm" component={Link} to={`/git-updates/${u.id}`} fw={500}>
-                      {u.entityName ?? u.path.split('/').pop()}
-                    </Anchor>
-                    <Text size="xs" c="dimmed">
-                      {u.kind ? t(`form.kind.${u.kind}`) : t('updates.invalid')}
-                    </Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <Text size="sm" className="mono" style={{ overflowWrap: 'anywhere' }}>
-                      {u.path}
-                    </Text>
-                    <Text size="xs" c="dimmed" className="mono">
-                      {u.commit.slice(0, 10)}
-                    </Text>
-                  </Table.Td>
-                  <Table.Td>{u.sourceName}</Table.Td>
-                  <Table.Td title={fmtDate(u.createdAt)}>{fmtRelative(u.createdAt)}</Table.Td>
-                  <Table.Td>
-                    <UpdateBadges u={u} />
-                  </Table.Td>
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-        </Table.ScrollContainer>
+        <DataTable
+          rows={list.data}
+          columns={columns}
+          rowKey={(u) => u.id}
+          ariaLabel={t('updates.title')}
+          rowHref={(u) => `/git-updates/${u.id}`}
+          rowProps={() => ({ 'data-testid': 'sync-update' })}
+          testId="sync-update-list"
+          rememberSort="git-updates"
+          defaultSort={{ key: 'fetched', dir: 'desc' }}
+          verticalSpacing="xs"
+          card={(u) => (
+            <Paper withBorder p="sm" data-testid="sync-update">
+              <Group justify="space-between" wrap="nowrap" align="flex-start">
+                <div style={{ minWidth: 0 }}>{itemOf(u)}</div>
+                <UpdateBadges u={u} />
+              </Group>
+              <Text size="xs" c="dimmed" className="mono" style={{ overflowWrap: 'anywhere' }}>
+                {u.path}
+              </Text>
+              <Text size="xs" c="dimmed">
+                {u.sourceName} · {fmtRelative(u.createdAt)}
+              </Text>
+            </Paper>
+          )}
+        />
       )}
     </ListPage>
   );

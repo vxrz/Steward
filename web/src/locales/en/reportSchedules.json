@@ -12,7 +12,8 @@
     "last": "Last report",
     "next": "Next run",
     "owner": "Runs with the rights of {{owner}}",
-    "team": "Team {{team}}"
+    "team": "Team {{team}}",
+    "actions": "Actions"
   },
   "presets": {
     "daily": "Daily",

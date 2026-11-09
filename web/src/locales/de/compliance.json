@@ -403,6 +403,8 @@
     "statusLabel": "Status",
     "size": "Größe",
     "createdBy": "Erstellt von",
+    "actions": "Aktionen",
+    "noMatch": "Kein Nachweispaket passt zu den Filtern.",
     "sha": "SHA-256 {{hash}}…",
     "expires": "läuft {{when}} ab",
     "files_one": "{{count}} Datei",

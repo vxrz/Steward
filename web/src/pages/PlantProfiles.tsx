@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Anchor, Button, Group, Paper, Select, SimpleGrid, Stack, Table, Text } from '@mantine/core';
+import { Anchor, Button, Group, Paper, Select, SimpleGrid, Stack, Text } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
@@ -16,16 +16,17 @@ import { ProtocolBadge } from '../components/plant/data';
 import { ProfileFormModal } from '../components/plant/dataForms';
 import { ExtractBaseModal } from '../components/plant/ExtractBaseModal';
 import { TemplateBadge } from '../components/plant/potential';
+import { DataTable, type DataColumn } from '../components/DataTable';
 
 /** The device profiles of the installation (#219): kinds of controllers and devices with their interfaces and data points. */
 export function PlantProfilesPage() {
-  const { t } = useTranslation(['plant', 'common', 'plantModel']);
+  const { t } = useTranslation(['plant', 'common', 'plantModel', 'plantIds']);
   const navigate = useNavigate();
   const qc = useQueryClient();
   const cfg = usePlantConfig();
   const profiles = useQuery({ queryKey: plantKeys.profiles, queryFn: () => get<PlantProfileSummary[]>('/plant/profiles') });
   const [params, setParams] = useSearchParams();
-  const [q, setQ] = useState(params.get('q') ?? '');
+  const q = params.get('q') ?? '';
   const protocol = params.get('protocol') as PlantProtocol | null;
   const category = params.get('category');
   // 0.12.0: templates (only for other profiles to extend) or the others
@@ -71,6 +72,58 @@ export function PlantProfilesPage() {
   const canBulk = !!canManage;
   const shownIds = list.map((p) => p.id);
   const sel = useSelection(shownIds);
+  const makeModel = (p: PlantProfileSummary) => [p.manufacturer, p.model].filter(Boolean).join(' · ');
+  const columns: DataColumn<PlantProfileSummary>[] = [
+    ...(canBulk
+      ? [
+          {
+            key: 'select',
+            header: <SelectAllBox sel={sel} ids={shownIds} />,
+            label: t('plantIds:bulk.selectAll'),
+            tdProps: () => ({ onClick: (e: { stopPropagation: () => void }) => e.stopPropagation() }),
+            cell: (p: PlantProfileSummary) => <SelectBox sel={sel} id={p.id} name={p.name} />,
+          },
+        ]
+      : []),
+    {
+      key: 'name',
+      header: t('form.name'),
+      sortValue: (p) => p.name,
+      cell: (p) => (
+        <>
+          <Anchor component={Link} to={to(p)} fw={500} size="sm" onClick={(e) => e.stopPropagation()}>
+            {p.name}
+          </Anchor>
+          <Group gap={4}>
+            <Text size="xs" c="dimmed" className="mono">
+              {p.id}
+            </Text>
+            {p.template && <TemplateBadge />}
+            {p.notInSource && <NotInSourceBadge size="xs" />}
+          </Group>
+        </>
+      ),
+    },
+    {
+      key: 'model',
+      header: t('asset.manufacturerModel'),
+      sortValue: makeModel,
+      cell: (p) => (
+        <>
+          {makeModel(p) || '–'}
+          {p.version && (
+            <Text size="xs" c="dimmed">
+              {t('profile.versionIs', { version: p.version })}
+            </Text>
+          )}
+        </>
+      ),
+    },
+    { key: 'category', header: t('profile.category'), sortValue: (p) => p.category, cell: (p) => p.category || '–' },
+    { key: 'interfaces', header: t('profile.interfaces'), sortValue: (p) => p.interfaceCount, cell: protocols },
+    { key: 'points', header: t('profile.dataPoints'), sortValue: (p) => p.dataPointCount, cell: (p) => p.dataPointCount },
+    { key: 'assets', header: t('profile.assets'), sortValue: (p) => p.assetCount, cell: (p) => p.assetCount },
+  ];
   return (
     <ListPage
       testId="plant-profiles"
@@ -101,7 +154,7 @@ export function PlantProfilesPage() {
           )}
         </>
       }
-      search={none ? undefined : { value: q, onChange: setQ, placeholder: t('profiles.search') }}
+      search={none ? undefined : { value: q, onChange: (v) => set('q', v || null), placeholder: t('profiles.search') }}
       activeFilters={active}
       filters={
         none ? undefined : (
@@ -192,60 +245,16 @@ export function PlantProfilesPage() {
         </SimpleGrid>
       )}
       {list.length > 0 && !view.cards && (
-        <div className="table-scroll">
-          <Table highlightOnHover fz="sm" aria-label={t('profiles.title')} data-testid="plant-profile-table">
-            <Table.Thead>
-              <Table.Tr>
-                {canBulk && (
-                  <Table.Th w={36}>
-                    <SelectAllBox sel={sel} ids={shownIds} />
-                  </Table.Th>
-                )}
-                <Table.Th>{t('form.name')}</Table.Th>
-                <Table.Th>{t('asset.manufacturerModel')}</Table.Th>
-                <Table.Th>{t('profile.category')}</Table.Th>
-                <Table.Th>{t('profile.interfaces')}</Table.Th>
-                <Table.Th>{t('profile.dataPoints')}</Table.Th>
-                <Table.Th>{t('profile.assets')}</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {list.map((p) => (
-                <Table.Tr key={p.id} className="clickable" onClick={() => navigate(to(p))}>
-                  {canBulk && (
-                    <Table.Td onClick={(e) => e.stopPropagation()}>
-                      <SelectBox sel={sel} id={p.id} name={p.name} />
-                    </Table.Td>
-                  )}
-                  <Table.Td>
-                    <Anchor component={Link} to={to(p)} fw={500} size="sm" onClick={(e) => e.stopPropagation()}>
-                      {p.name}
-                    </Anchor>
-                    <Group gap={4}>
-                      <Text size="xs" c="dimmed" className="mono">
-                        {p.id}
-                      </Text>
-                      {p.template && <TemplateBadge />}
-                      {p.notInSource && <NotInSourceBadge size="xs" />}
-                    </Group>
-                  </Table.Td>
-                  <Table.Td>
-                    {[p.manufacturer, p.model].filter(Boolean).join(' · ') || '–'}
-                    {p.version && (
-                      <Text size="xs" c="dimmed">
-                        {t('profile.versionIs', { version: p.version })}
-                      </Text>
-                    )}
-                  </Table.Td>
-                  <Table.Td>{p.category || '–'}</Table.Td>
-                  <Table.Td>{protocols(p)}</Table.Td>
-                  <Table.Td>{p.dataPointCount}</Table.Td>
-                  <Table.Td>{p.assetCount}</Table.Td>
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-        </div>
+        <DataTable
+          rows={list}
+          columns={columns}
+          rowKey={(p) => p.id}
+          ariaLabel={t('profiles.title')}
+          rowHref={to}
+          testId="plant-profile-table"
+          rememberSort="plant-profiles"
+          defaultSort={{ key: 'name', dir: 'asc' }}
+        />
       )}
       {extracting && (
         <ExtractBaseModal profiles={all} preselect={[...sel.ids].filter((id) => !all.find((x) => x.id === id)?.extends)} onClose={() => setExtracting(false)} />

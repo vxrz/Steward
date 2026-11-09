@@ -64,7 +64,7 @@ function OverdueReviewsBadge({ count, ml }: { count: number; ml?: number }) {
 }
 
 /** Sort order of the criticality column: the most critical first when descending. */
-const CRITICALITY_RANK: Record<string, number> = { low: 1, medium: 2, high: 3, critical: 4 };
+export const CRITICALITY_RANK: Record<string, number> = { low: 1, medium: 2, high: 3, critical: 4 };
 
 export function ServicesPage() {
   const { t } = useTranslation(['services', 'common', 'applications']);

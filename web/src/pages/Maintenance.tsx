@@ -1,14 +1,15 @@
 import { useMemo, useState } from 'react';
-import { ActionIcon, Badge, Button, Group, Paper, SegmentedControl, SimpleGrid, Switch, Table, Text, Tooltip, UnstyledButton } from '@mantine/core';
+import { ActionIcon, Badge, Button, Group, Paper, SegmentedControl, SimpleGrid, Switch, Text, Tooltip, UnstyledButton } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { IconChevronLeft, IconChevronRight, IconPlus, IconTool } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import type { MaintenanceList, MaintenanceOccurrence } from '@sm/shared';
+import type { MaintenanceList, MaintenanceOccurrence, MaintenanceWindowSummary } from '@sm/shared';
 import { get } from '../api';
 import { EmptyState, PageHeader, QueryState, useCreateParam } from '../components/common';
 import { MaintenanceDetailModal, MaintenanceFormModal, TargetBadges, WhenLine, useRepeatLabel } from '../components/catalogue/maintenance';
 import { dateTimeFormat, fmtTime } from '../format';
+import { DataTable, type DataColumn } from '../components/DataTable';
 
 /** Maintenance windows (#108): what is planned, as a list or a month calendar; plan, change and cancel windows. */
 export function MaintenancePage() {
@@ -16,13 +17,23 @@ export function MaintenancePage() {
   const qc = useQueryClient();
   const [params, setParams] = useSearchParams();
   const [view, setView] = useState<'list' | 'calendar'>('list');
-  const [showCancelled, setShowCancelled] = useState(false);
   const [creating, setCreating] = useState(false);
   const [month, setMonth] = useState(() => {
     const d = new Date();
     return new Date(d.getFullYear(), d.getMonth(), 1);
   });
   const open = params.get('open');
+  // ?cancelled=1: the list shows cancelled windows too (kept in the address like the open window)
+  const showCancelled = params.get('cancelled') === '1';
+  const setShowCancelled = (on: boolean) =>
+    setParams(
+      (p) => {
+        if (on) p.set('cancelled', '1');
+        else p.delete('cancelled');
+        return p;
+      },
+      { replace: true },
+    );
   const setOpen = (id: string | null) =>
     setParams(
       (p) => {
@@ -63,6 +74,34 @@ export function MaintenancePage() {
   useCreateParam(canPlan, () => setCreating(true));
 
   const windows = list.data?.windows ?? [];
+  const titleOf = (w: MaintenanceWindowSummary) => (
+    <>
+      <UnstyledButton
+        fw={500}
+        fz="sm"
+        c="var(--mantine-primary-color-filled)"
+        aria-label={t('maintenance.detailsOf', { title: w.title })}
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen(w.id);
+        }}
+      >
+        {w.title}
+      </UnstyledButton>
+      {!w.enabled && (
+        <Badge ml={6} size="xs" color="gray" variant="outline">
+          {t('maintenance.disabledBadge')}
+        </Badge>
+      )}
+    </>
+  );
+  const columns: DataColumn<MaintenanceWindowSummary>[] = [
+    { key: 'title', header: t('maintenance.colTitle'), sortValue: (w) => w.title, cell: titleOf },
+    // the next (or current) occurrence; cancelled windows last
+    { key: 'when', header: t('maintenance.colWhen'), sortValue: (w) => (w.cancelledAt ? null : w.current?.startsAt), cell: (w) => <WhenLine w={w} /> },
+    { key: 'repeat', header: t('maintenance.colRepeat'), sortValue: (w) => repeat(w), cell: (w) => repeat(w) },
+    { key: 'targets', header: t('maintenance.colTargets'), sortValue: (w) => w.targets.length, cell: (w) => <TargetBadges targets={w.targets} /> },
+  ];
   return (
     <>
       <PageHeader
@@ -110,50 +149,26 @@ export function MaintenancePage() {
             </EmptyState>
           )}
           {windows.length > 0 && (
-            <div className="table-scroll">
-              <Table highlightOnHover fz="sm" aria-label={t('maintenance.title')}>
-                <Table.Thead>
-                  <Table.Tr>
-                    <Table.Th>{t('maintenance.colTitle')}</Table.Th>
-                    <Table.Th>{t('maintenance.colWhen')}</Table.Th>
-                    <Table.Th>{t('maintenance.colRepeat')}</Table.Th>
-                    <Table.Th>{t('maintenance.colTargets')}</Table.Th>
-                  </Table.Tr>
-                </Table.Thead>
-                <Table.Tbody>
-                  {windows.map((w) => (
-                    <Table.Tr key={w.id} className="clickable" onClick={() => setOpen(w.id)}>
-                      <Table.Td>
-                        <UnstyledButton
-                          fw={500}
-                          fz="sm"
-                          c="var(--mantine-primary-color-filled)"
-                          aria-label={t('maintenance.detailsOf', { title: w.title })}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setOpen(w.id);
-                          }}
-                        >
-                          {w.title}
-                        </UnstyledButton>
-                        {!w.enabled && (
-                          <Badge ml={6} size="xs" color="gray" variant="outline">
-                            {t('maintenance.disabledBadge')}
-                          </Badge>
-                        )}
-                      </Table.Td>
-                      <Table.Td>
-                        <WhenLine w={w} />
-                      </Table.Td>
-                      <Table.Td>{repeat(w)}</Table.Td>
-                      <Table.Td>
-                        <TargetBadges targets={w.targets} />
-                      </Table.Td>
-                    </Table.Tr>
-                  ))}
-                </Table.Tbody>
-              </Table>
-            </div>
+            <DataTable
+              rows={windows}
+              columns={columns}
+              rowKey={(w) => w.id}
+              ariaLabel={t('maintenance.title')}
+              onRowClick={(w) => setOpen(w.id)}
+              testId="maintenance-list"
+              rememberSort="maintenance"
+              defaultSort={{ key: 'when', dir: 'asc' }}
+              card={(w) => (
+                <Paper withBorder p="sm">
+                  {titleOf(w)}
+                  <WhenLine w={w} />
+                  <Text size="xs" c="dimmed">
+                    {repeat(w)}
+                  </Text>
+                  <TargetBadges targets={w.targets} />
+                </Paper>
+              )}
+            />
           )}
         </>
       )}

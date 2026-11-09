@@ -12,7 +12,8 @@
     "last": "Letzter Bericht",
     "next": "Nächster Lauf",
     "owner": "Läuft mit den Rechten von {{owner}}",
-    "team": "Team „{{team}}“"
+    "team": "Team „{{team}}“",
+    "actions": "Aktionen"
   },
   "presets": {
     "daily": "Täglich",

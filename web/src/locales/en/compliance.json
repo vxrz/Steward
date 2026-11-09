@@ -403,6 +403,8 @@
     "statusLabel": "Status",
     "size": "Size",
     "createdBy": "Created by",
+    "actions": "Actions",
+    "noMatch": "No evidence pack matches the filters.",
     "sha": "SHA-256 {{hash}}…",
     "expires": "expires {{when}}",
     "files_one": "{{count}} file",

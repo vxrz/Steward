@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Anchor, Badge, Button, CloseButton, Group, Paper, Select, SimpleGrid, Stack, Table, Text } from '@mantine/core';
+import { Anchor, Badge, Button, CloseButton, Group, Paper, Select, SimpleGrid, Stack, Text } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
@@ -13,6 +13,7 @@ import { plantKeys } from '../queryKeys';
 import { AssetStatusBadge, NotInSourceBadge, PreviewBadge, useNameOf, usePlantConfig, usePlantLabel } from '../components/plant/common';
 import { AssetFormModal, flatNodes, nodePath, useHierarchy } from '../components/plant/forms';
 import { BulkBar, SelectAllBox, SelectBox, useSelection } from '../components/plant/bulk';
+import { DataTable, type DataColumn } from '../components/DataTable';
 
 // profile and data point (#219): "which assets deliver data point X" lands here from a data point or the search
 const FILTERS = ['site', 'node', 'domain', 'status', 'tag', 'profile', 'dataPoint'] as const;
@@ -31,7 +32,7 @@ export function LocationLine({ location, withSite = true }: { location: AssetLoc
 
 /** Assets of the sites the person may see (#218), filtered by site, place, domain, status and tag (kept in the address). */
 export function PlantAssetsPage() {
-  const { t } = useTranslation(['plant', 'common']);
+  const { t } = useTranslation(['plant', 'common', 'plantIds']);
   const label = usePlantLabel();
   const nameOf = useNameOf();
   const navigate = useNavigate();
@@ -40,7 +41,7 @@ export function PlantAssetsPage() {
   const tree = useHierarchy();
   const [params, setParams] = useSearchParams();
   const filter = Object.fromEntries(FILTERS.map((f) => [f, params.get(f)])) as Record<Filter, string | null>;
-  const [q, setQ] = useState(params.get('q') ?? '');
+  const q = params.get('q') ?? '';
   const [creating, setCreating] = useState(false);
   useCreateParam(cfg.data?.canManageSome, () => setCreating(true));
   const qs = new URLSearchParams(Object.entries(filter).filter(([, v]) => v) as [string, string][]).toString();
@@ -57,6 +58,13 @@ export function PlantAssetsPage() {
     // a place belongs to a site: choosing another site clears it; a data point belongs to its profile
     if (f === 'site') next.delete('node');
     if (f === 'profile') next.delete('dataPoint');
+    setParams(next, { replace: true });
+  };
+  // the search lives in the address too (?q=), with the other filters
+  const setQ = (v: string) => {
+    const next = new URLSearchParams(params);
+    if (v) next.set('q', v);
+    else next.delete('q');
     setParams(next, { replace: true });
   };
   const sites = useMemo(() => tree.data ?? [], [tree.data]);
@@ -93,6 +101,71 @@ export function PlantAssetsPage() {
     ) : (
       '–'
     );
+  const locationText = (a: PlantAssetSummary) =>
+    [a.location.site, a.location.area, a.location.workCenter, a.location.workUnit]
+      .filter((x): x is NonNullable<typeof x> => !!x)
+      .map((x) => nameOf(x))
+      .join(' › ');
+  const columns: DataColumn<PlantAssetSummary>[] = [
+    ...(canBulk
+      ? [
+          {
+            key: 'select',
+            header: <SelectAllBox sel={sel} ids={shownIds} />,
+            label: t('plantIds:bulk.selectAll'),
+            tdProps: () => ({ onClick: (e: { stopPropagation: () => void }) => e.stopPropagation() }),
+            cell: (a: PlantAssetSummary) => <SelectBox sel={sel} id={a.id} name={a.name} />,
+          },
+        ]
+      : []),
+    {
+      key: 'name',
+      header: t('form.name'),
+      sortValue: (a) => a.name,
+      cell: (a) => (
+        <>
+          <Anchor component={Link} to={`/plant/assets/${encodeURIComponent(a.id)}`} fw={500} size="sm" onClick={(e) => e.stopPropagation()}>
+            {a.name}
+          </Anchor>
+          <Group gap={4}>
+            <Text size="xs" c="dimmed" className="mono">
+              {a.id}
+            </Text>
+            {a.notInSource && <NotInSourceBadge size="xs" />}
+          </Group>
+        </>
+      ),
+    },
+    {
+      key: 'status',
+      header: t('asset.status'),
+      // in the order of an asset's life: planned … decommissioned
+      sortValue: (a) => ASSET_STATUSES.indexOf(a.status),
+      cell: (a) => <AssetStatusBadge status={a.status} />,
+    },
+    { key: 'location', header: t('asset.location'), sortValue: locationText, cell: (a) => <LocationLine location={a.location} /> },
+    { key: 'building', header: label('building'), sortValue: (a) => (a.location.building ? nameOf(a.location.building) : null), cell: building },
+    {
+      key: 'model',
+      header: t('asset.manufacturerModel'),
+      sortValue: (a) => [a.manufacturer, a.model].filter(Boolean).join(' · '),
+      cell: (a) => [a.manufacturer, a.model].filter(Boolean).join(' · ') || '–',
+    },
+    {
+      key: 'tags',
+      header: t('asset.tags'),
+      sortValue: (a) => a.tags.join(', '),
+      cell: (a) => (
+        <Group gap={4}>
+          {a.tags.map((x) => (
+            <Badge key={x} size="xs" variant="default">
+              {x}
+            </Badge>
+          ))}
+        </Group>
+      ),
+    },
+  ];
   return (
     <ListPage
       testId="plant-assets"
@@ -110,7 +183,7 @@ export function PlantAssetsPage() {
           </Button>
         )
       }
-      search={none ? undefined : { value: q, onChange: setQ, placeholder: t('assets.search') }}
+      search={none ? undefined : { value: q, onChange: (v) => setQ(v), placeholder: t('assets.search') }}
       activeFilters={active}
       filters={
         none ? undefined : (
@@ -257,64 +330,16 @@ export function PlantAssetsPage() {
         </SimpleGrid>
       )}
       {list.length > 0 && !view.cards && (
-        <div className="table-scroll">
-          <Table highlightOnHover fz="sm" aria-label={plural} data-testid="plant-asset-table">
-            <Table.Thead>
-              <Table.Tr>
-                {canBulk && (
-                  <Table.Th w={36}>
-                    <SelectAllBox sel={sel} ids={shownIds} />
-                  </Table.Th>
-                )}
-                <Table.Th>{t('form.name')}</Table.Th>
-                <Table.Th>{t('asset.status')}</Table.Th>
-                <Table.Th>{t('asset.location')}</Table.Th>
-                <Table.Th>{label('building')}</Table.Th>
-                <Table.Th>{t('asset.manufacturerModel')}</Table.Th>
-                <Table.Th>{t('asset.tags')}</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {list.map((a) => (
-                <Table.Tr key={a.id} className="clickable" onClick={() => navigate(`/plant/assets/${encodeURIComponent(a.id)}`)}>
-                  {canBulk && (
-                    <Table.Td onClick={(e) => e.stopPropagation()}>
-                      <SelectBox sel={sel} id={a.id} name={a.name} />
-                    </Table.Td>
-                  )}
-                  <Table.Td>
-                    <Anchor component={Link} to={`/plant/assets/${encodeURIComponent(a.id)}`} fw={500} size="sm" onClick={(e) => e.stopPropagation()}>
-                      {a.name}
-                    </Anchor>
-                    <Group gap={4}>
-                      <Text size="xs" c="dimmed" className="mono">
-                        {a.id}
-                      </Text>
-                      {a.notInSource && <NotInSourceBadge size="xs" />}
-                    </Group>
-                  </Table.Td>
-                  <Table.Td>
-                    <AssetStatusBadge status={a.status} />
-                  </Table.Td>
-                  <Table.Td>
-                    <LocationLine location={a.location} />
-                  </Table.Td>
-                  <Table.Td>{building(a)}</Table.Td>
-                  <Table.Td>{[a.manufacturer, a.model].filter(Boolean).join(' · ') || '–'}</Table.Td>
-                  <Table.Td>
-                    <Group gap={4}>
-                      {a.tags.map((x) => (
-                        <Badge key={x} size="xs" variant="default">
-                          {x}
-                        </Badge>
-                      ))}
-                    </Group>
-                  </Table.Td>
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-        </div>
+        <DataTable
+          rows={list}
+          columns={columns}
+          rowKey={(a) => a.id}
+          ariaLabel={plural}
+          rowHref={(a) => `/plant/assets/${encodeURIComponent(a.id)}`}
+          testId="plant-asset-table"
+          rememberSort="plant-assets"
+          defaultSort={{ key: 'name', dir: 'asc' }}
+        />
       )}
       {creating && (
         <AssetFormModal

@@ -1,23 +1,24 @@
 import { useMemo, useState } from 'react';
-import { Anchor, Badge, Button, Group, Modal, Paper, Select, Stack, Switch, Table, Text, TextInput, Textarea } from '@mantine/core';
-import { useMediaQuery } from '@mantine/hooks';
+import { Anchor, Badge, Button, Group, Modal, Paper, Select, Stack, Switch, Text, TextInput, Textarea } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
-import { IconApps, IconPlus, IconScale, IconSearch } from '@tabler/icons-react';
+import { IconApps, IconPlus, IconScale } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { SubjectsInput } from '../components/SubjectsInput';
 import { CIA_DIMENSIONS, SERVICE_CRITICALITIES, tagLabel, tagsMatch, type ApplicationDetail, type ApplicationSummary, type ServiceSummary } from '@sm/shared';
 import { TagBadges, TagFilterChip, TagInput, useTagFilter } from '../components/tags';
 import { get, notifyError, post, put } from '../api';
-import { EmptyState, FilterPanel, QueryState, useCreateParam, useFieldErrors } from '../components/common';
+import { EmptyState, QueryState, useCreateParam, useFieldErrors } from '../components/common';
 import { useMe } from '../auth';
 import { fmtDate, fmtRelative } from '../format';
-import { CriticalityBadge } from './Services';
+import { CRITICALITY_RANK, CriticalityBadge } from './Services';
 import { RatingBadges, levelText, useCiaScale } from '../components/catalogue/cia';
 import { useRoleLabel } from '../components/catalogue/ServiceApplications';
 import { EndOfLifeButton } from '../components/catalogue/lifecycle';
 import { VersionWatchButton } from '../components/catalogue/versions';
-import { ListPage, useStoredListView } from '../components/page/ListPage';
+import { ListPage } from '../components/page/ListPage';
+import { useListParams } from '../components/page/params';
+import { DataTable, ListFooter, type DataColumn } from '../components/DataTable';
 import { IfModule } from '../components/modules/ModuleOff';
 import { RestrictedEmpty, useHiddenByPermissions } from '../components/modules/RestrictedEmpty';
 
@@ -27,12 +28,14 @@ const NOT_RATED = '__none';
 export function ApplicationsPage() {
   const { t } = useTranslation(['applications', 'services', 'common']);
   const navigate = useNavigate();
-  const [archived, setArchived] = useState(false);
+  // the filters live in the address (?q=, ?service=, ?criticality=, ?protection=, ?archived=1, ?tag=), so a filtered list can be shared
+  const { params, set } = useListParams();
+  const q = params.get('q') ?? '';
+  const service = params.get('service');
+  const criticality = params.get('criticality');
+  const protection = params.get('protection');
+  const archived = params.get('archived') === '1';
   const [creating, setCreating] = useState(false);
-  const [q, setQ] = useState('');
-  const [service, setService] = useState<string | null>(null);
-  const [criticality, setCriticality] = useState<string | null>(null);
-  const [protection, setProtection] = useState<string | null>(null);
   const apps = useQuery({ queryKey: ['applications', archived], queryFn: () => get<ApplicationSummary[]>(`/applications${archived ? '?archived=1' : ''}`) });
   // entries the person may not see (U3): "nothing you may see" instead of "nothing yet"
   const hidden = useHiddenByPermissions('applications');
@@ -42,8 +45,6 @@ export function ApplicationsPage() {
   const { hasRole } = useMe();
   const canCreate = hasRole('admin') || hasRole('designer');
   useCreateParam(canCreate, () => setCreating(true));
-  const narrow = useMediaQuery('(max-width: 48em)') ?? false;
-  const listView = useStoredListView('applications', narrow);
 
   // the levels of all dimensions, once each (a scale per dimension can have different levels)
   const levelOptions = useMemo(() => {
@@ -55,7 +56,8 @@ export function ApplicationsPage() {
 
   const [tag, setTag] = useTagFilter();
   const needle = q.trim().toLowerCase();
-  const list = (apps.data ?? []).filter((a) => {
+  const all = apps.data ?? [];
+  const list = all.filter((a) => {
     if (needle && ![a.name, a.vendor, ...a.tags.map(tagLabel)].some((x) => x.toLowerCase().includes(needle))) return false;
     if (!tagsMatch(a.tags, tag)) return false;
     if (service && !a.services.some((s) => s.id === service)) return false;
@@ -64,12 +66,69 @@ export function ApplicationsPage() {
     if (protection && !CIA_DIMENSIONS.some((d) => a.rating[d]?.level === protection && !a.rating[d]?.needsRerating)) return false;
     return true;
   });
-  const active = [service, criticality, protection].filter(Boolean).length;
+  const active = [service, criticality, protection, archived].filter(Boolean).length;
+  const columns: DataColumn<ApplicationSummary>[] = [
+    {
+      key: 'name',
+      header: t('name'),
+      sortValue: (a) => a.name,
+      cell: (a) => (
+        <>
+          {/* inline-block with a 24 px line: a target of at least 24 × 24 px (WCAG 2.2, 2.5.8) */}
+          <Anchor component={Link} to={`/applications/${a.id}`} fw={500} size="sm" display="inline-block" lh="24px" onClick={(e) => e.stopPropagation()}>
+            {a.name}
+          </Anchor>
+          {a.archived && (
+            <Badge ml={6} size="xs" variant="outline" color="gray">
+              {t('archived')}
+            </Badge>
+          )}
+          {(a.vendor || a.version) && (
+            <Text size="xs" c="dimmed">
+              {[a.vendor, a.version].filter(Boolean).join(' · ')}
+            </Text>
+          )}
+          <TagBadges tags={a.tags} onTag={setTag} />
+        </>
+      ),
+    },
+    { key: 'cia', header: t('cia.title'), cell: (a) => <RatingBadges rating={a.rating} /> },
+    {
+      key: 'criticality',
+      header: t('criticality'),
+      sortValue: (a) => (a.criticality ? CRITICALITY_RANK[a.criticality] : null),
+      cell: (a) => (a.criticality ? <CriticalityBadge value={a.criticality} /> : '–'),
+    },
+    {
+      key: 'services',
+      header: t('servicesColumn'),
+      sortValue: (a) => a.services.map((s) => s.name).join(', '),
+      cell: (a) =>
+        a.services.length === 0
+          ? '–'
+          : a.services.map((s) => (
+              <Text key={s.id} size="xs">
+                <Anchor component={Link} to={`/services/${s.id}`} size="xs" onClick={(e) => e.stopPropagation()}>
+                  {s.name}
+                </Anchor>{' '}
+                ({roleLabel(s.role, s.roleText)})
+              </Text>
+            )),
+    },
+    { key: 'integrations', header: t('integrationsColumn'), sortValue: (a) => a.integrationCount, cell: (a) => a.integrationCount },
+    {
+      key: 'updated',
+      header: t('updated'),
+      sortValue: (a) => a.updatedAt,
+      nowrap: true,
+      tdProps: (a) => ({ title: fmtDate(a.updatedAt) }),
+      cell: (a) => fmtRelative(a.updatedAt),
+    },
+  ];
 
   return (
     <ListPage
       view="applications"
-      viewState={listView}
       title={t('title')}
       description={t('description')}
       actions={
@@ -88,58 +147,47 @@ export function ApplicationsPage() {
           )}
         </>
       }
+      search={{ value: q, onChange: (v) => set('q', v), placeholder: t('searchPlaceholder'), label: t('search') }}
+      activeFilters={active}
+      filters={
+        <Group gap="sm" mb="md" align="flex-end" wrap="wrap" data-testid="application-filters">
+          <Select
+            size="xs"
+            label={t('filters.service')}
+            data={(services.data ?? []).map((s) => ({ value: s.id, label: s.name }))}
+            value={service}
+            onChange={(v) => set('service', v)}
+            clearable
+            searchable
+            w={{ base: '100%', xs: 200 }}
+          />
+          <Select
+            size="xs"
+            label={t('filters.criticality')}
+            data={SERVICE_CRITICALITIES.map((c) => ({ value: c, label: t(`services:criticalities.${c}`) }))}
+            value={criticality}
+            onChange={(v) => set('criticality', v)}
+            clearable
+            w={{ base: '100%', xs: 160 }}
+          />
+          <Select
+            size="xs"
+            label={t('filters.protection')}
+            description={t('filters.protectionHint')}
+            data={levelOptions}
+            value={protection}
+            onChange={(v) => set('protection', v)}
+            clearable
+            w={{ base: '100%', xs: 200 }}
+          />
+          <Switch size="sm" mb={4} label={t('showArchived')} checked={archived} onChange={(e) => set('archived', e.currentTarget.checked ? '1' : null)} />
+          <TagFilterChip tag={tag} onChange={setTag} />
+        </Group>
+      }
     >
-      <Group gap="sm" mb="md" align="flex-end" wrap="wrap">
-        <TextInput
-          label={t('search')}
-          placeholder={t('searchPlaceholder')}
-          leftSection={<IconSearch size={14} />}
-          value={q}
-          onChange={(e) => setQ(e.currentTarget.value)}
-          w={{ base: '100%', sm: 240 }}
-          size="xs"
-        />
-        <FilterPanel active={active}>
-          <Group gap="sm" align="flex-end" wrap="wrap">
-            <Select
-              size="xs"
-              label={t('filters.service')}
-              data={(services.data ?? []).map((s) => ({ value: s.id, label: s.name }))}
-              value={service}
-              onChange={setService}
-              clearable
-              searchable
-              w={200}
-            />
-            <Select
-              size="xs"
-              label={t('filters.criticality')}
-              data={SERVICE_CRITICALITIES.map((c) => ({ value: c, label: t(`services:criticalities.${c}`) }))}
-              value={criticality}
-              onChange={setCriticality}
-              clearable
-              w={160}
-            />
-            <Select
-              size="xs"
-              label={t('filters.protection')}
-              description={t('filters.protectionHint')}
-              data={levelOptions}
-              value={protection}
-              onChange={setProtection}
-              clearable
-              w={200}
-            />
-          </Group>
-        </FilterPanel>
-      </Group>
-      <Group gap="md" mb="md">
-        <Switch size="sm" label={t('showArchived')} checked={archived} onChange={(e) => setArchived(e.currentTarget.checked)} />
-        <TagFilterChip tag={tag} onChange={setTag} />
-      </Group>
       <QueryState query={apps} />
-      {apps.isSuccess && (apps.data ?? []).length === 0 && hidden && !archived && <RestrictedEmpty />}
-      {apps.isSuccess && (apps.data ?? []).length === 0 && !(hidden && !archived) && (
+      {apps.isSuccess && all.length === 0 && hidden && !archived && <RestrictedEmpty />}
+      {apps.isSuccess && all.length === 0 && !(hidden && !archived) && (
         <EmptyState
           icon={IconApps}
           title={archived ? t('emptyState.titleArchived') : t('emptyState.title')}
@@ -156,98 +204,42 @@ export function ApplicationsPage() {
           {archived ? undefined : canCreate ? t('emptyState.textCreate') : t('emptyState.text')}
         </EmptyState>
       )}
-      {apps.isSuccess && (apps.data ?? []).length > 0 && list.length === 0 && (
+      {apps.isSuccess && all.length > 0 && list.length === 0 && (
         <Text size="sm" c="dimmed">
           {t('noMatch')}
         </Text>
       )}
-      {list.length > 0 &&
-        (listView.cards ? (
-          <Stack gap="xs" role="list" aria-label={t('title')}>
-            {list.map((a) => (
-              <Paper key={a.id} withBorder p="sm" role="listitem">
-                <Group justify="space-between" wrap="nowrap" align="flex-start">
-                  <Stack gap={4} style={{ minWidth: 0 }}>
-                    {/* inline-block with a 24 px line: a target of at least 24 × 24 px (WCAG 2.2, 2.5.8) */}
-                    <Anchor component={Link} to={`/applications/${a.id}`} fw={600} size="sm" display="inline-block" lh="24px">
-                      {a.name}
-                    </Anchor>
-                    <RatingBadges rating={a.rating} />
-                    <Text size="xs" c="dimmed">
-                      {a.services.map((s) => s.name).join(', ') || a.vendor || '–'}
-                    </Text>
-                  </Stack>
-                  <CriticalityBadge value={a.criticality} />
-                </Group>
-              </Paper>
-            ))}
-          </Stack>
-        ) : (
-          <div className="table-scroll">
-            <Table highlightOnHover fz="sm" aria-label={t('title')}>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>{t('name')}</Table.Th>
-                  <Table.Th>{t('cia.title')}</Table.Th>
-                  <Table.Th>{t('criticality')}</Table.Th>
-                  <Table.Th>{t('servicesColumn')}</Table.Th>
-                  <Table.Th>{t('integrationsColumn')}</Table.Th>
-                  <Table.Th>{t('updated')}</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {list.map((a) => (
-                  <Table.Tr key={a.id} className="clickable" onClick={() => navigate(`/applications/${a.id}`)} data-inactive={a.archived || undefined}>
-                    <Table.Td>
-                      <Anchor
-                        component={Link}
-                        to={`/applications/${a.id}`}
-                        fw={500}
-                        size="sm"
-                        display="inline-block"
-                        lh="24px"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {a.name}
-                      </Anchor>
-                      {a.archived && (
-                        <Badge ml={6} size="xs" variant="outline" color="gray">
-                          {t('archived')}
-                        </Badge>
-                      )}
-                      {(a.vendor || a.version) && (
-                        <Text size="xs" c="dimmed">
-                          {[a.vendor, a.version].filter(Boolean).join(' · ')}
-                        </Text>
-                      )}
-                      <TagBadges tags={a.tags} onTag={setTag} />
-                    </Table.Td>
-                    <Table.Td>
-                      <RatingBadges rating={a.rating} />
-                    </Table.Td>
-                    <Table.Td>{a.criticality ? <CriticalityBadge value={a.criticality} /> : '–'}</Table.Td>
-                    <Table.Td>
-                      {a.services.length === 0
-                        ? '–'
-                        : a.services.map((s) => (
-                            <Text key={s.id} size="xs">
-                              <Anchor component={Link} to={`/services/${s.id}`} size="xs" onClick={(e) => e.stopPropagation()}>
-                                {s.name}
-                              </Anchor>{' '}
-                              ({roleLabel(s.role, s.roleText)})
-                            </Text>
-                          ))}
-                    </Table.Td>
-                    <Table.Td>{a.integrationCount}</Table.Td>
-                    <Table.Td className="nowrap" title={fmtDate(a.updatedAt)}>
-                      {fmtRelative(a.updatedAt)}
-                    </Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-          </div>
-        ))}
+      {list.length > 0 && (
+        <DataTable
+          rows={list}
+          columns={columns}
+          rowKey={(a) => a.id}
+          ariaLabel={t('title')}
+          rowHref={(a) => `/applications/${a.id}`}
+          rowProps={(a) => ({ 'data-inactive': a.archived || undefined })}
+          testId="application-list"
+          rememberSort="applications"
+          defaultSort={{ key: 'name', dir: 'asc' }}
+          footer={<ListFooter shown={list.length} total={all.length} />}
+          card={(a) => (
+            <Paper withBorder p="sm">
+              <Group justify="space-between" wrap="nowrap" align="flex-start">
+                <Stack gap={4} style={{ minWidth: 0 }}>
+                  {/* inline-block with a 24 px line: a target of at least 24 × 24 px (WCAG 2.2, 2.5.8) */}
+                  <Anchor component={Link} to={`/applications/${a.id}`} fw={600} size="sm" display="inline-block" lh="24px">
+                    {a.name}
+                  </Anchor>
+                  <RatingBadges rating={a.rating} />
+                  <Text size="xs" c="dimmed">
+                    {a.services.map((s) => s.name).join(', ') || a.vendor || '–'}
+                  </Text>
+                </Stack>
+                <CriticalityBadge value={a.criticality} />
+              </Group>
+            </Paper>
+          )}
+        />
+      )}
       {creating && <ApplicationFormModal onClose={() => setCreating(false)} onSaved={(a) => navigate(`/applications/${a.id}`)} />}
     </ListPage>
   );
