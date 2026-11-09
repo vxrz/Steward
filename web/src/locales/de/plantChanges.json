@@ -143,8 +143,8 @@
     "this": "Diese Änderung"
   },
   "detail": {
-    "previewReady_one": "Vorschau bereit: {{count}} Eintrag, {{conflicts}} Konflikte.",
-    "previewReady_other": "Vorschau bereit: {{count}} Einträge, {{conflicts}} Konflikte.",
+    "previewReady_one": "Vorschau bereit: {{count}} Eintrag, {{conflicts}} Konflikte zu entscheiden.",
+    "previewReady_other": "Vorschau bereit: {{count}} Einträge, {{conflicts}} Konflikte zu entscheiden.",
     "applied": "Der Änderungssatz ist übernommen.",
     "review": "Braucht eine zweite Person",
     "by": "Von {{by}}, {{when}}",

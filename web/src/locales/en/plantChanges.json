@@ -143,8 +143,8 @@
     "this": "This change"
   },
   "detail": {
-    "previewReady_one": "Preview ready: {{count}} entry, {{conflicts}} conflicts.",
-    "previewReady_other": "Preview ready: {{count}} entries, {{conflicts}} conflicts.",
+    "previewReady_one": "Preview ready: {{count}} entry, {{conflicts}} conflicts to choose.",
+    "previewReady_other": "Preview ready: {{count}} entries, {{conflicts}} conflicts to choose.",
     "applied": "The change set is applied.",
     "review": "Needs a second person",
     "by": "By {{by}}, {{when}}",

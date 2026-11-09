@@ -46,10 +46,13 @@ export function PlantChangeSetPage() {
   const [rejecting, setRejecting] = useState<'reject' | 'return' | null>(null);
   const [comment, setComment] = useState('');
   const [renaming, setRenaming] = useState(false);
+  // a choice shows at once; the server keeps it and computes the preview again
+  const [picked, setPicked] = useState<Record<string, 'mine' | 'theirs'>>({});
   const [title, setTitle] = useState('');
   const conflictsRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (preview.isSuccess) setAnnounce(t('detail.previewReady', { count: preview.data.entries.length, conflicts: preview.data.conflicts.length }));
+    if (preview.isSuccess)
+      setAnnounce(t('detail.previewReady', { count: preview.data.entries.length, conflicts: preview.data.conflicts.filter((c) => !c.choice).length }));
   }, [preview.isSuccess, preview.dataUpdatedAt, preview.data, t]);
   const refresh = () => {
     void qc.invalidateQueries({ queryKey: plantKeys.changeSet(id) });
@@ -89,8 +92,10 @@ export function PlantChangeSetPage() {
   const p = preview.data;
   const entries = p?.entries ?? d.applied ?? [];
   const conflicts = p?.conflicts ?? [];
-  const resolve = (c: PlantChangeConflict, choice: 'mine' | 'theirs') =>
+  const resolve = (c: PlantChangeConflict, choice: 'mine' | 'theirs') => {
+    setPicked((x) => ({ ...x, [`${c.seq}:${c.path}`]: choice }));
     act.mutate({ what: 'resolve', body: { choices: [{ seq: c.seq, path: c.path, choice }] } });
+  };
   // [ and ] move between the conflicts
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (e.key !== '[' && e.key !== ']') return;
@@ -274,7 +279,7 @@ export function PlantChangeSetPage() {
                         {t('conflict.legend', { seq: c.seq, path: c.path })}
                       </Text>
                     }
-                    value={c.choice ?? ''}
+                    value={picked[`${c.seq}:${c.path}`] ?? c.choice ?? ''}
                     onChange={(v) => resolve(c, v as 'mine' | 'theirs')}
                     data-testid={`cs-conflict-${c.path}`}
                   >

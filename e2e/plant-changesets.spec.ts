@@ -153,7 +153,7 @@ test.describe('a stale edit', () => {
       // someone else saves first: the model and the manufacturer
       await ok(admin.put(`/api/plant/assets/${asset}`, { data: await assetBody(admin, asset, { model: 'SP-250', manufacturer: 'Other Presses' }) }));
       await form.getByRole('button', { name: 'Save' }).click();
-      const choice = page.getByTestId('entry-conflict-dialog');
+      const choice = page.getByRole('dialog', { name: 'Changed by someone else' });
       await expect(choice).toBeVisible();
       await expect(choice).toContainText('Kept from the other change: manufacturer');
       const model = choice.getByTestId('entry-conflict-model');
