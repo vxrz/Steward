@@ -332,7 +332,8 @@ export function CollapsibleSection({
       {content}
     </div>
   ) : (
-    <Collapse expanded={open} id={bodyId} data-testid={`${testId}-body`} transitionDuration={isPrinting ? 0 : 150}>
+    // display:none while folded: dialogs opened from inside (portals) still show
+    <Collapse expanded={open} id={bodyId} data-testid={`${testId}-body`} transitionDuration={isPrinting ? 0 : 150} keepMountedMode="display-none">
       {content}
     </Collapse>
   );

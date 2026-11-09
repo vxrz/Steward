@@ -27,6 +27,9 @@ test('a component gets a tech stack by hand and from an SBOM', async ({ page, ap
   try {
     await page.goto(`/applications/${app.id}`);
     const panel = page.getByTestId('application-components');
+    // empty: folded, its count in the header
+    await expect(panel.getByTestId('application-components-toggle')).toHaveAttribute('aria-expanded', 'false');
+    await panel.getByTestId('application-components-toggle').click();
     await expect(panel.getByText('No components yet.')).toBeVisible();
 
     // add a container image with Node.js 22
