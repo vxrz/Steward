@@ -88,10 +88,10 @@ test.describe('custom theme (own server)', () => {
     await page.goto('/settings/appearance');
     const card = page.locator('.mantine-Card-root', { has: page.getByRole('heading', { name: 'Appearance' }) });
     await expect(card).toBeVisible();
-    await card.getByRole('textbox', { name: 'Primary color' }).fill('#ffd400');
+    await card.getByRole('textbox', { name: 'Primary colour' }).fill('#ffd400');
 
     // live preview before saving: bright yellow with dark text (auto contrast), darker link colour
-    const preview = card.getByRole('group', { name: 'Preview in the Light color scheme' });
+    const preview = card.getByRole('group', { name: 'Preview in the Light colour scheme' });
     const sample = preview.getByRole('button', { name: 'Primary', exact: true });
     await expect(sample).toHaveCSS('background-color', YELLOW);
     await expect(sample).toHaveCSS('color', BLACK);
@@ -161,7 +161,7 @@ test.describe('custom theme (own server)', () => {
     const page = await open(browser, { colorScheme: 'light' });
     await page.goto('/');
     await expect(page.locator('html')).toHaveAttribute('data-mantine-color-scheme', 'dark');
-    await page.getByRole('button', { name: 'Toggle color scheme' }).click();
+    await page.getByRole('button', { name: 'Toggle colour scheme' }).click();
     await expect(page.locator('html')).toHaveAttribute('data-mantine-color-scheme', 'light');
     await page.reload();
     await expect(page.locator('html')).toHaveAttribute('data-mantine-color-scheme', 'light');
@@ -174,7 +174,7 @@ test.describe('custom theme (own server)', () => {
     await card.getByRole('button', { name: `Reset to ${BRAND.name} defaults` }).click();
     await confirmDialog(page, 'Reset', { title: 'Confirm reset' });
     await expect(page.getByText(`Appearance reset to the ${BRAND.name} defaults`)).toBeVisible();
-    await expect(card.getByRole('textbox', { name: 'Primary color' })).toHaveValue('#1c7ed6');
+    await expect(card.getByRole('textbox', { name: 'Primary colour' })).toHaveValue('#1c7ed6');
     await expect(page.getByRole('banner').getByText(BRAND.name, { exact: true })).toBeVisible();
     await expect(page.getByRole('banner').locator(`img[src^="${appHref('/api/theme/logo')}"]`)).toHaveCount(0);
     expect((await (await page.request.get('/api/theme')).json()).custom).toBe(false);

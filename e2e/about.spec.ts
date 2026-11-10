@@ -19,7 +19,7 @@ test.describe('About page', () => {
     await expect(page.getByTestId('version-web')).toHaveText(VERSION);
     await expect(page.getByTestId('version-server')).toHaveText(VERSION);
     await expect(page.getByText('A newer version is running')).toHaveCount(0);
-    for (const name of ['Changelog', 'Report a vulnerability (SECURITY.md)', 'Source code', 'License (Apache-2.0)']) {
+    for (const name of ['Changelog', 'Report a vulnerability (SECURITY.md)', 'Source code', 'Licence (Apache-2.0)']) {
       await expect(page.getByRole('link', { name })).toHaveAttribute('href', /github\.com/);
     }
     // footer: version and link back here
