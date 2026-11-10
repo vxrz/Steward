@@ -24,7 +24,7 @@ Steward creates PDF reports without a browser, also in the desktop executable.
 
 **Archiving and signing.** The files are PDF/A-2b with embedded fonts and metadata (run ID, process, protocol hash, content hash), validated with veraPDF (PDF/A-2b). They are written once to `data/reports/<run>/<report>.pdf` and never overwritten; generating again creates a new version. Each generation is recorded as `report.generated` with the file's SHA-256 in the audit log, and data retention removes a run's reports together with the run. The signature fields can be signed later in Adobe Acrobat or another PDF signing tool.
 
-**Verifying a copy.** _Audit log → Verify PDF report_ (or `POST /api/reports/verify`) checks a file against the audit log. It also recognizes signed copies: a signature is appended as an incremental update, so the first bytes of a signed copy are still the original report.
+**Verifying a copy.** _Audit log → Verify PDF report_ (or `POST /api/reports/verify`) checks a file against the audit log. It also recognises signed copies: a signature is appended as an incremental update, so the first bytes of a signed copy are still the original report.
 
 API: `POST /api/runs/:id/reports` `{ lang, comment, classification, timeZone }`, `GET /api/runs/:id/reports`, `GET /api/reports/:id/download`, `POST /api/reports/summary` `{ processIds, from, to, lang, comment, title }`. `GET /api/runs/:id/report.pdf?lang=de` generates, stores and returns a report in one step. Generating and downloading needs view rights on the process; branding needs the _settings_ capability.
 

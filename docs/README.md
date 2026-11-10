@@ -108,7 +108,7 @@ Every page of Steward's documentation, grouped by what you want to do. New here?
 | [API.md](API.md)                                 | Steward's read-only REST API `/api/v1` for reports, BI tools and monitoring           |
 | [openapi.json](openapi.json)                     | The OpenAPI 3.1 description of `/api/v1` (generated)                                  |
 | [MCP.md](MCP.md)                                 | The MCP server for AI assistants, the platform gateway and approved writes            |
-| [SEMANTIC-MODEL.md](SEMANTIC-MODEL.md)           | Steward's data as an Apache Ossie semantic model for BI tools and catalogs            |
+| [SEMANTIC-MODEL.md](SEMANTIC-MODEL.md)           | Steward's data as an Apache Ossie semantic model for BI tools and catalogues          |
 | [EXTERNAL-DASHBOARDS.md](EXTERNAL-DASHBOARDS.md) | Steward's data in Streamlit and Grafana                                               |
 
 ## Security and compliance

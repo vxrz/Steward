@@ -8,7 +8,7 @@
   "search": "Search by name or tag",
   "empty": {
     "title": "No processes yet",
-    "text": "Start from a template – user onboarding, access reviews, attribute optimization, health checks – or build your own.",
+    "text": "Start from a template – user onboarding, access reviews, attribute optimisation, health checks – or build your own.",
     "browse": "Browse templates",
     "askForAccess": "Ask a designer or administrator to create processes or to give you access."
   },

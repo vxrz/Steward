@@ -1184,7 +1184,7 @@
     "IDENTITY_DISABLED": "The identity {{identity}} is disabled: it was added or changed outside Steward. An administrator enables it on the platform's Identities tab.",
     "PLANT_ADVISORY_INVALID": "The file is not a CSAF 2.0 document Steward can read (JSON with document, publisher, tracking and the product tree within their limits).",
     "PLANT_ADVISORY_TOO_LARGE": "The document is larger than {{mb}} MB.",
-    "PLANT_ADVISORY_TLP": "The document is marked TLP:{{tlp}}. Steward keeps only TLP:WHITE, GREEN or unlabeled documents, because everyone who sees the plant registry would read it.",
+    "PLANT_ADVISORY_TLP": "The document is marked TLP:{{tlp}}. Steward keeps only TLP:WHITE, GREEN or unlabelled documents, because everyone who sees the plant registry would read it.",
     "PLANT_ADVISORY_HASH": "The {{algorithm}} hash of the document does not match – it was not kept.",
     "PLANT_ADVISORY_NOT_FOUND": "This advisory does not exist (any more).",
     "PLANT_ADVISORY_NO_MATCH": "The advisory does not match this asset (any more), or you may not see it.",
