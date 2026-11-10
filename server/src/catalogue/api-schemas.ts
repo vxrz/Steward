@@ -17,6 +17,7 @@ import {
   STACK_SOURCES,
   SYSTEM_KINDS,
   FIREWALL_MANAGERS,
+  SUPPLIER_STATUSES,
 } from '@sm/shared';
 import { RecordLink } from '../records/api-schemas.js';
 
@@ -167,6 +168,10 @@ export const ApplicationEntry = z.object({
   name: z.string(),
   description: z.string().describe('Description (Markdown)'),
   vendor: z.string(),
+  supplier: z
+    .object({ id: z.string(), name: z.string(), status: z.enum(SUPPLIER_STATUSES) })
+    .nullable()
+    .describe('The linked supplier (0.17.0; null: none, or one the token owner may not see); vendor is the fallback text'),
   version: z.string(),
   url: z.string().describe('http(s) link to the application, or empty'),
   criticality: z.enum(SERVICE_CRITICALITIES).nullable(),
@@ -271,6 +276,10 @@ export const SystemEntry = z.object({
   name: z.string(),
   kind: z.enum(SYSTEM_KINDS),
   vendor: z.string().describe('Vendor or provider (AWS, Azure, on-premises, the hoster, …)'),
+  supplier: z
+    .object({ id: z.string(), name: z.string(), status: z.enum(SUPPLIER_STATUSES) })
+    .nullable()
+    .describe('The linked supplier (0.17.0; null: none, or one the token owner may not see); vendor is the fallback text'),
   cmdbUrl: z.string().describe('http(s) link to the CMDB entry, or empty'),
   owners: z.array(z.string()).describe('Steward users and teams responsible: user:<name>, team:<name>'),
   note: z.string(),

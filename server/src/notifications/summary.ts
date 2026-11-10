@@ -24,7 +24,7 @@ import { logger } from '../log.js';
 import { vault } from '../vault.js';
 import { nowIso, parseJson, HttpError } from '../util.js';
 import { runAs, type AuthUser } from '../auth/context.js';
-import { decisionCheck, processPermissions } from '../auth/permissions.js';
+import { decisionCheck, matches, processPermissions } from '../auth/permissions.js';
 import { getUser, listUsers, toAuthUser } from '../auth/users.js';
 import { readSetting, writeSetting } from '../settings.js';
 import { t, type MessageKey } from '../i18n/index.js';
@@ -52,6 +52,7 @@ import { teamDefaults } from '../teams/settings.js';
 import { dashboardVisible } from '../dashboards/service.js';
 import { offeredFor } from '../kafka/prefixes.js';
 import { canEditApplication } from '../catalogue/applications.js';
+import { expiringItems } from '../suppliers/service.js';
 
 /**
  * Optional daily summary per user (off by default, turned on in the profile).
@@ -557,6 +558,26 @@ function dashboardOf(key: string): string {
   return d ? `/dashboards/${d.id}` : '/dashboards';
 }
 
+/** Certificates of suppliers the recipient owns that run out, and notice-by dates, in the next 90 days or passed in the last 30 (0.17.0). */
+function suppliersSection(c: Ctx): Section {
+  const mine = (owners: string[]) => (owners.length ? owners.some((s) => matches(c.user, s)) : c.user.roles.includes('admin'));
+  const items = expiringItems({ days: 90, pastDays: 30 }, Date.parse(c.until))
+    .filter((x) => mine(x.owners))
+    .map((x) => ({
+      title: t(c.l, x.kind === 'certificate' ? 'dailySummary.supplierCertificate' : 'dailySummary.supplierNotice', {
+        title: x.title,
+        supplier: x.supplierName,
+      }),
+      detail: t(c.l, 'dailySummary.supplierDetail', {
+        status: t(c.l, `dailySummary.credentialStatus.${x.days < 0 ? 'expired' : 'dueSoon'}` as MessageKey),
+        date: dateOnly(c.l, `${x.date}T12:00:00Z`, c.tz),
+      }),
+      link: `/suppliers/${encodeURIComponent(x.supplierId)}`,
+      tone: x.days < 0 ? ('bad' as const) : x.days <= 30 ? ('attention' as const) : ('info' as const),
+    }));
+  return { count: items.length, items };
+}
+
 const BUILDERS: Record<DailySummarySection, (c: Ctx) => Section> = {
   runs: runsSection,
   tasks: tasksSection,
@@ -569,6 +590,7 @@ const BUILDERS: Record<DailySummarySection, (c: Ctx) => Section> = {
   reports: reportsSection,
   trends: trendsSection,
   topics: topicsSection,
+  suppliers: suppliersSection,
 };
 
 /** The summary for one user, collected with their rights. */

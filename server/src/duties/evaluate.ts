@@ -31,6 +31,8 @@ export interface DutyRow {
   id: string;
   service_id: string;
   application_id: string | null;
+  /** The supplier the duty reviews (0.17.0, ADR 0029: a supplier review) */
+  supplier_id?: string | null;
   name: string;
   description: string;
   process_id: string;

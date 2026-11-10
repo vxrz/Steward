@@ -1,3 +1,4 @@
+import type { SupplierRef } from './suppliers.js';
 import { z } from 'zod';
 
 /**
@@ -66,6 +67,8 @@ export interface PageWatch {
   application: PageWatchTarget | null;
   service: PageWatchTarget | null;
   vendor: string;
+  /** The supplier (0.17.0, ADR 0029; null: none, or one the reader may not see); `vendor` is the fallback text */
+  supplier: SupplierRef | null;
   linkedAt: string | null;
   linkedBy: string | null;
 }
@@ -105,6 +108,8 @@ export const pageWatchLinkInput = z
     applicationId: z.string().trim().min(1).max(100).nullable().optional(),
     serviceId: z.string().trim().min(1).max(100).nullable().optional(),
     vendor: z.string().trim().max(PAGE_WATCH_LIMITS.vendor).optional(),
+    /** The supplier (0.17.0, ADR 0029): missing keeps it, null clears it; `vendor` stays as text */
+    supplierId: z.string().trim().min(1).max(100).nullable().optional(),
   })
   .strict();
 export type PageWatchLinkInput = z.infer<typeof pageWatchLinkInput>;

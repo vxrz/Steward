@@ -1,5 +1,5 @@
 import { z, type ZodTypeAny } from 'zod';
-import { DUTY_INTERVALS, DUTY_LEVELS, DUTY_PERIOD_STATUSES, DUTY_SKIP_STATUSES } from '@sm/shared';
+import { DUTY_INTERVALS, DUTY_LEVELS, DUTY_PERIOD_STATUSES, DUTY_SKIP_STATUSES, SUPPLIER_STATUSES } from '@sm/shared';
 
 /** Response and query schemas of the service duty endpoints of the public API (/api/v1/duties…). */
 
@@ -76,6 +76,10 @@ export const DutyEntry = z.object({
   serviceName: z.string(),
   applicationId: z.string().nullable().describe('The application of the service the duty is about, if any'),
   applicationName: z.string().nullable(),
+  supplier: z
+    .object({ id: z.string(), name: z.string(), status: z.enum(SUPPLIER_STATUSES) })
+    .nullable()
+    .describe('The supplier the duty reviews (a supplier review; 0.17.0), null: none or one the token owner may not see'),
   name: z.string(),
   description: z.string(),
   processId: z.string().nullable().describe('The process whose real runs count; null when the token owner may not view it'),

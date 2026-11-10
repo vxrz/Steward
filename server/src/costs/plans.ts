@@ -33,6 +33,7 @@ import { HttpError, newId, nowIso } from '../util.js';
 import { costSettings, requireScope, scopeInfo, seesWholeScope, type ScopeInfo } from './access.js';
 import { forecastFromGroups } from './query.js';
 import { instanceTimeZone, localDate } from '../duties/periods.js';
+import { contractTitles, resolveSupplierContract, resolveSupplierLink, supplierRefOf } from '../suppliers/links.js';
 
 /**
  * Service cost planning (0.16.0, ADR 0026, docs/COSTS.md#planning-per-service): plan lines per service and fiscal year,
@@ -59,6 +60,9 @@ interface LineRow {
   target_kind: CostPlanTargetKind | null;
   target_id: string | null;
   vendor: string;
+  /** The supplier and its contract (0.17.0, ADR 0029); `vendor` stays as the fallback text */
+  supplier_id: string | null;
+  supplier_contract_id: string | null;
   amount: number;
   currency: string;
   cadence: CostPlanCadence;
@@ -413,6 +417,7 @@ function planYearOf(info: ScopeInfo, year: number | undefined, now: number, star
       category: l.category,
       target: targets.of(l.target_kind, l.target_id),
       vendor: l.vendor,
+      ...supplierOf(l),
       amount: show(Number(l.amount)),
       currency: l.currency,
       cadence: l.cadence,
@@ -617,13 +622,36 @@ function onceIndexOf(cadence: CostPlanCadence, onceMonth: string | null, fiscalY
   return i;
 }
 
+/** The supplier of a line and its contract, as the reader may see them. */
+function supplierOf(l: Pick<LineRow, 'supplier_id' | 'supplier_contract_id'>): Pick<CostPlanLine, 'supplier' | 'supplierContract'> {
+  const supplier = supplierRefOf(l.supplier_id);
+  const c = supplier && l.supplier_contract_id ? contractTitles([l.supplier_contract_id]).get(l.supplier_contract_id) : undefined;
+  return { supplier, supplierContract: c ? { id: c.id, title: c.title, reference: c.reference } : null };
+}
+
 const lineSnapshot = (
-  r: Pick<LineRow, 'title' | 'category' | 'target_kind' | 'target_id' | 'vendor' | 'amount' | 'currency' | 'cadence' | 'once_index' | 'renewal_date'>,
+  r: Pick<
+    LineRow,
+    | 'title'
+    | 'category'
+    | 'target_kind'
+    | 'target_id'
+    | 'vendor'
+    | 'supplier_id'
+    | 'supplier_contract_id'
+    | 'amount'
+    | 'currency'
+    | 'cadence'
+    | 'once_index'
+    | 'renewal_date'
+  >,
 ) => ({
   title: r.title,
   category: r.category,
   target: r.target_kind ? { kind: r.target_kind, id: r.target_id } : null,
   vendor: r.vendor,
+  supplierId: r.supplier_id ?? null,
+  supplierContractId: r.supplier_contract_id ?? null,
   amount: fromMicros(Number(r.amount)),
   currency: r.currency,
   cadence: r.cadence,
@@ -646,12 +674,15 @@ export function addPlanLine(serviceId: string, body: unknown): CostPlanYear {
   const id = newId('cpl_');
   const now = nowIso();
   const amount = toMicros(x.amount)!;
+  const supplierId = resolveSupplierLink(x.supplierId, null);
   const row = {
     title: x.title,
     category: x.category,
     target_kind: x.target?.kind ?? null,
     target_id: x.target?.id ?? null,
     vendor: x.vendor,
+    supplier_id: supplierId,
+    supplier_contract_id: resolveSupplierContract(supplierId, x.supplierContractId, null),
     amount,
     currency: x.currency,
     cadence: x.cadence,
@@ -660,8 +691,8 @@ export function addPlanLine(serviceId: string, body: unknown): CostPlanYear {
   };
   db().tx(() => {
     db().run(
-      `INSERT INTO cost_plan_lines (id, service_id, fiscal_year, title, category, target_kind, target_id, vendor, amount, currency, cadence, once_index, renewal_date, note,
-         created_at, created_by, updated_at, updated_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO cost_plan_lines (id, service_id, fiscal_year, title, category, target_kind, target_id, vendor, supplier_id, supplier_contract_id, amount, currency, cadence,
+         once_index, renewal_date, note, created_at, created_by, updated_at, updated_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       id,
       serviceId,
       x.fiscalYear,
@@ -670,6 +701,8 @@ export function addPlanLine(serviceId: string, body: unknown): CostPlanYear {
       row.target_kind,
       row.target_id,
       x.vendor,
+      row.supplier_id,
+      row.supplier_contract_id,
       amount,
       x.currency,
       x.cadence,
@@ -707,12 +740,15 @@ export function updatePlanLine(serviceId: string, lineId: string, body: unknown)
       throw new HttpError(409, 'The line has entries in another currency – move or change them first', 'COST_PLAN_CURRENCY', { currency: before.currency });
   }
   const amount = toMicros(x.amount)!;
+  const supplierId = resolveSupplierLink(x.supplierId, before.supplier_id);
   const row = {
     title: x.title,
     category: x.category,
     target_kind: x.target?.kind ?? null,
     target_id: x.target?.id ?? null,
     vendor: x.vendor,
+    supplier_id: supplierId,
+    supplier_contract_id: resolveSupplierContract(supplierId, x.supplierContractId, supplierId === before.supplier_id ? before.supplier_contract_id : null),
     amount,
     currency: x.currency,
     cadence: x.cadence,
@@ -721,13 +757,15 @@ export function updatePlanLine(serviceId: string, lineId: string, body: unknown)
   };
   db().tx(() => {
     db().run(
-      `UPDATE cost_plan_lines SET title = ?, category = ?, target_kind = ?, target_id = ?, vendor = ?, amount = ?, currency = ?, cadence = ?, once_index = ?,
-         renewal_date = ?, note = ?, updated_at = ?, updated_by = ? WHERE id = ?`,
+      `UPDATE cost_plan_lines SET title = ?, category = ?, target_kind = ?, target_id = ?, vendor = ?, supplier_id = ?, supplier_contract_id = ?, amount = ?, currency = ?,
+         cadence = ?, once_index = ?, renewal_date = ?, note = ?, updated_at = ?, updated_by = ? WHERE id = ?`,
       x.title,
       x.category,
       row.target_kind,
       row.target_id,
       x.vendor,
+      row.supplier_id,
+      row.supplier_contract_id,
       amount,
       x.currency,
       x.cadence,
@@ -788,8 +826,8 @@ export function copyPlanYear(serviceId: string, body: unknown): CostPlanYear {
     for (const l of src) {
       const renewal = l.renewal_date && l.renewal_date < newStart ? nextYearDate(l.renewal_date) : l.renewal_date;
       db().run(
-        `INSERT INTO cost_plan_lines (id, service_id, fiscal_year, title, category, target_kind, target_id, vendor, amount, currency, cadence, once_index, renewal_date, note,
-           created_at, created_by, updated_at, updated_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO cost_plan_lines (id, service_id, fiscal_year, title, category, target_kind, target_id, vendor, supplier_id, supplier_contract_id, amount, currency,
+           cadence, once_index, renewal_date, note, created_at, created_by, updated_at, updated_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         newId('cpl_'),
         serviceId,
         toYear,
@@ -798,6 +836,8 @@ export function copyPlanYear(serviceId: string, body: unknown): CostPlanYear {
         l.target_kind,
         l.target_id,
         l.vendor,
+        l.supplier_id ?? null,
+        l.supplier_contract_id ?? null,
         Number(l.amount),
         l.currency,
         l.cadence,
@@ -1008,7 +1048,8 @@ export function planCsvRows(y: CostPlanYear, what: 'plan' | 'entries'): { head: 
               l.category,
               l.target?.kind ?? '',
               csvCell(target(l.target), 'needed'),
-              csvCell(l.vendor, 'needed'),
+              // the linked supplier (and its contract), else the free text (0.17.0)
+              csvCell(l.supplier ? [l.supplier.name, l.supplierContract?.title].filter(Boolean).join(' – ') : l.vendor, 'needed'),
               num(l.amount),
               l.currency,
               l.cadence,

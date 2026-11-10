@@ -8043,6 +8043,39 @@
           "vendor": {
             "type": "string"
           },
+          "supplier": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "unconfirmed",
+                      "active",
+                      "archived"
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "status"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The linked supplier (0.17.0; null: none, or one the token owner may not see); vendor is the fallback text"
+          },
           "responsible": {
             "type": "array",
             "items": {
@@ -8155,6 +8188,7 @@
           "title",
           "note",
           "vendor",
+          "supplier",
           "responsible",
           "status",
           "openedAt",
@@ -8207,6 +8241,39 @@
           },
           "vendor": {
             "type": "string"
+          },
+          "supplier": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "unconfirmed",
+                      "active",
+                      "archived"
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "status"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The linked supplier (0.17.0; null: none, or one the token owner may not see); vendor is the fallback text"
           },
           "responsible": {
             "type": "array",
@@ -8392,6 +8459,7 @@
           "title",
           "note",
           "vendor",
+          "supplier",
           "responsible",
           "status",
           "openedAt",
@@ -10224,6 +10292,39 @@
           "vendor": {
             "type": "string"
           },
+          "supplier": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "unconfirmed",
+                      "active",
+                      "archived"
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "status"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The linked supplier (0.17.0; null: none, or one the token owner may not see); vendor is the fallback text"
+          },
           "version": {
             "type": "string"
           },
@@ -10550,6 +10651,7 @@
           "name",
           "description",
           "vendor",
+          "supplier",
           "version",
           "url",
           "criticality",
@@ -10588,6 +10690,39 @@
           },
           "vendor": {
             "type": "string"
+          },
+          "supplier": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "unconfirmed",
+                      "active",
+                      "archived"
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "status"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The linked supplier (0.17.0; null: none, or one the token owner may not see); vendor is the fallback text"
           },
           "version": {
             "type": "string"
@@ -11909,6 +12044,7 @@
           "name",
           "description",
           "vendor",
+          "supplier",
           "version",
           "url",
           "criticality",
@@ -12219,6 +12355,39 @@
           "vendor": {
             "type": "string",
             "description": "Vendor or provider (AWS, Azure, on-premises, the hoster, …)"
+          },
+          "supplier": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "unconfirmed",
+                      "active",
+                      "archived"
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "status"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The linked supplier (0.17.0; null: none, or one the token owner may not see); vendor is the fallback text"
           },
           "cmdbUrl": {
             "type": "string",
@@ -12763,6 +12932,7 @@
           "name",
           "kind",
           "vendor",
+          "supplier",
           "cmdbUrl",
           "owners",
           "note",
@@ -13445,6 +13615,39 @@
               "string"
             ]
           },
+          "supplier": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "unconfirmed",
+                      "active",
+                      "archived"
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "status"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The supplier the duty reviews (a supplier review; 0.17.0), null: none or one the token owner may not see"
+          },
           "name": {
             "type": "string"
           },
@@ -14085,6 +14288,7 @@
           "serviceName",
           "applicationId",
           "applicationName",
+          "supplier",
           "name",
           "description",
           "processId",
@@ -32461,6 +32665,67 @@
                   "type": "string",
                   "description": "Vendor or contract (free text)"
                 },
+                "supplier": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "unconfirmed",
+                            "active",
+                            "archived"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "status"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The linked supplier (0.17.0; null: none, or one the token owner may not see); vendor is the fallback text"
+                },
+                "supplierContract": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "reference": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "title",
+                        "reference"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The supplier contract the line pays for"
+                },
                 "amount": {
                   "type": [
                     "null",
@@ -32583,6 +32848,8 @@
                 "category",
                 "target",
                 "vendor",
+                "supplier",
+                "supplierContract",
                 "amount",
                 "currency",
                 "cadence",
@@ -33035,6 +33302,1025 @@
           "targets",
           "years",
           "limits"
+        ],
+        "additionalProperties": false
+      },
+      "SupplierSummaryEntry": {
+        "title": "SupplierSummaryEntry",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "saas",
+              "managedPlatform",
+              "softwareVendor",
+              "serviceProvider",
+              "other"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "unconfirmed",
+              "active",
+              "archived"
+            ],
+            "description": "unconfirmed: made from a free-text vendor on upgrade, waiting for confirmation; active; archived"
+          },
+          "description": {
+            "type": "string"
+          },
+          "website": {
+            "type": "string"
+          },
+          "owners": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Steward users and teams responsible: user:<name>, team:<name>"
+          },
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Other spellings (free-text vendors it was made from or merged with, former names)"
+          },
+          "personalData": {
+            "type": "boolean",
+            "description": "Whether the supplier processes personal data for the service"
+          },
+          "dpaStatus": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "inPlace",
+                  "missing"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The data processing agreement: inPlace or missing (null: no personal data)"
+          },
+          "dpaSince": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "Calendar date YYYY-MM-DD (the instance time zone)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Calendar date YYYY-MM-DD (the instance time zone)"
+          },
+          "dpaLink": {
+            "type": "string",
+            "description": "The agreement: an http(s) URL or a record (id or number)"
+          },
+          "criticality": {
+            "type": "object",
+            "properties": {
+              "confidentiality": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "level": {
+                        "type": "string"
+                      },
+                      "label": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "level",
+                      "label"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "integrity": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "level": {
+                        "type": "string"
+                      },
+                      "label": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "level",
+                      "label"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "availability": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "level": {
+                        "type": "string"
+                      },
+                      "label": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "level",
+                      "label"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "confidentiality",
+              "integrity",
+              "availability"
+            ],
+            "additionalProperties": false,
+            "description": "Derived: the highest protection need of the linked applications per dimension"
+          },
+          "contractCount": {
+            "type": "integer"
+          },
+          "certificateCount": {
+            "type": "integer"
+          },
+          "nextNoticeBy": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "Calendar date YYYY-MM-DD (the instance time zone)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The earliest notice-by date ahead of its contracts (else the latest passed one)"
+          },
+          "noticeState": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "dueSoon",
+              "past",
+              "none"
+            ],
+            "description": "ok; dueSoon: within 90 days; past: the date has passed; none: no date"
+          },
+          "nextCertificateExpiry": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "Calendar date YYYY-MM-DD (the instance time zone)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Calendar date YYYY-MM-DD (the instance time zone)"
+          },
+          "certificateState": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "dueSoon",
+              "past",
+              "none"
+            ],
+            "description": "ok; dueSoon: within 90 days; past: the date has passed; none: no date"
+          },
+          "usage": {
+            "type": "object",
+            "properties": {
+              "application": {
+                "type": "integer"
+              },
+              "system": {
+                "type": "integer"
+              },
+              "ticket": {
+                "type": "integer"
+              },
+              "watch": {
+                "type": "integer"
+              },
+              "costPlanLine": {
+                "type": "integer"
+              },
+              "duty": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "application",
+              "system",
+              "ticket",
+              "watch",
+              "costPlanLine",
+              "duty"
+            ],
+            "additionalProperties": false,
+            "description": "Linked items the token owner may see, per kind"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "type",
+          "status",
+          "description",
+          "website",
+          "owners",
+          "aliases",
+          "personalData",
+          "dpaStatus",
+          "dpaSince",
+          "dpaLink",
+          "criticality",
+          "contractCount",
+          "certificateCount",
+          "nextNoticeBy",
+          "noticeState",
+          "nextCertificateExpiry",
+          "certificateState",
+          "usage",
+          "updatedAt"
+        ],
+        "additionalProperties": false
+      },
+      "SupplierEntry": {
+        "title": "SupplierEntry",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "saas",
+              "managedPlatform",
+              "softwareVendor",
+              "serviceProvider",
+              "other"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "unconfirmed",
+              "active",
+              "archived"
+            ],
+            "description": "unconfirmed: made from a free-text vendor on upgrade, waiting for confirmation; active; archived"
+          },
+          "description": {
+            "type": "string"
+          },
+          "website": {
+            "type": "string"
+          },
+          "owners": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Steward users and teams responsible: user:<name>, team:<name>"
+          },
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Other spellings (free-text vendors it was made from or merged with, former names)"
+          },
+          "personalData": {
+            "type": "boolean",
+            "description": "Whether the supplier processes personal data for the service"
+          },
+          "dpaStatus": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "inPlace",
+                  "missing"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The data processing agreement: inPlace or missing (null: no personal data)"
+          },
+          "dpaSince": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "Calendar date YYYY-MM-DD (the instance time zone)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Calendar date YYYY-MM-DD (the instance time zone)"
+          },
+          "dpaLink": {
+            "type": "string",
+            "description": "The agreement: an http(s) URL or a record (id or number)"
+          },
+          "criticality": {
+            "type": "object",
+            "properties": {
+              "confidentiality": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "level": {
+                        "type": "string"
+                      },
+                      "label": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "level",
+                      "label"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "integrity": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "level": {
+                        "type": "string"
+                      },
+                      "label": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "level",
+                      "label"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "availability": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "level": {
+                        "type": "string"
+                      },
+                      "label": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "level",
+                      "label"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "confidentiality",
+              "integrity",
+              "availability"
+            ],
+            "additionalProperties": false,
+            "description": "Derived: the highest protection need of the linked applications per dimension"
+          },
+          "contractCount": {
+            "type": "integer"
+          },
+          "certificateCount": {
+            "type": "integer"
+          },
+          "nextNoticeBy": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "Calendar date YYYY-MM-DD (the instance time zone)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The earliest notice-by date ahead of its contracts (else the latest passed one)"
+          },
+          "noticeState": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "dueSoon",
+              "past",
+              "none"
+            ],
+            "description": "ok; dueSoon: within 90 days; past: the date has passed; none: no date"
+          },
+          "nextCertificateExpiry": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "Calendar date YYYY-MM-DD (the instance time zone)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Calendar date YYYY-MM-DD (the instance time zone)"
+          },
+          "certificateState": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "dueSoon",
+              "past",
+              "none"
+            ],
+            "description": "ok; dueSoon: within 90 days; past: the date has passed; none: no date"
+          },
+          "usage": {
+            "type": "object",
+            "properties": {
+              "application": {
+                "type": "integer"
+              },
+              "system": {
+                "type": "integer"
+              },
+              "ticket": {
+                "type": "integer"
+              },
+              "watch": {
+                "type": "integer"
+              },
+              "costPlanLine": {
+                "type": "integer"
+              },
+              "duty": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "application",
+              "system",
+              "ticket",
+              "watch",
+              "costPlanLine",
+              "duty"
+            ],
+            "additionalProperties": false,
+            "description": "Linked items the token owner may see, per kind"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "contacts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "role": {
+                  "type": "string",
+                  "enum": [
+                    "accountManager",
+                    "support",
+                    "security",
+                    "dataProtection",
+                    "other"
+                  ]
+                },
+                "note": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "role",
+                "note"
+              ],
+              "additionalProperties": false
+            },
+            "description": "People at the supplier: name, role and note only (no e-mail or phone)"
+          },
+          "contracts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "reference": {
+                  "type": "string",
+                  "description": "The contract number"
+                },
+                "startsOn": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "description": "Calendar date YYYY-MM-DD (the instance time zone)"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Calendar date YYYY-MM-DD (the instance time zone)"
+                },
+                "endsOn": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "description": "Calendar date YYYY-MM-DD (the instance time zone)"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Calendar date YYYY-MM-DD (the instance time zone)"
+                },
+                "noticeDays": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "renewal": {
+                  "type": "string",
+                  "enum": [
+                    "automatic",
+                    "byAgreement",
+                    "fixedEnd"
+                  ]
+                },
+                "renewalMonths": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "termEnd": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "description": "Calendar date YYYY-MM-DD (the instance time zone)"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The end of the current term (an automatic renewal rolls on)"
+                },
+                "noticeBy": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "description": "Calendar date YYYY-MM-DD (the instance time zone)"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The last day to give notice: the term end minus the notice period"
+                },
+                "noticeState": {
+                  "type": "string",
+                  "enum": [
+                    "ok",
+                    "dueSoon",
+                    "past",
+                    "none"
+                  ],
+                  "description": "ok; dueSoon: within 90 days; past: the date has passed; none: no date"
+                },
+                "link": {
+                  "type": "string"
+                },
+                "slaAvailability": {
+                  "type": [
+                    "null",
+                    "number"
+                  ],
+                  "description": "Availability target in %"
+                },
+                "slaSupportHours": {
+                  "type": "string"
+                },
+                "slaResponse": {
+                  "type": "string"
+                },
+                "rtoHours": {
+                  "type": [
+                    "null",
+                    "number"
+                  ],
+                  "description": "Contractual recovery time objective (hours)"
+                },
+                "rpoHours": {
+                  "type": [
+                    "null",
+                    "number"
+                  ],
+                  "description": "Contractual recovery point objective (hours)"
+                },
+                "note": {
+                  "type": "string"
+                },
+                "costPlanLines": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "serviceId": {
+                        "type": "string"
+                      },
+                      "serviceName": {
+                        "type": "string"
+                      },
+                      "fiscalYear": {
+                        "type": "integer"
+                      },
+                      "title": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "serviceId",
+                      "serviceName",
+                      "fiscalYear",
+                      "title"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "id",
+                "title",
+                "reference",
+                "startsOn",
+                "endsOn",
+                "noticeDays",
+                "renewal",
+                "renewalMonths",
+                "termEnd",
+                "noticeBy",
+                "noticeState",
+                "link",
+                "slaAvailability",
+                "slaSupportHours",
+                "slaResponse",
+                "rtoHours",
+                "rpoHours",
+                "note",
+                "costPlanLines"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "certificates": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "iso27001",
+                    "iso27017",
+                    "iso27018",
+                    "iso22301",
+                    "soc2type1",
+                    "soc2type2",
+                    "c5",
+                    "tisax",
+                    "other"
+                  ]
+                },
+                "name": {
+                  "type": "string"
+                },
+                "scope": {
+                  "type": "string"
+                },
+                "issuer": {
+                  "type": "string"
+                },
+                "issuedOn": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "description": "Calendar date YYYY-MM-DD (the instance time zone)"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Issued on; a SOC 2 report: the end of its period"
+                },
+                "validUntil": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "description": "Calendar date YYYY-MM-DD (the instance time zone)"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Calendar date YYYY-MM-DD (the instance time zone)"
+                },
+                "state": {
+                  "type": "string",
+                  "enum": [
+                    "ok",
+                    "dueSoon",
+                    "past",
+                    "none"
+                  ],
+                  "description": "ok; dueSoon: within 90 days; past: the date has passed; none: no date"
+                },
+                "link": {
+                  "type": "string"
+                },
+                "checkedBy": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "checkedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "description": "ISO 8601 timestamp (UTC)"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "ISO 8601 timestamp (UTC)"
+                }
+              },
+              "required": [
+                "id",
+                "kind",
+                "name",
+                "scope",
+                "issuer",
+                "issuedOn",
+                "validUntil",
+                "state",
+                "link",
+                "checkedBy",
+                "checkedAt"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "usedBy": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "application",
+                    "system",
+                    "ticket",
+                    "watch",
+                    "costPlanLine",
+                    "duty"
+                  ]
+                },
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "detail": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "id",
+                "name",
+                "path",
+                "detail"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "duties": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "serviceId": {
+                  "type": "string"
+                },
+                "serviceName": {
+                  "type": "string"
+                },
+                "periods": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "periodKey": {
+                        "type": "string"
+                      },
+                      "status": {
+                        "type": "string"
+                      },
+                      "dueAt": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "periodKey",
+                      "status",
+                      "dueAt"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "serviceId",
+                "serviceName",
+                "periods"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "migratedFrom": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "table": {
+                  "type": "string"
+                },
+                "spellings": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "table",
+                "spellings"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "updatedBy": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "type",
+          "status",
+          "description",
+          "website",
+          "owners",
+          "aliases",
+          "personalData",
+          "dpaStatus",
+          "dpaSince",
+          "dpaLink",
+          "criticality",
+          "contractCount",
+          "certificateCount",
+          "nextNoticeBy",
+          "noticeState",
+          "nextCertificateExpiry",
+          "certificateState",
+          "usage",
+          "updatedAt",
+          "contacts",
+          "contracts",
+          "certificates",
+          "usedBy",
+          "duties",
+          "migratedFrom",
+          "createdAt",
+          "createdBy",
+          "updatedBy"
         ],
         "additionalProperties": false
       }
@@ -38794,6 +40080,182 @@
         }
       }
     },
+    "/suppliers": {
+      "get": {
+        "operationId": "listSuppliers",
+        "summary": "List suppliers",
+        "tags": [
+          "Suppliers"
+        ],
+        "description": "The suppliers of SaaS, managed platforms, software and services (docs/SUPPLIERS.md), ordered by name, with their next notice-by date and certificate expiry, the derived criticality and how many items link them. Default: unconfirmed and active suppliers.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "unconfirmed",
+                "active",
+                "archived"
+              ]
+            },
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "description": "Only suppliers with this status (default: unconfirmed and active)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of suppliers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A page of suppliers",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/SupplierSummaryEntry"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/suppliers/{supplierId}": {
+      "get": {
+        "operationId": "getSupplier",
+        "summary": "Get a supplier with its contracts, certificates and links",
+        "tags": [
+          "Suppliers"
+        ],
+        "description": "Contracts with term, notice-by date, renewal, SLA and contractual RTO/RPO; certificates with their validity; contacts with name and role only (no e-mail or phone); the items that link the supplier and its supplier review duties.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "supplierId",
+            "required": true,
+            "description": "Supplier id (sup_…)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupplierEntry"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
     "/ticket-references": {
       "get": {
         "operationId": "listTicketReferences",
@@ -43593,6 +45055,10 @@
     {
       "name": "Costs",
       "description": "Platform costs (showback) per service, application, team and platform: 12 months, the current month, trend, forecast and budget, per currency, in FinOps FOCUS columns"
+    },
+    {
+      "name": "Suppliers",
+      "description": "Suppliers of SaaS, managed platforms, software and services: contracts with notice-by dates, SLA and contractual RTO/RPO, certificates, and what links them – contacts without e-mail or phone"
     }
   ],
   "externalDocs": {

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { isoCurrencyCode, toMicros } from './costs.js';
+import type { SupplierRef } from './suppliers.js';
 
 /**
  * Service cost planning (0.16.0, ADR 0026, docs/COSTS.md#planning-per-service): what a service plans to spend on the
@@ -129,8 +130,12 @@ const planLineFields = {
   category: z.enum(COST_PLAN_CATEGORIES),
   /** An application or system of the service, or a platform (validated by the server) */
   target,
-  /** Free text: the vendor or the contract */
+  /** Free text: the vendor or the contract; the fallback when no supplier is linked */
   vendor: z.string().trim().max(COST_PLAN_LIMITS.vendorChars).default(''),
+  /** The supplier (0.17.0, ADR 0029): missing keeps it, null clears it */
+  supplierId: z.string().trim().min(1).max(100).nullable().optional(),
+  /** The supplier's contract the line pays for: missing keeps it, null clears it */
+  supplierContractId: z.string().trim().min(1).max(100).nullable().optional(),
   /** The amount (decimal) – a year's for "yearly", a month's for "monthly", the one payment for "once" */
   amount: z
     .string()
@@ -218,6 +223,10 @@ export interface CostPlanLine {
   category: CostPlanCategory;
   target: CostPlanTarget | null;
   vendor: string;
+  /** The supplier (0.17.0, ADR 0029; null: none, or one the reader may not see); `vendor` is the fallback text */
+  supplier: SupplierRef | null;
+  /** The supplier's contract the line pays for */
+  supplierContract: { id: string; title: string; reference: string } | null;
   /** As entered (null when the reader may not see amounts) */
   amount: string | null;
   currency: string;

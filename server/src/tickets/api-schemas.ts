@@ -1,5 +1,5 @@
 import { z, type ZodTypeAny } from 'zod';
-import { TICKET_STATUSES, QUERY_LIST_MAX } from '@sm/shared';
+import { TICKET_STATUSES, QUERY_LIST_MAX, SUPPLIER_STATUSES } from '@sm/shared';
 
 /** Response and query schemas of the ticket reference endpoints of the public API (/api/v1/ticket-references…). */
 
@@ -15,6 +15,10 @@ export const TicketReferenceEntry = z.object({
   title: z.string(),
   note: z.string().describe('Short note (Markdown)'),
   vendor: z.string(),
+  supplier: z
+    .object({ id: z.string(), name: z.string(), status: z.enum(SUPPLIER_STATUSES) })
+    .nullable()
+    .describe('The linked supplier (0.17.0; null: none, or one the token owner may not see); vendor is the fallback text'),
   responsible: z.array(z.string()).describe('Responsible people on our side: user:<name>, team:<name>'),
   status: z.enum(TICKET_STATUSES),
   openedAt: ts(),

@@ -173,7 +173,8 @@
       "reviews": "Document reviews due",
       "duties": "Service duties",
       "trends": "Trends",
-      "topics": "New Kafka topics"
+      "topics": "New Kafka topics",
+      "suppliers": "Supplier certificates and notice dates"
     },
     "count": "{{section}}: {{count}}",
     "topicsTitle": "{{application}}: {{count}} new topic(s) under {{prefix}}",
@@ -242,7 +243,10 @@
     "limitIn_one": "Limit of {{limit}} reached in about {{count}} day ({{date}}) at this rate",
     "limitIn_other": "Limit of {{limit}} reached in about {{count}} days ({{date}}) at this rate",
     "trendRough": "rough estimate",
-    "trendDetail": "{{change}} in 7 days, now {{value}} (based on {{points}} points)"
+    "trendDetail": "{{change}} in 7 days, now {{value}} (based on {{points}} points)",
+    "supplierCertificate": "Certificate {{title}} · {{supplier}}",
+    "supplierNotice": "Notice on “{{title}}” · {{supplier}}",
+    "supplierDetail": "{{status}} · {{date}}"
   },
   "accessUndocumented": {
     "title": "Undocumented access changes: \"{{name}}\"",
@@ -588,5 +592,14 @@
       "none": "No-risk",
       "unknown": "Unrated"
     }
+  },
+  "supplierDue": {
+    "certificateTitle_one": "Supplier {{supplier}}: certificate {{title}} runs out in {{count}} day",
+    "certificateTitle_other": "Supplier {{supplier}}: certificate {{title}} runs out in {{count}} days",
+    "certificateBody": "The certificate {{title}} of the supplier “{{supplier}}” is valid until {{date}}. Ask the supplier for the new certificate or report and record it on the supplier page.",
+    "noticeTitle_one": "Supplier {{supplier}}: notice on “{{title}}” due in {{count}} day",
+    "noticeTitle_other": "Supplier {{supplier}}: notice on “{{title}}” due in {{count}} days",
+    "noticeBody": "The last day to give notice on the contract “{{title}}” of the supplier “{{supplier}}” is {{date}}. Decide whether it should renew.",
+    "hint": "You get this because you own the supplier in Steward."
   }
 }

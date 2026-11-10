@@ -13,6 +13,7 @@ import {
   type SystemDetail,
   type SystemKind,
   type SystemSummary,
+  supplierLinkField,
 } from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
@@ -42,6 +43,7 @@ import { assertKnownSubjects } from '../auth/subjects.js';
 import { assignCreatorTeams, forgetOwningTeams } from '../auth/policy.js';
 import { listBacklinks } from '../records/links.js';
 import { firewallOf } from '../records/firewall.js';
+import { resolveSupplierLink, supplierRefs } from '../suppliers/links.js';
 import { attributesFor, attributesInput, attributesOf, changedAttributes, forgetSegments, memberCount, membersOf, segmentsOf } from './network.js';
 
 /**
@@ -58,6 +60,8 @@ interface SystemRow {
   name: string;
   kind: string;
   vendor: string;
+  /** The supplier (0.17.0, ADR 0029); `vendor` stays as the fallback text */
+  supplier_id: string | null;
   cmdb_url: string;
   owners: string;
   note: string;
@@ -102,6 +106,8 @@ export const systemInput = z
     name: z.string().trim().min(1).max(SYSTEM_LIMITS.name),
     kind: z.enum(SYSTEM_KINDS),
     vendor: z.string().trim().max(SYSTEM_LIMITS.vendor).default(''),
+    /** The supplier (0.17.0): missing keeps it, null clears it; `vendor` stays as text */
+    supplierId: supplierLinkField,
     cmdbUrl: z.union([httpUrl, z.literal('')]).default(''),
     owners: z.array(ownerSubject).max(20).default([]),
     note: z.string().max(SYSTEM_LIMITS.note).default(''),
@@ -168,7 +174,10 @@ function stacksOf(ids?: string[]): Map<string, StackEntry[]> {
   return out;
 }
 
-function toSummary(r: SystemRow, x: { stack: StackEntry[]; links: LinkRow[]; platforms: Map<string, PlatformRow>; u: AuthUser | null }): SystemSummary {
+function toSummary(
+  r: SystemRow,
+  x: { stack: StackEntry[]; links: LinkRow[]; platforms: Map<string, PlatformRow>; u: AuthUser | null; suppliers?: ReturnType<typeof supplierRefs> },
+): SystemSummary {
   const p = r.platform_id ? x.platforms.get(r.platform_id) : undefined;
   const visible = !!p && platformVisible(x.u, p);
   return {
@@ -176,6 +185,7 @@ function toSummary(r: SystemRow, x: { stack: StackEntry[]; links: LinkRow[]; pla
     name: r.name,
     kind: r.kind as SystemKind,
     vendor: r.vendor,
+    supplier: r.supplier_id ? ((x.suppliers ?? supplierRefs([r.supplier_id])).get(r.supplier_id) ?? null) : null,
     cmdbUrl: r.cmdb_url,
     owners: ownersOf(r),
     note: r.note,
@@ -219,9 +229,9 @@ function toEntryOf(
   r: SystemRow,
   stack: StackEntry[],
   links: LinkRow[],
-  ctx: { platforms: Map<string, PlatformRow>; apps: Map<string, AppRef>; u: AuthUser | null },
+  ctx: { platforms: Map<string, PlatformRow>; apps: Map<string, AppRef>; u: AuthUser | null; suppliers?: ReturnType<typeof supplierRefs> },
 ): SystemEntry {
-  const { platforms, apps, u } = ctx;
+  const { platforms, apps, u, suppliers } = ctx;
   // applications the reader may not see are left out (#131)
   links = links.filter((l) => apps.has(l.application_id));
   const applications: SystemApplicationRef[] = byEnvironment(
@@ -237,7 +247,7 @@ function toEntryOf(
     (a, b) => a.applicationName.localeCompare(b.applicationName),
   );
   return {
-    ...toSummary(r, { stack, links, platforms, u }),
+    ...toSummary(r, { stack, links, platforms, u, suppliers }),
     stack,
     sbom: sbomOf(r),
     applications,
@@ -252,11 +262,11 @@ export function listSystemEntries(): SystemEntry[] {
   const u = me();
   const stacks = stacksOf();
   const links = linksBySystem();
-  const ctx = { platforms: platformsById(), apps: appsById(), u };
-  return db()
+  const rows = db()
     .all<SystemRow>('SELECT * FROM systems ORDER BY name')
-    .filter((r) => canViewCatalogue(u, { kind: 'system', id: r.id, owners: parseJson<string[]>(r.owners, []) }))
-    .map((r) => toEntryOf(r, stacks.get(r.id) ?? [], links.get(r.id) ?? [], ctx));
+    .filter((r) => canViewCatalogue(u, { kind: 'system', id: r.id, owners: parseJson<string[]>(r.owners, []) }));
+  const ctx = { platforms: platformsById(), apps: appsById(), u, suppliers: supplierRefs(rows.map((r) => r.supplier_id)) };
+  return rows.map((r) => toEntryOf(r, stacks.get(r.id) ?? [], links.get(r.id) ?? [], ctx));
 }
 
 /**
@@ -298,10 +308,11 @@ export function listSystems(): SystemSummary[] {
   const links = linksBySystem();
   const platforms = platformsById();
   const apps = appsById();
-  return db()
-    .all<SystemRow>('SELECT * FROM systems ORDER BY name')
-    .filter(systemVisible)
-    .map((r) => toSummary(r, { stack: stacks.get(r.id) ?? [], links: (links.get(r.id) ?? []).filter((l) => apps.has(l.application_id)), platforms, u }));
+  const rows = db().all<SystemRow>('SELECT * FROM systems ORDER BY name').filter(systemVisible);
+  const suppliers = supplierRefs(rows.map((r) => r.supplier_id));
+  return rows.map((r) =>
+    toSummary(r, { stack: stacks.get(r.id) ?? [], links: (links.get(r.id) ?? []).filter((l) => apps.has(l.application_id)), platforms, u, suppliers }),
+  );
 }
 
 /** The credentials register entries that belong to a system (#143), archived ones left out. */
@@ -400,17 +411,19 @@ export function createSystem(input: SystemInput): SystemDetail {
   checkPlatform(platformId, u);
   if (input.stack) requireKnownProducts(input.stack);
   const attributes = attributesFor(input.kind, input.attributes, null);
+  const supplierId = resolveSupplierLink(input.supplierId, null);
   const id = newId('sys_');
   const now = nowIso();
   const owners = [...new Set(input.owners)];
   db().tx(() => {
     db().run(
-      `INSERT INTO systems (id, name, kind, vendor, cmdb_url, owners, note, platform_id, attributes, created_at, created_by, updated_at, updated_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO systems (id, name, kind, vendor, supplier_id, cmdb_url, owners, note, platform_id, attributes, created_at, created_by, updated_at, updated_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       id,
       input.name,
       input.kind,
       input.vendor,
+      supplierId,
       input.cmdbUrl,
       JSON.stringify(owners),
       input.note,
@@ -432,6 +445,7 @@ export function createSystem(input: SystemInput): SystemDetail {
         name: input.name,
         kind: input.kind,
         vendor: input.vendor,
+        supplierId,
         owners,
         platformId,
         stack: diff?.added ?? [],
@@ -463,6 +477,7 @@ export function updateSystem(id: string, input: SystemInput): SystemDetail {
     name: input.name,
     kind: input.kind,
     vendor: input.vendor,
+    supplier_id: resolveSupplierLink(input.supplierId, cur.supplier_id),
     cmdb_url: input.cmdbUrl,
     owners: JSON.stringify(owners),
     note: input.note,
@@ -476,10 +491,11 @@ export function updateSystem(id: string, input: SystemInput): SystemDetail {
     const stackChanged = diff.added.length + diff.changed.length + diff.removed.length > 0;
     if (!fields.length && !stackChanged) return;
     db().run(
-      'UPDATE systems SET name = ?, kind = ?, vendor = ?, cmdb_url = ?, owners = ?, note = ?, platform_id = ?, attributes = ?, updated_at = ?, updated_by = ? WHERE id = ?',
+      'UPDATE systems SET name = ?, kind = ?, vendor = ?, supplier_id = ?, cmdb_url = ?, owners = ?, note = ?, platform_id = ?, attributes = ?, updated_at = ?, updated_by = ? WHERE id = ?',
       next.name,
       next.kind,
       next.vendor,
+      next.supplier_id,
       next.cmdb_url,
       next.owners,
       next.note,
@@ -495,7 +511,15 @@ export function updateSystem(id: string, input: SystemInput): SystemDetail {
       entityId: id,
       summary: `System "${input.name}" changed (${[
         ...fields.map((f) =>
-          f === 'cmdb_url' ? 'cmdbUrl' : f === 'platform_id' ? 'platform' : f === 'attributes' ? `attributes: ${attributeChanges.join(', ')}` : f,
+          f === 'cmdb_url'
+            ? 'cmdbUrl'
+            : f === 'platform_id'
+              ? 'platform'
+              : f === 'supplier_id'
+                ? 'supplier'
+                : f === 'attributes'
+                  ? `attributes: ${attributeChanges.join(', ')}`
+                  : f,
         ),
         ...(stackChanged ? [`stack: ${stackSummary(diff)}`] : []),
       ].join(', ')})`,
@@ -504,6 +528,7 @@ export function updateSystem(id: string, input: SystemInput): SystemDetail {
         ...(fields.includes('name') ? { name: { old: cur.name, new: input.name } } : {}),
         ...(fields.includes('owners') ? { owners: { old: ownersOf(cur), new: owners } } : {}),
         ...(fields.includes('platform_id') ? { platformId: { old: cur.platform_id, new: platformId } } : {}),
+        ...(fields.includes('supplier_id') ? { supplierId: { old: cur.supplier_id, new: next.supplier_id } } : {}),
         ...(fields.includes('kind') ? { kind: { old: cur.kind, new: input.kind } } : {}),
         ...(attributeChanges.length
           ? {

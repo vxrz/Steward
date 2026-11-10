@@ -21,6 +21,7 @@ const map = (t: TicketReference) => ({
   title: t.title,
   note: t.note,
   vendor: t.vendor,
+  supplier: t.supplier,
   responsible: t.responsible,
   status: t.status,
   openedAt: t.openedAt,

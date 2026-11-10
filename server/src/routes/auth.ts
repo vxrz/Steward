@@ -36,6 +36,7 @@ import { ROUTE_LIMITS } from '../rateLimits.js';
 import { logger } from '../log.js';
 import { auditPendingUpgrades } from '../upgrades.js';
 import { migrateMonitorWindows } from '../catalogue/maintenance.js';
+import { migrateVendorTexts } from '../suppliers/migrate.js';
 import { ACCESS, isStatusViewer, me } from '../auth/access.js';
 import { plantEnabled } from '../plant/settings.js';
 import { moduleStates } from '../modules/registry.js';
@@ -63,6 +64,8 @@ async function onUnlocked(): Promise<void> {
   createPlatformIdentities();
   // one maintenance-window concept (0.11, ADR 0018): the monitors' own windows become catalogue windows, once
   migrateMonitorWindows();
+  // suppliers (0.17, ADR 0029): free-text vendors become unconfirmed suppliers, once per text
+  migrateVendorTexts();
   sso.sealProviderConfigs();
   // Steward's example library as a disabled Git sync source, once per installation
   seedExamplesSource();

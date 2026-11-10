@@ -67,6 +67,7 @@ import { sealTeamChannel } from '../notifications/team-channels.js';
 import { importedDefaults } from '../teams/settings.js';
 import { env } from '../config.js';
 import { migrateMonitorWindows } from '../catalogue/maintenance.js';
+import { migrateVendorTexts } from '../suppliers/migrate.js';
 
 /**
  * Import of a migration package (see format.ts and export.ts) into this instance:
@@ -1365,6 +1366,8 @@ function copyIntoTarget(
   });
   // a package of a version before 0.11: the monitors' own maintenance windows become catalogue windows (ADR 0018)
   migrateMonitorWindows();
+  // a package of a version before 0.17: free-text vendors become unconfirmed suppliers (ADR 0029)
+  migrateVendorTexts();
   const paused = [
     ...PAUSED_ON_IMPORT.map((p) => ({ label: p.label, count: counts[p.table] ?? 0 })),
     { label: UNFINISHED_RUNS_LABEL, count: unfinished },

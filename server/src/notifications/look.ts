@@ -305,6 +305,8 @@ const WARN_EVENTS = new Set([
   'duty.exception',
   'duty.ended',
   'measure.due',
+  'supplier.certificate_expiring',
+  'supplier.notice_due',
   'ai.budget',
   'cost.budget',
 ]);

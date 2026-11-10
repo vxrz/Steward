@@ -8,6 +8,7 @@ import type { DtrackLink, DtrackReadout } from './dtrack.js';
 import type { Backlink, ItemLink, ReviewStatus, ServiceCriticality } from './records.js';
 import type { SegmentMember, SystemAttributes, SystemFirewall, SystemSegmentLink } from './network.js';
 import type { StackVersion } from './versions.js';
+import type { SupplierRef } from './suppliers.js';
 
 /**
  * Applications in the service catalogue (#84): what people call a platform ("Insights Hub", "Industrial Edge")
@@ -152,6 +153,8 @@ export interface ApplicationSummary {
   id: string;
   name: string;
   vendor: string;
+  /** The supplier (0.17.0, ADR 0029; null: none, or one the reader may not see); `vendor` is the fallback text */
+  supplier: SupplierRef | null;
   version: string;
   url: string;
   criticality: ServiceCriticality | null;
@@ -468,6 +471,8 @@ export interface SystemSummary {
   kind: SystemKind;
   /** Vendor or provider (AWS, Azure, on-premises, the hoster, …) */
   vendor: string;
+  /** The supplier (0.17.0, ADR 0029; null: none, or one the reader may not see); `vendor` is the fallback text */
+  supplier: SupplierRef | null;
   cmdbUrl: string;
   owners: string[];
   note: string;

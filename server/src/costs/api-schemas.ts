@@ -8,6 +8,7 @@ import {
   COST_SOURCES,
   FISCAL_YEAR_MAX,
   FISCAL_YEAR_MIN,
+  SUPPLIER_STATUSES,
 } from '@sm/shared';
 
 /** Response and query schemas of platform costs in the public API (/api/v1/costs, #226). */
@@ -163,6 +164,11 @@ export const CostPlanYear = z.object({
       category: z.enum(COST_PLAN_CATEGORIES),
       target: PlanTarget,
       vendor: z.string().describe('Vendor or contract (free text)'),
+      supplier: z
+        .object({ id: z.string(), name: z.string(), status: z.enum(SUPPLIER_STATUSES) })
+        .nullable()
+        .describe('The linked supplier (0.17.0; null: none, or one the token owner may not see); vendor is the fallback text'),
+      supplierContract: z.object({ id: z.string(), title: z.string(), reference: z.string() }).nullable().describe('The supplier contract the line pays for'),
       amount: planAmount('As entered: a year for yearly, a month for monthly, the payment for once'),
       currency: z.string(),
       cadence: z.enum(COST_PLAN_CADENCES),

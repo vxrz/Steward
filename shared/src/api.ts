@@ -391,6 +391,8 @@ export const OWNED_KINDS = [
   'contract',
   /** An identity of a platform (0.13.0, ADR 0009 step 2): its members may use it */
   'platform_identity',
+  /** A supplier (0.17.0, ADR 0029): like systems */
+  'supplier',
 ] as const;
 export type OwnedKind = (typeof OWNED_KINDS)[number];
 

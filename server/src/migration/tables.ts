@@ -85,6 +85,7 @@ export const NOT_MOVED: Record<string, string> = {
   db_schema_push_tokens: 'push tokens of CI (#222), only their hashes: created again on the target, like API tokens',
   cost_push_tokens: 'push tokens of CI for FOCUS cost files (#226), only their hashes: created again on the target, like API tokens',
   cost_budget_notices: 'send bookkeeping of the source (a cost budget notice of the current month may be sent again on the target)',
+  supplier_reminders: 'send bookkeeping of the source (a supplier reminder of a date ahead may be sent again on the target)',
 };
 
 /** Rows keyed by user id: moved for mapped users only, with the target user's id. */
@@ -142,6 +143,8 @@ export const USER_REFS: UserRef[] = [
   { table: 'services', column: 'owners', kind: 'subjects' },
   { table: 'applications', column: 'owners', kind: 'subjects' },
   { table: 'systems', column: 'owners', kind: 'subjects' },
+  // suppliers (0.17.0, ADR 0029): owners like systems
+  { table: 'suppliers', column: 'owners', kind: 'subjects' },
   { table: 'maintenance_windows', column: 'responsible', kind: 'subjects' },
   { table: 'record_measures', column: 'owners', kind: 'subjects' },
   { table: 'service_duties', column: 'owners', kind: 'subjects' },
@@ -169,6 +172,10 @@ export const HISTORY_COLUMNS: string[] = [
   'cost_plan_lines.updated_by',
   'cost_entries.created_by',
   'cost_entries.updated_by',
+  // suppliers (0.17.0, ADR 0029): who made and changed one, who looked at a certificate
+  'suppliers.created_by',
+  'suppliers.updated_by',
+  'supplier_certificates.checked_by',
   // the plant registry (#218)
   'plant_sites.created_by',
   'plant_sites.updated_by',
