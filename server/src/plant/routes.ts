@@ -1067,7 +1067,13 @@ export async function plantRoutes(app: FastifyInstance): Promise<void> {
           action: 'changePlantInBulk',
           when: (req: FastifyRequest) => {
             const b = plantMoveInput.safeParse(req.body);
-            return b.success && moveNeedsStepUp(b.data);
+            if (!b.success) return false;
+            try {
+              return moveNeedsStepUp(b.data);
+            } catch {
+              // a move that cannot be planned is refused by the handler with the same error: nothing to confirm
+              return false;
+            }
           },
         },
       },

@@ -773,7 +773,16 @@ export function stepUpPointsOf(ops: OpRow[], source: PlantChangeSetSource): stri
     }
     if (o.op === 'move') {
       const m = plantMoveInput.safeParse(parseJson(o.value, null));
-      if (m.success && moveNeedsStepUp(m.data)) points.add('plant.bulkChange');
+      if (m.success) {
+        // what it moves as things are now; a move that cannot be planned (yet) asks too (fail closed)
+        let ask: boolean;
+        try {
+          ask = moveNeedsStepUp(m.data);
+        } catch {
+          ask = true;
+        }
+        if (ask) points.add('plant.bulkChange');
+      }
     }
     if (o.op === 'import') for (const p of importStepUpPoints(importOf(o))) points.add(p);
   }

@@ -233,6 +233,28 @@ describe('moving devices to another asset', () => {
   });
 });
 
+describe('the step-up of a move', () => {
+  it('counts what moves along and the collections that lose their data path, and asks for every move to another site', async () => {
+    const { moveStepUpFor } = await import('../src/plant/move.js');
+    const { PLANT_MOVE } = await import('@sm/shared');
+    const entries = (n: number, why: 'chosen' | 'follows') => Array.from({ length: n }, () => ({ why }) as never);
+    // 20 chosen devices with 6 data paths that follow: 26 entries move
+    expect(moveStepUpFor({ entries: [...entries(20, 'chosen'), ...entries(6, 'follows')], unlinked: [], crossSite: false })).toBe(true);
+    expect(moveStepUpFor({ entries: entries(PLANT_MOVE.stepUp, 'chosen'), unlinked: [], crossSite: false })).toBe(false);
+    expect(moveStepUpFor({ entries: entries(PLANT_MOVE.stepUp, 'chosen'), unlinked: [{} as never], crossSite: false })).toBe(true);
+    expect(moveStepUpFor({ entries: entries(1, 'chosen'), unlinked: [], crossSite: true })).toBe(true);
+    // a move on the same site with what follows: no step-up below the threshold
+    const p = await s.api('POST', '/plant/move/preview', {
+      kind: 'device',
+      items: [{ asset: 'rvs-mill-02', id: 'rvs-mill-02-ipc' }],
+      toAsset: 'rvs-mill-01',
+      collections: 'leave',
+    });
+    expect(p.crossSite).toBe(false);
+    expect(p.stepUp).toBe(false);
+  });
+});
+
 describe('across sites and rights', () => {
   it('refuses a site the person may not change; who manages both moves, and the device leaves its VLAN', async () => {
     const site = await s.api('GET', '/plant/sites/hillcrest');
@@ -249,6 +271,11 @@ describe('across sites and rights', () => {
     const p = await dana('POST', '/plant/move/preview', body);
     expect(p.crossSite).toBe(true);
     expect(p.entries[0]).toMatchObject({ kind: 'device', leavesVlan: 'rvs-vlan-110' });
+    // a move to another site always asks for a step-up, however few entries move (they leave their VLAN and zones)
+    expect(p.stepUp).toBe(true);
+    const fresh = await s.as('dana', PW, { autoStepUp: false });
+    await fresh('DELETE', '/auth/step-up');
+    expect(await status(fresh('POST', '/plant/move', body))).toMatchObject({ status: 403, code: 'STEP_UP_REQUIRED' });
     await dana('POST', '/plant/move', body);
     const n = await s.api('GET', '/plant/assets/hlc-im-01/network');
     expect(n.devices.find((x: any) => x.id === 'rvs-mill-01-ipc')).toMatchObject({ vlan: null, address: '10.20.110.21' });
