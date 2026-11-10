@@ -1,6 +1,6 @@
 # 0020. Plant change sets: one path for every change to plant data
 
-- **Status:** Accepted – **Phase 1 implemented in 0.13.0** (see [Phase 1 as implemented](#phase-1-as-implemented-0130)); phase 2 open
+- **Status:** Accepted – **Phase 1 implemented in 0.13.0** (see [Phase 1 as implemented](#phase-1-as-implemented-0130)); phase 2: the storage and retention of the history done in 0.15.0 (see [Phase 2: storage and retention](#phase-2-storage-and-retention-0150)), the rest open
 - **Date:** 2026-11-09
 - **Since:** 0.13.0 – part of the plant registry (preview, [0007](0007-plant-registry.md))
 
@@ -124,7 +124,7 @@ What 0.13.0 ships of the delivery's phase 1, and where it differs from the text 
 - **Pages with the draft applied** (_As in Steward / With my draft_) are not in 0.13.0: a save into a draft answers with the entry as it would be, the draft bar and _Changed in your draft_ mark it, and the review page shows it.
 - **The History tab** is on sites and assets (with what belongs to them), device profiles and KPI definitions (`/plant/profiles/<id>/history`, `/plant/kpis/<id>/history`).
 - **Messages** (section 6 _Tests_ named them): `plant.change_proposed` to who may apply a proposed change set – sees it, has the rights it needs, wrote none of it – and `plant.change_decided` to its authors when someone else applied, rejected or returned it, or it expired (with the comment). In the app and by e-mail by default, Teams per the routes, quiet hours and digests (decisions, reminders); a held message about a change set decided meanwhile, or one the person may no longer see, is left out at release. A channel card names only who wrote it, and no card decides (section 6: _Out of scope_). Assistants' proposals keep `mcp.request`.
-- **The retention** of the history of removed entries is fixed at 3 years (the setting in the UI is phase 2).
+- **The retention** of the history of removed entries is fixed at 3 years (the setting in the UI is phase 2; done in 0.15.0).
 - **Assistants' proposals** stay MCP requests (the AI requests inbox decides them, both inboxes show them); `plant_proposals` keeps the proposals decided in 0.12.
 - **`permissions`** of a site keep listing _view_ and _manage_; the new right is `canPropose` (clients of 0.12 compare that list).
 - **Collection imports** are tracked (history and revisions), as one change set of source _import_; as operations of their own in phase 2.
@@ -151,6 +151,30 @@ As merged, every change read its whole region twice (an asset's save read the as
 
 **Database growth.** One history row per entry a change writes (about 820 bytes on SQLite with indexes, 650 on PostgreSQL; an import's full values) and one baseline per entry an import writes (about 690 / 510 bytes). The full import above: history 25,314 rows (20.8 MB on SQLite, 16.2 MB on PostgreSQL), baselines 25,314 rows (17.4 / 12.9 MB); the SQLite file 51.6 MB instead of 13.3 MB, the PostgreSQL schema 46.4 MB instead of 24.6 MB. The re-import adds 790 history rows (4.4 MB) and rewrites the baselines (on PostgreSQL their dead rows double the table until autovacuum). At the end of all operations: SQLite 58.1 MB (0.12.0: 13.7 MB), PostgreSQL 72.6 MB (36.0 MB).
 
+**0.15.0: storage of history and baselines** ([Phase 2: storage and retention](#phase-2-storage-and-retention-0150)). The same benchmark on the code before and after, back to back on the same shared 4-core machine (load 4–10, single runs; times vary by ±30 %). Sizes in MB (tables with their indexes; SQLite: the file without its write-ahead log; PostgreSQL: the schema):
+
+| After …                         | SQLite 0.13 | 0.15.0 | PostgreSQL 0.13 | 0.15.0 |
+| ------------------------------- | ----------: | -----: | --------------: | -----: |
+| the full import: history        |        20.8 |    9.3 |            16.2 |   10.6 |
+| the full import: baselines      |        17.4 |    3.3 |            12.9 |    4.8 |
+| the full import: database       |        51.6 |   26.1 |            52.6 |   41.7 |
+| the re-import of 5 %: baselines |        17.4 |    3.4 |            25.6 |    4.9 |
+| all operations: database        |        58.1 |   28.7 |            79.7 |   55.2 |
+
+The values of the full import's additions take 3.5 instead of 12.4 MB, those of the re-import's 790 changes 0.3 instead of 4.2 MB (mostly device profiles' lists of data points); the baselines are 26,604 rows of a revision each instead of 25,314 with all values, and the re-import writes 790 of them instead of rewriting all (on PostgreSQL no more dead rows doubling the table). Times, ms (SQLite, PostgreSQL):
+
+| Operation                          | SQLite 0.13 | 0.15.0 | PostgreSQL 0.13 |    0.15.0 |
+| ---------------------------------- | ----------: | -----: | --------------: | --------: |
+| Full import: preview               |      16,591 | 14,801 |          48,592 |    47,903 |
+| Full import: apply                 |      29,984 | 26,463 |          92,163 |    88,621 |
+| Re-import, 5 % changed: preview    |      21,666 | 18,722 |          44,943 |    40,941 |
+| Re-import, 5 % changed: apply      |      35,825 | 36,892 |          86,217 |    78,443 |
+| Bulk change of 500 assets: apply   |       74–86 | 94–122 |         544–780 | 750–1,107 |
+| Edit form save: device profile     |         114 |    152 |             172 |       151 |
+| Assistant's proposal of 500: apply |         797 |    994 |           2,652 |     2,329 |
+
+Compressing costs about 30 µs a value; recording the baselines no longer turns every written entry into values. Imports are as fast or faster; small changes are within the variation of single runs.
+
 ### Security
 
 - **Rights at apply, not at proposal.** Operations run through the routes' services as the person who applies, so every rule and right of the edit forms and the import applies again; a proposer's preview counts their _propose_ right as _manage_ only inside a transaction that is always rolled back (`asProposer` refuses to run outside one) and audits nothing (`withoutAudit`, so the audit chain's memory never runs ahead of the log).
@@ -161,6 +185,18 @@ As merged, every change read its whole region twice (an asset's save read the as
 - **No secrets in history.** Values of data collections are kept with the redaction of kept gateway configurations (0.12); assistants' documents with a credential-looking value are refused as before.
 - **Tamper evidence.** `plant.change_set_applied` carries the SHA-256 of the operations and of the history rows written (ordered by kind, scope and id), inside the HMAC-chained audit log.
 - **Switches.** A site's review switch is set by who manages the site with a step-up (as access grants), never by the import format; the catalogue's by who manages the catalogue, with a step-up.
+
+## Phase 2: storage and retention (0.15.0)
+
+Measured after 0.13.0 (see [Performance](#performance)): a full import of the large plant grew the SQLite file from 13 to 52 MB – history rows kept the full values of every entry an import added, and the baselines the full values of every entry it wrote, so the first import stored the plant twice more; a re-import rewrote every baseline (on PostgreSQL, dead rows doubled the table until autovacuum). 0.15.0 makes both small without changing what is read:
+
+- **Values compressed where that is shorter.** History values (and stored baselines) of 96 characters or more are stored as `z1:` and the base64 of their raw DEFLATE (RFC 1951, `node:zlib`) with a **preset dictionary**: the shape of each kind's values (its keys with empty values), frozen in `changesets/values.ts` – a later dictionary is a new prefix, never a change. An added asset's 434 characters become about 180, a device profile's list of 250 data points (10.7 kB) about 0.8 kB; a `set` row of a changed field or two stays JSON. Text on both databases: the database layer has no binary columns, and PostgreSQL compresses text only from 2 kB (its TOAST keeps doing that for the rest). Every reader goes through `historyValues` (History, Revert, the merge's base, the change set's page); rows of 0.13 are plain JSON and read as they are. `set` rows already kept only the changed fields; a changed list (a profile's interfaces) is still the whole list, now compressed.
+- **Baselines as revisions.** `plant_entry_baselines` (migration **`plant-030-entry-baselines`**) has one row per entry **and import**: `revision` – the entry's revision once the import's change set is applied, its values read back through the entry's history (the values now with the before values of each later change laid over them; history is kept while the entry exists) – instead of the values. An import that leaves an entry at its last baseline's revision writes nothing for it (a re-import of 5 % writes 790 rows, not 25,314); the last `baselinesPerEntry` (default 3) of each entry are kept. Where the revision at the end is not what the import left – an import followed by other operations of its change set – the values are stored (compressed). `baselineOf()` answers as before (what the last import left, and its id); `baselinesOf()` lists the last ones. 0.13's `plant_import_baselines` is emptied into the new table by the migration (its rows keep their values) and dropped in a later version; renames follow both (`REFERENCES`), migration packages move both.
+- **Retention as settings.** _Settings → Data & retention → Plant registry history_ (administrators, `GET|PUT /api/settings/plant/history`, audited as `plant.history_retention_changed`): the history of removed entries (default 1,095 days, 30–3,650), closed change sets (90, 7–3,650) and baselines per entry (3, 1–10), with the rows and bytes history, baselines and change sets take now (SQLite's `dbstat`, PostgreSQL's `pg_total_relation_size`). The daily job `plant-changes` deletes what is older, prunes baselines beyond the last ones, and **compacts** rows of 0.13 – history values compressed, a baseline whose entry still has its values becomes its revision – at most a minute or 50,000 rows a run, giving the event loop back between batches of 500. Compaction changes how values are stored, never what they are.
+- **Tamper evidence unchanged.** `historySha256` stays the SHA-256 over the JSON text: the change set's rows ordered by kind, scope and entry id (compared as strings), each `kind NUL scope NUL entry_id NUL revision NUL op NUL before NUL after LF`, a compressed value decompressed first. `historySha256Of(changeSetId)` (`changesets/track.ts`) computes it from the database; a row changed, compressed or compacted reads the same, a value changed does not match.
+- **Writes batched per kind.** Revisions and baselines are written per table, 200 entries a statement, history rows 200 a statement (in the order of the hash); recording baselines reads one statement per kind (the entries' revisions and their last baselines) instead of every entry's values.
+- **The same answers.** `server/test/plant-history-storage.test.ts` runs a scenario (imports, an edit, a bulk change, a removal, a rename, an import followed by an edit in one change set) and reads History (with and without what belongs to an entry), each applied change set's page, Revert of each, a stale save's merge base, the baselines and the hashes; then turns the database into 0.13's format (plain JSON, every baseline with its values), reads again – equal –, compacts it and reads again – equal; on SQLite and PostgreSQL 16. History rows of one change set share their time and often their revision: the History tab and Revert order them by kind, scope and entry id, too, so PostgreSQL answers the same after a row was rewritten.
+- **Rejected:** binary columns (not in the database layer; `bytea` and BLOB differ); one store of values by their hash shared by history and baselines (garbage collection across tables, and the hash chain would point into it); keeping only the changed items of lists (exact reconstruction of nested keyed lists, their order and later changes is fragile, Revert needs whole values); history of additions computed from the entry now (verifying the hash would need the reconstruction, and removed entries keep only their last values).
 
 ## Owner decisions
 
