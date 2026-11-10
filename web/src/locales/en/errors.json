@@ -1220,7 +1220,8 @@
     "COST_PLAN_YEAR_NOT_EMPTY": "{{year}} has plan lines already – the plan is not copied.",
     "COST_ENTRY_PLAN_LINE": "Choose a plan line of {{year}} in {{currency}}, or none.",
     "COST_ENTRY_LIMIT": "A service has at most {{max}} cost entries per fiscal year.",
-    "COST_ENTRY_NOT_FOUND": "Cost entry not found."
+    "COST_ENTRY_NOT_FOUND": "Cost entry not found.",
+    "EXPORT_TARGET_CHANGED": "The S3 target of the export \"{{name}}\" changed since an administrator confirmed it – nothing was written. Check the platform, then confirm the target under Settings → Exports."
   },
   "boundary": {
     "title": "Something went wrong on this page",

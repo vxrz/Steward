@@ -21,7 +21,7 @@ import {
 } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { IconFileExport, IconInfoCircle } from '@tabler/icons-react';
+import { IconAlertTriangle, IconFileExport, IconInfoCircle } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import {
   DEFAULT_EXPORT_JOB,
@@ -402,6 +402,27 @@ function ExportCard({ job, status, onEdit }: { job: ExportJob; status: ExportsSt
           </Button>
         </Group>
       </Group>
+      {job.targetChanged && (
+        <Alert
+          color={TONE.attention}
+          icon={<IconAlertTriangle size={18} />}
+          title={t('exports.targetChangedTitle')}
+          mt="sm"
+          data-testid="export-target-changed"
+        >
+          <Stack gap="xs" align="flex-start">
+            <Text size="sm">{t('exports.targetChanged')}</Text>
+            <Button
+              size="xs"
+              variant="default"
+              loading={busy === 'confirm'}
+              onClick={() => void act('confirm', () => post(`/exports/${job.id}/confirm-target`), t('exports.targetConfirmed'))}
+            >
+              {t('exports.confirmTarget')}
+            </Button>
+          </Stack>
+        </Alert>
+      )}
       <Group gap={4} mt="xs" wrap="wrap">
         {job.parts.map((p) => (
           <Badge

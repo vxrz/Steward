@@ -644,6 +644,10 @@
     "pruned": "Files removed by the retention rule",
     "encrypted": "Encrypted",
     "readable": "Readable",
+    "targetChangedTitle": "The S3 target changed – confirm it again",
+    "targetChanged": "The platform of this export was changed since an administrator confirmed it: its address, region, connection or access key. Runs fail and write nothing until you have checked the platform and confirm the target again.",
+    "confirmTarget": "Confirm target",
+    "targetConfirmed": "Target confirmed",
     "status": {
       "running": "Running",
       "succeeded": "Succeeded",

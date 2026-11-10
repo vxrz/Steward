@@ -644,6 +644,10 @@
     "pruned": "Dateien durch die Aufbewahrungsregel entfernt",
     "encrypted": "Verschlüsselt",
     "readable": "Lesbar",
+    "targetChangedTitle": "Das S3-Ziel hat sich geändert – bestätigen Sie es erneut",
+    "targetChanged": "Die Plattform dieses Exports wurde geändert, seit ein Administrator sie bestätigt hat: ihre Adresse, Region, Verbindung oder ihr Zugriffsschlüssel. Ausführungen schlagen fehl und schreiben nichts, bis Sie die Plattform geprüft und das Ziel erneut bestätigt haben.",
+    "confirmTarget": "Ziel bestätigen",
+    "targetConfirmed": "Ziel bestätigt",
     "status": {
       "running": "Läuft",
       "succeeded": "Erfolgreich",

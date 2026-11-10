@@ -20,10 +20,10 @@ import { config } from '../config.js';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { logger } from '../log.js';
-import { HttpError, newId, nowIso, parseJson } from '../util.js';
+import { HttpError, newId, nowIso, parseJson, sha256 } from '../util.js';
 import { currentActor, runAs, type AuthUser } from '../auth/context.js';
 import { listUsers } from '../auth/users.js';
-import { getPlatform } from '../platforms/service.js';
+import { getPlatform, getSecrets } from '../platforms/service.js';
 import { backupKey, backupKeySet, backupSettings, s3Client, storagePlatform } from '../backup/service.js';
 import { encryptFile } from '../backup/crypto.js';
 import { exportPart, exportPartInfos, EXPORT_PARTS, partLimits, type ExportContext, type ExportWriter } from './parts.js';
@@ -93,6 +93,7 @@ interface JobRow {
   created_by: string;
   updated_at: string;
   updated_by: string;
+  target_fingerprint: string | null;
 }
 
 interface RunRow {
@@ -140,6 +141,50 @@ function nextRun(cron: string, tz: string, on: boolean): string | null {
   }
 }
 
+// ---------- the confirmed target ----------
+
+/**
+ * What identifies where an export's files go: the platform, its address (the bucket), region and service, how it
+ * connects (proxy, TLS, extra origins, the role it assumes, its variables), the access key id (hashed – never a
+ * secret) and the folder. The platform can be changed by whoever manages it, without the export's step-up; a run
+ * compares this with the fingerprint an administrator confirmed (ADR 0027).
+ */
+export function targetFingerprint(platformId: string | null, prefix: string): string {
+  const p = storagePlatform(platformId);
+  const aws = p.config.auth?.aws;
+  const http = p.config.http ?? {};
+  const secrets = getSecrets(p.id);
+  return sha256(
+    JSON.stringify({
+      v: 1,
+      platform: p.id,
+      baseUrl: (p.baseUrl ?? '').trim().replace(/\/+$/, ''),
+      variables: p.config.variables ?? {},
+      region: aws?.region ?? null,
+      service: aws?.service ?? null,
+      roleArn: aws?.roleArn ?? null,
+      externalId: aws?.externalId ?? null,
+      stsEndpoint: aws?.stsEndpoint ?? null,
+      proxy: http.proxy ?? null,
+      insecureTls: !!http.insecureTls,
+      caPem: http.caPem ? sha256(http.caPem) : null,
+      trustedOrigins: http.trustedOrigins ?? [],
+      accessKey: sha256(`access-key-id:${secrets.accessKeyId ?? ''}`),
+      prefix,
+    }),
+  );
+}
+
+/** Whether the target differs from the confirmed one (a target that cannot be read is reported by the run). */
+function targetChanged(r: JobRow): boolean {
+  if (!r.target_fingerprint) return true;
+  try {
+    return targetFingerprint(r.platform_id, r.prefix) !== r.target_fingerprint;
+  } catch {
+    return false;
+  }
+}
+
 function toJob(r: JobRow): ExportJob {
   const last = db().get<RunRow>('SELECT * FROM export_runs WHERE job_id = ? ORDER BY started_at DESC, id DESC LIMIT 1', r.id);
   return {
@@ -160,6 +205,7 @@ function toJob(r: JobRow): ExportJob {
     nextRunAt: nextRun(r.cron, r.timezone, !!Number(r.enabled)),
     running: running.has(r.id),
     lastRun: last ? toRun(last) : null,
+    targetChanged: targetChanged(r),
   };
 }
 
@@ -239,8 +285,9 @@ export function createExportJob(input: unknown): ExportJob {
   const by = currentActor();
   db().tx(() => {
     db().run(
-      `INSERT INTO export_jobs (id, name, enabled, platform_id, prefix, cron, timezone, parts, encrypt, keep_runs, created_at, created_by, updated_at, updated_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO export_jobs (id, name, enabled, platform_id, prefix, cron, timezone, parts, encrypt, keep_runs, created_at, created_by, updated_at, updated_by,
+       target_fingerprint)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       id,
       v.name,
       v.enabled ? 1 : 0,
@@ -255,6 +302,8 @@ export function createExportJob(input: unknown): ExportJob {
       by,
       at,
       by,
+      // what the administrator confirmed with the step-up
+      targetFingerprint(v.platformId, v.prefix),
     );
     audit({ action: 'export.job_created', entityType: 'export', entityId: id, summary: `Export "${v.name}" defined: ${describe(v)}`, details: v });
   });
@@ -268,7 +317,7 @@ export function updateExportJob(id: string, input: unknown): ExportJob {
   db().tx(() => {
     db().run(
       `UPDATE export_jobs SET name = ?, enabled = ?, platform_id = ?, prefix = ?, cron = ?, timezone = ?, parts = ?, encrypt = ?, keep_runs = ?,
-       updated_at = ?, updated_by = ? WHERE id = ?`,
+       updated_at = ?, updated_by = ?, target_fingerprint = ? WHERE id = ?`,
       v.name,
       v.enabled ? 1 : 0,
       v.platformId,
@@ -280,9 +329,10 @@ export function updateExportJob(id: string, input: unknown): ExportJob {
       v.keepRuns,
       nowIso(),
       currentActor(),
+      targetFingerprint(v.platformId, v.prefix),
       id,
     );
-    const { id: _i, createdAt: _c, createdBy: _b, updatedAt: _u, updatedBy: _ub, nextRunAt: _n, running: _r, lastRun: _l, ...was } = before;
+    const { id: _i, createdAt: _c, createdBy: _b, updatedAt: _u, updatedBy: _ub, nextRunAt: _n, running: _r, lastRun: _l, targetChanged: _t, ...was } = before;
     audit({
       action: 'export.job_changed',
       entityType: 'export',
@@ -292,6 +342,34 @@ export function updateExportJob(id: string, input: unknown): ExportJob {
     });
   });
   scheduleExportJobs();
+  return getExportJob(id);
+}
+
+/**
+ * Confirms the export's S3 target as the platform is now (after its platform was changed): an administrator with a
+ * step-up, like a change of the export. Audited with the target as it is confirmed.
+ */
+export function confirmExportTarget(id: string): ExportJob {
+  const r = jobRow(id);
+  const p = storagePlatform(r.platform_id);
+  const fingerprint = targetFingerprint(r.platform_id, r.prefix);
+  db().tx(() => {
+    db().run('UPDATE export_jobs SET target_fingerprint = ?, updated_at = ?, updated_by = ? WHERE id = ?', fingerprint, nowIso(), currentActor(), id);
+    audit({
+      action: 'export.target_confirmed',
+      entityType: 'export',
+      entityId: id,
+      summary: `Export "${r.name}": the S3 target confirmed as ${p.name} (${p.baseUrl}${p.config.auth?.aws?.region ? `, ${p.config.auth.aws.region}` : ''})/${r.prefix}${r.name}/`,
+      details: {
+        platformId: p.id,
+        platform: p.name,
+        baseUrl: p.baseUrl,
+        region: p.config.auth?.aws?.region ?? null,
+        prefix: r.prefix,
+        changed: r.target_fingerprint !== fingerprint,
+      },
+    });
+  });
   return getExportJob(id);
 }
 
@@ -359,6 +437,7 @@ export function startExportRun(jobId: string, trigger: ExportRun['trigger']): Ex
     run.startedAt,
     job.platformId,
   );
+  let code: string | undefined;
   const p = runExport(job, run)
     .then(
       () => {
@@ -368,9 +447,10 @@ export function startExportRun(jobId: string, trigger: ExportRun['trigger']): Ex
         logger.warn({ err: e, export: job.name }, 'export failed');
         run.status = 'failed';
         run.message = e.message;
+        code = e instanceof HttpError ? e.code : undefined;
       },
     )
-    .then(() => finish(job, run))
+    .then(() => finish(job, run, code))
     .catch((err) => logger.error({ err }, 'could not record an export run'))
     .finally(() => running.delete(jobId));
   running.set(jobId, p);
@@ -452,8 +532,21 @@ class WorkFile implements ExportWriter {
   }
 }
 
+/** The run's target is the one an administrator confirmed – checked before anything is written or listed. */
+function checkTarget(jobId: string): void {
+  const r = jobRow(jobId);
+  if (r.target_fingerprint && targetFingerprint(r.platform_id, r.prefix) === r.target_fingerprint) return;
+  throw new HttpError(
+    409,
+    `The S3 target of the export changed since an administrator confirmed it (its platform's address, region, connection or access key) – nothing was written. Check the platform, then confirm the target under Settings → Exports`,
+    'EXPORT_TARGET_CHANGED',
+    { name: r.name },
+  );
+}
+
 async function runExport(job: ExportJob, run: ExportRun): Promise<void> {
   const now = new Date(run.startedAt);
+  checkTarget(job.id);
   const c = s3Client(job.platformId);
   const enc = job.encrypt ? backupKey() : null;
   const base = `${job.prefix}${job.name}/${stampOf(now)}`;
@@ -559,7 +652,7 @@ async function runExport(job: ExportJob, run: ExportRun): Promise<void> {
   }
 }
 
-async function finish(job: ExportJob, run: ExportRun): Promise<void> {
+async function finish(job: ExportJob, run: ExportRun, code?: string): Promise<void> {
   run.finishedAt = nowIso();
   db().run(
     'UPDATE export_runs SET status = ?, finished_at = ?, folder = ?, files = ?, bytes = ?, message = ? WHERE id = ?',
@@ -586,6 +679,7 @@ async function finish(job: ExportJob, run: ExportRun): Promise<void> {
       folder: run.folder,
       encrypted: job.encrypt,
       files: run.files.map((f) => ({ name: f.name, bytes: f.bytes, sha256: f.sha256 })),
+      ...(code ? { code } : {}),
     },
   });
   if (run.status === 'failed') notifyFailure(job, run);

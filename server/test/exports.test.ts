@@ -25,7 +25,7 @@ const PASSPHRASE = 'an export passphrase of some length';
 const MASTER = 'correct horse battery';
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'sm-export-test-'));
 /** Secret values the installation holds – none may appear in an exported file. */
-const secrets: string[] = ['demoSecretKey', PASSPHRASE, MASTER, ADMIN.password, 'Olivia-password-123'];
+const secrets: string[] = ['demoSecretKey', PASSPHRASE, MASTER, ADMIN.password, 'Olivia-password-123', 'Olivia-own-password-456'];
 
 const refused = (c: Client, method: string, url: string, body?: unknown): Promise<{ status: number; body: any }> =>
   c(method, url, body).then(
@@ -77,7 +77,11 @@ beforeAll(async () => {
   });
   storageId = p.id;
   await s.api('POST', '/users', { username: 'olivia', roles: ['operator'], password: 'Olivia-password-123' });
-  olivia = await s.as('olivia', 'Olivia-password-123');
+  // her own password (an administrator's first one must be changed before she can act)
+  await (
+    await s.as('olivia', 'Olivia-password-123')
+  )('POST', '/auth/password', { current: 'Olivia-password-123', next: 'Olivia-own-password-456' });
+  olivia = await s.as('olivia', 'Olivia-own-password-456');
   // the plant registry on (the demo loads its invented example enterprise)
   await s.api('PUT', '/settings/plant', { enabled: true, enterprise: 'Brightwater Components', labels: {}, fields: {} });
   // a service with a cost plan line and an entry in the current fiscal year
@@ -373,6 +377,54 @@ describe('an export run', () => {
     expect(last).toMatchObject({ trigger: 'schedule', triggeredBy: null, status: 'succeeded' });
     await s.api('PUT', `/exports/${id}`, job({ enabled: false, keepRuns: 2, parts: [ALL_PARTS[4]] }));
     expect(jobs.scheduledExports()).toEqual([]);
+  });
+
+  it('fails when whoever manages its platform redirected the target, until an administrator confirms it again', async () => {
+    // a platform whose management is delegated to a non-administrator (key rotation by a storage team)
+    const delegated = await s.api('POST', '/platforms', {
+      name: 'Export bucket, delegated',
+      kind: 'generic',
+      baseUrl: `${mockBase}/s3/${BUCKET}`,
+      config: { auth: { type: 'aws_sigv4', aws: { region: 'eu-central-1', service: 's3' } }, variables: {}, http: { proxy: 'none' } },
+      secrets: { accessKeyId: 'AKIADEMOEXAMPLE', secretAccessKey: 'demoSecretKey' },
+    });
+    await s.api('PUT', `/platforms/${delegated.id}/access`, { acl: [{ subject: 'user:olivia', permissions: ['view', 'use', 'manage'] }] });
+    await s.api('PUT', `/exports/${id}`, job({ platformId: delegated.id, parts: [ALL_PARTS[2]] }));
+    expect((await s.api('GET', `/exports/${id}`)).targetChanged).toBe(false);
+    expect((await run()).status).toBe('succeeded');
+
+    // a new access key id alone counts (the secret itself is never part of the fingerprint) …
+    await olivia('PUT', `/platforms/${delegated.id}/secrets`, { accessKeyId: 'AKIAINVENTEDOTHER', secretAccessKey: 'another-secret-value' });
+    expect((await s.api('GET', `/exports/${id}`)).targetChanged).toBe(true);
+    // … and setting the confirmed key again restores the target
+    await olivia('PUT', `/platforms/${delegated.id}/secrets`, { accessKeyId: 'AKIADEMOEXAMPLE', secretAccessKey: 'demoSecretKey' });
+    expect((await s.api('GET', `/exports/${id}`)).targetChanged).toBe(false);
+
+    // the platform now names another bucket: the run fails before it writes or lists anything
+    await olivia('PUT', `/platforms/${delegated.id}`, { baseUrl: `${mockBase}/s3/invented-other-bucket` });
+    expect((await s.api('GET', `/exports/${id}`)).targetChanged).toBe(true);
+    const r = await run();
+    expect(r).toMatchObject({ status: 'failed', files: [], folder: null });
+    expect(r.message).toMatch(/S3 target of the export changed/);
+    expect((await import('../src/mock/mockS3.js')).mockS3Objects('invented-other-bucket').size).toBe(0);
+    const [failed] = await s.api('GET', '/audit?action=export.failed&limit=1');
+    expect(failed.details).toMatchObject({ runId: r.id, code: 'EXPORT_TARGET_CHANGED' });
+    let notes: any[] = [];
+    for (let i = 0; i < 50 && !notes.some((n) => n.event === 'export.failed' && n.body.includes('S3 target')); i++) {
+      notes = (await s.api('GET', '/notifications')).items;
+      await new Promise((res) => setTimeout(res, 50));
+    }
+    expect(notes.some((n) => n.event === 'export.failed' && n.body.includes('S3 target'))).toBe(true);
+
+    // confirming it again: administrators only, with a step-up
+    expect((await refused(olivia, 'POST', `/exports/${id}/confirm-target`)).status).toBe(403);
+    const fresh = await s.as(ADMIN.username, ADMIN.password, { autoStepUp: false });
+    await fresh('DELETE', '/auth/step-up');
+    expect(await refused(fresh, 'POST', `/exports/${id}/confirm-target`)).toMatchObject({ status: 403, body: { code: 'STEP_UP_REQUIRED' } });
+    expect(await s.api('POST', `/exports/${id}/confirm-target`)).toMatchObject({ targetChanged: false });
+    const [confirmed] = await s.api('GET', '/audit?action=export.target_confirmed&limit=1');
+    expect(confirmed).toMatchObject({ actor: 'admin', details: { platformId: delegated.id, baseUrl: `${mockBase}/s3/invented-other-bucket`, changed: true } });
+    await s.api('PUT', `/exports/${id}`, job({ parts: [ALL_PARTS[2]] }));
   });
 
   it('records a failure without secrets and tells the administrators', async () => {

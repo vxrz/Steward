@@ -1220,7 +1220,8 @@
     "COST_PLAN_YEAR_NOT_EMPTY": "{{year}} hat bereits Planpositionen – der Plan wird nicht kopiert.",
     "COST_ENTRY_PLAN_LINE": "Wählen Sie eine Planposition von {{year}} in {{currency}} oder keine.",
     "COST_ENTRY_LIMIT": "Ein Service hat höchstens {{max}} Kostenbuchungen je Geschäftsjahr.",
-    "COST_ENTRY_NOT_FOUND": "Kostenbuchung nicht gefunden."
+    "COST_ENTRY_NOT_FOUND": "Kostenbuchung nicht gefunden.",
+    "EXPORT_TARGET_CHANGED": "Das S3-Ziel des Exports „{{name}}“ hat sich geändert, seit ein Administrator es bestätigt hat – es wurde nichts geschrieben. Prüfen Sie die Plattform und bestätigen Sie dann das Ziel unter Einstellungen → Exporte."
   },
   "boundary": {
     "title": "Auf dieser Seite ist ein Fehler aufgetreten",

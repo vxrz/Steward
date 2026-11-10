@@ -5572,6 +5572,7 @@ export interface Resources {
     'codes.COST_ENTRY_PLAN_LINE': string;
     'codes.COST_ENTRY_LIMIT': string;
     'codes.COST_ENTRY_NOT_FOUND': string;
+    'codes.EXPORT_TARGET_CHANGED': string;
     'boundary.title': string;
     'boundary.text': string;
     'boundary.retry': string;
@@ -13938,6 +13939,10 @@ export interface Resources {
     'exports.pruned': string;
     'exports.encrypted': string;
     'exports.readable': string;
+    'exports.targetChangedTitle': string;
+    'exports.targetChanged': string;
+    'exports.confirmTarget': string;
+    'exports.targetConfirmed': string;
     'exports.status.running': string;
     'exports.status.succeeded': string;
     'exports.status.failed': string;

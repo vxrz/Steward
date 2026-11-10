@@ -111,6 +111,12 @@ export interface ExportJob extends ExportJobInput {
   nextRunAt: string | null;
   running: boolean;
   lastRun: ExportRun | null;
+  /**
+   * The S3 target is not the one an administrator confirmed: the platform's address, region, connection or access key
+   * (or the export's folder) changed since. Runs fail with EXPORT_TARGET_CHANGED until it is confirmed again
+   * (POST /api/exports/:id/confirm-target, step-up).
+   */
+  targetChanged: boolean;
 }
 
 /** A part as the export page offers it. */

@@ -258,6 +258,7 @@ Scheduled exports (0.16.0, [EXPORTS.md](EXPORTS.md)) write **readable files** of
 - Give the export folder its own bucket policy: only the readers who need the files get `s3:GetObject`, and they get nothing on the backups. Use server-side encryption; consider a bucket of its own.
 - An export runs as the system and holds **everything** of its parts, whoever defined it – so only administrators define exports, and every change asks for a step-up (`export.settings`). Review the exports with the administrators like other access to data.
 - Exports never hold secrets (vault values, credentials, tokens, heartbeat secrets) – but they do hold personal data (owners, contacts, actors of the audit log) and business data (cost plans). Encrypt the files with the backup key when they pass through hands that must not read them.
+- An export is pinned to the S3 target an administrator confirmed: a change of its platform's address, region, connection or access key id (by whoever manages the platform) makes its runs fail (`EXPORT_TARGET_CHANGED`) until an administrator confirms the target again with a step-up. Still, keep `manage` on export and backup platforms with the administrators where you can, and alert on `export.target_confirmed`.
 - Every definition, change, run, removal and pruning is audited (`export.*`); a failed run notifies the administrators.
 
 ## Monitoring and SIEM
