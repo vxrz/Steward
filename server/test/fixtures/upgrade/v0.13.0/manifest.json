@@ -1,0 +1,49 @@
+{
+  "version": "0.13.0",
+  "generatedAt": "2026-11-10T09:00:17.372Z",
+  "generator": "scripts/fixtures/make-upgrade-fixture.mjs",
+  "passphrase": "steward-upgrade-fixture",
+  "admin": {
+    "username": "admin",
+    "password": "Fixture-admin-password-1"
+  },
+  "demoPassword": "Demo-password-1",
+  "approver": "adam",
+  "counts": {
+    "runs": 37,
+    "processes": 56,
+    "platforms": 26,
+    "records": 4,
+    "monitors": 21,
+    "dashboards": 20,
+    "schedules": 28,
+    "auditEntries": 491
+  },
+  "ids": {
+    "hub": "pf_FQxp7lqhXmWX",
+    "approvedRun": "run_F6Zn6w74C5Xo",
+    "failedRun": "run_AJVEvhjGeN2s",
+    "reviewRun": "run_un9w42Pj5Uf7",
+    "waitingRun": "run_Izw_TW7Dr8b3",
+    "waitingTask": "task_-G6G8QWoRgr-",
+    "schedule": "sch_Drqk0FM1Nfs5",
+    "record": "rec_lwRdJ1lePl2e",
+    "recordNumber": "CR-2026-0001",
+    "attachment": "rat_yqHnF5vUEt0m",
+    "attachmentSha256": "250fc92f49334baf9525f8b68c264301e8e3e1b2ce1de07bb883a97887b8d5d3",
+    "draftRecord": "rec_uzlq6M0kHK9F",
+    "service": "svc_nH9Qb9iB58Np",
+    "credential": "cred__nrnv_QQQv5l",
+    "ticket": "tkt_ihhyzJlbNB5k",
+    "monitor": "mon_Ed3T-j5v6THr",
+    "dashboard": "upgrade-fixture-board",
+    "acRecord": "rec_dokdpwwEiIEi",
+    "acNumber": "AC-2026-0002",
+    "evidencePack": "evp_3fZi6oxWcVfb",
+    "report": "rpt_9TcSXWpRLca1"
+  },
+  "checkpoint": {
+    "seq": 488,
+    "hash": "5ede5d5c3f5312c7df5e2a5f85915c2cfc5f8b277f6d38c8c076ce4d6577e360"
+  }
+}
