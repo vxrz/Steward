@@ -1,15 +1,17 @@
 import { useRef, useState } from 'react';
-import { Anchor, Button, FileButton, Group, Select, Stack, Switch, Text } from '@mantine/core';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Anchor, Button, FileButton, Group, Select, Stack, Switch, Text, TextInput } from '@mantine/core';
+import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useDebouncedCallback } from '@mantine/hooks';
+import { Link, useNavigate } from 'react-router-dom';
 import { IconPlugConnected, IconShieldExclamation, IconUpload } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import {
   ADVISORY_LIMITS,
   ADVISORY_SEVERITIES,
-  ADVISORY_SEVERITY_RANK,
+  ADVISORY_SORTS,
   ADVISORY_STATUSES,
   type AdvisoryList,
+  type AdvisorySort,
   type AdvisorySeverity,
   type AdvisoryStatus,
   type AdvisorySummary,
@@ -19,7 +21,8 @@ import {
 import { ApiError, get, notifyError, notifyOk, post } from '../api';
 import { fmtDate, fmtDay } from '../format';
 import { plantKeys } from '../queryKeys';
-import { DataTable, type DataColumn } from '../components/DataTable';
+import { DataTable, ListFooter, type DataColumn, type SortState } from '../components/DataTable';
+import { useListParams } from '../components/page/params';
 import { QueryState } from '../components/common';
 import { ListPage } from '../components/page/ListPage';
 import { PreviewBadge } from '../components/plant/common';
@@ -31,32 +34,53 @@ import { AdvisorySourcesModal } from '../components/plant/advisories/Sources';
  * and CVSS, affected assets (exact or confirmed matches only), possible matches apart, sites and zones, status. Designers
  * and administrators upload CSAF files (offline plants); administrators manage the sources.
  */
+const PAGE = 50;
+const DEFAULT_SORT: SortState = { key: 'severity', dir: 'desc' };
+const isSortKey = (k: string | null): k is AdvisorySort => !!k && (ADVISORY_SORTS as readonly string[]).includes(k);
+
 export function PlantAdvisoriesPage() {
   const { t } = useTranslation(['plantAdvisories', 'common']);
-  const [params, setParams] = useSearchParams();
+  // the filters and the order live in the address and go to the server (?site=, ?status=, ?severity=, ?vendor=, ?q=, ?all=1, ?sort=, ?order=)
+  const { params, set, setAll } = useListParams();
   const qc = useQueryClient();
   const navigate = useNavigate();
   const site = params.get('site') ?? '';
   const status = (ADVISORY_STATUSES.find((x) => x === params.get('status')) ?? null) as AdvisoryStatus | null;
   const severity = (ADVISORY_SEVERITIES.find((x) => x === params.get('severity')) ?? null) as AdvisorySeverity | null;
   const affecting = params.get('all') !== '1';
-  const [q, setQ] = useState('');
+  const qParam = params.get('q') ?? '';
+  const vendorParam = params.get('vendor') ?? '';
+  const [q, setQ] = useState(qParam);
+  const [vendor, setVendor] = useState(vendorParam);
+  // typed text goes into the address (and to the server) once typing pauses
+  const setSearch = useDebouncedCallback((v: string) => set('q', v.trim()), 300);
+  const setVendorParam = useDebouncedCallback((v: string) => set('vendor', v.trim()), 300);
+  const sortParam = params.get('sort');
+  const sort: SortState = isSortKey(sortParam) ? { key: sortParam, dir: params.get('order') === 'asc' ? 'asc' : 'desc' } : DEFAULT_SORT;
+  const setSort = (next: SortState | null) => {
+    const x = next ?? DEFAULT_SORT;
+    const isDefault = x.key === DEFAULT_SORT.key && x.dir === DEFAULT_SORT.dir;
+    setAll({ sort: isDefault ? null : x.key, order: isDefault ? null : x.dir });
+  };
   const [sourcesOpen, setSourcesOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const resetFile = useRef<() => void>(null);
-  const query = new URLSearchParams();
+  const query = new URLSearchParams({ limit: String(PAGE) });
   if (site) query.set('site', site);
   if (status) query.set('status', status);
   if (severity) query.set('severity', severity);
+  if (vendorParam) query.set('vendor', vendorParam);
+  if (qParam) query.set('q', qParam);
   if (affecting) query.set('affecting', '1');
-  const list = useQuery({ queryKey: plantKeys.advisories(query.toString()), queryFn: () => get<AdvisoryList>(`/plant/advisories?${query.toString()}`) });
+  if (sort.key !== DEFAULT_SORT.key || sort.dir !== DEFAULT_SORT.dir) (query.set('sort', sort.key), query.set('order', sort.dir));
+  const list = useInfiniteQuery({
+    queryKey: plantKeys.advisories(query.toString()),
+    initialPageParam: 0,
+    queryFn: ({ pageParam }) => get<AdvisoryList>(`/plant/advisories?${query.toString()}${pageParam ? `&offset=${pageParam}` : ''}`),
+    getNextPageParam: (last) => last.nextOffset ?? undefined,
+  });
   const sites = useQuery({ queryKey: plantKeys.sites, queryFn: () => get<PlantSiteSummary[]>('/plant/sites') });
-  const setParam = (k: string, v: string | null) => {
-    const next = new URLSearchParams(params);
-    if (v) next.set(k, v);
-    else next.delete(k);
-    setParams(next, { replace: true });
-  };
+  const setParam = (k: string, v: string | null) => set(k, v);
   const upload = async (file: File | null) => {
     resetFile.current?.();
     if (!file) return;
@@ -74,13 +98,10 @@ export function PlantAdvisoriesPage() {
       setUploading(false);
     }
   };
-  const needle = q.trim().toLowerCase();
-  const all = list.data?.items ?? [];
-  const rows = all
-    .filter((a) => !needle || [a.title, a.trackingId, a.publisher, ...a.cves].some((x) => x.toLowerCase().includes(needle)))
-    .sort(
-      (a, b) => ADVISORY_SEVERITY_RANK[b.severity] - ADVISORY_SEVERITY_RANK[a.severity] || (b.cvss ?? 0) - (a.cvss ?? 0) || b.updated.localeCompare(a.updated),
-    );
+  const first = list.data?.pages[0];
+  const total = first?.total ?? 0;
+  const rows = list.data?.pages.flatMap((p) => p.items) ?? [];
+  const filtered = !!(site || status || severity || vendorParam || qParam);
   const href = (a: AdvisorySummary) => `/plant/advisories/${encodeURIComponent(a.id)}${site ? `?site=${encodeURIComponent(site)}` : ''}`;
   const affected = (a: AdvisorySummary) => (
     <Stack gap={0}>
@@ -112,16 +133,16 @@ export function PlantAdvisoriesPage() {
           </Text>
         </Stack>
       ),
-      sortValue: (a) => a.title,
+      serverSort: true,
     },
     {
       key: 'severity',
       header: t('list.severity'),
       cell: (a) => <SeverityBadge severity={a.severity} cvss={a.cvss} />,
       nowrap: true,
-      sortValue: (a) => ADVISORY_SEVERITY_RANK[a.severity] * 100 + (a.cvss ?? 0),
+      serverSort: true,
     },
-    { key: 'affected', header: t('list.affected'), cell: affected, sortValue: (a) => a.affectedAssets * 1000 + a.possibleMatches },
+    { key: 'affected', header: t('list.affected'), cell: affected, serverSort: true },
     { key: 'sites', header: t('list.sites'), cell: (a) => a.sites.map((s) => s.name).join(', ') || '–' },
     { key: 'zones', header: t('list.zones'), cell: (a) => a.zones.map((z) => zoneText(t, z)).join(', ') || '–' },
     {
@@ -131,10 +152,10 @@ export function PlantAdvisoriesPage() {
       nowrap: true,
       sortValue: (a) => a.updated,
     },
-    { key: 'published', header: t('list.published'), cell: (a) => fmtDay(a.published), nowrap: true, sortValue: (a) => a.published },
-    { key: 'status', header: t('list.status'), cell: (a) => <AdvisoryStatusBadge status={a.status} />, nowrap: true, sortValue: (a) => a.status },
+    { key: 'published', header: t('list.published'), cell: (a) => fmtDay(a.published), nowrap: true, serverSort: true },
+    { key: 'status', header: t('list.status'), cell: (a) => <AdvisoryStatusBadge status={a.status} /> },
   ];
-  const empty = list.isSuccess && all.length === 0 && !site && !status && !severity && !affecting;
+  const empty = list.isSuccess && total === 0 && !filtered && !affecting;
   return (
     <ListPage
       testId="plant-advisories"
@@ -146,7 +167,7 @@ export function PlantAdvisoriesPage() {
       }
       description={t('description')}
       primaryAction={
-        list.data?.canUpload ? (
+        first?.canUpload ? (
           <FileButton resetRef={resetFile} onChange={(f) => void upload(f)} accept="application/json,.json">
             {(props) => (
               <Button leftSection={<IconUpload size={16} aria-hidden />} loading={uploading} data-testid="advisory-upload" {...props}>
@@ -157,7 +178,7 @@ export function PlantAdvisoriesPage() {
         ) : undefined
       }
       actions={
-        list.data?.canManageSources ? (
+        first?.canManageSources ? (
           <Button
             variant="default"
             leftSection={<IconPlugConnected size={16} aria-hidden />}
@@ -168,7 +189,14 @@ export function PlantAdvisoriesPage() {
           </Button>
         ) : undefined
       }
-      search={{ value: q, onChange: setQ, placeholder: t('list.search') }}
+      search={{
+        value: q,
+        onChange: (v) => {
+          setQ(v);
+          setSearch(v);
+        },
+        placeholder: t('list.search'),
+      }}
       filters={
         <Group gap="sm" wrap="wrap" align="flex-end">
           <Select
@@ -180,6 +208,17 @@ export function PlantAdvisoriesPage() {
             onChange={(v) => setParam('site', v)}
             data={(sites.data ?? []).map((s) => ({ value: s.id, label: s.name }))}
             w={180}
+          />
+          <TextInput
+            size="xs"
+            label={t('list.vendor')}
+            value={vendor}
+            onChange={(e) => {
+              setVendor(e.currentTarget.value);
+              setVendorParam(e.currentTarget.value);
+            }}
+            w={180}
+            data-testid="advisories-vendor"
           />
           <Select
             size="xs"
@@ -210,13 +249,13 @@ export function PlantAdvisoriesPage() {
           />
         </Group>
       }
-      activeFilters={[site, status, severity].filter(Boolean).length + (affecting ? 0 : 1)}
+      activeFilters={[site, status, severity, vendorParam].filter(Boolean).length + (affecting ? 0 : 1)}
       empty={{ show: empty, icon: IconShieldExclamation, title: t('list.emptyTitle'), text: t('list.emptyText') }}
     >
       <QueryState query={list} />
       {list.isSuccess && !empty && rows.length === 0 && (
         <Text size="sm" c="dimmed" data-testid="advisories-empty">
-          {affecting && !site && !status && !severity && !needle ? t('list.noAffecting') : t('list.noMatch')}
+          {affecting && !filtered ? t('list.noAffecting') : t('list.noMatch')}
         </Text>
       )}
       {rows.length > 0 && (
@@ -227,6 +266,17 @@ export function PlantAdvisoriesPage() {
           ariaLabel={t('list.label')}
           rowHref={href}
           testId="advisories-table"
+          sort={sort}
+          onSortChange={setSort}
+          footer={
+            <ListFooter
+              shown={rows.length}
+              total={total}
+              hasMore={list.hasNextPage}
+              onLoadMore={() => void list.fetchNextPage()}
+              loading={list.isFetchingNextPage}
+            />
+          }
           card={(a) => (
             <Stack gap={4}>
               <Group gap="xs" wrap="wrap">
@@ -244,11 +294,6 @@ export function PlantAdvisoriesPage() {
             </Stack>
           )}
         />
-      )}
-      {(list.data?.more ?? 0) > 0 && (
-        <Text size="sm" c="dimmed" mt="sm">
-          {t('list.more', { count: list.data!.more })}
-        </Text>
       )}
       {sourcesOpen && <AdvisorySourcesModal onClose={() => setSourcesOpen(false)} />}
     </ListPage>

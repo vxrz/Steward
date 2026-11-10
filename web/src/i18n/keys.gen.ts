@@ -8143,11 +8143,10 @@ export interface Resources {
     'list.anySeverity': string;
     'list.anyStatus': string;
     'list.site': string;
+    'list.vendor': string;
     'list.allSites': string;
     'list.label': string;
     'list.card': string;
-    'list.more_one': string;
-    'list.more_other': string;
     'list.emptyTitle': string;
     'list.emptyText': string;
     'list.noMatch': string;

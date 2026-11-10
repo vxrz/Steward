@@ -20,7 +20,7 @@ import { assertOutboundAllowed, fetchCheckingRedirects, guardedLookup } from '..
 import { outboundContext } from '../../platforms/policyContext.js';
 import { plantEnabled } from '../settings.js';
 import { assertPublicTlp, parseCsaf, PUBLIC_TLP } from './csaf.js';
-import { rematchIfStale, saveAdvisory } from './store.js';
+import { matchBatch, saveAdvisory } from './store.js';
 
 /**
  * Where advisories come from (docs/ADVISORIES.md "Sources"): CSAF 2.0 distribution (OASIS CSAF 2.0, section 7) as a
@@ -501,10 +501,19 @@ export async function fetchSource(id: string): Promise<AdvisoryFetchResult> {
   return { ...result, source: getSource(id) };
 }
 
-/** The job: matches after plant changes, then every enabled source that is due. */
-export async function runAdvisoryJob(now = Date.now()): Promise<number> {
+/** How long one job run matches at most; what is left follows on the next run (every 5 minutes). */
+export const JOB_MATCH_MS = 20_000;
+
+/** The job: matching after plant changes in bounded batches (resumed on the next run), then every enabled source that is due. */
+export async function runAdvisoryJob(now = Date.now(), budgetMs = JOB_MATCH_MS): Promise<number> {
   if (!plantEnabled()) return 0;
-  rematchIfStale();
+  const started = Date.now();
+  for (;;) {
+    const r = matchBatch({ max: 200, ms: Math.max(budgetMs - (Date.now() - started), 1) });
+    if (!r.remaining || Date.now() - started >= budgetMs) break;
+    // one batch at a time: other work of the process (requests) runs in between
+    await new Promise((res) => setImmediate(res));
+  }
   let n = 0;
   for (const s of db().all<SourceRow>('SELECT * FROM plant_advisory_sources WHERE enabled = 1 ORDER BY id')) {
     const last = s.last_run_at ? Date.parse(s.last_run_at) : 0;

@@ -618,7 +618,8 @@ export const PLANT_MIGRATIONS: NamedMigration[] = [
   },
   {
     // 0.14: security advisories for OT devices (docs/ADVISORIES.md) – CSAF 2.0 documents (kept as received, with what
-    // Steward read from them), where they come from (configured providers, aggregators and ROLIE feeds – none until an
+    // Steward read from them; severity_rank and the indexes serve the list's server-side filters, sorting and paging,
+    // match_stamp the plant data an advisory was last matched against, so matching proceeds in bounded batches), where they come from (configured providers, aggregators and ROLIE feeds – none until an
     // administrator adds one) and what was fetched from each, the assets they match with the people's decisions and
     // remediation per asset, and a site's "not applicable"
     name: 'plant-020-advisories',
@@ -666,9 +667,11 @@ export const PLANT_MIGRATIONS: NamedMigration[] = [
         tlp TEXT NOT NULL DEFAULT '',
         aggregate_severity TEXT NOT NULL DEFAULT '',
         severity TEXT NOT NULL,
+        severity_rank INTEGER NOT NULL DEFAULT 0,
         cvss REAL,
         cves TEXT NOT NULL DEFAULT '[]',
         vendors TEXT NOT NULL DEFAULT '[]',
+        match_stamp TEXT NOT NULL DEFAULT '',
         content TEXT NOT NULL,
         document TEXT NOT NULL,
         sha256 TEXT NOT NULL,
@@ -686,6 +689,9 @@ export const PLANT_MIGRATIONS: NamedMigration[] = [
       );
       CREATE UNIQUE INDEX plant_advisories_tracking ON plant_advisories(namespace, tracking_id);
       CREATE INDEX plant_advisories_released ON plant_advisories(current_release);
+      CREATE INDEX plant_advisories_published ON plant_advisories(initial_release);
+      CREATE INDEX plant_advisories_severity ON plant_advisories(severity_rank, current_release);
+      CREATE INDEX plant_advisories_publisher ON plant_advisories(publisher);
       CREATE TABLE plant_advisory_matches (
         advisory_id TEXT NOT NULL,
         asset_id TEXT NOT NULL,
@@ -717,6 +723,7 @@ export const PLANT_MIGRATIONS: NamedMigration[] = [
       );
       CREATE INDEX plant_advisory_matches_asset ON plant_advisory_matches(asset_id);
       CREATE INDEX plant_advisory_matches_site ON plant_advisory_matches(site_id);
+      CREATE INDEX plant_advisory_matches_current ON plant_advisory_matches(current, site_id, advisory_id);
       CREATE TABLE plant_advisory_sites (
         advisory_id TEXT NOT NULL,
         site_id TEXT NOT NULL,

@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { ADVISORY_SEVERITIES, ADVISORY_SEVERITY_RANK, ADVISORY_STATUSES } from '@sm/shared';
-import { pageArray } from '../../api/v1/pagination.js';
+import { ADVISORY_SEVERITIES, ADVISORY_STATUSES } from '@sm/shared';
+import { decodeCursor, encodeCursor } from '../../api/v1/pagination.js';
 import { ToolError, cursorArg, defineTool, limitArg, type ToolDef } from '../../mcp/tooling.js';
 import { HttpError } from '../../util.js';
 import { plantEnabled } from '../settings.js';
@@ -48,7 +48,16 @@ export const advisoryTools: ToolDef[] = [
     handler: (a) =>
       read(() => {
         const site = a.site ? currentId('site', '', a.site) : undefined;
-        const list = listAdvisories({ site, status: a.status, severity: a.severity, q: a.query, affecting: !a.all || !!site }).items.map((x) => ({
+        const filters = { site: site ?? null, status: a.status ?? null, severity: a.severity ?? null, all: a.all, query: a.query ?? null };
+        let offset = 0;
+        try {
+          const k = decodeCursor(a.cursor, filters);
+          if (k && typeof k[0] === 'number') offset = k[0];
+        } catch {
+          throw new ToolError('The cursor does not belong to these filters – start without it');
+        }
+        const page = listAdvisories({ site, status: a.status, severity: a.severity, q: a.query, affecting: !a.all || !!site, offset, limit: a.limit });
+        const items = page.items.map((x) => ({
           id: x.id,
           trackingId: x.trackingId,
           title: short(x.title),
@@ -64,13 +73,7 @@ export const advisoryTools: ToolDef[] = [
           zones: x.zones.map((z) => ({ site: z.siteId, zone: z.id, slTarget: z.slTarget })),
           updated: x.updated,
         }));
-        return pageArray(list, (x) => [-ADVISORY_SEVERITY_RANK[x.severity], -(Date.parse(x.updated) || 0), x.id], a, {
-          site: site ?? null,
-          status: a.status ?? null,
-          severity: a.severity ?? null,
-          all: a.all,
-          query: a.query ?? null,
-        });
+        return { items, total: page.total, nextCursor: page.nextOffset === null ? null : encodeCursor([page.nextOffset], filters) };
       }),
   }),
   defineTool({

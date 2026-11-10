@@ -4,7 +4,7 @@ import type { AdvisoryAssetMatch, AdvisorySummary } from '@sm/shared';
 import { HttpError } from '../../util.js';
 import { notFound } from '../../api/v1/helpers.js';
 import { ProblemError } from '../../api/v1/problem.js';
-import { linkNext, pageArray } from '../../api/v1/pagination.js';
+import { decodeCursor, encodeCursor, linkNext } from '../../api/v1/pagination.js';
 import type { Op } from '../../api/v1/routes.js';
 import { currentId, currentParams } from '../ids.js';
 import { assetAdvisories, getAdvisory, listAdvisories } from './store.js';
@@ -30,7 +30,6 @@ function found<T>(f: () => T, what: string): T {
 
 const MODULE = 'Only while the plant registry module is on (Settings → Modules); otherwise 404.';
 const page = { type: 'object', required: ['items', 'nextCursor'], additionalProperties: false } as const;
-const RANK = { critical: 5, high: 4, medium: 3, low: 2, none: 1, unknown: 0 } as const;
 
 const summaryOut = (s: AdvisorySummary) => ({
   id: s.id,
@@ -83,7 +82,7 @@ export function advisoryApiRoutes(get: Get): void {
       operationId: 'listPlantAdvisories',
       tag: 'Plant',
       summary: 'List the security advisories affecting the plant’s sites',
-      description: `CSAF 2.0 advisories matched to assets by manufacturer, model and firmware – by default only those with a match at a site the token owner may see (\`all=true\`: every advisory), the most severe first. Counts and status are for those sites. ${MODULE}`,
+      description: `CSAF 2.0 advisories matched to assets by manufacturer, model and firmware – by default only those with a match at a site the token owner may see (\`all=true\`: every advisory), filtered, sorted (\`sort\`: severity – the default –, updated, published, affected, title; \`order\`) and paged by the server. Counts and status are for those sites (with \`site\`: for that site). ${MODULE}`,
       query: PlantAdvisoryListQuery,
       paginated: true,
       response: {
@@ -95,15 +94,33 @@ export function advisoryApiRoutes(get: Get): void {
     async (req, reply) => {
       const q = req.query as z.infer<typeof PlantAdvisoryListQuery>;
       const site = q.site ? currentId('site', '', q.site) : undefined;
-      const list = found(() => listAdvisories({ site, status: q.status, severity: q.severity, affecting: !q.all || !!site }), 'Plant registry').items.map(
-        summaryOut,
-      );
-      const p = pageArray(list, (x) => [-RANK[x.severity], -(Date.parse(x.updated) || 0), x.id], q, {
+      const filters = {
         site: site ?? null,
         status: q.status ?? null,
         severity: q.severity ?? null,
+        vendor: q.vendor ?? null,
         all: q.all,
-      });
+        sort: q.sort ?? null,
+        order: q.order ?? null,
+      };
+      const k = decodeCursor(q.cursor, filters);
+      const offset = k && typeof k[0] === 'number' ? k[0] : 0;
+      const page = found(
+        () =>
+          listAdvisories({
+            site,
+            status: q.status,
+            severity: q.severity,
+            vendor: q.vendor,
+            affecting: !q.all || !!site,
+            sort: q.sort,
+            order: q.order,
+            offset,
+            limit: q.limit,
+          }),
+        'Plant registry',
+      );
+      const p = { items: page.items.map(summaryOut), nextCursor: page.nextOffset === null ? null : encodeCursor([page.nextOffset], filters) };
       linkNext(req, reply, p.nextCursor);
       return p;
     },

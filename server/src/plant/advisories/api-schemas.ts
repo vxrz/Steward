@@ -6,6 +6,7 @@ import {
   ADVISORY_REMEDIATION_CATEGORIES,
   ADVISORY_REMEDIATIONS,
   ADVISORY_SEVERITIES,
+  ADVISORY_SORTS,
   ADVISORY_STATUSES,
 } from '@sm/shared';
 
@@ -98,7 +99,10 @@ export const PlantAdvisoryListQuery = z.object({
   site: z.string().max(100).optional().describe('Only advisories affecting this site (id)'),
   status: z.enum(ADVISORY_STATUSES).optional(),
   severity: z.enum(ADVISORY_SEVERITIES).optional(),
+  vendor: z.string().max(200).optional().describe('Only advisories naming this vendor (compared normalised: letters and digits, legal forms left out)'),
   all: z.boolean().default(false).describe('Also advisories that match no asset of the token owner’s sites'),
+  sort: z.enum(ADVISORY_SORTS).optional().describe('severity (default, with CVSS), updated, published, affected (assets), title'),
+  order: z.enum(['asc', 'desc']).optional().describe('Default: desc (title: asc)'),
 });
 
 export const ADVISORY_COMPONENTS: Record<string, ZodTypeAny> = {

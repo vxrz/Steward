@@ -15,6 +15,7 @@ import {
   type AdvisoryRemediationStatus,
   type AdvisorySeverity,
   type AdvisorySiteInput,
+  type AdvisorySort,
   type AdvisorySiteState,
   type AdvisoryStatus,
   type AdvisorySummary,
@@ -31,6 +32,7 @@ import { currentUser, type AuthUser } from '../../auth/context.js';
 import { forbid, me } from '../../auth/access.js';
 import { logger } from '../../log.js';
 import { HttpError, nowIso, parseJson } from '../../util.js';
+import { likeEscape } from '../../database/sql.js';
 import { canManageCatalogue, siteRights } from '../access.js';
 import { plantEnabled } from '../settings.js';
 import { advisoryId, assertPublicTlp, parseCsaf, type CsafContent, type ParsedCsaf } from './csaf.js';
@@ -120,7 +122,6 @@ interface SiteRow {
   decided_at: string;
 }
 
-const LIST_LIMIT = 1000;
 /** Columns of the list (not the documents) */
 const LIST_COLUMNS =
   'id, publisher, namespace, tracking_id, title, category, doc_status, version, initial_release, current_release, severity, cvss, cves, origin, source_id, created_at';
@@ -277,63 +278,118 @@ function writeMatches(advisoryId: string, found: Map<string, MatchResult>, sites
   return { counted: countedN, possible };
 }
 
-/** Matches advisories against the assets: the given ones, or every advisory whose vendors an asset may have. */
-export function rematch(ids?: string[]): { advisories: number; matches: number } {
-  const list = candidates();
-  const sites = new Map(list.map((c) => [c.assetId, c.siteId]));
-  const assetVendors = new Set(list.flatMap((c) => [normVendor(c.manufacturer), c.profile ? normVendor(c.profile.manufacturer) : '']).filter(Boolean));
-  const withMatches = new Set(
-    db()
-      .all<{ advisory_id: string }>('SELECT DISTINCT advisory_id FROM plant_advisory_matches WHERE current = 1')
-      .map((r) => r.advisory_id),
-  );
-  const rows = db()
-    .all<{ id: string; vendors: string }>('SELECT id, vendors FROM plant_advisories')
-    .filter((r) => (!ids || ids.includes(r.id)) && (withMatches.has(r.id) || vendorsMeet(parseJson<string[]>(r.vendors, []), assetVendors)));
-  let matches = 0;
-  for (const r of rows) {
-    const row = db().get<{ content: string }>('SELECT content FROM plant_advisories WHERE id = ?', r.id);
-    if (!row) continue;
-    const content = parseJson<CsafContent>(row.content, { summary: '', products: [], vulnerabilities: [], references: [] });
-    const found = matchAdvisory(content, list);
-    db().tx(() => {
-      const n = writeMatches(r.id, found, sites);
-      matches += n.counted + n.possible;
-    });
-  }
-  // matches of assets that are gone
-  db().run('DELETE FROM plant_advisory_matches WHERE asset_id NOT IN (SELECT id FROM plant_assets)');
-  db().run('DELETE FROM plant_advisory_sites WHERE site_id NOT IN (SELECT id FROM plant_sites)');
-  notifyNewMatches();
-  return { advisories: rows.length, matches };
-}
-
-let fingerprint = '';
 /** What the matches depend on, cheaply: counts, latest changes and revisions of assets, assignments and profiles. */
-function plantFingerprint(): string {
+export function plantFingerprint(): string {
   const of = (table: string) => {
     const r = db().get<{ n: number; at: string | null; rev: number | null }>(`SELECT COUNT(*) AS n, MAX(updated_at) AS at, SUM(revision) AS rev FROM ${table}`);
     return `${r?.n ?? 0}:${r?.at ?? ''}:${r?.rev ?? 0}`;
   };
-  const adv = db().get<{ n: number; at: string | null }>('SELECT COUNT(*) AS n, MAX(updated_at) AS at FROM plant_advisories');
-  return [of('plant_assets'), of('plant_assignments'), of('plant_profiles'), `${adv?.n ?? 0}:${adv?.at ?? ''}`].join('|');
+  return [of('plant_assets'), of('plant_assignments'), of('plant_profiles')].join('|');
 }
 
-/** Rematches everything when the plant data changed since the last time (before reads, and by the job). */
+interface Batch {
+  list: MatchCandidate[];
+  sites: Map<string, string>;
+  assetVendors: Set<string>;
+  withMatches: Set<string>;
+}
+const batchOf = (): Batch => {
+  const list = candidates();
+  return {
+    list,
+    sites: new Map(list.map((c) => [c.assetId, c.siteId])),
+    assetVendors: new Set(list.flatMap((c) => [normVendor(c.manufacturer), c.profile ? normVendor(c.profile.manufacturer) : '']).filter(Boolean)),
+    withMatches: new Set(
+      db()
+        .all<{ advisory_id: string }>('SELECT DISTINCT advisory_id FROM plant_advisory_matches WHERE current = 1')
+        .map((r) => r.advisory_id),
+    ),
+  };
+};
+
+/** Matches one advisory and stamps it with the plant data it was matched against; one without a vendor any asset has is only stamped. */
+function matchOne(id: string, vendors: string, b: Batch, stamp: string): number {
+  let n = 0;
+  if (b.withMatches.has(id) || vendorsMeet(parseJson<string[]>(vendors, []), b.assetVendors)) {
+    const row = db().get<{ content: string }>('SELECT content FROM plant_advisories WHERE id = ?', id);
+    if (row) {
+      const content = parseJson<CsafContent>(row.content, { summary: '', products: [], vulnerabilities: [], references: [] });
+      const found = matchAdvisory(content, b.list);
+      db().tx(() => {
+        const w = writeMatches(id, found, b.sites);
+        n = w.counted + w.possible;
+        db().run('UPDATE plant_advisories SET match_stamp = ? WHERE id = ?', stamp, id);
+      });
+      return n;
+    }
+  }
+  db().run('UPDATE plant_advisories SET match_stamp = ? WHERE id = ?', stamp, id);
+  return n;
+}
+
+function cleanUp(): void {
+  // matches of assets that are gone, "not applicable" of sites that are gone
+  db().run('DELETE FROM plant_advisory_matches WHERE asset_id NOT IN (SELECT id FROM plant_assets)');
+  db().run('DELETE FROM plant_advisory_sites WHERE site_id NOT IN (SELECT id FROM plant_sites)');
+}
+
+/** Matches the given advisories now (a document that just arrived). */
+export function rematch(ids: string[]): { advisories: number; matches: number } {
+  const b = batchOf();
+  const stamp = plantFingerprint();
+  let matches = 0;
+  const rows = db().all<{ id: string; vendors: string }>(`SELECT id, vendors FROM plant_advisories WHERE id IN (${ids.map(() => '?').join(', ')})`, ...ids);
+  for (const r of rows) matches += matchOne(r.id, r.vendors, b, stamp);
+  cleanUp();
+  notifyNewMatches();
+  return { advisories: rows.length, matches };
+}
+
+/** The stamp every advisory has once it is matched against the current plant data (a read then skips matching). */
+let doneFor = '';
+
+/**
+ * Matches the advisories not yet matched against the current plant data – newest first, at most `max` advisories or
+ * `ms` milliseconds, so a large feed never blocks a request or the job; the rest follows on the next call (their stamps
+ * say where it stopped). Returns how many are still to do.
+ */
+export function matchBatch(o: { max: number; ms: number } = { max: 100, ms: 1000 }): { matched: number; remaining: number } {
+  if (!plantEnabled()) return { matched: 0, remaining: 0 };
+  const stamp = plantFingerprint();
+  if (stamp === doneFor) return { matched: 0, remaining: 0 };
+  const started = Date.now();
+  const todo = db().all<{ id: string; vendors: string }>(
+    'SELECT id, vendors FROM plant_advisories WHERE match_stamp <> ? ORDER BY current_release DESC, id LIMIT ?',
+    stamp,
+    o.max + 1,
+  );
+  let matched = 0;
+  if (todo.length) {
+    const b = batchOf();
+    for (const r of todo.slice(0, o.max)) {
+      matchOne(r.id, r.vendors, b, stamp);
+      matched++;
+      if (Date.now() - started > o.ms) break;
+    }
+  }
+  cleanUp();
+  notifyNewMatches();
+  const remaining = Number(db().get<{ n: number }>('SELECT COUNT(*) AS n FROM plant_advisories WHERE match_stamp <> ?', stamp)?.n ?? 0);
+  if (!remaining) doneFor = stamp;
+  return { matched, remaining };
+}
+
+/** Before reads: a small batch, so pages follow plant changes at once in all but very large installations (the job does the rest). */
 export function rematchIfStale(): void {
-  if (!plantEnabled()) return;
-  const now = plantFingerprint();
-  if (now === fingerprint) return;
   try {
-    rematch();
-    fingerprint = plantFingerprint();
+    matchBatch({ max: 100, ms: 1000 });
   } catch (err) {
     logger.warn({ err }, 'plant advisories: matching failed');
   }
 }
-/** Tests and moves of a database: forget the fingerprint. */
+/** Tests: forget what was matched (the next batch checks the stamps again). */
 export const resetAdvisoryFingerprint = (): void => {
-  fingerprint = '';
+  doneFor = '';
 };
 
 // ---------- saving a document ----------
@@ -376,6 +432,7 @@ export function saveAdvisory(p: ParsedCsaf, o: SaveOptions): { id: string; resul
     m.tlp,
     m.aggregateSeverity,
     p.severity,
+    ADVISORY_SEVERITY_RANK[p.severity],
     p.cvss,
     JSON.stringify(p.cves),
     JSON.stringify(vendorsOf(p.content)),
@@ -394,7 +451,7 @@ export function saveAdvisory(p: ParsedCsaf, o: SaveOptions): { id: string; resul
     if (old)
       db().run(
         `UPDATE plant_advisories SET publisher = ?, namespace = ?, tracking_id = ?, title = ?, category = ?, doc_status = ?, version = ?, initial_release = ?,
-           current_release = ?, language = ?, tlp = ?, aggregate_severity = ?, severity = ?, cvss = ?, cves = ?, vendors = ?, content = ?, document = ?,
+           current_release = ?, language = ?, tlp = ?, aggregate_severity = ?, severity = ?, severity_rank = ?, cvss = ?, cves = ?, vendors = ?, content = ?, document = ?,
            sha256 = ?, size = ?, origin = ?, source_id = ?, url = ?, file_name = ?, integrity = ?, signature_url = ?, updated_at = ?, updated_by = ?
          WHERE id = ?`,
         ...values,
@@ -405,9 +462,9 @@ export function saveAdvisory(p: ParsedCsaf, o: SaveOptions): { id: string; resul
     else
       db().run(
         `INSERT INTO plant_advisories (publisher, namespace, tracking_id, title, category, doc_status, version, initial_release, current_release, language,
-           tlp, aggregate_severity, severity, cvss, cves, vendors, content, document, sha256, size, origin, source_id, url, file_name, integrity,
+           tlp, aggregate_severity, severity, severity_rank, cvss, cves, vendors, content, document, sha256, size, origin, source_id, url, file_name, integrity,
            signature_url, created_at, created_by, updated_at, updated_by, id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         ...values,
         now,
         actor,
@@ -637,40 +694,109 @@ const sourceNames = () =>
 const naOf = (rows: SiteRow[], advisoryId: string) => new Set(rows.filter((s) => s.advisory_id === advisoryId && s.not_applicable === 1).map((s) => s.site_id));
 
 export interface ListFilter {
+  /** Only advisories affecting this site; their counts are this site's */
   site?: string;
   status?: AdvisoryStatus;
   severity?: AdvisorySeverity;
+  /** A vendor the advisory names (normalised: "Example Meters Ltd." finds "examplemeters…") */
+  vendor?: string;
+  /** Text in the title, tracking id, publisher or a CVE */
   q?: string;
-  /** Only advisories with counted or possible matches at the reader's sites */
+  /** Only advisories with counted or possible matches at the reader's sites (the default view) */
   affecting?: boolean;
+  sort?: AdvisorySort;
+  order?: 'asc' | 'desc';
+  offset?: number;
+  limit?: number;
 }
 
+const COUNTED_SQL = "((m.kind = 'exact' AND (m.decision IS NULL OR m.decision <> 'dismissed')) OR (m.kind = 'possible' AND m.decision = 'confirmed'))";
+const PENDING_SQL = "(m.kind = 'possible' AND m.decision IS NULL)";
+const OPEN_SQL = "(m.remediation IN ('open', 'planned') OR (m.remediation = 'accepted' AND m.remediation_until < ?))";
+const STATUS_SQL =
+  "CASE WHEN COALESCE(x.open_assets, 0) > 0 THEN 'open' WHEN COALESCE(x.affected, 0) > 0 THEN 'mitigated' WHEN COALESCE(x.na_hits, 0) > 0 THEN 'not_applicable' ELSE 'unaffected' END";
+const SORT_SQL: Record<AdvisorySort, string[]> = {
+  severity: ['a.severity_rank', 'COALESCE(a.cvss, -1)', 'a.current_release'],
+  updated: ['a.current_release'],
+  published: ['a.initial_release'],
+  affected: ['affected', 'open_assets', 'possible'],
+  title: ['lower(a.title)'],
+};
+
+/**
+ * The list (0.14): filtered, sorted and paged by the database – the counts and the status are the reader's (matches of
+ * the sites they may see, without the sites that marked an advisory not applicable), aggregated in one query; only
+ * the page's advisories get their sites and zones.
+ */
 export function listAdvisories(f: ListFilter = {}): AdvisoryList {
   const u = me();
   rematchIfStale();
   const r = reader(u);
-  const rows = db().all<AdvisoryRow>(`SELECT ${LIST_COLUMNS} FROM plant_advisories ORDER BY current_release DESC, id`);
-  const matches = db()
-    .all<MatchRow>('SELECT * FROM plant_advisory_matches WHERE current = 1')
-    .filter((m) => sees(r, m.site_id));
-  const sitesRows = db().all<SiteRow>('SELECT * FROM plant_advisory_sites');
+  const limit = Math.min(Math.max(f.limit ?? 50, 1), 200);
+  const offset = Math.max(f.offset ?? 0, 0);
+  const visibleSites = [...r.rights.keys()].filter((id) => sees(r, id));
+  const all = visibleSites.length === r.rights.size;
+  const scope = f.site ? (visibleSites.includes(f.site) ? [f.site] : []) : visibleSites;
+  const marks = (n: number) => Array.from({ length: n }, () => '?').join(', ');
+  // the matches that count for the reader: current, at a site they see (all of them: no list), not marked not applicable
+  const siteWhere = f.site || !all ? (scope.length ? `AND m.site_id IN (${marks(scope.length)})` : 'AND 1 = 0') : '';
+  const siteParams = f.site || !all ? scope : [];
+  const day = today();
+  const agg = `
+    SELECT m.advisory_id,
+      SUM(CASE WHEN s.site_id IS NULL AND ${COUNTED_SQL} THEN 1 ELSE 0 END) AS affected,
+      SUM(CASE WHEN s.site_id IS NULL AND ${COUNTED_SQL} AND ${OPEN_SQL} THEN 1 ELSE 0 END) AS open_assets,
+      SUM(CASE WHEN s.site_id IS NULL AND ${PENDING_SQL} THEN 1 ELSE 0 END) AS possible,
+      SUM(CASE WHEN s.site_id IS NOT NULL AND (${COUNTED_SQL} OR ${PENDING_SQL}) THEN 1 ELSE 0 END) AS na_hits
+    FROM plant_advisory_matches m
+    LEFT JOIN plant_advisory_sites s ON s.advisory_id = m.advisory_id AND s.site_id = m.site_id AND s.not_applicable = 1
+    WHERE m.current = 1 ${siteWhere}
+    GROUP BY m.advisory_id`;
+  const where: string[] = [];
+  const params: unknown[] = [day, ...siteParams];
+  const like = (col: string) => `lower(${col}) LIKE lower(?) ESCAPE '\\'`;
+  if (f.severity) (where.push('a.severity = ?'), params.push(f.severity));
+  if (f.status) (where.push(`${STATUS_SQL} = ?`), params.push(f.status));
+  if (f.affecting || f.site) where.push('(COALESCE(x.affected, 0) > 0 OR COALESCE(x.possible, 0) > 0)');
+  const vendor = f.vendor ? normVendor(f.vendor) : '';
+  if (vendor) (where.push('a.vendors LIKE ?'), params.push(`%"${likeEscape(vendor)}%`));
+  if (f.vendor && !vendor) where.push('1 = 0');
+  const q = f.q?.trim();
+  if (q) {
+    const v = `%${likeEscape(q.slice(0, 200))}%`;
+    where.push(`(${like('a.title')} OR ${like('a.tracking_id')} OR ${like('a.publisher')} OR ${like('a.cves')})`);
+    params.push(v, v, v, v);
+  }
+  const from = `FROM plant_advisories a LEFT JOIN (${agg}) x ON x.advisory_id = a.id ${where.length ? `WHERE ${where.join(' AND ')}` : ''}`;
+  const sort = f.sort ?? 'severity';
+  const dir = (f.order ?? (sort === 'title' ? 'asc' : 'desc')) === 'asc' ? 'ASC' : 'DESC';
+  const order = [...SORT_SQL[sort].map((c) => `${c} ${dir}`), `a.id ${dir}`].join(', ');
+  const total = Number(db().get<{ n: number }>(`SELECT COUNT(*) AS n ${from}`, ...params)?.n ?? 0);
+  const rows = db().all<AdvisoryRow & { affected: number; open_assets: number; possible: number }>(
+    `SELECT ${LIST_COLUMNS.split(', ')
+      .map((c) => `a.${c}`)
+      .join(', ')}, COALESCE(x.affected, 0) AS affected, COALESCE(x.open_assets, 0) AS open_assets, COALESCE(x.possible, 0) AS possible
+     ${from} ORDER BY ${order} LIMIT ? OFFSET ?`,
+    ...params,
+    limit,
+    offset,
+  );
+  // the page: its matches at the sites in scope, for their sites and zones
+  const ids = rows.map((a) => a.id);
+  const matches = ids.length
+    ? db()
+        .all<MatchRow>(`SELECT * FROM plant_advisory_matches WHERE current = 1 AND advisory_id IN (${marks(ids.length)})`, ...ids)
+        .filter((m) => sees(r, m.site_id) && (!f.site || m.site_id === f.site))
+    : [];
+  const sitesRows = ids.length ? db().all<SiteRow>(`SELECT * FROM plant_advisory_sites WHERE advisory_id IN (${marks(ids.length)})`, ...ids) : [];
   const byAdvisory = new Map<string, MatchRow[]>();
   for (const m of matches) byAdvisory.set(m.advisory_id, [...(byAdvisory.get(m.advisory_id) ?? []), m]);
   const zones = zonesOf([...new Set(matches.map((m) => m.asset_id))]);
   const names = sourceNames();
-  const needle = f.q?.trim().toLowerCase();
-  let items = rows.map((a) => summaryOf(a, byAdvisory.get(a.id) ?? [], naOf(sitesRows, a.id), r, zones, names));
-  items = items.filter(
-    (s) =>
-      (!f.site || s.sites.some((x) => x.id === f.site)) &&
-      (!f.status || s.status === f.status) &&
-      (!f.severity || s.severity === f.severity) &&
-      (!f.affecting || s.affectedAssets > 0 || s.possibleMatches > 0) &&
-      (!needle || [s.title, s.trackingId, s.publisher, ...s.cves].some((x) => x.toLowerCase().includes(needle))),
-  );
   return {
-    items: items.slice(0, LIST_LIMIT),
-    more: Math.max(0, items.length - LIST_LIMIT),
+    items: rows.map((a) => summaryOf(a, byAdvisory.get(a.id) ?? [], naOf(sitesRows, a.id), r, zones, names)),
+    total,
+    nextOffset: offset + rows.length < total ? offset + rows.length : null,
     canUpload: canManageCatalogue(u),
     canManageSources: u.roles.includes('admin'),
   };

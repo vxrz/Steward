@@ -256,6 +256,8 @@ describe('the registry of reference columns', () => {
       'cvss',
       'cves',
       'vendors',
+      'severity_rank',
+      'match_stamp',
       'content',
       'document',
       'sha256',

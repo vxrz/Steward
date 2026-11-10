@@ -39960,7 +39960,7 @@
         "tags": [
           "Plant"
         ],
-        "description": "CSAF 2.0 advisories matched to assets by manufacturer, model and firmware – by default only those with a match at a site the token owner may see (`all=true`: every advisory), the most severe first. Counts and status are for those sites. Only while the plant registry module is on (Settings → Modules); otherwise 404.",
+        "description": "CSAF 2.0 advisories matched to assets by manufacturer, model and firmware – by default only those with a match at a site the token owner may see (`all=true`: every advisory), filtered, sorted (`sort`: severity – the default –, updated, published, affected, title; `order`) and paged by the server. Counts and status are for those sites (with `site`: for that site). Only while the plant registry module is on (Settings → Modules); otherwise 404.",
         "parameters": [
           {
             "schema": {
@@ -40026,6 +40026,16 @@
           },
           {
             "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "in": "query",
+            "name": "vendor",
+            "required": false,
+            "description": "Only advisories naming this vendor (compared normalised: letters and digits, legal forms left out)"
+          },
+          {
+            "schema": {
               "type": "boolean",
               "default": false
             },
@@ -40033,6 +40043,35 @@
             "name": "all",
             "required": false,
             "description": "Also advisories that match no asset of the token owner’s sites"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "severity",
+                "updated",
+                "published",
+                "affected",
+                "title"
+              ]
+            },
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "description": "severity (default, with CVSS), updated, published, affected (assets), title"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            },
+            "in": "query",
+            "name": "order",
+            "required": false,
+            "description": "Default: desc (title: asc)"
           }
         ],
         "responses": {

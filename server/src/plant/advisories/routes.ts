@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import {
   ADVISORY_SEVERITIES,
+  ADVISORY_SORTS,
   ADVISORY_STATUSES,
   advisoryDecisionInput,
   advisoryRemediationInput,
@@ -20,7 +21,7 @@ import * as sources from './fetch.js';
 /**
  * Security advisories of the plant registry (0.14, internal API under /api, docs/ADVISORIES.md):
  *
- *   GET    plant/advisories?site=&status=&severity=&q=&affecting=   the list (Plant → Advisories)
+ *   GET    plant/advisories?site=&status=&severity=&vendor=&q=&affecting=&sort=&order=&offset=&limit=   one page of the list
  *   GET    plant/advisories/summary                      the start page's tile
  *   POST   plant/advisories/upload                       a CSAF document (designers, administrators)
  *   GET    plant/advisories/:advisoryId[/document], DELETE …
@@ -34,8 +35,13 @@ const listQuery = z.object({
   site: z.string().max(100).optional(),
   status: z.enum(ADVISORY_STATUSES).optional(),
   severity: z.enum(ADVISORY_SEVERITIES).optional(),
+  vendor: z.string().max(200).optional(),
   q: z.string().max(200).optional(),
   affecting: z.enum(['1', 'true', '0', 'false']).optional(),
+  sort: z.enum(ADVISORY_SORTS).optional(),
+  order: z.enum(['asc', 'desc']).optional(),
+  offset: z.coerce.number().int().min(0).max(1_000_000).optional(),
+  limit: z.coerce.number().int().min(1).max(200).optional(),
 });
 
 const p = (req: FastifyRequest) => (req.method === 'GET' ? currentParams(req.params as Record<string, string>) : req.params) as Record<string, string>;

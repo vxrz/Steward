@@ -68,7 +68,7 @@ Every asset that is not decommissioned is compared twice: with **its own manufac
 
 **Fixed firmware**: the versions of fixed (or recommended) products of the same vendor and model in the same vulnerability, above the asset's firmware; without them the upper end of the affected range (`<3.4.0` → 3.4.0, marked _end of the affected range_).
 
-**When matches change.** An advisory is matched when it arrives, and all advisories again whenever an asset, an assignment or a device profile changed (checked before each read and by the job) – so updating an asset's firmware past the fix ends its match on the next read. A match that no longer holds keeps its decisions and remediation (they are back if it matches again) but no longer counts.
+**When matches change.** An advisory is matched when it arrives, and all advisories again whenever an asset, an assignment or a device profile changed – so updating an asset's firmware past the fix ends its match. That rematching runs in **bounded batches**, newest advisories first: a page that is read matches at most 100 advisories (about a second) first, and the job `plant-advisories` goes on for up to 20 seconds per run, every 5 minutes, and resumes where it stopped (each advisory remembers the plant data it was matched against). With a few hundred advisories the pages follow at once; after a large feed's first read (thousands of documents) the matches complete over the next job runs. Advisories that name no vendor any asset has are skipped without reading them. A match that no longer holds keeps its decisions and remediation (they are back if it matches again) but no longer counts.
 
 ## Statuses: matches, remediation, sites
 
@@ -79,7 +79,7 @@ Every asset that is not decommissioned is compared twice: with **its own manufac
 
 ## Pages
 
-- **Plant → Advisories**: the advisories (by default those affecting your sites; switch it off for all) with severity and CVSS, the affected assets (still open; possible matches apart), sites, zones (with their SL-T), first released, updated and status; filters by site, severity and status in the address; cards on phones.
+- **Plant → Advisories**: the advisories (by default those affecting your sites; switch it off for all) with severity and CVSS, the affected assets (still open; possible matches apart), sites, zones (with their SL-T), first released, updated and status. The list is **filtered, sorted and paged by the server** – 50 at a time with _Load more_ –, so thousands of advisories stay quick: filters by site (the counts are then that site's), severity, status, vendor (compared normalised) and a text (title, tracking id, publisher, CVE), sorting by severity (the default, with CVSS), updated, first released, affected assets and title; filters and order are in the address; cards on phones.
 - **The advisory page**: the summary; the **affected assets by site and zone** – each zone with its target security level (IEC 62443-3-2 SL-T, _SL-T open_ without one; an asset is in the zones of its devices' VLANs) – with the reason, the fixed firmware and the remediation; **possible matches** to confirm or dismiss; dismissed ones; the vulnerabilities with CVSS vector, CWE, exploitation and remediations; the matching device profiles; the products; where the document came from, how it was checked, its links and the file itself. A site's managers mark it _not applicable_ there.
 - **The asset page**: the section **Advisories** – every advisory that matches the asset (counted, possible and dismissed) with the reason and the remediation; open while one of them is open.
 - **The start page**: the tile _Advisories affecting your sites_ – open advisories, critical and high ones, the assets to deal with per site and the possible matches to confirm – when there is any.
@@ -101,8 +101,8 @@ Matches at sites someone may not see are counted (_2 more matching assets are at
 
 ## API and assistants
 
-- Internal API (the web app): `GET /api/plant/advisories` (`site`, `status`, `severity`, `q`, `affecting`), `GET /api/plant/advisories/summary`, `POST /api/plant/advisories/upload`, `GET|DELETE /api/plant/advisories/:advisoryId`, `GET …/:advisoryId/document`, `PUT …/:advisoryId/assets/:assetId/decision` (`{ decision: confirmed | dismissed | null, reason }`), `PUT …/:advisoryId/assets/:assetId/remediation` (`{ status, reason, until, windowId, changeSetId, note }`), `PUT …/:advisoryId/sites/:siteId` (`{ notApplicable, reason }`), `GET /api/plant/assets/:assetId/advisories`, and `GET|POST /api/plant/advisory-sources`, `PUT|DELETE …/:advisorySourceId`, `POST …/:advisorySourceId/fetch` (administrators).
-- Public API (read, [API.md](API.md)): `GET /api/v1/plant/advisories` (paged; `site`, `status`, `severity`, `all`), `GET /api/v1/plant/advisories/{advisoryId}` (the matches with their reasons, fixed firmware and remediation) and `GET /api/v1/plant/assets/{assetId}/advisories`.
+- Internal API (the web app): `GET /api/plant/advisories` (`site`, `status`, `severity`, `vendor`, `q`, `affecting`, `sort` – `severity`, `updated`, `published`, `affected`, `title` –, `order`, `offset`, `limit` up to 200; answers `items`, `total`, `nextOffset`), `GET /api/plant/advisories/summary`, `POST /api/plant/advisories/upload`, `GET|DELETE /api/plant/advisories/:advisoryId`, `GET …/:advisoryId/document`, `PUT …/:advisoryId/assets/:assetId/decision` (`{ decision: confirmed | dismissed | null, reason }`), `PUT …/:advisoryId/assets/:assetId/remediation` (`{ status, reason, until, windowId, changeSetId, note }`), `PUT …/:advisoryId/sites/:siteId` (`{ notApplicable, reason }`), `GET /api/plant/assets/:assetId/advisories`, and `GET|POST /api/plant/advisory-sources`, `PUT|DELETE …/:advisorySourceId`, `POST …/:advisorySourceId/fetch` (administrators).
+- Public API (read, [API.md](API.md)): `GET /api/v1/plant/advisories` (paged with a cursor; `site`, `status`, `severity`, `vendor`, `all`, `sort`, `order`), `GET /api/v1/plant/advisories/{advisoryId}` (the matches with their reasons, fixed firmware and remediation) and `GET /api/v1/plant/assets/{assetId}/advisories`.
 - MCP ([MCP.md](MCP.md#plant-registry)): `list_plant_advisories` (the advisories affecting a site, most severe first) and `get_plant_advisory` (one advisory with its affected assets and possible matches).
 
 ## Limits
@@ -118,7 +118,8 @@ Matches at sites someone may not see are counted (_2 more matching assets are at
 | Sources                                                                 | 50; each run at most 200 documents; an aggregator 20 providers |
 | Answers of providers (metadata, feeds, `changes.csv`)                   | 8 MB; hash files 4 KB; 30 seconds each                         |
 | Reasons and notes people write                                          | 2,000 characters                                               |
-| The list                                                                | 1,000 advisories (narrow the filters for more)                 |
+| A page of the list                                                      | 50 in the web app; up to 200 in the API                        |
+| Matching after plant changes                                            | a read: up to 100 advisories (1 s); the job: 20 s per run      |
 
 ## Demo and examples
 

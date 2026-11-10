@@ -285,10 +285,17 @@ export interface AdvisoryDetail extends AdvisorySummary {
   canDelete: boolean;
 }
 
+/** How the list sorts (server side): severity (and CVSS), updated, published, affected assets, title. */
+export const ADVISORY_SORTS = ['severity', 'updated', 'published', 'affected', 'title'] as const;
+export type AdvisorySort = (typeof ADVISORY_SORTS)[number];
+
 export interface AdvisoryList {
+  /** One page, in the requested order */
   items: AdvisorySummary[];
-  /** More advisories than the list holds */
-  more: number;
+  /** Advisories that match the filters */
+  total: number;
+  /** The offset of the next page; null on the last one */
+  nextOffset: number | null;
   canUpload: boolean;
   canManageSources: boolean;
 }
