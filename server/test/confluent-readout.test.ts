@@ -66,7 +66,7 @@ describe('the descriptor', () => {
 
   it('has a read-only preset with the Schema Registry key', async () => {
     const preset = (await s.api('GET', '/platform-presets')).find((p: any) => p.kind === 'confluent-cloud');
-    expect(preset.label).toBe('Confluent Cloud API (read-only)');
+    expect(preset.label).toBe('Confluent Cloud API');
     expect(Object.keys(preset.config.variables)).toEqual(['schemaRegistryUrl', 'kafkaRestUrl', 'clusterId']);
     expect(preset.secretFields.map((f: any) => f.key)).toEqual(['username', 'password', 'registryKey', 'registrySecret', 'clusterApiKey', 'clusterApiSecret']);
   });

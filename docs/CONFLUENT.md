@@ -16,7 +16,7 @@ For topics, consumer lag and schemas of topics use a **Kafka cluster** platform 
 
 ## Connect
 
-_Platforms → Add platform → Confluent Cloud API (read-only)_:
+_Platforms → Add platform → Confluent Cloud API_:
 
 | Setting                        | Value                                                                                                                                     |
 | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |

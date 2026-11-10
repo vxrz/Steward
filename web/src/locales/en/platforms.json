@@ -99,7 +99,7 @@
         "apiKey": "The value of DATACONTRACT_CLI_API_KEY of the service (sent as x-api-key)"
       }
     },
-    "confluent-cloud-api-read-only": {
+    "confluent-cloud-api": {
       "description": "The Confluent Cloud API (https://api.confluent.cloud): Steward reads, read-only, the environments, Kafka clusters, Schema Registry clusters, service accounts, the metadata of API keys (owner, resource, created, expiry – never a secret) and the managed connectors with their tasks, every hour or on Read now; clusters link to the Kafka platform whose variable confluentClusterId names them; monitors check that clusters are provisioned and connectors and tasks run. With the variable schemaRegistryUrl and a key of that Schema Registry (registryKey/registrySecret) also its subjects. Access checks of source \"Confluent\" snapshot role bindings (and, with kafkaRestUrl, clusterId and the cluster's API key, its ACLs); platform costs read the Costs API. Credentials: a Cloud API key and secret of a service account – OrganizationAdmin reads everything. Steward's own reads only send GET; process steps may call the API – mark the identity read-only if Steward should never change anything. See docs/CONFLUENT.md.",
       "secrets": {
         "username": "Cloud API key",

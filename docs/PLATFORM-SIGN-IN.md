@@ -47,7 +47,7 @@ A platform's credentials belong to an **identity** under it ([ADR 0009](adr/0009
 
 ### Privileged identities
 
-Since 0.14.0 ([ADR 0009](adr/0009-platform-identities.md) step 4, without the PAM checkout – that is decided in its own record, ADR 0022 (proposed)). A platform's managers mark an identity **Privileged** (the identity dialog's _General_ tab; `privileged` in `POST`/`PUT /api/platforms/:id/identities…`). It is shown with a _Privileged_ badge wherever identities are named – the _Identities_ tab, the run dialog's identity choice, the run detail and its start approval, MCP requests, the credentials register.
+Since 0.14.0 ([ADR 0009](adr/0009-platform-identities.md) step 4, without the PAM checkout – that is decided in its own record, [ADR 0022](adr/0022-privileged-access-checkout.md) (proposed)). A platform's managers mark an identity **Privileged** (the identity dialog's _General_ tab; `privileged` in `POST`/`PUT /api/platforms/:id/identities…`). It is shown with a _Privileged_ badge wherever identities are named – the _Identities_ tab, the run dialog's identity choice, the run detail and its start approval, MCP requests, the credentials register.
 
 - **Never the default identity** (`IDENTITY_DEFAULT_PRIVILEGED`): everyone with _use_ on the platform and Steward's own background readers use the default. A privileged identity cannot be made the default either – turn the flag off first. Keep the privileged credentials in their own, closed identity.
 - **Turning it off is a loosening** and asks for a step-up (like _Read only_ off); turning it on is a tightening and asks nothing.

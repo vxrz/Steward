@@ -121,7 +121,7 @@ test('the setup wizard adds a Confluent Cloud platform that reads the organisati
   await page.getByRole('button', { name: 'Add platform' }).click();
   const dialog = page.getByRole('dialog', { name: 'Add a platform' });
   await dialog.getByRole('textbox', { name: 'Search connectors' }).fill('confluent');
-  await dialog.getByTestId('wizard-connector').filter({ hasText: 'Confluent Cloud API (read-only)' }).click();
+  await dialog.getByTestId('wizard-connector').filter({ hasText: 'Confluent Cloud API' }).click();
   await dialog.getByRole('textbox', { name: 'Name' }).first().fill(name);
   await dialog.getByRole('textbox', { name: 'Base URL' }).fill(`${baseURL()}/mock/confluent`);
   await dialog.getByLabel('Cloud API key', { exact: true }).fill(CLOUD.key);
