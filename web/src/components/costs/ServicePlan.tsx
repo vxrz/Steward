@@ -30,6 +30,7 @@ import {
   COST_PLAN_CADENCES,
   COST_PLAN_CATEGORIES,
   COST_PLAN_LIMITS,
+  ISO_4217_CODES,
   type CostEntry,
   type CostPlanCadence,
   type CostPlanCategory,
@@ -843,7 +844,7 @@ function LineDialog({ d, line, onClose, onSaved }: { d: CostPlanYear; line: Cost
   const check = useFieldErrors({
     title: !title.trim() && t('common:validation.required'),
     amount: (!amount.trim() && t('common:validation.required')) || (!amountOk(amount) && t('common:validation.invalid')),
-    currency: !/^[A-Za-z]{3}$/.test(currency.trim()) && t('common:validation.currency'),
+    currency: !ISO_4217_CODES.has(currency.trim().toUpperCase()) && t('common:validation.currency'),
   });
   const save = async () => {
     if (!check.validate()) return;
@@ -1002,7 +1003,7 @@ function EntryDialog({ d, entry, onClose, onSaved }: { d: CostPlanYear; entry: C
   const check = useFieldErrors({
     date: !date && t('common:validation.required'),
     amount: (!amount.trim() && t('common:validation.required')) || (!amountOk(amount) && t('common:validation.invalid')),
-    currency: !/^[A-Za-z]{3}$/.test(currency.trim()) && t('common:validation.currency'),
+    currency: !ISO_4217_CODES.has(currency.trim().toUpperCase()) && t('common:validation.currency'),
   });
   const chooseLine = (v: string | null) => {
     setLineId(v ?? NONE);

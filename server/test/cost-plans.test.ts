@@ -196,6 +196,14 @@ describe('plan lines', () => {
     await expect(post({ hours: 40 })).rejects.toMatchObject({ status: 400 });
     await expect(post({ category: 'staff' })).rejects.toMatchObject({ status: 400 });
     await expect(post({ amount: '0' })).rejects.toMatchObject({ status: 400 });
+    // ISO 4217 codes only: a typo would open a currency of its own in every total
+    await expect(post({ currency: 'EUX' })).rejects.toMatchObject({ status: 400 });
+    await expect(s.api('POST', `/costs/plans/${service}/entries`, { date: '2030-05-01', amount: '1', currency: 'XXX' })).rejects.toMatchObject({
+      status: 400,
+    });
+    const { ISO_4217_CODES } = await import('@sm/shared');
+    expect(['EUR', 'USD', 'JPY', 'CHF', 'XCG'].every((c) => ISO_4217_CODES.has(c))).toBe(true);
+    expect(ISO_4217_CODES.size).toBeGreaterThan(170);
     // a platform the caller may see
     const p = await post({ title: 'Platform share', category: 'cloud', target: { kind: 'platform', id: platform }, cadence: 'once', onceMonth: '2031-03' });
     expect(p.lines.find((l: { title: string }) => l.title === 'Platform share')).toMatchObject({

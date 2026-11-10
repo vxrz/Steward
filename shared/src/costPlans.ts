@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { currencyCode, toMicros } from './costs.js';
+import { isoCurrencyCode, toMicros } from './costs.js';
 
 /**
  * Service cost planning (0.16.0, ADR 0026, docs/COSTS.md#planning-per-service): what a service plans to spend on the
@@ -137,7 +137,7 @@ const planLineFields = {
     .trim()
     .max(32)
     .refine((v) => toMicros(v) !== null && toMicros(v)! > 0, 'an amount above 0, like 1500 or 1500.50'),
-  currency: currencyCode,
+  currency: isoCurrencyCode,
   cadence: z.enum(COST_PLAN_CADENCES),
   /** "once": the month (YYYY-MM) in the fiscal year */
   onceMonth: monthText.nullable().default(null),
@@ -183,7 +183,7 @@ export const costEntryInput = z
       .trim()
       .max(32)
       .refine((v) => toMicros(v) !== null && toMicros(v)! !== 0, 'an amount like 1500.50 (negative for a credit)'),
-    currency: currencyCode,
+    currency: isoCurrencyCode,
     /** The plan line (same service, fiscal year and currency); none: unplanned */
     planLineId: z.string().trim().min(1).max(100).nullable().default(null),
     target,
