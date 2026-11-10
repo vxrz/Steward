@@ -52,6 +52,7 @@ import { MoveNodeModal } from '../components/plant/MoveTo';
 import { SiteNetworkCard } from '../components/plant/network';
 import { PlantDocumentsPanel } from '../components/plant/DocumentsPanel';
 import { MaintenancePanel } from '../components/catalogue/maintenance';
+import { SiteDocReviewSetting } from './plant/views/SiteDocumentationView';
 import { PlantSiteTabPage, SiteTabs } from './plant/views/tabs';
 import { SectionGroup, SectionGroupControls, useCollapsible } from '../components/page/CollapsibleSection';
 import { OpenChangesChip, ProposeEditButton, useChangeSetConfig } from '../components/plant/changes/common';
@@ -380,6 +381,8 @@ export function PlantSitePage() {
               }}
             />
             {canManage && <SiteReviewSwitch site={s} onSaved={saved} />}
+            {/* 0.14: how often the site's documentation should be confirmed as still current (a hint when due) */}
+            {canManage && <SiteDocReviewSetting key={s.docReviewMonths ?? 0} site={s} onSaved={saved} />}
             {canManage && s.acl && (
               <Stack gap="xs" data-testid="site-access">
                 <Title order={2} fz="h4">

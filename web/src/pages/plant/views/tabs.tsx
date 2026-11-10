@@ -1,7 +1,17 @@
 import { lazy, Suspense, type ReactNode } from 'react';
 import { Anchor, Badge, Group, Text } from '@mantine/core';
 import { Link, Navigate } from 'react-router-dom';
-import { IconBuilding, IconChevronRight, IconDatabaseImport, IconHistory, IconInfoCircle, IconRoute, IconSitemap, type Icon } from '@tabler/icons-react';
+import {
+  IconBuilding,
+  IconChevronRight,
+  IconDatabaseImport,
+  IconFileCheck,
+  IconHistory,
+  IconInfoCircle,
+  IconRoute,
+  IconSitemap,
+  type Icon,
+} from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { PlantAssetDetail, PlantKpiDetail, PlantProfileDetail, PlantSiteDetail } from '@sm/shared';
 import { DetailHeader } from '../../../components/page/DetailPage';
@@ -17,12 +27,13 @@ import { EntryHistory } from '../../../components/plant/changes/EntryHistory';
 
 const SiteStructureView = lazy(() => import('./SiteStructureView').then((m) => ({ default: m.SiteStructureView })));
 const AssetFlowView = lazy(() => import('./AssetFlowView').then((m) => ({ default: m.AssetFlowView })));
+const SiteDocumentationView = lazy(() => import('./SiteDocumentationView').then((m) => ({ default: m.SiteDocumentationView })));
 const AssetCollectionsView = lazy(() => import('../AssetCollections').then((m) => ({ default: m.AssetCollectionsView })));
 
-// 0.13.0: the history of the entry and what belongs to it (ADR 0020 §4)
-export const SITE_TABS = ['', 'structure', 'history'] as const;
+// 0.13.0: the history of the entry and what belongs to it (ADR 0020 §4); 0.14: the documentation health
+export const SITE_TABS = ['', 'structure', 'documentation', 'history'] as const;
 export type SiteTab = (typeof SITE_TABS)[number];
-const SITE_TAB_ICONS: Record<SiteTab, Icon> = { '': IconInfoCircle, structure: IconSitemap, history: IconHistory };
+const SITE_TAB_ICONS: Record<SiteTab, Icon> = { '': IconInfoCircle, structure: IconSitemap, documentation: IconFileCheck, history: IconHistory };
 
 export const ASSET_TABS = ['', 'flow', 'collections', 'history'] as const;
 export type AssetTab = (typeof ASSET_TABS)[number];
@@ -98,6 +109,7 @@ export function PlantSiteTabPage({ site, tab }: { site: PlantSiteDetail; tab: st
       />
       <Suspense fallback={<Loading />}>
         {known === 'structure' && <SiteStructureView siteId={site.id} />}
+        {known === 'documentation' && <SiteDocumentationView siteId={site.id} />}
         {known === 'history' && <EntryHistory kind="site" id={site.id} children />}
       </Suspense>
     </>

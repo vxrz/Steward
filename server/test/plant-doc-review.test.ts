@@ -168,7 +168,7 @@ describe('documentation health of a site', () => {
     expect(hint('assetNotConfirmed').items.map((x) => x.id)).toContain('rvs-press-01');
     expect(hint('assetNotConfirmed').items.map((x) => x.id)).not.toContain('rvs-mill-01');
     expect(hint('documentNotConfirmed').items).toEqual([
-      expect.objectContaining({ id: manual.id, path: '/plant/assets/rvs-mill-01#documents', confirmation: expect.objectContaining({ by: 'olivia' }) }),
+      expect.objectContaining({ id: manual.id, path: '/plant/assets/rvs-mill-01#plant-docs-asset', confirmation: expect.objectContaining({ by: 'olivia' }) }),
     ]);
     expect(h.confirmed).toBe(1);
     // the plant viewer sees the gaps, not the documents; a hidden site is 404

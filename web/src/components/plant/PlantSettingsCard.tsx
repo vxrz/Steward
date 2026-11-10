@@ -8,6 +8,7 @@ import {
   Card,
   Checkbox,
   Group,
+  NumberInput,
   Select,
   Stack,
   Switch,
@@ -24,8 +25,10 @@ import {
   LOCALES,
   PLANT_FIELD_KEY_RE,
   PLANT_FIELD_KINDS,
+  PLANT_DOC_REVIEW_LIMITS,
   PLANT_LIMITS,
   PLANT_RECORD_TYPES,
+  PLANT_SOURCE_TYPE_ID,
   type PlantFieldDef,
   type PlantFieldKind,
   type PlantSettings,
@@ -34,14 +37,17 @@ import { get, notifyError, notifyOk, put } from '../../api';
 import { plantKeys } from '../../queryKeys';
 import { useSaveSection } from '../settings/SaveBar';
 import { PlantAliasesCard } from './ids';
+import { useRecordTypes, useTypeName } from '../records/common';
 
 /**
  * Settings → Modules → Plant registry (#218): the switch (off by default; off, the module's pages and routes are gone
  * and its data is kept), the enterprise's name, own display names of the record types and own fields per record type.
  */
 export function PlantSettingsCard() {
-  const { t } = useTranslation(['plant', 'settings']);
+  const { t } = useTranslation(['plant', 'settings', 'plantDocs']);
   const qc = useQueryClient();
+  const recordTypes = useRecordTypes();
+  const typeName = useTypeName();
   const q = useQuery({ queryKey: plantKeys.settings, queryFn: () => get<PlantSettings>('/settings/plant') });
   const [d, setD] = useState<PlantSettings | null>(null);
   const [busy, setBusy] = useState(false);
@@ -62,7 +68,13 @@ export function PlantSettingsCard() {
     if (!d) return;
     setBusy(true);
     try {
-      const next = await put<PlantSettings>('/settings/plant', { enabled: d.enabled, enterprise: d.enterprise, labels: d.labels, fields: d.fields });
+      const next = await put<PlantSettings>('/settings/plant', {
+        enabled: d.enabled,
+        enterprise: d.enterprise,
+        labels: d.labels,
+        fields: d.fields,
+        documentReview: d.documentReview ?? {},
+      });
       qc.setQueryData(plantKeys.settings, next);
       // the sidebar's Plant area and the link kinds follow the switch
       void qc.invalidateQueries({ queryKey: ['auth'] });
@@ -84,6 +96,14 @@ export function PlantSettingsCard() {
     setD({ ...d, labels: { ...d.labels, [type]: { ...d.labels[type], [lang]: { ...cur, [which]: value } } } });
   };
   const setFields = (type: (typeof PLANT_RECORD_TYPES)[number], defs: PlantFieldDef[]) => setD({ ...d, fields: { ...d.fields, [type]: defs } });
+  // 0.14: review intervals per document type (living documents people write; not the generated gateway configurations)
+  const docTypes = (recordTypes.data ?? []).filter((x) => x.workflow === 'document' && !x.archived && x.id !== PLANT_SOURCE_TYPE_ID);
+  const setReview = (key: string, months: number | null) => {
+    const next = { ...(d.documentReview ?? {}) };
+    if (months) next[key] = months;
+    else delete next[key];
+    setD({ ...d, documentReview: next });
+  };
   return (
     <>
       <Card withBorder data-testid="plant-settings">
@@ -165,6 +185,42 @@ export function PlantSettingsCard() {
                                   </Group>
                                 </Table.Td>
                               ))}
+                            </Table.Tr>
+                          ))}
+                        </Table.Tbody>
+                      </Table>
+                    </div>
+                  </Accordion.Panel>
+                </Accordion.Item>
+                <Accordion.Item value="documentReview">
+                  <Accordion.Control>{t('plantDocs:settings.title')}</Accordion.Control>
+                  <Accordion.Panel>
+                    <Text size="xs" c="dimmed" mb="xs">
+                      {t('plantDocs:settings.help')}
+                    </Text>
+                    <div className="table-scroll">
+                      <Table fz="sm" aria-label={t('plantDocs:settings.title')} data-testid="plant-doc-review-types">
+                        <Table.Thead>
+                          <Table.Tr>
+                            <Table.Th>{t('plantDocs:settings.type')}</Table.Th>
+                            <Table.Th>{t('plantDocs:settings.months')}</Table.Th>
+                          </Table.Tr>
+                        </Table.Thead>
+                        <Table.Tbody>
+                          {docTypes.map((rt) => (
+                            <Table.Tr key={rt.id}>
+                              <Table.Td>{typeName(rt)}</Table.Td>
+                              <Table.Td>
+                                <NumberInput
+                                  size="xs"
+                                  min={1}
+                                  max={PLANT_DOC_REVIEW_LIMITS.monthsMax}
+                                  aria-label={t('plantDocs:settings.monthsFor', { type: typeName(rt) })}
+                                  value={d.documentReview?.[rt.key] ?? ''}
+                                  onChange={(v) => setReview(rt.key, typeof v === 'number' ? v : null)}
+                                  w={120}
+                                />
+                              </Table.Td>
                             </Table.Tr>
                           ))}
                         </Table.Tbody>

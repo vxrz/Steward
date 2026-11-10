@@ -6,6 +6,7 @@
     "site": {
       "overview": "Overview",
       "structure": "Structure",
+      "documentation": "Documentation",
       "history": "History"
     },
     "asset": {

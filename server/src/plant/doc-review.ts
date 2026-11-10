@@ -254,7 +254,7 @@ export function documentationHealth(siteId: string, now = Date.now()): PlantDocH
     const as = assignments.get(a.id);
     const profile = as?.profileId ? profiles.get(as.profileId) : undefined;
     if (!as?.profileId) {
-      gaps.get('assetNoProfile')!.push({ id: a.id, name: a.name, detail: '', path: `${assetPath(a.id)}#data` });
+      gaps.get('assetNoProfile')!.push({ id: a.id, name: a.name, detail: '', path: assetPath(a.id) });
       continue;
     }
     if (!profile) continue;
@@ -269,14 +269,12 @@ export function documentationHealth(siteId: string, now = Date.now()): PlantDocH
     db().all<{ asset_id: string; id: string; hostname: string; vlan_id: string | null }>('SELECT asset_id, id, hostname, vlan_id FROM plant_devices'),
   ))
     if (!d.vlan_id)
-      gaps
-        .get('deviceNoVlan')!
-        .push({
-          id: `${d.asset_id}/${d.id}`,
-          name: d.hostname || d.id,
-          detail: byId.get(d.asset_id)!.name,
-          path: `/plant/sites/${enc(siteId)}/network/devices`,
-        });
+      gaps.get('deviceNoVlan')!.push({
+        id: `${d.asset_id}/${d.id}`,
+        name: d.hostname || d.id,
+        detail: byId.get(d.asset_id)!.name,
+        path: `/plant/sites/${enc(siteId)}/network/devices`,
+      });
   for (const p of inSite(
     db().all<{ asset_id: string; id: string; subject: string; destinations: string }>('SELECT asset_id, id, subject, destinations FROM plant_data_paths'),
   ))
@@ -312,7 +310,9 @@ export function documentationHealth(siteId: string, now = Date.now()): PlantDocH
     const r = reviewOf(site, c, a.created_at, now);
     if (c && !r?.due) confirmed++;
     if (r?.due)
-      hints.get('assetNotConfirmed')!.push({ id: a.id, name: a.name, detail: '', path: `${assetPath(a.id)}#documents`, confirmation: c, dueAt: r.dueAt });
+      hints
+        .get('assetNotConfirmed')!
+        .push({ id: a.id, name: a.name, detail: '', path: `${assetPath(a.id)}#plant-docs-asset`, confirmation: c, dueAt: r.dueAt });
   }
   // the documents of the site and its assets (and their collections), as far as the reader may read them
   const u = currentUser();
@@ -355,7 +355,7 @@ export function documentationHealth(siteId: string, now = Date.now()): PlantDocH
         id: r.id,
         name: `${r.number} ${r.title}`,
         detail: asset ? (byId.get(asset)?.name ?? '') : '',
-        path: asset ? `${assetPath(asset)}#documents` : `/plant/sites/${enc(siteId)}#documents`,
+        path: asset ? `${assetPath(asset)}#plant-docs-asset` : `/plant/sites/${enc(siteId)}#plant-docs-site`,
         confirmation: c,
         dueAt: rev.dueAt,
       });

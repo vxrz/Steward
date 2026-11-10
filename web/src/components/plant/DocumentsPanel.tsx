@@ -3,20 +3,23 @@ import { Anchor, Badge, Box, Button, FileButton, Group, Modal, Select, Stack, Ta
 import { useDebouncedValue } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
-import { IconFileUpload, IconLink, IconPlus } from '@tabler/icons-react';
+import { IconCircleCheck, IconFileUpload, IconLink, IconPlus } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import {
   DOCUMENT_TYPE_ID,
   PLANT_SOURCE_TYPE_ID,
   type LinkTarget,
   type PlantDocGroup,
+  type PlantDocConfirmation,
   type PlantDocItem,
   type PlantDocKind,
+  type PlantDocReview,
   type PlantDocuments,
   type RecordDetail,
   type RecordType,
 } from '@sm/shared';
-import { api, get, notifyError, post } from '../../api';
+import { api, get, notifyError, notifyOk, post } from '../../api';
+import { fmtDay } from '../../format';
 import { QueryState, useFieldErrors } from '../common';
 import { CollapsibleSection } from '../page/CollapsibleSection';
 import { RecordStatusBadge, useRecordTypes, useTypeName } from '../records/common';
@@ -50,6 +53,25 @@ export function PlantDocumentsPanel({ kind, id }: { kind: PlantDocKind; id: stri
   const d = q.data;
   const refresh = () => void qc.invalidateQueries({ queryKey: ['plant', 'documents'] });
   const titleId = `plant-docs-${kind}`;
+  const [confirming, setConfirming] = useState<string | null>(null);
+  /** 0.14 "Still current": a document listed here, or (`asset`) the asset's documentation as a whole */
+  const confirm = async (what: 'record' | 'asset', target: string) => {
+    setConfirming(`${what}:${target}`);
+    try {
+      const next = await post<PlantDocuments>(
+        '/plant/documents/confirm',
+        what === 'asset' ? { kind: 'asset', id: target } : { kind: 'record', id: target, entry: { kind, id } },
+      );
+      qc.setQueryData(docsKey(kind, id), next);
+      void qc.invalidateQueries({ queryKey: ['plant', 'documentation'] });
+      notifyOk(t('current.saved'));
+    } catch (e) {
+      notifyError(e);
+    } finally {
+      setConfirming(null);
+    }
+  };
+  const confirmOf = d?.canConfirm ? { onConfirm: (recordId: string) => void confirm('record', recordId), busy: confirming } : undefined;
   /** "Upload file": a new living document named after the file, linked here, with the file attached; then its editor. */
   const upload = async (file: File | null) => {
     if (!file) return;
@@ -108,7 +130,29 @@ export function PlantDocumentsPanel({ kind, id }: { kind: PlantDocKind; id: stri
           <QueryState query={q} rows={2} />
         ) : (
           <>
-            <DocGroup group={d.own} labelledBy={`${titleId}-title`} empty={t('empty')} />
+            {d.documentation && (
+              <Group justify="space-between" gap="xs" wrap="wrap" data-testid="plant-docs-whole">
+                <Stack gap={0}>
+                  <Text size="sm" fw={600}>
+                    {t('current.whole')}
+                  </Text>
+                  <ConfirmationLine confirmation={d.documentation.confirmation} review={d.documentation.review} />
+                </Stack>
+                {d.canConfirm && (
+                  <Button
+                    size="xs"
+                    variant="light"
+                    leftSection={<IconCircleCheck size={14} />}
+                    loading={confirming === `asset:${id}`}
+                    onClick={() => void confirm('asset', id)}
+                    data-testid="plant-docs-confirm-whole"
+                  >
+                    {t('current.wholeButton')}
+                  </Button>
+                )}
+              </Group>
+            )}
+            <DocGroup group={d.own} labelledBy={`${titleId}-title`} empty={t('empty')} confirm={confirmOf} />
             {d.inherited.length > 0 && (
               <CollapsibleSection
                 id={`${titleId}-inherited`}
@@ -122,7 +166,7 @@ export function PlantDocumentsPanel({ kind, id }: { kind: PlantDocKind; id: stri
               >
                 <Stack gap="xs">
                   {d.inherited.map((g) => (
-                    <InheritedGroup key={`${g.from!.kind}:${g.from!.id}`} group={g} within={kind} />
+                    <InheritedGroup key={`${g.from!.kind}:${g.from!.id}`} group={g} within={kind} confirm={confirmOf} />
                   ))}
                 </Stack>
               </CollapsibleSection>
@@ -137,7 +181,34 @@ export function PlantDocumentsPanel({ kind, id }: { kind: PlantDocKind; id: stri
 }
 
 /** "From base profile …", "From profile …", "From data collection …", "From sink …" */
-function InheritedGroup({ group, within }: { group: PlantDocGroup; within: PlantDocKind }) {
+type ConfirmProps = { onConfirm: (recordId: string) => void; busy: string | null } | undefined;
+
+/**
+ * "Last confirmed by X on date" (or not confirmed yet) and, when an interval applies, a gentle hint: never red, never an
+ * alert – plant documents live for decades.
+ */
+function ConfirmationLine({ confirmation, review }: { confirmation: PlantDocConfirmation | null; review: PlantDocReview | null }) {
+  const { t } = useTranslation('plantDocs');
+  return (
+    <Group gap={6} wrap="wrap">
+      <Text size="xs" c="dimmed" data-testid="plant-docs-confirmed">
+        {confirmation ? t('current.confirmedBy', { user: confirmation.by, date: fmtDay(confirmation.at) }) : t('current.never')}
+      </Text>
+      {review?.due && (
+        <Badge size="xs" variant="light" color="blue" tt="none" data-testid="plant-docs-due" title={t('current.dueHelp', { months: review.months })}>
+          {t('current.due')}
+        </Badge>
+      )}
+      {review && !review.due && (
+        <Text size="xs" c="dimmed">
+          {t('current.next', { date: fmtDay(review.dueAt) })}
+        </Text>
+      )}
+    </Group>
+  );
+}
+
+function InheritedGroup({ group, within, confirm }: { group: PlantDocGroup; within: PlantDocKind; confirm?: ConfirmProps }) {
   const { t } = useTranslation('plantDocs');
   const from = group.from!;
   const key =
@@ -161,12 +232,24 @@ function InheritedGroup({ group, within }: { group: PlantDocGroup; within: Plant
           </Text>
         )}
       </Text>
-      <DocGroup group={group} labelledBy={id} readOnly />
+      <DocGroup group={group} labelledBy={id} readOnly confirm={confirm} />
     </Stack>
   );
 }
 
-function DocGroup({ group, labelledBy, empty, readOnly }: { group: PlantDocGroup; labelledBy: string; empty?: string; readOnly?: boolean }) {
+function DocGroup({
+  group,
+  labelledBy,
+  empty,
+  readOnly,
+  confirm,
+}: {
+  group: PlantDocGroup;
+  labelledBy: string;
+  empty?: string;
+  readOnly?: boolean;
+  confirm?: ConfirmProps;
+}) {
   const { t } = useTranslation(['plantDocs', 'records']);
   const typeName = useTypeName();
   if (!group.documents.length && !group.hidden)
@@ -187,6 +270,7 @@ function DocGroup({ group, labelledBy, empty, readOnly }: { group: PlantDocGroup
                 <Table.Th>{t('status')}</Table.Th>
                 <Table.Th>{t('edition')}</Table.Th>
                 <Table.Th>{t('files')}</Table.Th>
+                <Table.Th>{t('current.column')}</Table.Th>
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
@@ -226,6 +310,23 @@ function DocGroup({ group, labelledBy, empty, readOnly }: { group: PlantDocGroup
                     )}
                   </Table.Td>
                   <Table.Td className="nowrap">{x.attachments}</Table.Td>
+                  <Table.Td data-testid={`plant-docs-current-${x.id}`}>
+                    <Stack gap={2} align="flex-start">
+                      <ConfirmationLine confirmation={x.confirmation} review={x.review} />
+                      {confirm && (
+                        <Button
+                          size="compact-xs"
+                          variant="subtle"
+                          leftSection={<IconCircleCheck size={12} />}
+                          loading={confirm.busy === `record:${x.id}`}
+                          onClick={() => confirm.onConfirm(x.id)}
+                          aria-label={t('current.buttonFor', { title: x.title })}
+                        >
+                          {t('current.button')}
+                        </Button>
+                      )}
+                    </Stack>
+                  </Table.Td>
                 </Table.Tr>
               ))}
             </Table.Tbody>
