@@ -221,6 +221,8 @@ describe('the registry of reference columns', () => {
     plant_change_sources: ['change_set_id', 'seq', 'content', 'sha256'],
     plant_entry_history: ['id', 'kind', 'revision', 'change_set_id', 'op', 'at', 'author', 'applied_by', 'before_values', 'after_values', 'removed_at'],
     plant_import_baselines: ['kind', 'field_values'],
+    // 0.15.0: the baselines per entry and import
+    plant_entry_baselines: ['kind', 'import_id', 'seq', 'revision', 'field_values', 'recorded_at'],
   };
   // 0.13.0: every entry's revision; a site's switch "Changes need a second person"
   const SOURCE = ['import_id', 'not_in_source', 'created_at', 'created_by', 'updated_at', 'updated_by', 'renamed_by', 'revision', 'review'];

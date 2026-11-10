@@ -1,10 +1,12 @@
 import { createHash } from 'node:crypto';
 import { PLANT_ENTRY_KINDS, sameValue, type PlantEntryKind, type PlantIdKind } from '@sm/shared';
 import { db } from '../../db.js';
-import { newId, nowIso, parseJson } from '../../util.js';
+import { newId, nowIso } from '../../util.js';
 import { refsOf } from '../model.js';
 import { setRenameListener, type RenameOf } from '../rename.js';
-import { ASSET_SCOPED, KINDS, PER_ASSET, SITE_SCOPED, entryKey, type EntrySnap } from './entries.js';
+import { ASSET_SCOPED, KINDS, PER_ASSET, SITE_SCOPED, entryKey, readEntry, type EntrySnap } from './entries.js';
+import { historyRetention } from './retention.js';
+import { historyText, historyValues, storedValues } from './values.js';
 
 /**
  * What a change does to the entries of the plant registry (0.13.0, ADR 0020): the entries a change can reach are read
@@ -337,8 +339,8 @@ export function tracked<T>(region: Region, meta: TrackMeta, fn: () => T): Tracke
         at,
         meta.author,
         meta.appliedBy,
-        beforeJson,
-        afterJson,
+        storedValues(beforeJson),
+        storedValues(afterJson),
         c.op === 'remove' ? at : null,
       ]),
     );
@@ -356,6 +358,7 @@ export function tracked<T>(region: Region, meta: TrackMeta, fn: () => T): Tracke
     )) {
       const ids = marks(part.length);
       if (op === 'remove') {
+        db().run(`DELETE FROM plant_entry_baselines WHERE kind = ? AND scope = ? AND entry_id IN (${ids})`, kind, scope, ...part);
         db().run(`DELETE FROM plant_import_baselines WHERE kind = ? AND scope = ? AND entry_id IN (${ids})`, kind, scope, ...part);
         db().run(
           `UPDATE plant_entry_history SET removed_at = ? WHERE kind = ? AND scope = ? AND entry_id IN (${ids}) AND removed_at IS NULL`,
@@ -373,9 +376,37 @@ export function tracked<T>(region: Region, meta: TrackMeta, fn: () => T): Tracke
         );
     }
   }
-  for (const { c, beforeJson, afterJson } of rows)
-    hash.update(`${c.kind}\u0000${c.scope}\u0000${c.id}\u0000${c.revision}\u0000${c.op}\u0000${beforeJson}\u0000${afterJson}\n`);
+  for (const { c, beforeJson, afterJson } of rows) hash.update(historyLine(c.kind, c.scope, c.id, c.revision, c.op, beforeJson, afterJson));
   return { result, changes: list, historySha256: list.length ? hash.digest('hex') : '' };
+}
+
+/** One history row as the audit entry's historySha256 hashes it: its values as JSON text (stored compressed or not). */
+const historyLine = (kind: string, scope: string, id: string, revision: number, op: string, before: string, after: string) =>
+  `${kind}\u0000${scope}\u0000${id}\u0000${revision}\u0000${op}\u0000${before}\u0000${after}\n`;
+
+/**
+ * The SHA-256 of the history rows of an applied change set, computed again from the database – what its audit entry
+ * `plant.change_set_applied` carries as historySha256 while no row was changed: the rows ordered by kind, scope and
+ * entry id (as strings, code unit by code unit), each `kind NUL scope NUL entry_id NUL revision NUL op NUL before NUL
+ * after LF` with before and after as JSON text – a value stored compressed (`z1:`, values.ts) is decompressed first.
+ */
+export function historySha256Of(changeSetId: string): string {
+  const rows = db().all<{ kind: string; scope: string; entry_id: string; revision: number; op: string; before_values: string; after_values: string }>(
+    'SELECT kind, scope, entry_id, revision, op, before_values, after_values FROM plant_entry_history WHERE change_set_id = ?',
+    changeSetId,
+  );
+  if (!rows.length) return '';
+  const key = (r: (typeof rows)[number]) => [r.kind, r.scope, r.entry_id];
+  rows.sort((a, b) => {
+    const x = key(a);
+    const y = key(b);
+    for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i]! < y[i]! ? -1 : 1;
+    return 0;
+  });
+  const hash = createHash('sha256');
+  for (const r of rows)
+    hash.update(historyLine(r.kind, r.scope, r.entry_id, Number(r.revision), r.op, historyText(r.before_values), historyText(r.after_values)));
+  return hash.digest('hex');
 }
 
 /** The region after renames: a renamed site or asset is read under its new id, too. */
@@ -390,37 +421,141 @@ function widen(r: Region, renames: RenameOf[]): Region {
   return { ...r, sites, assets };
 }
 
-// ---------- baselines: what the last import wrote ----------
+// ---------- baselines: what the last imports wrote ----------
 
 /**
- * After an import: the values it left in every entry it wrote (the rows with its import id), per entry – the baselines
- * of the import's flags "changed in Steward since the last import" (phase 2). Upserts of up to 200 entries, in the
- * import's transaction; removed entries lose theirs.
+ * After an import (0.15.0): per entry it wrote (the rows with its import id), a baseline – what the import left there,
+ * for its flags "changed in Steward since the last import" (ADR 0020). Stored as the entry's revision once the import's
+ * change set is applied: its values are those of that revision, read back through the entry's history (kept while the
+ * entry exists); a baseline equal to the entry's last one (the same revision) is not written again, and the last
+ * `baselinesPerEntry` (a plant setting) of each entry are kept. With `values` the values are stored instead (compressed
+ * where that is shorter): an import followed by other operations of its change set, whose revision at the end is not
+ * what the import left. Reads and writes one statement per kind and up to 200 entries; removed entries lose theirs.
  */
-export function recordBaselines(importId: string): number {
+export function recordBaselines(importId: string, o: { values?: boolean } = {}): number {
   const at = nowIso();
+  const seq = nextSeq();
+  const keep = historyRetention().baselinesPerEntry;
   let n = 0;
   for (const kind of PLANT_ENTRY_KINDS) {
     const d = KINDS[kind];
-    const entries = d.read(db().all<Row>(`SELECT * FROM ${d.table} WHERE import_id = ?`, importId));
-    for (const part of chunks(entries)) {
+    const cols = `${d.scopeCol ? `${d.scopeCol}, ` : ''}${d.idCol}, revision`;
+    const rows = o.values
+      ? db().all<Row>(`SELECT * FROM ${d.table} WHERE import_id = ?`, importId)
+      : db().all<Row>(`SELECT ${cols} FROM ${d.table} WHERE import_id = ?`, importId);
+    if (!rows.length) continue;
+    const values = o.values ? new Map(d.read(rows).map((e) => [entryKey(e), JSON.stringify(e.values)])) : null;
+    // the baselines the entries have, newest first (one read per kind)
+    const had = new Map<string, { importId: string; revision: number | null }[]>();
+    for (const b of db().all<{ scope: string; entry_id: string; import_id: string; revision: number | null }>(
+      `SELECT b.scope, b.entry_id, b.import_id, b.revision FROM plant_entry_baselines b
+        JOIN ${d.table} t ON t.${d.idCol} = b.entry_id AND ${d.scopeCol ? `t.${d.scopeCol} = b.scope` : "b.scope = ''"}
+        WHERE b.kind = ? AND t.import_id = ? ORDER BY b.seq DESC, b.recorded_at DESC`,
+      kind,
+      importId,
+    )) {
+      const k = entryKey({ kind, scope: b.scope, id: b.entry_id });
+      had.set(k, [...(had.get(k) ?? []), { importId: b.import_id, revision: b.revision === null ? null : Number(b.revision) }]);
+    }
+    const write: { scope: string; id: string; revision: number | null; values: string | null }[] = [];
+    const drop: { scope: string; id: string; importId: string }[] = [];
+    for (const r of rows) {
+      const { scope, id } = keyOfRow(kind, r);
+      const k = entryKey({ kind, scope, id });
+      const revision = Number(r.revision ?? 1);
+      const old = (had.get(k) ?? []).filter((b) => b.importId !== importId);
+      if (!values && old[0]?.revision === revision) continue;
+      write.push({ scope, id, revision: values ? null : revision, values: values ? storedValues(values.get(k) ?? '{}') : null });
+      for (const b of old.slice(keep - 1)) drop.push({ scope, id, importId: b.importId });
+    }
+    for (const part of chunks(write)) {
       db().run(
-        `INSERT INTO plant_import_baselines (kind, scope, entry_id, field_values, import_id, updated_at) VALUES ${part.map(() => '(?, ?, ?, ?, ?, ?)').join(', ')}
-         ON CONFLICT (kind, scope, entry_id) DO UPDATE SET field_values = excluded.field_values, import_id = excluded.import_id, updated_at = excluded.updated_at`,
-        ...part.flatMap((e) => [e.kind, e.scope, e.id, JSON.stringify(e.values), importId, at]),
+        `INSERT INTO plant_entry_baselines (kind, scope, entry_id, import_id, seq, revision, field_values, recorded_at)
+         VALUES ${part.map(() => '(?, ?, ?, ?, ?, ?, ?, ?)').join(', ')}
+         ON CONFLICT (kind, scope, entry_id, import_id) DO UPDATE SET seq = excluded.seq, revision = excluded.revision, field_values = excluded.field_values, recorded_at = excluded.recorded_at`,
+        ...part.flatMap((e) => [kind, e.scope, e.id, importId, seq, e.revision, e.values, at]),
       );
       n += part.length;
     }
+    for (const part of chunks(drop))
+      db().run(
+        `DELETE FROM plant_entry_baselines WHERE kind = ? AND (${part.map(() => '(scope = ? AND entry_id = ? AND import_id = ?)').join(' OR ')})`,
+        kind,
+        ...part.flatMap((e) => [e.scope, e.id, e.importId]),
+      );
   }
   return n;
 }
 
-export const baselineOf = (kind: PlantEntryKind, scope: string, id: string): { values: Record<string, unknown>; importId: string } | null => {
-  const r = db().get<{ field_values: string; import_id: string }>(
-    'SELECT field_values, import_id FROM plant_import_baselines WHERE kind = ? AND scope = ? AND entry_id = ?',
+/** Baselines of an entry in the order they were recorded (a counter that never goes back within the process; time otherwise). */
+let lastSeq = 0;
+const nextSeq = () => (lastSeq = Math.max(lastSeq + 1, Date.now() * 1000));
+
+/**
+ * The values of an entry at an earlier revision of its current life, from its history: the values now with the before
+ * values of every later change laid over them, newest first. Null when the history does not reach back that far.
+ */
+function valuesAtRevision(now: EntrySnap, revision: number): Record<string, unknown> | null {
+  if (revision === now.revision) return now.values;
+  if (revision > now.revision) return null;
+  const rows = db().all<{ revision: number; op: string; before_values: string }>(
+    'SELECT revision, op, before_values FROM plant_entry_history WHERE kind = ? AND scope = ? AND entry_id = ? AND revision > ? ORDER BY at DESC, revision DESC',
+    now.kind,
+    now.scope,
+    now.id,
+    revision,
+  );
+  let values = { ...now.values };
+  let expect = now.revision;
+  for (const r of rows) {
+    if (Number(r.revision) !== expect || r.op === 'add' || r.op === 'remove') return null;
+    values = { ...values, ...historyValues<Record<string, unknown>>(r.before_values, {}) };
+    if (--expect === revision) return values;
+  }
+  return null;
+}
+
+export interface Baseline {
+  /** What the import left in the entry */
+  values: Record<string, unknown>;
+  importId: string;
+  /** The entry's revision the values are of (null: stored values) */
+  revision: number | null;
+  recordedAt: string;
+}
+
+/**
+ * The baselines of an entry, newest first: what each of the last imports that wrote it left there. A baseline whose
+ * values the history no longer reaches is left out.
+ */
+export function baselinesOf(kind: PlantEntryKind, scope: string, id: string, now = readEntry(kind, scope, id)): Baseline[] {
+  if (!now) return [];
+  const rows = db().all<{ import_id: string; revision: number | null; field_values: string | null; recorded_at: string }>(
+    'SELECT import_id, revision, field_values, recorded_at FROM plant_entry_baselines WHERE kind = ? AND scope = ? AND entry_id = ? ORDER BY seq DESC, recorded_at DESC',
     kind,
     scope,
     id,
   );
-  return r ? { values: parseJson(r.field_values, {}), importId: r.import_id } : null;
+  const out: Baseline[] = [];
+  for (const r of rows) {
+    const revision = r.revision === null ? null : Number(r.revision);
+    const values = revision !== null ? valuesAtRevision(now, revision) : historyValues<Record<string, unknown> | null>(r.field_values, null);
+    if (values) out.push({ values, importId: r.import_id, revision, recordedAt: r.recorded_at });
+  }
+  return out;
+}
+
+/** What the last import that wrote an entry left there (null: none, or the history no longer reaches it). */
+export const baselineOf = (kind: PlantEntryKind, scope: string, id: string): { values: Record<string, unknown>; importId: string } | null => {
+  const now = readEntry(kind, scope, id);
+  if (!now) return null;
+  const last = db().get<{ import_id: string; revision: number | null; field_values: string | null }>(
+    'SELECT import_id, revision, field_values FROM plant_entry_baselines WHERE kind = ? AND scope = ? AND entry_id = ? ORDER BY seq DESC, recorded_at DESC LIMIT 1',
+    kind,
+    scope,
+    id,
+  );
+  if (!last) return null;
+  const values = last.revision !== null ? valuesAtRevision(now, Number(last.revision)) : historyValues<Record<string, unknown> | null>(last.field_values, null);
+  return values ? { values, importId: last.import_id } : null;
 };

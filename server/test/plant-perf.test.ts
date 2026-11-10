@@ -233,6 +233,16 @@ async function growth(): Promise<Record<string, number>> {
       out[`${t}.bytes`] = -1;
     }
   }
+  // what the values take (the JSON text, without row and index overhead): history per operation, baselines
+  try {
+    for (const r of d.all<{ op: string; n: number; bytes: number }>(
+      'SELECT op, COUNT(*) AS n, SUM(LENGTH(before_values) + LENGTH(after_values)) AS bytes FROM plant_entry_history GROUP BY op',
+    ))
+      out[`history.${r.op}.valueBytes`] = Number(r.bytes ?? 0);
+    out['baselines.valueBytes'] = Number(d.get<{ n: number }>('SELECT SUM(LENGTH(field_values)) AS n FROM plant_import_baselines')?.n ?? 0);
+  } catch {
+    // 0.12.0: no such tables
+  }
   return out;
 }
 

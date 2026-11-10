@@ -3,13 +3,14 @@ import { PLANT_CHANGESET_LIMITS, PLANT_ENTRY_SCOPE } from '@sm/shared';
 import { db } from '../../db.js';
 import { audit } from '../../audit.js';
 import type { AuthUser } from '../../auth/context.js';
-import { HttpError, parseJson } from '../../util.js';
+import { HttpError } from '../../util.js';
 import { plantProposesSome, siteRights } from '../access.js';
 import { requirePlant } from '../settings.js';
 import { fieldDiff } from '../diff.js';
 import { CATALOGUE_KINDS, assetSites, bodyOf, readEntry } from './entries.js';
 import { insertChangeSet, insertOp, rowOf, type NewOp } from './core.js';
 import { checkOpenLimits, siteOfTarget } from './drafts.js';
+import { historyValues } from './values.js';
 
 /**
  * The history of an entry (0.13.0, ADR 0020): one row per applied change set that touched it, with the full values of
@@ -52,11 +53,8 @@ function checkVisible(kind: PlantEntryKind, scope: string, id: string, u: AuthUs
   if (!sees) throw new HttpError(404, `There is no ${kind} "${id}"`, 'PLANT_ENTRY_NOT_FOUND', { kind, id });
 }
 
-const diffOf = (r: Pick<HistoryRow, 'op' | 'before_values' | 'after_values'>) => {
-  const before = parseJson<Record<string, unknown> | null>(r.before_values, null) ?? {};
-  const after = parseJson<Record<string, unknown> | null>(r.after_values, null) ?? {};
-  return fieldDiff(before, after);
-};
+const valuesOf = (stored: string) => historyValues<Record<string, unknown> | null>(stored, null) ?? {};
+const diffOf = (r: Pick<HistoryRow, 'op' | 'before_values' | 'after_values'>) => fieldDiff(valuesOf(r.before_values), valuesOf(r.after_values));
 
 const ROWS = `SELECT h.*, c.title AS title, c.source AS source, c.import_id AS import_id
   FROM plant_entry_history h LEFT JOIN plant_change_sets c ON c.id = h.change_set_id`;
@@ -95,7 +93,7 @@ export function entryHistory(kind: PlantEntryKind, scope: string, id: string, u:
     appliedBy: r.applied_by,
     changeSet: r.title !== null ? { id: r.change_set_id, title: r.title, source: r.source!, importId: r.import_id } : null,
     diff: diffOf(r),
-    canRevert: revert && r.op !== 'remove' && !(r.op === 'set' && r.before_values === '{}'),
+    canRevert: revert && r.op !== 'remove' && !(r.op === 'set' && !Object.keys(valuesOf(r.before_values)).length),
   }));
   // before 0.13 the audit log has it (searched by the id; old ids are aliases)
   return { items, auditPath: `/audit?q=${encodeURIComponent(id)}` };
@@ -107,8 +105,8 @@ function inverse(rows: HistoryRow[]): { ops: NewOp[]; skipped: number } {
   let skipped = 0;
   const order = { set: 0, add: 1, rename: 2, remove: 3 } as const;
   for (const r of [...rows].sort((a, b) => order[a.op] - order[b.op] || (a.at < b.at ? 1 : -1))) {
-    const before = parseJson<Record<string, unknown> | null>(r.before_values, null) ?? {};
-    const after = parseJson<Record<string, unknown> | null>(r.after_values, null) ?? {};
+    const before = valuesOf(r.before_values);
+    const after = valuesOf(r.after_values);
     const now = readEntry(r.kind, r.scope, r.entry_id);
     if (r.op === 'remove' || !now) {
       skipped++;

@@ -232,7 +232,7 @@ beforeAll(async () => {
     history: db().all<{ kind: string; entry_id: string; revision: number; op: string }>(
       'SELECT kind, entry_id, revision, op FROM plant_entry_history ORDER BY kind, entry_id, revision',
     ),
-    baselines: db().all<{ kind: string; entry_id: string }>('SELECT kind, entry_id FROM plant_import_baselines ORDER BY kind, entry_id'),
+    baselines: db().all<{ kind: string; entry_id: string }>('SELECT kind, entry_id FROM plant_entry_baselines ORDER BY kind, entry_id'),
   };
   expect(source.plant.history.length).toBeGreaterThanOrEqual(3);
   expect(source.plant.baselines.length).toBeGreaterThanOrEqual(2);
@@ -736,7 +736,7 @@ describe('import into SQLite through the web API', () => {
             .all('SELECT kind, entry_id, revision, op FROM plant_entry_history ORDER BY kind, entry_id, revision')
             .map((r: any) => ({ ...r, revision: Number(r.revision) })),
         ).toEqual(source.plant.history.map((r: any) => ({ ...r, revision: Number(r.revision) })));
-        expect(d.all('SELECT kind, entry_id FROM plant_import_baselines ORDER BY kind, entry_id')).toEqual(source.plant.baselines);
+        expect(d.all('SELECT kind, entry_id FROM plant_entry_baselines ORDER BY kind, entry_id')).toEqual(source.plant.baselines);
         expect(Number(d.get<{ n: number }>('SELECT COUNT(*) AS n FROM plant_change_sets')!.n)).toBe(0);
         expect(Number(d.get<{ r: number }>("SELECT revision AS r FROM plant_assets WHERE id = 'moved-press'")!.r)).toBe(2);
       } finally {
