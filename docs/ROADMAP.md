@@ -79,6 +79,8 @@ Themes of this release (details in the CHANGELOG once released):
 
 **0.16.0 – costs per service, exports and plant editing.** Planned costs per service over a fiscal year with entries and the costs Steward reads; scheduled readable exports to S3 and a choice of what backups contain; moving devices between assets and more plant editing through change sets; and clearer monitor states. The candidates for later releases are under _Later_.
 
+**0.16.1 – device profiles from manuals.** Plant proposals from AI assistants (MCP) in parts, so a whole manual with hundreds of data points arrives as one reviewable proposal; and a source per data point – the document and page it comes from – shown in the review, with the manual kept as a plant document on the profile.
+
 ## Later
 
 - **Insights Hub mapping on a real tenant** ([#8](https://github.com/vxrz/Steward/issues/8)): verify the API assumptions of the Insights Hub sink check and the freshness checks against a real tenant.
