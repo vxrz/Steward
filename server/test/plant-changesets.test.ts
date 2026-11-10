@@ -150,11 +150,17 @@ describe('history', () => {
     });
     // the hash of the history rows written matches the rows in the database (a row changed later would not)
     const { createHash } = await import('node:crypto');
+    // (0.15.0: values stored compressed are decompressed first – raw DEFLATE with the preset dictionary of values.ts)
+    const { historyText } = await import('../src/plant/changesets/values.js');
     const rows = (await db()).all<any>('SELECT * FROM plant_entry_history WHERE change_set_id = ? ORDER BY kind, scope, entry_id', applied.entityId);
     const hash = createHash('sha256');
     for (const r of rows)
-      hash.update(`${r.kind}\u0000${r.scope}\u0000${r.entry_id}\u0000${Number(r.revision)}\u0000${r.op}\u0000${r.before_values}\u0000${r.after_values}\n`);
+      hash.update(
+        `${r.kind}\u0000${r.scope}\u0000${r.entry_id}\u0000${Number(r.revision)}\u0000${r.op}\u0000${historyText(r.before_values)}\u0000${historyText(r.after_values)}\n`,
+      );
     expect(hash.digest('hex')).toBe(applied.details.historySha256);
+    const { historySha256Of } = await import('../src/plant/changesets/track.js');
+    expect(historySha256Of(applied.entityId)).toBe(applied.details.historySha256);
   });
 
   it('who cannot see the site sees no history', async () => {
@@ -184,9 +190,12 @@ describe('fingerprints: import, bulk change, rename', () => {
     const now = await s.api('POST', '/plant/import/preview', { files: [FILE('X1')], mode: 'update' });
     const done = await s.api('POST', '/plant/import', { files: [FILE('X1')], mode: 'update', fingerprint: now.fingerprint });
     expect(done.counts.change).toBe(1);
-    const base = (await db()).get<any>("SELECT * FROM plant_import_baselines WHERE kind = 'asset' AND entry_id = 'press-2'");
-    expect(base.import_id).toBe(done.import.id);
-    expect(JSON.parse(base.field_values).model).toBe('X1');
+    const { baselineOf } = await import('../src/plant/changesets/track.js');
+    expect(baselineOf('asset', '', 'press-2')).toMatchObject({ importId: done.import.id, values: { model: 'X1' } });
+    // 0.15.0: stored as the revision the import left (its values are read back through the history)
+    const base = (await db()).get<any>("SELECT * FROM plant_entry_baselines WHERE kind = 'asset' AND entry_id = 'press-2'");
+    expect(base).toMatchObject({ import_id: done.import.id, field_values: null });
+    expect(Number(base.revision)).toBe((await s.api('GET', '/plant/assets/press-2')).revision);
     // a script without fingerprint
     const script = await s.api('POST', '/plant/import', { files: [FILE('X2')], mode: 'update' });
     expect(script.counts.change).toBe(1);

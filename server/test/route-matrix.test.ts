@@ -1035,6 +1035,9 @@ const EXPECT: Record<string, Access> = {
   // ---- the plant registry (#218, on in these fixtures): its switch is the administrators'; rights per site ----
   'GET /api/settings/plant': ADMIN,
   'PUT /api/settings/plant': ADMIN,
+  // 0.15.0: the retention of the change-set history (ADR 0020)
+  'GET /api/settings/plant/history': ADMIN,
+  'PUT /api/settings/plant/history': ADMIN,
   // ---- the module registry (0.11.0, ADR 0016): the switches are the administrators' (a session, step-up) ----
   'GET /api/settings/modules': ADMIN,
   'PUT /api/settings/modules/:id': ADMIN,

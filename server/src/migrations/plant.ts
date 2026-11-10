@@ -783,4 +783,28 @@ export const PLANT_MIGRATIONS: NamedMigration[] = [
       CREATE INDEX plant_ih_monitor_links_monitor ON plant_ih_monitor_links(monitor_id);
     `,
   },
+  {
+    // 0.15 (ADR 0020 "Performance"): the import's baselines per entry and import, the last few of each entry (a plant
+    // setting), and as small as they can be: `revision` – the values the import left are the entry's at that revision,
+    // read back through its history – or, where that cannot be (an import followed by other operations in one change
+    // set; the rows of 0.13 copied here), `field_values`. plant_import_baselines (0.13, one row per entry with all its
+    // values) is emptied into it and dropped in a later version.
+    name: 'plant-030-entry-baselines',
+    sql: `
+      CREATE TABLE plant_entry_baselines (
+        kind TEXT NOT NULL,
+        scope TEXT NOT NULL DEFAULT '',
+        entry_id TEXT NOT NULL,
+        import_id TEXT NOT NULL,
+        seq INTEGER NOT NULL DEFAULT 0,
+        revision INTEGER,
+        field_values TEXT,
+        recorded_at TEXT NOT NULL,
+        PRIMARY KEY (kind, scope, entry_id, import_id)
+      );
+      INSERT INTO plant_entry_baselines (kind, scope, entry_id, import_id, seq, revision, field_values, recorded_at)
+        SELECT kind, scope, entry_id, import_id, 0, NULL, field_values, updated_at FROM plant_import_baselines;
+      DELETE FROM plant_import_baselines;
+    `,
+  },
 ];

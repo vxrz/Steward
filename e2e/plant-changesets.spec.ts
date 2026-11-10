@@ -2,7 +2,7 @@ import type { APIRequestContext } from '@playwright/test';
 import { test, expect } from './support/fixtures';
 import { authFile } from './support/env';
 import { expectAccessible, settle } from './support/axe';
-import { uniq } from './support/helpers';
+import { expectNoHorizontalScroll, uniq } from './support/helpers';
 
 /**
  * Plant change sets (0.13.0, docs/PLANT.md "Change sets", ADR 0020): a viewer with the propose right drafts a change
@@ -169,5 +169,44 @@ test.describe('a stale edit', () => {
       await admin.delete(`/api/plant/assets/${asset}`);
       await admin.delete(`/api/plant/sites/${site}`);
     }
+  });
+});
+
+test.describe('the retention of the history (Settings → Data & retention)', () => {
+  test.use({ storageState: authFile('admin') });
+
+  test('an administrator sets how long the history is kept and sees what it takes', async ({ page, apiAs }) => {
+    const admin = await apiAs('admin');
+    await ok(admin.put('/api/settings/plant', { data: SETTINGS }));
+    const before = (await (await ok(admin.get('/api/settings/plant/history'))).json()).settings;
+    try {
+      await page.goto('/settings/data');
+      const card = page.getByTestId('plant-history-settings');
+      await expect(card).toContainText('Plant registry history');
+      await expect(card.getByTestId('plant-history-usage')).toContainText('History of entries');
+      await expectAccessible(page, 'plant history retention');
+      // out of bounds: marked, not saved
+      await card.getByLabel('Import baselines per entry').fill('11');
+      await expect(card.getByLabel('Import baselines per entry')).toHaveAttribute('aria-invalid', 'true');
+      await card.getByLabel('Import baselines per entry').fill(String(before.baselinesPerEntry === 4 ? 5 : 4));
+      await page.getByTestId('settings-save-bar').getByRole('button', { name: 'Save', exact: true }).click();
+      await expect(page.getByText('Retention of the plant registry history saved')).toBeVisible();
+      const now = (await (await ok(admin.get('/api/settings/plant/history'))).json()).settings;
+      expect(now).toMatchObject({ baselinesPerEntry: before.baselinesPerEntry === 4 ? 5 : 4, updatedBy: 'admin' });
+    } finally {
+      await admin.put('/api/settings/plant/history', {
+        data: { removedHistoryDays: before.removedHistoryDays, closedDays: before.closedDays, baselinesPerEntry: before.baselinesPerEntry },
+      });
+    }
+  });
+
+  test('the card fits a phone @mobile', async ({ page, apiAs }) => {
+    await ok((await apiAs('admin')).put('/api/settings/plant', { data: SETTINGS }));
+    await page.goto('/settings/data');
+    const card = page.getByTestId('plant-history-settings');
+    await expect(card.getByTestId('plant-history-usage')).toBeVisible();
+    await settle(page);
+    await expectNoHorizontalScroll(page);
+    await expectAccessible(page, 'plant history retention on a phone');
   });
 });

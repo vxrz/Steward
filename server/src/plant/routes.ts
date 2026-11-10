@@ -52,7 +52,7 @@ import {
   updateMapSettings,
 } from './map.js';
 import type { Fetched } from './mapTiles.js';
-import { plantSiteReviewInput, type PlantChangeSetSource } from '@sm/shared';
+import { plantHistorySettingsInput, plantSiteReviewInput, type PlantChangeSetSource, type PlantHistorySettingsView } from '@sm/shared';
 import { entryWrite, revisedNetwork, splitRevision, type WriteTarget } from './changesets/write.js';
 import {
   applyDirect,
@@ -75,6 +75,7 @@ import type { EntryChange, Region } from './changesets/track.js';
 import { me } from '../auth/access.js';
 import { asProposer, canManageCatalogue, plantManagesSome, plantProposesSome } from './access.js';
 import { advisoryRoutes } from './advisories/routes.js';
+import { historyRetention, historyUsage, setHistoryRetention } from './changesets/retention.js';
 import { audit, withAuditDetails } from '../audit.js';
 
 /**
@@ -82,6 +83,7 @@ import { audit, withAuditDetails } from '../audit.js';
  * module is off (except its switch in the settings); rights are checked per site in the services (plant/access.ts).
  *
  *   GET|PUT /api/settings/plant                          the switch and the settings (administrators)
+ *   GET|PUT /api/settings/plant/history                  the retention of the history, what it takes (administrators, 0.15.0)
  *   GET     /api/plant/config | /schema | /hierarchy     what the pages need; the JSON Schema of the import format
  *   …       /api/plant/sites[/:siteId[/nodes|/buildings|/links|/access]]
  *   …       /api/plant/assets[/:assetId[/image|/links|/assignment]]
@@ -247,6 +249,18 @@ export async function plantRoutes(app: FastifyInstance): Promise<void> {
     },
     async (req) => updatePlantSettings(plantSettingsInput.parse(req.body), plantDemo),
   );
+
+  // 0.15.0: how long the history and its bookkeeping are kept, and what they take (ADR 0020)
+  const historyView = (): PlantHistorySettingsView => ({ settings: historyRetention(), usage: historyUsage() });
+  app.get('/settings/plant/history', { config: { access: ACCESS.admin } }, async () => {
+    requirePlant();
+    return historyView();
+  });
+  app.put('/settings/plant/history', { config: { access: ACCESS.admin } }, async (req) => {
+    requirePlant();
+    setHistoryRetention(plantHistorySettingsInput.parse(req.body));
+    return historyView();
+  });
 
   // ---------- the map of sites (#234): its source is the administrators'; changing it asks for a step-up ----------
   app.get('/settings/plant/map', { config: { access: ACCESS.adminSession } }, async () => {

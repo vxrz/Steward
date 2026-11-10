@@ -32,7 +32,7 @@ import { FlowTables, PathStatus } from './FlowView';
 import { edgePill, statusSentence, useNodeText } from './FlowGraph';
 import { NetworkCanvas, type Highlight } from './NetworkCanvas';
 import { networkGraph, type NetworkWords } from './networkGraph';
-import { networkLayout } from './networkLayout';
+import { networkLayout, type NetLayout } from './networkLayout';
 import { networkSvg } from './networkExport';
 import { LIVE_REFRESH_MS, useMotion, useViewMode } from './prefs';
 
@@ -187,6 +187,8 @@ function Diagram({ graph, network: n, levels }: { graph: PlantFlowGraph; network
   const [hoverPath, setHoverPath] = useState<string | null>(null);
   const [selected, setSelected] = useState<{ kind: 'node' | 'path'; id: string } | null>(null);
   const [filters, setFilters] = useState<Filters>(NO_FILTERS);
+  // the filter panel keeps the focus when "Clear filters" disables itself (Escape closes the panel from there)
+  const filterPanel = useRef<HTMLDivElement | null>(null);
   const [centerOn, setCenterOn] = useState<{ id: string; n: number } | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
   // the side panel: open on wide screens unless folded, folded on smaller ones unless opened – remembered per user
@@ -202,7 +204,14 @@ function Diagram({ graph, network: n, levels }: { graph: PlantFlowGraph; network
   const { ref: canvasRef, width: cw, height: ch } = useElementSize();
   // (on a phone the frame's height follows the picture: laid out as narrow as it gets)
   const aspect = narrow ? 0.75 : cw && ch ? Math.max(0.5, Math.min(3, Math.round((cw / ch) * 4) / 4)) : 1.75;
-  const layout = useMemo(() => networkLayout(graph, levels, aspect), [graph, levels, aspect]);
+  // the same picture as before stays the same object: a refresh that changes only live statuses (every minute while a
+  // linked check reports) neither fits the picture again nor moves it under the pointer
+  const lastLayout = useRef<NetLayout | null>(null);
+  const layout = useMemo(() => {
+    const next = networkLayout(graph, levels, aspect);
+    return lastLayout.current && sameLayout(lastLayout.current, next) ? lastLayout.current : next;
+  }, [graph, levels, aspect]);
+  lastLayout.current = layout;
   const byId = useMemo(() => new Map(graph.nodes.map((x) => [x.id, x])), [graph]);
   const pathById = useMemo(() => new Map(graph.paths.map((p) => [p.id, p])), [graph]);
   const title = t('network.exportTitle', { site: n.site.name });
@@ -436,7 +445,7 @@ function Diagram({ graph, network: n, levels }: { graph: PlantFlowGraph; network
             {t('network.filters')}
           </Button>
         </Popover.Target>
-        <Popover.Dropdown maw={360} data-testid="nd-filter-panel" aria-label={t('network.filters')}>
+        <Popover.Dropdown ref={filterPanel} tabIndex={-1} maw={360} data-testid="nd-filter-panel" aria-label={t('network.filters')}>
           <Stack gap="xs">
             <MultiSelect
               size="xs"
@@ -488,7 +497,16 @@ function Diagram({ graph, network: n, levels }: { graph: PlantFlowGraph; network
               }}
               data-testid="nd-filter-no-conduit"
             />
-            <Button size="xs" variant="subtle" disabled={!active} onClick={() => setFilters(NO_FILTERS)} data-testid="nd-filter-clear">
+            <Button
+              size="xs"
+              variant="subtle"
+              disabled={!active}
+              onClick={() => {
+                setFilters(NO_FILTERS);
+                filterPanel.current?.focus();
+              }}
+              data-testid="nd-filter-clear"
+            >
               {t('network.clearFilters')}
             </Button>
           </Stack>
@@ -801,6 +819,12 @@ function PathList({
       )}
     </Paper>
   );
+}
+
+/** Whether two layouts place everything the same. */
+function sameLayout(a: NetLayout, b: NetLayout): boolean {
+  const sig = (l: NetLayout) => JSON.stringify([l.width, l.height, l.bands, l.outside, [...l.rects], [...l.edges]]);
+  return sig(a) === sig(b);
 }
 
 function NoConduitMark() {

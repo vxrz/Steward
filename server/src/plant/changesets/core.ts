@@ -41,6 +41,8 @@ import { applyBulk, bulkNeedsStepUp } from '../bulk.js';
 import { applyImport, importInput, importKindsOf, importStepUpPoints, type ImportInput } from '../import.js';
 import { CATALOGUE_KINDS, KINDS, PER_ASSET, assetSites, bodyOf, entryKey, entryPagePath, readEntry, type EntrySnap } from './entries.js';
 import { joinRegions, recordBaselines, tracked, type EntryChange, type Region } from './track.js';
+import { compactHistory, historyRetention, pruneBaselines } from './retention.js';
+import { historyValues } from './values.js';
 import * as svc from '../service.js';
 
 /**
@@ -307,10 +309,14 @@ export function expireChangeSets(now = nowIso()): number {
   return n;
 }
 
-/** The daily clean-up: closed change sets after 90 days (their audit entries stay), the history of removed entries after 3 years. */
-export function cleanUpChangeSets(now = new Date()): { changeSets: number; history: number } {
+/**
+ * The daily clean-up: closed change sets (their audit entries stay) and the history of removed entries after their
+ * retention (plant settings, 90 days and 3 years by default), the import's baselines of each entry beyond the last ones.
+ */
+export function cleanUpChangeSets(now = new Date()): { changeSets: number; history: number; baselines: number } {
   expireChangeSets(now.toISOString());
-  const closedBefore = new Date(now.getTime() - PLANT_CHANGESET_LIMITS.closedDays * 86_400_000).toISOString();
+  const keep = historyRetention();
+  const closedBefore = new Date(now.getTime() - keep.closedDays * 86_400_000).toISOString();
   const ids = db()
     .all<{ id: string }>("SELECT id FROM plant_change_sets WHERE state IN ('rejected', 'withdrawn', 'expired') AND updated_at < ?", closedBefore)
     .map((r) => r.id);
@@ -321,9 +327,16 @@ export function cleanUpChangeSets(now = new Date()): { changeSets: number; histo
       db().run('DELETE FROM plant_change_sets WHERE id = ?', id);
     }
   });
-  const removedBefore = new Date(now.getTime() - PLANT_CHANGESET_LIMITS.historyYears * 365 * 86_400_000).toISOString();
+  const removedBefore = new Date(now.getTime() - keep.removedHistoryDays * 86_400_000).toISOString();
   const history = db().run('DELETE FROM plant_entry_history WHERE removed_at IS NOT NULL AND removed_at < ?', removedBefore).changes;
-  return { changeSets: ids.length, history };
+  const baselines = db().tx(() => pruneBaselines(keep.baselinesPerEntry));
+  return { changeSets: ids.length, history, baselines };
+}
+
+/** The job plant-changes: the clean-up, then a bounded compaction of rows written before 0.15.0. */
+export async function changeSetUpkeep(now = new Date()): Promise<{ changeSets: number; history: number; baselines: number; compacted: number }> {
+  const done = cleanUpChangeSets(now);
+  return { ...done, compacted: await compactHistory() };
 }
 
 // ---------- fingerprints ----------
@@ -587,6 +600,8 @@ export interface RunOutcome {
   stale: number[];
   importIds: string[];
   imports: PlantImportResult[];
+  /** Imports whose baselines are recorded once the change set's revisions are written (the last operation) */
+  baselinesAfter: string[];
 }
 
 interface Choice {
@@ -645,7 +660,7 @@ export function mergeOf(o: OpRow, now: EntrySnap, choices: Choice[]): { body: un
 
 /** Runs the operations in order, as the person they run for (inside a transaction). Refusals become problems. */
 export function runOps(cs: Pick<CsRow, 'id' | 'resolutions'>, ops: OpRow[]): RunOutcome {
-  const out: RunOutcome = { problems: [], conflicts: [], stale: [], importIds: [], imports: [] };
+  const out: RunOutcome = { problems: [], conflicts: [], stale: [], importIds: [], imports: [], baselinesAfter: [] };
   const choices = parseJson<Choice[]>(cs.resolutions, []);
   for (const o of ops) {
     try {
@@ -693,7 +708,9 @@ export function runOps(cs: Pick<CsRow, 'id' | 'resolutions'>, ops: OpRow[]): Run
           const r = applyImport(importOf(o));
           out.importIds.push(r.import.id);
           out.imports.push(r);
-          recordBaselines(r.import.id);
+          // the last operation: its baselines are the entries' revisions at the end; otherwise what it left, as values
+          if (o === ops.at(-1)) out.baselinesAfter.push(r.import.id);
+          else recordBaselines(r.import.id, { values: true });
           break;
         }
         case 'bulk':
@@ -851,6 +868,7 @@ export function applyStored(
     const t = withAuditDetails({ changeSetId: id }, () =>
       tracked(regionOf(ops), { changeSetId: id, author: authors.join(', '), appliedBy: u.username }, () => runOps(r, ops)),
     );
+    for (const importId of t.result.baselinesAfter) recordBaselines(importId);
     const p = t.result.problems[0];
     if (p)
       throw new HttpError(
@@ -1078,8 +1096,8 @@ function appliedEntries(id: string, u: AuthUser): PlantChangeEntryDiff[] {
   );
   const assets = assetSites(rows.map((x) => (['device', 'data_path', 'collection'].includes(x.kind) ? x.scope : x.entry_id)));
   const changes: EntryChange[] = rows.map((x) => {
-    const before = parseJson<Record<string, unknown> | null>(x.before_values, null);
-    const after = parseJson<Record<string, unknown> | null>(x.after_values, null);
+    const before = historyValues<Record<string, unknown> | null>(x.before_values, null);
+    const after = historyValues<Record<string, unknown> | null>(x.after_values, null);
     const siteId =
       x.kind === 'site'
         ? x.entry_id

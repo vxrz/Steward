@@ -202,5 +202,30 @@
     "proposedForReview": "Änderungen hier brauchen eine zweite Person: zur Prüfung vorgeschlagen als „{{title}}“.",
     "openChangeSet": "Änderung öffnen",
     "importProposeOnly": "Sie dürfen Änderungen vorschlagen: Lassen Sie sich die Dateien in der Vorschau zeigen und fügen Sie sie dann Ihrem Entwurf hinzu. Jemand, der die Standorte verwaltet, übernimmt sie."
+  },
+  "retention": {
+    "title": "Verlauf des Anlagenregisters",
+    "description": "Jede Änderung am Anlagenregister hält je Eintrag eine Zeile Verlauf fest, und jeder Import, was er geschrieben hat (den Stand, mit dem seine Vorschau vergleicht). Der Verlauf eines Eintrags bleibt, solange es den Eintrag gibt; was älter ist als hier eingestellt, löscht die tägliche Bereinigung.",
+    "removedHistoryDays": "Verlauf entfernter Einträge (Tage)",
+    "removedHistoryDaysHint": "Bleibt nach dem Entfernen erhalten und wird dann gelöscht ({{min}} bis {{max}} Tage; 1.095 Tage = 3 Jahre)",
+    "closedDays": "Abgeschlossene Änderungssätze (Tage)",
+    "closedDaysHint": "Abgelehnte, zurückgezogene und abgelaufene Änderungssätze; ihre Audit-Einträge bleiben ({{min}} bis {{max}} Tage)",
+    "baselinesPerEntry": "Import-Stände je Eintrag",
+    "baselinesPerEntryHint": "Was die letzten Importe in einen Eintrag geschrieben haben; der Import vergleicht mit dem letzten ({{min}} bis {{max}})",
+    "usage": "Was der Verlauf in der Datenbank belegt",
+    "usageHint": "Zeilen und ihre Größe mit Indizes, jetzt; die ganze Datenbank: {{size}}",
+    "what": "Aufbewahrt",
+    "rows": "Zeilen",
+    "size": "Größe",
+    "sizeUnknown": "nicht bekannt",
+    "history": "Verlauf der Einträge",
+    "historyRemoved_one": "{{n}} Zeile eines entfernten Eintrags",
+    "historyRemoved_other": "{{n}} Zeilen entfernter Einträge",
+    "baselines": "Import-Stände",
+    "changeSets": "Änderungssätze mit ihren Änderungen und Dateien",
+    "changeSetsClosed_one": "{{n}} abgeschlossen",
+    "changeSetsClosed_other": "{{n}} abgeschlossen",
+    "save": "Speichern",
+    "saved": "Aufbewahrung des Anlagenregister-Verlaufs gespeichert"
   }
 }

@@ -12,12 +12,13 @@ import { db } from '../../db.js';
 import { audit } from '../../audit.js';
 import type { AuthUser } from '../../auth/context.js';
 import { me } from '../../auth/access.js';
-import { HttpError, nowIso, parseJson } from '../../util.js';
+import { HttpError, nowIso } from '../../util.js';
 import { canCreateSites, plantProposesSome, siteRights } from '../access.js';
 import { requirePlant } from '../settings.js';
 import { importInput } from '../import.js';
 import { CATALOGUE_KINDS, KINDS, PER_ASSET, assetSites, bodyOf, readEntry, type EntrySnap } from './entries.js';
 import { insertChangeSet, insertOp, isAuthor, opsOf, rowOf, touch, type CsRow, type NewOp } from './core.js';
+import { historyValues } from './values.js';
 
 /**
  * Drafts (0.13.0, ADR 0020): a person's change set they build with the edit forms – where review is required, or where
@@ -42,7 +43,7 @@ export function valuesAt(now: EntrySnap, revision: number): Record<string, unkno
   for (const r of rows) {
     if (Number(r.revision) !== expect) break;
     if (r.op === 'add') return null;
-    values = { ...values, ...parseJson<Record<string, unknown>>(r.before_values, {}) };
+    values = { ...values, ...historyValues<Record<string, unknown>>(r.before_values, {}) };
     expect--;
   }
   return expect === revision ? values : null;

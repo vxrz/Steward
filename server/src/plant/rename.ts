@@ -605,10 +605,17 @@ function entryRefs(table: string): RefSpec[] {
     },
   ];
 }
-REFERENCES_ALL.push(...entryRefs('plant_entry_history'), ...entryRefs('plant_import_baselines'), ...entryRefs('plant_change_ops'), {
-  ...json<string[]>('plant_change_sets', 'sites', '[]', 'site', 'change_set', ['id'], inList),
-  silent: true,
-});
+REFERENCES_ALL.push(
+  ...entryRefs('plant_entry_history'),
+  ...entryRefs('plant_import_baselines'),
+  // 0.15.0: the baselines per entry and import (plant_import_baselines is emptied into it)
+  ...entryRefs('plant_entry_baselines'),
+  ...entryRefs('plant_change_ops'),
+  {
+    ...json<string[]>('plant_change_sets', 'sites', '[]', 'site', 'change_set', ['id'], inList),
+    silent: true,
+  },
+);
 
 /** The table and column of the entry itself, per kind (the rest are references). */
 const SELF: Record<PlantIdKind, string> = {
