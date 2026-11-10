@@ -154,6 +154,18 @@ describe('templates against the mock platform', () => {
     expect(u.groups.map((g: any) => g.display).sort()).toEqual(['mdsp:core:StandardUser', 'mdsp_usergroup:Engineers', 'mdsp_usergroup:Operators']);
   });
 
+  it('onboarding reads a CSV without a header row by the column order; a CSV with no rows is refused at start', async () => {
+    const id = await run('ih-onboard-users', { hub }, { users: 'headerless.user@example.com,Headerless,User' });
+    const r = await s.waitRun(id);
+    expect(failedSteps(r)).toEqual([]);
+    expect(r.status).toBe('waiting');
+    expect(r.tasks[0].title).toBe('Onboard 1 user(s)?');
+    expect(r.steps.find((x: any) => x.key === 'anyUsers')).toMatchObject({ status: 'succeeded' });
+    await s.api('POST', `/runs/${id}/cancel`, {}).catch(() => undefined);
+    // the header row alone: no users – the run does not start
+    await expect(run('ih-onboard-users', { hub }, { users: 'email,givenName,familyName,bundle\n' })).rejects.toThrow(/Users \(CSV\) has no rows/);
+  });
+
   it('onboarding fails early for unknown bundles', async () => {
     const id = await run('ih-onboard-users', { hub }, { users: 'email,givenName,familyName,bundle\na@b.c,A,B,Nope' });
     const r = await s.waitRun(id, ['succeeded', 'failed']);

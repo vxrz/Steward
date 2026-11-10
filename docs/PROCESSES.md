@@ -91,6 +91,17 @@ steps:
         path: '/api/identitymanagement/v3/Groups/<groupId>/members/{{ vars.user.id }}'
 ```
 
+## Inputs
+
+A process declares its inputs (`inputs:`): `string`, `number`, `boolean`, `select` (`options`), `list` (one value per line), `table` (CSV), `json`, `secret` (stored encrypted only, `***` everywhere), `application` and `applications` (the service catalogue). `required: true` refuses a run without a value; `default` fills an empty one. The run dialog shows a field per input; a run started from a schedule, a webhook or a sub-process gets them from there. Undeclared inputs are left out of the run.
+
+**Table inputs (CSV).** A `table` input is CSV text – comma, semicolon or tab separated (whichever splits the first line most), quoted fields with `""` for a quote – read as rows of objects, `inputs.users[0].email`. The first line is the header row. With declared `columns` (`columns: [email, givenName, familyName, bundle]`):
+
+- a header field that names a column in another case (`Email`, `GIVENNAME`) takes the declared spelling, so expressions always read `email`;
+- a first line that names **none** of the columns is data: every line is read by position into the declared columns – `new.operator@example.com,New,Operator` is one row with an empty `bundle`; extra fields are ignored, missing ones are empty.
+
+Blank lines are left out and fields trimmed. The run dialog shows how many rows it read under the field (_1 row read – no header row, read by the column order_). A **required** table input that reads **no rows** – only a header row, or nothing but blank lines – is refused when the run starts (400, `INPUT_TABLE_EMPTY`: "Users (CSV) has no rows"), so an approval never asks "Onboard 0 user(s)?". Processes that act on every row should still check that there is one before they ask (the onboarding example: _At least one user_, `$count(vars.plan) > 0`, `failRun: true`).
+
 ## Expressions and templates
 
 - Expressions use **[JSONata](https://jsonata.org)**. Fields such as _condition_, _items_ or _rows_ take an expression. Text fields accept templates of the form `{{ expression }}`. A field that contains only `{{ … }}` keeps the value's type (list, object, number).

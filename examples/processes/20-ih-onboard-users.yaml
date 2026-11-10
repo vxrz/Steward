@@ -2,7 +2,8 @@ name: "Insights Hub – Onboard users with group bundles"
 description: |
   Creates users (if they do not exist yet) and assigns a predefined
   combination of roles/user groups ("bundle"). Paste a CSV with the columns
-  email, givenName, familyName and optionally bundle. Bundles are defined
+  email, givenName, familyName and optionally bundle – with a header row, or
+  without one in this order. Bundles are defined
   under constants and can be edited in the process editor.
 
   Recommended schedule: on demand, when new colleagues start.
@@ -63,6 +64,12 @@ steps:
           })] }}
       unknownBundles: "{{ [vars.plan[$count(groups) = 0].bundle] }}"
       missingGroups: "{{ [$distinct(vars.plan.groups)[$not($ in $vars.groups.body.displayName)]] }}"
+  - id: anyUsers
+    type: check
+    name: At least one user
+    condition: "$count(vars.plan) > 0"
+    message: "{{ $count(vars.plan) > 0 ? $count(vars.plan) & ' user(s) to onboard' : 'The CSV has no user rows' }}"
+    failRun: true
   - id: bundlesValid
     type: check
     name: All bundles are defined

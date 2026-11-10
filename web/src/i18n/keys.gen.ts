@@ -4999,6 +4999,7 @@ export interface Resources {
     'codes.LIFECYCLE_PLATFORM_KIND': string;
     'codes.LIFECYCLE_NO_PLATFORM': string;
     'codes.INPUT_APPLICATIONS_TOO_MANY': string;
+    'codes.INPUT_TABLE_EMPTY': string;
     'codes.RECORDING_LIMIT': string;
     'codes.RECORDING_MATCH_TOO_LARGE': string;
     'codes.RECORDING_NOT_FOUND': string;
@@ -12799,6 +12800,11 @@ export interface Resources {
     'inputs.csvHint': string;
     'inputs.csvHintColumns': string;
     'inputs.loadCsv': string;
+    'inputs.rowsRead_one': string;
+    'inputs.rowsRead_other': string;
+    'inputs.rowsReadHeaderless_one': string;
+    'inputs.rowsReadHeaderless_other': string;
+    'inputs.noRows': string;
     'inputs.secretHint': string;
     'inputs.applicationHint': string;
     'inputs.noApplications': string;

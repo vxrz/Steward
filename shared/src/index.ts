@@ -11,6 +11,7 @@ export * from './kafka.js';
 export * from './mqtt.js';
 export * from './tags.js';
 export * from './process.js';
+export * from './tableInput.js';
 export * from './debug.js';
 export * from './graph.js';
 export * from './stepMeta.js';

@@ -651,6 +651,7 @@
     "LIFECYCLE_PLATFORM_KIND": "Wählen Sie eine Plattform vom Typ endoflife.date.",
     "LIFECYCLE_NO_PLATFORM": "Es ist keine endoflife.date-Plattform eingerichtet. Legen Sie eine unter Plattformen an (Verbindungstyp endoflife.date).",
     "INPUT_APPLICATIONS_TOO_MANY": "Die Eingabe „{{input}}“ nennt mehr als {{max}} Anwendungen.",
+    "INPUT_TABLE_EMPTY": "„{{input}}“ enthält keine Zeilen: Fügen Sie mindestens eine Zeile ein oder laden Sie eine Datei.",
     "RECORDING_LIMIT": "Eine Plattform speichert höchstens {{max}} aufgezeichnete Antworten. Entfernen Sie zuerst welche.",
     "RECORDING_MATCH_TOO_LARGE": "Der zu vergleichende Body ist zu groß.",
     "RECORDING_NOT_FOUND": "Die aufgezeichnete Antwort gibt es nicht (mehr).",

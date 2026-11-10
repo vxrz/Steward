@@ -1,4 +1,4 @@
-import type { InputDef } from '@sm/shared';
+import { parseTableCsv, type InputDef } from '@sm/shared';
 import { HttpError } from '../util.js';
 import { applicationInputValue, applicationsInputValue } from '../catalogue/components.js';
 
@@ -45,9 +45,14 @@ export function coerceInputs(defs: InputDef[], raw: Record<string, unknown>, len
               .map((s) => s.trim())
               .filter(Boolean);
         break;
-      case 'table':
-        out[d.name] = Array.isArray(v) ? v : parseCsv(String(v));
+      case 'table': {
+        const rows = Array.isArray(v) ? v : parseTableCsv(String(v), d.columns);
+        // a required table with nothing in it would run with no rows ("Onboard 0 user(s)?"): refused at start
+        if (d.required && !lenient && !rows.length)
+          throw new HttpError(400, `${d.label ?? d.name} has no rows`, 'INPUT_TABLE_EMPTY', { input: d.label ?? d.name });
+        out[d.name] = rows;
         break;
+      }
       case 'application':
         out[d.name] = applicationInputValue(v, d.label ?? d.name);
         break;
@@ -71,29 +76,5 @@ export function coerceInputs(defs: InputDef[], raw: Record<string, unknown>, len
   return out;
 }
 
-/** Small CSV parser (comma, semicolon or tab separated, quoted fields, header row). */
-export function parseCsv(text: string): Record<string, string>[] {
-  const lines = text.replace(/\r\n?/g, '\n').trim();
-  if (!lines) return [];
-  const first = lines.split('\n')[0]!;
-  const delim = [';', '\t', ','].sort((a, b) => first.split(b).length - first.split(a).length)[0]!;
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let field = '';
-  let q = false;
-  for (let i = 0; i < lines.length; i++) {
-    const c = lines[i]!;
-    if (q) {
-      if (c === '"' && lines[i + 1] === '"') ((field += '"'), i++);
-      else if (c === '"') q = false;
-      else field += c;
-    } else if (c === '"') q = true;
-    else if (c === delim) (row.push(field), (field = ''));
-    else if (c === '\n') (row.push(field), rows.push(row), (row = []), (field = ''));
-    else field += c;
-  }
-  row.push(field);
-  rows.push(row);
-  const header = rows.shift()!.map((h) => h.trim());
-  return rows.filter((r) => r.some((x) => x.trim() !== '')).map((r) => Object.fromEntries(header.map((h, i) => [h, (r[i] ?? '').trim()])));
-}
+/** CSV text as rows (the header row, or the declared columns when the first line names none of them). */
+export const parseCsv = (text: string, columns?: string[]): Record<string, string>[] => parseTableCsv(text, columns);
