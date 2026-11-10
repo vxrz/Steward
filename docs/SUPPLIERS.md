@@ -38,7 +38,7 @@ A contract has a title, the contract number, start and end, the **notice period*
 
 Steward derives the **notice-by date** – the last day to give notice – from the end of the current term minus the notice period. For an automatic renewal whose notice date has passed, the next term counts: a contract ending on 31 January 2027 with 90 days' notice and a 12-month renewal has, on 10 November 2026, the notice-by date 2 November 2027 (term end 31 January 2028). Dates are calendar dates in the instance's time zone, as for cost plans.
 
-The contract also holds its document (an http(s) link, or the number of a document in Steward such as `DOC-2026-0004`, shown as a link for readers who may open it), a note and its **SLA**: availability target (%), support hours, response times, and the contractual **RTO** and **RPO** in hours. The statement of applicability and the responsibility matrix read these values from the contract ([ADR 0029](adr/0029-iso-27001-support.md#2-statement-of-applicability-with-a-responsibility-matrix-613-d)).
+The contract also holds its document (an http(s) link, or the number of a document in Steward such as `DOC-2026-0004`, shown as a link for readers who may open it), a note and its **SLA**: availability target (%), support hours, response times, and the contractual **RTO** and **RPO** in hours. The [responsibility matrix](COMPLIANCE.md#responsibility-matrix) of a service reads these values from the contract its area names, with the supplier's valid certificates – read, never copied.
 
 A **cost plan line** can name the supplier and the contract it pays for ([COSTS.md](COSTS.md#planning-per-service)); the contract lists the lines that pay for it. Removing a contract keeps the lines' supplier.
 
@@ -61,7 +61,7 @@ Owners, creators and who looked at a certificate are Steward users: they appear 
 
 Applications, systems, ticket references, page watches of changedetection.io and cost plan lines each had a free-text vendor field. They now have a **supplier picker** with _New supplier_ (designers and administrators). The free text stays as a fallback: it is shown where no supplier is linked and the API keeps accepting it. Saving a form keeps a linked supplier you may not see. An archived supplier stays linked but cannot be chosen again.
 
-The supplier page lists under _Used by_ every item that links it and that you may see, and a service duty can name the supplier it reviews ([below](#the-yearly-supplier-review)).
+The supplier page lists under _Used by_ every item that links it and that you may see – also the areas of a service's [responsibility matrix](COMPLIANCE.md#responsibility-matrix) and the rows of a [statement of applicability](COMPLIANCE.md#statement-of-applicability) that name it – and a service duty can name the supplier it reviews ([below](#the-yearly-supplier-review)).
 
 API fields: `supplierId` in the internal routes of applications, systems, ticket references, page watches (`PUT /api/changedetection/:platformId/watches/:uuid/link`), cost plan lines (with `supplierContractId`) and duties – missing keeps the link, `null` clears it. The public API shows `supplier` (id, name, status) on applications, systems, ticket references, duties and cost plan lines.
 
@@ -77,8 +77,8 @@ On the update to 0.17, Steward turns the free-text vendors into suppliers, once,
 _Suppliers → To confirm_ lists them with their spellings and how many items link them. Designers and administrators work through it once:
 
 - **Confirm** a real supplier – it becomes active.
-- **Merge into …** another supplier: its links, contacts, contracts, certificates and spellings move, and it goes.
-- **Not a supplier** (`On-premises`, an AWS account name): the supplier goes, the items lose the link and keep their text, and the text is not made a supplier again.
+- **Merge into …** another supplier: its links (also in responsibility matrices and statements of applicability), contacts, contracts, certificates and spellings move, and it goes.
+- **Not a supplier** (`On-premises`, an AWS account name): the supplier goes, the items lose the link and keep their text, and the text is not made a supplier again. A responsibility matrix area or a statement row that named it keeps the party _supplier_ without a name.
 
 Summaries, reminders and the dataset leave unconfirmed suppliers out. Confirming, merging, marking _not a supplier_ and archiving are decisions of people: they need a signed-in session, not an API token.
 

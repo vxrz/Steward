@@ -1,6 +1,6 @@
 # 0029. ISO/IEC 27001 support: suppliers, statement of applicability, corrective actions
 
-- **Status:** Accepted (owner decision 2026-11-10) – the scope was agreed with the owner and every open question was taken as recommended (see _Decided (November 2026)_); not built yet
+- **Status:** Accepted (owner decision 2026-11-10) – the scope was agreed with the owner and every open question was taken as recommended (see _Decided (November 2026)_). Built in 0.17.0: part 1 (suppliers), part 2 (statement of applicability and responsibility matrix) and part 3 (corrective actions); part 4 (ISMS summary) follows
 - **Date:** 2026-11-10
 - **Since:** planned for 0.17.0 ([ROADMAP.md](../ROADMAP.md#next))
 
