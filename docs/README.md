@@ -113,15 +113,15 @@ Every page of Steward's documentation, grouped by what you want to do. New here?
 
 ## Security and compliance
 
-| Page                                           | What it covers                                                                       |
-| ---------------------------------------------- | ------------------------------------------------------------------------------------ |
-| [SECURITY-MODEL.md](SECURITY-MODEL.md)         | How Steward protects sessions, credentials, platforms, the audit log and its APIs    |
-| [SECURITY-HARDENING.md](SECURITY-HARDENING.md) | The checklist for a work deployment, audit log as evidence, verifying downloads      |
-| [SECURITY.md](../SECURITY.md)                  | Reporting a vulnerability, supported versions                                        |
-| [PRIVACY.md](PRIVACY.md)                       | Which personal data Steward stores, for how long, and erasure requests               |
-| [ASSURANCE.md](ASSURANCE.md)                   | Where four-eyes and step-up are enforced, and the assurance report                   |
-| [COMPLIANCE.md](COMPLIANCE.md)                 | Access governance evidence: access changes, reconciliation, controls, evidence packs |
-| [FIREWALL-CHANGES.md](FIREWALL-CHANGES.md)     | Documenting firewall changes and network segments                                    |
+| Page                                           | What it covers                                                                                                                                                                           |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [SECURITY-MODEL.md](SECURITY-MODEL.md)         | How Steward protects sessions, credentials, platforms, the audit log and its APIs                                                                                                        |
+| [SECURITY-HARDENING.md](SECURITY-HARDENING.md) | The checklist for a work deployment, audit log as evidence, verifying downloads                                                                                                          |
+| [SECURITY.md](../SECURITY.md)                  | Reporting a vulnerability, supported versions                                                                                                                                            |
+| [PRIVACY.md](PRIVACY.md)                       | Which personal data Steward stores, for how long, and erasure requests                                                                                                                   |
+| [ASSURANCE.md](ASSURANCE.md)                   | Where four-eyes and step-up are enforced, and the assurance report                                                                                                                       |
+| [COMPLIANCE.md](COMPLIANCE.md)                 | Access governance evidence: access changes, reconciliation, controls, evidence packs; the register of [corrective actions](COMPLIANCE.md#corrective-actions) (ISO/IEC 27001 clause 10.2) |
+| [FIREWALL-CHANGES.md](FIREWALL-CHANGES.md)     | Documenting firewall changes and network segments                                                                                                                                        |
 
 ## Develop and contribute
 

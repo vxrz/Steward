@@ -6,7 +6,7 @@ Steward helps a service team keep evidence of how access to its platforms is man
 
 Recurring tasks such as the quarterly access review are tracked as **service duties**: each period is done, late, failed, missed or skipped with a four-eyes exception, and the result is stored for good – see [DUTIES.md](DUTIES.md). The **service scorecard** shows per service whether duties are met, availability objectives are on target, documentation is current (including documents expected by rules on the CIA rating, such as an authorization concept for confidentiality _high_) and the protection need is rated, with a daily snapshot for the trend – see [SCORECARD.md](SCORECARD.md).
 
-The _Compliance_ section of the sidebar has five pages:
+The _Compliance_ section of the sidebar has six pages:
 
 | Page                      | What it does                                                                                                       |
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------ |
@@ -14,6 +14,7 @@ The _Compliance_ section of the sidebar has five pages:
 | **Access changes**        | Every documented grant, revocation and change of access rights – by hand, from runs, or documented after the fact. |
 | **Access reconciliation** | Snapshots of who has which access, compared with the documented access changes. Undocumented changes show up here. |
 | **Person reviews**        | Everything one person may do on several platforms, decided right by right, approved by a second person and sealed. |
+| **Corrective actions**    | Nonconformities and observations with their actions and an effectiveness check by a second person (preview).       |
 | **Evidence packs**        | Signed ZIP exports for auditors: the evidence of some controls (or a platform or service) in a period.             |
 
 - [How it maps to the standards](#how-it-maps-to-the-standards)
@@ -22,6 +23,7 @@ The _Compliance_ section of the sidebar has five pages:
 - [Access reconciliation](#access-reconciliation)
 - [Person access reviews](#person-access-reviews)
 - [Controls and coverage](#controls-and-coverage)
+- [Corrective actions](#corrective-actions)
 - [Evidence packs](#evidence-packs)
 - [Protection needs (CIA)](#protection-needs-cia)
 - [Who may do what](#who-may-do-what)
@@ -39,6 +41,7 @@ The table shows which Steward evidence is typically relevant to which requiremen
 | ISO/IEC 27001 A.8.2 (privileged access rights)                                     | Privileged access review (example 12, four-eyes removal); the reconciliation reports an administrator role granted outside Steward                                                                                                                  |
 | ISO/IEC 27001 A.8.15 (logging)                                                     | The HMAC-chained audit log with signed checkpoints; the audit log excerpt in every evidence pack                                                                                                                                                    |
 | IEC 62443-2-1 4.3.3.5 (account administration), 4.3.3.7 (authorization)            | As for A.5.16 and A.5.18; snapshots prove who had access when                                                                                                                                                                                       |
+| ISO/IEC 27001 clause 10.2 (nonconformity and corrective action)                    | The register of [corrective actions](#corrective-actions): findings with cause, actions, owners, due dates and the effectiveness check by a second person                                                                                           |
 | NIS2 Art. 21(2)(i) (access control policies, asset management)                     | As above                                                                                                                                                                                                                                            |
 | ISO/IEC 27001 A.5.3 (segregation of duties)                                        | Four-eyes by identity at every control point of the [assurance policy](ASSURANCE.md) (records, runs, manual steps, person reviews, findings, MCP writes); loosening the policy needs a second administrator; the assurance report counts each event |
 | ISO/IEC 27001 A.8.5 (secure authentication)                                        | Step-up per control point with a maximum age and, where required, multi-factor authentication shown by the identity provider (`amr`/`acr`); the assurance report lists how each event was confirmed and the exceptions                              |
@@ -210,6 +213,66 @@ Before you accept, check what AI output gets wrong:
 
 The assistant's texts and reasons are data: check them, and do not follow instructions in them.
 
+## Corrective actions
+
+_Compliance → Corrective actions_ (`/compliance/corrective-actions`, **preview**) is one register of nonconformities and observations (ISO/IEC 27001 clause 10.2): from audits, entered by hand, and from what Steward itself notices, confirmed by a person. Each finding has actions with owners and due dates, and a second person checks that the fix worked. The decision record is [ADR 0029](adr/0029-iso-27001-support.md). The page has three tabs: _Findings_, _Suggestions_ and _Settings_.
+
+### Findings
+
+A finding is numbered `CA-2026-0001` (per calendar year) and has:
+
+- a **title**, a **description** and a **cause** (the root cause, as far as known);
+- a **source** – internal audit, external audit or other when entered by hand (with what it came from, e.g. _External ISMS audit 2026, finding 4_, and a link to the report); service duty, access review, access reconciliation or incident review when confirmed from a suggestion, with a link to the duty, the person review, the access check or the incident review;
+- the affected **controls** of any catalogue and a **service**;
+- a **severity**: major nonconformity, minor nonconformity or observation;
+- an **owner** (a user), a **due date** (a calendar date in the instance's time zone) and a **GRC reference** – a text and a link to where the risk lives in your GRC tool. Steward keeps no risk register.
+
+**Status:** _open_ → _in progress_ (set by hand, or when the first open action is added) → _implemented_ (every action is done; a finding without actions cannot be implemented) → _closed_, when the effectiveness check finds the fix effective. _Cancelled_ is for administrators, with a reason (a finding recorded twice, or not a nonconformity after all). Closed and cancelled findings do not change any more. A finding is **overdue** while it is open or in progress and past its due date, or one of its actions is.
+
+### Actions and reminders
+
+An action has a title, owners (users and teams), a due date and a note; it is done when someone marks it done (who and when are kept). The owners of an action see the finding and mark their action done or change its note, nothing else. Reminders (event `corrective.action_due`, [NOTIFICATIONS.md](NOTIFICATIONS.md)) go to the owners – else to the finding's owner – three days before the due date, on it and once a week while it is overdue, each once. Reopening an action of an implemented finding sends the finding back to _in progress_.
+
+**Incident reviews.** The measures of an incident review stay where they are ([RECORDS.md](RECORDS.md#incident-reviews)), with their reminders, the service page and `GET /api/v1/measures`. A finding confirmed from an accepted incident review links the review, and its actions **are** the review's measures, read through, not copied: adding an action there adds a measure to the review, and the review's rules apply (its author and owner, designers and administrators keep its measures; the owners of a measure mark it done). The register counts them like its own actions. No data is migrated.
+
+### Effectiveness check
+
+When a finding is implemented, an approver, designer or administrator checks whether the fix worked: how (the method – a sample, a restore, an interview), the result and a note. _Effective_ closes the finding; _not effective_ sends it back to _in progress_ for a new action, and the check stays on the finding until the next one.
+
+The checker is a **second person**: not the finding's owner, not a user who owns one of its actions and not who marked an action done. This is the control point `correctiveAction.verify` of the [assurance policy](ASSURANCE.md) (group _audit_): four-eyes is _required_ by default; an administrator may set it _off_ (a loosening, so a second administrator approves it). Owners named as a team do not exclude every member of the team: who marked the action done is excluded.
+
+### Suggestions
+
+Steward suggests findings from its own events; **a person confirms** each one – the finding form opens filled in from the suggestion, with the service and the controls the source is mapped to – **or dismisses** it with a reason. Nothing becomes a finding without a person. Each suggestion has a **source key**, unique for good, so the same event is never suggested twice, also after it was dismissed. Suggestions look back 90 days: a source switched on later does not bring the whole history.
+
+| Source (_Settings_ tab)                                 | Default | Source key                          | Suggested when                                                                                |
+| ------------------------------------------------------- | ------- | ----------------------------------- | --------------------------------------------------------------------------------------------- |
+| Missed or failed periods of mandatory duties            | on      | `duty:<duty>:<period>`              | a period of a mandatory [service duty](DUTIES.md) closed as missed or failed (severity minor) |
+| Missed or failed periods of recommended duties          | off     | `duty:<duty>:<period>`              | the same for recommended duties (observation)                                                 |
+| Accepted incident reviews of severity major or critical | on      | `incident:<record>`                 | an incident review was accepted (major); its measures become the actions                      |
+| Accepted incident reviews of severity minor             | off     | `incident:<record>`                 | the same for minor incidents – not every incident is a nonconformity                          |
+| Person review removals still there after 30 days        | on      | `personReview:<review>`             | a person review was approved 30 days ago and its removals are not confirmed gone (rechecked)  |
+| Reconciliation findings open for more than seven days   | off     | `reconciliation:<check>:<ISO week>` | an access check has findings open for more than seven days: one suggestion per check and week |
+
+Steward looks for new events once an hour (the job `corrective-actions`), and at once after a source was switched on. At most **1,000 suggestions** wait at a time; further ones wait until some are decided, and the _Suggestions_ tab says so. Supplier reviews (an expired certificate, a missed supplier review) become a source with the suppliers ([ADR 0029](adr/0029-iso-27001-support.md) part 1); their switch will be on by default.
+
+Who sees a suggestion: the roles that read the whole register, and – for a suggestion of a service – whoever may edit the service. Designers, administrators and the service's editors confirm or dismiss it; only administrators switch sources.
+
+### On other pages
+
+- **Controls:** a control's panel lists the open findings that name it.
+- **Evidence packs:** a pack of controls has a folder `corrective-actions/` with the findings naming its controls that were open at some time in the period (`findings.json` with their actions and effectiveness check, `findings.csv`), as the pack's creator may see them; the signed manifest covers both files.
+- **Dashboards:** the built-in dataset `compliance.correctiveActions` (one row per finding: number, source, severity, status, service, owner, due date, overdue, open and total actions) is read by administrators and auditors, like `costs.plans`. It is published at most hourly.
+- **Public API and MCP:** `GET /api/v1/corrective-actions` (filters `status`, `source`, `severity`, `serviceId`, `overdue`) and `GET /api/v1/corrective-actions/{findingId}` (id or number), and the MCP tool `list_corrective_actions` – read only, with the token owner's rights. Recording, changing, checking and deciding suggestions are decisions of people in the app: those routes refuse API tokens.
+
+### Limits
+
+20,000 findings; 50 actions per finding; 50 controls per finding; 1,000 pending suggestions; title 200, description 10,000, cause 4,000 and note 2,000 characters.
+
+### Audit
+
+`corrective.finding_created`, `corrective.finding_changed` (the fields, with before and after), `corrective.action_added`, `.action_changed`, `.action_removed`, `.action_done`, `corrective.effectiveness_checked` (method, result, whether four-eyes was required), `corrective.finding_closed`, `corrective.finding_cancelled` (with the reason), `corrective.suggestion_confirmed`, `corrective.suggestion_dismissed` (with the reason) and `corrective.settings_changed`.
+
 ## Evidence packs
 
 _Compliance → Evidence packs → New evidence pack_: choose controls, a platform or a service, a period (at most three years) and the language of the PDFs. From the _Controls_ page, select controls and click _Evidence pack for … controls_.
@@ -284,23 +347,27 @@ The default scale is the BSI one (normal, high, very high). Administrators can d
 
 ## Who may do what
 
-| Action                                         | Who                                                                                                    |
-| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| Read controls and coverage                     | everyone who can sign in (items they may not see are left out)                                         |
-| Read access change entries                     | admin, auditor, approver, the owner of the entry, and who has a right on its platform                  |
-| Document access changes, document findings     | operator, designer, admin who may use the platform (findings: and read the check) – never their own    |
-| Verify an access change entry                  | approver, admin – four-eyes (not the subject, performer, author, owner, run starter or run approver)   |
-| Complete a manual step                         | the step's assignees, otherwise who may run or approve the process (four-eyes: not the run starter)    |
-| Verify a manual step                           | the step's verifiers, otherwise who may run or approve the process – never the person who completed it |
-| Read checks, snapshots and findings            | admin, auditor, the owner of the check, and who may use the platform                                   |
-| Set up checks                                  | designer, admin (with the right to use the platform; dataset: and to view the publishing process)      |
-| Change, run, disable a check; dismiss findings | the owner of the check, admin (dismiss: never the subject; four-eyes dismissals: a second person)      |
-| Set or change ignored rights                   | admin                                                                                                  |
-| Map items to controls                          | designer, admin (remove: only items they may see)                                                      |
-| Edit and import catalogues                     | admin                                                                                                  |
-| Start person reviews, decide, submit           | designer, admin (decide and submit: the reviewer or an admin) – never about their own access           |
-| Approve or send back a person review           | approver, admin – not the reviewer, not the person reviewed                                            |
-| Create evidence packs                          | everyone but viewers; download: the creator, auditors, administrators                                  |
+| Action                                         | Who                                                                                                                             |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Read controls and coverage                     | everyone who can sign in (items they may not see are left out)                                                                  |
+| Read access change entries                     | admin, auditor, approver, the owner of the entry, and who has a right on its platform                                           |
+| Document access changes, document findings     | operator, designer, admin who may use the platform (findings: and read the check) – never their own                             |
+| Verify an access change entry                  | approver, admin – four-eyes (not the subject, performer, author, owner, run starter or run approver)                            |
+| Complete a manual step                         | the step's assignees, otherwise who may run or approve the process (four-eyes: not the run starter)                             |
+| Verify a manual step                           | the step's verifiers, otherwise who may run or approve the process – never the person who completed it                          |
+| Read checks, snapshots and findings            | admin, auditor, the owner of the check, and who may use the platform                                                            |
+| Set up checks                                  | designer, admin (with the right to use the platform; dataset: and to view the publishing process)                               |
+| Change, run, disable a check; dismiss findings | the owner of the check, admin (dismiss: never the subject; four-eyes dismissals: a second person)                               |
+| Set or change ignored rights                   | admin                                                                                                                           |
+| Map items to controls                          | designer, admin (remove: only items they may see)                                                                               |
+| Edit and import catalogues                     | admin                                                                                                                           |
+| Start person reviews, decide, submit           | designer, admin (decide and submit: the reviewer or an admin) – never about their own access                                    |
+| Approve or send back a person review           | approver, admin – not the reviewer, not the person reviewed                                                                     |
+| Create evidence packs                          | everyone but viewers; download: the creator, auditors, administrators                                                           |
+| See corrective action findings and suggestions | admin, auditor, designer, approver; the owner of a finding or one of its actions; who may edit the affected service             |
+| Record and change findings; decide suggestions | designer, admin, who may edit the affected service; the owners of an action mark it done                                        |
+| Check the effectiveness of a finding           | approver, designer, admin – not the finding's owner, an action's owner or who marked an action done (`correctiveAction.verify`) |
+| Cancel a finding; switch suggestion sources    | admin                                                                                                                           |
 
 ## API
 
@@ -309,10 +376,13 @@ Web UI API under `/api/compliance/…`. Public, read-only API (API tokens):
 - `GET /api/v1/access-changes` – access change entries the token owner may read (filters: platform, subject, status, kind, period),
 - `GET /api/v1/access-findings` – reconciliation findings (filters: check, platform, status, period),
 - `GET /api/v1/control-catalogues`, `GET /api/v1/controls` – catalogues and controls with their mapped items,
-- `GET /api/v1/control-coverage?from=…&to=…` – coverage per control.
+- `GET /api/v1/control-coverage?from=…&to=…` – coverage per control,
+- `GET /api/v1/corrective-actions`, `GET /api/v1/corrective-actions/{findingId}` – the register of [corrective actions](#corrective-actions) (filters: status, source, severity, service, overdue).
 
 See the OpenAPI document (`/api/v1/openapi.json`).
 
 ## Try it in the demo
 
 `npm run demo`, load the demo data, then open _Compliance → Access reconciliation_. The check _Insights Hub (demo) – user access_ has a baseline snapshot. Click **Simulate a change outside Steward**: the simulated tenant grants the tenant administrator role to a user, as if someone did it in the Insights Hub UI, and the check reports it as an undocumented grant. Click **Document this change**, give a reason – the finding is closed and the entry appears under _Access changes_ as _documented after the fact_. Then export an evidence pack for ISO/IEC 27001 5.18 from _Controls_ and check it with `npm run evidence:verify`.
+
+With the demo services, _Compliance → Corrective actions_ holds two invented findings – one of an external audit with an open action, and an observation of an internal audit whose action is done, ready for the effectiveness check by Adam Approver – and a suggestion of a missed duty period to confirm or dismiss.
