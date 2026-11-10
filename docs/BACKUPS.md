@@ -116,7 +116,7 @@ npm run backup -- decrypt steward-20261030T021500Z.smbackup --out restore.zip
 # desktop:   steward backup decrypt <file> --out restore.zip
 ```
 
-The passphrase can also come from `--passphrase-file <file>` or `SM_BACKUP_PASSPHRASE`. Exit status 0 means decrypted and intact.
+The passphrase can also come from `--passphrase-file <file>` or `SM_BACKUP_PASSPHRASE`. Exit status 0 means decrypted and intact. Export files and uploaded audit archives are encrypted with the same key; since 0.16.0 the authenticated header of every file says what it is (`content`: `backup`, `export`, `audit-archives`), and `verify` **fails** for a file that is not a backup and names what it is – so an export file put in a backup's place never passes as an intact backup (the restore test refuses it too). `decrypt` still reads them. Backups made before 0.16.0 have no `content` and are read as backups.
 
 Then, with Steward **stopped** and the **same or a newer version** of Steward:
 

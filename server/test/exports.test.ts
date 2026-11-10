@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { EXPORT_PART_IDS } from '@sm/shared';
 import { ADMIN, setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
@@ -428,6 +428,14 @@ describe('an export run', () => {
     ).toBe(0);
     const manifest = JSON.parse(fs.readFileSync(path.join(tmp, 'manifest.json'), 'utf8'));
     expect(manifest).toMatchObject({ encrypted: true, keyId: header.keyId });
+    // the same key, but not a backup: verify fails and says what it is (an export put in a backup's place never passes)
+    const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    try {
+      expect(await runBackupCli(['verify', path.join(tmp, 'manifest.smbackup'), '--passphrase-file', pf], 'backup')).toBe(1);
+      expect(stderr.mock.calls.map((c) => String(c[0])).join('')).toMatch(/not a backup: this is an export file \(manifest\.json\)/);
+    } finally {
+      stderr.mockRestore();
+    }
     expect(manifest.files.find((f: any) => f.name === 'services.csv.smbackup')).toEqual({
       name: 'services.csv.smbackup',
       part: 'services',

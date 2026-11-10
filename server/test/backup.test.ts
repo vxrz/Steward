@@ -291,6 +291,16 @@ describe('backups to S3', () => {
     expect(z.find(pg ? 'database/steward.pgdump' : 'database/steward.db')).toBeTruthy();
     expect(z.find('data/vault.json')).toBeTruthy();
     expect(z.entries.some((e) => e.name.startsWith('data/.backup-work') || e.name.startsWith('data/service-manager.db'))).toBe(false);
+    // the authenticated header says it is a backup (0.16.0); verify checks it
+    const { deriveBackupKey, encryptFile, readHeader } = await import('../src/backup/crypto.js');
+    const { header } = await readHeader(file);
+    expect(header.info).toMatchObject({ content: 'backup' });
+    expect(await runBackupCli(['verify', file, '--passphrase-file', pf], 'backup')).toBe(0);
+    // a backup made before 0.16.0 names no content: still a backup
+    const older = path.join(tmp, 'older.smbackup');
+    await encryptFile(zip, older, await deriveBackupKey(PASSPHRASE, header.kdf), { kdf: header.kdf, info: { product: 'Steward', version: '0.15.0' } });
+    expect((await readHeader(older)).header.info?.content).toBeUndefined();
+    expect(await runBackupCli(['verify', older, '--passphrase-file', pf], 'backup')).toBe(0);
     fs.writeFileSync(pf, 'not the passphrase\n');
     expect(await runBackupCli(['verify', file, '--passphrase-file', pf], 'backup')).toBe(1);
   });

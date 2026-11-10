@@ -439,6 +439,9 @@ async function backup(run: BackupRun): Promise<void> {
       info: {
         product: BRAND.name,
         version: config.version,
+        // what the file is (authenticated): `steward backup verify` and the restore test refuse an export file or an
+        // audit archive made with the same key (older backups have no content and are read as backups)
+        content: 'backup',
         database: manifest.database.kind,
         ...(manifest.excluded?.length ? { excluded: manifest.excluded.map((x) => x.path).join(',') } : {}),
       },
@@ -540,6 +543,10 @@ async function restoreTest(run: BackupRun): Promise<void> {
     )
       return;
     const { header } = await readHeader(enc);
+    if (header.info?.content && header.info.content !== 'backup') {
+      step('decrypt', false, `${newest.key} is not a backup: its header names it ${header.info.content} – the object was replaced`);
+      return;
+    }
     let key: Buffer;
     try {
       ({ key } = backupKey());
