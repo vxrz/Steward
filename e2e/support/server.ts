@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { startReverseProxy, type ReverseProxy } from '../../scripts/reverse-proxy.mjs';
-import { BASE_PATH, MASTER_PASSPHRASE, ROOT, USERS, serverArgs } from './env';
+import { BASE_PATH, E2E_RATE_LIMIT, MASTER_PASSPHRASE, ROOT, USERS, serverArgs } from './env';
 import { waitForStart } from './started';
 
 /**
@@ -31,6 +31,14 @@ export interface IsolatedServer {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/**
+ * How long a `beforeAll` that starts an isolated server (and loads the demo into it) may take: `test.setTimeout()` in
+ * the hook. On a loaded machine a start and the demo's setup take longer than a test's 60 s – and when the hook timed
+ * out, `afterAll` stopped the server under the demo's setup, which then failed as "fetch failed" (behind the reverse
+ * proxy: 502) instead of as a timeout.
+ */
+export const ISOLATED_SETUP_MS = 240_000;
+
 /** `demo`: SM_DEMO=1 (mock platforms and the mock identity provider under /mock). */
 export async function startIsolatedServer(opts: { demo?: boolean } = {}): Promise<IsolatedServer> {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sm-e2e-iso-'));
@@ -57,6 +65,8 @@ export async function startIsolatedServer(opts: { demo?: boolean } = {}): Promis
         SM_MASTER_PASSPHRASE: MASTER_PASSPHRASE,
         // step-up: the admin's setup session counts as confirmed for the longest window
         SM_STEP_UP_MINUTES: '15',
+        // the request budget per user: as on the shared demo server (global-setup.ts)
+        SM_RATE_LIMIT_PER_MINUTE: E2E_RATE_LIMIT,
         // info: the start line with the real port (support/started.ts)
         SM_LOG_LEVEL: 'info',
         OTEL_EXPORTER_OTLP_ENDPOINT: '',
@@ -95,7 +105,7 @@ export async function startIsolatedServer(opts: { demo?: boolean } = {}): Promis
       } catch {
         /* not up yet */
       }
-      if (Date.now() - started > 60_000) throw new Error('server did not start within 60 s');
+      if (Date.now() - started > 120_000) throw new Error('server did not start within 120 s');
       await sleep(200);
     }
   };

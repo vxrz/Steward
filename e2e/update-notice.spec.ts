@@ -4,7 +4,7 @@ import type { Browser, BrowserContext, Page } from '@playwright/test';
 import { test, expect } from './support/fixtures';
 import { expectAccessible, settle } from './support/axe';
 import { expectNoHorizontalScroll } from './support/helpers';
-import { sessionState, startIsolatedServer, type IsolatedServer } from './support/server';
+import { sessionState, ISOLATED_SETUP_MS, startIsolatedServer, type IsolatedServer } from './support/server';
 import { BRAND } from '../shared/src/brand';
 
 /**
@@ -34,6 +34,7 @@ test.describe('update notice (own server)', () => {
   }
 
   test.beforeAll(async () => {
+    test.setTimeout(ISOLATED_SETUP_MS);
     srv = await startIsolatedServer();
     await srv.api('POST', '/users', { username: 'olga', roles: ['operator'], password: 'Olga-password-123' });
     const first = await signIn('olga', 'Olga-password-123');

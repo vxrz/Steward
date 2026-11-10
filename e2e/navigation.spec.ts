@@ -3,7 +3,7 @@ import { test, expect } from './support/fixtures';
 import { PROCESS, authFile, appHref } from './support/env';
 import { expectAccessible, settle } from './support/axe';
 import { startRunApi, waitForRun } from './support/helpers';
-import { sessionState, startIsolatedServer, type IsolatedServer } from './support/server';
+import { sessionState, ISOLATED_SETUP_MS, startIsolatedServer, type IsolatedServer } from './support/server';
 
 /** Sidebar sections, the icon-only sidebar, breadcrumbs and the command palette's pages and actions. */
 
@@ -210,6 +210,7 @@ test.describe('first steps on an empty installation (own server)', () => {
   let srv: IsolatedServer;
   const contexts: BrowserContext[] = [];
   test.beforeAll(async () => {
+    test.setTimeout(ISOLATED_SETUP_MS);
     srv = await startIsolatedServer();
   });
   test.afterAll(async () => {

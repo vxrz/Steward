@@ -7,6 +7,13 @@ export const AUTH_DIR = path.join(ROOT, 'e2e', '.auth');
 
 export const MASTER_PASSPHRASE = 'e2e-master-passphrase';
 export const DEMO_PASSWORD = 'Demo-password-1';
+/**
+ * The request budget per user and minute of the test servers (SM_RATE_LIMIT_PER_MINUTE; production default 600): the
+ * specs running side by side share the demo users, and a page load is dozens of requests – on a loaded machine (or
+ * with --repeat-each) a shared user ran into 429 and its page logged errors. Ten times the default here only; the
+ * limits themselves are tested in server/test/rate-limit.test.ts, a 429 in the UI in auth.spec.ts.
+ */
+export const E2E_RATE_LIMIT = process.env.SM_E2E_RATE_LIMIT ?? '6000';
 
 export const USERS = {
   admin: { username: 'admin', password: 'Admin-password-1', displayName: 'admin' },
