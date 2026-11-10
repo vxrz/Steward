@@ -32,6 +32,7 @@ import { ChangePasswordForm } from './Auth';
 import { LanguageSelect } from '../components/LanguageSelect';
 import { DailySummaryCard } from '../components/notifications/DailySummaryCard';
 import { QuietHoursCard } from '../components/notifications/QuietHoursCard';
+import { TeamsPersonalCard } from '../components/notifications/TeamsPersonalCard';
 import { NewResourceTeamsCard } from '../components/users/NewResourceTeamsCard';
 import { McpConnectedClientsCard } from '../components/mcp/McpConnectedClientsCard';
 import {
@@ -59,6 +60,7 @@ export function ProfilePage() {
         <AccountCard user={u} local={local} />
         <LanguageCard user={u} />
         <NotificationsCard user={u} />
+        {!plantOnly && <TeamsPersonalCard />}
         {!plantOnly && <QuietHoursCard />}
         {!plantOnly && <DailySummaryCard />}
         {!plantOnly && <NewResourceTeamsCard />}

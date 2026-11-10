@@ -359,5 +359,18 @@
     "toPolicy": "Absicherungsrichtlinie öffnen",
     "signInDays": "Anmeldung nötig innerhalb von (Tagen)",
     "signInDaysHint": "Eine Entscheidung in Teams braucht eine Anmeldung bei Steward innerhalb so vieler Tage: Rollen und Teams stammen aus dieser Anmeldung. Standard 7."
+  },
+  "personal": {
+    "title": "Teams (persönlich)",
+    "intro": "Nachrichten, die Sie wählen, kommen in Ihren Chat mit der Steward-App in Microsoft Teams statt per E-Mail – mit demselben Text wie die E-Mail und Links in Steward. Ihre Ruhezeiten und Sammelnachrichten gelten dort auch. Ab Werk ist nichts gewählt.",
+    "connected": "Ihr Chat mit der Steward-App ist verbunden (seit {{since}}).",
+    "notConnected": "Noch kein Chat: Fügen Sie in Microsoft Teams die Steward-App für sich hinzu und schreiben Sie ihr eine kurze Nachricht. Danach zeigt diese Karte den Chat.",
+    "notLinked": "Ihr Konto ist nicht über die Entra-Anmeldung verknüpft, die der Teams-Bot nutzt. Melden Sie sich einmal mit Entra ID bei Steward an und fügen Sie dann in Teams die Steward-App für sich hinzu.",
+    "events": "Nachrichten in Teams statt per E-Mail",
+    "eventsHint": "Wählbar sind nur Nachrichten, die per E-Mail kommen. Entscheidungen kommen ohnehin als Karten in den Chat.",
+    "notRouted": "Wird zurzeit nicht per E-Mail gesendet – bleibt in der App.",
+    "nothingOffered": "Keine Nachricht ist wählbar: Diese Instanz sendet keine per E-Mail.",
+    "fallback": "Kann Teams eine Nachricht nicht zustellen (die App wurde entfernt oder Teams ist zu lange ausgelastet), kommt sie einmal per E-Mail – sofern Sie E-Mail-Benachrichtigungen erhalten.",
+    "saved": "Ihre Nachrichten in Teams wurden gespeichert"
   }
 }

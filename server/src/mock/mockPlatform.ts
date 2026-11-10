@@ -29,6 +29,7 @@ import { mockEndoflife } from './mockEndoflife.js';
 import { mockRegistries } from './mockRegistries.js';
 import { mockMapTiles } from './mockMapTiles.js';
 import { mockUsageRoutes } from './mockUsage.js';
+import { mockTeamsBot } from './demoTeamsBot.js';
 
 /**
  * In-memory simulation of the parts of Insights Hub, Industrial Edge Management
@@ -240,6 +241,7 @@ export async function mockPlatform(app: FastifyInstance): Promise<void> {
   await mockEndoflife(app);
   await mockRegistries(app);
   await mockMapTiles(app);
+  await mockTeamsBot(app);
 
   app.post('/reset', async () => {
     state = seed();
