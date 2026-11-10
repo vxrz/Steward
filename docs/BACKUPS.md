@@ -48,7 +48,7 @@ After you change the backup passphrase, new backups use the new key. Older backu
 
 Any S3 bucket or S3-compatible storage (MinIO, Ceph, Wasabi, Hetzner Object Storage, Cloudflare R2 …). Recommended:
 
-- **Versioning** and **S3 Object Lock** (governance or compliance mode, default retention of e.g. 35 days): even someone with Steward's key cannot delete or overwrite a recent backup. Steward reports backups that Object Lock keeps instead of failing.
+- **Versioning** and **S3 Object Lock** (governance or compliance mode, default retention of e.g. 35 days): even someone with Steward's key cannot delete or overwrite a recent backup. Steward reports backups that Object Lock keeps instead of failing – and, apart from them, backups it may not delete because the key lacks `s3:DeleteObject` (_not removed: the key may not delete_).
 - A **lifecycle rule** that removes old versions and incomplete multipart uploads after a few days.
 - A bucket in another account or location than the server.
 

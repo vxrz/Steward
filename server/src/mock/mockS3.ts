@@ -8,7 +8,7 @@ import { escapeXml } from '../platforms/xml.js';
  * PUT/GET/DELETE of objects, ListObjectsV2 and multipart uploads. Every request must be signed with AWS SigV4 for the
  * demo key AKIADEMOEXAMPLE / demoSecretKey (service s3): the mock recomputes the signature from the request as it
  * arrived and checks x-amz-content-sha256 against the body. A bucket whose name ends in "-locked" refuses deletes
- * like a bucket with S3 Object Lock.
+ * like a bucket with S3 Object Lock, one ending in "-nodelete" like a key without s3:DeleteObject.
  */
 
 export const DEMO_S3 = { accessKeyId: 'AKIADEMOEXAMPLE', secretAccessKey: 'demoSecretKey', bucket: 'steward-backups', region: 'eu-central-1' };
@@ -146,6 +146,7 @@ export async function mockS3(app: FastifyInstance): Promise<void> {
         const o = b.get(key);
         if (req.method === 'DELETE') {
           if (name.endsWith('-locked')) return error(reply, 403, 'AccessDenied', 'Access Denied because object protected by object lock.');
+          if (name.endsWith('-nodelete')) return error(reply, 403, 'AccessDenied', 'Access Denied');
           b.delete(key);
           return reply.code(204).send();
         }

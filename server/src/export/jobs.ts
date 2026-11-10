@@ -753,12 +753,17 @@ async function finish(job: ExportJob, run: ExportRun, code?: string): Promise<vo
   );
 }
 
-/** Deletes the objects of a run; returns those that are still there (refused or not reachable). */
-async function removeFiles(c: S3Client, files: ExportFileInfo[]): Promise<ExportFileInfo[]> {
-  const left: ExportFileInfo[] = [];
+/** Deletes the objects of a run; returns those that are still there, and why (S3 Object Lock, no right, an error). */
+async function removeFiles(c: S3Client, files: ExportFileInfo[]): Promise<ExportFileInfo[] & { locked?: number; denied?: number }> {
+  const left: ExportFileInfo[] & { locked?: number; denied?: number } = [];
+  left.locked = 0;
+  left.denied = 0;
   for (const f of files) {
-    const d = await c.delete(f.key).catch(() => ({ deleted: false }));
-    if (!d.deleted) left.push(f);
+    const d: { deleted: boolean; locked?: boolean; denied?: boolean } = await c.delete(f.key).catch(() => ({ deleted: false }));
+    if (d.deleted) continue;
+    left.push(f);
+    if (d.locked) left.locked++;
+    if (d.denied) left.denied++;
   }
   return left;
 }
@@ -767,14 +772,16 @@ async function removeFiles(c: S3Client, files: ExportFileInfo[]): Promise<Export
  * Removes the files of older successful runs beyond keepRuns, and the files failed or interrupted runs left behind –
  * only files a run of this export recorded, from its own target (never by listing the bucket).
  */
-export async function applyRetention(job: ExportJob): Promise<{ pruned: number; locked: number }> {
+export async function applyRetention(job: ExportJob): Promise<{ pruned: number; locked: number; denied: number; failed: number }> {
   const runs = db().all<RunRow>("SELECT * FROM export_runs WHERE job_id = ? AND status <> 'running' AND pruned = 0 ORDER BY started_at DESC, id DESC", job.id);
   const succeeded = runs.filter((r) => r.status === 'succeeded');
   const keep = new Set(succeeded.slice(0, job.keepRuns).map((r) => r.id));
   const old = runs.filter((r) => !keep.has(r.id) && (r.status === 'succeeded' || parseJson<ExportFileInfo[]>(r.files, []).length > 0));
-  if (!old.length) return { pruned: 0, locked: 0 };
+  if (!old.length) return { pruned: 0, locked: 0, denied: 0, failed: 0 };
   let pruned = 0;
   let locked = 0;
+  let denied = 0;
+  let failed = 0;
   const done: string[] = [];
   for (const r of old) {
     const files = parseJson<ExportFileInfo[]>(r.files, []);
@@ -786,7 +793,9 @@ export async function applyRetention(job: ExportJob): Promise<{ pruned: number; 
       continue;
     }
     const left = await removeFiles(c, files);
-    locked += left.length;
+    locked += left.locked ?? 0;
+    denied += left.denied ?? 0;
+    failed += left.length - (left.locked ?? 0) - (left.denied ?? 0);
     // a failed run keeps the files that are left recorded; a successful one keeps its list (its history shows it)
     if (r.status === 'failed') db().run('UPDATE export_runs SET files = ?, pruned = ? WHERE id = ?', JSON.stringify(left), left.length ? 0 : 1, r.id);
     else if (!left.length) db().run('UPDATE export_runs SET pruned = 1 WHERE id = ?', r.id);
@@ -797,10 +806,13 @@ export async function applyRetention(job: ExportJob): Promise<{ pruned: number; 
       action: 'export.pruned',
       entityType: 'export',
       entityId: job.id,
-      summary: `Export "${job.name}": the files of ${pruned} run(s) removed by the retention rule (keeping ${job.keepRuns} successful runs)${locked ? `, ${locked} file(s) could not be removed` : ''}`,
-      details: { runs: done, locked },
+      summary: `Export "${job.name}": the files of ${pruned} run(s) removed by the retention rule (keeping ${job.keepRuns} successful runs)${
+        locked ? `, ${locked} file(s) kept by S3 Object Lock` : ''
+      }${denied ? `, ${denied} file(s) not removed: the key may not delete (s3:DeleteObject)` : ''}${failed ? `, ${failed} file(s) not reachable – tried again later` : ''}`,
+      details: { runs: done, locked, denied, failed },
     });
-  return { pruned, locked };
+  if ((locked || denied || failed) && !pruned) logger.warn({ export: job.name, locked, denied, failed }, 'export retention left files in the bucket');
+  return { pruned, locked, denied, failed };
 }
 
 /**

@@ -469,7 +469,9 @@ async function backup(run: BackupRun): Promise<void> {
     step(
       'retention',
       true,
-      `${r.kept} kept${r.deleted.length ? `, ${r.deleted.length} removed` : ''}${r.locked.length ? `, ${r.locked.length} kept by S3 Object Lock` : ''}`,
+      `${r.kept} kept${r.deleted.length ? `, ${r.deleted.length} removed` : ''}${r.locked.length ? `, ${r.locked.length} kept by S3 Object Lock` : ''}${
+        r.denied.length ? `, ${r.denied.length} not removed: the key may not delete (s3:DeleteObject)` : ''
+      }`,
     );
   } catch (e) {
     step('retention', false, `Older backups could not be removed: ${(e as Error).message}`);
@@ -483,18 +485,19 @@ async function storedBackups(s: BackupSettings, c = client(s)): Promise<(S3Objec
     .filter((o): o is S3Object & { at: Date } => !!o.at);
 }
 
-async function applyRetention(s: BackupSettings): Promise<{ kept: number; deleted: string[]; locked: string[] }> {
+async function applyRetention(s: BackupSettings): Promise<{ kept: number; deleted: string[]; locked: string[]; denied: string[] }> {
   const c = client(s);
   const all = await storedBackups(s, c);
   const keep = retained(all, (o) => o.at, s.retention);
   const deleted: string[] = [];
   const locked: string[] = [];
+  const denied: string[] = [];
   for (const o of all) {
     if (keep.has(o)) continue;
     const r = await c.delete(o.key);
-    (r.deleted ? deleted : locked).push(o.key);
+    (r.deleted ? deleted : r.locked ? locked : denied).push(o.key);
   }
-  return { kept: keep.size, deleted, locked };
+  return { kept: keep.size, deleted, locked, denied };
 }
 
 /** The backups in the bucket, newest first, with what the retention rule keeps. */

@@ -143,12 +143,20 @@ export class S3Client {
     return out;
   }
 
-  /** Deletes an object; an object kept by S3 Object Lock (403 AccessDenied) is reported, not thrown. */
-  async delete(key: string): Promise<{ deleted: boolean; locked?: boolean }> {
+  /**
+   * Deletes an object. A refusal (403) is reported, not thrown: `locked` when S3 Object Lock keeps the object (its
+   * message names the lock, or the code ObjectLocked), `denied` otherwise – the key may not delete (no s3:DeleteObject).
+   */
+  async delete(key: string): Promise<{ deleted: boolean; locked?: boolean; denied?: boolean }> {
     checkKey(key);
     const r = await this.req('DELETE', `/${key}`);
     if (r.ok) return { deleted: true };
-    if (r.status === 403) return { deleted: false, locked: true };
+    if (r.status === 403) {
+      const body = typeof r.body === 'string' ? r.body : '';
+      const code = xmlOne(body, 'Code') ?? '';
+      const message = unescapeXml(xmlOne(body, 'Message') ?? '');
+      return code === 'ObjectLocked' || /object lock|retention|legal hold/i.test(message) ? { deleted: false, locked: true } : { deleted: false, denied: true };
+    }
     throw s3Error(`deleting ${key}`, r);
   }
 }

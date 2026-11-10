@@ -79,7 +79,7 @@ The file is authenticated chunk by chunk; its header says it is an export file (
 
 ## Retention
 
-After each successful run, the **files of older successful runs beyond _Runs to keep_** are removed. Only files a run of this export recorded are removed – from the run history, never by listing the bucket – so other objects in the folder stay. A file that S3 Object Lock keeps (or that the key may not delete) is reported and stays; the run is pruned once all its files are gone. Removing an export removes its definition and history; **its files stay in the bucket** – remove them there.
+After each successful run, the **files of older successful runs beyond _Runs to keep_** are removed. Only files a run of this export recorded are removed – from the run history, never by listing the bucket – so other objects in the folder stay. A file that S3 Object Lock keeps, or that the key may not delete (no `s3:DeleteObject`), is reported as such and stays; the run is pruned once all its files are gone. Removing an export removes its definition and history; **its files stay in the bucket** – remove them there.
 
 A run records each file **before it uploads it**, so no file of an export is ever unknown to Steward:
 

@@ -197,6 +197,20 @@ describe('redacting credentials typed into monitors', () => {
   });
 });
 
+describe('removing objects', () => {
+  it('tells S3 Object Lock from a key that may not delete', async () => {
+    const { S3Client } = await import('../src/backup/s3.js');
+    const { getPlatform, getSecrets } = await import('../src/platforms/service.js');
+    const p = getPlatform(storageId);
+    const objs = (await import('../src/mock/mockS3.js')).mockS3Objects;
+    const client = (bucket: string) => new S3Client({ ...p, baseUrl: `${mockBase}/s3/${bucket}` }, getSecrets(storageId));
+    for (const b of [`${BUCKET}-locked`, `${BUCKET}-nodelete`]) objs(b).set('x/one.csv', { body: Buffer.from('1'), meta: {}, lastModified: new Date() });
+    expect(await client(`${BUCKET}-locked`).delete('x/one.csv')).toEqual({ deleted: false, locked: true });
+    expect(await client(`${BUCKET}-nodelete`).delete('x/one.csv')).toEqual({ deleted: false, denied: true });
+    expect(await client(BUCKET).delete('x/none.csv')).toEqual({ deleted: true });
+  });
+});
+
 describe('the audit log part', () => {
   /** Runs a part on its own and returns its files and notes. */
   async function write(choice: Record<string, unknown>): Promise<{ files: Map<string, string>; notes: Record<string, unknown> }> {
