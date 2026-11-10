@@ -225,4 +225,97 @@ export const COMPLIANCE_MIGRATIONS: NamedMigration[] = [
       CREATE INDEX person_reviews_created ON person_reviews(created_at);
     `,
   },
+  {
+    // corrective actions (ISO/IEC 27001 clause 10.2, ADR 0029 part 3): findings, their actions and reminders, and the
+    // suggestions Steward makes from its own events (source_key unique: an event is suggested once). Kept at the end
+    // of this list: migrations run by name in list order, so compliance-004-soa can go before or after it.
+    name: 'compliance-005-corrective-actions',
+    sql: `
+      CREATE TABLE ca_findings (
+        id TEXT PRIMARY KEY,
+        number TEXT NOT NULL UNIQUE,
+        title TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        source TEXT NOT NULL,
+        source_kind TEXT,
+        source_id TEXT,
+        source_label TEXT NOT NULL DEFAULT '',
+        service_id TEXT,
+        supplier_id TEXT,
+        control_ids TEXT NOT NULL DEFAULT '[]',
+        record_id TEXT,
+        severity TEXT NOT NULL,
+        owner TEXT,
+        due_date TEXT,
+        cause TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL,
+        eff_method TEXT,
+        eff_result TEXT,
+        eff_note TEXT,
+        eff_checked_by TEXT,
+        eff_checked_at TEXT,
+        grc_ref TEXT NOT NULL DEFAULT '',
+        grc_url TEXT NOT NULL DEFAULT '',
+        cancel_reason TEXT NOT NULL DEFAULT '',
+        suggestion_id TEXT,
+        created_at TEXT NOT NULL,
+        created_by TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        updated_by TEXT NOT NULL,
+        closed_at TEXT,
+        closed_by TEXT
+      );
+      CREATE INDEX ca_findings_status ON ca_findings(status, due_date);
+      CREATE INDEX ca_findings_service ON ca_findings(service_id);
+      CREATE INDEX ca_findings_record ON ca_findings(record_id);
+
+      CREATE TABLE ca_actions (
+        id TEXT PRIMARY KEY,
+        finding_id TEXT NOT NULL REFERENCES ca_findings(id),
+        title TEXT NOT NULL,
+        owners TEXT NOT NULL DEFAULT '[]',
+        due_date TEXT NOT NULL,
+        note TEXT NOT NULL DEFAULT '',
+        done_at TEXT,
+        done_by TEXT,
+        created_at TEXT NOT NULL,
+        created_by TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        updated_by TEXT NOT NULL
+      );
+      CREATE INDEX ca_actions_finding ON ca_actions(finding_id);
+      CREATE INDEX ca_actions_open ON ca_actions(done_at, due_date);
+
+      -- reminders sent, so each goes out once (also across restarts)
+      CREATE TABLE ca_action_reminders (
+        action_id TEXT NOT NULL,
+        reminder_key TEXT NOT NULL,
+        sent_at TEXT NOT NULL,
+        PRIMARY KEY (action_id, reminder_key)
+      );
+
+      CREATE TABLE ca_suggestions (
+        id TEXT PRIMARY KEY,
+        source TEXT NOT NULL,
+        source_key TEXT NOT NULL UNIQUE,
+        source_kind TEXT,
+        source_id TEXT,
+        source_label TEXT NOT NULL DEFAULT '',
+        service_id TEXT,
+        control_ids TEXT NOT NULL DEFAULT '[]',
+        record_id TEXT,
+        title TEXT NOT NULL,
+        details TEXT NOT NULL DEFAULT '{}',
+        severity TEXT NOT NULL,
+        occurred_at TEXT NOT NULL,
+        status TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        decided_by TEXT,
+        decided_at TEXT,
+        reason TEXT NOT NULL DEFAULT '',
+        finding_id TEXT
+      );
+      CREATE INDEX ca_suggestions_status ON ca_suggestions(status, created_at);
+    `,
+  },
 ];

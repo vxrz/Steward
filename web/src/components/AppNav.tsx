@@ -47,6 +47,7 @@ import {
   IconListSearch,
   IconClipboardCheck,
   IconUserSearch,
+  IconListCheck,
   IconUserShield,
   IconUsers,
   IconWebhook,
@@ -88,6 +89,7 @@ export type NavKey =
   | 'accessChanges'
   | 'reconciliation'
   | 'personReviews'
+  | 'correctiveActions'
   | 'evidencePacks'
   | 'audit'
   | 'users'
@@ -220,6 +222,8 @@ export const NAV_GROUPS: { key: NavGroupKey; items: NavItemDef[] }[] = [
       { to: '/compliance/access-changes', key: 'accessChanges', icon: IconUserShield },
       { to: '/compliance/reconciliation', key: 'reconciliation', icon: IconArrowsDiff },
       { to: '/compliance/person-reviews', key: 'personReviews', icon: IconUserSearch },
+      // corrective actions (ADR 0029, preview): the register with its suggestions and settings
+      { to: '/compliance/corrective-actions', key: 'correctiveActions', icon: IconListCheck },
       { to: '/compliance/evidence-packs', key: 'evidencePacks', icon: IconPackageExport, cap: 'exportEvidence' },
     ],
   },

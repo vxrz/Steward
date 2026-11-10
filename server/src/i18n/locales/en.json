@@ -418,6 +418,20 @@
       "body": "The measure “{{measure}}” from the incident review {{record}} was due on {{due}} ({{days}} days ago). Mark it done in the review, or move its due date."
     }
   },
+  "corrective": {
+    "soon": {
+      "title": "Corrective action due soon: {{action}}",
+      "body": "The action “{{action}}” of the finding {{finding}} is due on {{due}}."
+    },
+    "due": {
+      "title": "Corrective action due today: {{action}}",
+      "body": "The action “{{action}}” of the finding {{finding}} is due today ({{due}})."
+    },
+    "overdue": {
+      "title": "Corrective action overdue: {{action}}",
+      "body": "The action “{{action}}” of the finding {{finding}} was due on {{due}} ({{days}} days ago). Mark it done in the register of corrective actions, or move its due date."
+    }
+  },
   "review": {
     "timelineHeading": "Timeline"
   },

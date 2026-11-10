@@ -73,6 +73,8 @@ const McpRequestsPage = page(() => import('./pages/McpRequests'), 'McpRequestsPa
 const McpRequestDetailPage = page(() => import('./pages/McpRequests'), 'McpRequestDetailPage');
 const PersonReviewsPage = page(() => import('./pages/PersonReviews'), 'PersonReviewsPage');
 const PersonReviewDetailPage = page(() => import('./pages/PersonReviews'), 'PersonReviewDetailPage');
+const CorrectiveActionsPage = page(() => import('./pages/CorrectiveActions'), 'CorrectiveActionsPage');
+const CorrectiveActionDetailPage = page(() => import('./pages/CorrectiveActions'), 'CorrectiveActionDetailPage');
 const ReportsPage = page(() => import('./pages/Reports'), 'ReportsPage');
 const RecordsPage = page(() => import('./pages/Records'), 'RecordsPage');
 const RecordDetailPage = page(() => import('./pages/RecordDetail'), 'RecordDetailPage');
@@ -566,6 +568,38 @@ function Shell({ status }: { status: AuthStatus }) {
                       element={
                         <ModuleGate module="compliance">
                           <PersonReviewDetailPage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/compliance/corrective-actions"
+                      element={
+                        <ModuleGate module="compliance">
+                          <CorrectiveActionsPage tab="findings" />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/compliance/corrective-actions/suggestions"
+                      element={
+                        <ModuleGate module="compliance">
+                          <CorrectiveActionsPage tab="suggestions" />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/compliance/corrective-actions/settings"
+                      element={
+                        <ModuleGate module="compliance">
+                          <CorrectiveActionsPage tab="settings" />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/compliance/corrective-actions/:id"
+                      element={
+                        <ModuleGate module="compliance">
+                          <CorrectiveActionDetailPage />
                         </ModuleGate>
                       }
                     />

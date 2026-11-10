@@ -42,6 +42,7 @@ import { canExportEvidence, canReadCheck, forbid, me, readsEverything, same, vis
 import { toAccessChange } from './access-changes.js';
 import { evidenceForControls, evidenceOf, getControl, type PackCoverageStatus } from './controls.js';
 import { getReview, verifySeal } from './person-reviews.js';
+import { findingsOfControls } from './corrective.js';
 import { getCheck, getSnapshot, listFindings, listSnapshots, verifyChain } from './reconciliation.js';
 import type { PackPdfModel } from './pack-pdf.js';
 import { drawPdf } from '../reports/pdf/pool.js';
@@ -706,6 +707,55 @@ async function buildPack(id: string, lang: ReportLang, opts: { assurance?: boole
         'monitors/monitors.json',
         monitors.map(({ files: _f, ...m }) => m),
       );
+    // corrective actions (ADR 0029): the findings naming the pack's controls that were open at some time in the period
+    const findings = scope.controlIds?.length
+      ? findingsOfControls(scope.controlIds, u).filter((f) => f.createdAt <= to && (!f.closedAt || f.closedAt >= from))
+      : [];
+    if (findings.length) {
+      await b.json(
+        'corrective-actions/findings.json',
+        findings.map(({ permissions: _p, actions, ...f }) => ({ ...f, actions: actions.map(({ canEdit: _e, canMarkDone: _d, ...a }) => a) })),
+      );
+      const head = [
+        'number',
+        'title',
+        'source',
+        'severity',
+        'status',
+        'serviceName',
+        'owner',
+        'dueDate',
+        'overdue',
+        'actionsOpen',
+        'actionsTotal',
+        'controls',
+        'effective',
+        'checkedBy',
+        'checkedAt',
+        'createdAt',
+        'closedAt',
+      ] as const;
+      await b.buffer(
+        'corrective-actions/findings.csv',
+        csvTable(
+          head,
+          findings.map((f) =>
+            head.map((h) =>
+              h === 'controls'
+                ? f.controls.map((c) => `${c.catalogueKey} ${c.ref}`).join('; ')
+                : h === 'effective'
+                  ? (f.effectiveness?.result ?? '')
+                  : h === 'checkedBy'
+                    ? (f.effectiveness?.checkedBy ?? '')
+                    : h === 'checkedAt'
+                      ? (f.effectiveness?.checkedAt ?? '')
+                      : f[h],
+            ),
+          ),
+        ),
+      );
+    }
+
     // privileged use of the vault platforms in scope (#205)
     const privilegedUse: PrivilegedUseSection[] = [];
     for (const pid of vaultPlatformsOf(scope, checks)) {
@@ -767,6 +817,9 @@ async function buildPack(id: string, lang: ReportLang, opts: { assurance?: boole
       ...(catalogue ? { catalogue } : {}),
       items: list.map(({ via, ...i }) => ({ ...i, via })),
       ...(privilegedUse.length ? { privilegedUse } : {}),
+      ...(findings.length
+        ? { correctiveActions: { findings: findings.length, files: ['corrective-actions/findings.json', 'corrective-actions/findings.csv'] } }
+        : {}),
       audit: auditInfo,
       assurance: assuranceInfo,
       omitted: b.omitted,
@@ -794,6 +847,7 @@ async function buildPack(id: string, lang: ReportLang, opts: { assurance?: boole
           at: to,
           files: p.files.length,
         })),
+        ...findings.map((f) => ({ kind: 'correctiveAction', label: `${f.number} ${f.title} (${f.status})`, at: f.updatedAt, files: 2 })),
       ],
       omitted: b.omitted,
       assurance: assuranceInfo.included === true,

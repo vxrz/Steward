@@ -34,6 +34,7 @@ import { useMe } from '../auth';
 import { EmptyState, PageHeader, QueryState, TONE } from '../components/common';
 import { CoverageBadge, PeriodPicker, periodRange, presetPeriod, validPeriod, type Period } from '../components/compliance/common';
 import { fmtDate } from '../format';
+import { ControlFindings } from '../components/compliance/corrective';
 
 /** Compliance → Controls: the control catalogues, what is mapped to each control and the evidence in a period (gaps highlighted). */
 export function ComplianceControlsPage() {
@@ -574,6 +575,8 @@ function ControlDrawer({ cov, meta, onClose }: { cov: ControlCoverage; meta?: Co
             </Paper>
           )}
         </Box>
+        {/* corrective actions (ADR 0029): the open findings that name this control */}
+        <ControlFindings controlId={cov.control.id} />
         <Box>
           <Text fw={600} mb={4}>
             {t('controls.evidenceInPeriod')}

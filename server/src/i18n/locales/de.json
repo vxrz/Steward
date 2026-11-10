@@ -418,6 +418,20 @@
       "body": "Die Maßnahme „{{measure}}“ aus dem Incident-Review {{record}} war am {{due}} fällig (vor {{days}} Tagen). Markieren Sie sie im Review als erledigt oder verschieben Sie die Fälligkeit."
     }
   },
+  "corrective": {
+    "soon": {
+      "title": "Korrekturmaßnahme bald fällig: {{action}}",
+      "body": "Die Maßnahme „{{action}}“ zum Befund {{finding}} ist am {{due}} fällig."
+    },
+    "due": {
+      "title": "Korrekturmaßnahme heute fällig: {{action}}",
+      "body": "Die Maßnahme „{{action}}“ zum Befund {{finding}} ist heute fällig ({{due}})."
+    },
+    "overdue": {
+      "title": "Korrekturmaßnahme überfällig: {{action}}",
+      "body": "Die Maßnahme „{{action}}“ zum Befund {{finding}} war am {{due}} fällig (vor {{days}} Tagen). Markieren Sie sie im Register der Korrekturmaßnahmen als erledigt oder verschieben Sie die Fälligkeit."
+    }
+  },
   "review": {
     "timelineHeading": "Zeitlicher Ablauf"
   },

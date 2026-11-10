@@ -160,6 +160,12 @@
         "info": "A measure from an incident review that you own is due soon or overdue"
       }
     },
+    "corrective": {
+      "action_due": {
+        "label": "Corrective action",
+        "info": "An action of a corrective action finding that you own is due soon or overdue"
+      }
+    },
     "maintenance": {
       "announced": {
         "label": "Maintenance",

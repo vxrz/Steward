@@ -305,6 +305,7 @@ const WARN_EVENTS = new Set([
   'duty.exception',
   'duty.ended',
   'measure.due',
+  'corrective.action_due',
   'ai.budget',
   'cost.budget',
 ]);

@@ -216,3 +216,13 @@ export const libraryKeys = {
   publishers: ['libraries', 'publishers'] as const,
   origins: (kind: string) => ['libraries', 'origins', kind] as const,
 };
+
+/** Corrective actions (ADR 0029): the register with its filters, one finding, the suggestions, the source settings. */
+export const correctiveKeys = {
+  all: ['corrective'] as const,
+  list: (qs: string) => ['corrective', 'list', qs] as const,
+  detail: (id: string | null | undefined) => ['corrective', 'detail', id] as const,
+  suggestions: (status: string) => ['corrective', 'suggestions', status] as const,
+  settings: ['corrective', 'settings'] as const,
+  ofControl: (controlId: string) => ['corrective', 'list', `control:${controlId}`] as const,
+};

@@ -72,6 +72,7 @@ export const EVENT_DIGEST_GROUP: Record<NotificationEvent, DigestGroup | null> =
   'duty.missed': 'reminders',
   'duty.ended': 'reminders',
   'measure.due': 'reminders',
+  'corrective.action_due': 'reminders',
   'access.undocumented': 'reminders',
   'plant.change_decided': 'reminders',
   'report.ready': 'reports',

@@ -160,6 +160,12 @@
         "info": "Eine Maßnahme aus einem Incident-Review, die Ihnen gehört, ist bald fällig oder überfällig"
       }
     },
+    "corrective": {
+      "action_due": {
+        "label": "Korrekturmaßnahme",
+        "info": "Eine Maßnahme zu einem Befund im Register der Korrekturmaßnahmen, die Ihnen gehört, ist bald fällig oder überfällig"
+      }
+    },
     "maintenance": {
       "announced": {
         "label": "Wartung",
