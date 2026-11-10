@@ -73,8 +73,9 @@ function decidableNow(user: UserInfo, kind: ItemKind, id: string): { ok: true } 
       const t = visibleTask(id);
       if (!t) return { ok: false, reason: 'gone' };
       if (t.status !== 'open') return { ok: false, reason: 'decided' };
-      // select decisions need the items, manual steps the entry and the evidence: in Steward
-      if (t.mode !== 'approve') return { ok: false, reason: 'needsSteward' };
+      // select decisions need the items, manual steps the entry and the evidence: in Steward; a start approval of a
+      // privileged run (0.14.0) needs the approver's step-up, which Teams cannot show
+      if (t.mode !== 'approve' || t.startApproval) return { ok: false, reason: 'needsSteward' };
       if (!t.canDecide) return { ok: false, reason: 'mayNot' };
       if (!botApproved() || !mayDecideInTeams('run.decide')) return { ok: false, reason: 'policy' };
       if (!signedInRecently(user)) return { ok: false, reason: 'signIn' };
@@ -87,8 +88,8 @@ function decidableNow(user: UserInfo, kind: ItemKind, id: string): { ok: true } 
       return { ok: false, reason: 'gone' };
     }
     if (r.status !== 'pending') return { ok: false, reason: 'decided' };
-    // proposals need the comparison
-    if (r.mode === 'review') return { ok: false, reason: 'needsSteward' };
+    // proposals need the comparison; a request with a privileged identity (0.14.0) the approver's step-up
+    if (r.mode === 'review' || r.privileged) return { ok: false, reason: 'needsSteward' };
     if (!r.canApprove && !r.canReject) return { ok: false, reason: 'mayNot' };
     if (!botApproved() || !mayDecideInTeams('mcp.write')) return { ok: false, reason: 'policy' };
     if (!signedInRecently(user)) return { ok: false, reason: 'signIn' };

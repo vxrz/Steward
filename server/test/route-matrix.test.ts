@@ -1361,6 +1361,48 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
   },
   'PUT /api/platforms/:id/identities/:identityId/mcp': { sensitive: { mode: 'writes', writes: 'confirm' }, harmless: { mode: 'read' } },
   'POST /api/platforms/:id/identities/:identityId/default': 'always',
+  // privileged identities (0.14.0, ADR 0009 step 4): naming one asks for a step-up (platform.privilegedIdentity); the
+  // routes where it depends on a stored object (approving a start approval or an MCP request, "Run now") ask in the handler
+  'POST /api/runs': {
+    get sensitive() {
+      return { processId: fx.process, bindings: { api: fx.platform }, identities: { api: fx.privIdentity } };
+    },
+    get harmless() {
+      return { processId: fx.process, dryRun: true, bindings: { api: fx.platform }, identities: { api: fx.identity } };
+    },
+  },
+  ...Object.fromEntries(
+    ['POST /api/schedules', 'PUT /api/schedules/:id'].map((k) => [
+      k,
+      {
+        get sensitive() {
+          return { name: 'x', processId: fx.process, cron: '0 3 * * *', bindings: { api: fx.platform }, identities: { api: fx.privIdentity } };
+        },
+        get harmless() {
+          return { name: '!', processId: fx.process, cron: 'not a cron' };
+        },
+      },
+    ]),
+  ),
+  ...Object.fromEntries(
+    ['POST /api/triggers', 'PUT /api/triggers/:id'].map((k) => [
+      k,
+      {
+        get sensitive() {
+          return { ...TRIGGER, processId: fx.process, bindings: { api: fx.platform }, identities: { api: fx.privIdentity } };
+        },
+        get harmless() {
+          return { name: 1 };
+        },
+      },
+    ]),
+  ),
+  'POST /api/platforms/:id/request': {
+    get sensitive() {
+      return { method: 'GET', path: '/x', identityId: fx.privIdentity };
+    },
+    harmless: { method: 'GET', path: '/x', identityId: 'pi_none' },
+  },
   'POST /api/platforms/:id/identities/:identityId/enable': 'always',
   // raising an AI budget (the fixtures set 1,000 tokens a day for the installation); lowering it needs no confirmation
   'PUT /api/ai/budgets': {
@@ -2067,6 +2109,8 @@ beforeAll(async () => {
     platform: plat.id,
     // a read-only identity of the platform (0.13.0, ADR 0009)
     identity: (await a('POST', `/platforms/${plat.id}/identities`, { name: 'Matrix read only', readOnly: true })).id,
+    // a privileged identity of the platform (0.14.0, ADR 0009 step 4): naming it asks for a step-up
+    privIdentity: (await a('POST', `/platforms/${plat.id}/identities`, { name: 'Matrix privileged', privileged: true })).id,
     platformKind: (await a('POST', '/platform-types', { fromPlatformId: gatus.id, kind: 'matrix-connector', label: 'Matrix connector' })).kind,
     gatusPlatform: gatus.id,
     doc: doc.id,

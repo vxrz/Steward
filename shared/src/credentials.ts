@@ -135,6 +135,13 @@ export interface Credential {
   /** A Steward platform, or null with a free-text platform */
   platformId: string | null;
   platformName: string | null;
+  /**
+   * The identity of the platform the entry documents (0.14.0, ADR 0009 step 4); null: none named. Its name and flag only
+   * for people with a right on the platform. A new set of credentials for the identity can record its rotation here.
+   */
+  identityId: string | null;
+  identityName: string | null;
+  identityPrivileged?: boolean;
   platformText: string;
   environment: string;
   description: string;

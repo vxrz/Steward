@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { boundedRecord, notifyPauseSchema, WEBHOOK_MAX_BODY_BYTES, type WebhookMappingPreview, type WebhookTestResult } from '@sm/shared';
 import { HttpError } from '../util.js';
@@ -7,13 +7,28 @@ import { db } from '../db.js';
 import { currentUser } from '../auth/context.js';
 import { require } from '../auth/permissions.js';
 import { permissionsFor } from '../processes/service.js';
-import { authorizeStart } from '../engine/commands.js';
+import { authorizeStart, startsUnrefused } from '../engine/commands.js';
 import * as triggers from '../triggers/service.js';
 import { handleHook, registerTestNonce } from '../triggers/hook.js';
 import { listTriggerExamples } from '../triggers/examples.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { ACCESS } from '../auth/access.js';
 import { params } from './params.js';
+import { namesPrivileged, privilegedRefusal, privilegedSlots } from '../platforms/privileged.js';
+
+/**
+ * A trigger that uses a privileged platform identity (0.14.0, ADR 0009 step 4): its owner confirms when saving it (step-up
+ * platform.privilegedIdentity); every fire runs as the owner without asking, and may wait for a start approval.
+ */
+const privilegedTrigger = {
+  action: 'usePrivilegedIdentity' as const,
+  // only for someone who may start it (anyone else gets the route's own refusal, nothing asked of them)
+  who: (req: FastifyRequest) => startsUnrefused(req.body && typeof req.body === 'object' ? (req.body as Record<string, unknown>) : {}),
+  when: (req: FastifyRequest) => {
+    const b = req.body && typeof req.body === 'object' ? (req.body as Record<string, unknown>) : {};
+    return namesPrivileged(b.bindings, b.identities);
+  },
+};
 
 function requireProcessRun(processId: string) {
   const perms = permissionsFor(processId);
@@ -72,19 +87,23 @@ export async function triggerRoutes(app: FastifyInstance): Promise<void> {
   );
 
   // creating a trigger and rotating its secret hand out a secret that outlives an API token: sessions only
-  app.post('/triggers', { config: { access: ACCESS.session } }, async (req) => {
+  app.post('/triggers', { config: { access: ACCESS.session, stepUp: privilegedTrigger } }, async (req, reply) => {
     const b = triggers.settingsSchema.parse(req.body);
     requireProcessRun(b.processId);
     // what each run of the trigger will need: the command layer's start check (ADR 0011)
     authorizeStart(undefined, { processId: b.processId, bindings: b.bindings, identities: b.identities });
+    const refused = privilegedRefusal(privilegedSlots(b.bindings, b.identities));
+    if (refused) return reply.code(refused.status).send(refused.body);
     return triggers.createTrigger(b);
   });
-  app.put('/triggers/:id', async (req) => {
+  app.put('/triggers/:id', { config: { stepUp: privilegedTrigger } }, async (req, reply) => {
     triggers.requireTriggerEdit(params(req).id!);
     const b = triggers.settingsSchema.parse(req.body);
     requireProcessRun(b.processId);
     // what each run of the trigger will need: the command layer's start check (ADR 0011)
     authorizeStart(undefined, { processId: b.processId, bindings: b.bindings, identities: b.identities });
+    const refused = privilegedRefusal(privilegedSlots(b.bindings, b.identities));
+    if (refused) return reply.code(refused.status).send(refused.body);
     return triggers.updateTrigger(params(req).id!, b);
   });
   app.delete('/triggers/:id', async (req) => {

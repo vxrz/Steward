@@ -17,6 +17,7 @@ import type {
   ManualTaskSpec,
   ManualTaskState,
   ManualVerification,
+  StartApproval,
   TaskDecision,
   TaskEvidence,
   TaskItem,
@@ -109,6 +110,8 @@ interface TaskRow {
   submission?: string | null;
   verification?: string | null;
   returned?: string;
+  /** A run's start approval (0.14.0, ADR 0009 step 4): JSON StartApproval */
+  start_approval?: string | null;
 }
 
 interface EvidenceRow {
@@ -650,6 +653,9 @@ function toTask(r: TaskRow): TaskRecord {
     fourEyes: !!r.four_eyes,
     startedBy: r.run_actor,
     ...(r.mode === 'manual' ? { manual: toManual(r) } : {}),
+    ...(r.start_approval
+      ? { startApproval: parseJson<StartApproval>(r.start_approval, { identities: [], requesters: [], reason: 'policy', expiresAt: '' }) }
+      : {}),
   };
 }
 
@@ -810,11 +816,13 @@ export function findTask(runId: string, stepKey: string): TaskRecord | undefined
 
 export function insertTask(
   t: Omit<TaskRecord, 'status' | 'createdAt' | 'decision' | 'decidedBy' | 'decidedAt' | 'startedBy' | 'canDecide' | 'manual'> & { manual?: ManualTaskSpec },
+  createdAt = nowIso(),
 ): void {
   const { verifiers = [], ...verification } = t.manual?.verification ?? { verifiers: [] };
   db().run(
-    `INSERT INTO run_tasks (id, run_id, step_key, mode, title, instructions, columns, items, status, created_at, assignees, four_eyes, manual, verifiers, stage)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO run_tasks (id, run_id, step_key, mode, title, instructions, columns, items, status, created_at, assignees, four_eyes, manual, verifiers, stage,
+       start_approval)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?)`,
     t.id,
     t.runId,
     t.stepKey,
@@ -823,12 +831,13 @@ export function insertTask(
     t.instructions ?? null,
     JSON.stringify(t.columns),
     JSON.stringify(t.items),
-    nowIso(),
+    createdAt,
     JSON.stringify(t.assignees ?? []),
     t.fourEyes ? 1 : 0,
     t.manual ? JSON.stringify({ ...t.manual, verification }) : null,
     JSON.stringify(verifiers),
     t.manual ? 'work' : null,
+    t.startApproval ? JSON.stringify(t.startApproval) : null,
   );
 }
 

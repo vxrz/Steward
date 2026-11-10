@@ -77,8 +77,9 @@ export function writeDecision(platform: Platform, op: { method: string }): { all
       ? (identity.mcp.writes ?? 'off')
       : 'off'
     : (platform.config.mcpGateway?.writes ?? 'off');
-  // the assurance policy can require a second person for every platform (mcp.write): "confirm" becomes "fourEyes"
-  const mode = effectiveMcpMode(configured);
+  // the assurance policy can require a second person for every platform (mcp.write): "confirm" becomes "fourEyes"; a
+  // privileged identity (0.14.0, ADR 0009 step 4) always needs a second person
+  const mode = identity?.privileged && configured !== 'off' ? 'fourEyes' : effectiveMcpMode(configured);
   if (mode === 'off')
     return {
       allowed: false,
@@ -109,6 +110,17 @@ export function identityOf(p: Platform): PlatformIdentity | undefined {
 export function labelOf(p: Platform): string {
   const i = identityOf(p);
   return i && (p.identities?.length ?? 0) > 1 ? `${p.name} · ${i.name}` : p.name;
+}
+
+/**
+ * MCP clients never read with a privileged identity (0.14.0, ADR 0009 step 4): only changing calls a second person
+ * approves in Steward. The reason, or null.
+ */
+export function privilegedReadRefusal(p: Platform, method: string): string | null {
+  const i = identityOf(p);
+  return i?.privileged && (READ_METHODS.has(method.toUpperCase()) || method === 'SQL')
+    ? `The identity "${i.name}" of "${p.name}" is privileged: MCP clients do not read with it – only changing calls that a second person approves in Steward`
+    : null;
 }
 
 /** The identities of a platform the token owner may use over MCP (mode not off). */
@@ -365,7 +377,9 @@ export function auditCall(
       entityId: p.id,
       summary: `MCP gateway: ${auditText(e.method, 10)} ${auditText(e.pathTemplate)} on "${labelOf(p)}" → ${e.status ? `HTTP ${e.status}` : e.outcome}${e.reason ? ` (${auditText(e.reason, 160)})` : ''}`,
       details: {
-        ...(identityOf(p) ? { identityId: identityOf(p)!.id, identityName: identityOf(p)!.name } : {}),
+        ...(identityOf(p)
+          ? { identityId: identityOf(p)!.id, identityName: identityOf(p)!.name, ...(identityOf(p)!.privileged ? { privileged: true } : {}) }
+          : {}),
         operationId: e.operation === null ? null : auditText(e.operation, 600),
         method: auditText(e.method, 10),
         pathTemplate: auditText(e.pathTemplate),
@@ -420,7 +434,9 @@ export const gatewayTools: ToolDef[] = [
       // only the operations the identity's read-only flag and operation filter allow (0.13.0, ADR 0009)
       const all = allowedForIdentity(p, platforms.listOperations(p.id));
       const writes = writeDecision(p, { method: 'POST' }).mode;
-      const read = all.filter((o) => READ_METHODS.has(o.method) || writes !== 'off');
+      // a privileged identity (0.14.0): no read operations – only changing ones a second person approves
+      const noReads = !!identityOf(p)?.privileged;
+      const read = all.filter((o) => (READ_METHODS.has(o.method) && !noReads) || (!READ_METHODS.has(o.method) && writes !== 'off'));
       const words = (a.query ?? '').toLowerCase().split(/\s+/).filter(Boolean);
       const hits = read
         .filter((o) => !a.tag || o.tag === a.tag)
@@ -469,7 +485,12 @@ export const gatewayTools: ToolDef[] = [
       const p = gatewayPlatform(a.platformId, a.identity);
       const op = findOperation(p.id, a.operation);
       const doc = specDoc(op.specId);
-      const decision = READ_METHODS.has(op.method) ? { allowed: true, mode: 'off' as const, reason: '' } : writeDecision(p, op);
+      const privilegedRead = privilegedReadRefusal(p, op.method);
+      const decision = privilegedRead
+        ? { allowed: false, mode: 'off' as const, reason: privilegedRead }
+        : READ_METHODS.has(op.method)
+          ? { allowed: true, mode: 'off' as const, reason: '' }
+          : writeDecision(p, op);
       return {
         platform: { id: p.id, name: p.name },
         operation: opRef(op),
@@ -479,7 +500,7 @@ export const gatewayTools: ToolDef[] = [
         description: op.description ? op.description.slice(0, 2000) : null,
         tag: op.tag ?? null,
         callable: decision.allowed,
-        ...(READ_METHODS.has(op.method) ? {} : { needsApproval: decision.allowed ? decision.mode : null, reason: decision.reason }),
+        ...(READ_METHODS.has(op.method) && !privilegedRead ? {} : { needsApproval: decision.allowed ? decision.mode : null, reason: decision.reason }),
         parameters: (op.parameters ?? []).map((x) => ({
           name: x.name,
           in: x.in,
@@ -607,6 +628,8 @@ export const gatewayTools: ToolDef[] = [
         });
       }
       if (a.body !== undefined) refuse('invalid_request', '`body` is only for changing operations');
+      const privileged = privilegedReadRefusal(p, method);
+      if (privileged) refuse('privileged_refused', privileged);
       return executeGatewayCall(p, callerOf(ctx), ctx.principal.user.id, { op, method, path, pathTemplate, query, queryNames }, ctx.signal);
     },
   }),
@@ -644,6 +667,11 @@ gatewayTools.push(
       const record = (outcome: string, durationMs: number, reason?: string) =>
         auditCall(who, p, { operation: null, method: 'SQL', pathTemplate: what, status: null, durationMs, outcome, queryNames: [], reason });
       if (p.kind !== DATABASE_KIND) throw new ToolError(`"${p.name}" is not a database platform – use platform_call_operation`);
+      const privileged = privilegedReadRefusal(p, 'SQL');
+      if (privileged) {
+        record('privileged_refused', 0, privileged);
+        throw new ToolError(privileged);
+      }
       const rate = gatewayLimiter.take(`${ctx.principal.user.id}:${p.id}`, gatewayRateLimit());
       if (!rate.allowed)
         throw new ToolError(`Rate limit of ${rate.limit} gateway calls per minute for this platform reached – retry after ${rate.retryAfterSeconds} s`);
@@ -718,6 +746,8 @@ export async function executeGatewayCall(p: Platform, who: GatewayCaller, userId
     throw new ToolError(reason);
   };
   // per user, not per token: a user can create any number of tokens
+  const privileged = privilegedReadRefusal(p, method);
+  if (privileged) refuseCall('privileged_refused', privileged);
   const limiterKey = `${userId}:${p.id}`;
   const rate = gatewayLimiter.take(limiterKey, gatewayRateLimit());
   if (!rate.allowed)

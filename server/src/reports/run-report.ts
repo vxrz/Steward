@@ -124,11 +124,19 @@ export async function renderRunReport(
   w.table(
     [
       { header: t('slot'), width: 1.4, mono: true },
-      { header: t('platform'), width: 3 },
-      { header: t('kind'), width: 2, mono: true },
-      { header: t('environment'), width: 1.6 },
+      { header: t('platform'), width: 2.4 },
+      { header: t('identity'), width: 2 },
+      { header: t('kind'), width: 1.6, mono: true },
+      { header: t('environment'), width: 1.4 },
     ],
-    m.connections.map((c) => [c.slot, c.platformName, c.kind ?? '–', c.environment ?? '–']),
+    // the identity each slot used (0.14.0, ADR 0009 step 4), marked when it was privileged
+    m.connections.map((c) => [
+      c.slot,
+      c.platformName,
+      c.identityName ? `${c.identityName}${c.privileged ? ` (${t('privilegedMark')})` : ''}` : '–',
+      c.kind ?? '–',
+      c.environment ?? '–',
+    ]),
     { empty: t('none') },
   );
   w.subheading(t('inputs'));

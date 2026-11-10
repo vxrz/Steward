@@ -986,6 +986,10 @@
                 "identityName": {
                   "type": "string",
                   "description": "Its name when the run started"
+                },
+                "privileged": {
+                  "type": "boolean",
+                  "description": "The identity was privileged when the run resolved its connection (0.14.0; missing: not privileged)"
                 }
               },
               "required": [

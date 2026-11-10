@@ -85,4 +85,12 @@ export const CREDENTIAL_MIGRATIONS: NamedMigration[] = [
       CREATE INDEX credentials_vault ON credentials(vault_platform_id);
     `,
   },
+  {
+    // 0.14.0 (ADR 0009 step 4): the platform identity an entry documents (next to platform_id); NULL – none named
+    name: 'credentials-005-identity',
+    sql: `
+      ALTER TABLE credentials ADD COLUMN identity_id TEXT;
+      CREATE INDEX credentials_identity ON credentials(identity_id);
+    `,
+  },
 ];

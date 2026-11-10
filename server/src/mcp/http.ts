@@ -39,7 +39,8 @@ import {
 import { PARSE_ERROR, INVALID_REQUEST, INTERNAL_ERROR, STEWARD_ERRORS, errorResponse } from './protocol.js';
 import { handleMessage } from './server.js';
 import type { McpPrincipal } from './tools.js';
-import { decide, getRequest, listRequests } from './requests.js';
+import { decide, getRequest, listRequests, privilegedUsesOf } from './requests.js';
+import { privilegedRefusal } from '../platforms/privileged.js';
 import { offersSignIn, resolveAccessGrant, resourceMetadataUrl, resourceOf } from './oauth.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { ACCESS, isStatusViewer } from '../auth/access.js';
@@ -382,8 +383,15 @@ export async function mcpRoutes(app: FastifyInstance): Promise<void> {
     return listRequests(scope);
   });
   app.get('/mcp-requests/:requestId', async (req) => getRequest((req.params as { requestId: string }).requestId));
-  app.post('/mcp-requests/:requestId/decision', { config: { access: ACCESS.session, rateLimit: ROUTE_LIMITS.heavy } }, async (req) =>
-    decide(
+  app.post('/mcp-requests/:requestId/decision', { config: { access: ACCESS.session, rateLimit: ROUTE_LIMITS.heavy } }, async (req, reply) => {
+    // approving a request with a privileged identity (0.14.0, ADR 0009 step 4): the approver confirms it is them (in the
+    // handler: it depends on the stored request)
+    const requestId = (req.params as { requestId: string }).requestId;
+    // only for someone who may approve it (anyone else gets decide()'s own answer, 404 for a request they cannot read)
+    const view = (req.body as { approve?: unknown } | undefined)?.approve === true ? getRequest(requestId) : null;
+    const refused = view?.privileged && view.canApprove ? privilegedRefusal(privilegedUsesOf(requestId, true)) : undefined;
+    if (refused) return reply.code(refused.status).send(refused.body);
+    return decide(
       (req.params as { requestId: string }).requestId,
       z
         .object({
@@ -414,6 +422,6 @@ export async function mcpRoutes(app: FastifyInstance): Promise<void> {
         })
         .strict()
         .parse(req.body),
-    ),
-  );
+    );
+  });
 }

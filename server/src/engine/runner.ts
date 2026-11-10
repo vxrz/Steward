@@ -15,6 +15,9 @@ import {
   type DebugSignal,
   type DebugSpec,
   type RunMode,
+  type StartApproval,
+  START_APPROVAL_HOURS,
+  START_APPROVAL_KEY,
   validateProcess,
 } from '@sm/shared';
 import { audit } from '../audit.js';
@@ -49,6 +52,8 @@ import { DebugGate, type GateAction } from './debug-gate.js';
 import { Redactor } from './redact.js';
 import { coerceInputs } from './inputs.js';
 import { Cancelled, type Binding, type LeafResult, type StepContext, type StepType, type TaskResult } from './steps/context.js';
+import { fourEyesRequired } from '../auth/assurance-policy.js';
+import { sourceByKey, sourceOfRun } from './notify-source.js';
 import { stepOf } from './steps/index.js';
 import { taskView } from './steps/user-task.js';
 
@@ -566,7 +571,7 @@ async function resolveBindings(
         'IDENTITY_WRITE_REQUIRED',
         { slot: slot.slot, identity: identity.name, platform: platform.name },
       );
-    out[slot.slot] = { platform, secrets, baseUrl: await resolveBaseUrl(platform, secrets) };
+    out[slot.slot] = { platform, secrets, baseUrl: await resolveBaseUrl(platform, secrets), ...(identity.privileged ? { privileged: true } : {}) };
   }
   return out;
 }
@@ -583,6 +588,8 @@ function bindingInfoOf(bindings: Record<string, Binding>): Record<string, Stored
           platformName: b.platform.name,
           baseUrl: b.baseUrl,
           ...(p.identityId ? { identityId: p.identityId, identityName: p.identityName ?? '' } : {}),
+          // privileged when the run resolved its connection (0.14.0): evidence of the run, never re-read
+          ...(b.privileged ? { privileged: true } : {}),
         },
       ];
     }),
@@ -595,6 +602,7 @@ interface StoredBinding {
   baseUrl?: string;
   identityId?: string;
   identityName?: string;
+  privileged?: boolean;
 }
 
 /** The stored bindings of a run as resolveBindings takes them back (queued and resumed runs). */
@@ -721,6 +729,19 @@ async function startRunInner(
   // a single-node debug run executes one node at once
   const queued = !node && (!accepting || runQueue.length > 0 || !slotFree());
   const busy = busyRunIds().length;
+  // privileged identities (0.14.0, ADR 0009 step 4), as the run resolved its connections just now: a start approval by a
+  // second person when the assurance policy or the process asks for one
+  const approval = node
+    ? null
+    : startApprovalFor(def, bindings, {
+        actor,
+        recorded,
+        trigger: opts.trigger ?? 'manual',
+        scheduleId: opts.scheduleId,
+        webhook: opts.webhook,
+        parent: opts.parent,
+      });
+  const approvalTaskId = approval ? newId('task_') : null;
   // an offline single node touches nothing: like the expression assistant, it is not audited (it is still stored)
   const audited = !(node && offline);
   const mode = modeOf(req);
@@ -734,7 +755,7 @@ async function startRunInner(
       proc.name,
       req.version ?? proc.currentVersion,
       defHash,
-      queued ? 'queued' : 'running',
+      queued ? 'queued' : approval ? 'waiting' : 'running',
       req.dryRun ? 1 : 0,
       recorded ? 1 : 0,
       trigger,
@@ -752,6 +773,7 @@ async function startRunInner(
       sealed,
       debug ? JSON.stringify(debug.spec) : null,
     );
+    if (approval) insertStartApproval(approvalTaskId!, runId, approval, startedAt);
     if (!audited) return;
     const kindText = debug ? (debug.spec.kind === 'node' ? `Debug run of node "${debug.spec.nodeId}" (${debug.spec.answers})` : 'Debug run') : '';
     audit({
@@ -770,12 +792,17 @@ async function startRunInner(
         ...(recorded ? { recorded: true } : {}),
         // mode on run.started (ADR 0011); debug: what kind of debug run and where its variables came from – never values
         ...(debug ? { mode, debug: debugDetails(debug.spec) } : {}),
+        // the start waits for a second person (0.14.0, ADR 0009 step 4)
+        ...(approval
+          ? { startApproval: { taskId: approvalTaskId, reason: approval.reason, requesters: approval.requesters, expiresAt: approval.expiresAt } }
+          : {}),
         scheduleId: opts.scheduleId,
         ...(opts.webhook ? { triggerId: opts.webhook.triggerId, test: !!opts.webhook.test } : {}),
         ...(opts.parent ? { parentRunId: opts.parent.runId, parentStepKey: opts.parent.stepKey } : {}),
       },
     });
   });
+  if (approval) startApprovalCreated(approvalTaskId!, runId, proc.id, def.name, approval, actor, !!req.dryRun);
   if (queued) {
     runQueue.push(runId);
     store.addLog(
@@ -1122,6 +1149,8 @@ async function execute(ctx: RunContext): Promise<void> {
         if (ctx.debug?.kind === 'node') return execDebugNode(ctx);
         const start = ctx.def.nodes.find((n) => n.type === 'start');
         if (!start) throw new Error('Process has no start node');
+        // a privileged run waits for its start approval before the first step (also when resumed after a restart)
+        await awaitStartApproval(ctx);
         await runNode(start, ctx, null);
       },
     );
@@ -1879,6 +1908,171 @@ async function debugSignal(runId: string, s: DebugSignal, actor: string): Promis
   // the run takes the next steps before the panel asks again
   await yieldToEventLoop();
   return { ok: true, paused: a.ctx.gate.paused };
+}
+
+// ---------------------------------------------------------------------------
+// Start approvals of privileged runs (0.14.0, ADR 0009 step 4)
+// ---------------------------------------------------------------------------
+
+/**
+ * Whether a run needs a start approval: it uses a privileged identity (as resolved now) and the assurance policy
+ * (platform.privilegedIdentity four-eyes required) or the process ("Privileged runs need a second person") asks for a
+ * second person. Not for test runs (they send nothing), and not for a sub-process run whose parent chain had its start
+ * approved. Who asked: the starter and the owner of the schedule, trigger or monitor that started it (or its parent's).
+ */
+function startApprovalFor(
+  def: ProcessDefinition,
+  bindings: Record<string, Binding>,
+  o: {
+    actor: string;
+    recorded: boolean;
+    trigger: string;
+    scheduleId?: string;
+    webhook?: { triggerId: string };
+    parent?: { runId: string };
+  },
+): StartApproval | null {
+  const privileged = Object.entries(bindings).filter(([, b]) => b.privileged);
+  if (!privileged.length || o.recorded) return null;
+  const policy = fourEyesRequired('platform.privilegedIdentity');
+  if (!policy && !def.privilegedFourEyes) return null;
+  if (o.parent && startApprovedAbove(o.parent.runId)) return null;
+  const source =
+    o.trigger === 'schedule' && o.scheduleId
+      ? sourceByKey(`schedule:${o.scheduleId}`)
+      : o.trigger === 'webhook' && o.webhook
+        ? sourceByKey(`trigger:${o.webhook.triggerId}`)
+        : o.trigger === 'monitor' && o.webhook
+          ? sourceByKey(`monitor:${o.webhook.triggerId}`)
+          : o.parent
+            ? sourceOfRun(o.parent.runId)
+            : null;
+  const requesters = [...new Set([o.actor, ...(source?.owner ? [source.owner] : [])])];
+  return {
+    identities: privileged.map(([slot, b]) => {
+      const p = b.platform as Platform & { identityId?: string; identityName?: string };
+      return { slot, platformId: p.id, platformName: p.name, identityId: p.identityId ?? '', identityName: p.identityName ?? '' };
+    }),
+    requesters,
+    reason: policy ? 'policy' : 'process',
+    expiresAt: new Date(Date.now() + START_APPROVAL_HOURS * 3_600_000).toISOString(),
+  };
+}
+
+/** Whether a run above this one (or this one) had its start approved. */
+function startApprovedAbove(runId: string): boolean {
+  for (const a of store.ancestorChain(runId)) {
+    const t = store.findTask(a.id, START_APPROVAL_KEY);
+    if (t?.status === 'completed' && t.decision?.approved) return true;
+  }
+  return false;
+}
+
+const approvalLabel = (a: StartApproval) => a.identities.map((i) => `${i.platformName} · ${i.identityName} (${i.slot})`).join(', ');
+
+/** The start approval as a task of the run (in the run's insert transaction). */
+function insertStartApproval(taskId: string, runId: string, a: StartApproval, createdAt: string): void {
+  store.insertTask(
+    {
+      id: taskId,
+      runId,
+      stepKey: START_APPROVAL_KEY,
+      mode: 'approve',
+      title: `Start with a privileged identity: ${approvalLabel(a)}`.slice(0, 500),
+      instructions: `This run uses privileged credentials. A second person with the approve right on the process – not ${a.requesters.join(', ')} – approves its start before the first step. Without a decision it is cancelled at ${a.expiresAt}.`,
+      columns: [],
+      items: [],
+      assignees: [],
+      fourEyes: true,
+      startApproval: a,
+    },
+    createdAt,
+  );
+}
+
+/** Audit entry and notification of a new start approval (after the run's insert). */
+function startApprovalCreated(taskId: string, runId: string, processId: string, processName: string, a: StartApproval, actor: string, dryRun: boolean): void {
+  audit({
+    actor,
+    action: 'run.start_approval_requested',
+    entityType: 'run',
+    entityId: runId,
+    runId,
+    summary: `The run of "${processName}" uses privileged identities (${approvalLabel(a)}) and waits for a second person to approve its start (${a.reason === 'policy' ? 'assurance policy' : 'process setting'}; until ${a.expiresAt})`,
+    details: { taskId, identities: a.identities, requesters: a.requesters, reason: a.reason, expiresAt: a.expiresAt },
+  });
+  emit('task.created', {
+    taskId,
+    runId,
+    processId,
+    processName,
+    title: `Start with a privileged identity: ${approvalLabel(a)}`.slice(0, 500),
+    assignees: [],
+    fourEyes: true,
+    runActor: actor,
+    requesters: a.requesters,
+    dryRun,
+  });
+}
+
+/**
+ * Before the first step: a run with a start approval waits for it (and holds no slot). Approved – the run goes on;
+ * rejected, expired or cancelled – the run is cancelled. A resumed run reads the stored decision.
+ */
+async function awaitStartApproval(ctx: RunContext): Promise<void> {
+  const t = store.findTask(ctx.runId, START_APPROVAL_KEY);
+  if (!t) return;
+  let result: TaskResult | null;
+  if (t.status === 'completed' && t.decision) result = { decision: t.decision, by: t.decidedBy ?? '', at: t.decidedAt ?? '' };
+  else if (t.status === 'cancelled') throw new Cancelled();
+  else {
+    ctx.beginWait();
+    ctx.log('info', `Waiting for a second person to approve the start: ${t.title}`);
+    try {
+      result = await ctx.awaitTask(t.id);
+    } finally {
+      ctx.endWait();
+    }
+    if (!result) throw new Cancelled();
+  }
+  const { decision, by } = result;
+  if (!decision.approved) {
+    ctx.cancelReason ??= cancelReasonText(`The start was rejected by ${by}${decision.comment ? `: ${decision.comment}` : ''}`);
+    ctx.cancelledBy ??= by;
+    ctx.log('warn', ctx.cancelReason);
+    throw new Cancelled();
+  }
+  ctx.log('info', `Start approved by ${by}${decision.comment ? `: ${decision.comment}` : ''}`);
+}
+
+/**
+ * Start approvals nobody decided within START_APPROVAL_HOURS: the run is cancelled (audited run.start_approval_expired,
+ * the run's own run.cancelled follows). A job, every minute (features/processes.ts).
+ */
+export async function expireStartApprovals(now = nowIso()): Promise<number> {
+  const open = db().all<{ id: string; run_id: string; start_approval: string | null }>(
+    "SELECT id, run_id, start_approval FROM run_tasks WHERE step_key = ? AND status = 'open' LIMIT 500",
+    START_APPROVAL_KEY,
+  );
+  let n = 0;
+  for (const t of open) {
+    const a = parseJson<Partial<StartApproval>>(t.start_approval, {});
+    if (!a.expiresAt || a.expiresAt > now) continue;
+    audit({
+      actor: 'system',
+      action: 'run.start_approval_expired',
+      entityType: 'run',
+      entityId: t.run_id,
+      runId: t.run_id,
+      summary: `Nobody approved the start within ${START_APPROVAL_HOURS} hours: the run is cancelled`,
+      details: { taskId: t.id, expiresAt: a.expiresAt, identities: a.identities ?? [] },
+    });
+    await cancelRun(t.run_id, 'system', `Nobody approved the start within ${START_APPROVAL_HOURS} hours`).catch((e) =>
+      logger.warn({ err: e, runId: t.run_id }, 'could not cancel a run whose start approval expired'),
+    );
+    n++;
+  }
+  return n;
 }
 
 /** One step-through run per person at a time: starting another one stops the first (also one still queued). */

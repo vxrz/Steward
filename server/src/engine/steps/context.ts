@@ -19,6 +19,8 @@ export interface Binding {
   platform: Platform;
   secrets: Record<string, string>;
   baseUrl: string;
+  /** The slot's identity was privileged when the run resolved its connection (0.14.0, ADR 0009 step 4) */
+  privileged?: boolean;
 }
 
 /** A decision on a task the step waits for (or null: the run was cancelled). */

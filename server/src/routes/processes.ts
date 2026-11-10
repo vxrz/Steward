@@ -16,7 +16,7 @@ import { HttpError, MAX_DEFINITION_TEXT, rasterImageType } from '../util.js';
 import * as processes from '../processes/service.js';
 import * as store from '../engine/store.js';
 import { engine, modeOf } from '../engine/index.js';
-import { authorizeCancel, authorizeSignal, authorizeStart } from '../engine/commands.js';
+import { authorizeCancel, authorizeSignal, authorizeStart, startsUnrefused } from '../engine/commands.js';
 import { addEvidence, evidenceForDownload, manualCompletionSchema, removeEvidence, verificationSchema } from '../engine/manual.js';
 import * as scheduler from '../scheduler.js';
 import { runReportHtml } from '../reports.js';
@@ -29,6 +29,7 @@ import { requireCapability } from '../auth/permissions.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { LARGE_BODIES } from '../bodyLimits.js';
 import { me } from '../auth/access.js';
+import { namesPrivileged, privilegedRefusal, privilegedSlots } from '../platforms/privileged.js';
 import { requireProcess, requireRun, withDecisionRights, visibleTasks, visibleRuns } from './helpers.js';
 import { params } from './params.js';
 
@@ -63,6 +64,20 @@ const runsQuery = z.object({
   /** With a sort: the id of the last run shown ("Load more"); `before` is the cursor of the default order */
   after: z.string().max(200).optional(),
 });
+
+/** The request body as an object (a step-up rule's `when` reads it before the route validates it). */
+const bodyOf = (req: FastifyRequest): Record<string, unknown> => (req.body && typeof req.body === 'object' ? (req.body as Record<string, unknown>) : {});
+
+/**
+ * Using a privileged platform identity (0.14.0, ADR 0009 step 4, control point platform.privilegedIdentity): the request
+ * names one for a slot (or a slot's default identity is one) – asked by the step-up hook, checked again in the handler.
+ */
+const privilegedStart = {
+  action: 'usePrivilegedIdentity' as const,
+  // only for someone who may start it (anyone else gets the route's own refusal, nothing asked of them)
+  who: (req: FastifyRequest) => startsUnrefused(bodyOf(req)),
+  when: (req: FastifyRequest) => namesPrivileged(bodyOf(req).bindings, bodyOf(req).identities),
+};
 
 /** Processes, runs, tasks and schedules (mounted under /api). */
 export async function processRoutes(app: FastifyInstance): Promise<void> {
@@ -137,7 +152,7 @@ export async function processRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // ---------- runs ----------
-  app.post('/runs', { config: { rateLimit: ROUTE_LIMITS.action } }, async (req) => {
+  app.post('/runs', { config: { rateLimit: ROUTE_LIMITS.action, stepUp: privilegedStart } }, async (req, reply) => {
     const b = z
       .object({
         processId: z.string().max(200),
@@ -152,6 +167,9 @@ export async function processRoutes(app: FastifyInstance): Promise<void> {
       .parse(req.body) as StartRunRequest;
     // the command layer (ADR 0011): process run, use on each bound platform and its identity
     authorizeStart(undefined, { processId: b.processId, bindings: b.bindings, identities: b.identities });
+    // a privileged identity: confirmed by the step-up hook, or now (0.14.0)
+    const refused = privilegedRefusal(privilegedSlots(b.bindings, b.identities));
+    if (refused) return reply.code(refused.status).send(refused.body);
     const { runId } = await engine().start({
       processId: b.processId,
       version: b.version,
@@ -232,7 +250,7 @@ export async function processRoutes(app: FastifyInstance): Promise<void> {
     if (!t) throw new HttpError(404, 'Task not found', 'TASK_NOT_FOUND');
     return t;
   });
-  app.post('/tasks/:id/complete', async (req) => {
+  app.post('/tasks/:id/complete', async (req, reply) => {
     const id = params(req).id!;
     const t = visibleTasks().find((x) => x.id === id);
     if (!t) throw new HttpError(404, 'Task not found', 'TASK_NOT_FOUND');
@@ -245,6 +263,11 @@ export async function processRoutes(app: FastifyInstance): Promise<void> {
     const decision = z
       .object({ approved: z.boolean(), selectedKeys: z.array(z.string().max(500)).max(10000).default([]), comment: z.string().max(5000).optional() })
       .parse(req.body) as TaskDecision;
+    // approving the start of a privileged run: the approver confirms it is them (0.14.0, ADR 0009 step 4) – never in Teams
+    if (t.startApproval && decision.approved) {
+      const refused = privilegedRefusal(t.startApproval.identities);
+      if (refused) return reply.code(refused.status).send(refused.body);
+    }
     return await engine().signal(t.runId, { type: 'task.decide', taskId: id, decision }, currentActor());
   });
   // manual steps: the second person verifies (or sends back / rejects) what the first one entered
@@ -312,15 +335,21 @@ export async function processRoutes(app: FastifyInstance): Promise<void> {
     notify: notifyPolicySchema.optional(),
   });
   app.get('/schedules', async () => scheduler.listSchedules());
-  app.post('/schedules', async (req) => {
+  // a schedule that uses a privileged identity: its owner confirms when saving it (0.14.0, ADR 0009 step 4); every fire
+  // runs as the owner without asking, and may wait for a start approval
+  app.post('/schedules', { config: { stepUp: privilegedStart } }, async (req, reply) => {
     const b = scheduleBody.parse(req.body);
     authorizeStart(undefined, { processId: b.processId, bindings: b.bindings, identities: b.identities });
+    const refused = privilegedRefusal(privilegedSlots(b.bindings, b.identities));
+    if (refused) return reply.code(refused.status).send(refused.body);
     return scheduler.saveSchedule(b);
   });
-  app.put('/schedules/:id', async (req) => {
+  app.put('/schedules/:id', { config: { stepUp: privilegedStart } }, async (req, reply) => {
     scheduler.requireScheduleEdit(params(req).id!);
     const b = scheduleBody.parse(req.body);
     authorizeStart(undefined, { processId: b.processId, bindings: b.bindings, identities: b.identities });
+    const refused = privilegedRefusal(privilegedSlots(b.bindings, b.identities));
+    if (refused) return reply.code(refused.status).send(refused.body);
     return scheduler.saveSchedule(b, params(req).id);
   });
   // pause and resume the messages of a schedule's runs (#139); runs and checks are not affected
@@ -337,9 +366,13 @@ export async function processRoutes(app: FastifyInstance): Promise<void> {
     scheduler.deleteSchedule(params(req).id!);
     return { ok: true };
   });
-  app.post('/schedules/:id/run', { config: { rateLimit: ROUTE_LIMITS.action } }, async (req) => {
+  // "Run now" starts a run as the signed-in person: like any start with a privileged identity, it asks for a step-up
+  // (in the handler: it depends on the stored schedule)
+  app.post('/schedules/:id/run', { config: { rateLimit: ROUTE_LIMITS.action } }, async (req, reply) => {
     const s = scheduler.getSchedule(params(req).id!);
     authorizeStart(undefined, { processId: s.processId, bindings: s.bindings, identities: s.identities });
+    const refused = privilegedRefusal(privilegedSlots(s.bindings, s.identities));
+    if (refused) return reply.code(refused.status).send(refused.body);
     const id = await scheduler.fire(s.id, true);
     if (!id) throw new HttpError(409, 'Run was not started – see audit log');
     return { id };

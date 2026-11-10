@@ -914,6 +914,11 @@ const definitionBase = {
   runbook: runbookRef.optional(),
   tags: z.array(tagInput()).max(50).optional(),
   connections: z.array(connectionSlotSchema).max(100).default([]),
+  /**
+   * Privileged runs need a second person (0.14.0, ADR 0009 step 4): a run that uses a privileged platform identity waits
+   * for a start approval by someone other than its starter. The assurance policy can require it for every process.
+   */
+  privilegedFourEyes: z.boolean().optional(),
   inputs: z.array(inputDefSchema).max(200).default([]),
   constants: boundedRecord(z.unknown(), 500).optional(),
   /** Values returned to a parent process (name → expression evaluated when the run ends) */

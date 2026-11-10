@@ -219,6 +219,24 @@ function checkedFilter(platform: Platform, input: unknown): IdentityOperationFil
   };
 }
 
+/**
+ * The MCP mode a privileged identity may have (0.14.0, ADR 0009 step 4): off, or approved writes a second person approves
+ * (fourEyes). Reads are refused, confirm becomes fourEyes – what turning the flag on does to the stored mode.
+ */
+export function privilegedMcp(m: IdentityMcp): IdentityMcp {
+  if (m.mode === 'writes') return { mode: 'writes', writes: 'fourEyes' };
+  return m.writes === 'confirm' ? { mode: 'off', writes: 'fourEyes' } : m.writes ? { mode: 'off', writes: m.writes } : { mode: 'off' };
+}
+
+function refuseDefaultPrivileged(name: string): never {
+  throw new HttpError(
+    400,
+    `"${name}" is the default identity – everyone with "use" on the platform uses it, and Steward's own readers use it in the background: it cannot be privileged. Add another identity for the privileged credentials`,
+    'IDENTITY_DEFAULT_PRIVILEGED',
+    { identity: name },
+  );
+}
+
 /** The platform for a change: refused while it (or the identity) was changed outside Steward – it would be sealed unseen. */
 function platformForChange(platformId: string): Platform {
   requirePlatformIntact(platformId);
@@ -247,7 +265,7 @@ export function createIdentity(platformId: string, input: PlatformIdentityInput)
     db().run(
       `INSERT INTO platform_identities (id, platform_id, name, description, is_default, auth, variables, secrets, acl, read_only, privileged, operation_filter,
          mcp, credential_source, created_at, created_by, updated_at, updated_by)
-       VALUES (?, ?, ?, ?, 0, ?, ?, NULL, '[]', ?, 0, ?, ?, NULL, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, 0, ?, ?, NULL, '[]', ?, ?, ?, ?, NULL, ?, ?, ?, ?)`,
       id,
       platformId,
       name,
@@ -255,6 +273,7 @@ export function createIdentity(platformId: string, input: PlatformIdentityInput)
       auth ? JSON.stringify(auth) : null,
       JSON.stringify(variables),
       input.readOnly ? 1 : 0,
+      input.privileged ? 1 : 0,
       filter ? JSON.stringify(filter) : null,
       JSON.stringify({ mode: 'off' }),
       ts,
@@ -263,8 +282,9 @@ export function createIdentity(platformId: string, input: PlatformIdentityInput)
       actor(),
     );
     sealIdentity(id);
-    audited(p, { id, name }, 'platform.identity_created', 'identity created', {
+    audited(p, { id, name }, 'platform.identity_created', `identity created${input.privileged ? ' (privileged)' : ''}`, {
       readOnly: !!input.readOnly,
+      privileged: !!input.privileged,
       ownSignIn: !!auth,
       variables: Object.keys(variables),
       operationFilter: filter ? { preset: filter.preset, operations: filter.operations.length } : null,
@@ -278,6 +298,8 @@ export function identityChangeLoosens(platformId: string, identityId: string, in
   const r = identityRow(platformId, identityId);
   if (!r) return false;
   if (input.readOnly === false && flag(r.read_only)) return true;
+  // privileged off (0.14.0, ADR 0009 step 4): its users no longer confirm, runs no longer wait for a second person
+  if (input.privileged === false && flag(r.privileged)) return true;
   if (input.operationFilter === undefined) return false;
   const before = parseJson<IdentityOperationFilter | null>(r.operation_filter, null);
   return filterWidens(before, cleanFilter(input.operationFilter), listOperations(platformId));
@@ -298,6 +320,12 @@ export function updateIdentity(platformId: string, identityId: string, input: Pa
   const beforeFilter = parseJson<IdentityOperationFilter | null>(r.operation_filter, null);
   const filter = input.operationFilter !== undefined ? checkedFilter(p, input.operationFilter) : beforeFilter;
   const readOnly = input.readOnly !== undefined ? input.readOnly : flag(r.read_only);
+  const privileged = input.privileged !== undefined ? input.privileged : flag(r.privileged);
+  if (privileged && !flag(r.privileged) && flag(r.is_default)) refuseDefaultPrivileged(r.name);
+  // turning the flag on tightens the MCP mode at once: no reads, approved writes only with a second person
+  const mcpBefore = parseMcp(r.mcp);
+  const mcp = privileged ? privilegedMcp(mcpBefore) : mcpBefore;
+  const mcpChanged = JSON.stringify(mcp) !== JSON.stringify(mcpBefore);
   const description = input.description !== undefined ? input.description.slice(0, IDENTITY_LIMITS.description) : r.description;
   const changed: string[] = [];
   if (name !== r.name) changed.push('name');
@@ -305,16 +333,20 @@ export function updateIdentity(platformId: string, identityId: string, input: Pa
   if (JSON.stringify(auth) !== JSON.stringify(parseJson(r.auth, null))) changed.push('signIn');
   if (JSON.stringify(variables) !== JSON.stringify(parseJson(r.variables, {}))) changed.push('variables');
   if (readOnly !== flag(r.read_only)) changed.push('readOnly');
+  if (privileged !== flag(r.privileged)) changed.push('privileged');
   const filterChanged = JSON.stringify(filter) !== JSON.stringify(beforeFilter);
   db().tx(() => {
     db().run(
-      `UPDATE platform_identities SET name = ?, description = ?, auth = ?, variables = ?, read_only = ?, operation_filter = ?, updated_at = ?, updated_by = ?
+      `UPDATE platform_identities SET name = ?, description = ?, auth = ?, variables = ?, read_only = ?, privileged = ?, mcp = ?, operation_filter = ?,
+         updated_at = ?, updated_by = ?
        WHERE id = ? AND platform_id = ?`,
       name,
       description,
       auth ? JSON.stringify(auth) : null,
       JSON.stringify(variables),
       readOnly ? 1 : 0,
+      privileged ? 1 : 0,
+      JSON.stringify(mcp),
       filter ? JSON.stringify(filter) : null,
       nowIso(),
       actor(),
@@ -332,9 +364,18 @@ export function updateIdentity(platformId: string, identityId: string, input: Pa
           changed,
           ...(name !== r.name ? { previousName: r.name } : {}),
           ...(changed.includes('readOnly') ? { readOnly } : {}),
+          ...(changed.includes('privileged') ? { privileged } : {}),
           ...(changed.includes('variables') ? { variables: Object.keys(variables) } : {}),
           ...(changed.includes('signIn') ? { signIn: auth?.type ?? null } : {}),
         },
+      );
+    if (mcpChanged)
+      audited(
+        p,
+        { id: r.id, name },
+        'platform.identity_mcp_changed',
+        `MCP: ${mcp.mode === 'writes' ? `approved writes (${mcp.writes})` : mcp.mode} – the identity is privileged (was ${mcpBefore.mode === 'writes' ? `approved writes (${mcpBefore.writes})` : mcpBefore.mode})`,
+        { mcp, previous: mcpBefore, reason: 'privileged' },
       );
     if (filterChanged)
       audited(
@@ -514,6 +555,13 @@ export function setIdentityMcp(platformId: string, identityId: string, input: Id
       'MCP_WRITES_NOT_AVAILABLE',
       { name: p.name },
     );
+  if (flag(r.privileged) && (mode === 'read' || (mode === 'writes' && writes !== 'fourEyes')))
+    throw new HttpError(
+      400,
+      `"${r.name}" is privileged: MCP clients may not read with it, and changing calls need a second person (approved writes with four-eyes)`,
+      'IDENTITY_PRIVILEGED_MCP',
+      { identity: r.name },
+    );
   const next: IdentityMcp = mode === 'writes' ? { mode, writes: writes! } : writes ? { mode, writes } : { mode };
   db().tx(() => {
     db().run(
@@ -556,6 +604,8 @@ export function makeDefaultIdentity(platformId: string, identityId: string): Pla
       identity: r.name,
       platform: p.name,
     });
+  // a privileged identity never becomes everyone's (0.14.0, ADR 0009 step 4): turn the flag off first (a step-up)
+  if (flag(r.privileged)) refuseDefaultPrivileged(r.name);
   const before = identityRows(platformId).find((x) => flag(x.is_default));
   const ts = nowIso();
   db().tx(() => {
@@ -601,6 +651,7 @@ export function enableIdentity(platformId: string, identityId: string): Platform
       variables: Object.keys(parseJson<Record<string, string>>(r.variables, {})),
       mcp: parseMcp(r.mcp),
       readOnly: flag(r.read_only),
+      privileged: flag(r.privileged),
     });
   });
   invalidateIdentityCaches(platformId, r.id);
@@ -670,7 +721,14 @@ export function copyIdentityFilters(
       updateIdentity(targetId, existing.id, { operationFilter: mapped, ...(flag(src.read_only) ? { readOnly: true } : {}) });
       out.updated.push(existing.name);
     } else {
-      createIdentity(targetId, { name: src.name, description: src.description, readOnly: flag(src.read_only), operationFilter: mapped });
+      // a privileged source makes a privileged copy (a tightening); never the default (0.14.0)
+      createIdentity(targetId, {
+        name: src.name,
+        description: src.description,
+        readOnly: flag(src.read_only),
+        ...(flag(src.privileged) ? { privileged: true } : {}),
+        operationFilter: mapped,
+      });
       out.created.push(src.name);
     }
   }

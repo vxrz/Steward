@@ -527,7 +527,7 @@ export async function previewReport(o: {
       stats: { steps: 6, failedSteps: 0, writes: 2, skippedWrites: 0, checksPassed: 1, checksFailed: 1, openTasks: 0 },
     },
     process: { id: 'sample', name: tr.t('sampleProcess'), version: 3, definitionHash: fake('definition'), description: tr.t('sampleNote') },
-    connections: [{ slot: 'hub', platformName: 'Insights Hub (production)', kind: 'insights-hub', environment: 'production' }],
+    connections: [{ slot: 'hub', platformName: 'Insights Hub (production)', identityName: 'Default', kind: 'insights-hub', environment: 'production' }],
     inputs: [{ name: 'days', label: 'Inactive for (days)', value: '90' }],
     steps: [
       {

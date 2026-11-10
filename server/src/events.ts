@@ -55,6 +55,8 @@ export interface DomainEvents {
     assignees: string[];
     fourEyes: boolean;
     runActor: string;
+    /** A start approval (0.14.0): everyone who may not decide it besides the starter (the schedule's or trigger's owner) */
+    requesters?: string[];
     /** The run is a dry run: the task is real (the run waits for it), the message says it is a test */
     dryRun: boolean;
   };
