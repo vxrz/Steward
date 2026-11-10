@@ -28,12 +28,14 @@ import {
 } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { IconAlertTriangle, IconId, IconPlus, IconStar, IconTrash } from '@tabler/icons-react';
+import { IconAlertTriangle, IconId, IconPlus, IconShieldLock, IconStar, IconTrash } from '@tabler/icons-react';
+import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   DATABASE_KIND,
   type AclEntry,
   type ApiOperation,
+  type Credential,
   type IdentityOperationFilter,
   type IdentityOperationRef,
   type Platform,
@@ -47,6 +49,7 @@ import { OwningTeams } from '../OwningTeams';
 import { DataTable, type DataColumn } from '../DataTable';
 import { confirmDanger } from '../confirm';
 import { useMe } from '../../auth';
+import { PrivilegedBadge } from './PrivilegedBadge';
 
 /**
  * The identities of a platform (ADR 0009; 0.13.0: editable). A row per identity; its managers add identities and change
@@ -68,6 +71,7 @@ export function IdentitiesTab({ platform, onOpenTab }: { platform: Platform; onO
     { key: 'mcp', header: t('identities.mcpLabel'), cell: (i) => mcpText(t, i), sortValue: (i) => i.mcp.mode },
     { key: 'operations', header: t('identities.operations'), cell: (i) => filterText(t, i) },
     { key: 'who', header: t('identities.whoMayUse'), cell: (i) => whoText(t, i) },
+    { key: 'register', header: t('identities.register'), cell: (i) => <RegisterText identity={i} /> },
     { key: 'you', header: t('identities.you'), cell: (i) => (i.mayUse ? t('identities.youMayUse') : t('identities.youMayNotUse')), nowrap: true },
   ];
   return (
@@ -111,6 +115,9 @@ export function IdentitiesTab({ platform, onOpenTab }: { platform: Platform; onO
                 <Field label={t('identities.mcpLabel')}>{mcpText(t, i)}</Field>
                 <Field label={t('identities.operations')}>{filterText(t, i)}</Field>
                 <Field label={t('identities.whoMayUse')}>{whoText(t, i)}</Field>
+                <Field label={t('identities.register')}>
+                  <RegisterText identity={i} />
+                </Field>
                 <Field label={t('identities.you')}>{i.mayUse ? t('identities.youMayUse') : t('identities.youMayNotUse')}</Field>
               </SimpleGrid>
             </Paper>
@@ -161,6 +168,23 @@ function whoText(t: T, i: PlatformIdentity): string {
   return i.default ? t('identities.everyoneWithUse') : i.acl?.length ? t('identities.listed', { count: i.acl.length }) : t('identities.closed');
 }
 
+/**
+ * How many entries of the credentials register document the identity (0.14.0, ADR 0009 step 4) – a privileged one
+ * without an entry is marked (a warning, not a block).
+ */
+function RegisterText({ identity: i }: { identity: PlatformIdentity }) {
+  const { t } = useTranslation(['platforms', 'common']);
+  const n = i.registerEntries ?? 0;
+  if (!n && i.privileged)
+    return (
+      <Group gap={4} wrap="nowrap" data-testid="identity-register-missing">
+        <IconAlertTriangle size={14} color="var(--mantine-color-orange-7)" aria-hidden />
+        <Text size="sm">{t('identities.registerMissing')}</Text>
+      </Group>
+    );
+  return <Text size="sm">{n ? t('identities.registerCount', { count: n }) : t('identities.registerNone')}</Text>;
+}
+
 function IdentityName({ identity: i }: { identity: PlatformIdentity }) {
   const { t } = useTranslation(['platforms', 'common']);
   const changed = i.integrity === 'mismatch' || i.integrity === 'unsealed';
@@ -179,6 +203,7 @@ function IdentityName({ identity: i }: { identity: PlatformIdentity }) {
           {t('identities.readOnly')}
         </Badge>
       )}
+      {i.privileged && <PrivilegedBadge />}
       {changed && (
         <Badge variant="light" color="red" size="sm" leftSection={<IconAlertTriangle size={12} />}>
           {t('identities.changedOutside')}
@@ -300,6 +325,7 @@ function GeneralForm({
   const [name, setName] = useState(identity?.name ?? '');
   const [description, setDescription] = useState(identity?.description ?? '');
   const [readOnly, setReadOnly] = useState(identity?.readOnly ?? false);
+  const [privileged, setPrivileged] = useState(identity?.privileged ?? false);
   const [own, setOwn] = useState(identity?.ownSignIn ?? false);
   const [auth, setAuth] = useState('');
   const [vars, setVars] = useState<{ key: string; value: string }[]>([]);
@@ -327,6 +353,8 @@ function GeneralForm({
         name: name.trim(),
         description,
         readOnly,
+        // turning it off asks for a step-up (the dialog comes with the answer); never on the default identity
+        ...(identity?.default ? {} : { privileged }),
         ...(identity
           ? {
               auth: own ? JSON.parse(auth || '{}') : null,
@@ -444,6 +472,22 @@ function GeneralForm({
             data-testid="identity-read-only"
           />
         )}
+        {identity?.default ? (
+          <Text size="sm" c="dimmed">
+            {t('identities.privilegedDefault')}
+          </Text>
+        ) : (
+          <Switch
+            label={t('identities.privilegedLabel')}
+            description={t('identities.privilegedHelp')}
+            checked={privileged}
+            onChange={(e) => setPrivileged(e.currentTarget.checked)}
+            disabled={!manage}
+            color="orange"
+            data-testid="identity-privileged-switch"
+          />
+        )}
+        {identity && <RegisterEntries platform={platform} identity={identity} />}
         {manage && identity && (
           <>
             <SegmentedControl
@@ -473,7 +517,7 @@ function GeneralForm({
         {manage && (
           <Group justify="space-between" wrap="wrap">
             <Group gap="xs" wrap="wrap">
-              {identity && !identity.default && !identity.disabled && (
+              {identity && !identity.default && !identity.disabled && !identity.privileged && (
                 <Button variant="default" leftSection={<IconStar size={16} />} onClick={makeDefault} disabled={busy}>
                   {t('identities.makeDefault')}
                 </Button>
@@ -501,6 +545,60 @@ function GeneralForm({
         )}
       </Stack>
     </form>
+  );
+}
+
+/**
+ * The entries of the credentials register that document the identity (0.14.0, ADR 0009 step 4): status and next due
+ * date, as far as the person may read the register.
+ */
+function RegisterEntries({ platform, identity }: { platform: Platform; identity: PlatformIdentity }) {
+  const { t } = useTranslation(['platforms', 'common', 'credentials']);
+  const n = identity.registerEntries ?? 0;
+  const entries = useQuery({
+    queryKey: ['credentials', 'identity', identity.id],
+    queryFn: () => get<{ items: Credential[] }>(`/credentials?platform=${encodeURIComponent(platform.id)}&identity=${encodeURIComponent(identity.id)}`),
+    enabled: n > 0,
+    retry: false,
+  });
+  return (
+    <Stack gap={4} data-testid="identity-register">
+      <Text size="sm" fw={500}>
+        {t('identities.register')}
+      </Text>
+      {!n ? (
+        <Text size="sm" c={identity.privileged ? undefined : 'dimmed'}>
+          {identity.privileged && <IconAlertTriangle size={14} color="var(--mantine-color-orange-7)" aria-hidden style={{ verticalAlign: 'text-bottom' }} />}{' '}
+          {identity.privileged ? t('identities.registerMissingText') : t('identities.registerEmpty')}{' '}
+          <Anchor component={Link} to="/credentials" size="sm">
+            {t('identities.registerOpen')}
+          </Anchor>
+        </Text>
+      ) : (
+        <>
+          {(entries.data?.items ?? []).map((c) => (
+            <Group key={c.id} gap="xs" wrap="wrap">
+              <Anchor component={Link} to={`/credentials?open=${encodeURIComponent(c.id)}`} size="sm">
+                {c.name}
+              </Anchor>
+              <Badge size="xs" variant="light" color={c.status === 'ok' ? 'green' : c.status === 'dueSoon' ? 'yellow' : 'red'}>
+                {t(`credentials:status.${c.status}`)}
+              </Badge>
+              {c.nextDueAt && (
+                <Text size="xs" c="dimmed">
+                  {t('identities.registerNextDue', { date: c.nextDueAt.slice(0, 10) })}
+                </Text>
+              )}
+            </Group>
+          ))}
+          {entries.isError && (
+            <Text size="sm" c="dimmed">
+              {t('identities.registerCount', { count: n })}
+            </Text>
+          )}
+        </>
+      )}
+    </Stack>
   );
 }
 
@@ -562,10 +660,14 @@ function CredentialsForm({ platform, identity }: { platform: Platform; identity:
   const [key, setKey] = useState('');
   const [value, setValue] = useState('');
   const [busy, setBusy] = useState(false);
+  // "This is a rotation" (0.14.0, ADR 0009 step 4): on by default where register entries document the identity
+  const registered = (identity.registerEntries ?? 0) > 0;
+  const [rotation, setRotation] = useState(true);
   const store = async (patch: Record<string, string | null>, ok: string) => {
     setBusy(true);
     try {
-      await put(`${base(platform, identity)}/secrets`, patch);
+      const asRotation = registered && rotation && Object.values(patch).some((v) => !!v);
+      await put(`${base(platform, identity)}/secrets${asRotation ? '?rotation=1' : ''}`, patch);
       await refresh();
       notifyOk(ok);
       setKey('');
@@ -630,6 +732,15 @@ function CredentialsForm({ platform, identity }: { platform: Platform; identity:
             autoComplete="new-password"
             data-testid="identity-secret-value"
           />
+          {registered && (
+            <Checkbox
+              label={t('identities.rotation')}
+              description={t('identities.rotationHelp', { count: identity.registerEntries ?? 0 })}
+              checked={rotation}
+              onChange={(e) => setRotation(e.currentTarget.checked)}
+              data-testid="identity-secret-rotation"
+            />
+          )}
           <Group justify="flex-end">
             <Button
               type="submit"
@@ -683,6 +794,8 @@ function McpForm({ platform, identity, manage }: { platform: Platform; identity:
   const [mode, setMode] = useState<string>(current);
   const [busy, setBusy] = useState(false);
   const database = platform.kind === DATABASE_KIND;
+  // a privileged identity (0.14.0, ADR 0009 step 4): off, or changing calls a second person approves – never reads
+  const privileged = identity.privileged;
   const save = async () => {
     setBusy(true);
     try {
@@ -701,6 +814,11 @@ function McpForm({ platform, identity, manage }: { platform: Platform; identity:
       <Text size="sm" c="dimmed">
         {t('identities.mcpHelp')}
       </Text>
+      {privileged && (
+        <Alert color="orange" variant="light" icon={<IconShieldLock size={16} />} data-testid="identity-mcp-privileged">
+          {t('identities.mcpPrivileged')}
+        </Alert>
+      )}
       <Select
         label={t('identities.mcpLabel')}
         value={mode}
@@ -710,10 +828,10 @@ function McpForm({ platform, identity, manage }: { platform: Platform; identity:
         data-testid="identity-mcp-mode"
         data={[
           { value: 'off', label: t('identities.mcp.off') },
-          { value: 'read', label: t('identities.mcp.read') },
+          ...(privileged ? [] : [{ value: 'read', label: t('identities.mcp.read') }]),
           ...(database
             ? []
-            : (['confirm', 'fourEyes'] as const).map((w) => ({
+            : (privileged ? (['fourEyes'] as const) : (['confirm', 'fourEyes'] as const)).map((w) => ({
                 value: `writes:${w}`,
                 label: t('identities.mcp.writes', { mode: t(`identities.mcp.writeModes.${w}`) }),
               }))),

@@ -1172,7 +1172,15 @@
     "IDENTITY_LIMIT": "A platform can have at most {{max}} identities.",
     "IDENTITY_MCP_INVALID": "Approved writes need an approval mode: the token owner confirms, or a second person approves.",
     "IDENTITY_AUTH_ORIGIN": "The sign-in setting {{field}} would send the identity’s credentials to {{origin}}. An identity may only sign in at the platform’s own origins: {{allowed}}.",
-    "IDENTITY_DISABLED": "The identity {{identity}} is disabled: it was added or changed outside Steward. An administrator enables it on the platform's Identities tab."
+    "IDENTITY_DISABLED": "The identity {{identity}} is disabled: it was added or changed outside Steward. An administrator enables it on the platform's Identities tab.",
+    "IDENTITY_DEFAULT_PRIVILEGED": "The identity {{identity}} is the default identity: everyone with \"use\" on the platform uses it, so it cannot be privileged. Add another identity for the privileged credentials.",
+    "IDENTITY_PRIVILEGED_MCP": "The identity {{identity}} is privileged: MCP clients do not read with it, and changing calls need a second person (approved writes with four-eyes).",
+    "IDENTITY_PRIVILEGED_CONFIRM": "The identity {{identity}} of {{platform}} is privileged – send it again and confirm it is you.",
+    "IDENTITY_PRIVILEGED_BACKGROUND": "The identity {{identity}} of {{platform}} is privileged: monitors do not use privileged identities.",
+    "MCP_REQUEST_PRIVILEGED": "A request with a privileged identity is approved in Steward, with a confirmation that it is you.",
+    "FOUR_EYES_START": "A second person approves the start of this run – not whoever started it, nor the owner of its schedule or trigger.",
+    "START_APPROVAL_RIGHTS": "You need the approve right on this process to approve its start.",
+    "CREDENTIAL_IDENTITY": "The identity is not one of the linked platform's identities."
   },
   "boundary": {
     "title": "Something went wrong on this page",

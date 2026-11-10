@@ -117,5 +117,16 @@
     "switchToReject": "Reject instead",
     "switchToApprove": "Approve instead",
     "notPossible": "This can no longer be decided here: it was decided, cancelled or has expired, or you may not decide it."
+  },
+  "startApproval": {
+    "title": "Approve the start with a privileged identity",
+    "text": "The run uses privileged credentials and waits before its first step. Approve it only if this run and its inputs are expected.",
+    "identities": "Privileged identities",
+    "requesters": "Asked by {{users}}",
+    "byPolicy": "required by the assurance policy",
+    "byProcess": "required by the process",
+    "expires": "Cancelled on {{date}} if nobody decides.",
+    "reasonRequester": "a second person approves the start – not whoever started the run or owns its schedule or trigger",
+    "reasonRights": "a person with the approve right on the process approves the start"
   }
 }

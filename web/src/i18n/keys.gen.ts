@@ -965,6 +965,7 @@ export interface Resources {
     'overrides.kinds.platformMcp': string;
     'overrides.kinds.personReview': string;
     'overrides.kinds.setting': string;
+    'overrides.kinds.process': string;
     'overrides.fourEyes': string;
     'overrides.stepUp': string;
     'overrides.neither': string;
@@ -1066,6 +1067,8 @@ export interface Resources {
     'points.personalData.export.description': string;
     'points.modules.switch.label': string;
     'points.modules.switch.description': string;
+    'points.platform.privilegedIdentity.label': string;
+    'points.platform.privilegedIdentity.description': string;
     teamsLabel: string;
     teamsAria: string;
   };
@@ -1297,6 +1300,7 @@ export interface Resources {
     'stepUp.actions.changeModules': string;
     'stepUp.actions.renamePlantId': string;
     'stepUp.actions.changePlantInBulk': string;
+    'stepUp.actions.usePrivilegedIdentity': string;
   };
   common: {
     add: string;
@@ -2474,6 +2478,7 @@ export interface Resources {
     'fields.tags': string;
     'fields.roles': string;
     'fields.belongsTo': string;
+    'fields.identity': string;
     'detail.title': string;
     'detail.notFound': string;
     'detail.copied': string;
@@ -2569,6 +2574,8 @@ export interface Resources {
     'editor.rolesCommentHint': string;
     'editor.belongsToHint': string;
     'editor.belongsToNone': string;
+    'editor.identityHint': string;
+    'editor.identityPrivileged': string;
     'home.title': string;
     'home.counts': string;
     'home.all': string;
@@ -3735,6 +3742,8 @@ export interface Resources {
     'settings.messages.runbookHint': string;
     'settings.messages.runbookInvalid': string;
     'settings.messages.runbookPlaceholder': string;
+    'settings.privilegedFourEyes': string;
+    'settings.privilegedFourEyesHint': string;
     'general.name': string;
     'general.description': string;
     'general.descriptionHint': string;
@@ -5271,6 +5280,14 @@ export interface Resources {
     'codes.IDENTITY_MCP_INVALID': string;
     'codes.IDENTITY_AUTH_ORIGIN': string;
     'codes.IDENTITY_DISABLED': string;
+    'codes.IDENTITY_DEFAULT_PRIVILEGED': string;
+    'codes.IDENTITY_PRIVILEGED_MCP': string;
+    'codes.IDENTITY_PRIVILEGED_CONFIRM': string;
+    'codes.IDENTITY_PRIVILEGED_BACKGROUND': string;
+    'codes.MCP_REQUEST_PRIVILEGED': string;
+    'codes.FOUR_EYES_START': string;
+    'codes.START_APPROVAL_RIGHTS': string;
+    'codes.CREDENTIAL_IDENTITY': string;
     'boundary.title': string;
     'boundary.text': string;
     'boundary.retry': string;
@@ -5849,6 +5866,7 @@ export interface Resources {
     'requests.acceptProposal_one': string;
     'requests.acceptProposal_other': string;
     'requests.viaTeams': string;
+    'requests.privilegedHint': string;
     'oauth.title': string;
     'oauth.enable': string;
     'oauth.enableHint': string;
@@ -9918,6 +9936,22 @@ export interface Resources {
     'identities.enable': string;
     'identities.enableText': string;
     'identities.enabled': string;
+    'identities.privilegedLabel': string;
+    'identities.privilegedHelp': string;
+    'identities.privilegedDefault': string;
+    'identities.register': string;
+    'identities.registerNone': string;
+    'identities.registerCount_one': string;
+    'identities.registerCount_other': string;
+    'identities.registerMissing': string;
+    'identities.registerMissingText': string;
+    'identities.registerEmpty': string;
+    'identities.registerOpen': string;
+    'identities.registerNextDue': string;
+    'identities.rotation': string;
+    'identities.rotationHelp_one': string;
+    'identities.rotationHelp_other': string;
+    'identities.mcpPrivileged': string;
     'settings.kind': string;
     'settings.kindHint': string;
     'settings.environment': string;
@@ -10729,6 +10763,8 @@ export interface Resources {
     'identitySelect.description': string;
     'identitySelect.notAllowed': string;
     'identitySelect.readOnly': string;
+    'identitySelect.noPrivileged': string;
+    'identitySelect.privilegedHint': string;
   };
   processes: {
     title: string;
@@ -12042,6 +12078,8 @@ export interface Resources {
     'detail.aiGenerated': string;
     'detail.libraryOrigin': string;
     'detail.libraryRevoked': string;
+    'detail.startApproval': string;
+    'detail.startApprovalText': string;
     'emptyState.title': string;
     'emptyState.text': string;
     'emptyState.action': string;
@@ -13211,6 +13249,7 @@ export interface Resources {
     'status.jobs.names.audit-checkpoint': string;
     'status.jobs.names.scheduler-heartbeat': string;
     'status.jobs.names.git-sync': string;
+    'status.jobs.names.start-approvals': string;
     'status.jobs.switchedOff': string;
     'updateNotice.title': string;
     'updateNotice.titleFrom': string;
@@ -13337,6 +13376,15 @@ export interface Resources {
     'fromLink.switchToReject': string;
     'fromLink.switchToApprove': string;
     'fromLink.notPossible': string;
+    'startApproval.title': string;
+    'startApproval.text': string;
+    'startApproval.identities': string;
+    'startApproval.requesters': string;
+    'startApproval.byPolicy': string;
+    'startApproval.byProcess': string;
+    'startApproval.expires': string;
+    'startApproval.reasonRequester': string;
+    'startApproval.reasonRights': string;
   };
   tickets: {
     title: string;

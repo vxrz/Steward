@@ -359,7 +359,23 @@
     "disabledText": "Diese Identität wurde außerhalb von Steward hinzugefügt oder geändert. Beim Bestätigen der Plattformeinstellungen wurde sie behalten, aber deaktiviert: Nichts kann sie verwenden, und mit ihr werden keine Zugangsdaten gesendet. Prüfen Sie ihre Einstellungen und ihre Zugriffsliste, bevor ein Administrator sie aktiviert.",
     "enable": "Aktivieren",
     "enableText": "Die Identität „{{name}}“ aktivieren? Ihre Zugangsdaten können dann wieder verwendet werden – von Administratoren, ihren zuständigen Teams und: {{who}}. Prüfen Sie vorher ihre Einstellungen, Zugangsdaten und Zugriffsliste.",
-    "enabled": "Identität „{{name}}“ aktiviert"
+    "enabled": "Identität „{{name}}“ aktiviert",
+    "privilegedLabel": "Privilegiert",
+    "privilegedHelp": "Jede Verwendung muss bestätigt werden (Step-up): eine Ausführung starten, einen Zeitplan oder Auslöser speichern, eine Anfrage im Request-Explorer, eine MCP-Anfrage freigeben. Ausführungen können auf eine zweite Person warten. MCP-Clients lesen nie mit ihr, Monitore verwenden sie nie. Das Ausschalten muss bestätigt werden.",
+    "privilegedDefault": "Die Standard-Identität ist nie privilegiert: Alle mit dem Recht „Verwenden“ auf der Plattform nutzen sie. Legen Sie privilegierte Zugangsdaten in einer anderen Identität ab.",
+    "register": "Zugangsdaten-Register",
+    "registerNone": "Kein Eintrag",
+    "registerCount_one": "{{count}} Eintrag",
+    "registerCount_other": "{{count}} Einträge",
+    "registerMissing": "Privilegiert – kein Registereintrag",
+    "registerMissingText": "Diese privilegierte Identität hat keinen Eintrag im Zugangsdaten-Register: Halten Sie fest, wem sie gehört und wann sie rotiert wird.",
+    "registerEmpty": "Kein Eintrag des Zugangsdaten-Registers beschreibt diese Identität.",
+    "registerOpen": "Zugangsdaten-Register öffnen",
+    "registerNextDue": "nächste Fälligkeit {{date}}",
+    "rotation": "Dies ist eine Rotation",
+    "rotationHelp_one": "Vermerkt heute als letzte Rotation im Registereintrag, der diese Identität beschreibt.",
+    "rotationHelp_other": "Vermerkt heute als letzte Rotation in den {{count}} Registereinträgen, die diese Identität beschreiben.",
+    "mcpPrivileged": "Diese Identität ist privilegiert: MCP-Clients lesen nie mit ihr, und ändernde Aufrufe brauchen immer eine zweite Person (freigegebene Änderungen mit Vier-Augen-Prinzip)."
   },
   "settings": {
     "kind": "Art",
@@ -1260,6 +1276,8 @@
     "label": "Identität",
     "description": "Welche Zugangsdaten der Plattform verwendet werden – die Standard-Identität, wenn Sie keine andere wählen",
     "notAllowed": "Sie dürfen sie nicht verwenden",
-    "readOnly": "nur lesen"
+    "readOnly": "nur lesen",
+    "noPrivileged": "privilegiert – nicht für Monitore",
+    "privilegedHint": "Eine privilegierte Identität: Sie bestätigen beim Starten, dass Sie es sind – und eine zweite Person muss den Start eventuell freigeben."
   }
 }

@@ -1172,7 +1172,15 @@
     "IDENTITY_LIMIT": "Eine Plattform kann höchstens {{max}} Identitäten haben.",
     "IDENTITY_MCP_INVALID": "Freigegebene Schreibzugriffe benötigen eine Freigabeart: Der Besitzer des Tokens bestätigt, oder eine zweite Person gibt frei.",
     "IDENTITY_AUTH_ORIGIN": "Die Anmeldeeinstellung {{field}} würde die Zugangsdaten der Identität an {{origin}} senden. Eine Identität darf sich nur bei den eigenen Ursprüngen der Plattform anmelden: {{allowed}}.",
-    "IDENTITY_DISABLED": "Die Identität {{identity}} ist deaktiviert: Sie wurde außerhalb von Steward hinzugefügt oder geändert. Ein Administrator aktiviert sie im Reiter Identitäten der Plattform."
+    "IDENTITY_DISABLED": "Die Identität {{identity}} ist deaktiviert: Sie wurde außerhalb von Steward hinzugefügt oder geändert. Ein Administrator aktiviert sie im Reiter Identitäten der Plattform.",
+    "IDENTITY_DEFAULT_PRIVILEGED": "Die Identität {{identity}} ist die Standard-Identität: Alle mit dem Recht „Verwenden“ auf der Plattform nutzen sie, daher kann sie nicht privilegiert sein. Legen Sie für die privilegierten Zugangsdaten eine weitere Identität an.",
+    "IDENTITY_PRIVILEGED_MCP": "Die Identität {{identity}} ist privilegiert: MCP-Clients lesen nicht mit ihr, und ändernde Aufrufe brauchen eine zweite Person (freigegebene Änderungen mit Vier-Augen-Prinzip).",
+    "IDENTITY_PRIVILEGED_CONFIRM": "Die Identität {{identity}} von {{platform}} ist privilegiert – senden Sie es erneut und bestätigen Sie, dass Sie es sind.",
+    "IDENTITY_PRIVILEGED_BACKGROUND": "Die Identität {{identity}} von {{platform}} ist privilegiert: Monitore verwenden keine privilegierten Identitäten.",
+    "MCP_REQUEST_PRIVILEGED": "Eine Anfrage mit einer privilegierten Identität wird in Steward freigegeben, mit einer Bestätigung, dass Sie es sind.",
+    "FOUR_EYES_START": "Eine zweite Person gibt den Start dieser Ausführung frei – nicht die Person, die sie gestartet hat, und nicht der Besitzer ihres Zeitplans oder Auslösers.",
+    "START_APPROVAL_RIGHTS": "Sie brauchen das Recht „Freigeben“ auf diesem Prozess, um seinen Start freizugeben.",
+    "CREDENTIAL_IDENTITY": "Die Identität gehört nicht zur verknüpften Plattform."
   },
   "boundary": {
     "title": "Auf dieser Seite ist ein Fehler aufgetreten",

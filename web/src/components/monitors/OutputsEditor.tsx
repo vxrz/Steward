@@ -141,6 +141,7 @@ export function OutputsEditor({ outputs, onChange, checks, platforms, processes,
                 value={o.identity}
                 onChange={(identity) => update(i, { identity })}
                 needsWrites
+                noPrivileged
                 disabled={disabled}
               />
             )}

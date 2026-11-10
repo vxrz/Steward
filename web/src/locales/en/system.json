@@ -332,7 +332,8 @@
         "cleanup": "Retention clean-up (runs, notifications, monitor data)",
         "audit-checkpoint": "Signed audit checkpoint",
         "scheduler-heartbeat": "Scheduler mark: fires after it count as missed at the next start",
-        "git-sync": "Scheduled Git sync fetches"
+        "git-sync": "Scheduled Git sync fetches",
+        "start-approvals": "Start approvals of privileged runs: cancel the runs nobody approved within 24 hours"
       },
       "switchedOff": "Module switched off"
     }

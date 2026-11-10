@@ -60,6 +60,8 @@ interface Draft {
   type: CredentialType;
   belongsTo: { kind: CredentialBelongsKind; id: string } | null;
   platformId: string | null;
+  /** The platform identity it documents (0.14.0, ADR 0009 step 4) */
+  identityId: string | null;
   platformText: string;
   environment: string;
   description: string;
@@ -97,6 +99,7 @@ const fromEntry = (c: Credential | null): Draft =>
         type: c.type,
         belongsTo: c.belongsTo ? { kind: c.belongsTo.kind, id: c.belongsTo.id } : null,
         platformId: c.platformId,
+        identityId: c.identityId ?? null,
         platformText: c.platformText,
         environment: c.environment,
         description: c.description,
@@ -130,6 +133,7 @@ const fromEntry = (c: Credential | null): Draft =>
         type: 'apiClient',
         belongsTo: null,
         platformId: null,
+        identityId: null,
         platformText: '',
         environment: '',
         description: '',
@@ -348,7 +352,8 @@ export function CredentialEditor({
             clearable
             data={(platforms.data ?? []).map((p) => ({ value: p.id, label: p.name }))}
             value={d.platformId}
-            onChange={(v) => set({ platformId: v })}
+            // another platform: its identities, none chosen yet
+            onChange={(v) => set({ platformId: v, identityId: null })}
           />
           {!d.platformId ? (
             <TextInput
@@ -358,7 +363,18 @@ export function CredentialEditor({
               onChange={(e) => set({ platformText: e.currentTarget.value })}
             />
           ) : (
-            <div />
+            <Select
+              label={t('fields.identity')}
+              description={t('editor.identityHint')}
+              clearable
+              data={(platforms.data?.find((p) => p.id === d.platformId)?.identities ?? []).map((i) => ({
+                value: i.id,
+                label: `${i.name}${i.privileged ? ` · ${t('editor.identityPrivileged')}` : ''}`,
+              }))}
+              value={d.identityId}
+              onChange={(v) => set({ identityId: v })}
+              data-testid="credential-identity"
+            />
           )}
           <TextInput
             label={t('fields.environment')}
