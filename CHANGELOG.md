@@ -19,6 +19,7 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- **A changed settle time applies to a running settle** ([docs/MONITORS.md](docs/MONITORS.md#settle-time)). The end of a monitor state's settle time was fixed at the state change, so shortening or lengthening `settleSeconds` (or the checks it is derived from) only applied to the next state change; it now always follows the current definition – the state change plus today's settle time – and the recomputed end is stored for restarts.
 - **The plant OT network diagram no longer replaces its parts right after drawing them** – it was drawn before its frame had a size and again after – and a refresh that changes only live statuses (every minute while a linked check reports) no longer lays the picture out and fits it again under the pointer.
 - **The History tab and Revert list the rows of one change set in a fixed order** (kind, scope and entry id after time and revision), the same on PostgreSQL after a row was rewritten.
 - **Tests on a loaded machine**: isolated servers of the UI tests get 240 s to start with the demo (a hook that timed out stopped the server under its own setup, reported as `fetch failed` or 502), the test servers allow 6,000 requests per user and minute (production stays at 600), and the dashboards test waits for the demo's feeder runs instead of a fixed time (and stretches the expression time limit, which the CheckMk trend summary overran under load).
