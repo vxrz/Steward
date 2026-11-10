@@ -14,7 +14,9 @@
     "acknowledgedBy": "bestätigt von {{user}}",
     "hideOff": "Aus ausblenden",
     "offAgree": "{{state}} – alle Prüfungen stimmen überein",
-    "offSettling": "{{state}} · stellt sich ein, {{minutes}} min"
+    "offSettling": "{{state}} · stellt sich ein, {{minutes}} min",
+    "settling_one": "{{state}} · stellt sich ein, {{minutes}} min – {{count}} Prüfung noch nicht wie erwartet",
+    "settling_other": "{{state}} · stellt sich ein, {{minutes}} min – {{count}} Prüfungen noch nicht wie erwartet"
   },
   "title": "Monitore",
   "description": "Zusammensetzbare Statusprüfungen mit Abhängigkeiten: Jede Prüfung läuft nach eigenem Zeitplan; Verknüpfungen erklären Ausfälle (Ursachen) und halten Folgealarme zurück.",
@@ -1084,6 +1086,9 @@
     "onContradiction": "Bei Widerspruch",
     "contradictionOf": "{{state}} bei Widerspruch",
     "contradictionDown": "Ausgefallen (Standard)",
-    "legendContradiction": "was ein Widerspruch in diesem Zustand aus dem Monitor macht: Ausgefallen (Standard) oder Beeinträchtigt. Der andere Weg, je Prüfung: Eine Prüfung ohne „Kritisch“ (in ihrer Karte) beeinträchtigt den Monitor nur, wenn sie abweicht."
+    "legendContradiction": "was ein Widerspruch in diesem Zustand aus dem Monitor macht: Ausgefallen (Standard) oder Beeinträchtigt. Der andere Weg, je Prüfung: Eine Prüfung ohne „Kritisch“ (in ihrer Karte) beeinträchtigt den Monitor nur, wenn sie abweicht.",
+    "notAsExpectedYet_one": "{{count}} Prüfung noch nicht wie erwartet",
+    "notAsExpectedYet_other": "{{count}} Prüfungen noch nicht wie erwartet",
+    "settlingCard": "Stellt sich ein – zählt noch nicht"
   }
 }

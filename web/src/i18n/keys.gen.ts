@@ -6394,6 +6394,8 @@ export interface Resources {
     'wall.hideOff': string;
     'wall.offAgree': string;
     'wall.offSettling': string;
+    'wall.settling_one': string;
+    'wall.settling_other': string;
     title: string;
     description: string;
     new: string;
@@ -7268,6 +7270,9 @@ export interface Resources {
     'states.contradictionOf': string;
     'states.contradictionDown': string;
     'states.legendContradiction': string;
+    'states.notAsExpectedYet_one': string;
+    'states.notAsExpectedYet_other': string;
+    'states.settlingCard': string;
   };
   nav: {
     'items.dashboard': string;

@@ -14,7 +14,9 @@
     "acknowledgedBy": "acknowledged by {{user}}",
     "hideOff": "Hide off",
     "offAgree": "{{state}} – all checks agree",
-    "offSettling": "{{state}} · settling {{minutes}} min"
+    "offSettling": "{{state}} · settling {{minutes}} min",
+    "settling_one": "{{state}} · settling {{minutes}} min – {{count}} check not as expected yet",
+    "settling_other": "{{state}} · settling {{minutes}} min – {{count}} checks not as expected yet"
   },
   "title": "Monitors",
   "description": "Composable health checks with dependencies: every check runs on its own schedule; links explain failures (root causes) and keep follow-up alerts quiet.",
@@ -1084,6 +1086,9 @@
     "onContradiction": "On contradiction",
     "contradictionOf": "{{state}} on contradiction",
     "contradictionDown": "Down (default)",
-    "legendContradiction": "what a contradiction in this state makes the monitor: Down (default) or Degraded. The other way, per check: a check without “Critical” (in its card) only degrades the monitor when it deviates."
+    "legendContradiction": "what a contradiction in this state makes the monitor: Down (default) or Degraded. The other way, per check: a check without “Critical” (in its card) only degrades the monitor when it deviates.",
+    "notAsExpectedYet_one": "{{count}} check not as expected yet",
+    "notAsExpectedYet_other": "{{count}} checks not as expected yet",
+    "settlingCard": "Settling – not counted yet"
   }
 }

@@ -138,6 +138,68 @@ test('the editor\'s decision table: rows, cells, and "Try it"', async ({ page, a
   await api.delete(`/api/monitors/${id}`);
 });
 
+test('settling: the header says until when and how many checks are not as expected yet; their cards are amber, not red', async ({ page, apiAs }) => {
+  const api = await apiAs('dana');
+  const created = await json(
+    await api.post('/api/monitors', {
+      data: {
+        definition: {
+          name: uniq('E2E settling'),
+          failuresBeforeDown: 1,
+          successesBeforeUp: 1,
+          checks: [
+            { id: 'pm', name: 'PowerMeter reachable', type: 'heartbeat', mode: 'maxAge', maxAgeSeconds: 3600, x: 0, y: 0 },
+            { id: 'data', name: 'PowerMeter data', type: 'heartbeat', mode: 'maxAge', maxAgeSeconds: 3600, x: 0, y: 160 },
+          ],
+          states: {
+            cases: [
+              { id: 'running', name: 'Running', when: { pm: 'up' }, expect: { data: 'up' }, settleSeconds: 3600 },
+              { id: 'off', name: 'Off', status: 'off', when: { pm: 'down' }, expect: { data: 'down' } },
+            ],
+          },
+        },
+      },
+    }),
+  );
+  const id = created.monitor.id as string;
+  const secrets = new Map((created.secrets as { checkId: string; secret: string }[]).map((x) => [x.checkId, x.secret]));
+  const detail = await json(await api.get(`/api/monitors/${id}`));
+  const pathOf = (checkId: string) => detail.checks.find((c: { checkId: string }) => c.checkId === checkId).heartbeat.path as string;
+  const report = async (checkId: string, status: string) =>
+    expect((await api.post(pathOf(checkId), { data: { status }, headers: { authorization: `Bearer ${secrets.get(checkId)}` } })).ok()).toBe(true);
+  const evaluate = async (state: string) => {
+    await expect
+      .poll(async () => {
+        await api.post(`/api/monitors/${id}/run`);
+        return (await json(await api.get(`/api/monitors/${id}`))).state?.id;
+      })
+      .toBe(state);
+  };
+  // the machine is off (the first state is taken as it is), then switched on: its data has not arrived yet
+  await report('pm', 'down');
+  await report('data', 'down');
+  await evaluate('off');
+  await report('pm', 'up');
+  await evaluate('running');
+  await page.goto(`/monitors/${id}`);
+  const note = page.getByTestId('monitor-settling');
+  await expect(note).toBeVisible();
+  await expect(note).toContainText('settling until');
+  await expect(note).toContainText('1 check not as expected yet');
+  // the status stays as computed: up
+  await expect(page.getByRole('heading', { level: 1 }).locator('[data-status="up"]')).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1 }).getByTestId('monitor-settling')).toBeVisible();
+  // the deviating card is marked settling (amber), the other one is not
+  await expect(page.getByTestId('monitor-node-data')).toHaveAttribute('data-settling', 'true');
+  await expect(page.getByTestId('monitor-node-data')).toContainText('Settling – not counted yet');
+  await expect(page.getByTestId('monitor-node-pm')).not.toHaveAttribute('data-settling', 'true');
+  await expect(page.getByTestId('why-this-state').getByTestId('state-cell-data')).toHaveAttribute('data-verdict', 'settling');
+  await expect(page.getByRole('table', { name: 'Checks' }).getByTestId('check-settling')).toHaveCount(1);
+  await settle(page);
+  await expectAccessible(page, 'a monitor that settles');
+  await api.delete(`/api/monitors/${id}`);
+});
+
 /** A monitor with two states for the editor tests (heartbeats: nothing reports, so the checks are unknown). */
 async function statesMonitor(api: APIRequestContext) {
   const created = await json(

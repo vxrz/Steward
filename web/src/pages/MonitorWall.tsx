@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import type { MonitorStatus, MonitorSummary } from '@sm/shared';
 import { get } from '../api';
 import { MONITOR_COLORS, causeText, fmtUptime, monitorStatusLabel } from '../components/monitors/status';
+import { settlingCheckIds } from '../components/monitors/StatePanel';
 import { fmtRelative } from '../format';
 import { monitorKeys } from '../queryKeys';
 
@@ -113,9 +114,15 @@ export function MonitorWallPage() {
                         minutes: Math.max(1, Math.ceil((Date.parse(m.state.settlingUntil) - now) / 60000)),
                       })
                     : t('wall.offAgree', { state: m.state.name ?? monitorStatusLabel('off') })
-                  : m.rootCauses.length
-                    ? m.rootCauses.map((c) => causeText(c, m.id)).join(', ')
-                    : t('wall.checks', { count: m.checkCount })}
+                  : m.state?.settlingUntil && settlingCheckIds(m.state).length
+                    ? t('wall.settling', {
+                        state: m.state.name ?? monitorStatusLabel(m.status),
+                        minutes: Math.max(1, Math.ceil((Date.parse(m.state.settlingUntil) - now) / 60000)),
+                        count: settlingCheckIds(m.state).length,
+                      })
+                    : m.rootCauses.length
+                      ? m.rootCauses.map((c) => causeText(c, m.id)).join(', ')
+                      : t('wall.checks', { count: m.checkCount })}
             </Text>
             <Text size="xs" mt={6}>
               {t('wall.uptimeSince', { uptime: fmtUptime(m.uptime.h24), since: fmtRelative(m.since) })}

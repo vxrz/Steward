@@ -39,6 +39,7 @@ import { EmptyState, Hint, QueryState, useFieldErrors } from '../components/comm
 import { useMe } from '../auth';
 import { fmtDate, fmtNumber, fmtRelative } from '../format';
 import { MONITOR_COLORS, MonitorStatusBadge, causeText, fmtUptime, monitorStatusLabel, monitorStatusLower } from '../components/monitors/status';
+import { CheckSettlingBadge, settlingCheckIds } from '../components/monitors/StatePanel';
 import { CopyBlock, ImportModal, InstantiateModal, SecretsModal, gatewayCurl } from '../components/monitors/dialogs';
 import { confirmDanger } from '../components/confirm';
 import { DataTable, type DataColumn } from '../components/DataTable';
@@ -194,6 +195,11 @@ function MonitorTable({ monitors, onTag }: { monitors: MonitorSummary[]; onTag: 
       cell: (m) => (
         <>
           <MonitorStatusBadge status={m.status} />
+          {settlingCheckIds(m.state).length > 0 && (
+            <Box component="span" ml={4}>
+              <CheckSettlingBadge until={m.state?.settlingUntil} />
+            </Box>
+          )}
           {m.acknowledged && (
             <Badge ml={4} size="xs" variant="outline">
               {t('list.acknowledged')}
@@ -276,7 +282,10 @@ function MonitorTable({ monitors, onTag }: { monitors: MonitorSummary[]; onTag: 
             <Anchor component={Link} to={`/monitors/${m.id}`} fw={600} size="sm">
               {m.name}
             </Anchor>
-            <MonitorStatusBadge status={m.status} size="xs" />
+            <Group gap={4} wrap="nowrap">
+              <MonitorStatusBadge status={m.status} size="xs" />
+              {settlingCheckIds(m.state).length > 0 && <CheckSettlingBadge until={m.state?.settlingUntil} />}
+            </Group>
           </Group>
           {m.rootCauses.length > 0 && (
             <Text size="xs" c="red">
