@@ -668,6 +668,20 @@ const EXPECT: Record<string, Access> = {
   'POST /api/compliance/corrective-suggestions/:suggestionId/dismiss': DESIGN,
   'GET /api/compliance/corrective-settings': ALL,
   'PUT /api/compliance/corrective-settings': ADMIN,
+  // statement of applicability (ADR 0029 part 2): everyone reads it; designers and administrators change it (a row's
+  // owner its status and review), approvers and administrators decide versions, who exports evidence exports it
+  'GET /api/compliance/soa': ALL,
+  'POST /api/compliance/soa': DESIGN,
+  'GET /api/compliance/soa/:catalogueId': ALL,
+  'PUT /api/compliance/soa/:catalogueId/settings': DESIGN,
+  'PUT /api/compliance/soa/:catalogueId/entries/:controlId': DESIGN,
+  'POST /api/compliance/soa/:catalogueId/versions': DESIGN,
+  'GET /api/compliance/soa/:catalogueId/versions/:n': ALL,
+  'POST /api/compliance/soa/:catalogueId/versions/:n/decision': ['admin', 'approver'],
+  'GET /api/compliance/soa/:catalogueId/versions/:n/export': NOT_VIEWER,
+  // the responsibility matrix of a service: whoever may edit the service changes it
+  'GET /api/services/:id/responsibilities': ALL,
+  'PUT /api/services/:id/responsibilities': DESIGN,
 
   'POST /api/record-types': ADMIN,
   'PUT /api/record-types/:id': ADMIN,
@@ -966,6 +980,9 @@ const EXPECT: Record<string, Access> = {
   'GET /api/v1/control-coverage': ALL,
   'GET /api/v1/corrective-actions': ALL,
   'GET /api/v1/corrective-actions/:findingId': ['admin', 'designer', 'approver', 'auditor'],
+  'GET /api/v1/statements-of-applicability': ALL,
+  'GET /api/v1/statements-of-applicability/:catalogueKey': ALL,
+  'GET /api/v1/services/:serviceId/responsibilities': ALL,
   'GET /api/v1/credentials': ALL,
   'GET /api/v1/credentials/:credentialId': NOT_VIEWER,
 
@@ -1380,6 +1397,13 @@ const SESSION_ONLY = [
   'POST /api/compliance/corrective-suggestions/:suggestionId/confirm',
   'POST /api/compliance/corrective-suggestions/:suggestionId/dismiss',
   'PUT /api/compliance/corrective-settings',
+  // statement of applicability and responsibility matrix (ADR 0029 decision 9): decisions of people in the app
+  'POST /api/compliance/soa',
+  'PUT /api/compliance/soa/:catalogueId/settings',
+  'PUT /api/compliance/soa/:catalogueId/entries/:controlId',
+  'POST /api/compliance/soa/:catalogueId/versions',
+  'POST /api/compliance/soa/:catalogueId/versions/:n/decision',
+  'PUT /api/services/:id/responsibilities',
   'POST /api/library-publishers',
   'PUT /api/library-publishers/:id',
   'DELETE /api/library-publishers/:id',
@@ -1482,6 +1506,8 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
     harmless: { acl: 'not a list' },
   },
   'POST /api/compliance/evidence-packs': 'always',
+  // approving or returning a version of the statement of applicability (soa.approve, ADR 0029)
+  'POST /api/compliance/soa/:catalogueId/versions/:n/decision': 'always',
   'GET /api/audit/export': 'always',
   'PUT /api/assurance/policy': 'always',
   'POST /api/assurance/policy/changes/:changeId/approve': 'always',
@@ -1646,6 +1672,8 @@ const NO_POSITIVE = new Set([
   'GET /api/teams/:id/settings/logo', // the matrix team has no logo of its own
   // no S3 storage set up in the fixtures
   'GET /api/backups/stored',
+  // the SoA version of the fixtures was never approved through the app: no archived PDF (404)
+  'GET /api/compliance/soa/:catalogueId/versions/:n/export',
   // no scheduled export in the fixtures
   'GET /api/exports/:id',
   'GET /api/exports/:id/runs',
@@ -1760,6 +1788,9 @@ function fill(url: string): string {
       .replace(/:actionId/g, fx.correctiveAction!)
       .replace(/:suggestionId/g, fx.correctiveSuggestion!)
       .replace(/:findingId/g, fx.finding!)
+      // the statement of applicability of the fixtures' catalogue and its one version
+      .replace(/versions\/:n(?=\/|$)/, 'versions/1')
+      .replace(/:catalogueKey/g, 'ISO27001')
       .replace(/:catalogueId/g, fx.catalogue!)
       .replace(/:controlId/g, fx.control!)
       .replace(/:packId/g, fx.pack!)
@@ -2503,6 +2534,18 @@ beforeAll(async () => {
     );
   }
   Object.assign(fx, { correctiveFinding: caFinding.id, correctiveAction: caWithAction.actions[0].id, correctiveSuggestion: 'cas_matrix' });
+  // statement of applicability (ADR 0029 part 2): the SoA of the control's catalogue with one approved version
+  {
+    const soa = await a('POST', '/compliance/soa', { catalogueId: fx.catalogue, scopeServiceIds: [svc.id] });
+    const { db } = await import('../src/db.js');
+    db().run(
+      `INSERT INTO soa_versions (id, soa_id, number, status, content, content_sha256, submitted_at, submitted_by, decided_at, decided_by)
+       VALUES ('soav_matrix', ?, 1, 'approved', '{"entries":[]}', 'x', ?, 'admin', ?, 'adam')`,
+      soa.id,
+      new Date().toISOString(),
+      new Date().toISOString(),
+    );
+  }
   for (const role of ROLES) cookies[role] = await loginCookie(s.base, USERS[role], role === 'admin' ? 'Admin-password-1' : PW);
   for (const role of ROLES) {
     const res = await fetch(`${s.base}/api/me/tokens`, {

@@ -91,7 +91,8 @@
       "platformMcp": "Plattform (MCP)",
       "personReview": "Personenprüfung",
       "setting": "Einstellung",
-      "process": "Prozess"
+      "process": "Prozess",
+      "soa": "Erklärung zur Anwendbarkeit"
     },
     "fourEyes": "Vier Augen",
     "stepUp": "Bestätigung",
@@ -366,6 +367,12 @@
       "verify": {
         "label": "Die Wirksamkeit einer Korrekturmaßnahme prüfen",
         "description": "Wer bestätigt, dass eine Korrektur wirkt, ist nicht verantwortlich für den Befund oder eine Maßnahme und hat keine Maßnahme als erledigt markiert. Standardmäßig erforderlich; aus: Jede prüfende Person darf bestätigen."
+      }
+    },
+    "soa": {
+      "approve": {
+        "label": "Eine Version der Erklärung zur Anwendbarkeit freigeben",
+        "description": "Freigebende und Administratoren geben eine eingereichte Version frei oder geben sie zurück, nachdem sie bestätigt haben, dass sie es sind. Vier-Augen-Prinzip: Wer einreicht, gibt nicht frei (jede Erklärung hat einen eigenen Schalter, standardmäßig an); erforderlich: für jede Erklärung."
       }
     }
   },

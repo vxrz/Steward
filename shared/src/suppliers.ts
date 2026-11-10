@@ -32,7 +32,7 @@ export const SUPPLIER_DPA_STATUSES = ['inPlace', 'missing'] as const;
 export type SupplierDpaStatus = (typeof SUPPLIER_DPA_STATUSES)[number];
 
 /** Where a supplier is linked from (the five former free-text vendors, and duties). */
-export const SUPPLIER_LINK_KINDS = ['application', 'system', 'ticket', 'watch', 'costPlanLine', 'duty'] as const;
+export const SUPPLIER_LINK_KINDS = ['application', 'system', 'ticket', 'watch', 'costPlanLine', 'duty', 'responsibility', 'soaEntry'] as const;
 export type SupplierLinkKind = (typeof SUPPLIER_LINK_KINDS)[number];
 
 /** Reminders before a certificate runs out and before a notice-by date (days). */

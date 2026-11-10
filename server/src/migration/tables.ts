@@ -151,6 +151,8 @@ export const USER_REFS: UserRef[] = [
   // corrective actions (ADR 0029): who owns a finding and its actions now
   { table: 'ca_findings', column: 'owner', kind: 'username' },
   { table: 'ca_actions', column: 'owners', kind: 'subjects' },
+  // statement of applicability (ADR 0029 part 2): who owns a row now
+  { table: 'soa_entries', column: 'owner', kind: 'subjects' },
   { table: 'service_duties', column: 'owners', kind: 'subjects' },
   { table: 'duty_skips', column: 'decider_subjects', kind: 'subjects' },
   // the owners a service had on the day of the snapshot: mapped, so the trend per owner names the target's users and teams
@@ -283,6 +285,14 @@ export const HISTORY_COLUMNS: string[] = [
   'ca_actions.updated_by',
   'ca_actions.done_by',
   'ca_suggestions.decided_by',
+  // statement of applicability and responsibility matrix (ADR 0029 part 2): who made, changed, reviewed, submitted and decided
+  'soas.created_by',
+  'soas.updated_by',
+  'soa_entries.reviewed_by',
+  'soa_entries.updated_by',
+  'soa_versions.submitted_by',
+  'soa_versions.decided_by',
+  'service_responsibilities.updated_by',
   'systems.updated_by',
   'systems.sbom_imported_by',
   'system_stack.set_by',

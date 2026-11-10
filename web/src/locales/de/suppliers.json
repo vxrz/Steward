@@ -189,14 +189,16 @@
   },
   "usedBy": {
     "title": "Verwendet von",
-    "empty": "Noch verknüpft nichts diesen Lieferanten. Wählen Sie ihn im Formular einer Anwendung, eines Systems, einer Ticket-Referenz, einer Seitenüberwachung, einer Planposition oder einer Pflicht.",
+    "empty": "Noch verknüpft nichts diesen Lieferanten. Wählen Sie ihn im Formular einer Anwendung, eines Systems, einer Ticket-Referenz, einer Seitenüberwachung, einer Planposition oder einer Pflicht, in den Verantwortlichkeiten eines Service oder in einer Zeile der Erklärung zur Anwendbarkeit.",
     "kinds": {
       "application": "Anwendung",
       "system": "System",
       "ticket": "Ticket-Referenz",
       "watch": "Seitenüberwachung",
       "costPlanLine": "Planposition",
-      "duty": "Pflicht"
+      "duty": "Pflicht",
+      "responsibility": "Verantwortungsmatrix",
+      "soaEntry": "Erklärung zur Anwendbarkeit"
     }
   },
   "duties": {

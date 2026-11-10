@@ -9569,6 +9569,1158 @@
         ],
         "additionalProperties": false
       },
+      "SoaSummaryEntry": {
+        "title": "SoaSummaryEntry",
+        "type": "object",
+        "properties": {
+          "catalogueKey": {
+            "type": "string"
+          },
+          "catalogueName": {
+            "type": "string"
+          },
+          "scopeName": {
+            "type": "string"
+          },
+          "scopeServiceIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Services in scope; empty: every service"
+          },
+          "fourEyes": {
+            "type": "boolean",
+            "description": "A second person approves a version (the statement’s switch)"
+          },
+          "counts": {
+            "type": "object",
+            "properties": {
+              "controls": {
+                "type": "integer"
+              },
+              "applicable": {
+                "type": "integer"
+              },
+              "notApplicable": {
+                "type": "integer"
+              },
+              "undecided": {
+                "type": "integer"
+              },
+              "implemented": {
+                "type": "integer"
+              },
+              "partly": {
+                "type": "integer"
+              },
+              "planned": {
+                "type": "integer"
+              },
+              "notStarted": {
+                "type": "integer"
+              },
+              "noStatus": {
+                "type": "integer",
+                "description": "Applicable rows without an implementation status"
+              },
+              "reviewDue": {
+                "type": "integer",
+                "description": "Rows not reviewed for twelve months (or never)"
+              },
+              "noEvidence": {
+                "type": "integer",
+                "description": "Applicable, implemented rows with no mapped item and no evidence link"
+              }
+            },
+            "required": [
+              "controls",
+              "applicable",
+              "notApplicable",
+              "undecided",
+              "implemented",
+              "partly",
+              "planned",
+              "notStarted",
+              "noStatus",
+              "reviewDue",
+              "noEvidence"
+            ],
+            "additionalProperties": false,
+            "description": "Counts of the rows"
+          },
+          "latestApproved": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "number": {
+                    "type": "integer"
+                  },
+                  "decidedAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "ISO 8601 timestamp (UTC)"
+                  },
+                  "decidedBy": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "number",
+                  "decidedAt",
+                  "decidedBy"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "waiting": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "number": {
+                    "type": "integer"
+                  },
+                  "submittedAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "ISO 8601 timestamp (UTC)"
+                  },
+                  "submittedBy": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "number",
+                  "submittedAt",
+                  "submittedBy"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A version waiting for approval"
+          },
+          "changedSinceApproved": {
+            "type": "integer",
+            "description": "Rows that differ from the latest approved version"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          }
+        },
+        "required": [
+          "catalogueKey",
+          "catalogueName",
+          "scopeName",
+          "scopeServiceIds",
+          "fourEyes",
+          "counts",
+          "latestApproved",
+          "waiting",
+          "changedSinceApproved",
+          "createdAt",
+          "updatedAt"
+        ],
+        "additionalProperties": false
+      },
+      "SoaDetailEntry": {
+        "title": "SoaDetailEntry",
+        "type": "object",
+        "properties": {
+          "catalogueKey": {
+            "type": "string"
+          },
+          "catalogueName": {
+            "type": "string"
+          },
+          "scopeName": {
+            "type": "string"
+          },
+          "scopeServiceIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Services in scope; empty: every service"
+          },
+          "fourEyes": {
+            "type": "boolean",
+            "description": "A second person approves a version (the statement’s switch)"
+          },
+          "counts": {
+            "type": "object",
+            "properties": {
+              "controls": {
+                "type": "integer"
+              },
+              "applicable": {
+                "type": "integer"
+              },
+              "notApplicable": {
+                "type": "integer"
+              },
+              "undecided": {
+                "type": "integer"
+              },
+              "implemented": {
+                "type": "integer"
+              },
+              "partly": {
+                "type": "integer"
+              },
+              "planned": {
+                "type": "integer"
+              },
+              "notStarted": {
+                "type": "integer"
+              },
+              "noStatus": {
+                "type": "integer",
+                "description": "Applicable rows without an implementation status"
+              },
+              "reviewDue": {
+                "type": "integer",
+                "description": "Rows not reviewed for twelve months (or never)"
+              },
+              "noEvidence": {
+                "type": "integer",
+                "description": "Applicable, implemented rows with no mapped item and no evidence link"
+              }
+            },
+            "required": [
+              "controls",
+              "applicable",
+              "notApplicable",
+              "undecided",
+              "implemented",
+              "partly",
+              "planned",
+              "notStarted",
+              "noStatus",
+              "reviewDue",
+              "noEvidence"
+            ],
+            "additionalProperties": false,
+            "description": "Counts of the rows"
+          },
+          "latestApproved": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "number": {
+                    "type": "integer"
+                  },
+                  "decidedAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "ISO 8601 timestamp (UTC)"
+                  },
+                  "decidedBy": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "number",
+                  "decidedAt",
+                  "decidedBy"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "waiting": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "number": {
+                    "type": "integer"
+                  },
+                  "submittedAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "ISO 8601 timestamp (UTC)"
+                  },
+                  "submittedBy": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "number",
+                  "submittedAt",
+                  "submittedBy"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A version waiting for approval"
+          },
+          "changedSinceApproved": {
+            "type": "integer",
+            "description": "Rows that differ from the latest approved version"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "catalogueVersion": {
+            "type": "string"
+          },
+          "servicesInScope": {
+            "type": "integer"
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "controlId": {
+                  "type": "string"
+                },
+                "ref": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "applicable": {
+                  "type": [
+                    "null",
+                    "boolean"
+                  ],
+                  "description": "null: undecided"
+                },
+                "justification": {
+                  "type": "string"
+                },
+                "status": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "implemented",
+                        "partly",
+                        "planned",
+                        "notStarted"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "howMet": {
+                  "type": "string"
+                },
+                "party": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "team",
+                        "supplier",
+                        "central",
+                        "shared"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The responsible party a person chose"
+                },
+                "supplier": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "unconfirmed",
+                            "active",
+                            "archived"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "status"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "centralName": {
+                  "type": "string"
+                },
+                "owner": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "user:<name> or team:<name>"
+                },
+                "reviewedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "description": "ISO 8601 timestamp (UTC)"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "ISO 8601 timestamp (UTC)"
+                },
+                "reviewedBy": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "reviewDue": {
+                  "type": "boolean"
+                },
+                "grcRef": {
+                  "type": "string"
+                },
+                "grcUrl": {
+                  "type": "string"
+                },
+                "evidenceLinks": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "title": {
+                        "type": "string"
+                      },
+                      "url": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "title",
+                      "url"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "areas": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "backup",
+                      "recovery",
+                      "patching",
+                      "access",
+                      "logging",
+                      "incidents"
+                    ]
+                  },
+                  "description": "Responsibility areas whose controls include this one"
+                },
+                "suggestion": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "counts": {
+                          "type": "object",
+                          "properties": {
+                            "team": {
+                              "type": "integer"
+                            },
+                            "supplier": {
+                              "type": "integer"
+                            },
+                            "central": {
+                              "type": "integer"
+                            },
+                            "shared": {
+                              "type": "integer"
+                            },
+                            "notApplicable": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "team",
+                            "supplier",
+                            "central",
+                            "shared",
+                            "notApplicable"
+                          ],
+                          "additionalProperties": false,
+                          "description": "Services in scope per party"
+                        },
+                        "undecided": {
+                          "type": "integer"
+                        },
+                        "party": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "team",
+                                "supplier",
+                                "central",
+                                "shared"
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "supplier": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "status": {
+                                  "type": "string",
+                                  "enum": [
+                                    "unconfirmed",
+                                    "active",
+                                    "archived"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "name",
+                                "status"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "centralName": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "counts",
+                        "undecided",
+                        "party",
+                        "supplier",
+                        "centralName"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Derived from the responsibility matrix of the services in scope; never stored in the row"
+                },
+                "evidence": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "covered",
+                        "gap",
+                        "unmapped",
+                        "notVisible"
+                      ],
+                      "description": "Coverage of the last twelve months, as on the Controls page"
+                    },
+                    "mapped": {
+                      "type": "integer"
+                    },
+                    "items": {
+                      "type": "integer"
+                    },
+                    "hidden": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "mapped",
+                    "items",
+                    "hidden"
+                  ],
+                  "additionalProperties": false
+                },
+                "noEvidence": {
+                  "type": "boolean"
+                },
+                "findings": {
+                  "type": "object",
+                  "properties": {
+                    "open": {
+                      "type": "integer"
+                    },
+                    "total": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "open",
+                    "total"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Corrective action findings naming the control"
+                },
+                "decided": {
+                  "type": "boolean"
+                },
+                "changed": {
+                  "type": "boolean",
+                  "description": "Differs from the latest approved version"
+                },
+                "updatedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "description": "ISO 8601 timestamp (UTC)"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "ISO 8601 timestamp (UTC)"
+                },
+                "updatedBy": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                }
+              },
+              "required": [
+                "controlId",
+                "ref",
+                "title",
+                "applicable",
+                "justification",
+                "status",
+                "howMet",
+                "party",
+                "supplier",
+                "centralName",
+                "owner",
+                "reviewedAt",
+                "reviewedBy",
+                "reviewDue",
+                "grcRef",
+                "grcUrl",
+                "evidenceLinks",
+                "areas",
+                "suggestion",
+                "evidence",
+                "noEvidence",
+                "findings",
+                "decided",
+                "changed",
+                "updatedAt",
+                "updatedBy"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "versions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "number": {
+                  "type": "integer"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "submitted",
+                    "approved",
+                    "returned",
+                    "superseded"
+                  ]
+                },
+                "contentSha256": {
+                  "type": "string",
+                  "description": "SHA-256 of the frozen content (soa.json of the signed export)"
+                },
+                "submittedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "ISO 8601 timestamp (UTC)"
+                },
+                "submittedBy": {
+                  "type": "string"
+                },
+                "decidedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "description": "ISO 8601 timestamp (UTC)"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "ISO 8601 timestamp (UTC)"
+                },
+                "decidedBy": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "comment": {
+                  "type": "string"
+                },
+                "pdfSha256": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "counts": {
+                  "type": "object",
+                  "properties": {
+                    "controls": {
+                      "type": "integer"
+                    },
+                    "applicable": {
+                      "type": "integer"
+                    },
+                    "notApplicable": {
+                      "type": "integer"
+                    },
+                    "undecided": {
+                      "type": "integer"
+                    },
+                    "implemented": {
+                      "type": "integer"
+                    },
+                    "partly": {
+                      "type": "integer"
+                    },
+                    "planned": {
+                      "type": "integer"
+                    },
+                    "notStarted": {
+                      "type": "integer"
+                    },
+                    "noStatus": {
+                      "type": "integer",
+                      "description": "Applicable rows without an implementation status"
+                    },
+                    "reviewDue": {
+                      "type": "integer",
+                      "description": "Rows not reviewed for twelve months (or never)"
+                    },
+                    "noEvidence": {
+                      "type": "integer",
+                      "description": "Applicable, implemented rows with no mapped item and no evidence link"
+                    }
+                  },
+                  "required": [
+                    "controls",
+                    "applicable",
+                    "notApplicable",
+                    "undecided",
+                    "implemented",
+                    "partly",
+                    "planned",
+                    "notStarted",
+                    "noStatus",
+                    "reviewDue",
+                    "noEvidence"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Counts of the rows"
+                }
+              },
+              "required": [
+                "number",
+                "status",
+                "contentSha256",
+                "submittedAt",
+                "submittedBy",
+                "decidedAt",
+                "decidedBy",
+                "comment",
+                "pdfSha256",
+                "counts"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "catalogueKey",
+          "catalogueName",
+          "scopeName",
+          "scopeServiceIds",
+          "fourEyes",
+          "counts",
+          "latestApproved",
+          "waiting",
+          "changedSinceApproved",
+          "createdAt",
+          "updatedAt",
+          "catalogueVersion",
+          "servicesInScope",
+          "entries",
+          "versions"
+        ],
+        "additionalProperties": false
+      },
+      "ServiceResponsibilitiesEntry": {
+        "title": "ServiceResponsibilitiesEntry",
+        "type": "object",
+        "properties": {
+          "serviceId": {
+            "type": "string"
+          },
+          "serviceName": {
+            "type": "string"
+          },
+          "undecided": {
+            "type": "integer"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "area": {
+                  "type": "string",
+                  "enum": [
+                    "backup",
+                    "recovery",
+                    "patching",
+                    "access",
+                    "logging",
+                    "incidents"
+                  ]
+                },
+                "party": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "team",
+                        "supplier",
+                        "central",
+                        "shared",
+                        "notApplicable"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "null: undecided"
+                },
+                "supplier": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "unconfirmed",
+                            "active",
+                            "archived"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "status"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "contract": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "reference": {
+                          "type": "string"
+                        },
+                        "termEnd": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "noticeBy": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "slaAvailability": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "slaSupportHours": {
+                          "type": "string"
+                        },
+                        "slaResponse": {
+                          "type": "string"
+                        },
+                        "rtoHours": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "rpoHours": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "title",
+                        "reference",
+                        "termEnd",
+                        "noticeBy",
+                        "slaAvailability",
+                        "slaSupportHours",
+                        "slaResponse",
+                        "rtoHours",
+                        "rpoHours"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The contract’s SLA and contractual RTO/RPO, read from the supplier record"
+                },
+                "certificates": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "iso27001",
+                          "iso27017",
+                          "iso27018",
+                          "iso22301",
+                          "soc2type1",
+                          "soc2type2",
+                          "c5",
+                          "tisax",
+                          "other"
+                        ]
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "validUntil": {
+                        "type": [
+                          "null",
+                          "string"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "name",
+                      "validUntil"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "centralName": {
+                  "type": "string"
+                },
+                "note": {
+                  "type": "string"
+                },
+                "duty": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The recovery-test duty"
+                },
+                "recoveryTest": {
+                  "type": "string",
+                  "enum": [
+                    "notNeeded",
+                    "linked",
+                    "missing"
+                  ]
+                },
+                "controls": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "catalogueKey": {
+                        "type": "string"
+                      },
+                      "controlId": {
+                        "type": "string"
+                      },
+                      "ref": {
+                        "type": "string"
+                      },
+                      "title": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "catalogueKey",
+                      "controlId",
+                      "ref",
+                      "title"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "updatedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "description": "ISO 8601 timestamp (UTC)"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "ISO 8601 timestamp (UTC)"
+                },
+                "updatedBy": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                }
+              },
+              "required": [
+                "area",
+                "party",
+                "supplier",
+                "contract",
+                "certificates",
+                "centralName",
+                "note",
+                "duty",
+                "recoveryTest",
+                "controls",
+                "updatedAt",
+                "updatedBy"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "serviceId",
+          "serviceName",
+          "undecided",
+          "rows"
+        ],
+        "additionalProperties": false
+      },
       "ServiceEntry": {
         "title": "ServiceEntry",
         "type": "object",
@@ -34056,6 +35208,12 @@
               },
               "duty": {
                 "type": "integer"
+              },
+              "responsibility": {
+                "type": "integer"
+              },
+              "soaEntry": {
+                "type": "integer"
               }
             },
             "required": [
@@ -34064,7 +35222,9 @@
               "ticket",
               "watch",
               "costPlanLine",
-              "duty"
+              "duty",
+              "responsibility",
+              "soaEntry"
             ],
             "additionalProperties": false,
             "description": "Linked items the token owner may see, per kind"
@@ -34335,6 +35495,12 @@
               },
               "duty": {
                 "type": "integer"
+              },
+              "responsibility": {
+                "type": "integer"
+              },
+              "soaEntry": {
+                "type": "integer"
               }
             },
             "required": [
@@ -34343,7 +35509,9 @@
               "ticket",
               "watch",
               "costPlanLine",
-              "duty"
+              "duty",
+              "responsibility",
+              "soaEntry"
             ],
             "additionalProperties": false,
             "description": "Linked items the token owner may see, per kind"
@@ -34695,7 +35863,9 @@
                     "ticket",
                     "watch",
                     "costPlanLine",
-                    "duty"
+                    "duty",
+                    "responsibility",
+                    "soaEntry"
                   ]
                 },
                 "id": {
@@ -42665,6 +43835,232 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CorrectiveFindingDetail"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/statements-of-applicability": {
+      "get": {
+        "operationId": "listStatementsOfApplicability",
+        "summary": "List statements of applicability",
+        "tags": [
+          "Compliance"
+        ],
+        "description": "One statement of applicability (ISO/IEC 27001 clause 6.1.3 d, Compliance module, preview) per control catalogue: scope, counts of applicable, not applicable and undecided rows and of their implementation status, the latest approved version, a version waiting for approval and the rows changed since.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "OK",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/SoaSummaryEntry"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/statements-of-applicability/{catalogueKey}": {
+      "get": {
+        "operationId": "getStatementOfApplicability",
+        "summary": "Get a statement of applicability with its rows and versions",
+        "tags": [
+          "Compliance"
+        ],
+        "description": "The current rows – applicable and why, implementation status, how it is met, the responsible party with the suggestion derived from the responsibility matrix of the services in scope, owner, last review, GRC reference, evidence links, the coverage of the last twelve months (as the token owner may see it) and open corrective action findings – and the versions with their SHA-256 and approval.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "catalogueKey",
+            "required": true,
+            "description": "Catalogue key (e.g. ISO27001) or id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SoaDetailEntry"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/services/{serviceId}/responsibilities": {
+      "get": {
+        "operationId": "getServiceResponsibilities",
+        "summary": "Get the responsibility matrix of a service",
+        "tags": [
+          "Compliance"
+        ],
+        "description": "Who does backup, recovery and continuity, patching and vulnerabilities, access management, logging and monitoring, and security incidents for the service: our team, a supplier (with its contract’s SLA and contractual RTO/RPO and its valid certificates, read from the supplier record), central IT or group, shared or not applicable – the recovery-test duty where the team does recovery itself, and the default controls of each area.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "serviceId",
+            "required": true,
+            "description": "Service id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceResponsibilitiesEntry"
                 }
               }
             },

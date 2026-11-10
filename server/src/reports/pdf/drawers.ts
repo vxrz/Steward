@@ -4,6 +4,7 @@ import { renderSummaryReport } from '../summary-draw.js';
 import { renderScheduledReport } from '../scheduled-draw.js';
 import { drawPackPdf } from '../../compliance/pack-pdf.js';
 import { drawAssurancePdf } from '../../compliance/assurance-pdf.js';
+import { drawSoaPdf } from '../../compliance/soa-pdf.js';
 import type { ReportSectionDraw } from '../section-draw.js';
 import { availabilitySectionDraw, credentialsSectionDraw, gatusSectionDraw, runsSectionDraw } from '../builtin-sections-draw.js';
 import { recordsSectionDraw } from '../../records/report-section-draw.js';
@@ -26,6 +27,7 @@ export const PDF_DRAWERS = {
   scheduled: renderScheduledReport,
   pack: drawPackPdf,
   assurance: drawAssurancePdf,
+  soa: drawSoaPdf,
 };
 
 export type PdfDrawers = typeof PDF_DRAWERS;

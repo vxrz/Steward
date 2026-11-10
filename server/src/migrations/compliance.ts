@@ -318,4 +318,81 @@ export const COMPLIANCE_MIGRATIONS: NamedMigration[] = [
       CREATE INDEX ca_suggestions_status ON ca_suggestions(status, created_at);
     `,
   },
+  {
+    // statement of applicability with a responsibility matrix per service (ISO/IEC 27001 clause 6.1.3 d, ADR 0029 part 2):
+    // one SoA per control catalogue, its rows per control, its versions (frozen content and SHA-256, approval) and who
+    // does six fixed areas of each service. Listed after compliance-005: migrations run in list order, and the list is
+    // history (an upgraded and a fresh database must match).
+    name: 'compliance-004-soa',
+    sql: `
+      CREATE TABLE soas (
+        id TEXT PRIMARY KEY,
+        catalogue_id TEXT NOT NULL UNIQUE,
+        scope_name TEXT NOT NULL DEFAULT '',
+        scope_service_ids TEXT NOT NULL DEFAULT '[]',
+        four_eyes INTEGER NOT NULL DEFAULT 1,
+        area_controls TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL,
+        created_by TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        updated_by TEXT NOT NULL
+      );
+
+      CREATE TABLE soa_entries (
+        id TEXT PRIMARY KEY,
+        soa_id TEXT NOT NULL REFERENCES soas(id),
+        control_id TEXT NOT NULL,
+        applicable INTEGER,
+        justification TEXT NOT NULL DEFAULT '',
+        status TEXT,
+        how_met TEXT NOT NULL DEFAULT '',
+        party TEXT,
+        supplier_id TEXT,
+        central_name TEXT NOT NULL DEFAULT '',
+        owner TEXT,
+        reviewed_at TEXT,
+        reviewed_by TEXT,
+        grc_ref TEXT NOT NULL DEFAULT '',
+        grc_url TEXT NOT NULL DEFAULT '',
+        evidence_links TEXT NOT NULL DEFAULT '[]',
+        version INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT,
+        updated_by TEXT,
+        UNIQUE (soa_id, control_id)
+      );
+      CREATE INDEX soa_entries_supplier ON soa_entries(supplier_id);
+
+      CREATE TABLE soa_versions (
+        id TEXT PRIMARY KEY,
+        soa_id TEXT NOT NULL REFERENCES soas(id),
+        number INTEGER NOT NULL,
+        status TEXT NOT NULL,
+        content TEXT NOT NULL,
+        content_sha256 TEXT NOT NULL,
+        submitted_at TEXT NOT NULL,
+        submitted_by TEXT NOT NULL,
+        decided_at TEXT,
+        decided_by TEXT,
+        comment TEXT NOT NULL DEFAULT '',
+        files TEXT NOT NULL DEFAULT '{}',
+        UNIQUE (soa_id, number)
+      );
+      CREATE INDEX soa_versions_status ON soa_versions(soa_id, status);
+
+      CREATE TABLE service_responsibilities (
+        service_id TEXT NOT NULL,
+        area TEXT NOT NULL,
+        party TEXT NOT NULL,
+        supplier_id TEXT,
+        contract_id TEXT,
+        central_name TEXT NOT NULL DEFAULT '',
+        note TEXT NOT NULL DEFAULT '',
+        duty_id TEXT,
+        updated_at TEXT NOT NULL,
+        updated_by TEXT NOT NULL,
+        PRIMARY KEY (service_id, area)
+      );
+      CREATE INDEX service_responsibilities_supplier ON service_responsibilities(supplier_id);
+    `,
+  },
 ];

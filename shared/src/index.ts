@@ -90,3 +90,4 @@ export * from './platformKinds.js';
 export * from './checkTypes.js';
 export * from './monitorStates.js';
 export * from './suppliers.js';
+export * from './soa.js';

@@ -29,6 +29,7 @@ import { CREDENTIAL_COMPONENTS } from '../../credentials/api-schemas.js';
 import { RECORD_COMPONENTS } from '../../records/api-schemas.js';
 import { TICKET_COMPONENTS } from '../../tickets/api-schemas.js';
 import { CORRECTIVE_COMPONENTS } from '../../compliance/corrective-api.js';
+import { SOA_COMPONENTS } from '../../compliance/soa-api.js';
 import { COMPLIANCE_COMPONENTS } from '../../compliance/api-schemas.js';
 import { SERVICE_COMPONENTS } from '../../catalogue/api-schemas.js';
 import { DUTY_COMPONENTS } from '../../duties/api-schemas.js';
@@ -667,6 +668,7 @@ export const COMPONENTS: Record<string, ZodTypeAny> = {
   ...TICKET_COMPONENTS,
   ...COMPLIANCE_COMPONENTS,
   ...CORRECTIVE_COMPONENTS,
+  ...SOA_COMPONENTS,
   ...SERVICE_COMPONENTS,
   ...DUTY_COMPONENTS,
   ...SCORECARD_COMPONENTS,

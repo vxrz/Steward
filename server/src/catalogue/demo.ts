@@ -24,7 +24,7 @@ import { migrateVendorTexts } from '../suppliers/migrate.js';
  * demo monitors linked, two availability objectives (Prometheus and a Steward monitor), a duty, a system in two
  * environments, a decision record, a change record, a reviewed operations manual, credential register entries
  * (metadata only – never a secret), a vendor ticket, a planned maintenance window, a status page and a weekly report
- * schedule, and two corrective action findings with a suggestion (Compliance module). Everything is invented. It runs once: when the first demo service exists, it does nothing.
+ * schedule, two corrective action findings with a suggestion, and the responsibility matrix of two services with a draft statement of applicability (Compliance module). Everything is invented. It runs once: when the first demo service exists, it does nothing.
  */
 export const DEMO_SERVICES = { shop: 'Online shop (demo)', care: 'Customer care (demo)', plant: 'Plant monitoring (demo)' } as const;
 
@@ -370,5 +370,13 @@ export async function setupServiceDemo(now = Date.now()): Promise<number> {
       // a demo must never fail half way: logged, the rest stays
       logger.warn({ err: (err as Error).message }, 'demo corrective actions not loaded'),
     );
+  // ---- statement of applicability (ADR 0029 part 2): the responsibility matrix of two services and a draft statement ----
+  if (moduleEnabled('compliance'))
+    await import('../compliance/soa-demo.js')
+      .then((m) => m.setupSoaDemo({ shop: shop.id, care: care.id }, suppliers?.cloud ?? null))
+      .catch((err: unknown) =>
+        // a demo must never fail half way: logged, the rest stays
+        logger.warn({ err: (err as Error).message }, 'demo statement of applicability not loaded'),
+      );
   return 3;
 }

@@ -542,6 +542,8 @@ export const STEP_UP_ACTIONS = [
   'usePrivilegedIdentity',
   // 0.16.0 (ADR 0027): defining, changing or removing a scheduled export – it sends data out of Steward
   'changeExports',
+  // 0.17.0 (ADR 0029): approving or returning a version of the statement of applicability
+  'approveSoa',
 ] as const;
 export type StepUpAction = (typeof STEP_UP_ACTIONS)[number];
 

@@ -1067,6 +1067,7 @@ export interface Resources {
     'overrides.kinds.personReview': string;
     'overrides.kinds.setting': string;
     'overrides.kinds.process': string;
+    'overrides.kinds.soa': string;
     'overrides.fourEyes': string;
     'overrides.stepUp': string;
     'overrides.neither': string;
@@ -1176,6 +1177,8 @@ export interface Resources {
     'points.platform.privilegedIdentity.description': string;
     'points.correctiveAction.verify.label': string;
     'points.correctiveAction.verify.description': string;
+    'points.soa.approve.label': string;
+    'points.soa.approve.description': string;
     teamsLabel: string;
     teamsAria: string;
   };
@@ -1410,6 +1413,7 @@ export interface Resources {
     'stepUp.actions.renamePlantId': string;
     'stepUp.actions.changePlantInBulk': string;
     'stepUp.actions.usePrivilegedIdentity': string;
+    'stepUp.actions.approveSoa': string;
   };
   common: {
     add: string;
@@ -5834,6 +5838,26 @@ export interface Resources {
     'codes.FORBIDDEN_editCorrective': string;
     'codes.FORBIDDEN_verifyCorrective': string;
     'codes.FORBIDDEN_manageCorrective': string;
+    'codes.SOA_NOT_FOUND': string;
+    'codes.SOA_EXISTS': string;
+    'codes.SOA_CONTROL_LIMIT': string;
+    'codes.SOA_SERVICE_UNKNOWN': string;
+    'codes.SOA_CONTROL_UNKNOWN': string;
+    'codes.SOA_VERSION_WAITING': string;
+    'codes.SOA_UNDECIDED': string;
+    'codes.SOA_VERSION_LIMIT': string;
+    'codes.SOA_VERSION_NOT_FOUND': string;
+    'codes.SOA_VERSION_NOT_WAITING': string;
+    'codes.SOA_FOUR_EYES': string;
+    'codes.SOA_COMMENT_REQUIRED': string;
+    'codes.SOA_VERSION_NOT_APPROVED': string;
+    'codes.SOA_PDF_MISSING': string;
+    'codes.SOA_PDF_CHANGED': string;
+    'codes.RESPONSIBILITY_CENTRAL_NAME': string;
+    'codes.RESPONSIBILITY_NOTE_REQUIRED': string;
+    'codes.RESPONSIBILITY_DUTY_UNKNOWN': string;
+    'codes.FORBIDDEN_editSoa': string;
+    'codes.FORBIDDEN_approveSoa': string;
     'boundary.title': string;
     'boundary.text': string;
     'boundary.retry': string;
@@ -14458,6 +14482,8 @@ export interface Resources {
     'usedBy.kinds.watch': string;
     'usedBy.kinds.costPlanLine': string;
     'usedBy.kinds.duty': string;
+    'usedBy.kinds.responsibility': string;
+    'usedBy.kinds.soaEntry': string;
     'duties.title': string;
     'duties.help': string;
     'duties.empty': string;

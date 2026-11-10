@@ -44,6 +44,7 @@ import { ticketAccess } from '../tickets/service.js';
 import { instanceTimeZone, localDate } from '../duties/periods.js';
 import { normVendor } from '../plant/advisories/match.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
+import { moduleEnabled } from '../modules/registry.js';
 import { supplierVisible } from './links.js';
 
 /**
@@ -304,6 +305,33 @@ export function usageOf(ids?: string[]): Map<string, SupplierUsage[]> {
   ))
     if (want(d.supplier_id) && serviceSeen(d.service_id))
       add(d.supplier_id, { kind: 'duty', id: d.id, name: d.name, path: `/duties/${d.id}`, detail: services.get(d.service_id)!.name });
+  // the responsibility matrix of services and the rows of statements of applicability (ADR 0029 part 2, Compliance module)
+  if (moduleEnabled('compliance')) {
+    for (const r of db().all<{ service_id: string; area: string; supplier_id: string }>(
+      'SELECT service_id, area, supplier_id FROM service_responsibilities WHERE supplier_id IS NOT NULL ORDER BY service_id, area',
+    ))
+      if (want(r.supplier_id) && serviceSeen(r.service_id))
+        add(r.supplier_id, {
+          kind: 'responsibility',
+          id: `${r.service_id}/${r.area}`,
+          name: services.get(r.service_id)!.name,
+          path: `/services/${r.service_id}/responsibilities`,
+          detail: r.area,
+        });
+    for (const e of db().all<{ control_id: string; supplier_id: string; ref: string; title: string; key: string }>(
+      `SELECT e.control_id, e.supplier_id, c.ref, c.title, k.key FROM soa_entries e JOIN soas s ON s.id = e.soa_id
+       JOIN controls c ON c.id = e.control_id JOIN control_catalogues k ON k.id = s.catalogue_id
+       WHERE e.supplier_id IS NOT NULL ORDER BY k.key, c.sort, c.ref`,
+    ))
+      if (want(e.supplier_id))
+        add(e.supplier_id, {
+          kind: 'soaEntry',
+          id: e.control_id,
+          name: `${e.key} ${e.ref} ${e.title}`,
+          path: `/compliance/soa/${encodeURIComponent(e.key)}?control=${encodeURIComponent(e.control_id)}`,
+          detail: e.key,
+        });
+  }
   return out;
 }
 
@@ -726,7 +754,17 @@ export function confirmSupplier(id: string): SupplierDetail {
 }
 
 /** The tables whose rows link a supplier (and the cost plan lines' contract). */
-export const LINKING_TABLES = ['applications', 'systems', 'ticket_refs', 'cd_watches', 'cost_plan_lines', 'service_duties'] as const;
+export const LINKING_TABLES = [
+  'applications',
+  'systems',
+  'ticket_refs',
+  'cd_watches',
+  'cost_plan_lines',
+  'service_duties',
+  // the responsibility matrix and the rows of statements of applicability (ADR 0029 part 2)
+  'service_responsibilities',
+  'soa_entries',
+] as const;
 
 function countLinks(id: string): Record<string, number> {
   const out: Record<string, number> = {};
@@ -1041,6 +1079,8 @@ export function removeContract(supplierId: string, contractId: string): Supplier
   const cur = contractRow(supplierId, contractId);
   db().tx(() => {
     const lines = db().run('UPDATE cost_plan_lines SET supplier_contract_id = NULL WHERE supplier_contract_id = ?', contractId).changes;
+    // a responsibility matrix row keeps its supplier, without the contract
+    const responsibilities = db().run('UPDATE service_responsibilities SET contract_id = NULL WHERE contract_id = ?', contractId).changes;
     db().run('DELETE FROM supplier_contracts WHERE id = ?', contractId);
     db().run('DELETE FROM supplier_reminders WHERE item_id = ?', contractId);
     touch(supplierId, u);
@@ -1049,7 +1089,7 @@ export function removeContract(supplierId: string, contractId: string): Supplier
       entityType: 'supplier',
       entityId: supplierId,
       summary: `Contract "${cur.title}" removed from supplier "${s.name}"`,
-      details: { contractId, title: cur.title, reference: cur.reference, costPlanLinesUnlinked: lines },
+      details: { contractId, title: cur.title, reference: cur.reference, costPlanLinesUnlinked: lines, responsibilitiesUnlinked: responsibilities },
     });
   });
   return getSupplier(supplierId);

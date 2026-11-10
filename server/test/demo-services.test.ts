@@ -66,6 +66,21 @@ describe('demo services', () => {
     expect(paylumen.certificateState).toBe('dueSoon');
     expect(paylumen.usage).toMatchObject({ ticket: 1, duty: 1, watch: 1 });
     expect((await s.api('GET', `/suppliers/${suppliers.find((x) => x.name === 'Example Cloud GmbH')!.id}`)).usage.system).toBe(1);
+    // the responsibility matrix of two services and a draft statement of applicability (ADR 0029 part 2)
+    const cloud = suppliers.find((x) => x.name === 'Example Cloud GmbH')!;
+    const matrix = await s.api('GET', `/services/${shop.id}/responsibilities`);
+    expect(matrix.undecided).toBe(0);
+    expect(matrix.rows.find((r: { area: string }) => r.area === 'backup')).toMatchObject({
+      party: 'supplier',
+      supplier: { name: 'Example Cloud GmbH' },
+      contract: { rtoHours: 8, rpoHours: 24 },
+    });
+    expect(matrix.rows.find((r: { area: string }) => r.area === 'recovery').recoveryTest).toBe('missing');
+    expect((await s.api('GET', `/suppliers/${cloud.id}`)).usage).toMatchObject({ responsibility: 1, soaEntry: 1 });
+    const soa = await s.api('GET', '/compliance/soa/ISO27001');
+    expect(soa.versions).toEqual([]);
+    expect(soa.counts).toMatchObject({ applicable: 5, notApplicable: 1 });
+    expect(soa.entries.find((e: { ref: string }) => e.ref === '8.13').suggestion).toMatchObject({ counts: { supplier: 1, team: 1 }, party: 'shared' });
     const toConfirm = (await s.api('GET', '/suppliers?status=unconfirmed')) as { name: string }[];
     expect(toConfirm.map((x) => x.name)).toEqual(expect.arrayContaining(['Zentrova Cloud', 'Mailbrook']));
 

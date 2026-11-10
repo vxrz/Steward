@@ -12,7 +12,7 @@ import { verifyPack } from '../compliance/evidence-verify.js';
 /** The pack is intact, but signed with a key nobody vouched for (no --public-key, --fingerprint or --trust-pack-key). */
 export const EXIT_UNTRUSTED = 3;
 
-const help = (command: string) => `Check a ${BRAND.name} audit evidence pack offline.
+const help = (command: string) => `Check a ${BRAND.name} audit evidence pack – or a signed statement of applicability – offline.
 
 Usage:
   ${command} <pack.zip> [--public-key <key> | --fingerprint <fp> | --trust-pack-key] [--json] [--quiet]
@@ -22,6 +22,9 @@ Checks:
   - every file in the pack has exactly the size and SHA-256 listed in the manifest,
     and the pack holds no other files,
   - the audit log excerpt (when included) reaches the signed audit checkpoint.
+
+A signed statement of applicability (Compliance → Statement of applicability → Download signed)
+has the same format: soa.json is the approved version's frozen content, soa.pdf its archived PDF.
 
 Anyone can sign a pack with a key of their own and put that key into the pack. So tell the check
 which key you trust – get it from the installation (Audit log → Anchoring outside the database
@@ -107,6 +110,7 @@ export async function runEvidenceVerify(argv: string[], command: string): Promis
   }
   const c = palette();
   const err = palette(process.stderr);
+  const what = result.kind === 'soa' ? 'signed statement of applicability' : 'evidence pack';
   if (!values.quiet && result.pack)
     console.log(`${result.pack.title} (${result.pack.id}), ${result.pack.from} – ${result.pack.to}, created by ${result.pack.createdBy}`);
   // the fingerprint is always shown: it is what the auditor compares with the installation's
@@ -129,15 +133,15 @@ export async function runEvidenceVerify(argv: string[], command: string): Promis
     if (result.audit?.ok) console.log(`${c.green('ok')}   audit log excerpt: ${result.audit.message}`);
   }
   for (const p of result.problems) process.stderr.write(`${err.red('FAIL')} ${p}\n`);
-  if (!result.ok) console.log(err.red('The evidence pack does NOT verify.'));
+  if (!result.ok) console.log(err.red(`The ${what} does NOT verify.`));
   else if (!result.trusted) {
     process.stderr.write(
       `${err.yellow('UNTRUSTED')} The signature is valid for the key in the pack, but nothing shows that this is your installation's key: ` +
         `anyone can sign a pack with a key of their own. Compare the fingerprint ${result.publicKey?.fingerprint ?? ''} with the one under ` +
         `Audit log → Anchoring outside the database, then pass --fingerprint <fp> (or --public-key <file>).\n`,
     );
-    console.log(err.yellow('The evidence pack is intact, but signed with an UNTRUSTED key.'));
-  } else console.log(c.green('The evidence pack is intact.'));
+    console.log(err.yellow(`The ${what} is intact, but signed with an UNTRUSTED key.`));
+  } else console.log(c.green(`The ${what} is intact.`));
   return code;
 }
 

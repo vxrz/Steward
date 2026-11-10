@@ -189,14 +189,16 @@
   },
   "usedBy": {
     "title": "Used by",
-    "empty": "Nothing links this supplier yet. Choose it in the form of an application, system, ticket reference, page watch, cost plan line or duty.",
+    "empty": "Nothing links this supplier yet. Choose it in the form of an application, system, ticket reference, page watch, cost plan line or duty, in the responsibilities of a service or in a row of the statement of applicability.",
     "kinds": {
       "application": "Application",
       "system": "System",
       "ticket": "Ticket reference",
       "watch": "Page watch",
       "costPlanLine": "Cost plan line",
-      "duty": "Duty"
+      "duty": "Duty",
+      "responsibility": "Responsibility matrix",
+      "soaEntry": "Statement of applicability"
     }
   },
   "duties": {

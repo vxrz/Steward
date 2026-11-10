@@ -29,10 +29,17 @@ export const AUDIT_EXCERPT_FILE = 'audit/audit-log-excerpt.json';
  * built before) were signed without a prefix and still verify.
  */
 export const MANIFEST_SIGNATURE_DOMAIN = 'steward-evidence-manifest-v2\n';
+/**
+ * A signed statement of applicability (0.17.0, ADR 0029 part 2): the evidence-pack format and key, its own domain – a
+ * manifest of kind "soa" is signed with this prefix, so an SoA signature never passes for an evidence pack's.
+ */
+export const SOA_SIGNATURE_DOMAIN = 'steward-soa-manifest-v1\n';
 
 export interface PackManifest {
   format: typeof EVIDENCE_PACK_FORMAT;
   version: 1 | 2;
+  /** "soa": a signed statement of applicability (signed under SOA_SIGNATURE_DOMAIN); absent: an evidence pack */
+  kind?: 'soa';
   pack: Record<string, unknown> & { id: string; title: string; from: string; to: string; createdAt: string; createdBy: string };
   keyFingerprint: string;
   files: { path: string; size: number; sha256: string }[];
@@ -54,6 +61,8 @@ export interface AuditExcerpt {
 }
 
 export interface PackVerifyResult {
+  /** "soa": a signed statement of applicability; "pack": an evidence pack */
+  kind?: 'pack' | 'soa';
   /** The pack is intact: signature valid for the key used, every file as listed, the audit excerpt reaches its checkpoint */
   ok: boolean;
   /** The key is one the auditor trusts: given with --public-key, the fingerprint given with --fingerprint, or accepted with --trust-pack-key */
@@ -210,6 +219,7 @@ export async function verifyPack(file: string, o: VerifyOptions = {}): Promise<P
     return res;
   }
   res.pack = manifest.pack ?? null;
+  res.kind = manifest.kind === 'soa' ? 'soa' : 'pack';
   const keyEntry = get('public-key.pem');
   const packKey = keyEntry ? (await zip.read(keyEntry, 16 * 1024)).toString('utf8') : null;
   const key = o.publicKey ?? packKey;
@@ -231,7 +241,13 @@ export async function verifyPack(file: string, o: VerifyOptions = {}): Promise<P
     else problems.push(`The pack is signed with the key ${fingerprint}, not with the trusted key ${o.fingerprint}`);
   } else if (o.trustPackKey) res.trust = 'pack-key-accepted';
   const signature = (await zip.read(sigEntry, 16 * 1024)).toString('utf8').trim();
-  const signed = manifest.version === 1 ? manifestBytes : Buffer.concat([Buffer.from(MANIFEST_SIGNATURE_DOMAIN, 'utf8'), manifestBytes]);
+  if (manifest.kind !== undefined && manifest.kind !== 'soa') {
+    problems.push(`manifest.json has the unknown kind ${String(manifest.kind).slice(0, 20)} – use a newer verifier`);
+    return res;
+  }
+  // the kind is part of the signed bytes: a manifest cannot change its domain without breaking the signature
+  const domain = manifest.kind === 'soa' ? SOA_SIGNATURE_DOMAIN : MANIFEST_SIGNATURE_DOMAIN;
+  const signed = manifest.version === 1 && !manifest.kind ? manifestBytes : Buffer.concat([Buffer.from(domain, 'utf8'), manifestBytes]);
   res.signatureOk = verifySignature(key, signed, signature);
   if (!res.signatureOk) problems.push('The manifest signature is invalid for this public key (the manifest was changed or signed by another key)');
   if (manifest.keyFingerprint && manifest.keyFingerprint !== fingerprint)
