@@ -151,7 +151,7 @@ A consistent Off is quiet only up to the **maximum off time** (`states.maxOffHou
 
 **Planned downtime** is a kind of [maintenance window](APPLICATIONS.md#maintenance-windows) (`kind: downtime`): weekends, holidays, shutdowns. Unlike maintenance it leaves the status as it is (`off`, `up` …), **suspends the maximum off time** – the time inside a window is not counted as off time, and while one lasts the maximum is not checked – and **still alerts contradictions**. Monitors without states are not affected. It announces nothing unless a reminder is set. A machine off since Friday 22:00 with a weekend window (Friday 22:00 to Monday 06:00) stays quiet over the weekend; still off on Monday 14:00, it is `degraded`. Maintenance stays as it is: it overrides the status with `maintenance`; the state is still selected underneath.
 
-**From the impact of a window** (0.14): when maintenance is planned for a gateway, a switch or a machine, the window's [impact](APPLICATIONS.md#impact-before-maintenance) lists the monitors that check what is behind it – _Goes Off_ for a monitor with an Off state, _Goes down_ for one without – and _Plan downtime for N monitors_ adds planned downtime for them at the window's times in one click (only monitors you may acknowledge).
+**From the impact of a window** (0.14): when maintenance is planned for a gateway, a switch or a machine, the window's [impact](APPLICATIONS.md#impact-before-maintenance) lists the monitors that check what is behind it – _Goes off_ for a monitor with an Off state, _Goes down_ for one without – and _Plan downtime for N monitors_ adds planned downtime for them at the window's times in one click (only monitors you may acknowledge).
 
 ### Gateway liveness: a required check
 
