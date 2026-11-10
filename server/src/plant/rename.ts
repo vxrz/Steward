@@ -218,6 +218,9 @@ const REFERENCES_ALL: RefSpec[] = [
   col('plant_vlans', 'site_id', 'site', 'vlan'),
   col('plant_zones', 'site_id', 'site', 'zone'),
   col('plant_conduits', 'site_id', 'site', 'conduit'),
+  // 0.14: advisories – the site of a match, a site's "not applicable"
+  col('plant_advisory_matches', 'site_id', 'site', 'advisory_match'),
+  col('plant_advisory_sites', 'site_id', 'site', 'advisory_site'),
   json<string[]>('plant_vlans', 'sites', '[]', 'site', 'vlan', ['site_id', 'id'], inList),
   pair('plant_refs', 'kind', 'site', 'item_id', 'site', 'external_ref'),
   pair('item_links', 'from_kind', 'site', 'from_id', 'site', 'link'),
@@ -276,6 +279,8 @@ const REFERENCES_ALL: RefSpec[] = [
   pair('item_links', 'to_kind', 'asset', 'to_id', 'asset', 'link'),
   // 0.12: the kept files of its collection imports; links to its collections and sinks (<asset>/<collection>[/<sink>])
   col('plant_collection_sources', 'asset_id', 'asset', 'collection_source'),
+  // 0.14: the advisories that match it, with their decisions and remediation
+  col('plant_advisory_matches', 'asset_id', 'asset', 'advisory_match'),
   {
     table: 'item_links',
     column: 'to_id[to_kind=data-collection|data-sink, asset part]',

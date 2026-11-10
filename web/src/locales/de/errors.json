@@ -1175,7 +1175,22 @@
     "IDENTITY_LIMIT": "Eine Plattform kann höchstens {{max}} Identitäten haben.",
     "IDENTITY_MCP_INVALID": "Freigegebene Schreibzugriffe benötigen eine Freigabeart: Der Besitzer des Tokens bestätigt, oder eine zweite Person gibt frei.",
     "IDENTITY_AUTH_ORIGIN": "Die Anmeldeeinstellung {{field}} würde die Zugangsdaten der Identität an {{origin}} senden. Eine Identität darf sich nur bei den eigenen Ursprüngen der Plattform anmelden: {{allowed}}.",
-    "IDENTITY_DISABLED": "Die Identität {{identity}} ist deaktiviert: Sie wurde außerhalb von Steward hinzugefügt oder geändert. Ein Administrator aktiviert sie im Reiter Identitäten der Plattform."
+    "IDENTITY_DISABLED": "Die Identität {{identity}} ist deaktiviert: Sie wurde außerhalb von Steward hinzugefügt oder geändert. Ein Administrator aktiviert sie im Reiter Identitäten der Plattform.",
+    "PLANT_ADVISORY_INVALID": "Die Datei ist kein CSAF-2.0-Dokument, das Steward lesen kann (JSON mit document, publisher, tracking und dem Produktbaum innerhalb ihrer Grenzen).",
+    "PLANT_ADVISORY_TOO_LARGE": "Das Dokument ist größer als {{mb}} MB.",
+    "PLANT_ADVISORY_TLP": "Das Dokument ist als TLP:{{tlp}} gekennzeichnet. Steward behält nur Dokumente mit TLP:WHITE, GREEN oder ohne Kennzeichnung, weil jeder, der das Werksregister sieht, es lesen würde.",
+    "PLANT_ADVISORY_HASH": "Der {{algorithm}}-Hash des Dokuments stimmt nicht überein – es wurde nicht übernommen.",
+    "PLANT_ADVISORY_NOT_FOUND": "Diesen Sicherheitshinweis gibt es nicht (mehr).",
+    "PLANT_ADVISORY_NO_MATCH": "Der Sicherheitshinweis trifft auf diese Anlage nicht (mehr) zu, oder Sie dürfen sie nicht sehen.",
+    "PLANT_ADVISORY_UNTIL": "Ein akzeptiertes Risiko endet an einem Tag zwischen heute und dem {{max}}.",
+    "PLANT_ADVISORY_LINK": "Das Wartungsfenster oder der Änderungssatz existiert nicht.",
+    "PLANT_ADVISORY_SOURCE_NOT_FOUND": "Diese Quelle für Sicherheitshinweise gibt es nicht (mehr).",
+    "PLANT_ADVISORY_SOURCE_URL": "Geben Sie eine http- oder https-Adresse ohne Benutzername und Passwort an.",
+    "PLANT_ADVISORY_SOURCES_LIMIT": "Höchstens {{max}} Quellen für Sicherheitshinweise.",
+    "PLANT_ADVISORY_FETCH_BLOCKED": "Die Adresse ist gesperrt (Adresssicherheit): Cloud-Metadaten, Link-Local-Adressen und Stewards eigene API werden nie erreicht.",
+    "PLANT_ADVISORY_FETCH_FAILED": "{{origin}} hat nicht wie erwartet geantwortet.",
+    "PLANT_ADVISORY_FETCH_TOO_LARGE": "Die Antwort ist größer als {{kb}} KB.",
+    "PLANT_ADVISORY_FEED_INVALID": "{{origin}} hat nicht mit einer provider-metadata.json, aggregator.json oder einem ROLIE-Feed geantwortet."
   },
   "boundary": {
     "title": "Auf dieser Seite ist ein Fehler aufgetreten",

@@ -16,6 +16,7 @@
  * the default, so a new route stays at 1 MB unless it is added here.
  */
 import {
+  ADVISORY_LIMITS,
   COMPONENT_LIMITS,
   COST_LIMITS,
   DATA_CONTRACT_LIMITS,
@@ -82,6 +83,8 @@ export const LARGE_BODIES = {
     routes: ['POST /api/plant/assets/:assetId/collections/import', 'POST /api/plant/assets/:assetId/collections/import/preview'],
     bytes: jsonText(PLANT_COLLECTION_LIMITS.fileBytes * 2, 2 * 1024 * KIB),
   },
+  /** 0.14: a CSAF advisory (JSON) uploaded for an offline plant: ADVISORY_LIMITS.documentBytes (4 MB) as text */
+  plantAdvisoryUpload: { routes: ['POST /api/plant/advisories/upload'], bytes: jsonText(ADVISORY_LIMITS.documentBytes, 16 * 1024) },
   /** A monitor file (YAML): MONITOR_IMPORT_LIMITS.yamlChars (512 KB) – line breaks are escaped in JSON */
   monitorImport: { routes: ['POST /api/monitors/import', 'POST /api/monitors/import/preview'], bytes: jsonText(MONITOR_IMPORT_LIMITS.yamlChars) },
   /** Instances of a monitor template from a CSV file: MONITOR_IMPORT_LIMITS.csvChars (1 MB) */

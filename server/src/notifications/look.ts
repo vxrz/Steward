@@ -288,6 +288,7 @@ const BAD_EVENTS = new Set([
   'backup.failed',
   'platform.failing',
   'contract.failed',
+  'plant.advisory_matched',
 ]);
 const WARN_EVENTS = new Set([
   'task.assigned',

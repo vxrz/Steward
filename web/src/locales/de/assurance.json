@@ -304,6 +304,10 @@
         "label": "Ändern, woher die Standortkarte ihre Kacheln holt",
         "description": "Eine neue Kachelquelle für die Standortkarte: OpenStreetMap, Hell/Dunkel, eine eigene URL oder ein API-Schlüssel, eine selbst bereitgestellte Datei oder der eigene Stil neu gelesen. Die Karte auszuschalten braucht keine Bestätigung."
       },
+      "advisorySources": {
+        "label": "Ändern, woher Sicherheitshinweise gelesen werden",
+        "description": "Eine Quelle für Sicherheitshinweise (CSAF-Anbieter, Aggregator oder ROLIE-Feed) hinzufügen, ändern oder entfernen – Steward liest von ihr. Eine Quelle jetzt lesen und Dateien hochladen braucht keine Bestätigung."
+      },
       "renameId": {
         "label": "Kennung eines Anlageneintrags ändern",
         "description": "Ein Eintrag des Anlagenregisters erhält eine neue Kennung; alle Verweise folgen, und die alte Kennung führt weiter zu ihm. Standardmäßig aus: Wer den Eintrag ändern darf, benennt ihn um."

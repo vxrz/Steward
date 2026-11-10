@@ -28186,6 +28186,1205 @@
         ],
         "additionalProperties": false
       },
+      "PlantAdvisoryEntry": {
+        "title": "PlantAdvisoryEntry",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Steward’s id of the advisory (from the publisher’s namespace and tracking id)"
+          },
+          "trackingId": {
+            "type": "string",
+            "description": "/document/tracking/id of the CSAF document"
+          },
+          "title": {
+            "type": "string"
+          },
+          "publisher": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "critical",
+              "high",
+              "medium",
+              "low",
+              "none",
+              "unknown"
+            ],
+            "description": "The highest severity of its vulnerabilities (CVSS), else its aggregate severity"
+          },
+          "cvss": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "description": "The highest CVSS base score"
+          },
+          "cves": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "published": {
+            "type": "string",
+            "description": "initial_release_date"
+          },
+          "updated": {
+            "type": "string",
+            "description": "current_release_date"
+          },
+          "version": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "mitigated",
+              "not_applicable",
+              "unaffected"
+            ],
+            "description": "For the token owner’s sites: open, mitigated, not_applicable or unaffected"
+          },
+          "affectedAssets": {
+            "type": "integer",
+            "description": "Exact or confirmed matches at sites the token owner may see (not marked not applicable)"
+          },
+          "openAssets": {
+            "type": "integer",
+            "description": "Of them, not yet mitigated, accepted or not affected"
+          },
+          "possibleMatches": {
+            "type": "integer",
+            "description": "Possible matches nobody confirmed or dismissed – never counted as affected"
+          },
+          "sites": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "name"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "zones": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "siteId": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "slTarget": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "IEC 62443-3-2 target security level of the zone (null: open)"
+                }
+              },
+              "required": [
+                "siteId",
+                "id",
+                "name",
+                "slTarget"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "origin": {
+            "type": "string",
+            "enum": [
+              "feed",
+              "upload"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "trackingId",
+          "title",
+          "publisher",
+          "severity",
+          "cvss",
+          "cves",
+          "published",
+          "updated",
+          "version",
+          "status",
+          "affectedAssets",
+          "openAssets",
+          "possibleMatches",
+          "sites",
+          "zones",
+          "origin"
+        ],
+        "additionalProperties": false
+      },
+      "PlantAdvisoryMatchEntry": {
+        "title": "PlantAdvisoryMatchEntry",
+        "type": "object",
+        "properties": {
+          "assetId": {
+            "type": "string"
+          },
+          "assetName": {
+            "type": "string"
+          },
+          "siteId": {
+            "type": "string"
+          },
+          "zones": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "siteId": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "slTarget": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "IEC 62443-3-2 target security level of the zone (null: open)"
+                }
+              },
+              "required": [
+                "siteId",
+                "id",
+                "name",
+                "slTarget"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "firmware": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "exact",
+              "possible"
+            ],
+            "description": "exact: vendor, model and firmware match; possible: similar – a person confirms or dismisses"
+          },
+          "counted": {
+            "type": "boolean",
+            "description": "Counted as affected: exact and not dismissed, or possible and confirmed"
+          },
+          "decision": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "confirmed",
+                  "dismissed"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "decisionReason": {
+            "type": "string"
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Why it matches, one sentence per product"
+          },
+          "fixedFirmware": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Firmware versions that fix it, as the advisory names them"
+          },
+          "siteNotApplicable": {
+            "type": "boolean"
+          },
+          "remediation": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "open",
+                  "planned",
+                  "mitigated",
+                  "accepted",
+                  "not_affected"
+                ]
+              },
+              "reason": {
+                "type": "string"
+              },
+              "until": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "An accepted risk: until this day"
+              },
+              "expired": {
+                "type": "boolean",
+                "description": "An accepted risk past its day (counts as open again)"
+              },
+              "windowId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Planned: the maintenance window"
+              },
+              "changeSetId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Planned: the plant change set"
+              },
+              "by": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "at": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "status",
+              "reason",
+              "until",
+              "expired",
+              "windowId",
+              "changeSetId",
+              "by",
+              "at"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "assetId",
+          "assetName",
+          "siteId",
+          "zones",
+          "firmware",
+          "kind",
+          "counted",
+          "decision",
+          "decisionReason",
+          "reasons",
+          "fixedFirmware",
+          "siteNotApplicable",
+          "remediation"
+        ],
+        "additionalProperties": false
+      },
+      "PlantAdvisoryDetailEntry": {
+        "title": "PlantAdvisoryDetailEntry",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Steward’s id of the advisory (from the publisher’s namespace and tracking id)"
+          },
+          "trackingId": {
+            "type": "string",
+            "description": "/document/tracking/id of the CSAF document"
+          },
+          "title": {
+            "type": "string"
+          },
+          "publisher": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "critical",
+              "high",
+              "medium",
+              "low",
+              "none",
+              "unknown"
+            ],
+            "description": "The highest severity of its vulnerabilities (CVSS), else its aggregate severity"
+          },
+          "cvss": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "description": "The highest CVSS base score"
+          },
+          "cves": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "published": {
+            "type": "string",
+            "description": "initial_release_date"
+          },
+          "updated": {
+            "type": "string",
+            "description": "current_release_date"
+          },
+          "version": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "mitigated",
+              "not_applicable",
+              "unaffected"
+            ],
+            "description": "For the token owner’s sites: open, mitigated, not_applicable or unaffected"
+          },
+          "affectedAssets": {
+            "type": "integer",
+            "description": "Exact or confirmed matches at sites the token owner may see (not marked not applicable)"
+          },
+          "openAssets": {
+            "type": "integer",
+            "description": "Of them, not yet mitigated, accepted or not affected"
+          },
+          "possibleMatches": {
+            "type": "integer",
+            "description": "Possible matches nobody confirmed or dismissed – never counted as affected"
+          },
+          "sites": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "name"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "zones": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "siteId": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "slTarget": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "IEC 62443-3-2 target security level of the zone (null: open)"
+                }
+              },
+              "required": [
+                "siteId",
+                "id",
+                "name",
+                "slTarget"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "origin": {
+            "type": "string",
+            "enum": [
+              "feed",
+              "upload"
+            ]
+          },
+          "category": {
+            "type": "string"
+          },
+          "tlp": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "references": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "url": {
+                  "type": "string"
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "category": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "url",
+                "summary",
+                "category"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "vulnerabilities": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "cve": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "cwe": {
+                  "type": "string"
+                },
+                "cvss": {
+                  "type": [
+                    "null",
+                    "number"
+                  ]
+                },
+                "severity": {
+                  "type": "string",
+                  "enum": [
+                    "critical",
+                    "high",
+                    "medium",
+                    "low",
+                    "none",
+                    "unknown"
+                  ]
+                },
+                "vector": {
+                  "type": "string"
+                },
+                "remediations": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "category": {
+                        "type": "string",
+                        "enum": [
+                          "mitigation",
+                          "no_fix_planned",
+                          "none_available",
+                          "vendor_fix",
+                          "workaround"
+                        ]
+                      },
+                      "details": {
+                        "type": "string"
+                      },
+                      "url": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "category",
+                      "details",
+                      "url"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "cve",
+                "title",
+                "cwe",
+                "cvss",
+                "severity",
+                "vector",
+                "remediations"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "integrity": {
+            "type": "string",
+            "enum": [
+              "sha512",
+              "sha256",
+              "none",
+              "uploaded",
+              "uploaded_sha256"
+            ],
+            "description": "How the document was checked: its published SHA-512 or SHA-256 matched, none was published, or it was uploaded"
+          },
+          "sha256": {
+            "type": "string"
+          },
+          "matches": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "assetId": {
+                  "type": "string"
+                },
+                "assetName": {
+                  "type": "string"
+                },
+                "siteId": {
+                  "type": "string"
+                },
+                "zones": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "siteId": {
+                        "type": "string"
+                      },
+                      "id": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "slTarget": {
+                        "anyOf": [
+                          {
+                            "type": "integer"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "IEC 62443-3-2 target security level of the zone (null: open)"
+                      }
+                    },
+                    "required": [
+                      "siteId",
+                      "id",
+                      "name",
+                      "slTarget"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "firmware": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "exact",
+                    "possible"
+                  ],
+                  "description": "exact: vendor, model and firmware match; possible: similar – a person confirms or dismisses"
+                },
+                "counted": {
+                  "type": "boolean",
+                  "description": "Counted as affected: exact and not dismissed, or possible and confirmed"
+                },
+                "decision": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "confirmed",
+                        "dismissed"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "decisionReason": {
+                  "type": "string"
+                },
+                "reasons": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Why it matches, one sentence per product"
+                },
+                "fixedFirmware": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Firmware versions that fix it, as the advisory names them"
+                },
+                "siteNotApplicable": {
+                  "type": "boolean"
+                },
+                "remediation": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "open",
+                        "planned",
+                        "mitigated",
+                        "accepted",
+                        "not_affected"
+                      ]
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "until": {
+                      "type": [
+                        "null",
+                        "string"
+                      ],
+                      "description": "An accepted risk: until this day"
+                    },
+                    "expired": {
+                      "type": "boolean",
+                      "description": "An accepted risk past its day (counts as open again)"
+                    },
+                    "windowId": {
+                      "type": [
+                        "null",
+                        "string"
+                      ],
+                      "description": "Planned: the maintenance window"
+                    },
+                    "changeSetId": {
+                      "type": [
+                        "null",
+                        "string"
+                      ],
+                      "description": "Planned: the plant change set"
+                    },
+                    "by": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "at": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "reason",
+                    "until",
+                    "expired",
+                    "windowId",
+                    "changeSetId",
+                    "by",
+                    "at"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "assetId",
+                "assetName",
+                "siteId",
+                "zones",
+                "firmware",
+                "kind",
+                "counted",
+                "decision",
+                "decisionReason",
+                "reasons",
+                "fixedFirmware",
+                "siteNotApplicable",
+                "remediation"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "hiddenMatches": {
+            "type": "integer",
+            "description": "Matches at sites the token owner may not see (counted, never named)"
+          },
+          "sitesNotApplicable": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "siteId": {
+                  "type": "string"
+                },
+                "reason": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "siteId",
+                "reason"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "id",
+          "trackingId",
+          "title",
+          "publisher",
+          "severity",
+          "cvss",
+          "cves",
+          "published",
+          "updated",
+          "version",
+          "status",
+          "affectedAssets",
+          "openAssets",
+          "possibleMatches",
+          "sites",
+          "zones",
+          "origin",
+          "category",
+          "tlp",
+          "summary",
+          "references",
+          "vulnerabilities",
+          "integrity",
+          "sha256",
+          "matches",
+          "hiddenMatches",
+          "sitesNotApplicable"
+        ],
+        "additionalProperties": false
+      },
+      "PlantAssetAdvisoriesEntry": {
+        "title": "PlantAssetAdvisoriesEntry",
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "advisory": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "description": "Steward’s id of the advisory (from the publisher’s namespace and tracking id)"
+                    },
+                    "trackingId": {
+                      "type": "string",
+                      "description": "/document/tracking/id of the CSAF document"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "publisher": {
+                      "type": "string"
+                    },
+                    "severity": {
+                      "type": "string",
+                      "enum": [
+                        "critical",
+                        "high",
+                        "medium",
+                        "low",
+                        "none",
+                        "unknown"
+                      ],
+                      "description": "The highest severity of its vulnerabilities (CVSS), else its aggregate severity"
+                    },
+                    "cvss": {
+                      "type": [
+                        "null",
+                        "number"
+                      ],
+                      "description": "The highest CVSS base score"
+                    },
+                    "cves": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "published": {
+                      "type": "string",
+                      "description": "initial_release_date"
+                    },
+                    "updated": {
+                      "type": "string",
+                      "description": "current_release_date"
+                    },
+                    "version": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "open",
+                        "mitigated",
+                        "not_applicable",
+                        "unaffected"
+                      ],
+                      "description": "For the token owner’s sites: open, mitigated, not_applicable or unaffected"
+                    },
+                    "affectedAssets": {
+                      "type": "integer",
+                      "description": "Exact or confirmed matches at sites the token owner may see (not marked not applicable)"
+                    },
+                    "openAssets": {
+                      "type": "integer",
+                      "description": "Of them, not yet mitigated, accepted or not affected"
+                    },
+                    "possibleMatches": {
+                      "type": "integer",
+                      "description": "Possible matches nobody confirmed or dismissed – never counted as affected"
+                    },
+                    "sites": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "zones": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "siteId": {
+                            "type": "string"
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "slTarget": {
+                            "anyOf": [
+                              {
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "IEC 62443-3-2 target security level of the zone (null: open)"
+                          }
+                        },
+                        "required": [
+                          "siteId",
+                          "id",
+                          "name",
+                          "slTarget"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "origin": {
+                      "type": "string",
+                      "enum": [
+                        "feed",
+                        "upload"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "trackingId",
+                    "title",
+                    "publisher",
+                    "severity",
+                    "cvss",
+                    "cves",
+                    "published",
+                    "updated",
+                    "version",
+                    "status",
+                    "affectedAssets",
+                    "openAssets",
+                    "possibleMatches",
+                    "sites",
+                    "zones",
+                    "origin"
+                  ],
+                  "additionalProperties": false
+                },
+                "match": {
+                  "type": "object",
+                  "properties": {
+                    "assetId": {
+                      "type": "string"
+                    },
+                    "assetName": {
+                      "type": "string"
+                    },
+                    "siteId": {
+                      "type": "string"
+                    },
+                    "zones": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "siteId": {
+                            "type": "string"
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "slTarget": {
+                            "anyOf": [
+                              {
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "IEC 62443-3-2 target security level of the zone (null: open)"
+                          }
+                        },
+                        "required": [
+                          "siteId",
+                          "id",
+                          "name",
+                          "slTarget"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "firmware": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "exact",
+                        "possible"
+                      ],
+                      "description": "exact: vendor, model and firmware match; possible: similar – a person confirms or dismisses"
+                    },
+                    "counted": {
+                      "type": "boolean",
+                      "description": "Counted as affected: exact and not dismissed, or possible and confirmed"
+                    },
+                    "decision": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "confirmed",
+                            "dismissed"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "decisionReason": {
+                      "type": "string"
+                    },
+                    "reasons": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Why it matches, one sentence per product"
+                    },
+                    "fixedFirmware": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Firmware versions that fix it, as the advisory names them"
+                    },
+                    "siteNotApplicable": {
+                      "type": "boolean"
+                    },
+                    "remediation": {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "open",
+                            "planned",
+                            "mitigated",
+                            "accepted",
+                            "not_affected"
+                          ]
+                        },
+                        "reason": {
+                          "type": "string"
+                        },
+                        "until": {
+                          "type": [
+                            "null",
+                            "string"
+                          ],
+                          "description": "An accepted risk: until this day"
+                        },
+                        "expired": {
+                          "type": "boolean",
+                          "description": "An accepted risk past its day (counts as open again)"
+                        },
+                        "windowId": {
+                          "type": [
+                            "null",
+                            "string"
+                          ],
+                          "description": "Planned: the maintenance window"
+                        },
+                        "changeSetId": {
+                          "type": [
+                            "null",
+                            "string"
+                          ],
+                          "description": "Planned: the plant change set"
+                        },
+                        "by": {
+                          "type": [
+                            "null",
+                            "string"
+                          ]
+                        },
+                        "at": {
+                          "type": [
+                            "null",
+                            "string"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "status",
+                        "reason",
+                        "until",
+                        "expired",
+                        "windowId",
+                        "changeSetId",
+                        "by",
+                        "at"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "assetId",
+                    "assetName",
+                    "siteId",
+                    "zones",
+                    "firmware",
+                    "kind",
+                    "counted",
+                    "decision",
+                    "decisionReason",
+                    "reasons",
+                    "fixedFirmware",
+                    "siteNotApplicable",
+                    "remediation"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "advisory",
+                "match"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "additionalProperties": false
+      },
       "DbSchemaSnapshot": {
         "title": "DbSchemaSnapshot",
         "type": "object",
@@ -38762,6 +39961,321 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/plant/advisories": {
+      "get": {
+        "operationId": "listPlantAdvisories",
+        "summary": "List the security advisories affecting the plant’s sites",
+        "tags": [
+          "Plant"
+        ],
+        "description": "CSAF 2.0 advisories matched to assets by manufacturer, model and firmware – by default only those with a match at a site the token owner may see (`all=true`: every advisory), filtered, sorted (`sort`: severity – the default –, updated, published, affected, title; `order`) and paged by the server. Counts and status are for those sites (with `site`: for that site). Only while the plant registry module is on (Settings → Modules); otherwise 404.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "in": "query",
+            "name": "site",
+            "required": false,
+            "description": "Only advisories affecting this site (id)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "open",
+                "mitigated",
+                "not_applicable",
+                "unaffected"
+              ]
+            },
+            "in": "query",
+            "name": "status",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "critical",
+                "high",
+                "medium",
+                "low",
+                "none",
+                "unknown"
+              ]
+            },
+            "in": "query",
+            "name": "severity",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "in": "query",
+            "name": "vendor",
+            "required": false,
+            "description": "Only advisories naming this vendor (compared normalised: letters and digits, legal forms left out)"
+          },
+          {
+            "schema": {
+              "type": "boolean",
+              "default": false
+            },
+            "in": "query",
+            "name": "all",
+            "required": false,
+            "description": "Also advisories that match no asset of the token owner’s sites"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "severity",
+                "updated",
+                "published",
+                "affected",
+                "title"
+              ]
+            },
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "description": "severity (default, with CVSS), updated, published, affected (assets), title"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            },
+            "in": "query",
+            "name": "order",
+            "required": false,
+            "description": "Default: desc (title: asc)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of advisories",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A page of advisories",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/PlantAdvisoryEntry"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/plant/advisories/{advisoryId}": {
+      "get": {
+        "operationId": "getPlantAdvisory",
+        "summary": "Get a security advisory with the assets it affects",
+        "tags": [
+          "Plant"
+        ],
+        "description": "Its vulnerabilities and remediations, and its matches at the token owner's sites: exact and possible, with the reasons, the decisions, the fixed firmware and the remediation per asset. Only while the plant registry module is on (Settings → Modules); otherwise 404.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "advisoryId",
+            "required": true,
+            "description": "Advisory id (adv_…)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlantAdvisoryDetailEntry"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/plant/assets/{assetId}/advisories": {
+      "get": {
+        "operationId": "getPlantAssetAdvisories",
+        "summary": "Get the security advisories of an asset",
+        "tags": [
+          "Plant"
+        ],
+        "description": "Every advisory that matches the asset – exact, possible and dismissed – with the match and its remediation. Only while the plant registry module is on (Settings → Modules); otherwise 404.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "assetId",
+            "required": true,
+            "description": "Asset id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlantAssetAdvisoriesEntry"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"

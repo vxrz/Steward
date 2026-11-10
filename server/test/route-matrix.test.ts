@@ -859,6 +859,10 @@ const EXPECT: Record<string, Access> = {
   'GET /api/v1/plant/sites/:siteId/network': PLANT,
   'GET /api/v1/plant/assets/:assetId/network': PLANT,
   'GET /api/v1/plant/assets/:assetId/collections': PLANT,
+  // 0.14: security advisories – published documents everyone in the registry reads; matches per visible site
+  'GET /api/v1/plant/advisories': PLANT,
+  'GET /api/v1/plant/advisories/:advisoryId': PLANT,
+  'GET /api/v1/plant/assets/:assetId/advisories': PLANT,
   // database schemas (#222): of the demo database platform (who sees it) and of the matrix system (everyone);
   'GET /api/v1/platforms/:platformId/schema/snapshots': USE,
   // platform costs (#226): the overview for everyone (each sees what they may see); one scope as in the web app
@@ -1172,6 +1176,24 @@ const EXPECT: Record<string, Access> = {
   'GET /api/plant/documents': PLANT,
   'GET /api/plant/collections': PLANT,
   'GET /api/plant/profiles/:profileId/points/:pointId/collections': PLANT,
+  // 0.14: security advisories – read by everyone in the registry; upload and removal by who manages the catalogues;
+  // decisions and remediation by who manages the asset's site (the fixture advisory matches no asset: refused roles
+  // only); the sources (providers, aggregators, ROLIE feeds) are the administrators'
+  'GET /api/plant/advisories': PLANT,
+  'GET /api/plant/advisories/summary': PLANT,
+  'POST /api/plant/advisories/upload': DESIGN,
+  'GET /api/plant/advisories/:advisoryId': PLANT,
+  'DELETE /api/plant/advisories/:advisoryId': DESIGN,
+  'GET /api/plant/advisories/:advisoryId/document': PLANT,
+  'PUT /api/plant/advisories/:advisoryId/assets/:assetId/decision': DESIGN,
+  'PUT /api/plant/advisories/:advisoryId/assets/:assetId/remediation': DESIGN,
+  'PUT /api/plant/advisories/:advisoryId/sites/:siteId': DESIGN,
+  'GET /api/plant/assets/:assetId/advisories': PLANT,
+  'GET /api/plant/advisory-sources': ADMIN,
+  'POST /api/plant/advisory-sources': ADMIN,
+  'PUT /api/plant/advisory-sources/:advisorySourceId': ADMIN,
+  'DELETE /api/plant/advisory-sources/:advisorySourceId': ADMIN,
+  'POST /api/plant/advisory-sources/:advisorySourceId/fetch': ADMIN,
 };
 
 /** Routes that only work with an interactive session: an API token must not manage identities, the vault or sign-in. */
@@ -1332,6 +1354,10 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
   // (harmless: no list, so nobody gains a right – refused by the route's validation, the fixture stays)
   // an access list of a plant registry site gives rights to others (#218)
   'PUT /api/plant/sites/:siteId/access': 'always',
+  // 0.14: where Steward reads security advisories from (plant.advisorySources)
+  'POST /api/plant/advisory-sources': 'always',
+  'PUT /api/plant/advisory-sources/:advisorySourceId': 'always',
+  'DELETE /api/plant/advisory-sources/:advisorySourceId': 'always',
   'PUT /api/platforms/:id/access': {
     sensitive: { acl: [{ subject: 'user:vera', permissions: ['manage'] }] },
     harmless: { acl: 'not a list' },
@@ -1530,6 +1556,9 @@ function fill(url: string): string {
       .replace(/:taskId/g, 'tsk_none')
       // plant change sets (0.13.0): a proposed one that removes two entries; one operation; no history row
       .replace(/:changeSetId/g, fx.changeSet!)
+      // 0.14: an uploaded advisory (matching no asset) and an advisory source (never read)
+      .replace(/:advisoryId/g, fx.advisory!)
+      .replace(/:advisorySourceId/g, fx.advisorySource!)
       .replace(/:seq/g, '1')
       .replace(/:historyId/g, 'peh_none')
       .replace(/:triggerId/g, fx.trigger!)
@@ -1997,6 +2026,28 @@ beforeAll(async () => {
   await a('POST', `/plant/change-sets/${changeSet}/operations`, { op: 'remove', kind: 'building', scope: 'matrix-site', id: 'matrix-building', value: {} });
   await a('POST', `/plant/change-sets/${changeSet}/operations`, { op: 'remove', kind: 'node', scope: 'matrix-site', id: 'matrix-area', value: {} });
   await a('POST', `/plant/change-sets/${changeSet}/propose`, {});
+  // 0.14: a security advisory (uploaded; it matches no asset) and an advisory source that is never read
+  const advisory = (
+    await a('POST', '/plant/advisories/upload', {
+      content: JSON.stringify({
+        document: {
+          category: 'csaf_security_advisory',
+          csaf_version: '2.0',
+          publisher: { category: 'vendor', name: 'Matrix Vendor', namespace: 'https://psirt.matrix.example' },
+          title: 'Matrix advisory',
+          tracking: {
+            id: 'MATRIX-1',
+            version: '1',
+            status: 'final',
+            initial_release_date: '2026-01-01T00:00:00Z',
+            current_release_date: '2026-01-01T00:00:00Z',
+            revision_history: [{ date: '2026-01-01T00:00:00Z', number: '1', summary: 'x' }],
+          },
+        },
+      }),
+    })
+  ).advisory.id;
+  const advisorySource = (await a('POST', '/plant/advisory-sources', { name: 'Matrix source', url: 'https://csaf.matrix.example/provider-metadata.json' })).id;
   const siteLink = (await a('POST', '/plant/sites/matrix-site/links', { url: 'https://cmdb.example.com/4', label: 'x' })).id;
   const assetLink = (await a('POST', '/plant/assets/matrix-asset/links', { url: 'https://cmdb.example.com/5', label: 'x' })).id;
   const procs = await a('GET', '/processes');
@@ -2122,6 +2173,8 @@ beforeAll(async () => {
     plantNode: 'matrix-area',
     building: 'matrix-building',
     changeSet,
+    advisory,
+    advisorySource,
     siteLink,
     assetLink,
   };

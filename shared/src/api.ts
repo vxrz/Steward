@@ -523,6 +523,8 @@ export const STEP_UP_ACTIONS = [
   'changeCostBudget',
   // 0.10.0 (#234): where the map of sites fetches its tiles from
   'changeMapSource',
+  // 0.14: where Steward reads security advisories from (plant registry, docs/ADVISORIES.md)
+  'changeAdvisorySources',
   // 0.10.0 (#238): trusting a library publisher or key, removing one, widening its libraries, lifting an expiry
   'changeTrustedPublishers',
   // 0.11.0: replacing a deactivated person's data by a pseudonym (for good), and exporting another person's data

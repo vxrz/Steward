@@ -222,6 +222,8 @@ export const CONTROL_POINTS: readonly ControlPoint[] = [
   sp('migration.apply', 'system', ['applyMigration']),
   // where the map of sites fetches its tiles from (0.10.0, #234): a new style, URL, key or file; turning it off never asks
   sp('plant.mapSource', 'system', ['changeMapSource']),
+  // 0.14: adding, changing or removing a source of security advisories – Steward fetches from it
+  sp('plant.advisorySources', 'system', ['changeAdvisorySources']),
   // switching a module on or off (0.11.0, ADR 0016): its routes, pages and jobs come or go for everyone
   sp('modules.switch', 'system', ['changeModules']),
   // the plant registry (0.11.0, docs/PLANT.md#changing-ids): changing one entry's id asks only when the policy says so;

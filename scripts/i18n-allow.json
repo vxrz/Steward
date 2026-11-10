@@ -202,7 +202,9 @@
       "Confluent Cloud",
       "Schema Registry",
       "Schemas",
-      "Subject"
+      "Subject",
+      "Firmware",
+      "Aggregator"
     ]
   }
 }

@@ -68,6 +68,7 @@ export interface FileResult {
     | 'library release'
     | 'record type'
     | 'connector type'
+    | 'security advisory'
     | 'unreadable';
   /** Nodes (process), widgets (dashboard) or checks (monitor). */
   ok: boolean;
@@ -172,6 +173,16 @@ export async function validateFile(file: string): Promise<FileResult> {
         0,
       );
     return { file: rel, kind: 'plant registry', ok: true, count, errors: [], warnings: [] };
+  }
+  // a CSAF 2.0 security advisory (0.14, examples/plant/advisories): read as an upload reads it
+  if (obj && typeof obj === 'object' && obj.document && typeof obj.document === 'object' && 'csaf_version' in (obj.document as object)) {
+    try {
+      const { parseCsaf } = await import('../plant/advisories/csaf.js');
+      const p = parseCsaf(fs.readFileSync(file));
+      return { file: rel, kind: 'security advisory', ok: true, count: p.content.products.length, errors: [], warnings: [] };
+    } catch (e) {
+      return { file: rel, kind: 'security advisory', ok: false, errors: [(e as Error).message], warnings: [] };
+    }
   }
   // an example webhook trigger (0.9.0, examples/triggers): its format, and its mapping against the process template
   if (obj && obj.kind === WEBHOOK_TRIGGER_EXAMPLE_KIND) return validateTriggerExample(file, rel, raw);
@@ -353,7 +364,7 @@ export async function main(argv: string[]): Promise<number> {
       else if (r.kind === 'library release') out.push(`${c.dim('•')} ${r.file}: library release (checked with its manifest)`);
       else
         out.push(
-          `${c.green('✔')} ${r.file}: ${r.kind}, ${r.count} ${r.kind === 'dashboard' ? 'widgets' : r.kind.startsWith('monitor') ? 'checks' : r.kind === 'template bundle' ? 'items' : r.kind === 'plant registry' ? 'records' : r.kind === 'webhook trigger' ? 'mapped inputs' : r.kind === 'data contract' ? 'schema objects' : r.kind === 'library' ? 'items' : r.kind === 'record type' ? 'fields' : r.kind === 'connector type' ? 'API specs' : 'nodes'}`,
+          `${c.green('✔')} ${r.file}: ${r.kind}, ${r.count} ${r.kind === 'dashboard' ? 'widgets' : r.kind.startsWith('monitor') ? 'checks' : r.kind === 'template bundle' ? 'items' : r.kind === 'plant registry' ? 'records' : r.kind === 'webhook trigger' ? 'mapped inputs' : r.kind === 'data contract' ? 'schema objects' : r.kind === 'library' ? 'items' : r.kind === 'record type' ? 'fields' : r.kind === 'connector type' ? 'API specs' : r.kind === 'security advisory' ? 'products' : 'nodes'}`,
         );
     }
     if (!values.quiet || !r.ok) for (const w of r.warnings) out.push(`  ${c.yellow('⚠')} ${w}`);

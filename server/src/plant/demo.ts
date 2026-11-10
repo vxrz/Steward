@@ -4,6 +4,7 @@ import { config } from '../config.js';
 import { db } from '../db.js';
 import { applyImport } from './import.js';
 import { plantEnabled } from './settings.js';
+import { seedAdvisoryDemo } from './advisories/demo.js';
 
 /** The demo's invented enterprise (examples/plant): two sites, their hierarchy and buildings, about ten assets. */
 export const PLANT_DEMO_FILE = 'brightwater.plant.yaml';
@@ -22,5 +23,7 @@ export function seedPlantDemo(): number {
     content: fs.readFileSync(path.join(config.examplesDir, 'plant', name), 'utf8'),
   }));
   const r = applyImport({ files, mode: 'add', missing: 'mark', replaces: null, removeMissing: false, cascade: false });
+  // 0.14: a simulated CSAF provider with invented advisories for the demo's devices (docs/ADVISORIES.md)
+  seedAdvisoryDemo();
   return r.counts.add;
 }

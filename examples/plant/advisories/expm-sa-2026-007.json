@@ -1,0 +1,155 @@
+{
+  "document": {
+    "category": "csaf_security_advisory",
+    "csaf_version": "2.0",
+    "distribution": {
+      "text": "Invented example for Steward's demo and tests – not a real advisory.",
+      "tlp": {
+        "label": "WHITE",
+        "url": "https://www.first.org/tlp/"
+      }
+    },
+    "lang": "en",
+    "notes": [
+      {
+        "category": "summary",
+        "title": "Summary",
+        "text": "The MC 6 controller of injection moulding machines has a service account with a password that is the same on every controller. Whether IM 250 machines with other controllers are affected is still being investigated."
+      },
+      {
+        "category": "legal_disclaimer",
+        "title": "Invented",
+        "text": "Vendor, products, vulnerabilities and identifiers are invented for Steward's demo and tests."
+      }
+    ],
+    "publisher": {
+      "category": "vendor",
+      "name": "Example Plastics Machinery GmbH",
+      "namespace": "https://psirt.example.com/example-plastics"
+    },
+    "references": [
+      {
+        "category": "self",
+        "summary": "This advisory",
+        "url": "https://psirt.example.com/example-plastics/advisories/expm-sa-2026-007.json"
+      }
+    ],
+    "title": "Example Plastics Machinery: hard-coded service password in MC 6 controllers",
+    "tracking": {
+      "current_release_date": "2026-11-03T09:00:00.000Z",
+      "id": "EXPM-SA-2026-007",
+      "initial_release_date": "2026-10-28T09:00:00.000Z",
+      "revision_history": [
+        {
+          "date": "2026-10-28T09:00:00.000Z",
+          "number": "1",
+          "summary": "Initial release"
+        },
+        {
+          "date": "2026-11-03T09:00:00.000Z",
+          "number": "2",
+          "summary": "IM 250 machines under investigation"
+        }
+      ],
+      "status": "final",
+      "version": "2"
+    }
+  },
+  "product_tree": {
+    "branches": [
+      {
+        "category": "vendor",
+        "name": "Example Plastics Machinery GmbH",
+        "branches": [
+          {
+            "category": "product_family",
+            "name": "MC",
+            "branches": [
+              {
+                "category": "product_name",
+                "name": "MC 6 Controller",
+                "branches": [
+                  {
+                    "category": "product_version_range",
+                    "name": "<6.2",
+                    "product": {
+                      "name": "Example Plastics Machinery MC 6 Controller <6.2",
+                      "product_id": "CSAFPID-0001"
+                    }
+                  },
+                  {
+                    "category": "product_version",
+                    "name": "6.2",
+                    "product": {
+                      "name": "Example Plastics Machinery MC 6 Controller 6.2",
+                      "product_id": "CSAFPID-0002"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "category": "product_name",
+            "name": "IM 250",
+            "branches": [
+              {
+                "category": "product_version_range",
+                "name": "vers:all/*",
+                "product": {
+                  "name": "Example Plastics Machinery IM 250 (all versions)",
+                  "product_id": "CSAFPID-0003"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "vulnerabilities": [
+    {
+      "cve": "CVE-2099-10003",
+      "title": "Hard-coded credentials of the service account",
+      "cwe": {
+        "id": "CWE-798",
+        "name": "Use of Hard-coded Credentials"
+      },
+      "notes": [
+        {
+          "category": "description",
+          "title": "Description",
+          "text": "The service account can sign in to the controller's web interface and change process parameters."
+        }
+      ],
+      "product_status": {
+        "known_affected": ["CSAFPID-0001"],
+        "fixed": ["CSAFPID-0002"],
+        "under_investigation": ["CSAFPID-0003"]
+      },
+      "remediations": [
+        {
+          "category": "vendor_fix",
+          "details": "Update the controller to 6.2; the service account then needs a password set at commissioning.",
+          "product_ids": ["CSAFPID-0001"]
+        },
+        {
+          "category": "mitigation",
+          "details": "Block the controller's web interface (tcp/443) at the cell firewall.",
+          "product_ids": ["CSAFPID-0001", "CSAFPID-0003"]
+        }
+      ],
+      "scores": [
+        {
+          "cvss_v3": {
+            "version": "3.1",
+            "baseScore": 8.8,
+            "baseSeverity": "HIGH",
+            "vectorString": "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H"
+          },
+          "products": ["CSAFPID-0001"]
+        }
+      ]
+    }
+  ]
+}

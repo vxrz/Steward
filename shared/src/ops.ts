@@ -34,6 +34,7 @@ export const NOTIFICATION_EVENTS = [
   'contract.failed',
   'plant.change_proposed',
   'plant.change_decided',
+  'plant.advisory_matched',
 ] as const;
 export type NotificationEvent = (typeof NOTIFICATION_EVENTS)[number];
 
@@ -58,6 +59,7 @@ const ALERT_EVENTS: readonly NotificationEvent[] = [
   'ai.budget',
   'cost.budget',
   'contract.failed',
+  'plant.advisory_matched',
 ];
 export const notificationCategory = (event: string): NotificationCategory =>
   (NOTIFICATION_DECISION_EVENTS as readonly string[]).includes(event) ? 'decision' : (ALERT_EVENTS as readonly string[]).includes(event) ? 'alert' : 'update';
@@ -95,6 +97,7 @@ export const NOTIFICATION_EVENT_INFO: Record<NotificationEvent, string> = {
   'contract.failed': 'A test of a data contract your team owns failed (the owning team’s members and channel)',
   'plant.change_proposed': 'Someone proposed a change to the plant registry that you may apply (never the author)',
   'plant.change_decided': 'A plant change you wrote was applied, rejected, returned to you or expired (with the reviewer’s comment)',
+  'plant.advisory_matched': 'A new high or critical security advisory affects assets of a site you manage (plant registry)',
 };
 
 export interface AppNotification {
