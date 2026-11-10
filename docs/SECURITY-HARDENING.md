@@ -4,7 +4,7 @@ Steward holds credentials for production systems, can change data on them, and i
 
 Each item says **why** it matters. Items marked **(must)** close a gap that a security review found exploitable; the others are strongly recommended.
 
-Contents: [Where it runs](#where-it-runs) · [Network, TLS and reverse proxy](#network-tls-and-reverse-proxy) · [Sign-in](#sign-in) · [Master passphrase](#master-passphrase) · [Least privilege](#least-privilege) · [Outbound connections](#outbound-connections) · [Browser steps and Chromium](#browser-steps-and-chromium) · [Audit log as evidence](#audit-log-as-evidence) · [Backups](#backups) · [Monitoring and SIEM](#monitoring-and-siem) · [Updates](#updates) · [Shared hosts](#shared-hosts) · [Verifying downloads](#verifying-downloads) · [Known limits](#known-limits)
+Contents: [Where it runs](#where-it-runs) · [Network, TLS and reverse proxy](#network-tls-and-reverse-proxy) · [Sign-in](#sign-in) · [Master passphrase](#master-passphrase) · [Least privilege](#least-privilege) · [Outbound connections](#outbound-connections) · [Browser steps and Chromium](#browser-steps-and-chromium) · [Audit log as evidence](#audit-log-as-evidence) · [Backups](#backups) · [Exports](#exports) · [Monitoring and SIEM](#monitoring-and-siem) · [Updates](#updates) · [Shared hosts](#shared-hosts) · [Verifying downloads](#verifying-downloads) · [Known limits](#known-limits)
 
 ## Where it runs
 
@@ -249,6 +249,16 @@ What Steward guarantees: every entry is HMAC-signed and chained, so an edit, an 
 - **Encrypt backups** (they contain the encrypted credentials, personal data and the evidence) and keep them separate from the server. Test a restore regularly, including unlocking and _Verify chain_.
 - After a restore, _Verify chain_ against the last checkpoint from the SIEM tells you exactly which entries the restore lost; the local anchor file of a newer state reports the difference too.
 - SQLite: stop the app or use `sqlite3 service-manager.db ".backup …"`; PostgreSQL: `pg_dump` of the schema.
+- **Backup contents** (0.16.0, [BACKUPS.md](BACKUPS.md#contents)): run artifacts, archived reports and evidence packs can be left out of Steward's own backups. They are evidence – leave one out only when it is kept elsewhere; every backup that lacks them says so in its manifest, its header and the restore test. The database, the vault, the audit anchor and the audit archives are always in it.
+
+## Exports
+
+Scheduled exports (0.16.0, [EXPORTS.md](EXPORTS.md)) write **readable files** of chosen data – cost plans, the plant registry, the catalogue, monitors, the audit log – to an S3 bucket. Once there, the data is outside Steward's access rules and audit log:
+
+- Give the export folder its own bucket policy: only the readers who need the files get `s3:GetObject`, and they get nothing on the backups. Use server-side encryption; consider a bucket of its own.
+- An export runs as the system and holds **everything** of its parts, whoever defined it – so only administrators define exports, and every change asks for a step-up (`export.settings`). Review the exports with the administrators like other access to data.
+- Exports never hold secrets (vault values, credentials, tokens, heartbeat secrets) – but they do hold personal data (owners, contacts, actors of the audit log) and business data (cost plans). Encrypt the files with the backup key when they pass through hands that must not read them.
+- Every definition, change, run, removal and pruning is audited (`export.*`); a failed run notifies the administrators.
 
 ## Monitoring and SIEM
 
