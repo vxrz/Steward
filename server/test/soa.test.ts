@@ -592,6 +592,15 @@ describe('reading through the API, MCP and the dataset', () => {
         [1, 'returned'],
       ]),
     );
+    // services with gaps in the matrix: A is decided, its recovery has its duty; B decided backup only; C two areas
+    const { matrixGaps } = await import('../src/compliance/responsibilities.js');
+    const gaps = matrixGaps([svcA, svcB, svcC]);
+    expect(gaps.find((g) => g.serviceId === svcA)).toBeUndefined();
+    expect(gaps.find((g) => g.serviceId === svcB)).toMatchObject({
+      undecided: ['recovery', 'patching', 'access', 'logging', 'incidents'],
+      noRecoveryTest: ['backup'],
+    });
+    expect(gaps.find((g) => g.serviceId === svcC)!.undecided).toHaveLength(4);
   });
 });
 

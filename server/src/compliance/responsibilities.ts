@@ -293,3 +293,33 @@ export function matrixOf(serviceIds: readonly string[]): ResponsibilityDbRow[] {
   }
   return out;
 }
+
+/**
+ * Services with gaps in their matrix, for summaries (the ISMS summary, ADR 0029 part 4): areas not decided, and backup
+ * or recovery done by the team without an active recovery-test duty. `serviceIds` narrows it (default: every service
+ * that is not archived); services without a gap are left out.
+ */
+export function matrixGaps(
+  serviceIds?: readonly string[],
+): { serviceId: string; serviceName: string; undecided: ResponsibilityArea[]; noRecoveryTest: ResponsibilityArea[] }[] {
+  const services = db()
+    .all<{ id: string; name: string }>('SELECT id, name FROM services WHERE archived = 0 ORDER BY name')
+    .filter((s) => !serviceIds || serviceIds.includes(s.id));
+  const rows = matrixOf(services.map((s) => s.id));
+  const active = new Set(
+    db()
+      .all<{ id: string }>('SELECT id FROM service_duties WHERE archived = 0')
+      .map((d) => d.id),
+  );
+  const out: { serviceId: string; serviceName: string; undecided: ResponsibilityArea[]; noRecoveryTest: ResponsibilityArea[] }[] = [];
+  for (const s of services) {
+    const mine = new Map(rows.filter((r) => r.service_id === s.id).map((r) => [r.area, r]));
+    const undecided = RESPONSIBILITY_AREAS.filter((a) => !mine.has(a));
+    const noRecoveryTest = RESPONSIBILITY_AREAS.filter((a) => {
+      const r = mine.get(a);
+      return !!r && needsRecoveryTest(a, r.party) && !(r.duty_id && active.has(r.duty_id));
+    });
+    if (undecided.length || noRecoveryTest.length) out.push({ serviceId: s.id, serviceName: s.name, undecided, noRecoveryTest });
+  }
+  return out;
+}
