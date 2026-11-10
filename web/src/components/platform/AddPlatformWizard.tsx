@@ -398,7 +398,7 @@ export function AddPlatformWizard({
               {!!test.checks?.length && (
                 <Stack gap={2} mt={4}>
                   {test.checks.map((c) => (
-                    <Text key={c.name} size="xs" c={c.ok ? undefined : 'orange.8'}>
+                    <Text key={c.name} size="xs" c={c.ok ? undefined : 'orange'}>
                       {c.ok ? '✓' : '✗'} {c.name}: {c.message}
                     </Text>
                   ))}

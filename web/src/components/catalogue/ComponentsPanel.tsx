@@ -337,12 +337,12 @@ function ClusterLine({ component: c }: { component: ApplicationComponent }) {
         {r.deployments.map((d) => `${d.name} ${d.ready}/${d.desired}`).join(', ') || t('components.cluster.noDeployments')}
       </Text>
       {r.unhealthyPods.length > 0 && (
-        <Text size="xs" c="orange.8">
+        <Text size="xs" c="orange">
           {t('components.cluster.unhealthy', { pods: r.unhealthyPods.map((p) => `${p.name} (${p.reason})`).join(', ') })}
         </Text>
       )}
       {soon.length > 0 && (
-        <Text size="xs" c="orange.8">
+        <Text size="xs" c="orange">
           {t('components.cluster.certs', { certs: soon.map((x) => `${x.name} ${fmtDate(x.notAfter!)}`).join(', ') })}
         </Text>
       )}
@@ -409,7 +409,7 @@ function RepositoryLine({ component: c, onRegister }: { component: ApplicationCo
           .join(' · ')}
       </Text>
       {r.alerts && alerts > 0 && (
-        <Text size="xs" c={r.alerts.critical + r.alerts.high > 0 ? 'orange.8' : 'dimmed'}>
+        <Text size="xs" c={r.alerts.critical + r.alerts.high > 0 ? 'orange' : 'dimmed'}>
           {r.alerts.url ? (
             <Anchor size="xs" href={r.alerts.url} target="_blank" rel="noreferrer">
               {t('components.repository.alerts', r.alerts)}
@@ -421,7 +421,7 @@ function RepositoryLine({ component: c, onRegister }: { component: ApplicationCo
       )}
       {(r.keys ?? []).map((k) => (
         <Group key={`${k.kind}-${k.id}`} gap={4} wrap="nowrap">
-          <Text size="xs" c={k.write ? 'orange.8' : 'dimmed'}>
+          <Text size="xs" c={k.write ? 'orange' : 'dimmed'}>
             {t('components.repository.key', {
               kind: t(`components.repository.keyKinds.${k.kind}`),
               title: k.title,
@@ -474,7 +474,7 @@ function DtrackLine({ component: c }: { component: ApplicationComponent }) {
           {t('components.cluster.error', { error: r.error })}
         </Text>
       )}
-      <Text size="xs" c={bad ? 'red.8' : r.counts.high ? 'orange.8' : 'dimmed'}>
+      <Text size="xs" c={bad ? 'red.8' : r.counts.high ? 'orange' : 'dimmed'}>
         {r.url ? (
           <Anchor size="xs" href={r.url} target="_blank" rel="noreferrer">
             {project}
@@ -489,7 +489,7 @@ function DtrackLine({ component: c }: { component: ApplicationComponent }) {
         .filter((f) => f.severity === 'critical' || f.severity === 'high')
         .slice(0, 5)
         .map((f) => (
-          <Text key={`${f.vulnId}-${f.component}`} size="xs" c={f.severity === 'critical' ? 'red.8' : 'orange.8'}>
+          <Text key={`${f.vulnId}-${f.component}`} size="xs" c={f.severity === 'critical' ? 'red.8' : 'orange'}>
             {t('components.dtrack.finding', {
               id: f.vulnId,
               severity: t(`components.dtrack.severity.${f.severity}`),
@@ -603,7 +603,7 @@ function AwsLine({ component: c, onRegister }: { component: ApplicationComponent
         </Text>
       )}
       {r.costs.error && (
-        <Text size="xs" c="orange.8">
+        <Text size="xs" c="orange">
           {t('components.aws.costsError', { error: r.costs.error })}
         </Text>
       )}
@@ -613,7 +613,7 @@ function AwsLine({ component: c, onRegister }: { component: ApplicationComponent
           const old = k.status === 'Active' && age > AWS_LIMITS.keyAgeDays;
           return (
             <Group key={k.accessKeyId} gap={4} wrap="nowrap">
-              <Text size="xs" c={old ? 'orange.8' : 'dimmed'}>
+              <Text size="xs" c={old ? 'orange' : 'dimmed'}>
                 {t('components.aws.key', {
                   user: u.userName,
                   id: k.accessKeyId,
@@ -639,7 +639,7 @@ function AwsLine({ component: c, onRegister }: { component: ApplicationComponent
         }),
       )}
       {r.warnings.map((w) => (
-        <Text key={w} size="xs" c="orange.8">
+        <Text key={w} size="xs" c="orange">
           {w}
         </Text>
       ))}

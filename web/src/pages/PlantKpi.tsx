@@ -103,7 +103,7 @@ function KpiInputView({ input, profileNames }: { input: KpiInput; profileNames: 
         {profileNames[id]}
       </Anchor>
     ) : (
-      <Text key={id} size="sm" c="orange.8" className="mono" span>
+      <Text key={id} size="sm" c="orange" className="mono" span>
         {id}
       </Text>
     );

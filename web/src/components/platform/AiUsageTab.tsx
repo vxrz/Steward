@@ -135,7 +135,7 @@ function Totals({ title, totals: x }: { title: string; totals: AiUsageTotals }) 
   const { t } = useTranslation('platforms');
   const tiles = [
     { label: t('aiUsage.calls'), value: fmtNumber(x.calls) },
-    { label: t('aiUsage.refused'), value: fmtNumber(x.refused), color: x.refused ? 'orange.8' : undefined },
+    { label: t('aiUsage.refused'), value: fmtNumber(x.refused), color: x.refused ? 'orange' : undefined },
     { label: t('aiUsage.inputTokens'), value: fmtNumber(x.inputTokens) },
     { label: t('aiUsage.outputTokens'), value: fmtNumber(x.outputTokens) },
     ...(x.cost !== null ? [{ label: t('aiUsage.cost'), value: fmtCost(x.cost) }] : []),
@@ -463,7 +463,7 @@ function BudgetModal({
           onChange={(e) => setComment(e.currentTarget.value)}
         />
         {raising && (
-          <Text size="xs" c="orange.8" data-testid="ai-budget-raise">
+          <Text size="xs" c="orange" data-testid="ai-budget-raise">
             {t('aiUsage.raiseHint')}
           </Text>
         )}

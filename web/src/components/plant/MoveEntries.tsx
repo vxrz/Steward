@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Badge, Button, Checkbox, Group, List, Menu, Modal, Paper, Radio, Select, Stack, Table, Text, TextInput } from '@mantine/core';
+import { Alert, Badge, Button, Checkbox, Group, List, Loader, Menu, Modal, Paper, Radio, Select, Stack, Table, Text, TextInput } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { IconAlertTriangle, IconArrowsMove, IconCopy, IconGitPullRequest, IconShieldLock } from '@tabler/icons-react';
+import { IconAlertTriangle, IconArrowsMove, IconCopy, IconGitPullRequest, IconRefresh, IconShieldLock } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type {
   PlantAssetNetwork,
@@ -16,6 +16,7 @@ import type {
   PlantMovedKind,
 } from '@sm/shared';
 import { get, notifyError, notifyOk, post } from '../../api';
+import { errorText } from '../../i18n/errors';
 import { plantKeys } from '../../queryKeys';
 import { useNameOf, usePlantConfig, usePlantLabel } from './common';
 import { useChangeSetConfig, saveOrDraft } from './changes/common';
@@ -85,6 +86,10 @@ export function MoveEntriesModal({
   const [collections, setCollections] = useState<PlantMoveCollections>('leave');
   const [ids, setIds] = useState<Record<string, string>>({});
   const [preview, setPreview] = useState<PlantMovePreview | null>(null);
+  // the preview is on its way (the debounce and the request), or could not be computed
+  const [pending, setPending] = useState(false);
+  const [failed, setFailed] = useState<unknown>(null);
+  const [attempt, setAttempt] = useState(0);
   const [busy, setBusy] = useState(false);
   const sources = useMemo(() => [...new Set(items.map((i) => i.asset))], [items]);
   const targets = useTargets(siteId, sources, allSites);
@@ -106,16 +111,25 @@ export function MoveEntriesModal({
   const text = JSON.stringify(body);
   // the preview follows every choice (debounced while a new id is typed)
   useEffect(() => {
-    if (!body) return setPreview(null);
+    setFailed(null);
+    if (!body) {
+      setPending(false);
+      return setPreview(null);
+    }
     let live = true;
+    setPending(true);
     const h = setTimeout(() => {
       post<PlantMovePreview>('/plant/move/preview', body).then(
-        (p) => live && setPreview(p),
+        (p) => {
+          if (!live) return;
+          setPreview(p);
+          setPending(false);
+        },
         (e) => {
-          if (live) {
-            setPreview(null);
-            notifyError(e);
-          }
+          if (!live) return;
+          setPreview(null);
+          setFailed(e);
+          setPending(false);
         },
       );
     }, 250);
@@ -125,7 +139,7 @@ export function MoveEntriesModal({
     };
     // body is compared by its text
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [text]);
+  }, [text, attempt]);
   const done = () => {
     void qc.invalidateQueries({ queryKey: plantKeys.all });
     onDone?.();
@@ -167,7 +181,7 @@ export function MoveEntriesModal({
     kind === 'device'
       ? t('moveEntries.devicesTitle', { count: items.length, name: items[0]?.name ?? '' })
       : t('moveEntries.collectionTitle', { name: items[0]?.name ?? '' });
-  const ok = !!preview?.ok;
+  const ok = !!preview?.ok && !pending;
   return (
     <Modal opened onClose={onClose} title={title} size="xl">
       <form
@@ -220,8 +234,43 @@ export function MoveEntriesModal({
               </Stack>
             </Radio.Group>
           )}
+          {/* one line for screen readers (the table itself is not a live region) */}
+          <div role="status" aria-live="polite" data-testid="move-entries-status">
+            {pending ? (
+              <Group gap={6} wrap="nowrap">
+                <Loader size="xs" aria-hidden />
+                <Text size="sm" c="dimmed">
+                  {t('plantChanges:detail.previewing')}
+                </Text>
+              </Group>
+            ) : preview ? (
+              <Text size="xs" c="dimmed">
+                {[
+                  t('moveEntries.summary', { count: preview.entries.length }),
+                  preview.problems.length ? t('moveEntries.summaryProblems', { count: preview.problems.length }) : '',
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </Text>
+            ) : null}
+          </div>
+          {failed !== null && (
+            <Alert
+              color="red"
+              variant="light"
+              icon={<IconAlertTriangle size={16} />}
+              p="xs"
+              title={t('moveEntries.previewFailed')}
+              data-testid="move-entries-failed"
+            >
+              <Text size="sm">{errorText(failed)}</Text>
+              <Button size="compact-xs" variant="light" color="red" mt={6} leftSection={<IconRefresh size={14} />} onClick={() => setAttempt((n) => n + 1)}>
+                {t('common:retry')}
+              </Button>
+            </Alert>
+          )}
           {preview && (
-            <Stack gap="xs" data-testid="move-entries-preview" aria-live="polite">
+            <Stack gap="xs" data-testid="move-entries-preview">
               {preview.crossSite && (
                 <Alert color="yellow" variant="light" icon={<IconAlertTriangle size={16} />} p="xs">
                   <Text size="sm">{kind === 'device' ? t('moveEntries.crossSite') : t('moveEntries.crossSiteCollection')}</Text>
@@ -267,12 +316,12 @@ export function MoveEntriesModal({
                               </Text>
                             )}
                             {e.leavesVlan && (
-                              <Text size="xs" c="orange.8">
+                              <Text size="xs" c="orange">
                                 {t('moveEntries.leavesVlan', { vlan: e.leavesVlan })}
                               </Text>
                             )}
                             {e.leavesDataPath && (
-                              <Text size="xs" c="orange.8">
+                              <Text size="xs" c="orange">
                                 {t('moveEntries.leavesDataPath', { path: e.leavesDataPath })}
                               </Text>
                             )}
@@ -463,7 +512,13 @@ export function DuplicateDeviceModal({
             comboboxProps={{ withinPortal: true }}
             data-testid="duplicate-device-target"
           />
-          <Checkbox size="sm" label={t('moveEntries.otherSites')} checked={allSites} onChange={(e) => setAllSites(e.currentTarget.checked)} />
+          <Checkbox
+            size="sm"
+            label={t('moveEntries.otherSites')}
+            description={t('duplicateDevice.otherSitesHelp')}
+            checked={allSites}
+            onChange={(e) => setAllSites(e.currentTarget.checked)}
+          />
           <TextInput
             label={t('duplicateDevice.id')}
             value={id}

@@ -624,7 +624,7 @@ export function LibraryReleasePage() {
                 maxLength={2000}
               />
               {undecided.length > 0 && (
-                <Text size="sm" c="orange.8">
+                <Text size="sm" c="orange">
                   {t('review.undecided', { count: undecided.length })}
                 </Text>
               )}

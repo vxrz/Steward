@@ -365,7 +365,7 @@ function BulkModal({
                         ) : null}
                         {i.with?.length ? <Text size="xs">{t('bulk.with', { list: countsText(i.with) })}</Text> : null}
                         {i.reason && (
-                          <Text size="xs" c="orange.8">
+                          <Text size="xs" c="orange">
                             {problemText(i.reason)}
                           </Text>
                         )}
@@ -441,7 +441,7 @@ function MovePlace({ entries, set, change }: { entries: BulkEntry[]; set: PlantB
   const nodes = useMemo(() => (site ? flatNodes(site.areas) : []), [site]);
   if (sites.length > 1)
     return (
-      <Text size="sm" c="orange.8" data-testid="bulk-move-sites">
+      <Text size="sm" c="orange" data-testid="bulk-move-sites">
         {t('bulk.moveOneSite', { type: label('asset', true, true) })}
       </Text>
     );

@@ -1078,6 +1078,7 @@
       "precondition": "Voraussetzung"
     },
     "caption": "Entscheidungstabelle: eine Zeile je Zustand, eine Spalte je Prüfung",
+    "legendTitle": "So lesen Sie die Tabelle",
     "legendSelects": "die Bedingung: Die erste Zeile, deren Bedingung passt, gilt.",
     "legendExpected": "wie die Prüfung sein soll, solange der Zustand gilt; weicht sie nach der Einschwingzeit noch ab, ist das ein Widerspruch.",
     "legendRequired": "die Prüfung muss OK sein, damit dem Zustand vertraut wird; sonst ist der Monitor sofort ausgefallen.",

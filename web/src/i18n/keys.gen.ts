@@ -5510,6 +5510,10 @@ export interface Resources {
     'codes.PLANT_IMPORT_CHANGED': string;
     'codes.PLANT_BULK_CHANGED': string;
     'codes.PLANT_RENAME_CHANGED': string;
+    'codes.PLANT_MOVE_SAME_ASSET': string;
+    'codes.PLANT_MOVE_PATH_SPLIT': string;
+    'codes.PLANT_MOVE_NOTHING': string;
+    'codes.PLANT_MOVE_CHANGED': string;
     'codes.PLANT_REVIEW_LEVEL': string;
     'codes.IDENTITY_NOT_ALLOWED': string;
     'codes.IDENTITY_READ_ONLY': string;
@@ -7264,6 +7268,7 @@ export interface Resources {
     'states.group.expected': string;
     'states.group.precondition': string;
     'states.caption': string;
+    'states.legendTitle': string;
     'states.legendSelects': string;
     'states.legendExpected': string;
     'states.legendRequired': string;
@@ -8467,6 +8472,11 @@ export interface Resources {
     'moveEntries.crossSite': string;
     'moveEntries.crossSiteCollection': string;
     'moveEntries.problems': string;
+    'moveEntries.previewFailed': string;
+    'moveEntries.summary_one': string;
+    'moveEntries.summary_other': string;
+    'moveEntries.summaryProblems_one': string;
+    'moveEntries.summaryProblems_other': string;
     'moveEntries.what': string;
     'moveEntries.newId': string;
     'moveEntries.newIdOf': string;
@@ -8493,6 +8503,7 @@ export interface Resources {
     'duplicateDevice.title': string;
     'duplicateDevice.help': string;
     'duplicateDevice.id': string;
+    'duplicateDevice.otherSitesHelp': string;
     'duplicateDevice.save': string;
     'duplicateDevice.done': string;
     selectedDevices_one: string;

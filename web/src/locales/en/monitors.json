@@ -1078,6 +1078,7 @@
       "precondition": "Precondition"
     },
     "caption": "Decision table: one row per state, one column per check",
+    "legendTitle": "How to read the table",
     "legendSelects": "the condition: the first row whose condition matches wins.",
     "legendExpected": "what the check should be while the state holds; a check that still deviates after the settle time is a contradiction.",
     "legendRequired": "the check must be up for the state to be trusted; otherwise the monitor is down at once.",

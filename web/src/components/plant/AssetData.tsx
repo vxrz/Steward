@@ -328,7 +328,7 @@ export function AssetDataSection({ assetId }: { assetId: string }) {
                     {profile.name}
                   </Anchor>
                 ) : a.profileId ? (
-                  <Text size="sm" c="orange.8" className="mono">
+                  <Text size="sm" c="orange" className="mono">
                     {a.profileId}
                   </Text>
                 ) : (
@@ -647,7 +647,7 @@ export function AssetDataSection({ assetId }: { assetId: string }) {
                                   {nameOf(shown.definition)}
                                 </Anchor>
                               ) : (
-                                <Text size="sm" c="orange.8" className="mono">
+                                <Text size="sm" c="orange" className="mono">
                                   {k.kpi}
                                 </Text>
                               )}
