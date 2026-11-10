@@ -82,6 +82,14 @@ test.describe('as an administrator', () => {
     await expect(page.getByTestId('soa-waiting')).toContainText('Version 1 waits for approval');
     await expect(page.getByTestId('soa-waiting')).toContainText('a second person approves it');
     await expect(page.getByTestId('soa-approve')).toHaveCount(0);
+    // what waits: the rows as frozen
+    await page.getByTestId('soa-view-waiting').click();
+    const frozen = page.getByTestId('soa-version-view');
+    await expect(frozen).toContainText('Customer data must be restorable');
+    await expect(frozen).toContainText('SHA-256');
+    await expectAccessible(page, 'a version as submitted');
+    await page.keyboard.press('Escape');
+    await expect(frozen).toBeHidden();
     const url = page.url();
 
     const ctx = await browser.newContext({ storageState: authFile('adam'), baseURL: baseURL() });

@@ -259,5 +259,11 @@
     "c5": "C5",
     "tisax": "TISAX",
     "other": "Other"
+  },
+  "versionView": {
+    "title": "Version {{number}} as submitted",
+    "intro": "Frozen when {{user}} submitted it on {{date}}. The signed file holds exactly this content (soa.json).",
+    "open": "Show version {{number}}",
+    "show": "Show version"
   }
 }

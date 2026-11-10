@@ -259,5 +259,11 @@
     "c5": "C5",
     "tisax": "TISAX",
     "other": "Sonstiges"
+  },
+  "versionView": {
+    "title": "Version {{number}} wie eingereicht",
+    "intro": "Eingefroren, als {{user}} sie am {{date}} eingereicht hat. Die signierte Datei enthält genau diesen Inhalt (soa.json).",
+    "open": "Version {{number}} anzeigen",
+    "show": "Version anzeigen"
   }
 }

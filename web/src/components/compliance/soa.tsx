@@ -15,6 +15,7 @@ import {
   Select,
   Stack,
   Switch,
+  Table,
   Text,
   TextInput,
   Textarea,
@@ -36,9 +37,10 @@ import {
   type SoaList,
   type SoaParty,
   type SoaStatus,
+  type SoaVersionDetail,
 } from '@sm/shared';
 import { get, notifyError, notifyOk, post, put } from '../../api';
-import { subjectLabel, useFieldErrors } from '../common';
+import { QueryState, subjectLabel, useFieldErrors } from '../common';
 import { SubjectsInput } from '../SubjectsInput';
 import { SupplierPicker } from '../suppliers/SupplierPicker';
 import { fmtDate, fmtRelative } from '../../format';
@@ -698,6 +700,58 @@ export function SoaDecisionModal({ soa, approve, onClose, onSaved }: { soa: Soa;
           </Group>
         </Stack>
       </form>
+    </Modal>
+  );
+}
+
+/** One version as it was frozen: what an approver approves and what the signed file holds (soa.json). */
+export function SoaVersionModal({ catalogueKey, number, onClose }: { catalogueKey: string; number: number; onClose: () => void }) {
+  const { t } = useTranslation(['soa', 'common']);
+  const q = useQuery({
+    queryKey: ['soa', 'version', catalogueKey, number],
+    queryFn: () => get<SoaVersionDetail>(`/compliance/soa/${encodeURIComponent(catalogueKey)}/versions/${number}`),
+  });
+  const v = q.data;
+  return (
+    <Modal opened onClose={onClose} title={t('versionView.title', { number })} size="xl">
+      {!v ? (
+        <QueryState query={q} />
+      ) : (
+        <Stack gap="xs" data-testid="soa-version-view">
+          <Text size="sm" c="dimmed">
+            {t('versionView.intro', { user: v.submittedBy, date: fmtDate(v.submittedAt) })}
+          </Text>
+          <Text size="xs" c="dimmed" className="mono" style={{ overflowWrap: 'anywhere' }}>
+            SHA-256 {v.contentSha256}
+          </Text>
+          <div className="table-scroll">
+            <Table fz="xs" aria-label={t('versionView.title', { number })}>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>{t('table.control')}</Table.Th>
+                  <Table.Th>{t('table.applies')}</Table.Th>
+                  <Table.Th>{t('fields.justification')}</Table.Th>
+                  <Table.Th>{t('table.status')}</Table.Th>
+                  <Table.Th>{t('table.party')}</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {v.content.entries.map((e) => (
+                  <Table.Tr key={e.ref}>
+                    <Table.Td>
+                      {e.ref} {e.title}
+                    </Table.Td>
+                    <Table.Td>{t(e.applicable === null ? 'applicable.undecided' : e.applicable ? 'applicable.yes' : 'applicable.no')}</Table.Td>
+                    <Table.Td style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{e.justification || '–'}</Table.Td>
+                    <Table.Td>{e.status ? t(`statuses.${e.status}`) : '–'}</Table.Td>
+                    <Table.Td>{e.party ? [t(`parties.${e.party}`), e.supplier ?? e.centralName].filter(Boolean).join(': ') : '–'}</Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </div>
+        </Stack>
+      )}
     </Modal>
   );
 }

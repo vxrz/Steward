@@ -14537,6 +14537,10 @@ export interface Resources {
     'certificateKinds.c5': string;
     'certificateKinds.tisax': string;
     'certificateKinds.other': string;
+    'versionView.title': string;
+    'versionView.intro': string;
+    'versionView.open': string;
+    'versionView.show': string;
   };
   suppliers: {
     title: string;

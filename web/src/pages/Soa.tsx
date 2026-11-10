@@ -21,6 +21,7 @@ import {
   SoaEntryDrawer,
   SoaSettingsModal,
   SoaStatusBadge,
+  SoaVersionModal,
   usePartyLabel,
 } from '../components/compliance/soa';
 import { fmtDate, fmtDay } from '../format';
@@ -200,6 +201,7 @@ export function SoaDetailPage() {
   const [settings, setSettings] = useState(false);
   const [deciding, setDeciding] = useState<'approve' | 'return' | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [viewing, setViewing] = useState<number | null>(null);
   const soa = q.data;
   const owners = useMemo(() => [...new Set((soa?.entries ?? []).map((e) => e.owner).filter((x): x is string => !!x))].sort(), [soa]);
   const rows = useMemo(() => {
@@ -364,6 +366,9 @@ export function SoaDetailPage() {
               {t('versions.waiting', { number: soa.waiting.number, user: soa.waiting.submittedBy, date: fmtDate(soa.waiting.submittedAt) })}
             </Text>
             <Group gap="xs">
+              <Button size="compact-sm" variant="subtle" onClick={() => setViewing(soa.waiting!.number)} data-testid="soa-view-waiting">
+                {t('versionView.show')}
+              </Button>
               {soa.permissions.decide && (
                 <>
                   <Button size="compact-sm" leftSection={<IconCheck size={14} />} onClick={() => setDeciding('approve')} data-testid="soa-approve">
@@ -522,7 +527,17 @@ export function SoaDetailPage() {
                     apiUrl(`/compliance/soa/${encodeURIComponent(soa.catalogueKey)}/versions/${v.number}/export?format=${format}`);
                   return (
                     <Table.Tr key={v.number}>
-                      <Table.Td>{v.number}</Table.Td>
+                      <Table.Td>
+                        <Anchor
+                          component="button"
+                          type="button"
+                          size="sm"
+                          onClick={() => setViewing(v.number)}
+                          aria-label={t('versionView.open', { number: v.number })}
+                        >
+                          {v.number}
+                        </Anchor>
+                      </Table.Td>
                       <Table.Td>
                         <Badge
                           size="sm"
@@ -597,6 +612,7 @@ export function SoaDetailPage() {
           }}
         />
       )}
+      {viewing !== null && <SoaVersionModal catalogueKey={soa.catalogueKey} number={viewing} onClose={() => setViewing(null)} />}
       {settings && (
         <SoaSettingsModal
           soa={soa}
