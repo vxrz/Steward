@@ -2729,6 +2729,8 @@ export interface Resources {
     'checklist.expand': string;
     'checklist.collapse': string;
     'checklist.next': string;
+    'checklist.firstWeek': string;
+    'checklist.firstWeekLink': string;
     'checks.count_one': string;
     'checks.count_other': string;
     'checks.errors_one': string;

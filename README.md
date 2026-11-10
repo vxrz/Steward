@@ -57,7 +57,7 @@ Then:
 
 3. Open **Processes → "Insights Hub – Access review 1"** and click _Run_. Keep _Dry run_ on the first time.
 
-To set up a real installation step by step – unlock, single sign-on, teams, the first platform and process, monitors, notifications and backups – follow **[Getting started](docs/GETTING-STARTED.md)**.
+To set up a real installation step by step – unlock, single sign-on, teams, the first platform and process, monitors, notifications and backups – follow **[Getting started](docs/GETTING-STARTED.md)**. Then plan the team's first days with **[Your first week with Steward](docs/FIRST-WEEK.md)**.
 
 ## Ways to run it
 

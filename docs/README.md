@@ -1,6 +1,6 @@
 # Documentation
 
-Every page of Steward's documentation, grouped by what you want to do. New here? Read the [README](../README.md) for what Steward is, then [Getting started](GETTING-STARTED.md) to set up an installation.
+Every page of Steward's documentation, grouped by what you want to do. New here? Read the [README](../README.md) for what Steward is, then [Getting started](GETTING-STARTED.md) to set up an installation and [Your first week](FIRST-WEEK.md) to plan the team's first days.
 
 - [Evaluate](#evaluate)
 - [Install and operate](#install-and-operate)
@@ -25,15 +25,16 @@ Every page of Steward's documentation, grouped by what you want to do. New here?
 
 ## Install and operate
 
-| Page                                     | What it covers                                                                        |
-| ---------------------------------------- | ------------------------------------------------------------------------------------- |
-| [GETTING-STARTED.md](GETTING-STARTED.md) | From installation to a usable instance, step by step, for administrators              |
-| [INSTALL.md](INSTALL.md)                 | Desktop app, PWA, Node.js, container, database, updates, reverse proxy, health checks |
-| [CONFIGURATION.md](CONFIGURATION.md)     | Every environment variable with its default (generated)                               |
-| [BACKUPS.md](BACKUPS.md)                 | Encrypted backups to S3, retention, restore tests and restoring                       |
-| [MIGRATION.md](MIGRATION.md)             | Moving an instance, e.g. from the desktop app to a server, with a user mapping        |
-| [ERROR-REPORTING.md](ERROR-REPORTING.md) | Sending unexpected errors to Sentry, GlitchTip or Bugsink                             |
-| [METRICS.md](METRICS.md)                 | Prometheus metrics, the shipped alert rules and the renamed metric names              |
+| Page                                     | What it covers                                                                                        |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| [GETTING-STARTED.md](GETTING-STARTED.md) | From installation to a usable instance, step by step, for administrators                              |
+| [FIRST-WEEK.md](FIRST-WEEK.md)           | The first five days for a team: sign-in, a first process, monitors, the catalogue, the plant registry |
+| [INSTALL.md](INSTALL.md)                 | Desktop app, PWA, Node.js, container, database, updates, reverse proxy, health checks                 |
+| [CONFIGURATION.md](CONFIGURATION.md)     | Every environment variable with its default (generated)                                               |
+| [BACKUPS.md](BACKUPS.md)                 | Encrypted backups to S3, retention, restore tests and restoring                                       |
+| [MIGRATION.md](MIGRATION.md)             | Moving an instance, e.g. from the desktop app to a server, with a user mapping                        |
+| [ERROR-REPORTING.md](ERROR-REPORTING.md) | Sending unexpected errors to Sentry, GlitchTip or Bugsink                                             |
+| [METRICS.md](METRICS.md)                 | Prometheus metrics, the shipped alert rules and the renamed metric names                              |
 
 ## Administer
 
