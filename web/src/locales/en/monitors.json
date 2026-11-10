@@ -188,11 +188,11 @@
       "api": "Gatus status API",
       "metrics": "Scraped metrics"
     },
-    "cmkHost": "Host name in CheckMk",
+    "cmkHost": "Host name in Checkmk",
     "cmkService": "Service",
-    "cmkServiceHint": "The service description exactly as in CheckMk, e.g. \"Filesystem /var\". Empty: the state of the host",
+    "cmkServiceHint": "The service description exactly as in Checkmk, e.g. \"Filesystem /var\". Empty: the state of the host",
     "cmkMaxAge": "Unknown when not checked for (s)",
-    "cmkMaxAgeHint": "Optional: the state counts as unknown when CheckMk has not checked it for this long",
+    "cmkMaxAgeHint": "Optional: the state counts as unknown when Checkmk has not checked it for this long",
     "promQuery": "PromQL query",
     "promQueryHint": "An instant query, e.g. 100 * (1 - node_filesystem_avail_bytes{mountpoint=\"/var\"} / node_filesystem_size_bytes{mountpoint=\"/var\"}). With several series the worst one counts",
     "promDirection": "Bad when the value is",
@@ -811,8 +811,8 @@
       "help": "Status of an endpoint monitored by Gatus"
     },
     "checkmk": {
-      "label": "CheckMk host or service",
-      "help": "Current state of a host or service in CheckMk (OK, WARN, CRIT, UNKNOWN)"
+      "label": "Checkmk host or service",
+      "help": "Current state of a host or service in Checkmk (OK, WARN, CRIT, UNKNOWN)"
     },
     "prometheus": {
       "label": "Prometheus query",
@@ -899,7 +899,7 @@
     "freshness": "Data in Insights Hub",
     "heartbeat": "Data reported by the gateway",
     "gatus": "Gatus endpoint",
-    "checkmk": "CheckMk service",
+    "checkmk": "Checkmk service",
     "prometheus": "Prometheus query",
     "kubernetes": "Kubernetes deployments",
     "git": "Repository pipeline",
@@ -1044,7 +1044,7 @@
     "moveUp": "Move {{state}} up",
     "moveDown": "Move {{state}} down",
     "name": "Name of state {{n}}",
-    "id": "Id of state {{n}}",
+    "id": "ID of state {{n}}",
     "matchesNow": "Matches now",
     "showsOf": "{{state}} shows",
     "cellLabel": "{{state}} – {{check}}",

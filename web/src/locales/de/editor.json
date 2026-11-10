@@ -211,7 +211,7 @@
         },
         "runbook": {
           "label": "Runbook (wahlweise)",
-          "help": "Die Id eines lebenden Dokuments (rec_…) oder eine http(s)-URL; Standard: das Runbook des Prozesses"
+          "help": "Die ID eines lebenden Dokuments (rec_…) oder eine http(s)-URL; Standard: das Runbook des Prozesses"
         }
       }
     },
@@ -772,8 +772,8 @@
     "messages": {
       "title": "Nachrichten",
       "runbook": "Runbook (wahlweise)",
-      "runbookHint": "Was zu tun ist, wenn eine Prüfung fehlschlägt: die Id eines lebenden Dokuments (rec_…) oder eine http(s)-URL. Nachrichten zu fehlgeschlagenen Prüfungen zeigen „Runbook öffnen“ nur, wenn eines gesetzt ist; ein Prüfschritt kann ein eigenes nennen.",
-      "runbookInvalid": "Die Id eines lebenden Dokuments (rec_…) oder eine http(s)-URL",
+      "runbookHint": "Was zu tun ist, wenn eine Prüfung fehlschlägt: die ID eines lebenden Dokuments (rec_…) oder eine http(s)-URL. Nachrichten zu fehlgeschlagenen Prüfungen zeigen „Runbook öffnen“ nur, wenn eines gesetzt ist; ein Prüfschritt kann ein eigenes nennen.",
+      "runbookInvalid": "Die ID eines lebenden Dokuments (rec_…) oder eine http(s)-URL",
       "runbookPlaceholder": "https://… oder rec_…"
     },
     "privilegedFourEyes": "Privilegierte Ausführungen brauchen eine zweite Person",
@@ -927,7 +927,7 @@
     "cycle": "Verknüpfungen bilden einen Kreis ({{cycle}}). Für Schleifen einen „Für jedes Element“-Knoten verwenden.",
     "unreachable": "„{{name}}“ ist nicht mit dem Start-Knoten verbunden und wird nie ausgeführt",
     "manualSettingsIgnored": "{{settings}} gelten nur für manuelle Schritte (Modus „manuell“) und werden ignoriert",
-    "duplicateFieldId": "Doppelte Feld-Id „{{id}}“",
+    "duplicateFieldId": "Doppelte Feld-ID „{{id}}“",
     "checklistEmpty": "„Alle Punkte erforderlich“ wirkt nur mit Punkten in der Checkliste",
     "aiDuplicateContext": "Kontext „{{name}}“ ist doppelt benannt",
     "aiUnknownStep": "Kontext „{{name}}“: kein Schritt „{{step}}“",

@@ -50,7 +50,7 @@ test.describe('as a designer', () => {
     await modbus.getByRole('button', { name: 'Add data point' }).click();
     const dialog = page.getByRole('dialog', { name: 'New data point' });
     await dialog.getByRole('textbox', { name: 'Name', exact: true }).fill('Reactive power');
-    await expect(dialog.getByRole('textbox', { name: 'Id' })).toHaveValue('reactive_power');
+    await expect(dialog.getByRole('textbox', { name: 'ID' })).toHaveValue('reactive_power');
     await dialog.getByRole('textbox', { name: 'Address' }).fill('register 71');
     await dialog.getByRole('button', { name: 'Save' }).click();
     await expect(dialog.getByText(/Use table:address,count/)).toBeVisible();

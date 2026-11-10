@@ -66,7 +66,7 @@
   },
   "checks": {
     "title": "Linked checks",
-    "help": "A monitor (or one of its checks: a Gatus endpoint, a CheckMk service, the MQTT silent-device check, Kafka …) or the freshness of a dataset.",
+    "help": "A monitor (or one of its checks: a Gatus endpoint, a Checkmk service, the MQTT silent-device check, Kafka …) or the freshness of a dataset.",
     "assetTitle": "Live-status checks of the asset",
     "edit": "Checks",
     "add": "Link a check",
@@ -263,7 +263,7 @@
     "protocolsHelp": "With their ports: opc-ua tcp/4840, https tcp/443 (Enter after each)",
     "controls": "Controls",
     "controlsHelp": "Firewall, data diode, jump host … (Enter after each)",
-    "linkedFrom": "Firewall changes and records",
+    "linkedFrom": "Firewall changes and documents",
     "noFirewallChanges": "None links to it yet.",
     "none": "No conduit yet.",
     "needZones": "A conduit connects two zones: add zones first."

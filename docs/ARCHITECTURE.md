@@ -19,7 +19,7 @@ flowchart TB
 
   subgraph platforms [Managed platforms]
     ih["Siemens Insights Hub,<br/>Industrial Edge (IEM)"]
-    rest["Any REST API, Kubernetes, AWS,<br/>Snowflake, Kafka, MQTT, databases, Git hosts,<br/>datacontract API, Prometheus, CheckMk, Dependency-Track, Gatus,<br/>changedetection.io, IBM Verify Privilege Vault, LLM gateways"]
+    rest["Any REST API, Kubernetes, AWS,<br/>Snowflake, Kafka, MQTT, databases, Git hosts,<br/>datacontract API, Prometheus, Checkmk, Dependency-Track, Gatus,<br/>changedetection.io, IBM Verify Privilege Vault, LLM gateways"]
   end
 
   idp["Identity provider<br/>(OIDC, Entra ID)"]

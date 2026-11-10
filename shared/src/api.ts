@@ -34,7 +34,7 @@ export const ROLE_INFO: Record<Role, string> = {
   auditor: 'Read-only access to all processes, runs, protocols and the audit log',
   viewer: 'Read-only access to processes and their runs (unless restricted)',
   status: 'Only the service status pages – none of the other pages, processes, platforms or data',
-  plant: 'Sees only the plant registry (sites and assets, unless a site is restricted) – none of the other pages, processes, services or records',
+  plant: 'Sees only the plant registry (sites and assets, unless a site is restricted) – none of the other pages, processes, services or documents',
 };
 
 export const PROCESS_PERMISSIONS = ['view', 'run', 'edit', 'approve', 'manage'] as const;

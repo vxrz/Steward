@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type TestServer } from './helpers.js';
 
 /**
- * CheckMk (#130): the monitor check type `checkmk` against the mock CheckMk site – host and service states, the
+ * Checkmk (#130): the monitor check type `checkmk` against the mock Checkmk site – host and service states, the
  * plugin output, pending and stale states, one shared read per cycle – and the platform preset.
  */
 
@@ -45,11 +45,11 @@ beforeAll(async () => {
   batch = await import('../src/monitors/batch.js');
 });
 
-describe('CheckMk check', () => {
+describe('Checkmk check', () => {
   it('maps OK / WARN / CRIT and host states, with the plugin output, in one read per kind', async () => {
     mock.resetCheckmk();
     batch.clearBatchCaches();
-    const id = await monitorWith('CheckMk states', [
+    const id = await monitorWith('Checkmk states', [
       check('db', 'db01'),
       check('backup', 'backup01'),
       check('var', 'db01', 'Filesystem /var'),
@@ -58,12 +58,12 @@ describe('CheckMk check', () => {
       check('gone', 'web01', 'No such service'),
     ]);
     const st = await states(id);
-    expect(st.db).toMatchObject({ status: 'up', message: 'CheckMk: db01 UP – Packet received via smart PING' });
+    expect(st.db).toMatchObject({ status: 'up', message: 'Checkmk: db01 UP – Packet received via smart PING' });
     expect(st.backup.status).toBe('down');
-    expect(st.var).toMatchObject({ status: 'degraded', message: expect.stringMatching(/^CheckMk: db01 \/ Filesystem \/var WARN – WARN - Used: 82\.0%/) });
+    expect(st.var).toMatchObject({ status: 'degraded', message: expect.stringMatching(/^Checkmk: db01 \/ Filesystem \/var WARN – WARN - Used: 82\.0%/) });
     expect(st.cpu.status).toBe('up');
-    expect(st.shop).toMatchObject({ status: 'down', message: 'CheckMk: web01 / HTTPS shop CRIT – CRIT - HTTP 503 Service Unavailable' });
-    expect(st.gone).toMatchObject({ status: 'unknown', message: 'CheckMk has no service "web01 / No such service"' });
+    expect(st.shop).toMatchObject({ status: 'down', message: 'Checkmk: web01 / HTTPS shop CRIT – CRIT - HTTP 503 Service Unavailable' });
+    expect(st.gone).toMatchObject({ status: 'unknown', message: 'Checkmk has no service "web01 / No such service"' });
     // the six checks shared one host read and one service read
     expect(batch.checkmkFetch.calls).toBe(1);
   });
@@ -75,32 +75,32 @@ describe('CheckMk check', () => {
     mock.setCheckmkState('web01', 'Memory', { last_check: Math.floor(Date.now() / 1000) - 3600 });
     mock.setCheckmkState('web01', 'HTTPS shop', { scheduled_downtime_depth: 1, acknowledged: 1 });
     mock.setCheckmkState('db01', 'Filesystem /var', { state: 3, output: 'UNKNOWN - mount point not found' });
-    const id = await monitorWith('CheckMk notes', [
+    const id = await monitorWith('Checkmk notes', [
       check('cpu', 'db01', 'CPU load'),
       check('mem', 'web01', 'Memory', { maxAgeSeconds: 600 }),
       check('shop', 'web01', 'HTTPS shop'),
       check('var', 'db01', 'Filesystem /var'),
     ]);
     const st = await states(id);
-    expect(st.cpu).toMatchObject({ status: 'unknown', message: 'CheckMk has not checked db01 / CPU load yet (pending)' });
-    expect(st.mem).toMatchObject({ status: 'unknown', message: expect.stringMatching(/^CheckMk last checked web01 \/ Memory 60 min ago \(maximum 10 min\)$/) });
-    expect(st.shop.message).toMatch(/\(in a CheckMk downtime, acknowledged in CheckMk\)$/);
+    expect(st.cpu).toMatchObject({ status: 'unknown', message: 'Checkmk has not checked db01 / CPU load yet (pending)' });
+    expect(st.mem).toMatchObject({ status: 'unknown', message: expect.stringMatching(/^Checkmk last checked web01 \/ Memory 60 min ago \(maximum 10 min\)$/) });
+    expect(st.shop.message).toMatch(/\(in a Checkmk downtime, acknowledged in Checkmk\)$/);
     expect(st.var.status).toBe('unknown');
   });
 
   it('reports a wrong automation secret plainly', async () => {
     batch.clearBatchCaches();
     const p = await s.api('POST', '/platforms', {
-      name: 'CheckMk wrong secret',
+      name: 'Checkmk wrong secret',
       kind: 'checkmk',
       baseUrl: `${s.base}/mock/checkmk/demo/check_mk/api/1.0`,
       config: { auth: { type: 'bearer' }, variables: {}, http: { proxy: 'none' } },
       secrets: { token: 'steward-reader wrong' },
     });
-    const id = await monitorWith('CheckMk denied', [{ ...check('db', 'db01'), platform: p.id }]);
+    const id = await monitorWith('Checkmk denied', [{ ...check('db', 'db01'), platform: p.id }]);
     expect((await states(id)).db).toMatchObject({
       status: 'unknown',
-      message: 'CheckMk could not be read: CheckMk answered HTTP 401 (check the automation user and its secret)',
+      message: 'Checkmk could not be read: Checkmk answered HTTP 401 (check the automation user and its secret)',
     });
   });
 
@@ -138,7 +138,7 @@ describe('CheckMk check', () => {
       expect(JSON.stringify(await s.api('GET', `/platforms/${ch.id}`))).not.toContain('secret-sig');
       const { monitor } = await s.api('POST', '/monitors', {
         definition: {
-          name: 'Shop in CheckMk',
+          name: 'Shop in Checkmk',
           failuresBeforeDown: 1,
           checks: [check('shop', 'web01', 'HTTPS shop')],
           outputs: [{ id: 'teams', type: 'webhook', format: 'teams', platform: ch.id, include: 'monitor' }],
@@ -152,7 +152,7 @@ describe('CheckMk check', () => {
         { id: 'teams', type: 'webhook', format: 'teams', platform: 'Gatus (demo)' },
       ])
         await expect(
-          s.api('PUT', `/monitors/${monitor.id}`, { definition: { name: 'Shop in CheckMk', checks: [check('shop', 'web01', 'HTTPS shop')], outputs: [bad] } }),
+          s.api('PUT', `/monitors/${monitor.id}`, { definition: { name: 'Shop in Checkmk', checks: [check('shop', 'web01', 'HTTPS shop')], outputs: [bad] } }),
         ).rejects.toThrow(/Microsoft Teams channel/);
       await eng.evaluateMonitorNow(monitor.id);
       await eng.settle();
@@ -162,7 +162,7 @@ describe('CheckMk check', () => {
       const card = last.body.attachments[0];
       expect(card.contentType).toBe('application/vnd.microsoft.card.adaptive');
       const text = JSON.stringify(card.content);
-      expect(text).toContain('Shop in CheckMk');
+      expect(text).toContain('Shop in Checkmk');
       expect(text).toContain('HTTP 503 Service Unavailable');
     } finally {
       srv.close();

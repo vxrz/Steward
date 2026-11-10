@@ -375,8 +375,8 @@
       "present": "Still there"
     },
     "matchedBy": "Found by {{aliases}}",
-    "lastLogin_one": "Last login {{date}} ({{count}} day ago)",
-    "lastLogin_other": "Last login {{date}} ({{count}} days ago)",
+    "lastLogin_one": "Last sign-in {{date}} ({{count}} day ago)",
+    "lastLogin_other": "Last sign-in {{date}} ({{count}} days ago)",
     "neverSignedIn": "Never signed in",
     "passwordWithoutMfa": "Password without MFA"
   },

@@ -143,8 +143,8 @@ describe('example library', () => {
     expect(typeof by['MES frontend']['Uptime (%)']).toBe('number');
   });
 
-  it('CheckMk – Trend summary finds the level crossed and the series heading for CRIT', async () => {
-    // runs after "runs 78-…" above, against the mock CheckMk (server/src/mock/mockCheckmk.ts): /var on db01 grows 0.8 % a day to 82 %
+  it('Checkmk – Trend summary finds the level crossed and the series heading for CRIT', async () => {
+    // runs after "runs 78-…" above, against the mock Checkmk (server/src/mock/mockCheckmk.ts): /var on db01 grows 0.8 % a day to 82 %
     const d = await s.api('GET', '/datasets/checkmk.trends');
     const by = Object.fromEntries(d.rows.map((r: any) => [r.series, r]));
     expect(Object.keys(by).sort()).toEqual(['db01 / CPU load', 'db01 / Filesystem /var', 'web01 / Memory']);

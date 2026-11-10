@@ -85,7 +85,7 @@
     "applies": "Es gilt",
     "empty": "Kein Element verschärft die Richtlinie.",
     "kinds": {
-      "recordType": "Dokumenttyp",
+      "recordType": "Dokumentart",
       "processStep": "Prozessschritt",
       "manualStep": "Manueller Schritt",
       "platformMcp": "Plattform (MCP)",

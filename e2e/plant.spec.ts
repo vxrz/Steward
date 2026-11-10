@@ -70,7 +70,7 @@ test.describe('as a designer', () => {
     await tree.getByRole('button', { name: 'Add area' }).click();
     const dialog = page.getByRole('dialog', { name: 'New area' });
     await dialog.getByRole('textbox', { name: 'Name', exact: true }).fill('E2E paint shop');
-    await expect(dialog.getByRole('textbox', { name: 'Id' })).toHaveValue('e2e-paint-shop');
+    await expect(dialog.getByRole('textbox', { name: 'ID' })).toHaveValue('e2e-paint-shop');
     await expectAccessible(page, 'new area dialog');
     await dialog.getByRole('button', { name: 'Save' }).click();
     await expect(dialog).toBeHidden();

@@ -60,7 +60,7 @@
   "account": {
     "saved": "Profile saved",
     "title": "Account",
-    "username": "Username",
+    "username": "User name",
     "displayName": "Display name",
     "email": "E-mail",
     "ssoHint": "Name and e-mail come from your single sign-on provider and are updated when you sign in.",

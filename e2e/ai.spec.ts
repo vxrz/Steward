@@ -41,7 +41,7 @@ async function addGateway(page: Page, api: APIRequestContext, mobile: boolean) {
   await expect(result).toContainText('lists 4 model(s) – add the models processes may use under AI models');
   await dialog.getByTestId('wizard-continue').click();
   await expect(dialog.getByTestId('platform-get-started')).toBeVisible();
-  await expect(dialog.getByTestId('platform-get-started').getByText('CheckMk – AI summary of the trends')).toBeVisible();
+  await expect(dialog.getByTestId('platform-get-started').getByText('Checkmk – AI summary of the trends')).toBeVisible();
   await expectAccessible(page, 'llm wizard: what next');
   await page.keyboard.press('Escape');
 
@@ -79,7 +79,7 @@ async function addGateway(page: Page, api: APIRequestContext, mobile: boolean) {
   await expect(tab.getByTestId('ai-models')).toContainText('demo-messages-small');
   await expect(tab.getByTestId('ai-models')).toContainText('Messages (Anthropic)');
 
-  // allow the datasets of CheckMk
+  // allow the datasets of Checkmk
   const allowed = tab.getByTestId('ai-allowed-data');
   await allowed.getByRole('combobox', { name: 'Datasets' }).fill('checkmk.*');
   await allowed.getByRole('combobox', { name: 'Datasets' }).press('Enter');
@@ -97,7 +97,7 @@ async function addGateway(page: Page, api: APIRequestContext, mobile: boolean) {
 
 async function stepEditor(page: Page, mobile: boolean) {
   await page.goto('/processes/checkmk-ai-summary');
-  await expect(page.getByRole('main').getByRole('heading', { level: 1 })).toContainText('CheckMk – AI summary of the trends');
+  await expect(page.getByRole('main').getByRole('heading', { level: 1 })).toContainText('Checkmk – AI summary of the trends');
   // on a phone the flow is view-only: tapping a step shows its settings
   await page.locator('.react-flow__node[data-id="summary"]').click();
   await expect(page.getByText('Ask an AI model').first()).toBeVisible();

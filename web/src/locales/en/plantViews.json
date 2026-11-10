@@ -335,7 +335,7 @@
   "network": {
     "title": "Diagram",
     "help": "Zones (IEC 62443-3-2) in bands by their level, field at the bottom, with their VLANs and {{type}}; conduits are the gates between them. Point at a part or select it for its details.",
-    "live": "the checks linked to an asset and its devices (monitors – Gatus, CheckMk, the MQTT silent-device and Kafka checks – and dataset freshness): online, offline, or “no data”. A way from an offline asset is red and still.",
+    "live": "the checks linked to an asset and its devices (monitors – Gatus, Checkmk, the MQTT silent-device and Kafka checks – and dataset freshness): online, offline, or “no data”. A way from an offline asset is red and still.",
     "exportTitle": "OT network of {{site}}",
     "emptyTitle": "Nothing to draw yet",
     "emptyText": "Add zones and VLANs, and devices and data paths of the {{type}}, to see the diagram.",

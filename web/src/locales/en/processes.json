@@ -175,7 +175,7 @@
   "create": {
     "title": "New process",
     "name": "Name",
-    "id": "Id",
+    "id": "ID",
     "idHint": "Used in addresses, schedules and the API. It cannot be changed later.",
     "idInvalid": "Use lower-case letters, digits and dashes (at most 48), starting and ending with a letter or digit.",
     "descriptionLabel": "Description",

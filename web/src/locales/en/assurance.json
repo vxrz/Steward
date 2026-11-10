@@ -8,7 +8,7 @@
   "groups": {
     "identity": "Identity and access",
     "audit": "Audit and evidence",
-    "records": "Changes and records",
+    "records": "Changes and documents",
     "processes": "Processes and runs",
     "mcp": "MCP and AI",
     "catalogue": "Catalogue",
@@ -85,7 +85,7 @@
     "applies": "Applies",
     "empty": "No item adds to the policy.",
     "kinds": {
-      "recordType": "Record type",
+      "recordType": "Document type",
       "processStep": "Process step",
       "manualStep": "Manual step",
       "platformMcp": "Platform (MCP)",
@@ -212,8 +212,8 @@
     },
     "record": {
       "approve": {
-        "label": "Approve or reject a record",
-        "description": "The owner, author, submitter and content authors never decide their own record. A step-up makes the decision an electronic-signature-like confirmation."
+        "label": "Approve or reject a document",
+        "description": "The owner, author, submitter and content authors never decide their own document. A step-up makes the decision an electronic-signature-like confirmation."
       }
     },
     "document": {
@@ -225,7 +225,7 @@
     "firewallChange": {
       "close": {
         "label": "Close a firewall change",
-        "description": "Closing a record of the type FWC (firewall change). Without that type, nothing reaches this point."
+        "description": "Closing a document of the type FWC (firewall change). Without that type, nothing reaches this point."
       }
     },
     "run": {

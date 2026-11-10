@@ -335,7 +335,7 @@
   "network": {
     "title": "Diagramm",
     "help": "Zonen (IEC 62443-3-2) in Bändern nach ihrer Ebene, Feld unten, mit ihren VLANs und {{type}}; Conduits sind die Übergänge zwischen ihnen. Zeigen Sie auf einen Teil oder wählen Sie ihn aus, um Details zu sehen.",
-    "live": "die Prüfungen, die mit einer Anlage und ihren Geräten verknüpft sind (Monitore – Gatus, CheckMk, die MQTT- und Kafka-Prüfungen – und die Aktualität von Datensätzen): online, offline oder „keine Daten“. Ein Weg von einer Anlage, die offline ist, ist rot und steht still.",
+    "live": "die Prüfungen, die mit einer Anlage und ihren Geräten verknüpft sind (Monitore – Gatus, Checkmk, die MQTT- und Kafka-Prüfungen – und die Aktualität von Datensätzen): online, offline oder „keine Daten“. Ein Weg von einer Anlage, die offline ist, ist rot und steht still.",
     "exportTitle": "OT-Netz von {{site}}",
     "emptyTitle": "Noch nichts zu zeichnen",
     "emptyText": "Legen Sie Zonen und VLANs sowie Geräte und Datenwege der {{type}} an, um das Diagramm zu sehen.",

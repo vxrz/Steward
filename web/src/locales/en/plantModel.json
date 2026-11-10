@@ -230,8 +230,8 @@
     "pointsHelp": "Suggested by the same id, a known-as name and the name (same unit preferred). Change a match where it is wrong; a data point that one profile lacks cannot be shared.",
     "all": "All data points",
     "include": "Share {{point}}",
-    "baseId": "Id in the base",
-    "baseIdOf": "Id of {{point}} in the base",
+    "baseId": "ID in the base",
+    "baseIdOf": "ID of {{point}} in the base",
     "matchIn": "{{point}} in {{profile}}",
     "noMatch": "No match",
     "by": {
@@ -266,7 +266,7 @@
     },
     "interfaces": "Interfaces of the base",
     "interfacesHelp": "Each profile’s interface that holds the shared data points gets this id. Where their protocols differ, the base’s interface has the protocol “other” and no addresses – each profile keeps its protocol and addresses.",
-    "interfaceId": "Id of {{interface}} in the base",
+    "interfaceId": "ID of {{interface}} in the base",
     "mixed": "Protocols differ ({{protocols}}): “other” in the base"
   },
   "anyOf": {

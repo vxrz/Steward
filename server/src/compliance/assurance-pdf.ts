@@ -55,7 +55,7 @@ export const POINT_LABELS: Record<ReportLang, Record<string, string>> = {
     'evidencePack.export': 'Export an evidence pack',
     'credentials.export': 'Export the credential register',
     'personalData.export': "Export a person's data",
-    'record.approve': 'Approve or reject a record',
+    'record.approve': 'Approve or reject a document',
     'document.reviewOwner': 'Make oneself the review owner of a document',
     'firewallChange.close': 'Close a firewall change',
     'run.decide': 'Decide an approval in a run',

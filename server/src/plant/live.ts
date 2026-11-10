@@ -22,7 +22,7 @@ import type { NetProblem } from './network-model.js';
 
 /**
  * Live status of an asset or device (#220): online, offline or unknown, only from the checks linked to it – a
- * monitor (or one of its checks: Gatus endpoints, CheckMk, the MQTT silent-device check, Kafka …) or the freshness of
+ * monitor (or one of its checks: Gatus endpoints, Checkmk, the MQTT silent-device check, Kafka …) or the freshness of
  * a dataset (the last value of an aspect on an IoT platform). Steward never guesses: what no check says stays
  * unknown, and unknown is never shown as online.
  *
@@ -122,7 +122,7 @@ function monitorCheck(c: PlantStatusCheck, ctx: LiveContext): PlantCheckStatus {
     const [state, reason] = MONITOR_STATE[m.status ?? 'unknown'];
     return out(state, reason, m.last_evaluated_at);
   }
-  // one check of the monitor, by its id or its key (a Gatus endpoint, a CheckMk service …)
+  // one check of the monitor, by its id or its key (a Gatus endpoint, a Checkmk service …)
   const def = parseJson<{ checks?: { id: string; key?: string; enabled?: boolean }[] }>(m.definition, {});
   const chk = def.checks?.find((x) => x.id === c.check || checkKey(m, x as never) === c.check);
   if (!chk) return out('unknown', 'not_found');

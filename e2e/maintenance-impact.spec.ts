@@ -128,7 +128,7 @@ test.describe('as a designer', () => {
       const monitors = impact.getByTestId('impact-monitors');
       await expect(monitors).toContainText(`Machine data ${scene.n}`);
       // a monitor with an Off state goes Off, not down
-      await expect(monitors.getByTestId('impact-expect-off')).toHaveText('Goes Off');
+      await expect(monitors.getByTestId('impact-expect-off')).toHaveText('Goes off');
       await expect(impact.getByRole('link', { name: `Machine data ${scene.n}` })).toHaveAttribute('href', appHref(`/monitors/${scene.monitorId}`));
       await expectAccessible(page, 'maintenance form with its impact');
       await form.getByRole('button', { name: 'Save' }).click();

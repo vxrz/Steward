@@ -66,7 +66,7 @@
   },
   "checks": {
     "title": "Verknüpfte Prüfungen",
-    "help": "Ein Monitor (oder eine seiner Prüfungen: ein Gatus-Endpunkt, ein CheckMk-Service, die MQTT-Prüfung auf stille Geräte, Kafka …) oder die Aktualität eines Datensatzes.",
+    "help": "Ein Monitor (oder eine seiner Prüfungen: ein Gatus-Endpunkt, ein Checkmk-Service, die MQTT-Prüfung auf stille Geräte, Kafka …) oder die Aktualität eines Datensatzes.",
     "assetTitle": "Prüfungen für den Live-Status der Anlage",
     "edit": "Prüfungen",
     "add": "Prüfung verknüpfen",
