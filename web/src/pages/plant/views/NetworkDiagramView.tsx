@@ -187,6 +187,8 @@ function Diagram({ graph, network: n, levels }: { graph: PlantFlowGraph; network
   const [hoverPath, setHoverPath] = useState<string | null>(null);
   const [selected, setSelected] = useState<{ kind: 'node' | 'path'; id: string } | null>(null);
   const [filters, setFilters] = useState<Filters>(NO_FILTERS);
+  // the filter panel keeps the focus when "Clear filters" disables itself (Escape closes the panel from there)
+  const filterPanel = useRef<HTMLDivElement | null>(null);
   const [centerOn, setCenterOn] = useState<{ id: string; n: number } | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
   // the side panel: open on wide screens unless folded, folded on smaller ones unless opened – remembered per user
@@ -443,7 +445,7 @@ function Diagram({ graph, network: n, levels }: { graph: PlantFlowGraph; network
             {t('network.filters')}
           </Button>
         </Popover.Target>
-        <Popover.Dropdown maw={360} data-testid="nd-filter-panel" aria-label={t('network.filters')}>
+        <Popover.Dropdown ref={filterPanel} tabIndex={-1} maw={360} data-testid="nd-filter-panel" aria-label={t('network.filters')}>
           <Stack gap="xs">
             <MultiSelect
               size="xs"
@@ -495,7 +497,16 @@ function Diagram({ graph, network: n, levels }: { graph: PlantFlowGraph; network
               }}
               data-testid="nd-filter-no-conduit"
             />
-            <Button size="xs" variant="subtle" disabled={!active} onClick={() => setFilters(NO_FILTERS)} data-testid="nd-filter-clear">
+            <Button
+              size="xs"
+              variant="subtle"
+              disabled={!active}
+              onClick={() => {
+                setFilters(NO_FILTERS);
+                filterPanel.current?.focus();
+              }}
+              data-testid="nd-filter-clear"
+            >
               {t('network.clearFilters')}
             </Button>
           </Stack>

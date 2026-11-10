@@ -85,6 +85,8 @@ export default async function globalSetup(_config: FullConfig): Promise<() => Pr
 
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sm-e2e-'));
   fs.mkdirSync(AUTH_DIR, { recursive: true });
+  // locks of an earlier run that was stopped (support/helpers.ts withLock)
+  for (const f of fs.readdirSync(AUTH_DIR)) if (f.startsWith('lock-')) fs.rmSync(path.join(AUTH_DIR, f), { recursive: true, force: true });
   const logFile = path.join(AUTH_DIR, 'server.log');
   const log = fs.createWriteStream(logFile);
 

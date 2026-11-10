@@ -1,6 +1,8 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { expect, type APIRequestContext, type Locator, type Page } from '@playwright/test';
 import { animationsDone } from './axe';
-import { appHref } from './env';
+import { AUTH_DIR, appHref } from './env';
 
 /** Unique, readable names so parallel tests never collide. */
 export function uniq(prefix: string): string {
@@ -117,4 +119,31 @@ export async function confirmDialog(page: Page, button: string, opts: { title?: 
 /** The Save button of a settings area's save bar (one bar saves every card of the area). */
 export function settingsSave(page: Page): Locator {
   return page.getByTestId('settings-save-bar').getByRole('button', { name: 'Save', exact: true });
+}
+
+/**
+ * A lock across the test workers (a directory in e2e/.auth, removed by the global setup): around a test that changes
+ * shared demo data for a while and the tests that read that data – a `serial` describe orders its own tests, but its
+ * repeats (`--repeat-each`) run side by side in other workers. A lock older than `staleMs` (a killed worker) is taken over.
+ */
+export async function withLock<T>(name: string, fn: () => Promise<T>, staleMs = 180_000): Promise<T> {
+  const dir = path.join(AUTH_DIR, `lock-${name}`);
+  for (;;) {
+    try {
+      fs.mkdirSync(dir);
+      break;
+    } catch {
+      try {
+        if (Date.now() - fs.statSync(dir).mtimeMs > staleMs) fs.rmSync(dir, { recursive: true, force: true });
+      } catch {
+        // released meanwhile
+      }
+      await new Promise((r) => setTimeout(r, 200));
+    }
+  }
+  try {
+    return await fn();
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 }
