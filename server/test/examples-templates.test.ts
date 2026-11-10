@@ -10,11 +10,16 @@ import { setup, startTestServer, type Client, type TestServer } from './helpers.
 let s: TestServer;
 let adam: Client;
 const platformByKind: Record<string, string> = {};
+/** The feeder runs the demo started (they publish the datasets of its dashboards) */
+let feederRuns: string[] = [];
 
 beforeAll(async () => {
   s = await startTestServer();
   await setup(s);
   const demo = await s.api('POST', '/demo/setup', {});
+  // every feeder run is started (queued) before the demo's setup answers
+  feederRuns = ((await s.api('GET', '/runs?limit=200')) as { id: string }[]).map((r) => r.id);
+  expect(feederRuns.length).toBeGreaterThanOrEqual(demo.runs);
   adam = await s.as('adam', demo.password);
   for (const p of await s.api('GET', '/platforms')) if (p.name.endsWith('(demo)')) platformByKind[p.kind] = p.id;
 });
@@ -55,9 +60,15 @@ const start = async (processId: string, bindings: Record<string, string>, inputs
 
 describe('demo data', () => {
   it('fills the dashboards of every example from the sample applications and the simulated platforms', async () => {
-    for (let i = 0; i < 600; i++) {
-      if (!(await s.api('GET', '/runs?status=queued,running')).length) break;
-      await sleep(100);
+    // until each feeder run has ended – however long a loaded machine takes (within the test's time limit) – not a
+    // fixed time: a dataset exists once its run has published it
+    for (let open = feederRuns; open.length; await sleep(200)) {
+      const ended = new Set(
+        ((await s.api('GET', '/runs?limit=200')) as { id: string; status: string }[])
+          .filter((r) => ['succeeded', 'failed', 'cancelled'].includes(r.status))
+          .map((r) => r.id),
+      );
+      open = open.filter((id) => !ended.has(id));
     }
     const apps = (await s.api('GET', '/applications')).map((a: any) => a.name);
     expect(apps).toEqual(expect.arrayContaining(['Webshop (demo)', 'CRM (demo)']));
@@ -75,11 +86,11 @@ describe('demo data', () => {
       'dt.vulnerabilities',
       'git.repositories',
     ])
-      if (!((await s.api('GET', `/datasets/${key}`)).rowCount > 0)) empty.push(key);
+      if (!((await s.api('GET', `/datasets/${key}`).catch(() => null))?.rowCount > 0)) empty.push(key);
     // when a dataset stays empty, say which demo runs did not succeed and why (a failure on a busy CI runner)
     const unfinished = empty.length
-      ? ((await s.api('GET', '/runs?limit=200')) as { processName: string; status: string; error?: string | null }[])
-          .filter((r) => r.status !== 'succeeded')
+      ? ((await s.api('GET', '/runs?limit=200')) as { id: string; processName: string; status: string; error?: string | null }[])
+          .filter((r) => feederRuns.includes(r.id) && r.status !== 'succeeded')
           .map((r) => `${r.processName}: ${r.status}${r.error ? ` – ${r.error}` : ''}`)
       : [];
     expect(empty, unfinished.join('\n')).toEqual([]);
@@ -88,9 +99,10 @@ describe('demo data', () => {
     // the end of life of the stacks read from the repository and the namespace
     const eol = await s.api('GET', '/datasets/eol-overview');
     expect(eol.rows.some((r: any) => r.Application === 'Webshop (demo)' && r._status !== 'unknown')).toBe(true);
-    const runs = (await s.api('GET', '/runs?limit=100')).filter((r: any) => r.status !== 'succeeded');
+    // (a run a demo schedule started meanwhile may still be running: the demo's own runs are the ones that count)
+    const runs = (await s.api('GET', '/runs?limit=200')).filter((r: any) => feederRuns.includes(r.id) && r.status !== 'succeeded');
     expect(runs.map((r: any) => `${r.processName}: ${r.status} ${r.error ?? ''}`)).toEqual([]);
-  });
+  }, 600_000);
 
   it('person reviews find a person on several platforms of the demo', async () => {
     const checks = (await s.api('GET', '/compliance/access-checks')) as any[];
