@@ -33,6 +33,8 @@ export const COST_BUDGET_WARN_PCT = 80;
 
 /** The built-in dataset "Costs" (administrators and auditors, like the AI usage). */
 export const COSTS_DATASET = 'costs.overview';
+/** The built-in dataset "Cost plans" (ADR 0026): the services' plans of the current fiscal year, administrators and auditors. */
+export const COST_PLANS_DATASET = 'costs.plans';
 
 export const COST_LIMITS = {
   /** Months shown (complete months before the current one) */

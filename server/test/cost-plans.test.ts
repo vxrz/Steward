@@ -542,6 +542,44 @@ describe('export, API and the team rollup', () => {
     expect((await v1(`/services/${service}/cost-plan?year=1999`)).status).toBe(400);
   });
 
+  it('offers the MCP tool get_service_cost_plan with the token owner’s rights', async () => {
+    await s.api('PUT', '/mcp-server', { enabled: true });
+    const token = (await olivia('POST', '/me/tokens', { name: 'plans-mcp', scope: 'mcp' })).token as string;
+    const call = async (args: Record<string, unknown>) => {
+      const res = await fetch(`${s.base}/api/mcp`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          accept: 'application/json, text/event-stream',
+          authorization: `Bearer ${token}`,
+          'mcp-protocol-version': '2026-07-28',
+          'mcp-method': 'tools/call',
+          'mcp-name': 'get_service_cost_plan',
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'tools/call',
+          params: {
+            name: 'get_service_cost_plan',
+            arguments: args,
+            _meta: {
+              'io.modelcontextprotocol/protocolVersion': '2026-07-28',
+              'io.modelcontextprotocol/clientCapabilities': {},
+              'io.modelcontextprotocol/clientInfo': { name: 'test', version: '1' },
+            },
+          },
+        }),
+      });
+      return (await res.json()).result;
+    };
+    const r = await call({ serviceId: service, fiscalYear: 2026 });
+    expect(r.structuredContent).toMatchObject({ label: 'FY 2026/27', cloud: 'hidden' });
+    expect(r.structuredContent.lines[0]).toMatchObject({ title: 'Hosting A', read: 'hidden', for: { kind: 'application', id: appA } });
+    expect(JSON.stringify(r)).not.toContain('99.00');
+    expect((await call({ serviceId: 'svc_missing' })).isError).toBe(true);
+  });
+
   it('sums the plans of a team’s services per currency', async () => {
     const { db } = await import('../src/db.js');
     const planTeam = (await s.api('POST', '/teams', { name: 'Plan team', members: ['olivia'] })).id;
@@ -577,6 +615,17 @@ describe('export, API and the team rollup', () => {
       expect.objectContaining({ currency: 'USD', planned: '120.00' }),
     ]);
     await expect(vera('GET', `/costs/team-plans/${planTeam}`)).rejects.toMatchObject({ status: 404 });
+  });
+
+  it('publishes the dataset "Cost plans" for administrators and auditors', async () => {
+    const { publishCostPlansDataset } = await import('../src/costs/dataset.js');
+    expect(publishCostPlansDataset(true, Date.parse('2026-11-10T12:00:00Z'))).toBe(true);
+    const ds = await s.api('GET', '/datasets/costs.plans');
+    const row = ds.rows.find((r: { Service: string; Currency: string }) => r.Service === 'Planned service' && r.Currency === 'USD');
+    expect(row).toMatchObject({ 'Fiscal year': 'FY 2026/27', Planned: 1200 });
+    const audrey = await s.as('audrey', PW);
+    expect((await audrey('GET', '/datasets/costs.plans')).rows.length).toBeGreaterThan(0);
+    await expect(vera('GET', '/datasets/costs.plans')).rejects.toMatchObject({ status: 404 });
   });
 
   it('answers 404 while the costs module is off', async () => {

@@ -21,6 +21,8 @@ import * as monitors from '../monitors/service.js';
 import * as triggers from '../triggers/service.js';
 import * as tickets from '../tickets/service.js';
 import { builtinDatasetVisible } from '../dashboards/builtin.js';
+import { planYear } from '../costs/plans.js';
+import { moduleEnabled } from '../modules/registry.js';
 import { systemStatus } from '../system/routes.js';
 import { HttpError } from '../util.js';
 import { ProblemError } from '../api/v1/problem.js';
@@ -628,6 +630,82 @@ const steward: ToolDef[] = [
         affectedId: a.affectedId,
         query: a.query,
       });
+    },
+  }),
+
+  defineTool({
+    name: 'get_service_cost_plan',
+    title: 'Get the cost plan of a service',
+    description:
+      'Service cost planning (Costs module): the plan lines and cost entries of a service for a fiscal year (the instance has one start month), per line and currency planned for the year, planned to date, incurred to date, expected for the year and the difference; unplanned entries; renewals in the next 90 days. Cloud and platform costs read for the service only when you see every application of it. Amounts are decimals in their currency (never converted).',
+    input: z
+      .object({
+        serviceId: idArg('The id of the service'),
+        fiscalYear: z.number().int().min(2000).max(2100).optional().describe('The calendar year the fiscal year starts in; default: the current one'),
+      })
+      .strict(),
+    visible: () => moduleEnabled('costs'),
+    handler: (a) => {
+      if (!moduleEnabled('costs')) throw new ToolError('The Costs module is switched off');
+      let y;
+      try {
+        y = planYear(a.serviceId, a.fiscalYear);
+      } catch (e) {
+        if (e instanceof HttpError && e.statusCode === 404) throw notFound(`Service ${a.serviceId}`);
+        throw e;
+      }
+      const fig = (x: {
+        planned: string | null;
+        plannedToDate: string | null;
+        incurredToDate: string | null;
+        expected: string | null;
+        difference: string | null;
+      }) => ({
+        planned: x.planned,
+        plannedToDate: x.plannedToDate,
+        incurredToDate: x.incurredToDate,
+        expected: x.expected,
+        difference: x.difference,
+      });
+      return {
+        serviceId: y.serviceId,
+        serviceName: y.serviceName,
+        fiscalYear: y.fiscalYear,
+        label: y.label,
+        from: y.from,
+        to: y.to,
+        amountsVisible: y.amountsVisible,
+        cloud: y.cloud,
+        currencies: y.currencies.map((c) => ({
+          currency: c.currency,
+          ...fig(c),
+          read: c.read && { incurredToDate: c.read.incurredToDate, expected: c.read.expected },
+          unplanned: c.unplanned,
+        })),
+        lines: y.lines.map((l) => ({
+          id: l.id,
+          title: l.title,
+          category: l.category,
+          for: l.target && l.target.visible ? { kind: l.target.kind, id: l.target.id, name: l.target.name } : null,
+          vendor: short(l.vendor, 200),
+          currency: l.currency,
+          cadence: l.cadence,
+          onceMonth: l.onceMonth,
+          renewalDate: l.renewalDate,
+          read: l.read,
+          ...fig(l),
+        })),
+        entries: y.entries.map((e) => ({
+          date: e.date,
+          amount: e.amount,
+          currency: e.currency,
+          planLine: e.planLineTitle,
+          unplanned: e.unplanned,
+          reference: e.reference,
+          note: short(e.note, 200),
+        })),
+        renewals: y.renewals,
+      };
     },
   }),
 
