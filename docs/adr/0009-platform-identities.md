@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-11-06
-- **Since:** 0.9.0 (#228), planned in steps (below); steps 2 and 3 implemented in 0.13.0
+- **Since:** 0.9.0 (#228), planned in steps (below); steps 2 and 3 implemented in 0.13.0; step 4 without the PAM checkout in 0.14.0 (the checkout: ADR 0022, proposed)
 
 ## Context
 
@@ -227,7 +227,7 @@ Each step is its own PR. Each is backward compatible: until someone adds a secon
 1. **Model and default identity, no behaviour change.** Table, SQL migration, one-time seal step, identity seal, `ENCRYPTED_COLUMNS`, migration-package classification, `getConnection()`, caches keyed per identity, the old routes on the default identity, `/api/v1` identities (read-only fields), the _Identities_ tab showing the one default. Tests: an upgraded database behaves exactly as before, including MCP modes and seals.
 2. **More identities and choosing them** – _implemented in 0.13.0_ (see "Changed while building steps 2 and 3"). Create, edit and delete identities; access lists, owning teams and `identityAccess`; slot requirements; the run dialog; schedules, triggers and sub-processes; monitors and background readers with `identity`; MCP mode per identity and the `identity` tool argument; evidence and audit with identity names; connector types carrying identity templates.
 3. **Read-only flag and operation filter** – _implemented in 0.13.0_. `intent: 'read'` for Steward's own readers; the checks in `platformRequest`, the dry-run branch, non-HTTP steps and MCP; `operationFilter.ts` with presets, stale references and the _Copy specs_ option; `IDENTITY_READ_ONLY`, `IDENTITY_OPERATION_REFUSED`.
-4. **Privileged identities and PAM.** Control point `platform.privilegedIdentity`, step-up on the four places, the start approval, register links and rotation, privileged MCP rules. PAM checkout only after its own decision record.
+4. **Privileged identities and PAM** – _implemented in 0.14.0 without the PAM checkout_ (see "Changed while building step 4"). Control point `platform.privilegedIdentity`, step-up on the four places, the start approval, register links and rotation, privileged MCP rules. PAM checkout only after its own decision record: ADR 0022 (proposed); `credential_source` stays reserved and unused.
 
 ## Changed while building step 1
 
@@ -254,6 +254,21 @@ Each step is its own PR. Each is backward compatible: until someone adds a secon
 9. **Copy specs**: an identity of the same name on the target gets the filter only when that does not widen it (otherwise it is skipped and listed – widening needs its managers' step-up on the target).
 10. **Writing steps on a slot without `identity.writes`**: the process editor's _Connections_ panel shows a hint next to the slot's switch _Needs an identity that can write_; the server's process check does not warn.
 11. **Not built in this step**: the contract check and the Postman export use the default identity; debug runs (step-through and single node) and `request_run` use default identities; run reports show the identity in the run detail and `run.started`, not yet in the PDF; database platforms show _Read only_ fixed in the dialog, the flag itself is not stored.
+
+## Changed while building step 4
+
+0.14.0, without the PAM checkout (ADR 0022, proposed – `credential_source` is unchanged and unused). What differs from the decision above, and why:
+
+1. **Migrations**: `platforms-008-start-approval` adds `run_tasks.start_approval` (JSON: the privileged identities per slot, who asked, why, until when) – a start approval is a task of the run with the step key `$start`, so the existing decision paths, notifications, run protocols, reports and restarts carry it. `credentials-005-identity` adds `credentials.identity_id` (indexed). The flag itself was in `platform_identities` (and its seal) since step 1.
+2. **The default identity is never privileged** (`IDENTITY_DEFAULT_PRIVILEGED`), and a privileged identity cannot become the default. Everyone with `use` and Steward's own background readers (access checks, catalogue readers, backups …) use the default identity without anyone confirming; a privileged default would bypass every check of this step. The conservative choice for 0.14.0 – the owner may decide otherwise.
+3. **Monitors never use a privileged identity**: checks, outputs and the process runs of outputs are refused when saved (`IDENTITY_PRIVILEGED_BACKGROUND`) and at use (the owner check, a fire whose identity became privileged). The decision above names no rule for monitors; reading in the background with privileged credentials, unconfirmed, is what the flag exists to prevent.
+4. **The step-up also applies to approving a start approval** (the approver confirms), to _Run now_ of a schedule (a start) and to changing a schedule or trigger that names one. Each route declares it with `StepUpRule.when`; the handler checks again that the request passed the hook for `platform.privilegedIdentity` (an identity marked privileged in between answers `IDENTITY_PRIVILEGED_CONFIRM`). Start approvals and MCP requests with a privileged identity are never decided in Microsoft Teams (`needsSteward`): a card cannot show a step-up.
+5. **The start approval**: decided by a person with the `approve` right on the process (not `run`, unlike approval steps), who need not be allowed to use the identity – as decided above. Not the starter, nor the owner of the schedule, trigger or monitor that started the run (for _Run now_ both the person and the owner). Rejecting cancels the run with the reason (like the expiry). The expiry job runs every five minutes. Test runs (recorded answers) send nothing and never wait; the step-up still applies to their start. A sub-process run waits only when its own process asks and no run above it had its start approved; it asks no step-up (no request).
+6. **When the flag counts**: read when the run resolves its connections, like the read-only flag; `runs.bindings` records `privileged` per slot. A run that started before the flag was set never gains a start approval, also not when resumed after a restart; a start approval that waits stays when the flag is turned off meanwhile.
+7. **MCP**: setting the flag tightens the stored mode (_read_ → _off_, _confirm_ → _fourEyes_, audited); `writeDecision` treats a privileged identity's approved writes as `fourEyes` whatever is stored. `platform_find_operations` lists no read operations for it. `request_run` is unchanged: it binds no slots (default identities only, never privileged).
+8. **Register**: the rotation is recorded on every entry that documents the identity (not archived), for the person who saved the credentials whatever their rights on the entries – a fact of the platform, audited (`credential.rotated`, `source: "identity"`). Only a new value counts; removing one does not. `/api/v1` credentials do not show the link yet.
+9. **Connector types** carry the flag on non-default templates; _Copy specs_ creates a privileged identity where the source's was (both are tightenings).
+10. **Not built**: the PAM checkout; debug runs and the contract check still use default identities (never privileged).
 
 ## Decided after review
 
