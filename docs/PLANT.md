@@ -9,6 +9,8 @@ The plant registry documents the factories of the enterprise an installation ser
 - [Sites, hierarchy and buildings](#sites-hierarchy-and-buildings)
 - [Assets](#assets)
 - [Links to Steward items](#links-to-steward-items)
+- [Documentation still current](#documentation-still-current)
+- [Maintenance of plant entries](#maintenance-of-plant-entries)
 - [Own fields and display names](#own-fields-and-display-names)
 - [Device profiles, data points and KPIs](#device-profiles-data-points-and-kpis)
 - [Profile inheritance and asset additions](#profile-inheritance-and-asset-additions)
@@ -101,6 +103,42 @@ Below them, read-only and marked _Inherited_, the panel lists what the entry inh
 | A data collection        | those of its sinks                                                                                       |
 
 A record is listed once: where the entry has it itself, else under the first entry it comes from. A record the reader may not read is counted (_1 more document you may not read_), not named; a plant viewer reads no records and sees only the counts. `GET /api/plant/documents?kind=site|asset|device-profile|data-collection|data-sink&id=…` answers the panel, with the rights of the page it belongs to.
+
+## Documentation still current
+
+Since 0.14. Plant assets and their documents live for decades: a manual written at commissioning may well still be right twenty years later – or quietly be wrong since the last retrofit. Steward does not judge that; it records that **someone looked**.
+
+- **Still current** beside each document of a [Documents](#documents) panel – also the inherited ones – stores who confirmed it and when, shown as _Last confirmed by dana on 4 Nov 2026_ (the user name) (_Not confirmed yet_ before). On an asset, **All still current** confirms the asset's documentation **as a whole** – its documents and what the registry records about it.
+- **Who:** who may propose changes on the site (operators and the role _Plant viewer_ included – who works on the plant knows best whether its papers still fit); on a device profile's panel, who manages the catalogues. A plant viewer reads no records, so they confirm only an asset's documentation as a whole. Each confirmation is audited (`plant.document_confirmed` on the record, `plant.documentation_confirmed` on the asset, with the previous confirmation); the last one is kept per document and per asset, follows a renamed asset and goes with a removed one.
+- **Not a change set operation.** Confirming changes no entry: no value, no revision, nothing a second person could review, compare or revert – it is a note that someone looked, as a periodic review is on a record. A site whose changes need a second person ([Change sets](#change-sets)) is confirmed by one person like any other. It is also not the [periodic review of living documents](RECORDS.md#periodic-reviews), which is a control with reminders and new editions; a document can have both.
+
+### Review intervals
+
+A **review interval** is optional and only ever a **hint**:
+
+- **per site**: _Documentation review interval_ (months) on the site's overview, beside _Changes need a second person_ and the access list – a setting of the site, changed by who manages it (`PUT /api/plant/sites/:siteId/doc-review`, audited as `site.doc_review_changed`; not part of the file format);
+- **per document type**: _Settings → Modules → Plant registry → Review intervals of documents_ (months per living-document type, `documentReview` in the plant settings) – it applies instead of the site's.
+
+When the last confirmation – or, before the first, the document's last change (an asset: when it was added) – is older than the interval, the document shows **A look is due** in a quiet blue, else _Next look by …_. Never red, never an alert, no notification: nothing is wrong with an old document, and a reminder every three years for every manual of a site would only teach people to ignore reminders. Without an interval nothing is ever due.
+
+### Documentation health
+
+The site's **Documentation** tab (`/plant/sites/:siteId/documentation`) lists, as folding sections that work on a phone, what is **missing** – each entry linked to where to fill it in:
+
+| Gap                                         | Where it leads                                                                            |
+| ------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| Assets without a device profile             | the asset (its _Data and KPIs_)                                                           |
+| Devices without a VLAN                      | the site's OT network, _Devices_                                                          |
+| Data paths without a destination            | the site's OT network, _Data paths_                                                       |
+| Data collections without a sink             | the collection                                                                            |
+| Data collections without items              | the collection                                                                            |
+| KPIs the machines could have, not collected | the asset's collections ([KPI coverage](#kpi-coverage): _Device delivers, not collected_) |
+
+Below them, marked _hint_ and folded, the **confirmations that are due**: assets whose documentation was not confirmed within the site's interval, and documents of the site, its assets and their collections not confirmed within their interval. The header says which intervals apply and how many assets have their documentation confirmed. The tab follows the site's rights; documents the reader may not read are left out (a plant viewer sees the gaps). API: `GET /api/plant/sites/:siteId/documentation`; `POST /api/plant/documents/confirm` with `{ kind: "record", id, entry: { kind, id } }` (a document as listed on that page) or `{ kind: "asset", id }`; the Documents panel answer carries `confirmation` and `review` per document and `documentation` for an asset. Read-only in the public API: `GET /api/v1/plant/assets/{assetId}/documentation`, and `docReviewMonths` on a site.
+
+## Maintenance of plant entries
+
+Since 0.14 a [maintenance window](APPLICATIONS.md#maintenance-windows) can list a **site**, an **asset**, a **device** (a gateway, a switch) or a **data collection** (its collector), and the site and asset pages show and plan their maintenance (who manages the site plans it). Before it is saved and on its page, the window shows [what it affects](APPLICATIONS.md#impact-before-maintenance): the devices behind a switch, data paths and collections, the KPI jobs and coverage that read their data points, datasets, dashboards, monitors and the owners to tell. Renamed entries stay listed; while the module is off they read like deleted items.
 
 ## Own fields and display names
 
@@ -1075,6 +1113,7 @@ The public, read-only API ([API.md](API.md), tag _Plant_):
 - `GET /api/v1/plant/sites/{siteId}/network` – the OT network of a site: VLANs (with the linked segment and the hint), zones, conduits (with the records that link to them), the devices and data paths of its assets and every asset's live status;
 - `GET /api/v1/plant/assets/{assetId}/network` – an asset's devices, data paths, own checks and live status;
 - `GET /api/v1/plant/assets/{assetId}/collections` – an asset's data collections with their items, mapping and coverage (0.11.0);
+- `GET /api/v1/plant/assets/{assetId}/documentation` – whether the asset's documentation and each of its documents are confirmed as still current, by whom, and whether a look is due (0.14, [Documentation still current](#documentation-still-current));
 - `GET /api/v1/plant/export?site=|part=catalogue|profile=|kpi=&format=yaml|json` – the registry in the import format (with the OT network).
 
 They answer `404` while the module is off.
