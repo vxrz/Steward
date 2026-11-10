@@ -560,49 +560,52 @@ function GraphInner({ graph, label, height, highlight, focusKey, onHover, counts
       }}
       onBlur={() => onHover?.(null)}
     >
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        nodeTypes={nodeTypes}
-        edgeTypes={edgeTypes}
-        nodesDraggable={false}
-        nodesConnectable={false}
-        elementsSelectable={false}
-        edgesFocusable={false}
-        onlyRenderVisibleElements={big}
-        onNodeClick={(_e, n) => {
-          const p = byId.get(n.id)?.path;
-          if (p) navigate(p);
-        }}
-        onNodeMouseEnter={(_e, n) => onHover?.(n.id)}
-        onNodeMouseLeave={() => onHover?.(null)}
-        key={`${layout.dir}:${fw > 0}`}
-        onInit={onInit}
-        minZoom={0.15}
-        maxZoom={1.6}
-        proOptions={{ hideAttribution: true }}
-        colorMode={scheme}
-        deleteKeyCode={null}
-        ariaLabelConfig={{
-          'node.a11yDescription.default': t('graph.nodeHelp'),
-          'node.a11yDescription.keyboardDisabled': t('graph.nodeHelp'),
-          'edge.a11yDescription.default': t('graph.edgeHelp'),
-          'controls.ariaLabel': t('graph.controls'),
-          'controls.zoomIn.ariaLabel': t('graph.zoomIn'),
-          'controls.zoomOut.ariaLabel': t('graph.zoomOut'),
-          'controls.fitView.ariaLabel': t('graph.fitView'),
-        }}
-      >
-        <Background variant={BackgroundVariant.Dots} gap={18} size={1} />
-        <Controls showInteractive={false} />
-        {partial && (
-          <Panel position="top-right">
-            <Text size="xs" c="dimmed" className="pv-hint" data-testid="graph-partial">
-              {t('graph.partial')}
-            </Text>
-          </Panel>
-        )}
-      </ReactFlow>
+      {/* drawn once the frame has its size (the first view needs it), not drawn again then */}
+      {fw > 0 && (
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
+          nodesDraggable={false}
+          nodesConnectable={false}
+          elementsSelectable={false}
+          edgesFocusable={false}
+          onlyRenderVisibleElements={big}
+          onNodeClick={(_e, n) => {
+            const p = byId.get(n.id)?.path;
+            if (p) navigate(p);
+          }}
+          onNodeMouseEnter={(_e, n) => onHover?.(n.id)}
+          onNodeMouseLeave={() => onHover?.(null)}
+          key={layout.dir}
+          onInit={onInit}
+          minZoom={0.15}
+          maxZoom={1.6}
+          proOptions={{ hideAttribution: true }}
+          colorMode={scheme}
+          deleteKeyCode={null}
+          ariaLabelConfig={{
+            'node.a11yDescription.default': t('graph.nodeHelp'),
+            'node.a11yDescription.keyboardDisabled': t('graph.nodeHelp'),
+            'edge.a11yDescription.default': t('graph.edgeHelp'),
+            'controls.ariaLabel': t('graph.controls'),
+            'controls.zoomIn.ariaLabel': t('graph.zoomIn'),
+            'controls.zoomOut.ariaLabel': t('graph.zoomOut'),
+            'controls.fitView.ariaLabel': t('graph.fitView'),
+          }}
+        >
+          <Background variant={BackgroundVariant.Dots} gap={18} size={1} />
+          <Controls showInteractive={false} />
+          {partial && (
+            <Panel position="top-right">
+              <Text size="xs" c="dimmed" className="pv-hint" data-testid="graph-partial">
+                {t('graph.partial')}
+              </Text>
+            </Panel>
+          )}
+        </ReactFlow>
+      )}
     </div>
   );
 }

@@ -534,92 +534,95 @@ function CanvasInner({
       }}
       onBlur={() => onHover(null)}
     >
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        nodeTypes={nodeTypes}
-        edgeTypes={edgeTypes}
-        nodesDraggable={false}
-        nodesConnectable={false}
-        elementsSelectable={false}
-        edgesFocusable={false}
-        onlyRenderVisibleElements={leaves > 150}
-        onNodeClick={(_e, n) => {
-          if (!byId.has(n.id)) return;
-          onSelect(selected === n.id ? null : n.id);
-        }}
-        onNodeDoubleClick={(_e, n) => {
-          const p = byId.get(n.id)?.path;
-          if (p) onOpen(p);
-        }}
-        onPaneClick={() => selectedName && onClear()}
-        onNodeMouseEnter={(_e, n) => byId.has(n.id) && onHover(n.id)}
-        onNodeMouseLeave={() => onHover(null)}
-        onEdgeMouseEnter={(_e, e) => setHoverEdge(e.id)}
-        onEdgeMouseLeave={() => setHoverEdge(null)}
-        onMoveStart={() => moving(true)}
-        onMoveEnd={(_e, v) => {
-          moving(false);
-          setZoomedIn(v.zoom > fitZoom.current * 1.2);
-        }}
-        key={fw > 0 ? 'sized' : 'unsized'}
-        onInit={() => fit()}
-        zoomOnDoubleClick={false}
-        minZoom={0.05}
-        maxZoom={2}
-        proOptions={{ hideAttribution: true }}
-        colorMode={scheme}
-        deleteKeyCode={null}
-        ariaLabelConfig={{
-          'node.a11yDescription.default': t('network.nodeHelp'),
-          'node.a11yDescription.keyboardDisabled': t('network.nodeHelp'),
-          'edge.a11yDescription.default': t('graph.edgeHelp'),
-          'controls.ariaLabel': t('graph.controls'),
-          'controls.zoomIn.ariaLabel': t('graph.zoomIn'),
-          'controls.zoomOut.ariaLabel': t('graph.zoomOut'),
-          'controls.fitView.ariaLabel': t('graph.fitView'),
-        }}
-      >
-        <Background variant={BackgroundVariant.Dots} gap={18} size={1} />
-        <Controls showInteractive={false} fitViewOptions={{ padding: 0.04, maxZoom: FIT_MAX_ZOOM, minZoom: 0.05 }}>
-          <ControlButton
-            onClick={() => onFullscreen(!fullscreen)}
-            aria-label={fullscreen ? t('network.exitFullscreen') : t('network.fullscreen')}
-            title={fullscreen ? t('network.exitFullscreen') : t('network.fullscreen')}
-            aria-pressed={fullscreen}
-            data-testid="nd-fullscreen"
-          >
-            {fullscreen ? <IconArrowsMinimize size={14} /> : <IconArrowsMaximize size={14} />}
-          </ControlButton>
-        </Controls>
-        {miniMap && zoomedIn && (
-          <MiniMap
-            pannable
-            zoomable
-            ariaLabel={t('network.miniMap')}
-            nodeColor={(n) =>
-              n.type === 'band' || n.type === 'outside' ? 'transparent' : n.type === 'area' ? 'var(--nd-minimap-area)' : 'var(--nd-minimap-part)'
-            }
-            nodeStrokeWidth={0}
-            style={{ width: 180, height: 120 }}
-            data-testid="nd-minimap"
-          />
-        )}
-        {selectedName && (
-          <Panel position="top-left">
-            <Button
-              size="compact-xs"
-              variant="default"
-              leftSection={<IconX size={12} aria-hidden />}
-              onClick={onClear}
-              data-testid="nd-clear-selection"
-              title={t('network.clearSelectionHint')}
+      {/* drawn once the frame has its size (the first fit needs it) – drawn before, the picture was drawn again then and
+          every part replaced under a pointer or a test that had just found it */}
+      {fw > 0 && (
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
+          nodesDraggable={false}
+          nodesConnectable={false}
+          elementsSelectable={false}
+          edgesFocusable={false}
+          onlyRenderVisibleElements={leaves > 150}
+          onNodeClick={(_e, n) => {
+            if (!byId.has(n.id)) return;
+            onSelect(selected === n.id ? null : n.id);
+          }}
+          onNodeDoubleClick={(_e, n) => {
+            const p = byId.get(n.id)?.path;
+            if (p) onOpen(p);
+          }}
+          onPaneClick={() => selectedName && onClear()}
+          onNodeMouseEnter={(_e, n) => byId.has(n.id) && onHover(n.id)}
+          onNodeMouseLeave={() => onHover(null)}
+          onEdgeMouseEnter={(_e, e) => setHoverEdge(e.id)}
+          onEdgeMouseLeave={() => setHoverEdge(null)}
+          onMoveStart={() => moving(true)}
+          onMoveEnd={(_e, v) => {
+            moving(false);
+            setZoomedIn(v.zoom > fitZoom.current * 1.2);
+          }}
+          onInit={() => fit()}
+          zoomOnDoubleClick={false}
+          minZoom={0.05}
+          maxZoom={2}
+          proOptions={{ hideAttribution: true }}
+          colorMode={scheme}
+          deleteKeyCode={null}
+          ariaLabelConfig={{
+            'node.a11yDescription.default': t('network.nodeHelp'),
+            'node.a11yDescription.keyboardDisabled': t('network.nodeHelp'),
+            'edge.a11yDescription.default': t('graph.edgeHelp'),
+            'controls.ariaLabel': t('graph.controls'),
+            'controls.zoomIn.ariaLabel': t('graph.zoomIn'),
+            'controls.zoomOut.ariaLabel': t('graph.zoomOut'),
+            'controls.fitView.ariaLabel': t('graph.fitView'),
+          }}
+        >
+          <Background variant={BackgroundVariant.Dots} gap={18} size={1} />
+          <Controls showInteractive={false} fitViewOptions={{ padding: 0.04, maxZoom: FIT_MAX_ZOOM, minZoom: 0.05 }}>
+            <ControlButton
+              onClick={() => onFullscreen(!fullscreen)}
+              aria-label={fullscreen ? t('network.exitFullscreen') : t('network.fullscreen')}
+              title={fullscreen ? t('network.exitFullscreen') : t('network.fullscreen')}
+              aria-pressed={fullscreen}
+              data-testid="nd-fullscreen"
             >
-              {t('network.clearSelection', { name: selectedName })}
-            </Button>
-          </Panel>
-        )}
-      </ReactFlow>
+              {fullscreen ? <IconArrowsMinimize size={14} /> : <IconArrowsMaximize size={14} />}
+            </ControlButton>
+          </Controls>
+          {miniMap && zoomedIn && (
+            <MiniMap
+              pannable
+              zoomable
+              ariaLabel={t('network.miniMap')}
+              nodeColor={(n) =>
+                n.type === 'band' || n.type === 'outside' ? 'transparent' : n.type === 'area' ? 'var(--nd-minimap-area)' : 'var(--nd-minimap-part)'
+              }
+              nodeStrokeWidth={0}
+              style={{ width: 180, height: 120 }}
+              data-testid="nd-minimap"
+            />
+          )}
+          {selectedName && (
+            <Panel position="top-left">
+              <Button
+                size="compact-xs"
+                variant="default"
+                leftSection={<IconX size={12} aria-hidden />}
+                onClick={onClear}
+                data-testid="nd-clear-selection"
+                title={t('network.clearSelectionHint')}
+              >
+                {t('network.clearSelection', { name: selectedName })}
+              </Button>
+            </Panel>
+          )}
+        </ReactFlow>
+      )}
     </div>
   );
 }
