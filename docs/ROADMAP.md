@@ -2,7 +2,7 @@
 
 Where Steward stands, what it deliberately does not do, and what comes next. Shipped changes are in the [CHANGELOG](../CHANGELOG.md); how it is built is in [ARCHITECTURE.md](ARCHITECTURE.md). Ideas and requests are collected as GitHub issues.
 
-_Last reviewed for 0.15.0 (November 2026)._
+_Last reviewed for 0.16.0 (November 2026)._
 
 ## What Steward is for
 
@@ -74,10 +74,9 @@ Themes of this release (details in the CHANGELOG once released):
 - **0.13.0:** monitoring that knows planned states: monitor states with expected results, planned downtime and a maximum off time, an allowed and a measured freshness delay; several identities per platform with read-only flags and operation filters; plant change sets with revisions, drafts, review by a second person, history and revert; KPIs across profiles and parts; more sortable lists and the audit log sorted on the server.
 - **0.14.0:** privileged platform identities with a step-up and an optional start approval; Confluent Cloud; security advisories for OT devices (CSAF 2.0); what a maintenance window affects, with planned downtime for its monitors in one step; documentation confirmed as still current; Insights Hub as a mapped sink checked against the tenant; decision records for a PAM checkout, an edge runner and signed releases (proposed).
 - **0.15.0:** consolidation: the plant change-set history in a fraction of the space with retention as a setting, fixes in the OT network diagram, sturdier UI tests; personal Microsoft Teams notifications through the bot (preview); a first-week guide.
+- **0.16.0:** lightweight cost planning per service and fiscal year; scheduled readable exports to S3 and a choice of what backups contain; moving devices and data collections between assets; clearer monitor states; a review of architecture, security, performance, UI and wording with its fixes.
 
 ## Next
-
-**0.16.0 – costs per service, exports and plant editing.** Planned costs per service over a fiscal year with entries and the costs Steward reads; scheduled readable exports to S3 and a choice of what backups contain; moving devices between assets and more plant editing through change sets; and clearer monitor states. The candidates for later releases are under _Later_.
 
 **0.16.1 – device profiles from manuals.** Plant proposals from AI assistants (MCP) in parts, so a whole manual with hundreds of data points arrives as one reviewable proposal; and a source per data point – the document and page it comes from – shown in the review, with the manual kept as a plant document on the profile.
 
