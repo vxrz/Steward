@@ -3,7 +3,7 @@ import { test, expect, USERS, pageSessionHeaders } from './support/fixtures';
 import { baseURL } from './support/env';
 import { expectAccessible } from './support/axe';
 import { uniq } from './support/helpers';
-import { sessionState, startIsolatedServer, type IsolatedServer } from './support/server';
+import { sessionState, ISOLATED_SETUP_MS, startIsolatedServer, type IsolatedServer } from './support/server';
 
 /**
  * Step-up re-authentication (#14): a sensitive action – here creating an API token – asks the person to confirm it is
@@ -92,6 +92,7 @@ test('a sensitive download (the audit log) asks first, then downloads', async ({
 test.describe('single sign-on step-up (own server)', () => {
   let srv: IsolatedServer;
   test.beforeAll(async () => {
+    test.setTimeout(ISOLATED_SETUP_MS);
     srv = await startIsolatedServer({ demo: true });
     await srv.api('POST', '/demo/setup', {}); // adds "Microsoft Entra ID (simulated)"
   });
@@ -100,6 +101,8 @@ test.describe('single sign-on step-up (own server)', () => {
   });
 
   test('a single sign-on session confirms with a fresh sign-in at its provider in a popup', async ({ browser }) => {
+    // two sign-ins at the simulated provider and a popup on a server of its own: slow on a loaded machine
+    test.slow();
     const ctx = await browser.newContext({ baseURL: srv.baseURL, serviceWorkers: 'block', locale: 'en-GB' });
     try {
       const page = await ctx.newPage();

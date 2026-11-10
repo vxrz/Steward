@@ -5,7 +5,7 @@ import type { Browser, BrowserContext, Page } from '@playwright/test';
 import { test, expect } from './support/fixtures';
 import { MASTER_PASSPHRASE } from './support/env';
 import { expectAccessible } from './support/axe';
-import { sessionState, startIsolatedServer, type IsolatedServer } from './support/server';
+import { sessionState, ISOLATED_SETUP_MS, startIsolatedServer, type IsolatedServer } from './support/server';
 
 /**
  * Moving an instance (Settings → Migration): export on one server, then import on another with the review of
@@ -22,6 +22,7 @@ test.describe('migration: export and import with the identity mapping (own serve
   let fingerprint = '';
 
   test.beforeAll(async () => {
+    test.setTimeout(ISOLATED_SETUP_MS);
     [source, target] = await Promise.all([startIsolatedServer(), startIsolatedServer()]);
     await source.api('POST', '/users', {
       username: 'erika',

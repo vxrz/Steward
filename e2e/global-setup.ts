@@ -11,7 +11,7 @@ import os from 'node:os';
 import path from 'node:path';
 import type { FullConfig } from '@playwright/test';
 import { startReverseProxy, type ReverseProxy } from '../scripts/reverse-proxy.mjs';
-import { AUTH_DIR, BASE_PATH, MASTER_PASSPHRASE, ROOT, USERS, authFile, baseURL, origin, serverArgs, type UserKey } from './support/env';
+import { AUTH_DIR, BASE_PATH, E2E_RATE_LIMIT, MASTER_PASSPHRASE, ROOT, USERS, authFile, baseURL, origin, serverArgs, type UserKey } from './support/env';
 import { waitForStart } from './support/started';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -103,6 +103,8 @@ export default async function globalSetup(_config: FullConfig): Promise<() => Pr
       SM_MASTER_PASSPHRASE: MASTER_PASSPHRASE,
       // step-up re-authentication: the stored sessions are confirmed by the fixtures (support/fixtures.ts) – for the longest window
       SM_STEP_UP_MINUTES: '15',
+      // the request budget per user (support/env.ts E2E_RATE_LIMIT): the specs share the demo users
+      SM_RATE_LIMIT_PER_MINUTE: E2E_RATE_LIMIT,
       // at least info: the start line tells the real port and that our own process holds it (support/started.ts)
       SM_LOG_LEVEL: ['debug', 'trace'].includes(process.env.SM_LOG_LEVEL ?? '') ? process.env.SM_LOG_LEVEL : 'info',
       // never reach out to a real collector or proxy from the tests

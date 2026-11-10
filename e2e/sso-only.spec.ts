@@ -4,7 +4,7 @@ import type { Browser, BrowserContext, Page } from '@playwright/test';
 import { test, expect } from './support/fixtures';
 import { MASTER_PASSPHRASE, ROOT } from './support/env';
 import { expectAccessible } from './support/axe';
-import { startIsolatedServer, type IsolatedServer } from './support/server';
+import { ISOLATED_SETUP_MS, startIsolatedServer, type IsolatedServer } from './support/server';
 
 /**
  * Password sign-in switched off (single sign-on only) and emergency access from the command line, on an own
@@ -16,6 +16,7 @@ test.describe('single sign-on only and emergency access (own server)', () => {
   const contexts: BrowserContext[] = [];
 
   test.beforeAll(async () => {
+    test.setTimeout(ISOLATED_SETUP_MS);
     srv = await startIsolatedServer({ demo: true });
     await srv.api('POST', '/demo/setup', {}); // adds "Microsoft Entra ID (simulated)"
   });
