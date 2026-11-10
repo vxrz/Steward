@@ -111,7 +111,7 @@ test('the editor\'s decision table: rows, cells, and "Try it"', async ({ page, a
   await page.getByRole('combobox', { name: 'Off – PowerMeter data', exact: true }).click();
   await page.getByRole('option', { name: 'Any', exact: true }).click();
   await page.getByRole('button', { name: 'Save' }).click();
-  await expect(page).toHaveURL(new RegExp(`/monitors/${id}$`));
+  await expect(page).toHaveURL((url) => url.pathname.endsWith(`/monitors/${id}`));
   const saved = await json(await api.get(`/api/monitors/${id}`));
   expect(saved.definition.states.cases[1]).toMatchObject({ id: 'off', status: 'off', when: { pm: 'down' } });
   expect(saved.definition.states.cases[1].expect).toBeUndefined();
