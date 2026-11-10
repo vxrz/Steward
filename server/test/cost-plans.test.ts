@@ -448,6 +448,31 @@ describe('entries and the year view', () => {
   });
 });
 
+describe('today in the instance time zone', () => {
+  it('counts an entry dated today and the current month by the local date, not UTC', async () => {
+    const { addEntry, addPlanLine, planYear } = await import('../src/costs/plans.js');
+    const svc = (await s.api('POST', '/services', { name: 'Time zone service' })).id;
+    addPlanLine(svc, { fiscalYear: 2026, title: 'Monthly', category: 'support', amount: '10', currency: 'EUR', cadence: 'monthly' });
+    addEntry(svc, { date: '2026-07-01', amount: '25', currency: 'EUR' });
+    // 30 June 13:00 UTC is 1 July 01:00 in Auckland
+    const at = Date.parse('2026-06-30T13:00:00Z');
+    const tz = process.env.TZ;
+    try {
+      process.env.TZ = 'UTC';
+      const utc = planYear(svc, 2026, at);
+      expect(utc.currentIndex).toBe(2);
+      expect(utc.currencies[0]!.unplanned.incurredToDate).toBe('0.00');
+      process.env.TZ = 'Pacific/Auckland';
+      const local = planYear(svc, 2026, at);
+      expect(local.currentIndex).toBe(3);
+      expect(local.currencies[0]!.unplanned.incurredToDate).toBe('25.00');
+    } finally {
+      if (tz === undefined) delete process.env.TZ;
+      else process.env.TZ = tz;
+    }
+  });
+});
+
 describe('at scale', () => {
   it('computes a year of 200 lines and 2,000 entries with as many statements as a year of one of each', async () => {
     const { db } = await import('../src/db.js');

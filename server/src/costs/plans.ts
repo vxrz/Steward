@@ -31,7 +31,8 @@ import { catalogueVisibleNow } from '../records/access.js';
 import { csvCell } from '../csv.js';
 import { HttpError, newId, nowIso } from '../util.js';
 import { costSettings, requireScope, scopeInfo, seesWholeScope, type ScopeInfo } from './access.js';
-import { forecastFromGroups, monthOf } from './query.js';
+import { forecastFromGroups } from './query.js';
+import { instanceTimeZone, localDate } from '../duties/periods.js';
 
 /**
  * Service cost planning (0.16.0, ADR 0026, docs/COSTS.md#planning-per-service): plan lines per service and fiscal year,
@@ -88,7 +89,14 @@ interface EntryRow {
 }
 
 const startMonth = () => costSettings().fiscalYearStartMonth;
-const today = (now: number) => new Date(now).toISOString().slice(0, 10);
+const pad2 = (n: number) => String(n).padStart(2, '0');
+/** Today in the instance's time zone (TZ): an entry dated today counts as incurred, and a month starts at local midnight. */
+const today = (now: number) => {
+  const d = localDate(now, instanceTimeZone());
+  return `${d.y}-${pad2(d.m)}-${pad2(d.d)}`;
+};
+const thisMonth = (now: number) => today(now).slice(0, 7);
+const addDays = (date: string, days: number) => new Date(Date.parse(`${date}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
 
 function serviceInfo(serviceId: string): ScopeInfo {
   return requireScope('service', serviceId);
@@ -281,7 +289,7 @@ export function planYear(serviceId: string, year?: number, now = Date.now()): Co
 /** The year view for a service the caller may see (`info`), with the fiscal year start read once by the caller. */
 function planYearOf(info: ScopeInfo, year: number | undefined, now: number, start: number): CostPlanYear {
   const serviceId = info.id;
-  const nowMonth = monthOf(now);
+  const nowMonth = thisMonth(now);
   const day = today(now);
   const fy = year ?? fiscalYearOf(nowMonth, start);
   const months = fiscalYearMonths(fy, start);
@@ -554,7 +562,7 @@ function figures(f: Figures, show: (n: number) => string | null): CostPlanFigure
 
 function renewals(serviceId: string, now: number): CostPlanYear['renewals'] {
   const from = today(now);
-  const to = today(now + COST_PLAN_LIMITS.renewalDays * 86_400_000);
+  const to = addDays(from, COST_PLAN_LIMITS.renewalDays);
   const seen = new Set<string>();
   const out: CostPlanYear['renewals'] = [];
   for (const r of db().all<{ id: string; title: string; fiscal_year: number; renewal_date: string }>(
@@ -1101,7 +1109,7 @@ export async function* planExportRows(fiscalYear: number, now = Date.now()): Asy
 /** The year views of every service of the current fiscal year (planServices) – for the dataset; yields between services. */
 export async function* planYearsOfAll(now = Date.now()): AsyncGenerator<CostPlanYear> {
   const start = startMonth();
-  const fy = fiscalYearOf(monthOf(now), start);
+  const fy = fiscalYearOf(thisMonth(now), start);
   for (const s of planServices(fy, start)) {
     const info = scopeInfo('service', s.id);
     if (!info) continue;
@@ -1114,7 +1122,7 @@ export async function* planYearsOfAll(now = Date.now()): AsyncGenerator<CostPlan
 export async function teamPlanYear(teamId: string, year?: number, now = Date.now()): Promise<CostPlanTeamYear> {
   const team = requireScope('team', teamId);
   const start = startMonth();
-  const cur = fiscalYearOf(monthOf(now), start);
+  const cur = fiscalYearOf(thisMonth(now), start);
   const fy = year ?? cur;
   const totals = new Map<string, Figures>();
   const services: CostPlanTeamYear['services'] = [];

@@ -172,7 +172,7 @@ Beside what the platforms cost per month, a service team plans **what it will sp
 **The year view**, per currency (amounts are never converted) and per line:
 
 - **Planned (year)** and **planned to date** (up to and including the current month);
-- **incurred to date**: entries dated up to today – and, for a matched cloud line, the costs read;
+- **incurred to date**: entries dated up to today – and, for a matched cloud line, the costs read (today and the current month are those of the instance's time zone, `TZ`, so an entry dated today counts from local midnight);
 - **expected (year)**: for a _monthly_ line month by month – the months that are over as incurred, the current month and those to come as booked if something is booked for them, else as planned; for a _yearly_ or _one-off_ line at least the plan (what is booked counts against it – an annual invoice paid early is not expected again for the remaining months);
 - the **difference** (expected − planned): with a sign, in a quiet orange when more is expected than planned;
 - a **month chart** of planned and incurred with a table twin, the lines **by category** or **by application or system**, **renewals** in the next 90 days and the **unplanned** entries. On a phone the lines and entries are cards.
