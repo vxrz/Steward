@@ -292,7 +292,15 @@ describe('defining an export', () => {
     expect(await code(job({ encrypt: true }))).toBe('EXPORT_NO_KEY');
     expect(await code(job({ name: 'audit-archives' }))).toBe('EXPORT_NAME_RESERVED');
     expect(await code(job({ cron: '0 0 3 * * 1' }))).toBe('CRON_FIVE_FIELDS');
-    expect((await refused(s.api, 'POST', '/exports', job({ name: '../escape' }))).status).toBe(400);
+    // the name and the folder: the rules the form checks too (shared), with codes of their own
+    expect(await code(job({ name: '../escape' }))).toBe('EXPORT_NAME_INVALID');
+    expect(await code(job({ name: 'x'.repeat(61) }))).toBe('EXPORT_NAME_INVALID');
+    expect(await code(job({ prefix: 'exports' }))).toBe('EXPORT_PREFIX_INVALID');
+    expect(await code(job({ prefix: 'exports/../' }))).toBe('EXPORT_PREFIX_INVALID');
+    expect(await code(job({ prefix: './' }))).toBe('EXPORT_PREFIX_INVALID');
+    const { bucketFolderProblem, exportNameProblem } = await import('@sm/shared');
+    expect([bucketFolderProblem(''), bucketFolderProblem('team/exports/'), bucketFolderProblem('a..b/')]).toEqual([null, null, null]);
+    expect([exportNameProblem(''), exportNameProblem('.hidden'), exportNameProblem('finance-share')]).toEqual(['empty', 'format', null]);
     expect((await refused(s.api, 'POST', '/exports', job({ parts: [] }))).status).toBe(400);
     expect((await refused(s.api, 'POST', '/exports', job({ parts: [{ id: 'vault', format: 'yaml' }] }))).status).toBe(400);
   });

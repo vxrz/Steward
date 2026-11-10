@@ -62,7 +62,7 @@ test.describe('exports and backup contents (own server)', () => {
     await page.goto('/settings/exports');
     await expect(page.getByRole('main').getByRole('heading', { level: 1 })).toHaveText('Exports');
     await expect(page.getByText(/not for a restore/)).toBeVisible();
-    await expect(page.getByText('No exports yet.')).toBeVisible();
+    await expect(page.getByTestId('empty-state')).toContainText('No exports yet');
 
     // defining an export asks for a fresh confirmation (control point export.settings)
     await srv.api('DELETE', '/auth/step-up');
@@ -140,7 +140,7 @@ test.describe('exports and backup contents (own server)', () => {
     await expect(contents.getByText('Always included').first()).toBeVisible();
     await contents.getByRole('button', { name: 'Show sizes' }).click();
     await expect(contents.getByText(/ in \d+ files?$/).first()).toBeVisible();
-    const artifacts = contents.getByRole('checkbox', { name: 'Include Run artifacts (artifacts/) in backups' });
+    const artifacts = contents.getByRole('checkbox', { name: 'Run artifacts (artifacts/)' });
     await expect(artifacts).toBeChecked();
     await expect(page.getByTestId('backup-contents-warning')).toHaveCount(0);
 
@@ -151,13 +151,17 @@ test.describe('exports and backup contents (own server)', () => {
     await expect(contents).toContainText('cannot be made again');
     await expectAccessible(page, 'backup contents');
     await contents.getByRole('button', { name: 'Save contents' }).click();
-    await confirmIfAsked(page, page.getByText('Backup contents saved.'));
-    await expect(page.getByText('Backup contents saved.')).toBeVisible();
+    // leaving evidence out is confirmed, naming what a restore lacks
+    const confirm = page.getByRole('dialog', { name: 'A restore from these backups lacks evidence' });
+    await expect(confirm).toContainText('Run artifacts (artifacts/)');
+    await confirm.getByRole('button', { name: 'Save contents' }).click();
+    await confirmIfAsked(page, page.getByText('Backup contents saved'));
+    await expect(page.getByText('Backup contents saved')).toBeVisible();
     expect((await srv.api('GET', '/backups')).settings.exclude).toEqual(['artifacts']);
 
     // stays after a reload
     await page.reload();
     await expect(page.getByTestId('backup-contents-warning')).toContainText('Run artifacts (artifacts/)');
-    await expect(page.getByTestId('backup-contents').getByRole('checkbox', { name: 'Include Run artifacts (artifacts/) in backups' })).not.toBeChecked();
+    await expect(page.getByTestId('backup-contents').getByRole('checkbox', { name: 'Run artifacts (artifacts/)' })).not.toBeChecked();
   });
 });

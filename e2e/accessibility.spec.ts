@@ -68,6 +68,7 @@ test.describe('accessibility (axe, WCAG 2.1 AA)', () => {
     ['ticket references', '/tickets'],
     ['reports', '/reports'],
     ['settings', '/settings'],
+    ['exports', '/settings/exports'],
     ['users & teams', '/users'],
     ['audit log', '/audit'],
     ['profile', '/profile'],

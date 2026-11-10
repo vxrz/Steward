@@ -29,6 +29,28 @@ export const EXPORT_LIMITS = {
   historyRuns: 200,
 } as const;
 
+/** An export's name – also its folder in the bucket: letters, digits and . _ -, starting with a letter or digit. */
+export const EXPORT_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+
+/** Why a name is not one an export can have (null: it can), for the form and the server alike. */
+export function exportNameProblem(name: string): 'empty' | 'long' | 'format' | null {
+  const n = name.trim();
+  if (!n) return 'empty';
+  if (n.length > EXPORT_LIMITS.nameMax) return 'long';
+  return EXPORT_NAME_RE.test(n) ? null : 'format';
+}
+
+/**
+ * Why a folder in the bucket is not one Steward writes to (null: it is): empty, or folders of letters, digits and
+ * . _ - each ending with "/" – never "." or ".." (the S3 client refuses such keys, backup/s3.ts checkKey).
+ */
+export function bucketFolderProblem(prefix: string): 'long' | 'format' | null {
+  const p = prefix.trim();
+  if (p.length > 200) return 'long';
+  if (!/^([A-Za-z0-9._-]+\/)*$/.test(p)) return 'format';
+  return p.split('/').some((x) => x === '.' || x === '..') ? 'format' : null;
+}
+
 /** One part of an export with its format and options. */
 export interface ExportPartChoice {
   id: ExportPartId;

@@ -5,6 +5,8 @@ import { Cron } from 'croner';
 import { z } from 'zod';
 import {
   BRAND,
+  bucketFolderProblem,
+  exportNameProblem,
   EXPORT_FISCAL_YEARS,
   EXPORT_FORMATS,
   EXPORT_LIMITS,
@@ -50,7 +52,6 @@ export const EXPORT_USER: AuthUser = { id: 'system', username: 'system', display
 const WORK = '.export-work';
 /** Bytes a work file buffers before it writes them */
 const WRITE_BUFFER = 256 * 1024;
-const NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 /** Folder names Steward writes below a backup prefix itself */
 const RESERVED_NAMES = new Set(['audit-archives']);
 
@@ -65,14 +66,11 @@ const partChoice = z
 
 export const exportJobSchema = z
   .object({
-    name: z.string().trim().min(1).max(EXPORT_LIMITS.nameMax).regex(NAME_RE, 'Use letters, digits and . _ - (it is the folder in the bucket)'),
+    // the rules of the name and the folder: checkInput (the codes the form knows)
+    name: z.string().trim().max(200),
     enabled: z.boolean(),
     platformId: z.string().trim().min(1).max(100).nullable(),
-    prefix: z
-      .string()
-      .trim()
-      .max(200)
-      .regex(/^([A-Za-z0-9._-]+\/)*$/, 'Use folder names of letters, digits and . _ - , each ending with /'),
+    prefix: z.string().trim().max(400),
     cron: z.string().trim().min(1).max(100),
     timezone: z.string().trim().min(1).max(64),
     parts: z.array(partChoice).min(1, 'Choose at least one part to export').max(EXPORT_PARTS.length),
@@ -253,6 +251,15 @@ function checkCron(cron: string, tz: string): void {
 /** Checks an export definition: target, schedule, parts and their formats, encryption. */
 function checkInput(input: unknown, id: string | null): ExportJobInput {
   const v = exportJobSchema.parse(input) as ExportJobInput;
+  if (exportNameProblem(v.name))
+    throw new HttpError(
+      400,
+      `Name the export with letters, digits and . _ - (starting with a letter or digit, at most ${EXPORT_LIMITS.nameMax} characters): it is the folder in the bucket`,
+      'EXPORT_NAME_INVALID',
+      { max: EXPORT_LIMITS.nameMax },
+    );
+  if (bucketFolderProblem(v.prefix))
+    throw new HttpError(400, 'Use folder names of letters, digits and . _ - , each ending with / (no . or .. folders), or no folder', 'EXPORT_PREFIX_INVALID');
   if (RESERVED_NAMES.has(v.name.toLowerCase()))
     throw new HttpError(400, `"${v.name}" is a folder Steward uses itself – choose another name`, 'EXPORT_NAME_RESERVED');
   checkCron(v.cron, v.timezone);

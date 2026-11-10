@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Alert, Badge, Button, Card, Checkbox, Group, Paper, Stack, Text, Title } from '@mantine/core';
+import { Alert, Badge, Button, Card, Checkbox, Group, List, Paper, Stack, Text, Title } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { IconAlertTriangle, IconFolders, IconLock } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
@@ -14,6 +14,7 @@ import {
 } from '@sm/shared';
 import { get, notifyError, notifyOk, put } from '../../api';
 import { TONE } from '../common';
+import { confirmDanger } from '../confirm';
 import { fmtBytes } from '../../format';
 
 /**
@@ -36,6 +37,30 @@ export function BackupContentsCard({ status }: { status: BackupStatus }) {
   const byId = new Map((contents.data?.parts ?? []).map((p) => [p.id, p]));
 
   const save = async () => {
+    // leaving more evidence out is asked for, naming what a restore then lacks
+    const more = exclude.filter((p) => !saved.includes(p));
+    if (
+      more.length &&
+      !(await confirmDanger({
+        action: 'confirm',
+        title: t('backups.contents.warningTitle'),
+        confirmLabel: t('backups.contents.save'),
+        message: (
+          <Stack gap="xs">
+            <Text size="sm">{t('backups.contents.confirmIntro')}</Text>
+            <List size="sm" spacing={4}>
+              {more.map((p) => (
+                <List.Item key={p}>
+                  <b>{label(p)}</b> – {t(`backups.contents.parts.${p}.lacks`)}
+                </List.Item>
+              ))}
+            </List>
+            <Text size="sm">{t('backups.contents.confirmOutro')}</Text>
+          </Stack>
+        ),
+      }))
+    )
+      return;
     setBusy(true);
     try {
       await put<BackupStatus>('/backups/settings', { ...status.settings, exclude });
@@ -94,11 +119,10 @@ export function BackupContentsCard({ status }: { status: BackupStatus }) {
         {BACKUP_OPTIONAL_PARTS.map((p) => {
           const included = !exclude.includes(p);
           return (
-            <Paper key={p} withBorder p="xs" style={included ? undefined : { borderColor: 'var(--mantine-color-orange-6)' }}>
+            <Paper key={p} withBorder p="xs" style={included ? undefined : { borderColor: 'var(--mantine-color-orange-outline)' }}>
               <Group justify="space-between" wrap="nowrap" align="flex-start" gap="xs">
                 <Checkbox
                   checked={included}
-                  aria-label={t('backups.contents.include', { part: label(p) })}
                   label={label(p)}
                   description={t(`backups.contents.parts.${p}.lacks`)}
                   onChange={(e) => {
@@ -107,7 +131,7 @@ export function BackupContentsCard({ status }: { status: BackupStatus }) {
                   }}
                   data-testid={`backup-part-${p}`}
                 />
-                <Badge variant="light" color={TONE.attention} style={{ flexShrink: 0 }}>
+                <Badge variant="light" color={TONE.active} style={{ flexShrink: 0 }}>
                   {t('backups.contents.evidence')}
                 </Badge>
               </Group>
