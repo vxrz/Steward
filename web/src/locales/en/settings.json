@@ -534,7 +534,7 @@
       "warningTitle": "A restore from these backups lacks evidence",
       "warning": "Left out: {{parts}}. Every backup names this in its manifest and its header (backup info), and the restore test shows it. Keep these files elsewhere, or include them again.",
       "save": "Save contents",
-      "saved": "Backup contents saved.",
+      "saved": "Backup contents saved",
       "parts": {
         "database": {
           "label": "Database",
@@ -596,7 +596,7 @@
     "edit": "Edit",
     "remove": "Remove",
     "removeConfirm": "Remove the export \"{{name}}\" and its history? Its files stay in the bucket.",
-    "removed": "Export removed.",
+    "removed": "Export removed",
     "none": "No exports yet.",
     "name": "Name",
     "nameHint": "Also the folder in the bucket: letters, digits and . _ -",
@@ -625,7 +625,7 @@
     "encryptNoKey": "Set the backup passphrase first (Settings → Backups).",
     "keepRuns": "Runs to keep",
     "keepRunsHint": "The files of older successful runs are removed from the bucket.",
-    "saved": "Export saved.",
+    "saved": "Export saved",
     "runNow": "Run now",
     "runStarted": "The export is running.",
     "lastRun": "Last run",
