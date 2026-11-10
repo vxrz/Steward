@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import type { PlantCollectionBrief, PlantSinkTarget } from '@sm/shared';
+import { IhGoesTo } from './InsightsHubMapping';
 import { get } from '../../api';
 import { useModuleOn } from '../../modules';
 import { CollapsibleSection } from '../page/CollapsibleSection';
@@ -89,7 +90,7 @@ function CollectionBriefs({
 function GoesTo({ list }: { list: PlantSinkTarget[] }) {
   const { t } = useTranslation('plantDocs');
   return (
-    <Text size="xs" style={{ overflowWrap: 'anywhere' }} data-testid="point-goes-to">
+    <Text component="div" size="xs" style={{ overflowWrap: 'anywhere' }} data-testid="point-goes-to">
       {t('flow.goesTo')}{' '}
       {list.map((x, i) => (
         <span key={x.sink}>
@@ -103,6 +104,8 @@ function GoesTo({ list }: { list: PlantSinkTarget[] }) {
           )}
           {x.object && <span className="mono"> {x.object}</span>}
           {x.target && <> {t('flow.asTarget', { target: x.target })}</>}
+          {/* 0.14: the Insights Hub asset, aspect and variable, and how the check of the mapping went */}
+          {x.ih && <IhGoesTo ih={x.ih} />}
         </span>
       ))}
     </Text>

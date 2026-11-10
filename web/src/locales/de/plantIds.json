@@ -66,7 +66,11 @@
     "collection_mapping_one": "{{count}} gemerkter Gateway-Name",
     "collection_mapping_other": "{{count}} gemerkte Gateway-Namen",
     "collection_source_one": "{{count}} aufbewahrte Datei eines Erfassungsimports",
-    "collection_source_other": "{{count}} aufbewahrte Dateien von Erfassungsimporten"
+    "collection_source_other": "{{count}} aufbewahrte Dateien von Erfassungsimporten",
+    "ih_check_one": "{{count}} Prüfung einer Insights-Hub-Zuordnung",
+    "ih_check_other": "{{count}} Prüfungen von Insights-Hub-Zuordnungen",
+    "ih_link_one": "{{count}} Verknüpfung eines zugeordneten Elements mit einer Monitorprüfung",
+    "ih_link_other": "{{count}} Verknüpfungen zugeordneter Elemente mit Monitorprüfungen"
   },
   "problems": {
     "PLANT_ID_FORMAT": "Verwenden Sie Kleinbuchstaben, Ziffern, „.“, „_“ und „-“, beginnend mit einem Buchstaben oder einer Ziffer (höchstens 80).",

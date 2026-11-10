@@ -6,6 +6,7 @@
     "site": {
       "overview": "Overview",
       "structure": "Structure",
+      "insights-hub": "Insights Hub",
       "history": "History"
     },
     "asset": {
@@ -291,6 +292,9 @@
     "couldHint": "Add a KPI job on the asset page (Data and KPIs).",
     "collectHint": "Map the inputs in a data collection of the asset (Data collections), then add a KPI job.",
     "potential": "KPI potential: {{ready}} ready, {{collect}} need a data collection",
+    "ihVerified": "Every input is also verified in Insights Hub (the sink’s mapping was checked against the tenant)",
+    "potentialIh_one": "{{count}} of them verified in Insights Hub",
+    "potentialIh_other": "{{count}} of them verified in Insights Hub",
     "byPlace": "KPI potential by site and area",
     "place": "Site or area",
     "kpisOf": "KPIs of {{name}}",

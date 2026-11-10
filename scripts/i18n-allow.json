@@ -198,7 +198,10 @@
       "Maven",
       "Releases",
       "OpenStreetMap",
-      "{{count}} offline"
+      "{{count}} offline",
+      "Variable",
+      "Insights Hub: {{target}}",
+      "Insights Hub"
     ]
   }
 }

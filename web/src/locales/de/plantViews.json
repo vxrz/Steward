@@ -6,6 +6,7 @@
     "site": {
       "overview": "Überblick",
       "structure": "Struktur",
+      "insights-hub": "Insights Hub",
       "history": "Verlauf"
     },
     "asset": {
@@ -291,6 +292,9 @@
     "couldHint": "Legen Sie auf der Seite der Anlage einen KPI-Job an (Daten und KPIs).",
     "collectHint": "Ordnen Sie die Eingaben in einer Datenerfassung der Anlage zu (Datenerfassungen) und legen Sie dann einen KPI-Job an.",
     "potential": "KPI-Potenzial: {{ready}} bereit, {{collect}} brauchen eine Datenerfassung",
+    "ihVerified": "Jede Eingangsgröße ist auch in Insights Hub geprüft (die Zuordnung der Senke wurde mit dem Tenant abgeglichen)",
+    "potentialIh_one": "{{count}} davon in Insights Hub geprüft",
+    "potentialIh_other": "{{count}} davon in Insights Hub geprüft",
     "byPlace": "KPI-Potenzial nach Standort und Bereich",
     "place": "Standort oder Bereich",
     "kpisOf": "KPIs von {{name}}",

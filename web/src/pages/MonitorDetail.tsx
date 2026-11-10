@@ -50,6 +50,7 @@ import { DetailHeader } from '../components/page/DetailPage';
 import { monitorKeys } from '../queryKeys';
 import { CopiedFromNote, DuplicateButton } from '../components/duplicate/DuplicateButton';
 import { useMe } from '../auth';
+import { MonitorIhCoverage } from '../components/plant/InsightsHubMapping';
 
 export function MonitorDetailPage() {
   const { t } = useTranslation(['monitors', 'common']);
@@ -339,6 +340,8 @@ export function MonitorDetailPage() {
               </Text>
               {!m.isTemplate && <WhyThisState monitor={m} onSelect={select} />}
               {!m.isTemplate && <ChecksTable monitor={m} onSelect={select} />}
+              {/* 0.14: the mapped items of plant collections its checks cover */}
+              {!m.isTemplate && caps.plant === true && <MonitorIhCoverage monitorId={m.id} />}
             </Grid.Col>
             {sel && !isMobile && (
               <Grid.Col span={{ base: 12, md: 4 }}>
