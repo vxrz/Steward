@@ -31,7 +31,7 @@ test.describe('About page', () => {
     const table = page.getByRole('table').filter({ hasText: 'Package' });
     await expect(table.getByRole('link', { name: 'react', exact: true })).toBeVisible();
     expect(await table.getByRole('row').count()).toBeGreaterThan(50);
-    await page.getByRole('textbox', { name: 'Filter by package or license' }).fill('fastify');
+    await page.getByRole('textbox', { name: 'Filter by package or licence' }).fill('fastify');
     await expect(table.getByRole('link', { name: 'fastify', exact: true })).toBeVisible();
     await expect(table.getByRole('link', { name: 'react', exact: true })).toHaveCount(0);
   });
