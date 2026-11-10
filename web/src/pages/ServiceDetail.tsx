@@ -7,12 +7,12 @@ import {
   IconArchive,
   IconArchiveOff,
   IconCalendarCheck,
-  IconCoin,
   IconEdit,
   IconExternalLink,
   IconFileCertificate,
   IconGauge,
   IconInfoCircle,
+  IconReceipt,
   IconServer2,
   IconTarget,
   IconTicket,
@@ -62,7 +62,7 @@ const TAB_ICONS = {
   documents: IconFileCertificate,
   tickets: IconTicket,
   scorecard: IconGauge,
-  costs: IconCoin,
+  costs: IconReceipt,
 } as const;
 
 export function ServiceDetailPage() {

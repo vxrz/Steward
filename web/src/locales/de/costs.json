@@ -72,7 +72,8 @@
   "open": {
     "service": "Service öffnen",
     "application": "Anwendung öffnen",
-    "platform": "Plattform öffnen"
+    "platform": "Plattform öffnen",
+    "plan": "Kostenplan"
   },
   "currencyTitle": "Kosten in {{currency}}",
   "none": {
@@ -330,7 +331,6 @@
       "platform": "Eine Plattform, die Sie nicht sehen dürfen"
     },
     "targetKinds": {
-      "none": "Keine",
       "application": "Anwendungen des Service",
       "system": "Systeme des Service",
       "platform": "Plattformen",
@@ -365,21 +365,22 @@
     "line": {
       "add": "Planposition hinzufügen",
       "addTitle": "Neue Planposition, {{label}}",
-      "editTitle": "Planposition ändern, {{label}}",
-      "edit": "{{title}} ändern",
+      "editTitle": "Planposition bearbeiten, {{label}}",
+      "edit": "{{title}} bearbeiten",
       "remove": "{{title}} entfernen",
       "removeConfirm": "Die Planposition „{{title}}“ entfernen?",
       "removeWithEntries_one": "Die Planposition „{{title}}“ entfernen? Ihre {{count}} Buchung bleibt und zählt als ungeplant.",
       "removeWithEntries_other": "Die Planposition „{{title}}“ entfernen? Ihre {{count}} Buchungen bleiben und zählen als ungeplant.",
       "saved": "Planposition gespeichert",
-      "notSaved": "Planposition nicht gespeichert"
+      "notSaved": "Planposition nicht gespeichert",
+      "removed": "Planposition entfernt"
     },
     "form": {
       "title": "Titel",
       "category": "Kategorie",
       "for": "Für",
       "forHint": "Eine Anwendung oder ein System des Service (für Cloud-Positionen eine Plattform)",
-      "noTarget": "Keiner davon",
+      "noTarget": "Keiner Anwendung und keinem System zugeordnet",
       "cloudHint": "Eine Cloud-Position für eine Anwendung oder Plattform wird mit den Kosten verglichen, die Steward dafür liest (bei einer Plattform: der Anteil der Anwendungen des Service).",
       "vendor": "Anbieter oder Vertrag",
       "vendorHint": "Freitext, z. B. der Anbieter und die Vertragsnummer",
@@ -406,8 +407,8 @@
     "entry": {
       "add": "Kostenbuchung hinzufügen",
       "addTitle": "Neue Kostenbuchung",
-      "editTitle": "Kostenbuchung ändern",
-      "edit": "Buchung vom {{date}} ändern",
+      "editTitle": "Kostenbuchung bearbeiten",
+      "edit": "Buchung vom {{date}} bearbeiten",
       "remove": "Buchung vom {{date}} entfernen",
       "removeConfirm": "Die Kostenbuchung vom {{date}} entfernen?",
       "date": "Datum",
@@ -423,16 +424,21 @@
       "saved": "Kostenbuchung gespeichert",
       "notSaved": "Kostenbuchung nicht gespeichert",
       "otherYear": "Planposition von {{label}}: {{title}}",
-      "otherYearOption": "{{title}} ({{label}}, beibehalten)"
+      "otherYearOption": "{{title}} ({{label}}, beibehalten)",
+      "removed": "Kostenbuchung entfernt",
+      "currencyFromLine": "Aus der Planposition"
     },
     "team": {
       "title": "Pläne der Services des Teams",
       "hint": "Die Kostenpläne der Services, die dem Team gehören, je Währung. Ein Service mehrerer Teams zählt bei jedem von ihnen.",
       "service": "Service",
-      "shared": "auch Service eines anderen Teams",
+      "shared": "Auch bei einem anderen Team",
       "cloudHidden": "Cloud-Zahlen verborgen",
       "totals": "Alle Services ({{currency}})",
-      "none": "Keiner der Services des Teams hat einen Plan für {{label}}."
-    }
+      "none": "Keiner der Services des Teams hat einen Plan für {{label}}.",
+      "totalsLine": "{{planned}} geplant · {{expected}} erwartet"
+    },
+    "costsRead": "Gelesene Kosten",
+    "costsReadHint": "Die Kosten, die Steward für diesen Service Monat für Monat von den Plattformen liest"
   }
 }

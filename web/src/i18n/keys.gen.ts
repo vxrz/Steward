@@ -2349,6 +2349,7 @@ export interface Resources {
     'open.service': string;
     'open.application': string;
     'open.platform': string;
+    'open.plan': string;
     currencyTitle: string;
     'none.title': string;
     'none.who': string;
@@ -2555,7 +2556,6 @@ export interface Resources {
     'plan.targetHidden.application': string;
     'plan.targetHidden.system': string;
     'plan.targetHidden.platform': string;
-    'plan.targetKinds.none': string;
     'plan.targetKinds.application': string;
     'plan.targetKinds.system': string;
     'plan.targetKinds.platform': string;
@@ -2588,6 +2588,7 @@ export interface Resources {
     'plan.line.removeWithEntries_other': string;
     'plan.line.saved': string;
     'plan.line.notSaved': string;
+    'plan.line.removed': string;
     'plan.form.title': string;
     'plan.form.category': string;
     'plan.form.for': string;
@@ -2631,6 +2632,8 @@ export interface Resources {
     'plan.entry.notSaved': string;
     'plan.entry.otherYear': string;
     'plan.entry.otherYearOption': string;
+    'plan.entry.removed': string;
+    'plan.entry.currencyFromLine': string;
     'plan.team.title': string;
     'plan.team.hint': string;
     'plan.team.service': string;
@@ -2638,6 +2641,9 @@ export interface Resources {
     'plan.team.cloudHidden': string;
     'plan.team.totals': string;
     'plan.team.none': string;
+    'plan.team.totalsLine': string;
+    'plan.costsRead': string;
+    'plan.costsReadHint': string;
   };
   credentials: {
     title: string;
