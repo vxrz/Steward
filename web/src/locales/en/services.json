@@ -131,7 +131,8 @@
       "maintenance": "Maintenance",
       "documents": "Documents",
       "tickets": "Tickets",
-      "scorecard": "Scorecard"
+      "scorecard": "Scorecard",
+      "costs": "Costs"
     },
     "archivedScorecard": "An archived service has no scorecard.",
     "systems": {

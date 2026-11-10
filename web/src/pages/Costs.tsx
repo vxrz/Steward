@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Alert, Anchor, Button, Group, Modal, Paper, SegmentedControl, SimpleGrid, Stack, Switch, Text, TextInput } from '@mantine/core';
+import { Alert, Anchor, Button, Group, Modal, Paper, SegmentedControl, Select, SimpleGrid, Stack, Switch, Text, TextInput } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -11,6 +11,7 @@ import { ListPage } from '../components/page/ListPage';
 import { DataTable, type DataColumn } from '../components/DataTable';
 import { BudgetBar, ChangeText, fmtMoney, SCOPE_PATH } from '../components/costs/common';
 import { costKeys } from '../queryKeys';
+import { dateTimeFormat } from '../format';
 import '../components/dashboard/viz.css';
 import { ServiceTabs } from '../components/page/LinkTabs';
 
@@ -236,6 +237,19 @@ function SettingsDialog({ onClose }: { onClose: () => void }) {
             w={160}
             value={v.defaultCurrency}
             onChange={(e) => setDraft({ ...v, defaultCurrency: e.currentTarget.value.toUpperCase() })}
+          />
+          <Select
+            label={t('settings.fiscalYear')}
+            description={t('settings.fiscalYearHint')}
+            w={260}
+            allowDeselect={false}
+            data={Array.from({ length: 12 }, (_, i) => ({
+              value: String(i + 1),
+              label: dateTimeFormat({ month: 'long', timeZone: 'UTC' }).format(new Date(Date.UTC(2026, i, 1))),
+            }))}
+            value={String(v.fiscalYearStartMonth)}
+            onChange={(x) => x && setDraft({ ...v, fiscalYearStartMonth: Number(x) })}
+            data-testid="fiscal-year-start"
           />
           <Text size="xs" c="dimmed">
             {t('settings.noConversion')}

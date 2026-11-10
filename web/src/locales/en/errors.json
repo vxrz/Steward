@@ -1209,7 +1209,17 @@
     "PLANT_IH_NOTHING_TO_WATCH_missing": "The variables no check watches were not found in Insights Hub by the last check – correct the mapping first.",
     "PLANT_IH_UNKNOWN_ITEM": "The mapping names items the collection does not have.",
     "PLANT_SINK_NOT_IH": "The sink's target is not an Insights Hub platform – choose the platform as its target first.",
-    "PLATFORM_UNAVAILABLE": "The platform could not be reached or read – try again later."
+    "PLATFORM_UNAVAILABLE": "The platform could not be reached or read – try again later.",
+    "COST_PLAN_TARGET": "Choose an application or system of this service, or a platform you may see.",
+    "COST_PLAN_MONTH": "The month {{month}} is not in {{year}}.",
+    "COST_PLAN_LIMIT": "A service has at most {{max}} plan lines per fiscal year.",
+    "COST_PLAN_LINE_NOT_FOUND": "Plan line not found.",
+    "COST_PLAN_CURRENCY": "The plan line has entries in {{currency}} – change or move them first.",
+    "COST_PLAN_NOTHING_TO_COPY": "This fiscal year has no plan lines to copy.",
+    "COST_PLAN_YEAR_NOT_EMPTY": "{{year}} has plan lines already – the plan is not copied.",
+    "COST_ENTRY_PLAN_LINE": "Choose a plan line of {{year}} in {{currency}}, or none.",
+    "COST_ENTRY_LIMIT": "A service has at most {{max}} cost entries per fiscal year.",
+    "COST_ENTRY_NOT_FOUND": "Cost entry not found."
   },
   "boundary": {
     "title": "Something went wrong on this page",

@@ -1209,7 +1209,17 @@
     "PLANT_IH_NOTHING_TO_WATCH_missing": "Die Variablen, die keine Prüfung überwacht, hat die letzte Prüfung in Insights Hub nicht gefunden – korrigieren Sie zuerst die Zuordnung.",
     "PLANT_IH_UNKNOWN_ITEM": "Die Zuordnung nennt Einträge, die die Datensammlung nicht hat.",
     "PLANT_SINK_NOT_IH": "Das Ziel der Senke ist keine Insights-Hub-Plattform – wählen Sie zuerst die Plattform als Ziel.",
-    "PLATFORM_UNAVAILABLE": "Die Plattform war nicht erreichbar oder nicht lesbar – versuchen Sie es später erneut."
+    "PLATFORM_UNAVAILABLE": "Die Plattform war nicht erreichbar oder nicht lesbar – versuchen Sie es später erneut.",
+    "COST_PLAN_TARGET": "Wählen Sie eine Anwendung oder ein System dieses Service oder eine Plattform, die Sie sehen dürfen.",
+    "COST_PLAN_MONTH": "Der Monat {{month}} liegt nicht in {{year}}.",
+    "COST_PLAN_LIMIT": "Ein Service hat höchstens {{max}} Planpositionen je Geschäftsjahr.",
+    "COST_PLAN_LINE_NOT_FOUND": "Planposition nicht gefunden.",
+    "COST_PLAN_CURRENCY": "Die Planposition hat Buchungen in {{currency}} – ändern oder verschieben Sie diese zuerst.",
+    "COST_PLAN_NOTHING_TO_COPY": "Dieses Geschäftsjahr hat keine Planpositionen zum Kopieren.",
+    "COST_PLAN_YEAR_NOT_EMPTY": "{{year}} hat bereits Planpositionen – der Plan wird nicht kopiert.",
+    "COST_ENTRY_PLAN_LINE": "Wählen Sie eine Planposition von {{year}} in {{currency}} oder keine.",
+    "COST_ENTRY_LIMIT": "Ein Service hat höchstens {{max}} Kostenbuchungen je Geschäftsjahr.",
+    "COST_ENTRY_NOT_FOUND": "Kostenbuchung nicht gefunden."
   },
   "boundary": {
     "title": "Auf dieser Seite ist ein Fehler aufgetreten",

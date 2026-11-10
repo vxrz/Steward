@@ -296,6 +296,19 @@ const EXPECT: Record<string, Access> = {
   'POST /api/costs/platform/:id/push-tokens/:tokenId/rotate': ADMIN,
   'DELETE /api/costs/platform/:id/push-tokens/:tokenId': ADMIN,
   'POST /api/hooks/costs/:platformId': HOOK,
+  // service cost planning (0.16.0, ADR 0026), here the matrix service (no owning teams): everyone who sees the service
+  // reads its plan, who may change the service (designers, administrators) changes it; a team's rollup for its members,
+  // administrators and auditors
+  'GET /api/costs/plans/:serviceId': ALL,
+  'GET /api/costs/plans/:serviceId/export': ALL,
+  'POST /api/costs/plans/:serviceId/lines': DESIGN,
+  'PUT /api/costs/plans/:serviceId/lines/:lineId': DESIGN,
+  'DELETE /api/costs/plans/:serviceId/lines/:lineId': DESIGN,
+  'POST /api/costs/plans/:serviceId/copy': DESIGN,
+  'POST /api/costs/plans/:serviceId/entries': DESIGN,
+  'PUT /api/costs/plans/:serviceId/entries/:entryId': DESIGN,
+  'DELETE /api/costs/plans/:serviceId/entries/:entryId': DESIGN,
+  'GET /api/costs/team-plans/:teamId': ADMIN_AUDITOR,
   // data contracts (#221), here the demo's "Shop orders" (no owning team): everyone who works in Steward sees and checks
   // them, operators test them, designers create and change them
   'GET /api/data-contracts': ALL,
@@ -896,6 +909,7 @@ const EXPECT: Record<string, Access> = {
   'GET /api/v1/scorecard': ALL,
   'GET /api/v1/scorecard/trend': ALL,
   'GET /api/v1/services/:serviceId/scorecard': ALL,
+  'GET /api/v1/services/:serviceId/cost-plan': ALL,
   'GET /api/v1/objectives': ALL,
   'GET /api/v1/objectives/:objectiveId/samples': ALL,
   'GET /api/v1/access-changes': ALL,
@@ -1642,6 +1656,9 @@ function fill(url: string): string {
       .replace(/:monitorId/g, fx.monitor!)
       .replace(/:recordId/g, fx.record!)
       .replace(/:serviceId/g, fx.service!)
+      .replace(/:lineId/g, fx.planLine!)
+      .replace(/:entryId/g, fx.planEntry!)
+      .replace(/:teamId/g, fx.team!)
       .replace(/:applicationId/g, fx.application!)
       .replace(/:componentId/g, fx.component!)
       .replace(/:systemLinkId/g, fx.systemLink!)
@@ -1886,6 +1903,11 @@ const bodies = (): Record<string, unknown> => ({
   'PUT /api/services/:id/protection-need': { availability: { level: 'high', reason: 'x' } },
   'PUT /api/catalogue/cia-scale': { mode: 'default' },
   'PUT /api/records/:id/applications': { applicationIds: [] },
+  'POST /api/costs/plans/:serviceId/lines': { fiscalYear: 2030, title: 'Matrix line x', category: 'other', amount: '1', currency: 'EUR', cadence: 'monthly' },
+  'PUT /api/costs/plans/:serviceId/lines/:lineId': { title: 'Matrix line', category: 'other', amount: '100', currency: 'EUR', cadence: 'monthly' },
+  'POST /api/costs/plans/:serviceId/copy': { fromYear: 2030 },
+  'POST /api/costs/plans/:serviceId/entries': { date: '2030-05-01', amount: '1', currency: 'EUR' },
+  'PUT /api/costs/plans/:serviceId/entries/:entryId': { date: new Date().toISOString().slice(0, 10), amount: '10', currency: 'EUR' },
   'POST /api/duties': { serviceId: fx.service, name: 'Matrix duty x', processId: fx.process, interval: 'monthly', level: 'mandatory' },
   'PUT /api/duties/:id': { name: 'Matrix duty', processId: fx.process, interval: 'monthly', level: 'recommended' },
   'POST /api/duties/:id/archive': { archived: true },
@@ -2264,6 +2286,21 @@ beforeAll(async () => {
   fx.cdPlatform = platforms.find((p: { kind: string }) => p.kind === 'changedetection').id;
   // a cost budget (#226), so raising it is a sensitive change (STEP_UP)
   await a('PUT', '/costs/budgets', { scope: 'service', scopeId: fx.service, amount: '1000', currency: 'USD' });
+  // a cost plan line and an entry of the matrix service (ADR 0026)
+  const planYear = (await a('GET', `/costs/plans/${fx.service}`)).fiscalYear as number;
+  fx.planLine = (
+    await a('POST', `/costs/plans/${fx.service}/lines`, {
+      fiscalYear: planYear,
+      title: 'Matrix line',
+      category: 'other',
+      amount: '100',
+      currency: 'EUR',
+      cadence: 'monthly',
+    })
+  ).lines[0].id;
+  fx.planEntry = (
+    await a('POST', `/costs/plans/${fx.service}/entries`, { date: new Date().toISOString().slice(0, 10), amount: '10', currency: 'EUR' })
+  ).entries[0].id;
   const dbSnap = (await a('POST', `/db-schemas/platform/${fx.dbPlatform}/read`)).snapshot.id;
   const tbls = JSON.stringify({
     name: 'matrix',

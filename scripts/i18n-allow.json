@@ -55,6 +55,7 @@
       "Browser",
       "Claims:",
       "Cluster",
+      "Hardware",
       "Commit {{sha}}",
       "Container",
       "corp.example, *.corp.example",

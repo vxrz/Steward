@@ -187,6 +187,10 @@ export const costKeys = {
   imports: (id: string | null | undefined) => ['costs', 'platform', id, 'imports'] as const,
   pushTokens: (id: string | null | undefined) => ['costs', 'platform', id, 'push-tokens'] as const,
   settings: ['costs', 'settings'] as const,
+  /** A service's cost plan of a fiscal year (null: the current one) – ADR 0026 */
+  plan: (serviceId: string, year: number | null) => ['costs', 'plan', serviceId, year ?? 'current'] as const,
+  planOf: (serviceId: string) => ['costs', 'plan', serviceId] as const,
+  teamPlan: (teamId: string, year: number | null) => ['costs', 'team-plan', teamId, year ?? 'current'] as const,
 };
 
 /** Data contracts (#221): the list, one contract, its versions, comparisons and test runs. */

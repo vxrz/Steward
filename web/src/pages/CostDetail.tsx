@@ -13,6 +13,7 @@ import { LinkTabs } from '../components/page/LinkTabs';
 import { BudgetBadge, BudgetBar, ChangeText, fmtChange, fmtMoney, SCOPE_PATH } from '../components/costs/common';
 import { CostChart, CostMonthsTable } from '../components/costs/CostChart';
 import { PlatformCostSource } from '../components/costs/PlatformCostSource';
+import { TeamCostPlan } from '../components/costs/TeamPlan';
 import { costKeys } from '../queryKeys';
 import { fmtDate, numberFormat } from '../format';
 import '../components/dashboard/viz.css';
@@ -172,6 +173,7 @@ function Overview({ d }: { d: CostScopeDetail }) {
           />
         </Paper>
       )}
+      {d.scope === 'team' && <TeamCostPlan teamId={d.id} />}
       {d.sources.length > 0 && (
         <Text size="xs" c="dimmed" data-testid="cost-sources">
           {t('sources', {
