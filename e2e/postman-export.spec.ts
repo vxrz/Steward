@@ -57,9 +57,13 @@ test('process editor: Export for Postman downloads the collection and the enviro
 
   // the same export as JSON: the requests in step order, the secrets as empty variables
   const api = await apiAs('olivia');
-  const collection = await json(await api.get('/api/processes/ih-health-check/export/postman?file=collection'));
+  // the demo Insights Hub named for the slot: other tests add platforms of the same kind, and with more than one the
+  // export leaves a slot without a chosen platform unbound
+  const process = await json<{ definition: { connections: { slot: string }[] } }>(await api.get('/api/processes/ih-health-check'));
+  const bindings = `${process.definition.connections[0]!.slot}:${await platformId(api, 'insights-hub')}`;
+  const collection = await json(await api.get(`/api/processes/ih-health-check/export/postman?file=collection&bindings=${bindings}`));
   expect(collection.item[0].item.map((i: { id: string }) => i.id)).toEqual(['idm', 'am']);
-  const env = await json(await api.get('/api/processes/ih-health-check/export/postman?file=environment'));
+  const env = await json(await api.get(`/api/processes/ih-health-check/export/postman?file=environment&bindings=${bindings}`));
   expect(env.values).toContainEqual({ key: 'hub.clientSecret', value: '', type: 'secret', enabled: true });
   for (const s of SECRETS) expect(JSON.stringify([collection, env])).not.toContain(s);
 });
