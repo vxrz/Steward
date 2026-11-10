@@ -6,6 +6,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-11-10
+
+Steward 0.15.0 consolidates 0.13 and 0.14. The plant change-set history takes a third of the space on SQLite and half on PostgreSQL – larger values are stored compressed, import baselines as the revision an import left – and its retention is a setting under Settings → Data & retention. The OT network diagram no longer redraws its parts right after drawing them, and the UI tests are sturdier on a loaded machine. People can choose events to receive in their own chat with the Steward Teams bot instead of by e-mail (preview, off by default), and a first-week guide walks a new team through setting Steward up.
+
 ### Added
 
 - **Your first week with Steward** ([docs/FIRST-WEEK.md](docs/FIRST-WEEK.md)): a day-by-day plan for a team that just installed Steward – sign-in, a second administrator, the vault and backups; a first platform with an identity and its spec, a process from the examples and a dry run; a monitor with states for one data path, notifications and quiet hours; services, applications, owners and maintenance windows; one site in the plant registry with profiles, KPIs and the review of change sets – and what to leave for later. Linked from the README, Getting started, the docs index and the in-app getting-started checklist.
@@ -1266,7 +1270,8 @@ The first public version.
 - Monitors adopt the same policies: http/tcp/ping checks and webhook/Zabbix outputs are subject to the outbound policy (DNS-pinned; raw `host:port` checks need an explicit allow-list entry such as an IP/CIDR and are not inferred from platform origins); monitor http checks follow redirects manually and drop custom headers cross-origin; check error messages no longer echo the upstream response body; the guarded expression evaluation bounds condition/heartbeat/freshness expressions (CPU, memory via a `$pad` cap, and regex time); and gateway heartbeat batches share a global evaluation-concurrency cap (`SM_MONITOR_EVAL_CONCURRENCY`).
 - Semgrep findings triaged (all rule sets of the CI job, see [docs/ci/SECURITY-PIPELINE.md](docs/ci/SECURITY-PIPELINE.md#semgrep-triage)): the dev, PostgreSQL-test and install-script helpers start npm without a shell, also on Windows (`scripts/npm-command.mjs`); monitor-gateway key patterns (glob) and the API path editor match without regular expressions built from configured data; translation lookups ignore inherited properties; the CI gate also blocks HIGH/CRITICAL findings; SARIF uploads get the `actions: read` permission they need.
 
-[Unreleased]: https://github.com/vxrz/steward/compare/v0.14.0...HEAD
+[Unreleased]: https://github.com/vxrz/steward/compare/v0.15.0...HEAD
+[0.15.0]: https://github.com/vxrz/steward/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/vxrz/steward/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/vxrz/steward/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/vxrz/steward/compare/v0.11.0...v0.12.0
