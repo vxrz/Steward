@@ -167,7 +167,7 @@ Beside what the platforms cost per month, a service team plans **what it will sp
 | Contract end/renewal | Optional; shown under _Renewals in the next 90 days_                                                                                                                                     |
 | Note                 | Free text                                                                                                                                                                                |
 
-**Cost entries** – a date, an amount (negative for a credit note) and a currency, optionally a plan line of the same fiscal year and currency (without one the entry is **unplanned**), an application or system of the service, a **reference** (invoice or order number) and a note. At most 2,000 per service and fiscal year.
+**Cost entries** – a date, an amount (negative for a credit note) and a currency, optionally a plan line of the same fiscal year and currency (without one the entry is **unplanned**), an application or system of the service, a **reference** (invoice or order number) and a note. At most 2,000 per service and fiscal year – also when an entry is moved into a year by changing its date.
 
 **The year view**, per currency (amounts are never converted) and per line:
 

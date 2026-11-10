@@ -444,6 +444,14 @@ describe('entries and the year view', () => {
       status: 409,
       body: { code: 'COST_ENTRY_LIMIT' },
     });
+    // nor can an entry of another year be moved in by its date; one of the full year may still be changed
+    const other = (await s.api('POST', `/costs/plans/${service}/entries`, { date: '2042-07-01', amount: '1', currency: 'EUR' })).entries[0].id;
+    await expect(s.api('PUT', `/costs/plans/${service}/entries/${other}`, { date: '2041-07-01', amount: '1', currency: 'EUR' })).rejects.toMatchObject({
+      status: 409,
+      body: { code: 'COST_ENTRY_LIMIT' },
+    });
+    await s.api('PUT', `/costs/plans/${service}/entries/cen_limit_0`, { date: '2041-08-01', amount: '2', currency: 'EUR' });
+    await s.api('DELETE', `/costs/plans/${service}/entries/${other}`);
     db().run("DELETE FROM cost_entries WHERE id LIKE 'cen_limit_%'");
   });
 });

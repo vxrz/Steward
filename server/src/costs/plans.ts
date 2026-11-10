@@ -848,7 +848,8 @@ interface EntryValues {
 }
 
 /**
- * `before`: the entry being changed – its target may stay as it is, and so may its plan line: a line of another fiscal
+ * `before`: the entry being changed – it counts towards the limit of its fiscal year already (moved into another
+ * year by its date, it counts there); its target may stay as it is, and so may its plan line: a line of another fiscal
  * year than the entry's (the fiscal year start changed since it was linked) stays linked while it is kept.
  */
 function checkEntry(serviceId: string, body: unknown, before?: EntryRow): EntryValues {
@@ -874,7 +875,9 @@ function checkEntry(serviceId: string, body: unknown, before?: EntryRow): EntryV
       bounds.to,
     )?.n ?? 0,
   );
-  if (!before && n >= COST_PLAN_LIMITS.entriesPerYear)
+  // a new entry, or one moved into this fiscal year by its date (one that stays counts already)
+  const joins = !before || fiscalYearOf(before.entry_date, startMonth()) !== fy;
+  if (joins && n >= COST_PLAN_LIMITS.entriesPerYear)
     throw new HttpError(409, `A service has at most ${COST_PLAN_LIMITS.entriesPerYear} cost entries per fiscal year`, 'COST_ENTRY_LIMIT', {
       max: COST_PLAN_LIMITS.entriesPerYear,
     });
