@@ -508,8 +508,6 @@ export const STEP_UP_ACTIONS = [
   'applyMigration',
   'changeCiaScale',
   'changeBackups',
-  // 0.16.0 (ADR 0027): defining, changing or removing a scheduled export – it sends data out of Steward
-  'changeExports',
   'allowMcpWrites',
   'allowMcpClient',
   // 0.5.0 (#210): the assurance policy itself, and control points whose step-up an administrator can turn on
@@ -540,6 +538,8 @@ export const STEP_UP_ACTIONS = [
   // 0.14.0 (ADR 0009 step 4): starting a run, saving a schedule or trigger, a request explorer call or approving an MCP
   // request with a privileged platform identity
   'usePrivilegedIdentity',
+  // 0.16.0 (ADR 0027): defining, changing or removing a scheduled export – it sends data out of Steward
+  'changeExports',
 ] as const;
 export type StepUpAction = (typeof STEP_UP_ACTIONS)[number];
 
