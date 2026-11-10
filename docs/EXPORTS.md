@@ -52,7 +52,7 @@ e.g. `exports/finance-share/20261110T023000Z/`. A second run within the same sec
 }
 ```
 
-Every object also carries its SHA-256 as `x-amz-meta-sha256`. _History_ on the export's card shows every run with its status, files, sizes, SHA-256s and – for a failed run – why (an S3 error, a missing passphrase; never a secret). A failed run removes what it had uploaded, so a folder in the bucket is always complete. The administrators get the notification _Export failed_ (`export.failed`, in-app and e-mail by default, [NOTIFICATIONS.md](NOTIFICATIONS.md)).
+Every object also carries the SHA-256 of what is stored as `x-amz-meta-sha256`. _History_ on the export's card shows every run with its status, files, sizes, SHA-256s and – for a failed run – why (an S3 error, a missing passphrase; never a secret). A failed run removes what it had uploaded, so a folder in the bucket is always complete. The administrators get the notification _Export failed_ (`export.failed`, in-app and e-mail by default, [NOTIFICATIONS.md](NOTIFICATIONS.md)).
 
 ## Setting it up
 
@@ -73,7 +73,7 @@ npm run backup -- decrypt cost-plan-lines-FY-2026.csv.smbackup --out cost-plan-l
 # desktop: steward backup decrypt …; container: node server/dist/backup.js decrypt …
 ```
 
-The file is authenticated chunk by chunk; the manifest's SHA-256 is the one of the decrypted content. Encryption needs the backup passphrase to be set (_Settings → Backups_). Choose it when the files pass through hands that must not read them – and give the passphrase only to those who should. The trade-off: encrypted exports need the passphrase and Steward's tool to be read; readable exports rely on the bucket's access rules alone.
+The file is authenticated chunk by chunk. For encrypted files the manifest (itself encrypted) gives per file the size and SHA-256 of the object as stored (`bytes`, `sha256`) and of the decrypted content (`contentBytes`, `contentSha256`); the object's clear metadata carries only the SHA-256 of what is stored (`x-amz-meta-sha256`) and the key id – a hash of the content would let anyone who can read the bucket confirm a guess of a small or templated file. Encryption needs the backup passphrase to be set (_Settings → Backups_). Choose it when the files pass through hands that must not read them – and give the passphrase only to those who should. The trade-off: encrypted exports need the passphrase and Steward's tool to be read; readable exports rely on the bucket's access rules alone.
 
 ## Retention
 

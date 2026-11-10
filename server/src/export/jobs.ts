@@ -599,13 +599,22 @@ async function runExport(job: ExportJob, run: ExportRun): Promise<void> {
           now,
           info: { product: BRAND.name, version: config.version, content: 'export', file: f.name },
         });
-        meta = { sha256: e.sha256, keyid: e.header.keyId, 'content-sha256': hash };
+        // only what anyone who can read the object sees anyway: no hash of the content (it would let them confirm a
+        // guess of a small or templated file); that is in the encrypted manifest and the run history
+        meta = { sha256: e.sha256, keyid: e.header.keyId };
         objectName = `${f.name}.smbackup`;
       }
       const key = `${folder}${objectName}`;
       checkStopping();
       // recorded before it is uploaded: a run that is cut off (the server stops) leaves no object Steward forgets
-      run.files.push({ part, name: objectName, key, bytes: fs.statSync(target).size, sha256: hash });
+      run.files.push({
+        part,
+        name: objectName,
+        key,
+        bytes: fs.statSync(target).size,
+        sha256: meta.sha256!,
+        ...(enc ? { contentBytes: f.bytes, contentSha256: hash } : {}),
+      });
       recordFiles(run);
       await c.putFile(key, target, meta, { contentType: enc ? 'application/octet-stream' : contentTypeOf(f.name) });
     } finally {
@@ -666,8 +675,14 @@ async function runExport(job: ExportJob, run: ExportRun): Promise<void> {
       ...(enc ? { keyId: enc.stored.keyId } : {}),
       parts,
       skipped,
-      // SHA-256 of each file's content (encrypted exports: before encryption)
-      files: run.files.map((f) => ({ name: f.name, part: f.part, bytes: f.bytes, sha256: f.sha256 })),
+      // size and SHA-256 of each object as stored; encrypted exports also of the content (this manifest is encrypted too)
+      files: run.files.map((f) => ({
+        name: f.name,
+        part: f.part,
+        bytes: f.bytes,
+        sha256: f.sha256,
+        ...(f.contentSha256 ? { contentBytes: f.contentBytes, contentSha256: f.contentSha256 } : {}),
+      })),
     };
     const m = new WorkFile(dir, run.id, 'manifest.json');
     work.push(m);

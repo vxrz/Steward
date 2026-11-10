@@ -79,9 +79,13 @@ export interface ExportFileInfo {
   name: string;
   /** The object in the bucket */
   key: string;
+  /** Size of the object as stored (encrypted: of the .smbackup file) */
   bytes: number;
-  /** SHA-256 of the content as written (before encryption) */
+  /** SHA-256 of the object as stored – what `x-amz-meta-sha256` says and a download gives */
   sha256: string;
+  /** Encrypted exports: size and SHA-256 of the decrypted content (in the run history and the encrypted manifest only) */
+  contentBytes?: number;
+  contentSha256?: string;
 }
 
 export interface ExportRun {

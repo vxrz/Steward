@@ -407,8 +407,17 @@ describe('an export run', () => {
     await decryptFile(file, path.join(tmp, 'services.csv'), key);
     const plain = fs.readFileSync(path.join(tmp, 'services.csv'));
     expect(plain.toString('utf8')).toContain('Invented Billing Service');
-    // the SHA-256 in the run (and the manifest) is the one of the content
-    expect(crypto.createHash('sha256').update(plain).digest('hex')).toBe(r.files.find((f: any) => f.name === 'services.csv.smbackup').sha256);
+    // the run (and the encrypted manifest) has the SHA-256 of the object as stored and of its content; the object's clear
+    // metadata only the one of what is stored
+    const info = r.files.find((f: any) => f.name === 'services.csv.smbackup');
+    const stored = objs.get(`${r.folder}services.csv.smbackup`)!;
+    expect(crypto.createHash('sha256').update(plain).digest('hex')).toBe(info.contentSha256);
+    expect(info.contentBytes).toBe(plain.length);
+    expect(crypto.createHash('sha256').update(stored.body).digest('hex')).toBe(info.sha256);
+    expect(stored.body.length).toBe(info.bytes);
+    expect(stored.meta['x-amz-meta-sha256']).toBe(info.sha256);
+    expect(Object.keys(stored.meta).sort()).toEqual(['x-amz-meta-keyid', 'x-amz-meta-sha256']);
+    expect(JSON.stringify(stored.meta)).not.toContain(info.contentSha256);
     // the offline tool reads it too
     const { runBackupCli } = await import('../src/cli/backup.js');
     const pf = path.join(tmp, 'pass.txt');
@@ -419,6 +428,14 @@ describe('an export run', () => {
     ).toBe(0);
     const manifest = JSON.parse(fs.readFileSync(path.join(tmp, 'manifest.json'), 'utf8'));
     expect(manifest).toMatchObject({ encrypted: true, keyId: header.keyId });
+    expect(manifest.files.find((f: any) => f.name === 'services.csv.smbackup')).toEqual({
+      name: 'services.csv.smbackup',
+      part: 'services',
+      bytes: info.bytes,
+      sha256: info.sha256,
+      contentBytes: info.contentBytes,
+      contentSha256: info.contentSha256,
+    });
     expect(manifest.files.map((f: any) => f.name).sort()).toEqual(
       r.files
         .filter((f: any) => f.part !== 'manifest')
