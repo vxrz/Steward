@@ -3,7 +3,7 @@ import { Anchor, Badge, Button, Group, Paper, Stack, Table, Text, Title } from '
 import { useMediaQuery } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { IconArrowRight, IconNetwork, IconPlus } from '@tabler/icons-react';
+import { IconArrowRight, IconArrowsMove, IconNetwork, IconPlus } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { PlantAssetNetwork, PlantDataPathValues, PlantDataPathView, PlantDeviceValues, PlantDeviceView } from '@sm/shared';
 import { del, get, notifyError } from '../../api';
@@ -16,6 +16,8 @@ import { ItemRefView, LiveBadge, LiveChecks, NetField } from './network';
 import { AssetChecksModal, DataPathModal, DeviceModal } from './networkForms';
 import { Tokens } from './Tokens';
 import { saveOrDraft } from './changes/common';
+import { SelectBox, useSelection } from './bulk';
+import { DeviceMenuItems, DuplicateDeviceModal, MoveEntriesModal, type MoveItem } from './MoveEntries';
 
 /** The values of a device as the API takes them (without what the view adds). */
 export function deviceValues(d: PlantDeviceView): PlantDeviceValues {
@@ -41,7 +43,13 @@ export function pathValues(p: PlantDataPathView): PlantDataPathValues {
   return v;
 }
 
-type Dialog = { kind: 'device'; device?: PlantDeviceValues } | { kind: 'path'; path?: PlantDataPathValues } | { kind: 'checks' };
+type Dialog =
+  | { kind: 'device'; device?: PlantDeviceValues }
+  | { kind: 'path'; path?: PlantDataPathValues }
+  | { kind: 'checks' }
+  // 0.16: devices to another asset; a copy of a device
+  | { kind: 'move'; items: MoveItem[] }
+  | { kind: 'duplicate'; device: { id: string; name: string } };
 
 /** What looks wrong with a device (VLAN, address). */
 export function DeviceHints({ device }: { device: PlantDeviceView }) {
@@ -177,6 +185,7 @@ export function DataPathSummary({ path, withAsset }: { path: PlantDataPathView; 
 export function AssetNetworkSection({ assetId }: { assetId: string }) {
   const { t } = useTranslation(['plantNetwork', 'common']);
   const { t: tc } = useTranslation('plantChanges');
+  const { t: tp } = useTranslation('plant');
   const label = usePlantLabel();
   const qc = useQueryClient();
   const narrow = useMediaQuery('(max-width: 48em)') ?? false;
@@ -186,6 +195,7 @@ export function AssetNetworkSection({ assetId }: { assetId: string }) {
   });
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const n = q.data;
+  const sel = useSelection((n?.devices ?? []).map((d) => d.id));
   if (!n) return <QueryState query={q} rows={2} />;
   const base = `/plant/assets/${encodeURIComponent(assetId)}`;
   const done = (x: PlantAssetNetwork) => {
@@ -290,6 +300,29 @@ export function AssetNetworkSection({ assetId }: { assetId: string }) {
                 </div>
                 {add(t('device.add'), { kind: 'device' }, 'add-device')}
               </Group>
+              {/* 0.16: several devices to another asset at once */}
+              {can && n.devices.length > 1 && (
+                <Group gap="xs" wrap="wrap" data-testid="asset-devices-selection">
+                  <Text size="xs" c="dimmed" aria-live="polite">
+                    {tp('selectedDevices', { count: sel.ids.size })}
+                  </Text>
+                  <Button
+                    size="compact-xs"
+                    variant="default"
+                    leftSection={<IconArrowsMove size={12} />}
+                    disabled={!sel.ids.size}
+                    onClick={() =>
+                      setDialog({
+                        kind: 'move',
+                        items: n.devices.filter((d) => sel.has(d.id)).map((d) => ({ asset: assetId, id: d.id, name: d.hostname || d.id })),
+                      })
+                    }
+                    data-testid="asset-devices-move"
+                  >
+                    {tp('moveEntries.menu')}
+                  </Button>
+                </Group>
+              )}
               {n.devices.length === 0 ? (
                 <Text size="sm" c="dimmed">
                   {t('device.none')}
@@ -301,6 +334,7 @@ export function AssetNetworkSection({ assetId }: { assetId: string }) {
                       <Group justify="space-between" wrap="nowrap" align="flex-start" gap="xs">
                         <Stack gap={4} style={{ minWidth: 0 }}>
                           <Group gap={6} wrap="wrap">
+                            {can && n.devices.length > 1 && <SelectBox sel={sel} id={d.id} name={d.hostname || d.id} />}
                             <Text size="sm" fw={500} className="mono" style={{ overflowWrap: 'anywhere' }}>
                               {d.hostname ? `${d.hostname}${d.domain ? `.${d.domain}` : ''}` : d.id}
                             </Text>
@@ -366,6 +400,12 @@ export function AssetNetworkSection({ assetId }: { assetId: string }) {
                             label={t('device.actions', { name: d.hostname || d.id })}
                             onEdit={() => setDialog({ kind: 'device', device: deviceValues(d) })}
                             onRemove={() => void remove('devices', d.id, d.hostname || d.id)}
+                            extra={
+                              <DeviceMenuItems
+                                onMove={() => setDialog({ kind: 'move', items: [{ asset: assetId, id: d.id, name: d.hostname || d.id }] })}
+                                onDuplicate={() => setDialog({ kind: 'duplicate', device: { id: d.id, name: d.hostname || d.id } })}
+                              />
+                            }
                           />
                         )}
                       </Group>
@@ -464,6 +504,12 @@ export function AssetNetworkSection({ assetId }: { assetId: string }) {
       )}
       {dialog?.kind === 'device' && <DeviceModal network={n} device={dialog.device} onClose={() => setDialog(null)} onSaved={done} />}
       {dialog?.kind === 'path' && <DataPathModal network={n} path={dialog.path} onClose={() => setDialog(null)} onSaved={done} />}
+      {dialog?.kind === 'move' && (
+        <MoveEntriesModal kind="device" items={dialog.items} siteId={n.asset.siteId} onClose={() => setDialog(null)} onDone={sel.clear} />
+      )}
+      {dialog?.kind === 'duplicate' && (
+        <DuplicateDeviceModal assetId={assetId} siteId={n.asset.siteId} device={dialog.device} onClose={() => setDialog(null)} onSaved={done} />
+      )}
       {dialog?.kind === 'checks' && (
         <AssetChecksModal assetId={assetId} checks={n.checks} canManage={n.canManage} onClose={() => setDialog(null)} onSaved={done} />
       )}

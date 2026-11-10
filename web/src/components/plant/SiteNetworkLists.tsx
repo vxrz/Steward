@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Anchor, Button, Group, Modal, Paper, Select, Stack, Text, TextInput, VisuallyHidden } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { IconDevices, IconPlus, IconRoute, IconSearch } from '@tabler/icons-react';
+import { IconArrowsMove, IconDevices, IconPlus, IconRoute, IconSearch } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import {
   DEVICE_STATES,
@@ -32,6 +32,7 @@ import { DataPathSummary, DeviceHints, deviceValues, pathValues } from './AssetN
 import { FormButtons } from './forms';
 import { Tokens } from './Tokens';
 import { saveOrDraft } from './changes/common';
+import { DeviceMenuItems, DuplicateDeviceModal, MoveEntriesModal, type MoveItem } from './MoveEntries';
 
 /**
  * The site's Devices and Data paths tabs (0.12, docs/PLANT.md#editing-in-place): sortable and filtered lists with a
@@ -50,7 +51,10 @@ const NO_VLAN = '__none__';
 type Edit =
   | { kind: 'pick'; what: 'device' | 'path' }
   | { kind: 'device'; assetId: string; device?: PlantDeviceValues }
-  | { kind: 'path'; assetId: string; path?: PlantDataPathValues };
+  | { kind: 'path'; assetId: string; path?: PlantDataPathValues }
+  // 0.16: devices to another asset; a copy of a device
+  | { kind: 'move'; items: MoveItem[] }
+  | { kind: 'duplicate'; assetId: string; device: { id: string; name: string } };
 
 /** Opens the device and data path forms of an asset from the site's lists, and removes entries (confirmed). */
 export function useSiteNetworkEdit(n: PlantSiteNetwork) {
@@ -80,7 +84,11 @@ export function useSiteNetworkEdit(n: PlantSiteNetwork) {
     );
   const modals =
     edit &&
-    (edit.kind === 'pick' ? (
+    (edit.kind === 'move' ? (
+      <MoveEntriesModal kind="device" items={edit.items} siteId={n.site.id} onClose={() => setEdit(null)} />
+    ) : edit.kind === 'duplicate' ? (
+      <DuplicateDeviceModal assetId={edit.assetId} siteId={n.site.id} device={edit.device} onClose={() => setEdit(null)} onSaved={done} />
+    ) : edit.kind === 'pick' ? (
       <PickAssetModal
         n={n}
         what={edit.what}
@@ -97,6 +105,8 @@ export function useSiteNetworkEdit(n: PlantSiteNetwork) {
     editDevice: (d: PlantDeviceView) => setEdit({ kind: 'device', assetId: d.assetId, device: deviceValues(d) }),
     editPath: (p: PlantDataPathView) => setEdit({ kind: 'path', assetId: p.assetId, path: pathValues(p) }),
     removeDevice: (d: PlantDeviceView) => void remove('devices', d.assetId, d.id, d.hostname || d.id),
+    moveDevices: (items: MoveItem[]) => setEdit({ kind: 'move', items }),
+    duplicateDevice: (d: PlantDeviceView) => setEdit({ kind: 'duplicate', assetId: d.assetId, device: { id: d.id, name: d.hostname || d.id } }),
     removePath: (p: PlantDataPathView) => void remove('paths', p.assetId, p.id, p.subject),
     modals,
   };
@@ -239,6 +249,7 @@ function StateText({ d }: { d: PlantDeviceView }) {
 /** The devices of every asset of the site, with the data quality hints above them. */
 export function SiteDevices({ n, edit, narrow }: { n: PlantSiteNetwork; edit: SiteNetworkEdit; narrow: boolean }) {
   const { t } = useTranslation(['plantNetwork', 'common']);
+  const { t: tp } = useTranslation('plant');
   const label = usePlantLabel();
   const [search, setSearch] = useState('');
   const [vlan, setVlan] = useState(ALL);
@@ -278,7 +289,19 @@ export function SiteDevices({ n, edit, narrow }: { n: PlantSiteNetwork; edit: Si
     el?.focus({ preventScroll: true });
   }, [target]);
   const menu = (d: PlantDeviceView) =>
-    edit.can && <RowMenu label={t('device.actions', { name: d.hostname || d.id })} onEdit={() => edit.editDevice(d)} onRemove={() => edit.removeDevice(d)} />;
+    edit.can && (
+      <RowMenu
+        label={t('device.actions', { name: d.hostname || d.id })}
+        onEdit={() => edit.editDevice(d)}
+        onRemove={() => edit.removeDevice(d)}
+        extra={
+          <DeviceMenuItems
+            onMove={() => edit.moveDevices([{ asset: d.assetId, id: d.id, name: d.hostname || d.id }])}
+            onDuplicate={() => edit.duplicateDevice(d)}
+          />
+        }
+      />
+    );
   const columns: DataColumn<PlantDeviceView>[] = [
     ...(edit.can
       ? [
@@ -465,6 +488,18 @@ export function SiteDevices({ n, edit, narrow }: { n: PlantSiteNetwork; edit: Si
               visible={keys}
               selectAll={narrow}
               entries={shown.map((d) => ({ id: d.id, scope: d.assetId, key: keyOf(d), name: d.hostname || d.id }))}
+              extra={(chosen) => (
+                <Button
+                  size="xs"
+                  variant="default"
+                  leftSection={<IconArrowsMove size={14} />}
+                  disabled={!chosen.length}
+                  onClick={() => edit.moveDevices(chosen.map((c) => ({ asset: c.scope!, id: c.id, name: c.name })))}
+                  data-testid="bulk-move-devices"
+                >
+                  {tp('moveEntries.menu')}
+                </Button>
+              )}
             />
           )}
           {shown.length === 0 ? (

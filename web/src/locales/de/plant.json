@@ -877,5 +877,57 @@
     "assetTitle": "{{name}} verschieben",
     "assetHelp": "Wählen Sie den Platz der {{type}} in der Hierarchie dieses Standorts. Alles andere bleibt, wie es ist.",
     "newPlace": "Neuer Platz"
-  }
+  },
+  "moveEntries": {
+    "menu": "Zu Anlage verschieben…",
+    "devicesTitle_one": "Gerät {{name}} verschieben",
+    "devicesTitle_other": "{{count}} Geräte verschieben",
+    "collectionTitle": "Datenerfassung {{name}} verschieben",
+    "devicesHelp": "Die Geräte kommen mit ihren Kennungen zu einer anderen {{type}}. Die Datenpfade, die nur sie nennen, gehen mit; Wartungsfenster, alte Kennungen und Verlauf folgen.",
+    "collectionHelp": "Die Datenerfassung kommt mit ihren Einträgen, Zielen und der Insights-Hub-Zuordnung zu einer anderen {{type}} – etwa wenn ihr Erfasser jetzt diese {{type}} liest. Ihr Datenpfad bleibt.",
+    "target": "Ziel-{{type}}",
+    "otherSites": "Andere Standorte zeigen",
+    "otherSitesHelp": "Nur wo Sie beide Standorte verwalten. Ein Gerät an einem anderen Standort verlässt sein VLAN und seine Zonen.",
+    "collections": "Datenerfassungen der Datenpfade",
+    "collectionsHelp": "Eine Datenerfassung ordnet ihre Einträge den Datenpunkten ihrer Anlage zu. Bleibt sie, bleibt diese Zuordnung intakt.",
+    "collectionsLeave": "Belassen und die Verbindung zum Datenpfad lösen",
+    "collectionsMove": "Mitverschieben",
+    "crossSite": "Das Ziel liegt an einem anderen Standort: Die Geräte verlassen ihr VLAN (und damit ihre Zonen). Ihre Adressen bleiben wie dokumentiert.",
+    "crossSiteCollection": "Das Ziel liegt an einem anderen Standort.",
+    "problems": "So nicht möglich",
+    "what": "Was verschoben wird",
+    "newId": "Kennung am Ziel",
+    "newIdOf": "Neue Kennung von {{name}}",
+    "taken": "Das Ziel hat diese Kennung schon",
+    "useSuggested": "{{id}} verwenden",
+    "kinds": {
+      "device": "Gerät",
+      "dataPath": "Datenpfad",
+      "collection": "Datenerfassung"
+    },
+    "followsPath": "Geht mit: Er nennt nur Geräte, die verschoben werden",
+    "followsCollection": "Geht mit ihrem Datenpfad mit",
+    "leavesVlan": "Verlässt VLAN {{vlan}}",
+    "leavesDataPath": "Verliert die Verbindung zu Datenpfad {{path}}",
+    "unlinked_one": "{{count}} Datenerfassung bleibt und verliert die Verbindung zum Datenpfad",
+    "unlinked_other": "{{count}} Datenerfassungen bleiben und verlieren die Verbindung zum Datenpfad",
+    "unlinkedItem": "{{name}} (Datenpfad {{path}})",
+    "references": "Folgt außerdem: {{list}}",
+    "fieldByField_one": "{{count}} Eintrag, Feld für Feld",
+    "fieldByField_other": "{{count}} Einträge, Feld für Feld",
+    "stepUp": "Für so viele Einträge bestätigen Sie, wer Sie sind.",
+    "apply": "Verschieben",
+    "done_one": "{{count}} Eintrag zu {{asset}} verschoben",
+    "done_other": "{{count}} Einträge zu {{asset}} verschoben"
+  },
+  "duplicateDevice": {
+    "menu": "Duplizieren…",
+    "title": "Gerät {{name}} duplizieren",
+    "help": "Die Kopie übernimmt die Felder des Geräts – nicht seinen Hostnamen, seine Adresse, MAC-Adresse, Seriennummer, seinen Switch-Port, seine Netzwerkdose oder seinen CMDB-Port (sie gehören zum Original) und nicht seine Prüfungen oder Überwachung. An einem anderen Standort bleibt das VLAN leer.",
+    "id": "Kennung der Kopie",
+    "save": "Duplizieren",
+    "done": "Gerät {{id}} als Kopie hinzugefügt"
+  },
+  "selectedDevices_one": "{{count}} Gerät ausgewählt",
+  "selectedDevices_other": "{{count}} Geräte ausgewählt"
 }
