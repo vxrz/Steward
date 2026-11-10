@@ -12909,7 +12909,11 @@
                     "system",
                     "application",
                     "service",
-                    "monitor"
+                    "monitor",
+                    "site",
+                    "asset",
+                    "device",
+                    "collection"
                   ]
                 },
                 "id": {
@@ -13166,7 +13170,11 @@
                           "system",
                           "application",
                           "service",
-                          "monitor"
+                          "monitor",
+                          "site",
+                          "asset",
+                          "device",
+                          "collection"
                         ]
                       },
                       "id": {
@@ -13357,7 +13365,11 @@
                           "system",
                           "application",
                           "service",
-                          "monitor"
+                          "monitor",
+                          "site",
+                          "asset",
+                          "device",
+                          "collection"
                         ]
                       },
                       "id": {
@@ -35663,7 +35675,7 @@
           {
             "schema": {
               "type": "string",
-              "pattern": "^(platform|system|application|service|monitor):[\\w-]{1,80}$"
+              "pattern": "^(platform|system|application|service|monitor|site|asset|device|collection):[\\w.-]{1,80}(\\/[\\w.-]{1,80})?$"
             },
             "in": "query",
             "name": "target",

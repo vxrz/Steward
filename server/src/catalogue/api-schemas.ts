@@ -9,6 +9,7 @@ import {
   VERSION_SOURCES,
   MAINTENANCE_FREQS,
   MAINTENANCE_TARGET_KINDS,
+  MAINTENANCE_TARGET_RE,
   REVIEW_STATUSES,
   SBOM_FORMATS,
   SERVICE_CONTACT_ROLES,
@@ -420,7 +421,7 @@ export const MaintenanceListQuery = z.object({
   to: ts().optional().describe('End of the range (default: 60 days ahead; at most 400 days after from)'),
   target: z
     .string()
-    .regex(/^(platform|system|application|service|monitor):[\w-]{1,80}$/)
+    .regex(MAINTENANCE_TARGET_RE)
     .optional()
     .describe('Only windows that list or reach this item: kind:id, e.g. service:svc_…'),
 });

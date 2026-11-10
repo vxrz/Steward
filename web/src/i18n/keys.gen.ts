@@ -8481,6 +8481,8 @@ export interface Resources {
     'what.collection_mapping_other': string;
     'what.collection_source_one': string;
     'what.collection_source_other': string;
+    'what.maintenance_one': string;
+    'what.maintenance_other': string;
     'problems.PLANT_ID_FORMAT': string;
     'problems.PLANT_ID_FORMAT_NAME': string;
     'problems.PLANT_ID_TAKEN': string;

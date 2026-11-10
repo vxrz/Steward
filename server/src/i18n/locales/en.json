@@ -397,6 +397,10 @@
     "end": {
       "title": "Maintenance ended: {{title}}",
       "body": "{{title}} ended at {{end}}. Affects: {{items}}. Monitors report again."
+    },
+    "impact": {
+      "title": "Maintenance planned: {{title}}",
+      "body": "{{title}} is planned from {{start}} to {{end}} and affects what you own or look after: {{of}}. Planned for: {{items}}."
     }
   },
   "measure": {

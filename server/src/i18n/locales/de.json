@@ -397,6 +397,10 @@
     "end": {
       "title": "Wartung beendet: {{title}}",
       "body": "{{title}} endete um {{end}}. Betrifft: {{items}}. Monitore melden wieder."
+    },
+    "impact": {
+      "title": "Wartung geplant: {{title}}",
+      "body": "{{title}} ist von {{start}} bis {{end}} geplant und betrifft, was Sie verantworten oder betreuen: {{of}}. Geplant für: {{items}}."
     }
   },
   "measure": {

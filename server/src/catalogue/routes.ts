@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import { MAINTENANCE_KINDS, MAINTENANCE_TARGET_RE } from '@sm/shared';
 import { linkInput, linkUpdate } from '../records/links.js';
 import { getPlatform } from '../platforms/service.js';
 import { HttpError } from '../util.js';
@@ -12,6 +13,7 @@ import * as systems from './systems.js';
 import * as net from './network.js';
 import * as envs from './environments.js';
 import * as maint from './maintenance.js';
+import * as impact from './maintenance-impact.js';
 import { contentDisposition } from '../records/attachments.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { LARGE_BODIES } from '../bodyLimits.js';
@@ -194,16 +196,28 @@ export async function catalogueRoutes(app: FastifyInstance): Promise<void> {
   const maintenanceQuery = z.object({
     from: z.string().datetime({ offset: true }).optional(),
     to: z.string().datetime({ offset: true }).optional(),
-    target: z
-      .string()
-      .regex(/^(platform|system|application|service|monitor):[\w-]{1,80}$/)
-      .optional(),
+    target: z.string().regex(MAINTENANCE_TARGET_RE).optional(),
     cancelled: z.enum(['true', 'false']).optional(),
   });
   app.get('/maintenance-windows', async (req) => {
     const q = maintenanceQuery.parse(req.query);
     return maint.listMaintenance({ from: q.from, to: q.to, target: q.target, cancelled: q.cancelled === 'true' });
   });
+  // 0.14: impact before maintenance – before saving (the form's targets), and of a window, with its one-click actions
+  const impactQuery = z.object({
+    targets: z.string().max(20000).optional(),
+    kind: z.enum(MAINTENANCE_KINDS).optional(),
+    quietMonitors: z.enum(['true', 'false']).optional(),
+  });
+  app.get('/maintenance-windows/impact', async (req) => {
+    const q = impactQuery.parse(req.query);
+    return impact.previewImpact({ targets: q.targets, kind: q.kind, quietMonitors: q.quietMonitors === undefined ? undefined : q.quietMonitors === 'true' });
+  });
+  app.get('/maintenance-windows/:id/impact', async (req) => impact.windowImpact(params(req).id!));
+  app.post('/maintenance-windows/:id/impact/downtime', async (req) =>
+    impact.downtimeForMonitors(params(req).id!, z.object({ mode: z.enum(['downtime', 'include']).default('downtime') }).parse(req.body ?? {}).mode),
+  );
+  app.post('/maintenance-windows/:id/impact/notify', async (req) => impact.notifyImpact(params(req).id!));
   app.post('/maintenance-windows', async (req) => maint.createMaintenance(maint.maintenanceInput.parse(req.body)));
   app.get('/maintenance-windows/:id', async (req) => maint.getMaintenance(params(req).id!));
   app.put('/maintenance-windows/:id', async (req) => maint.updateMaintenance(params(req).id!, maint.maintenanceInput.parse(req.body)));
