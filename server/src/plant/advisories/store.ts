@@ -759,7 +759,7 @@ export function listAdvisories(f: ListFilter = {}): AdvisoryList {
   if (f.status) (where.push(`${STATUS_SQL} = ?`), params.push(f.status));
   if (f.affecting || f.site) where.push('(COALESCE(x.affected, 0) > 0 OR COALESCE(x.possible, 0) > 0)');
   const vendor = f.vendor ? normVendor(f.vendor) : '';
-  if (vendor) (where.push('a.vendors LIKE ?'), params.push(`%"${likeEscape(vendor)}%`));
+  if (vendor) (where.push(like('a.vendors')), params.push(`%"${likeEscape(vendor)}%`));
   if (f.vendor && !vendor) where.push('1 = 0');
   const q = f.q?.trim();
   if (q) {

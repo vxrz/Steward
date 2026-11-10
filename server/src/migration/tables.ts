@@ -230,6 +230,8 @@ export const HISTORY_COLUMNS: string[] = [
   'platform_recordings.created_by',
   'platform_recordings.updated_by',
   'platform_health.updated_by',
+  // who last read a Confluent Cloud platform (0.14)
+  'confluent_readouts.read_by',
   'kafka_connect_readouts.read_by',
   // platform identities (0.9.0, ADR 0009): who created and last changed one
   'platform_identities.created_by',
