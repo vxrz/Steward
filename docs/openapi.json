@@ -28387,6 +28387,27 @@
                 "fromDefault": {
                   "type": "boolean"
                 },
+                "own": {
+                  "type": "object",
+                  "properties": {
+                    "assetId": {
+                      "type": "string"
+                    },
+                    "assetName": {
+                      "type": "string"
+                    },
+                    "aspect": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "assetId",
+                    "assetName",
+                    "aspect"
+                  ],
+                  "additionalProperties": false,
+                  "description": "The item’s own asset and aspect as written (empty: the sink’s default)"
+                },
                 "placeholder": {
                   "type": [
                     "null",
@@ -28536,6 +28557,7 @@
                 "dataPoint",
                 "target",
                 "fromDefault",
+                "own",
                 "placeholder",
                 "check",
                 "watchedBy",

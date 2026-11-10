@@ -406,6 +406,8 @@ export interface PlantIhMappingItem {
   target: PlantIhTarget | null;
   /** The asset or aspect is the sink's default */
   fromDefault: boolean;
+  /** The item's own asset and aspect as written (a placeholder stays one; empty: the sink's default) */
+  own: { assetId: string; assetName: string; aspect: string };
   /** The asset id was a placeholder that the asset's external reference resolved (or could not: target null) */
   placeholder: string | null;
   /** The last check's result for this target (null: not checked, or the mapping changed since) */

@@ -453,9 +453,9 @@ function IhMappingModal({
       item: it.item,
       label: it.dataPoint?.name ? `${it.dataPoint.name} · ${it.item}` : it.item,
       // as written: a placeholder stays a placeholder, the default is not copied into the item
-      assetId: it.fromDefault ? '' : (it.placeholder ?? it.target?.assetId ?? ''),
-      assetName: it.fromDefault ? '' : (it.target?.assetName ?? ''),
-      aspect: it.fromDefault ? '' : (it.target?.aspect ?? ''),
+      assetId: it.own.assetId,
+      assetName: it.own.assetName,
+      aspect: it.own.aspect,
       variable: it.target?.variable ?? '',
       changed: false,
     })),

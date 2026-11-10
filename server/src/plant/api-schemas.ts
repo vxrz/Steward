@@ -869,6 +869,9 @@ export const PlantSinkInsightsHubEntry = z.object({
       dataPoint: z.object({ id: z.string(), name: z.string(), unit: z.string(), dataType: z.string() }).nullable(),
       target: IhTarget.nullable().describe('Where it goes (null: not mapped)'),
       fromDefault: z.boolean(),
+      own: z
+        .object({ assetId: z.string(), assetName: z.string(), aspect: z.string() })
+        .describe('The item’s own asset and aspect as written (empty: the sink’s default)'),
       placeholder: z.string().nullable().describe('The placeholder its asset id came from ({asset.ref:<system>})'),
       check: z
         .object({

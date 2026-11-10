@@ -124,6 +124,7 @@ function compute(
       dataPoint: p ? { id: p.id, name: p.name, unit: p.unit, dataType: p.dataType } : null,
       target: t.target,
       fromDefault: t.fromDefault,
+      own: { assetId: m?.assetId ?? '', assetName: m?.assetName ?? '', aspect: m?.aspect ?? '' },
       placeholder: t.placeholder,
       check: resultFor(checked, key, t.target),
       watchedBy,
