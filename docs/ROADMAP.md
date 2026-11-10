@@ -2,7 +2,7 @@
 
 Where Steward stands, what it deliberately does not do, and what comes next. Shipped changes are in the [CHANGELOG](../CHANGELOG.md); how it is built is in [ARCHITECTURE.md](ARCHITECTURE.md). Ideas and requests are collected as GitHub issues.
 
-_Last reviewed for 0.14.0 (November 2026)._
+_Last reviewed for 0.15.0 (November 2026)._
 
 ## What Steward is for
 
@@ -73,12 +73,11 @@ Themes of this release (details in the CHANGELOG once released):
 - **0.12.0:** plant documentation and assistants: proposals from assistants over MCP, descriptions along profile inheritance, documents on profiles and data collections, gateway configurations kept without secrets, sinks and transformations, editing the OT network in place, base profiles and units for KPIs across device models, KPI potential, and consistently folding content.
 - **0.13.0:** monitoring that knows planned states: monitor states with expected results, planned downtime and a maximum off time, an allowed and a measured freshness delay; several identities per platform with read-only flags and operation filters; plant change sets with revisions, drafts, review by a second person, history and revert; KPIs across profiles and parts; more sortable lists and the audit log sorted on the server.
 - **0.14.0:** privileged platform identities with a step-up and an optional start approval; Confluent Cloud; security advisories for OT devices (CSAF 2.0); what a maintenance window affects, with planned downtime for its monitors in one step; documentation confirmed as still current; Insights Hub as a mapped sink checked against the tenant; decision records for a PAM checkout, an edge runner and signed releases (proposed).
+- **0.15.0:** consolidation: the plant change-set history in a fraction of the space with retention as a setting, fixes in the OT network diagram, sturdier UI tests; personal Microsoft Teams notifications through the bot (preview); a first-week guide.
 
 ## Next
 
-**0.15.0 – consolidation and personal notifications.** The plant change-set history in a fraction of the space with retention as a setting, fixes in the OT network diagram and sturdier UI tests; personal Microsoft Teams notifications through the bot (opt-in per event); a first-week guide. After it, **0.16.0** plans costs per service over a fiscal year. The candidates for later releases are under _Later_.
-
-**0.16.0 – lightweight cost planning per service.** Plan lines and cost entries per service and fiscal year (one start month for the instance), set against the cloud and platform costs already read: planned, incurred, expected and the difference, renewals, unplanned entries and a team rollup – no person-hours, approvals, chargeback or currency conversion ([COSTS.md](COSTS.md#planning-per-service), [ADR 0026](adr/0026-service-cost-planning.md)). Administrators choose which bulky, evidence-bearing folders the backups hold, and scheduled exports write readable files – cost plans, the plant registry, the catalogue, monitors, the audit log – to S3 for sharing outside Steward ([BACKUPS.md](BACKUPS.md#contents), [EXPORTS.md](EXPORTS.md), [ADR 0027](adr/0027-backup-contents-and-exports.md)).
+**0.16.0 – costs per service, exports and plant editing.** Planned costs per service over a fiscal year with entries and the costs Steward reads; scheduled readable exports to S3 and a choice of what backups contain; moving devices between assets and more plant editing through change sets; and clearer monitor states. The candidates for later releases are under _Later_.
 
 ## Later
 
