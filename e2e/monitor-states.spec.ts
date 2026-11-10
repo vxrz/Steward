@@ -85,7 +85,19 @@ test('the editor\'s decision table: rows, cells, and "Try it"', async ({ page, a
   await expect(table.getByTestId('state-row-off')).toBeVisible();
   // the cells: a labelled select per state and check
   await expect(page.getByRole('combobox', { name: 'Off – PowerMeter reachable', exact: true })).toHaveValue('Down · selects');
-  await expect(page.getByRole('combobox', { name: 'Off – PowerMeter data', exact: true })).toHaveValue('Down');
+  await expect(page.getByRole('combobox', { name: 'Off – PowerMeter data', exact: true })).toHaveValue('Down · expected');
+  // the choices of a cell are grouped by what they do; the legend under the table explains them and where Off comes from
+  await page.getByRole('combobox', { name: 'Running – PowerMeter data', exact: true }).click();
+  const listbox = page.getByRole('listbox');
+  for (const group of ['Selects this state', 'Expected in this state', 'Precondition']) await expect(listbox.getByText(group, { exact: true })).toBeVisible();
+  for (const option of ['Any', 'Up · selects', 'Down · selects', 'Up · expected', 'Down · expected', 'Required'])
+    await expect(listbox.getByRole('option', { name: option, exact: true })).toBeVisible();
+  // Off only for sub-monitor columns
+  await expect(listbox.getByRole('option', { name: 'Off · expected', exact: true })).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  const legend = page.getByTestId('states-legend');
+  await expect(legend).toContainText('Off is offered only in sub-monitor columns');
+  await expect(legend).toContainText('Whether a state shows grey Off is the Shows column.');
   // the derived settle time of Off: 600 s + 2 × 60 s
   await expect(table.getByTestId('state-row-off')).toContainText('12 min (derived)');
 
@@ -192,9 +204,9 @@ test('keyboard only: add, move and remove states, Try it, and the checks of "Why
   const cell = page.getByRole('combobox', { name: 'Off – PowerMeter data', exact: true });
   await cell.focus();
   await page.keyboard.press('ArrowDown');
-  await expect(page.getByRole('option', { name: 'Up', exact: true })).toBeVisible();
+  await expect(page.getByRole('option', { name: 'Up · expected', exact: true })).toBeVisible();
   await page.keyboard.press('Escape');
-  await expect(cell).toHaveValue('Down');
+  await expect(cell).toHaveValue('Down · expected');
   // Try it by keyboard: the checks are unknown (nothing reports), PowerMeter set to Down
   const pm = page.getByTestId('try-pm');
   await pm.focus();

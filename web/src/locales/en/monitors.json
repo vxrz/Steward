@@ -1033,7 +1033,6 @@
     "maxOff": "Maximum off time (hours)",
     "maxOffHint": "Off for longer is degraded and notifies; empty: {{hours}} h, 0: no maximum",
     "leaderIds": "States of the monitor it follows: {{ids}}",
-    "legend": "Up, Down and Off are expectations; “selects” cells are the condition of the state; Required checks must be up for the state to be trusted.",
     "order": "Order",
     "state": "State",
     "shows": "Shows",
@@ -1049,9 +1048,9 @@
     "cellLabel": "{{state}} – {{check}}",
     "choice": {
       "any": "Any",
-      "up": "Up",
-      "down": "Down",
-      "off": "Off",
+      "up": "Up · expected",
+      "down": "Down · expected",
+      "off": "Off · expected",
       "when_up": "Up · selects",
       "when_down": "Down · selects",
       "when_off": "Off · selects",
@@ -1070,6 +1069,17 @@
     "leaderState": "State of the leading monitor",
     "try": "Try it",
     "wins": "{{state}} wins",
-    "otherwiseWins": "No state matches – evaluated as without states"
+    "otherwiseWins": "No state matches – evaluated as without states",
+    "group": {
+      "selects": "Selects this state",
+      "expected": "Expected in this state",
+      "precondition": "Precondition"
+    },
+    "caption": "Decision table: one row per state, one column per check",
+    "legendSelects": "the condition: the first row whose condition matches wins.",
+    "legendExpected": "what the check is while the state holds; a check that deviates after the settle time is a contradiction.",
+    "legendRequired": "Required: the check must be up for the state to be trusted, otherwise the monitor is down at once.",
+    "legendAny": "no rule for this check.",
+    "legendOff": "Off is offered only in sub-monitor columns (a sub-monitor that is off itself); a check of its own is Down when its device is off. Whether a state shows grey Off is the Shows column."
   }
 }

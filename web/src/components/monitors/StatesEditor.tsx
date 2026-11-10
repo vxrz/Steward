@@ -1,6 +1,22 @@
 import { useMemo, useState } from 'react';
 import { useMediaQuery } from '@mantine/hooks';
-import { ActionIcon, Alert, Badge, Button, Group, NumberInput, Paper, Select, Stack, Table, Text, TextInput, Title } from '@mantine/core';
+import {
+  ActionIcon,
+  Alert,
+  Badge,
+  Button,
+  Group,
+  NumberInput,
+  Paper,
+  Select,
+  Stack,
+  Table,
+  Text,
+  TextInput,
+  Title,
+  VisuallyHidden,
+  type ComboboxData,
+} from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { IconArrowDown, IconArrowUp, IconPlus, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
@@ -138,10 +154,21 @@ export function StatesEditor({
     setCases(c);
   };
   const matchNow = current ? selectState(def, nowStatuses, current.state?.id ?? null, leader.data?.state?.id ?? null).row?.id : undefined;
-  const options = (c: CheckDef) => {
-    const vals: CellChoice[] = ['any', 'up', 'down', ...(c.type === 'monitor' ? (['off'] as const) : [])];
-    const conds: CellChoice[] = follower ? [] : ['when:up', 'when:down', ...(c.type === 'monitor' ? (['when:off'] as const) : []), 'requires'];
-    return [...vals, ...conds].map((v) => ({ value: v, label: t(`states.choice.${v.replace(':', '_') as 'any'}`) as string }));
+  /**
+   * The choices of a cell, grouped by what they do: Any (no rule) first, then the condition that selects the state, the
+   * expectations while it holds, and the precondition. Off only for a sub-monitor column (a sub-monitor that is off).
+   */
+  const options = (c: CheckDef): ComboboxData => {
+    const item = (v: CellChoice) => ({ value: v, label: t(`states.choice.${v.replace(':', '_') as 'any'}`) as string });
+    const off = c.type === 'monitor';
+    const expected: CellChoice[] = ['up', 'down', ...(off ? (['off'] as const) : [])];
+    const selects: CellChoice[] = ['when:up', 'when:down', ...(off ? (['when:off'] as const) : [])];
+    return [
+      item('any'),
+      ...(follower ? [] : [{ group: t('states.group.selects'), items: selects.map(item) }]),
+      { group: t('states.group.expected'), items: expected.map(item) },
+      ...(follower ? [] : [{ group: t('states.group.precondition'), items: [item('requires')] }]),
+    ];
   };
   const leaderIds = leader.data?.definition.states?.cases.map((c) => c.id) ?? [];
   /** The controls of one state, shared by the table (desktop) and the cards (phones). */
@@ -375,14 +402,11 @@ export function StatesEditor({
               {t('states.otherwiseHint')}
             </Text>
           </Paper>
-          <Text size="xs" c="dimmed">
-            {t('states.legend')}
-          </Text>
         </Stack>
       ) : (
         <Table.ScrollContainer minWidth={640}>
           <Table withTableBorder withColumnBorders fz="sm" data-testid="states-table">
-            <caption style={{ captionSide: 'bottom', textAlign: 'left', fontSize: 12 }}>{t('states.legend')}</caption>
+            <VisuallyHidden component="caption">{t('states.caption')}</VisuallyHidden>
             <Table.Thead>
               <Table.Tr>
                 <Table.Th scope="col">{t('states.order')}</Table.Th>
@@ -430,6 +454,7 @@ export function StatesEditor({
           </Table>
         </Table.ScrollContainer>
       )}
+      <StatesLegend follower={follower} />
       <Group>
         <Button
           size="xs"
@@ -519,6 +544,34 @@ export function StatesEditor({
           </div>
         </Stack>
       </Paper>
+    </Stack>
+  );
+}
+
+/** Under the table: what each group of a cell's choices does, where Off comes from, and what the columns mean. */
+function StatesLegend({ follower }: { follower: boolean }) {
+  const { t } = useTranslation('monitors');
+  return (
+    <Stack gap={2} data-testid="states-legend">
+      {!follower && (
+        <Text size="xs" c="dimmed">
+          <b>{t('states.group.selects')}</b> – {t('states.legendSelects')}
+        </Text>
+      )}
+      <Text size="xs" c="dimmed">
+        <b>{t('states.group.expected')}</b> – {t('states.legendExpected')}
+      </Text>
+      {!follower && (
+        <Text size="xs" c="dimmed">
+          <b>{t('states.group.precondition')}</b> – {t('states.legendRequired')}
+        </Text>
+      )}
+      <Text size="xs" c="dimmed">
+        <b>{t('states.choice.any')}</b> – {t('states.legendAny')}
+      </Text>
+      <Text size="xs" c="dimmed">
+        {t('states.legendOff')}
+      </Text>
     </Stack>
   );
 }

@@ -7220,7 +7220,6 @@ export interface Resources {
     'states.maxOff': string;
     'states.maxOffHint': string;
     'states.leaderIds': string;
-    'states.legend': string;
     'states.order': string;
     'states.state': string;
     'states.shows': string;
@@ -7256,6 +7255,15 @@ export interface Resources {
     'states.try': string;
     'states.wins': string;
     'states.otherwiseWins': string;
+    'states.group.selects': string;
+    'states.group.expected': string;
+    'states.group.precondition': string;
+    'states.caption': string;
+    'states.legendSelects': string;
+    'states.legendExpected': string;
+    'states.legendRequired': string;
+    'states.legendAny': string;
+    'states.legendOff': string;
   };
   nav: {
     'items.dashboard': string;

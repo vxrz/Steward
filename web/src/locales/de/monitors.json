@@ -1033,7 +1033,6 @@
     "maxOff": "Höchste Aus-Zeit (Stunden)",
     "maxOffHint": "Länger aus ist eingeschränkt und benachrichtigt; leer: {{hours}} h, 0: kein Höchstwert",
     "leaderIds": "Zustände des Monitors, dem er folgt: {{ids}}",
-    "legend": "In Betrieb, Ausgefallen und Aus sind Erwartungen; Zellen mit „wählt“ sind die Bedingung des Zustands; vorausgesetzte Prüfungen müssen in Betrieb sein, damit dem Zustand vertraut wird.",
     "order": "Reihenfolge",
     "state": "Zustand",
     "shows": "Zeigt",
@@ -1049,9 +1048,9 @@
     "cellLabel": "{{state}} – {{check}}",
     "choice": {
       "any": "Beliebig",
-      "up": "In Betrieb",
-      "down": "Ausgefallen",
-      "off": "Aus",
+      "up": "In Betrieb · erwartet",
+      "down": "Ausgefallen · erwartet",
+      "off": "Aus · erwartet",
       "when_up": "In Betrieb · wählt",
       "when_down": "Ausgefallen · wählt",
       "when_off": "Aus · wählt",
@@ -1070,6 +1069,17 @@
     "leaderState": "Zustand des führenden Monitors",
     "try": "Ausprobieren",
     "wins": "{{state}} gilt",
-    "otherwiseWins": "Kein Zustand passt – ausgewertet wie ohne Zustände"
+    "otherwiseWins": "Kein Zustand passt – ausgewertet wie ohne Zustände",
+    "group": {
+      "selects": "Wählt diesen Zustand",
+      "expected": "Erwartet in diesem Zustand",
+      "precondition": "Voraussetzung"
+    },
+    "caption": "Entscheidungstabelle: eine Zeile je Zustand, eine Spalte je Prüfung",
+    "legendSelects": "die Bedingung: Die erste Zeile, deren Bedingung passt, gilt.",
+    "legendExpected": "wie die Prüfung ist, solange der Zustand gilt; weicht sie nach der Einschwingzeit ab, ist das ein Widerspruch.",
+    "legendRequired": "Vorausgesetzt: Die Prüfung muss in Betrieb sein, damit dem Zustand vertraut wird, sonst ist der Monitor sofort ausgefallen.",
+    "legendAny": "keine Regel für diese Prüfung.",
+    "legendOff": "Aus gibt es nur in Spalten von Unter-Monitoren (ein Unter-Monitor, der selbst aus ist); eine eigene Prüfung ist Ausgefallen, wenn ihr Gerät aus ist. Ob ein Zustand grau Aus zeigt, legt die Spalte Zeigt fest."
   }
 }
