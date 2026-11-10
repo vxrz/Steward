@@ -80,3 +80,20 @@ test.describe('dashboards', () => {
     await expect(widget(page, 'Used share of each limit').locator('.vega-chart svg')).toBeVisible();
   });
 });
+
+test.describe('dashboard templates', () => {
+  test.use({ storageState: authFile('admin') });
+
+  test('the template dialog keeps every button label whole', async ({ page }) => {
+    // A long description next to "Use" once squeezed the button to "U".
+    await page.setViewportSize({ width: 1024, height: 800 });
+    await page.goto('/dashboards');
+    await page.getByRole('button', { name: 'From template' }).first().click();
+    const dialog = page.getByRole('dialog', { name: 'Dashboard templates' });
+    await expect(dialog.getByRole('button', { name: 'Use' }).first()).toBeVisible();
+    const clipped = await dialog
+      .locator('.mantine-Button-label')
+      .evaluateAll((labels) => labels.filter((l) => l.scrollWidth > l.clientWidth + 1).map((l) => l.textContent));
+    expect(clipped).toEqual([]);
+  });
+});
