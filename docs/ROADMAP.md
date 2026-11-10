@@ -78,7 +78,7 @@ Themes of this release (details in the CHANGELOG once released):
 
 **0.15.0 – consolidation and personal notifications.** The plant change-set history in a fraction of the space with retention as a setting, fixes in the OT network diagram and sturdier UI tests; personal Microsoft Teams notifications through the bot (opt-in per event); a first-week guide. After it, **0.16.0** plans costs per service over a fiscal year. The candidates for later releases are under _Later_.
 
-**0.16.0 – lightweight cost planning per service.** Plan lines and cost entries per service and fiscal year (one start month for the instance), set against the cloud and platform costs already read: planned, incurred, expected and the difference, renewals, unplanned entries and a team rollup – no person-hours, approvals, chargeback or currency conversion ([COSTS.md](COSTS.md#planning-per-service), [ADR 0026](adr/0026-service-cost-planning.md)).
+**0.16.0 – lightweight cost planning per service.** Plan lines and cost entries per service and fiscal year (one start month for the instance), set against the cloud and platform costs already read: planned, incurred, expected and the difference, renewals, unplanned entries and a team rollup – no person-hours, approvals, chargeback or currency conversion ([COSTS.md](COSTS.md#planning-per-service), [ADR 0026](adr/0026-service-cost-planning.md)). In the plant registry, devices and data collections move between assets (with their data paths, history and old ids), several assets move at once and a device is duplicated – each as a change set with review and Revert ([PLANT.md](PLANT.md#moving-devices-and-data-collections)).
 
 ## Later
 
