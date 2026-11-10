@@ -117,5 +117,16 @@
     "switchToReject": "Stattdessen ablehnen",
     "switchToApprove": "Stattdessen freigeben",
     "notPossible": "Dies kann hier nicht mehr entschieden werden: Es wurde entschieden, abgebrochen oder ist verfallen, oder Sie dürfen es nicht entscheiden."
+  },
+  "startApproval": {
+    "title": "Start mit privilegierter Identität freigeben",
+    "text": "Die Ausführung verwendet privilegierte Zugangsdaten und wartet vor dem ersten Schritt. Geben Sie sie nur frei, wenn diese Ausführung und ihre Eingaben erwartet sind.",
+    "identities": "Privilegierte Identitäten",
+    "requesters": "Angefragt von {{users}}",
+    "byPolicy": "von der Absicherungsrichtlinie verlangt",
+    "byProcess": "vom Prozess verlangt",
+    "expires": "Wird am {{date}} abgebrochen, wenn niemand entscheidet.",
+    "reasonRequester": "eine zweite Person gibt den Start frei – nicht wer die Ausführung gestartet hat oder ihren Zeitplan oder Auslöser besitzt",
+    "reasonRights": "eine Person mit dem Recht „Freigeben“ auf dem Prozess gibt den Start frei"
   }
 }

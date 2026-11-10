@@ -80,6 +80,7 @@ export const POINT_LABELS: Record<ReportLang, Record<string, string>> = {
     'plant.renameId': 'Change the id of a plant entry',
     'plant.bulkChange': 'Change many plant entries at once',
     'plant.changeSet': 'Apply changes to the plant registry (second person)',
+    'platform.privilegedIdentity': 'Use a privileged platform identity',
   },
   de: {
     'apiToken.create': 'Ein API-Token erstellen',
@@ -125,6 +126,7 @@ export const POINT_LABELS: Record<ReportLang, Record<string, string>> = {
     'plant.renameId': 'Kennung eines Anlageneintrags ändern',
     'plant.bulkChange': 'Viele Anlageneinträge auf einmal ändern',
     'plant.changeSet': 'Änderungen am Anlagenregister übernehmen (zweite Person)',
+    'platform.privilegedIdentity': 'Eine privilegierte Plattform-Identität verwenden',
   },
 };
 

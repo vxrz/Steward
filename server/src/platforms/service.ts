@@ -37,6 +37,7 @@ import {
   mcpFromSetting,
   mergedAuthAndVariables,
   parseMcp,
+  registerCounts,
   toIdentity,
   type IdentityRow,
 } from './identities.js';
@@ -102,6 +103,8 @@ function toPlatform(r: PlatformRow, idents: IdentityRow[]): Platform {
     return staleRefs(f, ops).length;
   };
   const user = currentUser();
+  // entries of the credentials register that document each identity (0.14.0): their number only
+  const register = registerCounts(r.id);
   const identities: PlatformIdentity[] = idents.map((i) =>
     toIdentity(i, {
       secretKeys: secretNames(i.secrets),
@@ -113,6 +116,7 @@ function toPlatform(r: PlatformRow, idents: IdentityRow[]): Platform {
         identityAccess(user, { id: r.id, acl }, { id: i.id, default: Number(i.is_default) === 1 || i.is_default === true, acl: parseJson(i.acl, []) })
           .permissions.length > 0,
       staleOperations: staleOf(i),
+      registerEntries: register.get(i.id) ?? 0,
     }),
   );
   const own = platformIntegrity(r);

@@ -27,6 +27,19 @@ export function SettingsTab({ def, onChange }: { def: Def; onChange: (d: Def) =>
       </Section>
       <Section title={t('settings.connections', { count: def.connections?.length ?? 0 })}>
         <ConnectionsPanel def={def} onChange={onChange} />
+        {(def.connections?.length ?? 0) > 0 && (
+          <Switch
+            mt="md"
+            label={t('settings.privilegedFourEyes')}
+            description={t('settings.privilegedFourEyesHint')}
+            checked={!!def.privilegedFourEyes}
+            onChange={(e) => {
+              const { privilegedFourEyes: _p, ...rest } = def;
+              onChange(e.currentTarget.checked ? { ...rest, privilegedFourEyes: true } : (rest as Def));
+            }}
+            data-testid="process-privileged-four-eyes"
+          />
+        )}
       </Section>
       <Section title={t('settings.inputs', { count: def.inputs?.length ?? 0 })}>
         <InputsPanel def={def} onChange={onChange} />

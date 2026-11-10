@@ -193,7 +193,9 @@
     "moreFindings_other": "and {{count}} more findings",
     "aiGenerated": "AI-generated with {{models}} – check it before you rely on it",
     "libraryOrigin": "From library {{library}} {{release}} ({{publisher}}), signed with {{key}}",
-    "libraryRevoked": "signed by a revoked key"
+    "libraryRevoked": "signed by a revoked key",
+    "startApproval": "Waiting for a second person to approve the start",
+    "startApprovalText": "This run uses a privileged identity. It starts when a person with the approve right on the process approves it – not whoever started it. Without a decision it is cancelled on {{date}}."
   },
   "emptyState": {
     "title": "No runs yet",

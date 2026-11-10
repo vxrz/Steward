@@ -775,7 +775,9 @@
       "runbookHint": "Was zu tun ist, wenn eine Prüfung fehlschlägt: die Id eines lebenden Dokuments (rec_…) oder eine http(s)-URL. Nachrichten zu fehlgeschlagenen Prüfungen zeigen „Runbook öffnen“ nur, wenn eines gesetzt ist; ein Prüfschritt kann ein eigenes nennen.",
       "runbookInvalid": "Die Id eines lebenden Dokuments (rec_…) oder eine http(s)-URL",
       "runbookPlaceholder": "https://… oder rec_…"
-    }
+    },
+    "privilegedFourEyes": "Privilegierte Ausführungen brauchen eine zweite Person",
+    "privilegedFourEyesHint": "Eine Ausführung mit einer privilegierten Plattform-Identität wartet vor ihrem ersten Schritt, bis eine Person mit dem Recht „Freigeben“ auf dem Prozess den Start freigibt – nie die Person, die sie gestartet hat oder ihren Zeitplan oder Auslöser besitzt. Ohne Entscheidung wird sie nach 24 Stunden abgebrochen."
   },
   "general": {
     "name": "Name",

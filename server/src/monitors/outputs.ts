@@ -35,6 +35,7 @@ import { deliveryPlan } from '../notifications/quiet.js';
 import { holdMessage, registerOutboxTarget } from '../notifications/outbox.js';
 import { quietHoursAllowed } from '../notifications/prefs.js';
 import { eventTone } from '../notifications/look.js';
+import { privilegedSlots } from '../platforms/privileged.js';
 
 /**
  * Outputs send monitor and check statuses to people and other systems.
@@ -548,6 +549,10 @@ async function startProcesses(o: Extract<OutputDef, { type: 'process' }>, m: Loa
       // the command layer's start check (ADR 0011), as the monitor's owner: since 0.10.0 also `use` on the bound platforms
       const p = startProblem(user, { processId: o.processId, bindings: o.bindings, identities: o.identities });
       if (p) throw new Error(p.code === 'mayNotRun' || p.code === 'processNotFound' ? `${m.owner} may not run process ${o.processId}` : p.text);
+      // a privileged identity (0.14.0, ADR 0009 step 4): never started by a monitor (also one marked after saving)
+      const privileged = privilegedSlots(o.bindings, o.identities)[0];
+      if (privileged)
+        throw new Error(`the identity "${privileged.identityName}" of "${privileged.platformName}" is privileged – monitors do not use privileged identities`);
       return engine().start({
         processId: o.processId,
         inputs,

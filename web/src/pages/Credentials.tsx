@@ -56,6 +56,7 @@ import { ListPage } from '../components/page/ListPage';
 import { CopiedFromNote, DuplicateButton } from '../components/duplicate/DuplicateButton';
 import { EntraImportButton } from '../components/credentials/EntraImport';
 import { ShowAll, useShowMore } from '../components/page/ShowAll';
+import { PrivilegedBadge } from '../components/platform/PrivilegedBadge';
 
 /** "Used by" entries listed before "Show all" */
 const USED_BY_FIRST = 5;
@@ -140,7 +141,8 @@ function CredentialTable({ items, onOpen, onTag }: { items: Credential[]; onOpen
     );
   const nextDueKind = (c: Credential) => t(`dueKinds.${[...c.dues].sort((a, b) => a.dueAt.localeCompare(b.dueAt))[0]!.kind}`);
   const owners = (c: Credential) => [...c.owners.map((o) => o.email), ...c.ownerSubjects].join(', ');
-  const platformOf = (c: Credential) => c.platformName ?? c.platformText;
+  // "Snowflake · Admin" where the entry documents an identity (0.14.0, ADR 0009 step 4)
+  const platformOf = (c: Credential) => (c.platformName && c.identityName ? `${c.platformName} · ${c.identityName}` : (c.platformName ?? c.platformText));
   const columns: DataColumn<Credential>[] = [
     {
       key: 'name',
@@ -635,7 +637,10 @@ function CredentialDrawer({
                 <BelongsToLink b={c.belongsTo} />
               </Field>
             )}
-            <Field label={t('fields.platform')}>{c.platformName ?? (c.platformText || '–')}</Field>
+            <Field label={t('fields.platform')}>
+              {c.platformName ?? (c.platformText || '–')}
+              {c.platformName && c.identityName ? ` · ${c.identityName}` : ''} {c.identityPrivileged && <PrivilegedBadge size="xs" />}
+            </Field>
             <Field label={t('fields.environment')}>{c.environment || '–'}</Field>
           </SimpleGrid>
           {c.description && (

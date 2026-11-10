@@ -149,8 +149,10 @@ function processAccess(processId: string): { id: string; owner: string | null; a
 export function taskRecipients(e: DomainEvents['task.created']): UserInfo[] {
   const all = activeUsers();
   const access = processAccess(e.processId);
+  // a start approval (0.14.0): the schedule's or trigger's owner never decides it either
+  const asked = (u: UserInfo) => (e.fourEyes && sameName(u.username, e.runActor)) || (e.requesters ?? []).some((r) => sameName(u.username, r));
   const eligible = all.filter((u) => {
-    if (e.fourEyes && sameName(u.username, e.runActor)) return false;
+    if (asked(u)) return false;
     const au = toAuthUser(u);
     const perms = processPermissions(au, access);
     if (!perms.includes('view')) return false;
@@ -158,7 +160,7 @@ export function taskRecipients(e: DomainEvents['task.created']): UserInfo[] {
   });
   if (eligible.length) return eligible;
   // nobody matches the assignees – administrators can still decide
-  return admins(all).filter((u) => !(e.fourEyes && sameName(u.username, e.runActor)));
+  return admins(all).filter((u) => !asked(u));
 }
 
 /** Users who may verify a manual step that waits for its second person (same rules as verificationCheck). */

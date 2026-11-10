@@ -21,7 +21,7 @@ export type FourEyesLevel = (typeof FOUR_EYES_LEVELS)[number];
 export const FOUR_EYES_RANK: Record<FourEyesLevel, number> = { off: 0, optional: 1, required: 2 };
 
 /** Where the overrides of single items live (listed on the policy page with a link). */
-export const ASSURANCE_OVERRIDE_KINDS = ['recordType', 'processStep', 'manualStep', 'platformMcp', 'personReview', 'setting'] as const;
+export const ASSURANCE_OVERRIDE_KINDS = ['recordType', 'processStep', 'manualStep', 'platformMcp', 'personReview', 'setting', 'process'] as const;
 export type AssuranceOverrideKind = (typeof ASSURANCE_OVERRIDE_KINDS)[number];
 
 export interface ControlPoint {
@@ -93,6 +93,19 @@ export const CONTROL_POINTS: readonly ControlPoint[] = [
     defaults: { fourEyes: 'off', stepUp: false },
     fourEyesLevels: ONOFF,
     overrides: 'setting',
+  },
+  {
+    // 0.14.0 (ADR 0009 step 4): using a privileged platform identity – starting a run, saving a schedule or a webhook
+    // trigger, a request explorer call, approving an MCP request with one. Four-eyes is a start approval before the run:
+    // off – only where a process asks (its setting "Privileged runs need a second person"); required – every such run
+    key: 'platform.privilegedIdentity',
+    group: 'identity',
+    actions: ['usePrivilegedIdentity'],
+    supports: { fourEyes: true, stepUp: true },
+    baseline: {},
+    defaults: { fourEyes: 'off', stepUp: true },
+    fourEyesLevels: ONOFF,
+    overrides: 'process',
   },
   {
     key: 'personReview.decide',

@@ -125,6 +125,8 @@ export function decisionCheck(
     fourEyes: boolean;
     status: string;
     manual?: ManualForCheck;
+    /** A run's start approval (0.14.0, ADR 0009 step 4): who asked for it */
+    startApproval?: { requesters: string[] };
   },
   run: { actor: string },
   perms: ProcessPermission[],
@@ -132,6 +134,18 @@ export function decisionCheck(
   if (!u) return { ok: false, reason: 'Not signed in', code: 'NOT_SIGNED_IN' };
   if (task.status !== 'open') return { ok: false, reason: `Task is ${task.status}`, code: 'TASK_CLOSED' };
   if (task.manual?.stage === 'verify') return verificationCheck(u, task.manual, run, perms);
+  // the start approval of a privileged run: always a second person – never the starter, nor the owner of the schedule or
+  // trigger that started it (by identity) – with the approve right on the process
+  if (task.startApproval) {
+    if ([run.actor, ...task.startApproval.requesters].some((n) => sameIdentity(n, u)))
+      return {
+        ok: false,
+        reason: 'A second person approves the start of this run – not the person who started it, nor the owner of its schedule or trigger',
+        code: 'FOUR_EYES_START',
+      };
+    if (perms.includes('approve')) return { ok: true };
+    return { ok: false, reason: 'You need the approve right on this process to approve its start', code: 'START_APPROVAL_RIGHTS' };
+  }
   // the step's own switch, or the assurance policy for every approval (run.decide, auth/assurance-policy.ts)
   if (fourEyesRequired('run.decide', task.fourEyes) && sameIdentity(run.actor, u)) {
     return { ok: false, reason: 'Four-eyes principle: someone other than the person who started the run must decide', code: 'FOUR_EYES_RUN' };

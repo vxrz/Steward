@@ -272,6 +272,14 @@ The gateway's mode is **per platform identity** ([ADR 0009](adr/0009-platform-id
 - `list_platforms` shows per platform `mcpIdentities`: the identities open to the token owner over MCP with their mode and read-only flag (`mcpGateway` is true when there is one).
 - A request for an approved write records its identity; approving it re-checks the identity's rights, mode and flags at that moment, and a second person must be allowed to use the identity. `mcp.gateway_call` and `mcp.gateway_refused` audit entries name platform and identity ("Snowflake · Read only").
 
+### Privileged identities
+
+A privileged identity (0.14.0, [PLATFORM-SIGN-IN.md](PLATFORM-SIGN-IN.md#privileged-identities)) has the MCP mode _off_ or _approved writes_ with **a second person** – never _read_, never _confirm_ (`IDENTITY_PRIVILEGED_MCP`; marking an identity privileged turns _read_ off and _confirm_ into _fourEyes_, audited).
+
+- **No reads.** `platform_call_operation` with GET or HEAD and `database_query` are refused for it before anything is sent (audited as `mcp.gateway_refused`, outcome `privileged_refused`); `platform_find_operations` lists only its changing operations, and `platform_describe_operation` marks reads as not callable.
+- **Changing calls** become requests a second person approves (`fourEyes`, also when the stored mode said _confirm_). Approving one needs the approver's **step-up** (control point `platform.privilegedIdentity`) and is never possible from a Microsoft Teams card (`needsSteward`; `MCP_REQUEST_PRIVILEGED` for a decision that tried). The request shows the identity with a _Privileged_ badge; `mcp.gateway_*` entries mark it `privileged`.
+- `list_platforms` shows `privileged: true` and the mode `writes (fourEyes)` for it. `request_run` starts runs with default identities only, which are never privileged.
+
 ## Approved writes
 
 An assistant can ask for two kinds of change. Neither happens when it asks: each becomes a **request** that a person decides in Steward under **AI requests** (in the sidebar under _Operate_, next to _My tasks_).

@@ -42,6 +42,7 @@ import { fmtDate, fmtDuration, fmtNumber, fmtTime, runDuration } from '../format
 import { DetailState, JsonView, Markdown, SEVERITY_COLORS, SeverityBadge, StatusBadge, TONE, severityLabel, statusLabel } from '../components/common';
 import { errorSteps, findingsOf, findingsText } from '../components/RunTable';
 import { DecideFromLinkNotice, TaskPanel } from '../components/TaskPanel';
+import { PrivilegedBadge } from '../components/platform/PrivilegedBadge';
 import { RunDialog } from '../components/RunDialog';
 import { GenerateReportDialog, RunReportsPanel, canReport } from '../components/reports/RunReports';
 import { DetailHeader } from '../components/page/DetailPage';
@@ -119,6 +120,8 @@ export function RunDetailPage() {
     }
   };
   const openTasks = r.tasks.filter((task) => task.status === 'open');
+  // a privileged run waits for a second person before its first step (0.14.0, ADR 0009 step 4)
+  const startApproval = openTasks.find((task) => task.startApproval);
   // a card's Approve / Reject link (ADR 0013): ?task=<id>&decide=approve|reject opens that step's dialog
   const checks = r.steps.filter((s) => s.type === 'check');
   const findings = findingsOf(r);
@@ -293,6 +296,11 @@ export function RunDetailPage() {
         {r.status === 'interrupted' && (
           <Alert color="orange" title={t('detail.interrupted')}>
             {t('detail.interruptedText')}
+          </Alert>
+        )}
+        {startApproval && (
+          <Alert color="orange" title={t('detail.startApproval')} data-testid="run-start-approval">
+            {t('detail.startApprovalText', { date: fmtDate(startApproval.startApproval!.expiresAt) })}
           </Alert>
         )}
         <DecideFromLinkNotice tasks={r.tasks} />
@@ -523,7 +531,8 @@ export function RunDetailPage() {
                     {b.platformName}
                   </Anchor>
                   {/* the identity the slot used (0.13.0, ADR 0009): "Snowflake · Read only" */}
-                  {b.identityName && b.identityName !== 'Default' ? ` · ${b.identityName}` : ''} <span className="mono">{b.baseUrl}</span>
+                  {b.identityName && b.identityName !== 'Default' ? ` · ${b.identityName}` : ''} {b.privileged && <PrivilegedBadge size="xs" />}{' '}
+                  <span className="mono">{b.baseUrl}</span>
                 </Text>
               ))}
               <Text fw={600} size="sm">

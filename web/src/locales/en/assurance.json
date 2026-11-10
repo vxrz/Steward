@@ -90,7 +90,8 @@
       "manualStep": "Manual step",
       "platformMcp": "Platform (MCP)",
       "personReview": "Person review",
-      "setting": "Setting"
+      "setting": "Setting",
+      "process": "Process"
     },
     "fourEyes": "four-eyes",
     "stepUp": "step-up",
@@ -347,6 +348,12 @@
       "switch": {
         "label": "Switch a module on or off",
         "description": "Turning an optional area (costs, data contracts, compliance, status pages and others) on or off for everyone: its pages, routes and background jobs come or go. Its data stays."
+      }
+    },
+    "platform": {
+      "privilegedIdentity": {
+        "label": "Use a privileged platform identity",
+        "description": "Starting a run, saving a schedule or webhook trigger, a request explorer call or approving an MCP request with a privileged identity. Four-eyes: the run waits for a start approval by a second person – off: only where a process asks for it; required: every such run."
       }
     }
   },

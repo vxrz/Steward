@@ -535,6 +535,9 @@ export const STEP_UP_ACTIONS = [
   // 0.11.0: changing the id of a plant registry entry; renaming, removing or editing many entries at once
   'renamePlantId',
   'changePlantInBulk',
+  // 0.14.0 (ADR 0009 step 4): starting a run, saving a schedule or trigger, a request explorer call or approving an MCP
+  // request with a privileged platform identity
+  'usePrivilegedIdentity',
 ] as const;
 export type StepUpAction = (typeof STEP_UP_ACTIONS)[number];
 
@@ -769,6 +772,11 @@ export interface PlatformIdentity {
   integrity: 'ok' | 'unsealed' | 'mismatch' | 'locked';
   /** Whether the current user may use it (the default identity: the platform's "use") */
   mayUse: boolean;
+  /**
+   * Entries of the credentials register that document it (0.14.0, ADR 0009 step 4) – not archived; only the number, the
+   * entries themselves follow the register's own rights (GET /api/credentials?identity=…)
+   */
+  registerEntries?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -808,6 +816,12 @@ export interface PlatformIdentityInput {
   auth?: AuthConfig | null;
   variables?: Record<string, string>;
   readOnly?: boolean;
+  /**
+   * Privileged (0.14.0, ADR 0009 step 4): using it asks for a step-up (control point platform.privilegedIdentity), runs
+   * may wait for a second person, MCP only with approved writes (fourEyes). Never the default identity. Turning it off is
+   * a loosening (step-up).
+   */
+  privileged?: boolean;
   operationFilter?: IdentityOperationFilter | null;
 }
 
@@ -912,6 +926,8 @@ export interface ConnectorIdentityTemplate {
   description?: string;
   default?: boolean;
   readOnly?: boolean;
+  /** 0.14.0 (ADR 0009 step 4): never on the default template (a default identity is not privileged) */
+  privileged?: boolean;
   operationFilter?: { preset: 'read' | 'chosen'; operations: string[] } | null;
 }
 
@@ -1154,7 +1170,8 @@ export interface RunDetail extends RunSummary {
   libraryOrigin?: (LibraryOrigin & { keyRevoked: boolean }) | null;
   inputs: Record<string, unknown>;
   /** identityId, identityName: the platform identity the slot used (0.13.0, ADR 0009; older runs: the default identity) */
-  bindings: Record<string, { platformId: string; platformName: string; baseUrl: string; identityId?: string; identityName?: string }>;
+  /** privileged (0.14.0): the identity was privileged when the run resolved its connection */
+  bindings: Record<string, { platformId: string; platformName: string; baseUrl: string; identityId?: string; identityName?: string; privileged?: boolean }>;
   definitionHash: string;
   steps: RunStepRecord[];
   logs: RunLog[];
@@ -1464,7 +1481,30 @@ export interface TaskRecord {
   cannotDecideParams?: ErrorParams;
   /** Manual steps only: checklist, fields, evidence, completion and verification */
   manual?: ManualTaskState;
+  /**
+   * The start approval of a run with a privileged identity (0.14.0, ADR 0009 step 4): a person with `approve` on the
+   * process other than the requesters approves it before the first step; it expires (the run is cancelled).
+   */
+  startApproval?: StartApproval;
 }
+
+/** The step key of a run's start approval (run_tasks.step_key): never a node id (those are identifiers). */
+export const START_APPROVAL_KEY = '$start';
+
+/** What a start approval is about (0.14.0, ADR 0009 step 4). */
+export interface StartApproval {
+  /** The privileged identities of the run, per connection slot */
+  identities: { slot: string; platformId: string; platformName: string; identityId: string; identityName: string }[];
+  /** Who asked: the run's starter, and the owner of the schedule or trigger that started it – none of them approves */
+  requesters: string[];
+  /** Why a second person is needed: the assurance policy, or the process setting */
+  reason: 'policy' | 'process';
+  /** When the run is cancelled if nobody approved it */
+  expiresAt: string;
+}
+
+/** How long a start approval waits (0.14.0, ADR 0009 step 4). */
+export const START_APPROVAL_HOURS = 24;
 
 export interface TaskDecision {
   approved: boolean;
@@ -2078,6 +2118,11 @@ export interface McpRequest {
   reason: string;
   createdAt: string;
   expiresAt: string;
+  /**
+   * The request's identity is privileged (0.14.0, ADR 0009 step 4): approving needs the approver's step-up
+   * (platform.privilegedIdentity), never in Microsoft Teams
+   */
+  privileged?: boolean;
   /** Gateway writes */
   platformId: string | null;
   platformName: string | null;

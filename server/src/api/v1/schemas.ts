@@ -228,6 +228,7 @@ export const RunDetail = Run.extend({
         baseUrl: z.string(),
         identityId: z.string().optional().describe('The platform identity the slot used (0.13.0; runs before: missing – the default identity)'),
         identityName: z.string().optional().describe('Its name when the run started'),
+        privileged: z.boolean().optional().describe('The identity was privileged when the run resolved its connection (0.14.0; missing: not privileged)'),
       }),
     )
     .describe('Connection slot → platform used by this run'),

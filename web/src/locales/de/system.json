@@ -332,7 +332,8 @@
         "cleanup": "Aufräumen nach der Aufbewahrungsdauer (Ausführungen, Benachrichtigungen, Monitordaten)",
         "audit-checkpoint": "Signierter Prüfpunkt des Audit-Protokolls",
         "scheduler-heartbeat": "Markierung des Zeitplaners: spätere Termine gelten beim nächsten Start als verpasst",
-        "git-sync": "Geplante Abrufe der Git-Synchronisierung"
+        "git-sync": "Geplante Abrufe der Git-Synchronisierung",
+        "start-approvals": "Startfreigaben privilegierter Ausführungen: Ausführungen abbrechen, die niemand binnen 24 Stunden freigegeben hat"
       },
       "switchedOff": "Modul ausgeschaltet"
     }

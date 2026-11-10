@@ -1190,7 +1190,15 @@
     "PLANT_ADVISORY_FETCH_BLOCKED": "The address is blocked (address safety): cloud metadata, link-local addresses and Steward's own API are never reached.",
     "PLANT_ADVISORY_FETCH_FAILED": "{{origin}} did not answer as expected.",
     "PLANT_ADVISORY_FETCH_TOO_LARGE": "The answer is larger than {{kb}} KB.",
-    "PLANT_ADVISORY_FEED_INVALID": "{{origin}} did not answer with a provider-metadata.json, aggregator.json or ROLIE feed."
+    "PLANT_ADVISORY_FEED_INVALID": "{{origin}} did not answer with a provider-metadata.json, aggregator.json or ROLIE feed.",
+    "IDENTITY_DEFAULT_PRIVILEGED": "The identity {{identity}} is the default identity: everyone with \"use\" on the platform uses it, so it cannot be privileged. Add another identity for the privileged credentials.",
+    "IDENTITY_PRIVILEGED_MCP": "The identity {{identity}} is privileged: MCP clients do not read with it, and changing calls need a second person (approved writes with four-eyes).",
+    "IDENTITY_PRIVILEGED_CONFIRM": "The identity {{identity}} of {{platform}} is privileged – send it again and confirm it is you.",
+    "IDENTITY_PRIVILEGED_BACKGROUND": "The identity {{identity}} of {{platform}} is privileged: monitors do not use privileged identities.",
+    "MCP_REQUEST_PRIVILEGED": "A request with a privileged identity is approved in Steward, with a confirmation that it is you.",
+    "FOUR_EYES_START": "A second person approves the start of this run – not whoever started it, nor the owner of its schedule or trigger.",
+    "START_APPROVAL_RIGHTS": "You need the approve right on this process to approve its start.",
+    "CREDENTIAL_IDENTITY": "The identity is not one of the linked platform's identities."
   },
   "boundary": {
     "title": "Something went wrong on this page",

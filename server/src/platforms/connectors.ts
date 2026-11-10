@@ -74,6 +74,7 @@ const packageSchema = z.object({
           description: z.string().max(2000).optional(),
           default: z.boolean().optional(),
           readOnly: z.boolean().optional(),
+          privileged: z.boolean().optional(),
           operationFilter: z
             .object({ preset: z.enum(['read', 'chosen']), operations: z.array(z.string().max(2100)).max(2000).default([]) })
             .nullable()
@@ -152,7 +153,8 @@ export function createTypeFromPlatform(platformId: string, opts: { kind?: string
       .filter((d) => d.kind === 'link' && d.url)
       .map((d) => ({ title: d.title, url: d.url! })),
     specs: listSpecs(platformId).map((s) => ({ name: s.name, content: getSpecContent(s.id), pathPrefix: s.pathPrefix })),
-    // its identities as templates (0.13.0, ADR 0009): names, read-only and filters – never credentials, access or MCP
+    // its identities as templates (0.13.0, ADR 0009): names, read-only, privileged (0.14.0) and filters – never
+    // credentials, access or MCP
     identities: identityTemplates(p),
   };
   return store(pkg, 'connector.created');
@@ -199,6 +201,7 @@ function identityTemplates(p: Platform): ConnectorIdentityTemplate[] {
     ...(i.description ? { description: i.description } : {}),
     ...(i.default ? { default: true } : {}),
     ...(i.readOnly ? { readOnly: true } : {}),
+    ...(i.privileged && !i.default ? { privileged: true } : {}),
     ...(i.operationFilter
       ? {
           operationFilter: {
@@ -233,7 +236,8 @@ function applyIdentityTemplates(platformId: string, templates: ConnectorIdentity
     seen.add(t.name.toLowerCase());
     const input = { name: t.name, description: t.description ?? '', readOnly: !!t.readOnly, operationFilter: filterOf(t) };
     if (t.default && def) updateIdentity(platformId, def.id, input);
-    else if (!t.default) createIdentity(platformId, input);
+    // a privileged template (0.14.0, ADR 0009 step 4): never the default identity – a tightening, created with the flag
+    else if (!t.default) createIdentity(platformId, { ...input, ...(t.privileged ? { privileged: true } : {}) });
   }
 }
 

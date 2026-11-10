@@ -69,7 +69,18 @@ export function listOverrides(policy: AssurancePolicy): AssuranceOverride[] {
   )) {
     let fourEyes = 0;
     let verified = 0;
-    walk(parseJson(p.definition, null), (o) => {
+    const def = parseJson<{ privilegedFourEyes?: unknown } | null>(p.definition, null);
+    // the process setting "Privileged runs need a second person" (0.14.0, ADR 0009 step 4)
+    if (def?.privilegedFourEyes === true)
+      push({
+        point: 'platform.privilegedIdentity',
+        kind: 'process',
+        label: p.name,
+        value: 'privilegedFourEyes',
+        link: `/processes/${p.id}`,
+        effective: rule('platform.privilegedIdentity', true),
+      });
+    walk(def, (o) => {
       if (o.fourEyes === true) fourEyes++;
       const v = o.verification as { required?: unknown } | undefined;
       if (v && typeof v === 'object' && v.required === true) verified++;

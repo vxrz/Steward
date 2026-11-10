@@ -479,7 +479,7 @@ const steward: ToolDef[] = [
     name: 'list_platforms',
     title: 'List platforms',
     description:
-      'Connected platforms you have rights on – metadata only (name, kind, environment, base URL, auth type, your permissions, whether the MCP gateway is open to you, and the identities you may use over MCP with their mode and read-only flag – pass `identity` to the platform_* tools to use one). Credentials and variables are never returned.',
+      'Connected platforms you have rights on – metadata only (name, kind, environment, base URL, auth type, your permissions, whether the MCP gateway is open to you, and the identities you may use over MCP with their mode, read-only and privileged flags – pass `identity` to the platform_* tools to use one). Credentials and variables are never returned.',
     input: z.object({ kind: z.string().max(100).optional(), environment: z.string().max(100).optional() }).strict(),
     handler: (a) => {
       const items = platforms
@@ -503,8 +503,10 @@ const steward: ToolDef[] = [
           mcpIdentities: mcpIdentities(p).map((i) => ({
             name: i.name,
             default: i.default,
-            mode: i.mcp.mode === 'writes' ? `writes (${i.mcp.writes ?? 'confirm'})` : i.mcp.mode,
+            mode: i.mcp.mode === 'writes' ? `writes (${i.privileged ? 'fourEyes' : (i.mcp.writes ?? 'confirm')})` : i.mcp.mode,
             readOnly: i.readOnly,
+            // privileged (0.14.0): no reads; changing calls only with a second person's approval
+            ...(i.privileged ? { privileged: true } : {}),
           })),
         }));
       return { items };

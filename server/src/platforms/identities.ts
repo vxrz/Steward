@@ -133,10 +133,25 @@ export function allIdentityRows(): Map<string, IdentityRow[]> {
   return out;
 }
 
+/**
+ * Entries of the credentials register that document each identity of a platform (0.14.0, ADR 0009 step 4), not
+ * archived – the number per identity id (the entries themselves follow the register's rights).
+ */
+export function registerCounts(platformId: string): Map<string, number> {
+  return new Map(
+    db()
+      .all<{ identity_id: string; n: number }>(
+        'SELECT identity_id, COUNT(*) AS n FROM credentials WHERE platform_id = ? AND identity_id IS NOT NULL AND archived = 0 GROUP BY identity_id',
+        platformId,
+      )
+      .map((x) => [x.identity_id, Number(x.n)]),
+  );
+}
+
 /** Names and flags of an identity – never secrets, the sign-in settings or variables. */
 export function toIdentity(
   r: IdentityRow,
-  extra: { secretKeys: string[]; integrity: PlatformIdentity['integrity']; mayUse: boolean; staleOperations?: number },
+  extra: { secretKeys: string[]; integrity: PlatformIdentity['integrity']; mayUse: boolean; staleOperations?: number; registerEntries?: number },
 ): PlatformIdentity {
   const filter = parseJson<PlatformIdentity['operationFilter']>(r.operation_filter, null);
   const acl = parseJson<AclEntry<'use'>[]>(r.acl, []);
@@ -158,6 +173,7 @@ export function toIdentity(
     integrity: extra.integrity,
     mayUse: extra.mayUse,
     ...(extra.staleOperations ? { staleOperations: extra.staleOperations } : {}),
+    ...(extra.registerEntries !== undefined ? { registerEntries: extra.registerEntries } : {}),
     ...(flag(r.disabled) ? { disabled: true } : {}),
     // the default identity is open to everyone with "use" on the platform: it has no list of its own
     ...(flag(r.is_default) ? {} : { acl: Array.isArray(acl) ? acl : [] }),

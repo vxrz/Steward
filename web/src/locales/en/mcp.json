@@ -104,7 +104,8 @@
     },
     "acceptProposal_one": "Accept {{count}} entry",
     "acceptProposal_other": "Accept {{count}} entries",
-    "viaTeams": "(via Microsoft Teams)"
+    "viaTeams": "(via Microsoft Teams)",
+    "privilegedHint": "A privileged identity: approving asks you to confirm it is you. It cannot be approved in Microsoft Teams."
   },
   "oauth": {
     "title": "OAuth for MCP clients (optional)",

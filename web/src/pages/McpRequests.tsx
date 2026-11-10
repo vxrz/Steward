@@ -3,6 +3,7 @@ import { Alert, Badge, Button, Code, Group, Paper, SegmentedControl, Stack, Text
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 import { DecideFromLinkModal, DecideNotPossible, useDecideParam } from '../components/DecideFromLink';
+import { PrivilegedBadge } from '../components/platform/PrivilegedBadge';
 import { IconCheck, IconRobot, IconX } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { MCP_REQUEST_LIMITS, type McpProposalSelection, type McpRequest } from '@sm/shared';
@@ -214,8 +215,15 @@ export function McpRequestDetailPage() {
               <Stack gap={6}>
                 <Text size="sm">
                   {t('requests.platform')}: {r.platformName ?? r.platformId}
-                  {r.operation ? ` · ${r.operation}` : ''}
+                  {r.identityName ? ` · ${r.identityName}` : ''}
+                  {r.operation ? ` · ${r.operation}` : ''} {r.privileged && <PrivilegedBadge size="xs" />}
                 </Text>
+                {/* a privileged identity (0.14.0, ADR 0009 step 4): approving asks the approver to confirm it is them */}
+                {r.privileged && r.canApprove && (
+                  <Text size="xs" c="dimmed" data-testid="mcp-request-privileged">
+                    {t('requests.privilegedHint')}
+                  </Text>
+                )}
                 <Code block>{`${r.method} ${r.path}${Object.keys(r.query).length ? `\n${t('requests.query')}: ${json(r.query)}` : ''}`}</Code>
                 {r.body !== null && (
                   <>

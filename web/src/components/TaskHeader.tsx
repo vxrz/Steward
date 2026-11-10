@@ -13,7 +13,8 @@ export function TaskHeader({ task, showRunLink, badges }: { task: TaskRecord; sh
     <Group justify="space-between" align="flex-start" wrap="wrap">
       <div style={{ minWidth: 0, flex: 1 }}>
         <Group gap="xs">
-          <Title order={4}>{task.title}</Title>
+          {/* a start approval (0.14.0): its own title in the reader's language */}
+          <Title order={4}>{task.startApproval ? t('startApproval.title') : task.title}</Title>
           <StatusBadge status={task.status} />
           {task.dryRun && (
             <Badge color="yellow" variant="light">

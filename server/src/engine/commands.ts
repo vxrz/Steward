@@ -147,6 +147,16 @@ export function startProblem(user: AuthUser | string | null | undefined, cmd: St
   });
 }
 
+/**
+ * Whether the signed-in user may make this start (a request body before validation: processId, bindings, identities) –
+ * the step-up rules of privileged starts ask only them (0.14.0); anything unusable is left to the route's own answer.
+ */
+export function startsUnrefused(body: Record<string, unknown>): boolean {
+  const str = (x: unknown) => (x && typeof x === 'object' && !Array.isArray(x) ? (x as Record<string, string>) : undefined);
+  if (typeof body.processId !== 'string') return false;
+  return !startProblem(undefined, { processId: body.processId, bindings: str(body.bindings), identities: str(body.identities) });
+}
+
 /** The start check as an error (403/404; FORBIDDEN with the missing right, as the routes always answered). */
 export function authorizeStart(user: AuthUser | string | null | undefined, cmd: StartCheck): void {
   const p = startProblem(user, cmd);
@@ -199,8 +209,14 @@ export function authorizeSignal(
     if (t.manual?.stage === 'verify') throw new HttpError(409, 'This step was completed and waits for its verification', 'TASK_WAITS_FOR_VERIFICATION');
     if (!t.canDecide) deny('You may not decide this task');
     if (s.type === 'task.decide' && t.mode === 'manual') throw new HttpError(400, 'Complete a manual step with its checklist and fields', 'TASK_IS_MANUAL');
+    // a start approval (0.14.0, ADR 0009 step 4): the point platform.privilegedIdentity – who asked, who decides
+    if (s.type === 'task.decide' && t.startApproval)
+      noteFourEyes('platform.privilegedIdentity', [t.startedBy, ...t.startApproval.requesters], me(), {
+        itemRequires: t.startApproval.reason === 'process',
+      });
     // the assurance proof: the run's starter asked, this person decides
-    if (s.type === 'task.decide' && fourEyesRequired('run.decide', t.fourEyes)) noteFourEyes('run.decide', [t.startedBy], me(), { itemRequires: t.fourEyes });
+    else if (s.type === 'task.decide' && fourEyesRequired('run.decide', t.fourEyes))
+      noteFourEyes('run.decide', [t.startedBy], me(), { itemRequires: t.fourEyes });
     return t;
   }
   if (!runId) throw new HttpError(400, 'A run is needed for this signal');

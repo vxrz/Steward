@@ -74,6 +74,7 @@ import { endMonitorWindow, forgetMonitorInWindows, monitorWindows, planMonitorWi
 import { checkMessage, monitorVisibility, redactCauses, redactDefinition, rootCauseMessage, type MonitorVisibility } from './redact.js';
 import { me } from '../auth/access.js';
 import { assignCreatorTeams, forgetOwningTeams } from '../auth/policy.js';
+import { privilegedSlots } from '../platforms/privileged.js';
 
 /**
  * Monitor management: create, edit, delete, access, heartbeat secrets,
@@ -494,6 +495,14 @@ function resolveIdentity(platformId: string, ref: string | undefined, what: stri
       identity: i.name,
       platform: p.name,
     });
+  // privileged identities (0.14.0, ADR 0009 step 4): each use is confirmed by a person – never in the background
+  if (i.privileged)
+    throw new HttpError(
+      400,
+      `${what}: the identity "${i.name}" of "${p.name}" is privileged – monitors do not use privileged identities`,
+      'IDENTITY_PRIVILEGED_BACKGROUND',
+      { identity: i.name, platform: p.name },
+    );
   return name ? i.id : undefined;
 }
 
@@ -640,6 +649,15 @@ function resolveReferences(def: MonitorDefinition, selfId: string | null, selfKe
           {
             identity: problem.vars.identity ?? '',
           },
+        );
+      // a privileged identity (0.14.0, ADR 0009 step 4): never started by a monitor in the background
+      const privileged = privilegedSlots(o.bindings, o.identities)[0];
+      if (privileged)
+        throw new HttpError(
+          400,
+          `Output "${o.id}": the identity "${privileged.identityName}" of "${privileged.platformName}" is privileged – monitors do not use privileged identities`,
+          'IDENTITY_PRIVILEGED_BACKGROUND',
+          { identity: privileged.identityName, platform: privileged.platformName },
         );
       const names = new Set((proc.definition.inputs ?? []).map((i) => i.name));
       for (const k of Object.keys(o.inputs))

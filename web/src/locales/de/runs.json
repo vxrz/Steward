@@ -193,7 +193,9 @@
     "moreFindings_other": "und {{count}} weitere Befunde",
     "aiGenerated": "Mit {{models}} KI-generiert – prüfen Sie es, bevor Sie sich darauf verlassen",
     "libraryOrigin": "Aus Bibliothek {{library}} {{release}} ({{publisher}}), signiert mit {{key}}",
-    "libraryRevoked": "mit einem widerrufenen Schlüssel signiert"
+    "libraryRevoked": "mit einem widerrufenen Schlüssel signiert",
+    "startApproval": "Wartet auf die Freigabe des Starts durch eine zweite Person",
+    "startApprovalText": "Diese Ausführung verwendet eine privilegierte Identität. Sie startet, wenn eine Person mit dem Recht „Freigeben“ auf dem Prozess sie freigibt – nicht die Person, die sie gestartet hat. Ohne Entscheidung wird sie am {{date}} abgebrochen."
   },
   "emptyState": {
     "title": "Noch keine Ausführungen",

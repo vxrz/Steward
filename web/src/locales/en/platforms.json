@@ -377,7 +377,23 @@
     "disabledText": "This identity was added or changed outside Steward. It was kept when the platform's settings were confirmed, but it is disabled: nothing can use it and no credentials are sent with it. Read its settings and access list before an administrator enables it.",
     "enable": "Enable",
     "enableText": "Enable the identity “{{name}}”? Its credentials can be used again – by administrators, its owning teams and: {{who}}. Check its settings, credentials and access list first.",
-    "enabled": "Identity “{{name}}” enabled"
+    "enabled": "Identity “{{name}}” enabled",
+    "privilegedLabel": "Privileged",
+    "privilegedHelp": "Every use asks the person to confirm it is them (step-up): starting a run, saving a schedule or trigger, a request explorer call, approving an MCP request. Runs may wait for a second person. MCP clients never read with it, monitors never use it. Turning it off needs a confirmation.",
+    "privilegedDefault": "The default identity is never privileged: everyone with \"use\" on the platform uses it. Keep privileged credentials in another identity.",
+    "register": "Credentials register",
+    "registerNone": "No entry",
+    "registerCount_one": "{{count}} entry",
+    "registerCount_other": "{{count}} entries",
+    "registerMissing": "Privileged – no register entry",
+    "registerMissingText": "This privileged identity has no entry in the credentials register: document who owns it and when it is rotated.",
+    "registerEmpty": "No entry of the credentials register documents this identity.",
+    "registerOpen": "Open the credentials register",
+    "registerNextDue": "next due {{date}}",
+    "rotation": "This is a rotation",
+    "rotationHelp_one": "Records today as the last rotation on the register entry that documents this identity.",
+    "rotationHelp_other": "Records today as the last rotation on the {{count}} register entries that document this identity.",
+    "mcpPrivileged": "This identity is privileged: MCP clients never read with it, and changing calls always need a second person (approved writes with four-eyes)."
   },
   "settings": {
     "kind": "Kind",
@@ -1364,6 +1380,8 @@
     "label": "Identity",
     "description": "Which credentials of the platform are used – the default identity unless you choose another",
     "notAllowed": "you may not use it",
-    "readOnly": "read only"
+    "readOnly": "read only",
+    "noPrivileged": "privileged – not for monitors",
+    "privilegedHint": "A privileged identity: you confirm it is you when you start – and a second person may have to approve the start."
   }
 }
