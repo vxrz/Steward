@@ -163,6 +163,7 @@
       "failedLabel": "finding"
     },
     "artifactLine": "{{step}} · sha256 {{hash}} · {{date}}",
+    "artifactGone": "The file is not available – it is not in the data folder (for example after restoring a backup without run artifacts).",
     "connections": "Connections",
     "outputs": "Outputs",
     "definitionHash": "Definition hash {{hash}}",

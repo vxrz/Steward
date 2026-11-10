@@ -218,6 +218,11 @@ describe('decision table (pure)', () => {
     expect(longer.memory.settleUntil).toBe(40 * MIN);
     expect(longer.status).toBe('off');
     expect(longer.info.settlingUntil).toBe(new Date(40 * MIN).toISOString());
+    // a settle that has ended stays ended: lengthened after the contradiction showed, the monitor stays down
+    const reopened = evaluateStates({ def: offRow(1800), statuses: s, memory: shorter.memory, now: 15 * MIN });
+    expect(reopened.memory.settleUntil).toBe(12 * MIN);
+    expect(reopened.status).toBe('down');
+    expect(reopened.info.settlingUntil).toBeNull();
     // the very first state is still taken as it is: no settle time appears later
     const first = evaluateStates({ def: offRow(600), statuses: s, memory: null, now: 0 });
     expect(first.memory.settleUntil).toBeNull();
@@ -770,12 +775,12 @@ describe('outputs while off', () => {
     m = await at(T + 4 * MIN, 'down');
     expect(m.status).toBe('down');
     expect(m.state.reason).toBe('contradiction');
-    // lengthened again to 20 minutes: settling until T + 21 min
+    // lengthened again to 20 minutes after the settle ended: it stays ended, the contradiction stays down
     await shorten(1200);
     m = await at(T + 5 * MIN, 'down');
-    expect(m.state).toMatchObject({ id: 'off', settlingUntil: iso(T + 21 * MIN) });
-    expect(m.status).toBe('off');
-    expect(stored()).toBe(iso(T + 21 * MIN));
+    expect(m.status).toBe('down');
+    expect(m.state).toMatchObject({ id: 'off', reason: 'contradiction', settlingUntil: null });
+    expect(stored()).toBe(iso(T + 3 * MIN));
     eng.setMonitorClock(null);
   });
 

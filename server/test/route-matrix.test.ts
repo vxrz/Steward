@@ -292,6 +292,7 @@ const EXPECT: Record<string, Access> = {
   'GET /api/costs': ALL,
   'GET /api/costs/settings': ALL,
   'PUT /api/costs/settings': ADMIN,
+  'GET /api/costs/settings/fiscal-year-change': ADMIN,
   'PUT /api/costs/budgets': DESIGN,
   'GET /api/costs/:scope/:id': RECON_READ,
   'GET /api/costs/platform/:id/source': RECON_READ,
@@ -1797,6 +1798,7 @@ const QUERY: Record<string, string> = {
   'GET /api/backlinks': '', // filled in beforeAll (needs the record id)
   'GET /api/runs/compare': '', // filled in beforeAll (needs the run id)
   'GET /api/ticket-references/open-counts': '?kind=service',
+  'GET /api/costs/settings/fiscal-year-change': '?startMonth=4',
   'GET /api/compliance/coverage': `?from=2026-01-01T00:00:00Z&to=${encodeURIComponent(new Date().toISOString())}`,
   'GET /api/assurance/policy/as-of': '?at=2026-01-01T00:00:00Z',
   'GET /api/assurance/report': `?from=2026-01-01T00:00:00Z&to=${encodeURIComponent(new Date().toISOString())}`,
@@ -1931,7 +1933,7 @@ const bodies = (): Record<string, unknown> => ({
   'PUT /api/records/:id/applications': { applicationIds: [] },
   'POST /api/costs/plans/:serviceId/lines': { fiscalYear: 2030, title: 'Matrix line x', category: 'other', amount: '1', currency: 'EUR', cadence: 'monthly' },
   'PUT /api/costs/plans/:serviceId/lines/:lineId': { title: 'Matrix line', category: 'other', amount: '100', currency: 'EUR', cadence: 'monthly' },
-  'POST /api/costs/plans/:serviceId/copy': { fromYear: 2030 },
+  'POST /api/costs/plans/:serviceId/copy': { fiscalYear: 2030 },
   'POST /api/costs/plans/:serviceId/entries': { date: '2030-05-01', amount: '1', currency: 'EUR' },
   'PUT /api/costs/plans/:serviceId/entries/:entryId': { date: new Date().toISOString().slice(0, 10), amount: '10', currency: 'EUR' },
   'POST /api/duties': { serviceId: fx.service, name: 'Matrix duty x', processId: fx.process, interval: 'monthly', level: 'mandatory' },

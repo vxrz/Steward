@@ -72,6 +72,25 @@ export const currencyCode = z
   .transform((s) => s.toUpperCase())
   .refine((s) => /^[A-Z]{3}$/.test(s), 'a currency code like EUR or USD');
 
+/**
+ * The ISO 4217 currency codes (the list of the ISO 4217 maintenance agency, including funds codes and precious metals,
+ * and codes withdrawn in recent years – HRK, SLL, BGN … – that earlier entries may use; without XTS and XXX, which are
+ * no currency). Static, so the browser and the server agree whatever their ICU data knows.
+ */
+export const ISO_4217_CODES: ReadonlySet<string> = new Set(
+  (
+    'AED AFN ALL AMD ANG AOA ARS AUD AWG AZN BAM BBD BDT BGN BHD BIF BMD BND BOB BOV BRL BSD BTN BWP BYN BZD CAD CDF CHE CHF CHW ' +
+    'CLF CLP CNY COP COU CRC CUC CUP CVE CZK DJF DKK DOP DZD EGP ERN ETB EUR FJD FKP GBP GEL GHS GIP GMD GNF GTQ GYD HKD HNL HRK ' +
+    'HTG HUF IDR ILS INR IQD IRR ISK JMD JOD JPY KES KGS KHR KMF KPW KRW KWD KYD KZT LAK LBP LKR LRD LSL LYD MAD MDL MGA MKD MMK ' +
+    'MNT MOP MRU MUR MVR MWK MXN MXV MYR MZN NAD NGN NIO NOK NPR NZD OMR PAB PEN PGK PHP PKR PLN PYG QAR RON RSD RUB RWF SAR SBD ' +
+    'SCR SDG SEK SGD SHP SLE SLL SOS SRD SSP STN SVC SYP SZL THB TJS TMT TND TOP TRY TTD TWD TZS UAH UGX USD USN UYI UYU UYW UZS ' +
+    'VED VES VND VUV WST XAF XAG XAU XBA XBB XBC XBD XCD XCG XDR XOF XPD XPF XPT XSU XUA YER ZAR ZMW ZWG ZWL'
+  ).split(' '),
+);
+
+/** An ISO 4217 code from the list above – for amounts typed by hand (cost plans), where a typo would open a currency of its own. */
+export const isoCurrencyCode = currencyCode.refine((s) => ISO_4217_CODES.has(s), 'an ISO 4217 currency code like EUR or USD');
+
 // ---------- decimals ----------
 
 const MICROS = 1_000_000n;

@@ -4,7 +4,7 @@ import { Alert, Anchor, Badge, Button, Group, Modal, Paper, SimpleGrid, Stack, T
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { IconCoin, IconEyeOff, IconPencil } from '@tabler/icons-react';
+import { IconCoin, IconEyeOff, IconPencil, IconReceipt } from '@tabler/icons-react';
 import { COST_SCOPES, type CostBudget, type CostCurrencySummary, type CostScope, type CostScopeDetail } from '@sm/shared';
 import { get, notifyError, notifyOk, put } from '../api';
 import { EmptyState, QueryState, useFieldErrors } from '../components/common';
@@ -61,9 +61,24 @@ export function CostDetailPage() {
       description={t(`detailHint.${scope}`)}
       actions={
         d && scope !== 'team' ? (
-          <Button component={Link} to={owner[scope]} variant="default" size="xs">
-            {t(`open.${scope}`)}
-          </Button>
+          <>
+            {/* the read costs and the service's cost plan link to each other (two views of one service's money) */}
+            {scope === 'service' && (
+              <Button
+                component={Link}
+                to={`/services/${id}/costs`}
+                variant="default"
+                size="xs"
+                leftSection={<IconReceipt size={14} />}
+                data-testid="open-cost-plan"
+              >
+                {t('open.plan')}
+              </Button>
+            )}
+            <Button component={Link} to={owner[scope]} variant="default" size="xs">
+              {t(`open.${scope}`)}
+            </Button>
+          </>
         ) : undefined
       }
       tabs={tabs}
@@ -446,7 +461,7 @@ function BudgetDialog({ d, onClose }: { d: CostScopeDetail; onClose: () => void 
         </Group>
         <Textarea label={t('budget.comment')} autosize minRows={2} maxLength={1000} value={comment} onChange={(e) => setComment(e.currentTarget.value)} />
         {raising && (
-          <Text size="xs" c="orange.8" data-testid="budget-raise">
+          <Text size="xs" c="orange" data-testid="budget-raise">
             {t('budget.raiseHint')}
           </Text>
         )}

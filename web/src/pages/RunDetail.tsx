@@ -471,9 +471,7 @@ export function RunDetailPage() {
               {r.artifacts.map((a) => (
                 <Card withBorder key={a.id} padding="xs">
                   <Card.Section>
-                    <a href={apiUrl(`/artifacts/${a.id}`)} target="_blank" rel="noreferrer">
-                      <Image src={apiUrl(`/artifacts/${a.id}`)} alt={a.name} />
-                    </a>
+                    <ArtifactImage id={a.id} name={a.name} />
                   </Card.Section>
                   <Text size="sm" fw={500} mt="xs">
                     {a.name}
@@ -793,5 +791,22 @@ function RunAudit({ runId }: { runId: string }) {
         </Table.Tbody>
       </Table>
     </div>
+  );
+}
+
+/** A run artifact; its file may be missing (a backup restored without run artifacts): then a note instead of a broken image. */
+function ArtifactImage({ id, name }: { id: string; name: string }) {
+  const { t } = useTranslation('runs');
+  const [gone, setGone] = useState(false);
+  if (gone)
+    return (
+      <Text size="sm" c="dimmed" p="md">
+        {t('detail.artifactGone')}
+      </Text>
+    );
+  return (
+    <a href={apiUrl(`/artifacts/${id}`)} target="_blank" rel="noreferrer">
+      <Image src={apiUrl(`/artifacts/${id}`)} alt={name} onError={() => setGone(true)} />
+    </a>
   );
 }

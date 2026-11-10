@@ -29,7 +29,7 @@ Forces:
 ### Fiscal year
 
 - One setting for the instance: `fiscalYearStartMonth` (1–12, default 1) in the cost settings (_Costs → Settings_, administrators, audited as `cost.settings_changed`). A client that leaves it out keeps the stored value.
-- A fiscal year is named by the calendar year it **starts** in: `FY 2026` when it starts in January, `FY 2026/27` otherwise (start October: October 2026 to September 2027). Months are calendar months (`YYYY-MM`), days are UTC dates like the cost model's months. Helpers: `fiscalYearOf`, `fiscalYearMonths`, `fiscalYearBounds`, `fiscalYearLabel`, `shiftMonth`, `isCalendarDate` – pure string arithmetic, no time zones.
+- A fiscal year is named by the calendar year it **starts** in: `FY 2026` when it starts in January, `FY 2026/27` otherwise (start October: October 2026 to September 2027). Months are calendar months (`YYYY-MM`) and days calendar dates; _today_ and the current month of the year view are those of the instance's time zone (`TZ`), so an entry dated today counts from local midnight (the costs read keep the cost model's UTC billing months). Helpers: `fiscalYearOf`, `fiscalYearMonths`, `fiscalYearBounds`, `fiscalYearLabel`, `shiftMonth`, `isCalendarDate` – pure string arithmetic, no time zones.
 
 ### Data model (migration `costs-002-service-plans`)
 
@@ -60,7 +60,7 @@ Per line and per currency (never converted):
 
 ### Interfaces
 
-Internal: `GET /api/costs/plans/:serviceId?year=`, `…/export?year=&what=plan|entries` (CSV, formulas defused), `POST …/lines`, `PUT|DELETE …/lines/:lineId`, `POST …/copy`, `POST …/entries`, `PUT|DELETE …/entries/:entryId`, `GET /api/costs/team-plans/:teamId?year=`. Public: `GET /api/v1/services/{serviceId}/cost-plan?year=`. Built-in dataset `costs.plans` (administrators and auditors, like `costs.overview`). MCP tool `get_service_cost_plan`.
+Internal: `GET /api/costs/plans/:serviceId?fiscalYear=`, `…/export?fiscalYear=&what=plan|entries` (CSV, formulas defused), `POST …/lines`, `PUT|DELETE …/lines/:lineId`, `POST …/copy`, `POST …/entries`, `PUT|DELETE …/entries/:entryId`, `GET /api/costs/team-plans/:teamId?fiscalYear=`. Public: `GET /api/v1/services/{serviceId}/cost-plan?fiscalYear=`. Built-in dataset `costs.plans` (administrators and auditors, like `costs.overview`). MCP tool `get_service_cost_plan`.
 
 ### Scope boundaries
 

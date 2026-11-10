@@ -10,6 +10,6 @@ export async function runCostsJob(now = Date.now()): Promise<{ read: number; fai
   const r = await runCostJob(now);
   const notices = checkBudgetNotices(now);
   const published = publishCostsDataset(r.read > 0 || r.remapped > 0, now);
-  publishCostPlansDataset(false, now);
+  await publishCostPlansDataset(false, now);
   return { ...r, notices, published };
 }

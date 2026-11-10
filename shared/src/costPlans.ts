@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { currencyCode, toMicros } from './costs.js';
+import { isoCurrencyCode, toMicros } from './costs.js';
 
 /**
  * Service cost planning (0.16.0, ADR 0026, docs/COSTS.md#planning-per-service): what a service plans to spend on the
@@ -137,7 +137,7 @@ const planLineFields = {
     .trim()
     .max(32)
     .refine((v) => toMicros(v) !== null && toMicros(v)! > 0, 'an amount above 0, like 1500 or 1500.50'),
-  currency: currencyCode,
+  currency: isoCurrencyCode,
   cadence: z.enum(COST_PLAN_CADENCES),
   /** "once": the month (YYYY-MM) in the fiscal year */
   onceMonth: monthText.nullable().default(null),
@@ -163,9 +163,10 @@ export const costPlanLineUpdate = z
   .superRefine(onceNeedsMonth);
 export type CostPlanLineUpdate = z.input<typeof costPlanLineUpdate>;
 
+/** Copies the lines of `fiscalYear` into the next fiscal year. */
 export const costPlanCopyInput = z
   .object({
-    fromYear: z
+    fiscalYear: z
       .number()
       .int()
       .min(FISCAL_YEAR_MIN)
@@ -183,7 +184,7 @@ export const costEntryInput = z
       .trim()
       .max(32)
       .refine((v) => toMicros(v) !== null && toMicros(v)! !== 0, 'an amount like 1500.50 (negative for a credit)'),
-    currency: currencyCode,
+    currency: isoCurrencyCode,
     /** The plan line (same service, fiscal year and currency); none: unplanned */
     planLineId: z.string().trim().min(1).max(100).nullable().default(null),
     target,
@@ -257,6 +258,11 @@ export interface CostEntry {
   note: string;
   /** No plan line of this fiscal year */
   unplanned: boolean;
+  /**
+   * The fiscal year of its plan line when that is another one than the entry's (the fiscal year start changed since
+   * the entry was linked): the link stays, the entry counts as unplanned in its own year (docs/COSTS.md).
+   */
+  planLineYear: { fiscalYear: number; label: string } | null;
   createdAt: string;
   createdBy: string;
   updatedAt: string;
@@ -283,6 +289,16 @@ export interface CostPlanCurrency extends CostPlanFigures {
 
 /** shown: the reader sees every application of the service; hidden: they do not, so no cloud figures; none: nothing read. */
 export type CostPlanCloudState = 'shown' | 'hidden' | 'none';
+
+/** What changing the fiscal year start would do (GET /api/costs/settings/fiscal-year-change). */
+export interface FiscalYearChange {
+  startMonth: number;
+  /** Plan lines and cost entries of all services: none, and the change moves nothing */
+  lines: number;
+  entries: number;
+  /** Entries whose date would then fall into another fiscal year than their plan line's (they keep the link) */
+  entriesOtherYear: number;
+}
 
 export interface CostPlanYear {
   serviceId: string;

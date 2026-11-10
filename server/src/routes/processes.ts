@@ -230,7 +230,19 @@ export async function processRoutes(app: FastifyInstance): Promise<void> {
   app.get('/artifacts/:id', async (req, reply) => {
     const a = store.artifactFile(params(req).id!);
     requireRun(a.runId, 'view', 'view this run');
-    const data = fs.readFileSync(a.path);
+    let data: Buffer;
+    try {
+      data = fs.readFileSync(a.path);
+    } catch (e) {
+      // a backup without run artifacts restores the rows without their files (docs/BACKUPS.md#contents)
+      if ((e as NodeJS.ErrnoException).code === 'ENOENT')
+        throw new HttpError(
+          410,
+          'The artifact file is no longer available – it is not in the data folder (for example after restoring a backup without run artifacts)',
+          'ARTIFACT_FILE_GONE',
+        );
+      throw e;
+    }
     // the type comes from the content (screenshots are images): anything else is a download that cannot run as page or script
     const image = rasterImageType(data);
     reply.header('content-disposition', `${image ? 'inline' : 'attachment'}; filename="${a.name.replace(/[^\w.-]/g, '_')}"`);

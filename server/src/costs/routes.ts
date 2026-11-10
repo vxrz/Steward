@@ -4,7 +4,7 @@ import { COST_SCOPES, costBudgetInput, FISCAL_YEAR_MAX, FISCAL_YEAR_MIN } from '
 import { ACCESS } from '../auth/access.js';
 import { LARGE_BODIES } from '../bodyLimits.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
-import { costSettings, setCostSettings } from './access.js';
+import { costSettings, fiscalYearChange, setCostSettings } from './access.js';
 import { overview, scopeDetail } from './query.js';
 import { getSource, importFromUi, listImports, previewImport, setSource } from './service.js';
 import { readNow } from './sources.js';
@@ -30,6 +30,7 @@ import {
  *   GET  /api/costs/:scope/:id                                        one scope: 12 months, this month, trend, forecast, budget
  *   PUT  /api/costs/budgets                                           a month's budget (raising one: step-up, control point cost.budget)
  *   GET|PUT /api/costs/settings                                       hide amounts from viewers, default currency (PUT: administrators)
+ *   GET  /api/costs/settings/fiscal-year-change?startMonth=           what a new fiscal year start would move (administrators)
  *   GET|PUT /api/costs/platform/:id/source                            how a platform's costs are read (PUT: its manage right)
  *   POST /api/costs/platform/:id/read                                 read a connector's costs now (its manage right)
  *   GET  /api/costs/platform/:id/imports, POST …/imports/preview | …/imports    FOCUS files
@@ -37,12 +38,12 @@ import {
  *   POST /api/hooks/costs/:platformId                                 the push from CI (its push token only, push.ts)
  *
  * Service cost planning (0.16.0, ADR 0026, plans.ts) – who may change the service changes its plan, no step-up:
- *   GET  /api/costs/plans/:serviceId?year=                            the year view of a fiscal year (default: the current one)
- *   GET  /api/costs/plans/:serviceId/export?year=&what=plan|entries   the plan lines or the entries as CSV
+ *   GET  /api/costs/plans/:serviceId?fiscalYear=                      the year view of a fiscal year (default: the current one)
+ *   GET  /api/costs/plans/:serviceId/export?fiscalYear=&what=plan|entries   the plan lines or the entries as CSV
  *   POST /api/costs/plans/:serviceId/lines, PUT|DELETE …/lines/:lineId    plan lines
  *   POST /api/costs/plans/:serviceId/copy                             copy a fiscal year's lines into the next one
  *   POST /api/costs/plans/:serviceId/entries, PUT|DELETE …/entries/:entryId   cost entries
- *   GET  /api/costs/team-plans/:teamId?year=                          the plans of a team's services
+ *   GET  /api/costs/team-plans/:teamId?fiscalYear=                    the plans of a team's services
  */
 
 const scopeParams = (req: FastifyRequest) => z.object({ scope: z.enum(COST_SCOPES), id: z.string().min(1).max(100) }).parse(req.params);
@@ -55,7 +56,8 @@ const budgetBody = (req: FastifyRequest) => {
 };
 const serviceParam = (req: FastifyRequest) => z.object({ serviceId: z.string().min(1).max(100) }).parse(req.params).serviceId;
 const itemParam = (req: FastifyRequest, key: 'lineId' | 'entryId') => z.object({ [key]: z.string().min(1).max(100) }).parse(req.params)[key]!;
-const yearQuery = z.object({ year: z.coerce.number().int().min(FISCAL_YEAR_MIN).max(FISCAL_YEAR_MAX).optional() });
+/** One name for the fiscal year everywhere (query, bodies, responses, /api/v1, MCP): the calendar year it starts in. */
+const yearQuery = z.object({ fiscalYear: z.coerce.number().int().min(FISCAL_YEAR_MIN).max(FISCAL_YEAR_MAX).optional() });
 const imports = { config: { rateLimit: ROUTE_LIMITS.heavy }, bodyLimit: LARGE_BODIES.costImport.bytes };
 
 export async function costRoutes(app: FastifyInstance): Promise<void> {
@@ -65,6 +67,9 @@ export async function costRoutes(app: FastifyInstance): Promise<void> {
   });
   app.get('/costs/settings', async () => costSettings());
   app.put('/costs/settings', { config: { access: ACCESS.admin } }, async (req) => setCostSettings(req.body));
+  app.get('/costs/settings/fiscal-year-change', { config: { access: ACCESS.admin } }, async (req) =>
+    fiscalYearChange(z.object({ startMonth: z.coerce.number().int().min(1).max(12) }).parse(req.query ?? {}).startMonth),
+  );
   app.put(
     '/costs/budgets',
     {
@@ -90,10 +95,10 @@ export async function costRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // ---------- service cost planning (ADR 0026) ----------
-  app.get('/costs/plans/:serviceId', async (req) => planYear(serviceParam(req), yearQuery.parse(req.query ?? {}).year));
+  app.get('/costs/plans/:serviceId', async (req) => planYear(serviceParam(req), yearQuery.parse(req.query ?? {}).fiscalYear));
   app.get('/costs/plans/:serviceId/export', async (req, reply) => {
     const q = yearQuery.extend({ what: z.enum(['plan', 'entries']).default('plan') }).parse(req.query ?? {});
-    const out = planCsv(serviceParam(req), q.year, q.what);
+    const out = planCsv(serviceParam(req), q.fiscalYear, q.what);
     reply.header('content-disposition', `attachment; filename="${out.name}"`);
     reply.header('cache-control', 'no-store');
     return reply.type('text/csv; charset=utf-8').send(out.csv);
@@ -106,7 +111,7 @@ export async function costRoutes(app: FastifyInstance): Promise<void> {
   app.put('/costs/plans/:serviceId/entries/:entryId', async (req) => updateEntry(serviceParam(req), itemParam(req, 'entryId'), req.body));
   app.delete('/costs/plans/:serviceId/entries/:entryId', async (req) => removeEntry(serviceParam(req), itemParam(req, 'entryId')));
   app.get('/costs/team-plans/:teamId', async (req) =>
-    teamPlanYear(z.object({ teamId: z.string().min(1).max(100) }).parse(req.params).teamId, yearQuery.parse(req.query ?? {}).year),
+    teamPlanYear(z.object({ teamId: z.string().min(1).max(100) }).parse(req.params).teamId, yearQuery.parse(req.query ?? {}).fiscalYear),
   );
 
   // ---------- sources and FOCUS imports ----------

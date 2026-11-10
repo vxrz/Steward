@@ -132,7 +132,7 @@
       "documents": "Documents",
       "tickets": "Tickets",
       "scorecard": "Scorecard",
-      "costs": "Costs"
+      "costs": "Cost plan"
     },
     "archivedScorecard": "An archived service has no scorecard.",
     "systems": {

@@ -197,6 +197,10 @@ export const CostPlanYear = z.object({
       reference: z.string().describe('Invoice or order number'),
       note: z.string(),
       unplanned: z.boolean().describe('No plan line of this fiscal year'),
+      planLineYear: z
+        .object({ fiscalYear: z.number().int(), label: z.string() })
+        .nullable()
+        .describe('The fiscal year of its plan line when that is another one (the fiscal year start changed since): the entry counts as unplanned'),
       createdAt: z.string(),
       createdBy: z.string(),
       updatedAt: z.string(),
@@ -226,7 +230,7 @@ export const CostPlanYear = z.object({
 });
 
 export const CostPlanQuery = z.object({
-  year: z.coerce
+  fiscalYear: z.coerce
     .number()
     .int()
     .min(FISCAL_YEAR_MIN)

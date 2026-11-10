@@ -1,4 +1,4 @@
-import { useMemo, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { useMemo, useState, type FormEvent, type KeyboardEvent, type ReactNode } from 'react';
 import {
   ActionIcon,
   Alert,
@@ -25,11 +25,12 @@ import { useElementSize } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { IconCalendarDue, IconCopy, IconDownload, IconEyeOff, IconPencil, IconPlus, IconReceipt, IconTrash } from '@tabler/icons-react';
+import { IconCalendarDue, IconCoin, IconCopy, IconDownload, IconEyeOff, IconPencil, IconPlus, IconReceipt, IconTrash } from '@tabler/icons-react';
 import {
   COST_PLAN_CADENCES,
   COST_PLAN_CATEGORIES,
   COST_PLAN_LIMITS,
+  ISO_4217_CODES,
   type CostEntry,
   type CostPlanCadence,
   type CostPlanCategory,
@@ -47,7 +48,7 @@ import { confirmDanger, confirmDialog } from '../confirm';
 import { compact, niceTicks } from '../dashboard/format';
 import { costKeys, platformKeys } from '../../queryKeys';
 import { fmtDay } from '../../format';
-import { fmtMonth, fmtMonthOnly, fmtMoney } from './common';
+import { fmtMonth, fmtMonthOnly, fmtMoney, SCOPE_PATH } from './common';
 import '../dashboard/viz.css';
 
 /**
@@ -65,7 +66,7 @@ export function ServiceCostPlan({ serviceId }: { serviceId: string }) {
   const [entryDialog, setEntryDialog] = useState<CostEntry | 'new' | null>(null);
   const q = useQuery({
     queryKey: costKeys.plan(serviceId, year),
-    queryFn: () => get<CostPlanYear>(`/costs/plans/${encodeURIComponent(serviceId)}${year ? `?year=${year}` : ''}`),
+    queryFn: () => get<CostPlanYear>(`/costs/plans/${encodeURIComponent(serviceId)}${year ? `?fiscalYear=${year}` : ''}`),
   });
   const d = q.data;
   /** Shows the year an answer is about (a change answers with the year view of its year). */
@@ -83,12 +84,13 @@ export function ServiceCostPlan({ serviceId }: { serviceId: string }) {
         action: 'confirm',
         title: t('plan.copy.title'),
         message: t('plan.copy.message', { from: d.label, to: nextLabel }),
+        confirmLabel: t('plan.copy.button', { to: nextLabel }),
         danger: false,
       }))
     )
       return;
     try {
-      show(await post<CostPlanYear>(`/costs/plans/${encodeURIComponent(serviceId)}/copy`, { fromYear: d.fiscalYear }));
+      show(await post<CostPlanYear>(`/costs/plans/${encodeURIComponent(serviceId)}/copy`, { fiscalYear: d.fiscalYear }));
       notifyOk(t('plan.copy.done', { to: nextLabel }));
     } catch (e) {
       notifyError(e, t('plan.copy.failed'));
@@ -96,22 +98,24 @@ export function ServiceCostPlan({ serviceId }: { serviceId: string }) {
   };
   const removeLine = async (l: CostPlanLine) => {
     const message = l.entries ? t('plan.line.removeWithEntries', { title: l.title, count: l.entries }) : t('plan.line.removeConfirm', { title: l.title });
-    if (!(await confirmDanger({ action: 'delete', message }))) return;
+    if (!(await confirmDanger({ action: 'remove', message }))) return;
     try {
       show(await del<CostPlanYear>(`/costs/plans/${encodeURIComponent(serviceId)}/lines/${encodeURIComponent(l.id)}`));
+      notifyOk(t('plan.line.removed'));
     } catch (e) {
       notifyError(e);
     }
   };
   const removeEntry = async (e: CostEntry) => {
-    if (!(await confirmDanger({ action: 'delete', message: t('plan.entry.removeConfirm', { date: fmtDay(e.date) }) }))) return;
+    if (!(await confirmDanger({ action: 'remove', message: t('plan.entry.removeConfirm', { date: fmtDay(e.date) }) }))) return;
     try {
       show(await del<CostPlanYear>(`/costs/plans/${encodeURIComponent(serviceId)}/entries/${encodeURIComponent(e.id)}`));
+      notifyOk(t('plan.entry.removed'));
     } catch (err) {
       notifyError(err);
     }
   };
-  const exportUrl = (what: 'plan' | 'entries') => apiUrl(`/costs/plans/${encodeURIComponent(serviceId)}/export?year=${d.fiscalYear}&what=${what}`);
+  const exportUrl = (what: 'plan' | 'entries') => apiUrl(`/costs/plans/${encodeURIComponent(serviceId)}/export?fiscalYear=${d.fiscalYear}&what=${what}`);
   const unplanned = d.entries.filter((e) => e.unplanned);
   return (
     <Stack gap="lg" data-testid="service-cost-plan">
@@ -165,6 +169,18 @@ export function ServiceCostPlan({ serviceId }: { serviceId: string }) {
             </Menu.Item>
           </Menu.Dropdown>
         </Menu>
+        <Tooltip label={t('plan.costsReadHint')} withArrow events={{ hover: true, focus: true, touch: true }}>
+          <Button
+            size="xs"
+            variant="subtle"
+            component={Link}
+            to={SCOPE_PATH('service', serviceId)}
+            leftSection={<IconCoin size={14} />}
+            data-testid="plan-costs-read"
+          >
+            {t('plan.costsRead')}
+          </Button>
+        </Tooltip>
       </Group>
       <Text size="xs" c="dimmed">
         {t('plan.yearRange', { label: d.label, from: fmtDay(d.from), to: fmtDay(d.to) })}
@@ -218,7 +234,9 @@ export function ServiceCostPlan({ serviceId }: { serviceId: string }) {
           <LineGroups d={d} group={group} onEdit={(l) => setLineDialog(l)} onRemove={removeLine} />
         </Stack>
       )}
-      <EntriesSection d={d} onEdit={(e) => setEntryDialog(e)} onRemove={removeEntry} unplanned={unplanned.length} />
+      {(d.lines.length > 0 || d.entries.length > 0) && (
+        <EntriesSection d={d} onEdit={(e) => setEntryDialog(e)} onRemove={removeEntry} unplanned={unplanned.length} />
+      )}
       {lineDialog && <LineDialog d={d} line={lineDialog === 'new' ? null : lineDialog} onClose={() => setLineDialog(null)} onSaved={show} />}
       {entryDialog && <EntryDialog d={d} entry={entryDialog === 'new' ? null : entryDialog} onClose={() => setEntryDialog(null)} onSaved={show} />}
     </Stack>
@@ -227,8 +245,8 @@ export function ServiceCostPlan({ serviceId }: { serviceId: string }) {
 
 // ---------- figures ----------
 
-/** A signed amount: over the plan with "+" and a quiet orange, under it plain. */
-function Difference({ v, currency }: { v: string | null; currency: string }) {
+/** A signed amount: over the plan with "+" and a quiet orange, under it plain; what it means is also read out. */
+export function Difference({ v, currency }: { v: string | null; currency: string }) {
   const { t } = useTranslation('costs');
   if (v === null)
     return (
@@ -238,11 +256,13 @@ function Difference({ v, currency }: { v: string | null; currency: string }) {
     );
   const n = Number(v);
   const over = n > 0.004;
+  const meaning = over ? t('plan.over') : n < -0.004 ? t('plan.under') : t('plan.onPlan');
   return (
-    <Tooltip label={over ? t('plan.over') : n < -0.004 ? t('plan.under') : t('plan.onPlan')} withArrow>
-      <Text span size="sm" className="viz-num" c={over ? 'orange.8' : undefined} fw={over ? 600 : undefined} data-testid="plan-difference">
+    <Tooltip label={meaning} withArrow events={{ hover: true, focus: false, touch: true }}>
+      <Text span size="sm" className="viz-num" c={over ? 'orange' : undefined} fw={over ? 600 : undefined} data-testid="plan-difference">
         {over ? '+' : ''}
         {fmtMoney(v, currency)}
+        <VisuallyHidden> ({meaning})</VisuallyHidden>
       </Text>
     </Tooltip>
   );
@@ -287,7 +307,10 @@ function PlanCurrency({ c, d }: { c: CostPlanCurrency; d: CostPlanYear }) {
         <Stack gap={4} mt="sm">
           {c.read && (
             <Text size="sm" data-testid="plan-read">
-              {t('plan.readLine', { soFar: fmtMoney(c.read.incurredToDate, c.currency), expected: fmtMoney(c.read.expected, c.currency) })}
+              {t('plan.readLine', { soFar: fmtMoney(c.read.incurredToDate, c.currency), expected: fmtMoney(c.read.expected, c.currency) })}{' '}
+              <Anchor component={Link} to={SCOPE_PATH('service', d.serviceId)} size="sm" data-testid="plan-read-link">
+                {t('plan.costsRead')}
+              </Anchor>
             </Text>
           )}
           {c.unplanned.count > 0 && (
@@ -483,7 +506,7 @@ function TargetText({ target, size = 'sm' }: { target: CostPlanTarget | null; si
         {target.name}
       </Anchor>
       {target.gone && (
-        <Text span size="xs" c="orange.8">
+        <Text span size="xs" c="orange">
           {' '}
           ({t('plan.targetGone')})
         </Text>
@@ -496,9 +519,10 @@ function ReadBadge({ l }: { l: CostPlanLine }) {
   const { t } = useTranslation('costs');
   if (l.read === 'none') return null;
   return (
-    <Tooltip label={t(`plan.read.${l.read}Hint`)} withArrow multiline w={260}>
+    <Tooltip label={t(`plan.read.${l.read}Hint`)} withArrow multiline w={260} events={{ hover: true, focus: false, touch: true }}>
       <Badge size="xs" variant="light" color={l.read === 'matched' ? 'blue' : 'gray'} data-testid="plan-read-badge">
         {t(`plan.read.${l.read}`)}
+        <VisuallyHidden>: {t(`plan.read.${l.read}Hint`)}</VisuallyHidden>
       </Badge>
     </Tooltip>
   );
@@ -684,9 +708,16 @@ function EntriesSection({
   const rows = only ? d.entries.filter((e) => e.unplanned) : d.entries;
   const lineCell = (e: CostEntry) =>
     e.unplanned ? (
-      <Badge size="sm" variant="light" color="orange" data-testid="entry-unplanned">
-        {t('plan.entry.unplanned')}
-      </Badge>
+      <Stack gap={2} align="flex-start">
+        <Badge size="sm" variant="light" color="orange" data-testid="entry-unplanned">
+          {t('plan.entry.unplanned')}
+        </Badge>
+        {e.planLineYear && (
+          <Text size="xs" c="dimmed" data-testid="entry-other-year">
+            {t('plan.entry.otherYear', { label: e.planLineYear.label, title: e.planLineTitle ?? '' })}
+          </Text>
+        )}
+      </Stack>
     ) : (
       <Text span size="sm">
         {e.planLineTitle}
@@ -795,15 +826,23 @@ const parseTarget = (v: string | null): { kind: CostPlanTargetKind; id: string }
   return { kind: v.slice(0, i) as CostPlanTargetKind, id: v.slice(i + 1) };
 };
 const amountOk = (v: string) => /^-?\d{1,12}([.,]\d{1,6})?$/.test(v.trim());
+/** Today in the browser's time zone (YYYY-MM-DD) – not the UTC date, which is yesterday's after midnight in Europe. */
+const localToday = () => {
+  const n = new Date();
+  return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`;
+};
+/** A form's submit (Enter in a field) runs the save. */
+const submit = (save: () => Promise<void>) => (e: FormEvent) => {
+  e.preventDefault();
+  void save();
+};
 const amountText = (v: string) => v.trim().replace(',', '.');
 
 /** The targets to choose from: the service's applications and systems (and a platform for cloud lines), plus the current one. */
 function useTargetOptions(d: CostPlanYear, current: CostPlanTarget | null, withPlatforms: boolean) {
   const { t } = useTranslation('costs');
   const platforms = useQuery({ queryKey: platformKeys.all, queryFn: () => get<Platform[]>('/platforms'), enabled: withPlatforms });
-  const groups: { group: string; items: { value: string; label: string }[] }[] = [
-    { group: t('plan.targetKinds.none'), items: [{ value: NONE, label: t('plan.form.noTarget') }] },
-  ];
+  const groups: { group: string; items: { value: string; label: string }[] }[] = [];
   const apps = d.targets.filter((x) => x.kind === 'application').map((x) => ({ value: targetValue(x), label: x.name }));
   const systems = d.targets.filter((x) => x.kind === 'system').map((x) => ({ value: targetValue(x), label: x.name }));
   if (apps.length) groups.push({ group: t('plan.targetKinds.application'), items: apps });
@@ -816,7 +855,7 @@ function useTargetOptions(d: CostPlanYear, current: CostPlanTarget | null, withP
       group: t('plan.targetKinds.current'),
       items: [{ value: targetValue(current), label: current.name || t(`plan.targetHidden.${current.kind}`) }],
     });
-  return groups;
+  return [{ value: NONE, label: t('plan.form.noTarget') }, ...groups];
 }
 
 function LineDialog({ d, line, onClose, onSaved }: { d: CostPlanYear; line: CostPlanLine | null; onClose: () => void; onSaved: (y: CostPlanYear) => void }) {
@@ -836,7 +875,7 @@ function LineDialog({ d, line, onClose, onSaved }: { d: CostPlanYear; line: Cost
   const check = useFieldErrors({
     title: !title.trim() && t('common:validation.required'),
     amount: (!amount.trim() && t('common:validation.required')) || (!amountOk(amount) && t('common:validation.invalid')),
-    currency: !/^[A-Za-z]{3}$/.test(currency.trim()) && t('common:validation.currency'),
+    currency: !ISO_4217_CODES.has(currency.trim().toUpperCase()) && t('common:validation.currency'),
   });
   const save = async () => {
     if (!check.validate()) return;
@@ -868,120 +907,122 @@ function LineDialog({ d, line, onClose, onSaved }: { d: CostPlanYear; line: Cost
   };
   return (
     <Modal opened onClose={onClose} title={line ? t('plan.line.editTitle', { label: d.label }) : t('plan.line.addTitle', { label: d.label })} size="lg">
-      <Stack>
-        <TextInput
-          label={t('plan.form.title')}
-          required
-          data-autofocus
-          maxLength={COST_PLAN_LIMITS.titleChars}
-          value={title}
-          onChange={(e) => setTitle(e.currentTarget.value)}
-          error={check.error('title')}
-          data-testid="plan-line-title"
-        />
-        <SimpleGrid cols={{ base: 1, xs: 2 }}>
-          <Select
-            label={t('plan.form.category')}
-            allowDeselect={false}
-            data={COST_PLAN_CATEGORIES.map((c) => ({ value: c, label: t(`plan.categories.${c}`) }))}
-            value={category}
-            onChange={(v) => v && setCategory(v as CostPlanCategory)}
-            data-testid="plan-line-category"
+      <form onSubmit={submit(save)} noValidate>
+        <Stack>
+          <TextInput
+            label={t('plan.form.title')}
+            required
+            data-autofocus
+            maxLength={COST_PLAN_LIMITS.titleChars}
+            value={title}
+            onChange={(e) => setTitle(e.currentTarget.value)}
+            error={check.error('title')}
+            data-testid="plan-line-title"
           />
-          <Select
-            label={t('plan.form.for')}
-            description={t('plan.form.forHint')}
-            data={options}
-            value={target}
-            onChange={(v) => setTarget(v ?? NONE)}
-            searchable
-            data-testid="plan-line-target"
+          <SimpleGrid cols={{ base: 1, xs: 2 }}>
+            <Select
+              label={t('plan.form.category')}
+              allowDeselect={false}
+              data={COST_PLAN_CATEGORIES.map((c) => ({ value: c, label: t(`plan.categories.${c}`) }))}
+              value={category}
+              onChange={(v) => v && setCategory(v as CostPlanCategory)}
+              data-testid="plan-line-category"
+            />
+            <Select
+              label={t('plan.form.for')}
+              description={t('plan.form.forHint')}
+              data={options}
+              value={target}
+              onChange={(v) => setTarget(v ?? NONE)}
+              searchable
+              data-testid="plan-line-target"
+            />
+          </SimpleGrid>
+          {category === 'cloud' && (
+            <Text size="xs" c="dimmed">
+              {t('plan.form.cloudHint')}
+            </Text>
+          )}
+          <TextInput
+            label={t('plan.form.vendor')}
+            description={t('plan.form.vendorHint')}
+            maxLength={COST_PLAN_LIMITS.vendorChars}
+            value={vendor}
+            onChange={(e) => setVendor(e.currentTarget.value)}
           />
-        </SimpleGrid>
-        {category === 'cloud' && (
+          <SimpleGrid cols={{ base: 1, xs: 3 }}>
+            <Select
+              label={t('plan.form.cadence')}
+              allowDeselect={false}
+              data={COST_PLAN_CADENCES.map((c) => ({ value: c, label: t(`plan.cadences.${c}`) }))}
+              value={cadence}
+              onChange={(v) => v && setCadence(v as CostPlanCadence)}
+              data-testid="plan-line-cadence"
+            />
+            <TextInput
+              label={t(`plan.form.amount.${cadence}`)}
+              inputMode="decimal"
+              required
+              value={amount}
+              onChange={(e) => setAmount(e.currentTarget.value)}
+              error={check.error('amount')}
+              data-testid="plan-line-amount"
+            />
+            <TextInput
+              label={t('plan.form.currency')}
+              maxLength={3}
+              required
+              value={currency}
+              onChange={(e) => setCurrency(e.currentTarget.value.toUpperCase())}
+              error={check.error('currency')}
+              data-testid="plan-line-currency"
+            />
+          </SimpleGrid>
+          {cadence === 'once' && (
+            <Select
+              label={t('plan.form.onceMonth')}
+              allowDeselect={false}
+              data={d.months.map((mo) => ({ value: mo, label: fmtMonth(mo, 'long') }))}
+              value={onceMonth}
+              onChange={setOnceMonth}
+            />
+          )}
+          <TextInput
+            type="date"
+            label={t('plan.form.renewal')}
+            description={t('plan.form.renewalHint')}
+            w={220}
+            value={renewal}
+            onChange={(e) => setRenewal(e.currentTarget.value)}
+          />
+          <Textarea
+            label={t('plan.form.note')}
+            autosize
+            minRows={2}
+            maxLength={COST_PLAN_LIMITS.noteChars}
+            value={note}
+            onChange={(e) => setNote(e.currentTarget.value)}
+          />
           <Text size="xs" c="dimmed">
-            {t('plan.form.cloudHint')}
+            {t('plan.form.noEffort')}
           </Text>
-        )}
-        <TextInput
-          label={t('plan.form.vendor')}
-          description={t('plan.form.vendorHint')}
-          maxLength={COST_PLAN_LIMITS.vendorChars}
-          value={vendor}
-          onChange={(e) => setVendor(e.currentTarget.value)}
-        />
-        <SimpleGrid cols={{ base: 1, xs: 3 }}>
-          <Select
-            label={t('plan.form.cadence')}
-            allowDeselect={false}
-            data={COST_PLAN_CADENCES.map((c) => ({ value: c, label: t(`plan.cadences.${c}`) }))}
-            value={cadence}
-            onChange={(v) => v && setCadence(v as CostPlanCadence)}
-            data-testid="plan-line-cadence"
-          />
-          <TextInput
-            label={t(`plan.form.amount.${cadence}`)}
-            inputMode="decimal"
-            required
-            value={amount}
-            onChange={(e) => setAmount(e.currentTarget.value)}
-            error={check.error('amount')}
-            data-testid="plan-line-amount"
-          />
-          <TextInput
-            label={t('plan.form.currency')}
-            maxLength={3}
-            required
-            value={currency}
-            onChange={(e) => setCurrency(e.currentTarget.value.toUpperCase())}
-            error={check.error('currency')}
-            data-testid="plan-line-currency"
-          />
-        </SimpleGrid>
-        {cadence === 'once' && (
-          <Select
-            label={t('plan.form.onceMonth')}
-            allowDeselect={false}
-            data={d.months.map((mo) => ({ value: mo, label: fmtMonth(mo, 'long') }))}
-            value={onceMonth}
-            onChange={setOnceMonth}
-          />
-        )}
-        <TextInput
-          type="date"
-          label={t('plan.form.renewal')}
-          description={t('plan.form.renewalHint')}
-          w={220}
-          value={renewal}
-          onChange={(e) => setRenewal(e.currentTarget.value)}
-        />
-        <Textarea
-          label={t('plan.form.note')}
-          autosize
-          minRows={2}
-          maxLength={COST_PLAN_LIMITS.noteChars}
-          value={note}
-          onChange={(e) => setNote(e.currentTarget.value)}
-        />
-        <Text size="xs" c="dimmed">
-          {t('plan.form.noEffort')}
-        </Text>
-        <Group justify="flex-end">
-          <Button variant="default" onClick={onClose}>
-            {t('common:cancel')}
-          </Button>
-          <Button onClick={save} loading={busy} data-testid="plan-line-save">
-            {t('common:save')}
-          </Button>
-        </Group>
-      </Stack>
+          <Group justify="flex-end">
+            <Button variant="default" onClick={onClose}>
+              {t('common:cancel')}
+            </Button>
+            <Button type="submit" loading={busy} data-testid="plan-line-save">
+              {t('common:save')}
+            </Button>
+          </Group>
+        </Stack>
+      </form>
     </Modal>
   );
 }
 
 function EntryDialog({ d, entry, onClose, onSaved }: { d: CostPlanYear; entry: CostEntry | null; onClose: () => void; onSaved: (y: CostPlanYear) => void }) {
   const { t } = useTranslation(['costs', 'common']);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localToday();
   const inYear = today >= d.from && today <= d.to;
   const [date, setDate] = useState(entry?.date ?? (inYear ? today : d.from));
   const [amount, setAmount] = useState(entry?.amount ?? '');
@@ -995,20 +1036,26 @@ function EntryDialog({ d, entry, onClose, onSaved }: { d: CostPlanYear; entry: C
   const check = useFieldErrors({
     date: !date && t('common:validation.required'),
     amount: (!amount.trim() && t('common:validation.required')) || (!amountOk(amount) && t('common:validation.invalid')),
-    currency: !/^[A-Za-z]{3}$/.test(currency.trim()) && t('common:validation.currency'),
+    currency: !ISO_4217_CODES.has(currency.trim().toUpperCase()) && t('common:validation.currency'),
   });
+  // a plan line sets the currency (the entry must be in the line's) and, when nothing is chosen yet, what it is for
+  const lineCurrency = (id: string) => d.lines.find((x) => x.id === id)?.currency ?? (id && id === entry?.planLineId ? entry.currency : null);
   const chooseLine = (v: string | null) => {
     setLineId(v ?? NONE);
     const l = d.lines.find((x) => x.id === v);
-    if (l) setCurrency(l.currency);
+    if (l) {
+      setCurrency(l.currency);
+      if (target === NONE && l.target && l.target.kind !== 'platform' && l.target.visible && !l.target.gone) setTarget(targetValue(l.target));
+    }
   };
+  const fromLine = lineCurrency(lineId);
   const save = async () => {
     if (!check.validate()) return;
     setBusy(true);
     const body = {
       date,
       amount: amountText(amount),
-      currency: currency.trim().toUpperCase(),
+      currency: (fromLine ?? currency).trim().toUpperCase(),
       planLineId: lineId || null,
       target: parseTarget(target),
       reference: reference.trim(),
@@ -1027,73 +1074,84 @@ function EntryDialog({ d, entry, onClose, onSaved }: { d: CostPlanYear; entry: C
   };
   return (
     <Modal opened onClose={onClose} title={entry ? t('plan.entry.editTitle') : t('plan.entry.addTitle')} size="lg">
-      <Stack>
-        <SimpleGrid cols={{ base: 1, xs: 3 }}>
-          <TextInput
-            type="date"
-            label={t('plan.entry.date')}
-            required
-            value={date}
-            onChange={(e) => setDate(e.currentTarget.value)}
-            error={check.error('date')}
-            data-testid="plan-entry-date"
+      <form onSubmit={submit(save)} noValidate>
+        <Stack>
+          <SimpleGrid cols={{ base: 1, xs: 3 }}>
+            <TextInput
+              type="date"
+              label={t('plan.entry.date')}
+              required
+              value={date}
+              onChange={(e) => setDate(e.currentTarget.value)}
+              error={check.error('date')}
+              data-testid="plan-entry-date"
+            />
+            <TextInput
+              label={t('plan.entry.amount')}
+              description={t('plan.entry.amountHint')}
+              inputMode="decimal"
+              required
+              data-autofocus
+              value={amount}
+              onChange={(e) => setAmount(e.currentTarget.value)}
+              error={check.error('amount')}
+              data-testid="plan-entry-amount"
+            />
+            <TextInput
+              label={t('plan.form.currency')}
+              description={fromLine ? t('plan.entry.currencyFromLine') : undefined}
+              maxLength={3}
+              required
+              readOnly={!!fromLine}
+              value={fromLine ?? currency}
+              onChange={(e) => setCurrency(e.currentTarget.value.toUpperCase())}
+              error={check.error('currency')}
+              data-testid="plan-entry-currency"
+            />
+          </SimpleGrid>
+          <Select
+            label={t('plan.entry.line')}
+            description={t('plan.entry.lineHint', { label: d.label })}
+            data={[
+              { value: NONE, label: t('plan.entry.unplannedOption') },
+              ...d.lines.map((l) => ({ value: l.id, label: `${l.title} (${l.currency})` })),
+              // a plan line of another fiscal year (the start month changed since): kept while it is not changed
+              ...(entry?.planLineYear && entry.planLineId
+                ? [{ value: entry.planLineId, label: t('plan.entry.otherYearOption', { title: entry.planLineTitle ?? '', label: entry.planLineYear.label }) }]
+                : []),
+            ]}
+            value={lineId}
+            onChange={chooseLine}
+            searchable
+            data-testid="plan-entry-line"
           />
+          <Select label={t('plan.form.for')} data={options} value={target} onChange={(v) => setTarget(v ?? NONE)} searchable data-testid="plan-entry-target" />
           <TextInput
-            label={t('plan.entry.amount')}
-            description={t('plan.entry.amountHint')}
-            inputMode="decimal"
-            required
-            data-autofocus
-            value={amount}
-            onChange={(e) => setAmount(e.currentTarget.value)}
-            error={check.error('amount')}
-            data-testid="plan-entry-amount"
+            label={t('plan.entry.reference')}
+            description={t('plan.entry.referenceHint')}
+            maxLength={COST_PLAN_LIMITS.referenceChars}
+            value={reference}
+            onChange={(e) => setReference(e.currentTarget.value)}
+            data-testid="plan-entry-reference"
           />
-          <TextInput
-            label={t('plan.form.currency')}
-            maxLength={3}
-            required
-            value={currency}
-            onChange={(e) => setCurrency(e.currentTarget.value.toUpperCase())}
-            error={check.error('currency')}
-            data-testid="plan-entry-currency"
+          <Textarea
+            label={t('plan.entry.note')}
+            autosize
+            minRows={2}
+            maxLength={COST_PLAN_LIMITS.noteChars}
+            value={note}
+            onChange={(e) => setNote(e.currentTarget.value)}
           />
-        </SimpleGrid>
-        <Select
-          label={t('plan.entry.line')}
-          description={t('plan.entry.lineHint', { label: d.label })}
-          data={[{ value: NONE, label: t('plan.entry.unplannedOption') }, ...d.lines.map((l) => ({ value: l.id, label: `${l.title} (${l.currency})` }))]}
-          value={lineId}
-          onChange={chooseLine}
-          searchable
-          data-testid="plan-entry-line"
-        />
-        <Select label={t('plan.form.for')} data={options} value={target} onChange={(v) => setTarget(v ?? NONE)} searchable data-testid="plan-entry-target" />
-        <TextInput
-          label={t('plan.entry.reference')}
-          description={t('plan.entry.referenceHint')}
-          maxLength={COST_PLAN_LIMITS.referenceChars}
-          value={reference}
-          onChange={(e) => setReference(e.currentTarget.value)}
-          data-testid="plan-entry-reference"
-        />
-        <Textarea
-          label={t('plan.entry.note')}
-          autosize
-          minRows={2}
-          maxLength={COST_PLAN_LIMITS.noteChars}
-          value={note}
-          onChange={(e) => setNote(e.currentTarget.value)}
-        />
-        <Group justify="flex-end">
-          <Button variant="default" onClick={onClose}>
-            {t('common:cancel')}
-          </Button>
-          <Button onClick={save} loading={busy} data-testid="plan-entry-save">
-            {t('common:save')}
-          </Button>
-        </Group>
-      </Stack>
+          <Group justify="flex-end">
+            <Button variant="default" onClick={onClose}>
+              {t('common:cancel')}
+            </Button>
+            <Button type="submit" loading={busy} data-testid="plan-entry-save">
+              {t('common:save')}
+            </Button>
+          </Group>
+        </Stack>
+      </form>
     </Modal>
   );
 }

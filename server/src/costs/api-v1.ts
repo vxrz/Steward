@@ -71,7 +71,7 @@ export function costApiRoutes(get: Get): void {
       tag: 'Costs',
       summary: 'Get the cost plan of a service for a fiscal year',
       description:
-        'Service cost planning (docs/COSTS.md#planning-per-service): the plan lines and cost entries of a fiscal year (one start month for the whole instance), per line and currency planned, planned to date, incurred to date, expected and the difference, the months, the cloud and platform costs read for the service (only when the token owner sees every application of it), unplanned entries and renewals in the next 90 days.',
+        'Service cost planning (docs/COSTS.md#planning-per-service): the plan lines and cost entries of a fiscal year (one start month for the whole instance), per line and currency planned, planned to date, incurred to date, expected and the difference, the months, the cloud and platform costs read for the service (only when the token owner sees every application of it), unplanned entries and renewals in the next 90 days. Not paged: a service has at most 200 plan lines and 2,000 cost entries per fiscal year, so the answer is bounded.',
       params: { serviceId: 'The id of the service' },
       query: CostPlanQuery,
       response: { $ref: 'CostPlanYear#' },
@@ -80,7 +80,7 @@ export function costApiRoutes(get: Get): void {
       const p = req.params as { serviceId: string };
       const q = req.query as z.infer<typeof CostPlanQuery>;
       try {
-        return planYear(p.serviceId, q.year);
+        return planYear(p.serviceId, q.fiscalYear);
       } catch (e) {
         if (e instanceof HttpError && e.statusCode === 404) throw notFound(`Service ${p.serviceId}`);
         throw e;

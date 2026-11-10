@@ -9,6 +9,7 @@ import { get } from '../../api';
 import { QueryState } from '../common';
 import { costKeys } from '../../queryKeys';
 import { fmtMoney } from './common';
+import { Difference } from './ServicePlan';
 
 /**
  * The cost plans of a team's services in one fiscal year (ADR 0026): per service and currency planned, incurred to
@@ -21,7 +22,7 @@ export function TeamCostPlan({ teamId }: { teamId: string }) {
   const [year, setYear] = useState<number | null>(null);
   const q = useQuery({
     queryKey: costKeys.teamPlan(teamId, year),
-    queryFn: () => get<CostPlanTeamYear>(`/costs/team-plans/${encodeURIComponent(teamId)}${year ? `?year=${year}` : ''}`),
+    queryFn: () => get<CostPlanTeamYear>(`/costs/team-plans/${encodeURIComponent(teamId)}${year ? `?fiscalYear=${year}` : ''}`),
   });
   const d = q.data;
   if (!d) return <QueryState query={q} />;
@@ -72,8 +73,13 @@ export function TeamCostPlan({ teamId }: { teamId: string }) {
           {rows.map(({ s, c, key }) => (
             <div key={key}>
               {name(s)}
-              <Text size="xs" c="dimmed" className="viz-num">
-                {t('plan.columns.planned')}: {fmtMoney(c.planned, c.currency)} · {t('plan.columns.expected')}: {fmtMoney(c.expected, c.currency)}
+              <Text size="xs" c="dimmed" className="viz-num" component="div">
+                {t('plan.columns.planned')}: {fmtMoney(c.planned, c.currency)} · {t('plan.columns.incurredToDate')}: {fmtMoney(c.incurredToDate, c.currency)}
+                {' · '}
+                {t('plan.columns.expected')}: {fmtMoney(c.expected, c.currency)}
+              </Text>
+              <Text size="xs" c="dimmed" component="div">
+                {t('plan.columns.difference')}: <Difference v={c.difference} currency={c.currency} />
               </Text>
             </div>
           ))}
@@ -105,8 +111,8 @@ export function TeamCostPlan({ teamId }: { teamId: string }) {
                   <Table.Td ta="right" className="viz-num">
                     {fmtMoney(c.expected, c.currency)}
                   </Table.Td>
-                  <Table.Td ta="right" className="viz-num">
-                    {fmtMoney(c.difference, c.currency)}
+                  <Table.Td ta="right">
+                    <Difference v={c.difference} currency={c.currency} />
                   </Table.Td>
                 </Table.Tr>
               ))}
@@ -122,7 +128,7 @@ export function TeamCostPlan({ teamId }: { teamId: string }) {
                 {t('plan.team.totals', { currency: x.currency })}
               </Text>
               <Text size="sm" fw={600} className="viz-num">
-                {fmtMoney(x.planned, x.currency)} → {fmtMoney(x.expected, x.currency)}
+                {t('plan.team.totalsLine', { planned: fmtMoney(x.planned, x.currency), expected: fmtMoney(x.expected, x.currency) })}
               </Text>
             </div>
           ))}

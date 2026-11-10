@@ -285,7 +285,7 @@ function ImportCard({ s }: { s: CostSourceSettings }) {
               </Text>
             )}
             {preview.warnings.map((w, i) => (
-              <Text key={i} size="xs" c="orange.8">
+              <Text key={i} size="xs" c="orange">
                 {w}
               </Text>
             ))}
@@ -439,7 +439,7 @@ function PushTokensCard({ platformId }: { platformId: string }) {
                   <Table.Td style={{ overflowWrap: 'anywhere' }}>
                     {x.name}
                     {x.creatorInactive && (
-                      <Text size="xs" c="orange.8">
+                      <Text size="xs" c="orange">
                         {t('push.creatorInactive')}
                       </Text>
                     )}

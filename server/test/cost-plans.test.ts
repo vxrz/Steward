@@ -167,7 +167,7 @@ describe('plan lines', () => {
     });
     expect(line.months.map(m)).toEqual(Array.from({ length: 12 }, () => 100));
     // a viewer reads it, may not change it
-    expect((await vera<CostPlanYear>('GET', `/costs/plans/${service}?year=2030`)).lines).toHaveLength(1);
+    expect((await vera<CostPlanYear>('GET', `/costs/plans/${service}?fiscalYear=2030`)).lines).toHaveLength(1);
     await expect(vera('POST', `/costs/plans/${service}/lines`, { ...base, fiscalYear: 2030 })).rejects.toMatchObject({ status: 403 });
     await expect(vera('DELETE', `/costs/plans/${service}/lines/${line.id}`)).rejects.toMatchObject({ status: 403 });
     // changed and removed by the owner
@@ -196,6 +196,14 @@ describe('plan lines', () => {
     await expect(post({ hours: 40 })).rejects.toMatchObject({ status: 400 });
     await expect(post({ category: 'staff' })).rejects.toMatchObject({ status: 400 });
     await expect(post({ amount: '0' })).rejects.toMatchObject({ status: 400 });
+    // ISO 4217 codes only: a typo would open a currency of its own in every total
+    await expect(post({ currency: 'EUX' })).rejects.toMatchObject({ status: 400 });
+    await expect(s.api('POST', `/costs/plans/${service}/entries`, { date: '2030-05-01', amount: '1', currency: 'XXX' })).rejects.toMatchObject({
+      status: 400,
+    });
+    const { ISO_4217_CODES } = await import('@sm/shared');
+    expect(['EUR', 'USD', 'JPY', 'CHF', 'XCG'].every((c) => ISO_4217_CODES.has(c))).toBe(true);
+    expect(ISO_4217_CODES.size).toBeGreaterThan(170);
     // a platform the caller may see
     const p = await post({ title: 'Platform share', category: 'cloud', target: { kind: 'platform', id: platform }, cadence: 'once', onceMonth: '2031-03' });
     expect(p.lines.find((l: { title: string }) => l.title === 'Platform share')).toMatchObject({
@@ -242,17 +250,17 @@ describe('plan lines', () => {
       onceMonth: '2032-06',
       renewalDate: '2035-05-31',
     });
-    const y = await olivia<CostPlanYear>('POST', `/costs/plans/${service}/copy`, { fromYear: 2032 });
+    const y = await olivia<CostPlanYear>('POST', `/costs/plans/${service}/copy`, { fiscalYear: 2032 });
     expect(y.fiscalYear).toBe(2033);
     const byTitle = Object.fromEntries(y.lines.map((l) => [l.title, l]));
     // a renewal before the new year moves on by a year; a later one stays; one-off payments keep their place
     expect(byTitle['Support contract']!.renewalDate).toBe('2033-12-31');
     expect(byTitle['Laptop']).toMatchObject({ renewalDate: '2035-05-31', onceMonth: '2033-06' });
-    await expect(s.api('POST', `/costs/plans/${service}/copy`, { fromYear: 2032 })).rejects.toMatchObject({
+    await expect(s.api('POST', `/costs/plans/${service}/copy`, { fiscalYear: 2032 })).rejects.toMatchObject({
       status: 409,
       body: { code: 'COST_PLAN_YEAR_NOT_EMPTY' },
     });
-    await expect(s.api('POST', `/costs/plans/${service}/copy`, { fromYear: 2050 })).rejects.toMatchObject({
+    await expect(s.api('POST', `/costs/plans/${service}/copy`, { fiscalYear: 2050 })).rejects.toMatchObject({
       status: 400,
       body: { code: 'COST_PLAN_NOTHING_TO_COPY' },
     });
@@ -355,6 +363,69 @@ describe('entries and the year view', () => {
     expect(audit).toEqual(expect.arrayContaining(['cost.entry_added', 'cost.entry_changed', 'cost.entry_removed']));
   });
 
+  it('a changed fiscal year start keeps an entry’s plan line; it counts as unplanned in its year and stays editable', async () => {
+    const svc = (await s.api('POST', '/services', { name: 'Start change service', owners: ['user:olivia'] })).id;
+    const y0 = await s.api('POST', `/costs/plans/${svc}/lines`, {
+      fiscalYear: 2036,
+      title: 'Annual support',
+      category: 'support',
+      amount: '1200',
+      currency: 'EUR',
+      cadence: 'yearly',
+    });
+    const lineId = y0.lines[0].id;
+    // February 2037 is in FY 2036/37 while the year starts in April
+    const y1 = await olivia<CostPlanYear>('POST', `/costs/plans/${svc}/entries`, { date: '2037-02-10', amount: '1200', currency: 'EUR', planLineId: lineId });
+    const entryId = y1.entries[0]!.id;
+    expect(y1.entries[0]).toMatchObject({ unplanned: false, planLineYear: null });
+    // what a January start would do: asked by the settings dialog (administrators only)
+    await expect(olivia('GET', '/costs/settings/fiscal-year-change?startMonth=1')).rejects.toMatchObject({ status: 403 });
+    const same = await s.api('GET', '/costs/settings/fiscal-year-change?startMonth=4');
+    const preview = await s.api('GET', '/costs/settings/fiscal-year-change?startMonth=1');
+    expect(preview).toMatchObject({ startMonth: 1 });
+    expect(preview.lines).toBeGreaterThan(0);
+    expect(preview.entriesOtherYear).toBe(same.entriesOtherYear + 1);
+    await s.api('PUT', '/costs/settings', { hideAmountsFromViewers: false, defaultCurrency: 'USD', fiscalYearStartMonth: 1 });
+    try {
+      const [a] = await s.api('GET', '/audit?action=cost.settings_changed');
+      expect(a.details).toMatchObject({ entriesOtherYear: preview.entriesOtherYear });
+      expect(a.summary).toContain('into another fiscal year than their plan line now');
+      // the entry is in FY 2037 now: unplanned there, its link kept and named with the line's year
+      const y2037 = await olivia<CostPlanYear>('GET', `/costs/plans/${svc}?fiscalYear=2037`);
+      expect(y2037.entries[0]).toMatchObject({
+        id: entryId,
+        unplanned: true,
+        planLineId: lineId,
+        planLineTitle: 'Annual support',
+        planLineYear: { fiscalYear: 2036, label: 'FY 2036' },
+      });
+      expect(y2037.currencies[0]!.unplanned.count).toBe(1);
+      // the line of FY 2036 no longer counts it
+      const y2036 = await olivia<CostPlanYear>('GET', `/costs/plans/${svc}?fiscalYear=2036`);
+      expect(y2036.lines[0]!.entries).toBe(0);
+      // a change that keeps the link is allowed; linking it to that line anew, or in another currency, is not
+      const kept = await olivia<CostPlanYear>('PUT', `/costs/plans/${svc}/entries/${entryId}`, {
+        date: '2037-02-10',
+        amount: '1200',
+        currency: 'EUR',
+        planLineId: lineId,
+        reference: 'INV-2037-7',
+      });
+      expect(kept.entries[0]).toMatchObject({ reference: 'INV-2037-7', planLineId: lineId, planLineYear: { fiscalYear: 2036 } });
+      await expect(
+        olivia('PUT', `/costs/plans/${svc}/entries/${entryId}`, { date: '2037-02-10', amount: '1200', currency: 'USD', planLineId: lineId }),
+      ).rejects.toMatchObject({ status: 400, body: { code: 'COST_ENTRY_PLAN_LINE' } });
+      await expect(
+        olivia('POST', `/costs/plans/${svc}/entries`, { date: '2037-02-11', amount: '5', currency: 'EUR', planLineId: lineId }),
+      ).rejects.toMatchObject({ status: 400, body: { code: 'COST_ENTRY_PLAN_LINE' } });
+      // unlinked, it is an ordinary unplanned entry
+      const unlinked = await olivia<CostPlanYear>('PUT', `/costs/plans/${svc}/entries/${entryId}`, { date: '2037-02-10', amount: '1200', currency: 'EUR' });
+      expect(unlinked.entries[0]).toMatchObject({ unplanned: true, planLineId: null, planLineYear: null });
+    } finally {
+      await s.api('PUT', '/costs/settings', { hideAmountsFromViewers: false, defaultCurrency: 'USD', fiscalYearStartMonth: 4 });
+    }
+  });
+
   it('has a limit of entries per fiscal year', async () => {
     const { db } = await import('../src/db.js');
     const now = new Date().toISOString();
@@ -373,7 +444,115 @@ describe('entries and the year view', () => {
       status: 409,
       body: { code: 'COST_ENTRY_LIMIT' },
     });
+    // nor can an entry of another year be moved in by its date; one of the full year may still be changed
+    const other = (await s.api('POST', `/costs/plans/${service}/entries`, { date: '2042-07-01', amount: '1', currency: 'EUR' })).entries[0].id;
+    await expect(s.api('PUT', `/costs/plans/${service}/entries/${other}`, { date: '2041-07-01', amount: '1', currency: 'EUR' })).rejects.toMatchObject({
+      status: 409,
+      body: { code: 'COST_ENTRY_LIMIT' },
+    });
+    await s.api('PUT', `/costs/plans/${service}/entries/cen_limit_0`, { date: '2041-08-01', amount: '2', currency: 'EUR' });
+    await s.api('DELETE', `/costs/plans/${service}/entries/${other}`);
     db().run("DELETE FROM cost_entries WHERE id LIKE 'cen_limit_%'");
+  });
+});
+
+describe('today in the instance time zone', () => {
+  it('counts an entry dated today and the current month by the local date, not UTC', async () => {
+    const { addEntry, addPlanLine, planYear } = await import('../src/costs/plans.js');
+    const svc = (await s.api('POST', '/services', { name: 'Time zone service' })).id;
+    addPlanLine(svc, { fiscalYear: 2026, title: 'Monthly', category: 'support', amount: '10', currency: 'EUR', cadence: 'monthly' });
+    addEntry(svc, { date: '2026-07-01', amount: '25', currency: 'EUR' });
+    // 30 June 13:00 UTC is 1 July 01:00 in Auckland
+    const at = Date.parse('2026-06-30T13:00:00Z');
+    const tz = process.env.TZ;
+    try {
+      process.env.TZ = 'UTC';
+      const utc = planYear(svc, 2026, at);
+      expect(utc.currentIndex).toBe(2);
+      expect(utc.currencies[0]!.unplanned.incurredToDate).toBe('0.00');
+      process.env.TZ = 'Pacific/Auckland';
+      const local = planYear(svc, 2026, at);
+      expect(local.currentIndex).toBe(3);
+      expect(local.currencies[0]!.unplanned.incurredToDate).toBe('25.00');
+    } finally {
+      if (tz === undefined) delete process.env.TZ;
+      else process.env.TZ = tz;
+    }
+  });
+});
+
+describe('at scale', () => {
+  it('computes a year of 200 lines and 2,000 entries with as many statements as a year of one of each', async () => {
+    const { db } = await import('../src/db.js');
+    const { planYear } = await import('../src/costs/plans.js');
+    const { requestDbStats } = await import('../src/database/timing.js');
+    const svc = (await s.api('POST', '/services', { name: 'Large plan service' })).id;
+    const app = (await s.api('POST', '/applications', { name: 'Large plan app' })).id;
+    await s.api('PUT', `/services/${svc}/applications/${app}`, {});
+    const sys = (await s.api('POST', '/systems', { name: 'large-plan-host', kind: 'vm' })).id;
+    await s.api('POST', `/applications/${app}/systems`, { systemId: sys, environment: 'prod' });
+    const targets = [
+      ['application', app],
+      ['system', sys],
+      ['platform', platform],
+      [null, null],
+    ] as const;
+    const now = new Date().toISOString();
+    const insert = (lines: number, entries: number, tag: string) =>
+      db().tx(() => {
+        for (let i = 0; i < lines; i++) {
+          const [kind, id] = targets[i % 4]!;
+          db().run(
+            `INSERT INTO cost_plan_lines (id, service_id, fiscal_year, title, category, target_kind, target_id, vendor, amount, currency, cadence, note, created_at, created_by, updated_at, updated_by)
+             VALUES (?, ?, 2045, ?, 'cloud', ?, ?, '', 1000000, 'EUR', 'monthly', '', ?, 'admin', ?, 'admin')`,
+            `cpl_${tag}_${i}`,
+            svc,
+            `Line ${tag} ${i}`,
+            kind,
+            id,
+            now,
+            now,
+          );
+        }
+        for (let i = 0; i < entries; i++) {
+          const [kind, id] = targets[(i + 1) % 4]!;
+          db().run(
+            `INSERT INTO cost_entries (id, service_id, entry_date, amount, currency, plan_line_id, target_kind, target_id, reference, note, created_at, created_by, updated_at, updated_by)
+             VALUES (?, ?, ?, 1000000, 'EUR', ?, ?, ?, '', '', ?, 'admin', ?, 'admin')`,
+            `cen_${tag}_${i}`,
+            svc,
+            `${shiftMonth('2045-04', i % 12)}-15`,
+            i % 3 ? `cpl_${tag}_${i % Math.max(lines, 1)}` : null,
+            kind,
+            id,
+            now,
+            now,
+          );
+        }
+      });
+    const statements = (fn: () => void) => {
+      const st = { statements: 0, ms: 0 };
+      requestDbStats.run(st, fn);
+      return st.statements;
+    };
+    const at = Date.parse('2045-08-15T12:00:00Z');
+    insert(4, 4, 'few');
+    const few = statements(() => planYear(svc, 2045, at));
+    expect(few).toBeGreaterThan(0);
+    insert(196, 1996, 'many');
+    let y = planYear(svc, 2045, at);
+    expect([y.lines.length, y.entries.length]).toEqual([200, 2000]);
+    const many = statements(() => (y = planYear(svc, 2045, at)));
+    // no statement per line or entry: the same count as with four of each
+    expect(many).toBe(few);
+    expect(many).toBeLessThan(30);
+    expect(y.lines.find((l) => l.target?.kind === 'platform')!.target).toMatchObject({ name: 'AWS (demo)', visible: true });
+    expect(y.entries.find((e) => e.target?.kind === 'system')!.target).toMatchObject({ name: 'large-plan-host', visible: true });
+    const started = performance.now();
+    planYear(svc, 2045, at);
+    expect(performance.now() - started).toBeLessThan(2000);
+    db().run('DELETE FROM cost_entries WHERE service_id = ?', svc);
+    db().run('DELETE FROM cost_plan_lines WHERE service_id = ?', svc);
   });
 });
 
@@ -482,14 +661,14 @@ describe('the costs read from the cost model', () => {
       currency: 'USD',
       cadence: 'monthly',
     });
-    const mine = await olivia<CostPlanYear>('GET', `/costs/plans/${service}?year=2026`);
+    const mine = await olivia<CostPlanYear>('GET', `/costs/plans/${service}?fiscalYear=2026`);
     expect(mine.cloud).toBe('hidden');
     expect(mine.lines.find((l) => l.title === 'Hosting A')!.read).toBe('hidden');
     expect(mine.currencies.every((c) => c.read === null && c.months.every((x) => x.read === null))).toBe(true);
     expect(JSON.stringify(mine)).not.toContain('99.00');
     // the hidden application is not offered either
     expect(mine.targets.map((t) => t.id)).toEqual([appA, system]);
-    const admin = await s.api('GET', `/costs/plans/${service}?year=2026`);
+    const admin = await s.api('GET', `/costs/plans/${service}?fiscalYear=2026`);
     expect(admin.cloud).toBe('shown');
     expect(admin.currencies.find((c: { currency: string }) => c.currency === 'USD').read.incurredToDate).toBe('99.00');
   });
@@ -497,10 +676,10 @@ describe('the costs read from the cost model', () => {
   it('amounts follow "hide amounts from viewers"', async () => {
     await s.api('PUT', '/costs/settings', { hideAmountsFromViewers: true, defaultCurrency: 'USD' });
     try {
-      const y = await vera<CostPlanYear>('GET', `/costs/plans/${service}?year=2026`);
+      const y = await vera<CostPlanYear>('GET', `/costs/plans/${service}?fiscalYear=2026`);
       expect(y.amountsVisible).toBe(false);
       expect(y.lines[0]).toMatchObject({ title: 'Hosting A', amount: null, planned: null, expected: null });
-      expect((await olivia<CostPlanYear>('GET', `/costs/plans/${service}?year=2026`)).lines[0]!.amount).toBe('100.00');
+      expect((await olivia<CostPlanYear>('GET', `/costs/plans/${service}?fiscalYear=2026`)).lines[0]!.amount).toBe('100.00');
     } finally {
       await s.api('PUT', '/costs/settings', { hideAmountsFromViewers: false, defaultCurrency: 'USD' });
     }
@@ -518,13 +697,13 @@ describe('export, API and the team rollup', () => {
       cadence: 'monthly',
     });
     await s.api('POST', `/costs/plans/${service}/entries`, { date: '2035-06-01', amount: '-3.25', currency: 'EUR', reference: 'CN-7, credit' });
-    const plan: string = await vera('GET', `/costs/plans/${service}/export?year=2035`);
+    const plan: string = await vera('GET', `/costs/plans/${service}/export?fiscalYear=2035`);
     const lines = plan.replace('﻿', '').trim().split('\r\n');
     expect(lines[0]).toContain('Fiscal year,Title,Category');
     // a formula is defused
     expect(lines[1]).toContain(`FY 2035/36,"'=HYPERLINK(""x"")"`);
     expect(lines[1]).toContain(',12.50,EUR,monthly,');
-    const entries: string = await vera('GET', `/costs/plans/${service}/export?year=2035&what=entries`);
+    const entries: string = await vera('GET', `/costs/plans/${service}/export?fiscalYear=2035&what=entries`);
     expect(entries).toContain('2035-06-01,-3.25,EUR,,yes,,,"CN-7, credit",');
   });
 
@@ -534,12 +713,12 @@ describe('export, API and the team rollup', () => {
       const res = await fetch(`${s.base}/api/v1${path}`, { headers: { authorization: `Bearer ${token}` } });
       return { status: res.status, json: await res.json() };
     };
-    const one = await v1(`/services/${service}/cost-plan?year=2026`);
+    const one = await v1(`/services/${service}/cost-plan?fiscalYear=2026`);
     expect(one.status).toBe(200);
     expect(one.json).toMatchObject({ fiscalYear: 2026, label: 'FY 2026/27', cloud: 'hidden' });
     expect(one.json.lines[0]).toMatchObject({ title: 'Hosting A', read: 'hidden' });
     expect((await v1('/services/svc_missing/cost-plan')).status).toBe(404);
-    expect((await v1(`/services/${service}/cost-plan?year=1999`)).status).toBe(400);
+    expect((await v1(`/services/${service}/cost-plan?fiscalYear=1999`)).status).toBe(400);
   });
 
   it('offers the MCP tool get_service_cost_plan with the token owner’s rights', async () => {
@@ -604,7 +783,7 @@ describe('export, API and the team rollup', () => {
       currency: 'USD',
       cadence: 'monthly',
     });
-    const r = await olivia('GET', `/costs/team-plans/${planTeam}?year=2026`);
+    const r = await olivia('GET', `/costs/team-plans/${planTeam}?fiscalYear=2026`);
     expect(r).toMatchObject({ teamName: 'Plan team', label: 'FY 2026/27' });
     expect(r.services.map((x: { name: string; shared: boolean }) => [x.name, x.shared])).toEqual([
       ['Team service 1', false],
@@ -619,13 +798,56 @@ describe('export, API and the team rollup', () => {
 
   it('publishes the dataset "Cost plans" for administrators and auditors', async () => {
     const { publishCostPlansDataset } = await import('../src/costs/dataset.js');
-    expect(publishCostPlansDataset(true, Date.parse('2026-11-10T12:00:00Z'))).toBe(true);
+    expect(await publishCostPlansDataset(true, Date.parse('2026-11-10T12:00:00Z'))).toBe(true);
     const ds = await s.api('GET', '/datasets/costs.plans');
     const row = ds.rows.find((r: { Service: string; Currency: string }) => r.Service === 'Planned service' && r.Currency === 'USD');
     expect(row).toMatchObject({ 'Fiscal year': 'FY 2026/27', Planned: 1200 });
     const audrey = await s.as('audrey', PW);
     expect((await audrey('GET', '/datasets/costs.plans')).rows.length).toBeGreaterThan(0);
     await expect(vera('GET', '/datasets/costs.plans')).rejects.toMatchObject({ status: 404 });
+  });
+
+  it('covers the same services in the team rollup, the dataset and the export: not archived, with lines or entries in the year', async () => {
+    const { db } = await import('../src/db.js');
+    const { planServices, planExportRows, PLAN_EXPORT_HEADS } = await import('../src/costs/plans.js');
+    const { publishCostPlansDataset } = await import('../src/costs/dataset.js');
+    const setTeam = (await s.api('POST', '/teams', { name: 'Same set team', members: ['olivia'] })).id;
+    const own = (sid: string) =>
+      db().run("INSERT INTO resource_teams (kind, resource_id, team_id, created_at) VALUES ('service', ?, ?, ?)", sid, setTeam, new Date().toISOString());
+    const onlyEntries = (await s.api('POST', '/services', { name: 'Set entries only' })).id;
+    const archived = (await s.api('POST', '/services', { name: 'Set archived' })).id;
+    const nothing = (await s.api('POST', '/services', { name: 'Set nothing' })).id;
+    for (const sid of [onlyEntries, archived, nothing]) own(sid);
+    await s.api('POST', `/costs/plans/${onlyEntries}/entries`, { date: '2026-05-04', amount: '30', currency: 'EUR' });
+    await s.api('POST', `/costs/plans/${archived}/lines`, {
+      fiscalYear: 2026,
+      title: 'Old',
+      category: 'other',
+      amount: '5',
+      currency: 'EUR',
+      cadence: 'monthly',
+    });
+    db().run('UPDATE services SET archived = 1 WHERE id = ?', archived);
+    const ids = planServices(2026, 4).map((x) => x.id);
+    expect(ids).toContain(onlyEntries);
+    expect(ids).not.toContain(archived);
+    expect(ids).not.toContain(nothing);
+    const team = await olivia('GET', `/costs/team-plans/${setTeam}?fiscalYear=2026`);
+    expect(team.services.map((x: { id: string }) => x.id)).toEqual([onlyEntries]);
+    await publishCostPlansDataset(true, Date.parse('2026-11-10T12:00:00Z'));
+    const ds = await s.api('GET', '/datasets/costs.plans');
+    expect(ds.rows.map((r: { Service: string }) => r.Service)).toEqual(expect.arrayContaining(['Set entries only']));
+    expect(ds.rows.map((r: { Service: string }) => r.Service)).not.toContain('Set archived');
+    const out: string[] = [];
+    for await (const x of planExportRows(2026, Date.parse('2026-11-10T12:00:00Z'))) out.push(...x.entries);
+    expect(out.some((r) => r.startsWith(`${onlyEntries},Set entries only,2026-05-04,30.00,EUR`))).toBe(true);
+    expect(out.join('\n')).not.toContain('Set archived');
+    // the same columns whether there is anything to export or not
+    expect(PLAN_EXPORT_HEADS.plan.split(',')).toHaveLength(19);
+    expect(PLAN_EXPORT_HEADS.entries.split(',')).toHaveLength(11);
+    const none: unknown[] = [];
+    for await (const x of planExportRows(2090)) none.push(x);
+    expect(none).toEqual([]);
   });
 
   it('answers 404 while the costs module is off', async () => {

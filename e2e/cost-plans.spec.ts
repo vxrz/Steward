@@ -58,11 +58,12 @@ async function plan(page: Page, f: { app: { name: string }; service: { id: strin
   await expect(dialog).toBeHidden();
   await expect(view.getByTestId('plan-lines')).toContainText('Support contract');
 
-  // an entry on the licence line, and an unplanned one
+  // an entry on the licence line (its currency comes from the line), and an unplanned one saved with Enter
   await view.getByTestId('plan-add-entry').click();
   dialog = page.getByRole('dialog', { name: 'New cost entry' });
   await dialog.getByRole('textbox', { name: 'Amount' }).fill('1200');
   await chooseOption(page, 'Plan line', 'Historian licences (EUR)');
+  await expect(dialog.getByRole('textbox', { name: 'Currency' })).toHaveAttribute('readonly', '');
   await dialog.getByRole('textbox', { name: 'Reference' }).fill('INV-88412');
   await expectAccessible(page, 'cost plan: entry dialog');
   await dialog.getByTestId('plan-entry-save').click();
@@ -71,7 +72,7 @@ async function plan(page: Page, f: { app: { name: string }; service: { id: strin
   dialog = page.getByRole('dialog', { name: 'New cost entry' });
   await dialog.getByRole('textbox', { name: 'Amount' }).fill('50');
   await dialog.getByRole('textbox', { name: 'Reference' }).fill('PO-55790');
-  await dialog.getByTestId('plan-entry-save').click();
+  await dialog.getByRole('textbox', { name: 'Reference' }).press('Enter');
   await expect(dialog).toBeHidden();
 
   // the year in EUR: 1,200 + 12 × 100 planned; the licence is paid, nothing of the support booked yet, 50 unplanned
@@ -99,12 +100,23 @@ async function plan(page: Page, f: { app: { name: string }; service: { id: strin
   // grouped by application or system
   await view.getByTestId('plan-group').getByText('Application or system').click();
   await expect(view.getByTestId('plan-group-section').first()).toContainText(f.app.name);
-  await expect(view.getByTestId('plan-group-section').nth(1)).toContainText('Not for one application or system');
+  await expect(view.getByTestId('plan-group-section').nth(1)).toContainText('Not tied to an application or system');
   // the table twin of the chart
   await eur.getByRole('button', { name: 'Show as table' }).click();
   await expect(eur.getByTestId('plan-months')).toBeVisible();
   await expectAccessible(page, 'cost plan: months table');
   if (mobile) await expectNoHorizontalScroll(page);
+  // the plan links to the costs read for the service, and back
+  await expect(view.getByTestId('plan-costs-read')).toHaveAttribute('href', appHref(`/costs/service/${f.service.id}`));
+  // removing the unplanned entry: a removal, confirmed as such, with a toast
+  await view
+    .getByTestId('plan-entries')
+    .getByRole('button', { name: /^Remove the entry of / })
+    .first()
+    .click();
+  const confirm = page.getByRole('dialog', { name: 'Confirm removal' });
+  await confirm.getByRole('button', { name: 'Remove' }).click();
+  await expect(page.getByText('Cost entry removed')).toBeVisible();
 }
 
 test('cost plan: fiscal year start, plan lines, entries and the year view', async ({ page, apiAs }) => {
@@ -118,7 +130,14 @@ test('cost plan: fiscal year start, plan lines, entries and the year view', asyn
     const dialog = page.getByRole('dialog', { name: 'Cost settings' });
     await chooseOption(page, 'Fiscal year starts in', 'April');
     await expectAccessible(page, 'costs: settings with the fiscal year');
+    const change = await json<{ lines: number; entries: number }>(await api.get('/api/costs/settings/fiscal-year-change?startMonth=4'));
     await dialog.getByRole('button', { name: 'Save' }).click();
+    // a new start with plans in the instance asks first and says what moves
+    if (before.fiscalYearStartMonth !== 4 && change.lines + change.entries > 0) {
+      const confirm = page.getByRole('dialog', { name: 'Change the fiscal year start?' });
+      await expect(confirm).toContainText('plan lines keep their fiscal year');
+      await confirm.getByRole('button', { name: 'Change' }).click();
+    }
     await expect(dialog).toBeHidden();
     expect((await json<{ fiscalYearStartMonth: number }>(await api.get('/api/costs/settings'))).fiscalYearStartMonth).toBe(4);
     await plan(page, f, false, 4);
@@ -126,6 +145,9 @@ test('cost plan: fiscal year start, plan lines, entries and the year view', asyn
     const csv = await api.get(`/api/costs/plans/${f.service.id}/export?what=plan`);
     expect(csv.ok()).toBe(true);
     expect(await csv.text()).toContain('Historian licences');
+    // the costs read for the service link to its cost plan
+    await page.goto(`/costs/service/${f.service.id}`);
+    await expect(page.getByTestId('open-cost-plan')).toHaveAttribute('href', appHref(`/services/${f.service.id}/costs`));
     // the service page links its tab below the base path
     await page.goto(`/services/${f.service.id}`);
     await expect(page.getByTestId('service-tab-costs')).toHaveAttribute('href', appHref(`/services/${f.service.id}/costs`));

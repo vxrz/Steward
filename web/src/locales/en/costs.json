@@ -31,7 +31,7 @@
   "hiddenHintOne": "Amounts are shown to the owners, the members of the owning teams, administrators and auditors. You see the changes and the budget's state.",
   "empty": {
     "title": "No costs yet",
-    "who": "Who may manage a platform turns on reading its costs, or imports a FOCUS file, under Costs → Platforms → the platform → Source.",
+    "who": "Whoever may manage a platform turns on reading its costs, or imports a FOCUS file, under Costs → Platforms → the platform → Source.",
     "platforms": "Go to the platforms",
     "service": "No service has costs yet: costs reach a service through its applications.",
     "application": "No application has costs yet: a tag on the costs (default “application”) or a platform that belongs to the application links them.",
@@ -49,7 +49,14 @@
     "saved": "Cost settings saved",
     "notSaved": "Cost settings not saved",
     "fiscalYear": "Fiscal year starts in",
-    "fiscalYearHint": "One start month for the whole instance; the service cost plans use it. Changing it later reads every plan in the new year boundaries."
+    "fiscalYearHint": "One start month for the whole instance; the service cost plans use it. Changing it later moves every plan into the new fiscal-year boundaries – choose it once.",
+    "fiscalYearChange": {
+      "title": "Change the fiscal year start?",
+      "message": "Every plan is then read in the new fiscal-year boundaries: plan lines keep their fiscal year, cost entries count in the year their date falls in.",
+      "otherYear_one": "{{count}} cost entry then falls into another fiscal year than its plan line. The link stays; the entry counts as unplanned in its year and can be linked to a plan line of that year.",
+      "otherYear_other": "{{count}} cost entries then fall into another fiscal year than their plan line. The links stay; the entries count as unplanned in their year and can be linked to a plan line of that year.",
+      "button": "Change"
+    }
   },
   "tabsLabel": "Costs of the platform",
   "tabs": {
@@ -65,12 +72,13 @@
   "open": {
     "service": "Open the service",
     "application": "Open the application",
-    "platform": "Open the platform"
+    "platform": "Open the platform",
+    "plan": "Cost plan"
   },
   "currencyTitle": "Costs in {{currency}}",
   "none": {
     "title": "No costs here yet",
-    "who": "Who may manage a platform reads its costs or imports a FOCUS file; the tag (default “application”) links them to applications.",
+    "who": "Whoever may manage a platform reads its costs or imports a FOCUS file; the tag (default “application”) links them to applications.",
     "service": "None of the service's applications has costs linked to it.",
     "application": "No costs are linked to this application – check the tag of its cloud accounts and the FOCUS files.",
     "team": "No application or platform of the team has costs yet.",
@@ -280,7 +288,7 @@
     "groups": {
       "category": "Category",
       "target": "Application or system",
-      "none": "Not for one application or system"
+      "none": "Not tied to an application or system"
     },
     "lines": {
       "title": "Plan lines"
@@ -323,7 +331,6 @@
       "platform": "A platform you may not see"
     },
     "targetKinds": {
-      "none": "None",
       "application": "Applications of the service",
       "system": "Systems of the service",
       "platform": "Platforms",
@@ -336,7 +343,7 @@
     },
     "empty": {
       "title": "No plan for {{label}} yet",
-      "who": "Who may change the service adds plan lines and cost entries.",
+      "who": "Whoever may change the service adds plan lines and cost entries.",
       "body": "Plan the licences, cloud, service and support, hardware and other costs of the service for the fiscal year, and record what was incurred."
     },
     "chart": {
@@ -358,21 +365,22 @@
     "line": {
       "add": "Add plan line",
       "addTitle": "New plan line, {{label}}",
-      "editTitle": "Change plan line, {{label}}",
-      "edit": "Change {{title}}",
+      "editTitle": "Edit plan line, {{label}}",
+      "edit": "Edit {{title}}",
       "remove": "Remove {{title}}",
       "removeConfirm": "Remove the plan line “{{title}}”?",
       "removeWithEntries_one": "Remove the plan line “{{title}}”? Its {{count}} entry stays and counts as unplanned.",
       "removeWithEntries_other": "Remove the plan line “{{title}}”? Its {{count}} entries stay and count as unplanned.",
       "saved": "Plan line saved",
-      "notSaved": "Plan line not saved"
+      "notSaved": "Plan line not saved",
+      "removed": "Plan line removed"
     },
     "form": {
       "title": "Title",
       "category": "Category",
       "for": "For",
       "forHint": "An application or system of the service (a platform for cloud lines)",
-      "noTarget": "Not for one of them",
+      "noTarget": "Not tied to an application or system",
       "cloudHint": "A cloud line for an application or platform is compared with the costs Steward reads for it (the platform: the share of the service's applications).",
       "vendor": "Vendor or contract",
       "vendorHint": "Free text, e.g. the vendor and the contract number",
@@ -399,8 +407,8 @@
     "entry": {
       "add": "Add cost entry",
       "addTitle": "New cost entry",
-      "editTitle": "Change cost entry",
-      "edit": "Change the entry of {{date}}",
+      "editTitle": "Edit cost entry",
+      "edit": "Edit the entry of {{date}}",
       "remove": "Remove the entry of {{date}}",
       "removeConfirm": "Remove the cost entry of {{date}}?",
       "date": "Date",
@@ -414,16 +422,23 @@
       "referenceHint": "Invoice or order number",
       "note": "Note",
       "saved": "Cost entry saved",
-      "notSaved": "Cost entry not saved"
+      "notSaved": "Cost entry not saved",
+      "otherYear": "Plan line of {{label}}: {{title}}",
+      "otherYearOption": "{{title}} ({{label}}, kept)",
+      "removed": "Cost entry removed",
+      "currencyFromLine": "From the plan line"
     },
     "team": {
       "title": "Plans of the team's services",
       "hint": "The cost plans of the services the team owns, per currency. A service of several teams counts for each of them.",
       "service": "Service",
-      "shared": "also another team's",
-      "cloudHidden": "cloud figures hidden",
+      "shared": "Shared with another team",
+      "cloudHidden": "Cloud figures hidden",
       "totals": "All services ({{currency}})",
-      "none": "None of the team's services has a plan for {{label}}."
-    }
+      "none": "None of the team's services has a plan for {{label}}.",
+      "totalsLine": "{{planned}} planned · {{expected}} expected"
+    },
+    "costsRead": "Costs read",
+    "costsReadHint": "The costs Steward reads from the platforms for this service, month by month"
   }
 }
