@@ -653,6 +653,21 @@ const EXPECT: Record<string, Access> = {
   'GET /api/compliance/evidence-packs/:packId': ADMIN_AUDITOR,
   'DELETE /api/compliance/evidence-packs/:packId': ADMIN,
   'GET /api/compliance/evidence-packs/:packId/download': ADMIN_AUDITOR,
+  // corrective actions (ADR 0029): read by the roles of the register and the service's editors; changed in the app only
+  'GET /api/compliance/corrective-actions': ALL, // each sees the findings they may read
+  'POST /api/compliance/corrective-actions': DESIGN,
+  'GET /api/compliance/corrective-actions/:findingId': ['admin', 'designer', 'approver', 'auditor'],
+  'PUT /api/compliance/corrective-actions/:findingId': DESIGN,
+  'POST /api/compliance/corrective-actions/:findingId/actions': DESIGN,
+  'PUT /api/compliance/corrective-actions/:findingId/actions/:actionId': DESIGN,
+  'DELETE /api/compliance/corrective-actions/:findingId/actions/:actionId': DESIGN,
+  'POST /api/compliance/corrective-actions/:findingId/effectiveness': ['admin', 'designer', 'approver'],
+  'POST /api/compliance/corrective-actions/:findingId/cancel': ADMIN,
+  'GET /api/compliance/corrective-suggestions': ALL,
+  'POST /api/compliance/corrective-suggestions/:suggestionId/confirm': DESIGN,
+  'POST /api/compliance/corrective-suggestions/:suggestionId/dismiss': DESIGN,
+  'GET /api/compliance/corrective-settings': ALL,
+  'PUT /api/compliance/corrective-settings': ADMIN,
 
   'POST /api/record-types': ADMIN,
   'PUT /api/record-types/:id': ADMIN,
@@ -949,6 +964,8 @@ const EXPECT: Record<string, Access> = {
   'GET /api/v1/control-catalogues': ALL,
   'GET /api/v1/controls': ALL,
   'GET /api/v1/control-coverage': ALL,
+  'GET /api/v1/corrective-actions': ALL,
+  'GET /api/v1/corrective-actions/:findingId': ['admin', 'designer', 'approver', 'auditor'],
   'GET /api/v1/credentials': ALL,
   'GET /api/v1/credentials/:credentialId': NOT_VIEWER,
 
@@ -1352,6 +1369,17 @@ const SESSION_ONLY = [
   'POST /api/library-releases/:id/withdraw',
   'DELETE /api/library-releases/:id',
   'POST /api/library-releases/upload',
+  // corrective actions (ADR 0029 decision 9): decisions of people in the app
+  'POST /api/compliance/corrective-actions',
+  'PUT /api/compliance/corrective-actions/:findingId',
+  'POST /api/compliance/corrective-actions/:findingId/actions',
+  'PUT /api/compliance/corrective-actions/:findingId/actions/:actionId',
+  'DELETE /api/compliance/corrective-actions/:findingId/actions/:actionId',
+  'POST /api/compliance/corrective-actions/:findingId/effectiveness',
+  'POST /api/compliance/corrective-actions/:findingId/cancel',
+  'POST /api/compliance/corrective-suggestions/:suggestionId/confirm',
+  'POST /api/compliance/corrective-suggestions/:suggestionId/dismiss',
+  'PUT /api/compliance/corrective-settings',
   'POST /api/library-publishers',
   'PUT /api/library-publishers/:id',
   'DELETE /api/library-publishers/:id',
@@ -1727,6 +1755,10 @@ function fill(url: string): string {
       .replace(/:requestId/g, 'mrq_none')
       .replace(/:pageId/g, fx.statusPage!)
       .replace(/:snapshotId/g, fx.snapshot!)
+      // corrective actions (ADR 0029): a finding with one action, a pending suggestion
+      .replace(/corrective-actions\/:findingId/g, `corrective-actions/${fx.correctiveFinding}`)
+      .replace(/:actionId/g, fx.correctiveAction!)
+      .replace(/:suggestionId/g, fx.correctiveSuggestion!)
       .replace(/:findingId/g, fx.finding!)
       .replace(/:catalogueId/g, fx.catalogue!)
       .replace(/:controlId/g, fx.control!)
@@ -2454,6 +2486,23 @@ beforeAll(async () => {
     ).id,
     statusPage: (await a('POST', '/status-pages', { title: 'Matrix status', serviceIds: [svc.id] })).id,
   });
+  // corrective actions (ADR 0029): a finding of the matrix service with an action of the administrator, a suggestion
+  const caFinding = await a('POST', '/compliance/corrective-actions', { title: 'Matrix finding', source: 'internalAudit', serviceId: svc.id });
+  const caWithAction = await a('POST', `/compliance/corrective-actions/${caFinding.id}/actions`, {
+    title: 'Matrix action',
+    owners: ['user:admin'],
+    dueDate: '2030-01-01',
+  });
+  {
+    const { db } = await import('../src/db.js');
+    db().run(
+      `INSERT INTO ca_suggestions (id, source, source_key, title, severity, occurred_at, status, created_at)
+       VALUES ('cas_matrix', 'duty', 'matrix:duty', 'Matrix suggestion', 'minor', ?, 'pending', ?)`,
+      new Date().toISOString(),
+      new Date().toISOString(),
+    );
+  }
+  Object.assign(fx, { correctiveFinding: caFinding.id, correctiveAction: caWithAction.actions[0].id, correctiveSuggestion: 'cas_matrix' });
   for (const role of ROLES) cookies[role] = await loginCookie(s.base, USERS[role], role === 'admin' ? 'Admin-password-1' : PW);
   for (const role of ROLES) {
     const res = await fetch(`${s.base}/api/me/tokens`, {

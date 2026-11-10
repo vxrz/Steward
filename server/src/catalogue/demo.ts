@@ -24,7 +24,7 @@ import { migrateVendorTexts } from '../suppliers/migrate.js';
  * demo monitors linked, two availability objectives (Prometheus and a Steward monitor), a duty, a system in two
  * environments, a decision record, a change record, a reviewed operations manual, credential register entries
  * (metadata only – never a secret), a vendor ticket, a planned maintenance window, a status page and a weekly report
- * schedule. Everything is invented. It runs once: when the first demo service exists, it does nothing.
+ * schedule, and two corrective action findings with a suggestion (Compliance module). Everything is invented. It runs once: when the first demo service exists, it does nothing.
  */
 export const DEMO_SERVICES = { shop: 'Online shop (demo)', care: 'Customer care (demo)', plant: 'Plant monitoring (demo)' } as const;
 
@@ -364,5 +364,11 @@ export async function setupServiceDemo(now = Date.now()): Promise<number> {
   if (moduleEnabled('costs')) step('cost plans', () => setupCostPlanDemo({ shop: shop.id, plant: plant.id }, now));
   // the free-text vendors left (page watches, cost plan lines) become suppliers to confirm, as after an upgrade
   step('vendor texts', () => migrateVendorTexts());
+  // ---- corrective actions (ADR 0029): two findings and a suggestion of a missed duty period ----
+  if (moduleEnabled('compliance'))
+    await (await import('../compliance/corrective-demo.js')).setupCorrectiveDemo({ shop: shop.id, care: care.id }, now).catch((err: unknown) =>
+      // a demo must never fail half way: logged, the rest stays
+      logger.warn({ err: (err as Error).message }, 'demo corrective actions not loaded'),
+    );
   return 3;
 }

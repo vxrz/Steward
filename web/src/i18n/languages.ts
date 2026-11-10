@@ -57,6 +57,7 @@ export const NAMESPACES = [
   'contracts',
   'libraries',
   'suppliers',
+  'corrective',
 ] as const;
 export type Namespace = (typeof NAMESPACES)[number];
 

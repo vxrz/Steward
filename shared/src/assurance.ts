@@ -123,6 +123,17 @@ export const CONTROL_POINTS: readonly ControlPoint[] = [
   sp('evidencePack.export', 'audit', ['exportEvidencePack']),
   sp('credentials.export', 'audit', ['exportCredentials']),
   sp('personalData.export', 'audit', ['exportPersonalData']),
+  {
+    // corrective actions (0.17.0, ADR 0029): who confirms that a fix worked is a second person – not the finding's owner,
+    // an action's owner or who marked an action done. Required by default; an administrator may set it off
+    key: 'correctiveAction.verify',
+    group: 'audit',
+    actions: [],
+    supports: { fourEyes: true, stepUp: false },
+    baseline: {},
+    defaults: { fourEyes: 'required', stepUp: false },
+    fourEyesLevels: ONOFF,
+  },
   // ---- changes and records ----
   {
     key: 'record.approve',

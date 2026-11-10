@@ -76,6 +76,9 @@ test.describe('accessibility (axe, WCAG 2.1 AA)', () => {
     ['profile', '/profile'],
     ['AI requests', '/mcp-requests'],
     ['status pages', '/status-pages'],
+    ['corrective actions', '/compliance/corrective-actions'],
+    ['corrective action suggestions', '/compliance/corrective-actions/suggestions'],
+    ['corrective action settings', '/compliance/corrective-actions/settings'],
   ];
   for (const [name, path] of PAGES) {
     test(name, async ({ page }) => {

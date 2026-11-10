@@ -9053,6 +9053,522 @@
         ],
         "additionalProperties": false
       },
+      "CorrectiveFinding": {
+        "title": "CorrectiveFinding",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "number": {
+            "type": "string",
+            "description": "e.g. CA-2026-0001"
+          },
+          "title": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "internalAudit",
+              "externalAudit",
+              "duty",
+              "accessReview",
+              "reconciliation",
+              "incidentReview",
+              "supplierReview",
+              "other"
+            ]
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "major",
+              "minor",
+              "observation"
+            ],
+            "description": "major and minor: nonconformities; observation: an opportunity for improvement"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "inProgress",
+              "implemented",
+              "closed",
+              "cancelled"
+            ],
+            "description": "open → inProgress → implemented → closed (the fix was checked and worked), or cancelled"
+          },
+          "serviceId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "serviceName": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "null when the token owner may not see the service"
+          },
+          "owner": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "User name of the finding’s owner"
+          },
+          "dueDate": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "Calendar date YYYY-MM-DD in the instance time zone"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Calendar date YYYY-MM-DD in the instance time zone"
+          },
+          "overdue": {
+            "type": "boolean",
+            "description": "Open or in progress, and past its due date or with an action past its due date"
+          },
+          "actionsOpen": {
+            "type": "integer"
+          },
+          "actionsTotal": {
+            "type": "integer",
+            "description": "Its actions – for a finding of an incident review the review’s measures"
+          },
+          "controls": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "ref": {
+                  "type": "string"
+                },
+                "catalogueKey": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "ref",
+                "catalogueKey",
+                "title"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Affected controls"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "closedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp (UTC)"
+          }
+        },
+        "required": [
+          "id",
+          "number",
+          "title",
+          "source",
+          "severity",
+          "status",
+          "serviceId",
+          "serviceName",
+          "owner",
+          "dueDate",
+          "overdue",
+          "actionsOpen",
+          "actionsTotal",
+          "controls",
+          "createdAt",
+          "updatedAt",
+          "closedAt"
+        ],
+        "additionalProperties": false
+      },
+      "CorrectiveFindingDetail": {
+        "title": "CorrectiveFindingDetail",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "number": {
+            "type": "string",
+            "description": "e.g. CA-2026-0001"
+          },
+          "title": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "internalAudit",
+              "externalAudit",
+              "duty",
+              "accessReview",
+              "reconciliation",
+              "incidentReview",
+              "supplierReview",
+              "other"
+            ]
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "major",
+              "minor",
+              "observation"
+            ],
+            "description": "major and minor: nonconformities; observation: an opportunity for improvement"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "inProgress",
+              "implemented",
+              "closed",
+              "cancelled"
+            ],
+            "description": "open → inProgress → implemented → closed (the fix was checked and worked), or cancelled"
+          },
+          "serviceId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "serviceName": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "null when the token owner may not see the service"
+          },
+          "owner": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "User name of the finding’s owner"
+          },
+          "dueDate": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "Calendar date YYYY-MM-DD in the instance time zone"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Calendar date YYYY-MM-DD in the instance time zone"
+          },
+          "overdue": {
+            "type": "boolean",
+            "description": "Open or in progress, and past its due date or with an action past its due date"
+          },
+          "actionsOpen": {
+            "type": "integer"
+          },
+          "actionsTotal": {
+            "type": "integer",
+            "description": "Its actions – for a finding of an incident review the review’s measures"
+          },
+          "controls": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "ref": {
+                  "type": "string"
+                },
+                "catalogueKey": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "ref",
+                "catalogueKey",
+                "title"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Affected controls"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "closedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "description": {
+            "type": "string"
+          },
+          "cause": {
+            "type": "string"
+          },
+          "sourceRef": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string"
+                  },
+                  "id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "label": {
+                    "type": "string"
+                  },
+                  "visible": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "id",
+                  "label",
+                  "visible"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What it came from: a duty, a record, a person review, an access check or a link (id null when the token owner may not see it)"
+          },
+          "recordId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The incident review whose measures are its actions"
+          },
+          "grcRef": {
+            "type": "string",
+            "description": "Reference in the GRC tool, e.g. a risk id"
+          },
+          "grcUrl": {
+            "type": "string"
+          },
+          "effectiveness": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "method": {
+                    "type": "string"
+                  },
+                  "result": {
+                    "type": "string",
+                    "enum": [
+                      "effective",
+                      "notEffective"
+                    ]
+                  },
+                  "note": {
+                    "type": "string"
+                  },
+                  "checkedBy": {
+                    "type": "string"
+                  },
+                  "checkedAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "ISO 8601 timestamp (UTC)"
+                  }
+                },
+                "required": [
+                  "method",
+                  "result",
+                  "note",
+                  "checkedBy",
+                  "checkedAt"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The latest effectiveness check (by a second person)"
+          },
+          "cancelReason": {
+            "type": "string"
+          },
+          "actions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "owners": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "user:<name>, team:<name>"
+                },
+                "dueDate": {
+                  "type": "string",
+                  "description": "Calendar date YYYY-MM-DD in the instance time zone"
+                },
+                "note": {
+                  "type": "string"
+                },
+                "doneAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "description": "ISO 8601 timestamp (UTC)"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "ISO 8601 timestamp (UTC)"
+                },
+                "doneBy": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "overdue": {
+                  "type": "boolean"
+                },
+                "measure": {
+                  "type": "boolean",
+                  "description": "A measure of the finding’s incident review (also in /api/v1/measures)"
+                }
+              },
+              "required": [
+                "id",
+                "title",
+                "owners",
+                "dueDate",
+                "note",
+                "doneAt",
+                "doneBy",
+                "overdue",
+                "measure"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "updatedBy": {
+            "type": "string"
+          },
+          "closedBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "number",
+          "title",
+          "source",
+          "severity",
+          "status",
+          "serviceId",
+          "serviceName",
+          "owner",
+          "dueDate",
+          "overdue",
+          "actionsOpen",
+          "actionsTotal",
+          "controls",
+          "createdAt",
+          "updatedAt",
+          "closedAt",
+          "description",
+          "cause",
+          "sourceRef",
+          "recordId",
+          "grcRef",
+          "grcUrl",
+          "effectiveness",
+          "cancelReason",
+          "actions",
+          "createdBy",
+          "updatedBy",
+          "closedBy"
+        ],
+        "additionalProperties": false
+      },
       "ServiceEntry": {
         "title": "ServiceEntry",
         "type": "object",
@@ -41935,6 +42451,246 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/corrective-actions": {
+      "get": {
+        "operationId": "listCorrectiveActions",
+        "summary": "List corrective action findings",
+        "tags": [
+          "Compliance"
+        ],
+        "description": "The register of corrective actions (ISO/IEC 27001 clause 10.2, Compliance module, preview): nonconformities and observations from audits and from events Steward noticed, with their source, severity, status, service, owner, due date, actions and affected controls – newest first. Only findings the token owner may read: administrators, auditors, designers and approvers all, others those they or their actions own and those of services they may edit.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          },
+          {
+            "schema": {
+              "maxItems": 50,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "open",
+                  "inProgress",
+                  "implemented",
+                  "closed",
+                  "cancelled"
+                ]
+              }
+            },
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "description": "Only these statuses (repeat the parameter)"
+          },
+          {
+            "schema": {
+              "maxItems": 50,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "internalAudit",
+                  "externalAudit",
+                  "duty",
+                  "accessReview",
+                  "reconciliation",
+                  "incidentReview",
+                  "supplierReview",
+                  "other"
+                ]
+              }
+            },
+            "in": "query",
+            "name": "source",
+            "required": false,
+            "description": "Only these sources (repeat the parameter)"
+          },
+          {
+            "schema": {
+              "maxItems": 50,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "major",
+                  "minor",
+                  "observation"
+                ]
+              }
+            },
+            "in": "query",
+            "name": "severity",
+            "required": false,
+            "description": "Only these severities (repeat the parameter)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "in": "query",
+            "name": "serviceId",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "boolean"
+            },
+            "in": "query",
+            "name": "overdue",
+            "required": false,
+            "description": "true: only overdue findings, false: only those that are not"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "OK",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/CorrectiveFinding"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/corrective-actions/{findingId}": {
+      "get": {
+        "operationId": "getCorrectiveAction",
+        "summary": "Get a corrective action finding with its actions and effectiveness check",
+        "tags": [
+          "Compliance"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "findingId",
+            "required": true,
+            "description": "Finding id (caf_…) or number (CA-2026-0001)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CorrectiveFindingDetail"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"

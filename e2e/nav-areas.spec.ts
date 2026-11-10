@@ -36,7 +36,8 @@ async function areas(page: Page): Promise<Record<string, string[]>> {
 const OPERATE = ['Runs', 'Monitors', 'Dashboards', 'Status pages', 'Reports', 'My tasks', 'Maintenance'];
 const CATALOGUE = ['Services', 'Applications', 'Systems', 'Suppliers', 'Platforms', 'Data contracts'];
 const REGISTERS = ['Documents', 'Credentials', 'Ticket references', 'Duties'];
-const COMPLIANCE = ['Controls', 'Access changes', 'Access reconciliation', 'Person reviews', 'Evidence packs'];
+// corrective actions (ADR 0029): the roles of the register, and Olivia through the demo actions of her team
+const COMPLIANCE = ['Controls', 'Access changes', 'Access reconciliation', 'Person reviews', 'Corrective actions', 'Evidence packs'];
 const without = (list: string[], ...names: string[]) => list.filter((x) => !names.includes(x));
 
 /**

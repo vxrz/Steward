@@ -361,6 +361,12 @@
         "label": "Use a privileged platform identity",
         "description": "Starting a run, saving a schedule or webhook trigger, a request explorer call or approving an MCP request with a privileged identity. Four-eyes: the run waits for a start approval by a second person – off: only where a process asks for it; required: every such run."
       }
+    },
+    "correctiveAction": {
+      "verify": {
+        "label": "Check that a corrective action worked",
+        "description": "Whoever confirms that a fix worked is not the finding's owner, an action's owner or who marked an action done. Required by default; off: any checker may confirm."
+      }
     }
   },
   "teamsLabel": "May be decided in Microsoft Teams",

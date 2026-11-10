@@ -50,6 +50,7 @@ export const NOT_MOVED: Record<string, string> = {
   notify_alerts: 'send bookkeeping of the source (a check that still fails is notified again on the target)',
   notify_pause_ends: 'send bookkeeping of the source',
   record_measure_reminders: 'send bookkeeping of the source (a reminder of an open measure may be sent again on the target)',
+  ca_action_reminders: 'send bookkeeping of the source (a reminder of an open corrective action may be sent again on the target)',
   maintenance_notices: 'send bookkeeping of the source (announcements of future occurrences are sent again on the target)',
   daily_summary_sends: 'send bookkeeping of the source',
   notification_outbox: "messages held for quiet hours and digests (short-lived; another instance must not send this one's messages)",
@@ -147,6 +148,9 @@ export const USER_REFS: UserRef[] = [
   { table: 'suppliers', column: 'owners', kind: 'subjects' },
   { table: 'maintenance_windows', column: 'responsible', kind: 'subjects' },
   { table: 'record_measures', column: 'owners', kind: 'subjects' },
+  // corrective actions (ADR 0029): who owns a finding and its actions now
+  { table: 'ca_findings', column: 'owner', kind: 'username' },
+  { table: 'ca_actions', column: 'owners', kind: 'subjects' },
   { table: 'service_duties', column: 'owners', kind: 'subjects' },
   { table: 'duty_skips', column: 'decider_subjects', kind: 'subjects' },
   // the owners a service had on the day of the snapshot: mapped, so the trend per owner names the target's users and teams
@@ -270,6 +274,15 @@ export const HISTORY_COLUMNS: string[] = [
   'record_measures.created_by',
   'record_measures.updated_by',
   'record_measures.done_by',
+  // corrective actions (ADR 0029): who recorded, changed, closed and checked a finding, did an action, decided a suggestion
+  'ca_findings.created_by',
+  'ca_findings.updated_by',
+  'ca_findings.closed_by',
+  'ca_findings.eff_checked_by',
+  'ca_actions.created_by',
+  'ca_actions.updated_by',
+  'ca_actions.done_by',
+  'ca_suggestions.decided_by',
   'systems.updated_by',
   'systems.sbom_imported_by',
   'system_stack.set_by',
@@ -397,6 +410,7 @@ export const SETTINGS_MOVED = [
   'catalogue.versions',
   'catalogue.environments',
   'plant.settings',
+  'compliance.corrective',
 ];
 
 /** Folders of the data directory with stored files (attachments, artifacts, reports, evidence packs, logos). */

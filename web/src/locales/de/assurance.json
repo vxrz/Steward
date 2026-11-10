@@ -361,6 +361,12 @@
         "label": "Eine privilegierte Plattform-Identität verwenden",
         "description": "Eine Ausführung starten, einen Zeitplan oder Webhook-Auslöser speichern, eine Anfrage im Request-Explorer oder eine MCP-Anfrage freigeben – mit einer privilegierten Identität. Vier-Augen-Prinzip: Die Ausführung wartet auf die Freigabe ihres Starts durch eine zweite Person – aus: nur wo ein Prozess es verlangt; erforderlich: bei jeder solchen Ausführung."
       }
+    },
+    "correctiveAction": {
+      "verify": {
+        "label": "Die Wirksamkeit einer Korrekturmaßnahme prüfen",
+        "description": "Wer bestätigt, dass eine Korrektur wirkt, ist nicht verantwortlich für den Befund oder eine Maßnahme und hat keine Maßnahme als erledigt markiert. Standardmäßig erforderlich; aus: Jede prüfende Person darf bestätigen."
+      }
     }
   },
   "teamsLabel": "Darf in Microsoft Teams entschieden werden",
