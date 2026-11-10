@@ -329,6 +329,89 @@ describe('duplicating a device', () => {
   });
 });
 
+describe('revisions, open drafts and the registry of what names a collection', () => {
+  it('an edit form that loaded the device before the move is refused (409); an open draft follows it to its new asset', async () => {
+    const before = (await s.api('GET', '/plant/assets/rvs-mill-02/network')).devices.find((d: any) => d.id === 'rvs-mill-02-ipc');
+    // olaf (may only propose) keeps a change of the device in his draft
+    const bodyOf = (x: any, patch: Record<string, unknown> = {}) => ({
+      hostname: x.hostname,
+      domain: x.domain,
+      purpose: x.purpose,
+      mac: x.mac,
+      serial: x.serial,
+      vlan: x.vlan,
+      addressType: x.addressType,
+      address: x.address,
+      switch: x.switch,
+      switchPort: x.switchPort,
+      wallOutlet: x.wallOutlet,
+      cmdbPort: x.cmdbPort,
+      state: x.state,
+      flags: x.flags,
+      confidence: x.confidence,
+      owner: x.owner,
+      monitoring: x.monitoring,
+      checks: [],
+      notes: x.notes,
+      ...patch,
+    });
+    const draft = await olaf('POST', '/plant/change-sets/current/operations', {
+      op: 'set',
+      kind: 'device',
+      scope: 'rvs-mill-02',
+      id: 'rvs-mill-02-ipc',
+      value: bodyOf(before, { owner: 'Shop floor IT' }),
+      revision: before.revision,
+    });
+    // the data path that names it moves along once the other device is out of it
+    await s.api('PUT', '/plant/assets/rvs-mill-02/paths/nc-programs', {
+      subject: 'NC programs',
+      description: '',
+      devices: ['rvs-mill-02-ipc'],
+      collector: null,
+      transfers: [],
+      destinations: [],
+      notes: '',
+    });
+    await dana('POST', '/plant/move', {
+      kind: 'device',
+      items: [{ asset: 'rvs-mill-02', id: 'rvs-mill-02-ipc' }],
+      toAsset: 'rvs-mill-03',
+      collections: 'move',
+    });
+    const moved = (await s.api('GET', '/plant/assets/rvs-mill-03/network')).devices.find((d: any) => d.id === 'rvs-mill-02-ipc');
+    expect(moved.revision).toBe(before.revision + 1);
+    const body = bodyOf(moved, { purpose: 'Changed' });
+    expect(await status(dana('PUT', '/plant/assets/rvs-mill-03/devices/rvs-mill-02-ipc', { ...body, revision: before.revision }))).toMatchObject({
+      status: 409,
+      code: 'PLANT_ENTRY_CHANGED',
+    });
+    // the draft's operation names the device where it is now; its preview changes it there
+    const d = await olaf('GET', `/plant/change-sets/${draft.id}`);
+    expect(d.operations.find((o: any) => o.kind === 'device')).toMatchObject({ scope: 'rvs-mill-03', id: 'rvs-mill-02-ipc' });
+    const pre = await olaf('POST', `/plant/change-sets/${draft.id}/preview`);
+    expect(pre.entries).toEqual([expect.objectContaining({ kind: 'device', scope: 'rvs-mill-03', id: 'rvs-mill-02-ipc', action: 'change' })]);
+    await olaf('POST', `/plant/change-sets/${draft.id}/withdraw`);
+  });
+
+  it('lists every column that holds a data collection id (a new one fails until a move walks it)', async () => {
+    const { COLLECTION_REFERENCES } = await import('../src/plant/rename.js');
+    const d = await db();
+    const columns: { table: string; column: string }[] =
+      d.dialect === 'sqlite'
+        ? d
+            .all<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'")
+            .flatMap((t) => d.all<{ name: string }>(`PRAGMA table_info(${t.name})`).map((c) => ({ table: t.name, column: c.name })))
+        : d.all<{ table: string; column: string }>(
+            'SELECT table_name AS "table", column_name AS "column" FROM information_schema.columns WHERE table_schema = current_schema()',
+          );
+    const walked = new Set(COLLECTION_REFERENCES.map((r) => r.table));
+    // the kept files of collection imports follow in move.ts (when every collection they wrote goes)
+    const missing = columns.filter((c) => /(^|_)collection_id$/.test(c.column) && !walked.has(c.table) && c.table !== 'plant_collection_sources');
+    expect(missing).toEqual([]);
+  });
+});
+
 describe('drafts and review', () => {
   it('who may only propose adds a move to their draft; someone who manages applies it', async () => {
     const body = { kind: 'device', items: [{ asset: 'rvs-mill-02', id: 'rvs-mill-02-ipc-2' }], toAsset: 'rvs-mill-01' };
@@ -364,5 +447,28 @@ describe('drafts and review', () => {
     } finally {
       await setPolicy('off');
     }
+  });
+});
+
+describe('several assets at once', () => {
+  it('moves selected assets to one place of their site (the single move’s rules) and reverts it', async () => {
+    const body = { kind: 'asset', action: 'edit', items: [{ id: 'rvs-mill-01' }, { id: 'rvs-mill-02' }], set: { nodeId: 'rvs-assembly' } };
+    const p = await dana('POST', '/plant/bulk/preview', body);
+    expect(p.counts.changed).toBe(2);
+    await dana('POST', '/plant/bulk', { ...body, fingerprint: p.fingerprint });
+    for (const id of ['rvs-mill-01', 'rvs-mill-02'])
+      expect((await s.api('GET', `/plant/assets/${id}`)).location).toMatchObject({
+        area: expect.objectContaining({ id: 'rvs-assembly' }),
+        workCenter: null,
+        workUnit: null,
+      });
+    // a place of another site is refused for each asset
+    const other = await dana('POST', '/plant/bulk/preview', { ...body, set: { nodeId: 'hlc-moulding' } });
+    expect(other.items.map((i: any) => i.reason?.code)).toEqual(['PLANT_LOCATION_UNKNOWN', 'PLANT_LOCATION_UNKNOWN']);
+    const cs = (await dana('GET', '/plant/change-sets?box=applied&source=bulk')).items[0];
+    const rev = await dana('POST', `/plant/change-sets/${cs.id}/revert`);
+    const pre = await dana('POST', `/plant/change-sets/${rev.id}/preview`);
+    await dana('POST', `/plant/change-sets/${rev.id}/apply`, { fingerprint: pre.fingerprint });
+    expect((await s.api('GET', '/plant/assets/rvs-mill-01')).location.area.id).toBe('rvs-machining');
   });
 });
