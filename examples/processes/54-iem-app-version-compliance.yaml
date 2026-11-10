@@ -1,23 +1,22 @@
 name: "Industrial Edge – App version compliance"
 description: |
   Compares the applications installed on each device with the latest version in
-  the IEM application catalog and lists outdated installations.
+  the IEM application catalogue and lists outdated installations.
 
   Recommended schedule: daily. Publishes `iem.app-compliance`.
-  Verify against your IEM version: the per-device app listing used here
-  (GET /portal/api/v1/devices/{id}/apps returning data[].applicationId/version)
-  is an assumption – check the Portal API reference of your release and adapt
-  the path/fields. Devices that cannot be queried are reported as "unknown".
+  One call reads the installations of all devices
+  (GET /portal/api/v1/devices/installed-apps: deviceId, deviceName,
+  applicationId, title and versionNumber per entry); the rows are grouped by
+  device. Devices without any entry in that list are reported as "unknown".
+  Verify against your IEM version: the catalogue field with the latest version
+  (`latestVersion`, `versionNumber` and `version` are tried) and whether your
+  IEM pages long lists – the run logs a warning when the answer reports more
+  entries than it contains.
 tags: [compliance, apps, devices, dashboard, industrial-edge]
 connections:
   - slot: iem
     kind: industrial-edge-management
 steps:
-  - id: setup
-    type: set
-    name: Prepare
-    values:
-      rows: "{{ [] }}"
   - id: devices
     type: http
     name: List devices
@@ -27,49 +26,73 @@ steps:
     saveAs: devices
   - id: catalog
     type: http
-    name: Application catalog
+    name: Application catalogue
     connection: iem
     method: GET
     path: /portal/api/v1/applications
     saveAs: catalog
-  - id: each
-    type: forEach
-    name: Each device
-    items: "vars.devices.body.data ? vars.devices.body.data : vars.devices.body"
-    as: device
-    steps:
-      - id: installed
-        type: http
-        name: Installed apps
-        connection: iem
-        method: GET
-        path: "/portal/api/v1/devices/{{ vars.device.id }}/apps"
-        onError: continue
-        saveAs: installed
-      - id: compare
-        type: set
-        name: Compare with catalog
-        values:
-          rows: >-
-            {{ (
-              $norm := function($v){ $join($map($split($string($v) & '.0.0', '.')[[0..2]], function($p){ $pad($p, -6, '0') }), '.') };
-              $cat := vars.catalog.body.data ? vars.catalog.body.data : vars.catalog.body;
-              $dev := vars.device;
-              $exists(vars.installed.error)
-                ? $append(vars.rows, [{ "key": $dev.id & '/-', "device": $dev.name, "app": '–', "installed": '–', "latest": '–', "state": 'unknown', "error": vars.installed.error }])
-                : $append(vars.rows, [vars.installed.body.data.(
-                    $app := $;
-                    $latest := $cat[applicationId = $app.applicationId].version;
-                    {
-                      "key": $dev.id & '/' & $app.applicationId,
-                      "device": $dev.name,
-                      "app": $app.title ? $app.title : $app.applicationId,
-                      "installed": $app.version,
-                      "latest": $exists($latest) ? $latest : '–',
-                      "state": $exists($latest) ? ($norm($app.version) >= $norm($latest) ? 'current' : 'behind') : 'not in catalog'
-                    }
-                  )])
-            ) }}
+  - id: installed
+    type: http
+    name: Installed apps of all devices
+    connection: iem
+    method: GET
+    path: /portal/api/v1/devices/installed-apps
+    saveAs: installed
+  - id: compare
+    type: set
+    name: Compare with catalogue
+    values:
+      installs: "{{ [vars.installed.body.data ? vars.installed.body.data : vars.installed.body] }}"
+      reported: >-
+        {{ (
+          $p := vars.installed.body.page;
+          $n := $p.totalCount ? $p.totalCount : ($p.totalElements ? $p.totalElements : vars.installed.body.totalCount);
+          $n ? $number($n) : 0
+        ) }}
+      rows: >-
+        {{ (
+          $norm := function($v){ $join($map($split($string($v) & '.0.0', '.')[[0..2]], function($p){ $pad($p, -6, '0') }), '.') };
+          $cat := vars.catalog.body.data ? vars.catalog.body.data : vars.catalog.body;
+          $devs := (vars.devices.body.data ? vars.devices.body.data : vars.devices.body).{
+            "id": deviceId ? deviceId : id,
+            "name": deviceName ? deviceName : name
+          };
+          $apps := vars.installs.(
+            $app := $;
+            $c := $cat[applicationId = $app.applicationId][0];
+            $latest := $c.latestVersion ? $c.latestVersion : ($c.versionNumber ? $c.versionNumber : $c.version);
+            $version := $app.versionNumber ? $app.versionNumber : $app.version;
+            $dev := $devs[id = $app.deviceId][0];
+            {
+              "key": $app.deviceId & '/' & $app.applicationId,
+              "deviceId": $app.deviceId,
+              "device": $app.deviceName ? $app.deviceName : ($dev.name ? $dev.name : $app.deviceId),
+              "app": $app.title ? $app.title : $app.applicationId,
+              "installed": $version,
+              "latest": $exists($latest) ? $latest : '–',
+              "state": $not($exists($c)) ? 'not in catalogue'
+                : ($not($exists($latest)) ? 'latest unknown'
+                : ($norm($version) >= $norm($latest) ? 'current' : 'behind'))
+            }
+          );
+          $seen := $apps.deviceId;
+          $none := $devs[$not(id in $seen)].{
+            "key": id & '/-',
+            "deviceId": id,
+            "device": name,
+            "app": '–',
+            "installed": '–',
+            "latest": '–',
+            "state": 'no apps'
+          };
+          [$apps, $none]^(device, app)
+        ) }}
+  - id: incomplete
+    type: log
+    name: Incomplete list
+    level: warn
+    when: "vars.reported > $count(vars.installs)"
+    message: "The installed-apps answer reports {{ vars.reported }} entries but contains {{ $count(vars.installs) }}: your IEM pages this list – add its paging parameters to the step."
   - id: publish
     type: publish
     name: Publish app compliance
@@ -83,11 +106,11 @@ steps:
       - { label: Installed, value: installed }
       - { label: Latest, value: latest }
     status: "state = 'current' ? 'good' : (state = 'behind' ? 'warning' : 'unknown')"
-    statusText: "state = 'behind' ? 'update to ' & latest : ($exists(error) ? 'could not read apps' : state)"
+    statusText: "state = 'behind' ? 'update to ' & latest : (state = 'no apps' ? 'no installed apps reported' : state)"
     metrics:
-      installations: "$count(vars.rows[state != 'unknown'])"
+      installations: "$count(vars.rows[state != 'no apps'])"
       outdated: "$count(vars.rows[state = 'behind'])"
-      unknownDevices: "$count(vars.rows[state = 'unknown'])"
+      unknownDevices: "$count(vars.rows[state = 'no apps'])"
     staleAfterMinutes: 2880
   - id: check
     type: check

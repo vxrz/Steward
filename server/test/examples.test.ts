@@ -225,6 +225,36 @@ describe('example library', () => {
     expect(d.metrics).toMatchObject({ topics: 3, violations: 2, lagging: 1, quiet: 0 });
   });
 
+  it('Industrial Edge – App version compliance reads installed-apps once and groups by device (IEM devices carry deviceId)', async () => {
+    // the simulated IEM (server/src/mock/mockPlatform.ts) answers like a real one: devices without `id`, one installed-apps list
+    const iem = { iem: platformByKind['industrial-edge-management']! };
+    const { id: runId } = await s.api('POST', '/runs', { processId: 'iem-app-version-compliance', bindings: iem });
+    const r = await finish(runId);
+    expect([r.status, r.error]).toEqual(['succeeded', null]);
+    expect(r.steps.filter((x: any) => x.status === 'failed' && x.type !== 'check').map((x: any) => `${x.key}: ${x.error}`)).toEqual([]);
+    const http = r.steps.filter((x: any) => x.type === 'http').map((x: any) => x.summary);
+    expect(http).toHaveLength(3); // devices, catalog, installed apps – no call per device
+    expect(http.join('\n')).toContain('GET /portal/api/v1/devices/installed-apps → 200');
+    expect(http.join('\n')).not.toMatch(/devices\/\//);
+    expect(r.steps.find((x: any) => x.key === 'incomplete').status).toBe('skipped'); // the answer holds every entry
+
+    const d = await s.api('GET', '/datasets/iem.app-compliance');
+    const by = Object.fromEntries(d.rows.map((x: any) => [x._key, x]));
+    expect(by['dev-001/app-1']).toMatchObject({ Device: 'edge-line-1', Application: 'Data Service', Installed: '1.8.0', Latest: '1.8.0', _status: 'good' });
+    expect(by['dev-002/app-1']).toMatchObject({ Device: 'edge-line-2', Installed: '1.7.1', Latest: '1.8.0', _status: 'warning' });
+    expect(by['dev-006/app-3']).toMatchObject({ Device: 'edge-press-hall', Installed: '1.10.0', Latest: '1.12.2', _status: 'warning' });
+    expect(by['dev-005/-']).toMatchObject({ Device: 'edge-lab', Application: '–', _status: 'unknown' }); // inactive, nothing installed
+    expect(new Set(d.rows.map((x: any) => x.Device)).size).toBe(9);
+    expect(d.metrics).toMatchObject({ installations: 13, outdated: 4, unknownDevices: 2 });
+
+    // the stale-device cleanup deletes by deviceId (dry run: the call is only logged)
+    const { id: cleanupId } = await s.api('POST', '/runs', { processId: 'iem-stale-device-cleanup', bindings: iem, dryRun: true });
+    const c = await finish(cleanupId);
+    expect(c.status).toBe('succeeded');
+    const deletes = c.steps.filter((x: any) => x.stepId === 'deleteDevice').map((x: any) => x.summary);
+    expect(deletes).toEqual(expect.arrayContaining(['DRY RUN DELETE /portal/api/v1/devices/dev-005', 'DRY RUN DELETE /portal/api/v1/devices/dev-007']));
+  });
+
   it('published sensible datasets', async () => {
     const users = await s.api('GET', '/datasets/ih.users');
     expect(users.rowCount).toBe(15);
