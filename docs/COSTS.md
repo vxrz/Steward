@@ -12,6 +12,7 @@ What do the services, applications and teams a team runs cost per month? Steward
 - [Budgets](#budgets)
 - [Monitor check](#monitor-check)
 - [Scorecard, reports, dashboards and the API](#dashboards-and-the-api)
+- [Planning per service](#planning-per-service)
 - [Who sees costs](#who-sees-costs)
 - [Decisions](#decisions)
 - [Demo and tests](#demo-and-tests)
@@ -146,6 +147,46 @@ It runs with the monitor owner's rights – also on its schedule, when no one is
 - **Public API** (read-only, [API.md](API.md)): `GET /api/v1/costs?scope=service|application|team|platform` (paginated) and `GET /api/v1/costs/{scope}/{id}` – with the token owner's rights.
 - **Internal API**: `GET /api/costs`, `GET /api/costs/:scope/:id`, `PUT /api/costs/budgets`, `GET|PUT /api/costs/settings`, `GET|PUT /api/costs/platform/:id/source`, `POST /api/costs/platform/:id/read`, the imports and push tokens below `/api/costs/platform/:id/…`, and the push `POST /api/hooks/costs/:platformId`.
 
+## Planning per service
+
+Beside what the platforms cost per month, a service team plans **what it will spend in a fiscal year** on the systems and solutions it uses and on service and support – licences, cloud, support contracts, hardware – and records what it incurred ([ADR 0026](adr/0026-service-cost-planning.md)). Lightweight and internal to the service: **no person-hours or effort, no approvals, orders or invoice processing, no chargeback, no currency conversion**. The [monthly budget](#budgets) stays as it is and is independent: it watches the costs read per month; the plan covers everything a service spends per fiscal year.
+
+**The fiscal year** starts in one month for the whole instance – _Costs → Settings → Fiscal year starts in_ (administrators, default January, audited as `cost.settings_changed`). A fiscal year is named by the calendar year it starts in: _FY 2026_ when it starts in January, _FY 2026/27_ when it starts in, say, October (October 2026 to September 2027). Changing the start month later reads every plan in the new boundaries (a line keeps its year and its position in it; an entry counts in the year its date falls in) – decide it once.
+
+**Where:** _Catalogue → the service → Costs_ (with the Costs module on). Pick the fiscal year; _Add plan line_, _Add cost entry_, _Copy to FY …_, _Export (CSV)_ of the lines or the entries.
+
+**Plan lines** – per service and fiscal year, at most 200:
+
+| Field                | What                                                                                                                                                                                     |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Title                | e.g. _Historian licences_                                                                                                                                                                |
+| Category             | Licences, Cloud, Service and support, Hardware, Other                                                                                                                                    |
+| For                  | Optional: an **application of the service**, a **system** one of its applications runs on, or – for a cloud line – a **platform** you may see; plus free text for the vendor or contract |
+| Amount, currency     | A decimal with its ISO 4217 code                                                                                                                                                         |
+| Cadence              | **Yearly** (the year's amount, spread evenly over the 12 months), **monthly** (every month), **once** (in one month of the year)                                                         |
+| Contract end/renewal | Optional; shown under _Renewals in the next 90 days_                                                                                                                                     |
+| Note                 | Free text                                                                                                                                                                                |
+
+**Cost entries** – a date, an amount (negative for a credit note) and a currency, optionally a plan line of the same fiscal year and currency (without one the entry is **unplanned**), an application or system of the service, a **reference** (invoice or order number) and a note. At most 2,000 per service and fiscal year.
+
+**The year view**, per currency (amounts are never converted) and per line:
+
+- **Planned (year)** and **planned to date** (up to and including the current month);
+- **incurred to date**: entries dated up to today – and, for a matched cloud line, the costs read;
+- **expected (year)**: for a _monthly_ line month by month – the months that are over as incurred, the current month and those to come as booked if something is booked for them, else as planned; for a _yearly_ or _one-off_ line at least the plan (what is booked counts against it – an annual invoice paid early is not expected again for the remaining months);
+- the **difference** (expected − planned): with a sign, in a quiet orange when more is expected than planned;
+- a **month chart** of planned and incurred with a table twin, the lines **by category** or **by application or system**, **renewals** in the next 90 days and the **unplanned** entries. On a phone the lines and entries are cards.
+
+**The costs read.** The cloud and platform costs the cost model already links to the service's applications appear as **cloud and platform (read)** per month. A plan line of category **Cloud** for an **application** or a **platform** takes those costs: the months that are over count as incurred, the current month with its [forecast](#what-people-see), the months to come as planned. Each cost belongs to one line at most – the oldest line for its application and currency, else the oldest for its platform and currency (a platform: the share of the service's applications); a second line for the same shows _Costs read: other line_ and counts only its entries. What no line takes stays in the row _cloud and platform (read)_, expected at the current month's forecast for the months to come. A line for a system is not matched.
+
+**Copy to the next fiscal year** copies every line (refused when the next year already has lines); a renewal date before the new year moves on by a year, a one-off payment keeps its month in the year; entries are not copied.
+
+**Who:** who may change the service (its editors, not while it is archived) changes its plan and entries; who may see the service reads them. Every change is audited – `cost.plan_line_added`, `cost.plan_line_changed`, `cost.plan_line_removed` (its entries stay, as unplanned), `cost.plan_copied`, `cost.entry_added`, `cost.entry_changed`, `cost.entry_removed`. **No step-up**: unlike raising a budget (which notices and the scorecard measure against), a plan commits nothing, notifies nobody and stops nothing – it is the team's own planning, often changed line by line in one session; the audit trail records each change. Amounts follow _Hide amounts from viewers_. **The costs read follow the rule of the module**: a reader who does not see every application of the service gets no cloud figures – only a note that costs were read – and matched lines show their entries only.
+
+**Team rollup:** a team's costs page (_Costs → Teams → the team_) sums the plans of the team's services per fiscal year and currency. A service of two teams counts for both (marked _also another team's_), so the teams' sums are not added up.
+
+**Elsewhere:** `GET /api/v1/services/{serviceId}/cost-plan?year=` ([API.md](API.md)); the built-in dataset **Cost plans** (`costs.plans`: one row per service and currency of the current fiscal year with planned, to date, incurred, expected, difference and unplanned; status _warning_ when more is expected than planned; administrators and auditors, published at most hourly); the MCP tool `get_service_cost_plan` ([MCP.md](MCP.md)); internal routes `GET /api/costs/plans/:serviceId?year=`, `GET …/export?year=&what=plan|entries`, `POST …/lines`, `PUT|DELETE …/lines/:lineId`, `POST …/copy`, `POST …/entries`, `PUT|DELETE …/entries/:entryId`, `GET /api/costs/team-plans/:teamId?year=`.
+
 ## Who sees costs
 
 - A scope is only reachable for those who may see it: a hidden service, application, team or platform answers like a missing one; lists, breakdowns, reports and the check neither name nor count it. A service or team covers only the applications you may see – one you may not see is left out of its totals; a platform's total is its bill, so there the applications (or, for an application, the platforms) you may not see are one row _Others you may not see_ without a name; sources you may not see are left out. Budgets always use the whole service or team – so a reader who does not see all of it gets only the budget's state, never its figures ([Budgets](#budgets)); the totals never reveal hidden applications by subtraction.
@@ -161,6 +202,8 @@ The open questions of #226, decided for 0.9.0:
 
 ## Demo and tests
 
+The demo starts the fiscal year in October and gives _Online shop (demo)_ and _Plant monitoring (demo)_ a plan for the current fiscal year with a few entries – a cloud line for the webshop matched with the AWS costs read, a payment licence, a cluster support subscription for the system _k8s-shop-01 (demo)_, historian licences and support, an edge gateway refresh, and unplanned entries; products and vendors are invented.
+
 The demo turns on the cost sources of _AWS (demo)_ (Cost Explorer by tag `application` and service: _Webshop_ and _CRM_, the rest untagged), _Snowflake (demo)_ (`USAGE_IN_CURRENCY_DAILY`; the fallback answers too), _Confluent Cloud (demo)_ (a new demo platform: the Costs API with the cluster `lkc-demo1` – variable `confluentClusterId` of _Kafka (demo)_ – a connector and Stream Governance) and _LLM gateway (demo)_ (the usage log), and reads them once. The mocks answer like the real APIs (`server/src/mock/mockAws.ts`, `mockSnowflake.ts`, `mockConfluent.ts`) and use `req.originalUrl` where they check signatures, so they work below a base path.
 
-Tests: `server/test/costs.test.ts` (decimals, the CSV reader, FOCUS import, preview, replace with corrections, rights, push tokens), `server/test/costs-sources.test.ts` (each connector against its mock, corrections, the job), `server/test/costs-budgets.test.ts` (budgets and their step-up and notices, the scorecard part, the check, the report section, the dataset, `/api/v1/costs`), `server/test/costs-access.test.ts` (an owner who may not see every application: the scheduled check, linking by name in imports and pushes, budgets as state only, amounts in the check, a large file); `e2e/costs.spec.ts` on a desktop and a phone with axe.
+Tests: `server/test/costs.test.ts` (decimals, the CSV reader, FOCUS import, preview, replace with corrections, rights, push tokens), `server/test/costs-sources.test.ts` (each connector against its mock, corrections, the job), `server/test/costs-budgets.test.ts` (budgets and their step-up and notices, the scorecard part, the check, the report section, the dataset, `/api/v1/costs`), `server/test/costs-access.test.ts` (an owner who may not see every application: the scheduled check, linking by name in imports and pushes, budgets as state only, amounts in the check, a large file); `server/test/cost-plans.test.ts` (planning per service: fiscal years, lines, cadences, entries, the costs read, visibility, CSV, `/api/v1`, MCP, the dataset, the team rollup); `e2e/costs.spec.ts` and `e2e/cost-plans.spec.ts` on a desktop and a phone with axe.

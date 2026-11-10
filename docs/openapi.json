@@ -32191,6 +32191,687 @@
           "canManageSource"
         ],
         "additionalProperties": false
+      },
+      "CostPlanYear": {
+        "title": "CostPlanYear",
+        "type": "object",
+        "properties": {
+          "serviceId": {
+            "type": "string"
+          },
+          "serviceName": {
+            "type": "string"
+          },
+          "fiscalYear": {
+            "type": "integer",
+            "description": "The calendar year the fiscal year starts in"
+          },
+          "label": {
+            "type": "string",
+            "description": "\"FY 2026\" (start January) or \"FY 2026/27\""
+          },
+          "startMonth": {
+            "type": "integer",
+            "description": "The month the fiscal year starts in (1–12), the same for the whole instance"
+          },
+          "months": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The 12 months (YYYY-MM)"
+          },
+          "currentIndex": {
+            "type": "integer",
+            "description": "Index of the current month in months: -1 before the year, 12 after it"
+          },
+          "from": {
+            "type": "string",
+            "description": "First day (YYYY-MM-DD)"
+          },
+          "to": {
+            "type": "string",
+            "description": "Last day (YYYY-MM-DD)"
+          },
+          "amountsVisible": {
+            "type": "boolean"
+          },
+          "canEdit": {
+            "type": "boolean"
+          },
+          "cloud": {
+            "type": "string",
+            "enum": [
+              "shown",
+              "hidden",
+              "none"
+            ],
+            "description": "The cloud and platform costs read for the service: hidden when the token owner does not see every application of the service"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "serviceId": {
+                  "type": "string"
+                },
+                "fiscalYear": {
+                  "type": "integer"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "category": {
+                  "type": "string",
+                  "enum": [
+                    "licence",
+                    "cloud",
+                    "support",
+                    "hardware",
+                    "other"
+                  ]
+                },
+                "target": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "application",
+                            "system",
+                            "platform"
+                          ]
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string",
+                          "description": "Empty when the token owner may not see it"
+                        },
+                        "visible": {
+                          "type": "boolean"
+                        },
+                        "gone": {
+                          "type": "boolean",
+                          "description": "No longer an application or system of the service"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "id",
+                        "name",
+                        "visible"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "What it is for: an application or system of the service, or a platform"
+                },
+                "vendor": {
+                  "type": "string",
+                  "description": "Vendor or contract (free text)"
+                },
+                "amount": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "As entered: a year for yearly, a month for monthly, the payment for once – a decimal in the currency; null when the token owner may not see amounts"
+                },
+                "currency": {
+                  "type": "string"
+                },
+                "cadence": {
+                  "type": "string",
+                  "enum": [
+                    "yearly",
+                    "monthly",
+                    "once"
+                  ]
+                },
+                "onceMonth": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "renewalDate": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "note": {
+                  "type": "string"
+                },
+                "months": {
+                  "type": "array",
+                  "items": {
+                    "type": [
+                      "null",
+                      "string"
+                    ]
+                  },
+                  "description": "Planned per month"
+                },
+                "incurredMonths": {
+                  "type": "array",
+                  "items": {
+                    "type": [
+                      "null",
+                      "string"
+                    ]
+                  },
+                  "description": "Incurred per month"
+                },
+                "planned": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "Planned for the fiscal year – a decimal in the currency; null when the token owner may not see amounts"
+                },
+                "plannedToDate": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "Planned up to and including the current month – a decimal in the currency; null when the token owner may not see amounts"
+                },
+                "incurredToDate": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "Incurred up to today (entries, and the cloud and platform costs read where shown) – a decimal in the currency; null when the token owner may not see amounts"
+                },
+                "expected": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "Expected for the fiscal year – a decimal in the currency; null when the token owner may not see amounts"
+                },
+                "difference": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "Expected minus planned – a decimal in the currency; null when the token owner may not see amounts"
+                },
+                "read": {
+                  "type": "string",
+                  "enum": [
+                    "matched",
+                    "hidden",
+                    "taken",
+                    "none"
+                  ],
+                  "description": "A cloud line for an application or platform takes the costs read for it (matched); hidden: not for this token owner; taken: an older line takes them"
+                },
+                "entries": {
+                  "type": "integer"
+                },
+                "createdAt": {
+                  "type": "string"
+                },
+                "createdBy": {
+                  "type": "string"
+                },
+                "updatedAt": {
+                  "type": "string"
+                },
+                "updatedBy": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "serviceId",
+                "fiscalYear",
+                "title",
+                "category",
+                "target",
+                "vendor",
+                "amount",
+                "currency",
+                "cadence",
+                "onceMonth",
+                "renewalDate",
+                "note",
+                "months",
+                "incurredMonths",
+                "planned",
+                "plannedToDate",
+                "incurredToDate",
+                "expected",
+                "difference",
+                "read",
+                "entries",
+                "createdAt",
+                "createdBy",
+                "updatedAt",
+                "updatedBy"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "serviceId": {
+                  "type": "string"
+                },
+                "date": {
+                  "type": "string"
+                },
+                "amount": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "The amount (negative: a credit) – a decimal in the currency; null when the token owner may not see amounts"
+                },
+                "currency": {
+                  "type": "string"
+                },
+                "planLineId": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "planLineTitle": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "target": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "application",
+                            "system",
+                            "platform"
+                          ]
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string",
+                          "description": "Empty when the token owner may not see it"
+                        },
+                        "visible": {
+                          "type": "boolean"
+                        },
+                        "gone": {
+                          "type": "boolean",
+                          "description": "No longer an application or system of the service"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "id",
+                        "name",
+                        "visible"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "What it is for: an application or system of the service, or a platform"
+                },
+                "reference": {
+                  "type": "string",
+                  "description": "Invoice or order number"
+                },
+                "note": {
+                  "type": "string"
+                },
+                "unplanned": {
+                  "type": "boolean",
+                  "description": "No plan line of this fiscal year"
+                },
+                "createdAt": {
+                  "type": "string"
+                },
+                "createdBy": {
+                  "type": "string"
+                },
+                "updatedAt": {
+                  "type": "string"
+                },
+                "updatedBy": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "serviceId",
+                "date",
+                "amount",
+                "currency",
+                "planLineId",
+                "planLineTitle",
+                "target",
+                "reference",
+                "note",
+                "unplanned",
+                "createdAt",
+                "createdBy",
+                "updatedAt",
+                "updatedBy"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "currencies": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "currency": {
+                  "type": "string",
+                  "description": "No conversion between currencies"
+                },
+                "months": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "month": {
+                        "type": "string"
+                      },
+                      "planned": {
+                        "type": [
+                          "null",
+                          "string"
+                        ],
+                        "description": "Planned – a decimal in the currency; null when the token owner may not see amounts"
+                      },
+                      "incurred": {
+                        "type": [
+                          "null",
+                          "string"
+                        ],
+                        "description": "Incurred – a decimal in the currency; null when the token owner may not see amounts"
+                      },
+                      "read": {
+                        "type": [
+                          "null",
+                          "string"
+                        ],
+                        "description": "Of which read – a decimal in the currency; null when the token owner may not see amounts"
+                      }
+                    },
+                    "required": [
+                      "month",
+                      "planned",
+                      "incurred",
+                      "read"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "planned": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "Planned for the fiscal year – a decimal in the currency; null when the token owner may not see amounts"
+                },
+                "plannedToDate": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "Planned up to and including the current month – a decimal in the currency; null when the token owner may not see amounts"
+                },
+                "incurredToDate": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "Incurred up to today (entries, and the cloud and platform costs read where shown) – a decimal in the currency; null when the token owner may not see amounts"
+                },
+                "expected": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "Expected for the fiscal year – a decimal in the currency; null when the token owner may not see amounts"
+                },
+                "difference": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "Expected minus planned – a decimal in the currency; null when the token owner may not see amounts"
+                },
+                "read": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "incurredToDate": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "Read so far – a decimal in the currency; null when the token owner may not see amounts"
+                        },
+                        "expected": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "Expected for the year – a decimal in the currency; null when the token owner may not see amounts"
+                        },
+                        "months": {
+                          "type": "array",
+                          "items": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "incurredToDate",
+                        "expected",
+                        "months"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Cloud and platform costs read for the service that no plan line takes"
+                },
+                "unplanned": {
+                  "type": "object",
+                  "properties": {
+                    "incurredToDate": {
+                      "type": [
+                        "null",
+                        "string"
+                      ],
+                      "description": "Unplanned entries so far – a decimal in the currency; null when the token owner may not see amounts"
+                    },
+                    "expected": {
+                      "type": [
+                        "null",
+                        "string"
+                      ],
+                      "description": "All unplanned entries of the year – a decimal in the currency; null when the token owner may not see amounts"
+                    },
+                    "count": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "incurredToDate",
+                    "expected",
+                    "count"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "currency",
+                "months",
+                "planned",
+                "plannedToDate",
+                "incurredToDate",
+                "expected",
+                "difference",
+                "read",
+                "unplanned"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "renewals": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "lineId": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "fiscalYear": {
+                  "type": "integer"
+                },
+                "renewalDate": {
+                  "type": "string"
+                },
+                "days": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "lineId",
+                "title",
+                "fiscalYear",
+                "renewalDate",
+                "days"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "targets": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "application",
+                    "system"
+                  ]
+                },
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "id",
+                "name"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "years": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "fiscalYear": {
+                  "type": "integer"
+                },
+                "label": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "fiscalYear",
+                "label"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "limits": {
+            "type": "object",
+            "properties": {
+              "linesPerYear": {
+                "type": "integer"
+              },
+              "entriesPerYear": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "linesPerYear",
+              "entriesPerYear"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "serviceId",
+          "serviceName",
+          "fiscalYear",
+          "label",
+          "startMonth",
+          "months",
+          "currentIndex",
+          "from",
+          "to",
+          "amountsVisible",
+          "canEdit",
+          "cloud",
+          "lines",
+          "entries",
+          "currencies",
+          "renewals",
+          "targets",
+          "years",
+          "limits"
+        ],
+        "additionalProperties": false
       }
     },
     "securitySchemes": {
@@ -42563,6 +43244,84 @@
                 "$ref": "#/components/headers/RateLimit-Policy"
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/services/{serviceId}/cost-plan": {
+      "get": {
+        "operationId": "getServiceCostPlan",
+        "summary": "Get the cost plan of a service for a fiscal year",
+        "tags": [
+          "Costs"
+        ],
+        "description": "Service cost planning (docs/COSTS.md#planning-per-service): the plan lines and cost entries of a fiscal year (one start month for the whole instance), per line and currency planned, planned to date, incurred to date, expected and the difference, the months, the cloud and platform costs read for the service (only when the token owner sees every application of it), unplanned entries and renewals in the next 90 days.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 2000,
+              "maximum": 2100
+            },
+            "in": "query",
+            "name": "year",
+            "required": false,
+            "description": "The fiscal year (the calendar year it starts in); default: the current one"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "serviceId",
+            "required": true,
+            "description": "The id of the service"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CostPlanYear"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"

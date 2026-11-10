@@ -77,6 +77,8 @@ Themes of this release (details in the CHANGELOG once released):
 
 **0.14.0 – privileged identities, OT advisories and plant impact.** Privileged platform identities with a step-up and an optional start approval; Confluent Cloud; security advisories for OT devices (CSAF 2.0) matched to assets; what a maintenance window affects, with planned downtime for those monitors in one step; documentation confirmed as still current; Insights Hub as a mapped sink checked against the tenant; and decision records for an edge runner, signed releases and a PAM checkout. The candidates for later releases are under _Later_.
 
+**0.16.0 – lightweight cost planning per service.** Plan lines and cost entries per service and fiscal year (one start month for the instance), set against the cloud and platform costs already read: planned, incurred, expected and the difference, renewals, unplanned entries and a team rollup – no person-hours, approvals, chargeback or currency conversion ([COSTS.md](COSTS.md#planning-per-service), [ADR 0026](adr/0026-service-cost-planning.md)).
+
 ## Later
 
 - **Planned for 0.14** (owner priorities, November 2026):

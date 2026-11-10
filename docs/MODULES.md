@@ -21,7 +21,7 @@ API: `GET /api/settings/modules` lists the modules, `PUT /api/settings/modules/:
 | Compliance and evidence       | `compliance`      | Controls, access changes, access reconciliation, person reviews, evidence packs; the findings tile on Home     | stable   | yes           |
 | Status pages                  | `statusPages`     | Status pages and their secret links; status viewers see "switched off"                                         | beta     | yes           |
 | Scorecard                     | `scorecard`       | The scorecard and availability objectives (tabs of Services); its job and Home tile                            | beta     | yes           |
-| Costs                         | `costs`           | Costs (a tab of Services), budgets, cost readers and their job, the cost check of monitors                     | preview  | yes           |
+| Costs                         | `costs`           | Costs (a tab of Services), budgets, service cost plans, cost readers and their job, the cost check of monitors | preview  | yes           |
 | Data contracts                | `dataContracts`   | Data contracts, their tests, the data contract connector and monitor check                                     | preview  | yes           |
 | AI models                     | `ai`              | The AI usage log and budgets, the _Ask an AI model_ step (it fails while off), the LLM gateway connector       | beta     | yes           |
 | Approvals in Microsoft Teams  | `teamsBot`        | The Teams bot settings; the bot answers 404 and offers no decisions ([TEAMS-APPROVALS.md](TEAMS-APPROVALS.md)) | preview  | yes           |
