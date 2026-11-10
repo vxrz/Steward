@@ -7,7 +7,7 @@ import { startGatusScraper, stopGatusScraper } from './gatus/metrics.js';
 import { startReportSchedules, stopReportSchedules } from './reports/schedules.js';
 import { startAccessChecks, stopAccessChecks } from './compliance/reconciliation.js';
 import { startBackupJobs, stopBackupJobs } from './backup/service.js';
-import { startExportJobs, stopExportJobs } from './export/jobs.js';
+import { cleanUpExportRuns, exportsIdle, startExportJobs, stopExportJobs } from './export/jobs.js';
 import { startJobs, stopJobs } from './jobs/registry.js';
 import { closeAllPools } from './dbms/pool.js';
 import { startEventLoopMonitor, stopEventLoopMonitor } from './eventloop.js';
@@ -22,11 +22,11 @@ import { lifecyclePhase, setLifecyclePhase, shuttingDown } from './lifecycle.js'
  * startUnlocked() – once, when the vault is unlocked (at start with SM_MASTER_PASSPHRASE[_FILE], or by a person):
  *   1. recovery of runs (resume waiting ones, mark running ones interrupted, re-queue queued ones)
  *   2. scheduler (records the fires missed while Steward was not running, starts catch-up runs)
- *   3. monitor engine  4. Gatus scraper  5. report schedules  6. access checks
+ *   3. monitor engine  4. Gatus scraper  5. report schedules  6. access checks  7. clean-up after interrupted exports
  * shutdown() – SIGTERM/SIGINT (main.ts) and the desktop executable:
  *   1. not ready any more (/api/ready answers 503), no new runs (503 SHUTTING_DOWN) and no new scheduled fires
  *   2. report schedules, access checks, backups, exports, background jobs, monitor engine and Gatus scraper stop
- *   3. up to SM_SHUTDOWN_GRACE_SECONDS (default 25) for running steps and jobs to end – runs waiting for a person
+ *   3. up to SM_SHUTDOWN_GRACE_SECONDS (default 25) for running steps, jobs and exports to end – runs waiting for a person
  *      are persisted and resume after the restart, so they are not waited for
  *   4. runs still running are marked interrupted (as recovery would do at the next start)
  * The caller (main.ts) then closes the HTTP server, flushes logs and error reports and releases the database lease.
@@ -53,6 +53,8 @@ export async function startUnlocked(): Promise<void> {
   startGatusScraper();
   startReportSchedules();
   startAccessChecks();
+  // what interrupted or failed exports left in the bucket (it needs the platforms' credentials from the vault)
+  void cleanUpExportRuns().catch((err) => logger.warn({ err }, 'could not clean up after interrupted exports'));
 }
 
 /** The vault was locked: no scheduled fires and no monitor checks until it is unlocked again (the rest stays). */
@@ -111,6 +113,8 @@ async function doShutdown(graceMs: number): Promise<ShutdownReport> {
     safely('waiting for runs', engine().drain(graceMs), engine().counts().busy),
     safely('stopping background jobs', stopJobs(graceMs), []),
     safely('stopping the monitor engine', stopMonitorEngine(), undefined),
+    // a running export stops at its next file and removes what it uploaded; one still going is cleaned up after the next start
+    safely('waiting for exports', exportsIdle(graceMs), false),
   ]);
   stopGatusScraper();
   stopEventLoopMonitor();

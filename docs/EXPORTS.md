@@ -77,7 +77,14 @@ The file is authenticated chunk by chunk; the manifest's SHA-256 is the one of t
 
 ## Retention
 
-After each successful run, the **files of older successful runs beyond _Runs to keep_** are removed. Only files a run of this export recorded are removed – from the run history, never by listing the bucket – so other objects in the folder stay. A file that S3 Object Lock keeps is reported and stays; the run is pruned once all its files are gone. Removing an export removes its definition and history; **its files stay in the bucket** – remove them there.
+After each successful run, the **files of older successful runs beyond _Runs to keep_** are removed. Only files a run of this export recorded are removed – from the run history, never by listing the bucket – so other objects in the folder stay. A file that S3 Object Lock keeps (or that the key may not delete) is reported and stays; the run is pruned once all its files are gone. Removing an export removes its definition and history; **its files stay in the bucket** – remove them there.
+
+A run records each file **before it uploads it**, so no file of an export is ever unknown to Steward:
+
+- A **failed** run removes what it had uploaded. What cannot be removed right then (the same S3 outage) stays recorded on the failed run, and the retention rule removes it with the next successful run.
+- When the server **stops** during a run, the run ends at its next file and removes what it uploaded (shutdown waits for it within `SM_SHUTDOWN_GRACE_SECONDS`). A run cut off harder (a crash, a kill) is marked _Interrupted (the server stopped)_ at the next start – audited as `export.failed` (code `EXPORT_INTERRUPTED`) and notified – and the files it had uploaded are removed once the vault is unlocked.
+- The history keeps the newest 200 runs of an export, and every older run whose files are still in the bucket until they are gone.
+- A platform that an export writes to, or whose bucket still holds files a run recorded, cannot be deleted (`PLATFORM_EXPORT_TARGET`, `PLATFORM_EXPORT_FILES`).
 
 ## Security
 

@@ -508,6 +508,99 @@ describe('an export run', () => {
     await s.api('PUT', `/exports/${id}`, job({ parts: [ALL_PARTS[2]] }));
   });
 
+  it('records the files of a run as they are uploaded, and removes what an interrupted run left after the next start', async () => {
+    const jobs = await import('../src/export/jobs.js');
+    const { db } = await import('../src/db.js');
+    const objs = await objects();
+    const folder = 'exports/nightly-share/20200101T000000Z/';
+    objs.set(`${folder}services.csv`, { body: Buffer.from('left behind'), meta: {}, lastModified: new Date() });
+    // the row as a run that was cut off left it: running, with the file it had uploaded recorded
+    db().run(
+      "INSERT INTO export_runs (id, job_id, status, trigger_kind, started_at, platform_id, folder, files) VALUES (?, ?, 'running', 'schedule', ?, ?, ?, ?)",
+      'xrun_interrupted',
+      id,
+      '2020-01-01T00:00:00.000Z',
+      storageId,
+      folder,
+      JSON.stringify([{ part: 'services', name: 'services.csv', key: `${folder}services.csv`, bytes: 11, sha256: 'x' }]),
+    );
+    jobs.startExportJobs();
+    const row = async () => (await s.api('GET', `/exports/${id}/runs?limit=200`)).find((x: any) => x.id === 'xrun_interrupted');
+    expect(await row()).toMatchObject({ status: 'failed', message: 'Interrupted (the server stopped)', pruned: false, files: [{ name: 'services.csv' }] });
+    const [audited] = await s.api('GET', '/audit?action=export.failed&limit=1');
+    expect(audited.details).toMatchObject({ runId: 'xrun_interrupted', code: 'EXPORT_INTERRUPTED' });
+    expect(objs.has(`${folder}services.csv`)).toBe(true);
+    // once the vault is unlocked (bootstrap), what it left is removed – only the recorded keys
+    await jobs.cleanUpExportRuns();
+    expect(await row()).toMatchObject({ status: 'failed', pruned: true, files: [] });
+    expect(objs.has(`${folder}services.csv`)).toBe(false);
+    expect(objs.has('exports/nightly-share/notes.txt')).toBe(true);
+  });
+
+  it('stops at its next file when the server stops', async () => {
+    const jobs = await import('../src/export/jobs.js');
+    await s.api('PUT', `/exports/${id}`, job({ parts: [ALL_PARTS[2], ALL_PARTS[4]] }));
+    const started = jobs.startExportRun(id, 'schedule');
+    jobs.stopExportJobs();
+    expect(await jobs.exportsIdle(10_000)).toBe(true);
+    jobs.startExportJobs();
+    const [r] = await s.api('GET', `/exports/${id}/runs?limit=1`);
+    expect(r).toMatchObject({ id: started.id, status: 'failed', message: 'Interrupted (the server stopped)', files: [] });
+    expect([...(await objects()).keys()].some((k) => k.startsWith(r.folder))).toBe(false);
+  });
+
+  it('keeps the files a failed run could not remove recorded – and the run in the history – until they are gone', async () => {
+    const lockedBucket = `${BUCKET}-locked`;
+    const locked = await s.api('POST', '/platforms', {
+      name: 'Export bucket with Object Lock',
+      kind: 'generic',
+      baseUrl: `${mockBase}/s3/${lockedBucket}`,
+      config: { auth: { type: 'aws_sigv4', aws: { region: 'eu-central-1', service: 's3' } }, variables: {}, http: { proxy: 'none' } },
+      secrets: { accessKeyId: 'AKIADEMOEXAMPLE', secretAccessKey: 'demoSecretKey' },
+    });
+    await s.api('PUT', `/exports/${id}`, job({ platformId: locked.id, parts: [ALL_PARTS[2], ALL_PARTS[4]] }));
+    // the second part fails after the first was uploaded; the bucket refuses to delete it
+    const { exportPart } = await import('../src/export/parts.js');
+    const systems = exportPart('systems')!;
+    const write = systems.write;
+    systems.write = async () => {
+      throw new Error('An invented failure of a part');
+    };
+    let r: any;
+    try {
+      r = await run();
+    } finally {
+      systems.write = write;
+    }
+    expect(r).toMatchObject({ status: 'failed', message: 'An invented failure of a part' });
+    expect(r.files.map((f: any) => f.name)).toEqual(['services.csv']);
+    const lockedObjects = (await import('../src/mock/mockS3.js')).mockS3Objects(lockedBucket);
+    expect(lockedObjects.has(r.files[0].key)).toBe(true);
+
+    // the history keeps it while its file is in the bucket, however many runs come after
+    const { db } = await import('../src/db.js');
+    const base = Date.now() - 60_000;
+    for (let i = 0; i < 205; i++)
+      db().run(
+        "INSERT INTO export_runs (id, job_id, status, trigger_kind, started_at, finished_at, message) VALUES (?, ?, 'failed', 'schedule', ?, ?, 'invented')",
+        `xrun_filler_${i}`,
+        id,
+        new Date(base + i).toISOString(),
+        new Date(base + i).toISOString(),
+      );
+    db().run('UPDATE export_runs SET started_at = ? WHERE id = ?', new Date(base - 1000).toISOString(), r.id);
+    await s.api('PUT', `/exports/${id}`, job({ platformId: locked.id, parts: [ALL_PARTS[2]] }));
+    expect((await run()).status).toBe('succeeded');
+    expect(db().get('SELECT id FROM export_runs WHERE id = ?', r.id)).toBeTruthy();
+    expect(Number(db().get<{ n: number }>('SELECT COUNT(*) AS n FROM export_runs WHERE job_id = ?', id)!.n)).toBe(201);
+    expect(lockedObjects.has(r.files[0].key)).toBe(true);
+
+    // a platform whose bucket still holds recorded files, or that an export writes to, is not deleted
+    expect(await refused(s.api, 'DELETE', `/platforms/${locked.id}`)).toMatchObject({ status: 409, body: { code: 'PLATFORM_EXPORT_TARGET' } });
+    await s.api('PUT', `/exports/${id}`, job({ parts: [ALL_PARTS[2]] }));
+    expect(await refused(s.api, 'DELETE', `/platforms/${locked.id}`)).toMatchObject({ status: 409, body: { code: 'PLATFORM_EXPORT_FILES' } });
+  });
+
   it('records a failure without secrets and tells the administrators', async () => {
     const bad = await s.api('POST', '/platforms', {
       name: 'Export bucket, wrong key',

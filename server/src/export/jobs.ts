@@ -26,6 +26,7 @@ import { listUsers } from '../auth/users.js';
 import { getPlatform, getSecrets } from '../platforms/service.js';
 import { backupKey, backupKeySet, backupSettings, s3Client, storagePlatform } from '../backup/service.js';
 import { encryptFile } from '../backup/crypto.js';
+import type { S3Client } from '../backup/s3.js';
 import { exportPart, exportPartInfos, EXPORT_PARTS, partLimits, type ExportContext, type ExportWriter } from './parts.js';
 
 /**
@@ -457,10 +458,34 @@ export function startExportRun(jobId: string, trigger: ExportRun['trigger']): Ex
   return run;
 }
 
-/** Waits for the running exports (tests, shutdown). */
-export const exportsIdle = async (): Promise<void> => {
-  while (running.size) await Promise.all([...running.values()]);
-};
+/**
+ * Waits for the running exports (tests, shutdown) – at most `timeoutMs`; true when none runs any more. At shutdown
+ * stopExportJobs() has asked them to stop at the next file: a run that ends removes what it uploaded; one that is
+ * still going when the process ends keeps its uploaded files recorded, and they are removed after the next start.
+ */
+export async function exportsIdle(timeoutMs?: number): Promise<boolean> {
+  const until = timeoutMs === undefined ? Infinity : Date.now() + timeoutMs;
+  while (running.size) {
+    const left = until - Date.now();
+    if (left <= 0) return false;
+    let timer: NodeJS.Timeout | undefined;
+    await Promise.race([Promise.all([...running.values()]), ...(Number.isFinite(left) ? [new Promise((resolve) => (timer = setTimeout(resolve, left)))] : [])]);
+    clearTimeout(timer);
+  }
+  return true;
+}
+
+/** Set while the server stops: a run ends at its next file (and removes what it uploaded). */
+let stopping = false;
+const INTERRUPTED = 'Interrupted (the server stopped)';
+function checkStopping(): void {
+  if (stopping) throw new Error(INTERRUPTED);
+}
+
+/** Records the files of a run as they are uploaded – the retention rule can remove them whatever happens to the run. */
+function recordFiles(run: ExportRun): void {
+  db().run('UPDATE export_runs SET folder = ?, files = ? WHERE id = ?', run.folder, JSON.stringify(run.files), run.id);
+}
 
 /** The content type of an exported file, by its name (encrypted files are application/octet-stream). */
 export function contentTypeOf(name: string): string {
@@ -495,6 +520,7 @@ class WorkFile implements ExportWriter {
 
   async write(text: string): Promise<void> {
     if (this.closed) throw new Error(`${this.name} was written after it was closed`);
+    checkStopping();
     if (!text) return;
     const b = Buffer.from(text, 'utf8');
     this.hash.update(b);
@@ -555,6 +581,7 @@ async function runExport(job: ExportJob, run: ExportRun): Promise<void> {
   let folder = `${base}/`;
   for (let n = 2; existing.has(folder.slice(base.length, -1)); n++) folder = `${base}-${n}/`;
   run.folder = folder;
+  recordFiles(run);
   const dir = workDir();
   const { moduleEnabled } = await import('../modules/registry.js');
   const skipped: { part: string; reason: string }[] = [];
@@ -576,8 +603,11 @@ async function runExport(job: ExportJob, run: ExportRun): Promise<void> {
         objectName = `${f.name}.smbackup`;
       }
       const key = `${folder}${objectName}`;
-      await c.putFile(key, target, meta, { contentType: enc ? 'application/octet-stream' : contentTypeOf(f.name) });
+      checkStopping();
+      // recorded before it is uploaded: a run that is cut off (the server stops) leaves no object Steward forgets
       run.files.push({ part, name: objectName, key, bytes: fs.statSync(target).size, sha256: hash });
+      recordFiles(run);
+      await c.putFile(key, target, meta, { contentType: enc ? 'application/octet-stream' : contentTypeOf(f.name) });
     } finally {
       fs.rmSync(f.path, { force: true });
       fs.rmSync(`${f.path}.smbackup`, { force: true });
@@ -585,6 +615,7 @@ async function runExport(job: ExportJob, run: ExportRun): Promise<void> {
   };
   try {
     for (const choice of job.parts) {
+      checkStopping();
       const def = exportPart(choice.id);
       if (!def) {
         skipped.push({ part: choice.id, reason: 'not known to this version' });
@@ -605,7 +636,17 @@ async function runExport(job: ExportJob, run: ExportRun): Promise<void> {
           work.push(f);
           return f;
         },
-        pause: () => new Promise((resolve) => setImmediate(resolve)),
+        pause: () =>
+          new Promise((resolve, reject) =>
+            setImmediate(() => {
+              try {
+                checkStopping();
+                resolve();
+              } catch (e) {
+                reject(e as Error);
+              }
+            }),
+          ),
         note: (facts) => void Object.assign(notes, facts),
       };
       // as the export's system principal: every part sees everything (only administrators define exports)
@@ -640,8 +681,9 @@ async function runExport(job: ExportJob, run: ExportRun): Promise<void> {
     ];
     if (notes.length) run.message = notes.join('; ');
   } catch (e) {
-    // a failed run leaves nothing behind: what it uploaded is removed again (best effort)
-    for (const f of run.files.splice(0)) await c.delete(f.key).catch(() => undefined);
+    // a failed run leaves nothing behind: what it uploaded is removed again; what cannot be removed now stays recorded,
+    // and the retention rule removes it later
+    run.files = await removeFiles(c, run.files);
     throw e;
   } finally {
     for (const f of work) {
@@ -684,9 +726,9 @@ async function finish(job: ExportJob, run: ExportRun, code?: string): Promise<vo
   });
   if (run.status === 'failed') notifyFailure(job, run);
   else await applyRetention(job).catch((err) => logger.warn({ err, export: job.name }, 'export retention failed'));
-  // the history: the newest runs only
+  // the history: the newest runs only – a run whose files are still in the bucket stays until they are gone
   db().run(
-    `DELETE FROM export_runs WHERE job_id = ? AND id NOT IN (
+    `DELETE FROM export_runs WHERE job_id = ? AND (pruned = 1 OR files = '[]') AND id NOT IN (
        SELECT id FROM (SELECT id FROM export_runs WHERE job_id = ? ORDER BY started_at DESC, id DESC LIMIT ?) AS keep)`,
     job.id,
     job.id,
@@ -694,18 +736,31 @@ async function finish(job: ExportJob, run: ExportRun, code?: string): Promise<vo
   );
 }
 
-/** Removes the files of older successful runs beyond keepRuns – only files a run of this export recorded. */
+/** Deletes the objects of a run; returns those that are still there (refused or not reachable). */
+async function removeFiles(c: S3Client, files: ExportFileInfo[]): Promise<ExportFileInfo[]> {
+  const left: ExportFileInfo[] = [];
+  for (const f of files) {
+    const d = await c.delete(f.key).catch(() => ({ deleted: false }));
+    if (!d.deleted) left.push(f);
+  }
+  return left;
+}
+
+/**
+ * Removes the files of older successful runs beyond keepRuns, and the files failed or interrupted runs left behind –
+ * only files a run of this export recorded, from its own target (never by listing the bucket).
+ */
 export async function applyRetention(job: ExportJob): Promise<{ pruned: number; locked: number }> {
-  const old = db()
-    .all<RunRow>("SELECT * FROM export_runs WHERE job_id = ? AND status = 'succeeded' ORDER BY started_at DESC, id DESC", job.id)
-    .slice(job.keepRuns)
-    .filter((r) => !Number(r.pruned));
+  const runs = db().all<RunRow>("SELECT * FROM export_runs WHERE job_id = ? AND status <> 'running' AND pruned = 0 ORDER BY started_at DESC, id DESC", job.id);
+  const succeeded = runs.filter((r) => r.status === 'succeeded');
+  const keep = new Set(succeeded.slice(0, job.keepRuns).map((r) => r.id));
+  const old = runs.filter((r) => !keep.has(r.id) && (r.status === 'succeeded' || parseJson<ExportFileInfo[]>(r.files, []).length > 0));
   if (!old.length) return { pruned: 0, locked: 0 };
   let pruned = 0;
   let locked = 0;
+  const done: string[] = [];
   for (const r of old) {
     const files = parseJson<ExportFileInfo[]>(r.files, []);
-    let allGone = true;
     // the run's own target: the export may point to another bucket now (never delete a key of the same name there)
     let c;
     try {
@@ -713,24 +768,37 @@ export async function applyRetention(job: ExportJob): Promise<{ pruned: number; 
     } catch {
       continue;
     }
-    for (const f of files) {
-      const d = await c.delete(f.key);
-      if (!d.deleted) ((allGone = false), locked++);
-    }
-    if (allGone) {
-      db().run('UPDATE export_runs SET pruned = 1 WHERE id = ?', r.id);
-      pruned++;
-    }
+    const left = await removeFiles(c, files);
+    locked += left.length;
+    // a failed run keeps the files that are left recorded; a successful one keeps its list (its history shows it)
+    if (r.status === 'failed') db().run('UPDATE export_runs SET files = ?, pruned = ? WHERE id = ?', JSON.stringify(left), left.length ? 0 : 1, r.id);
+    else if (!left.length) db().run('UPDATE export_runs SET pruned = 1 WHERE id = ?', r.id);
+    if (!left.length) (pruned++, done.push(r.id));
   }
   if (pruned)
     audit({
       action: 'export.pruned',
       entityType: 'export',
       entityId: job.id,
-      summary: `Export "${job.name}": the files of ${pruned} older run(s) removed by the retention rule (keeping ${job.keepRuns})${locked ? `, ${locked} file(s) kept by S3 Object Lock` : ''}`,
-      details: { runs: old.map((r) => r.id), locked },
+      summary: `Export "${job.name}": the files of ${pruned} run(s) removed by the retention rule (keeping ${job.keepRuns} successful runs)${locked ? `, ${locked} file(s) could not be removed` : ''}`,
+      details: { runs: done, locked },
     });
   return { pruned, locked };
+}
+
+/**
+ * After the vault is unlocked (bootstrap): removes what interrupted and failed runs left in the bucket, for every
+ * export – their files are recorded as they are uploaded.
+ */
+export async function cleanUpExportRuns(): Promise<void> {
+  const ids = db()
+    .all<{ job_id: string }>("SELECT DISTINCT job_id FROM export_runs WHERE status = 'failed' AND pruned = 0 AND files <> '[]'")
+    .map((r) => r.job_id);
+  for (const id of ids) {
+    const r = db().get<JobRow>('SELECT * FROM export_jobs WHERE id = ?', id);
+    if (!r || running.has(id)) continue;
+    await applyRetention(toJob(r)).catch((err) => logger.warn({ err, export: r.name }, 'could not remove the files of interrupted export runs'));
+  }
 }
 
 function notifyFailure(job: ExportJob, run: ExportRun): void {
@@ -803,7 +871,32 @@ export function scheduleExportJobs(): void {
 
 export function startExportJobs(): void {
   started = true;
-  db().run("UPDATE export_runs SET status = 'failed', finished_at = ?, message = 'Interrupted (the server stopped)' WHERE status = 'running'", nowIso());
+  stopping = false;
+  // runs the last process did not finish: failed, with the files they uploaded recorded (cleanUpExportRuns removes them)
+  const at = nowIso();
+  for (const r of db().all<RunRow>("SELECT * FROM export_runs WHERE status = 'running'")) {
+    if (running.has(r.job_id)) continue;
+    db().run("UPDATE export_runs SET status = 'failed', finished_at = ?, message = ? WHERE id = ?", at, INTERRUPTED, r.id);
+    const j = db().get<JobRow>('SELECT * FROM export_jobs WHERE id = ?', r.job_id);
+    if (!j) continue;
+    const run = toRun({ ...r, status: 'failed', finished_at: at, message: INTERRUPTED });
+    audit({
+      actor: 'system',
+      action: 'export.failed',
+      entityType: 'export',
+      entityId: j.id,
+      summary: `Export "${j.name}" failed: ${INTERRUPTED}${run.files.length ? ` – its ${run.files.length} uploaded file(s) are removed once the vault is unlocked` : ''}`,
+      details: {
+        runId: r.id,
+        status: 'failed',
+        trigger: r.trigger_kind,
+        folder: r.folder,
+        files: run.files.map((f) => ({ name: f.name, key: f.key })),
+        code: 'EXPORT_INTERRUPTED',
+      },
+    });
+    notifyFailure(toJob(j), run);
+  }
   try {
     const dir = path.join(config.dataDir, WORK);
     if (fs.existsSync(dir)) for (const f of fs.readdirSync(dir)) fs.rmSync(path.join(dir, f), { force: true, recursive: true });
@@ -815,5 +908,7 @@ export function startExportJobs(): void {
 
 export function stopExportJobs(): void {
   started = false;
+  // a running export stops at its next file (shutdown waits for it: exportsIdle)
+  stopping = true;
   for (const j of crons.splice(0)) j.cron.stop();
 }
