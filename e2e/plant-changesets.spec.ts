@@ -101,7 +101,7 @@ test.describe('a proposer drafts, a second person applies', () => {
       const dana = await loginAs('dana');
       await dana.goto('/plant/changes?box=review');
       await dana.getByRole('link', { name: `Changes by vera` }).first().click();
-      await expect(dana).toHaveURL(new RegExp(`/plant/changes/${id}$`));
+      await expect(dana).toHaveURL((url) => url.pathname.endsWith(`/plant/changes/${id}`));
       const conflicts = dana.getByTestId('cs-conflicts');
       await expect(conflicts).toContainText('When drafted');
       await expect(conflicts).toContainText('Now in Steward');

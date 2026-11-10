@@ -399,9 +399,15 @@ export function updateIdentity(platformId: string, identityId: string, input: Pa
 export function identityReferences(platformId: string, r: Pick<IdentityRow, 'id' | 'name'>): { kind: string; id: string; name: string }[] {
   const out: { kind: string; id: string; name: string }[] = [];
   const like = `%${r.id}%`;
-  for (const s of db().all<{ id: string; name: string; identities: string }>('SELECT id, name, identities FROM schedules WHERE lower(identities) LIKE lower(?)', like))
+  for (const s of db().all<{ id: string; name: string; identities: string }>(
+    'SELECT id, name, identities FROM schedules WHERE lower(identities) LIKE lower(?)',
+    like,
+  ))
     if (Object.values(parseJson<Record<string, string>>(s.identities, {})).includes(r.id)) out.push({ kind: 'schedule', id: s.id, name: s.name });
-  for (const t of db().all<{ id: string; name: string; identities: string }>('SELECT id, name, identities FROM webhook_triggers WHERE lower(identities) LIKE lower(?)', like))
+  for (const t of db().all<{ id: string; name: string; identities: string }>(
+    'SELECT id, name, identities FROM webhook_triggers WHERE lower(identities) LIKE lower(?)',
+    like,
+  ))
     if (Object.values(parseJson<Record<string, string>>(t.identities, {})).includes(r.id)) out.push({ kind: 'trigger', id: t.id, name: t.name });
   // monitors name an identity by id or by name, next to the platform (id or name)
   for (const m of db().all<{ id: string; name: string; definition: string }>('SELECT id, name, definition FROM monitors')) {
