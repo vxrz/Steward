@@ -1,6 +1,6 @@
 # 0023. Steward edge runner: steps run inside an OT segment, control stays in Steward
 
-- **Status:** Proposed – everything marked _Recommendation_ is open to change; the questions for the owner are at the end
+- **Status:** Accepted (owner decision 2026-11-10) – every _Recommendation_ below was taken as recommended (see _Decided (November 2026)_); not built yet
 - **Date:** 2026-11-09
 - **Since:** planned after 0.14 (decision record first, [ROADMAP.md](../ROADMAP.md)) – processes ([PROCESSES.md](../PROCESSES.md)), monitors, the plant registry
 
@@ -168,13 +168,15 @@ Nothing changes for existing platforms; runners are opt-in. _Recommendation – 
 - New step types for OT protocols, first read-only.
 - Revisit when plants ask for writes, when latency of long-poll matters, or when a company PKI must issue runner certificates.
 
-## Open questions for the owner
+## Decided (November 2026)
 
-1. **What the runner is:** (a) a remote executor of allow-listed operations – recommended; (b) a relay/tunnel; (c) a remote engine.
-2. **Transport:** (a) HTTPS long-poll with mTLS on its own listener – recommended; (b) WebSocket from the start.
-3. **Runner certificates:** (a) Steward's own runner CA, 30-day certificates renewed automatically – recommended; (b) the company PKI; (c) a bearer token only.
-4. **Local allow-list on the runner (two keys):** (a) required – recommended; (b) optional, Steward's list alone is enough.
-5. **Routing:** (a) per platform and monitor check ("reached through runner") – recommended; (b) per step in the process.
-6. **Packaging:** (a) Node.js single executable and container from Steward's repository – recommended; (b) a separate Go program.
-7. **Node-RED as a runner:** (a) no; Node-RED is a target reached through the runner – recommended; (b) a Node-RED node package as an alternative runner.
-8. **Phase 1 scope:** (a) `ping`, `tcp` and `http.read` – recommended; (b) also OPC UA and Modbus reads in phase 1.
+The owner took the recommended answer to every open question ("go with your recommendation if it fits Steward's purpose, architecture, UI/UX and best practices"), decided on 2026-11-10:
+
+1. **What the runner is:** a remote executor of allow-listed operations – not a relay or tunnel, not a remote engine; control and state stay in Steward.
+2. **Transport:** HTTPS long-poll with mTLS on its own listener; WebSocket only if long-poll proves too slow.
+3. **Runner certificates:** Steward's own runner CA, 30-day certificates renewed automatically.
+4. **Local allow-list on the runner (two keys):** required – an operation runs only when Steward's list and the runner's own list both allow it.
+5. **Routing:** per platform and monitor check ("reached through runner"), not per step in the process.
+6. **Packaging:** a Node.js single executable and a container built from Steward's repository.
+7. **Node-RED as a runner:** no; Node-RED is a target reached through the runner.
+8. **Phase 1 scope:** `ping`, `tcp` and `http.read`; OPC UA and Modbus reads come in a later phase.
