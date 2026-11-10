@@ -70,7 +70,11 @@
     "advisory_match_one": "{{count}} Treffer eines Sicherheitshinweises",
     "advisory_match_other": "{{count}} Treffer von Sicherheitshinweisen",
     "advisory_site_one": "{{count}} als nicht zutreffend markierter Hinweis",
-    "advisory_site_other": "{{count}} als nicht zutreffend markierte Hinweise"
+    "advisory_site_other": "{{count}} als nicht zutreffend markierte Hinweise",
+    "maintenance_one": "{{count}} Ziel eines Wartungsfensters",
+    "maintenance_other": "{{count}} Ziele von Wartungsfenstern",
+    "doc_confirmation_one": "{{count}} Bestätigung „noch aktuell“",
+    "doc_confirmation_other": "{{count}} Bestätigungen „noch aktuell“"
   },
   "problems": {
     "PLANT_ID_FORMAT": "Verwenden Sie Kleinbuchstaben, Ziffern, „.“, „_“ und „-“, beginnend mit einem Buchstaben oder einer Ziffer (höchstens 80).",

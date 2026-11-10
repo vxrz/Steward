@@ -4,6 +4,7 @@ import {
   PLANT_FIELD_KEY_RE,
   PLANT_FIELD_KINDS,
   PLANT_LANG_RE,
+  PLANT_DOC_REVIEW_LIMITS,
   PLANT_LIMITS,
   PLANT_RECORD_TYPES,
   type FieldValues,
@@ -24,11 +25,11 @@ import { HttpError, nowIso } from '../util.js';
 
 const KEY = 'plant.settings';
 
-const DEFAULTS: PlantSettings = { enabled: false, enterprise: '', labels: {}, fields: {}, updatedAt: null, updatedBy: null };
+const DEFAULTS: PlantSettings = { enabled: false, enterprise: '', labels: {}, fields: {}, documentReview: {}, updatedAt: null, updatedBy: null };
 
 export function plantSettings(): PlantSettings {
   const s = readSetting<Partial<PlantSettings>>(KEY, {});
-  return { ...DEFAULTS, ...s, labels: s.labels ?? {}, fields: s.fields ?? {} };
+  return { ...DEFAULTS, ...s, labels: s.labels ?? {}, fields: s.fields ?? {}, documentReview: s.documentReview ?? {} };
 }
 
 /** Whether the module is on. */
@@ -67,6 +68,8 @@ export const plantSettingsInput = z
     enterprise: z.string().trim().max(PLANT_LIMITS.name).default(''),
     labels: typeKeyed(langKeyed(label)).default({}),
     fields: typeKeyed(z.array(fieldDef).max(PLANT_LIMITS.fieldDefs)).default({}),
+    /** 0.14: review intervals of plant documents per document type (record type key → months); missing: unchanged */
+    documentReview: boundedRecord(z.number().int().min(1).max(PLANT_DOC_REVIEW_LIMITS.monthsMax), PLANT_DOC_REVIEW_LIMITS.types).optional(),
   })
   .strict();
 
@@ -91,8 +94,22 @@ export function updatePlantSettings(input: z.infer<typeof plantSettingsInput>, o
     const l = Object.fromEntries(Object.entries(input.labels[type] ?? {}).filter(([, v]) => v.one || v.other));
     if (Object.keys(l).length) labels[type] = l;
   }
-  const next: PlantSettings = { enabled: input.enabled, enterprise: input.enterprise, labels, fields, updatedAt: nowIso(), updatedBy: u.username };
-  const changed = (['enabled', 'enterprise', 'labels', 'fields'] as const).filter((k) => JSON.stringify(before[k]) !== JSON.stringify(next[k]));
+  for (const k of Object.keys(input.documentReview ?? {}))
+    if (!/^[A-Z][A-Z0-9_-]{0,19}$/i.test(k))
+      throw new HttpError(400, `"${k.slice(0, 40)}" is not a document type key`, 'PLANT_DOC_TYPE', { type: k.slice(0, 40) });
+  const documentReview = input.documentReview ?? before.documentReview ?? {};
+  const next: PlantSettings = {
+    enabled: input.enabled,
+    enterprise: input.enterprise,
+    labels,
+    fields,
+    documentReview,
+    updatedAt: nowIso(),
+    updatedBy: u.username,
+  };
+  const changed = (['enabled', 'enterprise', 'labels', 'fields', 'documentReview'] as const).filter(
+    (k) => JSON.stringify(before[k]) !== JSON.stringify(next[k]),
+  );
   if (!changed.length) return before;
   writeSetting(KEY, next);
   if (before.enabled !== next.enabled)
@@ -109,7 +126,7 @@ export function updatePlantSettings(input: z.infer<typeof plantSettingsInput>, o
       entityType: 'settings',
       entityId: 'plant',
       summary: `Plant registry settings changed (${other.join(', ')})`,
-      details: Object.fromEntries(other.map((k) => [k, { old: before[k], new: next[k] }])),
+      details: Object.fromEntries(other.map((k) => [k, { old: before[k] ?? null, new: next[k] }])),
     });
   if (!before.enabled && next.enabled) onEnabled?.();
   return next;

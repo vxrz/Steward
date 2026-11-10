@@ -50,7 +50,10 @@ beforeAll(async () => {
 describe('the registry of reference columns', () => {
   /** Columns of plant tables that hold no plant id (or the entry's own data); a new column fails until it is listed. */
   const PLAIN: Record<string, string[]> = {
-    plant_sites: ['code', 'name', 'names', 'description', 'lat', 'lon', 'zoom', 'contacts', 'fields', 'acl'],
+    // 0.14: the site's review interval of its documentation
+    plant_sites: ['code', 'name', 'names', 'description', 'lat', 'lon', 'zoom', 'contacts', 'fields', 'acl', 'doc_review_months'],
+    // 0.14: "still current" – of a record (its id is not a plant id) or of an asset's documentation (in REFERENCES)
+    plant_doc_confirmations: ['kind', 'confirmed_at', 'confirmed_by'],
     plant_nodes: ['level', 'name', 'names', 'type', 'domain', 'description', 'position', 'fields'],
     plant_buildings: ['name', 'names', 'kind', 'description', 'position', 'fields'],
     plant_assets: [
@@ -326,7 +329,7 @@ describe('the registry of reference columns', () => {
     maintenance_windows: 'a window kind: maintenance or downtime',
     eol_notices: 'components',
     systems: 'the system kind',
-    maintenance_targets: 'MAINTENANCE_TARGET_KINDS: platforms, systems, applications, services, monitors',
+    maintenance_targets: 'MAINTENANCE_TARGET_KINDS: platforms, systems, applications, services, monitors – and plant entries (in REFERENCES)',
     maintenance_notices: 'a notice kind',
     stack_version_watch: 'applications and systems',
     service_duties: 'an interval',

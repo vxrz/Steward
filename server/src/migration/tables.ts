@@ -220,6 +220,8 @@ export const HISTORY_COLUMNS: string[] = [
   'plant_advisory_matches.decided_by',
   'plant_advisory_matches.remediation_by',
   'plant_advisory_sites.decided_by',
+  // who confirmed plant documentation as still current (0.14)
+  'plant_doc_confirmations.confirmed_by',
   'access_checks.updated_by',
   'application_components.created_by',
   'platform_recordings.created_by',

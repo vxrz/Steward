@@ -617,6 +617,22 @@ export const PLANT_MIGRATIONS: NamedMigration[] = [
     sql: `ALTER TABLE plant_kpis ADD COLUMN roll_up TEXT NOT NULL DEFAULT 'none';`,
   },
   {
+    // 0.14: documentation still current (docs/PLANT.md "Documentation still current") – the last "Still current" of a
+    // document (kind record, a record id) or of an asset's documentation as a whole (kind asset); the history is in the
+    // audit trail. A site's review interval in months (null: none); the document types' intervals are plant settings.
+    name: 'plant-016-doc-confirmations',
+    sql: `
+      CREATE TABLE plant_doc_confirmations (
+        kind TEXT NOT NULL,
+        target_id TEXT NOT NULL,
+        confirmed_at TEXT NOT NULL,
+        confirmed_by TEXT NOT NULL,
+        PRIMARY KEY (kind, target_id)
+      );
+      ALTER TABLE plant_sites ADD COLUMN doc_review_months INTEGER;
+    `,
+  },
+  {
     // 0.14: security advisories for OT devices (docs/ADVISORIES.md) – CSAF 2.0 documents (kept as received, with what
     // Steward read from them; severity_rank and the indexes serve the list's server-side filters, sorting and paging,
     // match_stamp the plant data an advisory was last matched against, so matching proceeds in bounded batches), where they come from (configured providers, aggregators and ROLIE feeds – none until an

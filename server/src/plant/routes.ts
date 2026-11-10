@@ -16,6 +16,7 @@ import { contentDisposition } from '../records/attachments.js';
 import { diffSources, listSources, sourceFile } from './collections-sources.js';
 import { plantDocuments } from './documents.js';
 import { currentParams, currentQuery, listAliases, removeAlias } from './ids.js';
+import * as docReview from './doc-review.js';
 import { previewRename, renameId } from './rename.js';
 import { applyBulk, bulkNeedsStepUp, previewBulk } from './bulk.js';
 import { plantJsonSchema } from './format.js';
@@ -86,6 +87,7 @@ import { audit } from '../audit.js';
  *   …       /api/plant/assets/:assetId/collections[/:collectionId[/mapping|/flow]], …/collections/import[/preview]   data collections (0.11.0; flow 0.12)
  *   GET     /api/plant/assets/:assetId/collection-sources[/diff | /:sourceId/file]   the kept files of collection imports (0.12)
  *   GET     /api/plant/documents?kind=&id=                the Documents panel of plant pages (0.12)
+ *   POST    /api/plant/documents/confirm, PUT …/sites/:siteId/doc-review, GET …/sites/:siteId/documentation   still current (0.14)
  *   GET     /api/plant/collections?collectorKind=&collectorRef=, …/profiles/:profileId/points/:pointId/collections
  *   GET     /api/plant/views/overview | /views/coverage, …/structure, …/flow, …/lineage   the visualizations (#230)
  *   POST    /api/plant/import/preview | /api/plant/import, GET /api/plant/imports, GET /api/plant/export
@@ -776,6 +778,11 @@ export async function plantRoutes(app: FastifyInstance): Promise<void> {
             : q.id;
     return plantDocuments(q.kind, id);
   });
+  // 0.14: documentation still current – "Still current" on a document or an asset's documentation as a whole (a light
+  // action, not a change set: it changes no entry), the site's review interval (a setting of the site), the health view
+  app.post('/plant/documents/confirm', async (req) => docReview.confirmCurrent(docReview.confirmInput.parse(req.body)));
+  app.put('/plant/sites/:siteId/doc-review', async (req) => docReview.setSiteDocReview(p(req).siteId!, docReview.siteDocReviewInput.parse(req.body).months));
+  app.get('/plant/sites/:siteId/documentation', async (req) => docReview.documentationHealth(p(req).siteId!));
 
   // ---------- visualizations (#230): read-only aggregates, the same rights as the pages they picture ----------
   app.get('/plant/views/overview', async () => overview());

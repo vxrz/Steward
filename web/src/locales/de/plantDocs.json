@@ -155,5 +155,71 @@
     "versionShort": "Stand {{version}}",
     "importedBy": "Importiert am {{date}} von {{user}}"
   },
-  "inheritedTitle": "Geerbte Dokumente"
+  "inheritedTitle": "Geerbte Dokumente",
+  "current": {
+    "column": "Noch aktuell",
+    "button": "Noch aktuell",
+    "buttonFor": "„{{title}}“ als noch aktuell bestätigen",
+    "confirmedBy": "Zuletzt bestätigt von {{user}} am {{date}}",
+    "never": "Noch nicht bestätigt",
+    "due": "Ein Blick ist fällig",
+    "dueHelp": "Länger als {{months}} Monate nicht bestätigt – ein Hinweis, kein Fehler.",
+    "next": "Nächster Blick bis {{date}}",
+    "saved": "Als noch aktuell bestätigt.",
+    "whole": "Dokumentation insgesamt",
+    "wholeButton": "Alles noch aktuell"
+  },
+  "health": {
+    "interval_one": "Die Dokumentation dieses Standorts sollte jeden Monat als noch aktuell bestätigt werden.",
+    "interval_other": "Die Dokumentation dieses Standorts sollte alle {{count}} Monate als noch aktuell bestätigt werden.",
+    "noInterval": "Für diesen Standort gibt es kein Prüfintervall – Dokumente und Anlagen werden nie „fällig“. Wer den Standort verwaltet, legt eines in seiner Übersicht fest.",
+    "typeIntervals": "Dokumenttypen mit eigenem Intervall (Monate): {{list}}",
+    "confirmed_one": "Bei {{confirmed}} von {{count}} Anlage ist die Dokumentation als noch aktuell bestätigt.",
+    "confirmed_other": "Bei {{confirmed}} von {{count}} Anlagen ist die Dokumentation als noch aktuell bestätigt.",
+    "help": "Was in der Dokumentation fehlt und was länger nicht angesehen wurde. Jeder Eintrag führt dorthin, wo Sie es ergänzen.",
+    "clean": "Es fehlt nichts, und nichts ist für einen Blick fällig.",
+    "more_one": "und {{count}} weiterer",
+    "more_other": "und {{count}} weitere",
+    "dueSince": "fällig seit {{date}}",
+    "hintBadge": "Hinweis",
+    "gaps": {
+      "assetNoProfile": "Anlagen ohne Geräteprofil",
+      "deviceNoVlan": "Geräte ohne VLAN",
+      "pathNoSink": "Datenpfade ohne Ziel",
+      "collectionNoSink": "Datenerfassungen ohne Senke",
+      "collectionNoItems": "Datenerfassungen ohne Elemente",
+      "kpiNotCollected": "KPIs, die die Maschinen haben könnten, nicht erfasst"
+    },
+    "gapsHelp": {
+      "assetNoProfile": "Ohne Profil kennt Steward keine Datenpunkte, Schnittstellen oder KPIs der Anlage.",
+      "deviceNoVlan": "Die Netzwerkidentität ist unvollständig: In welchem VLAN ist das Gerät?",
+      "pathNoSink": "Wohin gehen die Daten? Ein Datenpfad braucht mindestens ein Ziel.",
+      "collectionNoSink": "Wohin gehen die erfassten Daten? Ergänzen Sie eine Senke.",
+      "collectionNoItems": "Die Erfassung liest noch nichts – importieren Sie die Konfiguration des Erfassers oder ergänzen Sie Elemente.",
+      "kpiNotCollected": "Das Gerät liefert alle Eingänge, aber noch keine Datenerfassung ordnet sie zu."
+    },
+    "hints": {
+      "assetNotConfirmed": "Anlagendokumentation lange nicht bestätigt",
+      "documentNotConfirmed": "Dokumente lange nicht bestätigt"
+    },
+    "hintsHelp": {
+      "assetNotConfirmed": "Älter als das Prüfintervall des Standorts. Ein Hinweis: Öffnen Sie die Anlage und bestätigen Sie, dass ihre Dokumentation noch aktuell ist.",
+      "documentNotConfirmed": "Älter als das Prüfintervall ihres Typs oder des Standorts. Bestätigen Sie sie dort als noch aktuell, wo sie aufgeführt sind."
+    }
+  },
+  "review": {
+    "label": "Prüfintervall der Dokumentation",
+    "help": "Wie oft die Dokumentation dieses Standorts als noch aktuell bestätigt werden sollte. Ein Hinweis, wenn fällig, nie ein Alarm. Leer: keines.",
+    "none": "Kein Intervall",
+    "months": "Monate",
+    "save": "Intervall speichern",
+    "saved": "Prüfintervall gespeichert."
+  },
+  "settings": {
+    "title": "Prüfintervalle von Dokumenten",
+    "help": "Wie oft Dokumente eines Typs auf den Seiten des Anlagenregisters als noch aktuell bestätigt werden sollten – statt des Intervalls des Standorts. Leer: das Intervall des Standorts.",
+    "type": "Dokumenttyp",
+    "months": "Monate",
+    "monthsFor": "Prüfintervall von {{type}} in Monaten"
+  }
 }

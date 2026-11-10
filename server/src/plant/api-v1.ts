@@ -15,6 +15,8 @@ import { getAssignment } from './assignments.js';
 import { assetNetwork, siteNetwork } from './network.js';
 import { assetCollections } from './collections.js';
 import { exportYaml } from './import.js';
+import { assetDocumentation } from './doc-review.js';
+import { visibleAsset } from './service.js';
 import type { ApiPrincipal } from '../api/v1/auth.js';
 import { PlantAssetListQuery, PlantCatalogueListQuery, PlantCheckListQuery, PlantExportQuery, PlantSiteListQuery } from './api-schemas.js';
 
@@ -331,6 +333,23 @@ export function plantApiRoutes(getRoute: Get): void {
         ...x
       } = found(() => assetCollections((req.params as { assetId: string }).assetId), 'Asset');
       return x;
+    },
+  );
+
+  get(
+    '/plant/assets/:assetId/documentation',
+    {
+      operationId: 'getPlantAssetDocumentation',
+      tag: 'Plant',
+      summary: 'Get whether an asset’s documentation is confirmed as still current',
+      description: `0.14: the last “Still current” of the asset’s documentation as a whole and of each of its documents (records linked to the asset, and those it inherits from its profile, collections and sinks), who confirmed it when, and whether a confirmation is due by the review interval of the document type or the site – a hint, never an error. Read-only. ${MODULE}`,
+      params: { assetId: 'Asset id' },
+      response: { $ref: 'PlantAssetDocumentationEntry#' },
+    },
+    async (req) => {
+      const id = (req.params as { assetId: string }).assetId;
+      found(() => visibleAsset(id), 'Asset');
+      return assetDocumentation(id);
     },
   );
 

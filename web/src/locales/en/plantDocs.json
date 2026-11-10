@@ -155,5 +155,71 @@
     "versionShort": "Version {{version}}",
     "importedBy": "Imported {{date}} by {{user}}"
   },
-  "inheritedTitle": "Inherited documents"
+  "inheritedTitle": "Inherited documents",
+  "current": {
+    "column": "Still current",
+    "button": "Still current",
+    "buttonFor": "Confirm “{{title}}” as still current",
+    "confirmedBy": "Last confirmed by {{user}} on {{date}}",
+    "never": "Not confirmed yet",
+    "due": "A look is due",
+    "dueHelp": "Not confirmed for longer than {{months}} months – a hint, nothing is wrong.",
+    "next": "Next look by {{date}}",
+    "saved": "Confirmed as still current.",
+    "whole": "Documentation as a whole",
+    "wholeButton": "All still current"
+  },
+  "health": {
+    "interval_one": "The documentation of this site should be confirmed as still current every month.",
+    "interval_other": "The documentation of this site should be confirmed as still current every {{count}} months.",
+    "noInterval": "No review interval for this site – documents and assets are never “due”. Who manages the site sets one on its overview.",
+    "typeIntervals": "Document types with their own interval (months): {{list}}",
+    "confirmed_one": "{{confirmed}} of {{count}} asset has its documentation confirmed as still current.",
+    "confirmed_other": "{{confirmed}} of {{count}} assets have their documentation confirmed as still current.",
+    "help": "What is missing from the documentation, and what has not been looked at for a while. Each entry leads to where to fix it.",
+    "clean": "Nothing is missing, and nothing is due for a look.",
+    "more_one": "and {{count}} more",
+    "more_other": "and {{count}} more",
+    "dueSince": "due since {{date}}",
+    "hintBadge": "hint",
+    "gaps": {
+      "assetNoProfile": "Assets without a device profile",
+      "deviceNoVlan": "Devices without a VLAN",
+      "pathNoSink": "Data paths without a destination",
+      "collectionNoSink": "Data collections without a sink",
+      "collectionNoItems": "Data collections without items",
+      "kpiNotCollected": "KPIs the machines could have, not collected"
+    },
+    "gapsHelp": {
+      "assetNoProfile": "Without a profile Steward knows no data points, interfaces or KPIs of the asset.",
+      "deviceNoVlan": "The network identity is incomplete: which VLAN is the device in?",
+      "pathNoSink": "Where does the data go? A data path needs at least one destination.",
+      "collectionNoSink": "Where does the collected data go? Add a sink.",
+      "collectionNoItems": "The collection reads nothing yet – import the collector’s configuration or add items.",
+      "kpiNotCollected": "The device delivers every input, but no data collection maps them yet."
+    },
+    "hints": {
+      "assetNotConfirmed": "Asset documentation not confirmed for a long time",
+      "documentNotConfirmed": "Documents not confirmed for a long time"
+    },
+    "hintsHelp": {
+      "assetNotConfirmed": "Older than the site’s review interval. A gentle hint: open the asset and confirm that its documentation is still current.",
+      "documentNotConfirmed": "Older than the review interval of their type or the site. Confirm them as still current where they are listed."
+    }
+  },
+  "review": {
+    "label": "Documentation review interval",
+    "help": "How often the documentation of this site should be confirmed as still current. A hint when due, never an alert. Empty: none.",
+    "none": "No interval",
+    "months": "months",
+    "save": "Save interval",
+    "saved": "Review interval saved."
+  },
+  "settings": {
+    "title": "Review intervals of documents",
+    "help": "How often documents of a type should be confirmed as still current on plant pages – instead of the site’s interval. Empty: the site’s interval.",
+    "type": "Document type",
+    "months": "Months",
+    "monthsFor": "Review interval of {{type}} in months"
+  }
 }

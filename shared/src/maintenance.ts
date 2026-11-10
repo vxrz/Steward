@@ -7,8 +7,18 @@
  * monitors' own windows of earlier versions were copied into such windows.
  */
 
-export const MAINTENANCE_TARGET_KINDS = ['platform', 'system', 'application', 'service', 'monitor'] as const;
+export const MAINTENANCE_TARGET_KINDS = ['platform', 'system', 'application', 'service', 'monitor', 'site', 'asset', 'device', 'collection'] as const;
 export type MaintenanceTargetKind = (typeof MAINTENANCE_TARGET_KINDS)[number];
+/**
+ * 0.14: plant targets – a site, an asset, a device (`<asset>/<device>`, e.g. a gateway or a switch) or a data collection
+ * (`<asset>/<collection>`). Only while the plant registry is on; they reach nothing in the engine by themselves: what
+ * they affect is the window's impact (monitors are added to it on purpose, `POST …/impact/downtime`).
+ */
+export const PLANT_MAINTENANCE_TARGET_KINDS = ['site', 'asset', 'device', 'collection'] as const;
+export type PlantMaintenanceTargetKind = (typeof PLANT_MAINTENANCE_TARGET_KINDS)[number];
+export const isPlantMaintenanceTarget = (k: string): k is PlantMaintenanceTargetKind => (PLANT_MAINTENANCE_TARGET_KINDS as readonly string[]).includes(k);
+/** kind:id of a target in a query (`?target=`, `?targets=`): plant ids hold `.`, a device or collection `<asset>/<id>`. */
+export const MAINTENANCE_TARGET_RE = /^(platform|system|application|service|monitor|site|asset|device|collection):[\w.-]{1,80}(\/[\w.-]{1,80})?$/;
 
 export const MAINTENANCE_FREQS = ['weekly', 'monthly'] as const;
 
@@ -179,4 +189,140 @@ export function occurrencesBetween(
     if (start + dur > from) out.push({ start, end: start + dur });
   }
   return out;
+}
+
+// ---------- impact before maintenance (0.14) ----------
+
+/**
+ * What a window affects, before it is saved and on its page: the graph from its targets – catalogue reach (down from
+ * services, applications and systems, up from platforms and systems) and the plant (a site's assets, an asset's parts,
+ * the devices behind a device such as a switch, data paths, collections, the data points they collect, the KPI jobs and
+ * coverage that read them, datasets and dashboards, monitors and the owners to tell). Bounded: chains are followed
+ * `depth` steps, each group names at most `items` and counts the rest; the walk stops after `nodes` entries.
+ */
+export const IMPACT_LIMITS = { depth: 4, items: 100, nodes: 5000, targets: MAINTENANCE_LIMITS.targets } as const;
+
+export const IMPACT_GROUPS = [
+  'assets',
+  'devices',
+  'dataPaths',
+  'collections',
+  'kpis',
+  'coverage',
+  'datasets',
+  'dashboards',
+  'monitors',
+  'platforms',
+  'systems',
+  'applications',
+  'services',
+] as const;
+export type ImpactGroupKind = (typeof IMPACT_GROUPS)[number];
+
+/** Why an item is affected (the step of the walk that reached it). */
+export type ImpactVia =
+  | 'target'
+  | 'site'
+  | 'part'
+  | 'switch'
+  | 'device'
+  | 'asset'
+  | 'collector'
+  | 'host'
+  | 'chain'
+  | 'dataPath'
+  | 'collection'
+  | 'dataPoint'
+  | 'result'
+  | 'sink'
+  | 'platform'
+  | 'reach'
+  | 'link'
+  | 'check';
+
+export interface ImpactItem {
+  /** Unique in its group: the item's id (plant entries of an asset: `<asset>/<id>`, a KPI job `<asset>/<job>`) */
+  id: string;
+  name: string;
+  /** Its page in the web app (null: none, or not for this reader) */
+  path: string | null;
+  /** Context in words: the asset of a device, the KPI of a job, the site of an asset */
+  detail: string;
+  via: ImpactVia;
+  /** The target or item it comes through (its name), when not a target itself */
+  from: string | null;
+}
+
+/** What a monitor does during the window: stays quiet (maintenance), shows Off (it has an Off state), goes down. */
+export const IMPACT_EXPECTATIONS = ['maintenance', 'downtime', 'off', 'down'] as const;
+export type ImpactExpectation = (typeof IMPACT_EXPECTATIONS)[number];
+
+export interface ImpactMonitor extends ImpactItem {
+  /** Its status now (null: not evaluated yet) */
+  status: string | null;
+  enabled: boolean;
+  /** It has states (ADR 0021) with an Off state: a stop on purpose shows Off, not Down */
+  offState: boolean;
+  /**
+   * During the window: maintenance – the window keeps it quiet (it lists the monitor or an affected platform it checks);
+   * downtime – planned downtime covers it; off – it goes Off (Off state); down – it would go down and alert
+   */
+  expect: ImpactExpectation;
+  /** The window lists it already */
+  listed: boolean;
+  /** The planner may list it (acknowledge right) */
+  canAdd: boolean;
+}
+
+export interface ImpactGroup<T extends ImpactItem = ImpactItem> {
+  /** Every affected item the reader may see */
+  total: number;
+  /** Affected items the reader may not see: counted, not named */
+  hidden: number;
+  /** At most IMPACT_LIMITS.items, in a stable order */
+  items: T[];
+}
+
+/** Someone to tell: an owner or contact of an affected item. */
+export interface ImpactContact {
+  /** user:<name> or team:<name> (a site's contacts without a Steward account: `contact:<name>`, shown only) */
+  subject: string;
+  label: string;
+  /** What they own or look after, by name (at most 5) */
+  of: string[];
+  /** A Steward user or team: the announcement can reach them */
+  notifiable: boolean;
+}
+
+export interface MaintenanceImpact {
+  /** The targets as the reader may see them */
+  targets: MaintenanceTarget[];
+  /** maintenance or downtime: what the window does to monitors (the expectation) */
+  kind: MaintenanceKind;
+  groups: { [K in ImpactGroupKind]: K extends 'monitors' ? ImpactGroup<ImpactMonitor> : ImpactGroup };
+  contacts: ImpactContact[];
+  /** The walk stopped at IMPACT_LIMITS.nodes, or a chain was cut at the depth: there may be more */
+  truncated: boolean;
+  /** Monitors the planner may add, not listed yet (the one click "planned downtime for the affected monitors") */
+  addableMonitors: number;
+  /** The plant registry is on (plant targets and groups) */
+  plant: boolean;
+}
+
+/** POST /api/maintenance-windows/:id/impact/downtime: planned downtime for the affected monitors, or list them in the window. */
+export interface ImpactDowntimeResult {
+  /** The window that now covers them: a new planned downtime, or this window (mode include) */
+  window: MaintenanceWindowDetail;
+  /** Monitors added */
+  added: number;
+  /** Affected monitors the planner may not list (no acknowledge right): left out */
+  skipped: number;
+}
+
+/** POST /api/maintenance-windows/:id/impact/notify: the affected owners told (the announcement "Maintenance planned"). */
+export interface ImpactNotifyResult {
+  /** People the announcement went to */
+  recipients: number;
+  /** Sent for this version of the window before: nothing sent again */
+  already: boolean;
 }

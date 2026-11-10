@@ -711,6 +711,12 @@ const EXPECT: Record<string, Access> = {
   'PUT /api/maintenance-windows/:id': DESIGN,
   'POST /api/maintenance-windows/:id/cancel': DESIGN,
   'GET /api/maintenance-windows/:id/ics': ALL,
+  // 0.14: impact before maintenance – before saving and of a window; planned downtime for its monitors, telling the owners
+  'GET /api/maintenance-windows/impact': ALL,
+  'GET /api/maintenance-windows/plant-targets': ALL,
+  'GET /api/maintenance-windows/:id/impact': ALL,
+  'POST /api/maintenance-windows/:id/impact/downtime': DESIGN,
+  'POST /api/maintenance-windows/:id/impact/notify': DESIGN,
   'GET /api/platforms/:id/application': USE,
   'PUT /api/services/:id/applications/:applicationId': DESIGN,
   'DELETE /api/services/:id/applications/:applicationId': DESIGN,
@@ -863,6 +869,7 @@ const EXPECT: Record<string, Access> = {
   'GET /api/v1/plant/advisories': PLANT,
   'GET /api/v1/plant/advisories/:advisoryId': PLANT,
   'GET /api/v1/plant/assets/:assetId/advisories': PLANT,
+  'GET /api/v1/plant/assets/:assetId/documentation': PLANT,
   // database schemas (#222): of the demo database platform (who sees it) and of the matrix system (everyone);
   'GET /api/v1/platforms/:platformId/schema/snapshots': USE,
   // platform costs (#226): the overview for everyone (each sees what they may see); one scope as in the web app
@@ -1111,6 +1118,10 @@ const EXPECT: Record<string, Access> = {
   'POST /api/plant/history/:historyId/revert': PROPOSE,
   // the site's switch "Changes need a second person": who manages the site, confirmed like an access grant
   'PUT /api/plant/sites/:siteId/review': DESIGN,
+  // 0.14: documentation still current – confirming (who may propose on the site), the site's interval, the health view
+  'POST /api/plant/documents/confirm': [...DESIGN, 'operator', 'approver', 'plant'],
+  'PUT /api/plant/sites/:siteId/doc-review': DESIGN,
+  'GET /api/plant/sites/:siteId/documentation': PLANT,
   // part 2 (#219): device profiles and KPI definitions (catalogues of the installation), an asset's assignment
   'GET /api/plant/profiles': PLANT,
   'POST /api/plant/profiles': DESIGN,

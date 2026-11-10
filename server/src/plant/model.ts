@@ -778,6 +778,8 @@ export function removeAssetRow(id: string): void {
   db().run("DELETE FROM plant_refs WHERE kind = 'asset' AND item_id = ?", id);
   db().run("DELETE FROM item_links WHERE from_kind = 'asset' AND from_id = ?", id);
   db().run("DELETE FROM copied_from WHERE kind = 'asset' AND id = ?", id);
+  // 0.14: the last "still current" of its documentation as a whole
+  db().run("DELETE FROM plant_doc_confirmations WHERE kind = 'asset' AND target_id = ?", id);
   db().run('DELETE FROM plant_assets WHERE id = ?', id);
 }
 
