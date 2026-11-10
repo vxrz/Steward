@@ -174,7 +174,10 @@
       "state": "Zustand",
       "confidence": "Verlässlichkeit",
       "addFlags": "Merkmale hinzufügen",
-      "removeFlags": "Merkmale entfernen"
+      "removeFlags": "Merkmale entfernen",
+      "areaId": "Bereich",
+      "workCenterId": "Arbeitszentrum",
+      "workUnitId": "Arbeitseinheit"
     },
     "siteOnly": "Gebäude und Ort gelten für die Anlagen eines Standorts: Wählen Sie Anlagen eines Standorts aus.",
     "moveTitle_one": "{{count}} Eintrag verschieben",

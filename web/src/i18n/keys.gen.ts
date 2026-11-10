@@ -8425,7 +8425,6 @@ export interface Resources {
     'move.assetHelp': string;
     'move.newPlace': string;
     'moveEntries.menu': string;
-    'moveEntries.menuSelected': string;
     'moveEntries.devicesTitle_one': string;
     'moveEntries.devicesTitle_other': string;
     'moveEntries.collectionTitle': string;
@@ -9331,6 +9330,9 @@ export interface Resources {
     'bulk.fields.confidence': string;
     'bulk.fields.addFlags': string;
     'bulk.fields.removeFlags': string;
+    'bulk.fields.areaId': string;
+    'bulk.fields.workCenterId': string;
+    'bulk.fields.workUnitId': string;
     'bulk.siteOnly': string;
     'bulk.moveTitle_one': string;
     'bulk.moveTitle_other': string;
