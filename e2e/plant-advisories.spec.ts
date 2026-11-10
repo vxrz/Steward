@@ -136,7 +136,7 @@ test.describe('security advisories', () => {
       await expect(exact.getByTestId('remediation-status')).toHaveText('Mitigated');
       // the list: two affected assets, one still open
       await page.goto(`/plant/advisories?site=${f.site}`);
-      const row = page.getByTestId('advisories-table').getByRole('row', { name: new RegExp(`ZELT-SA-${tag}`, 'i') });
+      const row = page.getByTestId('advisories-table').getByRole('row', { name: `ZELT-SA-${tag}` });
       await expect(row).toContainText('2 assets');
       await expect(row).toContainText('1 open');
       await expect(row).toContainText('Open');

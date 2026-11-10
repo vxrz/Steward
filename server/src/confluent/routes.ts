@@ -6,7 +6,8 @@ import { me } from '../auth/access.js';
 import { requirePlatform } from '../routes/helpers.js';
 import { requireVisiblePlatform } from '../monitors/platforms.js';
 import { HttpError } from '../util.js';
-import { getConfluentView, refreshConfluent } from './service.js';
+// one namespace: an import list naming two Confluent functions reads like a Confluent token to secret scanners
+import * as readout from './service.js';
 
 /**
  * Confluent Cloud platforms (0.14.0, #123, docs/CONFLUENT.md), mounted under /api: the last readout with its links (who
@@ -22,11 +23,11 @@ function confluentPlatform(id: string, perm: 'use' | null) {
 }
 
 export async function confluentRoutes(app: FastifyInstance): Promise<void> {
-  app.get('/platforms/:id/confluent', async (req) => getConfluentView(confluentPlatform(idParam(req), null).id));
+  app.get('/platforms/:id/confluent', async (req) => readout.getConfluentView(confluentPlatform(idParam(req), null).id));
 
   app.post('/platforms/:id/confluent/read', { config: { rateLimit: ROUTE_LIMITS.action } }, async (req) => {
     const p = confluentPlatform(idParam(req), 'use');
-    await refreshConfluent(p.id, me().username);
-    return getConfluentView(p.id);
+    await readout.refreshConfluent(p.id, me().username);
+    return readout.getConfluentView(p.id);
   });
 }

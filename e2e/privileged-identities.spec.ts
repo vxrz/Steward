@@ -129,7 +129,7 @@ test('mark an identity privileged, start a run with it – it waits for a second
     await run.getByRole('combobox', { name: /^Connection .hub/ }).click();
     await page.getByRole('option', { name: platform.name }).click();
     await run.getByTestId('identity-select-hub').click();
-    await page.getByRole('option', { name: new RegExp(`${IDENTITY}.*Privileged`) }).click();
+    await page.getByRole('option').filter({ hasText: IDENTITY }).filter({ hasText: 'Privileged' }).click();
     await expect(run.getByTestId('identity-privileged-hint')).toBeVisible();
     await chooseRunMode(run, 'Run');
     await run.getByRole('button', { name: 'Start run' }).click();

@@ -1,6 +1,6 @@
 import type { APIRequestContext } from '@playwright/test';
 import { test, expect } from './support/fixtures';
-import { authFile } from './support/env';
+import { appHref, authFile } from './support/env';
 import { expectAccessible, settle } from './support/axe';
 import { expectNoHorizontalScroll, json, uniq } from './support/helpers';
 
@@ -66,14 +66,14 @@ test.describe('as a designer', () => {
       await setting.getByRole('button', { name: 'Save interval' }).click();
       await expect(page.getByText('Review interval saved.')).toBeVisible();
       await page.getByTestId('site-tab-documentation').click();
-      await expect(page).toHaveURL(new RegExp(`/plant/sites/${s.site}/documentation$`));
+      await expect(page).toHaveURL((url) => url.pathname.endsWith(`/plant/sites/${s.site}/documentation`));
       const health = page.getByTestId('doc-health');
       await expect(health).toContainText('every 36 months');
       const noProfile = health.getByTestId('doc-gap-assetNoProfile');
-      await expect(noProfile.getByRole('link', { name: s.name })).toHaveAttribute('href', new RegExp(`/plant/assets/${s.id}$`));
+      await expect(noProfile.getByRole('link', { name: s.name })).toHaveAttribute('href', appHref(`/plant/assets/${s.id}`));
       const noVlan = health.getByTestId('doc-gap-deviceNoVlan');
       if (!(await noVlan.getByRole('link', { name: `${s.id}-plc` }).isVisible())) await noVlan.getByTestId('doc-gap-deviceNoVlan-toggle').click();
-      await expect(noVlan.getByRole('link', { name: `${s.id}-plc` })).toHaveAttribute('href', new RegExp(`/plant/sites/${s.site}/network/devices$`));
+      await expect(noVlan.getByRole('link', { name: `${s.id}-plc` })).toHaveAttribute('href', appHref(`/plant/sites/${s.site}/network/devices`));
       await expectAccessible(page, 'documentation health of a site');
     } finally {
       await s.cleanup();

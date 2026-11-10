@@ -1,6 +1,6 @@
 import type { APIRequestContext } from '@playwright/test';
 import { test, expect } from './support/fixtures';
-import { authFile } from './support/env';
+import { appHref, authFile } from './support/env';
 import { expectAccessible, settle } from './support/axe';
 import { expectNoHorizontalScroll, json, uniq } from './support/helpers';
 
@@ -129,13 +129,13 @@ test.describe('as a designer', () => {
       await expect(monitors).toContainText(`Machine data ${scene.n}`);
       // a monitor with an Off state goes Off, not down
       await expect(monitors.getByTestId('impact-expect-off')).toHaveText('Goes Off');
-      await expect(impact.getByRole('link', { name: `Machine data ${scene.n}` })).toHaveAttribute('href', new RegExp(`/monitors/${scene.monitorId}$`));
+      await expect(impact.getByRole('link', { name: `Machine data ${scene.n}` })).toHaveAttribute('href', appHref(`/monitors/${scene.monitorId}`));
       await expectAccessible(page, 'maintenance form with its impact');
       await form.getByRole('button', { name: 'Save' }).click();
       await expect(form).toBeHidden();
 
       // on the window's page: planned downtime for the monitor in one click
-      await panel.getByText(new RegExp(`Next: ${title}`)).click();
+      await panel.getByText(`Next: ${title}`).click();
       const detail = page.getByRole('dialog', { name: title });
       const onPage = detail.getByTestId('maintenance-impact');
       await expect(onPage.getByTestId('impact-monitors')).toContainText(`Machine data ${scene.n}`);
