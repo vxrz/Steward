@@ -19,6 +19,7 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- **Duplicating a monitor with states no longer fails when it includes a sub-monitor you may not see** ([docs/MONITORS.md](docs/MONITORS.md#permissions-and-audit)). The copy left the hidden sub-monitor's check out but kept its cells in the states table, so saving the copy was refused; the cells are now left out too, a state whose condition named only that sub-monitor is dropped (counted in the message after copying), and a monitor that follows one you may not see is copied without its states.
 - **A changed settle time applies to a running settle** ([docs/MONITORS.md](docs/MONITORS.md#settle-time)). The end of a monitor state's settle time was fixed at the state change, so shortening or lengthening `settleSeconds` (or the checks it is derived from) only applied to the next state change; it now always follows the current definition – the state change plus today's settle time – and the recomputed end is stored for restarts.
 - **The plant OT network diagram no longer replaces its parts right after drawing them** – it was drawn before its frame had a size and again after – and a refresh that changes only live statuses (every minute while a linked check reports) no longer lays the picture out and fits it again under the pointer.
 - **The History tab and Revert list the rows of one change set in a fixed order** (kind, scope and entry id after time and revision), the same on PostgreSQL after a row was rewritten.

@@ -42,6 +42,31 @@ export function asTemplate(def: Def, choices: NonNullable<CopyInput['template']>
   return { ...def, parameters };
 }
 
+type Cells = Record<string, string>;
+type StateRow = Record<string, unknown> & { when?: Cells; requires?: string[]; expect?: Cells };
+
+/**
+ * The states table without the cells of the given (left out) checks – condition, required and expected. A row whose
+ * condition named only those checks has none left and is dropped; returns how many rows were dropped.
+ */
+export function dropStateCells(def: Def, gone: Set<string>): number {
+  const states = def.states as { from?: string; cases?: StateRow[] } | undefined;
+  if (!states?.cases?.length) return 0;
+  const without = (cells: Cells | undefined) => (cells ? Object.fromEntries(Object.entries(cells).filter(([id]) => !gone.has(id))) : cells);
+  const hasCondition = (r: StateRow) => Object.values(r.when ?? {}).some((c) => c !== 'any');
+  const before = states.cases.length;
+  states.cases = states.cases
+    .map((r) => {
+      const had = hasCondition(r);
+      const row: StateRow = { ...r, when: without(r.when), expect: without(r.expect), requires: r.requires?.filter((id) => !gone.has(id)) };
+      for (const k of ['when', 'expect', 'requires'] as const) if (row[k] === undefined || !Object.keys(row[k]).length) delete row[k];
+      // a follower's rows have no condition; a row that had one and lost it would match nothing (or everything)
+      return had && !hasCondition(row) ? null : row;
+    })
+    .filter((r): r is StateRow => r !== null);
+  return before - states.cases.length;
+}
+
 export const monitorDuplicator: Duplicator<MonitorDetail> = {
   kind: 'monitor',
   entityType: 'monitor',
@@ -67,6 +92,14 @@ export const monitorDuplicator: Duplicator<MonitorDetail> = {
         def.checks = (def.checks ?? []).filter((c) => !hidden.has(c.id));
         def.links = (def.links ?? []).filter((l) => !hidden.has(l.from) && !hidden.has(l.to));
         skipped.push({ what: 'hiddenSubMonitors', count: hidden.size });
+        const dropped = dropStateCells(def, hidden);
+        if (dropped) skipped.push({ what: 'hiddenStateRows', count: dropped });
+      }
+      // a leader the person may not see cannot be followed by the copy: it is evaluated as without states
+      const states = def.states as { from?: string } | undefined;
+      if (states?.from === HIDDEN_MONITOR_REF) {
+        delete def.states;
+        skipped.push({ what: 'hiddenStatesLeader', count: 1 });
       }
       // gateway keys and heartbeat endpoints belong to the original: the copy's heartbeat checks get new secrets
       for (const c of def.checks ?? []) delete c.key;

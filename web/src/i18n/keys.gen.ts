@@ -1609,6 +1609,10 @@ export interface Resources {
     'duplicate.skipped.ignoredRights_other': string;
     'duplicate.skipped.hiddenSubMonitors_one': string;
     'duplicate.skipped.hiddenSubMonitors_other': string;
+    'duplicate.skipped.hiddenStateRows_one': string;
+    'duplicate.skipped.hiddenStateRows_other': string;
+    'duplicate.skipped.hiddenStatesLeader_one': string;
+    'duplicate.skipped.hiddenStatesLeader_other': string;
     'duplicate.skipped.services_one': string;
     'duplicate.skipped.services_other': string;
     'duplicate.skipped.team_one': string;
