@@ -225,7 +225,7 @@ describe('who sees costs', () => {
     // auditors and administrators still see them
     expect((await audrey('GET', `/costs/application/${app}`)).currencies[0].lastMonth).toBe('20.75');
     const [audit] = await s.api('GET', '/audit?action=cost.settings_changed');
-    expect(audit.details.after).toEqual({ hideAmountsFromViewers: true, defaultCurrency: 'EUR' });
+    expect(audit.details.after).toEqual({ hideAmountsFromViewers: true, defaultCurrency: 'EUR', fiscalYearStartMonth: 1 });
     await s.api('PUT', '/costs/settings', { hideAmountsFromViewers: false, defaultCurrency: 'USD' });
   });
 
