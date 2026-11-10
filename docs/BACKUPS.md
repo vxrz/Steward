@@ -36,6 +36,8 @@ All three optional parts are evidence, so **all are included by default** (as be
 
 A backup that leaves parts out says so everywhere: `manifest.json` lists them under `excluded` (folder, files and bytes at the time of the backup), the unencrypted header of the file names them (`npm run backup -- info <file>` prints _Left out by the backup settings (a restore lacks them): artifacts/, reports/_), the run's steps show a step _contents_, and the restore test adds a passing step _contents_ with what a restore from that backup lacks. The audit entry of the settings (`backup.settings_updated`) names the parts left out.
 
+**Leaving evidence out is one administrator's decision.** It asks for a step-up and is audited (`backup.settings_updated`, with the parts left out), but no second person approves it, and the restore test stays green (its step _contents_ only says what is missing). An administrator who leaves the evidence out and then deletes it on disk leaves no copy to restore. Where that matters, have auditors watch for `backup.settings_updated` entries that name parts left out (audit log filter, or your SIEM), and keep the evidence on storage with a backup of its own.
+
 ## Encryption
 
 The backup is a ZIP archive, encrypted with AES-256-GCM in 4 MB chunks with a key derived from the backup passphrase (scrypt, N=2¹⁷). Each chunk is authenticated together with the file header, its position and whether it is the last one: a changed byte, re-ordered or missing chunks and a file cut short are all detected. Steward keeps the derived key encrypted in its vault so scheduled backups need no one; the passphrase itself is not stored anywhere.
