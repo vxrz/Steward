@@ -174,9 +174,16 @@
       "state": "State",
       "confidence": "Confidence",
       "addFlags": "Add flags",
-      "removeFlags": "Remove flags"
+      "removeFlags": "Remove flags",
+      "areaId": "Area",
+      "workCenterId": "Work center",
+      "workUnitId": "Work unit"
     },
-    "siteOnly": "Building and place apply to the assets of one site: select assets of one site."
+    "siteOnly": "Building and place apply to the assets of one site: select assets of one site.",
+    "moveTitle_one": "Move {{count}} entry",
+    "moveTitle_other": "Move {{count}} entries",
+    "moveOneSite": "Move to… takes {{type}} of one site – choose those of one site.",
+    "applyMove": "Move"
   },
   "mapping": {
     "title": "Change ids or remove entries (optional)",

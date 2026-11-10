@@ -1,4 +1,4 @@
-import type { PlantChangeSetSource, PlantEntryHistory, PlantEntryHistoryItem, PlantEntryKind } from '@sm/shared';
+import type { PlantChangeSetSource, PlantEntryHistory, PlantEntryHistoryItem, PlantEntryKind, PlantMoveInput, PlantMovedKind } from '@sm/shared';
 import { PLANT_CHANGESET_LIMITS, PLANT_ENTRY_SCOPE } from '@sm/shared';
 import { db } from '../../db.js';
 import { audit } from '../../audit.js';
@@ -15,7 +15,8 @@ import { historyValues } from './values.js';
 /**
  * The history of an entry (0.13.0, ADR 0020): one row per applied change set that touched it, with the full values of
  * its changed fields before and after. Undo never rewrites it: Revert writes a new draft with the inverse operations
- * (set back, remove what was added, rename back), based on now – later edits conflict instead of being overwritten.
+ * (set back, remove what was added, rename back; 0.16: move back), based on now – later edits conflict instead of being
+ * overwritten.
  */
 
 interface HistoryRow {
@@ -25,7 +26,7 @@ interface HistoryRow {
   entry_id: string;
   revision: number;
   change_set_id: string;
-  op: 'add' | 'set' | 'remove' | 'rename';
+  op: 'add' | 'set' | 'remove' | 'rename' | 'move';
   at: string;
   author: string;
   applied_by: string;
@@ -99,17 +100,104 @@ export function entryHistory(kind: PlantEntryKind, scope: string, id: string, u:
   return { items, auditPath: `/audit?q=${encodeURIComponent(id)}` };
 }
 
+/**
+ * 0.16: moves back – per kind, the asset the entries are on and the one they came from, one `move` (first: what it
+ * brings back is where the other operations find it). Devices bring their data paths back again and, with
+ * `collections: move`, the data collections of those paths that moved with them; a collection that moved on its own
+ * goes back on its own. Ids they got on the way are given back.
+ */
+function moveBack(rows: HistoryRow[]): NewOp[] {
+  const moved = rows
+    .map((r) => ({ r, before: valuesOf(r.before_values) }))
+    .filter(
+      (x): x is { r: HistoryRow; before: Record<string, unknown> & { asset: string } } =>
+        typeof x.before.asset === 'string' && !!readEntry(x.r.kind, x.r.scope, x.r.entry_id),
+    );
+  const idBack = (x: (typeof moved)[number]) =>
+    typeof x.before.id === 'string' && x.before.id !== x.r.entry_id
+      ? [{ kind: x.r.kind as PlantMovedKind, asset: x.r.scope, id: x.r.entry_id, newId: x.before.id }]
+      : [];
+  const ops: NewOp[] = [];
+  const op = (input: PlantMoveInput, name: string): NewOp => ({
+    op: 'move',
+    kind: null,
+    scope: '',
+    id: '',
+    name,
+    origin: 'derived',
+    baseRevision: null,
+    base: null,
+    value: input,
+  });
+  const pairs = new Map<string, (typeof moved)[number][]>();
+  for (const x of moved) pairs.set(`${x.r.scope}\u0000${x.before.asset}`, [...(pairs.get(`${x.r.scope}\u0000${x.before.asset}`) ?? []), x]);
+  for (const list of pairs.values()) {
+    const { before } = list[0]!;
+    const devices = list.filter((x) => x.r.kind === 'device');
+    const paths = new Set(list.filter((x) => x.r.kind === 'data_path').map((x) => x.r.entry_id));
+    // a collection of a data path that goes back goes with it; others on their own
+    const withPath = list.filter(
+      (x) => x.r.kind === 'collection' && devices.length && paths.has(String(readEntry('collection', x.r.scope, x.r.entry_id)?.values.dataPathId ?? '')),
+    );
+    const alone = list.filter((x) => x.r.kind === 'collection' && !withPath.includes(x));
+    if (devices.length)
+      ops.push(
+        op(
+          {
+            kind: 'device',
+            items: devices.map((x) => ({ asset: x.r.scope, id: x.r.entry_id })),
+            toAsset: before.asset,
+            collections: withPath.length ? 'move' : 'leave',
+            ids: list.filter((x) => x.r.kind !== 'collection' || withPath.includes(x)).flatMap(idBack),
+          },
+          `move ${devices.length} device back to ${before.asset}`,
+        ),
+      );
+    if (alone.length)
+      ops.push(
+        op(
+          {
+            kind: 'collection',
+            items: alone.map((x) => ({ asset: x.r.scope, id: x.r.entry_id })),
+            toAsset: before.asset,
+            collections: 'leave',
+            ids: alone.flatMap(idBack),
+          },
+          `move ${alone.length} collection back to ${before.asset}`,
+        ),
+      );
+  }
+  return ops;
+}
+
 /** The inverse operations of history rows, against the entries now (removals are restored in phase 2). */
 function inverse(rows: HistoryRow[]): { ops: NewOp[]; skipped: number } {
   const ops: NewOp[] = [];
   let skipped = 0;
-  const order = { set: 0, add: 1, rename: 2, remove: 3 } as const;
+  const order = { set: 0, add: 1, rename: 2, move: 2, remove: 3 } as const;
   for (const r of [...rows].sort((a, b) => order[a.op] - order[b.op] || (a.at < b.at ? 1 : -1))) {
     const before = valuesOf(r.before_values);
     const after = valuesOf(r.after_values);
     const now = readEntry(r.kind, r.scope, r.entry_id);
     if (r.op === 'remove' || !now) {
       skipped++;
+      continue;
+    }
+    if (r.op === 'move') {
+      // moved back first (moveBack); fields that changed with the move (a VLAN left) are set back where it is then
+      const fields = Object.keys(before).filter((k) => k !== 'id' && k !== 'asset');
+      if (fields.length && typeof before.asset === 'string')
+        ops.push({
+          op: 'set',
+          kind: r.kind,
+          scope: before.asset,
+          id: typeof before.id === 'string' ? before.id : r.entry_id,
+          name: now.name,
+          origin: 'authored',
+          baseRevision: Number(r.revision),
+          base: bodyOf(r.kind, { ...now.values, ...Object.fromEntries(fields.map((k) => [k, after[k]])) }),
+          value: bodyOf(r.kind, { ...now.values, ...Object.fromEntries(fields.map((k) => [k, before[k]])) }),
+        });
       continue;
     }
     if (r.op === 'add') {
@@ -156,7 +244,7 @@ function inverse(rows: HistoryRow[]): { ops: NewOp[]; skipped: number } {
         value: { newId: before.id },
       });
   }
-  return { ops, skipped };
+  return { ops: [...moveBack(rows.filter((r) => r.op === 'move')), ...ops], skipped };
 }
 
 /** Revert: a new draft (the person's current one) with the inverse of a change set, or of one history row. */

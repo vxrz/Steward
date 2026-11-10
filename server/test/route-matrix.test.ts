@@ -1122,6 +1122,11 @@ const EXPECT: Record<string, Access> = {
   // 0.13.0: the preview for who may only propose too ("Add to draft")
   'POST /api/plant/bulk/preview': PROPOSE,
   'POST /api/plant/bulk': DESIGN,
+  // 0.16: devices and data collections to another asset – who manages both sites; the preview also for who may only
+  // propose ("Add to draft"); a duplicate of a device: who manages the target
+  'POST /api/plant/move/preview': PROPOSE,
+  'POST /api/plant/move': DESIGN,
+  'POST /api/plant/assets/:assetId/devices/:deviceId/duplicate': DESIGN,
   // change sets (0.13.0, ADR 0020): whoever sees the registry reads what they may see; who may propose keeps drafts;
   // who manages what a change set touches applies, rejects or returns it (never its author under review)
   'GET /api/plant/change-sets': PLANT,
@@ -1540,6 +1545,11 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
   'POST /api/plant/bulk': {
     sensitive: { kind: 'asset', action: 'remove', items: [{ id: 'nothing-a' }, { id: 'nothing-b' }] },
     harmless: { kind: 'asset', action: 'remove', items: [{ id: 'nothing-a' }] },
+  },
+  // 0.16: a move of more than 25 entries (none of them exists); one is harmless
+  'POST /api/plant/move': {
+    sensitive: { kind: 'device', items: Array.from({ length: 26 }, (_, i) => ({ asset: 'nothing', id: `d-${i}` })), toAsset: 'nothing' },
+    harmless: { kind: 'device', items: [{ asset: 'nothing', id: 'd-0' }], toAsset: 'nothing' },
   },
   // an import that removes (or renames) more than one entry; a file that removes nothing is harmless
   'POST /api/plant/import': {

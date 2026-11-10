@@ -877,5 +877,57 @@
     "assetTitle": "Move {{name}}",
     "assetHelp": "Choose the place of the {{type}} in this site's hierarchy. Everything else stays as it is.",
     "newPlace": "New place"
-  }
+  },
+  "moveEntries": {
+    "menu": "Move to asset…",
+    "devicesTitle_one": "Move device {{name}}",
+    "devicesTitle_other": "Move {{count}} devices",
+    "collectionTitle": "Move data collection {{name}}",
+    "devicesHelp": "The devices go to another {{type}} with their ids. The data paths that name only them go along; maintenance windows, old ids and history follow.",
+    "collectionHelp": "The data collection goes to another {{type}} with its items, sinks and Insights Hub mapping – for example when its collector now reads that {{type}}. Its data path stays.",
+    "target": "Target {{type}}",
+    "otherSites": "Show other sites",
+    "otherSitesHelp": "Only where you manage both sites. A device on another site leaves its VLAN and its zones.",
+    "collections": "Data collections of the data paths",
+    "collectionsHelp": "A collection maps its items to the data points of its asset. Leaving it keeps that mapping intact.",
+    "collectionsLeave": "Leave them and take off their link to the data path",
+    "collectionsMove": "Move them along",
+    "crossSite": "The target is on another site: the devices leave their VLAN (and so their zones). Their addresses stay as documented.",
+    "crossSiteCollection": "The target is on another site.",
+    "problems": "Not possible like this",
+    "what": "What moves",
+    "newId": "Id on the target",
+    "newIdOf": "New id of {{name}}",
+    "taken": "The target has this id already",
+    "useSuggested": "Use {{id}}",
+    "kinds": {
+      "device": "Device",
+      "dataPath": "Data path",
+      "collection": "Data collection"
+    },
+    "followsPath": "Goes along: it names only devices that move",
+    "followsCollection": "Goes along with its data path",
+    "leavesVlan": "Leaves VLAN {{vlan}}",
+    "leavesDataPath": "Loses its link to data path {{path}}",
+    "unlinked_one": "{{count}} data collection stays and loses its link to the data path",
+    "unlinked_other": "{{count}} data collections stay and lose their link to the data path",
+    "unlinkedItem": "{{name}} (data path {{path}})",
+    "references": "Also follows: {{list}}",
+    "fieldByField_one": "{{count}} entry, field by field",
+    "fieldByField_other": "{{count}} entries, field by field",
+    "stepUp": "Moving this many entries asks you to confirm who you are.",
+    "apply": "Move",
+    "done_one": "{{count}} entry moved to {{asset}}",
+    "done_other": "{{count}} entries moved to {{asset}}"
+  },
+  "duplicateDevice": {
+    "menu": "Duplicate…",
+    "title": "Duplicate device {{name}}",
+    "help": "The copy takes the device’s fields – not its host name, address, MAC address, serial number, switch port, wall outlet or CMDB port (they belong to the original) and not its checks or monitoring. On another site its VLAN stays empty.",
+    "id": "Id of the copy",
+    "save": "Duplicate",
+    "done": "Device {{id}} added as a copy"
+  },
+  "selectedDevices_one": "{{count}} device selected",
+  "selectedDevices_other": "{{count}} devices selected"
 }
