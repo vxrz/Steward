@@ -163,6 +163,7 @@
       "failedLabel": "Befund"
     },
     "artifactLine": "{{step}} · sha256 {{hash}} · {{date}}",
+    "artifactGone": "Die Datei ist nicht verfügbar – sie fehlt im Datenordner (zum Beispiel nach dem Wiederherstellen einer Sicherung ohne Ausführungsartefakte).",
     "connections": "Verbindungen",
     "outputs": "Ausgaben",
     "definitionHash": "Definitions-Hash {{hash}}",

@@ -254,6 +254,7 @@
     "REPORT_RUNNING": "This report is being generated right now.",
     "REPORT_OWNER_MISSING": "The report was not generated: the owner {{owner}} is missing or deactivated.",
     "REPORT_FILE_GONE": "The report file is no longer available.",
+    "ARTIFACT_FILE_GONE": "The artifact file is no longer available – it is not in the data folder (for example after restoring a backup without run artifacts).",
     "REPORT_TAMPERED": "The stored report file does not match its recorded SHA-256 ({{sha256}}…) – it was modified on disk.",
     "REPORT_SCHEDULE_TOO_OFTEN": "A report schedule may run at most once an hour – use a single minute value, e.g. “0 6 * * 1”.",
     "CRON_INVALID": "Invalid cron expression: {{detail}}",

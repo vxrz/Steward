@@ -4605,6 +4605,7 @@ export interface Resources {
     'codes.REPORT_RUNNING': string;
     'codes.REPORT_OWNER_MISSING': string;
     'codes.REPORT_FILE_GONE': string;
+    'codes.ARTIFACT_FILE_GONE': string;
     'codes.REPORT_TAMPERED': string;
     'codes.REPORT_SCHEDULE_TOO_OFTEN': string;
     'codes.CRON_INVALID': string;
@@ -12947,6 +12948,7 @@ export interface Resources {
     'detail.checks.passed': string;
     'detail.checks.failedLabel': string;
     'detail.artifactLine': string;
+    'detail.artifactGone': string;
     'detail.connections': string;
     'detail.outputs': string;
     'detail.definitionHash': string;

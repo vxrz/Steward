@@ -254,6 +254,7 @@
     "REPORT_RUNNING": "Dieser Bericht wird gerade erzeugt.",
     "REPORT_OWNER_MISSING": "Der Bericht wurde nicht erzeugt: Der Eigentümer {{owner}} fehlt oder ist deaktiviert.",
     "REPORT_FILE_GONE": "Die Berichtsdatei ist nicht mehr verfügbar.",
+    "ARTIFACT_FILE_GONE": "Die Artefaktdatei ist nicht mehr verfügbar – sie fehlt im Datenordner (zum Beispiel nach dem Wiederherstellen einer Sicherung ohne Ausführungsartefakte).",
     "REPORT_TAMPERED": "Die gespeicherte Berichtsdatei passt nicht zu ihrem gespeicherten SHA-256 ({{sha256}}…) – sie wurde auf der Festplatte verändert.",
     "REPORT_SCHEDULE_TOO_OFTEN": "Ein Berichtszeitplan darf höchstens einmal pro Stunde laufen – verwenden Sie einen einzelnen Minutenwert, z. B. „0 6 * * 1“.",
     "CRON_INVALID": "Ungültiger Cron-Ausdruck: {{detail}}",
