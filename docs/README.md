@@ -74,6 +74,7 @@ Every page of Steward's documentation, grouped by what you want to do. New here?
 | [REPORTS.md](REPORTS.md)                                                 | PDF/A run, summary and scheduled reports, branding, archiving and verification              |
 | [RECORDS.md](RECORDS.md)                                                 | Documents: change requests, decision records, incident reviews, living documents; services  |
 | [APPLICATIONS.md](APPLICATIONS.md)                                       | Applications, systems, components, tech stack, end of life, version watch, protection needs |
+| [SUPPLIERS.md](SUPPLIERS.md)                                             | Suppliers with contracts, notice dates, SLA, RTO/RPO and certificates; free-text vendors    |
 | [CREDENTIALS.md](CREDENTIALS.md)                                         | The credentials register: where credentials are kept, owners, expiry and rotation           |
 | [DUTIES.md](DUTIES.md)                                                   | Recurring tasks a service must have done, judged by the real runs                           |
 | [SCORECARD.md](SCORECARD.md)                                             | Availability objectives and the service scorecard                                           |

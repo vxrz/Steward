@@ -6,14 +6,15 @@ The words Steward uses, in English and German. The web app has the same list und
 
 ## Catalogue
 
-| Term          | German       | Meaning                                                                                                                                                                                                  |
-| ------------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Service       | Service      | What a team offers to others, with an owner and a criticality. It consists of applications. _Catalogue → Services_.                                                                                      |
-| Application   | Anwendung    | Software a service consists of – a tenant you use or a small in-house app – with its CIA rating (protection need). It runs on systems. _Catalogue → Applications_.                                       |
-| System        | System       | Where applications run: a server, VM, cluster, appliance or cloud service, with its environments. A catalogue entry. _Catalogue → Systems_.                                                              |
-| Component     | Komponente   | A code or data part of an application: a repository, image, library, topic or database. Listed on the application.                                                                                       |
-| Platform      | Plattform    | A connection Steward talks to through an API: base URL, credentials, API specifications. Not a catalogue entry; an application or system can name the platform that reaches it. _Catalogue → Platforms_. |
-| Data contract | Datenvertrag | What a data source promises (ODCS): schema, quality rules, versions. An optional module.                                                                                                                 |
+| Term          | German       | Meaning                                                                                                                                                                                                           |
+| ------------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Service       | Service      | What a team offers to others, with an owner and a criticality. It consists of applications. _Catalogue → Services_.                                                                                               |
+| Application   | Anwendung    | Software a service consists of – a tenant you use or a small in-house app – with its CIA rating (protection need). It runs on systems. _Catalogue → Applications_.                                                |
+| System        | System       | Where applications run: a server, VM, cluster, appliance or cloud service, with its environments. A catalogue entry. _Catalogue → Systems_.                                                                       |
+| Supplier      | Lieferant    | Who runs, backs up, patches or recovers what a service uses (SaaS, managed platform, software vendor, service provider), with contracts and certificates. _Catalogue → Suppliers_ ([SUPPLIERS.md](SUPPLIERS.md)). |
+| Component     | Komponente   | A code or data part of an application: a repository, image, library, topic or database. Listed on the application.                                                                                                |
+| Platform      | Plattform    | A connection Steward talks to through an API: base URL, credentials, API specifications. Not a catalogue entry; an application or system can name the platform that reaches it. _Catalogue → Platforms_.          |
+| Data contract | Datenvertrag | What a data source promises (ODCS): schema, quality rules, versions. An optional module.                                                                                                                          |
 
 ## Automation
 
