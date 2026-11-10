@@ -66,6 +66,8 @@ test.describe('accessibility (axe, WCAG 2.1 AA)', () => {
     ['platforms', '/platforms'],
     ['credentials', '/credentials'],
     ['ticket references', '/tickets'],
+    ['suppliers', '/suppliers'],
+    ['suppliers to confirm', '/suppliers?status=unconfirmed'],
     ['reports', '/reports'],
     ['settings', '/settings'],
     ['exports', '/settings/exports'],

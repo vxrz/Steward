@@ -713,6 +713,25 @@ const EXPECT: Record<string, Access> = {
   'POST /api/applications/:id/components/:componentId/aws': DESIGN,
   'POST /api/applications/:id/components/:componentId/snowflake': DESIGN,
   'POST /api/applications/:id/components/:componentId/dependency-track': DESIGN,
+  // suppliers (0.17.0, ADR 0029): like systems; the "To confirm" decisions need a session
+  'GET /api/suppliers': ALL,
+  'POST /api/suppliers': DESIGN,
+  'GET /api/suppliers/options': ALL,
+  'GET /api/suppliers/:id': ALL,
+  'PUT /api/suppliers/:id': DESIGN,
+  'POST /api/suppliers/:id/archive': DESIGN,
+  'POST /api/suppliers/:id/confirm': DESIGN,
+  'POST /api/suppliers/:id/merge': DESIGN,
+  'POST /api/suppliers/:id/not-a-supplier': DESIGN,
+  'POST /api/suppliers/:id/contacts': DESIGN,
+  'PUT /api/suppliers/:id/contacts/:contactId': DESIGN,
+  'DELETE /api/suppliers/:id/contacts/:contactId': DESIGN,
+  'POST /api/suppliers/:id/contracts': DESIGN,
+  'PUT /api/suppliers/:id/contracts/:contractId': DESIGN,
+  'DELETE /api/suppliers/:id/contracts/:contractId': DESIGN,
+  'POST /api/suppliers/:id/certificates': DESIGN,
+  'PUT /api/suppliers/:id/certificates/:certificateId': DESIGN,
+  'DELETE /api/suppliers/:id/certificates/:certificateId': DESIGN,
   'GET /api/systems': ALL,
   'POST /api/systems': DESIGN,
   'GET /api/systems/:id': ALL,
@@ -869,6 +888,8 @@ const EXPECT: Record<string, Access> = {
   'GET /api/v1/services/:serviceId/documents': ALL,
   'GET /api/v1/applications': ALL,
   'GET /api/v1/applications/:applicationId': ALL,
+  'GET /api/v1/suppliers': ALL,
+  'GET /api/v1/suppliers/:supplierId': ALL,
   'GET /api/v1/systems': ALL,
   'GET /api/v1/systems/:systemId': ALL,
   // the plant registry (#218): who may see the site (every role that works in Steward, without an access list)
@@ -1256,6 +1277,10 @@ const EXPECT: Record<string, Access> = {
 
 /** Routes that only work with an interactive session: an API token must not manage identities, the vault or sign-in. */
 const SESSION_ONLY = [
+  'POST /api/suppliers/:id/archive',
+  'POST /api/suppliers/:id/confirm',
+  'POST /api/suppliers/:id/merge',
+  'POST /api/suppliers/:id/not-a-supplier',
   'PUT /api/settings/modules/:id',
   'GET /api/settings/plant/map',
   'PUT /api/settings/plant/map',
@@ -1741,6 +1766,10 @@ function fill(url: string): string {
       )
       .replace(/:library/g, fx.library!)
       .replace(/:measureId/g, fx.measure!)
+      .replace(/:supplierId/g, fx.supplier!)
+      .replace(/:contactId/g, fx.supplierContact!)
+      .replace(/:contractId/g, fx.supplierContract!)
+      .replace(/:certificateId/g, fx.supplierCertificate!)
       .replace(/^\/api\/records\/:id\/(measures|timeline)/, (_m, rest: string) => `/api/records/${fx.review}/${rest}`)
       .replace(/:id/g, () => {
         const prefix = url.split('/')[2]!;
@@ -1763,6 +1792,7 @@ function fill(url: string): string {
           services: 'service',
           applications: 'application',
           systems: 'system',
+          suppliers: 'supplier',
           'maintenance-windows': 'catalogueMaintenance',
           duties: 'duty',
           objectives: 'objective',
@@ -1875,6 +1905,16 @@ const bodies = (): Record<string, unknown> => ({
   'POST /api/applications/:id/components/:componentId/sbom/preview': { sbom: { bomFormat: 'CycloneDX', components: [] } },
   'POST /api/applications/:id/components/:componentId/sbom': { sbom: { bomFormat: 'CycloneDX', components: [] } },
   'POST /api/systems': { name: 'Matrix system x', kind: 'server' },
+  'POST /api/suppliers': { name: 'Matrix supplier x', type: 'saas' },
+  'PUT /api/suppliers/:id': { name: 'Matrix supplier', type: 'saas' },
+  'POST /api/suppliers/:id/archive': { archived: true },
+  'POST /api/suppliers/:id/merge': { into: fx.supplierUnconfirmed },
+  'POST /api/suppliers/:id/contacts': { name: 'Matrix contact' },
+  'PUT /api/suppliers/:id/contacts/:contactId': { name: 'Matrix contact', role: 'support' },
+  'POST /api/suppliers/:id/contracts': { title: 'Matrix contract' },
+  'PUT /api/suppliers/:id/contracts/:contractId': { title: 'Matrix contract', noticeDays: 30 },
+  'POST /api/suppliers/:id/certificates': { kind: 'iso27001' },
+  'PUT /api/suppliers/:id/certificates/:certificateId': { kind: 'iso27001', validUntil: '2030-01-01' },
   'PUT /api/settings/plant': { enabled: true, enterprise: '', labels: {}, fields: {} },
   'PUT /api/settings/modules/:id': { enabled: true },
   'PUT /api/settings/plant/map': { source: 'osm' },
@@ -2215,6 +2255,11 @@ beforeAll(async () => {
   QUERY['GET /api/catalogue/versions/entry'] = `?holder=component&id=${component.id}&product=nodejs`;
   await a('PUT', `/services/${svc.id}/applications/${application.id}`, { role: 'primary' });
   const system = await a('POST', '/systems', { name: 'Matrix system', kind: 'server' });
+  // a supplier with a contact, a contract and a certificate, and one waiting for confirmation (0.17.0)
+  const supplier = await a('POST', '/suppliers', { name: 'Matrix supplier', type: 'saas' });
+  const supplierContact = (await a('POST', `/suppliers/${supplier.id}/contacts`, { name: 'Matrix contact' })).contacts[0].id;
+  const supplierContract = (await a('POST', `/suppliers/${supplier.id}/contracts`, { title: 'Matrix contract' })).contracts[0].id;
+  const supplierCertificate = (await a('POST', `/suppliers/${supplier.id}/certificates`, { kind: 'iso27001' })).certificates[0].id;
   const systemLink = (await a('POST', `/applications/${application.id}/systems`, { systemId: system.id, environment: 'dev' })).systems[0];
   const catalogueMaintenance = await a('POST', '/maintenance-windows', {
     title: 'Matrix maintenance',
@@ -2280,6 +2325,11 @@ beforeAll(async () => {
     component: component.id,
     system: system.id,
     systemLink: systemLink.id,
+    supplier: supplier.id,
+    supplierContact,
+    supplierContract,
+    supplierCertificate,
+    supplierUnconfirmed: supplier.id,
     catalogueMaintenance: catalogueMaintenance.id,
     reportSchedule: (await a('POST', '/report-schedules', REPORT_SCHEDULE)).id,
     report: report.id,

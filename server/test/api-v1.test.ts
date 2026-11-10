@@ -507,6 +507,8 @@ async function crawl(token: string): Promise<{ template: string; url: string; re
   }
   await get('/cia-scale', '/cia-scale');
   for (const x of (await listAll('/systems', '/systems')).slice(0, 5)) await get('/systems/{systemId}', `/systems/${x.id}`);
+  // suppliers (0.17, ADR 0029)
+  for (const x of (await listAll('/suppliers', '/suppliers')).slice(0, 5)) await get('/suppliers/{supplierId}', `/suppliers/${x.id}`);
   await get('/environments', '/environments');
   await get('/maintenance-windows', '/maintenance-windows');
   await get('/measures', '/measures');
@@ -657,6 +659,12 @@ describe('every endpoint', () => {
     // a system it runs on (#129), with a component per environment
     const sys = await s.api('POST', '/systems', { name: 'API system', kind: 'vm', stack: [{ product: 'ubuntu', version: '24.04' }] });
     await s.api('POST', `/applications/${app.id}/systems`, { systemId: sys.id, environment: 'prod' });
+    // a supplier with a contact, a contract and a certificate, linked to the system (0.17, ADR 0029)
+    const sup = await s.api('POST', '/suppliers', { name: 'API supplier', type: 'saas' });
+    await s.api('POST', `/suppliers/${sup.id}/contacts`, { name: 'API contact', email: 'contact@api-supplier.example' });
+    await s.api('POST', `/suppliers/${sup.id}/contracts`, { title: 'API contract', endsOn: '2030-06-30', noticeDays: 30, rtoHours: 4 });
+    await s.api('POST', `/suppliers/${sup.id}/certificates`, { kind: 'iso27001', validUntil: '2030-01-01' });
+    await s.api('PUT', `/systems/${sys.id}`, { name: 'API system', kind: 'vm', supplierId: sup.id });
     await s.api('POST', `/applications/${app.id}/components`, { type: 'snowflake-database', name: 'API_PROD', environment: 'prod' });
     // a duty of the service (#85), with an exception waiting for a second person
     const duty = await s.api('POST', '/duties', {

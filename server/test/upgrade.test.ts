@@ -120,6 +120,8 @@ describe.each(versions)('upgrade from %s', (version) => {
   let oldDatasets: { key: string; rows: number }[] = [];
   /** Monitor windows of the old version (monitor_maintenance) added to the fixture's data before the upgrade (0.11) */
   let oldMonitorWindows: { id: string; monitorId: string; reason: string }[] = [];
+  /** The free-text vendors of the old version (0.17, ADR 0029: they become suppliers to confirm) */
+  const oldVendors: { table: string; vendor: string }[] = [];
   /** The platforms as the old version stored them: credentials (ciphertext) and MCP gateway on the platform row */
   let oldPlatforms: { id: string; name: string; secrets: string | null; config: string }[] = [];
   let proc: ChildProcess | undefined;
@@ -192,6 +194,13 @@ describe.each(versions)('upgrade from %s', (version) => {
         ops: (JSON.parse(r.operations) as { method: string; path: string }[]).map((o) => ({ method: o.method, path: (r.path_prefix ?? '') + o.path })),
       }));
       oldPlatforms = old.all<{ id: string; name: string; secrets: string | null; config: string }>('SELECT id, name, secrets, config FROM platforms');
+      for (const table of ['applications', 'systems', 'ticket_refs', 'cd_watches', 'cost_plan_lines']) {
+        try {
+          for (const r of old.all<{ vendor: string }>(`SELECT vendor FROM ${table} WHERE vendor <> ''`)) oldVendors.push({ table, vendor: r.vendor });
+        } catch {
+          // the table (or its vendor column) came later than this fixture's version
+        }
+      }
       oldDatasets = old.all<{ key: string; row_count: number }>('SELECT key, row_count FROM datasets').map((r) => ({ key: r.key, rows: Number(r.row_count) }));
       // evidence packs expire a week after they were made (SM_EVIDENCE_RETENTION_DAYS): the fixture's pack would turn
       // "expired" as the fixture ages. This test checks that it still verifies after the upgrade, not the expiry.
@@ -391,6 +400,35 @@ describe.each(versions)('upgrade from %s', (version) => {
     expect(mon.maintenance).toMatchObject({ id: now, reason: 'Switch replacement' });
     const audit = await admin('GET', '/audit?action=maintenance.migrated&limit=10');
     expect(audit.map((a: any) => a.entityId).sort()).toEqual([...copies].sort());
+  });
+
+  it('turns the free-text vendors into suppliers to confirm, once (0.17, ADR 0029)', async () => {
+    const { normVendor } = await import('../src/plant/advisories/match.js');
+    const texts = oldVendors.filter((v) => normVendor(v.vendor));
+    const suppliers = (await admin('GET', '/suppliers?status=unconfirmed')) as { id: string; name: string; aliases: string[] }[];
+    const norms = new Map(texts.map((v) => [normVendor(v.vendor), v.vendor]));
+    expect(suppliers.length).toBe(norms.size);
+    for (const [norm, text] of norms) {
+      const sup = suppliers.find((x) => normVendor(x.name) === norm);
+      expect(sup, text).toBeTruthy();
+      expect([sup!.name, ...sup!.aliases]).toContain(text.trim().replace(/\s+/g, ' '));
+    }
+    const d = new Db(pg ? { ...pg, lock: false } : sqlite, { migrate: false });
+    try {
+      for (const v of texts)
+        expect(
+          Number(d.get<{ n: number }>(`SELECT COUNT(*) AS n FROM ${v.table} WHERE vendor = ? AND supplier_id IS NULL`, v.vendor)!.n),
+          `${v.table}: ${v.vendor}`,
+        ).toBe(0);
+      expect(Number(d.get<{ n: number }>('SELECT COUNT(*) AS n FROM supplier_text_migrations')!.n)).toBe(
+        new Set(oldVendors.map((v) => `${v.table}\u0000${normVendor(v.vendor)}`)).size,
+      );
+    } finally {
+      d.close();
+    }
+    const audit = await admin('GET', '/audit?action=supplier.migrated&limit=100');
+    expect(audit.length).toBe(new Set(texts.map((v) => `${v.table}\u0000${normVendor(v.vendor)}`)).size);
+    expect(audit.every((a: any) => a.actor === 'system')).toBe(true);
   });
 
   it('returns the data of the old version', async () => {

@@ -34,7 +34,7 @@ async function areas(page: Page): Promise<Record<string, string[]>> {
 
 // AI requests show while the MCP server is on or with requests to read: other specs switch it on, so it is left out here
 const OPERATE = ['Runs', 'Monitors', 'Dashboards', 'Status pages', 'Reports', 'My tasks', 'Maintenance'];
-const CATALOGUE = ['Services', 'Applications', 'Systems', 'Platforms', 'Data contracts'];
+const CATALOGUE = ['Services', 'Applications', 'Systems', 'Suppliers', 'Platforms', 'Data contracts'];
 const REGISTERS = ['Documents', 'Credentials', 'Ticket references', 'Duties'];
 const COMPLIANCE = ['Controls', 'Access changes', 'Access reconciliation', 'Person reviews', 'Evidence packs'];
 const without = (list: string[], ...names: string[]) => list.filter((x) => !names.includes(x));
