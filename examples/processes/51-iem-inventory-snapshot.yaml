@@ -2,7 +2,7 @@ name: "Industrial Edge – Inventory snapshot (devices, apps)"
 description: |
   Read-only snapshot of the edge fleet for dashboards: every device with
   connection state, firmware compliance against a minimum version and how long
-  it has been offline; plus the application catalog.
+  it has been offline; plus the application catalogue.
 
   Recommended schedule: hourly. Publishes `iem.devices` and `iem.apps`.
   Status per device: good = online and compliant, warning = firmware below the
@@ -45,7 +45,7 @@ steps:
     saveAs: devices
   - id: apps
     type: http
-    name: List application catalog
+    name: List application catalogue
     connection: iem
     method: GET
     path: /portal/api/v1/applications
@@ -100,10 +100,10 @@ steps:
     staleAfterMinutes: 180
   - id: publishApps
     type: publish
-    name: Publish application catalog
+    name: Publish application catalogue
     when: "$exists(vars.apps.body)"
     dataset: iem.apps
-    title: Edge application catalog
+    title: Edge application catalogue
     rows: "[vars.apps.body.data ? vars.apps.body.data : vars.apps.body]"
     key: applicationId
     columns:

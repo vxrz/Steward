@@ -1,14 +1,14 @@
 name: "Industrial Edge – App version compliance"
 description: |
   Compares the applications installed on each device with the latest version in
-  the IEM application catalog and lists outdated installations.
+  the IEM application catalogue and lists outdated installations.
 
   Recommended schedule: daily. Publishes `iem.app-compliance`.
   One call reads the installations of all devices
   (GET /portal/api/v1/devices/installed-apps: deviceId, deviceName,
   applicationId, title and versionNumber per entry); the rows are grouped by
   device. Devices without any entry in that list are reported as "unknown".
-  Verify against your IEM version: the catalog field with the latest version
+  Verify against your IEM version: the catalogue field with the latest version
   (`latestVersion`, `versionNumber` and `version` are tried) and whether your
   IEM pages long lists – the run logs a warning when the answer reports more
   entries than it contains.
@@ -26,7 +26,7 @@ steps:
     saveAs: devices
   - id: catalog
     type: http
-    name: Application catalog
+    name: Application catalogue
     connection: iem
     method: GET
     path: /portal/api/v1/applications
@@ -40,7 +40,7 @@ steps:
     saveAs: installed
   - id: compare
     type: set
-    name: Compare with catalog
+    name: Compare with catalogue
     values:
       installs: "{{ [vars.installed.body.data ? vars.installed.body.data : vars.installed.body] }}"
       reported: >-
@@ -70,7 +70,7 @@ steps:
               "app": $app.title ? $app.title : $app.applicationId,
               "installed": $version,
               "latest": $exists($latest) ? $latest : '–',
-              "state": $not($exists($c)) ? 'not in catalog'
+              "state": $not($exists($c)) ? 'not in catalogue'
                 : ($not($exists($latest)) ? 'latest unknown'
                 : ($norm($version) >= $norm($latest) ? 'current' : 'behind'))
             }
