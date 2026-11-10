@@ -31,6 +31,81 @@ export interface PlantDocItem {
   attachments: number;
   /** Written by an import of a collector's configuration (its generated part is rewritten by the next import) */
   generated: boolean;
+  /** 0.14: the last "Still current" (null: never confirmed) */
+  confirmation: PlantDocConfirmation | null;
+  /** 0.14: a look is due – a hint, never an error (null: no review interval applies) */
+  review: PlantDocReview | null;
+}
+
+// ---------- documentation still current (0.14) ----------
+
+/** Who said a document (or an asset's documentation as a whole) is still current, and when. */
+export interface PlantDocConfirmation {
+  at: string;
+  by: string;
+}
+
+/**
+ * The review interval that applies (the document type's, else the site's) and whether a confirmation is due: the last
+ * confirmation – else the document's last change – is older than the interval. Shown as a gentle hint only.
+ */
+export interface PlantDocReview {
+  months: number;
+  /** When the next look is due */
+  dueAt: string;
+  due: boolean;
+}
+
+export const PLANT_DOC_REVIEW_LIMITS = { monthsMax: 600, types: 100, items: 100 } as const;
+
+/** POST /api/plant/documents/confirm: a document of a plant page, or an asset's documentation as a whole. */
+export interface PlantDocConfirmInput {
+  /** record: one document (in the context of `entry`, the page it is listed on); asset: the asset's documentation as a whole */
+  kind: 'record' | 'asset';
+  id: string;
+  entry?: { kind: PlantDocKind; id: string };
+}
+
+/** The gaps the documentation health view lists per site – things to fill in, each linked to where. */
+export const PLANT_DOC_GAPS = ['assetNoProfile', 'deviceNoVlan', 'pathNoSink', 'collectionNoSink', 'collectionNoItems', 'kpiNotCollected'] as const;
+export type PlantDocGap = (typeof PLANT_DOC_GAPS)[number];
+/** Hints: documentation not confirmed for longer than the review interval (never errors). */
+export const PLANT_DOC_HINTS = ['assetNotConfirmed', 'documentNotConfirmed'] as const;
+export type PlantDocHint = (typeof PLANT_DOC_HINTS)[number];
+
+export interface PlantDocHealthItem {
+  /** The entry's id (`<asset>/<id>` for a device, data path or collection; `<asset>/<kpi>` for a KPI) */
+  id: string;
+  name: string;
+  /** The asset it belongs to (its name), or '' */
+  detail: string;
+  /** Where to fix it */
+  path: string;
+  /** Hints: the last confirmation (null: never) and when it was due */
+  confirmation?: PlantDocConfirmation | null;
+  dueAt?: string;
+}
+
+export interface PlantDocHealthGroup<K extends string> {
+  kind: K;
+  total: number;
+  /** At most PLANT_DOC_REVIEW_LIMITS.items */
+  items: PlantDocHealthItem[];
+}
+
+/** GET /api/plant/sites/:siteId/documentation */
+export interface PlantDocHealth {
+  siteId: string;
+  /** The site's review interval (months; null: none) */
+  reviewMonths: number | null;
+  /** Document types with their own interval (plant settings) */
+  typeMonths: Record<string, number>;
+  gaps: PlantDocHealthGroup<PlantDocGap>[];
+  hints: PlantDocHealthGroup<PlantDocHint>[];
+  /** Assets of the site and how many have their documentation confirmed within the interval (or ever, without one) */
+  assets: number;
+  confirmed: number;
+  canManage: boolean;
 }
 
 /** The documents of one entry: its own, or those it inherits from one other entry. */
@@ -52,6 +127,10 @@ export interface PlantDocuments {
   inherited: PlantDocGroup[];
   /** May create records (the button "New document") */
   canCreate: boolean;
+  /** 0.14: may confirm documents and the asset's documentation as still current */
+  canConfirm: boolean;
+  /** 0.14, an asset: its documentation as a whole – the last confirmation and the review hint */
+  documentation?: { confirmation: PlantDocConfirmation | null; review: PlantDocReview | null };
 }
 
 // ---------- the sources of collection imports ----------

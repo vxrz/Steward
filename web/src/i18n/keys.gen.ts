@@ -8581,6 +8581,8 @@ export interface Resources {
     'what.collection_source_other': string;
     'what.maintenance_one': string;
     'what.maintenance_other': string;
+    'what.doc_confirmation_one': string;
+    'what.doc_confirmation_other': string;
     'problems.PLANT_ID_FORMAT': string;
     'problems.PLANT_ID_FORMAT_NAME': string;
     'problems.PLANT_ID_TAKEN': string;

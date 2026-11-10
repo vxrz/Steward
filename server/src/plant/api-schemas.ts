@@ -100,6 +100,12 @@ export const PlantSiteEntry = z.object({
   assetCount: z.number().int(),
   statusCounts,
   ...source,
+  docReviewMonths: z
+    .number()
+    .int()
+    .nullable()
+    .optional()
+    .describe('0.14: how often the site’s documentation should be confirmed as still current, in months (null: no interval)'),
   updatedAt: ts(),
 });
 
@@ -816,6 +822,39 @@ export const PlantAssetCollectionsEntry = z.object({
   totals: z.object({ mapped: z.number().int(), raw: z.number().int(), notCollected: z.number().int() }),
 });
 
+const DocConfirmation = z.object({ at: ts(), by: z.string() }).nullable().describe('The last “Still current”: when and by whom (null: never confirmed)');
+const DocReview = z
+  .object({
+    months: z.number().int().describe('The interval that applies: the document type’s, else the site’s'),
+    dueAt: ts().describe('When the next confirmation is due: the last one – else the last change – plus the interval'),
+    due: z.boolean().describe('A confirmation is due (a hint, never an error)'),
+  })
+  .nullable()
+  .describe('Null: no review interval applies');
+
+export const PlantAssetDocumentationEntry = z.object({
+  assetId: z.string(),
+  confirmation: DocConfirmation.describe('The asset’s documentation as a whole'),
+  review: DocReview,
+  documents: z
+    .array(
+      z.object({
+        id: z.string().describe('Record id'),
+        number: z.string(),
+        title: z.string(),
+        typeKey: z.string(),
+        inheritedFrom: z
+          .object({ kind: z.string(), id: z.string() })
+          .nullable()
+          .describe('Null: linked to the asset itself; else the profile, collection or sink it comes from'),
+        confirmation: DocConfirmation,
+        review: DocReview,
+      }),
+    )
+    .describe('The documents of the asset and those it inherits, as far as the token owner may read them'),
+  hidden: z.number().int().describe('Linked documents the token owner may not read: counted, not named'),
+});
+
 export const PLANT_COMPONENTS: Record<string, ZodTypeAny> = {
   PlantCheckEntry,
   PlantSiteEntry,
@@ -832,4 +871,5 @@ export const PLANT_COMPONENTS: Record<string, ZodTypeAny> = {
   PlantSiteNetworkEntry,
   PlantAssetNetworkEntry,
   PlantAssetCollectionsEntry,
+  PlantAssetDocumentationEntry,
 };

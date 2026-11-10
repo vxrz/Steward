@@ -515,6 +515,8 @@ const REFERENCES_ALL: RefSpec[] = [
   col('plant_data_paths', 'id', 'data_path', 'data_path', 'asset_id'),
   // 0.11.0: a data collection of the asset may belong to one of its data paths
   col('plant_collections', 'data_path_id', 'data_path', 'collection', 'asset_id'),
+  // 0.14: the last "still current" of an asset's documentation as a whole
+  pair('plant_doc_confirmations', 'kind', 'asset', 'target_id', 'asset', 'doc_confirmation'),
   // 0.14: maintenance windows planned for a site, an asset, a device (<asset>/<device>) or a collection (<asset>/<collection>)
   pair('maintenance_targets', 'kind', 'site', 'target_id', 'site', 'maintenance'),
   pair('maintenance_targets', 'kind', 'asset', 'target_id', 'asset', 'maintenance'),

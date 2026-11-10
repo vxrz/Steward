@@ -130,6 +130,8 @@ const summaryOf = (
     revision: Number(r.revision ?? 1),
     // 0.13.0: the site's switch "Changes need a second person" (plant.changeSet optional)
     review: Number((r as SiteRow & { review?: number }).review ?? 0) === 1,
+    // 0.14: how often its documentation should be confirmed as still current (the site's setting)
+    docReviewMonths: Number((r as SiteRow & { doc_review_months?: number | null }).doc_review_months ?? 0) || null,
     canPropose: perms.includes('propose'),
     updatedAt: r.updated_at,
   };

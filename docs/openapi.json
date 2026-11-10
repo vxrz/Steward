@@ -19505,6 +19505,17 @@
             "minimum": 1,
             "description": "0.13.0: the entry’s revision – one more with every change (docs/PLANT.md \"Change sets\")"
           },
+          "docReviewMonths": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "0.14: how often the site’s documentation should be confirmed as still current, in months (null: no interval)"
+          },
           "updatedAt": {
             "type": "string",
             "format": "date-time",
@@ -19635,6 +19646,17 @@
             "type": "integer",
             "minimum": 1,
             "description": "0.13.0: the entry’s revision – one more with every change (docs/PLANT.md \"Change sets\")"
+          },
+          "docReviewMonths": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "0.14: how often the site’s documentation should be confirmed as still current, in months (null: no interval)"
           },
           "updatedAt": {
             "type": "string",
@@ -28193,6 +28215,199 @@
           "collections",
           "points",
           "totals"
+        ],
+        "additionalProperties": false
+      },
+      "PlantAssetDocumentationEntry": {
+        "title": "PlantAssetDocumentationEntry",
+        "type": "object",
+        "properties": {
+          "assetId": {
+            "type": "string"
+          },
+          "confirmation": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "at": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "ISO 8601 timestamp (UTC)"
+                  },
+                  "by": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "at",
+                  "by"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The asset’s documentation as a whole"
+          },
+          "review": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "months": {
+                    "type": "integer",
+                    "description": "The interval that applies: the document type’s, else the site’s"
+                  },
+                  "dueAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "When the next confirmation is due: the last one – else the last change – plus the interval"
+                  },
+                  "due": {
+                    "type": "boolean",
+                    "description": "A confirmation is due (a hint, never an error)"
+                  }
+                },
+                "required": [
+                  "months",
+                  "dueAt",
+                  "due"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null: no review interval applies"
+          },
+          "documents": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "Record id"
+                },
+                "number": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "typeKey": {
+                  "type": "string"
+                },
+                "inheritedFrom": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string"
+                        },
+                        "id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "id"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Null: linked to the asset itself; else the profile, collection or sink it comes from"
+                },
+                "confirmation": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "at": {
+                          "type": "string",
+                          "format": "date-time",
+                          "description": "ISO 8601 timestamp (UTC)"
+                        },
+                        "by": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "at",
+                        "by"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The last “Still current”: when and by whom (null: never confirmed)"
+                },
+                "review": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "months": {
+                          "type": "integer",
+                          "description": "The interval that applies: the document type’s, else the site’s"
+                        },
+                        "dueAt": {
+                          "type": "string",
+                          "format": "date-time",
+                          "description": "When the next confirmation is due: the last one – else the last change – plus the interval"
+                        },
+                        "due": {
+                          "type": "boolean",
+                          "description": "A confirmation is due (a hint, never an error)"
+                        }
+                      },
+                      "required": [
+                        "months",
+                        "dueAt",
+                        "due"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Null: no review interval applies"
+                }
+              },
+              "required": [
+                "id",
+                "number",
+                "title",
+                "typeKey",
+                "inheritedFrom",
+                "confirmation",
+                "review"
+              ],
+              "additionalProperties": false
+            },
+            "description": "The documents of the asset and those it inherits, as far as the token owner may read them"
+          },
+          "hidden": {
+            "type": "integer",
+            "description": "Linked documents the token owner may not read: counted, not named"
+          }
+        },
+        "required": [
+          "assetId",
+          "confirmation",
+          "review",
+          "documents",
+          "hidden"
         ],
         "additionalProperties": false
       },
@@ -38468,6 +38683,70 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PlantAssetCollectionsEntry"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/plant/assets/{assetId}/documentation": {
+      "get": {
+        "operationId": "getPlantAssetDocumentation",
+        "summary": "Get whether an asset’s documentation is confirmed as still current",
+        "tags": [
+          "Plant"
+        ],
+        "description": "0.14: the last “Still current” of the asset’s documentation as a whole and of each of its documents (records linked to the asset, and those it inherits from its profile, collections and sinks), who confirmed it when, and whether a confirmation is due by the review interval of the document type or the site – a hint, never an error. Read-only. Only while the plant registry module is on (Settings → Modules); otherwise 404.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "assetId",
+            "required": true,
+            "description": "Asset id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlantAssetDocumentationEntry"
                 }
               }
             },

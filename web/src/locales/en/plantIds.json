@@ -68,7 +68,9 @@
     "collection_source_one": "{{count}} kept file of a collection import",
     "collection_source_other": "{{count}} kept files of collection imports",
     "maintenance_one": "{{count}} maintenance window target",
-    "maintenance_other": "{{count}} maintenance window targets"
+    "maintenance_other": "{{count}} maintenance window targets",
+    "doc_confirmation_one": "{{count}} “still current” confirmation",
+    "doc_confirmation_other": "{{count}} “still current” confirmations"
   },
   "problems": {
     "PLANT_ID_FORMAT": "Use lower-case letters, digits, “.”, “_” and “-”, starting with a letter or digit (at most 80).",

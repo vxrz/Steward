@@ -211,6 +211,8 @@ export const HISTORY_COLUMNS: string[] = [
   // the history of plant entries (0.13.0): who wrote a change and who applied it
   'plant_entry_history.author',
   'plant_entry_history.applied_by',
+  // who confirmed plant documentation as still current (0.14)
+  'plant_doc_confirmations.confirmed_by',
   'access_checks.updated_by',
   'application_components.created_by',
   'platform_recordings.created_by',

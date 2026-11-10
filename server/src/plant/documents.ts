@@ -12,6 +12,7 @@ import { allAssignments, allProfiles, profileRowOf } from './data-model.js';
 import { collectionRowOf, collectionRows, sinksOf } from './collections-model.js';
 import { collectionNotFound } from './collections.js';
 import { collectionLinkId, seesProfiles } from './links.js';
+import { withConfirmations } from './doc-review.js';
 
 /**
  * The Documents panel of plant pages (0.12, docs/PLANT.md "Documents"): the records linked to a site, asset, device
@@ -91,6 +92,9 @@ function group(kind: PlantDocKind, id: string, from: PlantDocGroup['from']): Pla
       edition: editions.get(r.id) ?? null,
       attachments: files.get(r.id) ?? 0,
       generated: r.type_id === PLANT_SOURCE_TYPE_ID,
+      // 0.14: filled in for the whole panel (doc-review.ts withConfirmations)
+      confirmation: null,
+      review: null,
     }))
     .sort((a, b) => a.number.localeCompare(b.number));
   // records that no longer exist (a link left behind) are neither named nor counted
@@ -138,7 +142,11 @@ export function plantDocuments(kind: PlantDocKind, id: string): PlantDocuments {
   requirePlant();
   const u = currentUser();
   const canCreate = !plantOnly(u) && canCreateRecords(u);
-  const own = (label: string): PlantDocuments => ({ kind, id, label, own: group(kind, id, null), inherited: [], canCreate });
+  const own = (label: string): PlantDocuments => ({ kind, id, label, own: group(kind, id, null), inherited: [], canCreate, canConfirm: false });
+  return withConfirmations(panel(kind, id, own));
+}
+
+function panel(kind: PlantDocKind, id: string, own: (label: string) => PlantDocuments): PlantDocuments {
   switch (kind) {
     case 'site': {
       const { row } = visibleSite(id);
