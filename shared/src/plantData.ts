@@ -452,6 +452,22 @@ export interface PlantPublicationTarget {
   name: string;
 }
 
+/**
+ * 0.16.1: where a data point is described – the document (a manual, a data sheet) and the place in it. An assistant that
+ * reads a manual names it in its proposal; the review and the profile show it (docs/PLANT.md "Sources of data points").
+ */
+export interface PlantPointSource {
+  /** The document: its title (with its version), or the number of a record in Steward that keeps it (DOC-12) */
+  document: string;
+  /** The page or pages, as the document numbers them (empty: not given) */
+  page: string;
+  /** The section: its number and title (empty: not given) */
+  section: string;
+}
+
+/** 0.16.1: the length of a source's texts. */
+export const PLANT_POINT_SOURCE_LIMITS = { document: 200, page: 40, section: 200 } as const;
+
 export interface PlantDataPoint {
   /** Stable id, unique in the profile (KPI inputs, overrides and publications name it) */
   id: string;
@@ -473,6 +489,8 @@ export interface PlantDataPoint {
   notes: string;
   /** Where it is usually published (the assignment of an asset says where it really is) */
   publications: PlantPublicationTarget[];
+  /** 0.16.1: where it is described (a manual and the page); left out or null: not known */
+  source?: PlantPointSource | null;
 }
 
 export interface PlantPointGroup {

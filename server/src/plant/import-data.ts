@@ -10,6 +10,7 @@ import {
   type PlantChangeKind,
   type PlantCheck,
   type PlantDataPoint,
+  type PlantPointSource,
   type PlantFieldDiff,
   type PlantImportMode,
   type PlantImportProblem,
@@ -146,6 +147,16 @@ export interface DataPlan {
 
 export const emptyDataPlan = (): DataPlan => ({ profiles: new Map(), kpis: new Map(), assignments: new Map() });
 
+/** 0.16.1: a data point's source as written (a page may be a number); null: none. */
+function sourceFromFile(x: DataPointFile['source']): PlantPointSource | null {
+  if (!x) return null;
+  return { document: x.document.trim(), page: x.page === null || x.page === undefined ? '' : String(x.page).trim(), section: str(x.section) };
+}
+
+/** A data point's source in the file: empty parts left out. */
+export const sourceOut = (x: PlantPointSource | null | undefined): Record<string, string> | null =>
+  x ? { document: x.document, ...(x.page ? { page: x.page } : {}), ...(x.section ? { section: x.section } : {}) } : null;
+
 function pointFromFile(d: DataPointFile, o: Origin, problems: PlantImportProblem[]): PlantDataPoint {
   const addresses = [d.address, d.node_id, d.modbus_address].map((x) => str(x)).filter(Boolean);
   if (new Set(addresses).size > 1) problems.push({ ...o, path: `${o.path}.address`, message: 'Give the address once (address, node_id or modbus_address)' });
@@ -162,6 +173,8 @@ function pointFromFile(d: DataPointFile, o: Origin, problems: PlantImportProblem
     aliases: [...new Set((d.aliases ?? []).map((x) => x.trim()).filter(Boolean))],
     notes: str(d.notes),
     publications: (d.publications ?? []).map((x) => ({ target: str(x.target), path: str(x.path), name: str(x.name) })),
+    // 0.16.1: only when given – a data point without one has none (as those stored before 0.16.1)
+    ...(d.source ? { source: sourceFromFile(d.source) } : {}),
   };
 }
 
@@ -181,8 +194,15 @@ function pointOverrideFromFile(d: DataPointFile, o: Origin, problems: PlantImpor
   if (has(d, 'aliases')) x.aliases = full.aliases;
   if (has(d, 'notes')) x.notes = full.notes;
   if (has(d, 'publications')) x.publications = full.publications;
+  // 0.16.1: null says the derived device's data point has no source (not the inherited one)
+  if (has(d, 'source')) x.source = sourceFromFile(d.source);
   return x;
 }
+
+/** 0.16.1: a data point of a file as stored (problems of its address are the preview's, not repeated here). */
+export const pointOfFile = (d: DataPointFile): PlantDataPoint => pointFromFile(d, { file: '', path: '' }, []);
+/** 0.16.1: the keys an inherited data point's entry gives, as stored. */
+export const pointKeysOfFile = (d: DataPointFile): PlantProfilePointOverride => pointOverrideFromFile(d, { file: '', path: '' }, []);
 
 /**
  * A derived profile's `interfaces` as written, against its base's effective model: an entry with an inherited id
@@ -902,6 +922,7 @@ const pointOut = (d: PlantDataPoint) =>
     aliases: d.aliases,
     notes: d.notes,
     publications: d.publications.map((x) => clean({ target: x.target, path: x.path, name: x.name })),
+    source: sourceOut(d.source),
   });
 
 /** An inherited data point's entry: only what the derived profile changes (0.11.0). */
@@ -922,6 +943,7 @@ const pointOverrideOut = (o: PlantProfilePointOverride): Record<string, unknown>
     ['publications', 'publications'],
   ];
   for (const [k, f] of keys) if (o[k] !== undefined) out[f] = o[k];
+  if (o.source !== undefined) out.source = sourceOut(o.source);
   return out;
 };
 

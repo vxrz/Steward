@@ -16,6 +16,7 @@ import {
   PLANT_DIRECTIONS,
   PLANT_LIMITS,
   PLANT_NAME_RE,
+  PLANT_POINT_SOURCE_LIMITS,
   PLANT_PROTOCOLS,
   kpiInputPoint,
   kpiInputProfiles,
@@ -289,6 +290,15 @@ export const aliasList = z
 
 const publicationTarget = z.object({ target: text(L.text), path: text(L.address), name: text(L.text) }).strict();
 
+/** 0.16.1: where a data point is described – a document and the place in it. */
+export const pointSourceInput = z
+  .object({
+    document: z.string().trim().min(1).max(PLANT_POINT_SOURCE_LIMITS.document),
+    page: text(PLANT_POINT_SOURCE_LIMITS.page),
+    section: text(PLANT_POINT_SOURCE_LIMITS.section),
+  })
+  .strict();
+
 export const dataPointInput = z
   .object({
     id: pointName,
@@ -303,6 +313,11 @@ export const dataPointInput = z
     aliases: aliasList.default([]),
     notes: text(L.longText),
     publications: z.array(publicationTarget).max(L.publicationsPerPoint).default([]),
+    // 0.16.1: kept as it is when a form sends it back; null or left out: none
+    source: pointSourceInput
+      .nullable()
+      .optional()
+      .transform((v) => v ?? undefined),
   })
   .strict();
 
@@ -410,6 +425,8 @@ export const pointOverrideInput = z
     aliases: aliasList.optional(),
     notes: z.string().trim().max(L.longText).optional(),
     publications: z.array(publicationTarget).max(L.publicationsPerPoint).optional(),
+    // 0.16.1: null – the derived device's data point has no source (not the inherited one)
+    source: pointSourceInput.nullable().optional(),
   })
   .strict();
 

@@ -1,10 +1,35 @@
 import type { ReactNode } from 'react';
-import { ActionIcon, Anchor, Badge, Button, Group, Menu, Paper, Stack, Table, Text, TextInput, Textarea, ThemeIcon, Tooltip } from '@mantine/core';
+import {
+  ActionIcon,
+  Anchor,
+  Badge,
+  Button,
+  Group,
+  Menu,
+  Paper,
+  Stack,
+  Table,
+  Text,
+  TextInput,
+  Textarea,
+  ThemeIcon,
+  Tooltip,
+  VisuallyHidden,
+} from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { Link } from 'react-router-dom';
-import { IconAlertTriangle, IconCheck, IconDots, IconEdit, IconPlus, IconTrash } from '@tabler/icons-react';
+import { IconAlertTriangle, IconBook, IconCheck, IconDots, IconEdit, IconPlus, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import { modbusAddress, unitSymbol, type KpiParamValue, type PlantAssetBrief, type PlantCheck, type PlantDataPoint, type PlantProtocol } from '@sm/shared';
+import {
+  modbusAddress,
+  unitSymbol,
+  type KpiParamValue,
+  type PlantAssetBrief,
+  type PlantCheck,
+  type PlantDataPoint,
+  type PlantPointSource,
+  type PlantProtocol,
+} from '@sm/shared';
 import { AssetStatusBadge, useNameOf } from './common';
 
 /**
@@ -78,6 +103,26 @@ export function Breakable({ text }: { text: string }) {
         </span>
       ))}
     </>
+  );
+}
+
+/** 0.16.1: a data point's source in one line – the document, its page and section. */
+export function useSourceText() {
+  const { t } = useTranslation('plant');
+  return (s: PlantPointSource): string => [s.document, s.page ? t('data.sourcePageIs', { page: s.page }) : '', s.section].filter(Boolean).join(' · ');
+}
+
+/** 0.16.1: where a data point is described, as a quiet line below it (nothing when it has no source). */
+export function PointSource({ source }: { source: PlantDataPoint['source'] }) {
+  const { t } = useTranslation('plant');
+  const text = useSourceText();
+  if (!source) return null;
+  return (
+    <Text size="xs" c="dimmed" data-testid="point-source" style={{ overflowWrap: 'anywhere' }}>
+      <IconBook size={12} aria-hidden style={{ verticalAlign: '-2px', marginInlineEnd: 4 }} />
+      <VisuallyHidden>{t('data.source')} </VisuallyHidden>
+      {text(source)}
+    </Text>
   );
 }
 
@@ -264,6 +309,7 @@ export function DataPointTable({
                   <Breakable text={p.id} />
                 </Text>
                 {badge?.(p)}
+                <PointSource source={p.source} />
               </Stack>
               {menu(p)}
             </Group>
@@ -331,6 +377,7 @@ export function DataPointTable({
                   <Breakable text={p.id} />
                 </Text>
                 {badge?.(p)}
+                <PointSource source={p.source} />
               </Table.Td>
               <Table.Td className="mono code-wrap">
                 <Breakable text={p.dataType || '–'} />

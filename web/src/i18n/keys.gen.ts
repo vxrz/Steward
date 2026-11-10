@@ -8129,6 +8129,12 @@ export interface Resources {
     'data.clientIs': string;
     'data.versionIs': string;
     'data.notes': string;
+    'data.source': string;
+    'data.sourcePageIs': string;
+    'data.sourceDocument': string;
+    'data.sourceDocumentHint': string;
+    'data.sourcePage': string;
+    'data.sourceSection': string;
     'data.addInterface': string;
     'data.newInterface': string;
     'data.editInterface': string;
