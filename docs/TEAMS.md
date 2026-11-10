@@ -55,7 +55,7 @@ Applications take options: their components (the stack entered by hand; what was
 
 1. In _Users → Teams_, create a team per service team, add its members, and give each member their roles in the team (e.g. _designer_ in team Orders, _viewer_ in team Payments).
 2. Open a resource and choose its owning teams in the _Owning teams_ panel. It is on the _Access_ tab for processes, platforms, monitors and documents, and on the page itself for services, applications, systems, credentials, dashboards and ticket references.
-3. To move a whole service at once, use **Owning teams for the whole service…** on the service page (or `POST /api/owning-teams/bulk` with `service`). It covers the service, its applications, the records and ticket references linked to them, and the credentials that belong to them. Preview it first (`preview: true` in the API): for every resource it lists who **gains** and who **loses** visibility, and changes nothing.
+3. To move a whole service at once, use **Owning teams for the whole service** on the service page (or `POST /api/owning-teams/bulk` with `service`). It covers the service, its applications, the records and ticket references linked to them, and the credentials that belong to them. Preview it first (`preview: true` in the API): for every resource it lists who **gains** and who **loses** visibility, and changes nothing.
 
 Only administrators change owning teams. Adding a team is confirmed with a step-up, like other grants. Every change is audited as `access.owning_teams_changed`, and a bulk change audits each resource.
 

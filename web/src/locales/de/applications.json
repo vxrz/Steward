@@ -816,7 +816,7 @@
     "impactView": {
       "title": "Was es betrifft",
       "help": "Was Steward hinter den Zielen kennt: Datenpfade, Erfassungen, KPIs, Dashboards, Monitore und wer Bescheid wissen sollte. Dokumentation, einige Schritte weit verfolgt.",
-      "loading": "Ermittelt, was es betrifft…",
+      "loading": "Ermittelt, was es betrifft …",
       "nothing": "Über die Ziele hinaus ist nichts bekannt.",
       "truncated": "Nach einigen Schritten oder vielen Einträgen angehalten – es kann mehr geben.",
       "monitorSummary_one": "{{count}} Monitor: {{down}} würden ausfallen, {{off}} auf Aus gehen.",

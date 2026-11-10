@@ -671,7 +671,7 @@
     "createAndTest": "Create and test",
     "saveAndTest": "Save and test again",
     "secretsKept": "Credentials entered before are kept – fill in only the ones to change.",
-    "testing": "Testing the connection to “{{name}}” …",
+    "testing": "Testing the connection to “{{name}}”…",
     "changeSettings": "Change the settings",
     "testAgain": "Test again",
     "continue": "Continue",

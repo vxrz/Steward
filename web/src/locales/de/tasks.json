@@ -20,7 +20,7 @@
     "created": "erstellt {{date}}",
     "startedBy": "Ausführung gestartet von {{user}}",
     "assignedTo": "Zugewiesen an",
-    "filter": "Filtern…",
+    "filter": "Filtern …",
     "selectedOf_one": "{{count}} von {{total}} ausgewählt",
     "selectedOf_other": "{{count}} von {{total}} ausgewählt",
     "wereSelectedOf_one": "{{count}} von {{total}} wurde ausgewählt",

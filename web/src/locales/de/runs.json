@@ -181,7 +181,7 @@
       "action": "Aktion",
       "summary": "Zusammenfassung"
     },
-    "generatePdf": "PDF-Bericht erstellen …",
+    "generatePdf": "PDF-Bericht erstellen",
     "showMore": {
       "steps_one": "{{shown}} von {{total}} Schritt",
       "steps_other": "{{shown}} von {{total}} Schritten",

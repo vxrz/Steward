@@ -319,7 +319,7 @@ export function AssetNetworkSection({ assetId }: { assetId: string }) {
                     }
                     data-testid="asset-devices-move"
                   >
-                    {tp('moveEntries.menu')}
+                    {tp('moveEntries.menu', { type: label('asset', false, true) })}
                   </Button>
                 </Group>
               )}

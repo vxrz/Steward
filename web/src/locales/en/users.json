@@ -241,7 +241,7 @@
       "start": "Test sign-in",
       "again": "Test again",
       "notStarted": "The test sign-in could not start",
-      "waiting": "Waiting for the sign-in in the other window …",
+      "waiting": "Waiting for the sign-in in the other window…",
       "open": "Open the sign-in page",
       "failed": "The test sign-in failed: {{error}}",
       "preview": "Preview",

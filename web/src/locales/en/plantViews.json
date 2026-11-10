@@ -397,7 +397,7 @@
     "outside": "Outside the zones",
     "nodeHelp": "Tab moves to the next part. Space selects it, Enter opens its page, Escape clears the selection.",
     "search": "Find a part or data path",
-    "searchPlaceholder": "Find an asset, host, data path …",
+    "searchPlaceholder": "Find an asset, host, data path…",
     "searchNothing": "Nothing found",
     "filters": "Filters",
     "filterZones": "Zones",

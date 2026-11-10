@@ -868,7 +868,7 @@
     "instantiated": "hat eine Instanz"
   },
   "move": {
-    "menu": "Verschieben nach…",
+    "menu": "An anderen Ort verschieben",
     "nodeTitle": "{{type}} {{name}} verschieben",
     "nodeHelp": "Die {{type}} kommt unter eine andere {{parent}} dieses Standorts, mit allem darunter und ihren Anlagen.",
     "newParent": "Neue {{type}}",
@@ -879,7 +879,7 @@
     "newPlace": "Neuer Platz"
   },
   "moveEntries": {
-    "menu": "Zu Anlage verschieben…",
+    "menu": "Zu anderer {{type}} verschieben",
     "devicesTitle_one": "Gerät {{name}} verschieben",
     "devicesTitle_other": "{{count}} Geräte verschieben",
     "collectionTitle": "Datenerfassung {{name}} verschieben",
@@ -921,7 +921,7 @@
     "done_other": "{{count}} Einträge zu {{asset}} verschoben"
   },
   "duplicateDevice": {
-    "menu": "Duplizieren…",
+    "menu": "Duplizieren",
     "title": "Gerät {{name}} duplizieren",
     "help": "Die Kopie übernimmt die Felder des Geräts – nicht seinen Hostnamen, seine Adresse, MAC-Adresse, Seriennummer, seinen Switch-Port, seine Netzwerkdose oder seinen CMDB-Port (sie gehören zum Original) und nicht seine Prüfungen oder Überwachung. An einem anderen Standort bleibt das VLAN leer.",
     "id": "Kennung der Kopie",

@@ -488,13 +488,14 @@ export function DuplicateDeviceModal({
   );
 }
 
-/** 0.16: a device's own menu items besides Edit and Remove – Move to asset… and Duplicate…. */
+/** 0.16: a device's own menu items besides Edit and Remove – Move to another asset and Duplicate. */
 export function DeviceMenuItems({ onMove, onDuplicate }: { onMove: () => void; onDuplicate: () => void }) {
   const { t } = useTranslation('plant');
+  const label = usePlantLabel();
   return (
     <>
       <Menu.Item leftSection={<IconArrowsMove size={14} />} onClick={onMove} data-testid="device-move">
-        {t('moveEntries.menu')}
+        {t('moveEntries.menu', { type: label('asset', false, true) })}
       </Menu.Item>
       <Menu.Item leftSection={<IconCopy size={14} />} onClick={onDuplicate} data-testid="device-duplicate">
         {t('duplicateDevice.menu')}

@@ -55,7 +55,7 @@
     "status": "Nur die Statusseiten der Services – keine anderen Seiten, Prozesse, Plattformen oder Daten",
     "plant": "Sieht nur das Werksregister (Standorte und Anlagen, sofern ein Standort nicht eingeschränkt ist) – keine anderen Seiten, Prozesse, Services oder Dokumente"
   },
-  "loading": "Wird geladen…",
+  "loading": "Wird geladen …",
   "severity": {
     "error": "Fehler",
     "warning": "Warnung",

@@ -103,7 +103,7 @@
     "newId": "New id",
     "help": "Lower-case letters, digits, “.”, “_” and “-”, starting with a letter or digit (at most 80).",
     "helpName": "Letters, digits, “.”, “_” and “-”, starting with a letter, digit or “_” (at most 120).",
-    "checking": "Checking …",
+    "checking": "Checking…",
     "refers": "Changed with it",
     "nothing": "Nothing else names this entry.",
     "aliasNote": "Links, bookmarks, API calls and import files keep working: {{ids}} still leads here.",
@@ -182,7 +182,7 @@
     "siteOnly": "Building and place apply to the assets of one site: select assets of one site.",
     "moveTitle_one": "Move {{count}} entry",
     "moveTitle_other": "Move {{count}} entries",
-    "moveOneSite": "Move to… takes {{type}} of one site – choose those of one site.",
+    "moveOneSite": "Moving to another place works for {{type}} of one site only – select {{type}} of one site.",
     "applyMove": "Move"
   },
   "mapping": {

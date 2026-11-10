@@ -979,7 +979,7 @@
     "change": "Change",
     "pick": "Pick from API spec",
     "connectionFirst": "Select a connection first.",
-    "loadingSpec": "loading spec…",
+    "loadingSpec": "Loading the spec…",
     "notInSpec": "not found in the selected platform’s specs.",
     "noSpecPlatform": "no platform with a spec to look it up.",
     "pickTitle": "Pick an API operation",

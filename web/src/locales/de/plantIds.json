@@ -182,7 +182,7 @@
     "siteOnly": "Gebäude und Ort gelten für die Anlagen eines Standorts: Wählen Sie Anlagen eines Standorts aus.",
     "moveTitle_one": "{{count}} Eintrag verschieben",
     "moveTitle_other": "{{count}} Einträge verschieben",
-    "moveOneSite": "„Verschieben nach…“ nimmt {{type}} eines Standorts – wählen Sie die eines Standorts.",
+    "moveOneSite": "Verschieben an einen anderen Ort geht nur für {{type}} eines Standorts – wählen Sie {{type}} eines Standorts aus.",
     "applyMove": "Verschieben"
   },
   "mapping": {

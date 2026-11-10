@@ -182,7 +182,7 @@
     },
     "then": "then",
     "keys": {
-      "search": "Search pages, processes, monitors, documents …",
+      "search": "Search pages, processes, monitors, documents…",
       "help": "Show this list",
       "goTo": "Go to {{page}}",
       "close": "Close a dialog or menu",

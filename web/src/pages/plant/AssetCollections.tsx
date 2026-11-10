@@ -52,6 +52,7 @@ import { CollectionFlowView, CollectionSourcesView } from '../../components/plan
 import { PlantDocumentsPanel } from '../../components/plant/DocumentsPanel';
 import { draftSave } from '../../components/plant/changes/common';
 import { MoveEntriesModal } from '../../components/plant/MoveEntries';
+import { usePlantLabel } from '../../components/plant/common';
 
 /**
  * The data collections of an asset (0.11.0, ADR 0019): what collectors read from it, mapped to its data points. The
@@ -344,6 +345,7 @@ function NewCollectionModal({
 
 function CollectionDetail({ assetId, id, data, onClose }: { assetId: string; id: string; data: PlantAssetCollections; onClose: () => void }) {
   const { t, how, collector } = useCollectionText();
+  const plantLabel = usePlantLabel();
   const qc = useQueryClient();
   const narrow = useMediaQuery('(max-width: 48em)') ?? false;
   const q = useQuery({ queryKey: [...key(assetId), id], queryFn: () => get<PlantCollectionView>(`${base(assetId)}/${encodeURIComponent(id)}`) });
@@ -631,7 +633,7 @@ function CollectionDetail({ assetId, id, data, onClose }: { assetId: string; id:
               </Group>
               {canEdit && (
                 <Button size="xs" variant="default" leftSection={<IconArrowsMove size={14} />} onClick={() => setMoving(true)} data-testid="collection-move">
-                  {t('plant:moveEntries.menu')}
+                  {t('plant:moveEntries.menu', { type: plantLabel('asset', false, true) })}
                 </Button>
               )}
               {canEdit && (

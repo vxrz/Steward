@@ -116,7 +116,7 @@
   },
   "bundle": {
     "exportAll": "Export all processes & dashboards (package)",
-    "importMenu": "Import package…",
+    "importMenu": "Import package",
     "importTitle": "Import package",
     "hint": "A package (JSON, created with \"Export all processes & dashboards\") contains several processes and dashboards. Credentials and platforms are never part of a package.",
     "choose": "Choose package file",

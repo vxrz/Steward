@@ -497,7 +497,7 @@ export function SiteDevices({ n, edit, narrow }: { n: PlantSiteNetwork; edit: Si
                   onClick={() => edit.moveDevices(chosen.map((c) => ({ asset: c.scope!, id: c.id, name: c.name })))}
                   data-testid="bulk-move-devices"
                 >
-                  {tp('moveEntries.menu')}
+                  {tp('moveEntries.menu', { type: label('asset', false, true) })}
                 </Button>
               )}
             />

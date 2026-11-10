@@ -514,7 +514,7 @@
       "opc_ua": "OPC UA NodeId, e.g. ns=2;s=Spindle.Speed or ns=2;i=1001",
       "modbus_tcp": "Table, 0-based address and count: holding:100, input:7,2 (coil, discrete, input, holding)",
       "mqtt": "The topic, e.g. machines/press-1/state",
-      "other": "A path, a file name or column, a URL …"
+      "other": "A path, a file name or column, a URL…"
     },
     "addressOpcUa": "Use the OPC UA NodeId notation, e.g. ns=2;i=1001 or ns=2;s=Spindle.Speed.",
     "addressModbus": "Use table:address,count – table coil, discrete, input or holding, e.g. holding:100 or input:7,2.",
@@ -527,7 +527,7 @@
     "defaultPublicationsHelp": "Where this data point is usually published; each asset says where it really is.",
     "addPublication": "Add publication",
     "target": "Target system",
-    "targetHelp": "An IoT platform, a historian …",
+    "targetHelp": "An IoT platform, a historian…",
     "path": "Path",
     "pathHelp": "A path, an aspect, a topic",
     "pubName": "Name there",
@@ -868,7 +868,7 @@
     "instantiated": "has an instance"
   },
   "move": {
-    "menu": "Move to…",
+    "menu": "Move to another place",
     "nodeTitle": "Move {{type}} {{name}}",
     "nodeHelp": "The {{type}} moves below another {{parent}} of this site, with everything below it and its assets.",
     "newParent": "New {{type}}",
@@ -879,7 +879,7 @@
     "newPlace": "New place"
   },
   "moveEntries": {
-    "menu": "Move to asset…",
+    "menu": "Move to another {{type}}",
     "devicesTitle_one": "Move device {{name}}",
     "devicesTitle_other": "Move {{count}} devices",
     "collectionTitle": "Move data collection {{name}}",
@@ -921,7 +921,7 @@
     "done_other": "{{count}} entries moved to {{asset}}"
   },
   "duplicateDevice": {
-    "menu": "Duplicate…",
+    "menu": "Duplicate",
     "title": "Duplicate device {{name}}",
     "help": "The copy takes the device’s fields – not its host name, address, MAC address, serial number, switch port, wall outlet or CMDB port (they belong to the original) and not its checks or monitoring. On another site its VLAN stays empty.",
     "id": "ID of the copy",

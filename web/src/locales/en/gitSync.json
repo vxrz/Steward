@@ -95,7 +95,7 @@
     "modeItemsHint": "Every file is an item; each change waits for a review on its own.",
     "modeLibraryHint": "A signed library: the newest version tag is verified and waits under Libraries for a review of the whole release.",
     "tagPattern": "Version tags",
-    "tagPatternHint": "{version} stands for the release, e.g. v{version} follows v1.4.0, v1.5.0 …",
+    "tagPatternHint": "{version} stands for the release, e.g. v{version} follows v1.4.0, v1.5.0…",
     "allowPrereleases": "Also pre-releases (1.5.0-rc.1)"
   },
   "secret": {
