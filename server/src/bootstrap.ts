@@ -7,7 +7,7 @@ import { startGatusScraper, stopGatusScraper } from './gatus/metrics.js';
 import { startReportSchedules, stopReportSchedules } from './reports/schedules.js';
 import { startAccessChecks, stopAccessChecks } from './compliance/reconciliation.js';
 import { startBackupJobs, stopBackupJobs } from './backup/service.js';
-import { cleanUpExportRuns, exportsIdle, startExportJobs, stopExportJobs } from './export/jobs.js';
+import { exportsIdle, resumeExportJobs, startExportJobs, stopExportJobs } from './export/jobs.js';
 import { startJobs, stopJobs } from './jobs/registry.js';
 import { closeAllPools } from './dbms/pool.js';
 import { startEventLoopMonitor, stopEventLoopMonitor } from './eventloop.js';
@@ -22,7 +22,8 @@ import { lifecyclePhase, setLifecyclePhase, shuttingDown } from './lifecycle.js'
  * startUnlocked() – once, when the vault is unlocked (at start with SM_MASTER_PASSPHRASE[_FILE], or by a person):
  *   1. recovery of runs (resume waiting ones, mark running ones interrupted, re-queue queued ones)
  *   2. scheduler (records the fires missed while Steward was not running, starts catch-up runs)
- *   3. monitor engine  4. Gatus scraper  5. report schedules  6. access checks  7. clean-up after interrupted exports
+ *   3. monitor engine  4. Gatus scraper  5. report schedules  6. access checks  7. exports: clean-up after interrupted
+ *      runs, one catch-up run of each export whose time was missed (startExportJobs found them before the scheduler ran)
  * shutdown() – SIGTERM/SIGINT (main.ts) and the desktop executable:
  *   1. not ready any more (/api/ready answers 503), no new runs (503 SHUTTING_DOWN) and no new scheduled fires
  *   2. report schedules, access checks, backups, exports, background jobs, monitor engine and Gatus scraper stop
@@ -53,8 +54,9 @@ export async function startUnlocked(): Promise<void> {
   startGatusScraper();
   startReportSchedules();
   startAccessChecks();
-  // what interrupted or failed exports left in the bucket (it needs the platforms' credentials from the vault)
-  void cleanUpExportRuns().catch((err) => logger.warn({ err }, 'could not clean up after interrupted exports'));
+  // what interrupted or failed exports left in the bucket, and catch-up runs of missed exports (they need the
+  // platforms' credentials from the vault)
+  void resumeExportJobs().catch((err) => logger.warn({ err }, 'could not resume the exports'));
 }
 
 /** The vault was locked: no scheduled fires and no monitor checks until it is unlocked again (the rest stays). */

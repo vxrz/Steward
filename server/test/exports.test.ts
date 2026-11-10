@@ -626,6 +626,35 @@ describe('an export run', () => {
     expect(await refused(s.api, 'DELETE', `/platforms/${locked.id}`)).toMatchObject({ status: 409, body: { code: 'PLATFORM_EXPORT_FILES' } });
   });
 
+  it('runs once after the start when its scheduled time was missed while Steward was not running', async () => {
+    const jobs = await import('../src/export/jobs.js');
+    const { db } = await import('../src/db.js');
+    const { writeSetting } = await import('../src/settings.js');
+    const { ALIVE_KEY } = await import('../src/scheduler.js');
+    const daily = await s.api('POST', '/exports', job({ name: 'daily-catch-up', enabled: true, cron: '30 3 * * *', parts: [ALL_PARTS[4]] }));
+    // defined ten days ago; Steward last ran three days ago
+    db().run('UPDATE export_jobs SET updated_at = ? WHERE id = ?', new Date(Date.now() - 10 * 86_400_000).toISOString(), daily.id);
+    writeSetting(ALIVE_KEY, new Date(Date.now() - 3 * 86_400_000).toISOString());
+    try {
+      jobs.startExportJobs();
+      const [missed] = await s.api('GET', '/audit?action=export.missed&limit=1');
+      expect(missed).toMatchObject({ actor: 'system', entityId: daily.id });
+      expect(missed.details.count).toBeGreaterThanOrEqual(2);
+      // after the vault is unlocked: one catch-up run, however many times were missed
+      await jobs.resumeExportJobs();
+      await idle();
+      const runs = await s.api('GET', `/exports/${daily.id}/runs`);
+      expect(runs).toHaveLength(1);
+      expect(runs[0]).toMatchObject({ trigger: 'schedule', status: 'succeeded' });
+      // the next start finds nothing missed: the catch-up is its last run
+      jobs.startExportJobs();
+      expect((await s.api('GET', '/audit?action=export.missed&limit=5')).length).toBe(1);
+    } finally {
+      writeSetting(ALIVE_KEY, new Date().toISOString());
+      await s.api('DELETE', `/exports/${daily.id}`);
+    }
+  });
+
   it('records a failure without secrets and tells the administrators', async () => {
     const bad = await s.api('POST', '/platforms', {
       name: 'Export bucket, wrong key',
@@ -657,7 +686,7 @@ describe('an export run', () => {
     expect(actions).toEqual(
       expect.arrayContaining(['export.job_created', 'export.job_changed', 'export.completed', 'export.failed', 'export.pruned', 'export.job_removed']),
     );
-    const [created] = await s.api('GET', '/audit?action=export.job_created&limit=1');
+    const [created] = await s.api('GET', `/audit?action=export.job_created&entityId=${id}&limit=1`);
     expect(created.actor).toBe('admin');
     expect(created.summary).toContain('nightly-share');
   });

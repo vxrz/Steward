@@ -62,6 +62,8 @@ Every object also carries the SHA-256 of what is stored as `x-amz-meta-sha256`. 
 
 _Run now_ starts a run right away (one run per export at a time).
 
+A scheduled time that falls into a time Steward was not running (an update, a restart) is not lost: at the next start Steward compares each export's schedule with the last time its scheduler ran, audits the missed times (`export.missed`) and – once the vault is unlocked – starts **one** catch-up run, however many times were missed. Requests to S3 are repeated on the platform's retry policy (by default up to 3 times with backoff, for 429/502/503/504 and network errors, the platform's _Retries_ setting); a run that still fails removes what it uploaded and notifies the administrators.
+
 ## Readable or encrypted
 
 **By default the files are readable** – the purpose of an export is that people and tools outside Steward read them. Whoever can read the bucket folder can read the files: protect it with a bucket policy (only the readers who need them), server-side encryption and, where it matters, a bucket of its own.

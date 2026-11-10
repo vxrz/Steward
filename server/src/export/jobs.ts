@@ -23,6 +23,8 @@ import { logger } from '../log.js';
 import { HttpError, newId, nowIso, parseJson, sha256 } from '../util.js';
 import { currentActor, runAs, type AuthUser } from '../auth/context.js';
 import { listUsers } from '../auth/users.js';
+import { readSetting } from '../settings.js';
+import { ALIVE_KEY, firesBetween } from '../scheduler.js';
 import { getPlatform, getSecrets } from '../platforms/service.js';
 import { backupKey, backupKeySet, backupSettings, s3Client, storagePlatform } from '../backup/service.js';
 import { encryptFile } from '../backup/crypto.js';
@@ -850,6 +852,75 @@ let started = false;
 /** The scheduled exports (tests). */
 export const scheduledExports = (): readonly { jobId: string; cron: Cron }[] => crons;
 
+/** A run on the schedule (or its catch-up); a run that cannot start is recorded as failed and notified, never silent. */
+function scheduledRun(r: JobRow): void {
+  try {
+    startExportRun(r.id, 'schedule');
+  } catch (err) {
+    if ((err as HttpError).statusCode === 409) return logger.warn({ export: r.name }, 'export skipped: the last run is still going');
+    // nothing to run with (storage removed, no key): a failed run, so it is not silent
+    const at = nowIso();
+    const id = newId('xrun');
+    db().run(
+      "INSERT INTO export_runs (id, job_id, status, trigger_kind, started_at, finished_at, message) VALUES (?, ?, 'failed', 'schedule', ?, ?, ?)",
+      id,
+      r.id,
+      at,
+      at,
+      (err as Error).message,
+    );
+    notifyFailure(toJob(r), toRun(db().get<RunRow>('SELECT * FROM export_runs WHERE id = ?', id)!));
+  }
+}
+
+/** Exports whose scheduled time fell into a time Steward was not running: one catch-up run each, once the vault is unlocked. */
+let missed: string[] = [];
+
+/**
+ * At start: the scheduled times of each enabled export since the scheduler was last alive (and since its last run or
+ * change) – a time missed while Steward was not running is audited (`export.missed`) and gets one catch-up run.
+ * Nothing on the first start of a version that recorded no time.
+ */
+function detectMissedExports(now: Date): void {
+  missed = [];
+  const alive = readSetting<string | null>(ALIVE_KEY, null);
+  if (!alive || Number.isNaN(Date.parse(alive))) return;
+  for (const r of db().all<JobRow>('SELECT * FROM export_jobs WHERE enabled = 1 ORDER BY name')) {
+    const last = db().get<{ at: string }>('SELECT MAX(started_at) AS at FROM export_runs WHERE job_id = ?', r.id)?.at;
+    const since = new Date(Math.max(Date.parse(alive), Date.parse(last ?? '') || 0, Date.parse(r.updated_at) || 0));
+    if (since.getTime() >= now.getTime()) continue;
+    let found: ReturnType<typeof firesBetween>;
+    try {
+      found = firesBetween(r.cron, r.timezone, since, now);
+    } catch (err) {
+      logger.warn({ err, export: r.name }, 'could not check an export for missed runs');
+      continue;
+    }
+    if (!found.count) continue;
+    missed.push(r.id);
+    audit({
+      actor: 'system',
+      action: 'export.missed',
+      entityType: 'export',
+      entityId: r.id,
+      summary: `Export "${r.name}": ${found.count === 1 ? 'its run' : `${found.count} runs`} missed while Steward was not running (${found.times.join(', ')}${found.count > found.times.length ? ' …' : ''}) – one catch-up run starts`,
+      details: { count: found.count, times: found.times, from: since.toISOString() },
+    });
+  }
+}
+
+/**
+ * Once the vault is unlocked (bootstrap; exports need the platforms' credentials): removes what interrupted and failed
+ * runs left in the bucket, then starts the catch-up runs of exports whose time was missed.
+ */
+export async function resumeExportJobs(): Promise<void> {
+  await cleanUpExportRuns();
+  for (const id of missed.splice(0)) {
+    const r = db().get<JobRow>('SELECT * FROM export_jobs WHERE id = ? AND enabled = 1', id);
+    if (r && started) scheduledRun(r);
+  }
+}
+
 /** (Re)plans the scheduled exports; called at start and when a definition changes. */
 export function scheduleExportJobs(): void {
   for (const j of crons.splice(0)) j.cron.stop();
@@ -858,25 +929,7 @@ export function scheduleExportJobs(): void {
     try {
       crons.push({
         jobId: r.id,
-        cron: new Cron(r.cron, { timezone: r.timezone, protect: true }, () => {
-          try {
-            startExportRun(r.id, 'schedule');
-          } catch (err) {
-            if ((err as HttpError).statusCode === 409) return logger.warn({ export: r.name }, 'export skipped: the last run is still going');
-            // nothing to run with (storage removed, no key): a failed run, so it is not silent
-            const at = nowIso();
-            const id = newId('xrun');
-            db().run(
-              "INSERT INTO export_runs (id, job_id, status, trigger_kind, started_at, finished_at, message) VALUES (?, ?, 'failed', 'schedule', ?, ?, ?)",
-              id,
-              r.id,
-              at,
-              at,
-              (err as Error).message,
-            );
-            notifyFailure(toJob(r), toRun(db().get<RunRow>('SELECT * FROM export_runs WHERE id = ?', id)!));
-          }
-        }),
+        cron: new Cron(r.cron, { timezone: r.timezone, protect: true }, () => scheduledRun(r)),
       });
     } catch (err) {
       logger.warn({ err, export: r.name }, 'could not schedule an export');
@@ -884,9 +937,14 @@ export function scheduleExportJobs(): void {
   }
 }
 
-export function startExportJobs(): void {
+export function startExportJobs(now = new Date()): void {
   started = true;
   stopping = false;
+  try {
+    detectMissedExports(now);
+  } catch (err) {
+    logger.warn({ err }, 'could not check the exports for missed runs');
+  }
   // runs the last process did not finish: failed, with the files they uploaded recorded (cleanUpExportRuns removes them)
   const at = nowIso();
   for (const r of db().all<RunRow>("SELECT * FROM export_runs WHERE status = 'running'")) {
