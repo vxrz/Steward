@@ -55,7 +55,9 @@
     "service": "Service",
     "allServices": "Alle Services",
     "overdueOnly": "Nur überfällige",
-    "mine": "Nur meine"
+    "mine": "Nur meine",
+    "oneControl": "Nur die Befunde einer Kontrolle.",
+    "allControls": "Alle Kontrollen"
   },
   "overdue": "Überfällig",
   "actionsCount": "{{open}} von {{total}} offen",

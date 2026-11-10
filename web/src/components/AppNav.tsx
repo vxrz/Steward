@@ -48,6 +48,7 @@ import {
   IconClipboardCheck,
   IconUserSearch,
   IconListCheck,
+  IconClipboardText,
   IconUserShield,
   IconUsers,
   IconWebhook,
@@ -91,6 +92,7 @@ export type NavKey =
   | 'accessChanges'
   | 'reconciliation'
   | 'personReviews'
+  | 'soa'
   | 'correctiveActions'
   | 'evidencePacks'
   | 'audit'
@@ -223,6 +225,8 @@ export const NAV_GROUPS: { key: NavGroupKey; items: NavItemDef[] }[] = [
     key: 'compliance',
     items: [
       { to: '/compliance/controls', key: 'controls', icon: IconChecklist },
+      // statement of applicability (ADR 0029, preview): one per control catalogue, with its versions
+      { to: '/compliance/soa', key: 'soa', icon: IconClipboardText },
       { to: '/compliance/access-changes', key: 'accessChanges', icon: IconUserShield },
       { to: '/compliance/reconciliation', key: 'reconciliation', icon: IconArrowsDiff },
       { to: '/compliance/person-reviews', key: 'personReviews', icon: IconUserSearch },

@@ -1,0 +1,263 @@
+{
+  "title": "Erklärung zur Anwendbarkeit",
+  "description": "Eine Erklärung je Kontrollkatalog: für jede Kontrolle, ob sie anwendbar ist und warum, wie weit sie umgesetzt ist, wie sie erfüllt wird und wer verantwortlich ist – mit den Nachweisen, die Steward bereits hat. Versionen gibt eine zweite Person frei; sie werden als signierte Datei exportiert.",
+  "whoCanAct": "Designer und Administratoren legen eine Erklärung an und entscheiden ihre Zeilen; Freigebende und Administratoren geben ihre Versionen frei.",
+  "allServices": "Alle Services",
+  "notVisible": "für Sie nicht sichtbar",
+  "partyWithName": "{{party}}: {{name}}",
+  "empty": {
+    "title": "Noch keine Erklärung zur Anwendbarkeit",
+    "text": "Legen Sie eine für einen Kontrollkatalog an: Sie beginnt mit einer nicht entschiedenen Zeile je Kontrolle.",
+    "filtered": "Keine Zeile passt zu den Filtern.",
+    "noControls": "Der Katalog hat keine Kontrollen."
+  },
+  "new": {
+    "button": "Neue Erklärung",
+    "title": "Neue Erklärung zur Anwendbarkeit",
+    "intro": "Eine Erklärung je Kontrollkatalog. Sie beginnt mit einer Zeile je Kontrolle, noch keine entschieden.",
+    "catalogueOption_one": "{{name}} ({{count}} Kontrolle)",
+    "catalogueOption_other": "{{name}} ({{count}} Kontrollen)",
+    "submit": "Anlegen",
+    "created": "Erklärung zur Anwendbarkeit für {{catalogue}} angelegt"
+  },
+  "table": {
+    "catalogue": "Katalog und Geltungsbereich",
+    "decided": "Entschieden",
+    "applicable": "Anwendbar",
+    "version": "Version",
+    "label": "Zeilen der Erklärung zur Anwendbarkeit für {{catalogue}}",
+    "control": "Kontrolle",
+    "applies": "Anwendbar",
+    "status": "Status",
+    "party": "Verantwortlich",
+    "owner": "Verantwortliche Person",
+    "evidence": "Nachweise",
+    "review": "Letzte Überprüfung"
+  },
+  "counts": {
+    "decided": "{{decided}} von {{total}}",
+    "applicableShort": "{{applicable}} anwendbar, {{implemented}} umgesetzt",
+    "decidedLabel": "Entschieden",
+    "applicable": "Anwendbar",
+    "notApplicable_one": "{{count}} nicht anwendbar",
+    "notApplicable_other": "{{count}} nicht anwendbar",
+    "partlyPlanned": "teilweise {{partly}} · geplant {{planned}} · nicht begonnen {{notStarted}}",
+    "attention": "Braucht Aufmerksamkeit",
+    "attentionHint": "{{noEvidence}} ohne Nachweis · {{reviewDue}} seit einem Jahr nicht überprüft"
+  },
+  "applicable": {
+    "yes": "Anwendbar",
+    "no": "Nicht anwendbar",
+    "undecided": "Nicht entschieden"
+  },
+  "statuses": {
+    "implemented": "Umgesetzt",
+    "partly": "Teilweise umgesetzt",
+    "planned": "Geplant",
+    "notStarted": "Nicht begonnen"
+  },
+  "parties": {
+    "team": "Unser Team",
+    "supplier": "Lieferant",
+    "central": "Zentrale IT oder Konzern",
+    "shared": "Geteilt"
+  },
+  "matrixParties": {
+    "team": "Unser Team",
+    "supplier": "Lieferant",
+    "central": "Zentrale IT oder Konzern",
+    "shared": "Geteilt",
+    "notApplicable": "Nicht zutreffend"
+  },
+  "areas": {
+    "backup": "Datensicherung",
+    "recovery": "Wiederherstellung und Kontinuität",
+    "patching": "Patches und Schwachstellen",
+    "access": "Zugriffsverwaltung",
+    "logging": "Protokollierung und Überwachung",
+    "incidents": "Sicherheitsvorfälle"
+  },
+  "coverage": {
+    "covered": "Nachweise",
+    "gap": "Lücke",
+    "unmapped": "Nicht zugeordnet",
+    "notVisible": "Nicht sichtbar"
+  },
+  "fields": {
+    "catalogue": "Kontrollkatalog",
+    "scopeName": "Geltungsbereich",
+    "scopeServices": "Services im Geltungsbereich",
+    "fourEyes": "Eine zweite Person gibt frei",
+    "applicable": "Ist die Kontrolle anwendbar?",
+    "justification": "Begründung",
+    "status": "Umsetzungsstatus",
+    "howMet": "Wie sie erfüllt wird",
+    "party": "Verantwortlich",
+    "centralName": "Zentrale IT oder Konzernfunktion",
+    "owner": "Verantwortliche Person",
+    "grcRef": "GRC-Referenz",
+    "grcUrl": "GRC-Link",
+    "evidenceLinks": "Externe Nachweis-Links"
+  },
+  "hints": {
+    "justification": "In beiden Fällen nötig: warum die Kontrolle anwendbar ist oder warum nicht.",
+    "owner": "Ein Benutzer oder Team. Die verantwortliche Person ändert den Status, wie die Kontrolle erfüllt wird, und die letzte Überprüfung.",
+    "scopeName": "Zum Beispiel die Organisation oder der Teil davon, den die Erklärung abdeckt.",
+    "scopeServices": "Die Services, deren Verantwortungsmatrix die Vorschläge liefert. Keine: alle Services.",
+    "fourEyes": "Wer eine Version eingereicht hat, gibt sie nicht frei. Die Absicherungsrichtlinie kann das für jede Erklärung verlangen."
+  },
+  "filters": {
+    "search": "Suche",
+    "searchPlaceholder": "Kennung oder Thema",
+    "applicable": "Anwendbar",
+    "applicableValues": {
+      "all": "Alle",
+      "yes": "Anwendbar",
+      "no": "Nicht anwendbar",
+      "undecided": "Nicht entschieden"
+    },
+    "status": "Status",
+    "party": "Verantwortlich",
+    "owner": "Verantwortliche Person",
+    "all": "Alle",
+    "open": "Nur nicht entschiedene",
+    "noEvidence": "Nur ohne Nachweis"
+  },
+  "suggestion": {
+    "label": "Aus der Verantwortungsmatrix",
+    "count_one": "{{party}}: {{count}} Service",
+    "count_other": "{{party}}: {{count}} Services",
+    "undecided_one": "{{count}} Service nicht entschieden",
+    "undecided_other": "{{count}} Services nicht entschieden",
+    "take": "Vorschlag übernehmen",
+    "none": "Kein Verantwortungsbereich nennt diese Kontrolle: kein Vorschlag aus der Matrix.",
+    "short": "Vorschlag: {{party}}"
+  },
+  "entry": {
+    "saved": "{{ref}} gespeichert",
+    "ownerHint": "Sie sind für diese Zeile verantwortlich: Sie ändern ihren Status, wie sie erfüllt wird, und die letzte Überprüfung.",
+    "linksInvalid": "Jeder Link braucht einen Titel und eine http(s)-Adresse.",
+    "addLink": "Link hinzufügen",
+    "noLinks": "Keine externen Links, zum Beispiel der Bericht eines Scanners oder das Trust Center eines Lieferanten.",
+    "linkTitle": "Titel von Link {{n}}",
+    "linkTitlePlaceholder": "Titel",
+    "linkUrl": "Adresse von Link {{n}}",
+    "removeLink": "Link {{n}} entfernen",
+    "reviewed": "Zuletzt überprüft von {{user}} am {{date}}",
+    "neverReviewed": "Noch nicht überprüft",
+    "updated": "Geändert von {{user}} {{when}}",
+    "markReviewed": "Jetzt als überprüft markieren",
+    "changed": "geändert",
+    "never": "nie",
+    "notDecided": "Nicht entschieden"
+  },
+  "evidence": {
+    "title": "Nachweise in Steward (letzte 12 Monate)",
+    "none": "Kein Nachweis",
+    "counts": "{{items}} Nachweise aus {{mapped}} zugeordneten Elementen",
+    "hidden_one": "{{count}} für Sie nicht sichtbar",
+    "hidden_other": "{{count}} für Sie nicht sichtbar",
+    "openControl": "Kontrolle öffnen",
+    "findings": "Korrekturmaßnahmen: {{open}} offen von {{total}}",
+    "openFindings_one": "{{count}} offener Befund",
+    "openFindings_other": "{{count}} offene Befunde"
+  },
+  "settings": {
+    "button": "Einstellungen",
+    "title": "Einstellungen der Erklärung",
+    "saved": "Einstellungen gespeichert",
+    "fourEyesPolicy": "Die Absicherungsrichtlinie verlangt für jede Erklärung eine zweite Person.",
+    "areaControls": "Kontrollen je Verantwortungsbereich",
+    "areaDefault": "Es gelten die eingebauten Kennungen von ISO/IEC 27001:2022 Anhang A.",
+    "areaOwn": "Diese Kontrollen gelten anstelle der eingebauten.",
+    "areaAdmins": "Administratoren ändern sie."
+  },
+  "versions": {
+    "title": "Versionen",
+    "none": "Noch keine Version. Reichen Sie die Erklärung ein, sobald jede Zeile entschieden ist.",
+    "submit": "Zur Freigabe einreichen",
+    "submitHint": "Friert die Zeilen, die Texte der Kontrollen, die Nachweise und die Vorschläge in einer Version ein.",
+    "blocked": {
+      "undecided": "Entscheiden Sie zuerst jede Zeile: anwendbar oder nicht, warum, und ein Status für jede anwendbare Kontrolle.",
+      "waiting": "Eine Version wartet auf Freigabe."
+    },
+    "submitted": "Version zur Freigabe eingereicht",
+    "waiting": "Version {{number}} wartet auf Freigabe – eingereicht von {{user}} am {{date}}.",
+    "draft": "Entwurf",
+    "approvedShort": "Freigegeben v{{number}}",
+    "waitingShort": "v{{number}} wartet",
+    "changed_one": "{{count}} Zeile seitdem geändert",
+    "changed_other": "{{count}} Zeilen seitdem geändert",
+    "number": "Version",
+    "state": "Status",
+    "submittedCol": "Eingereicht",
+    "decidedCol": "Entschieden",
+    "sha": "SHA-256",
+    "export": "Exportieren",
+    "signed": "Signiert",
+    "by": "{{user}}, {{date}}",
+    "statuses": {
+      "submitted": "Wartet",
+      "approved": "Freigegeben",
+      "returned": "Zurückgegeben",
+      "superseded": "Abgelöst"
+    },
+    "fourEyesOn": "Eine zweite Person gibt jede Version frei.",
+    "fourEyesOff": "Wer einreicht, darf eine Version auch freigeben.",
+    "verifyHint": "Prüfen Sie eine signierte Datei offline mit: steward evidence verify <datei.zip> --fingerprint <Fingerabdruck des Schlüssels>."
+  },
+  "decision": {
+    "approve": "Freigeben",
+    "return": "Zurückgeben",
+    "approveTitle": "Version {{number}} freigeben",
+    "returnTitle": "Version {{number}} zurückgeben",
+    "submitted": "Eingereicht von {{user}} am {{date}}.",
+    "counts": "{{applicable}} anwendbar, {{notApplicable}} nicht anwendbar, {{implemented}} umgesetzt.",
+    "comment": "Kommentar",
+    "commentOptional": "Optional.",
+    "commentRequired": "Geben Sie an, was sich ändern muss.",
+    "approved": "Version {{number}} freigegeben",
+    "returned": "Version {{number}} zurückgegeben",
+    "ownSubmission": "Sie haben diese Version eingereicht: Eine zweite Person gibt sie frei."
+  },
+  "matrix": {
+    "intro": "Wer was für diesen Service übernimmt. SLA, vertragliche RTO und RPO und die Zertifikate eines Lieferanten kommen aus dem Lieferantendatensatz. Die Erklärung zur Anwendbarkeit schlägt ihre Verantwortlichen aus diesen Zeilen vor.",
+    "undecided_one": "{{count}} Bereich ist noch nicht entschieden.",
+    "undecided_other": "{{count}} Bereiche sind noch nicht entschieden.",
+    "notDecided": "Nicht entschieden",
+    "edit": "Ändern",
+    "editArea": "{{area}} ändern",
+    "hours": "{{value}} h",
+    "noSupplier": "Kein Lieferant angegeben",
+    "contract": "{{title}} · SLA {{sla}} · RTO {{rto}} · RPO {{rpo}}",
+    "certificates": "Gültig: {{list}}",
+    "noCertificate": "Kein gültiges Zertifikat",
+    "noRecoveryTest": "Kein Wiederherstellungstest",
+    "recoveryTest": "Wiederherstellungstest:",
+    "controls": "Kontrollen:",
+    "updated": "Geändert von {{user}} {{when}}",
+    "formTitle": "{{area}} – {{service}}",
+    "party": "Wer es übernimmt",
+    "contractLabel": "Vertrag",
+    "contractHint": "Sein SLA und die vertragliche RTO und RPO werden beim Bereich angezeigt.",
+    "centralName": "Name der zentralen IT oder Konzernfunktion",
+    "note": "Notiz",
+    "noteShared": "Geben Sie an, wer was übernimmt.",
+    "noteRequired": "Geben Sie an, wer was übernimmt.",
+    "duty": "Pflicht für den Wiederherstellungstest",
+    "dutyHint": "Die Pflicht dieses Service, die die Wiederherstellung testet. Steward legt sie nicht an.",
+    "noDuties": "Der Service hat noch keine Pflicht.",
+    "saved": "{{area}} gespeichert"
+  },
+  "certificateKinds": {
+    "iso27001": "ISO/IEC 27001",
+    "iso27017": "ISO/IEC 27017",
+    "iso27018": "ISO/IEC 27018",
+    "iso22301": "ISO 22301",
+    "soc2type1": "SOC 2 Typ I",
+    "soc2type2": "SOC 2 Typ II",
+    "c5": "C5",
+    "tisax": "TISAX",
+    "other": "Sonstiges"
+  }
+}

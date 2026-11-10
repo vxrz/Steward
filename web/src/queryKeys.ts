@@ -234,3 +234,15 @@ export const correctiveKeys = {
   settings: ['corrective', 'settings'] as const,
   ofControl: (controlId: string) => ['corrective', 'list', `control:${controlId}`] as const,
 };
+
+/** Statement of applicability (ADR 0029 part 2): the statements, one statement by catalogue key. */
+export const soaKeys = {
+  all: ['soa'] as const,
+  list: ['soa', 'list'] as const,
+  detail: (key: string) => ['soa', 'detail', key] as const,
+};
+
+/** The responsibility matrix of a service (ADR 0029 part 2). */
+export const responsibilityKeys = {
+  service: (serviceId: string) => ['responsibilities', serviceId] as const,
+};

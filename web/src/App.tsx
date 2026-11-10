@@ -75,6 +75,8 @@ const PersonReviewsPage = page(() => import('./pages/PersonReviews'), 'PersonRev
 const PersonReviewDetailPage = page(() => import('./pages/PersonReviews'), 'PersonReviewDetailPage');
 const CorrectiveActionsPage = page(() => import('./pages/CorrectiveActions'), 'CorrectiveActionsPage');
 const CorrectiveActionDetailPage = page(() => import('./pages/CorrectiveActions'), 'CorrectiveActionDetailPage');
+const SoaListPage = page(() => import('./pages/Soa'), 'SoaListPage');
+const SoaDetailPage = page(() => import('./pages/Soa'), 'SoaDetailPage');
 const ReportsPage = page(() => import('./pages/Reports'), 'ReportsPage');
 const RecordsPage = page(() => import('./pages/Records'), 'RecordsPage');
 const RecordDetailPage = page(() => import('./pages/RecordDetail'), 'RecordDetailPage');
@@ -572,6 +574,22 @@ function Shell({ status }: { status: AuthStatus }) {
                       element={
                         <ModuleGate module="compliance">
                           <PersonReviewDetailPage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/compliance/soa"
+                      element={
+                        <ModuleGate module="compliance">
+                          <SoaListPage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/compliance/soa/:key"
+                      element={
+                        <ModuleGate module="compliance">
+                          <SoaDetailPage />
                         </ModuleGate>
                       }
                     />

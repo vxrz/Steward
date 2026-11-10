@@ -20,7 +20,7 @@ import {
 } from '@mantine/core';
 import { useDebouncedValue } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { IconCheck, IconEdit, IconListCheck, IconPlus, IconRotate, IconShieldCheck, IconTrash, IconX } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -113,6 +113,9 @@ function FindingsTab() {
   const [service, setService] = useState<string | null>(null);
   const [overdue, setOverdue] = useState(false);
   const [mine, setMine] = useState(false);
+  // ?controlId=: the findings of one control (from a row of the statement of applicability)
+  const [params, setParams] = useSearchParams();
+  const controlId = params.get('controlId');
   const [creating, setCreating] = useState(false);
   const services = useQuery({ queryKey: ['services', false], queryFn: () => get<ServiceSummary[]>('/services') });
   const qs = useMemo(() => {
@@ -123,12 +126,13 @@ function FindingsTab() {
     if (service) u.set('serviceId', service);
     if (overdue) u.set('overdue', 'true');
     if (mine) u.set('owner', 'me');
+    if (controlId) u.set('controlId', controlId);
     return u.toString();
-  }, [state, debounced, severity, source, service, overdue, mine]);
+  }, [state, debounced, severity, source, service, overdue, mine, controlId]);
   const list = useQuery({ queryKey: correctiveKeys.list(qs), queryFn: () => get<CaFindingList>(`/compliance/corrective-actions?${qs}`) });
   useCreateParam(list.data?.canCreate, () => setCreating(true));
   const items = list.data?.items ?? [];
-  const active = [debounced.trim(), state !== 'open', severity.length, source.length, service, overdue, mine].filter(Boolean).length;
+  const active = [debounced.trim(), state !== 'open', severity.length, source.length, service, overdue, mine, controlId].filter(Boolean).length;
   const columns: DataColumn<CaFindingSummary>[] = [
     {
       key: 'finding',
@@ -257,6 +261,23 @@ function FindingsTab() {
             <Text size="sm">{t('suggestionsWaiting', { count: list.data.pendingSuggestions })}</Text>
             <Button size="compact-xs" variant="light" component={Link} to={`${BASE}/suggestions`}>
               {t('showSuggestions')}
+            </Button>
+          </Group>
+        </Alert>
+      )}
+      {controlId && (
+        <Alert color="gray" variant="light" mb="md" data-testid="ca-control-filter">
+          <Group justify="space-between" gap="xs">
+            <Text size="sm">{t('filters.oneControl')}</Text>
+            <Button
+              size="compact-xs"
+              variant="subtle"
+              onClick={() => {
+                params.delete('controlId');
+                setParams(params, { replace: true });
+              }}
+            >
+              {t('filters.allControls')}
             </Button>
           </Group>
         </Alert>

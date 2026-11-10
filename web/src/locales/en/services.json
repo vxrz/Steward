@@ -132,7 +132,8 @@
       "documents": "Documents",
       "tickets": "Tickets",
       "scorecard": "Scorecard",
-      "costs": "Cost plan"
+      "costs": "Cost plan",
+      "responsibilities": "Responsibilities"
     },
     "archivedScorecard": "An archived service has no scorecard.",
     "systems": {
