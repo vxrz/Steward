@@ -86,7 +86,11 @@ export const NOT_MOVED: Record<string, string> = {
 };
 
 /** Rows keyed by user id: moved for mapped users only, with the target user's id. */
-export const USER_ID_TABLES: Record<string, string> = { daily_summary_prefs: 'user_id', notification_prefs: 'user_id' };
+export const USER_ID_TABLES: Record<string, string> = {
+  daily_summary_prefs: 'user_id',
+  notification_prefs: 'user_id',
+  notification_personal_channels: 'user_id',
+};
 
 export type RefKind =
   /** a plain user name */

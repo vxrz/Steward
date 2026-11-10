@@ -4,7 +4,7 @@ import { useMediaQuery } from '@mantine/hooks';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { IconCheck, IconChevronDown, IconChevronRight, IconRocket } from '@tabler/icons-react';
-import type { DashboardSetup } from '@sm/shared';
+import { BRAND, type DashboardSetup } from '@sm/shared';
 import { useMe } from '../../auth';
 import { useSectionPref } from '../page/prefs';
 
@@ -145,6 +145,12 @@ export function GettingStarted({ setup, demoAction, forceShow }: { setup: Dashbo
             </Anchor>
             {' · '}
             {t('checklist.discoverSearch')} <Kbd size="xs">{/Mac|iPhone|iPad/.test(navigator.platform) ? '⌘ K' : t('checklist.shortcutCtrlK')}</Kbd>
+          </Text>
+          <Text size="xs" c="dimmed" mt={4}>
+            {t('checklist.firstWeek')}{' '}
+            <Anchor href={`${BRAND.repoUrl}/blob/HEAD/docs/FIRST-WEEK.md`} target="_blank" rel="noopener" size="xs" data-testid="getting-started-first-week">
+              {t('checklist.firstWeekLink')}
+            </Anchor>
           </Text>
         </div>
       )}

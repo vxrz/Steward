@@ -363,5 +363,18 @@
     "toPolicy": "Open the assurance policy",
     "signInDays": "Sign-in needed within (days)",
     "signInDaysHint": "A Teams decision needs a Steward sign-in within this many days: roles and teams come from that sign-in. Default 7."
+  },
+  "personal": {
+    "title": "Teams (personal)",
+    "intro": "Messages you choose come to your chat with the Steward app in Microsoft Teams instead of by e-mail – the same text as the e-mail, with links into Steward. Your quiet hours and digests apply there too. Nothing is chosen by default.",
+    "connected": "Your chat with the Steward app is connected (since {{since}}).",
+    "notConnected": "No chat yet: in Microsoft Teams, add the Steward app for yourself and send it a short message. Then this card shows the chat.",
+    "notLinked": "Your account is not linked through the Entra sign-in the Teams bot uses. Sign in to Steward once with Entra ID, then add the Steward app in Teams for yourself.",
+    "events": "Messages in Teams instead of by e-mail",
+    "eventsHint": "Only messages that come by e-mail can be chosen. Decisions come to the chat as cards anyway.",
+    "notRouted": "Not sent by e-mail at the moment – it stays in the app.",
+    "nothingOffered": "No message can be chosen: none is sent by e-mail on this instance.",
+    "fallback": "When Teams cannot deliver a message (the app was removed, or Teams is busy for too long), it comes by e-mail once – if you get e-mail notifications.",
+    "saved": "Your messages in Teams saved"
   }
 }

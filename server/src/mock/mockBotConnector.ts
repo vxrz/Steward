@@ -21,6 +21,12 @@ export interface MockBotConnector {
   /** What Steward sent: posts, updates and token requests */
   sent: { method: string; path: string; auth: string; body: unknown }[];
   tokenRequests: URLSearchParams[];
+  /**
+   * The next `count` posts and updates are refused with `status` (429 throttles, as the Bot Connector does under load;
+   * 403 for a person who blocked the bot) and recorded in `refused`; `retryAfter` sets the Retry-After header (seconds)
+   */
+  refuseNext: (count: number, status?: number, retryAfter?: number) => void;
+  refused: { method: string; path: string; status: number }[];
   close: () => Promise<void>;
 }
 
@@ -31,6 +37,8 @@ export async function startMockBotConnector(opts: { appId: string; endorsements?
   const jwk = publicKey.export({ format: 'jwk' }) as { n: string; e: string };
   const sent: MockBotConnector['sent'] = [];
   const tokenRequests: URLSearchParams[] = [];
+  const refused: MockBotConnector['refused'] = [];
+  let refusing = { count: 0, status: 429, retryAfter: undefined as number | undefined };
   let seq = 0;
   let base = '';
   const server = http.createServer((req, res) => {
@@ -55,6 +63,13 @@ export async function startMockBotConnector(opts: { appId: string; endorsements?
             return null; // recorded as null
           }
         })();
+        if (refusing.count > 0) {
+          refusing.count--;
+          refused.push({ method: req.method ?? '', path, status: refusing.status });
+          const headers: Record<string, string> = { 'content-type': 'application/json' };
+          if (refusing.retryAfter !== undefined) headers['retry-after'] = String(refusing.retryAfter);
+          return res.writeHead(refusing.status, headers).end(JSON.stringify({ error: { code: refusing.status === 429 ? 'Throttled' : 'Refused' } }));
+        }
         sent.push({ method: req.method ?? '', path, auth: String(req.headers.authorization ?? ''), body });
         return json(200, { id: `act-${++seq}` });
       }
@@ -84,6 +99,10 @@ export async function startMockBotConnector(opts: { appId: string; endorsements?
     kid,
     sent,
     tokenRequests,
+    refuseNext: (count, status = 429, retryAfter) => {
+      refusing = { count, status, retryAfter };
+    },
+    refused,
     close: () => new Promise<void>((r) => server.close(() => r())),
   };
 }

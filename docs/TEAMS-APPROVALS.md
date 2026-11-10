@@ -79,10 +79,24 @@ The endpoint checks, cheap and non-revealing first: bot off → 404; body over 6
 
 A compromised Teams account is a compromised Entra account – Entra's conditional access governs both. If that risk is not acceptable for a control point, turn its switch off.
 
+### Personal notifications in the chat (preview)
+
+With the bot on, a person can also get **other messages** in their chat with the Steward app – a failed run, a credential that is due, a plant change set to review – instead of by e-mail ([ADR 0025](adr/0025-personal-teams-notifications.md)). It is opt-in per person and event; nothing changes for anybody until they choose.
+
+1. The person adds the Steward app **for themselves** in Teams (or an administrator installs it for them through a Teams app setup policy). The bot records the chat when Teams tells it (`installationUpdate` / `conversationUpdate`); if that call was missed – the app was added while the bot was off – the person's **first message** to the bot records it.
+2. _Profile → Teams (personal)_: the card shows whether the chat is connected and lists the messages that can be chosen – those the instance sends **by e-mail** (_Settings → Notifications_, the route of each event). Decisions (`task.assigned`, `mcp.request`) are not in the list: they come to the chat as decision cards anyway. The daily summary has its own settings. Saving is audited (`notification.personal_channel_changed`).
+3. A chosen message comes to the chat **instead of** the e-mail: the same text as the e-mail, in the person's language, as a card with links (_Open in Steward_, runbook, settings) – no buttons that change anything. The person's **quiet hours and digests** apply to it (held messages come as one catch-up or digest card in the chat).
+
+**When Teams cannot deliver.** When the Bot Connector throttles (HTTP 429, or 502–504), Steward tries again three times with a growing wait (1, 2 and 4 seconds; a `Retry-After` up to 30 seconds is honoured). When it still fails, or Teams answers 403/404 (the person blocked or removed the app), the message comes **by e-mail once** – if e-mail can reach the person (e-mail set up, an address, _E-mail notifications_ on, an allowed domain). A chat that answered 403/404 is no longer used (`teams.conversation_removed`, reason `unreachable`); adding the app or writing to the bot again records it.
+
+**Which chat is used.** Only a chat in an **allowed tenant**, of an **active** account that is still **linked** through the bot's Entra provider to the object id the chat was recorded for. Deactivating an account stops using its chat (audited, reason `deactivated`); pseudonymising it deletes the chat and the person's choice; the data export lists both. While the bot is off, not approved or its module is switched off, the profile card is hidden and nothing is sent – the choices stay.
+
+API: `GET /api/me/teams-personal` (whether it is available, the chat, the chosen and the offered events), `PUT /api/me/teams-personal` with `{ "events": ["run.failed", "credential.due"] }` (`409 TEAMS_PERSONAL_OFF` while the bot is off).
+
 ### Without an internet-facing Steward
 
 Stage 1 works fully. Stage 2 needs inbound HTTPS from Microsoft to the bot listener; installations that allow neither stay on stage 1.
 
 ### Testing
 
-`server/test/teams-bot.test.ts` runs the endpoint against `server/src/mock/mockBotConnector.ts`: a token table (wrong key, wrong signature, issuer, audience, expired, not yet valid, `serviceUrl` mismatch, foreign host, unendorsed channel, foreign tenant, replay), decisions and four-eyes in the card, the policy switches, AI requests and posting through the bot. `server/test/teams-bot-security.test.ts` covers the findings of the 0.10.0 security review (sign-in bound, no redirects, old tasks, personal details, visibility on refresh, card data age, metadata backoff). They never call Microsoft.
+`server/test/teams-bot.test.ts` runs the endpoint against `server/src/mock/mockBotConnector.ts`: a token table (wrong key, wrong signature, issuer, audience, expired, not yet valid, `serviceUrl` mismatch, foreign host, unendorsed channel, foreign tenant, replay), decisions and four-eyes in the card, the policy switches, AI requests and posting through the bot. `server/test/teams-bot-security.test.ts` covers the findings of the 0.10.0 security review (sign-in bound, no redirects, old tasks, personal details, visibility on refresh, card data age, metadata backoff). `server/test/teams-personal.test.ts` covers the personal chat of ADR 0025 (the conversation's lifecycle, the choices, quiet hours and digests, throttling and the fallback to e-mail, deactivation, pseudonymisation, the export), and `e2e/teams-personal.spec.ts` turns it on in the profile against the demo's mock Bot Connector (`server/src/mock/demoTeamsBot.ts`, `SM_DEMO=1` only). They never call Microsoft.

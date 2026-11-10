@@ -1,6 +1,7 @@
 import { BRAND } from '@sm/shared';
 import { assertOutboundAllowed, fetchCheckingRedirects } from '../platforms/outbound.js';
 import { outboundContext } from '../platforms/policyContext.js';
+import { config } from '../config.js';
 
 /**
  * Microsoft's documented hosts the bot talks to (ADR 0013): the Bot Framework's OpenID metadata (its signing keys),
@@ -34,9 +35,9 @@ let endpoints: FrameworkEndpoints = PRODUCTION;
 
 export const frameworkEndpoints = (): FrameworkEndpoints => endpoints;
 
-/** Tests only: point the bot at the mock Bot Framework (server/src/mock/mockBotConnector.ts). */
+/** Tests and the demo only (SM_DEMO): point the bot at the mock Bot Framework (server/src/mock/mockBotConnector.ts). */
 export function useMockFramework(e: FrameworkEndpoints | null): void {
-  if (!process.env.VITEST) throw new Error('useMockFramework is for tests');
+  if (!process.env.VITEST && !config.demo) throw new Error('useMockFramework is for tests');
   endpoints = e ?? PRODUCTION;
 }
 
@@ -58,7 +59,7 @@ export async function frameworkFetch(
   url: string,
   init: { method?: string; headers?: Record<string, string>; body?: string },
   bodySecrets: string[] = [],
-): Promise<{ status: number; json: unknown }> {
+): Promise<{ status: number; json: unknown; retryAfter?: number }> {
   const ctx = outboundContext();
   await assertOutboundAllowed(url, ctx);
   const res = await fetchCheckingRedirects(url, { ...init, headers: { 'user-agent': BRAND.slug, ...init.headers }, signal: AbortSignal.timeout(10_000) }, ctx, {
@@ -74,5 +75,9 @@ export async function frameworkFetch(
       return null; // not JSON: the caller looks at the status
     }
   };
-  return { status: res.status, json: parse() };
+  // Retry-After in seconds (throttling, ADR 0025); an HTTP date is read as the seconds until then
+  const ra = res.headers.get('retry-after');
+  const retryAfter =
+    ra === null ? undefined : /^\d+$/.test(ra.trim()) ? Number(ra.trim()) : Math.max(0, Math.ceil((Date.parse(ra) - Date.now()) / 1000)) || undefined;
+  return { status: res.status, json: parse(), ...(retryAfter !== undefined ? { retryAfter } : {}) };
 }

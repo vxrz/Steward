@@ -2837,6 +2837,8 @@ export interface Resources {
     'checklist.expand': string;
     'checklist.collapse': string;
     'checklist.next': string;
+    'checklist.firstWeek': string;
+    'checklist.firstWeekLink': string;
     'checks.count_one': string;
     'checks.count_other': string;
     'checks.errors_one': string;
@@ -5308,6 +5310,7 @@ export interface Resources {
     'codes.TEAMS_BOT_CREDENTIAL': string;
     'codes.TEAMS_BOT_NEEDS_OID': string;
     'codes.TEAMS_BOT_TENANT': string;
+    'codes.TEAMS_PERSONAL_OFF': string;
     'codes.LIBRARY_HELD_resume': string;
     'codes.LIBRARY_HELD_uninstall': string;
     'codes.LIBRARY_REQUEST_CHANGED': string;
@@ -7517,6 +7520,17 @@ export interface Resources {
     'bot.toPolicy': string;
     'bot.signInDays': string;
     'bot.signInDaysHint': string;
+    'personal.title': string;
+    'personal.intro': string;
+    'personal.connected': string;
+    'personal.notConnected': string;
+    'personal.notLinked': string;
+    'personal.events': string;
+    'personal.eventsHint': string;
+    'personal.notRouted': string;
+    'personal.nothingOffered': string;
+    'personal.fallback': string;
+    'personal.saved': string;
   };
   plant: {
     'types.site.one': string;

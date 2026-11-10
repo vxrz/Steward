@@ -980,6 +980,8 @@ const EXPECT: Record<string, Access> = {
   'GET /api/me/notification-prefs': ALL,
   'PUT /api/me/notification-prefs': ALL,
   'DELETE /api/me/notification-prefs': ALL,
+  'GET /api/me/teams-personal': ALL,
+  'PUT /api/me/teams-personal': ALL,
   'GET /api/settings/quiet-hours': ADMIN,
   'PUT /api/settings/quiet-hours': ADMIN,
   // ---- the Teams bot (ADR 0013, preview): administrators; the bot endpoint itself is on its own listener (teams-bot.test.ts) ----
@@ -1918,6 +1920,7 @@ const bodies = (): Record<string, unknown> => ({
     digests: { timeZone: 'UTC', groups: {} },
   },
   'PUT /api/settings/quiet-hours': { allowed: true },
+  'PUT /api/me/teams-personal': { events: [] },
   'PUT /api/settings/teams-bot': { enabled: false, appId: '', tenantIds: [], providerId: null, credential: 'secret' },
   'POST /api/report-schedules': REPORT_SCHEDULE,
   'PUT /api/report-schedules/:id': REPORT_SCHEDULE,

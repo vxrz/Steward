@@ -111,7 +111,9 @@
     "shortcutCtrlK": "Strg K",
     "expand": "Checkliste zeigen",
     "collapse": "Checkliste einklappen",
-    "next": "Als Nächstes:"
+    "next": "Als Nächstes:",
+    "firstWeek": "Sie planen die ersten Tage des Teams?",
+    "firstWeekLink": "Ihre erste Woche mit Steward"
   },
   "checks": {
     "count_one": "{{count}} Prüfung schlägt fehl",

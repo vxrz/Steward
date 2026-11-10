@@ -111,7 +111,9 @@
     "shortcutCtrlK": "Ctrl K",
     "expand": "Show the checklist",
     "collapse": "Fold the checklist",
-    "next": "Next:"
+    "next": "Next:",
+    "firstWeek": "Planning the team's first days?",
+    "firstWeekLink": "Your first week with Steward"
   },
   "checks": {
     "count_one": "{{count}} check failing",

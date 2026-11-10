@@ -284,6 +284,20 @@ export function updateUser(
     if (patch.active === false) {
       db().run('DELETE FROM sessions WHERE user_id = ?', id);
       if (before.active) revokeOAuthGrants({ userId: id, username: before.username }, 'account deactivated');
+      // ADR 0025: the bot no longer writes to the person's chat (adding the app or writing to the bot again records it)
+      const chats = db().run(
+        "UPDATE teams_conversations SET removed_at = ? WHERE user_id = ? AND kind = 'personal' AND removed_at IS NULL",
+        nowIso(),
+        id,
+      ).changes;
+      if (chats)
+        audit({
+          action: 'teams.conversation_removed',
+          entityType: 'settings',
+          entityId: 'teams-bot',
+          summary: `Teams bot: the personal chat of ${before.username} is no longer used (account deactivated)`,
+          details: { kind: 'personal', user: before.username, reason: 'deactivated', count: chats },
+        });
     }
     const changes: string[] = [];
     if (JSON.stringify(roles) !== JSON.stringify(before.roles)) changes.push(`roles ${before.roles.join(',') || '–'} → ${roles.join(',') || '–'}`);

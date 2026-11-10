@@ -174,6 +174,7 @@ async function dispatch(a: Activity, tenant: string, aad: string): Promise<BotRe
     return { status: 200, body: {} };
   }
   if (a.type === 'message') {
+    firstContact(a, tenant, aad);
     helpReply(a, tenant, aad);
     return { status: 200, body: {} };
   }
@@ -238,18 +239,7 @@ function conversationChanged(a: Activity, tenant: string, aad: string): void {
   const row = db().get<{ id: string }>('SELECT id FROM teams_conversations WHERE tenant_id = ? AND conversation_id = ?', tenant, convId);
   if (added) {
     const id = row?.id ?? newId('tcv_');
-    db().run(
-      `INSERT INTO teams_conversations (id, tenant_id, conversation_id, service_url, kind, name, user_id, installed_at, removed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)
-       ON CONFLICT(id) DO UPDATE SET service_url = excluded.service_url, name = excluded.name, user_id = excluded.user_id, removed_at = NULL`,
-      id,
-      tenant,
-      convId,
-      serviceUrl,
-      kind,
-      name,
-      user?.id ?? null,
-      nowIso(),
-    );
+    upsertConversation(id, tenant, convId, serviceUrl, kind, name, user?.id ?? null, user ? aad : null);
     audit({
       actor: 'system',
       action: 'teams.conversation_added',
@@ -269,6 +259,63 @@ function conversationChanged(a: Activity, tenant: string, aad: string): void {
       details: { conversation: row.id, kind, tenantId: tenant },
     });
   }
+}
+
+/** Records or refreshes a conversation; a personal one with the Entra object id of the person it belongs to (ADR 0025). */
+function upsertConversation(
+  id: string,
+  tenant: string,
+  convId: string,
+  serviceUrl: string,
+  kind: 'personal' | 'channel',
+  name: string,
+  userId: string | null,
+  aad: string | null,
+): void {
+  db().run(
+    `INSERT INTO teams_conversations (id, tenant_id, conversation_id, service_url, kind, name, user_id, aad_object_id, installed_at, removed_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+     ON CONFLICT(id) DO UPDATE SET service_url = excluded.service_url, name = excluded.name, user_id = excluded.user_id,
+       aad_object_id = excluded.aad_object_id, removed_at = NULL`,
+    id,
+    tenant,
+    convId,
+    serviceUrl,
+    kind,
+    name,
+    userId,
+    aad,
+    nowIso(),
+  );
+}
+
+/**
+ * The first message of a person in a personal chat (ADR 0025): when Steward knows no active chat for it – the app was
+ * added while the bot was off, or before the account was linked – it is recorded now, for the linked account only.
+ */
+function firstContact(a: Activity, tenant: string, aad: string): void {
+  if (a.conversation?.conversationType !== 'personal' || !aad) return;
+  const convId = str(a.conversation?.id, 512);
+  const serviceUrl = str(a.serviceUrl, 512);
+  if (!convId || !serviceUrl) return;
+  const user = userForTeams(tenant, aad);
+  if (!user) return;
+  const row = db().get<{ id: string; user_id: string | null; aad_object_id: string | null; removed_at: string | null }>(
+    'SELECT id, user_id, aad_object_id, removed_at FROM teams_conversations WHERE tenant_id = ? AND conversation_id = ?',
+    tenant,
+    convId,
+  );
+  if (row && !row.removed_at && row.user_id === user.id && row.aad_object_id === aad) return;
+  const id = row?.id ?? newId('tcv_');
+  upsertConversation(id, tenant, convId, serviceUrl, 'personal', '', user.id, aad);
+  audit({
+    actor: 'system',
+    action: 'teams.conversation_added',
+    entityType: 'settings',
+    entityId: 'teams-bot',
+    summary: `Teams bot: the personal chat of ${user.username} recorded on their message`,
+    details: { conversation: id, kind: 'personal', tenantId: tenant, user: user.username, via: 'message' },
+  });
 }
 
 /** A message to the bot: a short help text with a link (no chat commands). Sent in the background. */
