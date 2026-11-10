@@ -168,6 +168,10 @@ describe('the registry of reference columns', () => {
       'document_id',
     ],
     plant_collection_mappings: ['collector_key', 'gateway_name'],
+    // 0.14: the last check of an Insights Hub mapping and the links of sink items to monitor checks (their asset is in
+    // REFERENCES; collection, sink and item are names within the asset, monitor and platform are Steward ids)
+    plant_ih_checks: ['collection_id', 'sink_id', 'platform_id', 'checked_at', 'checked_by', 'run', 'items'],
+    plant_ih_monitor_links: ['collection_id', 'sink_id', 'item', 'monitor_id', 'check_id', 'origin'],
     // 0.12: the kept files of collection imports (their asset is in REFERENCES; `collections` are ids within the asset)
     plant_collection_sources: [
       'id',

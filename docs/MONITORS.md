@@ -522,6 +522,16 @@ The other monitor examples cover the check types `snowflake` (50), `kubernetes` 
 
 Steward publishes the dataset **`monitors.status`** (one row per monitor; visible to users who may view every monitor) and **`monitor.<key>`** (one row per check; causes in other monitors appear as "another monitor") at most once a minute, with the metrics `up`, `down`, `degraded`, `unknown`, `monitors` / `checks`, `uptime24h` – and the [values of DynamoDB checks](#dynamodb-tables). Use them in table, status and KPI widgets like any other dataset.
 
+## From an Insights Hub mapping
+
+A data collection's [Insights Hub sink](PLANT.md#insights-hub-mapping) maps its items to assets, aspects and variables there (0.14). The sink shows per asset and aspect which **existing** checks watch the variables already – Insights Hub freshness checks on the same platform, asset (case ignored) and aspect whose `variables` include the variable – and only for the variables nobody watches offers **Create monitor**. It creates a **disabled** monitor – a draft for review, never enabled by Steward:
+
+- one `freshness` check (`source: insightsHub`) per asset and aspect with the unwatched variables (a target the last check of the mapping found missing gets none), `mode: cadence` with the collection's interval as `expectedIntervalSeconds` for a collection read every interval, else `mode: maxAge` with 15 minutes;
+- the **allowance** for late data from what Steward [measured](#how-fresh-is-fresh-delays-in-insights-hub) on the asset's other checks: the suggestion of the observed delay of a check on the same asset (the same aspect first), else that check's own `allowedDelaySeconds`, else none – then enable it with a short interval and apply the suggestion after a day;
+- **states** from the asset's planned-off behaviour: when the plant asset links to a monitor with states of its own (a condition, not following another one), the draft [follows](#following-another-monitor) it – `states.from` that monitor, a row per state, its new checks expected `down` in an off state and `up` otherwise – so planned off times and [planned downtime](#maximum-off-time-and-planned-downtime) stay quiet. Without one, its description says to add states before enabling it.
+
+Its checks are linked to the items they cover, so the sink shows the draft as watching (_Disabled_) and the monitor's page says which collection's items it covers (_Covers 3 mapped items of …_); _Check mapping_ also stores the links of the checks it finds. Creating needs the right to create monitors and to manage the collection's site (`monitor.created` and `plant.ih_monitor_created`, with the checks, their allowance's source and the monitor followed).
+
 ## Templates for many machines
 
 A template is a monitor definition with parameters. `{{ params.<name> }}` placeholders may stand anywhere – also where numbers are expected, e.g. `fallbackPort: "{{ params.pmPort }}"` or `maxAgeSeconds: "{{ params.machineMaxAge + 300 }}"` (JSONata). They are replaced **once**, when an instance is created.

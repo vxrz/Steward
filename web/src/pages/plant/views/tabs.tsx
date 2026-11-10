@@ -4,6 +4,7 @@ import { Link, Navigate } from 'react-router-dom';
 import {
   IconBuilding,
   IconChevronRight,
+  IconCloudDataConnection,
   IconDatabaseImport,
   IconFileCheck,
   IconHistory,
@@ -29,11 +30,19 @@ const SiteStructureView = lazy(() => import('./SiteStructureView').then((m) => (
 const AssetFlowView = lazy(() => import('./AssetFlowView').then((m) => ({ default: m.AssetFlowView })));
 const SiteDocumentationView = lazy(() => import('./SiteDocumentationView').then((m) => ({ default: m.SiteDocumentationView })));
 const AssetCollectionsView = lazy(() => import('../AssetCollections').then((m) => ({ default: m.AssetCollectionsView })));
+const SiteIhCoverageView = lazy(() => import('./SiteIhCoverageView').then((m) => ({ default: m.SiteIhCoverageView })));
 
-// 0.13.0: the history of the entry and what belongs to it (ADR 0020 §4); 0.14: the documentation health
-export const SITE_TABS = ['', 'structure', 'documentation', 'history'] as const;
+// 0.13.0: the history of the entry and what belongs to it (ADR 0020 §4); 0.14: the documentation health and the
+// Insights Hub sinks of its collections – mapped, verified, watched
+export const SITE_TABS = ['', 'structure', 'documentation', 'insights-hub', 'history'] as const;
 export type SiteTab = (typeof SITE_TABS)[number];
-const SITE_TAB_ICONS: Record<SiteTab, Icon> = { '': IconInfoCircle, structure: IconSitemap, documentation: IconFileCheck, history: IconHistory };
+const SITE_TAB_ICONS: Record<SiteTab, Icon> = {
+  '': IconInfoCircle,
+  structure: IconSitemap,
+  documentation: IconFileCheck,
+  'insights-hub': IconCloudDataConnection,
+  history: IconHistory,
+};
 
 export const ASSET_TABS = ['', 'flow', 'collections', 'history'] as const;
 export type AssetTab = (typeof ASSET_TABS)[number];
@@ -110,6 +119,7 @@ export function PlantSiteTabPage({ site, tab }: { site: PlantSiteDetail; tab: st
       <Suspense fallback={<Loading />}>
         {known === 'structure' && <SiteStructureView siteId={site.id} />}
         {known === 'documentation' && <SiteDocumentationView siteId={site.id} />}
+        {known === 'insights-hub' && <SiteIhCoverageView siteId={site.id} />}
         {known === 'history' && <EntryHistory kind="site" id={site.id} children />}
       </Suspense>
     </>

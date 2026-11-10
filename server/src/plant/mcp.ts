@@ -13,6 +13,7 @@ import { allAssignments, allProfiles, ownProfiles, pointsOf } from './data-model
 import { assignmentOut, kpiOut, profileOut } from './import-data.js';
 import { plantJsonSchema, SCHEMA_ID } from './format.js';
 import { collectionOut, sinkOut } from './import-network.js';
+import { ihMapping } from './ih.js';
 
 /**
  * The plant registry for AI assistants (0.12.0, docs/MCP.md "Plant registry"): read tools over sites, assets with their
@@ -551,6 +552,49 @@ export const plantReadTools: ToolDef[] = [
                 },
               }
             : {}),
+        };
+      }),
+  }),
+  defineTool({
+    name: 'get_insights_hub_mapping',
+    title: 'Get the Insights Hub mapping of a sink',
+    description:
+      'For a sink of a data collection whose target is an Insights Hub platform (0.14): per item the Insights Hub asset, aspect and variable it goes to, the last check of the mapping against the tenant (ok, unit or type differs – hints –, asset, aspect or variable missing, not checked, failed) and the monitor checks that already watch it; per asset and aspect the variables no check watches. Read-only; the check itself and new monitors are made in the web app.',
+    input: z
+      .object({
+        assetId: plantId('Asset id'),
+        collectionId: z.string().min(1).max(120).describe('Collection id (from list_data_collections)'),
+        sinkId: z.string().min(1).max(120).describe('Sink id (from get_data_collection)'),
+        cursor: cursorArg,
+        limit: limitArg(500, 100),
+      })
+      .strict(),
+    visible,
+    handler: (a) =>
+      read(() => {
+        const m = ihMapping(currentId('asset', '', a.assetId), a.collectionId, a.sinkId);
+        const items = m.items.map((it) => ({
+          index: it.index,
+          item: it.item,
+          ...(it.dataPoint ? { dataPoint: it.dataPoint.id } : {}),
+          target: it.target,
+          ...(it.check ? { check: it.check.status, ...(it.check.unit ? { unit: it.check.unit } : {}), ...(it.check.type ? { type: it.check.type } : {}) } : {}),
+          watchedBy: it.watchedBy.map((w) => ({ monitor: w.monitorKey, check: w.checkId, enabled: w.enabled })),
+          ...(it.hiddenWatchers ? { hiddenWatchers: it.hiddenWatchers } : {}),
+        }));
+        const page = pageArray(items, (x) => [x.index], a, { id: `${m.collectionId}/${m.sinkId}`, asset: m.assetId });
+        return {
+          assetId: m.assetId,
+          collectionId: m.collectionId,
+          sinkId: m.sinkId,
+          isInsightsHub: m.isIh,
+          platform: m.platform?.name || null,
+          default: m.default,
+          counts: { items: m.counts.items, mapped: m.counts.mapped, verified: m.counts.verified, watched: m.counts.watched },
+          groups: m.groups.map((g) => ({ assetId: g.assetId, assetName: g.assetName, aspect: g.aspect, watched: g.watched, unwatched: g.unwatched })),
+          lastCheck: m.lastRun ? { at: m.lastRun.checkedAt, by: m.lastRun.checkedBy, error: m.lastRun.error?.code ?? null, capped: m.lastRun.capped } : null,
+          items: page.items,
+          nextCursor: page.nextCursor,
         };
       }),
   }),

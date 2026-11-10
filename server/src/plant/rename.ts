@@ -281,6 +281,9 @@ const REFERENCES_ALL: RefSpec[] = [
   col('plant_collection_sources', 'asset_id', 'asset', 'collection_source'),
   // 0.14: the advisories that match it, with their decisions and remediation
   col('plant_advisory_matches', 'asset_id', 'asset', 'advisory_match'),
+  // 0.14: the Insights Hub checks of its sinks and the links of their items to monitor checks
+  col('plant_ih_checks', 'asset_id', 'asset', 'ih_check'),
+  col('plant_ih_monitor_links', 'asset_id', 'asset', 'ih_link'),
   {
     table: 'item_links',
     column: 'to_id[to_kind=data-collection|data-sink, asset part]',

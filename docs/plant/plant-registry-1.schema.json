@@ -4688,6 +4688,7 @@
                 "description": "The item’s output name, else its address"
               },
               "target": {
+                "description": "Its name in the sink (on an Insights Hub sink: the variable)",
                 "anyOf": [
                   {
                     "type": "string",
@@ -4708,6 +4709,42 @@
                     "type": "null"
                   }
                 ]
+              },
+              "asset_id": {
+                "description": "0.14, an Insights Hub sink: the asset’s id there, or {asset.ref:<system>} – the asset’s external reference of that system (default: the sink’s insights_hub asset)",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "asset_name": {
+                "description": "0.14: the Insights Hub asset’s name, for display",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "aspect": {
+                "description": "0.14, an Insights Hub sink: the aspect (default: the sink’s insights_hub aspect)",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               }
             },
             "required": [
@@ -4715,6 +4752,47 @@
             ],
             "additionalProperties": false
           }
+        },
+        "insights_hub": {
+          "description": "0.14, a sink whose target is an Insights Hub platform: the default asset and aspect of its items",
+          "type": "object",
+          "properties": {
+            "asset_id": {
+              "description": "The asset’s id in Insights Hub, or {asset.ref:<system>}",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "asset_name": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "aspect": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "additionalProperties": false
         }
       },
       "required": [

@@ -870,6 +870,7 @@ const EXPECT: Record<string, Access> = {
   'GET /api/v1/plant/advisories/:advisoryId': PLANT,
   'GET /api/v1/plant/assets/:assetId/advisories': PLANT,
   'GET /api/v1/plant/assets/:assetId/documentation': PLANT,
+  'GET /api/v1/plant/assets/:assetId/collections/:collectionId/sinks/:sinkId/insights-hub': PLANT,
   // database schemas (#222): of the demo database platform (who sees it) and of the matrix system (everyone);
   'GET /api/v1/platforms/:platformId/schema/snapshots': USE,
   // platform costs (#226): the overview for everyone (each sees what they may see); one scope as in the web app
@@ -1205,6 +1206,17 @@ const EXPECT: Record<string, Access> = {
   'PUT /api/plant/advisory-sources/:advisorySourceId': ADMIN,
   'DELETE /api/plant/advisory-sources/:advisorySourceId': ADMIN,
   'POST /api/plant/advisory-sources/:advisorySourceId/fetch': ADMIN,
+  // 0.14: the Insights Hub mapping of a sink follows the collection; checking it also needs the platform's use right
+  'GET /api/plant/assets/:assetId/collections/:collectionId/sinks/:sinkId/insights-hub': PLANT,
+  'GET /api/plant/assets/:assetId/collections/:collectionId/sinks/:sinkId/insights-hub/mapping.csv': PLANT,
+  'PUT /api/plant/assets/:assetId/collections/:collectionId/sinks/:sinkId/insights-hub/mapping': DESIGN,
+  'POST /api/plant/assets/:assetId/collections/:collectionId/sinks/:sinkId/insights-hub/bulk': DESIGN,
+  'POST /api/plant/assets/:assetId/collections/:collectionId/sinks/:sinkId/insights-hub/csv': DESIGN,
+  'POST /api/plant/assets/:assetId/collections/:collectionId/sinks/:sinkId/insights-hub/check': DESIGN,
+  'POST /api/plant/assets/:assetId/collections/:collectionId/sinks/:sinkId/insights-hub/monitor': DESIGN,
+  'GET /api/plant/sites/:siteId/insights-hub': PLANT,
+  // the monitor's page: who sees the monitor
+  'GET /api/plant/monitors/:monitorId/insights-hub': ALL,
 };
 
 /** Routes that only work with an interactive session: an API token must not manage identities, the vault or sign-in. */
@@ -1661,6 +1673,7 @@ function fill(url: string): string {
       .replace(/:profileId/g, 'matrix-profile')
       .replace(/:pointId/g, 'matrix_point')
       .replace(/:collectionId/g, 'matrix-collection')
+      .replace(/:sinkId/g, 'matrix-sink')
       .replace(/:sourceId/g, 'pcs_matrix')
       .replace(/:kpiId/g, 'matrix-kpi')
       .replace(
@@ -2066,6 +2079,8 @@ beforeAll(async () => {
     name: 'Matrix collection',
     collector: { kind: 'job', ref: 'matrix-job' },
     items: [{ address: 'ns=2;s=X', outputName: 'x', dataPoint: 'matrix_point' }],
+    // 0.14: a sink (not Insights Hub: its mapping reads, a change is refused)
+    sinks: [{ id: 'matrix-sink', name: 'Matrix sink', kind: 'other', ref: 'matrix-broker' }],
   });
   // 0.12: a kept file of a collection import (secrets removed), as an import writes it
   (await import('../src/db.js')).db().run(

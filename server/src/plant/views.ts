@@ -40,6 +40,7 @@ import { briefOf, kpiNotFound, pointNotFound, profileNotFound } from './catalogu
 import { allAssignments, allKpis, allProfiles, assignmentRowOf, assignmentValuesOf, pointsOf, profileRowOf, resolvedProfile } from './data-model.js';
 import { assetInputPoints, assignmentChecks, deliveries, inputGaps, matchedProfile, namedInputPoints, unitMismatches } from './checks.js';
 import { collectedPoints, isCollected } from './potential.js';
+import { ihVerifiedPoints } from './ih-core.js';
 import { assetModel, isOrExtends } from './resolve.js';
 import { collectionRows, collectionValuesOf, collectorKey } from './collections-model.js';
 import type { PlantCollectionValues } from '@sm/shared';
@@ -291,6 +292,8 @@ const planOf = (def: PlantKpiValues): KpiPlan => {
 interface CellContext {
   profiles: Map<string, PlantResolvedProfile>;
   collected: Set<string> | undefined;
+  /** 0.14: the data points whose Insights Hub mapping is verified (the KPI coverage only) */
+  ihVerified?: Set<string>;
 }
 
 /** The cell of one asset and one KPI definition; `checks` are the asset's checks (assignmentChecks). */
@@ -323,7 +326,10 @@ function cellOf(
     // 0.12.0: KPI potential – collected already, or the device delivers and a collection is missing; a unit that differs
     // is shown (the asset still could have the KPI: its job converts, or the input's unit is corrected)
     const units = details ? unitMismatches(def, a, profile, ctx.profiles) : [];
-    return { state: 'could', collected: isCollected(def, ctx.collected, profile), ...(units.length ? { units } : {}) };
+    const collected = isCollected(def, ctx.collected, profile);
+    // 0.14: every input also verified in Insights Hub (a sink's mapping checked against the tenant)
+    const ih = collected && ctx.ihVerified && isCollected(def, ctx.ihVerified, profile);
+    return { state: 'could', collected, ...(ih ? { ihVerified: true } : {}), ...(units.length ? { units } : {}) };
   }
   return { state: 'cannot', ...(details ? { gaps: gaps.map((g) => ({ code: g.code, params: g.params })) } : {}) };
 }
@@ -335,6 +341,7 @@ function count(into: { totals: Record<PlantCoverageState, number>; potential: Pl
   if (c.rolledUp) return;
   into.totals[c.state]++;
   if (c.state === 'could') into.potential[c.collected ? 'ready' : 'collect']++;
+  if (c.state === 'could' && c.collected && c.ihVerified) into.potential.ihVerified = (into.potential.ihVerified ?? 0) + 1;
 }
 
 /** The states a part contributes to its machine (0.13): a job, or the inputs it delivers. */
@@ -418,6 +425,7 @@ export function coverage(f: CoverageFilter): PlantCoverage {
   const all = { totals: emptyTotals(), potential: { ready: 0, collect: 0 } };
   const rows: PlantCoverageRow[] = [];
   const collected = collectedPoints(new Set(assets.map((a) => a.id)));
+  const ihVerified = ihVerifiedPoints(new Set(assets.map((a) => a.id)));
   // 0.12.0: totals per site (area null) and per area of a site
   const groups = new Map<string, PlantCoverageGroup>();
   const groupOf = (siteId: string, areaId: string | null) => {
@@ -436,7 +444,9 @@ export function coverage(f: CoverageFilter): PlantCoverage {
     const checks = a ? assignmentChecks({ kind: 'asset', id: asset.id, name: asset.name, siteId: asset.site_id }, a, profiles, kpiMap) : [];
     cellsOf.set(
       asset.id,
-      plans.map((p) => cellOf(p, a, profile, checks, withDetails.has(asset.id), { profiles, collected: collected.get(asset.id) })),
+      plans.map((p) =>
+        cellOf(p, a, profile, checks, withDetails.has(asset.id), { profiles, collected: collected.get(asset.id), ihVerified: ihVerified.get(asset.id) }),
+      ),
     );
   }
   rollUpParts(plans, cellsOf, assets);

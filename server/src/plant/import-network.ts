@@ -30,6 +30,7 @@ import {
   collectionRowOf,
   collectionValuesOf,
   destinationOfSink,
+  ihClean,
   sinksOf,
   upsertCollection,
   type CollectionRow,
@@ -396,8 +397,20 @@ const sinkFromFile = (x: SinkFile): PlantCollectionSink => ({
     function: str(t.function),
     description: str(t.description),
   })),
-  mappings: (x.mappings ?? []).map((m) => ({ item: m.item, target: str(m.target), transform: str(m.transform) })),
+  mappings: (x.mappings ?? []).map((m) =>
+    ihClean({
+      item: m.item,
+      target: str(m.target),
+      transform: str(m.transform),
+      assetId: str(m.asset_id),
+      assetName: str(m.asset_name),
+      aspect: str(m.aspect),
+    }),
+  ),
   imported: false,
+  ...(x.insights_hub && (str(x.insights_hub.asset_id) || str(x.insights_hub.aspect))
+    ? { ih: { assetId: str(x.insights_hub.asset_id), assetName: str(x.insights_hub.asset_name), aspect: str(x.insights_hub.aspect) } }
+    : {}),
 });
 
 /** A sink in the file format: empty and default values left out. */
@@ -415,7 +428,10 @@ export const sinkOut = (x: PlantCollectionSink) =>
     transforms: x.transforms.map((t) =>
       clean({ kind: t.kind, field: t.field, expression: t.expression, window: t.window, function: t.function, description: t.description }),
     ),
-    mappings: x.mappings.map((m) => clean({ item: m.item, target: m.target, transform: m.transform })),
+    mappings: x.mappings.map((m) =>
+      clean({ item: m.item, target: m.target, transform: m.transform, asset_id: m.assetId ?? '', asset_name: m.assetName ?? '', aspect: m.aspect ?? '' }),
+    ),
+    insights_hub: x.ih ? clean({ asset_id: x.ih.assetId, asset_name: x.ih.assetName, aspect: x.ih.aspect }) : undefined,
   });
 
 // ---------- comparing with what is stored ----------

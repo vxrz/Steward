@@ -204,7 +204,10 @@
       "Schemas",
       "Subject",
       "Firmware",
-      "Aggregator"
+      "Aggregator",
+      "Variable",
+      "Insights Hub: {{target}}",
+      "Insights Hub"
     ]
   }
 }

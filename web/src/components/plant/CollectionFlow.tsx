@@ -36,6 +36,7 @@ import {
 import { apiUrl, get } from '../../api';
 import { QueryState, useFieldErrors } from '../common';
 import { fmtDate } from '../../format';
+import { InsightsHubPanel } from './InsightsHubMapping';
 
 /**
  * A data collection's sinks and where its data goes (0.12, docs/PLANT.md "Sinks and transformations"): the flow
@@ -220,6 +221,8 @@ export function CollectionFlowView({
               </Table>
             </div>
             <Downstream sink={s} />
+            {/* 0.14: a sink whose target is an Insights Hub platform maps each item to an asset, aspect and variable */}
+            {s.kind === 'platform' && s.ref && <InsightsHubPanel assetId={assetId} collectionId={collection.id} sinkId={s.id} stamp={collection.updatedAt} />}
           </Stack>
         </Paper>
       ))}

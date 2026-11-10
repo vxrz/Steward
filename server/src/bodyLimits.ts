@@ -25,6 +25,7 @@ import {
   LIBRARY_LIMITS,
   PLANT_LIMITS,
   PLANT_COLLECTION_LIMITS,
+  PLANT_IH_LIMITS,
   RECORDING_LIMITS,
   REPORT_LOGO_MAX_BYTES,
 } from '@sm/shared';
@@ -85,6 +86,14 @@ export const LARGE_BODIES = {
   },
   /** 0.14: a CSAF advisory (JSON) uploaded for an offline plant: ADVISORY_LIMITS.documentBytes (4 MB) as text */
   plantAdvisoryUpload: { routes: ['POST /api/plant/advisories/upload'], bytes: jsonText(ADVISORY_LIMITS.documentBytes, 16 * 1024) },
+  /** 0.14: an Insights Hub mapping as CSV (PLANT_IH_LIMITS.csvBytes, 1 MB), or every item of a collection with its target */
+  plantIhMapping: {
+    routes: [
+      'PUT /api/plant/assets/:assetId/collections/:collectionId/sinks/:sinkId/insights-hub/mapping',
+      'POST /api/plant/assets/:assetId/collections/:collectionId/sinks/:sinkId/insights-hub/csv',
+    ],
+    bytes: jsonText(PLANT_IH_LIMITS.csvBytes),
+  },
   /** A monitor file (YAML): MONITOR_IMPORT_LIMITS.yamlChars (512 KB) – line breaks are escaped in JSON */
   monitorImport: { routes: ['POST /api/monitors/import', 'POST /api/monitors/import/preview'], bytes: jsonText(MONITOR_IMPORT_LIMITS.yamlChars) },
   /** Instances of a monitor template from a CSV file: MONITOR_IMPORT_LIMITS.csvChars (1 MB) */

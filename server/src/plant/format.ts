@@ -780,14 +780,28 @@ export const sinkSchema = z
         z
           .object({
             item: z.string().min(1).max(CL.address).describe('The item’s output name, else its address'),
-            target: text(CL.address),
+            target: text(CL.address).describe('Its name in the sink (on an Insights Hub sink: the variable)'),
             transform: text(2000),
+            asset_id: text(CL.text).describe(
+              '0.14, an Insights Hub sink: the asset’s id there, or {asset.ref:<system>} – the asset’s external reference of that system (default: the sink’s insights_hub asset)',
+            ),
+            asset_name: text(CL.text).describe('0.14: the Insights Hub asset’s name, for display'),
+            aspect: text(CL.text).describe('0.14, an Insights Hub sink: the aspect (default: the sink’s insights_hub aspect)'),
           })
           .strict(),
       )
       .max(CL.items)
       .optional()
       .describe('The name of an item in the sink, and a transformation for it only'),
+    insights_hub: z
+      .object({
+        asset_id: text(CL.text).describe('The asset’s id in Insights Hub, or {asset.ref:<system>}'),
+        asset_name: text(CL.text),
+        aspect: text(CL.text),
+      })
+      .strict()
+      .optional()
+      .describe('0.14, a sink whose target is an Insights Hub platform: the default asset and aspect of its items'),
   })
   .strict()
   .meta({ id: 'Sink', description: 'Where a data collection’s data goes after it is loaded (and perhaps transformed)' });
