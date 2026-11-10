@@ -20,7 +20,8 @@ import { csvCell, csvTable } from '../csv.js';
  *
  * Every part runs as the export's system principal (jobs.ts): it sees everything, so only administrators define
  * exports. A part writes what people read in Steward – never a secret: no vault value, no credential, no token, no
- * heartbeat or webhook secret (server/test/exports.test.ts checks the files of every part for the secrets it knows).
+ * heartbeat or webhook secret (server/test/exports.test.ts checks the files of every part for the secrets it knows);
+ * credentials typed into a monitor's definition are redacted (redact.ts).
  * The code of the areas is loaded when a part runs (lazy imports), so this registry pulls no module in at start.
  */
 
@@ -151,15 +152,22 @@ const monitors: ExportPartDef = {
   options: [],
   async write(_choice, ctx) {
     // every monitor (not the templates) in its import format, one YAML document each – heartbeat secrets are never
-    // part of a definition
-    const { exportMonitor, listMonitors } = await import('../monitors/service.js');
+    // part of a definition; credentials typed into one (request headers, user information or keys in URLs) are
+    // redacted, and the manifest says where
+    const { exportMonitorDocument, listMonitors } = await import('../monitors/service.js');
+    const { redactCredentials } = await import('./redact.js');
     const out = ctx.file('monitors.yaml');
     const list = listMonitors({ templates: false });
+    const redacted: string[] = [];
     if (!list.length) await out.write(YAML.stringify([]));
     for (const [i, m] of list.entries()) {
-      await out.write(`---\n${exportMonitor(m.id)}`);
+      const doc = exportMonitorDocument(m.id);
+      const r = redactCredentials(doc);
+      for (const p of r.paths) redacted.push(`${String(doc.key)}: ${p}`);
+      await out.write(`---\n${YAML.stringify(r.value, { lineWidth: 0 })}`);
       if (i % 50 === 49) await ctx.pause();
     }
+    if (redacted.length) ctx.note({ redacted: redacted.slice(0, 500), redactedCount: redacted.length });
   },
 };
 

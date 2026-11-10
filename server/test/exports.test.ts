@@ -110,6 +110,33 @@ beforeAll(async () => {
     },
   });
   for (const x of m.secrets ?? []) secrets.push(x.secret);
+  // a monitor with credentials typed into it: an HTTP check's headers and URL, webhook outputs with keys in the URL
+  await s.api('POST', '/monitors', {
+    definition: {
+      name: 'Historian API',
+      checks: [
+        {
+          id: 'api',
+          name: 'API',
+          type: 'http',
+          url: 'https://invented-user:invented-url-password@historian.example.invalid/health?site=north&access_token=invented-query-token-4711',
+          headers: { Authorization: 'Basic aW52ZW50ZWQtYmFzaWMtY3JlZA==', 'X-Plant-Token': 'invented-header-token-0815', Accept: 'application/json' },
+        },
+      ],
+      outputs: [
+        { id: 'fn', type: 'webhook', url: 'https://invented-functions.example.invalid/api/notify?code=invented-function-key-2342&team=ops' },
+        { id: 'slack', type: 'webhook', url: 'https://hooks.slack.com/services/T0INVENT/B0INVENT/invented-slack-path-secret' },
+      ],
+    },
+  });
+  secrets.push(
+    'invented-url-password',
+    'invented-query-token-4711',
+    'aW52ZW50ZWQtYmFzaWMtY3JlZA==',
+    'invented-header-token-0815',
+    'invented-function-key-2342',
+    'invented-slack-path-secret',
+  );
   // an API token and a credential with a secret value
   secrets.push((await s.api('POST', '/me/tokens', { name: 'export-test', scope: 'read' })).token);
 });
@@ -126,6 +153,47 @@ describe('the registry of exportable parts', () => {
     expect(Object.fromEntries(EXPORT_PARTS.filter((p) => p.module).map((p) => [p.id, p.module]))).toEqual({ costPlans: 'costs', plant: 'plant' });
     // one column per key; formulas defused, lists joined
     expect(objectsCsv([{ a: '=1+1', b: ['x', 'y'] }, { c: { d: 1 } }])).toBe('\uFEFFa,b,c\r\n\'=1+1,"x; y",\r\n,,"{""d"":1}"\r\n');
+  });
+});
+
+describe('redacting credentials typed into monitors', () => {
+  it('redacts sensitive headers, user information, secret query values and webhook paths, and nothing else', async () => {
+    const { redactCredentials, redactUrl } = await import('../src/export/redact.js');
+    expect(redactUrl('https://a:b@host.example.invalid:8443/x?Signature=1&sig=2&page=3#top').text).toBe(
+      'https://<redacted>@host.example.invalid:8443/x?Signature=<redacted>&sig=<redacted>&page=3#top',
+    );
+    expect(redactUrl('https://host.example.invalid/x?API_KEY=1&apikey=2&key=3&password=4&secret=5&client_secret=6&code=').text).toBe(
+      'https://host.example.invalid/x?API_KEY=<redacted>&apikey=<redacted>&key=<redacted>&password=<redacted>&secret=<redacted>&client_secret=<redacted>&code=',
+    );
+    expect(redactUrl('https://discord.com/api/webhooks/1/invented').text).toBe('https://discord.com/<redacted>');
+    expect(redactUrl('https://host.example.invalid/plain?site=north')).toEqual({ text: 'https://host.example.invalid/plain?site=north', hit: false });
+    const r = redactCredentials({
+      checks: [{ headers: { cookie: 'a=b', 'proxy-authorization': 'x', 'x-api-key': 'y', 'X-Auth-Password': 'z', 'Content-Type': 'text/plain' } }],
+      outputs: [{ path: '/hook?token=t' }],
+      name: 'A monitor with https://u:p@host.example.invalid in its description',
+    });
+    expect(r.value).toEqual({
+      checks: [
+        {
+          headers: {
+            cookie: '<redacted>',
+            'proxy-authorization': '<redacted>',
+            'x-api-key': '<redacted>',
+            'X-Auth-Password': '<redacted>',
+            'Content-Type': 'text/plain',
+          },
+        },
+      ],
+      outputs: [{ path: '/hook?token=<redacted>' }],
+      name: 'A monitor with https://u:p@host.example.invalid in its description',
+    });
+    expect(r.paths).toEqual([
+      'checks[0].headers.cookie',
+      'checks[0].headers["proxy-authorization"]',
+      'checks[0].headers["x-api-key"]',
+      'checks[0].headers["X-Auth-Password"]',
+      'outputs[0].path',
+    ]);
   });
 });
 
@@ -279,6 +347,19 @@ describe('an export run', () => {
     expect(text('plant-registry.yaml')).toContain('Brightwater');
     expect(text('services.csv')).toContain('Invented Billing Service');
     expect(text('monitors.yaml')).toContain('key: export.nightly');
+    // credentials typed into a monitor are redacted (the rest of it stays), and the manifest says where
+    const monitors = text('monitors.yaml');
+    expect(monitors).toContain('Authorization: <redacted>');
+    expect(monitors).toContain('X-Plant-Token: <redacted>');
+    expect(monitors).toContain('Accept: application/json');
+    expect(monitors).toContain('https://<redacted>@historian.example.invalid/health?site=north&access_token=<redacted>');
+    expect(monitors).toContain('https://invented-functions.example.invalid/api/notify?code=<redacted>&team=ops');
+    expect(monitors).toContain('https://hooks.slack.com/<redacted>');
+    const monitorsPart = manifest.parts.find((p: any) => p.id === 'monitors');
+    expect(monitorsPart.notes.redactedCount).toBe(5);
+    expect(monitorsPart.notes.redacted).toEqual(
+      expect.arrayContaining([expect.stringMatching(/: checks\[0\]\.headers\.Authorization$/), expect.stringMatching(/: outputs\[1\]\.url$/)]),
+    );
     expect(text('audit-log.csv')).toContain('export.job_created');
     // no secret in any file
     for (const [key, o] of objs) {
