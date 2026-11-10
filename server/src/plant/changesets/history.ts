@@ -77,7 +77,7 @@ export function entryHistory(kind: PlantEntryKind, scope: string, id: string, u:
     params.push(id, id);
   }
   const rows = db().all<HistoryRow>(
-    `${ROWS} WHERE ${where.join(' OR ')} ORDER BY h.at DESC, h.revision DESC LIMIT ${PLANT_CHANGESET_LIMITS.historyPage}`,
+    `${ROWS} WHERE ${where.join(' OR ')} ORDER BY h.at DESC, h.revision DESC, h.kind, h.scope, h.entry_id, h.id LIMIT ${PLANT_CHANGESET_LIMITS.historyPage}`,
     ...params,
   );
   const revert = plantProposesSome(u);
@@ -165,7 +165,7 @@ export function revert(o: { changeSetId?: string; historyId?: string }, u: AuthU
   if (!plantProposesSome(u)) throw new HttpError(403, 'You may not propose changes to the plant registry', 'FORBIDDEN', { context: 'proposePlant' });
   const rows = o.historyId
     ? db().all<HistoryRow>(`${ROWS} WHERE h.id = ?`, o.historyId)
-    : db().all<HistoryRow>(`${ROWS} WHERE h.change_set_id = ? ORDER BY h.at, h.revision`, o.changeSetId);
+    : db().all<HistoryRow>(`${ROWS} WHERE h.change_set_id = ? ORDER BY h.at, h.revision, h.kind, h.scope, h.entry_id, h.id`, o.changeSetId);
   if (!rows.length) throw new HttpError(404, 'Nothing to revert', 'PLANT_CHANGESET_NOT_FOUND', { id: o.changeSetId ?? o.historyId ?? '' });
   // only what the person may see
   const rights = siteRights(db().all<{ id: string; acl: string }>('SELECT id, acl FROM plant_sites'), u);

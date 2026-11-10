@@ -211,7 +211,7 @@ async function growth(): Promise<Record<string, number>> {
   if (d.dialect === 'sqlite')
     out.sqliteFileBytes =
       Number(d.get<{ page_count: number }>('PRAGMA page_count')?.page_count ?? 0) * Number(d.get<{ page_size: number }>('PRAGMA page_size')?.page_size ?? 0);
-  for (const t of ['plant_entry_history', 'plant_import_baselines', 'plant_change_sets', 'plant_change_ops', 'plant_change_sources']) {
+  for (const t of ['plant_entry_history', 'plant_import_baselines', 'plant_entry_baselines', 'plant_change_sets', 'plant_change_ops', 'plant_change_sources']) {
     try {
       out[`${t}.rows`] = Number(d.get<{ n: number }>(`SELECT COUNT(*) AS n FROM ${t}`)?.n ?? 0);
     } catch {
@@ -242,6 +242,12 @@ async function growth(): Promise<Record<string, number>> {
     out['baselines.valueBytes'] = Number(d.get<{ n: number }>('SELECT SUM(LENGTH(field_values)) AS n FROM plant_import_baselines')?.n ?? 0);
   } catch {
     // 0.12.0: no such tables
+  }
+  try {
+    // 0.15.0: the baselines per entry and import (mostly a revision, no values)
+    out['entryBaselines.valueBytes'] = Number(d.get<{ n: number }>('SELECT SUM(LENGTH(field_values)) AS n FROM plant_entry_baselines')?.n ?? 0);
+  } catch {
+    // before 0.15.0
   }
   return out;
 }
