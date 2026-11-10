@@ -280,4 +280,10 @@ export const OPS_MIGRATIONS: NamedMigration[] = [
     );
     CREATE INDEX export_runs_job ON export_runs(job_id, started_at);`,
   },
+  {
+    // 0.16.0: the fingerprint of an export's S3 target as an administrator confirmed it (platform, address, region,
+    // connection, access key id, folder) – a run whose target differs fails with EXPORT_TARGET_CHANGED
+    name: 'ops-016-export-target',
+    sql: `ALTER TABLE export_jobs ADD COLUMN target_fingerprint TEXT;`,
+  },
 ];

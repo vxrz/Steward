@@ -920,7 +920,7 @@
     "references": "Folgt außerdem: {{list}}",
     "fieldByField_one": "{{count}} Eintrag, Feld für Feld",
     "fieldByField_other": "{{count}} Einträge, Feld für Feld",
-    "stepUp": "Für so viele Einträge bestätigen Sie, wer Sie sind.",
+    "stepUp": "Für diese Verschiebung bestätigen Sie, wer Sie sind: Sie ändert mehr als 25 Einträge, mit dem, was mitgeht, oder führt an einen anderen Standort.",
     "apply": "Verschieben",
     "done_one": "{{count}} Eintrag zu {{asset}} verschoben",
     "done_other": "{{count}} Einträge zu {{asset}} verschoben"

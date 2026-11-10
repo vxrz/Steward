@@ -8,6 +8,7 @@ import {
   Checkbox,
   Code,
   Group,
+  Loader,
   Modal,
   NumberInput,
   Paper,
@@ -21,10 +22,13 @@ import {
 } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { IconFileExport, IconInfoCircle } from '@tabler/icons-react';
+import { IconAlertTriangle, IconFileExport, IconInfoCircle } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router-dom';
 import {
+  bucketFolderProblem,
   DEFAULT_EXPORT_JOB,
+  exportNameProblem,
   EXPORT_FISCAL_YEARS,
   EXPORT_LIMITS,
   type ExportJob,
@@ -38,14 +42,14 @@ import {
 } from '@sm/shared';
 import { del, get, notifyError, notifyOk, post, put } from '../api';
 import { useMe } from '../auth';
-import { PageHeader, QueryState, TONE } from '../components/common';
+import { EmptyState, PageHeader, QueryState, TONE, useFieldErrors } from '../components/common';
 import { CronPreview } from '../components/CronPreview';
 import { confirmDanger } from '../components/confirm';
 import { DataTable, type DataColumn } from '../components/DataTable';
 import { fmtBytes, fmtDate, fmtRelative, runDuration } from '../format';
 import { platformKeys } from '../queryKeys';
 
-const statusColor = (s: ExportRun['status']) => (s === 'succeeded' ? TONE.ok : s === 'failed' ? TONE.bad : 'blue');
+const statusColor = (s: ExportRun['status']) => (s === 'succeeded' ? TONE.ok : s === 'failed' ? TONE.bad : TONE.active);
 const RUN_STATUS_ORDER: ExportRun['status'][] = ['failed', 'running', 'succeeded'];
 
 /** The choice of a part with its default format and options. */
@@ -78,6 +82,11 @@ function ExportForm({ job, status, onClose }: { job: ExportJob | null; status: E
       : { ...DEFAULT_EXPORT_JOB, platformId: status.backupPlatformId },
   );
   const [busy, setBusy] = useState(false);
+  // the rules the server checks (shared): said at the field, not as a message after saving
+  const fields = useFieldErrors({
+    name: exportNameProblem(draft.name) && t('exports.nameInvalid', { max: EXPORT_LIMITS.nameMax }),
+    prefix: bucketFolderProblem(draft.prefix) && t('exports.prefixInvalid'),
+  });
   const partLabel = (id: ExportPartId) => t(`exports.partNames.${id}.label`);
   const choice = (id: string) => draft.parts.find((p) => p.id === id);
   const setChoice = (c: ExportPartChoice) => setDraft({ ...draft, parts: draft.parts.map((p) => (p.id === c.id ? c : p)) });
@@ -91,6 +100,7 @@ function ExportForm({ job, status, onClose }: { job: ExportJob | null; status: E
     });
 
   const save = async () => {
+    if (!fields.validate()) return;
     setBusy(true);
     try {
       if (job) await put(`/exports/${job.id}`, draft);
@@ -120,6 +130,7 @@ function ExportForm({ job, status, onClose }: { job: ExportJob | null; status: E
               description={t('exports.nameHint')}
               required
               maxLength={EXPORT_LIMITS.nameMax}
+              error={fields.error('name')}
               value={draft.name}
               onChange={(e) => setDraft({ ...draft, name: e.currentTarget.value })}
             />
@@ -129,12 +140,13 @@ function ExportForm({ job, status, onClose }: { job: ExportJob | null; status: E
               data={s3.map((p) => ({ value: p.id, label: p.name }))}
               value={draft.platformId}
               onChange={(v) => setDraft({ ...draft, platformId: v })}
-              nothingFoundMessage={t('exports.noStorage')}
+              rightSection={platforms.isLoading ? <Loader size="xs" /> : undefined}
               required
             />
             <TextInput
               label={t('exports.prefix')}
               description={t('exports.prefixHint')}
+              error={fields.error('prefix')}
               value={draft.prefix}
               onChange={(e) => setDraft({ ...draft, prefix: e.currentTarget.value })}
             />
@@ -147,6 +159,16 @@ function ExportForm({ job, status, onClose }: { job: ExportJob | null; status: E
               onChange={(v) => setDraft({ ...draft, keepRuns: Number(v) || 1 })}
             />
           </SimpleGrid>
+          {platforms.isSuccess && !s3.length && (
+            <Alert color={TONE.attention} icon={<IconInfoCircle size={18} />}>
+              <Stack gap="xs" align="flex-start">
+                <Text size="sm">{t('exports.noStorage')}</Text>
+                <Button size="xs" variant="default" component={Link} to="/platforms">
+                  {t('exports.openPlatforms')}
+                </Button>
+              </Stack>
+            </Alert>
+          )}
           <Switch label={t('exports.enabled')} checked={draft.enabled} onChange={(e) => setDraft({ ...draft, enabled: e.currentTarget.checked })} />
           <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
             <TextInput
@@ -402,6 +424,27 @@ function ExportCard({ job, status, onEdit }: { job: ExportJob; status: ExportsSt
           </Button>
         </Group>
       </Group>
+      {job.targetChanged && (
+        <Alert
+          color={TONE.attention}
+          icon={<IconAlertTriangle size={18} />}
+          title={t('exports.targetChangedTitle')}
+          mt="sm"
+          data-testid="export-target-changed"
+        >
+          <Stack gap="xs" align="flex-start">
+            <Text size="sm">{t('exports.targetChanged')}</Text>
+            <Button
+              size="xs"
+              variant="default"
+              loading={busy === 'confirm'}
+              onClick={() => void act('confirm', () => post(`/exports/${job.id}/confirm-target`), t('exports.targetConfirmed'))}
+            >
+              {t('exports.confirmTarget')}
+            </Button>
+          </Stack>
+        </Alert>
+      )}
       <Group gap={4} mt="xs" wrap="wrap">
         {job.parts.map((p) => (
           <Badge
@@ -487,7 +530,11 @@ export function ExportsPage() {
           <Alert color="blue" icon={<IconInfoCircle size={18} />}>
             {t('exports.notForRestore')}
           </Alert>
-          {!s.jobs.length && <Text c="dimmed">{t('exports.none')}</Text>}
+          {!s.jobs.length && (
+            <EmptyState icon={IconFileExport} title={t('exports.none')} whoCanAct={t('exports.whoCanAct')}>
+              {t('exports.noneText')}
+            </EmptyState>
+          )}
           {s.jobs.map((j) => (
             <ExportCard key={j.id} job={j} status={s} onEdit={() => setEditing(j)} />
           ))}

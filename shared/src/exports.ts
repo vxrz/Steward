@@ -23,11 +23,33 @@ export const EXPORT_LIMITS = {
   nameMax: 60,
   keepRunsMax: 100,
   auditDaysMax: 366,
-  /** Entries of the audit log in one export at most (the newest of the period) */
+  /** Entries of the audit log in one export at most: the newest of the period (the manifest says when it was cut) */
   auditEntries: 200_000,
   /** Run rows kept per export (older ones are removed from the history; their files went with the retention rule) */
   historyRuns: 200,
 } as const;
+
+/** An export's name – also its folder in the bucket: letters, digits and . _ -, starting with a letter or digit. */
+export const EXPORT_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+
+/** Why a name is not one an export can have (null: it can), for the form and the server alike. */
+export function exportNameProblem(name: string): 'empty' | 'long' | 'format' | null {
+  const n = name.trim();
+  if (!n) return 'empty';
+  if (n.length > EXPORT_LIMITS.nameMax) return 'long';
+  return EXPORT_NAME_RE.test(n) ? null : 'format';
+}
+
+/**
+ * Why a folder in the bucket is not one Steward writes to (null: it is): empty, or folders of letters, digits and
+ * . _ - each ending with "/" – never "." or ".." (the S3 client refuses such keys, backup/s3.ts checkKey).
+ */
+export function bucketFolderProblem(prefix: string): 'long' | 'format' | null {
+  const p = prefix.trim();
+  if (p.length > 200) return 'long';
+  if (!/^([A-Za-z0-9._-]+\/)*$/.test(p)) return 'format';
+  return p.split('/').some((x) => x === '.' || x === '..') ? 'format' : null;
+}
 
 /** One part of an export with its format and options. */
 export interface ExportPartChoice {
@@ -79,9 +101,13 @@ export interface ExportFileInfo {
   name: string;
   /** The object in the bucket */
   key: string;
+  /** Size of the object as stored (encrypted: of the .smbackup file) */
   bytes: number;
-  /** SHA-256 of the content as written (before encryption) */
+  /** SHA-256 of the object as stored – what `x-amz-meta-sha256` says and a download gives */
   sha256: string;
+  /** Encrypted exports: size and SHA-256 of the decrypted content (in the run history and the encrypted manifest only) */
+  contentBytes?: number;
+  contentSha256?: string;
 }
 
 export interface ExportRun {
@@ -111,6 +137,12 @@ export interface ExportJob extends ExportJobInput {
   nextRunAt: string | null;
   running: boolean;
   lastRun: ExportRun | null;
+  /**
+   * The S3 target is not the one an administrator confirmed: the platform's address, region, connection or access key
+   * (or the export's folder) changed since. Runs fail with EXPORT_TARGET_CHANGED until it is confirmed again
+   * (POST /api/exports/:id/confirm-target, step-up).
+   */
+  targetChanged: boolean;
 }
 
 /** A part as the export page offers it. */

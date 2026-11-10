@@ -1,9 +1,12 @@
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { Cron } from 'croner';
 import { z } from 'zod';
 import {
   BRAND,
+  bucketFolderProblem,
+  exportNameProblem,
   EXPORT_FISCAL_YEARS,
   EXPORT_FORMATS,
   EXPORT_LIMITS,
@@ -22,10 +25,13 @@ import { logger } from '../log.js';
 import { HttpError, newId, nowIso, parseJson, sha256 } from '../util.js';
 import { currentActor, runAs, type AuthUser } from '../auth/context.js';
 import { listUsers } from '../auth/users.js';
-import { getPlatform } from '../platforms/service.js';
+import { readSetting } from '../settings.js';
+import { ALIVE_KEY, firesBetween } from '../scheduler.js';
+import { getPlatform, getSecrets } from '../platforms/service.js';
 import { backupKey, backupKeySet, backupSettings, s3Client, storagePlatform } from '../backup/service.js';
 import { encryptFile } from '../backup/crypto.js';
-import { exportPart, exportPartInfos, EXPORT_PARTS } from './parts.js';
+import type { S3Client } from '../backup/s3.js';
+import { exportPart, exportPartInfos, EXPORT_PARTS, partLimits, type ExportContext, type ExportWriter } from './parts.js';
 
 /**
  * Scheduled exports to S3 (0.16.0, docs/EXPORTS.md, ADR 0027): an administrator defines an export – a name, a
@@ -44,7 +50,8 @@ import { exportPart, exportPartInfos, EXPORT_PARTS } from './parts.js';
 export const EXPORT_USER: AuthUser = { id: 'system', username: 'system', displayName: `${BRAND.name} (export)`, roles: ['admin'], teams: [] };
 
 const WORK = '.export-work';
-const NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+/** Bytes a work file buffers before it writes them */
+const WRITE_BUFFER = 256 * 1024;
 /** Folder names Steward writes below a backup prefix itself */
 const RESERVED_NAMES = new Set(['audit-archives']);
 
@@ -59,14 +66,11 @@ const partChoice = z
 
 export const exportJobSchema = z
   .object({
-    name: z.string().trim().min(1).max(EXPORT_LIMITS.nameMax).regex(NAME_RE, 'Use letters, digits and . _ - (it is the folder in the bucket)'),
+    // the rules of the name and the folder: checkInput (the codes the form knows)
+    name: z.string().trim().max(200),
     enabled: z.boolean(),
     platformId: z.string().trim().min(1).max(100).nullable(),
-    prefix: z
-      .string()
-      .trim()
-      .max(200)
-      .regex(/^([A-Za-z0-9._-]+\/)*$/, 'Use folder names of letters, digits and . _ - , each ending with /'),
+    prefix: z.string().trim().max(400),
     cron: z.string().trim().min(1).max(100),
     timezone: z.string().trim().min(1).max(64),
     parts: z.array(partChoice).min(1, 'Choose at least one part to export').max(EXPORT_PARTS.length),
@@ -90,6 +94,7 @@ interface JobRow {
   created_by: string;
   updated_at: string;
   updated_by: string;
+  target_fingerprint: string | null;
 }
 
 interface RunRow {
@@ -137,6 +142,50 @@ function nextRun(cron: string, tz: string, on: boolean): string | null {
   }
 }
 
+// ---------- the confirmed target ----------
+
+/**
+ * What identifies where an export's files go: the platform, its address (the bucket), region and service, how it
+ * connects (proxy, TLS, extra origins, the role it assumes, its variables), the access key id (hashed – never a
+ * secret) and the folder. The platform can be changed by whoever manages it, without the export's step-up; a run
+ * compares this with the fingerprint an administrator confirmed (ADR 0027).
+ */
+export function targetFingerprint(platformId: string | null, prefix: string): string {
+  const p = storagePlatform(platformId);
+  const aws = p.config.auth?.aws;
+  const http = p.config.http ?? {};
+  const secrets = getSecrets(p.id);
+  return sha256(
+    JSON.stringify({
+      v: 1,
+      platform: p.id,
+      baseUrl: (p.baseUrl ?? '').trim().replace(/\/+$/, ''),
+      variables: p.config.variables ?? {},
+      region: aws?.region ?? null,
+      service: aws?.service ?? null,
+      roleArn: aws?.roleArn ?? null,
+      externalId: aws?.externalId ?? null,
+      stsEndpoint: aws?.stsEndpoint ?? null,
+      proxy: http.proxy ?? null,
+      insecureTls: !!http.insecureTls,
+      caPem: http.caPem ? sha256(http.caPem) : null,
+      trustedOrigins: http.trustedOrigins ?? [],
+      accessKey: sha256(`access-key-id:${secrets.accessKeyId ?? ''}`),
+      prefix,
+    }),
+  );
+}
+
+/** Whether the target differs from the confirmed one (a target that cannot be read is reported by the run). */
+function targetChanged(r: JobRow): boolean {
+  if (!r.target_fingerprint) return true;
+  try {
+    return targetFingerprint(r.platform_id, r.prefix) !== r.target_fingerprint;
+  } catch {
+    return false;
+  }
+}
+
 function toJob(r: JobRow): ExportJob {
   const last = db().get<RunRow>('SELECT * FROM export_runs WHERE job_id = ? ORDER BY started_at DESC, id DESC LIMIT 1', r.id);
   return {
@@ -157,6 +206,7 @@ function toJob(r: JobRow): ExportJob {
     nextRunAt: nextRun(r.cron, r.timezone, !!Number(r.enabled)),
     running: running.has(r.id),
     lastRun: last ? toRun(last) : null,
+    targetChanged: targetChanged(r),
   };
 }
 
@@ -201,6 +251,15 @@ function checkCron(cron: string, tz: string): void {
 /** Checks an export definition: target, schedule, parts and their formats, encryption. */
 function checkInput(input: unknown, id: string | null): ExportJobInput {
   const v = exportJobSchema.parse(input) as ExportJobInput;
+  if (exportNameProblem(v.name))
+    throw new HttpError(
+      400,
+      `Name the export with letters, digits and . _ - (starting with a letter or digit, at most ${EXPORT_LIMITS.nameMax} characters): it is the folder in the bucket`,
+      'EXPORT_NAME_INVALID',
+      { max: EXPORT_LIMITS.nameMax },
+    );
+  if (bucketFolderProblem(v.prefix))
+    throw new HttpError(400, 'Use folder names of letters, digits and . _ - , each ending with / (no . or .. folders), or no folder', 'EXPORT_PREFIX_INVALID');
   if (RESERVED_NAMES.has(v.name.toLowerCase()))
     throw new HttpError(400, `"${v.name}" is a folder Steward uses itself – choose another name`, 'EXPORT_NAME_RESERVED');
   checkCron(v.cron, v.timezone);
@@ -229,15 +288,16 @@ const describe = (v: ExportJobInput) =>
 
 export function createExportJob(input: unknown): ExportJob {
   const n = Number(db().get<{ n: number }>('SELECT COUNT(*) AS n FROM export_jobs')?.n ?? 0);
-  if (n >= EXPORT_LIMITS.jobs) throw new HttpError(400, `At most ${EXPORT_LIMITS.jobs} exports`, 'EXPORT_LIMIT', { max: EXPORT_LIMITS.jobs });
+  if (n >= EXPORT_LIMITS.jobs) throw new HttpError(409, `At most ${EXPORT_LIMITS.jobs} exports`, 'EXPORT_LIMIT', { max: EXPORT_LIMITS.jobs });
   const v = checkInput(input, null);
   const id = newId('exp');
   const at = nowIso();
   const by = currentActor();
   db().tx(() => {
     db().run(
-      `INSERT INTO export_jobs (id, name, enabled, platform_id, prefix, cron, timezone, parts, encrypt, keep_runs, created_at, created_by, updated_at, updated_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO export_jobs (id, name, enabled, platform_id, prefix, cron, timezone, parts, encrypt, keep_runs, created_at, created_by, updated_at, updated_by,
+       target_fingerprint)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       id,
       v.name,
       v.enabled ? 1 : 0,
@@ -252,6 +312,8 @@ export function createExportJob(input: unknown): ExportJob {
       by,
       at,
       by,
+      // what the administrator confirmed with the step-up
+      targetFingerprint(v.platformId, v.prefix),
     );
     audit({ action: 'export.job_created', entityType: 'export', entityId: id, summary: `Export "${v.name}" defined: ${describe(v)}`, details: v });
   });
@@ -265,7 +327,7 @@ export function updateExportJob(id: string, input: unknown): ExportJob {
   db().tx(() => {
     db().run(
       `UPDATE export_jobs SET name = ?, enabled = ?, platform_id = ?, prefix = ?, cron = ?, timezone = ?, parts = ?, encrypt = ?, keep_runs = ?,
-       updated_at = ?, updated_by = ? WHERE id = ?`,
+       updated_at = ?, updated_by = ?, target_fingerprint = ? WHERE id = ?`,
       v.name,
       v.enabled ? 1 : 0,
       v.platformId,
@@ -277,9 +339,10 @@ export function updateExportJob(id: string, input: unknown): ExportJob {
       v.keepRuns,
       nowIso(),
       currentActor(),
+      targetFingerprint(v.platformId, v.prefix),
       id,
     );
-    const { id: _i, createdAt: _c, createdBy: _b, updatedAt: _u, updatedBy: _ub, nextRunAt: _n, running: _r, lastRun: _l, ...was } = before;
+    const { id: _i, createdAt: _c, createdBy: _b, updatedAt: _u, updatedBy: _ub, nextRunAt: _n, running: _r, lastRun: _l, targetChanged: _t, ...was } = before;
     audit({
       action: 'export.job_changed',
       entityType: 'export',
@@ -289,6 +352,34 @@ export function updateExportJob(id: string, input: unknown): ExportJob {
     });
   });
   scheduleExportJobs();
+  return getExportJob(id);
+}
+
+/**
+ * Confirms the export's S3 target as the platform is now (after its platform was changed): an administrator with a
+ * step-up, like a change of the export. Audited with the target as it is confirmed.
+ */
+export function confirmExportTarget(id: string): ExportJob {
+  const r = jobRow(id);
+  const p = storagePlatform(r.platform_id);
+  const fingerprint = targetFingerprint(r.platform_id, r.prefix);
+  db().tx(() => {
+    db().run('UPDATE export_jobs SET target_fingerprint = ?, updated_at = ?, updated_by = ? WHERE id = ?', fingerprint, nowIso(), currentActor(), id);
+    audit({
+      action: 'export.target_confirmed',
+      entityType: 'export',
+      entityId: id,
+      summary: `Export "${r.name}": the S3 target confirmed as ${p.name} (${p.baseUrl}${p.config.auth?.aws?.region ? `, ${p.config.auth.aws.region}` : ''})/${r.prefix}${r.name}/`,
+      details: {
+        platformId: p.id,
+        platform: p.name,
+        baseUrl: p.baseUrl,
+        region: p.config.auth?.aws?.region ?? null,
+        prefix: r.prefix,
+        changed: r.target_fingerprint !== fingerprint,
+      },
+    });
+  });
   return getExportJob(id);
 }
 
@@ -356,6 +447,7 @@ export function startExportRun(jobId: string, trigger: ExportRun['trigger']): Ex
     run.startedAt,
     job.platformId,
   );
+  let code: string | undefined;
   const p = runExport(job, run)
     .then(
       () => {
@@ -365,22 +457,131 @@ export function startExportRun(jobId: string, trigger: ExportRun['trigger']): Ex
         logger.warn({ err: e, export: job.name }, 'export failed');
         run.status = 'failed';
         run.message = e.message;
+        code = e instanceof HttpError ? e.code : undefined;
       },
     )
-    .then(() => finish(job, run))
+    .then(() => finish(job, run, code))
     .catch((err) => logger.error({ err }, 'could not record an export run'))
     .finally(() => running.delete(jobId));
   running.set(jobId, p);
   return run;
 }
 
-/** Waits for the running exports (tests, shutdown). */
-export const exportsIdle = async (): Promise<void> => {
-  while (running.size) await Promise.all([...running.values()]);
-};
+/**
+ * Waits for the running exports (tests, shutdown) – at most `timeoutMs`; true when none runs any more. At shutdown
+ * stopExportJobs() has asked them to stop at the next file: a run that ends removes what it uploaded; one that is
+ * still going when the process ends keeps its uploaded files recorded, and they are removed after the next start.
+ */
+export async function exportsIdle(timeoutMs?: number): Promise<boolean> {
+  const until = timeoutMs === undefined ? Infinity : Date.now() + timeoutMs;
+  while (running.size) {
+    const left = until - Date.now();
+    if (left <= 0) return false;
+    let timer: NodeJS.Timeout | undefined;
+    await Promise.race([Promise.all([...running.values()]), ...(Number.isFinite(left) ? [new Promise((resolve) => (timer = setTimeout(resolve, left)))] : [])]);
+    clearTimeout(timer);
+  }
+  return true;
+}
+
+/** Set while the server stops: a run ends at its next file (and removes what it uploaded). */
+let stopping = false;
+const INTERRUPTED = 'Interrupted (the server stopped)';
+function checkStopping(): void {
+  if (stopping) throw new Error(INTERRUPTED);
+}
+
+/** Records the files of a run as they are uploaded – the retention rule can remove them whatever happens to the run. */
+function recordFiles(run: ExportRun): void {
+  db().run('UPDATE export_runs SET folder = ?, files = ? WHERE id = ?', run.folder, JSON.stringify(run.files), run.id);
+}
+
+/** The content type of an exported file, by its name (encrypted files are application/octet-stream). */
+export function contentTypeOf(name: string): string {
+  const ext = name.slice(name.lastIndexOf('.') + 1).toLowerCase();
+  return (
+    { csv: 'text/csv; charset=utf-8', json: 'application/json', jsonl: 'application/x-ndjson', yaml: 'application/yaml' }[ext] ?? 'application/octet-stream'
+  );
+}
+
+/**
+ * A file of a part in the work folder: written in pieces (buffered), hashed while it is written – a part never builds
+ * its whole file as one string, and the file is never read again to hash it.
+ */
+class WorkFile implements ExportWriter {
+  readonly path: string;
+  bytes = 0;
+  private readonly hash = crypto.createHash('sha256');
+  private readonly fh: Promise<fs.promises.FileHandle>;
+  private pending: Buffer[] = [];
+  private pendingBytes = 0;
+  private closed = false;
+
+  constructor(
+    dir: string,
+    runId: string,
+    readonly name: string,
+  ) {
+    this.path = path.join(dir, `${runId}-${newId()}`);
+    this.fh = fs.promises.open(this.path, 'wx', 0o600);
+    this.fh.catch(() => undefined); // reported by the first write
+  }
+
+  async write(text: string): Promise<void> {
+    if (this.closed) throw new Error(`${this.name} was written after it was closed`);
+    checkStopping();
+    if (!text) return;
+    const b = Buffer.from(text, 'utf8');
+    this.hash.update(b);
+    this.bytes += b.length;
+    this.pending.push(b);
+    this.pendingBytes += b.length;
+    if (this.pendingBytes >= WRITE_BUFFER) await this.flush();
+  }
+
+  private async flush(): Promise<void> {
+    if (!this.pendingBytes) return;
+    const data = Buffer.concat(this.pending);
+    this.pending = [];
+    this.pendingBytes = 0;
+    await (await this.fh).writeFile(data);
+  }
+
+  /** Writes what is buffered and closes the file; returns the SHA-256 of what was written. */
+  async close(): Promise<string> {
+    if (!this.closed) {
+      this.closed = true;
+      await this.flush();
+      await (await this.fh).close();
+    }
+    return this.hash.copy().digest('hex');
+  }
+
+  /** Closes the file without writing what is buffered (a failed run). */
+  async discard(): Promise<void> {
+    if (this.closed) return;
+    this.closed = true;
+    this.pending = [];
+    // the file is removed next; a handle that never opened has nothing to close
+    await this.fh.then((h) => h.close()).catch(() => undefined);
+  }
+}
+
+/** The run's target is the one an administrator confirmed – checked before anything is written or listed. */
+function checkTarget(jobId: string): void {
+  const r = jobRow(jobId);
+  if (r.target_fingerprint && targetFingerprint(r.platform_id, r.prefix) === r.target_fingerprint) return;
+  throw new HttpError(
+    409,
+    `The S3 target of the export changed since an administrator confirmed it (its platform's address, region, connection or access key) – nothing was written. Check the platform, then confirm the target under Settings → Exports`,
+    'EXPORT_TARGET_CHANGED',
+    { name: r.name },
+  );
+}
 
 async function runExport(job: ExportJob, run: ExportRun): Promise<void> {
   const now = new Date(run.startedAt);
+  checkTarget(job.id);
   const c = s3Client(job.platformId);
   const enc = job.encrypt ? backupKey() : null;
   const base = `${job.prefix}${job.name}/${stampOf(now)}`;
@@ -389,37 +590,50 @@ async function runExport(job: ExportJob, run: ExportRun): Promise<void> {
   let folder = `${base}/`;
   for (let n = 2; existing.has(folder.slice(base.length, -1)); n++) folder = `${base}-${n}/`;
   run.folder = folder;
+  recordFiles(run);
   const dir = workDir();
   const { moduleEnabled } = await import('../modules/registry.js');
   const skipped: { part: string; reason: string }[] = [];
-  const parts: { id: string; format: string; options: Record<string, unknown>; files: string[] }[] = [];
-  const upload = async (part: ExportFileInfo['part'], name: string, content: string): Promise<void> => {
-    const plain = path.join(dir, `${run.id}-${newId()}`);
-    fs.writeFileSync(plain, content, { mode: 0o600, flag: 'wx' });
-    const target = enc ? `${plain}.smbackup` : plain;
+  const parts: { id: string; format: string; options: Record<string, unknown>; files: string[]; notes?: Record<string, unknown> }[] = [];
+  const work: WorkFile[] = [];
+  const upload = async (part: ExportFileInfo['part'], f: WorkFile): Promise<void> => {
+    const hash = await f.close();
+    const target = enc ? `${f.path}.smbackup` : f.path;
     try {
-      const hash = sha256(Buffer.from(content, 'utf8'));
       let meta: Record<string, string> = { sha256: hash };
-      let objectName = name;
+      let objectName = f.name;
       if (enc) {
-        const e = await encryptFile(plain, target, enc.key, {
+        const e = await encryptFile(f.path, target, enc.key, {
           kdf: enc.stored.kdf,
           now,
-          info: { product: BRAND.name, version: config.version, content: 'export', file: name },
+          info: { product: BRAND.name, version: config.version, content: 'export', file: f.name },
         });
-        meta = { sha256: e.sha256, keyid: e.header.keyId, 'content-sha256': hash };
-        objectName = `${name}.smbackup`;
+        // only what anyone who can read the object sees anyway: no hash of the content (it would let them confirm a
+        // guess of a small or templated file); that is in the encrypted manifest and the run history
+        meta = { sha256: e.sha256, keyid: e.header.keyId };
+        objectName = `${f.name}.smbackup`;
       }
       const key = `${folder}${objectName}`;
-      await c.putFile(key, target, meta);
-      run.files.push({ part, name: objectName, key, bytes: fs.statSync(target).size, sha256: hash });
+      checkStopping();
+      // recorded before it is uploaded: a run that is cut off (the server stops) leaves no object Steward forgets
+      run.files.push({
+        part,
+        name: objectName,
+        key,
+        bytes: fs.statSync(target).size,
+        sha256: meta.sha256!,
+        ...(enc ? { contentBytes: f.bytes, contentSha256: hash } : {}),
+      });
+      recordFiles(run);
+      await c.putFile(key, target, meta, { contentType: enc ? 'application/octet-stream' : contentTypeOf(f.name) });
     } finally {
-      fs.rmSync(plain, { force: true });
-      fs.rmSync(`${plain}.smbackup`, { force: true });
+      fs.rmSync(f.path, { force: true });
+      fs.rmSync(`${f.path}.smbackup`, { force: true });
     }
   };
   try {
     for (const choice of job.parts) {
+      checkStopping();
       const def = exportPart(choice.id);
       if (!def) {
         skipped.push({ part: choice.id, reason: 'not known to this version' });
@@ -429,15 +643,35 @@ async function runExport(job: ExportJob, run: ExportRun): Promise<void> {
         skipped.push({ part: choice.id, reason: `the module ${def.module} is switched off` });
         continue;
       }
+      const files: WorkFile[] = [];
+      const notes: Record<string, unknown> = {};
+      const ctx: ExportContext = {
+        now,
+        file: (name) => {
+          if (files.some((f) => f.name === name)) throw new Error(`The part ${choice.id} wrote ${name} twice`);
+          const f = new WorkFile(dir, run.id, name);
+          files.push(f);
+          work.push(f);
+          return f;
+        },
+        pause: () =>
+          new Promise((resolve, reject) =>
+            setImmediate(() => {
+              try {
+                checkStopping();
+                resolve();
+              } catch (e) {
+                reject(e as Error);
+              }
+            }),
+          ),
+        note: (facts) => void Object.assign(notes, facts),
+      };
       // as the export's system principal: every part sees everything (only administrators define exports)
-      const files = await runAs(EXPORT_USER, () => def.write(choice, { now }));
-      const names: string[] = [];
-      for (const f of files) {
-        await upload(choice.id, f.name, f.content);
-        names.push(f.name);
-      }
+      await runAs(EXPORT_USER, () => def.write(choice, ctx));
+      for (const f of files) await upload(choice.id, f);
       const { id: _id, format, ...options } = choice;
-      parts.push({ id: choice.id, format, options, files: names });
+      parts.push({ id: choice.id, format, options, files: files.map((f) => f.name), ...(Object.keys(notes).length ? { notes } : {}) });
     }
     const manifest = {
       format: 'steward-export',
@@ -450,20 +684,41 @@ async function runExport(job: ExportJob, run: ExportRun): Promise<void> {
       ...(enc ? { keyId: enc.stored.keyId } : {}),
       parts,
       skipped,
-      // SHA-256 of each file's content (encrypted exports: before encryption)
-      files: run.files.map((f) => ({ name: f.name, part: f.part, bytes: f.bytes, sha256: f.sha256 })),
+      // size and SHA-256 of each object as stored; encrypted exports also of the content (this manifest is encrypted too)
+      files: run.files.map((f) => ({
+        name: f.name,
+        part: f.part,
+        bytes: f.bytes,
+        sha256: f.sha256,
+        ...(f.contentSha256 ? { contentBytes: f.contentBytes, contentSha256: f.contentSha256 } : {}),
+      })),
     };
-    await upload('manifest', 'manifest.json', JSON.stringify(manifest, null, 2) + '\n');
+    const m = new WorkFile(dir, run.id, 'manifest.json');
+    work.push(m);
+    await m.write(JSON.stringify(manifest, null, 2) + '\n');
+    await upload('manifest', m);
     run.bytes = run.files.reduce((n, f) => n + f.bytes, 0);
-    if (skipped.length) run.message = `Not exported: ${skipped.map((s) => `${s.part} (${s.reason})`).join(', ')}`;
+    const cut = parts.filter((p) => p.notes?.truncated).map((p) => p.id);
+    const notes = [
+      ...(skipped.length ? [`Not exported: ${skipped.map((s) => `${s.part} (${s.reason})`).join(', ')}`] : []),
+      ...(cut.length ? [`Cut to the newest ${partLimits.auditEntries} entries: ${cut.join(', ')}`] : []),
+    ];
+    if (notes.length) run.message = notes.join('; ');
   } catch (e) {
-    // a failed run leaves nothing behind: what it uploaded is removed again (best effort)
-    for (const f of run.files.splice(0)) await c.delete(f.key).catch(() => undefined);
+    // a failed run leaves nothing behind: what it uploaded is removed again; what cannot be removed now stays recorded,
+    // and the retention rule removes it later
+    run.files = await removeFiles(c, run.files);
     throw e;
+  } finally {
+    for (const f of work) {
+      await f.discard();
+      fs.rmSync(f.path, { force: true });
+      fs.rmSync(`${f.path}.smbackup`, { force: true });
+    }
   }
 }
 
-async function finish(job: ExportJob, run: ExportRun): Promise<void> {
+async function finish(job: ExportJob, run: ExportRun, code?: string): Promise<void> {
   run.finishedAt = nowIso();
   db().run(
     'UPDATE export_runs SET status = ?, finished_at = ?, folder = ?, files = ?, bytes = ?, message = ? WHERE id = ?',
@@ -490,13 +745,14 @@ async function finish(job: ExportJob, run: ExportRun): Promise<void> {
       folder: run.folder,
       encrypted: job.encrypt,
       files: run.files.map((f) => ({ name: f.name, bytes: f.bytes, sha256: f.sha256 })),
+      ...(code ? { code } : {}),
     },
   });
   if (run.status === 'failed') notifyFailure(job, run);
   else await applyRetention(job).catch((err) => logger.warn({ err, export: job.name }, 'export retention failed'));
-  // the history: the newest runs only
+  // the history: the newest runs only – a run whose files are still in the bucket stays until they are gone
   db().run(
-    `DELETE FROM export_runs WHERE job_id = ? AND id NOT IN (
+    `DELETE FROM export_runs WHERE job_id = ? AND (pruned = 1 OR files = '[]') AND id NOT IN (
        SELECT id FROM (SELECT id FROM export_runs WHERE job_id = ? ORDER BY started_at DESC, id DESC LIMIT ?) AS keep)`,
     job.id,
     job.id,
@@ -504,18 +760,38 @@ async function finish(job: ExportJob, run: ExportRun): Promise<void> {
   );
 }
 
-/** Removes the files of older successful runs beyond keepRuns – only files a run of this export recorded. */
-export async function applyRetention(job: ExportJob): Promise<{ pruned: number; locked: number }> {
-  const old = db()
-    .all<RunRow>("SELECT * FROM export_runs WHERE job_id = ? AND status = 'succeeded' ORDER BY started_at DESC, id DESC", job.id)
-    .slice(job.keepRuns)
-    .filter((r) => !Number(r.pruned));
-  if (!old.length) return { pruned: 0, locked: 0 };
+/** Deletes the objects of a run; returns those that are still there, and why (S3 Object Lock, no right, an error). */
+async function removeFiles(c: S3Client, files: ExportFileInfo[]): Promise<ExportFileInfo[] & { locked?: number; denied?: number }> {
+  const left: ExportFileInfo[] & { locked?: number; denied?: number } = [];
+  left.locked = 0;
+  left.denied = 0;
+  for (const f of files) {
+    const d: { deleted: boolean; locked?: boolean; denied?: boolean } = await c.delete(f.key).catch(() => ({ deleted: false }));
+    if (d.deleted) continue;
+    left.push(f);
+    if (d.locked) left.locked++;
+    if (d.denied) left.denied++;
+  }
+  return left;
+}
+
+/**
+ * Removes the files of older successful runs beyond keepRuns, and the files failed or interrupted runs left behind –
+ * only files a run of this export recorded, from its own target (never by listing the bucket).
+ */
+export async function applyRetention(job: ExportJob): Promise<{ pruned: number; locked: number; denied: number; failed: number }> {
+  const runs = db().all<RunRow>("SELECT * FROM export_runs WHERE job_id = ? AND status <> 'running' AND pruned = 0 ORDER BY started_at DESC, id DESC", job.id);
+  const succeeded = runs.filter((r) => r.status === 'succeeded');
+  const keep = new Set(succeeded.slice(0, job.keepRuns).map((r) => r.id));
+  const old = runs.filter((r) => !keep.has(r.id) && (r.status === 'succeeded' || parseJson<ExportFileInfo[]>(r.files, []).length > 0));
+  if (!old.length) return { pruned: 0, locked: 0, denied: 0, failed: 0 };
   let pruned = 0;
   let locked = 0;
+  let denied = 0;
+  let failed = 0;
+  const done: string[] = [];
   for (const r of old) {
     const files = parseJson<ExportFileInfo[]>(r.files, []);
-    let allGone = true;
     // the run's own target: the export may point to another bucket now (never delete a key of the same name there)
     let c;
     try {
@@ -523,24 +799,42 @@ export async function applyRetention(job: ExportJob): Promise<{ pruned: number; 
     } catch {
       continue;
     }
-    for (const f of files) {
-      const d = await c.delete(f.key);
-      if (!d.deleted) ((allGone = false), locked++);
-    }
-    if (allGone) {
-      db().run('UPDATE export_runs SET pruned = 1 WHERE id = ?', r.id);
-      pruned++;
-    }
+    const left = await removeFiles(c, files);
+    locked += left.locked ?? 0;
+    denied += left.denied ?? 0;
+    failed += left.length - (left.locked ?? 0) - (left.denied ?? 0);
+    // a failed run keeps the files that are left recorded; a successful one keeps its list (its history shows it)
+    if (r.status === 'failed') db().run('UPDATE export_runs SET files = ?, pruned = ? WHERE id = ?', JSON.stringify(left), left.length ? 0 : 1, r.id);
+    else if (!left.length) db().run('UPDATE export_runs SET pruned = 1 WHERE id = ?', r.id);
+    if (!left.length) (pruned++, done.push(r.id));
   }
   if (pruned)
     audit({
       action: 'export.pruned',
       entityType: 'export',
       entityId: job.id,
-      summary: `Export "${job.name}": the files of ${pruned} older run(s) removed by the retention rule (keeping ${job.keepRuns})${locked ? `, ${locked} file(s) kept by S3 Object Lock` : ''}`,
-      details: { runs: old.map((r) => r.id), locked },
+      summary: `Export "${job.name}": the files of ${pruned} run(s) removed by the retention rule (keeping ${job.keepRuns} successful runs)${
+        locked ? `, ${locked} file(s) kept by S3 Object Lock` : ''
+      }${denied ? `, ${denied} file(s) not removed: the key may not delete (s3:DeleteObject)` : ''}${failed ? `, ${failed} file(s) not reachable – tried again later` : ''}`,
+      details: { runs: done, locked, denied, failed },
     });
-  return { pruned, locked };
+  if ((locked || denied || failed) && !pruned) logger.warn({ export: job.name, locked, denied, failed }, 'export retention left files in the bucket');
+  return { pruned, locked, denied, failed };
+}
+
+/**
+ * After the vault is unlocked (bootstrap): removes what interrupted and failed runs left in the bucket, for every
+ * export – their files are recorded as they are uploaded.
+ */
+export async function cleanUpExportRuns(): Promise<void> {
+  const ids = db()
+    .all<{ job_id: string }>("SELECT DISTINCT job_id FROM export_runs WHERE status = 'failed' AND pruned = 0 AND files <> '[]'")
+    .map((r) => r.job_id);
+  for (const id of ids) {
+    const r = db().get<JobRow>('SELECT * FROM export_jobs WHERE id = ?', id);
+    if (!r || running.has(id)) continue;
+    await applyRetention(toJob(r)).catch((err) => logger.warn({ err, export: r.name }, 'could not remove the files of interrupted export runs'));
+  }
 }
 
 function notifyFailure(job: ExportJob, run: ExportRun): void {
@@ -577,6 +871,75 @@ let started = false;
 /** The scheduled exports (tests). */
 export const scheduledExports = (): readonly { jobId: string; cron: Cron }[] => crons;
 
+/** A run on the schedule (or its catch-up); a run that cannot start is recorded as failed and notified, never silent. */
+function scheduledRun(r: JobRow): void {
+  try {
+    startExportRun(r.id, 'schedule');
+  } catch (err) {
+    if ((err as HttpError).statusCode === 409) return logger.warn({ export: r.name }, 'export skipped: the last run is still going');
+    // nothing to run with (storage removed, no key): a failed run, so it is not silent
+    const at = nowIso();
+    const id = newId('xrun');
+    db().run(
+      "INSERT INTO export_runs (id, job_id, status, trigger_kind, started_at, finished_at, message) VALUES (?, ?, 'failed', 'schedule', ?, ?, ?)",
+      id,
+      r.id,
+      at,
+      at,
+      (err as Error).message,
+    );
+    notifyFailure(toJob(r), toRun(db().get<RunRow>('SELECT * FROM export_runs WHERE id = ?', id)!));
+  }
+}
+
+/** Exports whose scheduled time fell into a time Steward was not running: one catch-up run each, once the vault is unlocked. */
+let missed: string[] = [];
+
+/**
+ * At start: the scheduled times of each enabled export since the scheduler was last alive (and since its last run or
+ * change) – a time missed while Steward was not running is audited (`export.missed`) and gets one catch-up run.
+ * Nothing on the first start of a version that recorded no time.
+ */
+function detectMissedExports(now: Date): void {
+  missed = [];
+  const alive = readSetting<string | null>(ALIVE_KEY, null);
+  if (!alive || Number.isNaN(Date.parse(alive))) return;
+  for (const r of db().all<JobRow>('SELECT * FROM export_jobs WHERE enabled = 1 ORDER BY name')) {
+    const last = db().get<{ at: string }>('SELECT MAX(started_at) AS at FROM export_runs WHERE job_id = ?', r.id)?.at;
+    const since = new Date(Math.max(Date.parse(alive), Date.parse(last ?? '') || 0, Date.parse(r.updated_at) || 0));
+    if (since.getTime() >= now.getTime()) continue;
+    let found: ReturnType<typeof firesBetween>;
+    try {
+      found = firesBetween(r.cron, r.timezone, since, now);
+    } catch (err) {
+      logger.warn({ err, export: r.name }, 'could not check an export for missed runs');
+      continue;
+    }
+    if (!found.count) continue;
+    missed.push(r.id);
+    audit({
+      actor: 'system',
+      action: 'export.missed',
+      entityType: 'export',
+      entityId: r.id,
+      summary: `Export "${r.name}": ${found.count === 1 ? 'its run' : `${found.count} runs`} missed while Steward was not running (${found.times.join(', ')}${found.count > found.times.length ? ' …' : ''}) – one catch-up run starts`,
+      details: { count: found.count, times: found.times, from: since.toISOString() },
+    });
+  }
+}
+
+/**
+ * Once the vault is unlocked (bootstrap; exports need the platforms' credentials): removes what interrupted and failed
+ * runs left in the bucket, then starts the catch-up runs of exports whose time was missed.
+ */
+export async function resumeExportJobs(): Promise<void> {
+  await cleanUpExportRuns();
+  for (const id of missed.splice(0)) {
+    const r = db().get<JobRow>('SELECT * FROM export_jobs WHERE id = ? AND enabled = 1', id);
+    if (r && started) scheduledRun(r);
+  }
+}
+
 /** (Re)plans the scheduled exports; called at start and when a definition changes. */
 export function scheduleExportJobs(): void {
   for (const j of crons.splice(0)) j.cron.stop();
@@ -585,25 +948,7 @@ export function scheduleExportJobs(): void {
     try {
       crons.push({
         jobId: r.id,
-        cron: new Cron(r.cron, { timezone: r.timezone, protect: true }, () => {
-          try {
-            startExportRun(r.id, 'schedule');
-          } catch (err) {
-            if ((err as HttpError).statusCode === 409) return logger.warn({ export: r.name }, 'export skipped: the last run is still going');
-            // nothing to run with (storage removed, no key): a failed run, so it is not silent
-            const at = nowIso();
-            const id = newId('xrun');
-            db().run(
-              "INSERT INTO export_runs (id, job_id, status, trigger_kind, started_at, finished_at, message) VALUES (?, ?, 'failed', 'schedule', ?, ?, ?)",
-              id,
-              r.id,
-              at,
-              at,
-              (err as Error).message,
-            );
-            notifyFailure(toJob(r), toRun(db().get<RunRow>('SELECT * FROM export_runs WHERE id = ?', id)!));
-          }
-        }),
+        cron: new Cron(r.cron, { timezone: r.timezone, protect: true }, () => scheduledRun(r)),
       });
     } catch (err) {
       logger.warn({ err, export: r.name }, 'could not schedule an export');
@@ -611,9 +956,39 @@ export function scheduleExportJobs(): void {
   }
 }
 
-export function startExportJobs(): void {
+export function startExportJobs(now = new Date()): void {
   started = true;
-  db().run("UPDATE export_runs SET status = 'failed', finished_at = ?, message = 'Interrupted (the server stopped)' WHERE status = 'running'", nowIso());
+  stopping = false;
+  try {
+    detectMissedExports(now);
+  } catch (err) {
+    logger.warn({ err }, 'could not check the exports for missed runs');
+  }
+  // runs the last process did not finish: failed, with the files they uploaded recorded (cleanUpExportRuns removes them)
+  const at = nowIso();
+  for (const r of db().all<RunRow>("SELECT * FROM export_runs WHERE status = 'running'")) {
+    if (running.has(r.job_id)) continue;
+    db().run("UPDATE export_runs SET status = 'failed', finished_at = ?, message = ? WHERE id = ?", at, INTERRUPTED, r.id);
+    const j = db().get<JobRow>('SELECT * FROM export_jobs WHERE id = ?', r.job_id);
+    if (!j) continue;
+    const run = toRun({ ...r, status: 'failed', finished_at: at, message: INTERRUPTED });
+    audit({
+      actor: 'system',
+      action: 'export.failed',
+      entityType: 'export',
+      entityId: j.id,
+      summary: `Export "${j.name}" failed: ${INTERRUPTED}${run.files.length ? ` – its ${run.files.length} uploaded file(s) are removed once the vault is unlocked` : ''}`,
+      details: {
+        runId: r.id,
+        status: 'failed',
+        trigger: r.trigger_kind,
+        folder: r.folder,
+        files: run.files.map((f) => ({ name: f.name, key: f.key })),
+        code: 'EXPORT_INTERRUPTED',
+      },
+    });
+    notifyFailure(toJob(j), run);
+  }
   try {
     const dir = path.join(config.dataDir, WORK);
     if (fs.existsSync(dir)) for (const f of fs.readdirSync(dir)) fs.rmSync(path.join(dir, f), { force: true, recursive: true });
@@ -625,5 +1000,7 @@ export function startExportJobs(): void {
 
 export function stopExportJobs(): void {
   started = false;
+  // a running export stops at its next file (shutdown waits for it: exportsIdle)
+  stopping = true;
   for (const j of crons.splice(0)) j.cron.stop();
 }

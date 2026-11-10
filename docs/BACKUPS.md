@@ -32,9 +32,11 @@ From 0.16.0 an administrator chooses under _Settings → Backups → Contents_ w
 | Archived reports (`reports/`)              | yes, by choice | the archived PDF reports. **Evidence**: a report can be generated again from its run, as a new version with another SHA-256 – the archived copy and signatures added to it are gone (the audit log names its SHA-256) |
 | Evidence packs (`evidence-packs/`)         | yes, by choice | the packs built so far (they expire after `SM_EVIDENCE_RETENTION_DAYS` anyway). They can be built again for the same period – with a new signature, from the data still in Steward                                    |
 
-All three optional parts are evidence, so **all are included by default** (as before 0.16.0) and the page warns while one is left out. Leave one out only when it is kept elsewhere – e.g. artifacts on storage with its own backup – or not needed after a restore. A required part cannot be left out: the API refuses it (`BACKUP_PART_REQUIRED`) instead of dropping it.
+All three optional parts are evidence, so **all are included by default** (as before 0.16.0), the page warns while one is left out, and saving a part left out asks for a confirmation that names what a restore then lacks. Leave one out only when it is kept elsewhere – e.g. artifacts on storage with its own backup – or not needed after a restore. A required part cannot be left out: the API refuses it (`BACKUP_PART_REQUIRED`) instead of dropping it.
 
 A backup that leaves parts out says so everywhere: `manifest.json` lists them under `excluded` (folder, files and bytes at the time of the backup), the unencrypted header of the file names them (`npm run backup -- info <file>` prints _Left out by the backup settings (a restore lacks them): artifacts/, reports/_), the run's steps show a step _contents_, and the restore test adds a passing step _contents_ with what a restore from that backup lacks. The audit entry of the settings (`backup.settings_updated`) names the parts left out.
+
+**Leaving evidence out is one administrator's decision.** It asks for a step-up and is audited (`backup.settings_updated`, with the parts left out), but no second person approves it, and the restore test stays green (its step _contents_ only says what is missing). An administrator who leaves the evidence out and then deletes it on disk leaves no copy to restore. Where that matters, have auditors watch for `backup.settings_updated` entries that name parts left out (audit log filter, or your SIEM), and keep the evidence on storage with a backup of its own.
 
 ## Encryption
 
@@ -48,7 +50,7 @@ After you change the backup passphrase, new backups use the new key. Older backu
 
 Any S3 bucket or S3-compatible storage (MinIO, Ceph, Wasabi, Hetzner Object Storage, Cloudflare R2 …). Recommended:
 
-- **Versioning** and **S3 Object Lock** (governance or compliance mode, default retention of e.g. 35 days): even someone with Steward's key cannot delete or overwrite a recent backup. Steward reports backups that Object Lock keeps instead of failing.
+- **Versioning** and **S3 Object Lock** (governance or compliance mode, default retention of e.g. 35 days): even someone with Steward's key cannot delete or overwrite a recent backup. Steward reports backups that Object Lock keeps instead of failing – and, apart from them, backups it may not delete because the key lacks `s3:DeleteObject` (_not removed: the key may not delete_).
 - A **lifecycle rule** that removes old versions and incomplete multipart uploads after a few days.
 - A bucket in another account or location than the server.
 
@@ -116,7 +118,7 @@ npm run backup -- decrypt steward-20261030T021500Z.smbackup --out restore.zip
 # desktop:   steward backup decrypt <file> --out restore.zip
 ```
 
-The passphrase can also come from `--passphrase-file <file>` or `SM_BACKUP_PASSPHRASE`. Exit status 0 means decrypted and intact.
+The passphrase can also come from `--passphrase-file <file>` or `SM_BACKUP_PASSPHRASE`. Exit status 0 means decrypted and intact. Export files and uploaded audit archives are encrypted with the same key; since 0.16.0 the authenticated header of every file says what it is (`content`: `backup`, `export`, `audit-archives`), and `verify` **fails** for a file that is not a backup and names what it is – so an export file put in a backup's place never passes as an intact backup (the restore test refuses it too). `decrypt` still reads them. Backups made before 0.16.0 have no `content` and are read as backups.
 
 Then, with Steward **stopped** and the **same or a newer version** of Steward:
 

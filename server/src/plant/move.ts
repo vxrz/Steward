@@ -41,10 +41,22 @@ import type { Region } from './changesets/track.js';
  * records, the Insights Hub state, its history, baselines, open change set operations and old ids. A device that goes
  * to another site leaves its VLAN (and so its zones). Rights: manage on the sites the entries leave and on the target's
  * (under a proposer's preview, propose). Applying is one transaction, audited as `plant.moved`; the routes and the
- * change set's operation `move` make it a change set.
+ * change set's operation `move` make it a change set. A step-up: moveStepUpFor.
  */
 
-export const moveNeedsStepUp = (b: Pick<PlantMoveInput, 'items'>): boolean => b.items.length > PLANT_MOVE.stepUp;
+/**
+ * Whether a move asks for a step-up (control point plant.bulkChange): more than PLANT_MOVE.stepUp entries change –
+ * counted with what moves along (data paths, the collections that follow) and the collections that stay and lose their
+ * data path –, or the entries go to another site (devices leave their VLAN and so their zones).
+ */
+export const moveStepUpFor = (r: Pick<Plan['result'], 'entries' | 'unlinked' | 'crossSite'>): boolean =>
+  r.crossSite || r.entries.length + r.unlinked.length > PLANT_MOVE.stepUp;
+
+/** The step-up of a move request, from what it would move (an error – e.g. no right – is the caller's to handle). */
+export function moveNeedsStepUp(b: PlantMoveInput): boolean {
+  if (b.items.length > PLANT_MOVE.stepUp) return true;
+  return moveStepUpFor(plan(b).result);
+}
 
 /** What a move reaches: the assets the entries leave and the target (their devices, data paths and collections). */
 export const moveRegion = (b: Pick<PlantMoveInput, 'items' | 'toAsset'>): Region => ({ assets: [...new Set([...b.items.map((i) => i.asset), b.toAsset])] });
@@ -317,7 +329,8 @@ function plan(input: PlantMoveInput): Plan {
 
 /** The preview of a move without writing anything (the route adds what applying writes, field by field). */
 export function previewMove(input: PlantMoveInput): Plan['result'] & { stepUp: boolean } {
-  return { ...plan(input).result, stepUp: moveNeedsStepUp(input) };
+  const r = plan(input).result;
+  return { ...r, stepUp: input.items.length > PLANT_MOVE.stepUp || moveStepUpFor(r) };
 }
 
 /** The first problem of a move, as the route's answer. */
@@ -345,7 +358,7 @@ export function applyMove(input: PlantMoveInput): Omit<PlantMovePreview, 'change
     if (first) refuseMove(first, input.kind);
     if (!p.result.entries.length) throw new HttpError(409, 'Nothing to move', 'PLANT_MOVE_NOTHING');
     const references = p.apply();
-    return { ...p.result, references, stepUp: moveNeedsStepUp(input), applied: true };
+    return { ...p.result, references, stepUp: input.items.length > PLANT_MOVE.stepUp || moveStepUpFor(p.result), applied: true };
   });
 }
 

@@ -24,7 +24,7 @@ import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { currentActor } from '../auth/context.js';
 import { listUsers } from '../auth/users.js';
 import { getPlatform, getSecrets } from '../platforms/service.js';
-import { createArchive, checkArchive, dataFiles, workDir } from './archive.js';
+import { createArchive, checkArchive, dataFileSizes, workDir } from './archive.js';
 import { checkExclude, contentsOf, excludedText } from './contents.js';
 import { BACKUP_PASSPHRASE_MIN, decryptFile, deriveBackupKey, encryptFile, keyIdOf, newKdf, readHeader, type KdfParams } from './crypto.js';
 import { retained } from './retention.js';
@@ -401,17 +401,8 @@ export function s3Client(platformId: string | null): S3Client {
 }
 
 /** The parts of a backup with their size now, and which ones the settings leave out. */
-export function backupContents(): BackupContents {
-  const files = dataFiles().map((f) => {
-    let size = 0;
-    try {
-      size = fs.statSync(f.abs).size;
-    } catch {
-      // removed meanwhile
-    }
-    return { rel: f.rel, size };
-  });
-  return { parts: contentsOf(files, backupSettings().exclude) };
+export async function backupContents(): Promise<BackupContents> {
+  return { parts: contentsOf(await dataFileSizes(), backupSettings().exclude) };
 }
 
 async function backup(run: BackupRun): Promise<void> {
@@ -439,6 +430,9 @@ async function backup(run: BackupRun): Promise<void> {
       info: {
         product: BRAND.name,
         version: config.version,
+        // what the file is (authenticated): `steward backup verify` and the restore test refuse an export file or an
+        // audit archive made with the same key (older backups have no content and are read as backups)
+        content: 'backup',
         database: manifest.database.kind,
         ...(manifest.excluded?.length ? { excluded: manifest.excluded.map((x) => x.path).join(',') } : {}),
       },
@@ -466,7 +460,9 @@ async function backup(run: BackupRun): Promise<void> {
     step(
       'retention',
       true,
-      `${r.kept} kept${r.deleted.length ? `, ${r.deleted.length} removed` : ''}${r.locked.length ? `, ${r.locked.length} kept by S3 Object Lock` : ''}`,
+      `${r.kept} kept${r.deleted.length ? `, ${r.deleted.length} removed` : ''}${r.locked.length ? `, ${r.locked.length} kept by S3 Object Lock` : ''}${
+        r.denied.length ? `, ${r.denied.length} not removed: the key may not delete (s3:DeleteObject)` : ''
+      }`,
     );
   } catch (e) {
     step('retention', false, `Older backups could not be removed: ${(e as Error).message}`);
@@ -480,18 +476,19 @@ async function storedBackups(s: BackupSettings, c = client(s)): Promise<(S3Objec
     .filter((o): o is S3Object & { at: Date } => !!o.at);
 }
 
-async function applyRetention(s: BackupSettings): Promise<{ kept: number; deleted: string[]; locked: string[] }> {
+async function applyRetention(s: BackupSettings): Promise<{ kept: number; deleted: string[]; locked: string[]; denied: string[] }> {
   const c = client(s);
   const all = await storedBackups(s, c);
   const keep = retained(all, (o) => o.at, s.retention);
   const deleted: string[] = [];
   const locked: string[] = [];
+  const denied: string[] = [];
   for (const o of all) {
     if (keep.has(o)) continue;
     const r = await c.delete(o.key);
-    (r.deleted ? deleted : locked).push(o.key);
+    (r.deleted ? deleted : r.locked ? locked : denied).push(o.key);
   }
-  return { kept: keep.size, deleted, locked };
+  return { kept: keep.size, deleted, locked, denied };
 }
 
 /** The backups in the bucket, newest first, with what the retention rule keeps. */
@@ -540,6 +537,10 @@ async function restoreTest(run: BackupRun): Promise<void> {
     )
       return;
     const { header } = await readHeader(enc);
+    if (header.info?.content && header.info.content !== 'backup') {
+      step('decrypt', false, `${newest.key} is not a backup: its header names it ${header.info.content} – the object was replaced`);
+      return;
+    }
     let key: Buffer;
     try {
       ({ key } = backupKey());

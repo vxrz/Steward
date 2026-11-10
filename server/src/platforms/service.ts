@@ -549,6 +549,28 @@ export function setPlatformAccess(id: string, aclInput: unknown): Platform {
 
 export function deletePlatform(id: string): void {
   const p = getPlatform(id);
+  // scheduled exports (0.16.0) remove their older files from this bucket by the keys they recorded: never forget them
+  const exportJob = db().get<{ name: string }>('SELECT name FROM export_jobs WHERE platform_id = ? ORDER BY name LIMIT 1', id);
+  if (exportJob)
+    throw new HttpError(
+      409,
+      `The export "${exportJob.name}" writes to this platform – choose another target for it, or remove it, first`,
+      'PLATFORM_EXPORT_TARGET',
+      {
+        name: exportJob.name,
+      },
+    );
+  const left = db().get<{ name: string }>(
+    `SELECT j.name FROM export_runs r JOIN export_jobs j ON j.id = r.job_id WHERE r.platform_id = ? AND r.pruned = 0 AND r.files <> '[]' ORDER BY j.name LIMIT 1`,
+    id,
+  );
+  if (left)
+    throw new HttpError(
+      409,
+      `Runs of the export "${left.name}" have files in this bucket that its retention rule has not removed yet – wait for its next runs, or remove the export (its files then stay in the bucket), first`,
+      'PLATFORM_EXPORT_FILES',
+      { name: left.name },
+    );
   const docs = db().all<{ filename: string | null; id: string }>('SELECT id, filename FROM platform_docs WHERE platform_id = ?', id);
   db().tx(() => {
     // its identities go with it (ON DELETE CASCADE as well)

@@ -60,19 +60,22 @@ export class S3Client {
     });
   }
 
-  /** Uploads a file (one PUT, or multipart above SINGLE_PUT_MAX). `meta` becomes x-amz-meta-* headers. */
-  async putFile(key: string, file: string, meta: Record<string, string> = {}): Promise<{ parts: number }> {
+  /**
+   * Uploads a file (one PUT, or multipart above SINGLE_PUT_MAX). `meta` becomes x-amz-meta-* headers; the content type
+   * is application/octet-stream unless given (readable exports: text/csv, application/json …).
+   */
+  async putFile(key: string, file: string, meta: Record<string, string> = {}, o: { contentType?: string } = {}): Promise<{ parts: number }> {
     checkKey(key);
     // one handle for size and content: the file read is the file measured
     const fh = await fs.promises.open(file, 'r');
     try {
-      return await this.putHandle(key, fh, meta);
+      return await this.putHandle(key, fh, meta, o.contentType ?? 'application/octet-stream');
     } finally {
       await fh.close();
     }
   }
 
-  private async putHandle(key: string, fh: fs.promises.FileHandle, meta: Record<string, string>): Promise<{ parts: number }> {
+  private async putHandle(key: string, fh: fs.promises.FileHandle, meta: Record<string, string>, contentType: string): Promise<{ parts: number }> {
     const size = (await fh.stat()).size;
     const metaHeaders = Object.fromEntries(Object.entries(meta).map(([k, v]) => [`x-amz-meta-${k.toLowerCase()}`, v]));
     const chunk = async (pos: number, len: number) => {
@@ -82,11 +85,11 @@ export class S3Client {
       return buf;
     };
     if (size <= SINGLE_PUT_MAX) {
-      const r = await this.req('PUT', `/${key}`, { body: await chunk(0, size), headers: { 'content-type': 'application/octet-stream', ...metaHeaders } });
+      const r = await this.req('PUT', `/${key}`, { body: await chunk(0, size), headers: { 'content-type': contentType, ...metaHeaders } });
       if (!r.ok) throw s3Error(`upload of ${key}`, r);
       return { parts: 1 };
     }
-    const start = await this.req('POST', `/${key}?uploads`, { headers: { 'content-type': 'application/octet-stream', ...metaHeaders } });
+    const start = await this.req('POST', `/${key}?uploads`, { headers: { 'content-type': contentType, ...metaHeaders } });
     const uploadId = start.ok && typeof start.body === 'string' ? xmlOne(start.body, 'UploadId') : undefined;
     if (!uploadId) throw s3Error(`multipart upload of ${key}`, start);
     const id = encodeURIComponent(unescapeXml(uploadId));
@@ -140,12 +143,20 @@ export class S3Client {
     return out;
   }
 
-  /** Deletes an object; an object kept by S3 Object Lock (403 AccessDenied) is reported, not thrown. */
-  async delete(key: string): Promise<{ deleted: boolean; locked?: boolean }> {
+  /**
+   * Deletes an object. A refusal (403) is reported, not thrown: `locked` when S3 Object Lock keeps the object (its
+   * message names the lock, or the code ObjectLocked), `denied` otherwise – the key may not delete (no s3:DeleteObject).
+   */
+  async delete(key: string): Promise<{ deleted: boolean; locked?: boolean; denied?: boolean }> {
     checkKey(key);
     const r = await this.req('DELETE', `/${key}`);
     if (r.ok) return { deleted: true };
-    if (r.status === 403) return { deleted: false, locked: true };
+    if (r.status === 403) {
+      const body = typeof r.body === 'string' ? r.body : '';
+      const code = xmlOne(body, 'Code') ?? '';
+      const message = unescapeXml(xmlOne(body, 'Message') ?? '');
+      return code === 'ObjectLocked' || /object lock|retention|legal hold/i.test(message) ? { deleted: false, locked: true } : { deleted: false, denied: true };
+    }
     throw s3Error(`deleting ${key}`, r);
   }
 }

@@ -920,7 +920,7 @@
     "references": "Also follows: {{list}}",
     "fieldByField_one": "{{count}} entry, field by field",
     "fieldByField_other": "{{count}} entries, field by field",
-    "stepUp": "Moving this many entries asks you to confirm who you are.",
+    "stepUp": "This move asks you to confirm who you are: it changes more than 25 entries, with what moves along, or goes to another site.",
     "apply": "Move",
     "done_one": "{{count}} entry moved to {{asset}}",
     "done_other": "{{count}} entries moved to {{asset}}"

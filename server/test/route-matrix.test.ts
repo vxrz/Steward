@@ -241,6 +241,7 @@ const EXPECT: Record<string, Access> = {
   'DELETE /api/exports/:id': ADMIN,
   'GET /api/exports/:id/runs': ADMIN,
   'POST /api/exports/:id/run': ADMIN,
+  'POST /api/exports/:id/confirm-target': ADMIN,
   'GET /api/audit/public-key.pem': ADMIN_AUDITOR,
   'GET /api/audit/export': ADMIN_AUDITOR,
   // ---- assurance policy (#210): administrators and auditors read it, administrators change it (sessions only) ----
@@ -1444,6 +1445,7 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
   'POST /api/exports': 'always',
   'PUT /api/exports/:id': 'always',
   'DELETE /api/exports/:id': 'always',
+  'POST /api/exports/:id/confirm-target': 'always',
   'PUT /api/platforms/:id/mcp-gateway': { sensitive: { enabled: true, writes: 'confirm' }, harmless: { enabled: true } },
   // identities (0.13.0, ADR 0009): loosening (read-only off), adding someone to the list, MCP writes on, a new default
   'PUT /api/platforms/:id/identities/:identityId': { sensitive: { readOnly: false }, harmless: { description: 'Matrix' } },
