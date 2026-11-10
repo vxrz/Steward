@@ -22,9 +22,11 @@ Usage:
 
 Commands:
   decrypt   Decrypt a backup into its ZIP archive (manifest.json, database/, data/) and check every file
-            against the manifest. Restore from it as described in docs/BACKUPS.md.
+            against the manifest. Restore from it as described in docs/BACKUPS.md. Also decrypts an encrypted
+            export file (docs/EXPORTS.md) or audit archive: authenticated, not checked as a backup.
   verify    Decrypt into a temporary file, check every file against the manifest and remove it again.
-  info      Show the unencrypted header: when, which Steward version, which key (no passphrase needed).
+  info      Show the unencrypted header: when, which Steward version, which key, and the parts of the data folder
+            the backup settings left out (no passphrase needed).
 
 The backup passphrase is read from the file in --passphrase-file, from $SM_BACKUP_PASSPHRASE, or asked for.
 
@@ -109,10 +111,15 @@ export async function runBackupCli(argv: string[], command: string): Promise<num
   }
   if (cmd === 'info') {
     if (values.json) process.stdout.write(JSON.stringify(header, null, 2) + '\n');
-    else
+    else {
       console.log(
         `${header.info?.product ?? BRAND.name} backup of ${header.createdAt} (version ${header.info?.version ?? '?'}, ${header.info?.database ?? '?'}), key ${header.keyId}`,
       );
+      // 0.16.0: parts the backup settings left out – a restore from this backup lacks them (docs/BACKUPS.md#contents)
+      if (header.info?.excluded) console.log(`Left out by the backup settings (a restore lacks them): ${header.info.excluded.split(',').join(', ')}`);
+      else if (header.info?.content) console.log(`Content: ${header.info.content}`);
+      else console.log('Contents: complete (database and the whole data folder)');
+    }
     return EXIT_OK;
   }
   if (values.out && fs.existsSync(values.out)) {
@@ -137,6 +144,22 @@ export async function runBackupCli(argv: string[], command: string): Promise<num
   const out = values.out ?? path.join(tmpDir!, 'backup.zip');
   try {
     await decryptFile(file, out, key);
+    // not a backup archive (0.16.0): an export file or an audit archive names its content in the header – every chunk
+    // authenticated is the whole check; an audit archive is then checked with `steward audit verify-archive`
+    if (header.info?.content) {
+      if (values.json) process.stdout.write(JSON.stringify({ ok: true, header, content: header.info.content }, null, 2) + '\n');
+      else {
+        console.log(`${c.green('ok')}   decrypted and authenticated (key ${header.keyId})`);
+        console.log(
+          c.green(
+            cmd === 'decrypt'
+              ? `The file (${header.info.content}${header.info.file ? `: ${header.info.file}` : ''}) is intact: ${out}`
+              : `The file (${header.info.content}) is intact.`,
+          ),
+        );
+      }
+      return EXIT_OK;
+    }
     const check = await checkArchive(out);
     if (values.json) process.stdout.write(JSON.stringify({ ok: check.ok, header, manifest: check.manifest, steps: check.steps }, null, 2) + '\n');
     else {

@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { currentUser } from '../auth/context.js';
 import { requireCapability } from '../auth/permissions.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
-import { backupStatus, listStoredBackups, saveBackupSettings, setBackupPassphrase, startBackupRun } from './service.js';
+import { backupContents, backupStatus, listStoredBackups, saveBackupSettings, setBackupPassphrase, startBackupRun } from './service.js';
 import { ACCESS } from '../auth/access.js';
 
 /** Backups to S3 (#117): administrators only (manageSettings); changes need a fresh confirmation (step-up). */
@@ -16,6 +16,11 @@ export async function backupRoutes(app: FastifyInstance): Promise<void> {
   app.get('/backups/stored', { config: { access: ACCESS.admin, rateLimit: ROUTE_LIMITS.heavy } }, async () => {
     admin('list the backups in the bucket');
     return listStoredBackups();
+  });
+  // the parts of a backup and their size now (walks the data folder: heavy)
+  app.get('/backups/contents', { config: { access: ACCESS.admin, rateLimit: ROUTE_LIMITS.heavy } }, async () => {
+    admin('see what the backups hold');
+    return backupContents();
   });
   app.put('/backups/settings', { config: { access: ACCESS.admin, stepUp: { action: 'changeBackups', who: 'manageSettings' } } }, async (req) => {
     admin('change the backups');
