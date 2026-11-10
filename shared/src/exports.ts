@@ -23,7 +23,7 @@ export const EXPORT_LIMITS = {
   nameMax: 60,
   keepRunsMax: 100,
   auditDaysMax: 366,
-  /** Entries of the audit log in one export at most (the newest of the period) */
+  /** Entries of the audit log in one export at most: the newest of the period (the manifest says when it was cut) */
   auditEntries: 200_000,
   /** Run rows kept per export (older ones are removed from the history; their files went with the retention rule) */
   historyRuns: 200,

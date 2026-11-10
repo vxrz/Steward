@@ -901,12 +901,18 @@ export function removeEntry(serviceId: string, entryId: string): CostPlanYear {
 const num = (v: string | null) => v ?? '';
 
 /** The header and the rows (CSV lines) of the plan lines or the entries of a year – also for scheduled exports. */
+/** The header rows of the plan's CSV files (also with no line or entry: the export writes them for an empty plan too). */
+export const PLAN_CSV_HEAD = {
+  plan: 'Fiscal year,Title,Category,For (kind),For,Vendor or contract,Amount,Currency,Cadence,Once in,Renewal,Planned (year),Planned to date,Incurred to date,Expected,Difference,Note',
+  entries: 'Date,Amount,Currency,Plan line,Unplanned,For (kind),For,Reference,Note',
+} as const;
+
 export function planCsvRows(y: CostPlanYear, what: 'plan' | 'entries'): { head: string; rows: string[] } {
   const target = (t: CostPlanTarget | null) => (t ? (t.visible ? t.name : '') : '');
   const [head, ...rows]: string[] =
     what === 'plan'
       ? [
-          'Fiscal year,Title,Category,For (kind),For,Vendor or contract,Amount,Currency,Cadence,Once in,Renewal,Planned (year),Planned to date,Incurred to date,Expected,Difference,Note',
+          PLAN_CSV_HEAD.plan,
           ...y.lines.map((l) =>
             [
               csvCell(y.label, 'needed'),
@@ -930,7 +936,7 @@ export function planCsvRows(y: CostPlanYear, what: 'plan' | 'entries'): { head: 
           ),
         ]
       : [
-          'Date,Amount,Currency,Plan line,Unplanned,For (kind),For,Reference,Note',
+          PLAN_CSV_HEAD.entries,
           ...y.entries.map((e) =>
             [
               e.date,

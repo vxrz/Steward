@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { Cron } from 'croner';
@@ -19,13 +20,13 @@ import { config } from '../config.js';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { logger } from '../log.js';
-import { HttpError, newId, nowIso, parseJson, sha256 } from '../util.js';
+import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { currentActor, runAs, type AuthUser } from '../auth/context.js';
 import { listUsers } from '../auth/users.js';
 import { getPlatform } from '../platforms/service.js';
 import { backupKey, backupKeySet, backupSettings, s3Client, storagePlatform } from '../backup/service.js';
 import { encryptFile } from '../backup/crypto.js';
-import { exportPart, exportPartInfos, EXPORT_PARTS } from './parts.js';
+import { exportPart, exportPartInfos, EXPORT_PARTS, partLimits, type ExportContext, type ExportWriter } from './parts.js';
 
 /**
  * Scheduled exports to S3 (0.16.0, docs/EXPORTS.md, ADR 0027): an administrator defines an export – a name, a
@@ -44,6 +45,8 @@ import { exportPart, exportPartInfos, EXPORT_PARTS } from './parts.js';
 export const EXPORT_USER: AuthUser = { id: 'system', username: 'system', displayName: `${BRAND.name} (export)`, roles: ['admin'], teams: [] };
 
 const WORK = '.export-work';
+/** Bytes a work file buffers before it writes them */
+const WRITE_BUFFER = 256 * 1024;
 const NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 /** Folder names Steward writes below a backup prefix itself */
 const RESERVED_NAMES = new Set(['audit-archives']);
@@ -379,6 +382,76 @@ export const exportsIdle = async (): Promise<void> => {
   while (running.size) await Promise.all([...running.values()]);
 };
 
+/** The content type of an exported file, by its name (encrypted files are application/octet-stream). */
+export function contentTypeOf(name: string): string {
+  const ext = name.slice(name.lastIndexOf('.') + 1).toLowerCase();
+  return (
+    { csv: 'text/csv; charset=utf-8', json: 'application/json', jsonl: 'application/x-ndjson', yaml: 'application/yaml' }[ext] ?? 'application/octet-stream'
+  );
+}
+
+/**
+ * A file of a part in the work folder: written in pieces (buffered), hashed while it is written – a part never builds
+ * its whole file as one string, and the file is never read again to hash it.
+ */
+class WorkFile implements ExportWriter {
+  readonly path: string;
+  bytes = 0;
+  private readonly hash = crypto.createHash('sha256');
+  private readonly fh: Promise<fs.promises.FileHandle>;
+  private pending: Buffer[] = [];
+  private pendingBytes = 0;
+  private closed = false;
+
+  constructor(
+    dir: string,
+    runId: string,
+    readonly name: string,
+  ) {
+    this.path = path.join(dir, `${runId}-${newId()}`);
+    this.fh = fs.promises.open(this.path, 'wx', 0o600);
+    this.fh.catch(() => undefined); // reported by the first write
+  }
+
+  async write(text: string): Promise<void> {
+    if (this.closed) throw new Error(`${this.name} was written after it was closed`);
+    if (!text) return;
+    const b = Buffer.from(text, 'utf8');
+    this.hash.update(b);
+    this.bytes += b.length;
+    this.pending.push(b);
+    this.pendingBytes += b.length;
+    if (this.pendingBytes >= WRITE_BUFFER) await this.flush();
+  }
+
+  private async flush(): Promise<void> {
+    if (!this.pendingBytes) return;
+    const data = Buffer.concat(this.pending);
+    this.pending = [];
+    this.pendingBytes = 0;
+    await (await this.fh).writeFile(data);
+  }
+
+  /** Writes what is buffered and closes the file; returns the SHA-256 of what was written. */
+  async close(): Promise<string> {
+    if (!this.closed) {
+      this.closed = true;
+      await this.flush();
+      await (await this.fh).close();
+    }
+    return this.hash.copy().digest('hex');
+  }
+
+  /** Closes the file without writing what is buffered (a failed run). */
+  async discard(): Promise<void> {
+    if (this.closed) return;
+    this.closed = true;
+    this.pending = [];
+    // the file is removed next; a handle that never opened has nothing to close
+    await this.fh.then((h) => h.close()).catch(() => undefined);
+  }
+}
+
 async function runExport(job: ExportJob, run: ExportRun): Promise<void> {
   const now = new Date(run.startedAt);
   const c = s3Client(job.platformId);
@@ -392,30 +465,29 @@ async function runExport(job: ExportJob, run: ExportRun): Promise<void> {
   const dir = workDir();
   const { moduleEnabled } = await import('../modules/registry.js');
   const skipped: { part: string; reason: string }[] = [];
-  const parts: { id: string; format: string; options: Record<string, unknown>; files: string[] }[] = [];
-  const upload = async (part: ExportFileInfo['part'], name: string, content: string): Promise<void> => {
-    const plain = path.join(dir, `${run.id}-${newId()}`);
-    fs.writeFileSync(plain, content, { mode: 0o600, flag: 'wx' });
-    const target = enc ? `${plain}.smbackup` : plain;
+  const parts: { id: string; format: string; options: Record<string, unknown>; files: string[]; notes?: Record<string, unknown> }[] = [];
+  const work: WorkFile[] = [];
+  const upload = async (part: ExportFileInfo['part'], f: WorkFile): Promise<void> => {
+    const hash = await f.close();
+    const target = enc ? `${f.path}.smbackup` : f.path;
     try {
-      const hash = sha256(Buffer.from(content, 'utf8'));
       let meta: Record<string, string> = { sha256: hash };
-      let objectName = name;
+      let objectName = f.name;
       if (enc) {
-        const e = await encryptFile(plain, target, enc.key, {
+        const e = await encryptFile(f.path, target, enc.key, {
           kdf: enc.stored.kdf,
           now,
-          info: { product: BRAND.name, version: config.version, content: 'export', file: name },
+          info: { product: BRAND.name, version: config.version, content: 'export', file: f.name },
         });
         meta = { sha256: e.sha256, keyid: e.header.keyId, 'content-sha256': hash };
-        objectName = `${name}.smbackup`;
+        objectName = `${f.name}.smbackup`;
       }
       const key = `${folder}${objectName}`;
-      await c.putFile(key, target, meta);
+      await c.putFile(key, target, meta, { contentType: enc ? 'application/octet-stream' : contentTypeOf(f.name) });
       run.files.push({ part, name: objectName, key, bytes: fs.statSync(target).size, sha256: hash });
     } finally {
-      fs.rmSync(plain, { force: true });
-      fs.rmSync(`${plain}.smbackup`, { force: true });
+      fs.rmSync(f.path, { force: true });
+      fs.rmSync(`${f.path}.smbackup`, { force: true });
     }
   };
   try {
@@ -429,15 +501,25 @@ async function runExport(job: ExportJob, run: ExportRun): Promise<void> {
         skipped.push({ part: choice.id, reason: `the module ${def.module} is switched off` });
         continue;
       }
+      const files: WorkFile[] = [];
+      const notes: Record<string, unknown> = {};
+      const ctx: ExportContext = {
+        now,
+        file: (name) => {
+          if (files.some((f) => f.name === name)) throw new Error(`The part ${choice.id} wrote ${name} twice`);
+          const f = new WorkFile(dir, run.id, name);
+          files.push(f);
+          work.push(f);
+          return f;
+        },
+        pause: () => new Promise((resolve) => setImmediate(resolve)),
+        note: (facts) => void Object.assign(notes, facts),
+      };
       // as the export's system principal: every part sees everything (only administrators define exports)
-      const files = await runAs(EXPORT_USER, () => def.write(choice, { now }));
-      const names: string[] = [];
-      for (const f of files) {
-        await upload(choice.id, f.name, f.content);
-        names.push(f.name);
-      }
+      await runAs(EXPORT_USER, () => def.write(choice, ctx));
+      for (const f of files) await upload(choice.id, f);
       const { id: _id, format, ...options } = choice;
-      parts.push({ id: choice.id, format, options, files: names });
+      parts.push({ id: choice.id, format, options, files: files.map((f) => f.name), ...(Object.keys(notes).length ? { notes } : {}) });
     }
     const manifest = {
       format: 'steward-export',
@@ -453,13 +535,27 @@ async function runExport(job: ExportJob, run: ExportRun): Promise<void> {
       // SHA-256 of each file's content (encrypted exports: before encryption)
       files: run.files.map((f) => ({ name: f.name, part: f.part, bytes: f.bytes, sha256: f.sha256 })),
     };
-    await upload('manifest', 'manifest.json', JSON.stringify(manifest, null, 2) + '\n');
+    const m = new WorkFile(dir, run.id, 'manifest.json');
+    work.push(m);
+    await m.write(JSON.stringify(manifest, null, 2) + '\n');
+    await upload('manifest', m);
     run.bytes = run.files.reduce((n, f) => n + f.bytes, 0);
-    if (skipped.length) run.message = `Not exported: ${skipped.map((s) => `${s.part} (${s.reason})`).join(', ')}`;
+    const cut = parts.filter((p) => p.notes?.truncated).map((p) => p.id);
+    const notes = [
+      ...(skipped.length ? [`Not exported: ${skipped.map((s) => `${s.part} (${s.reason})`).join(', ')}`] : []),
+      ...(cut.length ? [`Cut to the newest ${partLimits.auditEntries} entries: ${cut.join(', ')}`] : []),
+    ];
+    if (notes.length) run.message = notes.join('; ');
   } catch (e) {
     // a failed run leaves nothing behind: what it uploaded is removed again (best effort)
     for (const f of run.files.splice(0)) await c.delete(f.key).catch(() => undefined);
     throw e;
+  } finally {
+    for (const f of work) {
+      await f.discard();
+      fs.rmSync(f.path, { force: true });
+      fs.rmSync(`${f.path}.smbackup`, { force: true });
+    }
   }
 }
 

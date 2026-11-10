@@ -16,11 +16,13 @@ export const DEMO_S3 = { accessKeyId: 'AKIADEMOEXAMPLE', secretAccessKey: 'demoS
 interface Obj {
   body: Buffer;
   meta: Record<string, string>;
+  /** As uploaded */
+  contentType?: string;
   lastModified: Date;
 }
 
 const buckets = new Map<string, Map<string, Obj>>();
-const uploads = new Map<string, { bucket: string; key: string; meta: Record<string, string>; parts: Map<number, Buffer> }>();
+const uploads = new Map<string, { bucket: string; key: string; meta: Record<string, string>; contentType?: string; parts: Map<number, Buffer> }>();
 
 const bucket = (name: string) => {
   let b = buckets.get(name);
@@ -109,7 +111,7 @@ export async function mockS3(app: FastifyInstance): Promise<void> {
         }
         if (req.method === 'POST' && 'uploads' in q) {
           const id = crypto.randomBytes(12).toString('base64url');
-          uploads.set(id, { bucket: name, key, meta, parts: new Map() });
+          uploads.set(id, { bucket: name, key, meta, contentType: req.headers['content-type'], parts: new Map() });
           return reply.type('application/xml').send(
             // nosemgrep: javascript.express.security.injection.raw-html-format.raw-html-format -- XML of a dev/demo-only mock, every request value XML-escaped (numbers and fixed demo values aside); not HTML
             `<InitiateMultipartUploadResult><Bucket>${xmlEscape(name)}</Bucket><Key>${xmlEscape(key)}</Key><UploadId>${id}</UploadId></InitiateMultipartUploadResult>`,
@@ -131,14 +133,14 @@ export async function mockS3(app: FastifyInstance): Promise<void> {
             const numbers = [...xml.matchAll(/<PartNumber>(\d+)<\/PartNumber>/g)].map((x) => Number(x[1]));
             if (!numbers.length || numbers.some((n, i) => n !== i + 1 || !u.parts.has(n)))
               return error(reply, 400, 'InvalidPart', 'parts missing or out of order');
-            b.set(key, { body: Buffer.concat(numbers.map((n) => u.parts.get(n)!)), meta: u.meta, lastModified: new Date() });
+            b.set(key, { body: Buffer.concat(numbers.map((n) => u.parts.get(n)!)), meta: u.meta, contentType: u.contentType, lastModified: new Date() });
             uploads.delete(q.uploadId);
             // nosemgrep: javascript.express.security.injection.raw-html-format.raw-html-format -- XML of a dev/demo-only mock, every request value XML-escaped (numbers and fixed demo values aside); not HTML
             return reply.type('application/xml').send(`<CompleteMultipartUploadResult><Key>${xmlEscape(key)}</Key></CompleteMultipartUploadResult>`);
           }
         }
         if (req.method === 'PUT') {
-          b.set(key, { body, meta, lastModified: new Date() });
+          b.set(key, { body, meta, contentType: req.headers['content-type'], lastModified: new Date() });
           return reply.header('etag', etagOf(body)).send();
         }
         const o = b.get(key);

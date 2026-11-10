@@ -125,6 +125,56 @@ describe('the registry of exportable parts', () => {
   });
 });
 
+describe('the audit log part', () => {
+  /** Runs a part on its own and returns its files and notes. */
+  async function write(choice: Record<string, unknown>): Promise<{ files: Map<string, string>; notes: Record<string, unknown> }> {
+    const { exportPart } = await import('../src/export/parts.js');
+    const { runAs } = await import('../src/auth/context.js');
+    const { EXPORT_USER } = await import('../src/export/jobs.js');
+    const files = new Map<string, string>();
+    const notes: Record<string, unknown> = {};
+    let pauses = 0;
+    await runAs(EXPORT_USER, () =>
+      exportPart(String(choice.id))!.write(choice as never, {
+        now: new Date(Date.now() + 1000),
+        file: (name) => {
+          files.set(name, '');
+          return { write: async (text) => void files.set(name, files.get(name)! + text) };
+        },
+        pause: async () => void pauses++,
+        note: (x) => void Object.assign(notes, x),
+      }),
+    );
+    return { files, notes };
+  }
+
+  it('keeps the newest entries of the period when there are more than it may hold, and says so', async () => {
+    const { partLimits } = await import('../src/export/parts.js');
+    const { queryAudit } = await import('../src/audit.js');
+    const all = queryAudit({ from: new Date(Date.now() - 2 * 86_400_000).toISOString(), sort: { key: 'time', dir: 'asc' }, limit: 5000 });
+    expect(all.length).toBeGreaterThan(5);
+    const whole = await write({ id: 'auditLog', format: 'jsonl', days: 2 });
+    expect(whole.notes).toEqual({});
+    const before = partLimits.auditEntries;
+    partLimits.auditEntries = 3;
+    try {
+      const cut = await write({ id: 'auditLog', format: 'jsonl', days: 2 });
+      const seqs = cut.files
+        .get('audit-log.jsonl')!
+        .trim()
+        .split('\n')
+        .map((l) => JSON.parse(l).seq);
+      // the newest three, oldest first
+      expect(seqs).toEqual(all.slice(-3).map((e) => e.seq));
+      expect(cut.notes).toMatchObject({ truncated: true, entries: 3, firstEntryAt: all[all.length - 3]!.ts });
+      const csv = await write({ id: 'auditLog', format: 'csv', days: 2 });
+      expect(csv.files.get('audit-log.csv')!.split('\r\n').filter(Boolean)).toHaveLength(4);
+    } finally {
+      partLimits.auditEntries = before;
+    }
+  });
+});
+
 describe('defining an export', () => {
   it('is for administrators only, and asks for a step-up', async () => {
     expect((await refused(olivia, 'GET', '/exports')).status).toBe(403);
@@ -200,6 +250,10 @@ describe('an export run', () => {
       ].sort(),
     );
     const text = (name: string) => objs.get(`${r.folder}${name}`)!.body.toString('utf8');
+    // each file with its content type (S3 consoles, presigned downloads and data tools read it)
+    expect(objs.get(`${r.folder}services.csv`)!.contentType).toBe('text/csv; charset=utf-8');
+    expect(objs.get(`${r.folder}manifest.json`)!.contentType).toBe('application/json');
+    expect(objs.get(`${r.folder}monitors.yaml`)!.contentType).toBe('application/yaml');
     // the manifest names every other file with its size and SHA-256
     const manifest = JSON.parse(text('manifest.json'));
     expect(manifest).toMatchObject({ format: 'steward-export', v: 1, name: 'nightly-share', encrypted: false, skipped: [] });
@@ -261,6 +315,7 @@ describe('an export run', () => {
     const file = path.join(tmp, 'services.smbackup');
     fs.writeFileSync(file, objs.get(`${r.folder}services.csv.smbackup`)!.body);
     expect(objs.get(`${r.folder}services.csv.smbackup`)!.body.includes(Buffer.from('Invented Billing Service'))).toBe(false);
+    expect(objs.get(`${r.folder}services.csv.smbackup`)!.contentType).toBe('application/octet-stream');
     const { header } = await readHeader(file);
     expect(header.info).toMatchObject({ content: 'export', file: 'services.csv' });
     const key = await deriveBackupKey(PASSPHRASE, header.kdf);
