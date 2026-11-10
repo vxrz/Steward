@@ -419,11 +419,7 @@ export const MaintenanceListEntry = z.object({
 export const MaintenanceListQuery = z.object({
   from: ts().optional().describe('Start of the range (default: a day ago)'),
   to: ts().optional().describe('End of the range (default: 60 days ahead; at most 400 days after from)'),
-  target: z
-    .string()
-    .regex(MAINTENANCE_TARGET_RE)
-    .optional()
-    .describe('Only windows that list or reach this item: kind:id, e.g. service:svc_…'),
+  target: z.string().regex(MAINTENANCE_TARGET_RE).optional().describe('Only windows that list or reach this item: kind:id, e.g. service:svc_…'),
 });
 
 export const SERVICE_COMPONENTS: Record<string, ZodTypeAny> = {

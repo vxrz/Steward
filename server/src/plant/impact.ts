@@ -313,6 +313,8 @@ export function plantImpact(targets: { kind: MaintenanceTargetKind; id: string }
     });
   }
   const collByKey = new Map(colls.map((c) => [key2(c.assetId, c.v.id), c]));
+  const collsOf = new Map<string, typeof colls>();
+  for (const c of colls) (collsOf.get(c.assetId) ?? collsOf.set(c.assetId, []).get(c.assetId)!).push(c);
   // the data points each asset's affected collections map
   const points = new Map<string, Set<string>>();
   for (const [k, x] of affColls) {
@@ -360,8 +362,7 @@ export function plantImpact(targets: { kind: MaintenanceTargetKind; id: string }
     // coverage: KPIs the asset could have whose data only the affected collections collect (no job yet)
     if (!profile || !mine.size) continue;
     const others = new Set<string>();
-    for (const c of colls)
-      if (c.assetId === assetId && !affColls.has(key2(assetId, c.v.id))) for (const i of c.v.items) if (i.dataPoint) others.add(i.dataPoint);
+    for (const c of collsOf.get(assetId) ?? []) if (!affColls.has(key2(assetId, c.v.id))) for (const i of c.v.items) if (i.dataPoint) others.add(i.dataPoint);
     const all = new Set([...mine, ...others]);
     for (const def of kpis.values()) {
       if (a.kpis.some((k) => k.kpi === def.id)) continue;
