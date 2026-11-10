@@ -125,24 +125,29 @@ async function snapshotDatabase(dir: string): Promise<{ file: string; entry: str
   return { file, entry: 'database/steward.pgdump', kind: 'postgres', schema: target.schema, audit };
 }
 
+/** What the walk of the data folder leaves out: folders Steward rebuilds or that are not data, and the database files. */
+function skipper(exclude: readonly BackupOptionalPart[]): (rel: string, name: string, abs: string) => boolean {
+  const dbFile = config.database.kind === 'sqlite' ? path.resolve(config.database.file) : null;
+  // the map's tile cache is rebuilt from its source, and its PMTiles files are placed by whoever runs Steward (#234)
+  // .export-work: files of a scheduled export on their way to S3 (export/jobs.ts)
+  const skipTop = new Set(['backups', WORK_DIR, '.export-work', 'instance.json', 'cache', 'maps', ...exclude.map((p) => PART_FOLDER[p])]);
+  const dbFiles = dbFile ? [dbFile, `${dbFile}-wal`, `${dbFile}-shm`, `${dbFile}-journal`, `${dbFile}.lock`, `${dbFile}.lock.json`] : [];
+  // the database goes in as a snapshot; its instance lock (database/sqlite-lock.ts) belongs to the running process
+  return (rel, name, abs) => (!rel && skipTop.has(name)) || dbFiles.includes(path.resolve(abs));
+}
+
 /**
  * Files of the data folder that go into the backup (regular files only; links are not followed). `exclude`: optional
  * parts left out (contents.ts) – their top-level folders are skipped.
  */
 export function dataFiles(root = config.dataDir, exclude: readonly BackupOptionalPart[] = []): { rel: string; abs: string }[] {
-  const dbFile = config.database.kind === 'sqlite' ? path.resolve(config.database.file) : null;
-  // the map's tile cache is rebuilt from its source, and its PMTiles files are placed by whoever runs Steward (#234)
-  // .export-work: files of a scheduled export on their way to S3 (export/jobs.ts)
-  const skipTop = new Set(['backups', WORK_DIR, '.export-work', 'instance.json', 'cache', 'maps', ...exclude.map((p) => PART_FOLDER[p])]);
+  const skip = skipper(exclude);
   const out: { rel: string; abs: string }[] = [];
   const walk = (dir: string, rel: string) => {
     for (const d of fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => (a.name < b.name ? -1 : 1))) {
       const r = rel ? `${rel}/${d.name}` : d.name;
       const abs = path.join(dir, d.name);
-      if (!rel && skipTop.has(d.name)) continue;
-      // the database goes in as a snapshot; its instance lock (database/sqlite-lock.ts) belongs to the running process
-      if (dbFile && [dbFile, `${dbFile}-wal`, `${dbFile}-shm`, `${dbFile}-journal`, `${dbFile}.lock`, `${dbFile}.lock.json`].includes(path.resolve(abs)))
-        continue;
+      if (skip(rel, d.name, abs)) continue;
       if (d.isDirectory()) walk(abs, r);
       else if (d.isFile()) out.push({ rel: r, abs });
     }
@@ -151,23 +156,49 @@ export function dataFiles(root = config.dataDir, exclude: readonly BackupOptiona
   return out;
 }
 
-/** What the left-out parts hold now (files and bytes), for the manifest. */
-function excludedParts(exclude: readonly BackupOptionalPart[]): BackupExcludedPart[] {
-  return exclude.map((part) => {
-    const folder = path.join(config.dataDir, PART_FOLDER[part]);
-    let files = 0;
-    let bytes = 0;
-    if (fs.existsSync(folder))
-      for (const f of dataFiles(folder)) {
-        try {
-          bytes += fs.statSync(f.abs).size;
-          files++;
-        } catch {
-          // removed meanwhile
-        }
+/**
+ * The files of the data folder (as dataFiles) with their sizes – read without blocking: a large folder of run
+ * artifacts is walked in steps, and the server answers other requests in between (the contents page, the manifest's
+ * count of what a backup leaves out).
+ */
+export async function dataFileSizes(root = config.dataDir, exclude: readonly BackupOptionalPart[] = []): Promise<{ rel: string; size: number }[]> {
+  const skip = skipper(exclude);
+  const out: { rel: string; size: number }[] = [];
+  let seen = 0;
+  const walk = async (dir: string, rel: string): Promise<void> => {
+    let entries: fs.Dirent[];
+    try {
+      entries = await fs.promises.readdir(dir, { withFileTypes: true });
+    } catch {
+      return; // removed meanwhile
+    }
+    for (const d of entries.sort((a, b) => (a.name < b.name ? -1 : 1))) {
+      const r = rel ? `${rel}/${d.name}` : d.name;
+      const abs = path.join(dir, d.name);
+      if (skip(rel, d.name, abs)) continue;
+      if (d.isDirectory()) await walk(abs, r);
+      else if (d.isFile()) {
+        const size = await fs.promises.stat(abs).then(
+          (st) => st.size,
+          () => null, // removed meanwhile
+        );
+        if (size !== null) out.push({ rel: r, size });
       }
-    return { part, path: `${PART_FOLDER[part]}/`, files, bytes };
-  });
+      if (++seen % 500 === 0) await new Promise((resolve) => setImmediate(resolve));
+    }
+  };
+  await walk(root, '');
+  return out;
+}
+
+/** What the left-out parts hold now (files and bytes), for the manifest. */
+async function excludedParts(exclude: readonly BackupOptionalPart[]): Promise<BackupExcludedPart[]> {
+  const out: BackupExcludedPart[] = [];
+  for (const part of exclude) {
+    const files = await dataFileSizes(path.join(config.dataDir, PART_FOLDER[part]));
+    out.push({ part, path: `${PART_FOLDER[part]}/`, files: files.length, bytes: files.reduce((n, f) => n + f.size, 0) });
+  }
+  return out;
 }
 
 /** Builds the archive at `out` (must not exist). `exclude`: optional parts the backup settings leave out. */
@@ -197,7 +228,7 @@ export async function createArchive(out: string, o: { now?: Date; exclude?: read
       database: { kind: snap.kind, file: snap.entry, ...(snap.schema ? { schema: snap.schema } : {}) },
       files: files.map((f) => ({ path: f.path, size: f.size, sha256: f.sha256 })),
       audit: snap.audit,
-      ...(exclude.length ? { excluded: excludedParts(exclude) } : {}),
+      ...(exclude.length ? { excluded: await excludedParts(exclude) } : {}),
     };
     await zip.add(MANIFEST, Buffer.from(JSON.stringify(manifest, null, 2)));
     await zip.finish();

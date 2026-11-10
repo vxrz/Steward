@@ -24,7 +24,7 @@ import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { currentActor } from '../auth/context.js';
 import { listUsers } from '../auth/users.js';
 import { getPlatform, getSecrets } from '../platforms/service.js';
-import { createArchive, checkArchive, dataFiles, workDir } from './archive.js';
+import { createArchive, checkArchive, dataFileSizes, workDir } from './archive.js';
 import { checkExclude, contentsOf, excludedText } from './contents.js';
 import { BACKUP_PASSPHRASE_MIN, decryptFile, deriveBackupKey, encryptFile, keyIdOf, newKdf, readHeader, type KdfParams } from './crypto.js';
 import { retained } from './retention.js';
@@ -401,17 +401,8 @@ export function s3Client(platformId: string | null): S3Client {
 }
 
 /** The parts of a backup with their size now, and which ones the settings leave out. */
-export function backupContents(): BackupContents {
-  const files = dataFiles().map((f) => {
-    let size = 0;
-    try {
-      size = fs.statSync(f.abs).size;
-    } catch {
-      // removed meanwhile
-    }
-    return { rel: f.rel, size };
-  });
-  return { parts: contentsOf(files, backupSettings().exclude) };
+export async function backupContents(): Promise<BackupContents> {
+  return { parts: contentsOf(await dataFileSizes(), backupSettings().exclude) };
 }
 
 async function backup(run: BackupRun): Promise<void> {
