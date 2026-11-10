@@ -95,7 +95,7 @@ export function AiModelField({ field, value, onChange }: { field: LocalizedField
               </Text>
             ))
           ) : (
-            <Text size="xs" c="orange.8">
+            <Text size="xs" c="orange">
               {t('ai.modelUnknown')}
             </Text>
           )}

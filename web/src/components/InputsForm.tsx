@@ -134,7 +134,7 @@ function TableRowCount({ text, columns }: { text: string; columns?: string[] }) 
   if (!text.trim()) return null;
   const { rows, headerless } = readTableCsv(text, columns);
   return (
-    <Text size="xs" c={rows.length ? 'dimmed' : 'orange.8'} data-testid="table-input-rows" aria-live="polite">
+    <Text size="xs" c={rows.length ? 'dimmed' : 'orange'} data-testid="table-input-rows" aria-live="polite">
       {rows.length === 0
         ? t('inputs.noRows')
         : headerless

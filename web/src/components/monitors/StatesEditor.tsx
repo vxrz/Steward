@@ -481,7 +481,7 @@ export function StatesEditor({
           </Table>
         </Table.ScrollContainer>
       )}
-      <StatesLegend follower={follower} />
+      <StatesLegend follower={follower} open={current === null} />
       <Group>
         <Button
           size="xs"
@@ -575,33 +575,43 @@ export function StatesEditor({
   );
 }
 
-/** Under the table: what each group of a cell's choices does, where Off comes from, and what the columns mean. */
-function StatesLegend({ follower }: { follower: boolean }) {
+/**
+ * Under the table: what each group of a cell's choices does, where Off comes from, and what the columns mean – folded
+ * away once the monitor is saved (open for a new one).
+ */
+function StatesLegend({ follower, open }: { follower: boolean; open: boolean }) {
   const { t } = useTranslation('monitors');
   return (
-    <Stack gap={2} data-testid="states-legend">
-      {!follower && (
-        <Text size="xs" c="dimmed">
-          <b>{t('states.group.selects')}</b> – {t('states.legendSelects')}
+    <details open={open}>
+      <summary>
+        <Text component="span" size="xs">
+          {t('states.legendTitle')}
         </Text>
-      )}
-      <Text size="xs" c="dimmed">
-        <b>{t('states.group.expected')}</b> – {t('states.legendExpected')}
-      </Text>
-      {!follower && (
+      </summary>
+      <Stack gap={2} mt={4} data-testid="states-legend">
+        {!follower && (
+          <Text size="xs" c="dimmed">
+            <b>{t('states.group.selects')}</b> – {t('states.legendSelects')}
+          </Text>
+        )}
         <Text size="xs" c="dimmed">
-          <b>{t('states.group.precondition')}</b> – {t('states.legendRequired')}
+          <b>{t('states.group.expected')}</b> – {t('states.legendExpected')}
         </Text>
-      )}
-      <Text size="xs" c="dimmed">
-        <b>{t('states.choice.any')}</b> – {t('states.legendAny')}
-      </Text>
-      <Text size="xs" c="dimmed">
-        {t('states.legendOff')}
-      </Text>
-      <Text size="xs" c="dimmed">
-        <b>{t('states.onContradiction')}</b> – {t('states.legendContradiction')}
-      </Text>
-    </Stack>
+        {!follower && (
+          <Text size="xs" c="dimmed">
+            <b>{t('states.group.precondition')}</b> – {t('states.legendRequired')}
+          </Text>
+        )}
+        <Text size="xs" c="dimmed">
+          <b>{t('states.choice.any')}</b> – {t('states.legendAny')}
+        </Text>
+        <Text size="xs" c="dimmed">
+          {t('states.legendOff')}
+        </Text>
+        <Text size="xs" c="dimmed">
+          <b>{t('states.onContradiction')}</b> – {t('states.legendContradiction')}
+        </Text>
+      </Stack>
+    </details>
   );
 }

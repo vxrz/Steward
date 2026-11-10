@@ -81,7 +81,7 @@
     },
     "save": "Save owning teams",
     "bulk": {
-      "open": "Owning teams for the whole service…",
+      "open": "Owning teams for the whole service",
       "title": "Owning teams for the service and what belongs to it",
       "hint": "Covers the service, its applications, the documents and ticket references linked to them, and the credentials that belong to them. The preview shows who would gain or lose visibility; nothing is changed until you apply it.",
       "mode": {

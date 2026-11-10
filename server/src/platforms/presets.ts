@@ -95,7 +95,7 @@ export const PRESETS: PlatformPreset[] = [
     kind: 'industrial-edge-management',
     label: 'Siemens Industrial Edge Management (IEM)',
     description:
-      'On-premise / cloud Industrial Edge Management portal API. Authenticates with a user login and uses the returned token. Self-signed certificates are common – enable "accept self-signed certificates" or add the CA.',
+      'On-premises / cloud Industrial Edge Management portal API. Authenticates with a user login and uses the returned token. Self-signed certificates are common – enable "accept self-signed certificates" or add the CA.',
     baseUrl: 'https://iem.example.local',
     config: {
       auth: {
@@ -146,9 +146,9 @@ export const PRESETS: PlatformPreset[] = [
   },
   {
     kind: 'checkmk',
-    label: 'CheckMk (monitoring)',
+    label: 'Checkmk (monitoring)',
     description:
-      'CheckMk site (REST API 1.0, CheckMk 2.2+): monitors read the current state of hosts and services, processes read metric history for trend summaries. Base URL: https://<host>/<site>/check_mk/api/1.0. Create an automation user in CheckMk (Setup → Users, role "Guest user" or a read-only role is enough) and enter it with its secret, separated by a space, as the token: "automation MySecret" – it is sent as Authorization: Bearer <user> <secret>. Alerting on raw metrics stays in CheckMk. See docs/CHECKMK.md.',
+      'Checkmk site (REST API 1.0, Checkmk 2.2+): monitors read the current state of hosts and services, processes read metric history for trend summaries. Base URL: https://<host>/<site>/check_mk/api/1.0. Create an automation user in Checkmk (Setup → Users, role "Guest user" or a read-only role is enough) and enter it with its secret, separated by a space, as the token: "automation MySecret" – it is sent as Authorization: Bearer <user> <secret>. Alerting on raw metrics stays in Checkmk. See docs/CHECKMK.md.',
     baseUrl: 'https://checkmk.example.com/mysite/check_mk/api/1.0',
     config: {
       auth: { type: 'bearer' },
@@ -158,8 +158,8 @@ export const PRESETS: PlatformPreset[] = [
     },
     secretFields: [{ key: 'token', label: 'Automation user and secret', help: 'User name, a space, then the automation secret, e.g. "steward-reader 8f2…"' }],
     docs: [
-      { title: 'CheckMk REST API', url: 'https://docs.checkmk.com/latest/en/rest_api.html' },
-      { title: 'CheckMk automation users', url: 'https://docs.checkmk.com/latest/en/wato_user.html#automation' },
+      { title: 'Checkmk REST API', url: 'https://docs.checkmk.com/latest/en/rest_api.html' },
+      { title: 'Checkmk automation users', url: 'https://docs.checkmk.com/latest/en/wato_user.html#automation' },
     ],
   },
   {
@@ -494,7 +494,7 @@ export const PRESETS: PlatformPreset[] = [
     baseUrl: '',
     config: { auth: { type: 'none' }, variables: { url: 'mqtts://broker.example.com:8883' }, http: {} },
     secretFields: [
-      { key: 'username', label: 'Username' },
+      { key: 'username', label: 'User name' },
       { key: 'password', label: 'Password' },
       { key: 'certificate', label: 'Client certificate (PEM, optional)' },
       { key: 'privateKey', label: 'Client private key (PEM, optional)' },
@@ -768,7 +768,7 @@ export const PRESETS: PlatformPreset[] = [
     secretFields: [
       { key: 'token', label: 'Bearer token', auth: 'bearer' },
       { key: 'apiKey', label: 'API key', auth: 'apiKey' },
-      { key: 'username', label: 'Username', auth: 'basic' },
+      { key: 'username', label: 'User name', auth: 'basic' },
       { key: 'password', label: 'Password', auth: 'basic' },
       { key: 'clientId', label: 'OAuth client id' },
       { key: 'clientSecret', label: 'OAuth client secret' },

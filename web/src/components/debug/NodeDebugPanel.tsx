@@ -245,7 +245,7 @@ export function NodeDebugPanel({ process, node, saved, canRun }: { process: Proc
           onChange={(v) => setAnswers(v as DebugAnswers)}
           data={(['offline', 'recorded', 'live'] as const).map((a) => ({ value: a, label: t(`node.answer.${a}`), disabled: !!reasonOf(a) && a !== answers }))}
         />
-        <Text size="xs" c={reason ? 'orange.8' : 'dimmed'} data-testid="debug-answers-reason">
+        <Text size="xs" c={reason ? 'orange' : 'dimmed'} data-testid="debug-answers-reason">
           {reason ?? t(`node.answerHint.${answers}`)}
         </Text>
       </Stack>
@@ -351,7 +351,7 @@ function NodeResult({ result }: { result: DebugNodeResult }) {
           </Alert>
         )}
         {result.masked.length > 0 && (
-          <Text size="xs" c="orange.8">
+          <Text size="xs" c="orange">
             {t('node.masked', { names: result.masked.join(', ') })}
           </Text>
         )}

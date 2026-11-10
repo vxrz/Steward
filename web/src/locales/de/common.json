@@ -55,7 +55,7 @@
     "status": "Nur die Statusseiten der Services – keine anderen Seiten, Prozesse, Plattformen oder Daten",
     "plant": "Sieht nur das Werksregister (Standorte und Anlagen, sofern ein Standort nicht eingeschränkt ist) – keine anderen Seiten, Prozesse, Services oder Dokumente"
   },
-  "loading": "Wird geladen…",
+  "loading": "Wird geladen …",
   "severity": {
     "error": "Fehler",
     "warning": "Warnung",
@@ -243,7 +243,7 @@
     "copyOwners": "Verantwortliche und zuständige Teams kopieren",
     "copyAccessHint": "Wer Zugriff auf das Original hat, erhält denselben Zugriff auf die Kopie.",
     "accessNotCopied": "Die Zugriffseinstellungen werden nicht kopiert: Das darf nur, wer das Original verwalten darf. Die Kopie erhält Ihre Standard-Teams.",
-    "rules": "Geheimnisse, Verlauf, Läufe und Ergebnisse werden nicht kopiert; die Kopie erhält bei Bedarf neue Geheimnisse.",
+    "rules": "Geheimnisse, Verlauf, Ausführungen und Ergebnisse werden nicht kopiert; die Kopie erhält bei Bedarf neue Geheimnisse.",
     "startsDisabled": "Die Kopie ist zunächst deaktiviert.",
     "submit": "Kopie anlegen",
     "failed": "Nicht dupliziert",

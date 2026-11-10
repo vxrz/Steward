@@ -171,7 +171,7 @@
     "comment": "Comment",
     "commentLabel": "Comment (the author sees it)",
     "stepUp": "Applying it asks you to confirm it is you.",
-    "previewing": "Computing what it would change …",
+    "previewing": "Working out what it would change…",
     "problems": "It cannot be applied like this",
     "change": "Change {{seq}}",
     "stale": "Changed in Steward since",

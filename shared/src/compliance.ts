@@ -26,7 +26,7 @@ export const ACCESS_TYPE_KEY = 'AC';
  * packs: administrators may change labels and help texts, but not remove these keys.
  */
 export const ACCESS_CHANGE_FIELDS: RecordFieldDef[] = [
-  { key: 'platform', label: 'Platform', kind: 'text', required: true, help: 'Id of the Steward platform whose access changed' },
+  { key: 'platform', label: 'Platform', kind: 'text', required: true, help: 'ID of the Steward platform whose access changed' },
   { key: 'subjectId', label: 'Subject id', kind: 'text', required: true, help: 'User name, user id or technical user id on the platform' },
   { key: 'subjectName', label: 'Subject name', kind: 'text', help: 'Display name' },
   { key: 'subjectType', label: 'Subject type', kind: 'select', options: [...ACCESS_SUBJECT_TYPES] },

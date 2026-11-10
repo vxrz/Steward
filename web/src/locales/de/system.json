@@ -221,7 +221,7 @@
       "days_other": "{{count}} Tage",
       "forever": "unbegrenzt",
       "removed": "{{runs}} Ausführungen, {{notifications}} Benachrichtigungen entfernt",
-      "foreverHint": "Die Datenbank hat {{size}} und behält jeden Lauf. Unter Einstellungen → Datenaufbewahrung lassen sich Läufe begrenzen, z. B. auf 400 Tage (Standard neuer Installationen); Berichte werden mit ihrem Lauf gelöscht, das Audit-Log bleibt."
+      "foreverHint": "Die Datenbank hat {{size}} und behält jede Ausführung. Unter Einstellungen → Datenaufbewahrung lassen sich Ausführungen begrenzen, z. B. auf 400 Tage (Standard neuer Installationen); Berichte werden mit ihrer Ausführung gelöscht, das Audit-Log bleibt."
     },
     "scheduler": {
       "schedules": "Zeitpläne",
@@ -284,15 +284,15 @@
     },
     "jobs": {
       "title": "Hintergrundaufgaben",
-      "intro": "Regelmäßige Arbeit des Servers: Erinnerungen, Integrationen, Aufräumen und Prüfpunkte des Audit-Protokolls. Eine Aufgabe läuft nie zweimal gleichzeitig; ein Start, während sie noch läuft, wird übersprungen. Ihr Zustand bleibt über Neustarts erhalten.",
+      "intro": "Regelmäßige Arbeit des Servers: Erinnerungen, Integrationen, Aufräumen und Prüfpunkte des Audit-Logs. Eine Aufgabe läuft nie zweimal gleichzeitig; ein Start, während sie noch läuft, wird übersprungen. Ihr Zustand bleibt über Neustarts erhalten.",
       "stopped": "Die Hintergrundaufgaben laufen in diesem Prozess nicht.",
       "none": "Es sind keine Hintergrundaufgaben eingetragen.",
       "name": "Aufgabe",
       "every": "Läuft",
-      "lastRun": "Letzter Lauf",
+      "lastRun": "Letzte Ausführung",
       "duration": "Dauer",
       "result": "Ergebnis",
-      "nextRun": "Nächster Lauf",
+      "nextRun": "Nächste Ausführung",
       "everyHours_one": "stündlich",
       "everyHours_other": "alle {{count}} Stunden",
       "everyMinutes_one": "jede Minute",
@@ -306,7 +306,7 @@
         "failed": "Fehlgeschlagen",
         "timedOut": "Zeitlimit überschritten"
       },
-      "counts": "{{runs}} Läufe, {{failures}} fehlgeschlagen, {{skipped}} übersprungen",
+      "counts": "{{runs}} Ausführungen, {{failures}} fehlgeschlagen, {{skipped}} übersprungen",
       "runNow": "Jetzt ausführen",
       "runNowLabel": "Jetzt ausführen: {{name}}",
       "started": "{{name}} gestartet",
@@ -330,7 +330,7 @@
         "measure-reminders": "Maßnahmen aus Vorfallsanalysen: Erinnerungen",
         "pause-ends": "Pausierte Nachrichten: eine Nachricht, wenn eine Pause endet",
         "cleanup": "Aufräumen nach der Aufbewahrungsdauer (Ausführungen, Benachrichtigungen, Monitordaten)",
-        "audit-checkpoint": "Signierter Prüfpunkt des Audit-Protokolls",
+        "audit-checkpoint": "Signierter Prüfpunkt des Audit-Logs",
         "scheduler-heartbeat": "Markierung des Zeitplaners: spätere Termine gelten beim nächsten Start als verpasst",
         "git-sync": "Geplante Abrufe der Git-Synchronisierung",
         "start-approvals": "Startfreigaben privilegierter Ausführungen: Ausführungen abbrechen, die niemand binnen 24 Stunden freigegeben hat"

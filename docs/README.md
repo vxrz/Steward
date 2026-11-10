@@ -91,7 +91,7 @@ Every page of Steward's documentation, grouped by what you want to do. New here?
 | ------------------------------------------------ | ------------------------------------------------------------------------------------- |
 | [AWS.md](AWS.md)                                 | AWS accounts: tagged resources, costs, IAM access keys, DynamoDB checks, AWS calls    |
 | [CHANGEDETECTION.md](CHANGEDETECTION.md)         | changedetection.io for pages without an API: vendor changelogs, terms, status pages   |
-| [CHECKMK.md](CHECKMK.md)                         | Reading CheckMk states and metrics into monitors and datasets                         |
+| [CHECKMK.md](CHECKMK.md)                         | Reading Checkmk states and metrics into monitors and datasets                         |
 | [CONFLUENT.md](CONFLUENT.md)                     | Confluent Cloud: clusters, connectors, schemas, API keys, access reviews, costs       |
 | [DATABASES.md](DATABASES.md)                     | PostgreSQL, MariaDB/MySQL and SQL Server, read-only: queries, access reviews, schemas |
 | [DEPENDENCY-TRACK.md](DEPENDENCY-TRACK.md)       | Vulnerabilities and policy violations of an application's components                  |
@@ -108,7 +108,7 @@ Every page of Steward's documentation, grouped by what you want to do. New here?
 | [API.md](API.md)                                 | Steward's read-only REST API `/api/v1` for reports, BI tools and monitoring           |
 | [openapi.json](openapi.json)                     | The OpenAPI 3.1 description of `/api/v1` (generated)                                  |
 | [MCP.md](MCP.md)                                 | The MCP server for AI assistants, the platform gateway and approved writes            |
-| [SEMANTIC-MODEL.md](SEMANTIC-MODEL.md)           | Steward's data as an Apache Ossie semantic model for BI tools and catalogs            |
+| [SEMANTIC-MODEL.md](SEMANTIC-MODEL.md)           | Steward's data as an Apache Ossie semantic model for BI tools and catalogues          |
 | [EXTERNAL-DASHBOARDS.md](EXTERNAL-DASHBOARDS.md) | Steward's data in Streamlit and Grafana                                               |
 
 ## Security and compliance

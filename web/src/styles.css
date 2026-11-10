@@ -405,3 +405,9 @@ p .mantine-Anchor-root,
     display: none;
   }
 }
+
+/* A button in a row never shrinks below its label (a long text next to it wraps instead); a full-width button still
+   fills its line. Without this, cards in narrow dialogs squeezed "Use" to "U". */
+.mantine-Button-root:not([data-block]) {
+  flex-shrink: 0;
+}

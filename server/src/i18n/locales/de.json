@@ -34,8 +34,8 @@
     "subject": "{{severity}} · {{what}} – {{process}}",
     "subjectDryRun": "Probelauf – {{severity}} · {{what}} – {{process}}",
     "lead": {
-      "new": "Schlägt seit diesem Lauf fehl",
-      "every": "Im letzten Lauf fehlgeschlagen",
+      "new": "Schlägt seit dieser Ausführung fehl",
+      "every": "In der letzten Ausführung fehlgeschlagen",
       "better": "Besser geworden: {{from}} → {{to}} · schlägt fehl seit {{since}}",
       "worse": "Schlechter geworden: {{from}} → {{to}} · schlägt fehl seit {{since}}",
       "changed": "Geändert · schlägt fehl seit {{since}}",
@@ -372,7 +372,7 @@
   "reason": {
     "sourceOwner": "Sie erhalten dies als Besitzer des Elements „{{name}}“ ({{kind}}).",
     "processOwner": "Sie erhalten dies als Besitzer des Prozesses „{{process}}“.",
-    "actor": "Sie erhalten dies, weil Sie den Lauf gestartet haben.",
+    "actor": "Sie erhalten dies, weil Sie die Ausführung gestartet haben.",
     "channel": "An diesen Kanal gesendet, wie unter Einstellungen → Benachrichtigungen festgelegt."
   },
   "messageSettings": {
@@ -504,7 +504,7 @@
     "expires": "Verfällt",
     "platform": "Plattform",
     "change": "Änderung",
-    "startRun": "Einen Lauf von „{{process}}“ starten",
+    "startRun": "Eine Ausführung von „{{process}}“ starten",
     "assistantOf": "KI-Assistent von {{user}}",
     "followUpTitle": "Entschieden: {{title}}",
     "outcome": {
@@ -514,7 +514,7 @@
       "rejectedTeams": "Abgelehnt von {{user}} in Microsoft Teams am {{at}}.",
       "completed": "Entschieden von {{user}} am {{at}}.",
       "completedTeams": "Entschieden von {{user}} in Microsoft Teams am {{at}}.",
-      "cancelled": "Nicht mehr nötig: Der Lauf wurde am {{at}} abgebrochen.",
+      "cancelled": "Nicht mehr nötig: Die Ausführung wurde am {{at}} abgebrochen.",
       "expired": "Ohne Entscheidung verfallen am {{at}}.",
       "withdrawn": "Zurückgezogen von {{user}} am {{at}}.",
       "failed": "Freigegeben von {{user}} am {{at}}, aber die Ausführung ist fehlgeschlagen."
@@ -533,7 +533,7 @@
     "helpNotLinked": "Ich poste Entscheidungen aus Steward. Ihr Teams-Konto ist noch mit keinem Steward-Konto verknüpft – melden Sie sich einmal mit Single Sign-on bei Steward an.",
     "state": {
       "decided": "Entschieden.",
-      "cancelled": "Nicht mehr nötig: Der Lauf wurde abgebrochen.",
+      "cancelled": "Nicht mehr nötig: Die Ausführung wurde abgebrochen.",
       "expired": "Ohne Entscheidung verfallen."
     },
     "why": {

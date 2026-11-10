@@ -20,7 +20,7 @@
       }
     },
     "siemens-industrial-edge-management-iem": {
-      "description": "On-premise / cloud Industrial Edge Management portal API. Authenticates with a user login and uses the returned token. Self-signed certificates are common – enable \"accept self-signed certificates\" or add the CA.",
+      "description": "On-premises / cloud Industrial Edge Management portal API. Authenticates with a user login and uses the returned token. Self-signed certificates are common – enable \"accept self-signed certificates\" or add the CA.",
       "secrets": {
         "username": "IEM user (e-mail)",
         "password": "Password"
@@ -31,7 +31,7 @@
       "secrets": {
         "token": "Bearer token",
         "apiKey": "API key",
-        "username": "Username",
+        "username": "User name",
         "password": "Password",
         "clientId": "OAuth client id",
         "clientSecret": "OAuth client secret"
@@ -130,7 +130,7 @@
   },
   "empty": {
     "title": "No platforms yet",
-    "text": "A platform is one instance of a system you administer, for example your production Insights Hub tenant or an on-premise Industrial Edge Management. It stores the base URL, how to authenticate, encrypted credentials, API specifications (OpenAPI) and documentation. Processes then pick a platform for each connection when they run.",
+    "text": "A platform is one instance of a system you administer, for example your production Insights Hub tenant or an on-premises Industrial Edge Management. It stores the base URL, how to authenticate, encrypted credentials, API specifications (OpenAPI) and documentation. Processes then pick a platform for each connection when they run.",
     "addFirst": "Add your first platform",
     "adminsOnly": "Only administrators can add platforms."
   },
@@ -200,7 +200,7 @@
     "storedAs": "Stored as secret \"{{key}}\"",
     "credentialsHint": "Leave fields empty that you don't need. You can add or replace credentials later.",
     "authType": "Authentication",
-    "authTypeHint": "Chosen from the credentials you fill in (a token: bearer, username and password: basic). Credentials of another type are stored but not sent."
+    "authTypeHint": "Chosen from the credentials you fill in (a token: bearer, user name and password: basic). Credentials of another type are stored but not sent."
   },
   "detail": {
     "notFound": "Not found",
@@ -419,7 +419,7 @@
     "expiresInPath": "Expires-in path (seconds, optional)",
     "headerValue": "Header value",
     "insecureTls": "Accept self-signed certificates",
-    "insecureTlsHint": "Common for on-premise Industrial Edge Management. Prefer adding the CA certificate below.",
+    "insecureTlsHint": "Common for on-premises Industrial Edge Management. Prefer adding the CA certificate below.",
     "caPem": "Additional CA certificate (PEM)",
     "proxy": "Proxy",
     "proxyHint": "Empty = HTTPS_PROXY / NO_PROXY environment, 'none' = direct, or a URL",
@@ -442,7 +442,7 @@
     "bearerHeaderHint": "Default: Authorization: Bearer <token> (GitLab: PRIVATE-TOKEN: <token>). Another header name sends the token as it is; Authorization on GitLab is for OAuth tokens.",
     "authOptions": {
       "none": "None",
-      "basic": "Basic auth (username / password)",
+      "basic": "Basic auth (user name / password)",
       "bearer": "Static bearer token",
       "apiKey": "API key (header or query)",
       "oauth2_client_credentials": "OAuth2 client credentials",
@@ -671,7 +671,7 @@
     "createAndTest": "Create and test",
     "saveAndTest": "Save and test again",
     "secretsKept": "Credentials entered before are kept – fill in only the ones to change.",
-    "testing": "Testing the connection to “{{name}}” …",
+    "testing": "Testing the connection to “{{name}}”…",
     "changeSettings": "Change the settings",
     "testAgain": "Test again",
     "continue": "Continue",

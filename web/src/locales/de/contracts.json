@@ -120,7 +120,7 @@
     "lastTest": "Letzter Test",
     "withFindings": "Nur mit Befunden",
     "emptyTitle": "Noch keine Datenverträge",
-    "emptyText": "Beschreiben Sie, was eine Tabelle, ein Datensatz oder eine API-Antwort zusagt. Beginnen Sie mit einem Datenbankschema, einem Datensatz oder einer OpenAPI-Beschreibung – Steward entwirft den Vertrag.",
+    "emptyText": "Beschreiben Sie, was eine Tabelle, eine Datenquelle oder eine API-Antwort zusagt. Beginnen Sie mit einem Datenbankschema, einer Datenquelle oder einer OpenAPI-Beschreibung – Steward entwirft den Vertrag.",
     "whoCanAct": "Designer und Administratoren legen Datenverträge an.",
     "noMatch": "Kein Vertrag passt zu den Filtern.",
     "findingCount_one": "{{count}} Befund",
@@ -148,14 +148,14 @@
     "sources": {
       "blank": "Leer oder Datei",
       "table": "Datenbanktabellen",
-      "dataset": "Datensatz",
+      "dataset": "Datenquelle",
       "openapi": "OpenAPI-Antwort",
       "recording": "Aufgezeichnete Antwort"
     },
     "sourceHints": {
       "blank": "Ein leerer ODCS-v3-Vertrag oder eine eigene Vertragsdatei.",
       "table": "Die Tabellen und Spalten des neuesten Schema-Stands einer Datenbank-Plattform oder eines Systems.",
-      "dataset": "Die Spalten eines Datensatzes, mit aus seinen Zeilen geschätzten Typen.",
+      "dataset": "Die Spalten einer Datenquelle, mit aus ihren Zeilen geschätzten Typen.",
       "openapi": "Das Antwortschema einer Operation aus der OpenAPI-Beschreibung einer Plattform.",
       "recording": "Eine aufgezeichnete Antwort einer Plattform, mit aus ihren Werten geschätzten Typen."
     },
@@ -169,9 +169,9 @@
     "noSnapshot": "Noch kein Schema-Stand: Lesen oder importieren Sie zuerst das Schema.",
     "tables": "Tabellen",
     "tablesHint": "Jede Tabelle wird ein Schema-Objekt des Vertrags.",
-    "dataset": "Datensatz",
-    "chooseDataset": "Datensatz wählen",
-    "noDataset": "Kein Datensatz mit Daten",
+    "dataset": "Datenquelle",
+    "chooseDataset": "Datenquelle wählen",
+    "noDataset": "Keine Datenquelle mit Daten",
     "platform": "Plattform",
     "choosePlatform": "Plattform wählen, die Sie nutzen dürfen",
     "noPlatform": "Keine Plattform, die Sie nutzen dürfen",
@@ -277,9 +277,9 @@
     "fullReport": "Der vollständige Bericht (Geheimnisse maskiert)"
   },
   "links": {
-    "intro": "Was der Vertrag beschreibt und welche Datenbank-Plattform für seine Server antwortet. Ein Vertrag kann mehrere Tabellen oder Datensätze umfassen: Verknüpfen Sie jede mit ihrem Schema-Objekt.",
+    "intro": "Was der Vertrag beschreibt und welche Datenbank-Plattform für seine Server antwortet. Ein Vertrag kann mehrere Tabellen oder Datenquellen umfassen: Verknüpfen Sie jede mit ihrem Schema-Objekt.",
     "emptyTitle": "Noch keine Verknüpfungen",
-    "emptyText": "Verknüpfen Sie die Tabellen, Datensätze, Anwendungen und API-Spezifikationen, die der Vertrag beschreibt, und die Datenbank-Plattform seines Servers, damit er getestet werden kann.",
+    "emptyText": "Verknüpfen Sie die Tabellen, Datenquellen, Anwendungen und API-Spezifikationen, die der Vertrag beschreibt, und die Datenbank-Plattform seines Servers, damit er getestet werden kann.",
     "whoCanAct": "Designer des Vertragsteams fügen Verknüpfungen hinzu.",
     "add": "Verknüpfung hinzufügen",
     "save": "Verknüpfen",
@@ -295,7 +295,7 @@
     "kinds": {
       "application": "Anwendung",
       "system": "System",
-      "dataset": "Datensatz",
+      "dataset": "Datenquelle",
       "spec": "API-Spezifikation",
       "table": "Datenbanktabelle",
       "server": "Server"
@@ -303,7 +303,7 @@
     "kindHints": {
       "application": "Eine Anwendung, die die Daten liefert oder nutzt.",
       "system": "Ein System des Servicekatalogs, das die Daten hält.",
-      "dataset": "Ein Datensatz von Steward: Seine Spalten werden mit dem Vertrag verglichen.",
+      "dataset": "Eine Datenquelle von Steward: Ihre Spalten werden mit dem Vertrag verglichen.",
       "spec": "Eine OpenAPI-Spezifikation einer Plattform, wahlweise eine Operation.",
       "table": "Eine Tabelle einer Datenbank-Plattform oder eines Systems: Ihre Spalten im neuesten Schema-Stand werden mit dem Vertrag verglichen.",
       "server": "Die Datenbank-Plattform, die für einen Server des Vertrags antwortet: Tests erhalten ihren Host und ihre Zugangsdaten. Dafür brauchen Sie das Nutzungsrecht an ihr."
@@ -312,7 +312,7 @@
     "targets": {
       "application": "Anwendung",
       "system": "System",
-      "dataset": "Datensatz",
+      "dataset": "Datenquelle",
       "spec": "Spezifikation",
       "table": "Datenbank-Plattform oder System",
       "server": "Datenbank-Plattform"

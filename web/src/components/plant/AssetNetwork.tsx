@@ -300,27 +300,28 @@ export function AssetNetworkSection({ assetId }: { assetId: string }) {
                 </div>
                 {add(t('device.add'), { kind: 'device' }, 'add-device')}
               </Group>
-              {/* 0.16: several devices to another asset at once */}
+              {/* 0.16: several devices to another asset at once – the bar shows once some are selected */}
               {can && n.devices.length > 1 && (
                 <Group gap="xs" wrap="wrap" data-testid="asset-devices-selection">
                   <Text size="xs" c="dimmed" aria-live="polite">
-                    {tp('selectedDevices', { count: sel.ids.size })}
+                    {sel.ids.size > 0 && tp('selectedDevices', { count: sel.ids.size })}
                   </Text>
-                  <Button
-                    size="compact-xs"
-                    variant="default"
-                    leftSection={<IconArrowsMove size={12} />}
-                    disabled={!sel.ids.size}
-                    onClick={() =>
-                      setDialog({
-                        kind: 'move',
-                        items: n.devices.filter((d) => sel.has(d.id)).map((d) => ({ asset: assetId, id: d.id, name: d.hostname || d.id })),
-                      })
-                    }
-                    data-testid="asset-devices-move"
-                  >
-                    {tp('moveEntries.menu')}
-                  </Button>
+                  {sel.ids.size > 0 && (
+                    <Button
+                      size="compact-xs"
+                      variant="default"
+                      leftSection={<IconArrowsMove size={12} />}
+                      onClick={() =>
+                        setDialog({
+                          kind: 'move',
+                          items: n.devices.filter((d) => sel.has(d.id)).map((d) => ({ asset: assetId, id: d.id, name: d.hostname || d.id })),
+                        })
+                      }
+                      data-testid="asset-devices-move"
+                    >
+                      {tp('moveEntries.menu', { type: label('asset', false, true) })}
+                    </Button>
+                  )}
                 </Group>
               )}
               {n.devices.length === 0 ? (

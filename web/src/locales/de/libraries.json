@@ -1,7 +1,7 @@
 {
   "list": {
     "title": "Bibliotheken",
-    "description": "Signierte Sammlungen von Prozessen, Monitoren, Dokumenttypen und Dashboards von Herausgebern, denen Sie vertrauen. Sie prüfen eine ganze Version, bevor sie installiert wird; nichts installiert sich von selbst.",
+    "description": "Signierte Sammlungen von Prozessen, Monitoren, Dokumentarten und Dashboards von Herausgebern, denen Sie vertrauen. Sie prüfen eine ganze Version, bevor sie installiert wird; nichts installiert sich von selbst.",
     "noAccess": "Gestaltung und Administration prüfen und installieren Bibliotheken.",
     "upload": "Version hochladen (.zip)",
     "publishers": "Vertrauenswürdige Herausgeber",
@@ -53,7 +53,7 @@
     "process": "Prozess",
     "dashboard": "Dashboard",
     "monitor": "Monitor",
-    "recordType": "Dokumenttyp",
+    "recordType": "Dokumentart",
     "connector": "Connector-Typ"
   },
   "itemStatus": {

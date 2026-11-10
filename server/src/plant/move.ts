@@ -204,7 +204,7 @@ function plan(input: PlantMoveInput): Plan {
   for (const kind of ['device', 'data_path', 'collection'] as const) {
     const adding = entries.filter((e) => e.kind === kind).length;
     if (adding && countOf(kind, target.id) + adding > limits[kind])
-      problems.push({ code: 'PLANT_LIMIT', message: `At most ${limits[kind]} ${KIND_TEXT[kind]}s per asset`, kind });
+      problems.push({ code: 'PLANT_LIMIT', message: `At most ${limits[kind]} ${KIND_TEXT[kind]}s per asset`, kind, max: limits[kind] });
   }
   const result = {
     kind: input.kind,
@@ -320,13 +320,29 @@ export function previewMove(input: PlantMoveInput): Plan['result'] & { stepUp: b
   return { ...plan(input).result, stepUp: moveNeedsStepUp(input) };
 }
 
+/** The first problem of a move, as the route's answer. */
+function refuseMove(p: Plan['result']['problems'][number], kind: PlantMoveInput['kind']): never {
+  const params = { kind: p.kind ?? kind, id: p.id ?? '' };
+  switch (p.code) {
+    case 'PLANT_ID_FORMAT':
+      throw new HttpError(400, p.message, 'PLANT_ID_FORMAT', params);
+    case 'PLANT_ID_TAKEN':
+      throw new HttpError(409, p.message, 'PLANT_ID_TAKEN', params);
+    case 'PLANT_LIMIT':
+      throw new HttpError(409, p.message, 'PLANT_LIMIT', { ...params, max: p.max ?? null });
+    case 'PLANT_MOVE_PATH_SPLIT':
+      throw new HttpError(409, p.message, 'PLANT_MOVE_PATH_SPLIT', params);
+    default:
+      throw new HttpError(409, p.message, 'PLANT_MOVE_SAME_ASSET', params);
+  }
+}
+
 /** Applies a move (inside the caller's transaction or its own); refused with the first problem. */
 export function applyMove(input: PlantMoveInput): Omit<PlantMovePreview, 'changes' | 'fingerprint'> {
   return db().tx(() => {
     const p = plan(input);
     const first = p.result.problems[0];
-    if (first)
-      throw new HttpError(first.code === 'PLANT_ID_FORMAT' ? 400 : 409, first.message, first.code, { kind: first.kind ?? input.kind, id: first.id ?? '' });
+    if (first) refuseMove(first, input.kind);
     if (!p.result.entries.length) throw new HttpError(409, 'Nothing to move', 'PLANT_MOVE_NOTHING');
     const references = p.apply();
     return { ...p.result, references, stepUp: moveNeedsStepUp(input), applied: true };

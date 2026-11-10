@@ -1,6 +1,6 @@
 # AI models
 
-A process can ask an AI model a **predefined question** with context from earlier steps – CheckMk data, other platforms, Steward datasets – and use the answer in later steps, for example in a report, a check message or an e-mail and Teams notification. Every call is limited, logged and can be reported.
+A process can ask an AI model a **predefined question** with context from earlier steps – Checkmk data, other platforms, Steward datasets – and use the answer in later steps, for example in a report, a check message or an e-mail and Teams notification. Every call is limited, logged and can be reported.
 
 **The AI does not act on its own.** It answers; actions stay explicit process steps, and an answer can wait for a person's approval before it leaves Steward. There are no tool calls from the model to platforms and no chat. The other direction – an AI assistant using Steward – is the [MCP server](MCP.md).
 
@@ -119,7 +119,7 @@ A step that would send something else fails before anything is sent: `AI_DATA_NO
 
 Text an AI model wrote is **marked as AI-generated** where it leaves the run: a _report_ step whose title, text or rows carry an answer says _AI-generated (model)_ in the run, its report and the PDF; a check message (headline, items, message) that carries one gets the fact _AI-generated: written with … – check it before you rely on it_ in the in-app, e-mail, Teams and webhook messages (`data.aiGenerated` names the models). Steward recognises an answer by its text (12 characters or more, also strings inside a JSON answer). For an API call that posts an answer somewhere, add `{{ vars.<saveAs>.marking }}` to the body.
 
-**An optional approval before an AI-written message leaves Steward** is a user task of mode _approve_ with _four-eyes_ (the run's starter may not decide) right after the AI step – see the example _CheckMk – AI summary of the trends_. It uses the existing four-eyes approvals and the control point `run.decide` of the [assurance policy](ASSURANCE.md).
+**An optional approval before an AI-written message leaves Steward** is a user task of mode _approve_ with _four-eyes_ (the run's starter may not decide) right after the AI step – see the example _Checkmk – AI summary of the trends_. It uses the existing four-eyes approvals and the control point `run.decide` of the [assurance policy](ASSURANCE.md).
 
 ## Limits
 
@@ -146,7 +146,7 @@ Text an AI model wrote is **marked as AI-generated** where it leaves the run: a 
 
 ## Demo and tests
 
-The demo (`npm run demo` → _Load demo data_) has the platform _LLM gateway (demo)_: a simulated multi-format gateway (`server/src/mock/mockLlmGateway.ts`) at `/mock/llm` with one model per format – `demo-chat-small` (Chat Completions), `demo-responses-small` (Responses), `demo-messages-small` (Messages), `demo.converse-small-v1:0` (Converse) – and an API key in `x-api-key`. Its answers are made up from the question (JSON that matches the requested schema); no real model is asked. It may be sent the CheckMk demo platform's data and the datasets `checkmk.*`. The example process _CheckMk – AI summary of the trends_ (`examples/processes/95-checkmk-ai-summary.yaml`) uses it, the dashboard _AI usage_ shows the result.
+The demo (`npm run demo` → _Load demo data_) has the platform _LLM gateway (demo)_: a simulated multi-format gateway (`server/src/mock/mockLlmGateway.ts`) at `/mock/llm` with one model per format – `demo-chat-small` (Chat Completions), `demo-responses-small` (Responses), `demo-messages-small` (Messages), `demo.converse-small-v1:0` (Converse) – and an API key in `x-api-key`. Its answers are made up from the question (JSON that matches the requested schema); no real model is asked. It may be sent the Checkmk demo platform's data and the datasets `checkmk.*`. The example process _Checkmk – AI summary of the trends_ (`examples/processes/95-checkmk-ai-summary.yaml`) uses it, the dashboard _AI usage_ shows the result.
 
 `server/test/ai-formats.test.ts` covers the translation both ways and the usage fields per format, the estimate, secret removal, placeholders and JSON answers; `server/test/ai-step.test.ts` runs the step against the simulated gateway in every format – refusals before sending, budgets with the 80 % notice and period roll-over, the step-up for raising budgets, dry runs and test runs, marking, the usage page, the dataset and the report section; `e2e/ai.spec.ts` the set-up wizard, the step editor and the usage tab on a desktop and a phone.
 

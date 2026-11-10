@@ -248,7 +248,7 @@ export function ObjectiveFormModal({
                 error={v.error('platform')}
               />
               {source && !source.fetchUptimes && (
-                <Text size="xs" c="orange.8" data-testid="uptimes-off">
+                <Text size="xs" c="orange" data-testid="uptimes-off">
                   {t('form.uptimesOff')}
                 </Text>
               )}

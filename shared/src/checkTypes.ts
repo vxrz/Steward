@@ -97,9 +97,9 @@ const DEFS: Defs = {
     defaults: { platform: '', endpointKey: '' },
   },
   checkmk: {
-    label: 'CheckMk host or service',
-    help: 'Current state of a host or service in CheckMk (OK, WARN, CRIT, UNKNOWN)',
-    defaultName: 'CheckMk service',
+    label: 'Checkmk host or service',
+    help: 'Current state of a host or service in Checkmk (OK, WARN, CRIT, UNKNOWN)',
+    defaultName: 'Checkmk service',
     platform: 'kind',
     active: true,
     defaults: { platform: '', host: '' },

@@ -1,6 +1,6 @@
 # Semantic model (Apache Ossie)
 
-Steward describes its own data as a **semantic model** in the [Apache Ossie](https://github.com/apache/ossie) format. BI tools, data catalogs and AI agents can read it to learn which data Steward offers, what the fields mean, how the datasets are related and how key figures such as the run success rate are calculated – without guessing from raw JSON.
+Steward describes its own data as a **semantic model** in the [Apache Ossie](https://github.com/apache/ossie) format. BI tools, data catalogues and AI agents can read it to learn which data Steward offers, what the fields mean, how the datasets are related and how key figures such as the run success rate are calculated – without guessing from raw JSON.
 
 ## What Ossie is
 

@@ -54,13 +54,13 @@
       "label": "Fehlgeschlagene Prüfungen melden",
       "mode": {
         "change": "Bei Änderung (empfohlen)",
-        "every": "Nach jedem Lauf",
+        "every": "Nach jeder Ausführung",
         "off": "Nie"
       },
       "hint": {
         "change": "Wenn eine Prüfung fehlzuschlagen beginnt oder sich ihr Ergebnis ändert, und als Erinnerung, solange sie fehlschlägt.",
-        "every": "Jeder Lauf, in dem eine Prüfung fehlschlägt (per E-Mail, Teams und Webhook höchstens einmal pro Stunde).",
-        "off": "Fehlgeschlagene Prüfungen stehen nur in den Läufen. Fehlgeschlagene Läufe werden weiterhin gemeldet."
+        "every": "Jede Ausführung, in der eine Prüfung fehlschlägt (per E-Mail, Teams und Webhook höchstens einmal pro Stunde).",
+        "off": "Fehlgeschlagene Prüfungen stehen nur in den Ausführungen. Fehlgeschlagene Ausführungen werden weiterhin gemeldet."
       },
       "reminder": "Erinnerung, solange sie fehlschlägt",
       "reminderHint": "Stunden; 0 = keine Erinnerung",
@@ -87,7 +87,7 @@
         "webhook": "Webhook"
       },
       "urgent": "Dringend – unterbricht Ruhezeiten",
-      "urgentHint": "Fehlgeschlagene Läufe und Prüfungen mit Schweregrad Fehler erreichen Personen und Kanäle sofort, auch in ihrer Ruhezeit (außer sie haben das ausgeschaltet)."
+      "urgentHint": "Fehlgeschlagene Ausführungen und Prüfungen mit Schweregrad Fehler erreichen Personen und Kanäle sofort, auch in ihrer Ruhezeit (außer sie haben das ausgeschaltet)."
     }
   },
   "emptyState": {
@@ -107,7 +107,7 @@
     "reason": "Grund (am Hinweis und im Audit-Log sichtbar)",
     "inApp": "In der App trotzdem anzeigen",
     "inAppHint": "E-Mail, Teams und Webhooks bleiben in jedem Fall still.",
-    "note": "Läufe, Prüfungen, die Startseite und Zusammenfassungen sind nicht betroffen. Endet die Pause, während eine Prüfung noch fehlschlägt, sagt das eine Nachricht.",
+    "note": "Ausführungen, Prüfungen, die Startseite und Zusammenfassungen sind nicht betroffen. Endet die Pause, während eine Prüfung noch fehlschlägt, sagt das eine Nachricht.",
     "confirm": "Pausieren",
     "badgeUntil": "Nachrichten pausiert bis {{until}}",
     "badgeOpen": "Nachrichten pausiert",

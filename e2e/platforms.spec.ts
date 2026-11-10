@@ -198,8 +198,8 @@ test('credentials that authentication "none" does not send: the new dialog picks
   await page.goto(`/platforms/${p.id}`);
   const warning = page.getByTestId('platform-unsent-credentials');
   await expect(warning).toContainText('credentials are stored (username, password): they are not sent');
-  await warning.getByRole('button', { name: 'Switch to “Basic auth (username / password)”' }).click();
+  await warning.getByRole('button', { name: 'Switch to “Basic auth (user name / password)”' }).click();
   await expect(warning).toBeHidden();
-  await expect(page.getByRole('combobox', { name: 'Type' })).toHaveValue('Basic auth (username / password)');
+  await expect(page.getByRole('combobox', { name: 'Type' })).toHaveValue('Basic auth (user name / password)');
   await api.delete(`/api/platforms/${p.id}`);
 });

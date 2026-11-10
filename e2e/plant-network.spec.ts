@@ -58,7 +58,7 @@ test.describe('as a designer', () => {
     await page.getByTestId('add-vlan').click();
     const dialog = page.getByRole('dialog', { name: 'New VLAN' });
     await dialog.getByRole('textbox', { name: 'Name', exact: true }).fill('E2E test bench');
-    await dialog.getByRole('textbox', { name: 'Id', exact: true }).fill(id);
+    await dialog.getByRole('textbox', { name: 'ID', exact: true }).fill(id);
     await dialog.getByRole('textbox', { name: 'VLAN ID (VID)' }).fill('140');
     await dialog.getByTestId('add-subnet').click();
     await dialog.getByRole('textbox', { name: 'Subnet (CIDR)' }).fill('10.20.140.0/33');
@@ -114,7 +114,7 @@ test.describe('as a designer', () => {
     await section.getByTestId('add-device').click();
     const dialog = page.getByRole('dialog', { name: 'New device' });
     await dialog.getByRole('textbox', { name: 'Host name' }).fill('e2e-panel');
-    await dialog.getByRole('textbox', { name: 'Id', exact: true }).fill(id);
+    await dialog.getByRole('textbox', { name: 'ID', exact: true }).fill(id);
     await dialog.getByRole('textbox', { name: 'MAC (EUI-48)' }).fill('not a mac');
     await dialog.getByRole('button', { name: 'Save' }).click();
     await expect(dialog.getByText(/Use a MAC address/)).toBeVisible();

@@ -250,7 +250,7 @@ describe('prompts and answers', () => {
     expect(datasetAllowed('entra.guests', ['checkmk.*'])).toBe(false);
     expect(datasetAllowed('anything', ['*'])).toBe(true);
     expect(datasetAllowed('a.b', [])).toBe(false);
-    expect(datasetAllowed('CheckMk.Trends', ['checkmk.*'])).toBe(true);
+    expect(datasetAllowed('Checkmk.Trends', ['checkmk.*'])).toBe(true);
     expect(datasetAllowed('checkmk.trends.daily', ['*.trends.*'])).toBe(true);
     expect(datasetAllowed('checkmkxtrends', ['checkmk.trends'])).toBe(false);
     expect(datasetAllowed('a.b.c', ['a*c', 'x'])).toBe(true);

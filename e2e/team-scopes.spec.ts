@@ -83,7 +83,7 @@ test('a record has owning teams on its access tab; a whole service is moved with
     await expectAccessible(page, 'record access tab');
 
     await page.goto(`/services/${service.id}`);
-    await page.getByRole('button', { name: 'Owning teams for the whole service…' }).click();
+    await page.getByRole('button', { name: 'Owning teams for the whole service' }).click();
     const dialog = page.getByRole('dialog', { name: 'Owning teams for the service and what belongs to it' });
     await dialog.getByRole('combobox', { name: 'Teams' }).fill(teamName, { force: true });
     await page.getByRole('option', { name: teamName }).click();

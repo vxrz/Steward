@@ -92,7 +92,7 @@
       },
       "platform": {
         "label": "Platform",
-        "help": "Id of the Steward platform whose access changed"
+        "help": "ID of the Steward platform whose access changed"
       },
       "subjectId": {
         "label": "Subject id",

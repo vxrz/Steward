@@ -188,11 +188,11 @@
       "api": "Status-API von Gatus",
       "metrics": "Abgerufene Metriken"
     },
-    "cmkHost": "Hostname in CheckMk",
+    "cmkHost": "Hostname in Checkmk",
     "cmkService": "Service",
-    "cmkServiceHint": "Die Service-Bezeichnung genau wie in CheckMk, z. B. „Filesystem /var“. Leer: der Zustand des Hosts",
+    "cmkServiceHint": "Die Service-Bezeichnung genau wie in Checkmk, z. B. „Filesystem /var“. Leer: der Zustand des Hosts",
     "cmkMaxAge": "Unbekannt, wenn nicht geprüft seit (s)",
-    "cmkMaxAgeHint": "Optional: Der Zustand gilt als unbekannt, wenn CheckMk ihn so lange nicht geprüft hat",
+    "cmkMaxAgeHint": "Optional: Der Zustand gilt als unbekannt, wenn Checkmk ihn so lange nicht geprüft hat",
     "promQuery": "PromQL-Abfrage",
     "promQueryHint": "Eine Instant-Abfrage, z. B. 100 * (1 - node_filesystem_avail_bytes{mountpoint=\"/var\"} / node_filesystem_size_bytes{mountpoint=\"/var\"}). Bei mehreren Serien zählt die schlechteste",
     "promDirection": "Schlecht, wenn der Wert",
@@ -481,7 +481,7 @@
     "contractErrorAs": "Ein Befund vom Typ Fehler",
     "contractWarningAs": "Ein Test mit Warnungen",
     "contractWarningFindingAs": "Ein Befund vom Typ Warnung",
-    "contractTestHint": "Ein Test liest Daten: Er erhält mindestens eine Minute, unabhängig vom Zeitlimit oben (höchstens 300 s). Ein Testlauf des Monitors (aufgezeichnete Antworten) ruft den Dienst nicht auf – er bewertet den zuletzt gespeicherten Lauf."
+    "contractTestHint": "Ein Test liest Daten: Er erhält mindestens eine Minute, unabhängig vom Zeitlimit oben (höchstens 300 s). Ein Testlauf des Monitors (aufgezeichnete Antworten) ruft den Dienst nicht auf – er bewertet die zuletzt gespeicherte Ausführung."
   },
   "detail": {
     "template": "Vorlage",
@@ -616,7 +616,7 @@
     "onlyChecks": "Nur diese Prüfungen",
     "add": "Ausgabe hinzufügen",
     "manageOnly": "Nur der Eigentümer, Administratoren oder Benutzer mit dem Recht „Verwalten“ können Ausgaben ändern.",
-    "runMessages": "Nachrichten der gestarteten Läufe",
+    "runMessages": "Nachrichten der gestarteten Ausführungen",
     "format": "Format",
     "formatHint": "Teams-Karte: eine Adaptive Card je Statuswechsel, gepostet in einen Teams-Kanal",
     "formats": {
@@ -811,8 +811,8 @@
       "help": "Status eines von Gatus überwachten Endpunkts"
     },
     "checkmk": {
-      "label": "CheckMk-Host oder -Service",
-      "help": "Aktueller Zustand eines Hosts oder Services in CheckMk (OK, WARN, CRIT, UNKNOWN)"
+      "label": "Checkmk-Host oder -Service",
+      "help": "Aktueller Zustand eines Hosts oder Services in Checkmk (OK, WARN, CRIT, UNKNOWN)"
     },
     "prometheus": {
       "label": "Prometheus-Abfrage",
@@ -888,7 +888,7 @@
     },
     "data-contract": {
       "label": "Datenvertrag",
-      "help": "Ein ODCS-Datenvertrag: Sein Test über den Datenvertragsdienst besteht (Warnungen stufen herab), oder Stewards eigene Prüfungen – Eigentümer, letzter Test, Spalten verknüpfter Datensätze und Tabellen – finden nichts"
+      "help": "Ein ODCS-Datenvertrag: Sein Test über den Datenvertragsdienst besteht (Warnungen stufen herab), oder Stewards eigene Prüfungen – Eigentümer, letzter Test, Spalten verknüpfter Datenquellen und Tabellen – finden nichts"
     }
   },
   "newCheck": {
@@ -899,7 +899,7 @@
     "freshness": "Daten im Insights Hub",
     "heartbeat": "Vom Gateway gemeldete Daten",
     "gatus": "Gatus-Endpunkt",
-    "checkmk": "CheckMk-Service",
+    "checkmk": "Checkmk-Service",
     "prometheus": "Prometheus-Abfrage",
     "kubernetes": "Kubernetes-Deployments",
     "git": "Repository-Pipeline",
@@ -1009,7 +1009,7 @@
     "closest": "Nächster Zustand: {{state}}.",
     "deviates": "{{check}}: erwartet {{expected}}, ist {{actual}}",
     "cell": {
-      "up": "In Betrieb",
+      "up": "OK",
       "down": "Ausgefallen",
       "off": "Aus"
     },
@@ -1050,10 +1050,10 @@
     "cellLabel": "{{state}} – {{check}}",
     "choice": {
       "any": "Beliebig",
-      "up": "In Betrieb · erwartet",
+      "up": "OK · erwartet",
       "down": "Ausgefallen · erwartet",
       "off": "Aus · erwartet",
-      "when_up": "In Betrieb · wählt",
+      "when_up": "OK · wählt",
       "when_down": "Ausgefallen · wählt",
       "when_off": "Aus · wählt",
       "requires": "Vorausgesetzt"
@@ -1078,11 +1078,12 @@
       "precondition": "Voraussetzung"
     },
     "caption": "Entscheidungstabelle: eine Zeile je Zustand, eine Spalte je Prüfung",
+    "legendTitle": "So lesen Sie die Tabelle",
     "legendSelects": "die Bedingung: Die erste Zeile, deren Bedingung passt, gilt.",
-    "legendExpected": "wie die Prüfung ist, solange der Zustand gilt; weicht sie nach der Einschwingzeit ab, ist das ein Widerspruch.",
-    "legendRequired": "Vorausgesetzt: Die Prüfung muss in Betrieb sein, damit dem Zustand vertraut wird, sonst ist der Monitor sofort ausgefallen.",
+    "legendExpected": "wie die Prüfung sein soll, solange der Zustand gilt; weicht sie nach der Einschwingzeit noch ab, ist das ein Widerspruch.",
+    "legendRequired": "die Prüfung muss OK sein, damit dem Zustand vertraut wird; sonst ist der Monitor sofort ausgefallen.",
     "legendAny": "keine Regel für diese Prüfung.",
-    "legendOff": "Aus gibt es nur in Spalten von Unter-Monitoren (ein Unter-Monitor, der selbst aus ist); eine eigene Prüfung ist Ausgefallen, wenn ihr Gerät aus ist. Ob ein Zustand grau Aus zeigt, legt die Spalte Zeigt fest.",
+    "legendOff": "Aus gibt es nur in Spalten von Unter-Monitoren (ein Unter-Monitor, der selbst aus ist); eine eigene Prüfung ist Ausgefallen, wenn ihr Gerät aus ist. Ob ein Zustand grau als Aus erscheint, legt die Spalte „Zeigt“ fest.",
     "onContradiction": "Bei Widerspruch",
     "contradictionOf": "{{state}} bei Widerspruch",
     "contradictionDown": "Ausgefallen (Standard)",

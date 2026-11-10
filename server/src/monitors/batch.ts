@@ -253,7 +253,7 @@ export const gatusFetch = new SharedFetch<GatusPlan, Map<string, GatusEndpoint>>
   fetchGatus,
 );
 
-// ---------- CheckMk ----------
+// ---------- Checkmk ----------
 
 export interface CheckmkPlan {
   owner: string;
@@ -281,7 +281,7 @@ export const checkmkServiceKey = (host: string, service: string) => `${host}\u00
 
 const CMK_COLUMNS = ['state', 'plugin_output', 'last_check', 'has_been_checked', 'scheduled_downtime_depth', 'acknowledged'];
 
-/** Livestatus filter: one of these values (CheckMk REST API `query`). */
+/** Livestatus filter: one of these values (Checkmk REST API `query`). */
 const anyOf = (column: string, values: string[]) =>
   values.length === 1 ? { op: '=', left: column, right: values[0] } : { op: 'or', expr: values.map((v) => ({ op: '=', left: column, right: v })) };
 
@@ -303,7 +303,7 @@ const rowsOf = (body: unknown): Record<string, unknown>[] =>
     : [];
 
 /**
- * At most two calls per CheckMk site and cycle (REST API 1.0, CheckMk 2.2+):
+ * At most two calls per Checkmk site and cycle (REST API 1.0, Checkmk 2.2+):
  * `GET /domain-types/host/collections/all` for the host states and `GET /domain-types/service/collections/all` for the
  * services of the hosts asked for, both filtered with a Livestatus query.
  */
@@ -317,7 +317,7 @@ async function fetchCheckmk(source: string, plan: CheckmkPlan): Promise<CheckmkD
       { method: 'GET', url: path, query: { query: anyOf(column, values), columns: [...extra, ...CMK_COLUMNS] }, headers: { accept: 'application/json' } },
       AbortSignal.timeout(30000),
     );
-    if (!r.ok) throw new SourceError(`CheckMk answered HTTP ${r.status}${r.status === 401 ? ' (check the automation user and its secret)' : ''}`, r.status);
+    if (!r.ok) throw new SourceError(`Checkmk answered HTTP ${r.status}${r.status === 401 ? ' (check the automation user and its secret)' : ''}`, r.status);
     return rowsOf(r.body);
   };
   if (plan.hosts.length)

@@ -89,7 +89,8 @@ export interface PlantMovePreview {
   unlinked: { asset: string; id: string; name: string; dataPath: string }[];
   /** What follows besides the entries (maintenance windows, links, history …), counted */
   references: PlantReferenceCount[];
-  problems: { code: string; message: string; kind?: PlantMovedKind; asset?: string; id?: string }[];
+  /** `max`: the limit a PLANT_LIMIT problem is about */
+  problems: { code: string; message: string; kind?: PlantMovedKind; asset?: string; id?: string; max?: number }[];
   ok: boolean;
   /** Applying it asks for a step-up */
   stepUp: boolean;

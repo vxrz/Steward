@@ -775,7 +775,7 @@ function VersionWatchModal({ onClose }: { onClose: () => void }) {
                         onChange={(e) => toggle(src, e.currentTarget.checked)}
                       />
                       {info && info.lookups > 0 && (
-                        <Text size="xs" c={info.failed ? 'orange.8' : 'dimmed'}>
+                        <Text size="xs" c={info.failed ? 'orange' : 'dimmed'}>
                           {t('versions.lookups', { count: info.lookups, failed: info.failed })}
                         </Text>
                       )}

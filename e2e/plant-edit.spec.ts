@@ -115,7 +115,7 @@ test.describe('as a designer', () => {
       await expect(pick).toBeHidden();
       const form = page.getByRole('dialog', { name: 'New device' });
       await form.getByRole('textbox', { name: 'Host name' }).fill('cell-hmi-99');
-      await form.getByRole('textbox', { name: 'Id', exact: true }).fill('hmi-99');
+      await form.getByRole('textbox', { name: 'ID', exact: true }).fill('hmi-99');
       await form.getByRole('textbox', { name: 'Address', exact: true }).fill('10.50.110.99');
       await form.getByRole('button', { name: 'Save' }).click();
       await expect(form).toBeHidden();

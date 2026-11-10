@@ -111,7 +111,7 @@ test('"New process" asks first and saves nothing until confirmed (U7, U16)', asy
   await page.getByRole('button', { name: 'New process' }).click();
   const name = uniq('E2E restore test');
   await dialog.getByRole('textbox', { name: /^Name/ }).fill(name);
-  const id = dialog.getByRole('textbox', { name: /^Id/ });
+  const id = dialog.getByRole('textbox', { name: /^ID/ });
   await expect(id).toHaveValue(name.toLowerCase().replace(/[^a-z0-9]+/g, '-'));
   await id.fill('Not valid!');
   await create.click();
@@ -136,7 +136,7 @@ test('"New process" asks first and saves nothing until confirmed (U7, U16)', asy
   await page.goto('/processes');
   await page.getByRole('button', { name: 'New process' }).click();
   await dialog.getByRole('textbox', { name: /^Name/ }).fill(uniq('E2E other'));
-  await dialog.getByRole('textbox', { name: /^Id/ }).fill(chosen);
+  await dialog.getByRole('textbox', { name: /^ID/ }).fill(chosen);
   await create.click();
   await expect(dialog.getByText(new RegExp(`A process with the id “${chosen}” exists already`))).toBeVisible();
   await dialog.getByRole('button', { name: 'Cancel' }).click();

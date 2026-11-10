@@ -68,7 +68,7 @@
   "verifyFull": "Vollständig prüfen",
   "archive": {
     "title": "Epochen, Archive und Aufbewahrung",
-    "hint": "Jeder signierte Checkpoint schließt eine Epoche ab. „Kette prüfen“ prüft die Einträge nach dem neuesten Checkpoint; die vollständige Prüfung prüft jeden Eintrag in der Datenbank (im Hintergrund, alle paar Tage auch von selbst). Ist ein Monat mit Checkpoints vorbei, können seine Epochen als signierte Datei, die sich offline prüfen lässt, in den Datenordner archiviert und – mit einer Aufbewahrungsfrist – aus der Datenbank gelöscht werden. Einträge, auf die Datensätze, Zugriffsprüfungen, Berichte und Laufprotokolle angewiesen sind, bleiben.",
+    "hint": "Jeder signierte Checkpoint schließt eine Epoche ab. „Kette prüfen“ prüft die Einträge nach dem neuesten Checkpoint; die vollständige Prüfung prüft jeden Eintrag in der Datenbank (im Hintergrund, alle paar Tage auch von selbst). Ist ein Monat mit Checkpoints vorbei, können seine Epochen als signierte Datei, die sich offline prüfen lässt, in den Datenordner archiviert und – mit einer Aufbewahrungsfrist – aus der Datenbank gelöscht werden. Einträge, auf die Datenquellen, Zugriffsprüfungen, Berichte und Ausführungsprotokolle angewiesen sind, bleiben.",
     "epochs": "Epochen: {{closed}} abgeschlossen, {{archived}} archiviert",
     "latest": "neuester Checkpoint bei Eintrag #{{seq}}, {{date}}",
     "archivedThrough": "Archiviert bis Eintrag #{{seq}} ({{date}})",

@@ -96,7 +96,7 @@ const CheckNode = memo(function CheckNode({ data, selected }: NodeProps<CheckRfN
         </Tooltip>
       )}
       {settling && (
-        <Text size="xs" fw={700} c="orange.8" data-testid="check-settling">
+        <Text size="xs" fw={700} c="orange" data-testid="check-settling">
           {t('states.settlingCard')}
         </Text>
       )}

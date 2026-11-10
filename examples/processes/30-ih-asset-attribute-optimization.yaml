@@ -1,4 +1,4 @@
-name: "Insights Hub – Asset attribute optimization check"
+name: "Insights Hub – Asset attribute optimisation check"
 description: |
   Looks for optimization potential in asset attribute consumption (the
   Insights Hub billing unit: static variables of the asset type plus the
