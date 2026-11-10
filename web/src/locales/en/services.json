@@ -5,6 +5,8 @@
   "newTitle": "New service",
   "editTitle": "Edit {{name}}",
   "showArchived": "Show archived services",
+  "searchPlaceholder": "Name, contact, CMDB ID or tag",
+  "noMatch": "No service matches the filters.",
   "name": "Name",
   "descriptionLabel": "Description",
   "descriptionHelp": "Markdown",

@@ -72,6 +72,10 @@
       "status": {
         "label": "Monitor status",
         "info": "A monitor you own or subscribed to changed its status (root causes only)"
+      },
+      "state": {
+        "label": "Monitor state",
+        "info": "A monitor with states changed its state, e.g. Running → Off (information, when its notification output asks for it)"
       }
     },
     "credential": {
@@ -197,6 +201,16 @@
         "label": "Data contract test failed",
         "info": "A test of a data contract your team owns failed (the owning team’s members and channel)"
       }
+    },
+    "plant": {
+      "change_proposed": {
+        "label": "Plant change to review",
+        "info": "Someone proposed a change to the plant registry that you may apply (never the author)"
+      },
+      "change_decided": {
+        "label": "Plant change decided",
+        "info": "A plant change you wrote was applied, rejected, returned to you or expired (with the reviewer’s comment)"
+      }
     }
   },
   "quiet": {
@@ -231,10 +245,10 @@
       "costs": "Budgets and costs"
     },
     "groupHints": {
-      "decisions": "Decision steps, AI requests, skipped duties. A run waits: at most hourly.",
+      "decisions": "Decision steps, AI requests, skipped duties, plant changes to review. A run waits: at most hourly.",
       "runs": "Failed runs and checks, skipped schedules, stale data, backups, data contracts.",
       "monitors": "Monitor status, platform connection tests, objectives, maintenance.",
-      "reminders": "Credentials, document reviews, tickets, duties, measures, access changes.",
+      "reminders": "Credentials, document reviews, tickets, duties, measures, access changes, decided plant changes.",
       "reports": "Scheduled reports, end of life and new releases.",
       "costs": "AI token budgets and cost budgets."
     },

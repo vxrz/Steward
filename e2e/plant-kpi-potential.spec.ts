@@ -1,6 +1,6 @@
 import type { APIRequestContext } from '@playwright/test';
-import { test, expect } from './support/fixtures';
-import { authFile } from './support/env';
+import { expect } from './support/fixtures';
+import { designerTest as test } from './support/ownUser';
 import { expectAccessible } from './support/axe';
 import { expectNoHorizontalScroll } from './support/helpers';
 
@@ -23,6 +23,9 @@ const ok = async (p: Promise<{ ok(): boolean; text(): Promise<string> }>) => {
 
 /** Meter A100 and Meter A300 (ids unique per test), an asset of each, the A300 asset's energy collected by an ETL job. */
 async function meters(api: APIRequestContext, tag: string) {
+  // a site of its own: the demo sites' figures stay as other specs expect them
+  const site = `e2e-site-${tag}`;
+  await ok(api.post('/api/plant/sites', { data: { id: site, name: `E2E works ${tag}` } }));
   const a100 = `e2e-a100-${tag}`;
   const a300 = `e2e-a300-${tag}`;
   const point = (id: string, name: string, unit: string, address: string, aliases: string[] = []) => ({ id, name, unit, dataType: 'Float', address, aliases });
@@ -78,7 +81,7 @@ async function meters(api: APIRequestContext, tag: string) {
   );
   const assets = [`e2e-meter-1-${tag}`, `e2e-meter-2-${tag}`, `e2e-meter-3-${tag}`];
   for (const [i, id] of assets.entries()) {
-    await ok(api.post('/api/plant/assets', { data: { id, siteId: 'riverside', name: `E2E meter ${i + 1} ${tag}` } }));
+    await ok(api.post('/api/plant/assets', { data: { id, siteId: site, name: `E2E meter ${i + 1} ${tag}` } }));
     const [profileId, iface] = i === 0 ? [a100, 'modbus'] : [a300, 'mb'];
     await ok(api.put(`/api/plant/assets/${id}/assignment`, { data: { profileId, interfaces: [{ interface: iface, active: true }] } }));
   }
@@ -96,23 +99,28 @@ async function meters(api: APIRequestContext, tag: string) {
       },
     }),
   );
-  return { a100, a300, assets };
+  return { site, a100, a300, assets };
 }
 
-async function cleanup(api: APIRequestContext, f: { a100: string; a300: string; assets: string[] }, more: { kpis?: string[]; profiles?: string[] } = {}) {
+async function cleanup(
+  api: APIRequestContext,
+  f: { site: string; a100: string; a300: string; assets: string[] },
+  more: { kpis?: string[]; profiles?: string[] } = {},
+) {
   for (const k of more.kpis ?? []) await api.delete(`/api/plant/kpis/${k}`);
   for (const a of f.assets) await api.delete(`/api/plant/assets/${a}`);
   await api.delete(`/api/plant/profiles/${f.a100}`);
   await api.delete(`/api/plant/profiles/${f.a300}`);
   for (const p of more.profiles ?? []) await api.delete(`/api/plant/profiles/${p}`);
+  await api.delete(`/api/plant/sites/${f.site}`);
 }
 
 test.describe('as a designer', () => {
-  test.use({ storageState: authFile('dana') });
+  // a designer of its own (support/ownUser.ts): these tests load many pages and would share a demo user's request
+  // budget with every spec running at the same time (the rate limit counts per user)
   test.beforeEach(async ({ apiAs }) => plantOn(await apiAs('admin')));
 
-  test('extract a base profile from two meters: matches, preview, one step; the assets keep their data points', async ({ page, apiAs }) => {
-    const api = await apiAs('dana');
+  test('extract a base profile from two meters: matches, preview, one step; the assets keep their data points', async ({ page, designerApi: api }) => {
     const tag = `x${Date.now()}`;
     const f = await meters(api, tag);
     const before = await (await api.get(`/api/plant/assets/${f.assets[1]}/assignment`)).json();
@@ -151,8 +159,7 @@ test.describe('as a designer', () => {
     await cleanup(api, f, { profiles: [page.url().split('/').pop()!] });
   });
 
-  test('a template: its badge and filter; a profile assets have does not become one', async ({ page, apiAs }) => {
-    const api = await apiAs('dana');
+  test('a template: its badge and filter; a profile assets have does not become one', async ({ page, designerApi: api }) => {
     const tag = `t${Date.now()}`;
     const f = await meters(api, tag);
     const template = `e2e-template-${tag}`;
@@ -180,8 +187,7 @@ test.describe('as a designer', () => {
     await cleanup(api, f, { profiles: [template] });
   });
 
-  test('KPI potential: collected – ready, or the device delivers and a collection is missing; a unit that differs', async ({ page, apiAs }) => {
-    const api = await apiAs('dana');
+  test('KPI potential: collected – ready, or the device delivers and a collection is missing; a unit that differs', async ({ page, designerApi: api }) => {
     const tag = `p${Date.now()}`;
     const f = await meters(api, tag);
     const kpi = `e2e-energy-${tag}`;

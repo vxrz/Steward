@@ -11,7 +11,10 @@
     "checks_one": "{{count}} check",
     "checks_other": "{{count}} checks",
     "uptimeSince": "Uptime 24 h {{uptime}} · since {{since}}",
-    "acknowledgedBy": "acknowledged by {{user}}"
+    "acknowledgedBy": "acknowledged by {{user}}",
+    "hideOff": "Hide off",
+    "offAgree": "{{state}} – all checks agree",
+    "offSettling": "{{state}} · settling {{minutes}} min"
   },
   "title": "Monitors",
   "description": "Composable health checks with dependencies: every check runs on its own schedule; links explain failures (root causes) and keep follow-up alerts quiet.",
@@ -126,6 +129,9 @@
     "downAfterMissed": "Down after missed",
     "downOlderThan": "Down when older than (s)",
     "degradedOlderThan": "Degraded when older than (s)",
+    "allowedDelay": "Allowed delay (s)",
+    "allowedDelayHintCadence": "How much later than its timestamp the data may arrive (gateway upload cycle, ingestion): missed intervals are counted from the age minus this. Default 0.",
+    "allowedDelayHintMaxAge": "How much later than its timestamp the data may arrive (gateway upload cycle, ingestion): down only when older than the maximum age plus this. Default 0.",
     "optional": "optional",
     "checkId": "Check id",
     "checkIdHint": "Letters, digits, _ and -; used in links, item keys and the API",
@@ -610,7 +616,16 @@
     "teamsChannel": "Teams channel",
     "teamsChannelHint": "A platform of kind \"Microsoft Teams channel (Workflows)\": it keeps the Workflows URL encrypted, and its access list decides who may post there",
     "urgent": "Urgent – interrupts quiet hours",
-    "urgentHint": "A change to down reaches people and channels at once, also during their quiet hours (unless they turned that off)."
+    "urgentHint": "A change to down reaches people and channels at once, also during their quiet hours (unless they turned that off).",
+    "stateChanges": "Tell state changes",
+    "stateChangesHint": "Monitors with states: also a message for information when the state changes, e.g. Running → Off (never urgent)",
+    "whileOff": "While off",
+    "whileOffHint": "What Gatus gets while the monitor is off; a contradiction and Off beyond the maximum are always failures",
+    "whileOffValues": {
+      "success": "While off: success",
+      "failure": "While off: failure",
+      "skip": "While off: send nothing"
+    }
   },
   "heartbeat": {
     "endpoint": "Heartbeat endpoint",
@@ -637,6 +652,7 @@
     "description": "Add checks from the palette and connect them: drag from the lower handle of a check to the check that depends on it.",
     "tabs": {
       "graph": "Checks and links",
+      "states": "States",
       "settings": "Settings"
     },
     "palette": "Check palette",
@@ -734,7 +750,8 @@
     "down": "Down",
     "unknown": "Unknown",
     "blocked": "Blocked",
-    "maintenance": "Maintenance"
+    "maintenance": "Maintenance",
+    "off": "Off"
   },
   "statusLower": {
     "up": "up",
@@ -742,7 +759,8 @@
     "down": "down",
     "unknown": "unknown",
     "blocked": "blocked",
-    "maintenance": "maintenance"
+    "maintenance": "maintenance",
+    "off": "off"
   },
   "statusInfo": {
     "up": "Healthy",
@@ -750,7 +768,8 @@
     "down": "Failing",
     "unknown": "No data yet, or the check itself could not run",
     "blocked": "Not evaluated because a hard dependency is down",
-    "maintenance": "In a maintenance window – alerts are silenced"
+    "maintenance": "In a maintenance window – alerts are silenced",
+    "off": "Off – all checks agree with an expected state (no alert)"
   },
   "checkTypes": {
     "ping": {
@@ -914,5 +933,130 @@
     "message": "Message",
     "skipped": "skipped",
     "notRecorded": "no recording"
+  },
+  "observed": {
+    "title": "Peak age before new data ({{days}} days)",
+    "figures_one": "median {{median}}, 95 % {{p95}}, max {{max}} · delay {{delay}} · {{count}} sample · checked every {{every}}",
+    "figures_other": "median {{median}}, 95 % {{p95}}, max {{max}} · delay {{delay}} · {{count}} samples · checked every {{every}}",
+    "none": "No sample yet: one is taken when a read sees a newer value than the read before (checked every {{every}}).",
+    "worstVariable": "Figures and suggestion of the variable that gets oldest: {{name}}",
+    "excluded": "Not used: {{list}}",
+    "failedReads_one": "{{count}} failed read",
+    "failedReads_other": "{{count}} failed reads",
+    "wentBackwards_one": "{{count}} read that went backwards",
+    "wentBackwards_other": "{{count}} reads that went backwards",
+    "futureTimestamps_one": "{{count}} timestamp in the future (clock skew)",
+    "futureTimestamps_other": "{{count}} timestamps in the future (clock skew)",
+    "maintenance_one": "{{count}} sample during maintenance",
+    "maintenance_other": "{{count}} samples during maintenance",
+    "notEnough_one": "A suggestion needs {{hours}} hours and {{samples}} samples – so far {{coverage}} and {{count}} sample.",
+    "notEnough_other": "A suggestion needs {{hours}} hours and {{samples}} samples – so far {{coverage}} and {{count}} samples.",
+    "note": "Upper bounds: a figure can be up to one check interval too high, so use a short interval while measuring. Differences of the device clock are part of the figures (only a clock that is ahead can be detected).",
+    "suggestion": "Suggested from the 95 % peak age of {{p95}}, rounded up to the minute, plus one check interval ({{margin}}):",
+    "field": {
+      "allowedDelaySeconds": "Allowed delay",
+      "maxAgeSeconds": "Down when older than",
+      "degradedAgeSeconds": "Degraded when older than"
+    },
+    "notSet": "not set",
+    "apply": "Apply suggestion",
+    "covered": "The current settings already cover the observed peak age."
+  },
+  "states": {
+    "offTime": "Off as expected 24 h {{h24}} · 7 d {{d7}} · 30 d {{d30}} (not counted)",
+    "verdict": {
+      "agrees": "agrees",
+      "contradicts": "contradicts",
+      "settling": "settling",
+      "unknown": "not checked"
+    },
+    "offBanner": "{{state}} – all checks agree",
+    "offSince": "Off since {{date}}",
+    "settlingUntil": "settling until {{date}}",
+    "offOfMax": "off {{off}} of {{max}}",
+    "plannedDowntime": "planned downtime now (does not count)",
+    "unknownChecks_one": "{{count}} check could not be checked",
+    "unknownChecks_other": "{{count}} checks could not be checked",
+    "whyTitle": "Why this state",
+    "current": "State: {{state}}",
+    "otherwise": "Otherwise",
+    "since": "since {{date}}",
+    "reason": {
+      "agree": "All checks agree",
+      "settling": "Settling",
+      "contradiction": "Contradiction",
+      "required": "Precondition not met",
+      "maxOff": "Off for longer than expected",
+      "flapping": "Changes state too often",
+      "unknown": "Not known",
+      "otherwise": "No state matches"
+    },
+    "closest": "Closest state: {{state}}.",
+    "deviates": "{{check}}: expected {{expected}}, is {{actual}}",
+    "cell": {
+      "up": "Up",
+      "down": "Down",
+      "off": "Off"
+    },
+    "role": "Role",
+    "check": "Check",
+    "expected": "Expected",
+    "actual": "Is",
+    "verdictTitle": "Verdict",
+    "roles": {
+      "when": "Selected by",
+      "requires": "Required",
+      "expect": "Expected"
+    },
+    "changesLastHour_one": "{{count}} state change in the last hour",
+    "changesLastHour_other": "{{count}} state changes in the last hour",
+    "intro": "States tell when the checks are expected to fail: a machine switched off on purpose is grey and quiet (Off), and only checks that contradict the state raise an alert. The first row whose condition matches wins; Otherwise evaluates the monitor as without states.",
+    "enable": "Add states",
+    "defaultRunning": "Running",
+    "defaultOff": "Off",
+    "disable": "Remove the states",
+    "follows": "Follows the state of",
+    "followsHint": "A monitor that cannot tell its state itself: its rows name the other monitor’s state ids",
+    "maxOff": "Maximum off time (hours)",
+    "maxOffHint": "Off for longer is degraded and notifies; empty: {{hours}} h, 0: no maximum",
+    "leaderIds": "States of the monitor it follows: {{ids}}",
+    "legend": "Up, Down and Off are expectations; “selects” cells are the condition of the state; Required checks must be up for the state to be trusted.",
+    "order": "Order",
+    "state": "State",
+    "shows": "Shows",
+    "settle": "Settle",
+    "maxOffShort": "Max off",
+    "remove": "Remove",
+    "moveUp": "Move {{state}} up",
+    "moveDown": "Move {{state}} down",
+    "name": "Name of state {{n}}",
+    "id": "Id of state {{n}}",
+    "matchesNow": "Matches now",
+    "showsOf": "{{state}} shows",
+    "cellLabel": "{{state}} – {{check}}",
+    "choice": {
+      "any": "Any",
+      "up": "Up",
+      "down": "Down",
+      "off": "Off",
+      "when_up": "Up · selects",
+      "when_down": "Down · selects",
+      "when_off": "Off · selects",
+      "requires": "Required"
+    },
+    "settleOf": "Settle time of {{state}} (minutes)",
+    "derived": "{{value}} (derived)",
+    "maxOffOf": "Maximum off time of {{state}} (hours)",
+    "removeState": "Remove {{state}}",
+    "otherwiseHint": "as without states",
+    "add": "State",
+    "warning": "Warning",
+    "rowRef": "State {{n}}",
+    "tryTitle": "Try it",
+    "tryHint": "Set each check to a status: which state wins and what the monitor would report (nothing is stored; settle times are left out).",
+    "leaderState": "State of the leading monitor",
+    "try": "Try it",
+    "wins": "{{state}} wins",
+    "otherwiseWins": "No state matches – evaluated as without states"
   }
 }

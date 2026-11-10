@@ -49,6 +49,8 @@ export interface TriggerRow {
   dry_run: number;
   input_mapping: string;
   bindings: string;
+  /** Slot → identity id (0.13.0, ADR 0009) */
+  identities?: string;
   auth_mode: WebhookTrigger['authMode'];
   secret_enc: string;
   secret_hash: string;
@@ -104,6 +106,7 @@ function toTrigger(r: TriggerRow): WebhookTrigger {
     dryRun: !!r.dry_run,
     inputMapping: parseJson(r.input_mapping, {}),
     bindings: parseJson(r.bindings, {}),
+    identities: parseJson(r.identities ?? '{}', {}),
     authMode: r.auth_mode,
     allowedCidrs: parseJson(r.allowed_cidrs, []),
     allowedHeaders: parseJson(r.allowed_headers, []),
@@ -207,6 +210,8 @@ export const settingsSchema = z.object({
   dryRun: z.boolean().default(false),
   inputMapping: mappingSchema.default({}),
   bindings: boundedRecord(z.string(), 100).default({}),
+  // slot → identity id (0.13.0, ADR 0009); missing: unchanged (a new trigger: the default identities)
+  identities: boundedRecord(z.string().max(100), 100).optional(),
   authMode: z.enum(WEBHOOK_AUTH_MODES).default('token'),
   allowedCidrs: z.array(z.string().max(64)).max(50).default([]),
   allowedHeaders: z.array(z.string().max(64)).max(20).default([]),
@@ -241,6 +246,7 @@ function validate(input: WebhookTriggerSettings): WebhookTriggerSettings {
   cidrs.forEach(parseCidr);
   const slots = new Set(proc.definition.connections.map((c) => c.slot));
   for (const slot of Object.keys(input.bindings)) if (!slots.has(slot)) throw new HttpError(400, `The process has no connection slot "${slot}"`);
+  for (const slot of Object.keys(input.identities ?? {})) if (!slots.has(slot)) throw new HttpError(400, `The process has no connection slot "${slot}"`);
   return { ...input, description: input.description ?? '', inputMapping: mapping, allowedHeaders: headers, allowedCidrs: cidrs };
 }
 
@@ -260,6 +266,7 @@ const auditable = (s: WebhookTriggerSettings) => ({
   dryRun: s.dryRun,
   inputMapping: s.inputMapping,
   bindings: s.bindings,
+  ...(s.identities && Object.keys(s.identities).length ? { identities: s.identities } : {}),
   authMode: s.authMode,
   allowedCidrs: s.allowedCidrs,
   allowedHeaders: s.allowedHeaders,
@@ -328,6 +335,7 @@ export function createTrigger(raw: WebhookTriggerSettings): WebhookTriggerSecret
       ts,
     );
     writeNotify(id, s.notify);
+    if (s.identities) db().run('UPDATE webhook_triggers SET identities = ? WHERE id = ?', JSON.stringify(s.identities), id);
     audit({
       action: 'trigger.created',
       entityType: 'trigger',
@@ -369,6 +377,7 @@ export function updateTrigger(id: string, raw: WebhookTriggerSettings): WebhookT
       id,
     );
     writeNotify(id, s.notify, before);
+    if (s.identities) db().run('UPDATE webhook_triggers SET identities = ? WHERE id = ?', JSON.stringify(s.identities), id);
     audit({
       action: 'trigger.updated',
       entityType: 'trigger',

@@ -388,4 +388,12 @@ export const CATALOGUE_MIGRATIONS: NamedMigration[] = [
       ALTER TABLE eol_releases ADD COLUMN latest_date TEXT;
     `,
   },
+  {
+    // 0.13 (ADR 0021): planned downtime – a maintenance window of kind "downtime" leaves monitor statuses as they are
+    // (off, up …), suspends the maximum off time of monitors with states and still alerts contradictions
+    name: 'catalogue-014-downtime',
+    sql: `
+      ALTER TABLE maintenance_windows ADD COLUMN kind TEXT NOT NULL DEFAULT 'maintenance';
+    `,
+  },
 ];

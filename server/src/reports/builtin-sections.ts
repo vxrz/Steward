@@ -62,7 +62,7 @@ export function monitorAvailability(monitorId: string, from: number, to: number)
   });
   if (downSince !== null)
     outages.push({ from: new Date(downSince).toISOString(), to: end < to ? null : new Date(to).toISOString(), durationMs: end - downSince });
-  const { ok, down } = upAndDown(points, from, end);
+  const { ok, down, off } = upAndDown(points, from, end);
   const durations = db()
     .all<{ d: number }>(
       'SELECT duration_ms AS d FROM monitor_results WHERE monitor_id = ? AND ts >= ? AND ts < ? AND duration_ms IS NOT NULL',
@@ -75,6 +75,8 @@ export function monitorAvailability(monitorId: string, from: number, to: number)
     uptime: ((h) => (h === null ? null : h / 100))(uptimeHundredths({ ok, down })),
     outages,
     downtimeMs: down,
+    // a monitor with states (ADR 0021): the time it was off as expected – not counted in the uptime
+    ...(off ? { offMs: off } : {}),
     avgMs: durations.length ? Math.round(durations.reduce((s, x) => s + x, 0) / durations.length) : null,
     p95Ms: p95(durations),
   };

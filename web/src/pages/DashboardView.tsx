@@ -7,6 +7,7 @@ import { IconDots, IconDownload, IconEdit, IconRefresh, IconTrash, IconDeviceFlo
 import { Trans, useTranslation } from 'react-i18next';
 import type { Dashboard, DashboardDefinition, DatasetStatus } from '@sm/shared';
 import { del, get, notifyError, notifyOk, post, put, apiUrl } from '../api';
+import { CopyId } from '../components/CopyId';
 import { DetailState } from '../components/common';
 import { GitOriginBadge } from '../components/gitsync/GitOriginBadge';
 import { LibraryOriginBadge } from '../components/libraries/parts';
@@ -136,6 +137,7 @@ export function DashboardViewPage() {
           <>
             {def.description && <>{def.description} · </>}
             <LastUpdate keys={def.widgets.map((w) => w.dataset).filter((x): x is string => !!x)} />
+            {d && <CopyId id={d.id} />}
             {d && <CopiedFromNote kind="dashboard" id={d.id} pathOf={(x) => `/dashboards/${x}`} />}
           </>
         }

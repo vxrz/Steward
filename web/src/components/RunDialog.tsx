@@ -9,6 +9,7 @@ import { get, notifyError, post } from '../api';
 import { InputsForm, defaultInputs } from './InputsForm';
 import { RunModeField, runModeFlags, type RunMode } from './RunModeField';
 import { platformKeys, processKeys } from '../queryKeys';
+import { IdentitySelect } from './platform/IdentitySelect';
 
 export function bindingsKey(processId: string) {
   return `sm.bindings.${processId}`;
@@ -22,15 +23,46 @@ export function loadBindings(processId: string): Record<string, string> {
   }
 }
 
-/** Select a platform for every connection slot of a process. */
+/** The identities last chosen for a process's slots in this browser (0.13.0, ADR 0009). */
+export function loadIdentities(processId: string): Record<string, string> {
+  try {
+    return JSON.parse(localStorage.getItem(`sm.identities.${processId}`) ?? '{}');
+  } catch {
+    return {};
+  }
+}
+export function storeIdentities(processId: string, identities: Record<string, string>): void {
+  try {
+    localStorage.setItem(`sm.identities.${processId}`, JSON.stringify(identities));
+  } catch {
+    /* private mode: not remembered */
+  }
+}
+
+/** The identities of the slots whose platform is still the one they were chosen for (a slot bound elsewhere uses its default). */
+export function identitiesFor(platforms: Platform[] | undefined, bindings: Record<string, string>, identities: Record<string, string>): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(identities).filter(([slot, iid]) => {
+      const p = platforms?.find((x) => x.id === bindings[slot]);
+      return !!p && !!p.identities?.some((i) => i.id === iid && !i.default);
+    }),
+  );
+}
+
+/** Select a platform for every connection slot of a process – and, where it has several, one of its identities (0.13.0). */
 export function BindingsForm({
   process,
   value,
   onChange,
+  identities,
+  onIdentitiesChange,
 }: {
   process: ProcessDetail;
   value: Record<string, string>;
   onChange: (v: Record<string, string>) => void;
+  /** Slot → identity id (none: the default identity); without onIdentitiesChange no identity is offered */
+  identities?: Record<string, string>;
+  onIdentitiesChange?: (v: Record<string, string>) => void;
 }) {
   const { t } = useTranslation('runs');
   const platforms = useQuery({ queryKey: platformKeys.all, queryFn: () => get<Platform[]>('/platforms') });
@@ -51,19 +83,45 @@ export function BindingsForm({
           ...(others.length ? [{ group: t('bindings.otherPlatforms'), items: others.map(item) }] : []),
         ];
         const anyBlocked = all.some((p) => !p.permissions?.includes('use'));
+        const bound = all.find((p) => p.id === value[c.slot]);
         return (
-          <Select
-            key={c.slot}
-            label={t('bindings.connection', { slot: c.slot })}
-            description={[c.description || (c.kind ? t('bindings.expects', { kind: c.kind }) : ''), anyBlocked ? t('bindings.blocked') : '']
-              .filter(Boolean)
-              .join(' · ')}
-            required
-            data={data}
-            value={value[c.slot] ?? null}
-            onChange={(v) => onChange({ ...value, [c.slot]: v ?? '' })}
-            placeholder={all.length ? t('bindings.select') : t('bindings.none')}
-          />
+          <Stack key={c.slot} gap={6}>
+            <Select
+              label={t('bindings.connection', { slot: c.slot })}
+              description={[
+                c.description || (c.kind ? t('bindings.expects', { kind: c.kind }) : ''),
+                c.identity?.writes ? t('bindings.needsWrites') : '',
+                anyBlocked ? t('bindings.blocked') : '',
+              ]
+                .filter(Boolean)
+                .join(' · ')}
+              required
+              data={data}
+              value={value[c.slot] ?? null}
+              onChange={(v) => {
+                onChange({ ...value, [c.slot]: v ?? '' });
+                // another platform: its default identity until one is chosen
+                if (identities && onIdentitiesChange && identities[c.slot]) {
+                  const { [c.slot]: _dropped, ...rest } = identities;
+                  onIdentitiesChange(rest);
+                }
+              }}
+              placeholder={all.length ? t('bindings.select') : t('bindings.none')}
+            />
+            {onIdentitiesChange && (
+              <IdentitySelect
+                platform={bound}
+                value={identities?.[c.slot]}
+                needsWrites={!!c.identity?.writes}
+                label={t('bindings.identity', { slot: c.slot })}
+                testId={`identity-select-${c.slot}`}
+                onChange={(iid) => {
+                  const { [c.slot]: _old, ...rest } = identities ?? {};
+                  onIdentitiesChange(iid ? { ...rest, [c.slot]: iid } : rest);
+                }}
+              />
+            )}
+          </Stack>
         );
       })}
     </Stack>
@@ -80,6 +138,8 @@ export function RunDialog({ processId, opened, onClose }: { processId: string | 
   });
   const [inputs, setInputs] = useState<Record<string, unknown>>({});
   const [bindings, setBindings] = useState<Record<string, string>>({});
+  const [identities, setIdentities] = useState<Record<string, string>>({});
+  const platforms = useQuery({ queryKey: platformKeys.all, queryFn: () => get<Platform[]>('/platforms'), enabled: opened });
   const [mode, setMode] = useState<RunMode>('dry');
   const [busy, setBusy] = useState(false);
 
@@ -87,6 +147,7 @@ export function RunDialog({ processId, opened, onClose }: { processId: string | 
     if (proc.data && opened) {
       setInputs(defaultInputs(proc.data.definition.inputs));
       setBindings(loadBindings(proc.data.id));
+      setIdentities(loadIdentities(proc.data.id));
       setMode('dry');
     }
   }, [proc.data, opened]);
@@ -98,7 +159,15 @@ export function RunDialog({ processId, opened, onClose }: { processId: string | 
     setBusy(true);
     try {
       localStorage.setItem(bindingsKey(proc.data.id), JSON.stringify(bindings));
-      const r = await post<{ id: string }>('/runs', { processId: proc.data.id, inputs, bindings, ...runModeFlags(mode) });
+      const chosen = identitiesFor(platforms.data, bindings, identities);
+      storeIdentities(proc.data.id, chosen);
+      const r = await post<{ id: string }>('/runs', {
+        processId: proc.data.id,
+        inputs,
+        bindings,
+        ...(Object.keys(chosen).length ? { identities: chosen } : {}),
+        ...runModeFlags(mode),
+      });
       onClose();
       navigate(`/runs/${r.id}`);
     } catch (e) {
@@ -117,7 +186,7 @@ export function RunDialog({ processId, opened, onClose }: { processId: string | 
               {proc.data.description}
             </Text>
           )}
-          <BindingsForm process={proc.data} value={bindings} onChange={setBindings} />
+          <BindingsForm process={proc.data} value={bindings} onChange={setBindings} identities={identities} onIdentitiesChange={setIdentities} />
           {proc.data.definition.inputs.length > 0 && <Divider label={t('dialog.inputs')} labelPosition="left" />}
           <InputsForm defs={proc.data.definition.inputs} value={inputs} onChange={setInputs} />
           <Divider />

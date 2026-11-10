@@ -1,4 +1,13 @@
-import type { CauseRef, CheckDef, CheckOf, MonitorStatus } from '@sm/shared';
+import {
+  hasStates,
+  monitorSettleSeconds,
+  type CauseRef,
+  type CheckDef,
+  type CheckOf,
+  type MonitorStateInfo,
+  type MonitorStatus,
+  type StateMemory,
+} from '@sm/shared';
 import { db } from '../db.js';
 import { vault } from '../vault.js';
 import { logger } from '../log.js';
@@ -19,15 +28,16 @@ import {
   type MonitorRow,
   type StateRow,
 } from './model.js';
+import { delayIdentity, encodeDelayState, newestSeen, parseDelayState, stepDelay, type DelayObservation, type DelayState } from './delay.js';
 import { analyze, applyResult, freshnessStatus, freshnessWindowSeconds, fmtAge, nextDue, phaseOffset } from './logic.js';
 import { isActive, planCheck, runActiveCheck, toMillis, type RawResult } from './checks.js';
 import { storedKindMismatch } from './kinds.js';
 import { ihKey } from './batch.js';
-import { dispatchOutputs, heldMonitors, type Subject } from './outputs.js';
+import { dispatchOutputs, heldMonitors, notifyStateChange, type Subject } from './outputs.js';
 import { markDatasetsDirty, publishDirtyDatasets } from './datasets.js';
 import { countEvaluation } from './metrics.js';
 import { subMonitorMessage } from './redact.js';
-import { catalogueMaintenance, type ActiveMaintenance } from './maintenance-hook.js';
+import { catalogueMaintenance, plannedDowntime, type ActiveMaintenance } from './maintenance-hook.js';
 
 /**
  * The monitor engine: a light scheduler, separate from process runs.
@@ -67,6 +77,30 @@ let abort = new AbortController();
 let loaded = false;
 const maintenanceSeen = new Map<string, boolean>();
 const resultCounter = new Map<string, number>();
+/** Observed delay of freshness checks (delay.ts) by check, with the times last seen that are not stored on every read */
+const delayStates = new Map<string, DelayState>();
+/** Monitors with states (ADR 0021): the checks that agree with an expected down and show off (their samples count as other) */
+const offChecks = new Map<string, Set<string>>();
+
+/** What the engine stores per monitor with states (monitor_state.state_detail). */
+interface StateDetail {
+  changes: number[];
+  /** A state was selected before */
+  known?: boolean;
+  offChecks: string[];
+  info: MonitorStateInfo;
+}
+const parseDetail = (s: string | null | undefined): StateDetail | null => parseJson<StateDetail | null>(s, null);
+
+function offChecksOf(mid: string): Set<string> {
+  let set = offChecks.get(mid);
+  if (!set) {
+    const d = parseDetail(db().get<{ state_detail: string | null }>('SELECT state_detail FROM monitor_state WHERE monitor_id = ?', mid)?.state_detail);
+    set = new Set(d?.offChecks ?? []);
+    offChecks.set(mid, set);
+  }
+  return set;
+}
 let lastPublish = 0;
 
 const ck = (mid: string, cid: string) => `${mid}\u0000${cid}`;
@@ -98,6 +132,7 @@ async function withSlot<T>(fn: () => Promise<T>): Promise<T> {
 
 export function loadAll(): void {
   monitors.clear();
+  delayStates.clear();
   for (const r of db().all<MonitorRow>('SELECT * FROM monitors WHERE is_template = 0')) monitors.set(r.id, loadMonitor(r));
   loaded = true;
 }
@@ -132,6 +167,7 @@ function warnPlatformKindMismatches(): void {
 export function reloadMonitor(id: string): void {
   const r = db().get<MonitorRow>('SELECT * FROM monitors WHERE id = ?', id);
   for (const k of [...due.keys()]) if (k.startsWith(id + '\u0000')) due.delete(k);
+  for (const k of [...delayStates.keys()]) if (k.startsWith(id + '\u0000')) delayStates.delete(k);
   if (!r || r.is_template) {
     monitors.delete(id);
     return;
@@ -143,6 +179,8 @@ export function reloadMonitor(id: string): void {
 
 export function forgetMonitor(id: string): void {
   monitors.delete(id);
+  offChecks.delete(id);
+  for (const k of [...delayStates.keys()]) if (k.startsWith(id + '\u0000')) delayStates.delete(k);
   for (const k of [...due.keys()]) if (k.startsWith(id + '\u0000')) due.delete(k);
   maintenanceSeen.delete(id);
 }
@@ -299,7 +337,13 @@ export function evaluateCheck(mid: string, cid: string, now = clock()): Promise<
       else if (isActive(c)) {
         raw = await withSlot(() =>
           withSpan(`monitor check ${c.type}`, { 'sm.monitor.key': m.key, 'sm.monitor.check': c.id, 'sm.monitor.check_type': c.type }, async (span) => {
-            const r = await runActiveCheck(c, { owner: m.owner, signal: abort.signal, timeoutMs: timeoutMs(m, c), now: () => clock() });
+            const r = await runActiveCheck(c, {
+              owner: m.owner,
+              signal: abort.signal,
+              timeoutMs: timeoutMs(m, c),
+              now: () => clock(),
+              newestSeen: newestSeenOf(m, c, row),
+            });
             span.setAttribute('sm.monitor.status', r.status);
             if (r.status === 'down') span.setStatus({ code: SpanStatusCode.ERROR, message: r.message.slice(0, 200) });
             return r;
@@ -307,6 +351,7 @@ export function evaluateCheck(mid: string, cid: string, now = clock()): Promise<
         );
       } else raw = { status: 'unknown', message: 'Unsupported check type' };
       if (abort.signal.aborted) return;
+      if (raw.observation) recordObservation(m, c, row, raw.observation);
       persistResult(m, c, row, raw, clock() > now ? clock() : now);
       countEvaluation(c.type, raw.status);
       scheduleRecompute(m.id);
@@ -419,8 +464,43 @@ function evaluateSubMonitor(c: CheckOf<'monitor'>): RawResult {
   if (!sub) return { status: 'unknown', message: subMonitorMessage('missing') };
   if (!sub.enabled) return { status: 'unknown', message: subMonitorMessage('disabled') };
   const s = (sub.status ?? 'unknown') as MonitorStatus;
+  // off (ADR 0021) passes through: a parent with states can expect it, one without counts it below up
   const status: MonitorStatus = s === 'maintenance' ? 'up' : s === 'blocked' ? 'unknown' : s;
   return { status, message: subMonitorMessage(s) };
+}
+
+/** The observed delay (delay.ts): one read of a freshness check's source, with the monitor's maintenance windows. */
+function recordObservation(m: LoadedMonitor, c: CheckDef, row: CheckRow, obs: DelayObservation): void {
+  const identity = delayIdentity(c);
+  if (!identity) return;
+  const k = ck(m.id, c.id);
+  try {
+    const prev = delayStateOf(k, row);
+    const { state, changed } = stepDelay(prev, identity, obs, (t) => !!activeMaintenance(m.id, t));
+    delayStates.set(k, state);
+    // stored only when something worth keeping changed, not for every read of the same newest value
+    if (changed) db().run('UPDATE monitor_checks SET observed_delay = ? WHERE monitor_id = ? AND check_id = ?', encodeDelayState(state), m.id, c.id);
+  } catch (err) {
+    logger.warn({ err, monitor: m.id, check: c.id }, 'observed delay not recorded');
+  }
+}
+
+/** The observed delay state of a check: in memory (with the latest "last seen" times), else as stored. */
+function delayStateOf(k: string, row: CheckRow): DelayState | null {
+  let st = delayStates.get(k);
+  if (st === undefined) {
+    st = parseDelayState(row.observed_delay) ?? undefined;
+    if (st) delayStates.set(k, st);
+  }
+  return st ?? null;
+}
+
+/** For the status of a freshness check: the newest timestamp per variable seen so far from the same source. */
+function newestSeenOf(m: LoadedMonitor, c: CheckDef, row: CheckRow): ((name: string) => number | null) | undefined {
+  const identity = delayIdentity(c);
+  if (!identity) return undefined;
+  const st = delayStateOf(ck(m.id, c.id), row);
+  return (name) => newestSeen(st, identity, name);
 }
 
 function bucketOf(ms: number): string {
@@ -436,7 +516,7 @@ function persistResult(m: LoadedMonitor, c: CheckDef, row: CheckRow, raw: RawRes
   const changed = next.status !== row.status;
   const ts = iso(now);
   const ok = raw.status === 'up' || raw.status === 'degraded';
-  const inMaint = !!activeMaintenance(m.id, now);
+  const inMaint = !!activeMaintenance(m.id, now) || offChecksOf(m.id).has(c.id);
   const sample = inMaint ? 'other' : next.status === 'up' || next.status === 'degraded' ? 'ok' : next.status === 'down' ? 'down' : 'other';
   const last = { ts, status: raw.status, message: raw.message.slice(0, 1000), durationMs: raw.durationMs ?? null, value: raw.value ?? null };
   db().tx(() => {
@@ -569,11 +649,44 @@ export async function recompute(mid: string, now = clock()): Promise<void> {
       .filter((c) => statuses.get(c.id) !== 'down' && parseJson<{ status?: string } | null>(rows.get(c.id)?.last_result, null)?.status === 'down')
       .map((c) => c.id),
   );
-  const a = analyze(m, statuses, { maintenance: maint, subRoots, pendingDown });
+  const prev = db().get<StateRow>('SELECT * FROM monitor_state WHERE monitor_id = ?', mid);
+  // states (ADR 0021): the memory of the last evaluation, the leader's state, planned downtime, sub-monitor settle times
+  const withStates = hasStates(m.def);
+  const detail = withStates ? parseDetail(prev?.state_detail) : null;
+  const memory: StateMemory | null =
+    withStates && detail
+      ? {
+          id: prev?.state_id ?? null,
+          since: prev?.state_since ? Date.parse(prev.state_since) : null,
+          settleUntil: prev?.settle_until ? Date.parse(prev.settle_until) : null,
+          changes: detail.changes ?? [],
+          known: !!detail.known,
+        }
+      : null;
+  const leader = leaderOf(m);
+  const states = withStates
+    ? {
+        memory,
+        now,
+        leaderState: leader
+          ? (db().get<{ state_id: string | null }>('SELECT state_id FROM monitor_state WHERE monitor_id = ?', leader)?.state_id ?? null)
+          : null,
+        downtime: { active: plannedDowntime(mid, now, now + 1).active, msSince: (from: number) => plannedDowntime(mid, from, now).ms },
+        subSettle: (c: CheckOf<'monitor'>, cell: 'up' | 'down' | 'off') => {
+          const sub = monitors.get(c.monitor);
+          return sub ? monitorSettleSeconds(sub.def, cell) : 0;
+        },
+      }
+    : undefined;
+  const a = analyze(m, statuses, { maintenance: maint, subRoots, pendingDown, states });
   if (!m.enabled) a.status = 'unknown';
   const ts = iso(now);
-  const prev = db().get<StateRow>('SELECT * FROM monitor_state WHERE monitor_id = ?', mid);
   const changed = !prev || prev.status !== a.status;
+  const st = a.state;
+  const stateChanged = !!st && st.changed && !!memory;
+  if (withStates) offChecks.set(mid, new Set(st?.offChecks ?? []));
+  else offChecks.delete(mid);
+  const nextDetail: StateDetail | null = st ? { changes: st.memory.changes, known: !!st.memory.known, offChecks: [...st.offChecks], info: st.info } : null;
   db().tx(() => {
     for (const c of enabledChecks) {
       const v = a.checks.get(c.id)!;
@@ -594,27 +707,38 @@ export async function recompute(mid: string, now = clock()): Promise<void> {
       }
     }
     db().run(
-      `INSERT INTO monitor_state (monitor_id, status, since, root_causes, last_evaluated_at) VALUES (?, ?, ?, ?, ?)
-       ON CONFLICT (monitor_id) DO UPDATE SET status = excluded.status, since = excluded.since, root_causes = excluded.root_causes, last_evaluated_at = excluded.last_evaluated_at`,
+      `INSERT INTO monitor_state (monitor_id, status, since, root_causes, last_evaluated_at, state_id, state_since, settle_until, state_detail) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT (monitor_id) DO UPDATE SET status = excluded.status, since = excluded.since, root_causes = excluded.root_causes, last_evaluated_at = excluded.last_evaluated_at,
+         state_id = excluded.state_id, state_since = excluded.state_since, settle_until = excluded.settle_until, state_detail = excluded.state_detail`,
       mid,
       a.status,
       changed ? ts : (prev?.since ?? ts),
       JSON.stringify(a.rootCauses),
       ts,
+      st?.memory.id ?? null,
+      st?.memory.since ? iso(st.memory.since) : null,
+      st?.memory.settleUntil ? iso(st.memory.settleUntil) : null,
+      nextDetail ? JSON.stringify(nextDetail) : null,
     );
-    if (changed) {
+    // a state change writes a history row even when the status stays (Running and Standby are both up)
+    if (changed || stateChanged) {
       // the message ("Root cause: …") is built from caused_by when it is read, for the viewer (redact.ts)
       db().run(
-        'INSERT INTO monitor_history (monitor_id, check_id, ts, status, previous, message, caused_by) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        'INSERT INTO monitor_history (monitor_id, check_id, ts, status, previous, message, caused_by, state) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
         mid,
         '',
         ts,
         a.status,
         prev?.status ?? null,
-        '',
+        st && st.status !== null && !st.causes.length ? st.info.message.slice(0, 1000) : '',
         JSON.stringify(a.rootCauses),
+        st?.memory.id ?? null,
       );
-      if (a.status === 'up') db().run('UPDATE monitor_state SET ack_by = NULL, ack_at = NULL, ack_comment = NULL WHERE monitor_id = ?', mid);
+    }
+    if (changed) {
+      // an acknowledgement ends when the monitor is up again – or off, as its state expects
+      if (a.status === 'up' || a.status === 'off')
+        db().run('UPDATE monitor_state SET ack_by = NULL, ack_at = NULL, ack_comment = NULL WHERE monitor_id = ?', mid);
       db().run(
         `INSERT INTO monitor_samples (monitor_id, check_id, bucket, ok, down, other) VALUES (?, '', ?, 0, 0, 0) ON CONFLICT (monitor_id, check_id, bucket) DO NOTHING`,
         mid,
@@ -627,6 +751,8 @@ export async function recompute(mid: string, now = clock()): Promise<void> {
   // outputs
   const state = db().get<StateRow>('SELECT * FROM monitor_state WHERE monitor_id = ?', mid)!;
   const monitorInfo = { id: m.id, key: m.key, name: m.name, status: a.status };
+  // the state decides the status: its message ("Off – all checks agree", the contradiction …) unless a root cause's own one fits
+  const stateMessage = st && (st.status !== null || st.flapping) ? st.info.message : null;
   const subjects: Subject[] = [
     {
       event: {
@@ -634,10 +760,16 @@ export async function recompute(mid: string, now = clock()): Promise<void> {
         level: 'monitor',
         status: a.status,
         since: state.since,
-        message: rootMessage(a.rootCauses, rows) ?? `${m.name} is ${a.status}`,
+        message:
+          (st?.info.reason === 'contradiction' || st?.info.reason === 'required' ? stateMessage : null) ??
+          rootMessage(a.rootCauses, rows) ??
+          stateMessage ??
+          `${m.name} is ${a.status}`,
         causedBy: a.rootCauses,
         ts,
         monitor: monitorInfo,
+        ...(st ? { state: stateOf(st.info), stateReason: st.info.reason } : {}),
+        ...(st?.info.contradiction ? { contradiction: contradictionOf(m.def, st.info) } : {}),
       },
       dependent: false,
     },
@@ -669,6 +801,12 @@ export async function recompute(mid: string, now = clock()): Promise<void> {
     await track(dispatchOutputs({ monitor: m, subjects, maintenance: maint, acknowledged: !!state.ack_by, now }));
   }
 
+  // state changes as information (opt-in per notification output, event monitor.state)
+  if (stateChanged && m.enabled && st && st.previous !== null && !maint) notifyStateChange(m, st.previous, st.info, now);
+
+  // followers follow their leader's state change right away
+  if (stateChanged) for (const other of monitors.values()) if (other.id !== mid && other.enabled && leaderOf(other) === mid) scheduleRecompute(other.id);
+
   // monitors that include this one follow right away
   if (changed) {
     for (const other of monitors.values()) {
@@ -676,6 +814,34 @@ export async function recompute(mid: string, now = clock()): Promise<void> {
       for (const c of other.def.checks) if (c.type === 'monitor' && c.monitor === mid && checkEnabled(c)) void evaluateCheck(other.id, c.id, now);
     }
   }
+}
+
+/** The id of the monitor whose state this one follows (stored as an id, or as the key of one imported later). */
+function leaderOf(m: LoadedMonitor): string | undefined {
+  const ref = m.def.states?.from;
+  if (!ref) return undefined;
+  if (monitors.has(ref)) return ref;
+  for (const x of monitors.values()) if (x.key === ref.toLowerCase()) return x.id;
+  return ref;
+}
+
+/** The state as outputs carry it (webhook `state`). */
+function stateOf(info: MonitorStateInfo) {
+  return { id: info.id, name: info.name, since: info.since, settlingUntil: info.settlingUntil };
+}
+
+/** A contradiction as outputs carry it: what was expected of which check, and what it is. */
+function contradictionOf(def: LoadedMonitor['def'], info: MonitorStateInfo) {
+  const c = info.contradiction!;
+  return {
+    closest: c.closest,
+    checks: c.checks.map((x) => ({
+      id: x.checkId,
+      name: def.checks.find((d) => d.id === x.checkId)?.name ?? x.checkId,
+      expected: x.expected,
+      actual: x.actual,
+    })),
+  };
 }
 
 /** When the scheduler runs the check next (null before its first cycle). */

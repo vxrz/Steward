@@ -8,6 +8,7 @@ import {
   KPI_INPUT_KINDS,
   KPI_METHODOLOGIES,
   KPI_PARAM_TYPES,
+  KPI_ROLL_UPS,
   KPI_TIMINGS,
   KPI_TRENDS,
   PLANT_AUTH_KINDS,
@@ -16,8 +17,11 @@ import {
   PLANT_LIMITS,
   PLANT_NAME_RE,
   PLANT_PROTOCOLS,
+  kpiInputPoint,
+  kpiInputProfiles,
   unitCode,
   type KpiComputation,
+  type KpiInput,
   type KpiParamValue,
   type PlantAssignmentAdditions,
   type PlantAssignmentValues,
@@ -65,6 +69,8 @@ export const safeEntries = <V>(o: Record<string, V>): Record<string, V> => Objec
 interface Source {
   import_id: string | null;
   not_in_source: number;
+  /** 0.13.0: the entry's revision (changesets/track.ts raises it) */
+  revision?: number;
   created_at: string;
   created_by: string;
   updated_at: string;
@@ -107,6 +113,8 @@ export interface KpiRow extends Source {
   strategy: string;
   implementation: string;
   dynamic_columns: number;
+  /** 0.13: none or parts (absent before plant-015) */
+  roll_up?: string;
   inputs: string;
   parameters: string;
   result_columns: string;
@@ -173,6 +181,7 @@ export const kpiValuesOf = (r: KpiRow): PlantKpiValues => ({
   strategy: r.strategy,
   implementation: r.implementation,
   dynamicColumns: !!Number(r.dynamic_columns),
+  rollUp: r.roll_up === 'parts' ? 'parts' : 'none',
   inputs: parseJson<PlantKpiValues['inputs']>(r.inputs, []),
   parameters: parseJson<PlantKpiValues['parameters']>(r.parameters, []),
   columns: parseJson<PlantKpiValues['columns']>(r.result_columns, []),
@@ -354,6 +363,8 @@ export const interfaceOverrideInput = z
     interface: pointName,
     present: z.boolean().default(true),
     name: z.string().trim().max(PLANT_LIMITS.name).optional(),
+    // 0.13: only for an inherited interface of protocol "other"
+    protocol: z.enum(PLANT_PROTOCOLS).optional(),
     direction: z.enum(PLANT_DIRECTIONS).optional(),
     description: z.string().trim().max(L.longText).optional(),
     version: z.string().trim().max(60).optional(),
@@ -452,6 +463,7 @@ export const kpiInput = z
     strategy: text(L.text),
     implementation: text(500),
     dynamicColumns: z.boolean().default(false),
+    rollUp: z.enum(KPI_ROLL_UPS).default('none'),
     inputs: z
       .array(
         z
@@ -460,8 +472,12 @@ export const kpiInput = z
             // a profile id, or empty: whatever profile the asset has
             profile: z.union([z.literal(''), plantId]).default(''),
             dataPoints: z.array(pointName).max(L.inputPoints).default([]),
+            // 0.13: any of these profiles (two or more; `profile` is the first)
+            profiles: z.array(plantId).max(L.inputProfiles).optional(),
             // 0.12.0: the unit expected per data point (a data point left out: its unit in the input's profile)
             units: kpiInputUnits,
+            // 0.13: per profile, the input's data point → that profile's data point
+            mapping: boundedRecord(boundedRecord(pointName, L.inputPoints), L.inputProfiles).optional(),
             notes: text(L.longText),
           })
           .strict(),
@@ -658,8 +674,69 @@ export function profileProblems(
   return out;
 }
 
-/** What a KPI definition may not hold: a parameter or column name twice (aliases included), a range upside down. */
-export function kpiProblems(k: PlantKpiValues): RuleProblem[] {
+/**
+ * 0.13: inputs as they are stored – `profile` is the first of the input's profiles, `profiles` is kept only for two or
+ * more, the mapping only for profiles the input names and without pairs that keep the id; an input of kind other names
+ * no profiles. Applied after kpiProblems.
+ */
+export function normalizeKpiInputs(inputs: KpiInput[]): KpiInput[] {
+  return inputs.map((i) => {
+    const { profiles: _p, mapping: _m, ...rest } = i;
+    if (i.kind !== 'data_point') return rest;
+    const list = [...new Set(kpiInputProfiles(i))];
+    const mapping: Record<string, Record<string, string>> = {};
+    for (const p of list) {
+      const m = Object.fromEntries(Object.entries(safeEntries(i.mapping?.[p] ?? {})).filter(([from, to]) => to && to !== from && i.dataPoints.includes(from)));
+      if (Object.keys(m).length) mapping[p] = m;
+    }
+    return { ...rest, profile: list[0] ?? '', ...(list.length > 1 ? { profiles: list } : {}), ...(Object.keys(mapping).length ? { mapping } : {}) };
+  });
+}
+
+/** 0.13: the rules of an input's profiles and mapping (`profiles`: every profile resolved, to check the mapped data points). */
+function inputProblems(i: KpiInput, n: number, profiles?: Map<string, Pick<PlantResolvedProfile, 'name' | 'interfaces'>>): RuleProblem[] {
+  const out: RuleProblem[] = [];
+  const at = `inputs[${n}]`;
+  if (i.kind !== 'data_point') {
+    if (i.profiles?.length || Object.keys(i.mapping ?? {}).length)
+      out.push({ path: at, message: 'An input of kind "other" reads no data points: it names no profiles and no mapping' });
+    return out;
+  }
+  if (i.profiles?.length && i.profile && !i.profiles.includes(i.profile))
+    out.push({ path: `${at}.profile`, message: `Profile "${i.profile}" is not one of the input's profiles – the first of "profiles" is its profile` });
+  const list = kpiInputProfiles(i);
+  for (const [pid, m] of Object.entries(safeEntries(i.mapping ?? {}))) {
+    if (!list.includes(pid)) {
+      out.push({ path: `${at}.mapping`, message: `A mapping is given for profile "${pid}", which the input does not name` });
+      continue;
+    }
+    const p = profiles?.get(pid);
+    const has = p ? new Set(pointsOf(p).map((x) => x.point.id)) : null;
+    for (const [dp, to] of Object.entries(safeEntries(m ?? {}))) {
+      if (!i.dataPoints.includes(dp))
+        out.push({ path: `${at}.mapping.${pid}`, message: `Profile "${p?.name ?? pid}": data point "${dp}" is mapped, but the input does not read it` });
+      else if (has && !has.has(to))
+        out.push({ path: `${at}.mapping.${pid}.${dp}`, message: `Profile "${p!.name}" has no data point "${to}" (mapped from "${dp}")` });
+    }
+    // two data points of the input read one of the profile
+    const seen = new Map<string, string>();
+    for (const dp of i.dataPoints) {
+      const to = kpiInputPoint(i, pid, dp);
+      const first = seen.get(to);
+      if (first !== undefined)
+        out.push({ path: `${at}.mapping.${pid}`, message: `Profile "${p?.name ?? pid}": data points "${first}" and "${dp}" both read its data point "${to}"` });
+      seen.set(to, dp);
+    }
+  }
+  return out;
+}
+
+/**
+ * What a KPI definition may not hold: a parameter or column name twice (aliases included), a range upside down; 0.13: an
+ * input's mapping for a profile it does not name, of a data point it does not read, to a data point the profile lacks
+ * (with `profiles`, every profile resolved).
+ */
+export function kpiProblems(k: PlantKpiValues, profiles?: Map<string, Pick<PlantResolvedProfile, 'name' | 'interfaces'>>): RuleProblem[] {
   const out: RuleProblem[] = [];
   const names = new Set<string>();
   k.parameters.forEach((p, i) => {
@@ -682,6 +759,7 @@ export function kpiProblems(k: PlantKpiValues): RuleProblem[] {
         out.push({ path: `inputs[${n}].units`, message: `A unit is given for data point "${dp}", which the input does not read` });
       else if (u.length > 40) out.push({ path: `inputs[${n}].units`, message: 'A unit has at most 40 characters' });
     }
+    out.push(...inputProblems(i, n, profiles));
   });
   return out;
 }
@@ -830,13 +908,14 @@ export function upsertProfile(v: PlantProfileValues, m: Meta, opts: { keepSource
 export function upsertKpi(v: PlantKpiValues, m: Meta, opts: { keepSource?: boolean } = {}): void {
   db().run(
     `INSERT INTO plant_kpis (id, name, names, category, kind, description, formula, unit, range_min, range_max, trend, timing, audience, methodology, strategy,
-       implementation, dynamic_columns, inputs, parameters, result_columns, computation, notes, import_id, not_in_source, created_at, created_by, updated_at, updated_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       implementation, dynamic_columns, inputs, parameters, result_columns, computation, notes, import_id, not_in_source, created_at, created_by, updated_at, updated_by,
+       roll_up)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT (id) DO UPDATE SET name = excluded.name, names = excluded.names, category = excluded.category, kind = excluded.kind,
        description = excluded.description, formula = excluded.formula, unit = excluded.unit, range_min = excluded.range_min, range_max = excluded.range_max,
        trend = excluded.trend, timing = excluded.timing, audience = excluded.audience, methodology = excluded.methodology, strategy = excluded.strategy,
        implementation = excluded.implementation, dynamic_columns = excluded.dynamic_columns, inputs = excluded.inputs, parameters = excluded.parameters,
-       result_columns = excluded.result_columns, computation = excluded.computation, notes = excluded.notes,
+       result_columns = excluded.result_columns, computation = excluded.computation, notes = excluded.notes, roll_up = excluded.roll_up,
        ${keep(opts)} updated_at = excluded.updated_at, updated_by = excluded.updated_by`,
     v.id,
     v.name,
@@ -865,6 +944,7 @@ export function upsertKpi(v: PlantKpiValues, m: Meta, opts: { keepSource?: boole
     m.by,
     m.at,
     m.by,
+    v.rollUp ?? 'none',
   );
 }
 

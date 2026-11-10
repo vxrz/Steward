@@ -72,6 +72,14 @@ export function checkMessage(message: string, status: MonitorStatus, subMonitor:
 
 /** Sub-monitor references in a definition (or its export) that the viewer may not view → HIDDEN_MONITOR_REF. */
 export function redactDefinition<T>(def: T, canView: MonitorVisibility, idOf: (ref: string) => string | undefined = (r) => r): T {
+  // the monitor whose state this one follows (ADR 0021) is hidden like a sub-monitor
+  const states = (def as { states?: { from?: unknown } }).states;
+  if (states && typeof states.from === 'string' && states.from !== HIDDEN_MONITOR_REF) {
+    const ref = idOf(states.from) ?? states.from;
+    // stored as an id, or as the key of a monitor imported later (nothing to hide while it does not exist)
+    const id = db().get<{ id: string }>('SELECT id FROM monitors WHERE id = ? OR key = ?', ref, ref.toLowerCase())?.id;
+    if (id && !canView(id)) def = { ...def, states: { ...states, from: HIDDEN_MONITOR_REF } } as T;
+  }
   const checks = (def as { checks?: unknown }).checks;
   if (!Array.isArray(checks)) return def;
   let changed = false;

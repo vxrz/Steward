@@ -3,6 +3,7 @@ import {
   ActionIcon,
   Anchor,
   Badge,
+  Box,
   Button,
   Card,
   Checkbox,
@@ -11,17 +12,18 @@ import {
   Modal,
   MultiSelect,
   NumberInput,
+  Paper,
   SegmentedControl,
   Select,
   SimpleGrid,
   Stack,
   Switch,
-  Table,
   TagsInput,
   Text,
   TextInput,
   Title,
   Tooltip,
+  VisuallyHidden,
 } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
@@ -49,6 +51,7 @@ import { CronPreview } from '../components/CronPreview';
 import { useMe } from '../auth';
 import { monitorKeys, platformKeys, processKeys, scheduleKeys } from '../queryKeys';
 import { DuplicateActionIcon, useDuplicate } from '../components/duplicate/DuplicateButton';
+import { DataTable, ListFooter, type DataColumn } from '../components/DataTable';
 
 const PRESETS: ReportSchedulePreset[] = ['daily', 'weekly', 'monthly', 'custom'];
 const BUILTIN = ['availability', 'gatus', 'credentials', 'runs', 'records', 'tickets', 'duties', 'scorecard', 'ai', 'costs', 'contracts'];
@@ -133,6 +136,154 @@ export function ReportsPage() {
     }
   };
 
+  const nameOf = (s: ReportSchedule) => (
+    <>
+      <Text size="sm" fw={500}>
+        {s.name}
+      </Text>
+      <Text size="xs" c="dimmed">
+        {t('table.owner', { owner: s.owner })}
+        {!s.enabled && (
+          <Badge ml={4} size="xs" color="gray" variant="light">
+            {t('disabled')}
+          </Badge>
+        )}
+        {s.team && (
+          <Badge ml={4} size="xs" color="grape" variant="light">
+            {t('table.team', { team: s.team.name })}
+          </Badge>
+        )}
+      </Text>
+    </>
+  );
+  const lastOf = (s: ReportSchedule) =>
+    s.lastError ? (
+      <Text size="xs" c="red">
+        {s.lastError}
+      </Text>
+    ) : s.lastReportId ? (
+      <Anchor href={apiUrl(`/reports/${s.lastReportId}/download`)} size="xs">
+        {fmtRelative(s.lastRunAt)}
+      </Anchor>
+    ) : (
+      '–'
+    );
+  const actionsOf = (s: ReportSchedule) => (
+    <Group gap={2} wrap="nowrap" justify="flex-end">
+      {schedules.data?.canCreate && <DuplicateActionIcon name={s.name} onClick={() => duplicate.open('report-schedule', s.id)} />}
+      {s.canEdit && (
+        <>
+          <Tooltip label={t('runNow')}>
+            <ActionIcon variant="subtle" loading={running === s.id} onClick={() => runNow(s)} aria-label={t('runNowOf', { name: s.name })}>
+              <IconPlayerPlay size={16} />
+            </ActionIcon>
+          </Tooltip>
+          <ActionIcon variant="subtle" onClick={() => setDraft(toDraft(s))} aria-label={t('editOf', { name: s.name })}>
+            <IconEdit size={16} />
+          </ActionIcon>
+          <ActionIcon
+            variant="subtle"
+            color="red"
+            aria-label={t('deleteOf', { name: s.name })}
+            onClick={async () => {
+              if (!(await confirmDanger({ action: 'delete', message: t('deleteConfirm', { name: s.name }) }))) return;
+              await del(`/report-schedules/${s.id}`).catch(notifyError);
+              refresh();
+            }}
+          >
+            <IconTrash size={16} />
+          </ActionIcon>
+        </>
+      )}
+    </Group>
+  );
+  const scheduleColumns: DataColumn<ReportSchedule>[] = [
+    { key: 'name', header: t('table.name'), sortValue: (s) => s.name, cell: nameOf },
+    {
+      key: 'when',
+      header: t('table.when'),
+      sortValue: (s) => t(`presets.${s.preset}`),
+      cell: (s) => (
+        <>
+          {t(`presets.${s.preset}`)}
+          <Text size="xs" c="dimmed">
+            <span className="mono">{s.cron}</span> {s.timezone}
+          </Text>
+        </>
+      ),
+    },
+    {
+      key: 'sections',
+      header: t('table.sections'),
+      sortValue: (s) => Object.keys(s.sections).length,
+      cell: (s) => (
+        <Group gap={4}>
+          {Object.keys(s.sections).map((id) => (
+            <Badge key={id} size="xs" variant="light">
+              {t(`sections.${id}.title`, { defaultValue: id })}
+            </Badge>
+          ))}
+        </Group>
+      ),
+    },
+    { key: 'last', header: t('table.last'), sortValue: (s) => s.lastRunAt, cell: lastOf },
+    {
+      key: 'next',
+      header: t('table.next'),
+      sortValue: (s) => (s.enabled ? s.nextRunAt : null),
+      nowrap: true,
+      cell: (s) => (s.enabled && s.nextRunAt ? fmtDate(s.nextRunAt) : '–'),
+    },
+    { key: 'actions', header: <VisuallyHidden>{t('table.actions')}</VisuallyHidden>, label: t('table.actions'), cell: actionsOf },
+  ];
+  const reportTitleOf = (r: ReportRecord) => (
+    <>
+      <Text size="sm" fw={500}>
+        {r.title}
+      </Text>
+      <Badge size="xs" variant="outline" color="gray">
+        {t(`reports.kind.${r.kind}`, { defaultValue: r.kind })}
+      </Badge>
+    </>
+  );
+  const fileOf = (r: ReportRecord) => (
+    <>
+      <Anchor href={apiUrl(`/reports/${r.id}/download`)} size="sm">
+        <Group gap={4} wrap="nowrap">
+          <IconDownload size={14} />
+          {t('reports.download', { size: fmtBytes(r.size) })}
+        </Group>
+      </Anchor>
+      <Text size="xs" c="dimmed" className="mono">
+        sha256 {r.sha256.slice(0, 16)}…
+      </Text>
+    </>
+  );
+  const reportColumns: DataColumn<ReportRecord>[] = [
+    { key: 'title', header: t('reports.title'), sortValue: (r) => r.title, cell: reportTitleOf },
+    {
+      key: 'period',
+      header: t('reports.period'),
+      sortValue: (r) => r.from,
+      nowrap: true,
+      cell: (r) => (r.from && r.to ? `${fmtDay(r.from)} – ${fmtDay(r.to)}` : '–'),
+    },
+    {
+      key: 'created',
+      header: t('reports.created'),
+      sortValue: (r) => r.createdAt,
+      cell: (r) => (
+        <>
+          {fmtDate(r.createdAt)}
+          <Text size="xs" c="dimmed">
+            {r.createdBy}
+          </Text>
+        </>
+      ),
+    },
+    { key: 'file', header: t('reports.file'), sortValue: (r) => r.size, cell: fileOf },
+  ];
+
   return (
     <>
       <PageHeader
@@ -169,102 +320,30 @@ export function ReportsPage() {
             </EmptyState>
           )}
           {!!schedules.data?.items.length && (
-            <div className="table-scroll">
-              <Table fz="sm" highlightOnHover aria-label={t('schedulesTitle')}>
-                <Table.Thead>
-                  <Table.Tr>
-                    <Table.Th>{t('table.name')}</Table.Th>
-                    <Table.Th>{t('table.when')}</Table.Th>
-                    <Table.Th>{t('table.sections')}</Table.Th>
-                    <Table.Th>{t('table.last')}</Table.Th>
-                    <Table.Th>{t('table.next')}</Table.Th>
-                    <Table.Th />
-                  </Table.Tr>
-                </Table.Thead>
-                <Table.Tbody>
-                  {schedules.data.items.map((s) => (
-                    <Table.Tr key={s.id}>
-                      <Table.Td>
-                        <Text size="sm" fw={500}>
-                          {s.name}
-                        </Text>
-                        <Text size="xs" c="dimmed">
-                          {t('table.owner', { owner: s.owner })}
-                          {!s.enabled && (
-                            <Badge ml={4} size="xs" color="gray" variant="light">
-                              {t('disabled')}
-                            </Badge>
-                          )}
-                          {s.team && (
-                            <Badge ml={4} size="xs" color="grape" variant="light">
-                              {t('table.team', { team: s.team.name })}
-                            </Badge>
-                          )}
-                        </Text>
-                      </Table.Td>
-                      <Table.Td>
-                        {t(`presets.${s.preset}`)}
-                        <Text size="xs" c="dimmed">
-                          <span className="mono">{s.cron}</span> {s.timezone}
-                        </Text>
-                      </Table.Td>
-                      <Table.Td>
-                        <Group gap={4}>
-                          {Object.keys(s.sections).map((id) => (
-                            <Badge key={id} size="xs" variant="light">
-                              {t(`sections.${id}.title`, { defaultValue: id })}
-                            </Badge>
-                          ))}
-                        </Group>
-                      </Table.Td>
-                      <Table.Td>
-                        {s.lastError ? (
-                          <Text size="xs" c="red">
-                            {s.lastError}
-                          </Text>
-                        ) : s.lastReportId ? (
-                          <Anchor href={apiUrl(`/reports/${s.lastReportId}/download`)} size="xs">
-                            {fmtRelative(s.lastRunAt)}
-                          </Anchor>
-                        ) : (
-                          '–'
-                        )}
-                      </Table.Td>
-                      <Table.Td className="nowrap">{s.enabled && s.nextRunAt ? fmtDate(s.nextRunAt) : '–'}</Table.Td>
-                      <Table.Td>
-                        <Group gap={2} wrap="nowrap" justify="flex-end">
-                          {schedules.data?.canCreate && <DuplicateActionIcon name={s.name} onClick={() => duplicate.open('report-schedule', s.id)} />}
-                          {s.canEdit && (
-                            <>
-                              <Tooltip label={t('runNow')}>
-                                <ActionIcon variant="subtle" loading={running === s.id} onClick={() => runNow(s)} aria-label={t('runNowOf', { name: s.name })}>
-                                  <IconPlayerPlay size={16} />
-                                </ActionIcon>
-                              </Tooltip>
-                              <ActionIcon variant="subtle" onClick={() => setDraft(toDraft(s))} aria-label={t('editOf', { name: s.name })}>
-                                <IconEdit size={16} />
-                              </ActionIcon>
-                              <ActionIcon
-                                variant="subtle"
-                                color="red"
-                                aria-label={t('deleteOf', { name: s.name })}
-                                onClick={async () => {
-                                  if (!(await confirmDanger({ action: 'delete', message: t('deleteConfirm', { name: s.name }) }))) return;
-                                  await del(`/report-schedules/${s.id}`).catch(notifyError);
-                                  refresh();
-                                }}
-                              >
-                                <IconTrash size={16} />
-                              </ActionIcon>
-                            </>
-                          )}
-                        </Group>
-                      </Table.Td>
-                    </Table.Tr>
-                  ))}
-                </Table.Tbody>
-              </Table>
-            </div>
+            <DataTable
+              rows={schedules.data.items}
+              columns={scheduleColumns}
+              rowKey={(s) => s.id}
+              ariaLabel={t('schedulesTitle')}
+              testId="report-schedule-list"
+              rememberSort="report-schedules"
+              defaultSort={{ key: 'name', dir: 'asc' }}
+              card={(s) => (
+                <Paper withBorder p="sm">
+                  {nameOf(s)}
+                  <Text size="xs" mt={4}>
+                    {t(`presets.${s.preset}`)} · <span className="mono">{s.cron}</span> {s.timezone}
+                  </Text>
+                  <Text size="xs" c="dimmed">
+                    {t('table.next')}: {s.enabled && s.nextRunAt ? fmtDate(s.nextRunAt) : '–'}
+                  </Text>
+                  <Group justify="space-between" wrap="nowrap" mt={4}>
+                    {lastOf(s)}
+                    {actionsOf(s)}
+                  </Group>
+                </Paper>
+              )}
+            />
           )}
         </Card>
 
@@ -278,50 +357,27 @@ export function ReportsPage() {
             </Text>
           )}
           {reports.length > 0 && (
-            <div className="table-scroll">
-              <Table fz="sm" highlightOnHover aria-label={t('generatedTitle')}>
-                <Table.Thead>
-                  <Table.Tr>
-                    <Table.Th>{t('reports.title')}</Table.Th>
-                    <Table.Th>{t('reports.period')}</Table.Th>
-                    <Table.Th>{t('reports.created')}</Table.Th>
-                    <Table.Th>{t('reports.file')}</Table.Th>
-                  </Table.Tr>
-                </Table.Thead>
-                <Table.Tbody>
-                  {reports.slice(0, 200).map((r) => (
-                    <Table.Tr key={r.id} bg={r.id === highlight ? 'var(--mantine-primary-color-light)' : undefined}>
-                      <Table.Td>
-                        <Text size="sm" fw={500}>
-                          {r.title}
-                        </Text>
-                        <Badge size="xs" variant="outline" color="gray">
-                          {t(`reports.kind.${r.kind}`, { defaultValue: r.kind })}
-                        </Badge>
-                      </Table.Td>
-                      <Table.Td className="nowrap">{r.from && r.to ? `${fmtDay(r.from)} – ${fmtDay(r.to)}` : '–'}</Table.Td>
-                      <Table.Td>
-                        {fmtDate(r.createdAt)}
-                        <Text size="xs" c="dimmed">
-                          {r.createdBy}
-                        </Text>
-                      </Table.Td>
-                      <Table.Td>
-                        <Anchor href={apiUrl(`/reports/${r.id}/download`)} size="sm">
-                          <Group gap={4} wrap="nowrap">
-                            <IconDownload size={14} />
-                            {t('reports.download', { size: fmtBytes(r.size) })}
-                          </Group>
-                        </Anchor>
-                        <Text size="xs" c="dimmed" className="mono">
-                          sha256 {r.sha256.slice(0, 16)}…
-                        </Text>
-                      </Table.Td>
-                    </Table.Tr>
-                  ))}
-                </Table.Tbody>
-              </Table>
-            </div>
+            <DataTable
+              rows={reports.slice(0, 200)}
+              columns={reportColumns}
+              rowKey={(r) => r.id}
+              ariaLabel={t('generatedTitle')}
+              rowProps={(r) => (r.id === highlight ? { bg: 'var(--mantine-primary-color-light)' } : {})}
+              testId="generated-report-list"
+              rememberSort="generated-reports"
+              defaultSort={{ key: 'created', dir: 'desc' }}
+              footer={<ListFooter shown={Math.min(reports.length, 200)} total={reports.length} />}
+              card={(r) => (
+                <Paper withBorder p="sm" bg={r.id === highlight ? 'var(--mantine-primary-color-light)' : undefined}>
+                  {reportTitleOf(r)}
+                  <Text size="xs" c="dimmed" mt={4}>
+                    {r.from && r.to ? `${fmtDay(r.from)} – ${fmtDay(r.to)} · ` : ''}
+                    {fmtDate(r.createdAt)} · {r.createdBy}
+                  </Text>
+                  <Box mt={4}>{fileOf(r)}</Box>
+                </Paper>
+              )}
+            />
           )}
         </Card>
       </Stack>

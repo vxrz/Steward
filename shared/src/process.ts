@@ -899,6 +899,11 @@ export const connectionSlotSchema = z.object({
   /** Platform kind this slot expects (e.g. insights-hub). Empty = any. */
   kind: z.string().optional(),
   description: z.string().optional(),
+  /**
+   * What the slot needs of the platform identity it is bound to (0.13.0, ADR 0009): `writes` – an identity that is not
+   * read-only. Missing: any identity.
+   */
+  identity: z.object({ writes: z.boolean().optional() }).strict().optional(),
 });
 export type ConnectionSlot = z.infer<typeof connectionSlotSchema>;
 

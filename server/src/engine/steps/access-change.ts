@@ -16,6 +16,9 @@ function rightsList(v: unknown): string[] {
 async function execAccessChange(step: NodeOf<'accessChange'>, ctx: StepContext, key: string): Promise<LeafResult> {
   const b = ctx.bindings[step.connection];
   if (!b) throw new Error(`Connection "${step.connection}" is not bound`);
+  // an access change recorded through a read-only identity cannot be right (0.13.0, ADR 0009) – in dry runs too
+  const { assertIdentityWrites } = await import('../../platforms/identityGuard.js');
+  assertIdentityWrites(b.platform, 'documenting an access change');
   const items = step.items ? await ctx.list(step.items) : [undefined];
   if (items.length > 1000) throw new Error(`${items.length} subjects exceed the limit of 1000 per step`);
   const at = (expr: string | undefined, item: unknown) => (!expr ? Promise.resolve(undefined) : step.items ? ctx.item(expr, item) : ctx.eval(expr));

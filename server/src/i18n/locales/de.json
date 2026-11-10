@@ -56,6 +56,8 @@
       "ownerMissing": "Der Eigentümer {{owner}} fehlt oder ist deaktiviert",
       "mayNotRun": "{{user}} darf diesen Prozess nicht ausführen",
       "mayNotUsePlatform": "{{user}} darf die Plattform {{platform}} nicht verwenden",
+      "mayNotUseIdentity": "{{user}} darf die Identität {{identity}} der Plattform {{platform}} nicht verwenden",
+      "identityMissing": "Die Identität {{identity}} der Plattform {{platform}} gibt es nicht mehr",
       "missed": "Er war {{count}}-mal fällig, während Steward nicht lief"
     }
   },
@@ -90,8 +92,12 @@
     "unknown": "Status unbekannt: {{where}}",
     "blocked": "Blockiert: {{where}}",
     "maintenance": "Wartung: {{where}}",
+    "off": "Aus: {{where}}",
     "rootCause": "Ursache: {{causes}}.",
-    "hiddenMonitor": "ein Monitor, den Sie nicht sehen können"
+    "hiddenMonitor": "ein Monitor, den Sie nicht sehen können",
+    "stateChanged": "{{where}}: {{from}} → {{to}}",
+    "stateAgree": "Alle Prüfungen stimmen mit dem Zustand {{to}} überein.",
+    "stateNone": "kein Zustand"
   },
   "credentialDue": {
     "kinds": {
@@ -535,5 +541,34 @@
     "query": "Abfrage",
     "body": "Inhalt",
     "reason": "Begründung des Assistenten"
+  },
+  "plantChange": {
+    "proposedTitle": "Werksänderung zu prüfen: {{title}}",
+    "proposedBody_one": "{{author}} schlägt {{count}} Änderung am Werksregister vor ({{where}}). Sie dürfen sie übernehmen: Prüfen Sie sie in Steward unter Werk → Änderungen. Ohne Entscheidung verfällt sie am {{expires}}.",
+    "proposedBody_other": "{{author}} schlägt {{count}} Änderungen am Werksregister vor ({{where}}). Sie dürfen sie übernehmen: Prüfen Sie sie in Steward unter Werk → Änderungen. Ohne Entscheidung verfallen sie am {{expires}}.",
+    "proposedChannelTitle": "Werksänderung von {{author}} vorgeschlagen",
+    "proposedChannelBody": "Eine Änderung am Werksregister wartet auf eine zweite Person. Prüfen Sie sie in Steward unter Werk → Änderungen.",
+    "sites": "Standorte {{sites}}",
+    "catalogue": "Geräteprofile und KPI-Definitionen",
+    "decidedTitle": {
+      "applied": "Ihre Werksänderung wurde übernommen: {{title}}",
+      "rejected": "Ihre Werksänderung wurde abgelehnt: {{title}}",
+      "returned": "Ihre Werksänderung wurde an Sie zurückgegeben: {{title}}",
+      "expired": "Ihre Werksänderung ist verfallen: {{title}}"
+    },
+    "decidedBody": {
+      "applied": "{{by}} hat Ihre Änderung übernommen.",
+      "rejected": "{{by}} hat Ihre Änderung abgelehnt. Sie können sie in einen neuen Entwurf kopieren.",
+      "returned": "{{by}} hat Ihre Änderung als Entwurf an Sie zurückgegeben: Ändern Sie sie und schlagen Sie sie erneut vor.",
+      "expired": "Niemand hat rechtzeitig über Ihre Änderung entschieden. Sie können sie in einen neuen Entwurf kopieren und erneut vorschlagen."
+    },
+    "comment": "Kommentar: {{comment}}",
+    "decidedChannelTitle": {
+      "applied": "Werksänderung von {{author}} übernommen",
+      "rejected": "Werksänderung von {{author}} abgelehnt",
+      "returned": "Werksänderung von {{author}} zurückgegeben",
+      "expired": "Werksänderung von {{author}} verfallen"
+    },
+    "decidedChannelBody": "Öffnen Sie sie in Steward unter Werk → Änderungen."
   }
 }

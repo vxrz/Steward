@@ -3,6 +3,10 @@
   "remove": "Entfernen",
   "copy": "Kopieren",
   "copied": "Kopiert",
+  "copyId": {
+    "label": "ID",
+    "copy": "ID kopieren"
+  },
   "name": "Name",
   "value": "Wert",
   "status": {
@@ -87,6 +91,7 @@
   "no": "Nein",
   "permissions": {
     "view": "Ansehen",
+    "propose": "Vorschlagen",
     "run": "Ausführen",
     "edit": "Bearbeiten",
     "approve": "Freigeben",

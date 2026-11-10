@@ -78,6 +78,7 @@ export const POINT_LABELS: Record<ReportLang, Record<string, string>> = {
     'modules.switch': 'Switch a module on or off',
     'plant.renameId': 'Change the id of a plant entry',
     'plant.bulkChange': 'Change many plant entries at once',
+    'plant.changeSet': 'Apply changes to the plant registry (second person)',
   },
   de: {
     'apiToken.create': 'Ein API-Token erstellen',
@@ -121,6 +122,7 @@ export const POINT_LABELS: Record<ReportLang, Record<string, string>> = {
     'modules.switch': 'Ein Modul ein- oder ausschalten',
     'plant.renameId': 'Kennung eines Anlageneintrags ändern',
     'plant.bulkChange': 'Viele Anlageneinträge auf einmal ändern',
+    'plant.changeSet': 'Änderungen am Anlagenregister übernehmen (zweite Person)',
   },
 };
 

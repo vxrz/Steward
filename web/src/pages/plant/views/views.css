@@ -399,6 +399,14 @@
 .pv-cell[data-inactive='true'] {
   background-image: repeating-linear-gradient(135deg, transparent 0 5px, color-mix(in srgb, currentColor 14%, transparent) 5px 7px);
 }
+/* 0.13: a cell that counts through a part (via), and a part counted for its machine (dashed: not counted again) */
+.pv-cell[data-via='true'] {
+  font-style: italic;
+}
+.pv-cell[data-rolled-up='true'] {
+  box-shadow: none;
+  border: 1.5px dashed var(--pv-could);
+}
 
 .pv-bar {
   display: flex;

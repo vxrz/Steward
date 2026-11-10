@@ -45,6 +45,29 @@ import {
   updateMapSettings,
 } from './map.js';
 import type { Fetched } from './mapTiles.js';
+import { plantSiteReviewInput, type PlantChangeSetSource } from '@sm/shared';
+import { entryWrite, revisedNetwork, splitRevision, type WriteTarget } from './changesets/write.js';
+import {
+  applyDirect,
+  bulkRegion,
+  importRegion,
+  changeSetLevel,
+  insertChangeSet,
+  insertOp,
+  previewFingerprint,
+  reviewNeeded,
+  rowOf,
+  setSiteReview,
+  summaryOf,
+} from './changesets/core.js';
+import { changeSetConfig, changeSetRoutes } from './changesets/api.js';
+import { checkOpenLimits, documentOperation } from './changesets/drafts.js';
+import { notifyProposed } from './changesets/notify.js';
+import { revisionOf } from './changesets/entries.js';
+import type { EntryChange, Region } from './changesets/track.js';
+import { me } from '../auth/access.js';
+import { asProposer, canManageCatalogue, plantManagesSome, plantProposesSome } from './access.js';
+import { audit } from '../audit.js';
 
 /**
  * The plant registry's internal API (#218), mounted under /api. Every route answers 404 PLANT_MODULE_OFF while the
@@ -107,6 +130,78 @@ const assetQuery = z.object({
   dataPoint: z.string().max(120).optional(),
 });
 
+/**
+ * A write route of an entry through a change set (0.13.0, changesets/write.ts): the body's `revision` (what the form
+ * loaded) is taken off before the route's strict schema; DELETE takes it as `?revision=`.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- the routes' bodies, typed by their schemas
+type Body = any;
+function write<T>(
+  req: FastifyRequest,
+  reply: FastifyReply,
+  target: (b: Body) => WriteTarget,
+  schema: { parse: (v: unknown) => Body } | null,
+  run: (b: Body) => T,
+  reread: (r: T, changes: EntryChange[]) => T,
+  removeValue?: Record<string, unknown>,
+) {
+  const { body, revision } = splitRevision(req.body);
+  const parsed = schema ? schema.parse(body) : (removeValue ?? {});
+  const q = req.query as { revision?: unknown } | undefined;
+  const fromQuery = req.method === 'DELETE' && typeof q?.revision === 'string' && /^\d{1,9}$/.test(q.revision) ? Number(q.revision) : undefined;
+  return entryWrite(req, reply, target(parsed), parsed, revision ?? fromQuery, () => run(parsed), reread);
+}
+
+/** Device profiles and KPI definitions with their revision (0.13.0: what the edit form sends back). */
+const withRevision =
+  (kind: 'profile' | 'kpi') =>
+  <T extends { id: string }>(x: T): T & { revision: number } => ({ ...x, revision: revisionOf(kind, '', x.id) ?? 1 });
+const profileWithRevision = (id: string) => {
+  const x = cat.getProfile(id);
+  return { ...x, revision: revisionOf('profile', '', x.id) ?? 1 };
+};
+const kpiWithRevision = (id: string) => {
+  const x = cat.getKpi(id);
+  return { ...x, revision: revisionOf('kpi', '', x.id) ?? 1 };
+};
+
+/** A change of one request that is no entry's form (an extraction, a collection import): a change set applied at once. */
+const directly = <T>(source: PlantChangeSetSource, title: string, region: Region, fn: () => T): T => applyDirect({ source, title, region, ops: [], fn }).result;
+
+/**
+ * Where review is required (plant.changeSet), an import, bulk change or rename asked for through its route becomes a
+ * proposed change set (202) – also for API tokens: a nightly sync into a reviewed site becomes a proposal.
+ */
+function proposed(kind: 'import' | 'bulk' | 'rename', title: string, op: Parameters<typeof insertOp>[1], sites: string[], catalogue: boolean) {
+  const u = me();
+  checkOpenLimits(u);
+  const id = insertChangeSet({ state: 'proposed', source: kind, title, by: u.username, sites, catalogue });
+  insertOp(id, op, u.username);
+  const r = rowOf(id)!;
+  audit({
+    action: 'plant.change_set_proposed',
+    entityType: 'plant_change_set',
+    entityId: id,
+    summary: `Plant change set "${title}" (${kind}) proposed by ${u.username} – changes here need a second person`,
+    details: { source: kind, createdBy: u.username, sites: sites.slice(0, 50) },
+  });
+  notifyProposed(id);
+  return summaryOf(r, u);
+}
+
+/** Whether the reader may only propose (no manage right where it applies, the propose right on some site): previews show
+ * what applying would do for their draft. */
+const proposesOnly = (catalogue: boolean): boolean => {
+  const u = me();
+  return !(catalogue ? canManageCatalogue(u) : plantManagesSome(u)) && plantProposesSome(u);
+};
+
+/** The sites and the catalogue an import's preview touches. */
+const touchedBy = (changes: { kind: string; siteId: string }[]) => ({
+  sites: [...new Set(changes.map((c) => c.siteId).filter(Boolean))],
+  catalogue: changes.some((c) => c.kind === 'profile' || c.kind === 'kpi'),
+});
+
 /** The demo shows the module with its invented enterprise once it is turned on. */
 export function plantDemo(): void {
   if (config.demo)
@@ -118,6 +213,8 @@ export function plantDemo(): void {
 }
 
 export async function plantRoutes(app: FastifyInstance): Promise<void> {
+  // 0.13.0: change sets – drafts, review, apply, history (docs/PLANT.md "Change sets")
+  await changeSetRoutes(app);
   // ---------- settings (the module switch works while the module is off) ----------
   app.get('/settings/plant', { config: { access: ACCESS.admin } }, async () => plantSettings());
   // turning the module on or off is a module switch (0.11.0, ADR 0016): the same step-up as Settings → Modules
@@ -182,7 +279,7 @@ export async function plantRoutes(app: FastifyInstance): Promise<void> {
   app.get('/plant/map/sprites/:sprite', mapFiles, async (req, reply) => sendMapFile(reply, await forReader(() => mapSprite(p(req).sprite!))));
 
   // ---------- module ----------
-  app.get('/plant/config', async () => svc.plantConfig());
+  app.get('/plant/config', async () => ({ ...svc.plantConfig(), changeSets: changeSetConfig() }));
   app.get('/plant/schema', async () => {
     requirePlant();
     return plantJsonSchema();
@@ -191,25 +288,109 @@ export async function plantRoutes(app: FastifyInstance): Promise<void> {
 
   // ---------- sites ----------
   app.get('/plant/sites', async () => svc.listSites());
-  app.post('/plant/sites', async (req) => svc.createSite(svc.siteInput.parse(req.body)));
+  app.post('/plant/sites', async (req, reply) =>
+    write(
+      req,
+      reply,
+      (b) => ({ kind: 'site', op: 'add', scope: '', id: b.id }),
+      svc.siteInput,
+      (b) => svc.createSite(b),
+      (r) => svc.getSite(r.id),
+    ),
+  );
   app.get('/plant/sites/:siteId', async (req) => svc.getSite(p(req).siteId!));
-  app.put('/plant/sites/:siteId', async (req) => svc.updateSite(p(req).siteId!, svc.siteUpdate.parse(req.body)));
-  app.delete('/plant/sites/:siteId', async (req) => {
-    svc.deleteSite(p(req).siteId!);
-    return { ok: true };
-  });
+  app.put('/plant/sites/:siteId', async (req, reply) =>
+    write(
+      req,
+      reply,
+      () => ({ kind: 'site', op: 'set', scope: '', id: p(req).siteId! }),
+      svc.siteUpdate,
+      (b) => svc.updateSite(p(req).siteId!, b),
+      () => svc.getSite(p(req).siteId!),
+    ),
+  );
+  app.delete('/plant/sites/:siteId', async (req, reply) =>
+    write(
+      req,
+      reply,
+      () => ({ kind: 'site', op: 'remove', scope: '', id: p(req).siteId! }),
+      null,
+      () => {
+        svc.deleteSite(p(req).siteId!);
+        return { ok: true };
+      },
+      (r) => r,
+    ),
+  );
+  // 0.13.0: the site's switch "Changes need a second person" (plant.changeSet optional) – a step-up as for access grants
+  app.put('/plant/sites/:siteId/review', { config: { stepUp: { action: 'grantAccess' } } }, async (req) =>
+    setSiteReview(p(req).siteId!, plantSiteReviewInput.parse(req.body).review),
+  );
   // an access list gives rights to others: confirmed like every other grant (step-up, assurance point access.grant)
   app.put('/plant/sites/:siteId/access', { config: { stepUp: { action: 'grantAccess' } } }, async (req) =>
     svc.setSiteAccess(p(req).siteId!, z.object({ acl: z.array(z.unknown()).max(500) }).parse(req.body).acl),
   );
-  app.post('/plant/sites/:siteId/nodes', async (req) => svc.createNode(p(req).siteId!, svc.nodeInput.parse(req.body)));
-  app.put('/plant/sites/:siteId/nodes/:nodeId', async (req) => svc.updateNode(p(req).siteId!, p(req).nodeId!, svc.nodeUpdate.parse(req.body)));
-  app.delete('/plant/sites/:siteId/nodes/:nodeId', async (req) => svc.deleteNode(p(req).siteId!, p(req).nodeId!));
-  app.post('/plant/sites/:siteId/buildings', async (req) => svc.createBuilding(p(req).siteId!, svc.buildingInput.parse(req.body)));
-  app.put('/plant/sites/:siteId/buildings/:buildingId', async (req) =>
-    svc.updateBuilding(p(req).siteId!, p(req).buildingId!, svc.buildingUpdate.parse(req.body)),
+  const siteAgain = (req: FastifyRequest) => () => svc.getSite(p(req).siteId!);
+  app.post('/plant/sites/:siteId/nodes', async (req, reply) =>
+    write(
+      req,
+      reply,
+      (b) => ({ kind: 'node', op: 'add', scope: p(req).siteId!, id: b.id }),
+      svc.nodeInput,
+      (b) => svc.createNode(p(req).siteId!, b),
+      siteAgain(req),
+    ),
   );
-  app.delete('/plant/sites/:siteId/buildings/:buildingId', async (req) => svc.deleteBuilding(p(req).siteId!, p(req).buildingId!));
+  app.put('/plant/sites/:siteId/nodes/:nodeId', async (req, reply) =>
+    write(
+      req,
+      reply,
+      () => ({ kind: 'node', op: 'set', scope: p(req).siteId!, id: p(req).nodeId! }),
+      svc.nodeUpdate,
+      (b) => svc.updateNode(p(req).siteId!, p(req).nodeId!, b),
+      siteAgain(req),
+    ),
+  );
+  app.delete('/plant/sites/:siteId/nodes/:nodeId', async (req, reply) =>
+    write(
+      req,
+      reply,
+      () => ({ kind: 'node', op: 'remove', scope: p(req).siteId!, id: p(req).nodeId! }),
+      null,
+      () => svc.deleteNode(p(req).siteId!, p(req).nodeId!),
+      siteAgain(req),
+    ),
+  );
+  app.post('/plant/sites/:siteId/buildings', async (req, reply) =>
+    write(
+      req,
+      reply,
+      (b) => ({ kind: 'building', op: 'add', scope: p(req).siteId!, id: b.id }),
+      svc.buildingInput,
+      (b) => svc.createBuilding(p(req).siteId!, b),
+      siteAgain(req),
+    ),
+  );
+  app.put('/plant/sites/:siteId/buildings/:buildingId', async (req, reply) =>
+    write(
+      req,
+      reply,
+      () => ({ kind: 'building', op: 'set', scope: p(req).siteId!, id: p(req).buildingId! }),
+      svc.buildingUpdate,
+      (b) => svc.updateBuilding(p(req).siteId!, p(req).buildingId!, b),
+      siteAgain(req),
+    ),
+  );
+  app.delete('/plant/sites/:siteId/buildings/:buildingId', async (req, reply) =>
+    write(
+      req,
+      reply,
+      () => ({ kind: 'building', op: 'remove', scope: p(req).siteId!, id: p(req).buildingId! }),
+      null,
+      () => svc.deleteBuilding(p(req).siteId!, p(req).buildingId!),
+      siteAgain(req),
+    ),
+  );
 
   // ---------- links of sites and assets (records/links.ts) ----------
   for (const kind of ['site', 'asset'] as const) {
@@ -228,13 +409,40 @@ export async function plantRoutes(app: FastifyInstance): Promise<void> {
 
   // ---------- assets ----------
   app.get('/plant/assets', async (req) => svc.listAssets(q(assetQuery.parse(req.query))));
-  app.post('/plant/assets', async (req) => svc.createAsset(svc.assetInput.parse(req.body)));
+  app.post('/plant/assets', async (req, reply) =>
+    write(
+      req,
+      reply,
+      (b) => ({ kind: 'asset', op: 'add', scope: '', id: b.id }),
+      svc.assetInput,
+      (b) => svc.createAsset(b),
+      (r) => svc.getAsset(r.id),
+    ),
+  );
   app.get('/plant/assets/:assetId', async (req) => svc.getAsset(p(req).assetId!));
-  app.put('/plant/assets/:assetId', async (req) => svc.updateAsset(p(req).assetId!, svc.assetUpdate.parse(req.body)));
-  app.delete('/plant/assets/:assetId', async (req) => {
-    svc.deleteAsset(p(req).assetId!);
-    return { ok: true };
-  });
+  app.put('/plant/assets/:assetId', async (req, reply) =>
+    write(
+      req,
+      reply,
+      () => ({ kind: 'asset', op: 'set', scope: '', id: p(req).assetId! }),
+      svc.assetUpdate,
+      (b) => svc.updateAsset(p(req).assetId!, b),
+      () => svc.getAsset(p(req).assetId!),
+    ),
+  );
+  app.delete('/plant/assets/:assetId', async (req, reply) =>
+    write(
+      req,
+      reply,
+      () => ({ kind: 'asset', op: 'remove', scope: '', id: p(req).assetId! }),
+      null,
+      () => {
+        svc.deleteAsset(p(req).assetId!);
+        return { ok: true };
+      },
+      (r) => r,
+    ),
+  );
   app.put('/plant/assets/:assetId/image', async (req) => {
     const b = z
       .object({
@@ -265,76 +473,250 @@ export async function plantRoutes(app: FastifyInstance): Promise<void> {
 
   // ---------- an asset's assignment: profile, interfaces, overrides, publications, KPI instances (#219) ----------
   app.get('/plant/assets/:assetId/assignment', async (req) => getAssignment(p(req).assetId!));
-  app.put('/plant/assets/:assetId/assignment', async (req) => putAssignment(p(req).assetId!, assignmentInput.parse(req.body)));
-  app.delete('/plant/assets/:assetId/assignment', async (req) => deleteAssignment(p(req).assetId!));
+  app.put('/plant/assets/:assetId/assignment', async (req, reply) =>
+    write(
+      req,
+      reply,
+      () => ({ kind: 'assignment', op: 'set', scope: '', id: p(req).assetId! }),
+      assignmentInput,
+      (b) => putAssignment(p(req).assetId!, b),
+      () => getAssignment(p(req).assetId!),
+    ),
+  );
+  app.delete('/plant/assets/:assetId/assignment', async (req, reply) =>
+    write(
+      req,
+      reply,
+      () => ({ kind: 'assignment', op: 'remove', scope: '', id: p(req).assetId! }),
+      null,
+      () => deleteAssignment(p(req).assetId!),
+      () => getAssignment(p(req).assetId!),
+    ),
+  );
 
   // ---------- device profiles and KPI definitions: catalogues of the installation (#219) ----------
   app.get('/plant/profiles', async () => cat.listProfiles());
-  app.post('/plant/profiles', async (req) => cat.createProfile(cat.profileInput.parse(req.body)));
+  app.post('/plant/profiles', async (req, reply) =>
+    write(
+      req,
+      reply,
+      (b) => ({ kind: 'profile', op: 'add', scope: '', id: b.id }),
+      cat.profileInput,
+      (b) => cat.createProfile(b),
+      // the service's answer is read after its write: only the revision is new
+      withRevision('profile'),
+    ),
+  );
   // 0.12.0: extract a base profile from two or more profiles (the shared data points; docs/PLANT.md)
   app.post('/plant/profiles/extract-base/candidates', async (req) => extractCandidates(candidatesInput.parse(req.body)));
   app.post('/plant/profiles/extract-base/preview', async (req) => previewExtract(extractInput.parse(req.body)));
-  app.post('/plant/profiles/extract-base', async (req) => extractBase(extractInput.parse(req.body)));
-  app.get('/plant/profiles/:profileId', async (req) => cat.getProfile(p(req).profileId!));
-  app.put('/plant/profiles/:profileId', async (req) => cat.updateProfile(p(req).profileId!, cat.profileUpdate.parse(req.body)));
-  app.delete('/plant/profiles/:profileId', async (req) => {
-    cat.deleteProfile(p(req).profileId!);
-    return { ok: true };
+  app.post('/plant/profiles/extract-base', async (req) => {
+    const input = extractInput.parse(req.body);
+    return directly('edit', 'Base profile extracted', { catalogue: true, assignments: true }, () => extractBase(input));
   });
+  app.get('/plant/profiles/:profileId', async (req) => profileWithRevision(p(req).profileId!));
+  app.put('/plant/profiles/:profileId', async (req, reply) =>
+    write(
+      req,
+      reply,
+      () => ({ kind: 'profile', op: 'set', scope: '', id: p(req).profileId! }),
+      cat.profileUpdate,
+      (b) => cat.updateProfile(p(req).profileId!, b),
+      withRevision('profile'),
+    ),
+  );
+  app.delete('/plant/profiles/:profileId', async (req, reply) =>
+    write(
+      req,
+      reply,
+      () => ({ kind: 'profile', op: 'remove', scope: '', id: p(req).profileId! }),
+      null,
+      () => {
+        cat.deleteProfile(p(req).profileId!);
+        return { ok: true };
+      },
+      (r) => r,
+    ),
+  );
   app.get('/plant/profiles/:profileId/points/:pointId', async (req) => cat.getDataPoint(p(req).profileId!, p(req).pointId!));
   app.get('/plant/kpis', async () => cat.listKpis());
-  app.post('/plant/kpis', async (req) => cat.createKpi(cat.kpiInput.parse(req.body)));
-  app.get('/plant/kpis/:kpiId', async (req) => cat.getKpi(p(req).kpiId!));
-  app.put('/plant/kpis/:kpiId', async (req) => cat.updateKpi(p(req).kpiId!, cat.kpiUpdate.parse(req.body)));
-  app.delete('/plant/kpis/:kpiId', async (req) => {
-    cat.deleteKpi(p(req).kpiId!);
-    return { ok: true };
-  });
+  app.post('/plant/kpis', async (req, reply) =>
+    write(
+      req,
+      reply,
+      (b) => ({ kind: 'kpi', op: 'add', scope: '', id: b.id }),
+      cat.kpiInput,
+      (b) => cat.createKpi(b),
+      withRevision('kpi'),
+    ),
+  );
+  app.get('/plant/kpis/:kpiId', async (req) => kpiWithRevision(p(req).kpiId!));
+  app.put('/plant/kpis/:kpiId', async (req, reply) =>
+    write(
+      req,
+      reply,
+      () => ({ kind: 'kpi', op: 'set', scope: '', id: p(req).kpiId! }),
+      cat.kpiUpdate,
+      (b) => cat.updateKpi(p(req).kpiId!, b),
+      withRevision('kpi'),
+    ),
+  );
+  app.delete('/plant/kpis/:kpiId', async (req, reply) =>
+    write(
+      req,
+      reply,
+      () => ({ kind: 'kpi', op: 'remove', scope: '', id: p(req).kpiId! }),
+      null,
+      () => {
+        cat.deleteKpi(p(req).kpiId!);
+        return { ok: true };
+      },
+      (r) => r,
+    ),
+  );
   // which assets deliver a data point (by text across the profiles); every check of what the caller may see
   app.get('/plant/explore/points', async (req) => cat.explorePoints(z.object({ q: z.string().max(200).default('') }).parse(req.query).q));
   app.get('/plant/checks', async () => cat.listChecks());
 
   // ---------- the OT network (#220): VLANs, IEC 62443-3-2 zones and conduits of a site; devices, data paths, checks ----------
   app.get('/plant/sites/:siteId/network', async (req) => net.siteNetwork(p(req).siteId!));
-  app.post('/plant/sites/:siteId/vlans', async (req) => net.createVlan(p(req).siteId!, net.vlanInput.parse(req.body)));
-  app.put('/plant/sites/:siteId/vlans/:vlanId', async (req) => net.updateVlan(p(req).siteId!, p(req).vlanId!, net.vlanUpdate.parse(req.body)));
-  app.delete('/plant/sites/:siteId/vlans/:vlanId', async (req) => net.deleteVlan(p(req).siteId!, p(req).vlanId!));
+  const netAgain =
+    (req: FastifyRequest) =>
+    <T>(r: T, changes: EntryChange[]): T =>
+      revisedNetwork(r, changes) ?? (net.siteNetwork(p(req).siteId!) as T);
+  // the service's answer with the new revisions (read again only when it cannot be placed)
+  const assetNetAgain =
+    (req: FastifyRequest) =>
+    <T>(r: T, changes: EntryChange[]): T =>
+      revisedNetwork(r, changes) ?? (net.assetNetwork(p(req).assetId!) as T);
+  for (const [kind, path, param, input, update, create, change, remove] of [
+    ['vlan', 'vlans', 'vlanId', net.vlanInput, net.vlanUpdate, net.createVlan, net.updateVlan, net.deleteVlan],
+    ['zone', 'zones', 'zoneId', net.zoneInput, net.zoneUpdate, net.createZone, net.updateZone, net.deleteZone],
+    ['conduit', 'conduits', 'conduitId', net.conduitInput, net.conduitUpdate, net.createConduit, net.updateConduit, net.deleteConduit],
+  ] as const) {
+    app.post(`/plant/sites/:siteId/${path}`, async (req, reply) =>
+      write(
+        req,
+        reply,
+        (b) => ({ kind, op: 'add', scope: p(req).siteId!, id: b.id }),
+        input,
+        (b) => (create as (s: string, b: unknown) => unknown)(p(req).siteId!, b),
+        netAgain(req),
+      ),
+    );
+    app.put(`/plant/sites/:siteId/${path}/:${param}`, async (req, reply) =>
+      write(
+        req,
+        reply,
+        () => ({ kind, op: 'set', scope: p(req).siteId!, id: p(req)[param]! }),
+        update,
+        (b) => (change as (s: string, i: string, b: unknown) => unknown)(p(req).siteId!, p(req)[param]!, b),
+        netAgain(req),
+      ),
+    );
+    app.delete(`/plant/sites/:siteId/${path}/:${param}`, async (req, reply) =>
+      write(
+        req,
+        reply,
+        () => ({ kind, op: 'remove', scope: p(req).siteId!, id: p(req)[param]! }),
+        null,
+        () => remove(p(req).siteId!, p(req)[param]!),
+        netAgain(req),
+      ),
+    );
+  }
   // "Create segment from this VLAN": a Steward network segment (the catalogue's rights apply), linked to the VLAN
-  app.post('/plant/sites/:siteId/vlans/:vlanId/segment', async (req) =>
-    net.createSegmentFromVlan(
-      p(req).siteId!,
-      p(req).vlanId!,
-      z
-        .object({ name: z.string().trim().min(1).max(120).optional() })
-        .strict()
-        .parse(req.body ?? {}).name,
+  app.post('/plant/sites/:siteId/vlans/:vlanId/segment', async (req) => {
+    const name = z
+      .object({ name: z.string().trim().min(1).max(120).optional() })
+      .strict()
+      .parse(req.body ?? {}).name;
+    return directly('edit', `VLAN "${p(req).vlanId!}" linked to a segment`, { sites: [p(req).siteId!] }, () =>
+      net.createSegmentFromVlan(p(req).siteId!, p(req).vlanId!, name),
+    );
+  });
+  app.get('/plant/assets/:assetId/network', async (req) => net.assetNetwork(p(req).assetId!));
+  app.put('/plant/assets/:assetId/checks', async (req, reply) =>
+    write(
+      req,
+      reply,
+      () => ({ kind: 'asset_checks', op: 'set', scope: '', id: p(req).assetId! }),
+      net.assetChecksInput,
+      (b) => net.putAssetChecks(p(req).assetId!, b),
+      assetNetAgain(req),
     ),
   );
-  app.post('/plant/sites/:siteId/zones', async (req) => net.createZone(p(req).siteId!, net.zoneInput.parse(req.body)));
-  app.put('/plant/sites/:siteId/zones/:zoneId', async (req) => net.updateZone(p(req).siteId!, p(req).zoneId!, net.zoneUpdate.parse(req.body)));
-  app.delete('/plant/sites/:siteId/zones/:zoneId', async (req) => net.deleteZone(p(req).siteId!, p(req).zoneId!));
-  app.post('/plant/sites/:siteId/conduits', async (req) => net.createConduit(p(req).siteId!, net.conduitInput.parse(req.body)));
-  app.put('/plant/sites/:siteId/conduits/:conduitId', async (req) => net.updateConduit(p(req).siteId!, p(req).conduitId!, net.conduitUpdate.parse(req.body)));
-  app.delete('/plant/sites/:siteId/conduits/:conduitId', async (req) => net.deleteConduit(p(req).siteId!, p(req).conduitId!));
-  app.get('/plant/assets/:assetId/network', async (req) => net.assetNetwork(p(req).assetId!));
-  app.put('/plant/assets/:assetId/checks', async (req) => net.putAssetChecks(p(req).assetId!, net.assetChecksInput.parse(req.body)));
-  app.post('/plant/assets/:assetId/devices', async (req) => net.createDevice(p(req).assetId!, net.deviceInput.parse(req.body)));
-  app.put('/plant/assets/:assetId/devices/:deviceId', async (req) => net.updateDevice(p(req).assetId!, p(req).deviceId!, net.deviceUpdate.parse(req.body)));
-  app.delete('/plant/assets/:assetId/devices/:deviceId', async (req) => net.deleteDevice(p(req).assetId!, p(req).deviceId!));
-  app.post('/plant/assets/:assetId/paths', async (req) => net.createDataPath(p(req).assetId!, net.dataPathInput.parse(req.body)));
-  app.put('/plant/assets/:assetId/paths/:pathId', async (req) => net.updateDataPath(p(req).assetId!, p(req).pathId!, net.dataPathUpdate.parse(req.body)));
-  app.delete('/plant/assets/:assetId/paths/:pathId', async (req) => net.deleteDataPath(p(req).assetId!, p(req).pathId!));
+  for (const [kind, path, param, input, update, create, change, remove] of [
+    ['device', 'devices', 'deviceId', net.deviceInput, net.deviceUpdate, net.createDevice, net.updateDevice, net.deleteDevice],
+    ['data_path', 'paths', 'pathId', net.dataPathInput, net.dataPathUpdate, net.createDataPath, net.updateDataPath, net.deleteDataPath],
+  ] as const) {
+    app.post(`/plant/assets/:assetId/${path}`, async (req, reply) =>
+      write(
+        req,
+        reply,
+        (b) => ({ kind, op: 'add', scope: p(req).assetId!, id: b.id }),
+        input,
+        (b) => (create as (s: string, b: unknown) => unknown)(p(req).assetId!, b),
+        assetNetAgain(req),
+      ),
+    );
+    app.put(`/plant/assets/:assetId/${path}/:${param}`, async (req, reply) =>
+      write(
+        req,
+        reply,
+        () => ({ kind, op: 'set', scope: p(req).assetId!, id: p(req)[param]! }),
+        update,
+        (b) => (change as (s: string, i: string, b: unknown) => unknown)(p(req).assetId!, p(req)[param]!, b),
+        assetNetAgain(req),
+      ),
+    );
+    app.delete(`/plant/assets/:assetId/${path}/:${param}`, async (req, reply) =>
+      write(
+        req,
+        reply,
+        () => ({ kind, op: 'remove', scope: p(req).assetId!, id: p(req)[param]! }),
+        null,
+        () => remove(p(req).assetId!, p(req)[param]!),
+        assetNetAgain(req),
+      ),
+    );
+  }
   // ---------- data collections (0.11.0, ADR 0019): what a collector reads from an asset, mapped to its data points ----------
   app.get('/plant/assets/:assetId/collections', async (req) => coll.assetCollections(p(req).assetId!));
-  app.post('/plant/assets/:assetId/collections', async (req) => coll.createCollection(p(req).assetId!, coll.collectionInput.parse(req.body)));
-  app.get('/plant/assets/:assetId/collections/:collectionId', async (req) => coll.getCollection(p(req).assetId!, p(req).collectionId!));
-  app.put('/plant/assets/:assetId/collections/:collectionId', async (req) =>
-    coll.updateCollection(p(req).assetId!, p(req).collectionId!, coll.collectionUpdate.parse(req.body)),
+  app.post('/plant/assets/:assetId/collections', async (req, reply) =>
+    write(
+      req,
+      reply,
+      (b) => ({ kind: 'collection', op: 'add', scope: p(req).assetId!, id: b.id }),
+      coll.collectionInput,
+      (b) => coll.createCollection(p(req).assetId!, b),
+      (r) => coll.getCollection(p(req).assetId!, r.id),
+    ),
   );
-  app.delete('/plant/assets/:assetId/collections/:collectionId', async (req) => {
+  app.get('/plant/assets/:assetId/collections/:collectionId', async (req) => coll.getCollection(p(req).assetId!, p(req).collectionId!));
+  app.put('/plant/assets/:assetId/collections/:collectionId', async (req, reply) =>
+    write(
+      req,
+      reply,
+      () => ({ kind: 'collection', op: 'set', scope: p(req).assetId!, id: p(req).collectionId! }),
+      coll.collectionUpdate,
+      (b) => coll.updateCollection(p(req).assetId!, p(req).collectionId!, b),
+      () => coll.getCollection(p(req).assetId!, p(req).collectionId!),
+    ),
+  );
+  app.delete('/plant/assets/:assetId/collections/:collectionId', async (req, reply) => {
     // records that link to it refuse it unless "also remove what belongs to it" (0.12)
     const q = z.object({ cascade: z.enum(['0', '1', 'true', 'false']).default('0') }).parse(req.query);
-    return coll.deleteCollection(p(req).assetId!, p(req).collectionId!, q.cascade === '1' || q.cascade === 'true');
+    const cascade = q.cascade === '1' || q.cascade === 'true';
+    return write(
+      req,
+      reply,
+      () => ({ kind: 'collection', op: 'remove', scope: p(req).assetId!, id: p(req).collectionId! }),
+      null,
+      () => coll.deleteCollection(p(req).assetId!, p(req).collectionId!, cascade),
+      () => coll.assetCollections(p(req).assetId!),
+      { cascade },
+    );
   });
   // 0.12: where the data goes – items → transformations → sinks → downstream
   app.get('/plant/assets/:assetId/collections/:collectionId/flow', async (req) => coll.collectionFlow(p(req).assetId!, p(req).collectionId!));
@@ -364,9 +746,13 @@ export async function plantRoutes(app: FastifyInstance): Promise<void> {
   app.post('/plant/assets/:assetId/collections/import/preview', collectionImports, async (req) =>
     previewCollectionImport(p(req).assetId!, collectionImportInput.parse(req.body)),
   );
-  app.post('/plant/assets/:assetId/collections/import', collectionImports, async (req) =>
-    applyCollectionImport(p(req).assetId!, collectionImportInput.parse(req.body)),
-  );
+  // through a change set (history and revisions); as operations of their own in phase 2 (ADR 0020)
+  app.post('/plant/assets/:assetId/collections/import', collectionImports, async (req) => {
+    const input = collectionImportInput.parse(req.body);
+    return directly('import', `Collection import into asset "${p(req).assetId!}"`, { assets: [p(req).assetId!] }, () =>
+      applyCollectionImport(p(req).assetId!, input),
+    );
+  });
   app.get('/plant/collections', async (req) => {
     const q = z.object({ collectorKind: z.enum(['application', 'platform', 'process', 'job']), collectorRef: z.string().min(1).max(200) }).parse(req.query);
     return coll.collectorCollections(q.collectorKind, q.collectorRef);
@@ -408,15 +794,82 @@ export async function plantRoutes(app: FastifyInstance): Promise<void> {
   app.get('/plant/profiles/:profileId/points/:pointId/lineage', async (req) => pointLineage(p(req).profileId!, p(req).pointId!));
 
   // ---------- ids (0.11.0): renaming an entry, the old ids that keep leading to it, many entries at once ----------
-  app.post('/plant/ids/rename/preview', async (req) => previewRename(plantRenameInput.parse(req.body)));
-  app.post('/plant/ids/rename', { config: { stepUp: { action: 'renamePlantId', optional: true } } }, async (req) => renameId(plantRenameInput.parse(req.body)));
+  // 0.13.0: previews carry the fingerprint of what applying writes; applying with it refuses a different result
+  app.post('/plant/ids/rename/preview', async (req) => {
+    const { fingerprint: _f, ...input } = plantRenameInput.parse(req.body);
+    const pre = previewRename(input);
+    return pre.problem ? pre : { ...pre, fingerprint: previewFingerprint({ all: true }, () => renameId(input)).fingerprint };
+  });
+  app.post('/plant/ids/rename', { config: { stepUp: { action: 'renamePlantId', optional: true } } }, async (req, reply) => {
+    const { fingerprint, ...input } = plantRenameInput.parse(req.body);
+    const pre = changeSetLevel() !== 'off' ? previewRename(input) : null;
+    if (pre && !pre.problem) {
+      const site = input.kind === 'site' ? input.id : ['building', 'node', 'vlan', 'zone', 'conduit'].includes(input.kind) ? input.scope : null;
+      const catalogue = ['profile', 'kpi', 'interface', 'data_point'].includes(input.kind);
+      const sites = site
+        ? [site]
+        : previewFingerprint({ all: true }, () => renameId(input))
+            .changes.map((c) => c.siteId)
+            .filter(Boolean);
+      if (reviewNeeded(sites, catalogue)) {
+        const changeSet = proposed(
+          'rename',
+          `Change id: ${input.kind} ${input.id} → ${input.newId}`,
+          {
+            op: 'rename',
+            kind: input.kind as never,
+            scope: input.scope,
+            id: input.id,
+            name: pre.name,
+            origin: 'authored',
+            baseRevision: null,
+            base: null,
+            value: { newId: input.newId },
+          },
+          sites,
+          catalogue,
+        );
+        reply.code(202);
+        return { ...pre, changeSet };
+      }
+    }
+    return applyDirect({
+      source: 'rename',
+      title: `Change id: ${input.kind} ${input.id} → ${input.newId}`,
+      region: { all: true },
+      ops: [
+        {
+          op: 'rename',
+          kind: input.kind as never,
+          scope: input.scope,
+          id: input.id,
+          name: input.id,
+          origin: 'authored',
+          baseRevision: null,
+          base: null,
+          value: { newId: input.newId },
+        },
+      ],
+      fn: () => renameId(input),
+      fingerprint,
+      changedCode: 'PLANT_RENAME_CHANGED',
+    }).result;
+  });
   app.get('/plant/aliases', { config: { access: ACCESS.admin } }, async () => listAliases());
   app.delete('/plant/aliases/:kind/:oldId', { config: { access: ACCESS.admin } }, async (req) => {
     const kind = z.enum(PLANT_ID_KINDS).parse(p(req).kind);
     removeAlias(kind, z.object({ scope: z.string().max(120).default('') }).parse(req.query).scope, p(req).oldId!);
     return { ok: true };
   });
-  app.post('/plant/bulk/preview', async (req) => previewBulk(plantBulkInput.parse(req.body)));
+  app.post('/plant/bulk/preview', async (req) => {
+    const { fingerprint: _f, ...input } = plantBulkInput.parse(req.body);
+    // one dry run: what applying writes (its fingerprint) and the preview (computed before anything is written); who
+    // may only propose sees it with their propose right counted as manage – to add it to their draft (0.13.0)
+    const catalogue = input.kind === 'profile' || input.kind === 'kpi';
+    const draft = proposesOnly(catalogue);
+    const f = previewFingerprint(bulkRegion(input), () => (draft ? asProposer(() => applyBulk(input)) : applyBulk(input)));
+    return { ...f.result, applied: false, fingerprint: f.fingerprint };
+  });
   app.post(
     '/plant/bulk',
     {
@@ -430,11 +883,45 @@ export async function plantRoutes(app: FastifyInstance): Promise<void> {
         },
       },
     },
-    async (req) => applyBulk(plantBulkInput.parse(req.body)),
+    async (req, reply) => {
+      const { fingerprint, ...input } = plantBulkInput.parse(req.body);
+      if (changeSetLevel() !== 'off') {
+        const f = previewFingerprint(bulkRegion(input), () => applyBulk(input));
+        const where = touchedBy(f.changes);
+        if (f.changes.length && reviewNeeded(where.sites, where.catalogue)) {
+          const op = documentOperation('bulk', input, me());
+          const changeSet = proposed(
+            'bulk',
+            `${input.action === 'remove' ? 'Remove' : 'Change'} ${input.items.length} ${input.kind} entries`,
+            op,
+            where.sites,
+            where.catalogue,
+          );
+          reply.code(202);
+          return { ...previewBulk(input), changeSet };
+        }
+      }
+      return applyDirect({
+        source: 'bulk',
+        title: `${input.action === 'remove' ? 'Remove' : 'Change'} ${input.items.length} ${input.kind} entries`,
+        region: bulkRegion(input),
+        ops: [documentOperation('bulk', input, me())],
+        fn: () => applyBulk(input),
+        fingerprint,
+        changedCode: 'PLANT_BULK_CHANGED',
+      }).result;
+    },
   );
 
   // ---------- import and export ----------
-  app.post('/plant/import/preview', imports, async (req) => previewImport(importInput.parse(req.body)));
+  app.post('/plant/import/preview', imports, async (req) => {
+    const { fingerprint: _f, ...input } = importInput.parse(req.body);
+    // who may only propose sees what the files would do with their propose right counted as manage – to add them to
+    // their draft (0.13.0; a dry run that is rolled back and audits nothing)
+    const draft = proposesOnly(false);
+    const f = previewFingerprint(importRegion(input), () => (draft ? asProposer(() => previewImport(input)) : previewImport(input)));
+    return { ...f.result, fingerprint: f.fingerprint };
+  });
   // renaming or removing more than one entry asks for a step-up (plant.bulkChange), one rename as the policy says (plant.renameId)
   app.post(
     '/plant/import',
@@ -445,7 +932,30 @@ export async function plantRoutes(app: FastifyInstance): Promise<void> {
         stepUp: { action: 'changePlantInBulk', when: (req: FastifyRequest) => importPointsOf(req).length > 0, points: importPointsOf },
       },
     },
-    async (req) => applyImport(importInput.parse(req.body)),
+    async (req, reply) => {
+      const { fingerprint, ...input } = importInput.parse(req.body);
+      if (changeSetLevel() !== 'off') {
+        const pre = previewImport(input);
+        const where = touchedBy(pre.changes.filter((c) => c.action !== 'unchanged' && c.action !== 'skip'));
+        if (pre.ok && reviewNeeded(where.sites, where.catalogue)) {
+          const op = documentOperation('import', input, me());
+          const changeSet = proposed('import', `Import ${input.files.map((x) => x.name).join(', ')}`.slice(0, 200), op, where.sites, where.catalogue);
+          reply.code(202);
+          return { ...pre, changeSet };
+        }
+      }
+      return applyDirect({
+        source: 'import',
+        title: `Import ${input.files.map((x) => x.name).join(', ')}`.slice(0, 200),
+        region: importRegion(input),
+        // the files are kept by their names and hashes (plant_imports); a proposed import keeps them whole
+        ops: [{ ...documentOperation('import', input, me()), source: undefined }],
+        fn: () => applyImport(input),
+        fingerprint,
+        changedCode: 'PLANT_IMPORT_CHANGED',
+        importIdOf: (r) => r.import.id,
+      }).result;
+    },
   );
   app.get('/plant/imports', async () => listImports());
   app.get('/plant/export', async (req, reply) => {

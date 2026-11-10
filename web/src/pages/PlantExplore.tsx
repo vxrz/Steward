@@ -205,7 +205,7 @@ function PointSearch({ needle }: { needle: string }) {
 }
 
 function AssetKpis({ assetId, onAsset }: { assetId: string | null; onAsset: (id: string | null) => void }) {
-  const { t } = useTranslation(['plant', 'common']);
+  const { t } = useTranslation(['plant', 'common', 'plantViews']);
   const label = usePlantLabel();
   const nameOf = useNameOf();
   const assets = useQuery({ queryKey: plantKeys.assets(''), queryFn: () => get<PlantAssetSummary[]>('/plant/assets') });
@@ -258,6 +258,12 @@ function AssetKpis({ assetId, onAsset }: { assetId: string | null; onAsset: (id:
                       <Text size="xs" c="dimmed">
                         {k.category}
                       </Text>
+                    )}
+                    {/* 0.13: a KPI that rolls up from parts – through this part */}
+                    {k.via && (
+                      <Anchor component={Link} to={`/plant/assets/${encodeURIComponent(k.via.id)}`} size="xs" title={t('plantViews:coverage.viaHint')}>
+                        {t('plantViews:coverage.via', { name: k.via.name })}
+                      </Anchor>
                     )}
                     {!k.instantiated && k.collected !== undefined && <CollectedBadge collected={k.collected} />}
                     <UnitsBadge units={k.units} />

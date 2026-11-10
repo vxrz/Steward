@@ -17,13 +17,21 @@
   "rotateFor": "Secret von {{name}} erneuern",
   "editFor": "{{name}} bearbeiten",
   "deleteFor": "{{name}} löschen",
+  "filters": {
+    "search": "Name, Prozess, Eigentümer oder Adresse",
+    "state": "Zustand",
+    "active": "Aktiv",
+    "inactive": "Inaktiv",
+    "noMatch": "Kein Auslöser passt zu den Filtern."
+  },
   "table": {
     "active": "Aktiv",
     "name": "Name",
     "security": "Sicherheit",
     "lastCall": "Letzter Aufruf",
     "runsStarted": "Gestartete Ausführungen",
-    "lastResult": "Letztes Ergebnis"
+    "lastResult": "Letztes Ergebnis",
+    "actions": "Aktionen"
   },
   "auth": {
     "short": {

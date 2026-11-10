@@ -58,7 +58,7 @@ export function storedKindMismatch(item: KindItem, isOutput: boolean): { platfor
 export function storedKindProblem(item: KindItem, isOutput: boolean, owner: string): string | null {
   const id = item.platform;
   if (!id || !itemKinds(item, isOutput).length) return null;
-  const problem = ownerProblem(owner, id);
+  const problem = ownerProblem(owner, id, (item as { identity?: string }).identity);
   if (problem) return problem;
   const m = storedKindMismatch(item, isOutput);
   if (!m) return null;

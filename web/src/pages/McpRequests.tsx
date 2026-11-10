@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { Alert, Badge, Button, Code, Group, Paper, SegmentedControl, Stack, Table, Text, Textarea } from '@mantine/core';
+import { Alert, Badge, Button, Code, Group, Paper, SegmentedControl, Stack, Text, Textarea } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 import { DecideFromLinkModal, DecideNotPossible, useDecideParam } from '../components/DecideFromLink';
@@ -9,6 +9,8 @@ import { MCP_REQUEST_LIMITS, type McpProposalSelection, type McpRequest } from '
 import { get, notifyError, post } from '../api';
 import { useMe } from '../auth';
 import { EmptyState, PageHeader, QueryState, TONE } from '../components/common';
+import { useListParams } from '../components/page/params';
+import { DataTable, type DataColumn } from '../components/DataTable';
 import { fmtDate, fmtRelative } from '../format';
 import { CatalogueProposalReview, MappingsProposalReview } from '../components/mcp/ProposalReview';
 import { PlantProposalReview } from '../components/mcp/PlantProposalReview';
@@ -21,6 +23,9 @@ const STATUS_COLOR: Record<McpRequest['status'], string> = {
   withdrawn: TONE.neutral,
   expired: TONE.neutral,
 };
+
+/** Sort order of the status column: what waits for a person first. */
+const REQUEST_STATUS_ORDER: McpRequest['status'][] = ['pending', 'failed', 'done', 'rejected', 'withdrawn', 'expired'];
 
 function StatusBadge({ status }: { status: McpRequest['status'] }) {
   const { t } = useTranslation('mcp');
@@ -46,22 +51,52 @@ const what = (r: McpRequest) =>
 export function McpRequestsPage() {
   const { t } = useTranslation('mcp');
   const { isAdmin, hasRole } = useMe();
-  const [scope, setScope] = useState<'decide' | 'mine' | 'all'>('decide');
+  // the scope lives in the address (?scope=mine), so the view can be shared and survives a reload
+  const { params, set } = useListParams();
+  const scopes: ('decide' | 'mine' | 'all')[] = ['decide', 'mine', ...(isAdmin || hasRole('auditor') ? (['all'] as const) : [])];
+  const asked = params.get('scope');
+  const scope = scopes.find((x) => x === asked) ?? 'decide';
   const q = useQuery({ queryKey: ['mcp-requests', scope], queryFn: () => get<McpRequest[]>(`/mcp-requests?scope=${scope}`) });
   const list = q.data ?? [];
+  const where = (r: McpRequest) => (r.kind === 'gateway' ? (r.platformName ?? '–') : r.kind === 'run' ? t('requests.run') : t(`requests.kinds.${r.kind}`));
+  const columns: DataColumn<McpRequest>[] = [
+    {
+      key: 'what',
+      header: t('requests.what'),
+      sortValue: what,
+      cell: (r) => (
+        <Text size="sm" fw={500} component={Link} to={`/mcp-requests/${r.id}`} className="mono" onClick={(e) => e.stopPropagation()}>
+          {what(r)}
+        </Text>
+      ),
+    },
+    { key: 'where', header: t('requests.where'), sortValue: where, cell: where },
+    {
+      key: 'status',
+      header: t('requests.statusLabel'),
+      // what waits for a person first
+      sortValue: (r) => REQUEST_STATUS_ORDER.indexOf(r.status),
+      cell: (r) => <StatusBadge status={r.status} />,
+    },
+    { key: 'requestedBy', header: t('requests.requestedBy'), sortValue: (r) => r.requestedBy, cell: (r) => r.requestedBy },
+    {
+      key: 'asked',
+      header: t('requests.asked'),
+      sortValue: (r) => r.createdAt,
+      nowrap: true,
+      tdProps: (r) => ({ title: fmtDate(r.createdAt) }),
+      cell: (r) => fmtRelative(r.createdAt),
+    },
+  ];
   return (
     <>
       <PageHeader title={t('requests.title')} description={t('requests.description')} />
       <SegmentedControl
         mb="md"
         value={scope}
-        onChange={(v) => setScope(v as 'decide')}
+        onChange={(v) => set('scope', v === 'decide' ? null : v)}
         aria-label={t('requests.scope')}
-        data={[
-          { value: 'decide', label: t('requests.scopes.decide') },
-          { value: 'mine', label: t('requests.scopes.mine') },
-          ...(isAdmin || hasRole('auditor') ? [{ value: 'all', label: t('requests.scopes.all') }] : []),
-        ]}
+        data={scopes.map((x) => ({ value: x, label: t(`requests.scopes.${x}`) }))}
       />
       <QueryState query={q} />
       {q.isSuccess && list.length === 0 && (
@@ -70,36 +105,30 @@ export function McpRequestsPage() {
         </EmptyState>
       )}
       {list.length > 0 && (
-        <div className="table-scroll">
-          <Table fz="sm" aria-label={t('requests.title')}>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>{t('requests.what')}</Table.Th>
-                <Table.Th>{t('requests.where')}</Table.Th>
-                <Table.Th>{t('requests.statusLabel')}</Table.Th>
-                <Table.Th>{t('requests.requestedBy')}</Table.Th>
-                <Table.Th>{t('requests.asked')}</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {list.map((r) => (
-                <Table.Tr key={r.id}>
-                  <Table.Td>
-                    <Text size="sm" fw={500} component={Link} to={`/mcp-requests/${r.id}`} className="mono">
-                      {what(r)}
-                    </Text>
-                  </Table.Td>
-                  <Table.Td>{r.kind === 'gateway' ? (r.platformName ?? '–') : r.kind === 'run' ? t('requests.run') : t(`requests.kinds.${r.kind}`)}</Table.Td>
-                  <Table.Td>
-                    <StatusBadge status={r.status} />
-                  </Table.Td>
-                  <Table.Td>{r.requestedBy}</Table.Td>
-                  <Table.Td>{fmtRelative(r.createdAt)}</Table.Td>
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-        </div>
+        <DataTable
+          rows={list}
+          columns={columns}
+          rowKey={(r) => r.id}
+          ariaLabel={t('requests.title')}
+          rowHref={(r) => `/mcp-requests/${r.id}`}
+          testId="mcp-request-list"
+          rememberSort="mcp-requests"
+          // the inbox's own order: newest first (the server's order)
+          defaultSort={{ key: 'asked', dir: 'desc' }}
+          card={(r) => (
+            <Paper withBorder p="sm">
+              <Group justify="space-between" wrap="nowrap" align="flex-start">
+                <Text size="sm" fw={600} component={Link} to={`/mcp-requests/${r.id}`} className="mono" style={{ minWidth: 0, overflowWrap: 'anywhere' }}>
+                  {what(r)}
+                </Text>
+                <StatusBadge status={r.status} />
+              </Group>
+              <Text size="xs" c="dimmed">
+                {where(r)} · {r.requestedBy} · {fmtRelative(r.createdAt)}
+              </Text>
+            </Paper>
+          )}
+        />
       )}
     </>
   );

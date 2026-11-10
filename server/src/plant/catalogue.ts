@@ -20,7 +20,7 @@ import { refuseAliasId } from './ids.js';
 import { audit } from '../audit.js';
 import { me } from '../auth/access.js';
 import { HttpError, nowIso, parseJson } from '../util.js';
-import { canManageCatalogue, siteRights } from './access.js';
+import { canManageCatalogue, plantProposesSome, siteRights } from './access.js';
 import { requirePlant } from './settings.js';
 import { changedKeys, type AssetRow, type SiteRow } from './model.js';
 import {
@@ -30,6 +30,7 @@ import {
   kpiInput,
   kpiProblems,
   kpiRowOf,
+  normalizeKpiInputs,
   kpiUpdate,
   kpiValuesOf,
   ownProfiles,
@@ -44,8 +45,8 @@ import {
   upsertKpi,
   upsertProfile,
 } from './data-model.js';
-import { assignmentChecks, canHave, deliveries, kpiChecks, unitMismatches } from './checks.js';
-import { collectedPoints, isCollected } from './potential.js';
+import { assignmentChecks, canHave, deliveries, kpiChecks, kpiProfiles, namedInputPoints, readsProfile, unitMismatches } from './checks.js';
+import { collectedPoints, isCollected, partsByAsset } from './potential.js';
 import { descendantsOf, extendsProblems, isOrExtends, normalizeOwnPart, ownPartProblems, resolveAll, resolvedProblems } from './resolve.js';
 
 /**
@@ -160,15 +161,14 @@ export function getProfile(id: string): PlantProfileDetail {
   const values = resolved.get(id)!;
   const v = visibleAssets();
   const assets = (assetsByProfile(v).get(id) ?? []).map((a) => v.briefs.get(a)!).sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
-  // a KPI that reads a base profile reads this one, too (0.11.0)
-  const readsThis = (i: { kind: string; profile: string }) => i.kind === 'data_point' && !!i.profile && isOrExtends(values, i.profile);
+  // a KPI that reads a base profile reads this one, too (0.11.0); 0.13: any of an input's profiles, with its mapping
   const kpis = [...allKpis().values()]
     .map((k) => ({
       id: k.id,
       name: k.name,
       names: k.names,
-      dataPoints: [...new Set(k.inputs.filter(readsThis).flatMap((i) => i.dataPoints))],
-      reads: k.inputs.some(readsThis),
+      dataPoints: namedInputPoints(k, values),
+      reads: readsProfile(k, values),
     }))
     .filter((k) => k.reads)
     .map(({ reads: _r, ...k }) => k);
@@ -191,6 +191,8 @@ export function getProfile(id: string): PlantProfileDetail {
     assets,
     kpis,
     canManage: canManageCatalogue(),
+    // 0.13.0: who may propose on some site keeps drafts of changes to it
+    canPropose: plantProposesSome(),
     createdAt: r.created_at,
     createdBy: r.created_by,
     updatedBy: r.updated_by,
@@ -413,9 +415,7 @@ export function getDataPoint(profileId: string, pointId: string): PlantDataPoint
     });
   }
   assets.sort((a, b) => Number(b.delivers) - Number(a.delivers) || a.asset.name.localeCompare(b.asset.name) || a.asset.id.localeCompare(b.asset.id));
-  const kpis = [...allKpis().values()]
-    .filter((k) => k.inputs.some((i) => i.kind === 'data_point' && !!i.profile && isOrExtends(p, i.profile) && i.dataPoints.includes(pointId)))
-    .map((k) => ({ id: k.id, name: k.name, names: k.names }));
+  const kpis = [...allKpis().values()].filter((k) => namedInputPoints(k, p).includes(pointId)).map((k) => ({ id: k.id, name: k.name, names: k.names }));
   return {
     profile: { id: p.id, name: p.name, manufacturer: p.manufacturer, model: p.model },
     interface: { id: found.iface.id, name: found.iface.name, protocol: found.iface.protocol, direction: found.iface.direction },
@@ -470,7 +470,7 @@ function kpiSummary(
     category: k.category,
     unit: k.unit,
     trend: k.trend,
-    profiles: [...new Set(k.inputs.filter((i) => i.kind === 'data_point' && i.profile).map((i) => i.profile))],
+    profiles: kpiProfiles(k),
     parameterCount: k.parameters.length,
     columnCount: k.columns.length,
     instanceCount,
@@ -524,16 +524,26 @@ export function getKpi(id: string): PlantKpiDetail {
     } else if (canHave(k, a, profile)) {
       candidates.push(brief);
       // 0.12.0: KPI potential – whether its data is collected already, and inputs in another unit
-      candidateInfo[assetId] = { collected: isCollected(k, collected.get(assetId)), units: unitMismatches(k, a, profile, profiles) };
+      candidateInfo[assetId] = { collected: isCollected(k, collected.get(assetId), profile), units: unitMismatches(k, a, profile, profiles) };
+    }
+  }
+  // 0.13: a KPI that rolls up from parts – an asset without an instance whose part could have it (or has one) counts
+  if (k.rollUp === 'parts') {
+    const withJob = new Set(instances.map((x) => x.asset.id));
+    const could = new Set(candidates.map((x) => x.id));
+    for (const [assetId, parts] of partsByAsset(new Set(v.assets.keys()))) {
+      if (withJob.has(assetId) || could.has(assetId) || parts.some((p) => withJob.has(p.id))) continue;
+      const part = parts.find((p) => candidateInfo[p.id]?.collected) ?? parts.find((p) => could.has(p.id));
+      if (!part) continue;
+      candidates.push(v.briefs.get(assetId)!);
+      candidateInfo[assetId] = { ...candidateInfo[part.id]!, via: part };
     }
   }
   const byName = (a: { name: string; id: string }, b: { name: string; id: string }) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id);
   instances.sort((a, b) => byName(a.asset, b.asset) || a.job.localeCompare(b.job));
   candidates.sort(byName);
   const checks = kpiChecks(k, profiles);
-  const profileNames: Record<string, string | null> = Object.fromEntries(
-    [...new Set(k.inputs.map((i) => i.profile).filter(Boolean))].map((p) => [p, profiles.get(p)?.name ?? null]),
-  );
+  const profileNames: Record<string, string | null> = Object.fromEntries(kpiProfiles(k).map((p) => [p, profiles.get(p)?.name ?? null]));
   return {
     ...k,
     ...kpiSummary({ ...k, importId: r.import_id, notInSource: !!r.not_in_source, updatedAt: r.updated_at }, instances.length, checks.length),
@@ -543,6 +553,7 @@ export function getKpi(id: string): PlantKpiDetail {
     candidates,
     candidateInfo,
     canManage: canManageCatalogue(),
+    canPropose: plantProposesSome(),
     createdAt: r.created_at,
     createdBy: r.created_by,
     updatedBy: r.updated_by,
@@ -551,9 +562,10 @@ export function getKpi(id: string): PlantKpiDetail {
 
 function kpiValues(id: string, b: z.infer<typeof kpiUpdate>): PlantKpiValues {
   const v: PlantKpiValues = { id, ...b };
-  const problems = kpiProblems(v);
+  // 0.13: a mapping to a data point a profile lacks is refused
+  const problems = kpiProblems(v, allProfiles());
   if (problems.length) throw invalid('kpi', problems);
-  return v;
+  return { ...v, inputs: normalizeKpiInputs(v.inputs) };
 }
 
 export function createKpi(input: z.infer<typeof kpiInput>): PlantKpiDetail {
@@ -572,7 +584,7 @@ export function createKpi(input: z.infer<typeof kpiInput>): PlantKpiDetail {
       entityType: 'kpi_definition',
       entityId: v.id,
       summary: `KPI definition "${v.name}" (${v.id}) added with ${v.inputs.length} inputs, ${v.parameters.length} parameters and ${v.columns.length} columns`,
-      details: { category: v.category, profiles: [...new Set(v.inputs.map((i) => i.profile).filter(Boolean))] },
+      details: { category: v.category, profiles: kpiProfiles(v) },
     });
   });
   return getKpi(v.id);

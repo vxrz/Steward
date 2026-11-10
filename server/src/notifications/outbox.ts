@@ -60,6 +60,17 @@ export interface HeldAbout {
   check?: { source: string; name: string };
   /** The outcome of a decision (a follow-up card, ADR 0013): listed with the others, not as a waiting decision */
   outcome?: boolean;
+  /** 0.13.0: a plant change set waiting for review – left out when it was decided meanwhile or is no longer visible */
+  changeSet?: string;
+}
+
+/**
+ * 0.13.0: whether a plant change set still waits for review and whether a person may still see it (set by the plant
+ * registry's change sets – no import cycle). Without it, a held item about a change set is left out.
+ */
+let changeSetCheck: { open: (id: string) => boolean; visible: (u: UserInfo, id: string) => boolean } | null = null;
+export function setChangeSetCheck(c: typeof changeSetCheck): void {
+  changeSetCheck = c;
 }
 
 export interface HoldInput {
@@ -285,6 +296,7 @@ registerOutboxTarget('team', (teamId) => {
 /** Whether a held item is still visible to the person (the process of a run, a process, a platform, a monitor). */
 function stillVisible(u: UserInfo, a: HeldAbout | null): boolean {
   if (!a) return true;
+  if (a.changeSet && !changeSetCheck?.visible(u, a.changeSet)) return false;
   const au = toAuthUser(u);
   const processVisible = (pid: string) => {
     const p = db().get<{ owner: string | null; acl: string }>('SELECT owner, acl FROM processes WHERE id = ?', pid);
@@ -358,7 +370,7 @@ export function renderHeld(rows: Row[], kind: 'catchup' | 'digest', locale: Loca
       leftOut++;
       continue;
     }
-    if (about?.decision && !decisionOpen(about.decision, now)) {
+    if ((about?.decision && !decisionOpen(about.decision, now)) || (about?.changeSet && !changeSetCheck?.open(about.changeSet))) {
       decidedMeanwhile++;
       continue;
     }

@@ -76,7 +76,7 @@ export async function triggerRoutes(app: FastifyInstance): Promise<void> {
     const b = triggers.settingsSchema.parse(req.body);
     requireProcessRun(b.processId);
     // what each run of the trigger will need: the command layer's start check (ADR 0011)
-    authorizeStart(undefined, { processId: b.processId, bindings: b.bindings });
+    authorizeStart(undefined, { processId: b.processId, bindings: b.bindings, identities: b.identities });
     return triggers.createTrigger(b);
   });
   app.put('/triggers/:id', async (req) => {
@@ -84,7 +84,7 @@ export async function triggerRoutes(app: FastifyInstance): Promise<void> {
     const b = triggers.settingsSchema.parse(req.body);
     requireProcessRun(b.processId);
     // what each run of the trigger will need: the command layer's start check (ADR 0011)
-    authorizeStart(undefined, { processId: b.processId, bindings: b.bindings });
+    authorizeStart(undefined, { processId: b.processId, bindings: b.bindings, identities: b.identities });
     return triggers.updateTrigger(params(req).id!, b);
   });
   app.delete('/triggers/:id', async (req) => {

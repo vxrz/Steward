@@ -389,6 +389,8 @@ export const OWNED_KINDS = [
   'ticket',
   'site',
   'contract',
+  /** An identity of a platform (0.13.0, ADR 0009 step 2): its members may use it */
+  'platform_identity',
 ] as const;
 export type OwnedKind = (typeof OWNED_KINDS)[number];
 
@@ -747,7 +749,16 @@ export interface PlatformIdentity {
   privileged: boolean;
   mcp: IdentityMcp;
   /** null: every operation (no filter) */
-  operationFilter: { preset: 'read' | 'chosen'; operations: { specId: string; method: string; specPath: string; operationId?: string }[] } | null;
+  operationFilter: IdentityOperationFilter | null;
+  /** Operations of the filter that no longer resolve (a spec was removed or changed): they match nothing (0.13.0) */
+  staleOperations?: number;
+  /** Who may use it besides the platform's users (0.13.0): never set on the default identity (everyone with "use") */
+  acl?: AclEntry<'use'>[];
+  /**
+   * Kept but not usable (0.13.0): it was added or changed outside Steward when an administrator confirmed the platform's
+   * settings – no credentials are sent with it until an administrator enables it (POST …/identities/:iid/enable).
+   */
+  disabled?: boolean;
   /** Whether the identity signs in with its own settings (false: the platform's sign-in settings) */
   ownSignIn: boolean;
   /** Names of its stored secrets (values are never returned) */
@@ -760,11 +771,50 @@ export interface PlatformIdentity {
   updatedAt: string;
 }
 
+/** A reference to an operation of a platform's API specification (ADR 0009): the spec's own path, so a new path prefix follows. */
+export interface IdentityOperationRef {
+  specId: string;
+  method: string;
+  specPath: string;
+  operationId?: string;
+}
+
+/** An identity's operation filter (0.13.0, ADR 0009 step 3): read = every GET/HEAD of the current specs plus `operations`; chosen = only `operations`. */
+export interface IdentityOperationFilter {
+  preset: 'read' | 'chosen';
+  operations: IdentityOperationRef[];
+}
+
+/**
+ * An identity's settings for its managers (0.13.0, GET /platforms/:id/identities/:iid/settings, "manage"): its own sign-in
+ * settings (null: the platform's) and variables. Never credentials.
+ */
+export interface PlatformIdentitySettings {
+  auth: AuthConfig | null;
+  variables: Record<string, string>;
+  /** Variables an identity may not set: they decide where requests and credentials go (IDENTITY_VARIABLE_FIXED) */
+  fixedVariables: string[];
+  /** Its operation filter with each reference resolved (stale: no longer in the platform's specs) */
+  operations: (IdentityOperationRef & { path: string | null; stale: boolean })[];
+}
+
+/** Create (POST /platforms/:id/identities) or change (PUT …/identities/:iid) an identity (0.13.0). */
+export interface PlatformIdentityInput {
+  name: string;
+  description?: string;
+  /** null: sign in with the platform's settings */
+  auth?: AuthConfig | null;
+  variables?: Record<string, string>;
+  readOnly?: boolean;
+  operationFilter?: IdentityOperationFilter | null;
+}
+
 /**
  * What an administrator confirms for a platform whose settings were changed outside Steward (0.9.0,
- * GET /platforms/:id/confirm-config): per identity what the platform page does not show. In this release a platform has
- * only its default identity, which cannot have variables, its own sign-in, flags, an operation filter or a credential
- * source: confirming resets them (action "reset") and removes every other identity (action "remove").
+ * GET /platforms/:id/confirm-config): per identity what the platform page does not show. Since 0.13.0 (ADR 0009 step 2)
+ * the default identity and every identity whose own seal verified are kept as shown and sealed (action "keep"); any
+ * other identity – added or changed outside Steward – is kept disabled ("disable") until an administrator enables it.
+ * Only a credential source (reserved for PAM, not built) is reset ("reset").
  */
 export interface PlatformConfirmReview {
   baseUrl: string;
@@ -783,7 +833,12 @@ export interface PlatformConfirmReview {
     signIn: { type: string; url: string | null } | null;
     /** Set flags: readOnly, privileged, operationFilter, credentialSource */
     flags: string[];
-    action: 'keep' | 'reset' | 'remove';
+    /** Its access list (subjects; 0.13.0) – not sealed, shown so nobody is given an identity unseen */
+    access?: string[];
+    /** Disabled already (0.13.0) */
+    disabled?: boolean;
+    /** disable (0.13.0): an identity other than the default whose seal did not verify – kept, but disabled until enabled */
+    action: 'keep' | 'reset' | 'remove' | 'disable';
   }[];
 }
 
@@ -842,6 +897,20 @@ export interface ConnectorPackage {
   secretFields: { key: string; label: string; help?: string; auth?: AuthType }[];
   docs: { title: string; url: string }[];
   specs: { name: string; content: string; pathPrefix?: string }[];
+  /**
+   * Identity templates (0.13.0, ADR 0009): a platform made from the type gets these identities – without credentials,
+   * closed (no access list) and with MCP off. `default`: settings of the new platform's default identity. Operations
+   * name operations of the bundled specs as "METHOD /path" (the spec's own path). Never secrets, access lists or MCP modes.
+   */
+  identities?: ConnectorIdentityTemplate[];
+}
+
+export interface ConnectorIdentityTemplate {
+  name: string;
+  description?: string;
+  default?: boolean;
+  readOnly?: boolean;
+  operationFilter?: { preset: 'read' | 'chosen'; operations: string[] } | null;
 }
 
 export interface ParamSchema {
@@ -1082,7 +1151,8 @@ export interface RunDetail extends RunSummary {
   /** The library release the process version came from (0.10.0, ADR 0014); null for a local version */
   libraryOrigin?: (LibraryOrigin & { keyRevoked: boolean }) | null;
   inputs: Record<string, unknown>;
-  bindings: Record<string, { platformId: string; platformName: string; baseUrl: string }>;
+  /** identityId, identityName: the platform identity the slot used (0.13.0, ADR 0009; older runs: the default identity) */
+  bindings: Record<string, { platformId: string; platformName: string; baseUrl: string; identityId?: string; identityName?: string }>;
   definitionHash: string;
   steps: RunStepRecord[];
   logs: RunLog[];
@@ -1111,6 +1181,8 @@ export interface StartRunRequest {
   version?: number;
   inputs?: Record<string, unknown>;
   bindings?: Record<string, string>;
+  /** Slot → identity id of the bound platform (0.13.0, ADR 0009); a missing slot uses the platform's default identity */
+  identities?: Record<string, string>;
   dryRun?: boolean;
   /** Test run (#105): platform calls are answered by the platforms' recorded responses; implies a dry run */
   recorded?: boolean;
@@ -1507,6 +1579,8 @@ export interface Schedule {
   timezone?: string;
   inputs: Record<string, unknown>;
   bindings: Record<string, string>;
+  /** Slot → identity id (0.13.0, ADR 0009); a missing slot uses the platform's default identity */
+  identities?: Record<string, string>;
   dryRun: boolean;
   enabled: boolean;
   allowOverlap: boolean;
@@ -1553,6 +1627,19 @@ export interface ImportedHistoryRef {
   importId: string;
   /** SHA-256 fingerprint of the source instance's signing key */
   sourceFingerprint: string;
+}
+
+/**
+ * Columns the audit log can be sorted by on the server (0.13): `time` is the order of the chain (the sequence number,
+ * so entries written in the same millisecond keep their order), `target` the entity type and id.
+ */
+export const AUDIT_SORT_KEYS = ['time', 'actor', 'action', 'target'] as const;
+export type AuditSortKey = (typeof AUDIT_SORT_KEYS)[number];
+
+/** The actors and target types in the audit log (the filters of the audit page; GET /api/audit/facets). */
+export interface AuditFacets {
+  actors: string[];
+  entityTypes: string[];
 }
 
 export interface AuditEntry {
@@ -1959,6 +2046,8 @@ export interface McpPlantProposal {
   hidden: number;
   /** The import that applied it */
   importId: string | null;
+  /** 0.13.0: the change set it is (Plant → Changes shows it too) */
+  changeSetId?: string | null;
 }
 
 /**
@@ -1990,6 +2079,9 @@ export interface McpRequest {
   /** Gateway writes */
   platformId: string | null;
   platformName: string | null;
+  /** The platform identity the call uses (0.13.0, ADR 0009); null: the default identity (requests from before 0.13.0) */
+  identityId?: string | null;
+  identityName?: string | null;
   operation: string | null;
   method: string | null;
   /** The path that will be called (path parameters filled in) */

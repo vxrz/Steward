@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import { ActionIcon, Anchor, Badge, Box, Button, Group, Modal, Paper, Select, Stack, Switch, Table, Text, TextInput, Textarea } from '@mantine/core';
-import { useMediaQuery } from '@mantine/hooks';
+import { ActionIcon, Anchor, Badge, Box, Button, Group, Modal, MultiSelect, Paper, Select, Stack, Switch, Text, TextInput, Textarea } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import { IconExternalLink, IconFileAlert, IconPlus, IconStack2, IconTicket, IconTrash } from '@tabler/icons-react';
@@ -9,11 +8,13 @@ import { SubjectsInput } from '../components/SubjectsInput';
 import { SERVICE_CONTACT_ROLES, SERVICE_CRITICALITIES, tagsMatch, type ServiceContact, type ServiceDetail, type ServiceSummary } from '@sm/shared';
 import { TagBadges, TagFilterChip, TagInput, useTagFilter } from '../components/tags';
 import { get, notifyError, post, put } from '../api';
-import { EmptyState, QueryState, useCreateParam, useFieldErrors } from '../components/common';
+import { EmptyState, QueryState, subjectLabel, useCreateParam, useFieldErrors } from '../components/common';
 import { useMe } from '../auth';
 import { fmtDate, fmtRelative } from '../format';
 import { NeedBadges } from '../components/catalogue/cia';
-import { ListPage, useStoredListView } from '../components/page/ListPage';
+import { ListPage } from '../components/page/ListPage';
+import { useListParams } from '../components/page/params';
+import { DataTable, ListFooter, type DataColumn } from '../components/DataTable';
 import { ServiceTabs } from '../components/page/LinkTabs';
 import { RestrictedEmpty, useHiddenByPermissions } from '../components/modules/RestrictedEmpty';
 
@@ -62,10 +63,18 @@ function OverdueReviewsBadge({ count, ml }: { count: number; ml?: number }) {
   );
 }
 
+/** Sort order of the criticality column: the most critical first when descending. */
+export const CRITICALITY_RANK: Record<string, number> = { low: 1, medium: 2, high: 3, critical: 4 };
+
 export function ServicesPage() {
   const { t } = useTranslation(['services', 'common', 'applications']);
   const navigate = useNavigate();
-  const [archived, setArchived] = useState(false);
+  // the filters live in the address (?q=, ?criticality=, ?owner=, ?archived=1, ?tag=), so a filtered list can be shared
+  const { params, set } = useListParams();
+  const q = params.get('q') ?? '';
+  const criticality = params.getAll('criticality').filter((c) => (SERVICE_CRITICALITIES as readonly string[]).includes(c));
+  const owner = params.get('owner');
+  const archived = params.get('archived') === '1';
   const [creating, setCreating] = useState(false);
   const services = useQuery({ queryKey: ['services', archived], queryFn: () => get<ServiceSummary[]>(`/services${archived ? '?archived=1' : ''}`) });
   const vendorTickets = useQuery({
@@ -75,19 +84,95 @@ export function ServicesPage() {
   const { hasRole } = useMe();
   const canCreate = hasRole('admin') || hasRole('designer');
   useCreateParam(canCreate, () => setCreating(true));
-  const narrow = useMediaQuery('(max-width: 48em)') ?? false;
-  const listView = useStoredListView('services', narrow);
   const [tag, setTag] = useTagFilter();
   const all = services.data ?? [];
-  const list = all.filter((s) => tagsMatch(s.tags, tag));
+  const needle = q.trim().toLowerCase();
+  const list = all.filter(
+    (s) =>
+      tagsMatch(s.tags, tag) &&
+      (!needle || [s.name, s.cmdb?.id ?? '', ...s.contacts.map((c) => c.email), ...s.tags].some((x) => x.toLowerCase().includes(needle))) &&
+      (!criticality.length || (s.criticality !== null && criticality.includes(s.criticality))) &&
+      (!owner || s.owners.includes(owner)),
+  );
   // services the person may not see (U3): "nothing you may see" instead of "no services yet"
   const hidden = useHiddenByPermissions('services');
+  const cmdbText = (s: ServiceSummary) => (s.cmdb ? [s.cmdb.system, s.cmdb.id].filter(Boolean).join(' ') : '');
+  const columns: DataColumn<ServiceSummary>[] = [
+    {
+      key: 'name',
+      header: t('name'),
+      sortValue: (s) => s.name,
+      cell: (s) => (
+        <>
+          <Anchor component={Link} to={`/services/${s.id}`} fw={500} size="sm" onClick={(e) => e.stopPropagation()}>
+            {s.name}
+          </Anchor>
+          {s.archived && (
+            <Badge ml={6} size="xs" variant="outline" color="gray">
+              {t('archived')}
+            </Badge>
+          )}
+          <VendorTicketsBadge count={vendorTickets.data?.[s.id]} serviceId={s.id} ml={6} />
+          <OverdueReviewsBadge count={s.overdueDocuments} ml={6} />
+          {s.tags.length > 0 && (
+            <Box mt={2}>
+              <TagBadges tags={s.tags} onTag={setTag} />
+            </Box>
+          )}
+        </>
+      ),
+    },
+    {
+      key: 'criticality',
+      header: t('criticality'),
+      sortValue: (s) => (s.criticality ? CRITICALITY_RANK[s.criticality] : null),
+      cell: (s) => (s.criticality ? <CriticalityBadge value={s.criticality} /> : '–'),
+    },
+    { key: 'need', header: t('applications:need.title'), cell: (s) => <NeedBadges need={s.protectionNeed} /> },
+    {
+      key: 'contacts',
+      header: t('contacts'),
+      sortValue: (s) => s.contacts[0]?.email,
+      cell: (s) =>
+        s.contacts.map((c) => (
+          <Text key={`${c.role}${c.email}`} size="xs">
+            {t(`contactRoles.${c.role}`)}: {c.email}
+          </Text>
+        )),
+    },
+    {
+      key: 'cmdb',
+      header: t('cmdb'),
+      sortValue: cmdbText,
+      cell: (s) =>
+        s.cmdb ? (
+          s.cmdb.url ? (
+            <Anchor href={s.cmdb.url} target="_blank" rel="noopener noreferrer nofollow" size="sm" onClick={(e) => e.stopPropagation()}>
+              {cmdbText(s) || t('openCmdb')} <IconExternalLink size={12} aria-hidden />
+            </Anchor>
+          ) : (
+            cmdbText(s)
+          )
+        ) : (
+          '–'
+        ),
+    },
+    { key: 'links', header: t('links'), sortValue: (s) => s.linkCount, cell: (s) => s.linkCount },
+    {
+      key: 'updated',
+      header: t('updated'),
+      sortValue: (s) => s.updatedAt,
+      nowrap: true,
+      tdProps: (s) => ({ title: fmtDate(s.updatedAt) }),
+      cell: (s) => fmtRelative(s.updatedAt),
+    },
+  ];
   return (
     <ListPage
       tabs={<ServiceTabs active="/services" />}
       view="services"
-      viewState={listView}
-      activeFilters={[archived, tag].filter(Boolean).length}
+      search={{ value: q, onChange: (v) => set('q', v), placeholder: t('searchPlaceholder') }}
+      activeFilters={[archived, tag, criticality.length, owner].filter(Boolean).length}
       title={t('title')}
       description={t('description')}
       primaryAction={
@@ -98,8 +183,29 @@ export function ServicesPage() {
         )
       }
       filters={
-        <Group gap="md" mb="md">
-          <Switch size="sm" label={t('showArchived')} checked={archived} onChange={(e) => setArchived(e.currentTarget.checked)} />
+        <Group gap="md" mb="md" align="flex-end" wrap="wrap" data-testid="service-filters">
+          <MultiSelect
+            size="xs"
+            label={t('criticality')}
+            data={SERVICE_CRITICALITIES.map((c) => ({ value: c, label: t(`criticalities.${c}`) }))}
+            value={criticality}
+            onChange={(v) => set('criticality', v)}
+            clearable
+            w={{ base: '100%', xs: 240 }}
+          />
+          <Select
+            size="xs"
+            label={t('owners')}
+            data={[...new Set([...all.flatMap((s) => s.owners), ...(owner ? [owner] : [])])]
+              .sort((a, b) => subjectLabel(a).localeCompare(subjectLabel(b)))
+              .map((o) => ({ value: o, label: subjectLabel(o) }))}
+            value={owner}
+            onChange={(v) => set('owner', v)}
+            clearable
+            searchable
+            w={{ base: '100%', xs: 220 }}
+          />
+          <Switch size="sm" mb={4} label={t('showArchived')} checked={archived} onChange={(e) => set('archived', e.currentTarget.checked ? '1' : null)} />
           <TagFilterChip tag={tag} onChange={setTag} />
         </Group>
       }
@@ -107,7 +213,7 @@ export function ServicesPage() {
       <QueryState query={services} />
       {services.isSuccess && all.length > 0 && list.length === 0 && (
         <Text size="sm" c="dimmed">
-          {t('common:tags.noMatch')}
+          {t('noMatch')}
         </Text>
       )}
       {services.isSuccess && all.length === 0 && !archived && hidden && <RestrictedEmpty />}
@@ -128,96 +234,38 @@ export function ServicesPage() {
           {archived ? undefined : canCreate ? t('emptyState.textCreate') : t('emptyState.text')}
         </EmptyState>
       )}
-      {list.length > 0 &&
-        (listView.cards ? (
-          <Stack gap="xs" role="list" aria-label={t('title')}>
-            {list.map((s) => (
-              <Paper key={s.id} withBorder p="sm" role="listitem">
-                <Group justify="space-between" wrap="nowrap">
-                  <Group gap={6} wrap="wrap">
-                    <Anchor component={Link} to={`/services/${s.id}`} fw={600} size="sm">
-                      {s.name}
-                    </Anchor>
-                    <VendorTicketsBadge count={vendorTickets.data?.[s.id]} serviceId={s.id} />
-                    <OverdueReviewsBadge count={s.overdueDocuments} />
-                  </Group>
-                  <CriticalityBadge value={s.criticality} />
+      {list.length > 0 && (
+        <DataTable
+          rows={list}
+          columns={columns}
+          rowKey={(s) => s.id}
+          ariaLabel={t('title')}
+          rowHref={(s) => `/services/${s.id}`}
+          rowProps={(s) => ({ 'data-inactive': s.archived || undefined })}
+          testId="service-list"
+          rememberSort="services"
+          defaultSort={{ key: 'name', dir: 'asc' }}
+          footer={<ListFooter shown={list.length} total={all.length} />}
+          card={(s) => (
+            <Paper withBorder p="sm">
+              <Group justify="space-between" wrap="nowrap">
+                <Group gap={6} wrap="wrap">
+                  <Anchor component={Link} to={`/services/${s.id}`} fw={600} size="sm">
+                    {s.name}
+                  </Anchor>
+                  <VendorTicketsBadge count={vendorTickets.data?.[s.id]} serviceId={s.id} />
+                  <OverdueReviewsBadge count={s.overdueDocuments} />
                 </Group>
-                <NeedBadges need={s.protectionNeed} />
-                <Text size="xs" c="dimmed">
-                  {s.contacts.map((c) => c.email).join(', ') || t('noContacts')}
-                </Text>
-              </Paper>
-            ))}
-          </Stack>
-        ) : (
-          <div className="table-scroll">
-            <Table highlightOnHover fz="sm" aria-label={t('title')}>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>{t('name')}</Table.Th>
-                  <Table.Th>{t('criticality')}</Table.Th>
-                  <Table.Th>{t('applications:need.title')}</Table.Th>
-                  <Table.Th>{t('contacts')}</Table.Th>
-                  <Table.Th>{t('cmdb')}</Table.Th>
-                  <Table.Th>{t('links')}</Table.Th>
-                  <Table.Th>{t('updated')}</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {list.map((s) => (
-                  <Table.Tr key={s.id} className="clickable" onClick={() => navigate(`/services/${s.id}`)} data-inactive={s.archived || undefined}>
-                    <Table.Td>
-                      <Anchor component={Link} to={`/services/${s.id}`} fw={500} size="sm" onClick={(e) => e.stopPropagation()}>
-                        {s.name}
-                      </Anchor>
-                      {s.archived && (
-                        <Badge ml={6} size="xs" variant="outline" color="gray">
-                          {t('archived')}
-                        </Badge>
-                      )}
-                      <VendorTicketsBadge count={vendorTickets.data?.[s.id]} serviceId={s.id} ml={6} />
-                      <OverdueReviewsBadge count={s.overdueDocuments} ml={6} />
-                      {s.tags.length > 0 && (
-                        <Box mt={2}>
-                          <TagBadges tags={s.tags} onTag={setTag} />
-                        </Box>
-                      )}
-                    </Table.Td>
-                    <Table.Td>{s.criticality ? <CriticalityBadge value={s.criticality} /> : '–'}</Table.Td>
-                    <Table.Td>
-                      <NeedBadges need={s.protectionNeed} />
-                    </Table.Td>
-                    <Table.Td>
-                      {s.contacts.map((c) => (
-                        <Text key={`${c.role}${c.email}`} size="xs">
-                          {t(`contactRoles.${c.role}`)}: {c.email}
-                        </Text>
-                      ))}
-                    </Table.Td>
-                    <Table.Td>
-                      {s.cmdb ? (
-                        s.cmdb.url ? (
-                          <Anchor href={s.cmdb.url} target="_blank" rel="noopener noreferrer nofollow" size="sm" onClick={(e) => e.stopPropagation()}>
-                            {[s.cmdb.system, s.cmdb.id].filter(Boolean).join(' ') || t('openCmdb')} <IconExternalLink size={12} aria-hidden />
-                          </Anchor>
-                        ) : (
-                          [s.cmdb.system, s.cmdb.id].filter(Boolean).join(' ')
-                        )
-                      ) : (
-                        '–'
-                      )}
-                    </Table.Td>
-                    <Table.Td>{s.linkCount}</Table.Td>
-                    <Table.Td className="nowrap" title={fmtDate(s.updatedAt)}>
-                      {fmtRelative(s.updatedAt)}
-                    </Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-          </div>
-        ))}
+                <CriticalityBadge value={s.criticality} />
+              </Group>
+              <NeedBadges need={s.protectionNeed} />
+              <Text size="xs" c="dimmed">
+                {s.contacts.map((c) => c.email).join(', ') || t('noContacts')}
+              </Text>
+            </Paper>
+          )}
+        />
+      )}
       {creating && <ServiceFormModal onClose={() => setCreating(false)} onSaved={(s) => navigate(`/services/${s.id}`)} />}
     </ListPage>
   );

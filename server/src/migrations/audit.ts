@@ -39,4 +39,13 @@ export const AUDIT_MIGRATIONS: NamedMigration[] = [
       CREATE INDEX audit_action ON audit_log(action, seq);
     `,
   },
+  {
+    // 0.13: the audit log sorted by the server (queryAudit): time is the order of the chain (seq), actor and action have
+    // their (actor, seq) and (action, seq) indexes; the target needs one in the same shape – an entry without an entity
+    // id sorts as '' (NULL would sort differently in SQLite and PostgreSQL and drop out of the keyset comparison).
+    name: 'audit-002-target-sort',
+    sql: `
+      CREATE INDEX audit_target ON audit_log(entity_type, (COALESCE(entity_id, '')), seq);
+    `,
+  },
 ];

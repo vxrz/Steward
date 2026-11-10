@@ -9,6 +9,7 @@ import {
   type McpProposalSelection,
   type PlantChange,
   type PlantImportPreview,
+  type PlantImportResult,
   type UserInfo,
 } from '@sm/shared';
 import { db } from '../db.js';
@@ -19,7 +20,10 @@ import { listUsers, toAuthUser } from '../auth/users.js';
 import { HttpError, parseJson, sha256 } from '../util.js';
 import { ToolError, defineTool, type ToolDef } from '../mcp/tooling.js';
 import { registerReviewKind, saveProposal, type Row } from '../mcp/requests.js';
-import { canManageCatalogue, plantManagesSome, siteRights } from './access.js';
+import { asProposer, canManageCatalogue, plantManagesSome, plantProposesSome, siteRights } from './access.js';
+import { samePerson } from '../auth/assurance.js';
+import { withAuditDetails } from '../audit.js';
+import { applyStored, insertChangeSet, insertOp, quietDryRun, reviewNeeded, sourceOf, type CsRow } from './changesets/core.js';
 import { plantEnabled } from './settings.js';
 import { applyImport, importInput, previewImport, type ImportInput } from './import.js';
 import { SCHEMA_ID } from './format.js';
@@ -59,7 +63,33 @@ interface ProposalRow {
 type Stored = Omit<McpPlantPreview, 'checks'> & { checks: { code: string; message: string; siteId: string | null }[] };
 
 const payloadOf = (r: Row): Payload => parseJson<Payload>(r.payload, { type: 'plant', title: '', incomplete: false, added: 0, changed: 0 });
-const rowOf = (id: string) => db().get<ProposalRow>('SELECT * FROM plant_proposals WHERE id = ?', id);
+
+/** 0.13.0: a proposal is a change set (source assistant) on its MCP request; proposals decided in 0.12 stay in plant_proposals. */
+const changeSetOf = (requestId: string): CsRow | undefined => db().get<CsRow>('SELECT * FROM plant_change_sets WHERE mcp_request_id = ?', requestId);
+function rowOf(id: string): (ProposalRow & { changeSetId: string | null }) | undefined {
+  const cs = changeSetOf(id);
+  if (cs) {
+    const src = db().get<{ content: string; sha256: string }>('SELECT content, sha256 FROM plant_change_sources WHERE change_set_id = ? AND seq = 1', cs.id);
+    return {
+      id,
+      title: cs.title,
+      document: src?.content ?? sourceOf(cs.id, 1) ?? '{}',
+      sha256: src?.sha256 ?? '',
+      preview: cs.preview,
+      fingerprint: cs.fingerprint,
+      import_id: cs.import_id,
+      changeSetId: cs.id,
+    };
+  }
+  const legacy = db().get<ProposalRow>('SELECT * FROM plant_proposals WHERE id = ?', id);
+  return legacy ? { ...legacy, changeSetId: null } : undefined;
+}
+
+/** Whether a proposal's change set needs a second person (then its token owner never applies it). */
+const needsReview = (requestId: string): boolean => {
+  const cs = changeSetOf(requestId);
+  return !!cs && reviewNeeded(parseJson<string[]>(cs.sites, []), !!Number(cs.catalogue));
+};
 
 /** The import's input for a proposal: the document as a file, adding and changing only (never replace, remove or rename). */
 const inputOf = (document: string): ImportInput =>
@@ -160,7 +190,7 @@ function forReader(s: Stored, u: AuthUser): { preview: McpPlantPreview; hidden: 
 function previewNow(p: ProposalRow): { preview: PlantImportPreview; stored: Stored } | null {
   let preview: PlantImportPreview;
   try {
-    preview = previewImport(inputOf(p.document));
+    preview = proposerPreview(p.document);
   } catch (e) {
     if (e instanceof HttpError && (e.statusCode === 403 || e.statusCode === 404)) return null;
     throw e;
@@ -169,6 +199,21 @@ function previewNow(p: ProposalRow): { preview: PlantImportPreview; stored: Stor
 }
 
 const mayApply = (u: AuthUser) => plantEnabled() && plantManagesSome(u);
+
+/**
+ * The import's preview of a proposal's document with the rights of who asks: who may only propose (0.13.0) sees what it
+ * would do with their propose right counted as manage, in a transaction that is rolled back.
+ */
+function proposerPreview(document: string): PlantImportPreview {
+  return quietDryRun(() => asProposer(() => previewImport(inputOf(document))));
+}
+
+/** 0.13.0: the preview fingerprint of a proposal now (Plant → Changes applies it through its request). */
+export function proposalFingerprintNow(requestId: string): string {
+  const p = rowOf(requestId);
+  const n = p ? previewNow(p) : null;
+  return n ? fingerprintOf(n.stored) : '';
+}
 
 function view(r: Row, u: AuthUser): McpPlantProposal {
   const p = rowOf(r.id);
@@ -185,6 +230,7 @@ function view(r: Row, u: AuthUser): McpPlantProposal {
       changedSince: false,
       hidden: 0,
       importId: null,
+      changeSetId: null,
     };
   const proposed = forReader(parseJson<Stored>(p.preview, { ...empty, checks: [] }), u);
   // the preview of now only while it can still be applied, and for who may apply it
@@ -212,12 +258,16 @@ function view(r: Row, u: AuthUser): McpPlantProposal {
     changedSince: !!now && now.fingerprint !== p.fingerprint,
     hidden: proposed.hidden,
     importId: p.import_id,
+    changeSetId: p.changeSetId,
   };
 }
 
 /** Before the request is claimed: the reviewer may import, the preview is clean, and a changed preview is confirmed. */
 function precheck(r: Row, selection: McpProposalSelection | undefined, u: AuthUser): void {
   if (!mayApply(u)) throw new HttpError(403, 'You may not change the plant registry', 'MCP_REQUEST_APPROVE');
+  // under review (plant.changeSet) the token owner never applies their assistant's proposal, administrators included
+  if (needsReview(r.id) && samePerson(r.requested_by, u))
+    throw new HttpError(409, 'A second person applies it: it is your assistant’s proposal', 'PLANT_CHANGESET_OWN', { id: r.id });
   const p = rowOf(r.id);
   if (!p) throw new HttpError(404, `Request ${r.id} not found`, 'MCP_REQUEST_NOT_FOUND', { id: r.id });
   const n = previewNow(p);
@@ -241,33 +291,50 @@ function precheck(r: Row, selection: McpProposalSelection | undefined, u: AuthUs
     throw new HttpError(409, 'What the proposal changes is no longer what it was – look at the preview of now and confirm it', 'PLANT_PROPOSAL_CHANGED');
 }
 
-/** Applies the proposal as the reviewer, through the import core in one transaction. */
+/** Applies the proposal as the reviewer, through the change sets' apply core (history, revisions) in one transaction. */
 function apply(r: Row, selection: McpProposalSelection | undefined, u: AuthUser) {
   const p = rowOf(r.id);
   if (!p) throw new HttpError(404, `Request ${r.id} not found`, 'MCP_REQUEST_NOT_FOUND', { id: r.id });
-  return db().tx(() => {
-    const result = applyImport(inputOf(p.document));
+  const expected = selection?.plant?.fingerprint ?? p.fingerprint;
+  // the same check as before the claim (one synchronous step): a difference rolls everything back
+  const check = (result: PlantImportResult) => {
     refuseDrops(result);
     const refused = refusedByPreview(result);
-    // the same check as before the claim (one synchronous step): a difference rolls everything back
-    const expected = selection?.plant?.fingerprint ?? p.fingerprint;
     if (refused || fingerprintOf(stored(result)) !== expected)
       throw new HttpError(409, refused ?? 'What the proposal changes is no longer what it was', 'PLANT_PROPOSAL_CHANGED');
-    db().run('UPDATE plant_proposals SET import_id = ? WHERE id = ?', result.import.id, p.id);
-    audit({
-      action: 'plant.proposal_applied',
-      entityType: 'plant_import',
-      entityId: result.import.id,
-      summary: `Plant registry changes "${p.title}" proposed by ${r.requested_by}'s AI assistant applied by ${u.username}: ${result.counts.add} added, ${result.counts.change} changed`,
-      details: {
-        requestId: r.id,
-        requestedBy: r.requested_by,
-        tokenName: r.token_name,
-        counts: result.counts,
-        sha256: p.sha256,
-        confirmedChange: !!selection?.plant,
-      },
-    });
+  };
+  return db().tx(() => {
+    let result: PlantImportResult;
+    if (p.changeSetId) {
+      const done = applyStored(p.changeSetId, null, u, {
+        viaRequest: true,
+        check: (imports) => {
+          if (!imports[0]) throw new HttpError(409, 'What the proposal changes is no longer what it was', 'PLANT_PROPOSAL_CHANGED');
+          check(imports[0]);
+        },
+      });
+      result = done.imports[0]!;
+    } else {
+      result = applyImport(inputOf(p.document));
+      check(result);
+      db().run('UPDATE plant_proposals SET import_id = ? WHERE id = ?', result.import.id, p.id);
+    }
+    withAuditDetails(p.changeSetId ? { changeSetId: p.changeSetId } : {}, () =>
+      audit({
+        action: 'plant.proposal_applied',
+        entityType: 'plant_import',
+        entityId: result.import.id,
+        summary: `Plant registry changes "${p.title}" proposed by ${r.requested_by}'s AI assistant applied by ${u.username}: ${result.counts.add} added, ${result.counts.change} changed`,
+        details: {
+          requestId: r.id,
+          requestedBy: r.requested_by,
+          tokenName: r.token_name,
+          counts: result.counts,
+          sha256: p.sha256,
+          confirmedChange: !!selection?.plant,
+        },
+      }),
+    );
     return { body: { importId: result.import.id, added: result.counts.add, changed: result.counts.change } };
   });
 }
@@ -278,12 +345,13 @@ function deciders(r: Row): UserInfo[] {
   return listUsers().filter((x) => {
     if (!x.active) return false;
     const u = toAuthUser(x);
-    return x.username.toLowerCase() === r.requested_by.toLowerCase() ? plantManagesSome(u) : canManageCatalogue(u);
+    // under review the token owner is no decider of their assistant's proposal
+    return x.username.toLowerCase() === r.requested_by.toLowerCase() ? plantManagesSome(u) && !needsReview(r.id) : canManageCatalogue(u);
   });
 }
 
 registerReviewKind('plant', {
-  mayAccept: (u) => mayApply(u),
+  mayAccept: (u, r) => mayApply(u) && !(needsReview(r.id) && samePerson(r.requested_by, u)),
   deciders,
   describe: (r) => {
     const p = payloadOf(r);
@@ -296,19 +364,32 @@ registerReviewKind('plant', {
   view,
   precheck,
   apply,
-  onRejected: (r, u, o) =>
+  onRejected: (r, u, o) => {
+    const cs = changeSetOf(r.id);
+    if (cs)
+      db().run(
+        "UPDATE plant_change_sets SET state = ?, decided_at = ?, decided_by = ?, comment = ?, updated_at = ?, expires_at = NULL WHERE id = ? AND state = 'proposed'",
+        o.withdrawn ? 'withdrawn' : 'rejected',
+        new Date().toISOString(),
+        u.username,
+        o.comment,
+        new Date().toISOString(),
+        cs.id,
+      );
     audit({
       action: 'plant.proposal_rejected',
       entityType: 'mcp_request',
       entityId: r.id,
       summary: `Plant registry changes "${payloadOf(r).title}" proposed by ${r.requested_by}'s AI assistant ${o.withdrawn ? 'withdrawn' : `rejected by ${u.username}`}${o.comment ? ` – ${o.comment.slice(0, 200)}` : ''}`,
-      details: { requestId: r.id, requestedBy: r.requested_by, withdrawn: o.withdrawn, comment: o.comment },
-    }),
+      details: { requestId: r.id, requestedBy: r.requested_by, withdrawn: o.withdrawn, comment: o.comment, ...(cs ? { changeSetId: cs.id } : {}) },
+    });
+  },
 });
 
 // ---------- the tool ----------
 
-const mayPropose = () => plantEnabled() && plantManagesSome(me());
+/** 0.13.0: an assistant may propose with its owner's `propose` right instead of `manage`. */
+const mayPropose = () => plantEnabled() && (plantManagesSome(me()) || plantProposesSome(me()));
 
 const KNOWN = new Set(['title', 'rationale', 'document']);
 
@@ -342,9 +423,9 @@ export const plantProposalTools: ToolDef[] = [
     asks: true,
     handler: (a, ctx) => {
       if (!plantEnabled()) throw new ToolError('The plant registry is not enabled on this Steward (Settings → Modules)');
-      if (!plantManagesSome(me()))
+      if (!plantManagesSome(me()) && !plantProposesSome(me()))
         throw new ToolError(
-          'You may not change the plant registry: only who may import into it (designers, administrators, managers of a site) can propose changes',
+          'You may not change the plant registry: only who may propose changes to it (designers, administrators, operators, approvers, plant viewers and who manages or may propose for a site) can propose changes',
         );
       for (const k of Object.keys(a)) {
         if (KNOWN.has(k)) continue;
@@ -366,7 +447,7 @@ export const plantProposalTools: ToolDef[] = [
       // the import's own checks: the format, the model's rules, the token owner's rights – a dry run
       let preview: PlantImportPreview;
       try {
-        preview = previewImport(inputOf(document));
+        preview = proposerPreview(document);
       } catch (e) {
         if (e instanceof HttpError && e.statusCode < 500) throw new ToolError(e.message);
         throw e;
@@ -390,12 +471,20 @@ export const plantProposalTools: ToolDef[] = [
       if (refused) throw new ToolError(refused);
       if (!preview.counts.add && !preview.counts.change) throw new ToolError('The document changes nothing: every entry in it is as it is in Steward already');
       // the proposals of one person together stay small enough for the reviewers' inbox
-      const open = Number(
-        db().get<{ n: number | null }>(
-          "SELECT SUM(LENGTH(p.document)) AS n FROM plant_proposals p JOIN mcp_requests r ON r.id = p.id WHERE r.requested_by = ? AND r.status = 'pending'",
-          ctx.principal.user.username,
-        )?.n ?? 0,
-      );
+      const open =
+        Number(
+          db().get<{ n: number | null }>(
+            `SELECT SUM(LENGTH(s.content)) AS n FROM plant_change_sources s JOIN plant_change_sets c ON c.id = s.change_set_id
+             JOIN mcp_requests r ON r.id = c.mcp_request_id WHERE r.requested_by = ? AND r.status = 'pending'`,
+            ctx.principal.user.username,
+          )?.n ?? 0,
+        ) +
+        Number(
+          db().get<{ n: number | null }>(
+            "SELECT SUM(LENGTH(p.document)) AS n FROM plant_proposals p JOIN mcp_requests r ON r.id = p.id WHERE r.requested_by = ? AND r.status = 'pending'",
+            ctx.principal.user.username,
+          )?.n ?? 0,
+        );
       if (open + bytes > MCP_REQUEST_LIMITS.proposalBytesPerUser)
         throw new ToolError('Your open proposals are too large together – wait until some are decided (or ask the user to withdraw some in Steward)');
       const snapshot = stored(preview);
@@ -405,21 +494,52 @@ export const plantProposalTools: ToolDef[] = [
           reason: a.rationale,
           payload: () => ({ type: 'plant', title, incomplete: false, added: preview.counts.add, changed: preview.counts.change }) satisfies Payload,
         });
-        db().run(
-          'INSERT INTO plant_proposals (id, title, document, sha256, preview, fingerprint, import_id) VALUES (?, ?, ?, ?, ?, ?, NULL)',
-          created.requestId,
+        // 0.13.0: a proposed change set (source assistant) on the request – AI requests and Plant → Changes show it
+        const sites = [...new Set(preview.changes.map((c) => c.siteId).filter(Boolean))].sort();
+        const catalogue = preview.changes.some((c) => c.kind === 'profile' || c.kind === 'kpi');
+        const req = db().get<{ expires_at: string }>('SELECT expires_at FROM mcp_requests WHERE id = ?', created.requestId);
+        const csId = insertChangeSet({
+          state: 'proposed',
+          source: 'assistant',
           title,
-          document,
-          sha256(document),
+          by: ctx.principal.user.username,
+          mcpRequestId: created.requestId,
+          sites,
+          catalogue,
+          expiresAt: req?.expires_at ?? null,
+        });
+        insertOp(
+          csId,
+          {
+            op: 'import',
+            kind: null,
+            scope: '',
+            id: '',
+            name: title,
+            origin: 'derived',
+            baseRevision: null,
+            base: null,
+            value: { proposal: true },
+            source: document,
+          },
+          ctx.principal.user.username,
+        );
+        const at = new Date().toISOString();
+        db().run(
+          'UPDATE plant_change_sets SET preview = ?, fingerprint = ?, proposed_at = ?, proposed_by = ?, review = ? WHERE id = ?',
           JSON.stringify(snapshot),
           fingerprintOf(snapshot),
+          at,
+          ctx.principal.user.username,
+          reviewNeeded(sites, catalogue) ? 1 : 0,
+          csId,
         );
         audit({
           action: 'plant.proposal_created',
           entityType: 'mcp_request',
           entityId: created.requestId,
           summary: `${ctx.principal.user.username}'s AI assistant (token "${ctx.principal.tokenName}") proposes plant registry changes "${title}": ${preview.counts.add} added, ${preview.counts.change} changed – a person reviews them`,
-          details: { tokenId: ctx.principal.tokenId, counts: preview.counts, byKind: preview.byKind, bytes, sha256: sha256(document) },
+          details: { tokenId: ctx.principal.tokenId, counts: preview.counts, byKind: preview.byKind, bytes, sha256: sha256(document), changeSetId: csId },
         });
         return created;
       });

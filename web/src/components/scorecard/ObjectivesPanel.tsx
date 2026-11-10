@@ -181,6 +181,16 @@ function ObjectiveCard({ objective: o, onEdit, onArchive }: { objective: Objecti
               })}
             </Text>
           )}
+          {o.windows.some((w) => (w.offMinutes ?? 0) > 0) && (
+            <Text size="xs" c="dimmed" data-testid="objective-off">
+              {t('objectives.offMonitor', {
+                list: o.windows
+                  .filter((w) => (w.offMinutes ?? 0) > 0)
+                  .map((w) => `${t(`windows.${w.window}`)} ${fmtMinutes(w.offMinutes ?? 0)}`)
+                  .join(' · '),
+              })}
+            </Text>
+          )}
           {o.noDataReason && !o.archived && (
             <Text size="xs" c={o.noDataTooLong ? 'red.8' : 'dimmed'}>
               {o.noDataTooLong && o.noDataSince ? `${t('objectives.noDataSince', { date: fmtDate(o.noDataSince) })} ` : ''}

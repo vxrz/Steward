@@ -30,6 +30,7 @@ import { ExtractBaseModal } from '../components/plant/ExtractBaseModal';
 import { FormButtons } from '../components/plant/forms';
 import { AssetBriefLink, DataPointTable, ProtocolBadge, RowMenu } from '../components/plant/data';
 import {
+  baseInterface,
   describeFileSet,
   describeGroup,
   describeInterface,
@@ -49,6 +50,8 @@ import { PlantDocumentsPanel } from '../components/plant/DocumentsPanel';
 import { SourceLine } from './PlantSite';
 import { CollapsibleSection, SectionGroup, SectionGroupControls } from '../components/page/CollapsibleSection';
 import { DescribedText, DescriptionModal } from '../components/plant/describe';
+import { OpenChangesChip, ProposeEditButton, saveOrDraft } from '../components/plant/changes/common';
+import { CatalogueTabPage, CatalogueTabs } from './plant/views/tabs';
 
 /** Where an interface or data point of a derived profile comes from (0.11.0); nothing on a profile without a base. */
 function OriginBadge({ origin, derived, nameOf }: { origin: PlantModelOrigin | undefined; derived: boolean; nameOf: (id: string) => string }) {
@@ -89,7 +92,7 @@ export function PlantProfilePage() {
   const { t } = useTranslation(['plant', 'common', 'plantModel']);
   const label = usePlantLabel();
   const nameOf = useNameOf();
-  const { profileId } = useParams();
+  const { profileId, tab } = useParams();
   const qc = useQueryClient();
   const navigate = useNavigate();
   const [search, setSearch] = useSearchParams();
@@ -97,7 +100,11 @@ export function PlantProfilePage() {
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const [extracting, setExtracting] = useState(false);
   const p = q.data;
-  const profiles = useQuery({ queryKey: plantKeys.profiles, queryFn: () => get<PlantProfileSummary[]>('/plant/profiles'), enabled: !!p?.canManage });
+  const profiles = useQuery({
+    queryKey: plantKeys.profiles,
+    queryFn: () => get<PlantProfileSummary[]>('/plant/profiles'),
+    enabled: !!(p?.canManage || p?.canPropose),
+  });
   // ?edit=1 (after Duplicate): open the form once the profile is loaded
   useEffect(() => {
     if (p?.canManage && search.get('edit') === '1') {
@@ -108,13 +115,22 @@ export function PlantProfilePage() {
   useAliasRedirect([[profileId, p?.id]]);
   const changeId = useChangeId(p ? { kind: 'profile', id: p.id, name: p.name } : null, !!p?.canManage);
   if (!p) return <DetailState query={q} back="plantProfiles" />;
+  if (tab) return <CatalogueTabPage kind="profile" entry={p} tab={tab} />;
   const base = `/plant/profiles/${encodeURIComponent(p.id)}`;
+  // 0.13.0: who may propose changes (but not manage the catalogue) edits into their draft
+  const proposeOnly = !p.canManage && !!p.canPropose;
+  const editable = p.canManage || proposeOnly;
   const save = async (next: PlantProfileValues) => {
     const { id: _id, ...body } = next;
-    const saved = await put<PlantProfileDetail>(base, body);
-    qc.setQueryData(plantKeys.profile(profileId), saved);
-    void qc.invalidateQueries({ queryKey: plantKeys.profiles });
-    void qc.invalidateQueries({ queryKey: ['plant', 'point', p.id] });
+    await saveOrDraft(
+      p.canManage,
+      () => put<PlantProfileDetail>(base, { ...body, revision: p.revision }),
+      (saved) => {
+        qc.setQueryData(plantKeys.profile(profileId), saved);
+        void qc.invalidateQueries({ queryKey: plantKeys.profiles });
+        void qc.invalidateQueries({ queryKey: ['plant', 'point', p.id] });
+      },
+    );
   };
   const values = p.own;
   const derived = !!p.extends;
@@ -188,12 +204,14 @@ export function PlantProfilePage() {
         recent={{ label: p.name, kind: 'profile' }}
         back="plantProfiles"
         title={p.name}
+        tabs={<CatalogueTabs kind="profile" entry={p} active="" />}
         status={
           <>
             {p.category && <Badge variant="default">{p.category}</Badge>}
             {p.template && <TemplateBadge size="sm" />}
             {p.notInSource && <NotInSourceBadge />}
             <PreviewBadge />
+            <OpenChangesChip query={{ kind: 'profile', id: p.id }} />
           </>
         }
         description={[p.manufacturer, p.model, p.version && t('profile.versionIs', { version: p.version })].filter(Boolean).join(' · ') || undefined}
@@ -204,6 +222,7 @@ export function PlantProfilePage() {
                 {t('common:edit')}
               </Button>
             )}
+            {proposeOnly && <ProposeEditButton onClick={() => setDialog({ kind: 'profile' })} testId="profile-propose-edit" catalogue />}
             {p.canManage && <DuplicateButton kind="device-profile" id={p.id} />}
             <Button
               size="xs"
@@ -250,7 +269,7 @@ export function PlantProfilePage() {
                 text={p.description}
                 inheritedFrom={p.descriptionFrom !== p.id ? nameOf2(p.descriptionFrom) : null}
                 changedHere={!!values.description && p.descriptionFrom === p.id}
-                editable={p.canManage}
+                editable={editable}
                 onEdit={() =>
                   setDialog({
                     kind: 'describe',
@@ -328,7 +347,7 @@ export function PlantProfilePage() {
                               </Text>
                             )}
                           </Text>
-                          {p.canManage && r.x.by === p.id && (
+                          {editable && r.x.by === p.id && (
                             <Button
                               size="compact-xs"
                               variant="subtle"
@@ -361,14 +380,14 @@ export function PlantProfilePage() {
                     </Text>
                   </div>
                   <SectionGroupControls min={4} />
-                  {p.canManage && (
+                  {editable && (
                     <Button size="xs" variant="default" leftSection={<IconPlus size={14} />} onClick={() => setDialog({ kind: 'interface' })}>
                       {t('data.addInterface')}
                     </Button>
                   )}
                 </Group>
                 {p.interfaces.length === 0 && (
-                  <EmptyState compact title={t('data.noInterfacesTitle')} whoCanAct={p.canManage ? undefined : t('profiles.whoCanAct')}>
+                  <EmptyState compact title={t('data.noInterfacesTitle')} whoCanAct={editable ? undefined : t('profiles.whoCanAct')}>
                     {t('data.noInterfacesText')}
                   </EmptyState>
                 )}
@@ -398,7 +417,7 @@ export function PlantProfilePage() {
                       </>
                     }
                     actions={
-                      p.canManage && (
+                      editable && (
                         <>
                           <Button
                             size="compact-xs"
@@ -443,7 +462,7 @@ export function PlantProfilePage() {
                       <DescribedText
                         text={iface.description}
                         {...described(p.origins.interfaces[iface.id])}
-                        editable={p.canManage && inheritedIface(iface.id)}
+                        editable={editable && inheritedIface(iface.id)}
                         onEdit={() =>
                           setDialog({
                             kind: 'describe',
@@ -471,7 +490,7 @@ export function PlantProfilePage() {
                                 size="xs"
                                 text={g.description}
                                 {...described(p.origins.groups[plantOriginKey(iface.id, g.name)])}
-                                editable={p.canManage && inheritedGroup(iface.id, g.name)}
+                                editable={editable && inheritedGroup(iface.id, g.name)}
                                 onEdit={() =>
                                   setDialog({
                                     kind: 'describe',
@@ -484,7 +503,7 @@ export function PlantProfilePage() {
                                 testId={`group-description-${iface.id}-${g.name}`}
                               />
                             </div>
-                            {p.canManage && g.name && !inheritedGroup(iface.id, g.name) && (
+                            {editable && g.name && !inheritedGroup(iface.id, g.name) && (
                               <RowMenu
                                 label={t('data.groupActions', { name: g.name })}
                                 onEdit={() => setDialog({ kind: 'group', iface, group: g.name, description: g.description })}
@@ -496,7 +515,7 @@ export function PlantProfilePage() {
                             protocol={iface.protocol}
                             points={g.dataPoints}
                             label={t('data.pointsOf', { group: g.name || t('data.ungrouped'), iface: iface.name || iface.id })}
-                            canManage={p.canManage}
+                            canManage={editable}
                             onEdit={(point) => setDialog({ kind: 'point', iface, group: g.name, point })}
                             onRemove={(point) => void removePoint(iface, point)}
                             badge={(point) => <OriginBadge origin={p.origins.points[point.id]} derived={derived} nameOf={nameOf2} />}
@@ -552,7 +571,7 @@ export function PlantProfilePage() {
                                   size="xs"
                                   text={f.description}
                                   {...described(p.origins.fileSets[plantOriginKey(iface.id, f.id)])}
-                                  editable={p.canManage && inheritedFileSet(iface.id, f.id)}
+                                  editable={editable && inheritedFileSet(iface.id, f.id)}
                                   onEdit={() =>
                                     setDialog({
                                       kind: 'describe',
@@ -691,6 +710,7 @@ export function PlantProfilePage() {
           iface={dialog.iface}
           taken={p.interfaces.map((i) => i.id)}
           inherited={!!dialog.iface && inheritedIface(dialog.iface.id)}
+          baseProtocol={dialog.iface ? baseInterface(p, dialog.iface.id)?.protocol : undefined}
           onClose={() => setDialog(null)}
           onSave={(iface) => save(saveInterface(p, iface))}
         />

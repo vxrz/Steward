@@ -228,6 +228,18 @@ export const CONTROL_POINTS: readonly ControlPoint[] = [
   // renaming or removing more than one entry at once, or editing many, asks by default
   { ...sp('plant.renameId', 'catalogue', ['renamePlantId']), defaults: { stepUp: false } },
   sp('plant.bulkChange', 'catalogue', ['changePlantInBulk']),
+  {
+    // 0.13.0 (ADR 0020): a second person applies changes to the plant registry – off (nothing changes on upgrade),
+    // optional (each site's switch "Changes need a second person", the catalogue's in the plant settings) or required.
+    // Under review no author applies, administrators included; applying keeps its step-ups per source (above)
+    key: 'plant.changeSet',
+    group: 'catalogue',
+    actions: [],
+    supports: { fourEyes: true, stepUp: false },
+    baseline: {},
+    defaults: { fourEyes: 'off', stepUp: false },
+    fourEyesLevels: ['off', 'optional', 'required'],
+  },
 ];
 
 export type ControlPointKey = string;

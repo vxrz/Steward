@@ -40,6 +40,7 @@ import { useMediaQuery } from '@mantine/hooks';
 import { useShellLayout } from '../layout';
 import { validateProcess, type ProcessDefinition, type ProcessDetail, type ValidationIssue } from '@sm/shared';
 import { ApiError, get, notifyError, notifyOk, put, apiUrl } from '../api';
+import { CopyId } from '../components/CopyId';
 import {} from '../components/common';
 import { statusLabel } from '../components/common';
 import { useMe } from '../auth';
@@ -242,7 +243,7 @@ export function ProcessEditorPage() {
         }
         description={
           <>
-            <span className="mono">{p.id}</span>
+            <CopyId id={p.id} />
             <CopiedFromNote kind="process" id={p.id} pathOf={(id) => `/processes/${id}`} />
           </>
         }

@@ -65,7 +65,9 @@
     "expects": "Erwartet eine Plattform vom Typ {{kind}}",
     "blocked": "Plattformen ohne Nutzungsrecht sind deaktiviert",
     "select": "Plattform auswählen",
-    "none": "Noch keine Plattformen – unter Plattformen hinzufügen"
+    "none": "Noch keine Plattformen – unter Plattformen hinzufügen",
+    "identity": "Identität für „{{slot}}“",
+    "needsWrites": "benötigt eine Identität, die schreiben darf"
   },
   "dialog": {
     "notStarted": "Ausführung nicht gestartet",

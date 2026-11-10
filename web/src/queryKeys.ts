@@ -144,6 +144,12 @@ export const plantKeys = {
   structure: (siteId: string | null | undefined) => ['plant', 'views', 'structure', siteId] as const,
   flow: (assetId: string | null | undefined) => ['plant', 'views', 'flow', assetId] as const,
   lineage: (profileId: string | null | undefined, pointId: string | null | undefined) => ['plant', 'views', 'lineage', profileId, pointId] as const,
+  // change sets (0.13.0): the inbox, one change set and its preview, open changes of an entry or site, an entry's history
+  changeSets: (box: string) => ['plant', 'change-sets', box] as const,
+  changeSet: (id: string | null | undefined) => ['plant', 'change-set', id] as const,
+  changeSetPreview: (id: string | null | undefined) => ['plant', 'change-set', id, 'preview'] as const,
+  openChanges: (key: string) => ['plant', 'open-changes', key] as const,
+  history: (key: string) => ['plant', 'history', key] as const,
 };
 
 /** Database schemas (#222): per platform or system, its snapshots and comparisons. */

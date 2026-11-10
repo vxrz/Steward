@@ -41,6 +41,11 @@ export interface HttpRequest {
   responseFile?: string;
   /** AWS SigV4 (#116): sign this request for another service or region than the platform's (one AWS account, many APIs). */
   aws?: { service: string; region: string };
+  /**
+   * Steward's own fixed read that uses another method than GET (0.13.0, ADR 0009): a read-only identity lets it through.
+   * Only Steward's code sets it (Prometheus queries, AWS query APIs, Snowflake statements, LLM calls) – never a step.
+   */
+  intent?: 'read';
   /** Mutual TLS (0.9.0): the client certificate presented on this hop – set per hop for the platform's own origins only */
   clientTls?: ClientTls;
 }
@@ -84,19 +89,31 @@ interface CachedToken {
   refreshToken?: string;
 }
 
+/** Whether the identity of a platform object restricts requests (read-only, an operation filter): the fast path stays import-free. */
+async function identityRestricts(p: Platform): Promise<boolean> {
+  const id = (p as WithIdentity).identityId;
+  const known = p.identities?.find((i) => (id ? i.id === id : i.default));
+  if (known) return known.readOnly || !!known.operationFilter || known.integrity === 'mismatch' || known.integrity === 'unsealed';
+  if (!p.id || p.id.startsWith('offline:')) return false;
+  const { restricts } = await import('./identityGuard.js');
+  return restricts(p);
+}
+
 /** Token and AWS role caches are per identity (0.9.0, ADR 0009): `platformId:identityId`. */
 const tokenCache = new Map<string, CachedToken>();
 const dispatcherCache = new Map<string, { stamp: string; dispatcher: Dispatcher }>();
 
 /** A platform object as getConnection gives it (with its identity), or as getPlatform does (the default identity). */
-type WithIdentity = Pick<Platform, 'id'> & { identityId?: string };
+type WithIdentity = Pick<Platform, 'id'> & { identityId?: string; identities?: Platform['identities'] };
 
 /**
  * The cache key of the identity a platform object is used with: getConnection sets `identityId`; a plain platform
  * object (getPlatform) stands for the default identity, whose id is derived from the platform id.
  */
 export function identityKey(p: WithIdentity): string {
-  return `${p.id}:${p.identityId ?? defaultIdentityId(p.id)}`;
+  // a plain platform object (getPlatform) stands for its current default identity (0.13.0: another identity can become
+  // the default – changing it clears the platform's caches as well)
+  return `${p.id}:${p.identityId ?? p.identities?.find((i) => i.default)?.id ?? defaultIdentityId(p.id)}`;
 }
 
 /** The cached access token of a platform identity (login or OAuth2), without the token itself. */
@@ -867,6 +884,11 @@ async function followRedirects(
     // sent with (a 307/308 keeps a changing method, which a read-only kind refuses); the rules of the kind whose
     // platform owns the hop's origin too (0.9.0)
     await assertKindRules(p.kind, url, method);
+    // the identity's read-only flag and operation filter (0.13.0, ADR 0009): on every hop, before anything is sent
+    if (await identityRestricts(p)) {
+      const { assertIdentityAllows } = await import('./identityGuard.js');
+      await assertIdentityAllows(p, secrets, { method, url, intent: req.intent });
+    }
     // the pinning lookup is never asked for an IP literal: its address is checked here (0.9.0)
     assertLiteralAddressSafe(url);
     const hopTrusted = await credentialsAllowed(p, secrets, url);

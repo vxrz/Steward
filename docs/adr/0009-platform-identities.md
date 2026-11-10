@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-11-06
-- **Since:** 0.9.0 (#228), planned in steps (below)
+- **Since:** 0.9.0 (#228), planned in steps (below); steps 2 and 3 implemented in 0.13.0
 
 ## Context
 
@@ -208,6 +208,14 @@ The check sits in **one place**: `platformRequest` (next to `assertPathAllowed`,
 
 **Risks**
 
+- **Threats considered for steps 2 and 3** (0.13.0):
+  - _Moving or adding identities in the database._ The identity seal binds `platform_id`, so a row (with its credentials) moved to another platform is refused; a row inserted directly is unsealed and refused. Confirming the platform's settings keeps the default identity (as the platform's confirmation always did) and every identity whose own seal verified; any other identity is shown in the dialog, kept **disabled** (`disabled` is part of the seal when set, so enabling it in the database breaks the seal) and refused at use (`IDENTITY_DISABLED`) until an administrator enables it one by one with a step-up, after reading its access list (`platform.identity_enabled`) – the conservative default for 0.13.0 (migration `platforms-007-identity-disabled`).
+  - _Access lists are not sealed_ (as for platforms). Someone who can write the database can add themselves to an identity's list; every change through Steward is audited (`platform.identity_access_changed`), and the credentials remain the real boundary.
+  - _An identity that points elsewhere._ Variables used in the base URL, token URLs, trusted origins and the portal cannot be set on an identity (refused at save, ignored at use). An identity's **own sign-in settings** may only send its credentials to the platform's own origins – the base URL's, the trusted origins and those of the platform's own sign-in (token URL, login and refresh requests, STS endpoint); relative URLs go to the base URL; anything else, and a URL with an expression other than `{{ baseUrl }}` and `{{ vars.x }}`, is refused when saved (`IDENTITY_AUTH_ORIGIN`, the conservative default for 0.13.0 – it may be relaxed later). A later change of the platform's own settings is not re-checked against its identities.
+  - _Using an identity without the right._ `identityAccess()` is checked on the server for every use: the run start (and each queued or resumed start resolves the stored identity again, never another one), schedules and triggers when saved and at every fire as their owner, sub-processes for the parent's actor, monitor checks and outputs for the owner (cached for at most a minute, as platform rights), the request explorer and MCP (the token owner; again when a request is approved, and the second person must be allowed to use it). An identity id of another platform is not found.
+  - _Read-only and filter bypass._ The check runs before anything is sent, in `platformRequest` on every redirect hop (a redirect to a path or host outside the filter is refused before the next hop), in the dry-run and test-run branches, and for access-change and browser steps. `intent: 'read'` is a field of Steward's internal request only (no step sets it) and lifts only the read-only flag, never the filter. The flags are read with the identity's seal checked when the run resolves its connection: a change during a running run applies to the next run.
+  - _Matcher mistakes._ The filter fails closed: undecodable segments, encoded `/` or `\`, `;` and dot segments are refused; literals compare case-insensitively for the decision, and on a tie every tied operation must be allowed; a request matching no operation is refused.
+  - _Caches._ A plain platform object stands for the current default identity in the token and AWS caches; making another identity the default clears the platform's caches.
 - A wrong matcher could let a request through. Mitigation: fail closed (no match → refused), the most specific match decides, decoded segments as in `deniedPaths.ts`, a test table with tricky paths (`..`, `%2F`, `;`, trailing slashes, `{id}` against literals).
 - The default identity keeps today's (often broad) credentials after the upgrade. Steward cannot fix that; the release notes and the _Identities_ tab suggest adding a read-only identity and making it the default.
 - Privileged runs that wait for a second person can stall scheduled work. Expiry and notifications make it visible; it only applies where a process asks or the policy requires it.
@@ -217,8 +225,8 @@ The check sits in **one place**: `platformRequest` (next to `assertPathAllowed`,
 Each step is its own PR. Each is backward compatible: until someone adds a second identity, nothing changes.
 
 1. **Model and default identity, no behaviour change.** Table, SQL migration, one-time seal step, identity seal, `ENCRYPTED_COLUMNS`, migration-package classification, `getConnection()`, caches keyed per identity, the old routes on the default identity, `/api/v1` identities (read-only fields), the _Identities_ tab showing the one default. Tests: an upgraded database behaves exactly as before, including MCP modes and seals.
-2. **More identities and choosing them.** Create, edit and delete identities; access lists, owning teams and `identityAccess`; slot requirements; the run dialog; schedules, triggers and sub-processes; monitors and background readers with `identity`; MCP mode per identity and the `identity` tool argument; evidence and audit with identity names; connector types carrying identity templates.
-3. **Read-only flag and operation filter.** `intent: 'read'` for Steward's own readers; the checks in `platformRequest`, the dry-run branch, non-HTTP steps and MCP; `operationFilter.ts` with presets, stale references and the _Copy specs_ option; `IDENTITY_READ_ONLY`, `IDENTITY_OPERATION_REFUSED`.
+2. **More identities and choosing them** – _implemented in 0.13.0_ (see "Changed while building steps 2 and 3"). Create, edit and delete identities; access lists, owning teams and `identityAccess`; slot requirements; the run dialog; schedules, triggers and sub-processes; monitors and background readers with `identity`; MCP mode per identity and the `identity` tool argument; evidence and audit with identity names; connector types carrying identity templates.
+3. **Read-only flag and operation filter** – _implemented in 0.13.0_. `intent: 'read'` for Steward's own readers; the checks in `platformRequest`, the dry-run branch, non-HTTP steps and MCP; `operationFilter.ts` with presets, stale references and the _Copy specs_ option; `IDENTITY_READ_ONLY`, `IDENTITY_OPERATION_REFUSED`.
 4. **Privileged identities and PAM.** Control point `platform.privilegedIdentity`, step-up on the four places, the start approval, register links and rotation, privileged MCP rules. PAM checkout only after its own decision record.
 
 ## Changed while building step 1
@@ -230,6 +238,22 @@ Each step is its own PR. Each is backward compatible: until someone adds a secon
 5. `OWNED_KINDS` gains `platform_identity` in step 2, with owning teams of identities; step 1 has no owning teams on identities.
 6. The caches key a plain platform object (from `getPlatform`) as the default identity, whose id is derived from the platform id. Step 2 (another identity can become the default) has to key it by the actual default identity, or convert the remaining callers to `getConnection` first.
 7. A platform's `integrity` is the worst of its own seal and its identities' seals; `confirm-config` seals both.
+
+## Changed while building steps 2 and 3
+
+0.13.0. What differs from the decision above, and why:
+
+1. **Migrations**: `platforms-007-identity-disabled` adds `platform_identities.disabled` (identities kept disabled at a confirmation, see the threat notes); `platforms-006-identity-choices` adds `schedules.identities`, `webhook_triggers.identities` (JSON slot → identity id, default `'{}'`) and `mcp_requests.identity_id`. `credentials.identity_id` (register links and rotation) moves to step 4 with the rest of the register work.
+2. **Background readers** other than monitors (access checks, catalogue readers, backups, the register's vault link …) still use the default identity: their saved objects get no identity column yet. Monitor checks and outputs name an identity (`identity`, by id or name; stored by id after saving). Process outputs of monitors take `identities` per slot (API and YAML; the editor has no picker for them yet).
+3. **Owning teams of an identity** are set with the general owning-teams route (`kind: platform_identity`) – by administrators, adding a team with a step-up – not by platform managers.
+4. **Routes**: `PUT …/identities/:iid` changes name, description, sign-in, variables, read-only flag and filter together (a loosening asks for the step-up); `GET …/identities/:iid/settings` gives managers the sign-in settings and variables (never credentials) and the filter's references resolved, stale ones marked.
+5. **A new default identity's access list is cleared** (the default has none; the audit entry keeps it); the former default becomes closed like any other identity.
+6. **Read-only and filter**: `intent: 'read'` lifts the read-only flag only, never the filter. A read-only identity lets a changing method through only for operations the filter chose one by one. The flags apply as read when the run (or monitor read, MCP call) resolves its connection.
+7. **Matching**: literals compare case-insensitively when deciding (a server that ignores case cannot be used to slip past a more specific operation); on a tie every tied operation must be allowed; `;` path parameters are refused.
+8. **Connector types**: a template with `default: true` names and flags the new platform's default identity; the privileged flag is not carried (step 4). Filter references are `METHOD /specPath` of the bundled specs.
+9. **Copy specs**: an identity of the same name on the target gets the filter only when that does not widen it (otherwise it is skipped and listed – widening needs its managers' step-up on the target).
+10. **Writing steps on a slot without `identity.writes`**: the process editor's _Connections_ panel shows a hint next to the slot's switch _Needs an identity that can write_; the server's process check does not warn.
+11. **Not built in this step**: the contract check and the Postman export use the default identity; debug runs (step-through and single node) and `request_run` use default identities; run reports show the identity in the run detail and `run.started`, not yet in the PDF; database platforms show _Read only_ fixed in the dialog, the flag itself is not stored.
 
 ## Decided after review
 

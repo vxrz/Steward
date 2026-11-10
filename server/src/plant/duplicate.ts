@@ -158,6 +158,7 @@ export const kpiDuplicator: Duplicator<PlantKpiDetail> = {
         strategy: k.strategy,
         implementation: k.implementation,
         dynamicColumns: k.dynamicColumns,
+        rollUp: k.rollUp,
         inputs: k.inputs,
         parameters: k.parameters,
         columns: k.columns,

@@ -65,15 +65,19 @@ async function fixture(api: APIRequestContext, tag: string) {
     }),
   );
   await ok(api.post('/api/plant/profiles', { data: { id: child, name: `E2E docs derived ${tag}`, extends: base } }));
-  await ok(api.post('/api/plant/assets', { data: { id: asset, siteId: 'riverside', name: `E2E docs mill ${tag}` } }));
+  // a site of its own: the demo sites' figures stay as other specs expect them
+  const site = `e2e-docs-site-${tag}`.toLowerCase();
+  await ok(api.post('/api/plant/sites', { data: { id: site, name: `E2E docs works ${tag}` } }));
+  await ok(api.post('/api/plant/assets', { data: { id: asset, siteId: site, name: `E2E docs mill ${tag}` } }));
   await ok(api.put(`/api/plant/assets/${asset}/assignment`, { data: { profileId: child, interfaces: [{ interface: 'cnc', active: true }] } }));
   await ok(api.post('/api/records', { data: { type: 'DOC', title: `Base manual ${tag}`, links: [{ kind: 'device-profile', id: base, note: '' }] } }));
   await ok(api.post('/api/records', { data: { type: 'DOC', title: `Derived addendum ${tag}`, links: [{ kind: 'device-profile', id: child, note: '' }] } }));
-  return { base, child, asset };
+  return { base, child, asset, site };
 }
 
-async function cleanup(api: APIRequestContext, f: { base: string; child: string; asset: string }) {
+async function cleanup(api: APIRequestContext, f: { base: string; child: string; asset: string; site: string }) {
   await api.delete(`/api/plant/assets/${f.asset}`);
+  await api.delete(`/api/plant/sites/${f.site}`);
   for (const p of [f.child, f.base]) await api.post('/api/plant/bulk', { data: { kind: 'profile', action: 'remove', items: [{ id: p }], cascade: true } });
 }
 

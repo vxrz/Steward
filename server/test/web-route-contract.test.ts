@@ -78,8 +78,12 @@ const API_ONLY: Record<string, string> = {
   'GET /api/plant/map/tiles/:layer/:z/:x/:y': 'map tiles, read by the map library',
   'GET /api/plant/map/glyphs/:fontstack/:range': 'map fonts, read by the map library',
   'GET /api/plant/map/sprites/:sprite': 'map icons, read by the map library',
+  // 0.13.0: a draft's operation changed in place – the web app saves the entry's form again (one operation per entry)
+  'PUT /api/plant/change-sets/:changeSetId/operations/:seq': 'scripts change an operation of a draft; the web app saves the form again',
   // command line tools
   'POST /api/platforms/:id/contract-check': 'npm run contract (server/src/cli/contract.ts)',
+  // the web UI reads a platform's identities with the platform (GET /api/platforms/:id); the list is for scripts
+  'GET /api/platforms/:id/identities': 'scripts (the web UI reads the identities with the platform)',
   // internal API for scripts: a single entry the web app reads as part of a list, or a step it does another way
   'GET /api/ai/usage': 'AI usage log for scripts (docs/AI.md); the web app shows it per platform',
   'GET /api/assurance/policy/as-of': 'the policy in force at a time (docs/ASSURANCE.md)',

@@ -12,7 +12,8 @@ import { HttpError } from './util.js';
 export const ENCRYPTED_COLUMNS: { table: string; id: string; column: string; file: string }[] = [
   // empty once a platform's credentials moved to its default identity (0.9.0, ADR 0009); kept for unconverted rows
   { table: 'platforms', id: 'id', column: 'secrets', file: 'platforms/service.ts' },
-  { table: 'platform_identities', id: 'id', column: 'secrets', file: 'platforms/service.ts' },
+  // written by platforms/service.ts (the default identity) and platforms/identityService.ts (every identity, 0.13.0)
+  { table: 'platform_identities', id: 'id', column: 'secrets', file: 'platforms/identityService.ts' },
   { table: 'identity_providers', id: 'id', column: 'secret', file: 'auth/sso.ts' },
   { table: 'webhook_triggers', id: 'id', column: 'secret_enc', file: 'triggers/service.ts' },
   { table: 'runs', id: 'id', column: 'sealed_inputs', file: 'engine/secret-inputs.ts' },

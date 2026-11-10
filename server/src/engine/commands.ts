@@ -23,7 +23,18 @@ import type { RunSignal } from './engine.js';
 
 /** Why a start is refused – `code` for translated messages (schedule skips use the same codes), `text` in English. */
 export interface StartProblem {
-  code: 'actorMissing' | 'processNotFound' | 'mayNotRun' | 'mayNotEdit' | 'platformMissing' | 'mayNotUsePlatform';
+  code:
+    | 'actorMissing'
+    | 'processNotFound'
+    | 'mayNotRun'
+    | 'mayNotEdit'
+    | 'platformMissing'
+    | 'mayNotUsePlatform'
+    /** 0.13.0 (ADR 0009): the identity named for a slot is gone (or not one of the bound platform's) */
+    | 'identityMissing'
+    | 'mayNotUseIdentity'
+    /** The slot needs an identity that can write (connection slot `identity.writes`), the one bound is read-only */
+    | 'identityWriteRequired';
   status: 403 | 404;
   text: string;
   vars: Record<string, string>;
@@ -34,6 +45,8 @@ export interface StartCheck {
   processId: string;
   /** Slot → platform id */
   bindings?: Record<string, string>;
+  /** Slot → identity id of the bound platform (0.13.0, ADR 0009); a missing slot: the platform's default identity */
+  identities?: Record<string, string>;
   /**
    * A debug run (ADR 0010): `edit` as well as `run`. A single node needs only the slots it uses, and offline – no
    * platform touched – only `edit`.
@@ -79,15 +92,56 @@ export function startProblem(user: AuthUser | string | null | undefined, cmd: St
     if (d?.kind === 'node' && d.answers === 'offline') return null;
     if (!perms.includes('run')) return { code: 'mayNotRun', status: 403, text: `${name} may not run this process`, vars: { user: name } };
     const slots = d?.kind === 'node' ? new Set(d.slots ?? []) : null;
+    // what the process's slots need of their identity (ADR 0009): the current version's definition
+    let needsWrites: Set<string> | null = null;
+    const slotNeedsWrites = (slot: string): boolean => {
+      if (!needsWrites) {
+        try {
+          needsWrites = new Set(
+            getProcess(cmd.processId)
+              .definition.connections.filter((c) => c.identity?.writes)
+              .map((c) => c.slot),
+          );
+        } catch {
+          needsWrites = new Set();
+        }
+      }
+      return needsWrites.has(slot);
+    };
     for (const [slot, pid] of Object.entries(cmd.bindings ?? {})) {
       if (slots && !slots.has(slot)) continue;
-      let ok: boolean;
+      let platform: ReturnType<typeof getPlatform>;
       try {
-        ok = getPlatform(pid).permissions.includes('use');
+        platform = getPlatform(pid);
       } catch {
         return { code: 'platformMissing', status: 404, text: `platform ${pid} no longer exists`, vars: { platform: pid } };
       }
-      if (!ok) return { code: 'mayNotUsePlatform', status: 403, text: `${name} may not use platform ${pid}`, vars: { user: name, platform: pid } };
+      if (!platform.permissions.includes('use'))
+        return { code: 'mayNotUsePlatform', status: 403, text: `${name} may not use platform ${pid}`, vars: { user: name, platform: pid } };
+      // the identity of the slot (ADR 0009): one of this platform's, usable by the user; the default without one
+      const iid = cmd.identities?.[slot];
+      const identity = iid ? platform.identities?.find((i) => i.id === iid) : platform.identities?.find((i) => i.default);
+      if (iid && !identity)
+        return {
+          code: 'identityMissing',
+          status: 404,
+          text: `identity ${iid} of platform "${platform.name}" no longer exists`,
+          vars: { platform: platform.name, identity: iid },
+        };
+      if (identity && !identity.mayUse)
+        return {
+          code: 'mayNotUseIdentity',
+          status: 403,
+          text: `${name} may not use the identity "${identity.name}" of platform "${platform.name}"`,
+          vars: { user: name, platform: platform.name, identity: identity.name },
+        };
+      if (identity?.readOnly && slotNeedsWrites(slot))
+        return {
+          code: 'identityWriteRequired',
+          status: 403,
+          text: `connection "${slot}" needs an identity that can write – "${identity.name}" of "${platform.name}" is read-only`,
+          vars: { slot, platform: platform.name, identity: identity.name },
+        };
     }
     return null;
   });
@@ -100,6 +154,18 @@ export function authorizeStart(user: AuthUser | string | null | undefined, cmd: 
   if (p.code === 'processNotFound') throw new HttpError(404, p.text);
   if (p.code === 'platformMissing') throw new HttpError(404, `Platform ${p.vars.platform} not found`, 'PLATFORM_NOT_FOUND', { id: p.vars.platform! });
   if (p.code === 'actorMissing') throw new HttpError(403, `The run's owner ${p.vars.owner} is missing or deactivated`, 'FORBIDDEN');
+  if (p.code === 'identityMissing') throw new HttpError(404, `Identity ${p.vars.identity} not found`, 'IDENTITY_NOT_FOUND', { id: p.vars.identity! });
+  if (p.code === 'mayNotUseIdentity')
+    throw new HttpError(403, `You are not allowed to use the identity "${p.vars.identity}" of "${p.vars.platform}"`, 'IDENTITY_NOT_ALLOWED', {
+      identity: p.vars.identity!,
+      platform: p.vars.platform!,
+    });
+  if (p.code === 'identityWriteRequired')
+    throw new HttpError(403, `Connection "${p.vars.slot}" needs an identity that can write – "${p.vars.identity}" is read-only`, 'IDENTITY_WRITE_REQUIRED', {
+      slot: p.vars.slot!,
+      identity: p.vars.identity!,
+      platform: p.vars.platform!,
+    });
   const right = p.code === 'mayNotEdit' ? 'edit' : p.code === 'mayNotRun' ? 'run' : 'use';
   const what = right === 'use' ? `use platform ${p.vars.platform}` : right === 'edit' ? 'debug this process' : 'run this process';
   throw new HttpError(403, `You are not allowed to ${what}`, 'FORBIDDEN', { context: `right_${right}` });

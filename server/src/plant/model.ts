@@ -36,6 +36,8 @@ import { fieldValuesInput, isDate, isHttpUrl } from './settings.js';
 interface Source {
   import_id: string | null;
   not_in_source: number;
+  /** 0.13.0: the entry's revision (changesets/track.ts raises it) */
+  revision?: number;
   created_at: string;
   created_by: string;
   updated_at: string;
@@ -540,6 +542,7 @@ export function nodeTree(index: SiteIndex, assetCounts: Map<string, number>): Pl
     assetCount: assetCounts.get(n.id) ?? 0,
     importId: n.import_id,
     notInSource: !!n.not_in_source,
+    revision: Number(n.revision ?? 1),
     children: depth < 2 ? (byParent.get(n.id) ?? []).filter((c) => c.level !== 'area').map((c) => build(c, depth + 1)) : [],
   });
   return (byParent.get(null) ?? []).filter((n) => n.level === 'area').map((n) => build(n, 0));
@@ -565,6 +568,7 @@ export function buildingList(index: SiteIndex, assets: AssetRow[]): PlantBuildin
     assetCount: assetCount.get(b.id) ?? 0,
     importId: b.import_id,
     notInSource: !!b.not_in_source,
+    revision: Number(b.revision ?? 1),
   }));
 }
 

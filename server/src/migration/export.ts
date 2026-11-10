@@ -9,7 +9,7 @@ import { createCheckpoint } from '../audit-anchor.js';
 import { publicKeyFingerprint, vault, encryptWith } from '../vault.js';
 import { ENCRYPTED_COLUMNS } from '../vault-rotation.js';
 import { ZipWriter } from '../compliance/zip.js';
-import { identityIntegrity, platformIntegrity, type SealedIdentityRow, type SealedPlatformRow } from '../platforms/integrity.js';
+import { IDENTITY_SEALED_COLUMNS, identityIntegrity, platformIntegrity, type SealedIdentityRow, type SealedPlatformRow } from '../platforms/integrity.js';
 import { columns, readBatches, tables } from '../cli/db-copy.js';
 import { HttpError, parseJson, sha256 } from '../util.js';
 import { listProviders } from '../auth/sso.js';
@@ -274,9 +274,7 @@ export async function exportPackage(opts: { out: string; transferPassphrase: str
         const state = platformIntegrity(p);
         integrity[p.id] = state === 'ok' ? 'ok' : state === 'unsealed' ? 'unsealed' : 'mismatch';
       }
-      for (const i of d.all<SealedIdentityRow>(
-        'SELECT id, platform_id, name, is_default, auth, variables, secrets, read_only, privileged, operation_filter, mcp, credential_source, config_mac FROM platform_identities',
-      )) {
+      for (const i of d.all<SealedIdentityRow>(`SELECT ${IDENTITY_SEALED_COLUMNS}, config_mac FROM platform_identities`)) {
         const state = identityIntegrity(i);
         identities[i.id] = state === 'ok' ? 'ok' : state === 'unsealed' ? 'unsealed' : 'mismatch';
       }

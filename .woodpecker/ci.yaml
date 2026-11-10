@@ -39,6 +39,7 @@ steps:
     image: *node_image
     depends_on: [install]
     commands:
+      - npm run i18n:types -- --check # web/src/i18n/keys.gen.ts matches the English texts (before typecheck regenerates it)
       - npm run typecheck
 
   - name: lint

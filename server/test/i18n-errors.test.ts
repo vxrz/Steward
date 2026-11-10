@@ -154,6 +154,8 @@ describe('server error codes', () => {
       'STEP_UP_REFUSED',
       'STEP_UP_SSO_FAILED',
       'STEP_UP_CANCELLED',
+      // 0.13.0: the web app's own cancel of the choice per field after 409 PLANT_ENTRY_CHANGED (api.ts)
+      'PLANT_ENTRY_CHANGED_CANCELLED',
       // a switched-off module (modules/registry.ts moduleOffCode(id): PLANT_MODULE_OFF or MODULE_OFF)
       'MODULE_OFF',
       // refused library releases (libraries/releases.ts refusal(code, …)): checked below

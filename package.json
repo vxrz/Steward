@@ -25,7 +25,7 @@
     "test:ui": "playwright test",
     "test:pg": "node scripts/test-pg.mjs",
     "db:copy": "tsx server/src/cli/db-copy.ts",
-    "typecheck": "tsc -p shared && tsc -p server && tsc -p server/test && node --max-old-space-size=4096 node_modules/typescript/bin/tsc -p web && tsc -p e2e",
+    "typecheck": "node scripts/i18n-types.mjs && tsc -p shared && tsc -p server && tsc -p server/test && tsc -p web && tsc -p e2e",
     "lint": "eslint . --max-warnings 0",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
@@ -49,6 +49,7 @@
     "backup": "tsx server/src/cli/backup.ts",
     "i18n:check": "node scripts/i18n-check.mjs",
     "i18n:literals": "node scripts/i18n-literals.mjs",
+    "i18n:types": "node scripts/i18n-types.mjs",
     "check:imports": "node scripts/check-imports.mjs",
     "prepare": "husky || true"
   },

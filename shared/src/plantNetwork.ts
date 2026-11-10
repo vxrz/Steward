@@ -79,7 +79,7 @@ export type StatusCheckKind = (typeof STATUS_CHECK_KINDS)[number];
 
 /**
  * Why a check says what it says (the web app shows the text from the code): a monitor's status (up, degraded, down,
- * unknown, maintenance, disabled), the monitor or dataset is missing, a dataset is fresh or stale, has no row for the
+ * unknown, maintenance, off – offline as planned, ADR 0021 –, disabled), the monitor or dataset is missing, a dataset is fresh or stale, has no row for the
  * record or no readable time – or `hidden`: a check the reader may not see (or that no longer exists). Such a check
  * still counts towards the status, but shows only its state: no name, key, check, reason, time or filter.
  */
@@ -89,6 +89,7 @@ export const LIVE_REASONS = [
   'down',
   'unknown',
   'maintenance',
+  'off',
   'disabled',
   'not_found',
   'fresh',
@@ -436,6 +437,8 @@ export interface PlantDataQualityHint {
 export interface PlantSiteNetwork {
   site: { id: string; code: string; name: string; names: Record<string, string> };
   canManage: boolean;
+  /** 0.13.0: may keep drafts of changes to it (propose) */
+  canPropose?: boolean;
   vlans: PlantVlanView[];
   zones: PlantZoneView[];
   conduits: PlantConduitView[];
@@ -455,6 +458,8 @@ export interface PlantSiteNetwork {
 export interface PlantAssetNetwork {
   asset: { id: string; name: string; siteId: string };
   canManage: boolean;
+  /** 0.13.0: may keep drafts of changes to it (propose) */
+  canPropose?: boolean;
   live: PlantLiveStatus;
   checks: PlantStatusCheck[];
   checksSource: PlantSource;

@@ -1,0 +1,26 @@
+# The IoT gateway of hall 2 is alive: it reports its own heartbeat (key gw-hall2.alive) in every batch call, whether
+# or not a machine sends data. Machine monitors with states require it for "Off": a gateway whose machines are all off
+# must not look like a dead one, and a dead gateway must not look like machines that are off (docs/MONITORS.md,
+# "States: off is not an outage"). Imported before the machine monitors that include it.
+kind: monitor
+key: gateway-hall-2
+name: Gateway Hall 2
+description: The gateway's own heartbeat – proof that machine data would arrive if there were any.
+tags: [hall-2, iot]
+intervalSeconds: 60
+failuresBeforeDown: 2
+checks:
+  - id: alive
+    name: Gateway Hall 2 alive
+    type: heartbeat
+    key: gw-hall2.alive
+    mode: cadence
+    expectedIntervalSeconds: 60
+    degradedAfterMissed: 2
+    downAfterMissed: 4
+    x: 0
+    y: 0
+outputs:
+  - id: notify
+    type: notification
+    subscribers: [role:operator]

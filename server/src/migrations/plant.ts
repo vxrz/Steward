@@ -480,4 +480,140 @@ export const PLANT_MIGRATIONS: NamedMigration[] = [
     name: 'plant-012-profile-template',
     sql: `ALTER TABLE plant_profiles ADD COLUMN template INTEGER NOT NULL DEFAULT 0;`,
   },
+  {
+    // 0.13.0: a revision per entry (docs/adr/0020-plant-change-sets.md): every write that changes an entry adds one, a
+    // write that changes nothing does not. Edit forms send the revision they loaded (409 PLANT_ENTRY_CHANGED when it
+    // differs); a change set's operations remember it as their base. Every entry starts at 1, a valid base. Named
+    // revision, not version: a device profile has a version of its own (the vendor's, plant_profiles.version).
+    name: 'plant-013-revisions',
+    sql: `
+      ALTER TABLE plant_sites ADD COLUMN revision INTEGER NOT NULL DEFAULT 1;
+      ALTER TABLE plant_nodes ADD COLUMN revision INTEGER NOT NULL DEFAULT 1;
+      ALTER TABLE plant_buildings ADD COLUMN revision INTEGER NOT NULL DEFAULT 1;
+      ALTER TABLE plant_assets ADD COLUMN revision INTEGER NOT NULL DEFAULT 1;
+      ALTER TABLE plant_profiles ADD COLUMN revision INTEGER NOT NULL DEFAULT 1;
+      ALTER TABLE plant_kpis ADD COLUMN revision INTEGER NOT NULL DEFAULT 1;
+      ALTER TABLE plant_assignments ADD COLUMN revision INTEGER NOT NULL DEFAULT 1;
+      ALTER TABLE plant_vlans ADD COLUMN revision INTEGER NOT NULL DEFAULT 1;
+      ALTER TABLE plant_zones ADD COLUMN revision INTEGER NOT NULL DEFAULT 1;
+      ALTER TABLE plant_conduits ADD COLUMN revision INTEGER NOT NULL DEFAULT 1;
+      ALTER TABLE plant_devices ADD COLUMN revision INTEGER NOT NULL DEFAULT 1;
+      ALTER TABLE plant_data_paths ADD COLUMN revision INTEGER NOT NULL DEFAULT 1;
+      ALTER TABLE plant_asset_checks ADD COLUMN revision INTEGER NOT NULL DEFAULT 1;
+      ALTER TABLE plant_collections ADD COLUMN revision INTEGER NOT NULL DEFAULT 1;
+    `,
+  },
+  {
+    // 0.13.0: change sets – one path for every change to plant data (docs/PLANT.md "Change sets", ADR 0020): the change
+    // sets, their operations and the documents they were compiled from, the history of every entry an applied change
+    // set touched (full values before and after) and the values the last import wrote per entry (the baselines of the
+    // import's "changed in Steward" flags, phase 2). A site's switch "Changes need a second person" (plant.changeSet
+    // optional). Pending assistants' proposals become proposed change sets on the same MCP request; plant_proposals
+    // stays readable (decided proposals) and is dropped later.
+    name: 'plant-014-change-sets',
+    sql: `
+      ALTER TABLE plant_sites ADD COLUMN review INTEGER NOT NULL DEFAULT 0;
+      CREATE TABLE plant_change_sets (
+        id TEXT PRIMARY KEY,
+        state TEXT NOT NULL,
+        source TEXT NOT NULL,
+        title TEXT NOT NULL,
+        created_by TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_by TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        authors TEXT NOT NULL DEFAULT '[]',
+        sites TEXT NOT NULL DEFAULT '[]',
+        catalogue INTEGER NOT NULL DEFAULT 0,
+        current_of TEXT,
+        mcp_request_id TEXT,
+        import_id TEXT,
+        reverts TEXT,
+        copied_from TEXT,
+        preview TEXT NOT NULL DEFAULT '',
+        fingerprint TEXT NOT NULL DEFAULT '',
+        resolutions TEXT NOT NULL DEFAULT '[]',
+        counts TEXT NOT NULL DEFAULT '{}',
+        bytes INTEGER NOT NULL DEFAULT 0,
+        review INTEGER NOT NULL DEFAULT 0,
+        proposed_at TEXT,
+        proposed_by TEXT,
+        decided_at TEXT,
+        decided_by TEXT,
+        comment TEXT NOT NULL DEFAULT '',
+        expires_at TEXT,
+        ops_sha256 TEXT NOT NULL DEFAULT '',
+        history_sha256 TEXT NOT NULL DEFAULT ''
+      );
+      CREATE INDEX plant_change_sets_state ON plant_change_sets(state, updated_at);
+      CREATE INDEX plant_change_sets_request ON plant_change_sets(mcp_request_id);
+      CREATE INDEX plant_change_sets_current ON plant_change_sets(current_of);
+      CREATE TABLE plant_change_ops (
+        change_set_id TEXT NOT NULL,
+        seq INTEGER NOT NULL,
+        op TEXT NOT NULL,
+        kind TEXT,
+        scope TEXT NOT NULL DEFAULT '',
+        entry_id TEXT NOT NULL DEFAULT '',
+        name TEXT NOT NULL DEFAULT '',
+        origin TEXT NOT NULL,
+        author TEXT NOT NULL,
+        base_revision INTEGER,
+        base TEXT NOT NULL DEFAULT 'null',
+        value TEXT NOT NULL DEFAULT 'null',
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (change_set_id, seq)
+      );
+      CREATE INDEX plant_change_ops_entry ON plant_change_ops(kind, scope, entry_id);
+      CREATE TABLE plant_change_sources (
+        change_set_id TEXT NOT NULL,
+        seq INTEGER NOT NULL,
+        content TEXT NOT NULL,
+        sha256 TEXT NOT NULL,
+        PRIMARY KEY (change_set_id, seq)
+      );
+      CREATE TABLE plant_entry_history (
+        id TEXT PRIMARY KEY,
+        kind TEXT NOT NULL,
+        scope TEXT NOT NULL DEFAULT '',
+        entry_id TEXT NOT NULL,
+        revision INTEGER NOT NULL,
+        change_set_id TEXT NOT NULL,
+        op TEXT NOT NULL,
+        at TEXT NOT NULL,
+        author TEXT NOT NULL,
+        applied_by TEXT NOT NULL,
+        before_values TEXT NOT NULL DEFAULT 'null',
+        after_values TEXT NOT NULL DEFAULT 'null',
+        removed_at TEXT
+      );
+      CREATE INDEX plant_entry_history_entry ON plant_entry_history(kind, scope, entry_id, at);
+      CREATE INDEX plant_entry_history_change_set ON plant_entry_history(change_set_id);
+      CREATE TABLE plant_import_baselines (
+        kind TEXT NOT NULL,
+        scope TEXT NOT NULL DEFAULT '',
+        entry_id TEXT NOT NULL,
+        field_values TEXT NOT NULL DEFAULT '{}',
+        import_id TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (kind, scope, entry_id)
+      );
+      INSERT INTO plant_change_sets (id, state, source, title, created_by, created_at, updated_by, updated_at, authors, mcp_request_id, preview, fingerprint, expires_at)
+        SELECT 'pcs_' || p.id, 'proposed', 'assistant', p.title, r.requested_by, r.created_at, r.requested_by, r.created_at, '["' || r.requested_by || '"]', p.id,
+          p.preview, p.fingerprint, r.expires_at
+        FROM plant_proposals p JOIN mcp_requests r ON r.id = p.id WHERE r.status = 'pending';
+      INSERT INTO plant_change_ops (change_set_id, seq, op, origin, author, value, updated_at)
+        SELECT 'pcs_' || p.id, 1, 'import', 'derived', r.requested_by, '{"proposal":true}', r.created_at
+        FROM plant_proposals p JOIN mcp_requests r ON r.id = p.id WHERE r.status = 'pending';
+      INSERT INTO plant_change_sources (change_set_id, seq, content, sha256)
+        SELECT 'pcs_' || p.id, 1, p.document, p.sha256
+        FROM plant_proposals p JOIN mcp_requests r ON r.id = p.id WHERE r.status = 'pending';
+    `,
+  },
+  {
+    // 0.13: a KPI's potential and coverage may roll up from an asset's parts to the asset (docs/PLANT.md "KPI
+    // coverage"): none (the default) or parts
+    name: 'plant-015-kpi-roll-up',
+    sql: `ALTER TABLE plant_kpis ADD COLUMN roll_up TEXT NOT NULL DEFAULT 'none';`,
+  },
 ];

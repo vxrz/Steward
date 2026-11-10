@@ -309,7 +309,7 @@ describe('extracting a base profile', () => {
     ]);
   });
 
-  it('refuses what a base cannot hold: another protocol, another group, a profile with a base, a taken id', async () => {
+  it('refuses what a base cannot hold: an interface split differently, another group, a profile with a base, a taken id', async () => {
     const p = (await s.api(
       'POST',
       '/plant/profiles/extract-base/preview',
@@ -322,7 +322,8 @@ describe('extracting a base profile', () => {
       }),
     )) as PlantExtractPreview;
     expect(p.ok).toBe(false);
-    expect(p.points.map((x) => x.problem?.code ?? null)).toEqual([null, 'protocol', 'group']);
+    // 0.13: another protocol is no refusal any more – but the A300's OPC UA interface is not the one its energy is on
+    expect(p.points.map((x) => x.problem?.code ?? null)).toEqual([null, 'interface', 'group']);
     const taken = (await s.api('POST', '/plant/profiles/extract-base/preview', input({ id: 'meter-a300' }))) as PlantExtractPreview;
     expect(taken.problems[0]!.code).toBe('base_taken');
     const one = await status(s.api('POST', '/plant/profiles/extract-base/preview', input({ profiles: ['meter-a100'] })));

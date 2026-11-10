@@ -9,6 +9,7 @@ export const NOTIFICATION_EVENTS = [
   'dataset.stale',
   'schedule.skipped',
   'monitor.status',
+  'monitor.state',
   'credential.due',
   'report.ready',
   'ticket.unchecked',
@@ -31,6 +32,8 @@ export const NOTIFICATION_EVENTS = [
   'ai.budget',
   'cost.budget',
   'contract.failed',
+  'plant.change_proposed',
+  'plant.change_decided',
 ] as const;
 export type NotificationEvent = (typeof NOTIFICATION_EVENTS)[number];
 
@@ -40,7 +43,7 @@ export type NotificationEvent = (typeof NOTIFICATION_EVENTS)[number];
  */
 export const NOTIFICATION_CATEGORIES = ['decision', 'alert', 'update'] as const;
 export type NotificationCategory = (typeof NOTIFICATION_CATEGORIES)[number];
-export const NOTIFICATION_DECISION_EVENTS: readonly NotificationEvent[] = ['task.assigned', 'mcp.request', 'duty.exception'];
+export const NOTIFICATION_DECISION_EVENTS: readonly NotificationEvent[] = ['task.assigned', 'mcp.request', 'duty.exception', 'plant.change_proposed'];
 const ALERT_EVENTS: readonly NotificationEvent[] = [
   'run.failed',
   'check.failed',
@@ -67,6 +70,7 @@ export const NOTIFICATION_EVENT_INFO: Record<NotificationEvent, string> = {
   'dataset.stale': 'Dashboard data you feed is older than its freshness limit',
   'schedule.skipped': 'A schedule you own was skipped (missing rights, still running …)',
   'monitor.status': 'A monitor you own or subscribed to changed its status (root causes only)',
+  'monitor.state': 'A monitor with states changed its state, e.g. Running → Off (information, when its notification output asks for it)',
   'credential.due': 'A credential you own expires or needs rotating or a review soon (or is overdue)',
   'report.ready': 'A scheduled report you receive was generated',
   'ticket.unchecked': 'An open ticket reference you are responsible for was not checked for a while',
@@ -89,6 +93,8 @@ export const NOTIFICATION_EVENT_INFO: Record<NotificationEvent, string> = {
   'ai.budget': 'An AI token budget reached 80 % or is used up (administrators; the gateway’s managers, the process owner)',
   'cost.budget': 'The monthly cost budget of a service, application or team you own reached 80 % or 100 %',
   'contract.failed': 'A test of a data contract your team owns failed (the owning team’s members and channel)',
+  'plant.change_proposed': 'Someone proposed a change to the plant registry that you may apply (never the author)',
+  'plant.change_decided': 'A plant change you wrote was applied, rejected, returned to you or expired (with the reviewer’s comment)',
 };
 
 export interface AppNotification {

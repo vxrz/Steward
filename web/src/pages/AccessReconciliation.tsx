@@ -15,18 +15,19 @@ import {
   SimpleGrid,
   Stack,
   Switch,
-  Table,
   Tabs,
   TagsInput,
   Text,
   TextInput,
   Textarea,
+  VisuallyHidden,
 } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
 import { IconArrowsDiff, IconEdit, IconFlask, IconPlayerPlay, IconPlus, IconShieldCheck } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import {
+  ACCESS_FINDING_STATUSES,
   ENTRA_SCOPES,
   accessSourceOfKind,
   type AccessCheck,
@@ -47,6 +48,7 @@ import { useMe } from '../auth';
 import { platformKeys } from '../queryKeys';
 import { CopiedFromNote, DuplicateButton } from '../components/duplicate/DuplicateButton';
 import { RestrictedEmpty, useHiddenByPermissions } from '../components/modules/RestrictedEmpty';
+import { DataTable, type DataColumn } from '../components/DataTable';
 
 /** Compliance → Access reconciliation: who has which access (snapshots) compared with the documented access changes. */
 export function AccessReconciliationPage() {
@@ -331,85 +333,99 @@ function FindingsTable({
   onDismiss: (f: AccessFinding) => void;
 }) {
   const { t } = useTranslation('compliance');
+  const subject = (f: AccessFinding) => (
+    <>
+      <Text size="sm">{f.subjectName || f.subjectId}</Text>
+      {f.subjectName && (
+        <Text size="xs" c="dimmed" className="mono">
+          {f.subjectId}
+        </Text>
+      )}
+    </>
+  );
+  const change = (f: AccessFinding) => (
+    <>
+      <Group gap={4} mb={2}>
+        <KindBadge kind={f.kind} />
+      </Group>
+      <RightsDiff granted={f.granted} revoked={f.revoked} />
+    </>
+  );
+  const between = (f: AccessFinding) => (
+    <Text size="xs">
+      {fmtDate(f.windowFrom)} – {fmtDate(f.windowTo)}
+    </Text>
+  );
+  const status = (f: AccessFinding) => (
+    <>
+      <FindingStatusBadge status={f.status} />
+      {f.recordId && (
+        <Anchor component={Link} to={`/records/${f.recordId}`} size="xs" ml={6} className="mono">
+          {f.recordNumber}
+        </Anchor>
+      )}
+      {f.status === 'dismissed' && f.comment && (
+        <Text size="xs" c="dimmed">
+          {f.comment}
+        </Text>
+      )}
+      {f.status === 'open' && f.dismissRequestedBy && (
+        <Text size="xs" c="dimmed">
+          {t('reconciliation.dismissRequested', { user: f.dismissRequestedBy, reason: f.comment })}
+        </Text>
+      )}
+    </>
+  );
+  const actions = (f: AccessFinding) => (
+    <Group gap={4} justify="flex-end" wrap="nowrap">
+      {f.canDocument && (
+        <Button size="xs" onClick={() => onDocument(f)} aria-label={t('reconciliation.documentFor', { subject: f.subjectName || f.subjectId })}>
+          {t('reconciliation.document')}
+        </Button>
+      )}
+      {f.canDismiss && (
+        <Button
+          size="xs"
+          variant="subtle"
+          color="gray"
+          onClick={() => onDismiss(f)}
+          aria-label={t(f.dismissRequestedBy ? 'reconciliation.confirmDismissFor' : 'reconciliation.dismissFor', {
+            subject: f.subjectName || f.subjectId,
+          })}
+        >
+          {t(f.dismissRequestedBy ? 'reconciliation.confirmDismiss' : 'reconciliation.dismiss')}
+        </Button>
+      )}
+    </Group>
+  );
+  const columns: DataColumn<AccessFinding>[] = [
+    { key: 'subject', header: t('reconciliation.subject'), sortValue: (f) => f.subjectName || f.subjectId, cell: subject },
+    { key: 'change', header: t('reconciliation.change'), sortValue: (f) => f.kind, cell: change },
+    { key: 'between', header: t('reconciliation.between'), sortValue: (f) => f.windowTo, cell: between },
+    { key: 'status', header: t('reconciliation.status'), sortValue: (f) => ACCESS_FINDING_STATUSES.indexOf(f.status), cell: status },
+    { key: 'actions', header: <VisuallyHidden>{t('reconciliation.actions')}</VisuallyHidden>, label: t('reconciliation.actions'), cell: actions },
+  ];
   return (
-    <div className="table-scroll">
-      <Table fz="sm" aria-label={t('reconciliation.findings')}>
-        <Table.Thead>
-          <Table.Tr>
-            <Table.Th>{t('reconciliation.subject')}</Table.Th>
-            <Table.Th>{t('reconciliation.change')}</Table.Th>
-            <Table.Th>{t('reconciliation.between')}</Table.Th>
-            <Table.Th>{t('reconciliation.status')}</Table.Th>
-            <Table.Th />
-          </Table.Tr>
-        </Table.Thead>
-        <Table.Tbody>
-          {rows.map((f) => (
-            <Table.Tr key={f.id}>
-              <Table.Td>
-                <Text size="sm">{f.subjectName || f.subjectId}</Text>
-                {f.subjectName && (
-                  <Text size="xs" c="dimmed" className="mono">
-                    {f.subjectId}
-                  </Text>
-                )}
-              </Table.Td>
-              <Table.Td>
-                <Group gap={4} mb={2}>
-                  <KindBadge kind={f.kind} />
-                </Group>
-                <RightsDiff granted={f.granted} revoked={f.revoked} />
-              </Table.Td>
-              <Table.Td>
-                <Text size="xs">
-                  {fmtDate(f.windowFrom)} – {fmtDate(f.windowTo)}
-                </Text>
-              </Table.Td>
-              <Table.Td>
-                <FindingStatusBadge status={f.status} />
-                {f.recordId && (
-                  <Anchor component={Link} to={`/records/${f.recordId}`} size="xs" ml={6} className="mono">
-                    {f.recordNumber}
-                  </Anchor>
-                )}
-                {f.status === 'dismissed' && f.comment && (
-                  <Text size="xs" c="dimmed">
-                    {f.comment}
-                  </Text>
-                )}
-                {f.status === 'open' && f.dismissRequestedBy && (
-                  <Text size="xs" c="dimmed">
-                    {t('reconciliation.dismissRequested', { user: f.dismissRequestedBy, reason: f.comment })}
-                  </Text>
-                )}
-              </Table.Td>
-              <Table.Td>
-                <Group gap={4} justify="flex-end" wrap="nowrap">
-                  {f.canDocument && (
-                    <Button size="xs" onClick={() => onDocument(f)} aria-label={t('reconciliation.documentFor', { subject: f.subjectName || f.subjectId })}>
-                      {t('reconciliation.document')}
-                    </Button>
-                  )}
-                  {f.canDismiss && (
-                    <Button
-                      size="xs"
-                      variant="subtle"
-                      color="gray"
-                      onClick={() => onDismiss(f)}
-                      aria-label={t(f.dismissRequestedBy ? 'reconciliation.confirmDismissFor' : 'reconciliation.dismissFor', {
-                        subject: f.subjectName || f.subjectId,
-                      })}
-                    >
-                      {t(f.dismissRequestedBy ? 'reconciliation.confirmDismiss' : 'reconciliation.dismiss')}
-                    </Button>
-                  )}
-                </Group>
-              </Table.Td>
-            </Table.Tr>
-          ))}
-        </Table.Tbody>
-      </Table>
-    </div>
+    <DataTable
+      rows={rows}
+      columns={columns}
+      rowKey={(f) => f.id}
+      ariaLabel={t('reconciliation.findings')}
+      testId="reconciliation-findings"
+      rememberSort="reconciliation-findings"
+      defaultSort={{ key: 'between', dir: 'desc' }}
+      card={(f) => (
+        <Paper withBorder p="sm">
+          <Group justify="space-between" wrap="nowrap" align="flex-start">
+            <div style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{subject(f)}</div>
+            <div style={{ flexShrink: 0 }}>{status(f)}</div>
+          </Group>
+          <Box mt={4}>{change(f)}</Box>
+          <Box mt={4}>{between(f)}</Box>
+          <Box mt={4}>{actions(f)}</Box>
+        </Paper>
+      )}
+    />
   );
 }
 
@@ -422,6 +438,28 @@ function SnapshotsPanel({
 }) {
   const { t } = useTranslation('compliance');
   const [result, setResult] = useState<{ ok: boolean; checked: number; problems: string[]; importedHistory?: ImportedHistoryRef } | null>(null);
+  const takenAt = (s: AccessSnapshotSummary) => (
+    <>
+      {fmtDate(s.takenAt)}
+      {s.sameAs && (
+        <Badge size="xs" variant="default" ml={4}>
+          {t('reconciliation.unchanged')}
+        </Badge>
+      )}
+    </>
+  );
+  const snapshotColumns: DataColumn<AccessSnapshotSummary>[] = [
+    { key: 'takenAt', header: t('reconciliation.takenAt'), sortValue: (s) => s.takenAt, cell: takenAt },
+    { key: 'subjects', header: t('reconciliation.subjects'), sortValue: (s) => s.subjects, cell: (s) => s.subjects },
+    { key: 'assignments', header: t('reconciliation.assignments'), sortValue: (s) => s.assignments, cell: (s) => s.assignments },
+    { key: 'findings', header: t('reconciliation.findings'), sortValue: (s) => s.findings, cell: (s) => s.findings },
+    {
+      key: 'chainHash',
+      header: t('reconciliation.chainHash'),
+      tdProps: (s) => ({ className: 'mono', title: s.chainHash }),
+      cell: (s) => `${s.chainHash.slice(0, 16)}…`,
+    },
+  ];
   const verify = async () => {
     try {
       setResult(await get(`/compliance/access-checks/${check.id}/verify`));
@@ -455,39 +493,26 @@ function SnapshotsPanel({
       )}
       <QueryState query={query} />
       {query.data && (
-        <div className="table-scroll">
-          <Table fz="xs" aria-label={t('reconciliation.tabSnapshots')}>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>{t('reconciliation.takenAt')}</Table.Th>
-                <Table.Th>{t('reconciliation.subjects')}</Table.Th>
-                <Table.Th>{t('reconciliation.assignments')}</Table.Th>
-                <Table.Th>{t('reconciliation.findings')}</Table.Th>
-                <Table.Th>{t('reconciliation.chainHash')}</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {query.data.map((s) => (
-                <Table.Tr key={s.id}>
-                  <Table.Td>
-                    {fmtDate(s.takenAt)}
-                    {s.sameAs && (
-                      <Badge size="xs" variant="default" ml={4}>
-                        {t('reconciliation.unchanged')}
-                      </Badge>
-                    )}
-                  </Table.Td>
-                  <Table.Td>{s.subjects}</Table.Td>
-                  <Table.Td>{s.assignments}</Table.Td>
-                  <Table.Td>{s.findings}</Table.Td>
-                  <Table.Td className="mono" title={s.chainHash}>
-                    {s.chainHash.slice(0, 16)}…
-                  </Table.Td>
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-        </div>
+        <DataTable
+          rows={query.data}
+          columns={snapshotColumns}
+          rowKey={(s) => s.id}
+          ariaLabel={t('reconciliation.tabSnapshots')}
+          testId="reconciliation-snapshots"
+          rememberSort="reconciliation-snapshots"
+          defaultSort={{ key: 'takenAt', dir: 'desc' }}
+          card={(s) => (
+            <Paper withBorder p="sm">
+              <Text size="sm">{takenAt(s)}</Text>
+              <Text size="xs" c="dimmed">
+                {t('reconciliation.subjects')}: {s.subjects} · {t('reconciliation.assignments')}: {s.assignments} · {t('reconciliation.findings')}: {s.findings}
+              </Text>
+              <Text size="xs" c="dimmed" className="mono" title={s.chainHash}>
+                {s.chainHash.slice(0, 16)}…
+              </Text>
+            </Paper>
+          )}
+        />
       )}
     </Stack>
   );

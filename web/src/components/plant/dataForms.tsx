@@ -1,5 +1,21 @@
 import { useState } from 'react';
-import { Autocomplete, Modal, MultiSelect, NumberInput, Select, SimpleGrid, Stack, Switch, TagsInput, Text, TextInput, Textarea } from '@mantine/core';
+import {
+  Autocomplete,
+  Badge,
+  Group,
+  Modal,
+  MultiSelect,
+  NumberInput,
+  Select,
+  SimpleGrid,
+  Stack,
+  Switch,
+  Table,
+  TagsInput,
+  Text,
+  TextInput,
+  Textarea,
+} from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 import {
   addressProblem,
@@ -12,6 +28,8 @@ import {
   KPI_PARAM_TYPES,
   KPI_TIMINGS,
   KPI_TRENDS,
+  kpiInputProfiles,
+  matchPoints,
   OPC_UA_DATA_TYPES,
   PLANT_AUTH_KINDS,
   PLANT_DIRECTIONS,
@@ -22,6 +40,7 @@ import {
   PLANT_UNITS,
   PROTOCOL_PORTS,
   unitCode,
+  unitSymbol,
   type KpiColumn,
   type KpiComputation,
   type KpiInput,
@@ -43,7 +62,7 @@ import {
   type PlantPublication,
   type Translations,
 } from '@sm/shared';
-import { useQuery } from '@tanstack/react-query';
+import { useQueries, useQuery } from '@tanstack/react-query';
 import { get, notifyError } from '../../api';
 import { plantKeys } from '../../queryKeys';
 import { useFieldErrors } from '../common';
@@ -254,18 +273,23 @@ export function InterfaceFormModal({
   iface,
   taken,
   inherited = false,
+  baseProtocol,
   onClose,
   onSave,
 }: {
   iface?: PlantInterface;
   /** An inherited interface (0.11.0): its protocol stays; what differs from the base becomes an override */
   inherited?: boolean;
+  /** 0.13: the base's protocol of an inherited interface – "other" leaves it to this profile */
+  baseProtocol?: PlantProtocol;
   /** Interface ids of the profile */
   taken: string[];
   onClose: () => void;
   onSave: Save<PlantInterface>;
 }) {
-  const { t } = useTranslation(['plant', 'common']);
+  const { t } = useTranslation(['plant', 'common', 'plantModel']);
+  // 0.13: an inherited interface of protocol "other" (a base across protocols) gets its protocol here
+  const protocolOpen = inherited && baseProtocol === 'other';
   const [name, setName] = useState(iface?.name ?? '');
   const [id, setId] = useState(iface?.id ?? '');
   const [ownId, setOwnId] = useState(!!iface);
@@ -317,7 +341,9 @@ export function InterfaceFormModal({
           label={t('data.protocol')}
           data={PLANT_PROTOCOLS.map((p) => ({ value: p, label: t(`data.protocols.${p}`) }))}
           value={protocol}
-          disabled={inherited}
+          disabled={inherited && !protocolOpen}
+          description={protocolOpen ? t('plantModel:protocolOther.help') : undefined}
+          data-testid="interface-protocol"
           onChange={(x) => {
             if (!x) return;
             const next = x as PlantProtocol;
@@ -567,7 +593,7 @@ export function DataPointFormModal({
 // ---------- KPI definitions ----------
 
 export function KpiFormModal({ kpi, onClose, onSave }: { kpi?: PlantKpiValues; onClose: () => void; onSave: Save<PlantKpiValues> }) {
-  const { t } = useTranslation(['plant', 'common']);
+  const { t } = useTranslation(['plant', 'common', 'plantModel']);
   const [name, setName] = useState(kpi?.name ?? '');
   const id = useIdField(kpi?.id);
   const [names, setNames] = useState<Translations>(kpi?.names ?? {});
@@ -585,6 +611,7 @@ export function KpiFormModal({ kpi, onClose, onSave }: { kpi?: PlantKpiValues; o
   const [strategy, setStrategy] = useState(kpi?.strategy ?? '');
   const [implementation, setImplementation] = useState(kpi?.implementation ?? '');
   const [dynamicColumns, setDynamicColumns] = useState(kpi?.dynamicColumns ?? false);
+  const [rollUp, setRollUp] = useState(kpi?.rollUp === 'parts');
   const [notes, setNotes] = useState(kpi?.notes ?? '');
   const v = useFieldErrors({
     name: !name.trim() && t('common:validation.required'),
@@ -615,6 +642,7 @@ export function KpiFormModal({ kpi, onClose, onSave }: { kpi?: PlantKpiValues; o
           strategy: strategy.trim(),
           implementation: implementation.trim(),
           dynamicColumns,
+          rollUp: rollUp ? 'parts' : 'none',
           notes,
           inputs: kpi?.inputs ?? [],
           parameters: kpi?.parameters ?? [],
@@ -722,6 +750,13 @@ export function KpiFormModal({ kpi, onClose, onSave }: { kpi?: PlantKpiValues; o
         checked={dynamicColumns}
         onChange={(e) => setDynamicColumns(e.currentTarget.checked)}
       />
+      <Switch
+        label={t('plantModel:rollUp.label')}
+        description={t('plantModel:rollUp.help')}
+        checked={rollUp}
+        onChange={(e) => setRollUp(e.currentTarget.checked)}
+        data-testid="kpi-roll-up"
+      />
       <Textarea label={t('data.notes')} autosize minRows={1} maxRows={5} maxLength={8000} value={notes} onChange={(e) => setNotes(e.currentTarget.value)} />
     </FormModal>
   );
@@ -739,6 +774,27 @@ export function usePointOptions(profileId: string | null | undefined): { value: 
   );
 }
 
+/** 0.13: the data points of several profiles (resolved), by profile id – for a KPI input's mapping. */
+function useProfilePoints(ids: string[]): Map<string, PlantDataPoint[]> {
+  const qs = useQueries({
+    queries: ids.map((id) => ({
+      queryKey: plantKeys.profile(id),
+      queryFn: () => get<PlantProfileDetail>(`/plant/profiles/${encodeURIComponent(id)}`),
+    })),
+  });
+  return new Map(
+    ids.flatMap((id, i) => {
+      const d = qs[i]?.data;
+      return d ? [[id, d.interfaces.flatMap((x) => x.groups.flatMap((g) => g.dataPoints))] as [string, PlantDataPoint[]]] : [];
+    }),
+  );
+}
+
+/**
+ * A KPI input: its kind, the device profiles it reads (0.13: any of several – the data points are the first one's)
+ * with a data point mapping per other profile (suggested by the matching of "Extract base profile"), the units it
+ * expects and notes.
+ */
 export function KpiInputModal({
   input,
   profiles,
@@ -752,29 +808,74 @@ export function KpiInputModal({
 }) {
   const { t } = useTranslation(['plant', 'common', 'plantModel']);
   const [kind, setKind] = useState(input?.kind ?? 'data_point');
-  const [profile, setProfile] = useState<string | null>(input?.profile || null);
+  const [chosen, setChosen] = useState<string[]>(input ? kpiInputProfiles(input) : []);
   const [points, setPoints] = useState<string[]>(input?.dataPoints ?? []);
   const [units, setUnits] = useState<Record<string, string>>(input?.units ?? {});
+  // per other profile, the data point chosen for an input's data point ('' : none chosen)
+  const [mapping, setMapping] = useState<Record<string, Record<string, string>>>(input?.mapping ?? {});
   const [notes, setNotes] = useState(input?.notes ?? '');
-  const options = usePointOptions(kind === 'data_point' ? profile : null);
-  const unitOf = new Map(options.map((o) => [o.value, o.unit]));
+  const first = kind === 'data_point' ? (chosen[0] ?? null) : null;
+  const others = kind === 'data_point' ? chosen.slice(1) : [];
+  // the profiles and data points the input had: their mapping is kept as it is (no suggestions), so a save without a
+  // change leaves it unchanged – also a mapping of the first profile (set through the API or an import)
+  const [had] = useState(() => ({
+    profiles: new Set(input ? kpiInputProfiles(input) : []),
+    points: new Set(input?.dataPoints ?? []),
+    mapped: new Set(Object.entries(input?.mapping ?? {}).flatMap(([o, m]) => (Object.keys(m).length ? [o] : []))),
+  }));
+  // the mapping table: every other profile, and the first one where it has a mapping
+  const columns = kind === 'data_point' ? chosen.filter((o, n) => n > 0 || had.mapped.has(o)) : [];
+  const options = usePointOptions(first);
+  const known = useProfilePoints(kind === 'data_point' ? chosen : []);
+  const unitsOf = new Map(options.map((o) => [o.value, o.unit]));
   // data points that are named but not in the profile (any more) stay choosable, so they can be removed
   const data = [...(options ?? []), ...points.filter((p) => !(options ?? []).some((o) => o.value === p)).map((p) => ({ value: p, label: p }))];
+  const explicit = (o: string, p: string): string | undefined => mapping[o]?.[p];
+  /** The unit of an input's data point in the first profile (through its mapping). */
+  const unitOf = (p: string) => unitsOf.get((first && explicit(first, p)) || p);
+  /** A unit the input states already stays, even where it is the profile's (a save without a change keeps it). */
+  const keptUnit = (p: string) => input?.units?.[p] !== undefined && unitCode(units[p] ?? '') === input.units[p];
+  // the suggestions: the input's data points (as the first profile has them) matched in each other profile
+  const suggested = new Map(
+    others.map((o) => {
+      const mine = points.map((p) => {
+        const id = (first && explicit(first, p)) || p;
+        return known.get(first ?? '')?.find((d) => d.id === id) ?? { id: p, name: p, unit: '', aliases: [] };
+      });
+      return [o, matchPoints(mine, known.get(o) ?? [])] as const;
+    }),
+  );
+  /** The data point of profile `o` for the input's data point `p` (null: none chosen). */
+  const target = (o: string, p: string, i: number): string | null => {
+    const set = explicit(o, p);
+    if (set !== undefined) return set || null;
+    // what the input had reads the same id; a profile or data point added now gets a suggestion
+    if (o === first || (had.profiles.has(o) && had.points.has(p))) return p;
+    return suggested.get(o)?.[i]?.point.id ?? null;
+  };
   return (
     <FormModal
       title={input ? t('kpi.editInput') : t('kpi.newInput')}
-      size="md"
+      size={columns.length ? 'xl' : 'md'}
       onClose={onClose}
       onSubmit={async () => {
         // 0.12.0: the units it expects (a data point without one: its unit in the profile)
         const expected = Object.fromEntries(
-          points.filter((p) => units[p]?.trim() && unitCode(units[p]!) !== unitOf.get(p)).map((p) => [p, unitCode(units[p]!)]),
+          points.filter((p) => units[p]?.trim() && (keptUnit(p) || unitCode(units[p]!) !== unitOf(p))).map((p) => [p, unitCode(units[p]!)]),
         );
+        // 0.13: the mapping – only where the profile's id differs
+        const map: Record<string, Record<string, string>> = {};
+        for (const o of columns) {
+          const m = Object.fromEntries(points.flatMap((p, i) => (target(o, p, i) && target(o, p, i) !== p ? [[p, target(o, p, i)!]] : [])));
+          if (Object.keys(m).length) map[o] = m;
+        }
         await onSave({
           kind,
-          profile: kind === 'data_point' ? (profile ?? '') : '',
+          profile: kind === 'data_point' ? (first ?? '') : '',
+          ...(kind === 'data_point' && chosen.length > 1 ? { profiles: chosen } : {}),
           dataPoints: kind === 'data_point' ? points : [],
           ...(kind === 'data_point' && Object.keys(expected).length ? { units: expected } : {}),
+          ...(kind === 'data_point' && Object.keys(map).length ? { mapping: map } : {}),
           notes,
         });
       }}
@@ -788,28 +889,93 @@ export function KpiInputModal({
       />
       {kind === 'data_point' && (
         <>
-          <Select
-            label={t('kpi.profile')}
-            description={t('kpi.profileHelp')}
+          <MultiSelect
+            label={t('plantModel:anyOf.profiles')}
+            description={t('plantModel:anyOf.profilesHelp')}
             data={profiles.map((p) => ({ value: p.id, label: p.name }))}
-            value={profile}
+            value={chosen}
             onChange={(x) => {
-              setProfile(x);
-              if (x !== profile) setPoints([]);
+              // another first profile: other data points
+              if (x[0] !== chosen[0]) setPoints([]);
+              setChosen(x);
             }}
             searchable
             clearable
+            maxValues={20}
+            data-testid="kpi-input-profiles"
           />
           <MultiSelect
-            label={t('kpi.dataPoints')}
+            label={first ? t('plantModel:anyOf.dataPoints', { profile: profiles.find((p) => p.id === first)?.name ?? first }) : t('kpi.dataPoints')}
             data={data}
             value={points}
             onChange={setPoints}
             searchable
-            disabled={!profile}
+            disabled={!first}
             maxValues={500}
             nothingFoundMessage={t('data.noPoints')}
+            data-testid="kpi-input-points"
           />
+          {columns.length > 0 && points.length > 0 && (
+            <Stack gap={4} data-testid="kpi-input-mapping">
+              <Text size="sm" fw={500}>
+                {t('plantModel:anyOf.mapping')}
+              </Text>
+              <Text size="xs" c="dimmed">
+                {t('plantModel:anyOf.mappingHelp')}
+              </Text>
+              <div className="table-scroll">
+                <Table fz="xs" withTableBorder aria-label={t('plantModel:anyOf.mapping')}>
+                  <Table.Thead>
+                    <Table.Tr>
+                      <Table.Th>{t('plantModel:anyOf.inputPoint')}</Table.Th>
+                      {columns.map((o) => (
+                        <Table.Th key={o}>{profiles.find((p) => p.id === o)?.name ?? o}</Table.Th>
+                      ))}
+                    </Table.Tr>
+                  </Table.Thead>
+                  <Table.Tbody>
+                    {points.map((p, i) => (
+                      <Table.Tr key={p}>
+                        <Table.Td className="mono">{p}</Table.Td>
+                        {columns.map((o) => {
+                          const list = known.get(o) ?? [];
+                          const value = target(o, p, i);
+                          const hint = suggested.get(o)?.[i];
+                          const name = profiles.find((x) => x.id === o)?.name ?? o;
+                          return (
+                            <Table.Td key={o}>
+                              <Select
+                                size="xs"
+                                aria-label={t('plantModel:anyOf.pointIn', { point: p, profile: name })}
+                                data={list.map((d) => ({ value: d.id, label: `${d.name} (${d.id}${d.unit ? `, ${unitSymbol(d.unit)}` : ''})` }))}
+                                value={value && list.some((d) => d.id === value) ? value : null}
+                                onChange={(x) => setMapping((m) => ({ ...m, [o]: { ...(m[o] ?? {}), [p]: x ?? '' } }))}
+                                searchable
+                                clearable
+                                placeholder={list.some((d) => d.id === p) ? p : t('plantModel:anyOf.missing')}
+                                error={!value && known.has(o) && !list.some((d) => d.id === p) ? t('plantModel:anyOf.missing') : undefined}
+                                w={220}
+                                data-testid={`kpi-map-${p}-${o}`}
+                              />
+                              {hint && value === hint.point.id && (
+                                <Group gap={2} mt={2}>
+                                  {hint.by.map((b) => (
+                                    <Badge key={b} size="xs" variant="light" color="gray" tt="none">
+                                      {t(`plantModel:extract.by.${b}`)}
+                                    </Badge>
+                                  ))}
+                                </Group>
+                              )}
+                            </Table.Td>
+                          );
+                        })}
+                      </Table.Tr>
+                    ))}
+                  </Table.Tbody>
+                </Table>
+              </div>
+            </Stack>
+          )}
           {points.length > 0 && points.length <= 30 && (
             <Stack gap={4} data-testid="kpi-input-units">
               <Text size="sm" fw={500}>
@@ -824,7 +990,7 @@ export function KpiInputModal({
                     key={p}
                     size="xs"
                     label={p}
-                    placeholder={unitOf.get(p) ? t('plantModel:units.fromProfile', { unit: unitOf.get(p) }) : t('plantModel:units.none')}
+                    placeholder={unitOf(p) ? t('plantModel:units.fromProfile', { unit: unitOf(p) }) : t('plantModel:units.none')}
                     data={UNITS}
                     value={units[p] ?? ''}
                     onChange={(x) => setUnits((u) => ({ ...u, [p]: x }))}

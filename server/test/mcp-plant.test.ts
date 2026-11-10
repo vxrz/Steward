@@ -267,6 +267,33 @@ describe('read tools', () => {
     expect(next.nextCursor).toBeNull();
   });
 
+  it('read a KPI input of several profiles with its mapping and roll-up (0.13), in the import format and the schema', async () => {
+    await s.api('POST', '/plant/profiles', {
+      id: 'example-lathe',
+      name: 'Example lathe controller',
+      interfaces: [
+        { id: 'mqtt', protocol: 'mqtt', groups: [{ name: '', dataPoints: [{ id: 'SpindleRpm', name: 'Spindle speed', unit: '/min', address: 'lathe/rpm' }] }] },
+      ],
+    });
+    await s.api('POST', '/plant/kpis', {
+      id: 'example-speed-any',
+      name: 'Spindle speed (any controller)',
+      rollUp: 'parts',
+      inputs: [{ profiles: ['example-cnc', 'example-lathe'], dataPoints: ['spindle_speed'], mapping: { 'example-lathe': { spindle_speed: 'SpindleRpm' } } }],
+    });
+    const list = (await call(tok.vera, 'list_kpi_definitions', { query: 'any controller' })).data;
+    expect(list.items).toEqual([expect.objectContaining({ id: 'example-speed-any', profiles: ['example-cnc', 'example-lathe'] })]);
+    const k = (await call(tok.vera, 'get_kpi_definition', { kpiId: 'example-speed-any' })).data;
+    expect(k.file).toMatchObject({
+      roll_up: 'parts',
+      inputs: [{ profiles: ['example-cnc', 'example-lathe'], data_points: ['spindle_speed'], mapping: { 'example-lathe': { spindle_speed: 'SpindleRpm' } } }],
+    });
+    expect(k.file.inputs[0].profile).toBeUndefined();
+    const part = (await call(tok.vera, 'get_plant_import_format', { part: 'KpiDefinition' })).data;
+    expect(Object.keys(part.schema.properties)).toContain('roll_up');
+    expect(Object.keys(part.schema.properties.inputs.items.properties)).toEqual(expect.arrayContaining(['profile', 'profiles', 'mapping']));
+  });
+
   it('describe the import format, as a whole and by part', async () => {
     const top = (await call(tok.vera, 'get_plant_import_format')).data;
     expect(top.$id).toMatch(/plant-registry-1\.schema\.json$/);

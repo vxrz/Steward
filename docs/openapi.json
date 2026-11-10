@@ -978,6 +978,14 @@
                 },
                 "baseUrl": {
                   "type": "string"
+                },
+                "identityId": {
+                  "type": "string",
+                  "description": "The platform identity the slot used (0.13.0; runs before: missing – the default identity)"
+                },
+                "identityName": {
+                  "type": "string",
+                  "description": "Its name when the run started"
                 }
               },
               "required": [
@@ -2176,6 +2184,13 @@
             },
             "description": "Connection slot → platform id"
           },
+          "identities": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Connection slot → platform identity id (0.13.0); a missing slot uses the default identity"
+          },
           "owner": {
             "type": [
               "null",
@@ -2414,6 +2429,7 @@
           "allowOverlap",
           "inputs",
           "bindings",
+          "identities",
           "owner",
           "nextRunAt",
           "lastRunAt",
@@ -3727,12 +3743,13 @@
               "down",
               "unknown",
               "blocked",
-              "maintenance"
+              "maintenance",
+              "off"
             ]
           },
           "statusCode": {
             "type": "integer",
-            "description": "0 up, 1 degraded, 2 down, 3 unknown, 4 blocked, 5 maintenance"
+            "description": "0 up, 1 degraded, 2 down, 3 unknown, 4 blocked, 5 maintenance, 6 off"
           },
           "since": {
             "anyOf": [
@@ -3907,6 +3924,83 @@
               }
             ],
             "description": "ISO 8601 timestamp (UTC)"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "The selected state; null: no state matches (evaluated as without states)"
+                  },
+                  "name": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "since": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "ISO 8601 timestamp (UTC)"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "ISO 8601 timestamp (UTC)"
+                  },
+                  "settlingUntil": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "ISO 8601 timestamp (UTC)"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "While settling, deviations from the state do not count"
+                  },
+                  "reason": {
+                    "type": "string",
+                    "enum": [
+                      "agree",
+                      "settling",
+                      "contradiction",
+                      "required",
+                      "maxOff",
+                      "flapping",
+                      "unknown",
+                      "otherwise"
+                    ]
+                  },
+                  "message": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "since",
+                  "settlingUntil",
+                  "reason",
+                  "message"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Monitors with states (0.13, docs/MONITORS.md \"States: off is not an outage\"); null without states"
           }
         },
         "required": [
@@ -3969,12 +4063,13 @@
               "down",
               "unknown",
               "blocked",
-              "maintenance"
+              "maintenance",
+              "off"
             ]
           },
           "statusCode": {
             "type": "integer",
-            "description": "0 up, 1 degraded, 2 down, 3 unknown, 4 blocked, 5 maintenance"
+            "description": "0 up, 1 degraded, 2 down, 3 unknown, 4 blocked, 5 maintenance, 6 off"
           },
           "since": {
             "anyOf": [
@@ -4149,6 +4244,83 @@
               }
             ],
             "description": "ISO 8601 timestamp (UTC)"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "The selected state; null: no state matches (evaluated as without states)"
+                  },
+                  "name": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "since": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "ISO 8601 timestamp (UTC)"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "ISO 8601 timestamp (UTC)"
+                  },
+                  "settlingUntil": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "ISO 8601 timestamp (UTC)"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "While settling, deviations from the state do not count"
+                  },
+                  "reason": {
+                    "type": "string",
+                    "enum": [
+                      "agree",
+                      "settling",
+                      "contradiction",
+                      "required",
+                      "maxOff",
+                      "flapping",
+                      "unknown",
+                      "otherwise"
+                    ]
+                  },
+                  "message": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "since",
+                  "settlingUntil",
+                  "reason",
+                  "message"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Monitors with states (0.13, docs/MONITORS.md \"States: off is not an outage\"); null without states"
           },
           "definition": {
             "type": "object",
@@ -4239,12 +4411,13 @@
               "down",
               "unknown",
               "blocked",
-              "maintenance"
+              "maintenance",
+              "off"
             ]
           },
           "statusCode": {
             "type": "integer",
-            "description": "0 up, 1 degraded, 2 down, 3 unknown, 4 blocked, 5 maintenance"
+            "description": "0 up, 1 degraded, 2 down, 3 unknown, 4 blocked, 5 maintenance, 6 off"
           },
           "since": {
             "anyOf": [
@@ -4369,6 +4542,297 @@
             ],
             "additionalProperties": false,
             "description": "Uptime in percent over 24 hours, 7 and 30 days (null without data); down vs. up/degraded, other time does not count"
+          },
+          "observedDelay": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "windowDays": {
+                    "type": "integer"
+                  },
+                  "since": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "Start of this series (first read, or the source changed)"
+                  },
+                  "intervalSeconds": {
+                    "type": "number",
+                    "description": "The check interval: the resolution of every figure"
+                  },
+                  "worst": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "description": "The variable ('' for an API source with one timestamp)"
+                          },
+                          "samples": {
+                            "type": "integer"
+                          },
+                          "coverageSeconds": {
+                            "type": "number",
+                            "description": "From the first sample's start to the last sample's end"
+                          },
+                          "peakAge": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "median": {
+                                    "type": "number"
+                                  },
+                                  "p95": {
+                                    "type": "number"
+                                  },
+                                  "max": {
+                                    "type": "number"
+                                  }
+                                },
+                                "required": [
+                                  "median",
+                                  "p95",
+                                  "max"
+                                ],
+                                "additionalProperties": false,
+                                "description": "Seconds: median, 95th percentile (nearest rank), maximum"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "Upper bounds of how old the newest value became before a newer one was readable"
+                          },
+                          "delay": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "low": {
+                                    "type": "number"
+                                  },
+                                  "high": {
+                                    "type": "number"
+                                  }
+                                },
+                                "required": [
+                                  "low",
+                                  "high"
+                                ],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "Delay of new values after their timestamp: median of the lower and of the upper bounds (seconds)"
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "samples",
+                          "coverageSeconds",
+                          "peakAge",
+                          "delay"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "The variable with the highest 95th percentile peak age"
+                  },
+                  "variables": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "description": "The variable ('' for an API source with one timestamp)"
+                        },
+                        "samples": {
+                          "type": "integer"
+                        },
+                        "coverageSeconds": {
+                          "type": "number",
+                          "description": "From the first sample's start to the last sample's end"
+                        },
+                        "peakAge": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "median": {
+                                  "type": "number"
+                                },
+                                "p95": {
+                                  "type": "number"
+                                },
+                                "max": {
+                                  "type": "number"
+                                }
+                              },
+                              "required": [
+                                "median",
+                                "p95",
+                                "max"
+                              ],
+                              "additionalProperties": false,
+                              "description": "Seconds: median, 95th percentile (nearest rank), maximum"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "Upper bounds of how old the newest value became before a newer one was readable"
+                        },
+                        "delay": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "low": {
+                                  "type": "number"
+                                },
+                                "high": {
+                                  "type": "number"
+                                }
+                              },
+                              "required": [
+                                "low",
+                                "high"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "Delay of new values after their timestamp: median of the lower and of the upper bounds (seconds)"
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "samples",
+                        "coverageSeconds",
+                        "peakAge",
+                        "delay"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "excluded": {
+                    "type": "object",
+                    "properties": {
+                      "failedReads": {
+                        "type": "integer"
+                      },
+                      "wentBackwards": {
+                        "type": "integer"
+                      },
+                      "futureTimestamps": {
+                        "type": "integer"
+                      },
+                      "maintenance": {
+                        "type": "integer"
+                      }
+                    },
+                    "required": [
+                      "failedReads",
+                      "wentBackwards",
+                      "futureTimestamps",
+                      "maintenance"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Reads and samples that were not used"
+                  },
+                  "enough": {
+                    "type": "boolean",
+                    "description": "At least 24 hours and 20 samples (worst variable): a suggestion is made"
+                  },
+                  "suggestion": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "changes": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "field": {
+                                  "type": "string",
+                                  "enum": [
+                                    "allowedDelaySeconds",
+                                    "maxAgeSeconds",
+                                    "degradedAgeSeconds"
+                                  ]
+                                },
+                                "from": {
+                                  "type": [
+                                    "number",
+                                    "null"
+                                  ]
+                                },
+                                "to": {
+                                  "type": [
+                                    "number",
+                                    "null"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "field",
+                                "from",
+                                "to"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "basedOnSeconds": {
+                            "type": "number",
+                            "description": "95th percentile peak age (upper bounds) of the worst variable"
+                          },
+                          "marginSeconds": {
+                            "type": "number",
+                            "description": "One check interval"
+                          }
+                        },
+                        "required": [
+                          "changes",
+                          "basedOnSeconds",
+                          "marginSeconds"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "windowDays",
+                  "since",
+                  "intervalSeconds",
+                  "worst",
+                  "variables",
+                  "excluded",
+                  "enough",
+                  "suggestion"
+                ],
+                "additionalProperties": false,
+                "description": "Freshness checks (0.13): the peak age and delay observed over the last 7 days (docs/MONITORS.md, \"How fresh is fresh\")"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Freshness checks (0.13): the peak age and delay observed over the last 7 days (docs/MONITORS.md, \"How fresh is fresh\")"
           }
         },
         "required": [
@@ -4428,12 +4892,13 @@
               "down",
               "unknown",
               "blocked",
-              "maintenance"
+              "maintenance",
+              "off"
             ]
           },
           "statusCode": {
             "type": "integer",
-            "description": "0 up, 1 degraded, 2 down, 3 unknown, 4 blocked, 5 maintenance"
+            "description": "0 up, 1 degraded, 2 down, 3 unknown, 4 blocked, 5 maintenance, 6 off"
           },
           "since": {
             "anyOf": [
@@ -4609,6 +5074,83 @@
             ],
             "description": "ISO 8601 timestamp (UTC)"
           },
+          "state": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "The selected state; null: no state matches (evaluated as without states)"
+                  },
+                  "name": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "since": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "ISO 8601 timestamp (UTC)"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "ISO 8601 timestamp (UTC)"
+                  },
+                  "settlingUntil": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "ISO 8601 timestamp (UTC)"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "While settling, deviations from the state do not count"
+                  },
+                  "reason": {
+                    "type": "string",
+                    "enum": [
+                      "agree",
+                      "settling",
+                      "contradiction",
+                      "required",
+                      "maxOff",
+                      "flapping",
+                      "unknown",
+                      "otherwise"
+                    ]
+                  },
+                  "message": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "since",
+                  "settlingUntil",
+                  "reason",
+                  "message"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Monitors with states (0.13, docs/MONITORS.md \"States: off is not an outage\"); null without states"
+          },
           "checks": {
             "type": "array",
             "items": {
@@ -4669,12 +5211,13 @@
                     "down",
                     "unknown",
                     "blocked",
-                    "maintenance"
+                    "maintenance",
+                    "off"
                   ]
                 },
                 "statusCode": {
                   "type": "integer",
-                  "description": "0 up, 1 degraded, 2 down, 3 unknown, 4 blocked, 5 maintenance"
+                  "description": "0 up, 1 degraded, 2 down, 3 unknown, 4 blocked, 5 maintenance, 6 off"
                 },
                 "since": {
                   "anyOf": [
@@ -4799,6 +5342,297 @@
                   ],
                   "additionalProperties": false,
                   "description": "Uptime in percent over 24 hours, 7 and 30 days (null without data); down vs. up/degraded, other time does not count"
+                },
+                "observedDelay": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "windowDays": {
+                          "type": "integer"
+                        },
+                        "since": {
+                          "type": "string",
+                          "format": "date-time",
+                          "description": "Start of this series (first read, or the source changed)"
+                        },
+                        "intervalSeconds": {
+                          "type": "number",
+                          "description": "The check interval: the resolution of every figure"
+                        },
+                        "worst": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "name": {
+                                  "type": "string",
+                                  "description": "The variable ('' for an API source with one timestamp)"
+                                },
+                                "samples": {
+                                  "type": "integer"
+                                },
+                                "coverageSeconds": {
+                                  "type": "number",
+                                  "description": "From the first sample's start to the last sample's end"
+                                },
+                                "peakAge": {
+                                  "anyOf": [
+                                    {
+                                      "type": "object",
+                                      "properties": {
+                                        "median": {
+                                          "type": "number"
+                                        },
+                                        "p95": {
+                                          "type": "number"
+                                        },
+                                        "max": {
+                                          "type": "number"
+                                        }
+                                      },
+                                      "required": [
+                                        "median",
+                                        "p95",
+                                        "max"
+                                      ],
+                                      "additionalProperties": false,
+                                      "description": "Seconds: median, 95th percentile (nearest rank), maximum"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ],
+                                  "description": "Upper bounds of how old the newest value became before a newer one was readable"
+                                },
+                                "delay": {
+                                  "anyOf": [
+                                    {
+                                      "type": "object",
+                                      "properties": {
+                                        "low": {
+                                          "type": "number"
+                                        },
+                                        "high": {
+                                          "type": "number"
+                                        }
+                                      },
+                                      "required": [
+                                        "low",
+                                        "high"
+                                      ],
+                                      "additionalProperties": false
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ],
+                                  "description": "Delay of new values after their timestamp: median of the lower and of the upper bounds (seconds)"
+                                }
+                              },
+                              "required": [
+                                "name",
+                                "samples",
+                                "coverageSeconds",
+                                "peakAge",
+                                "delay"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "The variable with the highest 95th percentile peak age"
+                        },
+                        "variables": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string",
+                                "description": "The variable ('' for an API source with one timestamp)"
+                              },
+                              "samples": {
+                                "type": "integer"
+                              },
+                              "coverageSeconds": {
+                                "type": "number",
+                                "description": "From the first sample's start to the last sample's end"
+                              },
+                              "peakAge": {
+                                "anyOf": [
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "median": {
+                                        "type": "number"
+                                      },
+                                      "p95": {
+                                        "type": "number"
+                                      },
+                                      "max": {
+                                        "type": "number"
+                                      }
+                                    },
+                                    "required": [
+                                      "median",
+                                      "p95",
+                                      "max"
+                                    ],
+                                    "additionalProperties": false,
+                                    "description": "Seconds: median, 95th percentile (nearest rank), maximum"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ],
+                                "description": "Upper bounds of how old the newest value became before a newer one was readable"
+                              },
+                              "delay": {
+                                "anyOf": [
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "low": {
+                                        "type": "number"
+                                      },
+                                      "high": {
+                                        "type": "number"
+                                      }
+                                    },
+                                    "required": [
+                                      "low",
+                                      "high"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ],
+                                "description": "Delay of new values after their timestamp: median of the lower and of the upper bounds (seconds)"
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "samples",
+                              "coverageSeconds",
+                              "peakAge",
+                              "delay"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "excluded": {
+                          "type": "object",
+                          "properties": {
+                            "failedReads": {
+                              "type": "integer"
+                            },
+                            "wentBackwards": {
+                              "type": "integer"
+                            },
+                            "futureTimestamps": {
+                              "type": "integer"
+                            },
+                            "maintenance": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "failedReads",
+                            "wentBackwards",
+                            "futureTimestamps",
+                            "maintenance"
+                          ],
+                          "additionalProperties": false,
+                          "description": "Reads and samples that were not used"
+                        },
+                        "enough": {
+                          "type": "boolean",
+                          "description": "At least 24 hours and 20 samples (worst variable): a suggestion is made"
+                        },
+                        "suggestion": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "changes": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "field": {
+                                        "type": "string",
+                                        "enum": [
+                                          "allowedDelaySeconds",
+                                          "maxAgeSeconds",
+                                          "degradedAgeSeconds"
+                                        ]
+                                      },
+                                      "from": {
+                                        "type": [
+                                          "number",
+                                          "null"
+                                        ]
+                                      },
+                                      "to": {
+                                        "type": [
+                                          "number",
+                                          "null"
+                                        ]
+                                      }
+                                    },
+                                    "required": [
+                                      "field",
+                                      "from",
+                                      "to"
+                                    ],
+                                    "additionalProperties": false
+                                  }
+                                },
+                                "basedOnSeconds": {
+                                  "type": "number",
+                                  "description": "95th percentile peak age (upper bounds) of the worst variable"
+                                },
+                                "marginSeconds": {
+                                  "type": "number",
+                                  "description": "One check interval"
+                                }
+                              },
+                              "required": [
+                                "changes",
+                                "basedOnSeconds",
+                                "marginSeconds"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "windowDays",
+                        "since",
+                        "intervalSeconds",
+                        "worst",
+                        "variables",
+                        "excluded",
+                        "enough",
+                        "suggestion"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Freshness checks (0.13): the peak age and delay observed over the last 7 days (docs/MONITORS.md, \"How fresh is fresh\")"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Freshness checks (0.13): the peak age and delay observed over the last 7 days (docs/MONITORS.md, \"How fresh is fresh\")"
                 }
               },
               "required": [
@@ -4880,7 +5714,8 @@
               "down",
               "unknown",
               "blocked",
-              "maintenance"
+              "maintenance",
+              "off"
             ]
           },
           "previous": {
@@ -4893,7 +5728,8 @@
                   "down",
                   "unknown",
                   "blocked",
-                  "maintenance"
+                  "maintenance",
+                  "off"
                 ]
               },
               {
@@ -4938,6 +5774,13 @@
               ],
               "additionalProperties": false
             }
+          },
+          "state": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Monitors with states: the state at this entry"
           }
         },
         "required": [
@@ -18645,6 +19488,11 @@
             "type": "boolean",
             "description": "Kept although the import that replaced its earlier one no longer contained it"
           },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "0.13.0: the entry’s revision – one more with every change (docs/PLANT.md \"Change sets\")"
+          },
           "updatedAt": {
             "type": "string",
             "format": "date-time",
@@ -18770,6 +19618,11 @@
           "notInSource": {
             "type": "boolean",
             "description": "Kept although the import that replaced its earlier one no longer contained it"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "0.13.0: the entry’s revision – one more with every change (docs/PLANT.md \"Change sets\")"
           },
           "updatedAt": {
             "type": "string",
@@ -18933,6 +19786,11 @@
                   "type": "boolean",
                   "description": "Kept although the import that replaced its earlier one no longer contained it"
                 },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "0.13.0: the entry’s revision – one more with every change (docs/PLANT.md \"Change sets\")"
+                },
                 "children": {
                   "type": "array",
                   "items": {
@@ -19017,6 +19875,11 @@
                         "type": "boolean",
                         "description": "Kept although the import that replaced its earlier one no longer contained it"
                       },
+                      "revision": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "0.13.0: the entry’s revision – one more with every change (docs/PLANT.md \"Change sets\")"
+                      },
                       "children": {
                         "type": "array",
                         "items": {
@@ -19100,6 +19963,11 @@
                             "notInSource": {
                               "type": "boolean",
                               "description": "Kept although the import that replaced its earlier one no longer contained it"
+                            },
+                            "revision": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "description": "0.13.0: the entry’s revision – one more with every change (docs/PLANT.md \"Change sets\")"
                             },
                             "children": {
                               "type": "array",
@@ -19242,6 +20110,11 @@
                 "notInSource": {
                   "type": "boolean",
                   "description": "Kept although the import that replaced its earlier one no longer contained it"
+                },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "0.13.0: the entry’s revision – one more with every change (docs/PLANT.md \"Change sets\")"
                 }
               },
               "required": [
@@ -19446,6 +20319,11 @@
             "type": "boolean",
             "description": "Kept although the import that replaced its earlier one no longer contained it"
           },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "0.13.0: the entry’s revision – one more with every change (docs/PLANT.md \"Change sets\")"
+          },
           "children": {
             "type": "array",
             "items": {
@@ -19530,6 +20408,11 @@
                   "type": "boolean",
                   "description": "Kept although the import that replaced its earlier one no longer contained it"
                 },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "0.13.0: the entry’s revision – one more with every change (docs/PLANT.md \"Change sets\")"
+                },
                 "children": {
                   "type": "array",
                   "items": {
@@ -19613,6 +20496,11 @@
                       "notInSource": {
                         "type": "boolean",
                         "description": "Kept although the import that replaced its earlier one no longer contained it"
+                      },
+                      "revision": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "0.13.0: the entry’s revision – one more with every change (docs/PLANT.md \"Change sets\")"
                       },
                       "children": {
                         "type": "array",
@@ -19752,6 +20640,11 @@
           "notInSource": {
             "type": "boolean",
             "description": "Kept although the import that replaced its earlier one no longer contained it"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "0.13.0: the entry’s revision – one more with every change (docs/PLANT.md \"Change sets\")"
           }
         },
         "required": [
@@ -20069,6 +20962,11 @@
           "notInSource": {
             "type": "boolean",
             "description": "Kept although the import that replaced its earlier one no longer contained it"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "0.13.0: the entry’s revision – one more with every change (docs/PLANT.md \"Change sets\")"
           },
           "updatedAt": {
             "type": "string",
@@ -20398,6 +21296,11 @@
             "type": "boolean",
             "description": "Kept although the import that replaced its earlier one no longer contained it"
           },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "0.13.0: the entry’s revision – one more with every change (docs/PLANT.md \"Change sets\")"
+          },
           "updatedAt": {
             "type": "string",
             "format": "date-time",
@@ -20703,6 +21606,11 @@
             "type": "boolean",
             "description": "Kept although the import that replaced its earlier one no longer contained it"
           },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "0.13.0: the entry’s revision – one more with every change (docs/PLANT.md \"Change sets\")"
+          },
           "updatedAt": {
             "type": "string",
             "format": "date-time",
@@ -20800,6 +21708,11 @@
           "notInSource": {
             "type": "boolean",
             "description": "Kept although the import that replaced its earlier one no longer contained it"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "0.13.0: the entry’s revision – one more with every change (docs/PLANT.md \"Change sets\")"
           },
           "updatedAt": {
             "type": "string",
@@ -21337,6 +22250,11 @@
             "type": "boolean",
             "description": "Kept although the import that replaced its earlier one no longer contained it"
           },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "0.13.0: the entry’s revision – one more with every change (docs/PLANT.md \"Change sets\")"
+          },
           "updatedAt": {
             "type": "string",
             "format": "date-time",
@@ -21432,6 +22350,11 @@
             "type": "boolean",
             "description": "Kept although the import that replaced its earlier one no longer contained it"
           },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "0.13.0: the entry’s revision – one more with every change (docs/PLANT.md \"Change sets\")"
+          },
           "updatedAt": {
             "type": "string",
             "format": "date-time",
@@ -21509,6 +22432,14 @@
           "dynamicColumns": {
             "type": "boolean"
           },
+          "rollUp": {
+            "type": "string",
+            "enum": [
+              "none",
+              "parts"
+            ],
+            "description": "0.13: parts – an asset counts as able to have the KPI (potential, coverage) when one of its parts delivers the inputs; none: off"
+          },
           "inputs": {
             "type": "array",
             "items": {
@@ -21522,7 +22453,15 @@
                   ]
                 },
                 "profile": {
-                  "type": "string"
+                  "type": "string",
+                  "description": "The device profile (empty: whatever profile the asset has); with `profiles` the first of them"
+                },
+                "profiles": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "0.13: any of these device profiles (two or more) – the first one an asset’s profile is or extends counts"
                 },
                 "dataPoints": {
                   "type": "array",
@@ -21531,10 +22470,20 @@
                   }
                 },
                 "units": {
-                  "description": "0.12.0: the unit expected per data point (UCUM); a data point left out expects its unit in the input’s profile",
+                  "description": "0.12.0: the unit expected per data point (UCUM); a data point left out expects its unit in the input’s (first) profile",
                   "type": "object",
                   "additionalProperties": {
                     "type": "string"
+                  }
+                },
+                "mapping": {
+                  "description": "0.13: per profile (id), the input’s data point → that profile’s data point; a data point left out has the same id there",
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    }
                   }
                 },
                 "notes": {
@@ -21997,7 +22946,12 @@
                     "type": "object",
                     "properties": {
                       "point": {
-                        "type": "string"
+                        "type": "string",
+                        "description": "The data point of the asset"
+                      },
+                      "input": {
+                        "type": "string",
+                        "description": "0.13: the input’s data point, where a mapping gives the asset’s another id"
                       },
                       "expected": {
                         "type": "string",
@@ -22024,6 +22978,23 @@
                     ],
                     "additionalProperties": false
                   }
+                },
+                "via": {
+                  "description": "0.13, a KPI that rolls up from parts: the part of the asset that delivers the inputs",
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name"
+                  ],
+                  "additionalProperties": false
                 }
               },
               "required": [
@@ -22071,6 +23042,7 @@
           "strategy",
           "implementation",
           "dynamicColumns",
+          "rollUp",
           "inputs",
           "parameters",
           "columns",
@@ -23509,7 +24481,12 @@
                     "type": "object",
                     "properties": {
                       "point": {
-                        "type": "string"
+                        "type": "string",
+                        "description": "The data point of the asset"
+                      },
+                      "input": {
+                        "type": "string",
+                        "description": "0.13: the input’s data point, where a mapping gives the asset’s another id"
                       },
                       "expected": {
                         "type": "string",
@@ -23541,6 +24518,23 @@
                 "collected": {
                   "type": "boolean",
                   "description": "0.12.0: a data collection of the asset maps every data point input"
+                },
+                "via": {
+                  "description": "0.13, a KPI that rolls up from parts: the part of this asset that delivers the inputs (the asset itself does not)",
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name"
+                  ],
+                  "additionalProperties": false
                 }
               },
               "required": [
@@ -23563,6 +24557,11 @@
           "notInSource": {
             "type": "boolean",
             "description": "Kept although the import that replaced its earlier one no longer contained it"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "0.13.0: the entry’s revision – one more with every change (docs/PLANT.md \"Change sets\")"
           },
           "updatedAt": {
             "anyOf": [
@@ -23760,6 +24759,11 @@
                 "notInSource": {
                   "type": "boolean",
                   "description": "Kept although the import that replaced its earlier one no longer contained it"
+                },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "0.13.0: the entry’s revision – one more with every change (docs/PLANT.md \"Change sets\")"
                 },
                 "segment": {
                   "anyOf": [
@@ -24010,6 +25014,11 @@
                   "type": "boolean",
                   "description": "Kept although the import that replaced its earlier one no longer contained it"
                 },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "0.13.0: the entry’s revision – one more with every change (docs/PLANT.md \"Change sets\")"
+                },
                 "conduits": {
                   "type": "array",
                   "items": {
@@ -24094,6 +25103,11 @@
                 "notInSource": {
                   "type": "boolean",
                   "description": "Kept although the import that replaced its earlier one no longer contained it"
+                },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "0.13.0: the entry’s revision – one more with every change (docs/PLANT.md \"Change sets\")"
                 },
                 "linkId": {
                   "type": "string",
@@ -24320,6 +25334,11 @@
                   "type": "boolean",
                   "description": "Kept although the import that replaced its earlier one no longer contained it"
                 },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "0.13.0: the entry’s revision – one more with every change (docs/PLANT.md \"Change sets\")"
+                },
                 "assetId": {
                   "type": "string"
                 },
@@ -24376,6 +25395,7 @@
                               "down",
                               "unknown",
                               "maintenance",
+                              "off",
                               "disabled",
                               "not_found",
                               "fresh",
@@ -24631,6 +25651,11 @@
                 "notInSource": {
                   "type": "boolean",
                   "description": "Kept although the import that replaced its earlier one no longer contained it"
+                },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "0.13.0: the entry’s revision – one more with every change (docs/PLANT.md \"Change sets\")"
                 },
                 "assetId": {
                   "type": "string"
@@ -25004,6 +26029,7 @@
                               "down",
                               "unknown",
                               "maintenance",
+                              "off",
                               "disabled",
                               "not_found",
                               "fresh",
@@ -25303,6 +26329,7 @@
                         "down",
                         "unknown",
                         "maintenance",
+                        "off",
                         "disabled",
                         "not_found",
                         "fresh",
@@ -25596,6 +26623,11 @@
                   "type": "boolean",
                   "description": "Kept although the import that replaced its earlier one no longer contained it"
                 },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "0.13.0: the entry’s revision – one more with every change (docs/PLANT.md \"Change sets\")"
+                },
                 "assetId": {
                   "type": "string"
                 },
@@ -25652,6 +26684,7 @@
                               "down",
                               "unknown",
                               "maintenance",
+                              "off",
                               "disabled",
                               "not_found",
                               "fresh",
@@ -25907,6 +26940,11 @@
                 "notInSource": {
                   "type": "boolean",
                   "description": "Kept although the import that replaced its earlier one no longer contained it"
+                },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "0.13.0: the entry’s revision – one more with every change (docs/PLANT.md \"Change sets\")"
                 },
                 "assetId": {
                   "type": "string"
@@ -26674,6 +27712,11 @@
                 "notInSource": {
                   "type": "boolean",
                   "description": "Kept although the import that replaced its earlier one no longer contained it"
+                },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "0.13.0: the entry’s revision – one more with every change (docs/PLANT.md \"Change sets\")"
                 },
                 "assetId": {
                   "type": "string"
@@ -31754,7 +32797,7 @@
         "tags": [
           "Audit"
         ],
-        "description": "Auditors and administrators; others only with `runId` of a run they may view. Newest first.",
+        "description": "Auditors and administrators; others only with `runId` of a run they may view. Newest first unless `sort`/`order` choose another order (keyset pagination, stable while sorted).",
         "parameters": [
           {
             "schema": {
@@ -31854,6 +32897,34 @@
             "name": "to",
             "required": false,
             "description": "Before this time (ISO 8601)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "time",
+                "actor",
+                "action",
+                "target"
+              ]
+            },
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "description": "Sort by: `time` (default; the order of the hash chain), `actor`, `action` or `target` (entity type, then id). Ties keep the chain order"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            },
+            "in": "query",
+            "name": "order",
+            "required": false,
+            "description": "Direction (default `desc`: newest or Z first). A `nextCursor` continues in the same order"
           }
         ],
         "responses": {
@@ -32298,7 +33369,8 @@
                   "down",
                   "unknown",
                   "blocked",
-                  "maintenance"
+                  "maintenance",
+                  "off"
                 ]
               }
             },
@@ -32540,7 +33612,7 @@
         "tags": [
           "Monitors"
         ],
-        "description": "For pull integrations (Zabbix HTTP agent, scripts). Status codes: 0 up, 1 degraded, 2 down, 3 unknown, 4 blocked, 5 maintenance.",
+        "description": "For pull integrations (Zabbix HTTP agent, scripts). Status codes: 0 up, 1 degraded, 2 down, 3 unknown, 4 blocked, 5 maintenance, 6 off (a monitor with states, every check agreeing).",
         "parameters": [
           {
             "schema": {

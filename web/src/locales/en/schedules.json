@@ -7,6 +7,14 @@
   "saved": "Schedule saved",
   "enabled": "Enabled",
   "deleteConfirm": "Delete schedule \"{{name}}\"?",
+  "filters": {
+    "search": "Name, process or owner",
+    "state": "State",
+    "active": "Active",
+    "inactive": "Inactive",
+    "owner": "Runs as",
+    "noMatch": "No schedule matches the filters."
+  },
   "table": {
     "active": "Active",
     "name": "Name",
@@ -14,7 +22,8 @@
     "next": "Next run",
     "last": "Last run",
     "runsAs": "runs as {{owner}}",
-    "runNow": "Run now"
+    "runNow": "Run now",
+    "actions": "Actions"
   },
   "presets": {
     "every15": "Every 15 min",

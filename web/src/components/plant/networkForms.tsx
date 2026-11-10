@@ -57,6 +57,7 @@ import { get, notifyError, post, put } from '../../api';
 import { useFieldErrors } from '../common';
 import { FormButtons, IdInput, useIdField } from './forms';
 import { ItemSelect } from './network';
+import { saveOrDraft } from './changes/common';
 
 /**
  * The forms of the OT network (#220): a VLAN with its subnets and ranges, a zone, a conduit, a device, a data path and
@@ -120,15 +121,18 @@ function FormModal({
   );
 }
 
-/** Runs a save; closes on success, tells what went wrong otherwise. */
-function useSave<T>(onSaved: (x: T) => void, onClose: () => void) {
+/**
+ * Runs a save; closes on success, tells what went wrong otherwise. Who may only propose (`canManage` false) saves into
+ * their draft (0.13.0); an answer of a save into a draft is not shown as saved – the page keeps Steward's values.
+ */
+function useSave<T>(onSaved: (x: T) => void, onClose: () => void, canManage = true) {
   const [busy, setBusy] = useState(false);
   return {
     busy,
     run: async (f: () => Promise<T>) => {
       setBusy(true);
       try {
-        onSaved(await f());
+        await saveOrDraft(canManage, f, onSaved);
         onClose();
       } catch (e) {
         notifyError(e);
@@ -153,7 +157,7 @@ export function VlanModal({
   onSaved,
 }: {
   network: PlantSiteNetwork;
-  vlan?: PlantVlanValues;
+  vlan?: PlantVlanValues & { revision?: number };
   /** The other sites the reader may see (id, name) */
   sites: { id: string; name: string }[];
   onClose: () => void;
@@ -175,7 +179,7 @@ export function VlanModal({
   const [segmentId, setSegmentId] = useState<string | null>(vlan?.segmentId ?? null);
   const [notes, setNotes] = useState(vlan?.notes ?? '');
   const segments = useQuery({ queryKey: ['systems', 'network'], queryFn: () => get<SystemSummary[]>('/systems') });
-  const save = useSave(onSaved, onClose);
+  const save = useSave(onSaved, onClose, network.canManage);
   const badSubnet = subnets.findIndex((s) => !isCidr(s.cidr.trim()) || (s.gateway.trim() && !isIpAddress(s.gateway.trim())));
   const badRange = subnets.some((s) => s.ranges.some((r) => !isIpAddress(r.start.trim()) || !isIpAddress(r.end.trim())));
   const v = useFieldErrors({
@@ -207,7 +211,11 @@ export function VlanModal({
       notes,
     };
     const base = `${siteBase(network.site.id)}/vlans`;
-    void save.run(() => (vlan ? put<PlantSiteNetwork>(`${base}/${encodeURIComponent(vlan.id)}`, body) : post<PlantSiteNetwork>(base, { id: id.id, ...body })));
+    void save.run(() =>
+      vlan
+        ? put<PlantSiteNetwork>(`${base}/${encodeURIComponent(vlan.id)}`, { ...body, revision: vlan.revision })
+        : post<PlantSiteNetwork>(base, { id: id.id, ...body }),
+    );
   };
   const segmentOptions = (segments.data ?? []).filter((s) => s.kind === 'network').map((s) => ({ value: s.id, label: s.name }));
   if (segmentId && !segmentOptions.some((o) => o.value === segmentId)) segmentOptions.unshift({ value: segmentId, label: segmentId });
@@ -416,7 +424,7 @@ export function ZoneModal({
   onSaved,
 }: {
   network: PlantSiteNetwork;
-  zone?: PlantZoneValues;
+  zone?: PlantZoneValues & { revision?: number };
   onClose: () => void;
   onSaved: (n: PlantSiteNetwork) => void;
 }) {
@@ -432,7 +440,7 @@ export function ZoneModal({
   const [assessment, setAssessment] = useState(zone?.riskAssessment ?? '');
   const [assessedAt, setAssessedAt] = useState(zone?.assessedAt ?? '');
   const [notes, setNotes] = useState(zone?.notes ?? '');
-  const save = useSave(onSaved, onClose);
+  const save = useSave(onSaved, onClose, network.canManage);
   const v = useFieldErrors({
     name: !name.trim() && t('common:validation.required'),
     id: !PLANT_ID_RE.test(id.id) && t('plant:form.idInvalid'),
@@ -453,7 +461,11 @@ export function ZoneModal({
       notes,
     };
     const base = `${siteBase(network.site.id)}/zones`;
-    void save.run(() => (zone ? put<PlantSiteNetwork>(`${base}/${encodeURIComponent(zone.id)}`, body) : post<PlantSiteNetwork>(base, { id: id.id, ...body })));
+    void save.run(() =>
+      zone
+        ? put<PlantSiteNetwork>(`${base}/${encodeURIComponent(zone.id)}`, { ...body, revision: zone.revision })
+        : post<PlantSiteNetwork>(base, { id: id.id, ...body }),
+    );
   };
   return (
     <FormModal title={zone ? t('zone.editTitle', { name: zone.name }) : t('zone.newTitle')} onClose={onClose} onSubmit={submit} busy={save.busy}>
@@ -543,7 +555,7 @@ export function ConduitModal({
   onSaved,
 }: {
   network: PlantSiteNetwork;
-  conduit?: PlantConduitValues;
+  conduit?: PlantConduitValues & { revision?: number };
   onClose: () => void;
   onSaved: (n: PlantSiteNetwork) => void;
 }) {
@@ -557,7 +569,7 @@ export function ConduitModal({
   const [controls, setControls] = useState<string[]>(conduit?.controls ?? []);
   const [description, setDescription] = useState(conduit?.description ?? '');
   const [notes, setNotes] = useState(conduit?.notes ?? '');
-  const save = useSave(onSaved, onClose);
+  const save = useSave(onSaved, onClose, network.canManage);
   const zoneName = (z: string | null) => network.zones.find((x) => x.id === z)?.name ?? z ?? '…';
   const v = useFieldErrors({
     name: !name.trim() && t('common:validation.required'),
@@ -571,7 +583,9 @@ export function ConduitModal({
     const body = { name: text(name), description, zones: [a!, b!], direction, protocols, controls, notes };
     const base = `${siteBase(network.site.id)}/conduits`;
     void save.run(() =>
-      conduit ? put<PlantSiteNetwork>(`${base}/${encodeURIComponent(conduit.id)}`, body) : post<PlantSiteNetwork>(base, { id: id.id, ...body }),
+      conduit
+        ? put<PlantSiteNetwork>(`${base}/${encodeURIComponent(conduit.id)}`, { ...body, revision: conduit.revision })
+        : post<PlantSiteNetwork>(base, { id: id.id, ...body }),
     );
   };
   return (
@@ -746,17 +760,20 @@ const cleanChecks = (list: PlantStatusCheck[]) =>
 export function AssetChecksModal({
   assetId,
   checks,
+  canManage = true,
   onClose,
   onSaved,
 }: {
   assetId: string;
   checks: PlantStatusCheck[];
+  /** false: who may only propose – the checks go into their draft */
+  canManage?: boolean;
   onClose: () => void;
   onSaved: (n: PlantAssetNetwork) => void;
 }) {
   const { t } = useTranslation('plantNetwork');
   const [value, setValue] = useState(checks);
-  const save = useSave(onSaved, onClose);
+  const save = useSave(onSaved, onClose, canManage);
   return (
     <FormModal
       title={t('checks.assetTitle')}
@@ -778,7 +795,7 @@ export function DeviceModal({
   onSaved,
 }: {
   network: PlantAssetNetwork;
-  device?: PlantDeviceValues;
+  device?: PlantDeviceValues & { revision?: number };
   onClose: () => void;
   onSaved: (n: PlantAssetNetwork) => void;
 }) {
@@ -809,7 +826,7 @@ export function DeviceModal({
   );
   const id = useIdField(device?.id);
   const set = (x: Partial<PlantDeviceValues>) => setD({ ...d, ...x });
-  const save = useSave(onSaved, onClose);
+  const save = useSave(onSaved, onClose, network.canManage);
   const v = useFieldErrors({
     id: !PLANT_ID_RE.test(id.id) && t('plant:form.idInvalid'),
     mac: !!d.mac.trim() && !macOf(d.mac) && t('device.macInvalid'),
@@ -829,7 +846,9 @@ export function DeviceModal({
     };
     const base = `${assetBase(network.asset.id)}/devices`;
     void save.run(() =>
-      device ? put<PlantAssetNetwork>(`${base}/${encodeURIComponent(device.id)}`, body) : post<PlantAssetNetwork>(base, { id: id.id, ...body }),
+      device
+        ? put<PlantAssetNetwork>(`${base}/${encodeURIComponent(device.id)}`, { ...body, revision: device.revision })
+        : post<PlantAssetNetwork>(base, { id: id.id, ...body }),
     );
   };
   const input = (k: keyof PlantDeviceValues, label: string, opts: { mono?: boolean; max?: number; placeholder?: string; error?: string } = {}) => (
@@ -948,7 +967,7 @@ export function DataPathModal({
   onSaved,
 }: {
   network: PlantAssetNetwork;
-  path?: PlantDataPathValues;
+  path?: PlantDataPathValues & { revision?: number };
   onClose: () => void;
   onSaved: (n: PlantAssetNetwork) => void;
 }) {
@@ -961,7 +980,7 @@ export function DataPathModal({
   const [transfers, setTransfers] = useState<PlantDataPathValues['transfers']>(path?.transfers ?? []);
   const [destinations, setDestinations] = useState<PlantDataPathValues['destinations']>(path?.destinations ?? []);
   const [notes, setNotes] = useState(path?.notes ?? '');
-  const save = useSave(onSaved, onClose);
+  const save = useSave(onSaved, onClose, network.canManage);
   const view = network.dataPaths.find((x) => x.id === path?.id);
   const v = useFieldErrors({
     subject: !subject.trim() && t('common:validation.required'),
@@ -984,7 +1003,9 @@ export function DataPathModal({
     };
     const base = `${assetBase(network.asset.id)}/paths`;
     void save.run(() =>
-      path ? put<PlantAssetNetwork>(`${base}/${encodeURIComponent(path.id)}`, body) : post<PlantAssetNetwork>(base, { id: id.id, ...body }),
+      path
+        ? put<PlantAssetNetwork>(`${base}/${encodeURIComponent(path.id)}`, { ...body, revision: path.revision })
+        : post<PlantAssetNetwork>(base, { id: id.id, ...body }),
     );
   };
   return (

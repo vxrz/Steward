@@ -12,6 +12,7 @@ import {
   JsonInput,
   Modal,
   NumberInput,
+  Paper,
   SegmentedControl,
   Select,
   Stack,
@@ -22,6 +23,7 @@ import {
   TextInput,
   Textarea,
   Tooltip,
+  VisuallyHidden,
 } from '@mantine/core';
 import { useDebouncedValue } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -42,6 +44,7 @@ import type {
 import { DEFAULT_TRIGGER_NOTIFY } from '@sm/shared';
 import { Trans, useTranslation } from 'react-i18next';
 import { del, get, notifyError, notifyOk, post, put } from '../api';
+import { CopyId } from '../components/CopyId';
 import { Hint, QueryState, StatusBadge } from '../components/common';
 import { AutomateTabs } from '../components/page/LinkTabs';
 import { BindingsForm, loadBindings } from '../components/RunDialog';
@@ -51,6 +54,8 @@ import { appUrl } from '../basePath';
 import { RunModeField } from '../components/RunModeField';
 import { NotifyPolicyFields, PauseBadge, PauseControl } from '../components/notify/NotifyPolicy';
 import { ListPage } from '../components/page/ListPage';
+import { useListParams } from '../components/page/params';
+import { DataTable, ListFooter, type DataColumn } from '../components/DataTable';
 import { processKeys } from '../queryKeys';
 
 type Draft = WebhookTriggerSettings & { id?: string; owner?: string };
@@ -64,6 +69,7 @@ const emptyDraft = (): Draft => ({
   dryRun: false,
   inputMapping: {},
   bindings: {},
+  identities: {},
   authMode: 'token',
   allowedCidrs: [],
   allowedHeaders: [],
@@ -84,6 +90,7 @@ const toDraft = (tr: WebhookTrigger): Draft => ({
   dryRun: tr.dryRun,
   inputMapping: tr.inputMapping,
   bindings: tr.bindings,
+  identities: tr.identities ?? {},
   authMode: tr.authMode,
   allowedCidrs: tr.allowedCidrs,
   allowedHeaders: tr.allowedHeaders,
@@ -182,15 +189,213 @@ export function TriggersPage() {
     }
   };
 
+  // the filters live in the address (?q=, ?state=, ?auth=), so a filtered list can be shared
+  const q = params.get('q') ?? '';
+  const state = params.get('state');
+  const auth = params.get('auth');
+  const { set: setFilter } = useListParams();
+  const needle = q.trim().toLowerCase();
+  const list = (triggers.data ?? []).filter(
+    (tr) =>
+      (!needle || [tr.name, tr.processName ?? '', tr.owner, tr.path].some((x) => x.toLowerCase().includes(needle))) &&
+      (!state || (state === 'active') === tr.enabled) &&
+      (!auth || tr.authMode === auth),
+  );
+
+  const enabledSwitch = (tr: WebhookTrigger) => (
+    <Switch
+      size="xs"
+      checked={tr.enabled}
+      disabled={!tr.canEdit}
+      onChange={(e) => save({ ...toDraft(tr), enabled: e.currentTarget.checked })}
+      aria-label={t('enabled')}
+    />
+  );
+  const nameOf = (tr: WebhookTrigger) => (
+    <>
+      <Group gap={6}>
+        <Text size="sm" fw={500}>
+          {tr.name}
+        </Text>
+        <PauseBadge pause={tr.notify?.pause} />
+      </Group>
+      <Text size="xs" c="dimmed">
+        <Link to={`/processes/${tr.processId}`}>{tr.processName ?? tr.processId}</Link>
+        {tr.processVersion ? ` v${tr.processVersion}` : ''} · {t('runsAs', { owner: tr.owner })}
+        {tr.dryRun && (
+          <Badge ml={4} size="xs" color="yellow" variant="light">
+            {t('common:status.dryrun')}
+          </Badge>
+        )}
+      </Text>
+      <Text size="xs" c="dimmed" className="mono">
+        POST {tr.path}
+      </Text>
+    </>
+  );
+  const actionsOf = (tr: WebhookTrigger) => (
+    <Group gap={2} wrap="nowrap" justify="flex-end">
+      <Tooltip label={t('history.action')}>
+        <ActionIcon variant="subtle" onClick={() => setHistory(tr)} aria-label={t('history.actionFor', { name: tr.name })}>
+          <IconHistory size={16} />
+        </ActionIcon>
+      </Tooltip>
+      {tr.canEdit && (
+        <>
+          <Tooltip label={t('test.action')}>
+            <ActionIcon variant="subtle" onClick={() => setTesting(tr)} aria-label={t('test.actionFor', { name: tr.name })} disabled={!tr.enabled}>
+              <IconSend size={16} />
+            </ActionIcon>
+          </Tooltip>
+          <Tooltip label={t('rotate')}>
+            <ActionIcon variant="subtle" onClick={() => rotate(tr)} aria-label={t('rotateFor', { name: tr.name })}>
+              <IconKey size={16} />
+            </ActionIcon>
+          </Tooltip>
+          <PauseControl
+            pause={tr.notify?.pause}
+            onPause={async (p) => {
+              try {
+                await post(`/triggers/${tr.id}/pause`, { until: p.until, reason: p.reason, inApp: p.inApp });
+                await refresh();
+              } catch (e) {
+                notifyError(e);
+              }
+            }}
+            onResume={async () => {
+              try {
+                await post(`/triggers/${tr.id}/resume`, {});
+                await refresh();
+              } catch (e) {
+                notifyError(e);
+              }
+            }}
+          />
+          <ActionIcon variant="subtle" onClick={() => setDraft(toDraft(tr))} aria-label={t('editFor', { name: tr.name })}>
+            <IconEdit size={16} />
+          </ActionIcon>
+          <ActionIcon
+            variant="subtle"
+            color="red"
+            aria-label={t('deleteFor', { name: tr.name })}
+            onClick={async () => {
+              if (!(await confirmDanger({ action: 'delete', message: t('deleteConfirm', { name: tr.name }) }))) return;
+              await del(`/triggers/${tr.id}`).catch(notifyError);
+              refresh();
+            }}
+          >
+            <IconTrash size={16} />
+          </ActionIcon>
+        </>
+      )}
+    </Group>
+  );
+  const columns: DataColumn<WebhookTrigger>[] = [
+    { key: 'active', header: t('table.active'), sortValue: (tr) => (tr.enabled ? 1 : 0), cell: enabledSwitch },
+    { key: 'name', header: t('table.name'), sortValue: (tr) => tr.name, cell: nameOf },
+    {
+      key: 'security',
+      header: t('table.security'),
+      sortValue: (tr) => t(`auth.short.${tr.authMode}`),
+      cell: (tr) => (
+        <>
+          <Text size="xs" fw={500} className="nowrap">
+            {t(`auth.short.${tr.authMode}`)}
+          </Text>
+          <Text size="xs" c="dimmed">
+            {t('secretLine', { prefix: tr.secretPrefix, rate: tr.rateLimitPerMinute })}
+            {tr.dedupeSeconds ? ` · ${t('dedupeLine', { seconds: tr.dedupeSeconds })}` : ''}
+            {tr.allowedCidrs.length ? ` · ${tr.allowedCidrs.join(', ')}` : ''}
+          </Text>
+        </>
+      ),
+    },
+    {
+      key: 'lastCall',
+      header: t('table.lastCall'),
+      sortValue: (tr) => tr.lastFiredAt,
+      nowrap: true,
+      cell: (tr) =>
+        tr.lastRunId ? (
+          <Anchor size="sm" component={Link} to={`/runs/${tr.lastRunId}`} underline="never" c="var(--mantine-color-text)">
+            <Stack gap={2} align="flex-start">
+              {tr.lastRunStatus && <StatusBadge status={tr.lastRunStatus} size="xs" />}
+              <Text size="xs">{fmtRelative(tr.lastFiredAt)}</Text>
+            </Stack>
+          </Anchor>
+        ) : (
+          <Text size="xs">{fmtRelative(tr.lastFiredAt)}</Text>
+        ),
+    },
+    {
+      key: 'runsStarted',
+      header: t('table.runsStarted'),
+      sortValue: (tr) => tr.fireCount,
+      cell: (tr) => (
+        <>
+          <Text size="sm">{fmtNumber(tr.fireCount)}</Text>
+          {tr.rejectedCount > 0 && (
+            <Tooltip label={t('lastRejection', { date: fmtDate(tr.lastRejectedAt), reason: tr.lastRejectedReason ?? '' })}>
+              <Text size="xs" c="orange">
+                {t('rejected', { count: tr.rejectedCount })}
+              </Text>
+            </Tooltip>
+          )}
+        </>
+      ),
+    },
+    {
+      key: 'lastResult',
+      header: t('table.lastResult'),
+      sortValue: (tr) => tr.lastResult,
+      cell: (tr) => (
+        <Text size="xs" c={tr.lastResult && tr.lastResult !== 'started' ? 'orange' : 'dimmed'} lineClamp={2} maw={260}>
+          {tr.lastResult ?? '–'}
+        </Text>
+      ),
+    },
+    { key: 'actions', header: <VisuallyHidden>{t('table.actions')}</VisuallyHidden>, label: t('table.actions'), cell: actionsOf },
+  ];
+
   return (
     <ListPage
       tabs={<AutomateTabs active="/triggers" />}
       title={t('title')}
       description={t('description')}
+      view="triggers"
       primaryAction={
         <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setDraft(emptyDraft())}>
           {t('new')}
         </Button>
+      }
+      search={{ value: q, onChange: (v) => setFilter('q', v), placeholder: t('filters.search') }}
+      activeFilters={[state, auth].filter(Boolean).length}
+      filters={
+        triggers.data?.length ? (
+          <Group gap="sm" mb="md" align="flex-end" wrap="wrap" data-testid="trigger-filters">
+            <Select
+              size="xs"
+              label={t('filters.state')}
+              data={[
+                { value: 'active', label: t('filters.active') },
+                { value: 'inactive', label: t('filters.inactive') },
+              ]}
+              value={state}
+              onChange={(v) => setFilter('state', v)}
+              clearable
+              w={{ base: '100%', xs: 180 }}
+            />
+            <Select
+              size="xs"
+              label={t('form.authentication')}
+              data={AUTH_MODES.map((m) => ({ value: m, label: t(`auth.short.${m}`) }))}
+              value={auth}
+              onChange={(v) => setFilter('auth', v)}
+              clearable
+              w={{ base: '100%', xs: 220 }}
+            />
+          </Group>
+        ) : undefined
       }
       empty={{
         show: triggers.data?.length === 0,
@@ -206,156 +411,39 @@ export function TriggersPage() {
       }}
     >
       <QueryState query={triggers} />
-      {!!triggers.data?.length && (
-        <div className="table-scroll">
-          <Table highlightOnHover fz="sm">
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>{t('table.active')}</Table.Th>
-                <Table.Th>{t('table.name')}</Table.Th>
-                <Table.Th>{t('table.security')}</Table.Th>
-                <Table.Th>{t('table.lastCall')}</Table.Th>
-                <Table.Th>{t('table.runsStarted')}</Table.Th>
-                <Table.Th>{t('table.lastResult')}</Table.Th>
-                <Table.Th />
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {triggers.data.map((tr) => (
-                <Table.Tr key={tr.id}>
-                  <Table.Td>
-                    <Switch
-                      size="xs"
-                      checked={tr.enabled}
-                      disabled={!tr.canEdit}
-                      onChange={(e) => save({ ...toDraft(tr), enabled: e.currentTarget.checked })}
-                      aria-label={t('enabled')}
-                    />
-                  </Table.Td>
-                  <Table.Td>
-                    <Group gap={6}>
-                      <Text size="sm" fw={500}>
-                        {tr.name}
-                      </Text>
-                      <PauseBadge pause={tr.notify?.pause} />
-                    </Group>
-                    <Text size="xs" c="dimmed">
-                      <Link to={`/processes/${tr.processId}`}>{tr.processName ?? tr.processId}</Link>
-                      {tr.processVersion ? ` v${tr.processVersion}` : ''} · {t('runsAs', { owner: tr.owner })}
-                      {tr.dryRun && (
-                        <Badge ml={4} size="xs" color="yellow" variant="light">
-                          {t('common:status.dryrun')}
-                        </Badge>
-                      )}
-                    </Text>
-                    <Text size="xs" c="dimmed" className="mono">
-                      POST {tr.path}
-                    </Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <Text size="xs" fw={500} className="nowrap">
-                      {t(`auth.short.${tr.authMode}`)}
-                    </Text>
-                    <Text size="xs" c="dimmed">
-                      {t('secretLine', { prefix: tr.secretPrefix, rate: tr.rateLimitPerMinute })}
-                      {tr.dedupeSeconds ? ` · ${t('dedupeLine', { seconds: tr.dedupeSeconds })}` : ''}
-                      {tr.allowedCidrs.length ? ` · ${tr.allowedCidrs.join(', ')}` : ''}
-                    </Text>
-                  </Table.Td>
-                  <Table.Td className="nowrap">
-                    {tr.lastRunId ? (
-                      <Anchor size="sm" component={Link} to={`/runs/${tr.lastRunId}`} underline="never" c="var(--mantine-color-text)">
-                        <Stack gap={2} align="flex-start">
-                          {tr.lastRunStatus && <StatusBadge status={tr.lastRunStatus} size="xs" />}
-                          <Text size="xs">{fmtRelative(tr.lastFiredAt)}</Text>
-                        </Stack>
-                      </Anchor>
-                    ) : (
-                      <Text size="xs">{fmtRelative(tr.lastFiredAt)}</Text>
-                    )}
-                  </Table.Td>
-                  <Table.Td>
-                    <Text size="sm">{fmtNumber(tr.fireCount)}</Text>
-                    {tr.rejectedCount > 0 && (
-                      <Tooltip label={t('lastRejection', { date: fmtDate(tr.lastRejectedAt), reason: tr.lastRejectedReason ?? '' })}>
-                        <Text size="xs" c="orange">
-                          {t('rejected', { count: tr.rejectedCount })}
-                        </Text>
-                      </Tooltip>
-                    )}
-                  </Table.Td>
-                  <Table.Td>
-                    <Text size="xs" c={tr.lastResult && tr.lastResult !== 'started' ? 'orange' : 'dimmed'} lineClamp={2} maw={260}>
-                      {tr.lastResult ?? '–'}
-                    </Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <Group gap={2} wrap="nowrap" justify="flex-end">
-                      <Tooltip label={t('history.action')}>
-                        <ActionIcon variant="subtle" onClick={() => setHistory(tr)} aria-label={t('history.actionFor', { name: tr.name })}>
-                          <IconHistory size={16} />
-                        </ActionIcon>
-                      </Tooltip>
-                      {tr.canEdit && (
-                        <>
-                          <Tooltip label={t('test.action')}>
-                            <ActionIcon
-                              variant="subtle"
-                              onClick={() => setTesting(tr)}
-                              aria-label={t('test.actionFor', { name: tr.name })}
-                              disabled={!tr.enabled}
-                            >
-                              <IconSend size={16} />
-                            </ActionIcon>
-                          </Tooltip>
-                          <Tooltip label={t('rotate')}>
-                            <ActionIcon variant="subtle" onClick={() => rotate(tr)} aria-label={t('rotateFor', { name: tr.name })}>
-                              <IconKey size={16} />
-                            </ActionIcon>
-                          </Tooltip>
-                          <PauseControl
-                            pause={tr.notify?.pause}
-                            onPause={async (p) => {
-                              try {
-                                await post(`/triggers/${tr.id}/pause`, { until: p.until, reason: p.reason, inApp: p.inApp });
-                                await refresh();
-                              } catch (e) {
-                                notifyError(e);
-                              }
-                            }}
-                            onResume={async () => {
-                              try {
-                                await post(`/triggers/${tr.id}/resume`, {});
-                                await refresh();
-                              } catch (e) {
-                                notifyError(e);
-                              }
-                            }}
-                          />
-                          <ActionIcon variant="subtle" onClick={() => setDraft(toDraft(tr))} aria-label={t('editFor', { name: tr.name })}>
-                            <IconEdit size={16} />
-                          </ActionIcon>
-                          <ActionIcon
-                            variant="subtle"
-                            color="red"
-                            aria-label={t('deleteFor', { name: tr.name })}
-                            onClick={async () => {
-                              if (!(await confirmDanger({ action: 'delete', message: t('deleteConfirm', { name: tr.name }) }))) return;
-                              await del(`/triggers/${tr.id}`).catch(notifyError);
-                              refresh();
-                            }}
-                          >
-                            <IconTrash size={16} />
-                          </ActionIcon>
-                        </>
-                      )}
-                    </Group>
-                  </Table.Td>
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-        </div>
+      {!!triggers.data?.length && list.length === 0 && (
+        <Text size="sm" c="dimmed">
+          {t('filters.noMatch')}
+        </Text>
+      )}
+      {list.length > 0 && (
+        <DataTable
+          rows={list}
+          columns={columns}
+          rowKey={(tr) => tr.id}
+          ariaLabel={t('title')}
+          testId="trigger-list"
+          rememberSort="triggers"
+          defaultSort={{ key: 'name', dir: 'asc' }}
+          footer={<ListFooter shown={list.length} total={triggers.data?.length} />}
+          card={(tr) => (
+            <Paper withBorder p="sm">
+              <Group justify="space-between" wrap="nowrap" align="flex-start">
+                <div style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{nameOf(tr)}</div>
+                {enabledSwitch(tr)}
+              </Group>
+              <Text size="xs" mt={4}>
+                {t(`auth.short.${tr.authMode}`)} · {t('secretLine', { prefix: tr.secretPrefix, rate: tr.rateLimitPerMinute })}
+              </Text>
+              <Text size="xs" c="dimmed">
+                {t('table.runsStarted')}: {fmtNumber(tr.fireCount)} · {t('table.lastCall')}: {fmtRelative(tr.lastFiredAt)}
+              </Text>
+              <Group justify="flex-end" mt={4}>
+                {actionsOf(tr)}
+              </Group>
+            </Paper>
+          )}
+        />
       )}
       {draft && (
         <TriggerModal
@@ -424,6 +512,7 @@ function TriggerModal({ draft, onClose, onSave }: { draft: Draft; onClose: () =>
   return (
     <Modal opened onClose={onClose} title={draft.id ? t('form.editTitle') : t('new')} size="xl">
       <Stack>
+        {draft.id && <CopyId id={draft.id} />}
         <Group grow align="flex-start">
           <Select
             label={t('form.process')}
@@ -431,7 +520,7 @@ function TriggerModal({ draft, onClose, onSave }: { draft: Draft; onClose: () =>
             searchable
             data={(processes.data ?? []).filter((p) => p.permissions.includes('run')).map((p) => ({ value: p.id, label: p.name }))}
             value={d.processId || null}
-            onChange={(v) => setD({ ...d, processId: v ?? '', inputMapping: {}, bindings: {}, processVersion: null })}
+            onChange={(v) => setD({ ...d, processId: v ?? '', inputMapping: {}, bindings: {}, identities: {}, processVersion: null })}
           />
           <NumberInput
             label={t('form.pinVersion')}
@@ -453,7 +542,13 @@ function TriggerModal({ draft, onClose, onSave }: { draft: Draft; onClose: () =>
         {proc.data && (
           <>
             <Divider label={t('form.connections')} labelPosition="left" />
-            <BindingsForm process={proc.data} value={d.bindings} onChange={(b) => setD({ ...d, bindings: b })} />
+            <BindingsForm
+              process={proc.data}
+              value={d.bindings}
+              onChange={(b) => setD((x) => ({ ...x, bindings: b }))}
+              identities={d.identities ?? {}}
+              onIdentitiesChange={(identities) => setD((x) => ({ ...x, identities }))}
+            />
             <Divider label={t('form.inputs')} labelPosition="left" />
             <Text size="xs" c="dimmed">
               <Trans t={t} i18nKey="form.inputsHint" values={{ example: '"fixed value"' }} components={{ c: <Code /> }} />

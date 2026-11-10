@@ -1,18 +1,19 @@
-import { Fragment, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Alert,
   Badge,
+  Box,
   Button,
   Card,
   Code,
   Group,
   NumberInput,
+  Paper,
   PasswordInput,
   Select,
   SimpleGrid,
   Stack,
   Switch,
-  Table,
   Text,
   TextInput,
   Title,
@@ -27,8 +28,12 @@ import { PageHeader, QueryState, TONE } from '../components/common';
 import { CronPreview } from '../components/CronPreview';
 import { fmtBytes, fmtDate, fmtRelative, runDuration } from '../format';
 import { platformKeys } from '../queryKeys';
+import { DataTable, type DataColumn } from '../components/DataTable';
 
 const MIN_PASSPHRASE = 16;
+
+/** Sort order of the result column: failed first. */
+const RUN_STATUS_ORDER: BackupRun['status'][] = ['failed', 'running', 'succeeded'];
 
 const statusColor = (s: BackupRun['status']) => (s === 'succeeded' ? TONE.ok : s === 'failed' ? TONE.bad : 'blue');
 
@@ -90,6 +95,93 @@ export function BackupsPage() {
       refresh();
     }
   };
+  const keptAsOf = (b: StoredBackup) => (
+    <Group gap={4}>
+      {b.keptAs.length ? (
+        b.keptAs.map((k) => (
+          <Badge key={k} size="sm" variant="light">
+            {t(`backups.kept.${k}`, { defaultValue: k })}
+          </Badge>
+        ))
+      ) : (
+        <Text size="xs" c="dimmed">
+          {t('backups.kept.none')}
+        </Text>
+      )}
+    </Group>
+  );
+  const storedColumns: DataColumn<StoredBackup>[] = [
+    {
+      key: 'object',
+      header: t('backups.object'),
+      sortValue: (b) => b.key,
+      tdProps: () => ({ style: { overflowWrap: 'anywhere' } }),
+      cell: (b) => <Code>{b.key}</Code>,
+    },
+    { key: 'created', header: t('backups.created'), sortValue: (b) => b.createdAt, nowrap: true, cell: (b) => fmtDate(b.createdAt) },
+    { key: 'size', header: t('backups.size'), sortValue: (b) => b.size, nowrap: true, cell: (b) => fmtBytes(b.size) },
+    { key: 'keptAs', header: t('backups.keptAs'), sortValue: (b) => b.keptAs.length, cell: keptAsOf },
+  ];
+  const stepsOf = (r: BackupRun) => (
+    <Stack gap={2}>
+      {r.steps.map((st, i) => (
+        <Text key={i} size="xs" c={st.ok ? undefined : TONE.bad} style={{ overflowWrap: 'anywhere' }}>
+          {st.ok ? '✓' : '✗'} {st.name}: {st.message}
+        </Text>
+      ))}
+      {!r.steps.length && r.message && (
+        <Text size="xs" c={TONE.bad}>
+          {r.message}
+        </Text>
+      )}
+      {r.sha256 && (
+        <Text size="xs" c="dimmed">
+          SHA-256 {r.sha256}
+        </Text>
+      )}
+    </Stack>
+  );
+  const runColumns: DataColumn<BackupRun>[] = [
+    {
+      key: 'kind',
+      header: t('backups.kind'),
+      sortValue: (r) => t(`backups.kinds.${r.kind}`),
+      cell: (r) => (
+        <>
+          {t(`backups.kinds.${r.kind}`)}
+          <Text size="xs" c="dimmed">
+            {r.trigger === 'manual' ? t('backups.by', { who: r.triggeredBy }) : t('backups.scheduled')}
+          </Text>
+        </>
+      ),
+    },
+    { key: 'started', header: t('backups.started'), sortValue: (r) => r.startedAt, nowrap: true, cell: (r) => fmtDate(r.startedAt) },
+    {
+      key: 'duration',
+      header: t('backups.duration'),
+      sortValue: (r) => (r.finishedAt ? Date.parse(r.finishedAt) - Date.parse(r.startedAt) : null),
+      nowrap: true,
+      cell: (r) => (r.finishedAt ? runDuration(r.startedAt, r.finishedAt) : '–'),
+    },
+    {
+      key: 'result',
+      header: t('backups.result'),
+      sortValue: (r) => RUN_STATUS_ORDER.indexOf(r.status),
+      cell: (r) => (
+        <>
+          <Badge color={statusColor(r.status)} variant="light">
+            {t(`backups.status.${r.status}`)}
+          </Badge>
+          {r.objectKey && (
+            <Text size="xs" c="dimmed" style={{ overflowWrap: 'anywhere' }}>
+              {r.objectKey}
+              {r.bytes !== null && ` · ${fmtBytes(r.bytes)}`}
+            </Text>
+          )}
+        </>
+      ),
+    },
+  ];
   const passError =
     pass.a && pass.a.length < MIN_PASSPHRASE
       ? t('backups.key.tooShort', { min: MIN_PASSPHRASE })
@@ -337,44 +429,24 @@ export function BackupsPage() {
             </Group>
             {stored && !stored.length && <Text c="dimmed">{t('backups.noneStored')}</Text>}
             {stored && stored.length > 0 && (
-              <Table.ScrollContainer minWidth={520}>
-                <Table striped>
-                  <Table.Thead>
-                    <Table.Tr>
-                      <Table.Th>{t('backups.object')}</Table.Th>
-                      <Table.Th>{t('backups.created')}</Table.Th>
-                      <Table.Th>{t('backups.size')}</Table.Th>
-                      <Table.Th>{t('backups.keptAs')}</Table.Th>
-                    </Table.Tr>
-                  </Table.Thead>
-                  <Table.Tbody>
-                    {stored.map((b) => (
-                      <Table.Tr key={b.key}>
-                        <Table.Td style={{ overflowWrap: 'anywhere' }}>
-                          <Code>{b.key}</Code>
-                        </Table.Td>
-                        <Table.Td>{fmtDate(b.createdAt)}</Table.Td>
-                        <Table.Td>{fmtBytes(b.size)}</Table.Td>
-                        <Table.Td>
-                          <Group gap={4}>
-                            {b.keptAs.length ? (
-                              b.keptAs.map((k) => (
-                                <Badge key={k} size="sm" variant="light">
-                                  {t(`backups.kept.${k}`, { defaultValue: k })}
-                                </Badge>
-                              ))
-                            ) : (
-                              <Text size="xs" c="dimmed">
-                                {t('backups.kept.none')}
-                              </Text>
-                            )}
-                          </Group>
-                        </Table.Td>
-                      </Table.Tr>
-                    ))}
-                  </Table.Tbody>
-                </Table>
-              </Table.ScrollContainer>
+              <DataTable
+                rows={stored}
+                columns={storedColumns}
+                rowKey={(b) => b.key}
+                ariaLabel={t('backups.stored')}
+                testId="backup-stored"
+                rememberSort="backups-stored"
+                defaultSort={{ key: 'created', dir: 'desc' }}
+                card={(b) => (
+                  <Paper withBorder p="sm">
+                    <Code style={{ overflowWrap: 'anywhere' }}>{b.key}</Code>
+                    <Text size="xs" mt={4}>
+                      {fmtDate(b.createdAt)} · {fmtBytes(b.size)}
+                    </Text>
+                    <Box mt={4}>{keptAsOf(b)}</Box>
+                  </Paper>
+                )}
+              />
             )}
           </Card>
 
@@ -385,68 +457,36 @@ export function BackupsPage() {
             {!s.runs.length ? (
               <Text c="dimmed">{t('backups.noRuns')}</Text>
             ) : (
-              <Table.ScrollContainer minWidth={560}>
-                <Table highlightOnHover>
-                  <Table.Thead>
-                    <Table.Tr>
-                      <Table.Th>{t('backups.kind')}</Table.Th>
-                      <Table.Th>{t('backups.started')}</Table.Th>
-                      <Table.Th>{t('backups.duration')}</Table.Th>
-                      <Table.Th>{t('backups.result')}</Table.Th>
-                    </Table.Tr>
-                  </Table.Thead>
-                  <Table.Tbody>
-                    {s.runs.map((r) => (
-                      <Fragment key={r.id}>
-                        <Table.Tr style={{ cursor: 'pointer' }} onClick={() => setExpanded(expanded === r.id ? null : r.id)}>
-                          <Table.Td>
-                            {t(`backups.kinds.${r.kind}`)}
-                            <Text size="xs" c="dimmed">
-                              {r.trigger === 'manual' ? t('backups.by', { who: r.triggeredBy }) : t('backups.scheduled')}
-                            </Text>
-                          </Table.Td>
-                          <Table.Td>{fmtDate(r.startedAt)}</Table.Td>
-                          <Table.Td>{r.finishedAt ? runDuration(r.startedAt, r.finishedAt) : '–'}</Table.Td>
-                          <Table.Td>
-                            <Badge color={statusColor(r.status)} variant="light">
-                              {t(`backups.status.${r.status}`)}
-                            </Badge>
-                            {r.objectKey && (
-                              <Text size="xs" c="dimmed" style={{ overflowWrap: 'anywhere' }}>
-                                {r.objectKey}
-                                {r.bytes !== null && ` · ${fmtBytes(r.bytes)}`}
-                              </Text>
-                            )}
-                          </Table.Td>
-                        </Table.Tr>
-                        {expanded === r.id && (
-                          <Table.Tr>
-                            <Table.Td colSpan={4}>
-                              <Stack gap={2}>
-                                {r.steps.map((st, i) => (
-                                  <Text key={i} size="xs" c={st.ok ? undefined : TONE.bad} style={{ overflowWrap: 'anywhere' }}>
-                                    {st.ok ? '✓' : '✗'} {st.name}: {st.message}
-                                  </Text>
-                                ))}
-                                {!r.steps.length && r.message && (
-                                  <Text size="xs" c={TONE.bad}>
-                                    {r.message}
-                                  </Text>
-                                )}
-                                {r.sha256 && (
-                                  <Text size="xs" c="dimmed">
-                                    SHA-256 {r.sha256}
-                                  </Text>
-                                )}
-                              </Stack>
-                            </Table.Td>
-                          </Table.Tr>
-                        )}
-                      </Fragment>
-                    ))}
-                  </Table.Tbody>
-                </Table>
-              </Table.ScrollContainer>
+              <DataTable
+                rows={s.runs}
+                columns={runColumns}
+                rowKey={(r) => r.id}
+                ariaLabel={t('backups.runs')}
+                testId="backup-runs"
+                rememberSort="backups-runs"
+                defaultSort={{ key: 'started', dir: 'desc' }}
+                onRowClick={(r) => setExpanded(expanded === r.id ? null : r.id)}
+                rowDetail={(r) => expanded === r.id && stepsOf(r)}
+                card={(r) => (
+                  <Paper withBorder p="sm" className="clickable" onClick={() => setExpanded(expanded === r.id ? null : r.id)}>
+                    <Group justify="space-between" wrap="nowrap" align="flex-start">
+                      <div>
+                        <Text size="sm" fw={500}>
+                          {t(`backups.kinds.${r.kind}`)}
+                        </Text>
+                        <Text size="xs" c="dimmed">
+                          {fmtDate(r.startedAt)}
+                          {r.finishedAt && ` · ${runDuration(r.startedAt, r.finishedAt)}`}
+                        </Text>
+                      </div>
+                      <Badge color={statusColor(r.status)} variant="light" style={{ flexShrink: 0 }}>
+                        {t(`backups.status.${r.status}`)}
+                      </Badge>
+                    </Group>
+                    {expanded === r.id && <Box mt="xs">{stepsOf(r)}</Box>}
+                  </Paper>
+                )}
+              />
             )}
           </Card>
         </Stack>

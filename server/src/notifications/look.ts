@@ -292,6 +292,7 @@ const BAD_EVENTS = new Set([
 const WARN_EVENTS = new Set([
   'task.assigned',
   'mcp.request',
+  'plant.change_proposed',
   'dataset.stale',
   'schedule.skipped',
   'credential.due',
@@ -311,9 +312,19 @@ export function eventTone(event: string, data?: Record<string, unknown>): Messag
   if (isDryRun(data)) return 'emphasis';
   if (event === 'monitor.status') {
     const status = data?.status;
-    return status === 'up' ? 'good' : status === 'down' ? 'attention' : status === 'degraded' || status === 'blocked' ? 'warning' : 'accent';
+    return status === 'up'
+      ? 'good'
+      : status === 'off'
+        ? 'emphasis'
+        : status === 'down'
+          ? 'attention'
+          : status === 'degraded' || status === 'blocked'
+            ? 'warning'
+            : 'accent';
   }
   if (event === 'check.resolved') return 'good';
+  // 0.13.0: a plant change applied reads green, rejected or expired orange
+  if (event === 'plant.change_decided') return data?.outcome === 'applied' ? 'good' : data?.outcome === 'returned' ? 'accent' : 'warning';
   if (BAD_EVENTS.has(event)) return 'attention';
   if (WARN_EVENTS.has(event)) return 'warning';
   return 'accent';

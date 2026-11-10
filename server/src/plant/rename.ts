@@ -1,5 +1,7 @@
 import {
+  kpiInputProfiles,
   PLANT_ID_SCOPE,
+  type KpiInput,
   type PlantIdKind,
   type PlantInterface,
   type PlantReferenceCount,
@@ -43,6 +45,8 @@ export interface RefSpec {
   what: string;
   /** Updates the references of one rename; the number of rows changed */
   apply(r: RenameOf): number;
+  /** 0.13.0: bookkeeping that follows the entry (history, baselines, open change sets) – not counted in the preview */
+  silent?: boolean;
 }
 
 const run = (sql: string, ...p: unknown[]) => db().run(sql, ...p).changes;
@@ -205,7 +209,7 @@ const ofFamilyAssets = (table: string, column: string, kind: PlantIdKind, what: 
 const bySite = { sql: 'site_id = ?', params: (r: RenameOf) => [r.scope] };
 const byAsset = { sql: 'asset_id = ?', params: (r: RenameOf) => [r.scope] };
 
-export const REFERENCES: readonly RefSpec[] = [
+const REFERENCES_ALL: RefSpec[] = [
   // ---- sites
   col('plant_sites', 'id', 'site', 'site'),
   col('plant_nodes', 'site_id', 'site', 'node'),
@@ -302,7 +306,18 @@ export const REFERENCES: readonly RefSpec[] = [
   // 0.11.0: a profile that extends it
   col('plant_profiles', 'base_id', 'profile', 'profile'),
   col('plant_assignments', 'profile_id', 'profile', 'assignment'),
-  json<{ profile: string }[]>('plant_kpis', 'inputs', 'profile', 'profile', 'kpi', ['id'], inObjects('profile')),
+  // 0.13: also the input's "any of these" profiles and the keys of its mapping
+  json<KpiInput[]>('plant_kpis', 'inputs', 'profile', 'profile', 'kpi', ['id'], (v, r) =>
+    v.reduce((hit, i) => {
+      let changed = inObjects<{ profile: string }>('profile')([i], r);
+      if (inList(i.profiles, r)) changed = true;
+      if (i.mapping && Object.prototype.hasOwnProperty.call(i.mapping, r.from) && !Object.prototype.hasOwnProperty.call(i.mapping, r.to)) {
+        i.mapping = Object.fromEntries(Object.entries(i.mapping).map(([k, x]) => [k === r.from ? r.to : k, x]));
+        changed = true;
+      }
+      return changed || hit;
+    }, false),
+  ),
   // 0.12: records that link to it
   pair('item_links', 'to_kind', 'device-profile', 'to_id', 'profile', 'link'),
   pair('copied_from', 'kind', 'device-profile', 'id', 'profile', 'copy'),
@@ -380,27 +395,42 @@ export const REFERENCES: readonly RefSpec[] = [
   // inputs that name the profile (or one that extends it); an input without a profile names a data point of whatever
   // profile an asset has: kept
   // (0.12.0: and the units the input expects, by data point)
-  json<{ profile: string; dataPoints: string[]; units?: Record<string, string> }[]>(
-    'plant_kpis',
-    'inputs',
-    'dataPoints',
-    'data_point',
-    'kpi',
-    ['id'],
-    (v, r) => {
-      const family = profileFamily(r.scope);
-      return v.reduce((hit, i) => {
-        if (!family.includes(i.profile)) return hit;
-        const listed = inList(i.dataPoints, r);
-        const u = i.units;
-        if (u && Object.prototype.hasOwnProperty.call(u, r.from) && !Object.prototype.hasOwnProperty.call(u, r.to)) {
-          i.units = Object.fromEntries(Object.entries(u).map(([k, x]) => [k === r.from ? r.to : k, x]));
-          return true;
-        }
-        return listed || hit;
-      }, false);
-    },
-  ),
+  // 0.13: an input of several profiles reads the data point under its id in each (its mapping, else the same id): a
+  // mapping to the old id follows; where the input reads it unmapped, its own id follows when every profile it names
+  // has the data point renamed (all in the family), else that profile's mapping keeps the input's id
+  json<KpiInput[]>('plant_kpis', 'inputs', 'dataPoints', 'data_point', 'kpi', ['id'], (v, r) => {
+    const family = profileFamily(r.scope);
+    const renameKey = <T>(o: Record<string, T> | undefined): Record<string, T> | undefined =>
+      o && Object.prototype.hasOwnProperty.call(o, r.from) && !Object.prototype.hasOwnProperty.call(o, r.to)
+        ? Object.fromEntries(Object.entries(o).map(([k, x]) => [k === r.from ? r.to : k, x]))
+        : o;
+    return v.reduce((hit, i) => {
+      if (i.kind && i.kind !== 'data_point') return hit;
+      const names = kpiInputProfiles(i);
+      const mine = names.filter((n) => family.includes(n));
+      if (!mine.length) return hit;
+      let changed = false;
+      for (const n of mine)
+        for (const [k, to] of Object.entries(i.mapping?.[n] ?? {}))
+          if (to === r.from) {
+            if (k === r.to) delete i.mapping![n]![k];
+            else i.mapping![n]![k] = r.to;
+            changed = true;
+          }
+      const unmapped = mine.filter((n) => i.dataPoints.includes(r.from) && !Object.prototype.hasOwnProperty.call(i.mapping?.[n] ?? {}, r.from));
+      if (unmapped.length && mine.length === names.length) {
+        inList(i.dataPoints, r);
+        i.units = renameKey(i.units);
+        if (i.mapping) i.mapping = Object.fromEntries(Object.entries(i.mapping).map(([n, m]) => [n, renameKey(m)!]));
+        changed = true;
+      } else if (unmapped.length) {
+        i.mapping ??= {};
+        for (const n of unmapped) i.mapping[n] = { ...(i.mapping[n] ?? {}), [r.from]: r.to };
+        changed = true;
+      }
+      return changed || hit;
+    }, false);
+  }),
   // 0.11.0: a derived profile's own data points in inherited interfaces, and its changes to inherited ones
   json<{ groups: { dataPoints: { id: string }[] }[] }[]>(
     'plant_profiles',
@@ -486,6 +516,53 @@ export const REFERENCES: readonly RefSpec[] = [
   // 0.11.0: a data collection of the asset may belong to one of its data paths
   col('plant_collections', 'data_path_id', 'data_path', 'collection', 'asset_id'),
 ];
+export const REFERENCES: readonly RefSpec[] = REFERENCES_ALL;
+
+/**
+ * 0.13.0: tables of the change sets that name entries by (kind, scope, entry_id): the history, the import baselines
+ * and the operations of open change sets follow a rename (silent: the preview does not count them).
+ */
+function entryRefs(table: string): RefSpec[] {
+  const kinds: PlantIdKind[] = ['site', 'building', 'node', 'asset', 'profile', 'kpi', 'vlan', 'zone', 'conduit', 'device', 'data_path'];
+  return [
+    ...kinds.map((k): RefSpec => ({
+      table,
+      column: `entry_id[kind=${k}]`,
+      kind: k,
+      what: 'history',
+      silent: true,
+      apply: (r) => run(`UPDATE ${table} SET entry_id = ? WHERE kind = ? AND scope = ? AND entry_id = ?`, r.to, k, r.scope, r.from),
+    })),
+    {
+      table,
+      column: 'entry_id[kind=assignment|asset_checks]',
+      kind: 'asset',
+      what: 'history',
+      silent: true,
+      apply: (r) => run(`UPDATE ${table} SET entry_id = ? WHERE kind IN ('assignment', 'asset_checks') AND entry_id = ?`, r.to, r.from),
+    },
+    {
+      table,
+      column: 'scope[site-scoped kinds]',
+      kind: 'site',
+      what: 'history',
+      silent: true,
+      apply: (r) => run(`UPDATE ${table} SET scope = ? WHERE scope = ? AND kind IN (${SITE_KINDS.map(() => '?').join(', ')})`, r.to, r.from, ...SITE_KINDS),
+    },
+    {
+      table,
+      column: 'scope[asset-scoped kinds]',
+      kind: 'asset',
+      what: 'history',
+      silent: true,
+      apply: (r) => run(`UPDATE ${table} SET scope = ? WHERE scope = ? AND kind IN ('device', 'data_path', 'collection')`, r.to, r.from),
+    },
+  ];
+}
+REFERENCES_ALL.push(...entryRefs('plant_entry_history'), ...entryRefs('plant_import_baselines'), ...entryRefs('plant_change_ops'), {
+  ...json<string[]>('plant_change_sets', 'sites', '[]', 'site', 'change_set', ['id'], inList),
+  silent: true,
+});
 
 /** The table and column of the entry itself, per kind (the rest are references). */
 const SELF: Record<PlantIdKind, string> = {
@@ -510,7 +587,7 @@ function applyReferences(r: RenameOf): PlantReferenceCount[] {
   for (const ref of REFERENCES) {
     if (ref.kind !== r.kind) continue;
     const n = ref.apply(r);
-    if (`${ref.table}.${ref.column}` === SELF[r.kind]) continue;
+    if (ref.silent || `${ref.table}.${ref.column}` === SELF[r.kind]) continue;
     if (n) counts.set(ref.what, (counts.get(ref.what) ?? 0) + n);
   }
   return [...counts].map(([what, count]) => ({ what, count })).sort((a, b) => a.what.localeCompare(b.what));
@@ -569,10 +646,17 @@ function familyHas(kind: PlantIdKind, scope: string, id: string): boolean {
  */
 export function renameEntry(r: RenameOf, by: string): PlantReferenceCount[] {
   const counts = applyReferences(r);
+  renameListener?.(r);
   const aliases = writeAlias(r.kind, r.scope, r.from, r.to, by);
   if (aliases) counts.push({ what: 'alias', count: aliases });
   return counts;
 }
+
+/** 0.13.0: the change sets' tracker follows renames (changesets/track.ts). */
+let renameListener: ((r: RenameOf) => void) | null = null;
+export const setRenameListener = (fn: (r: RenameOf) => void): void => {
+  renameListener = fn;
+};
 
 class Rollback extends Error {}
 

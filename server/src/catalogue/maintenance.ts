@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import {
   MAINTENANCE_FREQS,
+  MAINTENANCE_KINDS,
   MAINTENANCE_LIMITS,
   MAINTENANCE_TARGET_KINDS,
   occurrencesBetween,
@@ -25,7 +26,7 @@ import { catalogueTeams, owningTeams } from '../auth/policy.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { instanceTimeZone } from '../duties/periods.js';
 import { logger } from '../log.js';
-import { setCatalogueMaintenance } from '../monitors/maintenance-hook.js';
+import { setCatalogueMaintenance, setPlannedDowntime } from '../monitors/maintenance-hook.js';
 import { permissionsOfRow } from '../monitors/model.js';
 import { setMaintenancePause } from '../notifications/service.js';
 
@@ -55,6 +56,8 @@ const iso = (t: number) => new Date(t).toISOString();
 
 interface WindowRow {
   id: string;
+  /** maintenance or downtime (0.13, ADR 0021) */
+  kind: string;
   title: string;
   note: string;
   starts_at: string;
@@ -96,6 +99,8 @@ const subject = z
 
 export const maintenanceInput = z
   .object({
+    /** maintenance (default) or planned downtime (ADR 0021) */
+    kind: z.enum(MAINTENANCE_KINDS).default('maintenance'),
     title: z.string().trim().min(1).max(MAINTENANCE_LIMITS.title),
     note: z.string().max(MAINTENANCE_LIMITS.note).default(''),
     startsAt: isoTime,
@@ -117,7 +122,8 @@ export const maintenanceInput = z
     changeRecordId: z.string().trim().min(1).max(100).nullable().default(null),
     quietMonitors: z.boolean().default(true),
     pauseMessages: z.boolean().default(false),
-    reminderHours: z.number().int().min(0).max(MAINTENANCE_LIMITS.reminderHoursMax).default(24),
+    /** Missing: 24 for maintenance, 0 for downtime (announcements are off by default) */
+    reminderHours: z.number().int().min(0).max(MAINTENANCE_LIMITS.reminderHoursMax).optional(),
     /** A disabled window neither applies nor announces anything (missing: enabled when planned, unchanged when changed) */
     enabled: z.boolean().optional(),
   })
@@ -288,6 +294,7 @@ function toSummary(r: WindowRow, u: AuthUser | null, now: number): MaintenanceWi
   const targets = targetsOf(r.id);
   return {
     id: r.id,
+    kind: r.kind === 'downtime' ? 'downtime' : 'maintenance',
     title: r.title,
     note: r.note,
     startsAt: r.starts_at,
@@ -445,6 +452,9 @@ function writeTargets(id: string, targets: TargetRef[]): void {
   }
 }
 
+/** The reminder: as given, else 24 hours before maintenance and none before planned downtime (ADR 0021). */
+const reminderOf = (input: MaintenanceInput): number => input.reminderHours ?? (input.kind === 'downtime' ? 0 : 24);
+
 export function createMaintenance(input: MaintenanceInput): MaintenanceWindowDetail {
   const u = me();
   // service editors hear first about an item that does not exist (or that they may not see), as before team scopes
@@ -459,8 +469,8 @@ export function createMaintenance(input: MaintenanceInput): MaintenanceWindowDet
   db().tx(() => {
     db().run(
       `INSERT INTO maintenance_windows (id, title, note, starts_at, ends_at, recurrence, time_zone, responsible, change_record_id, quiet_monitors,
-         pause_messages, reminder_hours, enabled, created_at, created_by, updated_at, updated_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         pause_messages, reminder_hours, enabled, created_at, created_by, updated_at, updated_by, kind)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       id,
       input.title,
       input.note,
@@ -472,12 +482,13 @@ export function createMaintenance(input: MaintenanceInput): MaintenanceWindowDet
       input.changeRecordId,
       input.quietMonitors ? 1 : 0,
       input.pauseMessages ? 1 : 0,
-      input.reminderHours,
+      reminderOf(input),
       input.enabled === false ? 0 : 1,
       now,
       u.username,
       now,
       u.username,
+      input.kind,
     );
     writeTargets(id, input.targets);
     audit({
@@ -489,7 +500,7 @@ export function createMaintenance(input: MaintenanceInput): MaintenanceWindowDet
     });
   });
   invalidate();
-  if (input.enabled !== false) announce(row(id), 'planned', Date.parse(input.startsAt));
+  if (input.enabled !== false && (input.kind !== 'downtime' || reminderOf(input) > 0)) announce(row(id), 'planned', Date.parse(input.startsAt));
   return getMaintenance(id);
 }
 
@@ -508,7 +519,7 @@ export function updateMaintenance(id: string, input: MaintenanceInput): Maintena
   db().tx(() => {
     db().run(
       `UPDATE maintenance_windows SET title = ?, note = ?, starts_at = ?, ends_at = ?, recurrence = ?, responsible = ?, change_record_id = ?,
-         quiet_monitors = ?, pause_messages = ?, reminder_hours = ?, enabled = ?, updated_at = ?, updated_by = ? WHERE id = ?`,
+         quiet_monitors = ?, pause_messages = ?, reminder_hours = ?, enabled = ?, updated_at = ?, updated_by = ?, kind = ? WHERE id = ?`,
       input.title,
       input.note,
       input.startsAt,
@@ -518,10 +529,11 @@ export function updateMaintenance(id: string, input: MaintenanceInput): Maintena
       input.changeRecordId,
       input.quietMonitors ? 1 : 0,
       input.pauseMessages ? 1 : 0,
-      input.reminderHours,
+      reminderOf(input),
       enabled ? 1 : 0,
       nowIso(),
       u.username,
+      input.kind,
       id,
     );
     writeTargets(id, input.targets);
@@ -819,7 +831,8 @@ export function maintenanceForMonitor(
   monitorId: string,
   now = Date.now(),
 ): { id: string; starts_at: string; ends_at: string; reason: string; created_by: string; created_at: string } | undefined {
-  const list = activeNow(now).filter((a) => a.row.quiet_monitors);
+  // planned downtime (ADR 0021) never silences a monitor
+  const list = activeNow(now).filter((a) => a.row.quiet_monitors && a.row.kind !== 'downtime');
   if (!list.length) return undefined;
   // a window that lists the monitor comes first, then the one that ends last
   const a = [
@@ -850,7 +863,8 @@ const reachesObjective = (reach: Reach, o: ObjectiveScope): boolean =>
 
 /** Is an availability objective (of a service, optionally one of its applications, or its source monitor) under maintenance now? */
 export function objectiveInMaintenance(o: ObjectiveScope, now = Date.now()): boolean {
-  return activeNow(now).some((a) => reachesObjective(a.reach, o));
+  // planned downtime leaves objectives as the status says (ADR 0021)
+  return activeNow(now).some((a) => a.row.kind !== 'downtime' && reachesObjective(a.reach, o));
 }
 
 // every window with what it reaches (cached briefly: objective views ask for each objective)
@@ -874,7 +888,7 @@ export function plannedMinutes<K extends string>(o: ObjectiveScope, windowsMs: R
   const longest = Math.max(0, ...keys.map((k) => windowsMs[k]));
   const spans: { start: number; end: number }[] = [];
   for (const { row: r, reach } of allWithReach(now)) {
-    if (!reachesObjective(reach, o)) continue;
+    if (r.kind === 'downtime' || !reachesObjective(reach, o)) continue;
     const stop = r.cancelled_at ? Math.min(now, Date.parse(r.cancelled_at)) : now;
     for (const occ of occurrencesOf(r, now - longest, stop)) spans.push({ start: occ.start, end: Math.min(occ.end, stop) });
   }
@@ -895,8 +909,40 @@ export function plannedMinutes<K extends string>(o: ObjectiveScope, windowsMs: R
   return out;
 }
 
+/**
+ * Planned downtime of a monitor (ADR 0021): windows of kind downtime that list it or reach a platform it checks – active
+ * now, and their time within [from, to] (overlaps counted once; a cancelled window up to when it was cancelled).
+ */
+export function plannedDowntimeForMonitor(monitorId: string, from: number, to: number): { active: boolean; ms: number } {
+  const spans: { start: number; end: number }[] = [];
+  let active = false;
+  for (const { row: r, reach } of allWithReach(to)) {
+    if (r.kind !== 'downtime' || !reachesMonitor(reach, monitorId)) continue;
+    const stop = r.cancelled_at ? Math.min(to, Date.parse(r.cancelled_at)) : to;
+    for (const occ of occurrencesOf(r, from, stop)) {
+      const a = Math.max(occ.start, from);
+      const b = Math.min(occ.end, stop);
+      if (b > a) spans.push({ start: a, end: b });
+      if (occ.start <= to - 1 && to - 1 < occ.end && stop >= to) active = true;
+    }
+  }
+  spans.sort((a, b) => a.start - b.start);
+  let ms = 0;
+  let cur: { start: number; end: number } | null = null;
+  for (const x of spans) {
+    if (cur && x.start <= cur.end) cur.end = Math.max(cur.end, x.end);
+    else {
+      if (cur) ms += cur.end - cur.start;
+      cur = { ...x };
+    }
+  }
+  if (cur) ms += cur.end - cur.start;
+  return { active, ms };
+}
+
 // the monitor engine and the notifications ask here (registered, so neither imports this module)
 setCatalogueMaintenance((mid, now) => maintenanceForMonitor(mid, now));
+setPlannedDowntime((mid, from, to) => plannedDowntimeForMonitor(mid, from, to));
 setMaintenancePause((runId) => maintenancePausesRun(runId));
 
 // ---------- announcements ----------
@@ -967,6 +1013,8 @@ function announce(r: WindowRow, kind: NoticeKind, start: number): boolean {
 export function runMaintenanceJob(now = Date.now()): number {
   let sent = 0;
   for (const r of db().all<WindowRow>('SELECT * FROM maintenance_windows WHERE cancelled_at IS NULL AND enabled = 1')) {
+    // planned downtime announces nothing unless it was given a reminder (ADR 0021: weekends are routine)
+    if (r.kind === 'downtime' && !Number(r.reminder_hours)) continue;
     const ahead = Math.max(Number(r.reminder_hours), 0) * 3600000;
     for (const o of occurrencesOf(r, now - 2 * 3600000, now + ahead + 60000)) {
       const due: NoticeKind | null =

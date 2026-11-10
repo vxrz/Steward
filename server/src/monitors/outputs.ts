@@ -1,7 +1,17 @@
 import { EnvHttpProxyAgent } from 'undici';
 import { assertNetAllowed, assertOutboundAllowed, fetchCheckingRedirects, guardedLookup, urlSecrets } from '../platforms/outbound.js';
 import { outboundContext } from '../platforms/policyContext.js';
-import { BRAND, MONITOR_STATUS_CODE, fillPlaceholders, type CauseRef, type MonitorStatus, type OutputDef, type UserInfo } from '@sm/shared';
+import {
+  BRAND,
+  MONITOR_STATUS_CODE,
+  fillPlaceholders,
+  type CauseRef,
+  type MonitorStateInfo,
+  type MonitorStatus,
+  type OutputDef,
+  type StateReason,
+  type UserInfo,
+} from '@sm/shared';
 import { db } from '../db.js';
 import { logger } from '../log.js';
 import { runAs } from '../auth/context.js';
@@ -49,6 +59,11 @@ export interface OutEvent {
   check?: { id: string; key: string; name: string; type: string };
   durationMs?: number | null;
   value?: unknown;
+  /** Monitors with states (ADR 0021), the monitor's event: the state, and why the status is what it is */
+  state?: { id: string | null; name: string | null; since: string | null; settlingUntil: string | null };
+  stateReason?: StateReason;
+  /** On a contradiction: the closest state and the checks that deviate from it */
+  contradiction?: { closest: string; checks: { id: string; name: string; expected: string; actual: MonitorStatus }[] };
 }
 
 export interface Subject {
@@ -139,12 +154,17 @@ export async function dispatchOutputs(ctx: DispatchContext): Promise<void> {
       let quiet: string | null = null;
       if (statuses && !statuses.includes(e.status)) quiet = 'status not selected';
       else if (peopleFacing(o) && (ctx.maintenance || e.status === 'maintenance')) quiet = 'maintenance window';
+      // off (ADR 0021) is never an alert: sent only when selected, or as a recovery after down or degraded
+      else if (peopleFacing(o) && e.status === 'off' && !statuses && prev !== 'down' && prev !== 'degraded') quiet = 'expected state';
       else if (peopleFacing(o) && e.status === 'up' && prev !== 'down' && prev !== 'degraded') quiet = 'nothing to recover from';
+      else if (o.type === 'webhook' && o.format === 'teams' && e.status === 'off' && !statuses && prev !== 'down' && prev !== 'degraded')
+        quiet = 'expected state';
       else if (peopleFacing(o) && e.status === 'degraded' && prev === null) quiet = 'first status';
       else if (peopleFacing(o) && !statuses && (e.status === 'unknown' || e.status === 'blocked')) quiet = 'not a confirmed problem';
-      else if (peopleFacing(o) && ctx.acknowledged && e.status !== 'up') quiet = 'acknowledged';
+      else if (peopleFacing(o) && ctx.acknowledged && e.status !== 'up' && e.status !== 'off') quiet = 'acknowledged';
       else if (e.level === 'check' && suppressOf(o) && s.dependent) quiet = 'caused by a failing parent';
       else if (o.type === 'gatus' && e.status === 'maintenance') quiet = 'maintenance window';
+      else if (o.type === 'gatus' && e.status === 'off' && o.whileOff === 'skip') quiet = 'expected state';
       if (quiet) {
         if (changed) saveOutState(m.id, o.id, e.subject, { last_status: e.status });
         holding.delete(key);
@@ -220,6 +240,9 @@ function payload(e: OutEvent) {
     check: e.check ?? null,
     durationMs: e.durationMs ?? null,
     value: e.value ?? null,
+    // additive (ADR 0021): only for monitors with states
+    ...(e.state ? { state: e.state } : {}),
+    ...(e.contradiction ? { contradiction: e.contradiction } : {}),
   };
 }
 
@@ -354,7 +377,7 @@ async function sendWebhook(o: Extract<OutputDef, { type: 'webhook' }>, m: Loaded
   if (o.format === 'teams') return sendTeamsCards(o, m, events);
   const body = { source: BRAND.slug, monitor: { id: m.id, key: m.key, name: m.name }, events: events.map(payload) };
   if (o.platform) {
-    const { platform, secrets } = platformFor(m.owner, o.platform);
+    const { platform, secrets } = platformFor(m.owner, o.platform, o.identity);
     const r = await platformRequest(
       platform,
       secrets,
@@ -372,7 +395,7 @@ async function sendWebhook(o: Extract<OutputDef, { type: 'webhook' }>, m: Loaded
  * `webhookUrl` (encrypted like every credential) is the Workflows URL. Saving refuses anything else.
  */
 async function sendTeamsCards(o: Extract<OutputDef, { type: 'webhook' }>, m: LoadedMonitor, events: OutEvent[]): Promise<void> {
-  const { platform, secrets } = platformFor(m.owner, o.platform ?? '');
+  const { platform, secrets } = platformFor(m.owner, o.platform ?? '', o.identity);
   if (platform.kind !== 'teams') throw new Error(`Platform "${platform.name}" is not a Microsoft Teams channel`);
   if (!secrets.webhookUrl) throw new Error(`Platform "${platform.name}" has no credential "webhookUrl" (the Teams Workflows URL)`);
   const now = Date.now();
@@ -410,7 +433,7 @@ registerOutboxTarget('output', (rest) => {
   const m = r ? loadMonitor(r) : null;
   const o = m?.def.outputs.find((x) => x.id === outputId);
   if (!m || !o || o.type !== 'webhook' || o.format !== 'teams' || o.enabled === false) return null;
-  const { platform, secrets } = platformFor(m.owner, o.platform ?? '');
+  const { platform, secrets } = platformFor(m.owner, o.platform ?? '', o.identity);
   const url = platform.kind === 'teams' ? secrets.webhookUrl : undefined;
   return {
     personal: false,
@@ -422,12 +445,13 @@ registerOutboxTarget('output', (rest) => {
 });
 
 async function sendGatus(o: Extract<OutputDef, { type: 'gatus' }>, m: LoadedMonitor, events: OutEvent[]): Promise<void> {
-  const { platform, secrets } = platformFor(m.owner, o.platform);
+  const { platform, secrets } = platformFor(m.owner, o.platform, o.identity);
   const token = secrets[o.tokenSecret || 'externalToken'];
   if (!token) throw new Error(`Platform "${platform.name}" has no credential "${o.tokenSecret || 'externalToken'}" (external endpoint token)`);
   for (const e of events) {
     const key = fillPlaceholders(o.endpointKey, placeholders(m, e));
-    const ok = e.status === 'up' || e.status === 'degraded';
+    // off (ADR 0021): as the output says (success by default); Off beyond the maximum is a failure whatever it says
+    const ok = (e.status === 'up' || e.status === 'degraded' || (e.status === 'off' && o.whileOff !== 'failure')) && e.stateReason !== 'maxOff';
     const r = await platformRequest(
       platform,
       secrets,
@@ -450,7 +474,7 @@ async function sendGatus(o: Extract<OutputDef, { type: 'gatus' }>, m: LoadedMoni
 export const DEFAULT_ZABBIX_KEYS = { monitor: 'steward.monitor.status[${monitor.key}]', check: 'steward.check.status[${monitor.key},${check.id}]' };
 
 async function sendZabbix(o: Extract<OutputDef, { type: 'zabbix' }>, m: LoadedMonitor, events: OutEvent[]): Promise<void> {
-  const { platform, secrets } = platformFor(m.owner, o.platform);
+  const { platform, secrets } = platformFor(m.owner, o.platform, o.identity);
   const vars = platform.config.variables ?? {};
   const items = events.map((e) => {
     const ph = placeholders(m, e);
@@ -522,12 +546,13 @@ async function startProcesses(o: Extract<OutputDef, { type: 'process' }>, m: Loa
     }
     const { runId } = await runAs(user, () => {
       // the command layer's start check (ADR 0011), as the monitor's owner: since 0.10.0 also `use` on the bound platforms
-      const p = startProblem(user, { processId: o.processId, bindings: o.bindings });
+      const p = startProblem(user, { processId: o.processId, bindings: o.bindings, identities: o.identities });
       if (p) throw new Error(p.code === 'mayNotRun' || p.code === 'processNotFound' ? `${m.owner} may not run process ${o.processId}` : p.text);
       return engine().start({
         processId: o.processId,
         inputs,
         bindings: o.bindings ?? {},
+        ...(o.identities ? { identities: o.identities } : {}),
         mode: o.dryRun ? 'dry' : 'live',
         actor: m.owner,
         origin: { trigger: 'monitor', webhook: { triggerId: m.id, triggerName: m.name, output: o.id } },
@@ -537,4 +562,38 @@ async function startProcesses(o: Extract<OutputDef, { type: 'process' }>, m: Loa
     logger.info({ monitor: m.key, output: o.id, runId }, 'monitor output started a run');
   }
   return ids;
+}
+
+/**
+ * State changes as information (ADR 0021): notification outputs with `stateChanges` tell their recipients "Machine 17:
+ * Running → Off, all checks agree" (event monitor.state) – never urgent, held by quiet hours and digests like any
+ * message that is not urgent. Not sent during maintenance.
+ */
+export function notifyStateChange(m: LoadedMonitor, previous: string | null, info: MonitorStateInfo, now: number): void {
+  const names = new Map((m.def.states?.cases ?? []).map((c) => [c.id, c.name || c.id]));
+  const from = previous === null ? null : (names.get(previous) ?? previous);
+  for (const o of m.def.outputs) {
+    if (o.type !== 'notification' || !o.enabled || !o.stateChanges) continue;
+    const to = recipients(o, m);
+    if (!to.length) continue;
+    notify({
+      event: 'monitor.state',
+      personal: true,
+      text: (locale) => {
+        const params = { where: m.name, from: from ?? t(locale, 'monitor.stateNone'), to: info.name ?? t(locale, 'monitor.stateNone') };
+        return {
+          title: t(locale, 'monitor.stateChanged', params),
+          body: (info.reason === 'agree' || info.reason === 'settling' ? t(locale, 'monitor.stateAgree', params) : info.message).slice(0, 800),
+        };
+      },
+      link: `/monitors/${m.id}`,
+      recipients: to,
+      about: { kind: 'monitor', id: m.id },
+      urgent: false,
+      itemKey: `monitor-state:${m.id}`,
+      inAppKey: `monitor-state:${m.id}:${info.id ?? ''}:${info.since ?? now}`,
+      externalKey: `monitor-state:${m.id}:${info.id ?? ''}:${info.since ?? now}`,
+      data: { monitor: { id: m.id, key: m.key, name: m.name }, previous, state: { id: info.id, name: info.name, since: info.since }, reason: info.reason },
+    });
+  }
 }

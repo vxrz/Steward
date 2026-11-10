@@ -132,7 +132,10 @@ for (const tag of ['', ' @mobile'])
         await plantOn(admin);
         const f = await profiles(dana, `${info.project.name}-${Date.now()}g`);
         const asset = `e2e-passet-${f.child}`.slice(0, 80);
-        await ok(dana.post('/api/plant/assets', { data: { id: asset, siteId: 'riverside', name: `E2E press ${f.child}` } }));
+        // a site of its own: the demo sites' figures stay as other specs expect them
+        const site = `e2e-psite-${f.child}`.slice(0, 80);
+        await ok(dana.post('/api/plant/sites', { data: { id: site, name: `E2E press works ${f.child}` } }));
+        await ok(dana.post('/api/plant/assets', { data: { id: asset, siteId: site, name: `E2E press ${f.child}` } }));
         await ok(dana.put(`/api/plant/assets/${asset}/assignment`, { data: { profileId: f.child, interfaces: [{ interface: 'opc', active: true }] } }));
         const token = (await json<{ token: string }>(await dana.post('/api/me/tokens', { data: { name: `e2e plant g ${f.child}`, scope: 'mcp' } }))).token;
         const { requestId } = await mcpCall(token, 'propose_plant_changes', {
@@ -183,6 +186,7 @@ for (const tag of ['', ' @mobile'])
         expect(c.items.map((i) => i.dataPoint)).toEqual(['running', null]);
         expect(c.sinks.map((x) => x.id)).toEqual(['broker']);
         await dana.delete(`/api/plant/assets/${asset}?cascade=true`);
+        await dana.delete(`/api/plant/sites/${site}`);
       });
 
       test('a preview that changed since the proposal is confirmed before it is applied', async ({ page, apiAs }, info) => {

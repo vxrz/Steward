@@ -214,6 +214,8 @@ export function decide<P extends string>(
   all: readonly P[],
   defaults: Record<Role, readonly P[]>,
   auditorView?: P,
+  /** instanceDefaults false (identities, ADR 0009): instance roles alone give nothing – only owning teams and the access list */
+  opts: { instanceDefaults?: boolean } = {},
 ): Decision<P> {
   if (!u) return { permissions: [], reasons: [] };
   if (isAdmin(u)) return { permissions: [...all], reasons: [{ source: 'admin', role: 'admin', permissions: [...all] }] };
@@ -224,7 +226,8 @@ export function decide<P extends string>(
   const teams = owningTeams(r.kind, r.id);
   if (!teams.length) {
     // the whole instance's resource: as before team scopes
-    if (!r.acl.length) for (const role of u.roles) add({ source: 'instanceRole', role, permissions: [...(defaults[role] ?? [])] });
+    if (!r.acl.length && opts.instanceDefaults !== false)
+      for (const role of u.roles) add({ source: 'instanceRole', role, permissions: [...(defaults[role] ?? [])] });
   } else {
     // members of an owning team: their instance roles and their roles in that team
     const mine = memberships(u);
@@ -252,6 +255,42 @@ export function platformAccess(u: AuthUser | null, p: { id: string; acl: AclEntr
   // manage includes use
   if (d.permissions.includes('manage') && !d.permissions.includes('use')) d.permissions = [...PLATFORM_PERMISSIONS];
   return d;
+}
+
+/** Who may use a platform identity that is not the default (ADR 0009): owning-team members with these roles, besides the access list. */
+const DEFAULT_IDENTITY_USE: Record<Role, readonly 'use'[]> = {
+  admin: ['use'],
+  designer: ['use'],
+  operator: ['use'],
+  approver: [],
+  auditor: [],
+  viewer: [],
+  status: [],
+  plant: [],
+};
+
+/** What identityAccess needs to know of an identity. */
+export interface IdentityForAccess {
+  id: string;
+  default: boolean;
+  acl: AclEntry<'use'>[];
+}
+
+/**
+ * Whether `u` may use a platform identity (ADR 0009, 0.13.0), and why: `use` on the platform and – for an identity that
+ * is not the default – `use` on the identity. The default identity is open to everyone with `use` on the platform. Any
+ * other identity is closed by default: only administrators, members of its owning teams whose role gives `use`
+ * (designer, operator) and its access list. Managing the platform does not make someone a user of its identities.
+ */
+export function identityAccess(u: AuthUser | null, p: { id: string; acl: AclEntry<PlatformPermission>[] }, identity: IdentityForAccess): Decision<'use'> {
+  const platform = platformAccess(u, p);
+  const viaPlatform = platform.reasons.filter((r) => r.permissions.includes('use')).map((r) => ({ ...r, permissions: ['use'] }));
+  if (!platform.permissions.includes('use')) return { permissions: [], reasons: [] };
+  if (identity.default) return { permissions: ['use'], reasons: viaPlatform };
+  const d = decide(u, { kind: 'platform_identity', id: identity.id, acl: identity.acl }, ['use'] as const, DEFAULT_IDENTITY_USE, undefined, {
+    instanceDefaults: false,
+  });
+  return d.permissions.includes('use') ? { permissions: ['use'], reasons: [...viaPlatform, ...d.reasons] } : { permissions: [], reasons: [] };
 }
 
 /**

@@ -451,9 +451,18 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
     // a body above the route's limit (bodyLimits.ts): with the limit, so the web UI can say how much fits
     if ((err as { code?: unknown }).code === 'FST_ERR_CTP_BODY_TOO_LARGE') err = bodyTooLarge(req.routeOptions.bodyLimit);
     if (err instanceof HttpError) {
-      return reply
-        .code(err.statusCode)
-        .send({ error: err.message, code: err.code, params: err.params, issues: (err as HttpError & { issues?: unknown }).issues });
+      return (
+        reply
+          .code(err.statusCode)
+          // 0.13.0: a plant entry changed since the form loaded it – what the form needs for its choice per field
+          .send({
+            error: err.message,
+            code: err.code,
+            params: err.params,
+            issues: (err as HttpError & { issues?: unknown }).issues,
+            entryChanged: (err as HttpError & { entryChanged?: unknown }).entryChanged,
+          })
+      );
     }
     if (err instanceof ZodError) {
       // the schema messages stay English (docs/I18N.md); the UI puts them into a translated sentence

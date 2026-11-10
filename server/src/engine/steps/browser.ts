@@ -47,9 +47,20 @@ async function assertBrowserDestination(url: string): Promise<void> {
   );
 }
 
+/** Actions that change the page rather than just read it (the set dryRunReadOnly skips; a read-only identity refuses them). */
+const BROWSER_INTERACTIONS: ReadonlySet<string> = new Set(['click', 'fill', 'press', 'select', 'check', 'evaluate']);
+
 async function execBrowser(step: NodeOf<'browser'>, ctx: StepContext, key: string): Promise<LeafResult> {
   const b = step.connection ? ctx.bindings[step.connection] : undefined;
   if (step.connection && !b) throw new Error(`Connection "${step.connection}" is not bound`);
+  if (b) {
+    // the identity (0.13.0, ADR 0009): an operation filter allows API operations only – no browser; a read-only identity
+    // allows no page interactions (click, fill …) and no step that changes data – in every mode
+    const { assertIdentityWrites, assertNoFilter } = await import('../../platforms/identityGuard.js');
+    assertNoFilter(b.platform, 'a browser step');
+    if (step.mutating || step.actions.some((a) => BROWSER_INTERACTIONS.has(a.action)))
+      assertIdentityWrites(b.platform, 'a browser step with page interactions');
+  }
   if (ctx.recorded) {
     ctx.log('info', 'TEST RUN – browser steps do not run in test runs (they would open the real site)', key);
     return { status: 'dryrun', output: { dryRun: true, recorded: true }, summary: 'TEST RUN – skipped' };
@@ -118,7 +129,7 @@ async function execBrowser(step: NodeOf<'browser'>, ctx: StepContext, key: strin
   // Actions that change the page rather than just read it. In a dry run these still
   // run (so a non-"mutating" browser step can change data in the target portal);
   // dryRunReadOnly skips them, and we warn once when they run in a dry run otherwise.
-  const INTERACTION = new Set(['click', 'fill', 'press', 'select', 'check', 'evaluate']);
+  const INTERACTION = BROWSER_INTERACTIONS;
   let warnedDryInteraction = false;
   for (const [i, a] of step.actions.entries()) {
     if (ctx.signal.aborted) throw new Cancelled();

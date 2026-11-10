@@ -1,5 +1,8 @@
 import {
+  kpiInputPoint,
+  kpiInputProfiles,
   unitRelation,
+  type KpiInput,
   type KpiParamValue,
   type PlantAssignmentValues,
   type PlantCheck,
@@ -59,6 +62,57 @@ export function deliveries(a: PlantAssignmentValues, profile: Pick<PlantResolved
   return out;
 }
 
+/**
+ * 0.13: which of an input's profiles an asset's (resolved) profile reads it through – the first it is or extends ('' for
+ * an input without a profile: whatever profile the asset has); null: none of them.
+ */
+export function matchedProfile(input: Pick<KpiInput, 'profile' | 'profiles'>, profile: Pick<PlantResolvedProfile, 'chain'> | undefined | null): string | null {
+  const names = kpiInputProfiles(input);
+  if (!names.length) return '';
+  return names.find((n) => isOrExtends(profile, n)) ?? null;
+}
+
+/**
+ * 0.13: the data points of the asset's model a KPI reads, per data point input (through the input's profile the asset's
+ * profile matches and its mapping); inputs the asset's profile does not match are left out.
+ */
+export function assetInputPoints(
+  def: Pick<PlantKpiValues, 'inputs'>,
+  profile: Pick<PlantResolvedProfile, 'chain'> | undefined | null,
+): { input: string; point: string; via: string }[] {
+  const out: { input: string; point: string; via: string }[] = [];
+  for (const i of def.inputs) {
+    if (i.kind !== 'data_point') continue;
+    const via = matchedProfile(i, profile);
+    if (via === null) continue;
+    for (const dp of i.dataPoints) out.push({ input: dp, point: kpiInputPoint(i, via, dp), via });
+  }
+  return out;
+}
+
+/**
+ * The data points of a profile that a KPI's inputs naming profiles read (through one it is or extends, with its
+ * mapping) – the profile and data point pages; an input without a profile is left out.
+ */
+export const namedInputPoints = (def: Pick<PlantKpiValues, 'inputs'>, profile: Pick<PlantResolvedProfile, 'chain'>): string[] => [
+  ...new Set(assetInputPoints({ inputs: def.inputs.filter((i) => kpiInputProfiles(i).length) }, profile).map((x) => x.point)),
+];
+
+/** Whether a KPI has inputs naming a profile this one is or extends. */
+export const readsProfile = (def: Pick<PlantKpiValues, 'inputs'>, profile: Pick<PlantResolvedProfile, 'chain'>): boolean =>
+  def.inputs.some((i) => i.kind === 'data_point' && kpiInputProfiles(i).length > 0 && matchedProfile(i, profile) !== null);
+
+/** Every profile a KPI's inputs name (0.13: an input may name several). */
+export const kpiProfiles = (def: Pick<PlantKpiValues, 'inputs'>): string[] => [
+  ...new Set(def.inputs.filter((i) => i.kind === 'data_point').flatMap((i) => kpiInputProfiles(i))),
+];
+
+/** The profiles an input names, for a message: "a" or "a", "b" (0.13). */
+const namesOf = (input: Pick<KpiInput, 'profile' | 'profiles'>) =>
+  kpiInputProfiles(input)
+    .map((n) => `"${n}"`)
+    .join(' or ');
+
 /** The data point inputs of a KPI definition an asset with this assignment does not deliver (empty: it delivers all). */
 export function inputGaps(
   def: PlantKpiValues,
@@ -75,16 +129,20 @@ export function inputGaps(
   const delivered = deliveries(a, profile);
   const ifaceOf = new Map(pointsOf(assetModel(a, profile)).map((x) => [x.point.id, x.iface]));
   for (const input of inputs) {
-    // a KPI that reads a base profile reads every profile that extends it (0.11.0)
-    if (input.profile && !isOrExtends(profile, input.profile)) {
+    // a KPI that reads a base profile reads every profile that extends it (0.11.0); 0.13: any of several profiles
+    const via = matchedProfile(input, profile);
+    if (via === null) {
+      const names = kpiInputProfiles(input);
       out.push({
         code: 'kpi_other_profile',
-        message: `KPI "${def.name}" reads data points of profile "${input.profile}", the asset has profile "${profile.name}"`,
-        params: { kpi: def.name, profile: input.profile, assigned: profile.name },
+        message: `KPI "${def.name}" reads data points of profile ${namesOf(input)}, the asset has profile "${profile.name}"`,
+        params: { kpi: def.name, profile: names.join(', '), assigned: profile.name },
       });
       continue;
     }
-    for (const dp of input.dataPoints) {
+    for (const inputPoint of input.dataPoints) {
+      // 0.13: the profile's id of the data point (its mapping)
+      const dp = kpiInputPoint(input, via, inputPoint);
       const d = delivered.get(dp);
       if (!d)
         out.push({
@@ -113,8 +171,9 @@ export function inputGaps(
 /**
  * 0.12.0: the data point inputs an asset delivers in another unit than the KPI expects. The expected unit is the
  * input's (`units`), else the data point's unit in the input's profile (resolved: a base's unit, when the input names
- * the base); the asset's unit is its override's, else its model's. Nothing is compared where either is empty, or for
- * a data point the asset's model lacks (that is a gap, inputGaps).
+ * the base; 0.13: of several profiles the first – the computation reads one unit); the asset's unit is its override's,
+ * else its model's – of the data point the input's mapping names for the asset's profile. Nothing is compared where
+ * either is empty, or for a data point the asset's model lacks (that is a gap, inputGaps).
  */
 export function unitMismatches(
   def: PlantKpiValues,
@@ -129,17 +188,21 @@ export function unitMismatches(
   const seen = new Set<string>();
   for (const input of def.inputs) {
     if (input.kind !== 'data_point') continue;
-    if (input.profile && !isOrExtends(profile, input.profile)) continue;
-    const named = input.profile ? new Map(pointsOf(profiles.get(input.profile) ?? { interfaces: [] }).map((x) => [x.point.id, x.point.unit])) : null;
-    for (const dp of input.dataPoints) {
+    const via = matchedProfile(input, profile);
+    if (via === null) continue;
+    // the expected unit: the input's, else the data point's in the input's first profile (0.13: one unit for any of them)
+    const first = kpiInputProfiles(input)[0];
+    const named = first ? new Map(pointsOf(profiles.get(first) ?? { interfaces: [] }).map((x) => [x.point.id, x.point.unit])) : null;
+    for (const inputPoint of input.dataPoints) {
+      const dp = kpiInputPoint(input, via, inputPoint);
       const point = model.get(dp);
-      const expected = input.units?.[dp] ?? named?.get(dp) ?? '';
+      const expected = input.units?.[inputPoint] ?? (first ? named?.get(kpiInputPoint(input, first, inputPoint)) : undefined) ?? '';
       const actual = overridden.get(dp) ?? point?.unit ?? '';
       if (!point || !expected || !actual || seen.has(dp)) continue;
       const relation = unitRelation(expected, actual);
       if (relation === 'same') continue;
       seen.add(dp);
-      out.push({ point: dp, expected, actual, relation });
+      out.push({ point: dp, ...(dp !== inputPoint ? { input: inputPoint } : {}), expected, actual, relation });
     }
   }
   return out;
@@ -273,20 +336,23 @@ export function kpiChecks(def: PlantKpiValues, profiles: Map<string, Pick<PlantR
           );
   }
   for (const input of def.inputs) {
-    if (input.kind !== 'data_point' || !input.profile) continue;
-    const p = profiles.get(input.profile);
-    if (!p) {
-      out.push(
-        check('input_profile_unknown', subject, `An input names the device profile "${input.profile}", which does not exist`, { profile: input.profile }),
-      );
-      continue;
+    if (input.kind !== 'data_point') continue;
+    // 0.13: each of its profiles, with the data points as its mapping names them
+    for (const name of kpiInputProfiles(input)) {
+      const p = profiles.get(name);
+      if (!p) {
+        out.push(check('input_profile_unknown', subject, `An input names the device profile "${name}", which does not exist`, { profile: name }));
+        continue;
+      }
+      const points = new Set(pointsOf(p).map((x) => x.point.id));
+      for (const inputPoint of input.dataPoints) {
+        const dp = kpiInputPoint(input, name, inputPoint);
+        if (!points.has(dp))
+          out.push(
+            check('input_point_unknown', subject, `An input names data point "${dp}", which profile "${p.name}" does not have`, { point: dp, profile: p.name }),
+          );
+      }
     }
-    const points = new Set(pointsOf(p).map((x) => x.point.id));
-    for (const dp of input.dataPoints)
-      if (!points.has(dp))
-        out.push(
-          check('input_point_unknown', subject, `An input names data point "${dp}", which profile "${p.name}" does not have`, { point: dp, profile: p.name }),
-        );
   }
   return out;
 }

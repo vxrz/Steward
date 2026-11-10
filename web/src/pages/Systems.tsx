@@ -1,18 +1,20 @@
 import { useState } from 'react';
-import { Anchor, Badge, Button, Group, Modal, Select, Stack, Table, Text, TextInput, Textarea } from '@mantine/core';
+import { Anchor, Badge, Button, Group, Modal, Paper, Select, Stack, Text, TextInput, Textarea } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
-import { IconPlus, IconSearch, IconServer2 } from '@tabler/icons-react';
+import { IconPlus, IconServer2 } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { SubjectsInput } from '../components/SubjectsInput';
 import { SYSTEM_KINDS, SYSTEM_LIMITS, type Platform, type SystemDetail, type SystemKind, type SystemSummary } from '@sm/shared';
 import { get, notifyError, post, put } from '../api';
-import { EmptyState, QueryState, useCreateParam, useFieldErrors } from '../components/common';
+import { EmptyState, QueryState, subjectLabel, useCreateParam, useFieldErrors } from '../components/common';
 import { useMe } from '../auth';
-import { fmtRelative } from '../format';
+import { fmtDate, fmtRelative } from '../format';
 import { EnvironmentBadge, useEnvironmentList } from '../components/catalogue/environments';
 import { StackFields, stackBody, stackRowsOf, type StackRow } from '../components/catalogue/ComponentsPanel';
 import { ListPage } from '../components/page/ListPage';
+import { useListParams } from '../components/page/params';
+import { DataTable, ListFooter, type DataColumn } from '../components/DataTable';
 import { platformKeys } from '../queryKeys';
 import { NetworkFields, emptyNetwork, networkErrors } from '../components/catalogue/network';
 import { RestrictedEmpty, useHiddenByPermissions } from '../components/modules/RestrictedEmpty';
@@ -23,9 +25,12 @@ export function SystemsPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [creating, setCreating] = useState(false);
-  const [q, setQ] = useState('');
-  const [kind, setKind] = useState<string | null>(null);
-  const [env, setEnv] = useState<string | null>(null);
+  // the filters live in the address (?q=, ?kind=, ?env=, ?owner=), so a filtered list can be shared
+  const { params, set } = useListParams();
+  const q = params.get('q') ?? '';
+  const kind = params.get('kind');
+  const env = params.get('env');
+  const owner = params.get('owner');
   const systems = useQuery({ queryKey: ['systems'], queryFn: () => get<SystemSummary[]>('/systems') });
   // entries the person may not see (U3): "nothing you may see" instead of "nothing yet"
   const hidden = useHiddenByPermissions('systems');
@@ -34,15 +39,96 @@ export function SystemsPage() {
   const canCreate = hasRole('admin') || hasRole('designer');
   useCreateParam(canCreate, () => setCreating(true));
   const needle = q.trim().toLowerCase();
-  const list = (systems.data ?? []).filter(
+  const all = systems.data ?? [];
+  const list = all.filter(
     (s) =>
       (!needle || [s.name, s.vendor, s.note].some((x) => x.toLowerCase().includes(needle))) &&
       (!kind || s.kind === kind) &&
-      (!env || s.environments.includes(env)),
+      (!env || s.environments.includes(env)) &&
+      (!owner || s.owners.includes(owner)),
   );
+  const kindLabel = (s: SystemSummary) => t(`systems.kinds.${s.kind}`);
+  const eolBadges = (s: SystemSummary) => (
+    <>
+      {s.eol > 0 && (
+        <Badge size="sm" color="red" variant="light">
+          {t('systems.eolCount', { count: s.eol })}
+        </Badge>
+      )}
+      {s.ending > 0 && (
+        <Badge size="sm" color="orange" variant="light">
+          {t('systems.endingCount', { count: s.ending })}
+        </Badge>
+      )}
+    </>
+  );
+  const columns: DataColumn<SystemSummary>[] = [
+    {
+      key: 'name',
+      header: t('name'),
+      sortValue: (s) => s.name,
+      cell: (s) => (
+        <>
+          <Anchor component={Link} to={`/systems/${s.id}`} fw={500} size="sm" onClick={(e) => e.stopPropagation()}>
+            {s.name}
+          </Anchor>
+          {s.vendor && (
+            <Text size="xs" c="dimmed">
+              {s.vendor}
+            </Text>
+          )}
+        </>
+      ),
+    },
+    {
+      key: 'kind',
+      header: t('systems.kind'),
+      sortValue: kindLabel,
+      cell: (s) => (
+        <Badge size="sm" variant="default">
+          {kindLabel(s)}
+        </Badge>
+      ),
+    },
+    {
+      key: 'environments',
+      header: t('environments.title'),
+      sortValue: (s) => s.environments.join(', '),
+      cell: (s) => (
+        <Group gap={4}>
+          {s.environments.map((e) => (
+            <EnvironmentBadge key={e} value={e} />
+          ))}
+        </Group>
+      ),
+    },
+    { key: 'applications', header: t('systems.applicationsColumn'), sortValue: (s) => s.applicationCount, cell: (s) => s.applicationCount },
+    {
+      key: 'eol',
+      header: t('systems.eolColumn'),
+      // past the end of life first, then ending soon
+      sortValue: (s) => s.eol * 10000 + s.ending,
+      cell: (s) => (
+        <Group gap={4}>
+          {eolBadges(s)}
+          {!s.eol && !s.ending && '–'}
+        </Group>
+      ),
+    },
+    {
+      key: 'updated',
+      header: t('updated'),
+      sortValue: (s) => s.updatedAt,
+      nowrap: true,
+      tdProps: (s) => ({ title: fmtDate(s.updatedAt) }),
+      cell: (s) => fmtRelative(s.updatedAt),
+    },
+  ];
   return (
     <ListPage
-      activeFilters={[needle, kind, env].filter(Boolean).length}
+      view="systems"
+      search={{ value: q, onChange: (v) => set('q', v), placeholder: t('systems.searchPlaceholder') }}
+      activeFilters={[kind, env, owner].filter(Boolean).length}
       title={t('systems.title')}
       description={t('systems.description')}
       primaryAction={
@@ -53,40 +139,43 @@ export function SystemsPage() {
         )
       }
       filters={
-        <Group gap="sm" mb="md" align="flex-end" wrap="wrap">
-          <TextInput
-            size="xs"
-            label={t('search')}
-            placeholder={t('systems.searchPlaceholder')}
-            leftSection={<IconSearch size={14} />}
-            value={q}
-            onChange={(e) => setQ(e.currentTarget.value)}
-            w={{ base: '100%', sm: 240 }}
-          />
+        <Group gap="sm" mb="md" align="flex-end" wrap="wrap" data-testid="system-filters">
           <Select
             size="xs"
             label={t('systems.kind')}
             data={SYSTEM_KINDS.map((k) => ({ value: k, label: t(`systems.kinds.${k}`) }))}
             value={kind}
-            onChange={setKind}
+            onChange={(v) => set('kind', v)}
             clearable
-            w={180}
+            w={{ base: '100%', xs: 180 }}
           />
           <Select
             size="xs"
             label={t('environments.label')}
-            data={[...new Set([...envList.map((e) => e.name), ...(systems.data ?? []).flatMap((s) => s.environments).filter(Boolean)])]}
+            data={[...new Set([...envList.map((e) => e.name), ...all.flatMap((s) => s.environments).filter(Boolean)])]}
             value={env}
-            onChange={setEnv}
+            onChange={(v) => set('env', v)}
             clearable
-            w={180}
+            w={{ base: '100%', xs: 180 }}
+          />
+          <Select
+            size="xs"
+            label={t('owners')}
+            data={[...new Set([...all.flatMap((s) => s.owners), ...(owner ? [owner] : [])])]
+              .sort((a, b) => subjectLabel(a).localeCompare(subjectLabel(b)))
+              .map((o) => ({ value: o, label: subjectLabel(o) }))}
+            value={owner}
+            onChange={(v) => set('owner', v)}
+            clearable
+            searchable
+            w={{ base: '100%', xs: 220 }}
           />
         </Group>
       }
     >
       <QueryState query={systems} />
-      {systems.isSuccess && systems.data.length === 0 && hidden && <RestrictedEmpty />}
-      {systems.isSuccess && systems.data.length === 0 && !hidden && (
+      {systems.isSuccess && all.length === 0 && hidden && <RestrictedEmpty />}
+      {systems.isSuccess && all.length === 0 && !hidden && (
         <EmptyState
           icon={IconServer2}
           title={t('systems.emptyTitle')}
@@ -102,71 +191,49 @@ export function SystemsPage() {
           {t('systems.emptyText')}
         </EmptyState>
       )}
-      {systems.isSuccess && systems.data.length > 0 && list.length === 0 && (
+      {systems.isSuccess && all.length > 0 && list.length === 0 && (
         <Text size="sm" c="dimmed">
           {t('systems.noMatch')}
         </Text>
       )}
       {list.length > 0 && (
-        <div className="table-scroll">
-          <Table highlightOnHover fz="sm" aria-label={t('systems.title')}>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>{t('name')}</Table.Th>
-                <Table.Th>{t('systems.kind')}</Table.Th>
-                <Table.Th>{t('environments.title')}</Table.Th>
-                <Table.Th>{t('systems.applicationsColumn')}</Table.Th>
-                <Table.Th>{t('systems.eolColumn')}</Table.Th>
-                <Table.Th>{t('updated')}</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {list.map((s) => (
-                <Table.Tr key={s.id} className="clickable" onClick={() => navigate(`/systems/${s.id}`)}>
-                  <Table.Td>
-                    <Anchor component={Link} to={`/systems/${s.id}`} fw={500} size="sm" onClick={(e) => e.stopPropagation()}>
-                      {s.name}
-                    </Anchor>
-                    {s.vendor && (
-                      <Text size="xs" c="dimmed">
-                        {s.vendor}
-                      </Text>
-                    )}
-                  </Table.Td>
-                  <Table.Td>
-                    <Badge size="sm" variant="default">
-                      {t(`systems.kinds.${s.kind}`)}
-                    </Badge>
-                  </Table.Td>
-                  <Table.Td>
-                    <Group gap={4}>
-                      {s.environments.map((e) => (
-                        <EnvironmentBadge key={e} value={e} />
-                      ))}
-                    </Group>
-                  </Table.Td>
-                  <Table.Td>{s.applicationCount}</Table.Td>
-                  <Table.Td>
-                    <Group gap={4}>
-                      {s.eol > 0 && (
-                        <Badge size="sm" color="red" variant="light">
-                          {t('systems.eolCount', { count: s.eol })}
-                        </Badge>
-                      )}
-                      {s.ending > 0 && (
-                        <Badge size="sm" color="orange" variant="light">
-                          {t('systems.endingCount', { count: s.ending })}
-                        </Badge>
-                      )}
-                      {!s.eol && !s.ending && '–'}
-                    </Group>
-                  </Table.Td>
-                  <Table.Td className="nowrap">{fmtRelative(s.updatedAt)}</Table.Td>
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-        </div>
+        <DataTable
+          rows={list}
+          columns={columns}
+          rowKey={(s) => s.id}
+          ariaLabel={t('systems.title')}
+          rowHref={(s) => `/systems/${s.id}`}
+          testId="system-list"
+          rememberSort="systems"
+          defaultSort={{ key: 'name', dir: 'asc' }}
+          footer={<ListFooter shown={list.length} total={all.length} />}
+          card={(s) => (
+            <Paper withBorder p="sm">
+              <Group justify="space-between" wrap="nowrap" align="flex-start">
+                <Anchor component={Link} to={`/systems/${s.id}`} fw={600} size="sm" style={{ minWidth: 0, overflowWrap: 'anywhere' }}>
+                  {s.name}
+                </Anchor>
+                <Badge size="sm" variant="default" style={{ flexShrink: 0 }}>
+                  {kindLabel(s)}
+                </Badge>
+              </Group>
+              {s.vendor && (
+                <Text size="xs" c="dimmed">
+                  {s.vendor}
+                </Text>
+              )}
+              <Group gap={4} mt={4}>
+                {s.environments.map((e) => (
+                  <EnvironmentBadge key={e} value={e} />
+                ))}
+                {eolBadges(s)}
+              </Group>
+              <Text size="xs" c="dimmed" mt={4}>
+                {t('systems.cardLine', { apps: s.applicationCount, when: fmtRelative(s.updatedAt) })}
+              </Text>
+            </Paper>
+          )}
+        />
       )}
       {creating && (
         <SystemFormModal

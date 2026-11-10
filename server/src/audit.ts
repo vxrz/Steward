@@ -1,9 +1,9 @@
 import crypto from 'node:crypto';
-import type { AuditCheckpoint, AuditEntry, AuditVerifyResult, ImportedHistoryRef } from '@sm/shared';
+import type { AuditCheckpoint, AuditEntry, AuditFacets, AuditSortKey, AuditVerifyResult, ImportedHistoryRef } from '@sm/shared';
 import { db } from './db.js';
 import { likeEscape } from './database/sql.js';
 import { vault, verifySignature } from './vault.js';
-import { canonicalJson, nowIso, parseJson, sha256 } from './util.js';
+import { HttpError, canonicalJson, nowIso, parseJson, sha256 } from './util.js';
 import { currentActor, currentStore, currentUser } from './auth/context.js';
 import { logger } from './log.js';
 
@@ -118,6 +118,42 @@ function withAssurance(input: AuditInput): AuditInput {
   };
 }
 
+/**
+ * Details every entry written inside fn carries (0.13.0: the plant registry's change set – `changeSetId` – on the
+ * existing actions of edits, imports, bulk changes, renames and proposals). fn is synchronous (a transaction).
+ */
+const extraDetails: Record<string, unknown>[] = [];
+export function withAuditDetails<T>(extra: Record<string, unknown>, fn: () => T): T {
+  extraDetails.push(extra);
+  try {
+    return fn();
+  } finally {
+    extraDetails.pop();
+  }
+}
+/**
+ * A dry run in a transaction that is rolled back (0.13.0: previews of plant change sets run the routes' services):
+ * nothing is audited – an entry written and rolled back would leave the chain's memory (lastWritten) ahead of the log.
+ */
+let silenced = 0;
+export function withoutAudit<T>(fn: () => T): T {
+  silenced++;
+  try {
+    return fn();
+  } finally {
+    silenced--;
+  }
+}
+function withExtra(input: AuditInput): AuditInput {
+  if (!extraDetails.length) return input;
+  const d = input.details;
+  const plain = d !== null && typeof d === 'object' && !Array.isArray(d);
+  return {
+    ...input,
+    details: { ...(plain ? (d as Record<string, unknown>) : d === undefined || d === null ? {} : { value: d }), ...Object.assign({}, ...extraDetails) },
+  };
+}
+
 /** Entries of a session opened with emergency access carry the flag in the summary and the details. */
 function flagEmergency(input: AuditInput, grantId: string): AuditInput {
   const d = input.details;
@@ -130,11 +166,13 @@ function flagEmergency(input: AuditInput, grantId: string): AuditInput {
 }
 
 export function audit(input: AuditInput): AuditEntry {
+  if (silenced > 0)
+    return { seq: 0, ts: nowIso(), actor: input.actor ?? currentActor(), action: input.action, entityType: input.entityType, summary: input.summary, hash: '' };
   // entries attributed to the person signed in with emergency access – also when a service names them as the actor
   // explicitly (a check run, a report); entries of someone else (such as "system") stay unflagged
   const user = currentUser();
   const emergency = user?.emergency && (input.actor === undefined || input.actor === user.username) ? user.emergency : undefined;
-  const c = capped(withAssurance(emergency ? flagEmergency(input, emergency.grantId) : input));
+  const c = capped(withAssurance(withExtra(emergency ? flagEmergency(input, emergency.grantId) : input)));
   if (!vault().unlocked) {
     const e = { ...c, actor: c.actor ?? capText(currentActor(), LIMITS.actor), ts: nowIso() };
     if (pending.length >= PENDING_MAX) {
@@ -253,6 +291,29 @@ export const toEntry = (r: AuditRow): AuditEntry => ({
 /** Only real entries: sequence numbers start at 1 (rows with seq < 1 can only come from outside the app and are flagged by verify). */
 export const VALID_SEQ = 'seq >= 1';
 
+export interface AuditSort {
+  key: AuditSortKey;
+  dir: 'asc' | 'desc';
+}
+export const DEFAULT_AUDIT_SORT: AuditSort = { key: 'time', dir: 'desc' };
+
+/**
+ * The columns a sort key orders by, before the sequence number that breaks ties (and is the whole order of `time`).
+ * Each has an index in the same shape: (actor, seq), (action, seq), (entity_type, COALESCE(entity_id, ''), seq).
+ */
+function auditSortColumns(key: AuditSortKey): string[] {
+  switch (key) {
+    case 'actor':
+      return ['actor'];
+    case 'action':
+      return ['action'];
+    case 'target':
+      return ['entity_type', "COALESCE(entity_id, '')"];
+    default:
+      return [];
+  }
+}
+
 export function queryAudit(f: {
   runId?: string;
   entityType?: string;
@@ -265,7 +326,12 @@ export function queryAudit(f: {
   from?: string;
   /** ts < to (ISO 8601) */
   to?: string;
+  /** Entries older than this one (the "load older" cursor of the default order, newest first) */
   beforeSeq?: number;
+  /** Sort order (0.13); default: newest first. Ties are broken by the sequence number in the same direction. */
+  sort?: AuditSort;
+  /** Continue after this entry (its seq; exclusive) in the sort order – the "load more" cursor of a sorted list */
+  afterSeq?: number;
   limit?: number;
 }): AuditEntry[] {
   const where: string[] = [VALID_SEQ];
@@ -285,11 +351,47 @@ export function queryAudit(f: {
   if (f.from) (where.push('ts >= ?'), params.push(f.from));
   if (f.to) (where.push('ts < ?'), params.push(f.to));
   if (f.beforeSeq) (where.push('seq < ?'), params.push(f.beforeSeq));
-  const sql = `SELECT * FROM audit_log WHERE ${where.join(' AND ')} ORDER BY seq DESC LIMIT ?`;
+  const sort = f.sort ?? DEFAULT_AUDIT_SORT;
+  const cols = auditSortColumns(sort.key);
+  const dir = sort.dir === 'asc' ? 'ASC' : 'DESC';
+  if (f.afterSeq) {
+    // keyset on (columns…, seq): the values of the entry the page ended with (entries never change; only the
+    // retention can delete old ones)
+    const cmp = sort.dir === 'asc' ? '>' : '<';
+    if (!cols.length) (where.push(`seq ${cmp} ?`), params.push(f.afterSeq));
+    else {
+      const at = db().get<Record<string, unknown>>(`SELECT ${cols.map((c, i) => `${c} AS v${i}`).join(', ')} FROM audit_log WHERE seq = ?`, f.afterSeq);
+      if (!at) throw new HttpError(400, 'The audit entry to continue after is no longer in the database – start the list again', 'AUDIT_CURSOR_UNKNOWN');
+      where.push(`(${[...cols, 'seq'].join(', ')}) ${cmp} (${[...cols, 'seq'].map(() => '?').join(', ')})`);
+      params.push(...cols.map((_, i) => at[`v${i}`]), f.afterSeq);
+    }
+  }
+  const order = [...cols, 'seq'].map((c) => `${c} ${dir}`).join(', ');
+  const sql = `SELECT * FROM audit_log WHERE ${where.join(' AND ')} ORDER BY ${order} LIMIT ?`;
   params.push(Math.min(Math.max(1, f.limit ?? 200), 5000));
   return db()
     .all<AuditRow>(sql, ...params)
     .map(toEntry);
+}
+
+/**
+ * The actors and target types in the audit log, for the filters of the audit page: a loose index scan over (actor, seq)
+ * and (entity_type, …) – one index lookup per distinct value, not a pass over the whole log – at most `limit` each.
+ */
+export function auditFacets(limit = 500): AuditFacets {
+  const distinct = (col: string) =>
+    db()
+      .all<{ v: string }>(
+        `WITH RECURSIVE d(v) AS (
+           SELECT MIN(${col}) FROM audit_log
+           UNION ALL
+           SELECT (SELECT MIN(${col}) FROM audit_log WHERE ${col} > d.v) FROM d WHERE d.v IS NOT NULL
+         )
+         SELECT v FROM d WHERE v IS NOT NULL LIMIT ?`,
+        limit,
+      )
+      .map((r) => r.v);
+  return { actors: distinct('actor'), entityTypes: distinct('entity_type') };
 }
 
 /** The entries after `afterSeq` in order (the chain an export holds). */

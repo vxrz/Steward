@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import { OWNED_KINDS, type AccessExplanation, type AccessReason, type OwnedKind } from '@sm/shared';
+import { OWNED_KINDS, type AccessExplanation, type AccessReason, type AclEntry, type OwnedKind, type PlatformPermission } from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { HttpError, parseJson } from '../util.js';
@@ -17,6 +17,7 @@ import {
   catalogueAccess,
   catalogueTeams,
   contractAccess,
+  identityAccess,
   owningTeams,
   plantOnly,
   platformAccess,
@@ -74,6 +75,9 @@ export function ownedResource(kind: OwnedKind, id: string): ResourceRow | undefi
   if (kind === 'site') return plantEnabled() ? db().get<ResourceRow>('SELECT id, name, acl FROM plant_sites WHERE id = ?', id) : undefined;
   // data contracts (#221)
   if (kind === 'contract') return db().get<ResourceRow>('SELECT id, name FROM data_contracts WHERE id = ?', id);
+  // platform identities (0.13.0, ADR 0009): name and access list; the platform decides who sees them
+  if (kind === 'platform_identity')
+    return db().get<ResourceRow & { platform_id?: string }>('SELECT id, name, acl, platform_id FROM platform_identities WHERE id = ?', id);
   return db().get<ResourceRow>(`SELECT id, name, owners FROM ${CATALOGUE_TABLES[kind]} WHERE id = ?`, id);
 }
 const resource = ownedResource;
@@ -93,6 +97,18 @@ function access(kind: OwnedKind, r: ResourceRow, u: AuthUser | null): { permissi
   if (kind === 'ticket') return ticketAccess(u, { id: r.id, responsible: r.responsible ?? '[]' });
   if (kind === 'site') return siteAccess(u, { id: r.id, acl: r.acl ?? '[]' });
   if (kind === 'contract') return contractAccess(u, { id: r.id });
+  if (kind === 'platform_identity') {
+    // who sees the platform sees its identities (ADR 0009); `use` as identityAccess decides it
+    const pid = (r as ResourceRow & { platform_id?: string }).platform_id ?? '';
+    const p = db().get<{ id: string; acl: string }>('SELECT id, acl FROM platforms WHERE id = ?', pid);
+    if (!p) return { permissions: [], reasons: [] };
+    const platform = { id: p.id, acl: parseJson<AclEntry<PlatformPermission>[]>(p.acl, []) };
+    const seen = platformAccess(u, platform);
+    if (!seen.permissions.length) return { permissions: [], reasons: [] };
+    const isDefault = !!db().get('SELECT 1 FROM platform_identities WHERE id = ? AND is_default = 1', r.id);
+    const d = identityAccess(u, platform, { id: r.id, default: isDefault, acl: parseJson(r.acl, []) });
+    return d.permissions.length ? d : { permissions: ['view'], reasons: seen.reasons };
+  }
   if (!isCatalogue(kind)) return { permissions: [], reasons: [] };
   const d = catalogueAccess(u, { kind, id: r.id, owners: parseJson<string[]>(r.owners, []) });
   return { permissions: [...(d.view ? ['view'] : []), ...(d.edit ? ['edit'] : [])], reasons: d.reasons };
@@ -117,6 +133,7 @@ const NOT_FOUND: Record<OwnedKind, [string, string]> = {
   ticket: ['Ticket reference not found', 'TICKET_NOT_FOUND'],
   site: ['Site not found', 'PLANT_SITE_NOT_FOUND'],
   contract: ['Data contract not found', 'DATA_CONTRACT_NOT_FOUND'],
+  platform_identity: ['Identity not found', 'IDENTITY_NOT_FOUND'],
 };
 const notFound = (kind: OwnedKind, id: string) => new HttpError(404, NOT_FOUND[kind][0], NOT_FOUND[kind][1], { id });
 

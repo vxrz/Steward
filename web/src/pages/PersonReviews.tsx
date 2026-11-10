@@ -23,6 +23,7 @@ import { IconCheck, IconPlus, IconRefresh, IconSend, IconShieldCheck, IconUserSe
 import { useTranslation } from 'react-i18next';
 import {
   PERSON_REVIEW_LIMITS,
+  PERSON_REVIEW_STATUSES,
   type AccessCheck,
   type PersonReview,
   type PersonReviewDecision,
@@ -33,6 +34,8 @@ import { get, notifyError, post, put } from '../api';
 import { useMe } from '../auth';
 import { QueryState, TONE, useCreateParam } from '../components/common';
 import { ListPage } from '../components/page/ListPage';
+import { useListParams } from '../components/page/params';
+import { DataTable, ListFooter, type DataColumn } from '../components/DataTable';
 import { DetailHeader } from '../components/page/DetailPage';
 import { fmtDate, fmtRelative, fmtDay } from '../format';
 
@@ -103,6 +106,52 @@ export function PersonReviewsPage() {
   };
 
   const list = reviews.data ?? [];
+  // the filters live in the address (?q=, ?status=), so a filtered list can be shared
+  const q = params.get('q') ?? '';
+  const statuses = params.getAll('status').filter((x): x is PersonReview['status'] => (PERSON_REVIEW_STATUSES as readonly string[]).includes(x));
+  const { set: setFilter } = useListParams();
+  const needle = q.trim().toLowerCase();
+  const shown = list.filter(
+    (r) => (!needle || [r.title, r.personName, r.createdBy].some((x) => x.toLowerCase().includes(needle))) && (!statuses.length || statuses.includes(r.status)),
+  );
+  const columns: DataColumn<PersonReviewSummary>[] = [
+    {
+      key: 'title',
+      header: t('personReviews.reviewTitle'),
+      sortValue: (r) => r.title,
+      cell: (r) => (
+        <Text size="sm" fw={500} component={Link} to={`/compliance/person-reviews/${r.id}`} onClick={(e) => e.stopPropagation()}>
+          {r.title}
+        </Text>
+      ),
+    },
+    { key: 'person', header: t('personReviews.person'), sortValue: (r) => r.personName, cell: (r) => r.personName },
+    {
+      key: 'status',
+      header: t('personReviews.statusLabel'),
+      // what needs someone first: open, then waiting for approval
+      sortValue: (r) => PERSON_REVIEW_STATUSES.indexOf(r.status),
+      nowrap: true,
+      cell: (r) => <StatusBadge status={r.status} />,
+    },
+    {
+      key: 'rights',
+      header: t('personReviews.rights'),
+      sortValue: (r) => r.counts.rights,
+      cell: (r) => t('personReviews.countsLine', { ...r.counts, platforms: r.platforms }),
+    },
+    {
+      key: 'started',
+      header: t('personReviews.started'),
+      sortValue: (r) => r.createdAt,
+      tdProps: (r) => ({ title: fmtDate(r.createdAt) }),
+      cell: (r) => (
+        <>
+          {r.createdBy} · {fmtRelative(r.createdAt)}
+        </>
+      ),
+    },
+  ];
   const newButton = canCreate && (
     <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setCreating(true)}>
       {t('personReviews.new')}
@@ -114,6 +163,23 @@ export function PersonReviewsPage() {
       title={t('personReviews.title')}
       description={t('personReviews.description')}
       primaryAction={newButton}
+      search={{ value: q, onChange: (v) => setFilter('q', v || null), placeholder: t('personReviews.searchPlaceholder') }}
+      activeFilters={statuses.length ? 1 : 0}
+      filters={
+        list.length ? (
+          <Group gap="sm" mb="md" align="flex-end" wrap="wrap" data-testid="person-review-filters">
+            <MultiSelect
+              size="xs"
+              label={t('personReviews.statusLabel')}
+              data={PERSON_REVIEW_STATUSES.map((x) => ({ value: x, label: t(`personReviews.status.${x}`) }))}
+              value={statuses}
+              onChange={(v) => setFilter('status', v)}
+              clearable
+              w={{ base: '100%', xs: 280 }}
+            />
+          </Group>
+        ) : undefined
+      }
       empty={{
         show: reviews.isSuccess && list.length === 0,
         icon: IconUserSearch,
@@ -124,39 +190,40 @@ export function PersonReviewsPage() {
       }}
     >
       <QueryState query={reviews} />
-      {list.length > 0 && (
-        <div className="table-scroll">
-          <Table fz="sm" aria-label={t('personReviews.title')}>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>{t('personReviews.reviewTitle')}</Table.Th>
-                <Table.Th>{t('personReviews.person')}</Table.Th>
-                <Table.Th>{t('personReviews.statusLabel')}</Table.Th>
-                <Table.Th>{t('personReviews.rights')}</Table.Th>
-                <Table.Th>{t('personReviews.started')}</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {list.map((r) => (
-                <Table.Tr key={r.id}>
-                  <Table.Td>
-                    <Text size="sm" fw={500} component={Link} to={`/compliance/person-reviews/${r.id}`}>
-                      {r.title}
-                    </Text>
-                  </Table.Td>
-                  <Table.Td>{r.personName}</Table.Td>
-                  <Table.Td>
-                    <StatusBadge status={r.status} />
-                  </Table.Td>
-                  <Table.Td>{t('personReviews.countsLine', { ...r.counts, platforms: r.platforms })}</Table.Td>
-                  <Table.Td>
-                    {r.createdBy} · {fmtRelative(r.createdAt)}
-                  </Table.Td>
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-        </div>
+      {list.length > 0 && shown.length === 0 && (
+        <Text size="sm" c="dimmed">
+          {t('personReviews.noMatch')}
+        </Text>
+      )}
+      {shown.length > 0 && (
+        <DataTable
+          rows={shown}
+          columns={columns}
+          rowKey={(r) => r.id}
+          ariaLabel={t('personReviews.title')}
+          rowHref={(r) => `/compliance/person-reviews/${r.id}`}
+          testId="person-review-list"
+          rememberSort="person-reviews"
+          defaultSort={{ key: 'started', dir: 'desc' }}
+          footer={<ListFooter shown={shown.length} total={list.length} />}
+          card={(r) => (
+            <Paper withBorder p="sm">
+              <Group justify="space-between" wrap="nowrap" align="flex-start">
+                <Text size="sm" fw={600} component={Link} to={`/compliance/person-reviews/${r.id}`} style={{ minWidth: 0, overflowWrap: 'anywhere' }}>
+                  {r.title}
+                </Text>
+                <StatusBadge status={r.status} />
+              </Group>
+              <Text size="xs">{r.personName}</Text>
+              <Text size="xs" c="dimmed">
+                {t('personReviews.countsLine', { ...r.counts, platforms: r.platforms })}
+              </Text>
+              <Text size="xs" c="dimmed">
+                {r.createdBy} · {fmtRelative(r.createdAt)}
+              </Text>
+            </Paper>
+          )}
+        />
       )}
       {creating && <NewReviewModal onClose={closeNew} initialUser={initialUser} />}
     </ListPage>

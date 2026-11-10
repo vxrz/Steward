@@ -20,6 +20,7 @@ import { IconPlus, IconTrash } from '@tabler/icons-react';
 import {
   DEFAULT_QUIET_HOURS,
   DEFAULT_TRIGGER_NOTIFY,
+  GATUS_WHILE_OFF,
   MONITOR_STATUSES,
   type CheckDef,
   type OutputDef,
@@ -33,6 +34,7 @@ import { useZoneList } from '../notifications/QuietHoursCard';
 import { browserZone } from '../notifications/DailySummaryCard';
 import { useTranslation } from 'react-i18next';
 import { Hint, KeyValueEditor } from '../common';
+import { IdentitySelect, platformByRef } from '../platform/IdentitySelect';
 import i18n from '../../i18n';
 import { monitorStatusLabel } from './status';
 
@@ -132,6 +134,16 @@ export function OutputsEditor({ outputs, onChange, checks, platforms, processes,
               </Group>
             </Group>
             <Hint>{typeHelp(o.type)}</Hint>
+            {/* the identity it sends with, where the platform has several – never a read-only one (0.13.0, ADR 0009) */}
+            {'platform' in o && o.platform && (
+              <IdentitySelect
+                platform={platformByRef(platforms, o.platform)}
+                value={o.identity}
+                onChange={(identity) => update(i, { identity })}
+                needsWrites
+                disabled={disabled}
+              />
+            )}
             {o.type === 'notification' && (
               <>
                 <TagsInput
@@ -156,6 +168,13 @@ export function OutputsEditor({ outputs, onChange, checks, platforms, processes,
                   disabled={disabled}
                   checked={!!o.urgent}
                   onChange={(e) => update(i, { urgent: e.currentTarget.checked || undefined })}
+                />
+                <Switch
+                  label={t('outputs.stateChanges')}
+                  description={t('outputs.stateChangesHint')}
+                  disabled={disabled}
+                  checked={!!o.stateChanges}
+                  onChange={(e) => update(i, { stateChanges: e.currentTarget.checked || undefined })}
                 />
               </>
             )}
@@ -256,6 +275,15 @@ export function OutputsEditor({ outputs, onChange, checks, platforms, processes,
                   disabled={disabled}
                   value={o.tokenSecret ?? ''}
                   onChange={(e) => update(i, { tokenSecret: e.currentTarget.value || undefined })}
+                />
+                <Select
+                  label={t('outputs.whileOff')}
+                  description={t('outputs.whileOffHint')}
+                  disabled={disabled}
+                  allowDeselect={false}
+                  data={GATUS_WHILE_OFF.map((v) => ({ value: v, label: t(`outputs.whileOffValues.${v}`) }))}
+                  value={o.whileOff ?? 'success'}
+                  onChange={(v) => update(i, { whileOff: v === 'success' || !v ? undefined : (v as (typeof GATUS_WHILE_OFF)[number]) })}
                 />
               </Group>
             )}

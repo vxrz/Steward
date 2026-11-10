@@ -84,6 +84,8 @@ export interface ObjectiveWindowState {
    * changed by it; it is shown next to it. 0 for archived objectives.
    */
   plannedMinutes?: number;
+  /** A source monitor with states (ADR 0021): minutes it was off as expected in this window – not counted in its figure */
+  offMinutes?: number;
 }
 
 export const OBJECTIVE_BREACH_END_REASONS = ['recovered', 'archived'] as const;

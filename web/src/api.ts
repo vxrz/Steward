@@ -1,5 +1,5 @@
 import { notifications } from '@mantine/notifications';
-import type { ErrorParams, StepUpAction, StepUpInfo, StepUpStatus } from '@sm/shared';
+import type { ErrorParams, PlantChangeSetSummary, PlantEntryChanged, StepUpAction, StepUpInfo, StepUpStatus } from '@sm/shared';
 import i18n from './i18n';
 import { errorText } from './i18n/errors';
 import { BASE_PATH } from './basePath';
@@ -103,11 +103,38 @@ export function confirmedDownload(action: StepUpAction) {
   };
 }
 
-export function api<T = unknown>(method: string, url: string, body?: unknown): Promise<T> {
-  return request<T>(method, url, body, false);
+/**
+ * 0.13.0, plant change sets (docs/PLANT.md "Change sets"): a save of a plant entry that someone else changed since the
+ * form loaded it answers 409 PLANT_ENTRY_CHANGED; the handler (components/plant/changes/EntryConflictDialog.tsx) asks
+ * per field – keep mine or take theirs – and resolves with the body to send again (with the revision now), or null.
+ */
+let onEntryChanged: ((changed: PlantEntryChanged, body: Record<string, unknown>) => Promise<Record<string, unknown> | null>) | undefined;
+export function setEntryChangedHandler(fn: typeof onEntryChanged): void {
+  onEntryChanged = fn;
 }
 
-async function request<T>(method: string, url: string, body: unknown, retried: boolean): Promise<T> {
+/** A save that went into the person's draft (202 with `changeSet`): the draft bar and the chips refresh. */
+export const PLANT_DRAFT_EVENT = 'sm:plant-draft';
+
+/**
+ * Saves of plant entries made inside fn go into the person's current draft (header X-SM-Draft) – for who may propose
+ * but not manage, and for "Add to draft". fn must start its requests synchronously (put(…), post(…), del(…)).
+ */
+let draftMode = false;
+export function inDraft<T>(fn: () => Promise<T>): Promise<T> {
+  draftMode = true;
+  try {
+    return fn();
+  } finally {
+    draftMode = false;
+  }
+}
+
+export function api<T = unknown>(method: string, url: string, body?: unknown): Promise<T> {
+  return request<T>(method, url, body, false, draftMode && method !== 'GET' && url.startsWith('/plant/'));
+}
+
+async function request<T>(method: string, url: string, body: unknown, retried: boolean, draft = false, merged = false): Promise<T> {
   const isForm = body instanceof FormData;
   const res = await fetch(BASE_PATH + '/api' + url, {
     method,
@@ -115,6 +142,7 @@ async function request<T>(method: string, url: string, body: unknown, retried: b
     headers: {
       ...authHeaders(),
       ...(body !== undefined && !isForm ? { 'content-type': 'application/json' } : {}),
+      ...(draft ? { 'x-sm-draft': '1' } : {}),
     },
     body: body === undefined ? undefined : isForm ? (body as FormData) : JSON.stringify(body),
   });
@@ -133,8 +161,15 @@ async function request<T>(method: string, url: string, body: unknown, retried: b
   if (!res.ok) {
     const d = data as { error?: string; code?: string; params?: ErrorParams; issues?: { path: string; message: string }[]; stepUp?: StepUpInfo } | null;
     if (res.status === 403 && d?.code === 'STEP_UP_REQUIRED' && d.stepUp && onStepUp && !retried) {
-      if (await onStepUp(d.stepUp)) return request<T>(method, url, body, true);
+      if (await onStepUp(d.stepUp)) return request<T>(method, url, body, true, draft, merged);
       throw new ApiError(403, i18n.t('errors:codes.STEP_UP_CANCELLED'), undefined, 'STEP_UP_CANCELLED');
+    }
+    // someone else changed the plant entry since the form loaded it: a choice per field, then sent again (once)
+    const changed = (d as { entryChanged?: PlantEntryChanged } | null)?.entryChanged;
+    if (res.status === 409 && d?.code === 'PLANT_ENTRY_CHANGED' && changed && onEntryChanged && !merged && body && typeof body === 'object') {
+      const next = await onEntryChanged(changed, body as Record<string, unknown>);
+      if (next) return request<T>(method, url, { ...next, revision: changed.revision }, retried, draft, true);
+      throw new ApiError(409, i18n.t('errors:codes.PLANT_ENTRY_CHANGED_CANCELLED'), undefined, 'PLANT_ENTRY_CHANGED_CANCELLED');
     }
     if (!url.startsWith('/auth/') && (res.status === 401 || res.status === 423 || d?.code === 'PASSWORD_CHANGE_REQUIRED')) onAuthChange?.();
     const requestId = res.headers.get('x-request-id') ?? undefined;
@@ -143,6 +178,10 @@ async function request<T>(method: string, url: string, body: unknown, retried: b
       throw new ApiError(res.status, d?.error ?? i18n.t('errors:http', { status: res.status }), undefined, 'INTERNAL_ERROR', { requestId }, requestId);
     }
     throw new ApiError(res.status, d?.error ?? i18n.t('errors:http', { status: res.status }), d?.issues, d?.code, d?.params, requestId);
+  }
+  if (res.status === 202 && data && typeof data === 'object' && 'changeSet' in data) {
+    const changeSet = (data as { changeSet: PlantChangeSetSummary }).changeSet;
+    window.dispatchEvent(new CustomEvent(PLANT_DRAFT_EVENT, { detail: changeSet }));
   }
   return data as T;
 }

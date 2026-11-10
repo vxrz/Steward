@@ -28,7 +28,7 @@ import { decodeCursor, encodeCursor, pageArray, pageRows } from '../api/v1/pagin
 import { RUN_STATUSES, RUN_TRIGGERS, STEP_STATUSES } from '../api/v1/schemas.js';
 import { safeBaseUrl } from '../api/v1/routes-platforms.js';
 import { MAX_RESULT_CHARS, SUPPORTED_VERSIONS } from './config.js';
-import { gatewayTools } from './gateway.js';
+import { gatewayTools, mcpIdentities } from './gateway.js';
 import { requestTools } from './requests.js';
 import { ToolError, cap, cursorArg, defineTool, idArg, isoArg, limitArg, type ToolContext, type ToolDef } from './tooling.js';
 import { zodJsonSchema } from '../jsonSchema.js';
@@ -301,7 +301,7 @@ const steward: ToolDef[] = [
       'Monitors (composed uptime checks) you may view with their current status (up, degraded, down, unknown, blocked, maintenance), uptime for 24 h / 7 d / 30 d, maintenance and acknowledgement. Filter by status, tag or text.',
     input: z
       .object({
-        status: z.array(z.enum(MONITOR_STATUSES)).max(6).optional().describe('Only monitors with one of these statuses'),
+        status: z.array(z.enum(MONITOR_STATUSES)).max(MONITOR_STATUSES.length).optional().describe('Only monitors with one of these statuses'),
         tag: z.string().max(60).optional(),
         query: z.string().max(200).optional().describe('Case-insensitive text to look for in key and name'),
         cursor: cursorArg,
@@ -479,7 +479,7 @@ const steward: ToolDef[] = [
     name: 'list_platforms',
     title: 'List platforms',
     description:
-      'Connected platforms you have rights on – metadata only (name, kind, environment, base URL, auth type, your permissions, whether the read-only MCP gateway is on). Credentials and variables are never returned.',
+      'Connected platforms you have rights on – metadata only (name, kind, environment, base URL, auth type, your permissions, whether the MCP gateway is open to you, and the identities you may use over MCP with their mode and read-only flag – pass `identity` to the platform_* tools to use one). Credentials and variables are never returned.',
     input: z.object({ kind: z.string().max(100).optional(), environment: z.string().max(100).optional() }).strict(),
     handler: (a) => {
       const items = platforms
@@ -497,7 +497,15 @@ const steward: ToolDef[] = [
           baseUrl: safeBaseUrl(p.baseUrl ?? ''),
           authType: p.config?.auth?.type ?? 'none',
           permissions: p.permissions,
-          mcpGateway: !!p.config.mcpGateway?.enabled,
+          // open to you through at least one identity (0.13.0, ADR 0009; before: the platform's gateway setting)
+          mcpGateway: mcpIdentities(p).length > 0,
+          // the identities open to you over MCP: name, mode, read only (ADR 0009) – the default first
+          mcpIdentities: mcpIdentities(p).map((i) => ({
+            name: i.name,
+            default: i.default,
+            mode: i.mcp.mode === 'writes' ? `writes (${i.mcp.writes ?? 'confirm'})` : i.mcp.mode,
+            readOnly: i.readOnly,
+          })),
         }));
       return { items };
     },

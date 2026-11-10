@@ -21,7 +21,7 @@ concurrency:
 jobs:
   lint:
     # ESLint, Prettier, the import rules, the translation checks and the generated documents (npm run lint / format:check /
-    # check:imports / i18n:check / i18n:literals / config:docs -- --check / openapi -- --check, see CONTRIBUTING.md)
+    # check:imports / i18n:check / i18n:literals / config:docs -- --check / openapi -- --check / i18n:types -- --check, see CONTRIBUTING.md)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -48,6 +48,8 @@ jobs:
         run: npm run config:docs -- --check
       - name: OpenAPI document matches the routes (npm run openapi, docs/openapi.json)
         run: npm run openapi -- --check
+      - name: Translation key types match the English texts (npm run i18n:types, web/src/i18n/keys.gen.ts)
+        run: npm run i18n:types -- --check
 
   build-node24:
     # Typecheck, example validation, the build, the smoke test of the compiled server and the desktop executable's

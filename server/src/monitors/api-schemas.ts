@@ -5,7 +5,7 @@ import { CHECK_TYPES, MONITOR_STATUSES, QUERY_LIST_MAX } from '@sm/shared';
 
 const ts = () => z.string().datetime({ offset: true }).describe('ISO 8601 timestamp (UTC)');
 const status = () => z.enum(MONITOR_STATUSES);
-const statusCode = () => z.number().int().describe('0 up, 1 degraded, 2 down, 3 unknown, 4 blocked, 5 maintenance');
+const statusCode = () => z.number().int().describe('0 up, 1 degraded, 2 down, 3 unknown, 4 blocked, 5 maintenance, 6 off');
 
 const CauseRef = z.object({
   monitorId: z.string(),
@@ -39,7 +39,53 @@ export const Monitor = z.object({
   templateId: z.string().nullable(),
   updatedAt: ts(),
   lastEvaluatedAt: ts().nullable(),
+  state: z
+    .object({
+      id: z.string().nullable().describe('The selected state; null: no state matches (evaluated as without states)'),
+      name: z.string().nullable(),
+      since: ts().nullable(),
+      settlingUntil: ts().nullable().describe('While settling, deviations from the state do not count'),
+      reason: z.enum(['agree', 'settling', 'contradiction', 'required', 'maxOff', 'flapping', 'unknown', 'otherwise']),
+      message: z.string(),
+    })
+    .nullable()
+    .optional()
+    .describe('Monitors with states (0.13, docs/MONITORS.md "States: off is not an outage"); null without states'),
 });
+
+const Figures = z.object({ median: z.number(), p95: z.number(), max: z.number() }).describe('Seconds: median, 95th percentile (nearest rank), maximum');
+const ObservedDelayVariable = z.object({
+  name: z.string().describe("The variable ('' for an API source with one timestamp)"),
+  samples: z.number().int(),
+  coverageSeconds: z.number().describe("From the first sample's start to the last sample's end"),
+  peakAge: Figures.nullable().describe('Upper bounds of how old the newest value became before a newer one was readable'),
+  delay: z
+    .object({ low: z.number(), high: z.number() })
+    .nullable()
+    .describe('Delay of new values after their timestamp: median of the lower and of the upper bounds (seconds)'),
+});
+const ObservedDelay = z
+  .object({
+    windowDays: z.number().int(),
+    since: ts().describe('Start of this series (first read, or the source changed)'),
+    intervalSeconds: z.number().describe('The check interval: the resolution of every figure'),
+    worst: ObservedDelayVariable.nullable().describe('The variable with the highest 95th percentile peak age'),
+    variables: z.array(ObservedDelayVariable),
+    excluded: z
+      .object({ failedReads: z.number().int(), wentBackwards: z.number().int(), futureTimestamps: z.number().int(), maintenance: z.number().int() })
+      .describe('Reads and samples that were not used'),
+    enough: z.boolean().describe('At least 24 hours and 20 samples (worst variable): a suggestion is made'),
+    suggestion: z
+      .object({
+        changes: z.array(
+          z.object({ field: z.enum(['allowedDelaySeconds', 'maxAgeSeconds', 'degradedAgeSeconds']), from: z.number().nullable(), to: z.number().nullable() }),
+        ),
+        basedOnSeconds: z.number().describe('95th percentile peak age (upper bounds) of the worst variable'),
+        marginSeconds: z.number().describe('One check interval'),
+      })
+      .nullable(),
+  })
+  .describe('Freshness checks (0.13): the peak age and delay observed over the last 7 days (docs/MONITORS.md, "How fresh is fresh")');
 
 export const MonitorCheckStatus = z.object({
   checkId: z.string(),
@@ -58,6 +104,7 @@ export const MonitorCheckStatus = z.object({
   causedBy: z.array(CauseRef).describe('Failing parents that likely cause this check to fail'),
   note: z.string().nullable(),
   uptime: Uptime,
+  observedDelay: ObservedDelay.nullable().optional(),
 });
 
 export const MonitorStatusReport = Monitor.extend({
@@ -77,6 +124,7 @@ export const MonitorHistoryEntry = z.object({
   previous: status().nullable(),
   message: z.string(),
   causedBy: z.array(CauseRef),
+  state: z.string().nullable().optional().describe('Monitors with states: the state at this entry'),
 });
 
 export const MonitorDiscovery = z

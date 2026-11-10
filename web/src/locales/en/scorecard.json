@@ -110,6 +110,7 @@
     "monitor": "Monitor",
     "monitorHidden": "Monitor hidden",
     "plannedMonitor": "Planned maintenance: {{list}} (time in maintenance does not count in the monitor’s figures)",
+    "offMonitor": "Off as expected: {{list}} (the monitor’s states; this time does not count in its figures)",
     "hintMonitor": "Values are the monitors’ own uptime from their recorded states. Steward keeps an hourly sample for 90 days."
   },
   "duties": {

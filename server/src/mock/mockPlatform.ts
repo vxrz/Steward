@@ -455,9 +455,10 @@ export async function mockPlatform(app: FastifyInstance): Promise<void> {
   };
   app.get(`${AM}/assets`, { preHandler: ihAuth }, async (req) => pageOf('assets', state.assets, req.query as Record<string, string>));
   app.get(`${AM}/assettypes`, { preHandler: ihAuth }, async (req) => pageOf('assetTypes', state.assetTypes, req.query as Record<string, string>));
-  app.get('/ih/api/iottimeseries/v3/timeseries/:entity/:aspect', { preHandler: ihAuth }, async (req) => {
+  app.get('/ih/api/iottimeseries/v3/timeseries/:entity/:aspect', { preHandler: ihAuth }, async (req, reply) => {
     const { entity, aspect } = req.params as { entity: string; aspect: string };
     const iot = iotTimeseries(entity, aspect, req.query as Record<string, string>);
+    if (iot && !Array.isArray(iot)) return reply.code(iot.status).send({ errors: [{ message: 'Internal error (simulated failing read)' }] });
     if (iot) return iot;
     const rec = state.ts.get(`${entity}/${aspect}`);
     return rec ? [rec] : [];

@@ -1,5 +1,5 @@
 import type { z } from 'zod';
-import type { PlantAssignmentValues, PlantAssignmentView, PlantKpiInstance, PlantResultLink } from '@sm/shared';
+import type { PlantAssignmentValues, PlantAssignmentView, PlantKpiInstance, PlantKpiValues, PlantResolvedProfile, PlantResultLink } from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { me } from '../auth/access.js';
@@ -13,7 +13,7 @@ import { HttpError, nowIso } from '../util.js';
 import { requireManage } from './access.js';
 import { changedKeys } from './model.js';
 import { visibleAsset } from './service.js';
-import { briefOf } from './catalogue.js';
+import { briefOf, visibleAssets } from './catalogue.js';
 import {
   allKpis,
   allProfiles,
@@ -29,7 +29,7 @@ import {
   upsertAssignment,
 } from './data-model.js';
 import { assignmentChecks, canHave, unitMismatches } from './checks.js';
-import { collectedPoints, isCollected } from './potential.js';
+import { collectedPoints, isCollected, partsByAsset } from './potential.js';
 import { assetModel } from './resolve.js';
 
 /**
@@ -95,24 +95,75 @@ export function getAssignment(assetId: string): PlantAssignmentView {
       return { ...k, definition: d ? { id: d.id, name: d.name, names: d.names, category: d.category } : null, results: results(k) };
     }),
     checks: a ? assignmentChecks(subject, a, profiles, kpis) : [],
-    possibleKpis: [...kpis.values()]
-      .filter((d) => canHave(d, a ?? empty, profile ?? undefined))
-      .map((d) => ({
-        id: d.id,
-        name: d.name,
-        names: d.names,
-        category: d.category,
-        instantiated: have.has(d.id),
-        // 0.12.0: inputs in another unit, and whether a data collection of the asset maps every input
-        units: unitMismatches(d, a ?? empty, profile ?? undefined, profiles),
-        collected: isCollected(d, collected),
-      })),
+    possibleKpis: [
+      ...[...kpis.values()]
+        .filter((d) => canHave(d, a ?? empty, profile ?? undefined))
+        .map((d) => ({
+          id: d.id,
+          name: d.name,
+          names: d.names,
+          category: d.category,
+          instantiated: have.has(d.id),
+          // 0.12.0: inputs in another unit, and whether a data collection of the asset maps every input
+          units: unitMismatches(d, a ?? empty, profile ?? undefined, profiles),
+          collected: isCollected(d, collected, profile),
+        })),
+      ...rollUpCandidates(assetId, a ?? empty, profile ?? undefined, kpis, profiles, have),
+    ],
     canManage: perms.includes('manage'),
     importId: r?.import_id ?? null,
     notInSource: !!r?.not_in_source,
+    ...(r ? { revision: Number(r.revision ?? 1) } : {}),
     updatedAt: r?.updated_at ?? null,
     updatedBy: r?.updated_by ?? null,
   };
+}
+
+/**
+ * 0.13: the KPIs that roll up from parts (`rollUp: parts`) the asset cannot have itself, but a part of it (that the
+ * reader may see) can – or has a job of: the asset's "KPIs it can have" lists them with the part (`via`).
+ */
+function rollUpCandidates(
+  assetId: string,
+  a: PlantAssignmentValues,
+  profile: PlantResolvedProfile | undefined,
+  kpis: Map<string, PlantKpiValues>,
+  profiles: Map<string, PlantResolvedProfile>,
+  have: Set<string>,
+): PlantAssignmentView['possibleKpis'] {
+  const defs = [...kpis.values()].filter((d) => d.rollUp === 'parts' && !canHave(d, a, profile));
+  if (!defs.length) return [];
+  const parts = partsByAsset(new Set(visibleAssets().assets.keys())).get(assetId) ?? [];
+  if (!parts.length) return [];
+  const assignments = new Map<string, PlantAssignmentValues>();
+  for (const p of parts) {
+    const r = assignmentRowOf(p.id);
+    if (r) assignments.set(p.id, assignmentValuesOf(r));
+  }
+  const collected = collectedPoints(new Set(parts.map((p) => p.id)));
+  const out: PlantAssignmentView['possibleKpis'] = [];
+  for (const d of defs) {
+    const options = parts.flatMap((part) => {
+      const pa = assignments.get(part.id);
+      const pp = pa?.profileId ? profiles.get(pa.profileId) : undefined;
+      const job = !!pa?.kpis.some((k) => k.kpi === d.id);
+      if (!pa || (!job && !canHave(d, pa, pp))) return [];
+      return [{ part, job, units: unitMismatches(d, pa, pp, profiles), collected: isCollected(d, collected.get(part.id), pp) }];
+    });
+    const best = options.find((x) => x.job) ?? options.find((x) => x.collected) ?? options[0];
+    if (!best) continue;
+    out.push({
+      id: d.id,
+      name: d.name,
+      names: d.names,
+      category: d.category,
+      instantiated: have.has(d.id) || best.job,
+      units: best.units,
+      collected: best.collected,
+      via: best.part,
+    });
+  }
+  return out;
 }
 
 const pick = <T extends object>(o: T, keys: string[]) => Object.fromEntries(keys.map((k) => [k, (o as Record<string, unknown>)[k]]));

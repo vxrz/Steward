@@ -3,7 +3,8 @@ import { Group, NumberInput, SegmentedControl, Select, Text, Textarea } from '@m
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import { get } from '../../../api';
-import { type CheckDef, type CheckOf, type CheckType, type MonitorSummary, type Platform, type SystemSummary } from '@sm/shared';
+import { type CheckDef, type CheckOf, type CheckType, type MonitorSummary, type ObservedDelay, type Platform, type SystemSummary } from '@sm/shared';
+import { ObservedDelayEditor } from '../ObservedDelay';
 
 /** Shared parts of the check forms (one component per check type, CHECK_FIELDS in index.ts). */
 
@@ -22,6 +23,8 @@ export interface CheckFieldsProps<T extends CheckType = CheckType> {
   err: FieldError;
   /** Heartbeat checks of a saved monitor: the last report received, to write the condition against (v0.3.1) */
   lastReport?: { at: string | null; report: unknown } | null;
+  /** Freshness checks of a saved monitor: the observed delay, with a suggestion to apply (0.13) */
+  observedDelay?: ObservedDelay | null;
 }
 
 export const num = (v: string | number) => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
@@ -92,12 +95,14 @@ export function FreshnessFields({
   disabled,
   what,
   err,
+  observedDelay,
 }: {
   c: CheckOf<'freshness'> | CheckOf<'heartbeat'> | CheckOf<'dynamodb'>;
   set: Patch;
   disabled?: boolean;
   what: 'data' | 'reports';
   err: FieldError;
+  observedDelay?: ObservedDelay | null;
 }) {
   const { t } = useTranslation('monitors');
   // the DynamoDB check has a mode of its own: cadence or maximum age is its freshnessMode
@@ -177,6 +182,18 @@ export function FreshnessFields({
           />
         </Group>
       )}
+      <NumberInput
+        error={err('allowedDelaySeconds')}
+        data-field="allowedDelaySeconds"
+        label={t('form.allowedDelay')}
+        description={t(mode === 'cadence' ? 'form.allowedDelayHintCadence' : 'form.allowedDelayHintMaxAge')}
+        min={0}
+        max={86400}
+        disabled={disabled}
+        value={c.allowedDelaySeconds ?? ''}
+        onChange={(v) => set({ allowedDelaySeconds: num(v) || undefined })}
+      />
+      {observedDelay && <ObservedDelayEditor observed={observedDelay} c={c} set={set} disabled={disabled} />}
     </>
   );
 }

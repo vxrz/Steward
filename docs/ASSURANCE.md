@@ -59,6 +59,7 @@ Every action that can require four-eyes and/or a step-up is a **control point** 
 | `modules.switch`         | system    | –         | on       | `changeModules`                                            | –            | PUT /api/settings/modules/:id, and PUT /api/settings/plant when it turns the plant registry on or off ([MODULES.md](MODULES.md))                                                          |
 | `plant.renameId`         | catalogue | –         | off      | `renamePlantId`                                            | –            | POST /api/plant/ids/rename, and an import that renames one entry ([PLANT.md](PLANT.md#changing-ids))                                                                                      |
 | `plant.bulkChange`       | catalogue | –         | on       | `changePlantInBulk`                                        | –            | POST /api/plant/bulk (removing more than one entry, editing more than 25), an import that renames or removes more than one ([PLANT.md](PLANT.md#changing-many-entries-at-once))           |
+| `plant.changeSet`        | catalogue | off       | –        | –                                                          | –            | applying a plant change set: optional – each site's switch _Changes need a second person_; required – every change; no author applies ([PLANT.md](PLANT.md#change-sets))                  |
 
 <!-- control-points:end -->
 
