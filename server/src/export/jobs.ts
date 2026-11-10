@@ -27,7 +27,7 @@ import { currentActor, runAs, type AuthUser } from '../auth/context.js';
 import { listUsers } from '../auth/users.js';
 import { readSetting } from '../settings.js';
 import { ALIVE_KEY, firesBetween } from '../scheduler.js';
-import { getPlatform, getSecrets } from '../platforms/service.js';
+import { getConnection, getPlatform } from '../platforms/service.js';
 import { backupKey, backupKeySet, backupSettings, s3Client, storagePlatform } from '../backup/service.js';
 import { encryptFile } from '../backup/crypto.js';
 import type { S3Client } from '../backup/s3.js';
@@ -154,7 +154,7 @@ export function targetFingerprint(platformId: string | null, prefix: string): st
   const p = storagePlatform(platformId);
   const aws = p.config.auth?.aws;
   const http = p.config.http ?? {};
-  const secrets = getSecrets(p.id);
+  const secrets = getConnection(p.id).secrets;
   return sha256(
     JSON.stringify({
       v: 1,
