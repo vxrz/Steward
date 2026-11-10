@@ -338,6 +338,8 @@ describe('the registry of reference columns', () => {
     maintenance_targets: 'MAINTENANCE_TARGET_KINDS: platforms, systems, applications, services, monitors – and plant entries (in REFERENCES)',
     maintenance_notices: 'a notice kind',
     stack_version_watch: 'applications and systems',
+    cost_plan_lines: 'what a cost plan line is for: an application, system or platform of the service (0.16)',
+    cost_entries: 'what a cost entry is for: an application or system of the service (0.16)',
     service_duties: 'an interval',
     duty_periods: 'an interval',
     duty_notifications: 'a notice kind',
