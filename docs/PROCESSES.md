@@ -91,6 +91,17 @@ steps:
         path: '/api/identitymanagement/v3/Groups/<groupId>/members/{{ vars.user.id }}'
 ```
 
+## Inputs
+
+A process declares its inputs (`inputs:`): `string`, `number`, `boolean`, `select` (`options`), `list` (one value per line), `table` (CSV), `json`, `secret` (stored encrypted only, `***` everywhere), `application` and `applications` (the service catalogue). `required: true` refuses a run without a value; `default` fills an empty one. The run dialog shows a field per input; a run started from a schedule, a webhook or a sub-process gets them from there. Undeclared inputs are left out of the run.
+
+**Table inputs (CSV).** A `table` input is CSV text – comma, semicolon or tab separated (whichever splits the first line most), quoted fields with `""` for a quote – read as rows of objects, `inputs.users[0].email`. The first line is the header row. With declared `columns` (`columns: [email, givenName, familyName, bundle]`):
+
+- a header field that names a column in another case (`Email`, `GIVENNAME`) takes the declared spelling, so expressions always read `email`;
+- a first line that names **none** of the columns is data: every line is read by position into the declared columns – `new.operator@example.com,New,Operator` is one row with an empty `bundle`; extra fields are ignored, missing ones are empty.
+
+Blank lines are left out and fields trimmed. The run dialog shows how many rows it read under the field (_1 row read – no header row, read by the column order_). A **required** table input that reads **no rows** – only a header row, or nothing but blank lines – is refused when the run starts (400, `INPUT_TABLE_EMPTY`: "Users (CSV) has no rows"), so an approval never asks "Onboard 0 user(s)?". Processes that act on every row should still check that there is one before they ask (the onboarding example: _At least one user_, `$count(vars.plan) > 0`, `failRun: true`).
+
 ## Expressions and templates
 
 - Expressions use **[JSONata](https://jsonata.org)**. Fields such as _condition_, _items_ or _rows_ take an expression. Text fields accept templates of the form `{{ expression }}`. A field that contains only `{{ … }}` keeps the value's type (list, object, number).
@@ -153,7 +164,7 @@ Tip: `npx playwright codegen https://your-portal` records clicks and gives you s
 | Insights Hub – Access review 1: flag inactive users | Lists users and finds those inactive for N days, with an exempt list. You confirm the selection, then they are added to a review group.                                                                               |
 | Insights Hub – Access review 2: decide and clean up | Lists the review group. You tick who still needs access (recently active users are preselected). Kept users are un-flagged; for the rest, after a final approval, all memberships are removed or the user is deleted. |
 | Insights Hub – Onboard users with group bundles     | Takes a CSV of users and a _bundle_ per user (e.g. Operator → StandardUser + Operators group). It checks that all groups exist, asks for approval, creates missing users and adds only the missing memberships.       |
-| Insights Hub – Asset attribute optimization check   | Counts attributes per asset type, samples the latest time-series records and reports variables that never get data, assets without data and stale aspects, with the potential attribute savings.                      |
+| Insights Hub – Asset attribute optimisation check   | Counts attributes per asset type, samples the latest time-series records and reports variables that never get data, assets without data and stale aspects, with the potential attribute savings.                      |
 | Insights Hub – Platform health check                | Calls the core services and records pass/fail checks with latency limits.                                                                                                                                             |
 | Industrial Edge – Device status check               | Flags devices that are not online and reports a device overview.                                                                                                                                                      |
 | Browser – Portal login and status screenshot        | Signs in to a portal, reads a status text, checks it and stores a screenshot as evidence.                                                                                                                             |
@@ -165,8 +176,8 @@ Templates are YAML files in [`examples/processes/`](../examples/README.md); exam
 
 - **Domain migration.** Insights Hub is moving from `gateway.{region}.mindsphere.io` (`/api/{service}/v3`) to the Xcelerator gateway `api.{region}.siemens.app` with tenant-specific paths (`/api/identitymanagement-{coreTenantId}/v3`). The templates therefore read their API paths from platform variables (`idmPath`, `assetPath`, `tsPath`) and fall back to the classic paths. Set these variables on the platform when you move.
 - **Last login.** The Identity Management user list returns `resources` (lowercase), `totalResults` and paging via `startIndex`/`count`. The last-login attribute `lastLogonTime` is used by Siemens' own `mdsp` CLI but is **not part of the official spec**. Do a dry run of _Access review 1_ first and check the _List all users_ step output.
-- **Asset attributes.** These are billed per asset: the asset type's variables plus the variables of its aspects. The optimization template estimates potential from sampled latest values. Cross-check with the Asset Manager attribute calculator before changing models.
-- **IEM device fields.** Field names for connection state differ between IEM versions, so the device template takes the field name and the "online" value as inputs. Use the platform's **API explorer** to look at a real response.
+- **Asset attributes.** These are billed per asset: the asset type's variables plus the variables of its aspects. The optimisation template estimates potential from sampled latest values. Cross-check with the Asset Manager attribute calculator before changing models.
+- **IEM device fields.** Devices are identified by `deviceId` and `deviceName`; installed app versions come from `GET /portal/api/v1/devices/installed-apps`. Field names for connection state differ between IEM versions, so the device template takes the field name and the "online" value as inputs. Use the platform's **API explorer** to look at a real response.
 - Import the official OpenAPI specs from the Siemens developer portal into each platform. The editor's _Pick from API spec_ and the explorer then list all operations.
 
 ## More ways to work with processes

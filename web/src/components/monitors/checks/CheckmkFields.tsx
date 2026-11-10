@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { checkPlatformKinds } from '@sm/shared';
 import { PlatformSelect, num, type CheckFieldsProps } from './common';
 
-/** A host or service in CheckMk. */
+/** A host or service in Checkmk. */
 export function CheckmkFields({ c, set, platforms, disabled, err }: CheckFieldsProps<'checkmk'>) {
   const { t } = useTranslation('monitors');
   return (

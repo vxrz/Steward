@@ -94,10 +94,10 @@
     "dryRunBy": "Probelauf von {{actor}} · {{when}}",
     "startRunOf": "{{name}} ausführen",
     "nothingFound": "Nichts gefunden",
-    "placeholder": "Seiten, Prozesse, Monitore, Dokumente suchen…",
+    "placeholder": "Seiten, Prozesse, Monitore, Dokumente suchen …",
     "search": "Suchen",
     "searchWithShortcut": "Suchen ({{shortcut}})",
-    "searchButton": "Suchen…",
+    "searchButton": "Suchen …",
     "keywords": {
       "page": "Seite",
       "create": "anlegen neu",

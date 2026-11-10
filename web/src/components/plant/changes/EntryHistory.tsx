@@ -52,7 +52,11 @@ export function EntryHistory({ kind, id, scope = '', children = false }: { kind:
             <Group justify="space-between" align="flex-start" gap="xs" wrap="wrap">
               <Stack gap={2} style={{ minWidth: 0, flex: 1 }}>
                 <Group gap="xs" wrap="wrap">
-                  <Badge size="sm" variant="light" color={h.op === 'add' ? 'green' : h.op === 'remove' ? 'red' : h.op === 'rename' ? 'violet' : 'blue'}>
+                  <Badge
+                    size="sm"
+                    variant="light"
+                    color={h.op === 'add' ? 'green' : h.op === 'remove' ? 'red' : h.op === 'rename' ? 'violet' : h.op === 'move' ? 'grape' : 'blue'}
+                  >
                     {t(`history.ops.${h.op}`)}
                   </Badge>
                   {(h.kind !== kind || h.entryId !== id) && (

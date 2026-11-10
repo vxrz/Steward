@@ -285,7 +285,7 @@
     "snowflakeScope": "Database, schema or table (optional)",
     "snowflakeScopeHelp": "Empty: every user with the roles granted to them. SHOP, SHOP.SALES or SHOP.SALES.ORDERS: every user who reaches objects there through their roles (and the roles granted to those), with the privilege. Technical users (type SERVICE) are marked.",
     "confluentScope": "Confluent resource (CRN)",
-    "confluentScopeHelp": "The organization, an environment or a cluster whose role bindings are read, e.g. crn://confluent.cloud/organization=…/environment=env-abc12 (Confluent Cloud: Administration → Accounts & access). With kafkaRestUrl, clusterId and the cluster API key on the platform, the cluster’s Kafka ACLs too. Users appear with their e-mail address.",
+    "confluentScopeHelp": "The organisation, an environment or a cluster whose role bindings are read, e.g. crn://confluent.cloud/organization=…/environment=env-abc12 (Confluent Cloud: Administration → Accounts & access). With kafkaRestUrl, clusterId and the cluster API key on the platform, the cluster’s Kafka ACLs too. Users appear with their e-mail address.",
     "entraScope": "What to read",
     "entraScopeHelp": "Everything: every user and guest with their groups (also nested), group ownerships, directory roles (active and, with Entra ID P2, eligible) and app roles; or one part. Users appear with their user principal name, their e-mail addresses count as other names in person reviews. Disabled accounts carry account:disabled.",
     "entraScopes": {
@@ -375,8 +375,8 @@
       "present": "Still there"
     },
     "matchedBy": "Found by {{aliases}}",
-    "lastLogin_one": "Last login {{date}} ({{count}} day ago)",
-    "lastLogin_other": "Last login {{date}} ({{count}} days ago)",
+    "lastLogin_one": "Last sign-in {{date}} ({{count}} day ago)",
+    "lastLogin_other": "Last sign-in {{date}} ({{count}} days ago)",
     "neverSignedIn": "Never signed in",
     "passwordWithoutMfa": "Password without MFA"
   },

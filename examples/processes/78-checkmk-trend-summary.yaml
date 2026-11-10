@@ -1,15 +1,15 @@
 # steward-min-version: 0.2.6
-name: "CheckMk – Trend summary"
+name: "Checkmk – Trend summary"
 description: |
-  Follows slow signals that CheckMk itself does not decide on: reads the metric
-  history of the chosen hosts and services from CheckMk (REST API 1.0,
-  CheckMk 2.2+: metric data of a time range), and computes per series the
+  Follows slow signals that Checkmk itself does not decide on: reads the metric
+  history of the chosen hosts and services from Checkmk (REST API 1.0,
+  Checkmk 2.2+: metric data of a time range), and computes per series the
   average, the peak, the latest value, the share of the time above the WARN
   and CRIT levels you give, and a simple trend: the average of the last 7 days
   against the 7 days before, and at this rate the days until the CRIT level
   (empty when it is not heading for CRIT, or not within two years).
 
-  Alerting on raw metrics (thresholds, predictive levels) stays in CheckMk;
+  Alerting on raw metrics (thresholds, predictive levels) stays in Checkmk;
   this process reports what needs a decision. Its checks fail when a level is
   crossed or a series heads for CRIT within the forecast days – with "message
   on change" in the schedule's notification policy they are sent once, with a
@@ -18,16 +18,16 @@ description: |
   Recommended schedule: daily at 07:00 (`0 7 * * *`) as the morning summary
   – route "Process failed checks" to Teams – and a report schedule for the PDF
   as evidence. Publishes `checkmk.trends` (one row per series; metrics series,
-  crossed, trending) for the "CheckMk trends" dashboard; set the dataset's
+  crossed, trending) for the "Checkmk trends" dashboard; set the dataset's
   history to 400 days. Needs a platform of kind `checkmk` (docs/CHECKMK.md).
 tags: [checkmk, trends, capacity, report]
 connections:
   - slot: cmk
     kind: checkmk
-    description: CheckMk site (base URL …/<site>/check_mk/api/1.0, automation user)
+    description: Checkmk site (base URL …/<site>/check_mk/api/1.0, automation user)
 inputs:
   - name: series
-    label: Series (host, service, metric id in CheckMk, WARN and CRIT level)
+    label: Series (host, service, metric id in Checkmk, WARN and CRIT level)
     type: json
     default:
       - { host: db01, service: "Filesystem /var", metric: fs_used_percent, unit: "%", warn: 80, crit: 90 }
@@ -117,7 +117,7 @@ steps:
     type: publish
     name: Publish for the dashboard
     dataset: checkmk.trends
-    title: CheckMk trends
+    title: Checkmk trends
     rows: vars.rows
     key: series
     status: "error != '' ? 'unknown' : (latest >= $inputs.series[host = $$.host and service = $$.service][0].crit ? 'critical' : (crossed ? 'warning' : (daysToCrit != null and daysToCrit <= $inputs.forecastDays ? 'warning' : 'good')))"
@@ -154,7 +154,7 @@ steps:
   - id: report
     type: report
     name: Morning summary
-    title: CheckMk trends
+    title: Checkmk trends
     text: "Last {{ inputs.days }} days. Above WARN: {{ $count(vars.crossed) }}. Heading for CRIT within {{ inputs.forecastDays }} days: {{ $count(vars.trending) }}."
     rows: vars.rows
     columns:

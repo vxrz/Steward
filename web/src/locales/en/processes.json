@@ -8,7 +8,7 @@
   "search": "Search by name or tag",
   "empty": {
     "title": "No processes yet",
-    "text": "Start from a template – user onboarding, access reviews, attribute optimization, health checks – or build your own.",
+    "text": "Start from a template – user onboarding, access reviews, attribute optimisation, health checks – or build your own.",
     "browse": "Browse templates",
     "askForAccess": "Ask a designer or administrator to create processes or to give you access."
   },
@@ -116,7 +116,7 @@
   },
   "bundle": {
     "exportAll": "Export all processes & dashboards (package)",
-    "importMenu": "Import package…",
+    "importMenu": "Import package",
     "importTitle": "Import package",
     "hint": "A package (JSON, created with \"Export all processes & dashboards\") contains several processes and dashboards. Credentials and platforms are never part of a package.",
     "choose": "Choose package file",
@@ -175,7 +175,7 @@
   "create": {
     "title": "New process",
     "name": "Name",
-    "id": "Id",
+    "id": "ID",
     "idHint": "Used in addresses, schedules and the API. It cannot be changed later.",
     "idInvalid": "Use lower-case letters, digits and dashes (at most 48), starting and ending with a letter or digit.",
     "descriptionLabel": "Description",

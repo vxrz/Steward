@@ -172,6 +172,12 @@
         "info": "A backup or the weekly restore test of the backups failed (administrators)"
       }
     },
+    "export": {
+      "failed": {
+        "label": "Export failed",
+        "info": "A scheduled export to S3 failed (administrators)"
+      }
+    },
     "mcp": {
       "request": {
         "label": "Request from an AI assistant",

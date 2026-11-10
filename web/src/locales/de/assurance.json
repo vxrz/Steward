@@ -85,7 +85,7 @@
     "applies": "Es gilt",
     "empty": "Kein Element verschärft die Richtlinie.",
     "kinds": {
-      "recordType": "Dokumenttyp",
+      "recordType": "Dokumentart",
       "processStep": "Prozessschritt",
       "manualStep": "Manueller Schritt",
       "platformMcp": "Plattform (MCP)",
@@ -276,6 +276,12 @@
       "settings": {
         "label": "Die Sicherungen ändern",
         "description": "Wohin verschlüsselte Sicherungen gehen und ihre Passphrase."
+      }
+    },
+    "export": {
+      "settings": {
+        "label": "Exporte ändern",
+        "description": "Einen geplanten Export lesbarer Daten nach S3 anlegen, ändern oder entfernen."
       }
     },
     "migration": {

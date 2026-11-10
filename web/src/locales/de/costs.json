@@ -47,7 +47,16 @@
     "currencyHint": "Für LLM-Gateways ohne eigene Währung",
     "noConversion": "Beträge werden nie zwischen Währungen umgerechnet: Summen gelten je Währung.",
     "saved": "Einstellungen der Kosten gespeichert",
-    "notSaved": "Einstellungen der Kosten nicht gespeichert"
+    "notSaved": "Einstellungen der Kosten nicht gespeichert",
+    "fiscalYear": "Geschäftsjahr beginnt im",
+    "fiscalYearHint": "Ein Startmonat für die ganze Instanz; die Kostenpläne der Services verwenden ihn. Eine spätere Änderung ordnet alle Pläne den neuen Geschäftsjahren zu – legen Sie ihn einmal fest.",
+    "fiscalYearChange": {
+      "title": "Beginn des Geschäftsjahres ändern?",
+      "message": "Alle Pläne werden dann in den neuen Grenzen der Geschäftsjahre gelesen: Planpositionen behalten ihr Geschäftsjahr, Kostenbuchungen zählen in dem Jahr, in das ihr Datum fällt.",
+      "otherYear_one": "{{count}} Kostenbuchung fällt dann in ein anderes Geschäftsjahr als ihre Planposition. Die Verknüpfung bleibt erhalten; die Buchung zählt in ihrem Jahr als ungeplant und kann einer Planposition dieses Jahres zugeordnet werden.",
+      "otherYear_other": "{{count}} Kostenbuchungen fallen dann in ein anderes Geschäftsjahr als ihre Planposition. Die Verknüpfungen bleiben erhalten; die Buchungen zählen in ihrem Jahr als ungeplant und können einer Planposition dieses Jahres zugeordnet werden.",
+      "button": "Ändern"
+    }
   },
   "tabsLabel": "Kosten der Plattform",
   "tabs": {
@@ -63,7 +72,8 @@
   "open": {
     "service": "Service öffnen",
     "application": "Anwendung öffnen",
-    "platform": "Plattform öffnen"
+    "platform": "Plattform öffnen",
+    "plan": "Kostenplan"
   },
   "currencyTitle": "Kosten in {{currency}}",
   "none": {
@@ -253,5 +263,182 @@
     "command": "In Ihrem CI-Job",
     "done": "Fertig"
   },
-  "lastMonthShort": "letzter Monat {{amount}}"
+  "lastMonthShort": "letzter Monat {{amount}}",
+  "plan": {
+    "title": "Kostenplan",
+    "help": "Was der Service je Geschäftsjahr für die Systeme und Lösungen, die er nutzt, und für Service und Support plant – und was angefallen ist. Nur für den Service selbst: keine Personenstunden, keine Rechnungsbearbeitung. Das Monatsbudget der Kostenseiten ist davon unabhängig.",
+    "year": "Geschäftsjahr",
+    "yearRange": "{{label}}: {{from}} bis {{to}}",
+    "actions": "Aktionen",
+    "export": "Exportieren (CSV)",
+    "exportPlan": "Planpositionen",
+    "exportEntries": "Kostenbuchungen",
+    "amountsHidden": "Beträge sehen die Verantwortlichen, die Mitglieder der zuständigen Teams, Administratoren und Prüfer.",
+    "cloudHidden": "Für diesen Service wurden Cloud- und Plattformkosten gelesen. Sie sehen aber nicht alle seine Anwendungen, daher werden sie hier nicht gezeigt – die Zahlen umfassen nur die übrigen Kosten des Service.",
+    "currencyTitle": "{{label}}, Beträge in {{currency}}",
+    "over": "Erwartet über dem Plan",
+    "under": "Erwartet unter dem Plan",
+    "onPlan": "Wie geplant",
+    "readLine": "Cloud und Plattform (gelesen, ohne Planposition): bisher {{soFar}}, erwartet im Jahr {{expected}}",
+    "unplannedLine_one": "{{count}} ungeplante Buchung: bisher {{soFar}}, im Jahr {{all}}",
+    "unplannedLine_other": "{{count}} ungeplante Buchungen: bisher {{soFar}}, im Jahr {{all}}",
+    "renewsOn": "Verlängerung {{date}}",
+    "targetGone": "nicht mehr Teil des Service",
+    "groupBy": "Planpositionen gruppieren nach",
+    "groups": {
+      "category": "Kategorie",
+      "target": "Anwendung oder System",
+      "none": "Keiner Anwendung und keinem System zugeordnet"
+    },
+    "lines": {
+      "title": "Planpositionen"
+    },
+    "columns": {
+      "line": "Planposition",
+      "for": "Für",
+      "category": "Kategorie",
+      "cadence": "Turnus",
+      "planned": "Geplant (Jahr)",
+      "plannedToDate": "Geplant bis heute",
+      "incurredToDate": "Angefallen bis heute",
+      "expected": "Erwartet (Jahr)",
+      "difference": "Abweichung"
+    },
+    "categories": {
+      "licence": "Lizenzen",
+      "cloud": "Cloud",
+      "support": "Service und Support",
+      "hardware": "Hardware",
+      "other": "Sonstiges"
+    },
+    "cadences": {
+      "yearly": "Jährlich (gleichmäßig verteilt)",
+      "monthly": "Monatlich",
+      "once": "Einmalig"
+    },
+    "cadenceOnceIn": "Einmalig, {{month}}",
+    "read": {
+      "matched": "Gelesene Kosten",
+      "matchedHint": "Diese Cloud-Position übernimmt die Kosten, die Steward für ihre Anwendung oder Plattform liest: abgeschlossene Monate zählen als angefallen, der laufende Monat mit seiner Prognose.",
+      "hidden": "Gelesene Kosten: verborgen",
+      "hiddenHint": "Sie sehen nicht alle Anwendungen des Service, daher werden die gelesenen Kosten nicht gezeigt.",
+      "taken": "Gelesene Kosten: andere Position",
+      "takenHint": "Eine ältere Cloud-Position für dieselbe Anwendung oder Plattform und Währung übernimmt die gelesenen Kosten; diese Position zählt nur ihre Buchungen."
+    },
+    "targetHidden": {
+      "application": "Eine Anwendung, die Sie nicht sehen dürfen",
+      "system": "Ein System, das Sie nicht sehen dürfen",
+      "platform": "Eine Plattform, die Sie nicht sehen dürfen"
+    },
+    "targetKinds": {
+      "application": "Anwendungen des Service",
+      "system": "Systeme des Service",
+      "platform": "Plattformen",
+      "current": "Wie bisher"
+    },
+    "renewals": {
+      "title": "Verlängerungen in den nächsten 90 Tagen",
+      "line_one": "{{title}}: {{date}} (in {{count}} Tag)",
+      "line_other": "{{title}}: {{date}} (in {{count}} Tagen)"
+    },
+    "empty": {
+      "title": "Noch kein Plan für {{label}}",
+      "who": "Wer den Service ändern darf, legt Planpositionen und Kostenbuchungen an.",
+      "body": "Planen Sie Lizenzen, Cloud, Service und Support, Hardware und sonstige Kosten des Service für das Geschäftsjahr und erfassen Sie, was angefallen ist."
+    },
+    "chart": {
+      "label": "Geplant und angefallen je Monat, {{label}}, {{currency}}",
+      "planned": "Geplant",
+      "incurred": "Angefallen",
+      "read": "Davon gelesen",
+      "plannedTip": "Geplant: {{amount}}",
+      "incurredTip": "Angefallen: {{amount}}",
+      "current": "Hinterlegt: der laufende Monat"
+    },
+    "copy": {
+      "button": "In {{to}} kopieren",
+      "title": "Plan kopieren",
+      "message": "Alle Planpositionen von {{from}} in {{to}} kopieren? Verlängerungstermine vor dem neuen Jahr rücken um ein Jahr vor. Buchungen werden nicht kopiert.",
+      "done": "Plan in {{to}} kopiert",
+      "failed": "Plan nicht kopiert"
+    },
+    "line": {
+      "add": "Planposition hinzufügen",
+      "addTitle": "Neue Planposition, {{label}}",
+      "editTitle": "Planposition bearbeiten, {{label}}",
+      "edit": "{{title}} bearbeiten",
+      "remove": "{{title}} entfernen",
+      "removeConfirm": "Die Planposition „{{title}}“ entfernen?",
+      "removeWithEntries_one": "Die Planposition „{{title}}“ entfernen? Ihre {{count}} Buchung bleibt und zählt als ungeplant.",
+      "removeWithEntries_other": "Die Planposition „{{title}}“ entfernen? Ihre {{count}} Buchungen bleiben und zählen als ungeplant.",
+      "saved": "Planposition gespeichert",
+      "notSaved": "Planposition nicht gespeichert",
+      "removed": "Planposition entfernt"
+    },
+    "form": {
+      "title": "Titel",
+      "category": "Kategorie",
+      "for": "Für",
+      "forHint": "Eine Anwendung oder ein System des Service (für Cloud-Positionen eine Plattform)",
+      "noTarget": "Keiner Anwendung und keinem System zugeordnet",
+      "cloudHint": "Eine Cloud-Position für eine Anwendung oder Plattform wird mit den Kosten verglichen, die Steward dafür liest (bei einer Plattform: der Anteil der Anwendungen des Service).",
+      "vendor": "Anbieter oder Vertrag",
+      "vendorHint": "Freitext, z. B. der Anbieter und die Vertragsnummer",
+      "cadence": "Turnus",
+      "amount": {
+        "yearly": "Betrag pro Jahr",
+        "monthly": "Betrag pro Monat",
+        "once": "Betrag"
+      },
+      "currency": "Währung",
+      "onceMonth": "Monat der Zahlung",
+      "renewal": "Vertragsende oder Verlängerung",
+      "renewalHint": "Wird 90 Tage vorher angezeigt",
+      "note": "Notiz",
+      "noEffort": "Nur Kosten: Aufwand und Personenstunden werden hier nicht geplant."
+    },
+    "entries": {
+      "title": "Kostenbuchungen",
+      "show": "Buchungen anzeigen",
+      "all": "Alle",
+      "unplannedOnly": "Ungeplant ({{count}})",
+      "none": "Keine Kostenbuchungen in diesem Geschäftsjahr."
+    },
+    "entry": {
+      "add": "Kostenbuchung hinzufügen",
+      "addTitle": "Neue Kostenbuchung",
+      "editTitle": "Kostenbuchung bearbeiten",
+      "edit": "Buchung vom {{date}} bearbeiten",
+      "remove": "Buchung vom {{date}} entfernen",
+      "removeConfirm": "Die Kostenbuchung vom {{date}} entfernen?",
+      "date": "Datum",
+      "amount": "Betrag",
+      "amountHint": "Negativ für eine Gutschrift",
+      "line": "Planposition",
+      "lineHint": "Eine Planposition von {{label}} in derselben Währung; keine: ungeplant",
+      "unplanned": "Ungeplant",
+      "unplannedOption": "Keine (ungeplant)",
+      "reference": "Referenz",
+      "referenceHint": "Rechnungs- oder Bestellnummer",
+      "note": "Notiz",
+      "saved": "Kostenbuchung gespeichert",
+      "notSaved": "Kostenbuchung nicht gespeichert",
+      "otherYear": "Planposition von {{label}}: {{title}}",
+      "otherYearOption": "{{title}} ({{label}}, beibehalten)",
+      "removed": "Kostenbuchung entfernt",
+      "currencyFromLine": "Aus der Planposition"
+    },
+    "team": {
+      "title": "Pläne der Services des Teams",
+      "hint": "Die Kostenpläne der Services, die dem Team gehören, je Währung. Ein Service mehrerer Teams zählt bei jedem von ihnen.",
+      "service": "Service",
+      "shared": "Auch bei einem anderen Team",
+      "cloudHidden": "Cloud-Zahlen verborgen",
+      "totals": "Alle Services ({{currency}})",
+      "none": "Keiner der Services des Teams hat einen Plan für {{label}}.",
+      "totalsLine": "{{planned}} geplant · {{expected}} erwartet"
+    },
+    "costsRead": "Gelesene Kosten",
+    "costsReadHint": "Die Kosten, die Steward für diesen Service Monat für Monat von den Plattformen liest"
+  }
 }

@@ -85,7 +85,19 @@ test('the editor\'s decision table: rows, cells, and "Try it"', async ({ page, a
   await expect(table.getByTestId('state-row-off')).toBeVisible();
   // the cells: a labelled select per state and check
   await expect(page.getByRole('combobox', { name: 'Off – PowerMeter reachable', exact: true })).toHaveValue('Down · selects');
-  await expect(page.getByRole('combobox', { name: 'Off – PowerMeter data', exact: true })).toHaveValue('Down');
+  await expect(page.getByRole('combobox', { name: 'Off – PowerMeter data', exact: true })).toHaveValue('Down · expected');
+  // the choices of a cell are grouped by what they do; the legend under the table explains them and where Off comes from
+  await page.getByRole('combobox', { name: 'Running – PowerMeter data', exact: true }).click();
+  const listbox = page.getByRole('listbox');
+  for (const group of ['Selects this state', 'Expected in this state', 'Precondition']) await expect(listbox.getByText(group, { exact: true })).toBeVisible();
+  for (const option of ['Any', 'Up · selects', 'Down · selects', 'Up · expected', 'Down · expected', 'Required'])
+    await expect(listbox.getByRole('option', { name: option, exact: true })).toBeVisible();
+  // Off only for sub-monitor columns
+  await expect(listbox.getByRole('option', { name: 'Off · expected', exact: true })).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  const legend = page.getByTestId('states-legend');
+  await expect(legend).toContainText('Off is offered only in sub-monitor columns');
+  await expect(legend).toContainText('The Shows column decides whether a state shows as grey Off.');
   // the derived settle time of Off: 600 s + 2 × 60 s
   await expect(table.getByTestId('state-row-off')).toContainText('12 min (derived)');
 
@@ -110,11 +122,81 @@ test('the editor\'s decision table: rows, cells, and "Try it"', async ({ page, a
   // change a cell: the data path is not expected any more in Off; saved with the definition
   await page.getByRole('combobox', { name: 'Off – PowerMeter data', exact: true }).click();
   await page.getByRole('option', { name: 'Any', exact: true }).click();
+  // On contradiction: Running only degrades the monitor
+  const onContradiction = page.getByRole('combobox', { name: 'Running on contradiction', exact: true });
+  await expect(onContradiction).toHaveValue('Down (default)');
+  await onContradiction.click();
+  await page.getByRole('option', { name: 'Degraded', exact: true }).click();
+  await expect(page.getByTestId('states-legend')).toContainText('a check without “Critical”');
   await page.getByRole('button', { name: 'Save' }).click();
   await expect(page).toHaveURL((url) => url.pathname.endsWith(`/monitors/${id}`));
   const saved = await json(await api.get(`/api/monitors/${id}`));
   expect(saved.definition.states.cases[1]).toMatchObject({ id: 'off', status: 'off', when: { pm: 'down' } });
   expect(saved.definition.states.cases[1].expect).toBeUndefined();
+  expect(saved.definition.states.cases[0]).toMatchObject({ id: 'running', contradiction: 'degraded' });
+  expect(saved.definition.states.cases[1].contradiction).toBeUndefined();
+  await api.delete(`/api/monitors/${id}`);
+});
+
+test('settling: the header says until when and how many checks are not as expected yet; their cards are amber, not red', async ({ page, apiAs }) => {
+  const api = await apiAs('dana');
+  const created = await json(
+    await api.post('/api/monitors', {
+      data: {
+        definition: {
+          name: uniq('E2E settling'),
+          failuresBeforeDown: 1,
+          successesBeforeUp: 1,
+          checks: [
+            { id: 'pm', name: 'PowerMeter reachable', type: 'heartbeat', mode: 'maxAge', maxAgeSeconds: 3600, x: 0, y: 0 },
+            { id: 'data', name: 'PowerMeter data', type: 'heartbeat', mode: 'maxAge', maxAgeSeconds: 3600, x: 0, y: 160 },
+          ],
+          states: {
+            cases: [
+              { id: 'running', name: 'Running', when: { pm: 'up' }, expect: { data: 'up' }, settleSeconds: 3600 },
+              { id: 'off', name: 'Off', status: 'off', when: { pm: 'down' }, expect: { data: 'down' } },
+            ],
+          },
+        },
+      },
+    }),
+  );
+  const id = created.monitor.id as string;
+  const secrets = new Map((created.secrets as { checkId: string; secret: string }[]).map((x) => [x.checkId, x.secret]));
+  const detail = await json(await api.get(`/api/monitors/${id}`));
+  const pathOf = (checkId: string) => detail.checks.find((c: { checkId: string }) => c.checkId === checkId).heartbeat.path as string;
+  const report = async (checkId: string, status: string) =>
+    expect((await api.post(pathOf(checkId), { data: { status }, headers: { authorization: `Bearer ${secrets.get(checkId)}` } })).ok()).toBe(true);
+  const evaluate = async (state: string) => {
+    await expect
+      .poll(async () => {
+        await api.post(`/api/monitors/${id}/run`);
+        return (await json(await api.get(`/api/monitors/${id}`))).state?.id;
+      })
+      .toBe(state);
+  };
+  // the machine is off (the first state is taken as it is), then switched on: its data has not arrived yet
+  await report('pm', 'down');
+  await report('data', 'down');
+  await evaluate('off');
+  await report('pm', 'up');
+  await evaluate('running');
+  await page.goto(`/monitors/${id}`);
+  const note = page.getByTestId('monitor-settling');
+  await expect(note).toBeVisible();
+  await expect(note).toContainText('settling until');
+  await expect(note).toContainText('1 check not as expected yet');
+  // the status stays as computed: up
+  await expect(page.getByRole('heading', { level: 1 }).locator('[data-status="up"]')).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1 }).getByTestId('monitor-settling')).toBeVisible();
+  // the deviating card is marked settling (amber), the other one is not
+  await expect(page.getByTestId('monitor-node-data')).toHaveAttribute('data-settling', 'true');
+  await expect(page.getByTestId('monitor-node-data')).toContainText('Settling – not counted yet');
+  await expect(page.getByTestId('monitor-node-pm')).not.toHaveAttribute('data-settling', 'true');
+  await expect(page.getByTestId('why-this-state').getByTestId('state-cell-data')).toHaveAttribute('data-verdict', 'settling');
+  await expect(page.getByRole('table', { name: 'Checks' }).getByTestId('check-settling')).toHaveCount(1);
+  await settle(page);
+  await expectAccessible(page, 'a monitor that settles');
   await api.delete(`/api/monitors/${id}`);
 });
 
@@ -192,9 +274,9 @@ test('keyboard only: add, move and remove states, Try it, and the checks of "Why
   const cell = page.getByRole('combobox', { name: 'Off – PowerMeter data', exact: true });
   await cell.focus();
   await page.keyboard.press('ArrowDown');
-  await expect(page.getByRole('option', { name: 'Up', exact: true })).toBeVisible();
+  await expect(page.getByRole('option', { name: 'Up · expected', exact: true })).toBeVisible();
   await page.keyboard.press('Escape');
-  await expect(cell).toHaveValue('Down');
+  await expect(cell).toHaveValue('Down · expected');
   // Try it by keyboard: the checks are unknown (nothing reports), PowerMeter set to Down
   const pm = page.getByTestId('try-pm');
   await pm.focus();

@@ -2,18 +2,37 @@ import { BRAND, type AuditCheckpoint, type AuditEntry } from '@sm/shared';
 import { config } from './config.js';
 import { publicKeyFingerprint, publicKeyPem, vault } from './vault.js';
 import { nowIso } from './util.js';
-import { csvTable } from './csv.js';
+import { csvCell, csvTable } from './csv.js';
 
 export { csvCell } from './csv.js';
 
+const AUDIT_CSV_HEAD = ['seq', 'ts', 'actor', 'action', 'entityType', 'entityId', 'runId', 'summary', 'details', 'prevHash', 'hash'] as const;
+const auditCells = (a: AuditEntry): unknown[] => [
+  a.seq,
+  a.ts,
+  a.actor,
+  a.action,
+  a.entityType,
+  a.entityId,
+  a.runId,
+  a.summary,
+  a.details ?? null,
+  a.prevHash,
+  a.hash,
+];
+
 /** The audit log as CSV (every cell quoted; see csv.ts). */
 export function auditCsv(entries: AuditEntry[]): string {
-  const head = ['seq', 'ts', 'actor', 'action', 'entityType', 'entityId', 'runId', 'summary', 'details', 'prevHash', 'hash'];
-  return csvTable(
-    head,
-    entries.map((a) => [a.seq, a.ts, a.actor, a.action, a.entityType, a.entityId, a.runId, a.summary, a.details ?? null, a.prevHash, a.hash]),
-  );
+  return csvTable(AUDIT_CSV_HEAD, entries.map(auditCells));
 }
+
+/** The header line of auditCsv – for a file written in pages (scheduled exports). */
+export const auditCsvHead = (): string => AUDIT_CSV_HEAD.join(',') + '\r\n';
+/** One line of auditCsv. */
+export const auditCsvLine = (a: AuditEntry): string =>
+  auditCells(a)
+    .map((v) => csvCell(v))
+    .join(',') + '\r\n';
 
 export const EXPORT_FORMAT = 'steward-audit-export';
 

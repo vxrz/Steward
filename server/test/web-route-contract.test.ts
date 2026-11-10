@@ -73,6 +73,7 @@ const API_ONLY: Record<string, string> = {
   'POST /api/auth/emergency/grant': 'the emergency-access command line (loopback only)',
   'GET /api/auth/me': 'scripts; the web app reads the same from /auth/status',
   'DELETE /api/auth/step-up': 'scripts and tests: ends a confirmation early',
+  'GET /api/exports/:id': 'scripts and tests: one scheduled export (the web app reads them all from /exports)',
   'GET /api/vault/status': 'scripts; the web app reads the vault state from /auth/status',
   // the plant map: the map library reads these from the style the web app points it to (mapShared.tsx)
   'GET /api/plant/map/tiles/:layer/:z/:x/:y': 'map tiles, read by the map library',

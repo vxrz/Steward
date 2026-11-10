@@ -69,6 +69,7 @@ import { GitSyncSettingsCard } from '../components/gitsync/GitSyncSettingsCard';
 import { LibrariesSettingsCard } from '../components/libraries/LibrariesSettingsCard';
 import { MigrationSettingsCard } from '../components/migration/MigrationSettingsCard';
 import { BackupSettingsCard } from '../components/backup/BackupSettingsCard';
+import { ExportSettingsCard } from '../components/export/ExportSettingsCard';
 import { confirmDanger, confirmDialog } from '../components/confirm';
 import { EnvironmentsCard } from '../components/catalogue/environments';
 import { EndOfLifeButton } from '../components/catalogue/lifecycle';
@@ -361,6 +362,7 @@ function Area({ area, d, browserAvailable }: { area: SettingsArea; d: Draft; bro
           <RetentionCard d={d} />
           <PlantHistorySettingsGate />
           <BackupSettingsCard />
+          <ExportSettingsCard />
         </>
       );
   }

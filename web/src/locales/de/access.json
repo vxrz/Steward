@@ -81,7 +81,7 @@
     },
     "save": "Zuständige Teams speichern",
     "bulk": {
-      "open": "Zuständige Teams für den ganzen Service…",
+      "open": "Zuständige Teams für den ganzen Service",
       "title": "Zuständige Teams für den Service und was dazugehört",
       "hint": "Umfasst den Service, seine Anwendungen, die damit verknüpften Einträge und Ticket-Referenzen sowie die Zugangsdaten, die dazugehören. Die Vorschau zeigt, wer Sichtbarkeit gewinnt oder verliert; geändert wird erst, wenn Sie es anwenden.",
       "mode": {

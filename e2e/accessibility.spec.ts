@@ -2,7 +2,7 @@ import AxeBuilder from '@axe-core/playwright';
 import type { Page } from '@playwright/test';
 import { test, expect } from './support/fixtures';
 import { PROCESS, authFile } from './support/env';
-import { startRunApi, waitForRun } from './support/helpers';
+import { json, startRunApi, waitForRun } from './support/helpers';
 import { animationsDone } from './support/axe';
 
 /**
@@ -68,6 +68,7 @@ test.describe('accessibility (axe, WCAG 2.1 AA)', () => {
     ['ticket references', '/tickets'],
     ['reports', '/reports'],
     ['settings', '/settings'],
+    ['exports', '/settings/exports'],
     ['users & teams', '/users'],
     ['audit log', '/audit'],
     ['profile', '/profile'],
@@ -82,6 +83,15 @@ test.describe('accessibility (axe, WCAG 2.1 AA)', () => {
       await expectStructure(page, name);
     });
   }
+
+  test('a service cost plan', async ({ page, apiAs }) => {
+    const service = (await json<{ id: string }[]>(await (await apiAs('admin')).get('/api/services')))[0]!;
+    await page.goto(`/services/${service.id}/costs`);
+    await settle(page);
+    await expect(page.getByTestId('service-cost-plan')).toBeVisible();
+    await expectAccessible(page, 'service cost plan');
+    await expectStructure(page, 'service cost plan');
+  });
 
   test('"Skip to content" is the first focusable element and moves focus to the page', async ({ page }) => {
     await page.goto('/runs');

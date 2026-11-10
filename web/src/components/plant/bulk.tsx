@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Alert, Badge, Button, Checkbox, Group, Modal, Paper, Select, SimpleGrid, Stack, Table, TagsInput, Text, TextInput } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { IconEdit, IconGitPullRequest, IconShieldLock, IconTrash } from '@tabler/icons-react';
+import { IconArrowsMove, IconEdit, IconGitPullRequest, IconShieldLock, IconTrash } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -20,7 +20,7 @@ import {
 } from '@sm/shared';
 import { get, notifyError, notifyOk, post } from '../../api';
 import { plantKeys } from '../../queryKeys';
-import { useNameOf, usePlantConfig } from './common';
+import { useNameOf, usePlantConfig, usePlantLabel } from './common';
 import { useChangeSetConfig } from './changes/common';
 import { flatNodes, nodePath, useHierarchy } from './forms';
 import { useCountsText, useProblemText } from './ids';
@@ -120,6 +120,7 @@ export function BulkBar({
   visible,
   canEdit = true,
   selectAll = true,
+  extra,
 }: {
   kind: PlantBulkKind;
   sel: Selection;
@@ -129,9 +130,11 @@ export function BulkBar({
   canEdit?: boolean;
   /** Its own "select all shown" (card views; a table has one in its header) */
   selectAll?: boolean;
+  /** 0.16: more actions on the chosen entries (a site's devices: Move to asset…) */
+  extra?: (chosen: BulkEntry[]) => ReactNode;
 }) {
-  const { t } = useTranslation('plantIds');
-  const [open, setOpen] = useState<'edit' | 'remove' | null>(null);
+  const { t } = useTranslation(['plantIds', 'plant']);
+  const [open, setOpen] = useState<'edit' | 'remove' | 'move' | null>(null);
   const chosen = entries.filter((e) => sel.has(e.key ?? e.id));
   const editable = canEdit && PLANT_BULK_FIELDS[kind].length > 0;
   return (
@@ -150,6 +153,20 @@ export function BulkBar({
             )}
           </Group>
           <Group gap="xs">
+            {/* 0.16: assets to another place of their site at once (the single move's rules: "Move to…") */}
+            {kind === 'asset' && canEdit && (
+              <Button
+                size="xs"
+                variant="default"
+                leftSection={<IconArrowsMove size={14} />}
+                disabled={!chosen.length}
+                onClick={() => setOpen('move')}
+                data-testid="bulk-move"
+              >
+                {t('plant:move.menu')}
+              </Button>
+            )}
+            {extra?.(chosen)}
             {editable && (
               <Button
                 size="xs"
@@ -184,7 +201,7 @@ export function BulkBar({
           onClose={() => setOpen(null)}
           onDone={(r) => {
             setOpen(null);
-            if (r.action === 'remove') sel.clear();
+            if (r.action === 'remove' || open === 'move') sel.clear();
           }}
         />
       )}
@@ -202,7 +219,8 @@ function BulkModal({
   onDone,
 }: {
   kind: PlantBulkKind;
-  action: 'edit' | 'remove';
+  /** move (0.16): assets to another place of their site – an edit of their place */
+  action: 'edit' | 'remove' | 'move';
   entries: BulkEntry[];
   onClose: () => void;
   onDone: (r: PlantBulkResult) => void;
@@ -223,7 +241,13 @@ function BulkModal({
   const [cascade, setCascade] = useState(false);
   const [preview, setPreview] = useState<PlantBulkResult | null>(null);
   const [busy, setBusy] = useState(false);
-  const body = { kind, action, items: entries.map((e) => ({ id: e.id, scope: e.scope ?? '' })), set: action === 'edit' ? set : {}, cascade };
+  const body = {
+    kind,
+    action: action === 'remove' ? ('remove' as const) : ('edit' as const),
+    items: entries.map((e) => ({ id: e.id, scope: e.scope ?? '' })),
+    set: action === 'remove' ? {} : set,
+    cascade,
+  };
   const given = Object.values(set).some((v) => v !== undefined);
   const run = async (apply: boolean) => {
     setBusy(true);
@@ -272,11 +296,18 @@ function BulkModal({
     setPreview(null);
   };
   const doable = preview ? preview.counts.changed + preview.counts.removed : 0;
-  const title = action === 'edit' ? t('bulk.editTitle', { count: entries.length }) : t('bulk.removeTitle', { count: entries.length });
+  const title =
+    action === 'edit'
+      ? t('bulk.editTitle', { count: entries.length })
+      : action === 'move'
+        ? t('bulk.moveTitle', { count: entries.length })
+        : t('bulk.removeTitle', { count: entries.length });
   return (
     <Modal opened onClose={onClose} title={title} size="xl">
       <Stack gap="sm" data-testid="bulk-dialog">
-        {action === 'edit' ? (
+        {action === 'move' ? (
+          <MovePlace entries={entries} set={set} change={change} />
+        ) : action === 'edit' ? (
           <>
             <Text size="sm" c="dimmed">
               {t('bulk.editHelp')}
@@ -334,7 +365,7 @@ function BulkModal({
                         ) : null}
                         {i.with?.length ? <Text size="xs">{t('bulk.with', { list: countsText(i.with) })}</Text> : null}
                         {i.reason && (
-                          <Text size="xs" c="orange.8">
+                          <Text size="xs" c="orange">
                             {problemText(i.reason)}
                           </Text>
                         )}
@@ -350,7 +381,7 @@ function BulkModal({
           <Button variant="default" onClick={onClose}>
             {t('common:cancel')}
           </Button>
-          {action === 'edit' && (
+          {action !== 'remove' && (
             <Button variant="default" onClick={() => void run(false)} disabled={!given} loading={busy && !preview} data-testid="bulk-preview-button">
               {t('bulk.preview')}
             </Button>
@@ -375,7 +406,7 @@ function BulkModal({
               loading={busy && !!preview}
               data-testid="bulk-apply"
             >
-              {action === 'remove' ? t('bulk.applyRemove') : t('bulk.apply')}
+              {action === 'remove' ? t('bulk.applyRemove') : action === 'move' ? t('bulk.applyMove') : t('bulk.apply')}
             </Button>
           )}
         </Group>
@@ -391,6 +422,50 @@ function BulkModal({
         )}
       </Stack>
     </Modal>
+  );
+}
+
+const SITE_ONLY = '__site__';
+
+/**
+ * Move to… for many assets (0.16): one searchable choice of a place of their site – an area, work center or work unit,
+ * or the site itself –, as the single move offers it (0.12, docs/PLANT.md#move-to); assets of one site.
+ */
+function MovePlace({ entries, set, change }: { entries: BulkEntry[]; set: PlantBulkSet; change: (p: PlantBulkSet) => void }) {
+  const { t } = useTranslation(['plantIds', 'plant']);
+  const label = usePlantLabel();
+  const nameOf = useNameOf();
+  const tree = useHierarchy();
+  const sites = [...new Set(entries.map((e) => e.siteId).filter(Boolean))];
+  const site = sites.length === 1 ? tree.data?.find((s) => s.id === sites[0]) : undefined;
+  const nodes = useMemo(() => (site ? flatNodes(site.areas) : []), [site]);
+  if (sites.length > 1)
+    return (
+      <Text size="sm" c="orange" data-testid="bulk-move-sites">
+        {t('bulk.moveOneSite', { type: label('asset', true, true) })}
+      </Text>
+    );
+  return (
+    <>
+      <Text size="sm" c="dimmed">
+        {t('plant:move.assetHelp', { type: label('asset', false, true) })}
+      </Text>
+      <Select
+        label={t('plant:move.newPlace')}
+        data={[
+          { value: SITE_ONLY, label: t('plant:move.siteOnly', { site: site ? nameOf(site) : (sites[0] ?? '') }) },
+          ...nodes.map((n) => ({ value: n.id, label: nodePath(nodes, n, nameOf) })),
+        ]}
+        value={set.nodeId === undefined ? null : set.nodeId === null ? SITE_ONLY : set.nodeId}
+        onChange={(v) => change({ nodeId: v === null ? undefined : v === SITE_ONLY ? null : v })}
+        searchable
+        required
+        data-autofocus
+        nothingFoundMessage={t('plant:move.nothingFound')}
+        comboboxProps={{ withinPortal: true }}
+        data-testid="bulk-move-target"
+      />
+    </>
   );
 }
 

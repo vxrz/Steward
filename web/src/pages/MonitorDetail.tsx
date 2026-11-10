@@ -39,7 +39,7 @@ import { MonitorGraph } from '../components/monitors/MonitorGraph';
 import { TestRunButton } from '../components/monitors/TestRunButton';
 import { ObservedDelaySummary } from '../components/monitors/ObservedDelay';
 import { MONITOR_COLORS, MonitorStatusBadge, causeText, checkTypeLabel, fmtUptime, monitorStatusLabel, uptimeText } from '../components/monitors/status';
-import { OffBanner, WhyThisState, offText } from '../components/monitors/StatePanel';
+import { CheckSettlingBadge, OffBanner, SettlingNote, WhyThisState, offText, settlingCheckIds } from '../components/monitors/StatePanel';
 import { AcknowledgeModal, CopyBlock, InstantiateModal, SecretsModal, gatewayCurl, heartbeatCurl } from '../components/monitors/dialogs';
 import { MaintenanceDetailModal, MaintenanceFormModal, TargetBadges, useRepeatLabel } from '../components/catalogue/maintenance';
 import { confirmDanger, confirmDialog } from '../components/confirm';
@@ -125,6 +125,7 @@ export function MonitorDetailPage() {
           <Group gap="sm" wrap="wrap">
             <span>{m.name}</span>
             {m.isTemplate ? <Badge variant="outline">{t('detail.template')}</Badge> : <MonitorStatusBadge status={m.status} size="lg" />}
+            {!m.isTemplate && <SettlingNote state={m.state} />}
             {!m.isTemplate && !m.enabled && (
               <Badge size="lg" variant="outline" color="gray" leftSection={<IconPlayerPause size={14} aria-hidden />} data-testid="monitor-paused">
                 {t('detail.paused')}
@@ -331,6 +332,7 @@ export function MonitorDetailPage() {
                 def={m.definition}
                 states={m.isTemplate ? undefined : m.checks}
                 rootCauseIds={rootIds}
+                settlingIds={m.isTemplate ? undefined : settlingCheckIds(m.state)}
                 selected={selected}
                 onSelect={select}
                 height={isMobile ? 380 : 520}
@@ -441,6 +443,7 @@ export function MonitorDetailPage() {
 
 function ChecksTable({ monitor, onSelect }: { monitor: MonitorDetail; onSelect: (id: string) => void }) {
   const { t } = useTranslation('monitors');
+  const settling = new Set(settlingCheckIds(monitor.state));
   return (
     <div className="table-scroll" style={{ marginTop: 12 }}>
       <Table fz="sm" highlightOnHover aria-label={t('list.checks')}>
@@ -465,7 +468,10 @@ function ChecksTable({ monitor, onSelect }: { monitor: MonitorDetail; onSelect: 
                 </Text>
               </Table.Td>
               <Table.Td className="nowrap">
-                <MonitorStatusBadge status={c.status} variant="light" />
+                <Group gap={4} wrap="nowrap">
+                  <MonitorStatusBadge status={c.status} variant="light" />
+                  {settling.has(c.checkId) && <CheckSettlingBadge until={monitor.state?.settlingUntil} />}
+                </Group>
               </Table.Td>
               <Table.Td maw={360}>
                 <Text size="xs" lineClamp={2}>
@@ -522,6 +528,7 @@ function CheckPanel({
       )}
       <Group gap="xs">
         <MonitorStatusBadge status={c.status} />
+        {settlingCheckIds(monitor.state).includes(c.checkId) && <CheckSettlingBadge until={monitor.state?.settlingUntil} />}
         <Text size="xs" c="dimmed">
           {checkTypeLabel(c.type)} · {t('detail.since', { date: fmtRelative(c.since) })}
         </Text>

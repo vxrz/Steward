@@ -116,7 +116,7 @@
   },
   "bundle": {
     "exportAll": "Alle Prozesse & Dashboards exportieren (Paket)",
-    "importMenu": "Paket importieren…",
+    "importMenu": "Paket importieren",
     "importTitle": "Paket importieren",
     "hint": "Ein Paket (JSON, erstellt mit „Alle Prozesse & Dashboards exportieren“) enthält mehrere Prozesse und Dashboards. Zugangsdaten und Plattformen sind nie Teil eines Pakets.",
     "choose": "Paketdatei auswählen",

@@ -53,7 +53,7 @@
     "auditor": "Read-only access to all processes, runs, protocols and the audit log",
     "viewer": "Read-only access to processes and their runs (unless restricted)",
     "status": "Only the service status pages – none of the other pages, processes, platforms or data",
-    "plant": "Sees only the plant registry (sites and assets, unless a site is restricted) – none of the other pages, processes, services or records"
+    "plant": "Sees only the plant registry (sites and assets, unless a site is restricted) – none of the other pages, processes, services or documents"
   },
   "loading": "Loading…",
   "severity": {
@@ -266,6 +266,10 @@
       "ignoredRights_other": "{{count}} ignored rights were left out (administrators set them).",
       "hiddenSubMonitors_one": "{{count}} sub-monitor you may not see was left out.",
       "hiddenSubMonitors_other": "{{count}} sub-monitors you may not see were left out.",
+      "hiddenStateRows_one": "{{count}} state whose condition named only those sub-monitors was left out.",
+      "hiddenStateRows_other": "{{count}} states whose condition named only those sub-monitors were left out.",
+      "hiddenStatesLeader_one": "The states were left out: the monitor follows the state of a monitor you may not see.",
+      "hiddenStatesLeader_other": "The states were left out: the monitor follows the state of a monitor you may not see.",
       "services_one": "{{count}} service you may not publish was left out.",
       "services_other": "{{count}} services you may not publish were left out.",
       "team_one": "The team branding was left out (you are not a member of the team).",

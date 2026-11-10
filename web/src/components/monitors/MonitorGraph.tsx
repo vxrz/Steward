@@ -30,6 +30,8 @@ type CheckNodeData = {
   check: CheckDef;
   state?: CheckState;
   root: boolean;
+  /** The check deviates from its state's expectation while the settle time runs (it does not count yet) */
+  settling?: boolean;
   editable: boolean;
   /** The editor found a problem on this card */
   problem?: boolean;
@@ -37,16 +39,18 @@ type CheckNodeData = {
 type CheckRfNode = Node<CheckNodeData, 'check'>;
 
 const CheckNode = memo(function CheckNode({ data, selected }: NodeProps<CheckRfNode>) {
-  const { check, state, root, problem } = data;
+  const { check, state, root, problem, settling } = data;
   const { t } = useTranslation('monitors');
   const status: MonitorStatus | undefined = state?.status;
-  const color = status ? MONITOR_COLORS[status] : 'gray';
+  // settling: amber, not red – the deviation does not count until the settle time ends
+  const color = settling ? 'orange' : status ? MONITOR_COLORS[status] : 'gray';
   const Icon = CHECK_ICONS[check.type];
   const caused = !!state?.causedBy.length;
   return (
     <Box
       data-testid={`monitor-node-${check.id}`}
       data-status={status ?? 'none'}
+      data-settling={settling ? 'true' : undefined}
       data-problem={problem ? 'true' : undefined}
       style={{
         width: NODE_W,
@@ -69,7 +73,7 @@ const CheckNode = memo(function CheckNode({ data, selected }: NodeProps<CheckRfN
           </Text>
         </Group>
         {status && (
-          <Badge size="xs" color={color} variant="filled" style={{ flexShrink: 0 }}>
+          <Badge size="xs" color={color} variant={settling ? 'outline' : 'filled'} style={{ flexShrink: 0 }}>
             {monitorStatusLabel(status)}
           </Badge>
         )}
@@ -86,10 +90,15 @@ const CheckNode = memo(function CheckNode({ data, selected }: NodeProps<CheckRfN
       </Text>
       {state?.last && (
         <Tooltip label={state.last.message} multiline w={320} withArrow openDelay={300}>
-          <Text size="xs" lineClamp={1} c={status === 'down' ? 'red' : undefined}>
+          <Text size="xs" lineClamp={1} c={status === 'down' && !settling ? 'red' : undefined}>
             {state.last.message}
           </Text>
         </Tooltip>
+      )}
+      {settling && (
+        <Text size="xs" fw={700} c="orange" data-testid="check-settling">
+          {t('states.settlingCard')}
+        </Text>
       )}
       {root && (
         <Text size="xs" fw={700} c="red">
@@ -135,6 +144,8 @@ export interface MonitorGraphProps {
   def: MonitorDefinition;
   states?: CheckState[];
   rootCauseIds?: string[];
+  /** Checks that deviate while the state settles: drawn amber with "settling", not red */
+  settlingIds?: string[];
   selected?: string | null;
   onSelect?: (checkId: string | null) => void;
   /** Editing: positions, new links, link mode / removal */
@@ -171,6 +182,7 @@ function GraphInner({
   def,
   states,
   rootCauseIds = NO_ROOTS,
+  settlingIds = NO_ROOTS,
   selected,
   onSelect,
   onChange,
@@ -187,6 +199,7 @@ function GraphInner({
   const layout = useMemo(() => autoLayout(def), [def]);
   const stateOf = useMemo(() => new Map((states ?? []).map((s) => [s.checkId, s])), [states]);
   const rootKey = rootCauseIds.join('|');
+  const settlingKey = settlingIds.join('|');
   const multiKey = multiSelected.join('|');
   // node key per check: the editor's stable keys, otherwise the check ids
   const keys = useMemo(() => def.checks.map((c, i) => nodeKeys?.[i] ?? c.id), [def.checks, nodeKeys]);
@@ -211,7 +224,14 @@ function GraphInner({
           id,
           type: 'check',
           position: c.x !== undefined && c.y !== undefined ? { x: c.x, y: c.y } : (layout.get(c.id) ?? { x: 0, y: i * (NODE_H + 70) }),
-          data: { check: c, state: stateOf.get(c.id), root: rootKey.split('|').includes(c.id), editable, problem: problems?.has(id) },
+          data: {
+            check: c,
+            state: stateOf.get(c.id),
+            root: rootKey.split('|').includes(c.id),
+            settling: settlingKey.split('|').includes(c.id),
+            editable,
+            problem: problems?.has(id),
+          },
           selected: own && before.has(id) ? !!before.get(id)!.selected : id === selected || (!!multiKey && multiKey.split('|').includes(id)),
           draggable: editable,
           deletable: false,
@@ -220,7 +240,7 @@ function GraphInner({
         };
       });
     },
-    [def, keys, layout, stateOf, rootKey, selected, editable, problems, multiKey],
+    [def, keys, layout, stateOf, rootKey, settlingKey, selected, editable, problems, multiKey],
   );
   // one handler for the whole life of the graph: React Flow reports the selection again whenever its handler changes
   const multiRef = useRef(onMultiSelect);

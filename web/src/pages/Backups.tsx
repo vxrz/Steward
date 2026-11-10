@@ -29,6 +29,7 @@ import { CronPreview } from '../components/CronPreview';
 import { fmtBytes, fmtDate, fmtRelative, runDuration } from '../format';
 import { platformKeys } from '../queryKeys';
 import { DataTable, type DataColumn } from '../components/DataTable';
+import { BackupContentsCard } from '../components/backup/BackupContentsCard';
 
 const MIN_PASSPHRASE = 16;
 
@@ -406,13 +407,22 @@ export function BackupsPage() {
                 <Button
                   size="xs"
                   loading={busy === 'save'}
-                  onClick={() => void act('save', async () => setDraft((await put<BackupStatus>('/backups/settings', draft)).settings), t('backups.saved'))}
+                  onClick={() =>
+                    void act(
+                      'save',
+                      // the contents have their own card: what is stored stays
+                      async () => setDraft((await put<BackupStatus>('/backups/settings', { ...draft, exclude: s.settings.exclude })).settings),
+                      t('backups.saved'),
+                    )
+                  }
                 >
                   {t('common:save')}
                 </Button>
               </Group>
             </Stack>
           </Card>
+
+          <BackupContentsCard status={s} />
 
           <Card withBorder>
             <Group justify="space-between" mb="sm">

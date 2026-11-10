@@ -149,6 +149,69 @@ describe('monitors', () => {
     expect(await owners('monitor', hers.id)).toEqual(['Orders']);
   });
 
+  it('leaves out the state cells of sub-monitors the person may not see (a row with no condition left, a hidden leader)', async () => {
+    // a gateway monitor tara may not see, and a machine monitor (she may) whose states name it
+    const gw = (
+      await dana('POST', '/monitors', {
+        key: 'dup-gateway-hall-5',
+        definition: { name: 'Gateway Hall 5', checks: [{ id: 'alive', name: 'Alive', type: 'heartbeat', mode: 'maxAge', maxAgeSeconds: 180 }] },
+      })
+    ).monitor;
+    await dana('PUT', `/monitors/${gw.id}/access`, { acl: [{ subject: 'user:olivia', permissions: ['view'] }] });
+    const machine = (
+      await dana('POST', '/monitors', {
+        key: 'dup-press-5',
+        definition: {
+          name: 'Press 5',
+          checks: [
+            { id: 'pm', name: 'PowerMeter reachable', type: 'heartbeat', mode: 'maxAge', maxAgeSeconds: 600 },
+            { id: 'data', name: 'PowerMeter data', type: 'heartbeat', mode: 'maxAge', maxAgeSeconds: 600 },
+            { id: 'gw', name: 'Gateway alive', type: 'monitor', monitor: 'dup-gateway-hall-5' },
+          ],
+          links: [{ from: 'gw', to: 'data' }],
+          states: {
+            cases: [
+              { id: 'running', name: 'Running', when: { pm: 'up' }, expect: { data: 'up', gw: 'up' } },
+              { id: 'off', name: 'Off', status: 'off', when: { pm: 'down' }, requires: ['gw'], expect: { data: 'down' } },
+              { id: 'isolated', name: 'Gateway silent', when: { gw: 'down' }, expect: { data: 'down' } },
+            ],
+          },
+        },
+      })
+    ).monitor;
+    expect((await tara('GET', `/monitors/${machine.id}`)).definition.checks.find((c: any) => c.id === 'gw').monitor).toBe('(hidden)');
+    const r = await tara('POST', `/monitors/${machine.id}/duplicate`, {});
+    expect(r.skipped).toEqual([
+      { what: 'hiddenSubMonitors', count: 1 },
+      { what: 'hiddenStateRows', count: 1 },
+    ]);
+    const copy = await tara('GET', `/monitors/${r.id}`);
+    expect(copy.definition.checks.map((c: any) => c.id)).toEqual(['pm', 'data']);
+    expect(copy.definition.links).toEqual([]);
+    expect(copy.definition.states.cases).toEqual([
+      { id: 'running', name: 'Running', when: { pm: 'up' }, expect: { data: 'up' } },
+      { id: 'off', name: 'Off', status: 'off', when: { pm: 'down' }, expect: { data: 'down' } },
+    ]);
+    // dana sees everything: her copy keeps the whole table
+    const full = await dana('POST', `/monitors/${machine.id}/duplicate`, {});
+    expect(full.skipped).toEqual([]);
+    expect((await dana('GET', `/monitors/${full.id}`)).definition.states.cases).toHaveLength(3);
+    // a monitor that follows the hidden gateway: the copy has no states
+    const follower = (
+      await dana('POST', '/monitors', {
+        key: 'dup-press-5-data',
+        definition: {
+          name: 'Press 5 – machine data',
+          checks: [{ id: 'reports', name: 'Machine data reported', type: 'heartbeat', mode: 'maxAge', maxAgeSeconds: 600 }],
+          states: { from: 'dup-gateway-hall-5', cases: [{ id: 'running', expect: { reports: 'up' } }] },
+        },
+      })
+    ).monitor;
+    const f = await tara('POST', `/monitors/${follower.id}/duplicate`, {});
+    expect(f.skipped).toEqual([{ what: 'hiddenStatesLeader', count: 1 }]);
+    expect((await tara('GET', `/monitors/${f.id}`)).definition.states).toBeUndefined();
+  });
+
   it('is saved as a template with the chosen fields as parameters', async () => {
     const r = await dana('POST', `/monitors/${original.id}/duplicate`, {
       name: 'Shop health template',

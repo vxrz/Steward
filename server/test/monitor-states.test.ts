@@ -200,6 +200,35 @@ describe('decision table (pure)', () => {
     expect(evaluateStates({ def: fixed, statuses: st({ pm: 'down' }), memory: settled('running'), now: 0 }).memory.settleUntil).toBe(120000);
   });
 
+  it('a running settle follows the current settle time: shorter or longer applies at once', () => {
+    const offRow = (settleSeconds: number) =>
+      def({ ...MACHINE, states: { cases: [MACHINE.states!.cases[0]!, { ...MACHINE.states!.cases[1]!, settleSeconds }] } });
+    const s = st({ pm: 'down', data: 'up', ih: 'down', machine: 'off', gw: 'up' });
+    // the state changes at minute 10 with a settle time of 10 minutes
+    const start = evaluateStates({ def: offRow(600), statuses: s, memory: settled('running'), now: 10 * MIN });
+    expect(start.memory.settleUntil).toBe(20 * MIN);
+    expect(start.info.reason).toBe('settling');
+    // shortened to 2 minutes while it runs: it ended at minute 12 – the contradiction shows at minute 13
+    const shorter = evaluateStates({ def: offRow(120), statuses: s, memory: start.memory, now: 13 * MIN });
+    expect(shorter.memory.settleUntil).toBe(12 * MIN);
+    expect(shorter.status).toBe('down');
+    expect(shorter.info.reason).toBe('contradiction');
+    // lengthened to 30 minutes: settling until minute 40 (from the state change, not from now)
+    const longer = evaluateStates({ def: offRow(1800), statuses: s, memory: start.memory, now: 15 * MIN });
+    expect(longer.memory.settleUntil).toBe(40 * MIN);
+    expect(longer.status).toBe('off');
+    expect(longer.info.settlingUntil).toBe(new Date(40 * MIN).toISOString());
+    // a settle that has ended stays ended: lengthened after the contradiction showed, the monitor stays down
+    const reopened = evaluateStates({ def: offRow(1800), statuses: s, memory: shorter.memory, now: 15 * MIN });
+    expect(reopened.memory.settleUntil).toBe(12 * MIN);
+    expect(reopened.status).toBe('down');
+    expect(reopened.info.settlingUntil).toBeNull();
+    // the very first state is still taken as it is: no settle time appears later
+    const first = evaluateStates({ def: offRow(600), statuses: s, memory: null, now: 0 });
+    expect(first.memory.settleUntil).toBeNull();
+    expect(evaluateStates({ def: offRow(1800), statuses: s, memory: first.memory, now: MIN }).status).toBe('down');
+  });
+
   it('more than 4 state changes within an hour make the monitor degraded', () => {
     let memory: StateMemory = settled('running');
     let last;
@@ -697,6 +726,64 @@ describe('outputs while off', () => {
     eng.setMonitorClock(null);
   });
 
+  it('a changed settle time applies to the running settle, and the recomputed end is stored (restarts keep it)', async () => {
+    const T = Date.now() + 200 * MIN;
+    const r = await s.api('POST', '/monitors', {
+      key: 'test-lathe-settle',
+      definition: {
+        name: 'Lathe 8 – PowerMeter',
+        failuresBeforeDown: 1,
+        successesBeforeUp: 1,
+        checks: [
+          { id: 'pm', name: 'PowerMeter reachable', type: 'heartbeat', mode: 'maxAge', maxAgeSeconds: 3600 },
+          { id: 'data', name: 'PowerMeter data', type: 'heartbeat', mode: 'maxAge', maxAgeSeconds: 3600 },
+        ],
+        states: {
+          cases: [
+            { id: 'running', name: 'Running', when: { pm: 'up' }, expect: { data: 'up' } },
+            { id: 'off', name: 'Off', status: 'off', when: { pm: 'down' }, expect: { data: 'down' }, settleSeconds: 600 },
+          ],
+        },
+      },
+    });
+    const id = r.monitor.id;
+    await eng.settle();
+    const at = async (t: number, pm: string) => {
+      eng.setMonitorClock(() => t);
+      push(id, 'pm', t, { status: pm });
+      push(id, 'data', t, { status: 'up' });
+      await eng.evaluateMonitorNow(id);
+      return get(id);
+    };
+    const stored = () => D.db().get<{ settle_until: string | null }>('SELECT settle_until FROM monitor_state WHERE monitor_id = ?', id)!.settle_until;
+    expect((await at(T, 'up')).state.id).toBe('running');
+    // switched off, the data still arrives: settling for 10 minutes
+    let m = await at(T + MIN, 'down');
+    expect(m.state).toMatchObject({ id: 'off', reason: 'settling', settlingUntil: iso(T + 11 * MIN) });
+    expect(stored()).toBe(iso(T + 11 * MIN));
+    // the settle time is shortened to 2 minutes: the running settle ends at T + 3 min
+    const shorten = async (settleSeconds: number) => {
+      const d = (await get(id)).definition;
+      await s.api('PUT', `/monitors/${id}`, {
+        definition: { ...d, states: { ...d.states, cases: d.states.cases.map((c: any) => (c.id === 'off' ? { ...c, settleSeconds } : c)) } },
+      });
+    };
+    await shorten(120);
+    m = await at(T + 2 * MIN, 'down');
+    expect(m.state).toMatchObject({ id: 'off', reason: 'settling', settlingUntil: iso(T + 3 * MIN) });
+    expect(stored()).toBe(iso(T + 3 * MIN));
+    m = await at(T + 4 * MIN, 'down');
+    expect(m.status).toBe('down');
+    expect(m.state.reason).toBe('contradiction');
+    // lengthened again to 20 minutes after the settle ended: it stays ended, the contradiction stays down
+    await shorten(1200);
+    m = await at(T + 5 * MIN, 'down');
+    expect(m.status).toBe('down');
+    expect(m.state).toMatchObject({ id: 'off', reason: 'contradiction', settlingUntil: null });
+    expect(stored()).toBe(iso(T + 3 * MIN));
+    eng.setMonitorClock(null);
+  });
+
   it('Zabbix gets code 6, Prometheus status 6 and sm_monitor_state, the public API code 6 and the state', async () => {
     const id = await offMonitor(
       'test-lathe-off',
@@ -714,6 +801,31 @@ describe('outputs while off', () => {
     expect(v1).toMatchObject({ status: 'off', statusCode: 6, state: { id: 'off', reason: 'agree' } });
     expect(v1.checks.map((c: any) => c.statusCode)).toEqual([6, 6]);
     eng.setMonitorClock(null);
+  });
+});
+
+describe('on contradiction (the States tab column)', () => {
+  it('a row saves contradiction degraded, down is the default, other values are refused', async () => {
+    const definition = (contradiction?: unknown) => ({
+      name: 'Lathe 9 – PowerMeter',
+      checks: [
+        { id: 'pm', name: 'PowerMeter reachable', type: 'heartbeat', mode: 'maxAge', maxAgeSeconds: 600 },
+        { id: 'data', name: 'PowerMeter data', type: 'heartbeat', mode: 'maxAge', maxAgeSeconds: 600 },
+      ],
+      states: {
+        cases: [
+          { id: 'running', name: 'Running', when: { pm: 'up' }, expect: { data: 'up' }, ...(contradiction ? { contradiction } : {}) },
+          { id: 'off', name: 'Off', status: 'off', when: { pm: 'down' }, expect: { data: 'down' } },
+        ],
+      },
+    });
+    const r = await s.api('POST', '/monitors', { key: 'test-lathe-contradiction', definition: definition('degraded') });
+    const saved = (await get(r.monitor.id)).definition.states.cases;
+    expect(saved[0].contradiction).toBe('degraded');
+    expect(saved[1].contradiction).toBeUndefined();
+    await s.api('PUT', `/monitors/${r.monitor.id}`, { definition: definition('down') });
+    expect((await get(r.monitor.id)).definition.states.cases[0].contradiction).toBe('down');
+    await expect(s.api('PUT', `/monitors/${r.monitor.id}`, { definition: definition('warning') })).rejects.toThrow(/states\.cases\.0\.contradiction/);
   });
 });
 

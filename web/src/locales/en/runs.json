@@ -84,8 +84,13 @@
     "none": "This process has no inputs.",
     "listHint": "One value per line",
     "csvHint": "CSV with header row (comma, semicolon or tab separated)",
-    "csvHintColumns": "CSV with header row: {{columns}} (comma, semicolon or tab separated)",
+    "csvHintColumns": "CSV with the columns {{columns}} – a header row first, or the fields in this order without one (comma, semicolon or tab separated)",
     "loadCsv": "Load CSV file",
+    "rowsRead_one": "{{count}} row read",
+    "rowsRead_other": "{{count}} rows read",
+    "rowsReadHeaderless_one": "{{count}} row read – no header row, read by the column order",
+    "rowsReadHeaderless_other": "{{count}} rows read – no header row, read by the column order",
+    "noRows": "No rows read – the first line is the header row",
     "secretHint": "Stored encrypted only; shown as *** in the run report, other reports and the audit log",
     "applicationHint": "The run reads the application’s components and tech stack when it starts",
     "noApplications": "No application found",
@@ -158,6 +163,7 @@
       "failedLabel": "finding"
     },
     "artifactLine": "{{step}} · sha256 {{hash}} · {{date}}",
+    "artifactGone": "The file is not available – it is not in the data folder (for example after restoring a backup without run artifacts).",
     "connections": "Connections",
     "outputs": "Outputs",
     "definitionHash": "Definition hash {{hash}}",
@@ -176,7 +182,7 @@
       "action": "Action",
       "summary": "Summary"
     },
-    "generatePdf": "Generate PDF report…",
+    "generatePdf": "Generate PDF report",
     "showMore": {
       "steps_one": "Showing {{shown}} of {{total}} step",
       "steps_other": "Showing {{shown}} of {{total}} steps",

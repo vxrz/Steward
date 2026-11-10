@@ -131,7 +131,8 @@
       "maintenance": "Wartung",
       "documents": "Dokumente",
       "tickets": "Ticket-Referenzen",
-      "scorecard": "Scorecard"
+      "scorecard": "Scorecard",
+      "costs": "Kostenplan"
     },
     "archivedScorecard": "Ein archivierter Service hat keine Scorecard.",
     "systems": {

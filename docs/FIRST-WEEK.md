@@ -53,7 +53,7 @@ Goal: Steward knows what you run, who owns it and when it is allowed to be down.
 
 1. **Services.** _Catalogue → Services_: one service per thing a team offers to others – _Machine data for Riverside_, owned by _Line Operations_ ([GLOSSARY.md](GLOSSARY.md#catalogue)).
 2. **Applications.** _Catalogue → Applications_: what each service consists of, with its owners, and map the platforms they use ([APPLICATIONS.md](APPLICATIONS.md#create-an-application), [APPLICATIONS.md](APPLICATIONS.md#map-platforms-integrations), [add them to a service](APPLICATIONS.md#add-applications-to-a-service)).
-3. **Owners and teams.** Name the owners on services and applications; owners get the messages about them (end of life, new releases, maintenance). If teams share the instance, give each service its owning team in one step: _Owning teams for the whole service…_ ([TEAMS.md](TEAMS.md#setting-it-up)).
+3. **Owners and teams.** Name the owners on services and applications; owners get the messages about them (end of life, new releases, maintenance). If teams share the instance, give each service its owning team in one step: _Owning teams for the whole service_ ([TEAMS.md](TEAMS.md#setting-it-up)).
 4. **Maintenance windows.** _Catalogue → Maintenance_: the weekly patch window of the gateways, and **planned downtime** for weekends and shutdowns of machines that are off on purpose ([APPLICATIONS.md](APPLICATIONS.md#maintenance-windows)). Monitors of what a window affects stay quiet while it lasts.
 
 By the evening: one service with its applications, owners and windows; the monitor of day 3 is quiet in the next patch window.

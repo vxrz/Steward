@@ -14,6 +14,14 @@ import type { NamedMigration } from '../db.js';
  *   sent (once per budget, month and level).
  * cost_push_tokens: push tokens of the FOCUS import from CI (hashes only), modelled on db_schema_push_tokens.
  * scorecard_snapshots.costs: the scorecard part "Costs" of a day.
+ *
+ * 0.16.0 (ADR 0026, service cost planning):
+ * cost_plan_lines: what a service plans to spend in a fiscal year (`fiscal_year`: the calendar year it starts in) –
+ *   title, category, what it is for (`target_kind`/`target_id`: an application or system of the service, or a
+ *   platform; `vendor` free text), amount (micros) and currency, cadence (`once_index`: the month of a one-off payment
+ *   as its position 0–11 in the fiscal year), renewal date, note.
+ * cost_entries: what a service incurred – date, amount (micros, negative for a credit) and currency, the plan line
+ *   (none: unplanned), what it is for, a reference (invoice or order number), a note. No hours: effort is not planned.
  */
 export const COSTS_MIGRATIONS: NamedMigration[] = [
   {
@@ -126,6 +134,51 @@ export const COSTS_MIGRATIONS: NamedMigration[] = [
       CREATE INDEX cost_push_tokens_platform ON cost_push_tokens(platform_id);
 
       ALTER TABLE scorecard_snapshots ADD COLUMN costs TEXT;
+    `,
+  },
+  {
+    name: 'costs-002-service-plans',
+    sql: `
+      CREATE TABLE cost_plan_lines (
+        id TEXT PRIMARY KEY,
+        service_id TEXT NOT NULL,
+        fiscal_year INTEGER NOT NULL,
+        title TEXT NOT NULL,
+        category TEXT NOT NULL,
+        target_kind TEXT,
+        target_id TEXT,
+        vendor TEXT NOT NULL DEFAULT '',
+        amount INTEGER NOT NULL,
+        currency TEXT NOT NULL,
+        cadence TEXT NOT NULL,
+        once_index INTEGER,
+        renewal_date TEXT,
+        note TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL,
+        created_by TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        updated_by TEXT NOT NULL
+      );
+      CREATE INDEX cost_plan_lines_service ON cost_plan_lines(service_id, fiscal_year);
+
+      CREATE TABLE cost_entries (
+        id TEXT PRIMARY KEY,
+        service_id TEXT NOT NULL,
+        entry_date TEXT NOT NULL,
+        amount INTEGER NOT NULL,
+        currency TEXT NOT NULL,
+        plan_line_id TEXT,
+        target_kind TEXT,
+        target_id TEXT,
+        reference TEXT NOT NULL DEFAULT '',
+        note TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL,
+        created_by TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        updated_by TEXT NOT NULL
+      );
+      CREATE INDEX cost_entries_service ON cost_entries(service_id, entry_date);
+      CREATE INDEX cost_entries_line ON cost_entries(plan_line_id);
     `,
   },
 ];

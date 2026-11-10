@@ -49,7 +49,7 @@
   "serverUnreachable": "Cannot reach the {{brand}} server: {{error}}",
   "pageNotFound": "Page not found",
   "toggleNavigation": "Toggle navigation",
-  "toggleColorScheme": "Toggle color scheme",
+  "toggleColorScheme": "Toggle colour scheme",
   "demo": "demo",
   "lightMode": "Light mode",
   "darkMode": "Dark mode",
@@ -69,7 +69,7 @@
     "newProcessHint": "Create an empty process and open the editor",
     "lightMode": "Switch to light mode",
     "darkMode": "Switch to dark mode",
-    "colorSchemeHint": "Change the color scheme",
+    "colorSchemeHint": "Change the colour scheme",
     "groups": {
       "actions": "Actions",
       "pages": "Pages",
@@ -182,7 +182,7 @@
     },
     "then": "then",
     "keys": {
-      "search": "Search pages, processes, monitors, documents …",
+      "search": "Search pages, processes, monitors, documents…",
       "help": "Show this list",
       "goTo": "Go to {{page}}",
       "close": "Close a dialog or menu",

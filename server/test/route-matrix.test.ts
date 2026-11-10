@@ -232,6 +232,16 @@ const EXPECT: Record<string, Access> = {
   'PUT /api/backups/passphrase': ADMIN,
   'POST /api/backups/run': ADMIN,
   'POST /api/backups/restore-test': ADMIN,
+  'GET /api/backups/contents': ADMIN,
+  // scheduled exports to S3 (0.16.0, ADR 0027)
+  'GET /api/exports': ADMIN,
+  'POST /api/exports': ADMIN,
+  'GET /api/exports/:id': ADMIN,
+  'PUT /api/exports/:id': ADMIN,
+  'DELETE /api/exports/:id': ADMIN,
+  'GET /api/exports/:id/runs': ADMIN,
+  'POST /api/exports/:id/run': ADMIN,
+  'POST /api/exports/:id/confirm-target': ADMIN,
   'GET /api/audit/public-key.pem': ADMIN_AUDITOR,
   'GET /api/audit/export': ADMIN_AUDITOR,
   // ---- assurance policy (#210): administrators and auditors read it, administrators change it (sessions only) ----
@@ -283,6 +293,7 @@ const EXPECT: Record<string, Access> = {
   'GET /api/costs': ALL,
   'GET /api/costs/settings': ALL,
   'PUT /api/costs/settings': ADMIN,
+  'GET /api/costs/settings/fiscal-year-change': ADMIN,
   'PUT /api/costs/budgets': DESIGN,
   'GET /api/costs/:scope/:id': RECON_READ,
   'GET /api/costs/platform/:id/source': RECON_READ,
@@ -296,6 +307,19 @@ const EXPECT: Record<string, Access> = {
   'POST /api/costs/platform/:id/push-tokens/:tokenId/rotate': ADMIN,
   'DELETE /api/costs/platform/:id/push-tokens/:tokenId': ADMIN,
   'POST /api/hooks/costs/:platformId': HOOK,
+  // service cost planning (0.16.0, ADR 0026), here the matrix service (no owning teams): everyone who sees the service
+  // reads its plan, who may change the service (designers, administrators) changes it; a team's rollup for its members,
+  // administrators and auditors
+  'GET /api/costs/plans/:serviceId': ALL,
+  'GET /api/costs/plans/:serviceId/export': ALL,
+  'POST /api/costs/plans/:serviceId/lines': DESIGN,
+  'PUT /api/costs/plans/:serviceId/lines/:lineId': DESIGN,
+  'DELETE /api/costs/plans/:serviceId/lines/:lineId': DESIGN,
+  'POST /api/costs/plans/:serviceId/copy': DESIGN,
+  'POST /api/costs/plans/:serviceId/entries': DESIGN,
+  'PUT /api/costs/plans/:serviceId/entries/:entryId': DESIGN,
+  'DELETE /api/costs/plans/:serviceId/entries/:entryId': DESIGN,
+  'GET /api/costs/team-plans/:teamId': ADMIN_AUDITOR,
   // data contracts (#221), here the demo's "Shop orders" (no owning team): everyone who works in Steward sees and checks
   // them, operators test them, designers create and change them
   'GET /api/data-contracts': ALL,
@@ -896,6 +920,7 @@ const EXPECT: Record<string, Access> = {
   'GET /api/v1/scorecard': ALL,
   'GET /api/v1/scorecard/trend': ALL,
   'GET /api/v1/services/:serviceId/scorecard': ALL,
+  'GET /api/v1/services/:serviceId/cost-plan': ALL,
   'GET /api/v1/objectives': ALL,
   'GET /api/v1/objectives/:objectiveId/samples': ALL,
   'GET /api/v1/access-changes': ALL,
@@ -1099,6 +1124,11 @@ const EXPECT: Record<string, Access> = {
   // 0.13.0: the preview for who may only propose too ("Add to draft")
   'POST /api/plant/bulk/preview': PROPOSE,
   'POST /api/plant/bulk': DESIGN,
+  // 0.16: devices and data collections to another asset – who manages both sites; the preview also for who may only
+  // propose ("Add to draft"); a duplicate of a device: who manages the target
+  'POST /api/plant/move/preview': PROPOSE,
+  'POST /api/plant/move': DESIGN,
+  'POST /api/plant/assets/:assetId/devices/:deviceId/duplicate': DESIGN,
   // change sets (0.13.0, ADR 0020): whoever sees the registry reads what they may see; who may propose keeps drafts;
   // who manages what a change set touches applies, rejects or returns it (never its author under review)
   'GET /api/plant/change-sets': PLANT,
@@ -1411,6 +1441,11 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
   'POST /api/migration/imports/staged/:id/apply': 'always',
   'PUT /api/catalogue/cia-scale': 'always',
   'PUT /api/backups/settings': 'always',
+  // a scheduled export sends data out of Steward (0.16.0, control point export.settings)
+  'POST /api/exports': 'always',
+  'PUT /api/exports/:id': 'always',
+  'DELETE /api/exports/:id': 'always',
+  'POST /api/exports/:id/confirm-target': 'always',
   'PUT /api/platforms/:id/mcp-gateway': { sensitive: { enabled: true, writes: 'confirm' }, harmless: { enabled: true } },
   // identities (0.13.0, ADR 0009): loosening (read-only off), adding someone to the list, MCP writes on, a new default
   'PUT /api/platforms/:id/identities/:identityId': { sensitive: { readOnly: false }, harmless: { description: 'Matrix' } },
@@ -1514,6 +1549,11 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
     sensitive: { kind: 'asset', action: 'remove', items: [{ id: 'nothing-a' }, { id: 'nothing-b' }] },
     harmless: { kind: 'asset', action: 'remove', items: [{ id: 'nothing-a' }] },
   },
+  // 0.16: a move of more than 25 entries (none of them exists); one is harmless
+  'POST /api/plant/move': {
+    sensitive: { kind: 'device', items: Array.from({ length: 26 }, (_, i) => ({ asset: 'nothing', id: `d-${i}` })), toAsset: 'nothing' },
+    harmless: { kind: 'device', items: [{ asset: 'nothing', id: 'd-0' }], toAsset: 'nothing' },
+  },
   // an import that removes (or renames) more than one entry; a file that removes nothing is harmless
   'POST /api/plant/import': {
     sensitive: {
@@ -1553,6 +1593,9 @@ const NO_POSITIVE = new Set([
   'GET /api/teams/:id/settings/logo', // the matrix team has no logo of its own
   // no S3 storage set up in the fixtures
   'GET /api/backups/stored',
+  // no scheduled export in the fixtures
+  'GET /api/exports/:id',
+  'GET /api/exports/:id/runs',
   'GET /api/artifacts/:id', // the demo runs write no artifacts
   'GET /api/mcp-requests/:requestId', // no MCP client asked for anything
   'GET /api/tasks/:id', // no open approval
@@ -1642,6 +1685,9 @@ function fill(url: string): string {
       .replace(/:monitorId/g, fx.monitor!)
       .replace(/:recordId/g, fx.record!)
       .replace(/:serviceId/g, fx.service!)
+      .replace(/:lineId/g, fx.planLine!)
+      .replace(/:entryId/g, fx.planEntry!)
+      .replace(/:teamId/g, fx.team!)
       .replace(/:applicationId/g, fx.application!)
       .replace(/:componentId/g, fx.component!)
       .replace(/:systemLinkId/g, fx.systemLink!)
@@ -1754,6 +1800,7 @@ const QUERY: Record<string, string> = {
   'GET /api/backlinks': '', // filled in beforeAll (needs the record id)
   'GET /api/runs/compare': '', // filled in beforeAll (needs the run id)
   'GET /api/ticket-references/open-counts': '?kind=service',
+  'GET /api/costs/settings/fiscal-year-change': '?startMonth=4',
   'GET /api/compliance/coverage': `?from=2026-01-01T00:00:00Z&to=${encodeURIComponent(new Date().toISOString())}`,
   'GET /api/assurance/policy/as-of': '?at=2026-01-01T00:00:00Z',
   'GET /api/assurance/report': `?from=2026-01-01T00:00:00Z&to=${encodeURIComponent(new Date().toISOString())}`,
@@ -1886,6 +1933,11 @@ const bodies = (): Record<string, unknown> => ({
   'PUT /api/services/:id/protection-need': { availability: { level: 'high', reason: 'x' } },
   'PUT /api/catalogue/cia-scale': { mode: 'default' },
   'PUT /api/records/:id/applications': { applicationIds: [] },
+  'POST /api/costs/plans/:serviceId/lines': { fiscalYear: 2030, title: 'Matrix line x', category: 'other', amount: '1', currency: 'EUR', cadence: 'monthly' },
+  'PUT /api/costs/plans/:serviceId/lines/:lineId': { title: 'Matrix line', category: 'other', amount: '100', currency: 'EUR', cadence: 'monthly' },
+  'POST /api/costs/plans/:serviceId/copy': { fiscalYear: 2030 },
+  'POST /api/costs/plans/:serviceId/entries': { date: '2030-05-01', amount: '1', currency: 'EUR' },
+  'PUT /api/costs/plans/:serviceId/entries/:entryId': { date: new Date().toISOString().slice(0, 10), amount: '10', currency: 'EUR' },
   'POST /api/duties': { serviceId: fx.service, name: 'Matrix duty x', processId: fx.process, interval: 'monthly', level: 'mandatory' },
   'PUT /api/duties/:id': { name: 'Matrix duty', processId: fx.process, interval: 'monthly', level: 'recommended' },
   'POST /api/duties/:id/archive': { archived: true },
@@ -2264,6 +2316,21 @@ beforeAll(async () => {
   fx.cdPlatform = platforms.find((p: { kind: string }) => p.kind === 'changedetection').id;
   // a cost budget (#226), so raising it is a sensitive change (STEP_UP)
   await a('PUT', '/costs/budgets', { scope: 'service', scopeId: fx.service, amount: '1000', currency: 'USD' });
+  // a cost plan line and an entry of the matrix service (ADR 0026)
+  const planYear = (await a('GET', `/costs/plans/${fx.service}`)).fiscalYear as number;
+  fx.planLine = (
+    await a('POST', `/costs/plans/${fx.service}/lines`, {
+      fiscalYear: planYear,
+      title: 'Matrix line',
+      category: 'other',
+      amount: '100',
+      currency: 'EUR',
+      cadence: 'monthly',
+    })
+  ).lines[0].id;
+  fx.planEntry = (
+    await a('POST', `/costs/plans/${fx.service}/entries`, { date: new Date().toISOString().slice(0, 10), amount: '10', currency: 'EUR' })
+  ).entries[0].id;
   const dbSnap = (await a('POST', `/db-schemas/platform/${fx.dbPlatform}/read`)).snapshot.id;
   const tbls = JSON.stringify({
     name: 'matrix',

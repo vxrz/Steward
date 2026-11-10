@@ -35,6 +35,8 @@ export const NOT_MOVED: Record<string, string> = {
   version_notices: 'send bookkeeping of the source (a new major release already reported is not reported again)',
   prom_objective_readings: 'a cache of Prometheus figures for objectives (read again on the target)',
   backup_runs: 'instance-specific (the backups of the source; set up backups on the target)',
+  export_jobs: 'instance-specific (scheduled exports send data to S3 targets of the source; set them up again on the target)',
+  export_runs: 'instance-specific (the runs of the scheduled exports of the source)',
   aws_account_cache: 'a cache of what Steward read from AWS accounts (read again on the target)',
   mcp_requests: 'short-lived requests of MCP clients waiting for a person (they expire after 24 hours)',
   plant_proposals: 'plant registry changes proposed by AI assistants (0.12.0): they belong to their MCP requests, which are not moved',
@@ -162,6 +164,11 @@ export const HISTORY_COLUMNS: string[] = [
   'cost_sources.updated_by',
   'cost_imports.actor',
   'cost_budgets.updated_by',
+  // service cost planning (0.16.0, ADR 0026)
+  'cost_plan_lines.created_by',
+  'cost_plan_lines.updated_by',
+  'cost_entries.created_by',
+  'cost_entries.updated_by',
   // the plant registry (#218)
   'plant_sites.created_by',
   'plant_sites.updated_by',

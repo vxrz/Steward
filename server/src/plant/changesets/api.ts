@@ -274,7 +274,10 @@ export async function changeSetRoutes(app: FastifyInstance): Promise<void> {
     const id = (req.params as { changeSetId: string }).changeSetId;
     return db().tx(() => {
       const r = draftOf(id, u);
-      const op = raw.op === 'import' || raw.op === 'bulk' ? documentOperation(raw.op, raw.value, u) : operationOf(plantChangeOperationInput.parse(req.body), u);
+      const op =
+        raw.op === 'import' || raw.op === 'bulk' || raw.op === 'move'
+          ? documentOperation(raw.op, raw.value, u)
+          : operationOf(plantChangeOperationInput.parse(req.body), u);
       const seq = addOperation(r, op, u);
       return { ...detail(r.id, u), seq };
     });

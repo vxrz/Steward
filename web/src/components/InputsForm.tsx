@@ -1,7 +1,7 @@
 import { FileButton, Button, Group, JsonInput, NumberInput, PasswordInput, Select, Stack, Switch, Text, TextInput, Textarea } from '@mantine/core';
 import { IconUpload } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import type { InputDef } from '@sm/shared';
+import { readTableCsv, type InputDef } from '@sm/shared';
 import { ApplicationSelect, ApplicationsMultiSelect } from './catalogue/ApplicationSelect';
 
 export function defaultInputs(defs: InputDef[]): Record<string, unknown> {
@@ -64,6 +64,7 @@ export function InputsForm({ defs, value, onChange }: { defs: InputDef[]; value:
                   value={typeof v === 'string' ? v : v ? JSON.stringify(v) : ''}
                   onChange={(e) => set(d.name, e.currentTarget.value)}
                 />
+                <TableRowCount text={typeof v === 'string' ? v : ''} columns={d.columns} />
                 <Group>
                   <FileButton accept=".csv,text/csv,text/plain" onChange={(f) => f && f.text().then((text) => set(d.name, text))}>
                     {(props) => (
@@ -124,5 +125,21 @@ export function InputsForm({ defs, value, onChange }: { defs: InputDef[]; value:
         }
       })}
     </Stack>
+  );
+}
+
+/** Under a table input: how many rows the run will read from the CSV (the server reads it the same way). */
+function TableRowCount({ text, columns }: { text: string; columns?: string[] }) {
+  const { t } = useTranslation('runs');
+  if (!text.trim()) return null;
+  const { rows, headerless } = readTableCsv(text, columns);
+  return (
+    <Text size="xs" c={rows.length ? 'dimmed' : 'orange'} data-testid="table-input-rows" aria-live="polite">
+      {rows.length === 0
+        ? t('inputs.noRows')
+        : headerless
+          ? t('inputs.rowsReadHeaderless', { count: rows.length })
+          : t('inputs.rowsRead', { count: rows.length })}
+    </Text>
   );
 }

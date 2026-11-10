@@ -8,7 +8,7 @@ import { timeLimit } from './time.js';
  * template once; this file looks at the results.
  */
 
-// the time limit of one expression is wall-clock time: on a loaded machine the demo's CheckMk trend summary took longer
+// the time limit of one expression is wall-clock time: on a loaded machine the demo's Checkmk trend summary took longer
 // than its 5 s and its dataset stayed empty – the limit is not what these tests look at (expr-guard.test.ts does)
 process.env.SM_EXPR_TIMEOUT_MS ??= String(timeLimit(15_000));
 

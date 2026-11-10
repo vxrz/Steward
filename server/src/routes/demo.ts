@@ -101,7 +101,7 @@ const FEEDERS: { process: string; cron: string; inputs?: Record<string, unknown>
   { process: 'weekly-service-report', cron: '45 6 * * 1' },
   { process: 'gatus-uptime-overview', cron: '*/10 * * * *' },
   { process: 'gatus-uptime-overview-from-metrics', cron: '*/10 * * * *' },
-  // the platforms of 0.2.6 to 0.3.1: CheckMk, Kubernetes, Git hosts, Dependency-Track, Snowflake, Prometheus
+  // the platforms of 0.2.6 to 0.3.1: Checkmk, Kubernetes, Git hosts, Dependency-Track, Snowflake, Prometheus
   { process: 'checkmk-trend-summary', cron: '0 7 * * *' },
   { process: 'kubernetes-namespace-health', cron: '*/15 * * * *' },
   { process: 'github-repository-health', cron: '0 * * * *', bind: { github: 'github' }, label: 'GitHub' },
@@ -293,12 +293,12 @@ export async function setupDemo(opts: { applications?: boolean; services?: boole
     platforms++;
   }
   if (!existing.has('CheckMk (demo)')) {
-    // CheckMk (#130): host and service states for monitors, metric history for the trend summary example
+    // Checkmk (#130): host and service states for monitors, metric history for the trend summary example
     createPlatform({
       name: 'CheckMk (demo)',
       kind: 'checkmk',
       environment: 'demo',
-      description: 'Simulated CheckMk site (REST API 1.0) served by the built-in mock: four hosts and services, metric history. See docs/CHECKMK.md.',
+      description: 'Simulated Checkmk site (REST API 1.0) served by the built-in mock: four hosts and services, metric history. See docs/CHECKMK.md.',
       baseUrl: `${base}/checkmk/demo/check_mk/api/1.0`,
       config: { auth: { type: 'bearer' }, variables: { site: 'demo' }, http: { proxy: 'none' }, testPath: '/version' },
       secrets: { token: `${DEMO_CHECKMK.user} ${DEMO_CHECKMK.secret}` },
@@ -463,8 +463,8 @@ export async function setupDemo(opts: { applications?: boolean; services?: boole
     platforms++;
   }
   if (!existing.has('LLM gateway (demo)')) {
-    // LLM gateway (#216): the simulated multi-format gateway with one model per format; it may be sent CheckMk data
-    // and the CheckMk datasets – nothing else, as an administrator would set it up
+    // LLM gateway (#216): the simulated multi-format gateway with one model per format; it may be sent Checkmk data
+    // and the Checkmk datasets – nothing else, as an administrator would set it up
     const preset = PRESETS.find((x) => x.kind === LLM_GATEWAY_KIND)!;
     const checkmk = db().get<{ id: string }>("SELECT id FROM platforms WHERE name = 'CheckMk (demo)'");
     const window = { contextTokens: 32_000, maxOutputTokens: 1_000 };

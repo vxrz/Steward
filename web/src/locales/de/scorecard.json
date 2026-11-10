@@ -180,7 +180,7 @@
     "deleteConfirm": "Regel für {{type}} löschen?",
     "deleted": "Regel gelöscht",
     "saved": "Regel gespeichert",
-    "type": "Dokumenttyp",
+    "type": "Dokumentart",
     "typeHint": "Eintragstypen lebender Dokumente.",
     "dimension": "Dimension",
     "minLevel": "Ab Stufe",

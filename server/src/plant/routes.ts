@@ -11,7 +11,15 @@ import { HttpError } from '../util.js';
 import { plantSettings, plantSettingsInput, requirePlant, updatePlantSettings } from './settings.js';
 import * as svc from './service.js';
 import { applyImport, exportYaml, importInput, importStepUpPoints, listImports, previewImport } from './import.js';
-import { plantBulkInput, plantRenameInput, PLANT_DOC_KINDS, PLANT_ID_KINDS } from '@sm/shared';
+import {
+  plantBulkInput,
+  plantDuplicateDeviceInput,
+  plantMoveInput,
+  plantRenameInput,
+  PLANT_DOC_KINDS,
+  PLANT_ID_KINDS,
+  type PlantMovePreview,
+} from '@sm/shared';
 import { contentDisposition } from '../records/attachments.js';
 import { diffSources, listSources, sourceFile } from './collections-sources.js';
 import { plantDocuments } from './documents.js';
@@ -19,6 +27,7 @@ import { currentParams, currentQuery, listAliases, removeAlias } from './ids.js'
 import * as docReview from './doc-review.js';
 import { previewRename, renameId } from './rename.js';
 import { applyBulk, bulkNeedsStepUp, previewBulk } from './bulk.js';
+import { applyMove, duplicateDeviceBody, moveNeedsStepUp, moveRegion, previewMove } from './move.js';
 import { plantJsonSchema } from './format.js';
 import { seedPlantDemo } from './demo.js';
 import * as cat from './catalogue.js';
@@ -57,7 +66,10 @@ import { entryWrite, revisedNetwork, splitRevision, type WriteTarget } from './c
 import {
   applyDirect,
   bulkRegion,
+  entryDiffs,
+  quietDryRun,
   importRegion,
+  touched,
   changeSetLevel,
   insertChangeSet,
   insertOp,
@@ -100,6 +112,8 @@ import { audit, withAuditDetails } from '../audit.js';
  *   POST    /api/plant/documents/confirm, PUT …/sites/:siteId/doc-review, GET …/sites/:siteId/documentation   still current (0.14)
  *   GET     /api/plant/collections?collectorKind=&collectorRef=, …/profiles/:profileId/points/:pointId/collections
  *   GET     /api/plant/views/overview | /views/coverage, …/structure, …/flow, …/lineage   the visualizations (#230)
+ *   POST    /api/plant/move/preview | /api/plant/move   devices (with their data paths) or data collections to another asset (0.16)
+ *   POST    /api/plant/assets/:assetId/devices/:deviceId/duplicate   a copy of a device on this or another asset (0.16)
  *   POST    /api/plant/import/preview | /api/plant/import, GET /api/plant/imports, GET /api/plant/export
  *   GET|PUT /api/settings/plant/map, POST …/map/check     the map's source (administrators, session; a new source asks for a step-up)
  *   GET     /api/plant/map/sites | /map/status | /map/style.json   the map of sites (#234), what the reader may see
@@ -185,7 +199,7 @@ const directly = <T>(source: PlantChangeSetSource, title: string, region: Region
  * Where review is required (plant.changeSet), an import, bulk change or rename asked for through its route becomes a
  * proposed change set (202) – also for API tokens: a nightly sync into a reviewed site becomes a proposal.
  */
-function proposed(kind: 'import' | 'bulk' | 'rename', title: string, op: Parameters<typeof insertOp>[1], sites: string[], catalogue: boolean) {
+function proposed(kind: 'import' | 'bulk' | 'rename' | 'move', title: string, op: Parameters<typeof insertOp>[1], sites: string[], catalogue: boolean) {
   const u = me();
   checkOpenLimits(u);
   const id = insertChangeSet({ state: 'proposed', source: kind, title, by: u.username, sites, catalogue });
@@ -708,6 +722,22 @@ export async function plantRoutes(app: FastifyInstance): Promise<void> {
       ),
     );
   }
+  // 0.16: a duplicate of a device, on this asset or another – its fields, not what identifies the original or watches it
+  app.post('/plant/assets/:assetId/devices/:deviceId/duplicate', async (req, reply) => {
+    const { body: raw, revision } = splitRevision(req.body);
+    const input = plantDuplicateDeviceInput.parse(raw);
+    const from = `${p(req).assetId!}/${p(req).deviceId!}`;
+    const body = duplicateDeviceBody(p(req).assetId!, p(req).deviceId!, input.toAsset, input.id);
+    return entryWrite(
+      req,
+      reply,
+      { kind: 'device', op: 'add', scope: input.toAsset, id: body.id },
+      body,
+      revision,
+      () => withAuditDetails({ copiedFrom: from }, () => net.createDevice(input.toAsset, body)),
+      (r, changes) => revisedNetwork(r, changes) ?? net.assetNetwork(input.toAsset),
+    );
+  });
   // ---------- data collections (0.11.0, ADR 0019): what a collector reads from an asset, mapped to its data points ----------
   app.get('/plant/assets/:assetId/collections', async (req) => coll.assetCollections(p(req).assetId!));
   app.post('/plant/assets/:assetId/collections', async (req, reply) =>
@@ -1010,6 +1040,67 @@ export async function plantRoutes(app: FastifyInstance): Promise<void> {
         fingerprint,
         changedCode: 'PLANT_BULK_CHANGED',
       }).result;
+    },
+  );
+
+  // ---------- 0.16: moving devices and data collections to another asset ----------
+  app.post('/plant/move/preview', async (req) => {
+    const { fingerprint: _f, ...input } = plantMoveInput.parse(req.body);
+    // who may only propose sees what it would do with their propose right counted as manage – to add it to their draft
+    const draft = proposesOnly(false);
+    const pre = quietDryRun(() => (draft ? asProposer(() => previewMove(input)) : previewMove(input)));
+    if (!pre.ok) return { ...pre, applied: false, references: [], changes: [], fingerprint: '' } satisfies PlantMovePreview;
+    const f = previewFingerprint(moveRegion(input), () => (draft ? asProposer(() => applyMove(input)) : applyMove(input)));
+    return {
+      ...pre,
+      applied: false,
+      references: f.result.references,
+      changes: entryDiffs(f.changes, me(), new Set()).entries,
+      fingerprint: f.fingerprint,
+    } satisfies PlantMovePreview;
+  });
+  app.post(
+    '/plant/move',
+    {
+      config: {
+        stepUp: {
+          action: 'changePlantInBulk',
+          when: (req: FastifyRequest) => {
+            const b = plantMoveInput.safeParse(req.body);
+            if (!b.success) return false;
+            try {
+              return moveNeedsStepUp(b.data);
+            } catch {
+              // a move that cannot be planned is refused by the handler with the same error: nothing to confirm
+              return false;
+            }
+          },
+        },
+      },
+    },
+    async (req, reply) => {
+      const { fingerprint, ...input } = plantMoveInput.parse(req.body);
+      const title = `Move ${input.items.length} ${input.kind === 'device' ? 'devices' : 'data collections'} to ${input.toAsset}`;
+      const op = documentOperation('move', input, me());
+      if (changeSetLevel() !== 'off') {
+        const f = previewFingerprint(moveRegion(input), () => applyMove(input));
+        const where = touched(f.changes, [{ op: 'move', kind: null, scope: '', entry_id: '', value: JSON.stringify(input) }]);
+        if (f.changes.length && reviewNeeded(where.sites, where.catalogue)) {
+          const changeSet = proposed('move', title, op, where.sites, where.catalogue);
+          reply.code(202);
+          return { ...f.result, applied: false, changeSet };
+        }
+      }
+      const done = applyDirect({
+        source: 'move',
+        title,
+        region: moveRegion(input),
+        ops: [op],
+        fn: () => applyMove(input),
+        fingerprint,
+        changedCode: 'PLANT_MOVE_CHANGED',
+      });
+      return { ...done.result, changeSetId: done.changeSetId };
     },
   );
 

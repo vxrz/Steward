@@ -49,3 +49,17 @@ test('schedules choose between dry run and run (no test run)', async ({ page }) 
   await chooseRunMode(dialog, 'Dry run');
   await chooseRunMode(dialog, 'Run');
 });
+
+test('a CSV table input: the run dialog counts the rows it reads, with or without a header row', async ({ page }) => {
+  await page.goto('/processes/ih-onboard-users');
+  await page.getByRole('button', { name: 'Run', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: /^Run: / });
+  const csv = dialog.getByRole('textbox', { name: 'Users (CSV)' });
+  const rows = dialog.getByTestId('table-input-rows');
+  // the default: a header row and one user
+  await expect(rows).toHaveText('1 row read');
+  await csv.fill('first.user@example.com,First,User\nsecond.user@example.com,Second,User');
+  await expect(rows).toHaveText('2 rows read – no header row, read by the column order');
+  await csv.fill('email,givenName,familyName,bundle\n');
+  await expect(rows).toHaveText('No rows read – the first line is the header row');
+});

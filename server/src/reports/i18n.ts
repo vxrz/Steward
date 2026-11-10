@@ -468,7 +468,7 @@ const de: Record<MsgKey, string> = {
   integrity: 'Integrität und Prüfung',
   sealedHash: 'Versiegelter Protokoll-Hash (bei Abschluss eingetragen)',
   sealVerifiedAgainst: 'Siegel geprüft gegen',
-  importedHistoryOf: 'das importierte Audit-Protokoll der Instanz mit dem Schlüssel-Fingerabdruck {fingerprint} (mit einem Migrationspaket hierher umgezogen)',
+  importedHistoryOf: 'das importierte Audit-Log der Instanz mit dem Schlüssel-Fingerabdruck {fingerprint} (mit einem Migrationspaket hierher umgezogen)',
   currentHash: 'Protokoll-Hash bei Berichtserstellung',
   integrityStatus: 'Integrität des Journals',
   intact: 'Unverändert seit Abschluss der Ausführung',

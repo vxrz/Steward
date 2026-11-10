@@ -293,11 +293,11 @@ export const checkSchema = z.discriminatedUnion('type', [
     ...checkBase,
     type: z.literal('checkmk'),
     platform: platformRef,
-    /** CheckMk host name */
+    /** Checkmk host name */
     host: z.string().trim().min(1).max(253),
-    /** Service description, exactly as in CheckMk; empty: the state of the host */
+    /** Service description, exactly as in Checkmk; empty: the state of the host */
     service: z.string().trim().max(500).optional(),
-    /** unknown when CheckMk has not checked it for this long (optional) */
+    /** unknown when Checkmk has not checked it for this long (optional) */
     maxAgeSeconds: seconds(1, 365 * 86400).optional(),
   }),
   z.object({

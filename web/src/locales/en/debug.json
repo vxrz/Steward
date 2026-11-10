@@ -81,7 +81,7 @@
     "openRun": "Open the run",
     "recordedFrom": "A decision was simulated at {{key}}: from there on, only recorded answers are used.",
     "notYours": "Only the person who started this debug run can drive it.",
-    "running": "Running …",
+    "running": "Running…",
     "finished": {
       "succeeded": "Debug run succeeded",
       "failed": "Debug run failed",

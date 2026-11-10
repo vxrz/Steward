@@ -375,6 +375,15 @@ export function queryAudit(f: {
 }
 
 /**
+ * Where a list of the newest `keep` entries of a period starts (scheduled exports): the sequence number of the newest
+ * entry in [from, to) that is left out, or null when the period has no more than `keep` entries.
+ */
+export function auditCutSeq(from: string, to: string, keep: number): number | null {
+  const r = db().get<{ seq: number }>(`SELECT seq FROM audit_log WHERE ${VALID_SEQ} AND ts >= ? AND ts < ? ORDER BY seq DESC LIMIT 1 OFFSET ?`, from, to, keep);
+  return r ? Number(r.seq) : null;
+}
+
+/**
  * The actors and target types in the audit log, for the filters of the audit page: a loose index scan over (actor, seq)
  * and (entity_type, …) – one index lookup per distinct value, not a pass over the whole log – at most `limit` each.
  */

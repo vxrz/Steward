@@ -16,8 +16,8 @@ import { FieldDiffs } from '../components/plant/changes';
 import { showValue } from '../components/plant/changes/EntryConflictDialog';
 import { SourceBadge, StateBadge, useKindName } from '../components/plant/changes/common';
 
-const ACTIONS = ['change', 'add', 'rename', 'remove'] as const;
-const ACTION_COLOR = { add: 'green', change: 'blue', remove: 'red', rename: 'violet' } as const;
+const ACTIONS = ['change', 'add', 'rename', 'move', 'remove'] as const;
+const ACTION_COLOR = { add: 'green', change: 'blue', remove: 'red', rename: 'violet', move: 'grape' } as const;
 
 /**
  * The review page of a plant change set (0.13.0, ADR 0020 §5): what applying it now would do, grouped into added,
@@ -410,8 +410,15 @@ function EntryCard({ e, kindName }: { e: PlantChangeEntryDiff; kindName: (k: str
         {e.name}
       </Text>
       <Text size="xs" c="dimmed" className="mono" style={{ overflowWrap: 'anywhere' }}>
-        {e.scope ? `${e.scope} / ` : ''}
-        {e.from ? `${e.from} → ${e.id}` : e.id}
+        {/* a move (0.16): from its old asset to its new one */}
+        {e.action === 'move' && e.fromScope ? (
+          `${e.fromScope} / ${e.from ?? e.id} → ${e.scope} / ${e.id}`
+        ) : (
+          <>
+            {e.scope ? `${e.scope} / ` : ''}
+            {e.from ? `${e.from} → ${e.id}` : e.id}
+          </>
+        )}
       </Text>
       <FieldDiffs diff={e.diff} open={e.diff.length <= 5} />
     </Paper>

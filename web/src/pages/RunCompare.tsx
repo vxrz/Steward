@@ -205,7 +205,7 @@ function RunCard({ label, side, runs, onPick }: { label: string; side: RunCompar
           })}
         </Text>
         {side.cut && (
-          <Text size="xs" c="orange.8">
+          <Text size="xs" c="orange">
             {t('compare.cut')}
           </Text>
         )}

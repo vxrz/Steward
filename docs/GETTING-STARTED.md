@@ -97,7 +97,7 @@ Under _Settings → Notifications_, set up e-mail (SMTP), Microsoft Teams or a w
 
 ## 11. Backups and retention
 
-- **Backups:** _Settings → Backups_ makes encrypted copies of the database and the data folder to an S3 bucket on a schedule and tests the newest one every week ([BACKUPS.md](BACKUPS.md)). Without S3, back up the data folder and, with PostgreSQL, the database. Keep the backup passphrase and the master passphrase offline: a restore needs both.
+- **Backups:** _Settings → Backups_ makes encrypted copies of the database and the data folder to an S3 bucket on a schedule and tests the newest one every week ([BACKUPS.md](BACKUPS.md)). Without S3, back up the data folder and, with PostgreSQL, the database. Keep the backup passphrase and the master passphrase offline: a restore needs both. Readable copies of cost plans, the plant registry or the catalogue for people outside Steward are [exports](EXPORTS.md) (_Settings → Exports_), not backups.
 - **Retention:** runs and notifications are kept as set under _Settings → Retention_. New installations keep runs for 400 days; installations that existed before 0.2.4 keep them until an administrator sets a period (_Settings → System status_ points this out once the database grows past 1 GB). What Steward stores about people: [PRIVACY.md](PRIVACY.md).
 - **Audit log:** ship the signed checkpoints to your SIEM or a write-once mailbox, and turn on archives if the log should not grow for ever ([SECURITY-HARDENING.md](SECURITY-HARDENING.md#audit-log-as-evidence), [ADR 0017](adr/0017-audit-retention.md)).
 

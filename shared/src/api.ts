@@ -34,7 +34,7 @@ export const ROLE_INFO: Record<Role, string> = {
   auditor: 'Read-only access to all processes, runs, protocols and the audit log',
   viewer: 'Read-only access to processes and their runs (unless restricted)',
   status: 'Only the service status pages – none of the other pages, processes, platforms or data',
-  plant: 'Sees only the plant registry (sites and assets, unless a site is restricted) – none of the other pages, processes, services or records',
+  plant: 'Sees only the plant registry (sites and assets, unless a site is restricted) – none of the other pages, processes, services or documents',
 };
 
 export const PROCESS_PERMISSIONS = ['view', 'run', 'edit', 'approve', 'manage'] as const;
@@ -538,6 +538,8 @@ export const STEP_UP_ACTIONS = [
   // 0.14.0 (ADR 0009 step 4): starting a run, saving a schedule or trigger, a request explorer call or approving an MCP
   // request with a privileged platform identity
   'usePrivilegedIdentity',
+  // 0.16.0 (ADR 0027): defining, changing or removing a scheduled export – it sends data out of Steward
+  'changeExports',
 ] as const;
 export type StepUpAction = (typeof STEP_UP_ACTIONS)[number];
 

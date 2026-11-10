@@ -850,7 +850,7 @@
       "expect": {
         "maintenance": "Stays quiet",
         "downtime": "Planned downtime",
-        "off": "Goes Off",
+        "off": "Goes off",
         "down": "Goes down"
       },
       "groups": {

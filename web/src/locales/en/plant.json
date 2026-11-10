@@ -61,7 +61,7 @@
   "preview": "Preview",
   "previewHint": "The plant registry is a preview in this version: its pages and the import format can still change.",
   "notInSource": "Not in source",
-  "notInSourceHint": "An import replaced the one this record came from, and its files no longer contain it. It was kept and marked.",
+  "notInSourceHint": "An import replaced the one this entry came from, and its files no longer contain it. It was kept and marked.",
   "yes": "Yes",
   "no": "No",
   "updated": "Updated",
@@ -73,7 +73,7 @@
   "form": {
     "name": "Name",
     "nameIn": "Name in {{language}}",
-    "id": "Id",
+    "id": "ID",
     "idHelp": "Stable: lower-case letters, digits, “.”, “_” and “-”. Imports and links use it; it never changes.",
     "idFixed": "The id never changes.",
     "idInvalid": "Use lower-case letters, digits, “.”, “_” and “-”, starting with a letter or digit.",
@@ -118,9 +118,9 @@
   },
   "refs": {
     "title": "External references",
-    "help": "The ids of this record in other tools: an ERP equipment number, an asset id in another inventory.",
+    "help": "The ids of this entry in other tools: an ERP equipment number, an asset id in another inventory.",
     "system": "System",
-    "id": "Id there",
+    "id": "ID there",
     "url": "Link",
     "add": "Add reference",
     "remove": "Remove reference {{system}} {{id}}",
@@ -285,20 +285,20 @@
     "modes": {
       "add": {
         "title": "Add only",
-        "text": "New records are added; records that are there already stay as they are."
+        "text": "New entries are added; entries that are there already stay as they are."
       },
       "update": {
         "title": "Add and update",
-        "text": "New records are added, existing ones get what the file says. Keys the file leaves out keep their values."
+        "text": "New entries are added, existing ones get what the file says. Keys the file leaves out keep their values."
       },
       "replace": {
         "title": "Replace an earlier import",
-        "text": "The files become the truth for an earlier import: its records are written in full, and those the files no longer have are removed or kept and marked.",
+        "text": "The files become the truth for an earlier import: its entries are written in full, and those the files no longer have are removed or kept and marked.",
         "none": "Available after a first import."
       }
     },
     "replaces": "Earlier import",
-    "replacesHelp": "Its records that are not in the files any more are removed or marked. Records entered in Steward stay.",
+    "replacesHelp": "Its entries that are not in the files any more are removed or marked. Entries made in Steward stay.",
     "earlierLabel": "{{date}} by {{user}} – {{files}}",
     "missing": "Records of that import that the files no longer have",
     "missingMark": "Keep and mark “not in source”",
@@ -310,7 +310,7 @@
     "warnings": "Notes",
     "show": "Show",
     "showChanges": "Changes",
-    "showAll": "All records",
+    "showAll": "All entries",
     "nothingChanges": "Nothing changes.",
     "changes": "Changes",
     "action": "Change",
@@ -318,8 +318,8 @@
     "what": "What",
     "more": "… and {{count}} more",
     "apply": "Import",
-    "removeConfirm_one": "The import removes {{count}} record. Import anyway?",
-    "removeConfirm_other": "The import removes {{count}} records. Import anyway?",
+    "removeConfirm_one": "The import removes {{count}} entry. Import anyway?",
+    "removeConfirm_other": "The import removes {{count}} entries. Import anyway?",
     "done": "Imported: {{add}} added, {{change}} changed, {{remove}} removed, {{mark}} marked.",
     "resultTitle": "Imported",
     "toSites": "Go to the {{type}}",
@@ -341,8 +341,8 @@
       "exists": "Exists already (add only)",
       "notInSource": "Not in source",
       "marked": "Kept, marked “not in source”",
-      "markedHolds": "Kept, marked “not in source” – it still holds records",
-      "namesRemoved": "Names a record that is removed"
+      "markedHolds": "Kept, marked “not in source” – it still holds entries",
+      "namesRemoved": "Names an entry that is removed"
     },
     "fields": {
       "name": "name",
@@ -378,7 +378,7 @@
     },
     "checks_one": "{{count}} note of the checks",
     "checks_other": "{{count}} notes of the checks",
-    "checksHelp": "What Steward finds in the records of the files once they are imported. These do not stop the import."
+    "checksHelp": "What Steward finds in the entries of the files once they are imported. These do not stop the import."
   },
   "settings": {
     "title": "Plant registry",
@@ -389,12 +389,12 @@
     "enterprise": "Enterprise",
     "enterpriseHelp": "The name of the enterprise this installation documents (the root of the export)",
     "labels": "Display names",
-    "labelsHelp": "Your own words for the record types, e.g. “Machine” instead of “Asset”. Empty: the standard word.",
-    "recordType": "Record type",
+    "labelsHelp": "Your own words for the entry types, e.g. “Machine” instead of “Asset”. Empty: the standard word.",
+    "recordType": "Entry type",
     "labelOne": "{{type}} ({{language}}, one)",
     "labelOther": "{{type}} ({{language}}, several)",
     "fields": "Own fields",
-    "fieldsHelp": "Fields of your own per record type, checked on every save and import. In the import file they are under “fields:” with their key.",
+    "fieldsHelp": "Fields of your own per entry type, checked on every save and import. In the import file they are under “fields:” with their key.",
     "fieldKey": "Key",
     "fieldLabel": "Label",
     "fieldKind": "Kind",
@@ -514,7 +514,7 @@
       "opc_ua": "OPC UA NodeId, e.g. ns=2;s=Spindle.Speed or ns=2;i=1001",
       "modbus_tcp": "Table, 0-based address and count: holding:100, input:7,2 (coil, discrete, input, holding)",
       "mqtt": "The topic, e.g. machines/press-1/state",
-      "other": "A path, a file name or column, a URL …"
+      "other": "A path, a file name or column, a URL…"
     },
     "addressOpcUa": "Use the OPC UA NodeId notation, e.g. ns=2;i=1001 or ns=2;s=Spindle.Speed.",
     "addressModbus": "Use table:address,count – table coil, discrete, input or holding, e.g. holding:100 or input:7,2.",
@@ -527,7 +527,7 @@
     "defaultPublicationsHelp": "Where this data point is usually published; each asset says where it really is.",
     "addPublication": "Add publication",
     "target": "Target system",
-    "targetHelp": "An IoT platform, a historian …",
+    "targetHelp": "An IoT platform, a historian…",
     "path": "Path",
     "pathHelp": "A path, an aspect, a topic",
     "pubName": "Name there",
@@ -806,7 +806,7 @@
   "checks": {
     "title": "Checks",
     "description": "What does not fit in the data of the {{type}} and the KPI definitions: inputs a KPI instance does not get, parameters outside their definition, ratios without their denominator.",
-    "search": "Search record, job, text",
+    "search": "Search entry, job, text",
     "emptyTitle": "Nothing to report",
     "emptyText": "Every KPI instance gets its inputs and parameters, and every KPI definition is complete.",
     "noMatch": "No check matches.",
@@ -868,7 +868,7 @@
     "instantiated": "has an instance"
   },
   "move": {
-    "menu": "Move to…",
+    "menu": "Move to another place",
     "nodeTitle": "Move {{type}} {{name}}",
     "nodeHelp": "The {{type}} moves below another {{parent}} of this site, with everything below it and its assets.",
     "newParent": "New {{type}}",
@@ -877,5 +877,63 @@
     "assetTitle": "Move {{name}}",
     "assetHelp": "Choose the place of the {{type}} in this site's hierarchy. Everything else stays as it is.",
     "newPlace": "New place"
-  }
+  },
+  "moveEntries": {
+    "menu": "Move to another {{type}}",
+    "devicesTitle_one": "Move device {{name}}",
+    "devicesTitle_other": "Move {{count}} devices",
+    "collectionTitle": "Move data collection {{name}}",
+    "devicesHelp": "The devices go to another {{type}} with their ids. The data paths that name only them go along; maintenance windows, old ids and history follow.",
+    "collectionHelp": "The data collection goes to another {{type}} with its items, sinks and Insights Hub mapping – for example when its collector now reads that {{type}}. Its data path stays.",
+    "target": "Target {{type}}",
+    "otherSites": "Show other sites",
+    "otherSitesHelp": "Only where you manage both sites. A device on another site leaves its VLAN and its zones.",
+    "collections": "Data collections of the data paths",
+    "collectionsHelp": "A collection maps its items to the data points of its asset. Leaving it keeps that mapping intact.",
+    "collectionsLeave": "Leave them and take off their link to the data path",
+    "collectionsMove": "Move them along",
+    "crossSite": "The target is on another site: the devices leave their VLAN (and so their zones). Their addresses stay as documented.",
+    "crossSiteCollection": "The target is on another site.",
+    "problems": "Not possible like this",
+    "previewFailed": "The preview could not be worked out",
+    "summary_one": "{{count}} entry moves",
+    "summary_other": "{{count}} entries move",
+    "summaryProblems_one": "{{count}} problem",
+    "summaryProblems_other": "{{count}} problems",
+    "what": "What moves",
+    "newId": "ID on the target",
+    "newIdOf": "New id of {{name}}",
+    "taken": "The target has this id already",
+    "useSuggested": "Use {{id}}",
+    "kinds": {
+      "device": "Device",
+      "dataPath": "Data path",
+      "collection": "Data collection"
+    },
+    "followsPath": "Goes along: it names only devices that move",
+    "followsCollection": "Goes along with its data path",
+    "leavesVlan": "Leaves VLAN {{vlan}}",
+    "leavesDataPath": "Loses its link to data path {{path}}",
+    "unlinked_one": "{{count}} data collection stays and loses its link to the data path",
+    "unlinked_other": "{{count}} data collections stay and lose their link to the data path",
+    "unlinkedItem": "{{name}} (data path {{path}})",
+    "references": "Also follows: {{list}}",
+    "fieldByField_one": "{{count}} entry, field by field",
+    "fieldByField_other": "{{count}} entries, field by field",
+    "stepUp": "This move asks you to confirm who you are: it changes more than 25 entries, with what moves along, or goes to another site.",
+    "apply": "Move",
+    "done_one": "{{count}} entry moved to {{asset}}",
+    "done_other": "{{count}} entries moved to {{asset}}"
+  },
+  "duplicateDevice": {
+    "menu": "Duplicate",
+    "title": "Duplicate device {{name}}",
+    "help": "The copy takes the device’s fields – not its host name, address, MAC address, serial number, switch port, wall outlet or CMDB port (they belong to the original) and not its checks or monitoring. On another site its VLAN stays empty.",
+    "id": "ID of the copy",
+    "otherSitesHelp": "Only where you manage both sites. On another site the copy gets no VLAN.",
+    "save": "Duplicate",
+    "done": "Device {{id}} added as a copy"
+  },
+  "selectedDevices_one": "{{count}} device selected",
+  "selectedDevices_other": "{{count}} devices selected"
 }

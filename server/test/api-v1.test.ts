@@ -520,6 +520,8 @@ async function crawl(token: string): Promise<{ template: string; url: string; re
   const costRows = await listAll('/costs', '/costs?scope=platform');
   if (costRows[0]) await get('/costs/{scope}/{id}', `/costs/platform/${costRows[0].id}`);
   if (apiService) await get('/services/{serviceId}/scorecard', `/services/${apiService}/scorecard`);
+  // the service's cost plan of the current fiscal year (ADR 0026)
+  if (apiService) await get('/services/{serviceId}/cost-plan', `/services/${apiService}/cost-plan`);
   for (const x of (await listAll('/objectives', '/objectives')).slice(0, 5)) await listAll('/objectives/{objectiveId}/samples', `/objectives/${x.id}/samples`);
   await listAll('/access-changes', '/access-changes');
   await listAll('/access-findings', '/access-findings');
@@ -634,6 +636,23 @@ describe('every endpoint', () => {
     await s.api('POST', `/applications/${app.id}/links`, { url: 'https://wiki.example.com/app', label: 'Wiki' });
     await s.api('PUT', `/services/${apiService}/applications/${app.id}`, { role: 'primary' });
     await s.api('PUT', `/services/${apiService}/protection-need`, { availability: { level: 'very_high', reason: 'Cumulation' } });
+    // a cost plan line for the application and an entry (ADR 0026)
+    const planYear = (await s.api('GET', `/costs/plans/${apiService}`)).fiscalYear;
+    await s.api('POST', `/costs/plans/${apiService}/lines`, {
+      fiscalYear: planYear,
+      title: 'API licence',
+      category: 'licence',
+      target: { kind: 'application', id: app.id },
+      amount: '1200',
+      currency: 'EUR',
+      cadence: 'yearly',
+    });
+    await s.api('POST', `/costs/plans/${apiService}/entries`, {
+      date: new Date().toISOString().slice(0, 10),
+      amount: '100',
+      currency: 'EUR',
+      reference: 'INV-API',
+    });
     await s.api('PUT', `/records/${doc.id}/applications`, { applicationIds: [app.id] });
     // a system it runs on (#129), with a component per environment
     const sys = await s.api('POST', '/systems', { name: 'API system', kind: 'vm', stack: [{ product: 'ubuntu', version: '24.04' }] });

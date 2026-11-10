@@ -22,7 +22,8 @@
     "bulk": "Viele auf einmal",
     "rename": "Kennung ändern",
     "assistant": "Assistent",
-    "revert": "Rückgängig"
+    "revert": "Rückgängig",
+    "move": "Verschieben"
   },
   "kinds": {
     "site": "Standort",
@@ -47,19 +48,22 @@
     "remove": "Entfernen",
     "rename": "Kennung ändern",
     "import": "Importieren",
-    "bulk": "Viele auf einmal"
+    "bulk": "Viele auf einmal",
+    "move": "Verschieben"
   },
   "actions": {
     "change": "Geändert",
     "add": "Hinzugefügt",
     "remove": "Entfernt",
-    "rename": "Umbenannt"
+    "rename": "Umbenannt",
+    "move": "Verschoben"
   },
   "groups": {
     "change": "Geänderte Einträge",
     "add": "Hinzugefügte Einträge",
     "rename": "Umbenannte Einträge",
-    "remove": "Entfernte Einträge"
+    "remove": "Entfernte Einträge",
+    "move": "Verschobene Einträge"
   },
   "list": {
     "title": "Titel",
@@ -115,7 +119,8 @@
       "add": "Hinzugefügt",
       "set": "Geändert",
       "remove": "Entfernt",
-      "rename": "Umbenannt"
+      "rename": "Umbenannt",
+      "move": "Verschoben"
     },
     "byOne": "Von {{by}}",
     "byTwo": "Von {{by}}, übernommen von {{appliedBy}}",

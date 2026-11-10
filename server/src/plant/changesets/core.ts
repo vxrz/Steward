@@ -22,6 +22,7 @@ import {
   controlPoint,
   instanceRule,
   plantBulkInput,
+  plantMoveInput,
   type PlantBulkInput,
 } from '@sm/shared';
 import { db } from '../../db.js';
@@ -38,6 +39,7 @@ import { requirePlant } from '../settings.js';
 import { dryRun, renameId } from '../rename.js';
 import { fieldDiff } from '../diff.js';
 import { applyBulk, bulkNeedsStepUp } from '../bulk.js';
+import { applyMove, moveNeedsStepUp, moveRegion } from '../move.js';
 import { applyImport, importInput, importKindsOf, importStepUpPoints, type ImportInput } from '../import.js';
 import { CATALOGUE_KINDS, KINDS, PER_ASSET, assetSites, bodyOf, entryKey, entryPagePath, readEntry, type EntrySnap } from './entries.js';
 import { joinRegions, recordBaselines, tracked, type EntryChange, type Region } from './track.js';
@@ -452,7 +454,7 @@ export function touch(csId: string, by: string): void {
   // where its operations reach (a document's: what its last preview found, too)
   const ops = opsOf(csId);
   const w = whereOfOps(ops);
-  const docs = ops.some((o) => o.op === 'import' || o.op === 'bulk' || o.op === 'rename');
+  const docs = ops.some((o) => o.op === 'import' || o.op === 'bulk' || o.op === 'rename' || o.op === 'move');
   const sites = docs ? [...new Set([...sitesOf(r), ...w.sites])].sort() : w.sites;
   db().run(
     'UPDATE plant_change_sets SET authors = ?, updated_by = ?, updated_at = ?, bytes = ?, expires_at = ?, sites = ?, catalogue = ? WHERE id = ?',
@@ -473,6 +475,12 @@ export function whereOfOps(ops: Pick<OpRow, 'op' | 'kind' | 'scope' | 'entry_id'
   const assets: string[] = [];
   let catalogue = false;
   for (const o of ops) {
+    // 0.16: a move names the assets its entries leave and the target
+    if (o.op === 'move') {
+      const m = plantMoveInput.safeParse(parseJson(o.value, null));
+      if (m.success) assets.push(...(moveRegion(m.data).assets ?? []));
+      continue;
+    }
     if (!o.kind) continue;
     if (o.kind === 'site') out.add(o.entry_id);
     else if (['node', 'building', 'vlan', 'zone', 'conduit'].includes(o.kind)) out.add(o.scope);
@@ -508,6 +516,12 @@ export function regionOf(ops: Pick<OpRow, 'op' | 'kind' | 'scope' | 'entry_id' |
     if (o.op === 'bulk') {
       const b = plantBulkInput.safeParse(parseJson(o.value, null));
       docs = joinRegions(docs, b.success ? bulkRegion(b.data) : { all: true });
+      if (docs.all) return docs;
+      continue;
+    }
+    if (o.op === 'move') {
+      const m = plantMoveInput.safeParse(parseJson(o.value, null));
+      docs = joinRegions(docs, m.success ? moveRegion(m.data) : { all: true });
       if (docs.all) return docs;
       continue;
     }
@@ -638,6 +652,7 @@ function changedError(code: string | undefined): HttpError {
   if (code === 'PLANT_IMPORT_CHANGED') return new HttpError(409, message, 'PLANT_IMPORT_CHANGED');
   if (code === 'PLANT_BULK_CHANGED') return new HttpError(409, message, 'PLANT_BULK_CHANGED');
   if (code === 'PLANT_RENAME_CHANGED') return new HttpError(409, message, 'PLANT_RENAME_CHANGED');
+  if (code === 'PLANT_MOVE_CHANGED') return new HttpError(409, message, 'PLANT_MOVE_CHANGED');
   return new HttpError(409, message, 'PLANT_CHANGESET_CHANGED');
 }
 
@@ -716,6 +731,9 @@ export function runOps(cs: Pick<CsRow, 'id' | 'resolutions'>, ops: OpRow[]): Run
         case 'bulk':
           applyBulk(plantBulkInput.parse(value));
           break;
+        case 'move':
+          applyMove(plantMoveInput.parse(value));
+          break;
       }
     } catch (e) {
       const p = problemOf(e);
@@ -753,6 +771,19 @@ export function stepUpPointsOf(ops: OpRow[], source: PlantChangeSetSource): stri
       const b = plantBulkInput.safeParse(parseJson(o.value, null));
       if (b.success && bulkNeedsStepUp(b.data)) points.add('plant.bulkChange');
     }
+    if (o.op === 'move') {
+      const m = plantMoveInput.safeParse(parseJson(o.value, null));
+      if (m.success) {
+        // what it moves as things are now; a move that cannot be planned (yet) asks too (fail closed)
+        let ask: boolean;
+        try {
+          ask = moveNeedsStepUp(m.data);
+        } catch {
+          ask = true;
+        }
+        if (ask) points.add('plant.bulkChange');
+      }
+    }
     if (o.op === 'import') for (const p of importStepUpPoints(importOf(o))) points.add(p);
   }
   if (points.has('plant.bulkChange')) points.delete('plant.renameId');
@@ -766,9 +797,10 @@ const counts = (changes: EntryChange[]) => ({
   change: changes.filter((c) => c.op === 'set').length,
   remove: changes.filter((c) => c.op === 'remove').length,
   rename: changes.filter((c) => c.op === 'rename').length,
+  move: changes.filter((c) => c.op === 'move').length,
 });
 
-function entryDiffs(changes: EntryChange[], u: AuthUser, staleKeys: Set<string>): { entries: PlantChangeEntryDiff[]; hidden: number } {
+export function entryDiffs(changes: EntryChange[], u: AuthUser, staleKeys: Set<string>): { entries: PlantChangeEntryDiff[]; hidden: number } {
   const rights = siteRights(db().all<{ id: string; acl: string }>('SELECT id, acl FROM plant_sites'), u);
   const sees = (siteId: string) => !siteId || !rights.has(siteId) || !!rights.get(siteId)?.includes('view');
   const visible = changes.filter((c) => sees(c.siteId));
@@ -780,6 +812,7 @@ function entryDiffs(changes: EntryChange[], u: AuthUser, staleKeys: Set<string>)
       name: c.name,
       action: c.op === 'set' ? 'change' : c.op,
       ...(c.from ? { from: c.from.id } : {}),
+      ...(c.op === 'move' && c.from ? { fromScope: c.from.scope } : {}),
       diff: c.op === 'add' ? fieldDiff({}, c.after ?? {}) : c.op === 'remove' ? fieldDiff(c.before ?? {}, {}) : fieldDiff(c.before ?? {}, c.after ?? {}),
       ...(staleKeys.has(entryKey(c)) ? { stale: true } : {}),
     })),
@@ -788,9 +821,11 @@ function entryDiffs(changes: EntryChange[], u: AuthUser, staleKeys: Set<string>)
 }
 
 /** Sites and the catalogue the changes touch. */
-function touched(changes: EntryChange[], ops: OpRow[]): { sites: string[]; catalogue: boolean } {
+export function touched(changes: EntryChange[], ops: Pick<OpRow, 'op' | 'kind' | 'scope' | 'entry_id' | 'value'>[]): { sites: string[]; catalogue: boolean } {
   const sites = new Set(changes.map((c) => c.siteId).filter(Boolean));
   for (const o of ops) {
+    // 0.16: a move touches the sites its entries leave, too (their rights and review apply)
+    if (o.op === 'move') for (const s of whereOfOps([o]).sites) sites.add(s);
     if (o.kind === 'site') sites.add(o.entry_id);
     else if (o.kind && ['node', 'building', 'vlan', 'zone', 'conduit'].includes(o.kind)) sites.add(o.scope);
   }
@@ -923,7 +958,7 @@ function auditApplied(
     action: 'plant.change_set_applied',
     entityType: 'plant_change_set',
     entityId: r.id,
-    summary: `Plant change set "${r.title}" (${r.source}) applied by ${u.username}: ${c.add} added, ${c.change} changed, ${c.rename} renamed, ${c.remove} removed`,
+    summary: `Plant change set "${r.title}" (${r.source}) applied by ${u.username}: ${c.add} added, ${c.change} changed, ${c.rename} renamed, ${c.remove} removed${c.move ? `, ${c.move} moved` : ''}`,
     details: {
       changeSetId: r.id,
       source: r.source,
@@ -966,7 +1001,11 @@ export function applyDirect<T>(o: {
     const importId = o.importIdOf?.(t.result) ?? null;
     if (importId) recordBaselines(importId);
     if (!t.changes.length) return { result: t.result, changeSetId: null, changes: [] };
-    const where = touched(t.changes, []);
+    // a move's sites it leaves count too (0.16)
+    const where = touched(
+      t.changes,
+      o.ops.filter((x) => x.op === 'move').map((x) => ({ op: x.op, kind: x.kind, scope: x.scope, entry_id: x.id, value: JSON.stringify(x.value ?? null) })),
+    );
     insertChangeSet({
       id,
       state: 'applied',
@@ -1115,6 +1154,10 @@ function appliedEntries(id: string, u: AuthUser): PlantChangeEntryDiff[] {
       siteId,
       op: x.op,
       ...(x.op === 'rename' && typeof before?.id === 'string' ? { from: { scope: x.scope, id: before.id } } : {}),
+      // 0.16: a move keeps the asset it left (and its id there, when it changed)
+      ...(x.op === 'move' && typeof before?.asset === 'string'
+        ? { from: { scope: before.asset, id: typeof before.id === 'string' ? before.id : x.entry_id } }
+        : {}),
       before,
       after,
       revision: 0,

@@ -10,6 +10,8 @@ import { explainPgToolError, pgConnection, pgDumpArgs } from '../database/pg-dum
 import { parseDatabaseTarget, quoteIdent } from '../database/sql.js';
 import { snapshotSqlite } from '../database/sqlite-snapshot.js';
 import { env } from '../config.js';
+import type { BackupExcludedPart, BackupOptionalPart } from '@sm/shared';
+import { excludedText, PART_FOLDER } from './contents.js';
 
 /**
  * The backup archive (#117), before encryption: a ZIP with
@@ -19,6 +21,8 @@ import { env } from '../config.js';
  *   data/…                   the data folder: vault.json, artifacts, documents, reports, audit anchors, …
  * Not included: the live database files (the snapshot stands for them), the automatic pre-upgrade copies (backups/)
  * and the work folder of backups. The master passphrase is never in a backup: keep it apart, like the backup passphrase.
+ * From 0.16.0 an administrator may leave out run artifacts, archived reports and evidence packs (contents.ts): the
+ * manifest's "excluded" names what was left out, so a restore test and `steward backup verify` can say what is missing.
  */
 
 export const MANIFEST = 'manifest.json';
@@ -33,6 +37,8 @@ export interface BackupManifest {
   files: { path: string; size: number; sha256: string }[];
   /** The last audit log entry in the snapshot */
   audit: { seq: number; hash: string } | null;
+  /** Parts of the data folder the backup settings left out (0.16.0; missing or empty: nothing) */
+  excluded?: BackupExcludedPart[];
 }
 
 /** A work folder in the data folder (0700) – never /tmp: the snapshot holds the same encrypted secrets as the database. */
@@ -119,20 +125,29 @@ async function snapshotDatabase(dir: string): Promise<{ file: string; entry: str
   return { file, entry: 'database/steward.pgdump', kind: 'postgres', schema: target.schema, audit };
 }
 
-/** Files of the data folder that go into the backup (regular files only; links are not followed). */
-export function dataFiles(root = config.dataDir): { rel: string; abs: string }[] {
+/** What the walk of the data folder leaves out: folders Steward rebuilds or that are not data, and the database files. */
+function skipper(exclude: readonly BackupOptionalPart[]): (rel: string, name: string, abs: string) => boolean {
   const dbFile = config.database.kind === 'sqlite' ? path.resolve(config.database.file) : null;
   // the map's tile cache is rebuilt from its source, and its PMTiles files are placed by whoever runs Steward (#234)
-  const skipTop = new Set(['backups', WORK_DIR, 'instance.json', 'cache', 'maps']);
+  // .export-work: files of a scheduled export on their way to S3 (export/jobs.ts)
+  const skipTop = new Set(['backups', WORK_DIR, '.export-work', 'instance.json', 'cache', 'maps', ...exclude.map((p) => PART_FOLDER[p])]);
+  const dbFiles = dbFile ? [dbFile, `${dbFile}-wal`, `${dbFile}-shm`, `${dbFile}-journal`, `${dbFile}.lock`, `${dbFile}.lock.json`] : [];
+  // the database goes in as a snapshot; its instance lock (database/sqlite-lock.ts) belongs to the running process
+  return (rel, name, abs) => (!rel && skipTop.has(name)) || dbFiles.includes(path.resolve(abs));
+}
+
+/**
+ * Files of the data folder that go into the backup (regular files only; links are not followed). `exclude`: optional
+ * parts left out (contents.ts) – their top-level folders are skipped.
+ */
+export function dataFiles(root = config.dataDir, exclude: readonly BackupOptionalPart[] = []): { rel: string; abs: string }[] {
+  const skip = skipper(exclude);
   const out: { rel: string; abs: string }[] = [];
   const walk = (dir: string, rel: string) => {
     for (const d of fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => (a.name < b.name ? -1 : 1))) {
       const r = rel ? `${rel}/${d.name}` : d.name;
       const abs = path.join(dir, d.name);
-      if (!rel && skipTop.has(d.name)) continue;
-      // the database goes in as a snapshot; its instance lock (database/sqlite-lock.ts) belongs to the running process
-      if (dbFile && [dbFile, `${dbFile}-wal`, `${dbFile}-shm`, `${dbFile}-journal`, `${dbFile}.lock`, `${dbFile}.lock.json`].includes(path.resolve(abs)))
-        continue;
+      if (skip(rel, d.name, abs)) continue;
       if (d.isDirectory()) walk(abs, r);
       else if (d.isFile()) out.push({ rel: r, abs });
     }
@@ -141,9 +156,55 @@ export function dataFiles(root = config.dataDir): { rel: string; abs: string }[]
   return out;
 }
 
-/** Builds the archive at `out` (must not exist). */
-export async function createArchive(out: string, o: { now?: Date } = {}): Promise<BackupManifest> {
+/**
+ * The files of the data folder (as dataFiles) with their sizes – read without blocking: a large folder of run
+ * artifacts is walked in steps, and the server answers other requests in between (the contents page, the manifest's
+ * count of what a backup leaves out).
+ */
+export async function dataFileSizes(root = config.dataDir, exclude: readonly BackupOptionalPart[] = []): Promise<{ rel: string; size: number }[]> {
+  const skip = skipper(exclude);
+  const out: { rel: string; size: number }[] = [];
+  let seen = 0;
+  const walk = async (dir: string, rel: string): Promise<void> => {
+    let entries: fs.Dirent[];
+    try {
+      entries = await fs.promises.readdir(dir, { withFileTypes: true });
+    } catch {
+      return; // removed meanwhile
+    }
+    for (const d of entries.sort((a, b) => (a.name < b.name ? -1 : 1))) {
+      const r = rel ? `${rel}/${d.name}` : d.name;
+      const abs = path.join(dir, d.name);
+      if (skip(rel, d.name, abs)) continue;
+      if (d.isDirectory()) await walk(abs, r);
+      else if (d.isFile()) {
+        const size = await fs.promises.stat(abs).then(
+          (st) => st.size,
+          () => null, // removed meanwhile
+        );
+        if (size !== null) out.push({ rel: r, size });
+      }
+      if (++seen % 500 === 0) await new Promise((resolve) => setImmediate(resolve));
+    }
+  };
+  await walk(root, '');
+  return out;
+}
+
+/** What the left-out parts hold now (files and bytes), for the manifest. */
+async function excludedParts(exclude: readonly BackupOptionalPart[]): Promise<BackupExcludedPart[]> {
+  const out: BackupExcludedPart[] = [];
+  for (const part of exclude) {
+    const files = await dataFileSizes(path.join(config.dataDir, PART_FOLDER[part]));
+    out.push({ part, path: `${PART_FOLDER[part]}/`, files: files.length, bytes: files.reduce((n, f) => n + f.size, 0) });
+  }
+  return out;
+}
+
+/** Builds the archive at `out` (must not exist). `exclude`: optional parts the backup settings leave out. */
+export async function createArchive(out: string, o: { now?: Date; exclude?: readonly BackupOptionalPart[] } = {}): Promise<BackupManifest> {
   const dir = workDir();
+  const exclude = o.exclude ?? [];
   const snap = await snapshotDatabase(dir);
   // ZIP64 where needed: backups past 4 GB or 65,535 files (an archive within those limits is plain PKZIP 2.0)
   const zip = await ZipWriter.create(out, undefined, { zip64: true });
@@ -151,7 +212,7 @@ export async function createArchive(out: string, o: { now?: Date } = {}): Promis
     const files: WrittenEntry[] = [];
     files.push(await zip.addFile(snap.entry, snap.file));
     fs.rmSync(snap.file, { force: true });
-    for (const f of dataFiles()) {
+    for (const f of dataFiles(config.dataDir, exclude)) {
       try {
         files.push(await zip.addFile(`data/${f.rel}`, f.abs));
       } catch (e) {
@@ -167,6 +228,7 @@ export async function createArchive(out: string, o: { now?: Date } = {}): Promis
       database: { kind: snap.kind, file: snap.entry, ...(snap.schema ? { schema: snap.schema } : {}) },
       files: files.map((f) => ({ path: f.path, size: f.size, sha256: f.sha256 })),
       audit: snap.audit,
+      ...(exclude.length ? { excluded: await excludedParts(exclude) } : {}),
     };
     await zip.add(MANIFEST, Buffer.from(JSON.stringify(manifest, null, 2)));
     await zip.finish();
@@ -225,6 +287,9 @@ export async function checkArchive(file: string, o: { deep?: boolean } = {}): Pr
   if (extra.length) bad.push(`not in the manifest: ${extra.slice(0, 5).join(', ')}`);
   if (!step('checksums', !bad.length, bad.length ? bad.slice(0, 5).join('; ') : `All ${manifest.files.length} files match their SHA-256`))
     return { ok: false, manifest, steps };
+  // left out on purpose (0.16.0): not a failure, but a restore from this backup lacks these folders
+  if (manifest.excluded?.length)
+    step('contents', true, `Left out by the backup settings – a restore from this backup lacks them: ${excludedText(manifest.excluded)}`);
   if (!o.deep) return { ok: true, manifest, steps };
 
   const dbEntry = zip.find(manifest.database.file)!;

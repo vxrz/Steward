@@ -7,7 +7,7 @@ widgets:
   - { id: offline, type: kpi, title: Offline, dataset: iem.devices, metric: offline, goodWhen: down, width: 3 }
   - { id: outdatedFw, type: kpi, title: Firmware below baseline, dataset: iem.firmware, metric: outdated, goodWhen: down, width: 3 }
   - { id: outdatedApps, type: kpi, title: Outdated app installations, dataset: iem.app-compliance, metric: outdated, goodWhen: down, width: 3 }
-  - { id: apps, type: kpi, title: Apps in catalog, dataset: iem.apps, metric: apps, width: 3 }
+  - { id: apps, type: kpi, title: Apps in the catalogue, dataset: iem.apps, metric: apps, width: 3 }
   - { id: inactive, type: kpi, title: Inactive devices, dataset: iem.devices, metric: inactive, goodWhen: down, width: 3 }
   - { id: rows, type: kpi, title: Installations checked, dataset: iem.app-compliance, metric: installations, width: 3 }
   - { id: status, type: status, title: Device status, dataset: iem.devices, width: 6 }
@@ -35,5 +35,5 @@ widgets:
           - { field: Firmware }
           - { aggregate: count, type: quantitative, title: Devices }
   - { id: appVersions, type: table, title: Outdated applications, dataset: iem.app-compliance, problemsOnly: true, width: 6 }
-  - { id: catalog, type: table, title: Application catalog, dataset: iem.apps, width: 6 }
+  - { id: catalog, type: table, title: App catalogue, dataset: iem.apps, width: 6 }
   - { id: fresh, type: freshness, width: 12 }

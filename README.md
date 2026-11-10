@@ -82,7 +82,7 @@ How it works in detail: [docs/SECURITY-MODEL.md](docs/SECURITY-MODEL.md). Before
 
 Contributions are welcome – see [CONTRIBUTING.md](CONTRIBUTING.md) for setup, conventions and checks. How it is built: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Where it is heading and what it deliberately does not do: [docs/ROADMAP.md](docs/ROADMAP.md). Changes are listed in [CHANGELOG.md](CHANGELOG.md).
 
-## License
+## Licence
 
 Copyright 2026 uebelacker.io. Licensed under the [Apache License, Version 2.0](LICENSE). See [NOTICE](NOTICE).
 

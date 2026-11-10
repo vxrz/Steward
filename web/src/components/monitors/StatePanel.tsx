@@ -3,7 +3,7 @@ import { IconCheck, IconClockHour4, IconPower, IconQuestionMark, IconX } from '@
 import { useTranslation } from 'react-i18next';
 import type { CellVerdict, MonitorDetail, MonitorStateInfo, StateCellView, UptimeSet } from '@sm/shared';
 import i18n from '../../i18n';
-import { fmtDate, fmtNumber } from '../../format';
+import { dateTimeFormat, fmtDate, fmtNumber } from '../../format';
 import { monitorStatusLabel } from './status';
 
 /**
@@ -28,8 +28,64 @@ export function offText(off: UptimeSet | null): string {
   return i18n.t('monitors:states.offTime' as 'common:add', { h24: h(off.h24), d7: h(off.d7), d30: h(off.d30) }) as string;
 }
 
+/** Amber: a check that deviates while the settle time runs – not counted yet, so not red. */
+export const SETTLING_COLOR = 'orange';
+
+/** The checks whose expectation deviates while the settle time runs (they do not count until it ends). */
+export function settlingCheckIds(s: Pick<MonitorStateInfo, 'settlingUntil' | 'cells'> | null | undefined): string[] {
+  if (!s?.settlingUntil) return [];
+  return [...new Set(s.cells.filter((c) => c.verdict === 'settling').map((c) => c.checkId))];
+}
+
+/** "14:00" today, the date and time otherwise. */
+function fmtUntil(iso: string): string {
+  const d = new Date(iso);
+  return d.toDateString() === new Date().toDateString() ? dateTimeFormat({ timeStyle: 'short' }).format(d) : fmtDate(iso);
+}
+
+/**
+ * Next to the monitor's status while its state settles: "settling until 14:00 – 1 check not as expected yet". The status
+ * stays as computed; this says why red cards do not count yet.
+ */
+export function SettlingNote({ state, size = 'lg' }: { state: MonitorStateInfo | null | undefined; size?: 'sm' | 'lg' }) {
+  const { t } = useTranslation('monitors');
+  if (!state?.settlingUntil) return null;
+  const n = settlingCheckIds(state).length;
+  return (
+    <Badge
+      size={size}
+      variant="outline"
+      color={SETTLING_COLOR}
+      leftSection={<IconClockHour4 size={size === 'lg' ? 14 : 11} aria-hidden />}
+      data-testid="monitor-settling"
+      style={{ textTransform: 'none' }}
+    >
+      {t('states.settlingUntil', { date: fmtUntil(state.settlingUntil) })}
+      {n ? ` – ${t('states.notAsExpectedYet', { count: n })}` : ''}
+    </Badge>
+  );
+}
+
+/** On a check (card, row) that deviates while the settle time runs. */
+export function CheckSettlingBadge({ until }: { until?: string | null }) {
+  const { t } = useTranslation('monitors');
+  return (
+    <Badge
+      size="xs"
+      variant="light"
+      color={SETTLING_COLOR}
+      leftSection={<IconClockHour4 size={10} aria-hidden />}
+      title={until ? t('states.settlingUntil', { date: fmtUntil(until) }) : undefined}
+      data-testid="check-settling"
+      style={{ flexShrink: 0 }}
+    >
+      {t('states.verdict.settling')}
+    </Badge>
+  );
+}
+
 const VERDICT_ICON: Record<CellVerdict, typeof IconCheck> = { agrees: IconCheck, contradicts: IconX, settling: IconClockHour4, unknown: IconQuestionMark };
-const VERDICT_COLOR: Record<CellVerdict, string> = { agrees: 'gray', contradicts: 'red', settling: 'blue', unknown: 'gray' };
+const VERDICT_COLOR: Record<CellVerdict, string> = { agrees: 'gray', contradicts: 'red', settling: SETTLING_COLOR, unknown: 'gray' };
 
 export function VerdictBadge({ verdict }: { verdict: CellVerdict }) {
   const { t } = useTranslation('monitors');

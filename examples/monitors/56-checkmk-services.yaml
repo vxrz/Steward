@@ -1,11 +1,11 @@
-# Services CheckMk watches (#130): the state of a host and of services, as CheckMk sees them – unknown when CheckMk has
-# not checked them for 15 minutes. "platform: CheckMk" finds your CheckMk platform when it is the only one (or the only
-# one whose name starts with "CheckMk"); on import you choose it otherwise. Host and service names exactly as in
-# CheckMk. See docs/CHECKMK.md.
+# Services Checkmk watches (#130): the state of a host and of services, as Checkmk sees them – unknown when Checkmk has
+# not checked them for 15 minutes. "platform: Checkmk" finds your Checkmk platform when it is the only one (or the only
+# one whose name starts with "Checkmk"); on import you choose it otherwise. Host and service names exactly as in
+# Checkmk. See docs/CHECKMK.md.
 kind: monitor
 key: checkmk-database-host
-name: Database host (CheckMk)
-description: The database host db01 and its services, as CheckMk sees them.
+name: Database host (Checkmk)
+description: The database host db01 and its services, as Checkmk sees them.
 tags: [checkmk]
 intervalSeconds: 120
 aggregate: { rule: worst }
@@ -13,7 +13,7 @@ checks:
   - id: host
     name: db01
     type: checkmk
-    platform: CheckMk
+    platform: Checkmk
     host: db01
     maxAgeSeconds: 900
     x: 0
@@ -21,7 +21,7 @@ checks:
   - id: var
     name: db01 – Filesystem /var
     type: checkmk
-    platform: CheckMk
+    platform: Checkmk
     host: db01
     service: Filesystem /var
     maxAgeSeconds: 900
@@ -30,7 +30,7 @@ checks:
   - id: cpu
     name: db01 – CPU load
     type: checkmk
-    platform: CheckMk
+    platform: Checkmk
     host: db01
     service: CPU load
     maxAgeSeconds: 900

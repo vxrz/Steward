@@ -75,6 +75,12 @@ describe('stored content is served with the type of its content', () => {
     const png = await get('/artifacts/art_png');
     expect(png.headers.get('content-type')).toBe('image/png');
     expect(png.headers.get('content-disposition')).toMatch(/^inline;/);
+    // the row without its file (a backup restored without run artifacts): 410, like a report file that is gone
+    add('art_gone', 'gone.png', 'image/png', tinyPng());
+    fs.rmSync(path.join(dir, 'gone.png'));
+    const gone = await get('/artifacts/art_gone');
+    expect(gone.status).toBe(410);
+    expect(await gone.json()).toMatchObject({ code: 'ARTIFACT_FILE_GONE' });
   });
 
   it('record attachments: a type uploads never produce becomes a plain download', async () => {

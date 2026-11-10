@@ -209,6 +209,27 @@ export function writeAlias(kind: PlantIdKind, scope: string, from: string, to: s
   return n;
 }
 
+/**
+ * 0.16: an entry moved to another scope (a device or data path to another asset): its old ids lead to it there, where
+ * the new scope has them free (no entry and no alias of its own); the others are dropped – an id of the old asset says
+ * nothing on another. Its id in the old scope becomes free (no alias across scopes). Returns how many moved or went.
+ */
+export function moveAliases(kind: PlantIdKind, scope: string, from: string, toScope: string, to: string): number {
+  let n = 0;
+  // an alias of the new scope that named the new id is no old id any more
+  n += db().run('DELETE FROM plant_id_aliases WHERE kind = ? AND scope = ? AND old_id = ?', kind, toScope, to).changes;
+  for (const a of db().all<AliasRow>('SELECT * FROM plant_id_aliases WHERE kind = ? AND scope = ? AND new_id = ?', kind, scope, from)) {
+    const free =
+      a.old_id !== to &&
+      !entryOf(kind, toScope, a.old_id) &&
+      !one('SELECT 1 AS x FROM plant_id_aliases WHERE kind = ? AND scope = ? AND old_id = ?', kind, toScope, a.old_id);
+    n += free
+      ? db().run('UPDATE plant_id_aliases SET scope = ?, new_id = ? WHERE kind = ? AND scope = ? AND old_id = ?', toScope, to, kind, scope, a.old_id).changes
+      : db().run('DELETE FROM plant_id_aliases WHERE kind = ? AND scope = ? AND old_id = ?', kind, scope, a.old_id).changes;
+  }
+  return n;
+}
+
 /** Removes aliases whose entry is gone: their old ids are free again. Returns how many. */
 export function pruneAliases(): number {
   let n = 0;

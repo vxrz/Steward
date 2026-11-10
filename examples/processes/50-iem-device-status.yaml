@@ -32,7 +32,11 @@ steps:
     type: set
     name: Evaluate device states
     values:
-      all: "{{ [vars.devices.body.data ? vars.devices.body.data : vars.devices.body] }}"
+      all: >-
+        {{ [(vars.devices.body.data ? vars.devices.body.data : vars.devices.body).$merge([$, {
+          "id": deviceId ? deviceId : id,
+          "name": deviceName ? deviceName : name
+        }])] }}
       offline: "{{ [vars.all[$lookup($, $inputs.statusField) != $inputs.onlineValue]] }}"
   - id: allOnline
     type: check

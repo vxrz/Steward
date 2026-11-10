@@ -1,6 +1,6 @@
 # 0024. Signed releases: build provenance, offline verification and an update notice
 
-- **Status:** Proposed – everything marked _Recommendation_ is open to change; the questions for the owner are at the end
+- **Status:** Accepted (owner decision 2026-11-10) – every _Recommendation_ below was taken as recommended (see _Decided (November 2026)_); not built yet
 - **Date:** 2026-11-09
 - **Since:** planned for 0.14 (#30) – releases ([RELEASES.md](../RELEASES.md)), updating ([INSTALL.md](../INSTALL.md#6-updating))
 
@@ -42,7 +42,7 @@ _Recommendation:_ **B**, and C only when a user asks for L3.
 
 - `release.yml`: one `actions/attest` step for provenance over `steward-*`, `SHA256SUMS.txt`, `release-index.json` (section 4) and the SBOM; one for the SBOM attestation. The `bundle-path` outputs are attached to the release as `provenance.sigstore.json` and `sbom.sigstore.json`.
 - `container.yml`: `actions/attest` in place of both actions, inputs unchanged; bundles stay in the registry (`push-to-registry: true`). cosign stays for the image signature.
-- **The exe SBOM** stays the npm production dependencies; the release notes and SECURITY-HARDENING.md say it does not list the embedded Node.js runtime, whose version the About page shows. (Syft over the unpacked archive is the alternative; see the open questions.)
+- **The exe SBOM** stays the npm production dependencies; the release notes and SECURITY-HARDENING.md say it does not list the embedded Node.js runtime, whose version the About page shows. (Syft over the unpacked archive was the alternative; see _Decided_, question 7.)
 - Workflow permissions grow by `artifact-metadata: write` only if the first run shows it is needed.
 
 ### 2. Verification for operators
@@ -151,7 +151,7 @@ Default off: no request leaves the installation. With GitHub as the source, GitH
 1. **0.14 – pipeline and docs:** `actions/attest` in both workflows, bundles and `release-index.json` as release assets, the verification job, the offline commands and the offline bundle script, SECURITY-HARDENING.md and RELEASES.md.
 2. **0.15 – the notice:** settings (off by default), file import, mirror, GitHub; verification with `sigstore`; the notice with _Check before updating_ items and the preflight; `GET /api/v1/system/updates`.
 3. **Then – desktop:** download and verify; the "build verified" line after an update.
-4. Woodpecker/Forgejo builds: a mirror may serve releases built and signed there; Steward then also accepts a **company key** configured by an administrator (cosign public key, step-up) – only if the owner wants it (open question 6).
+4. Woodpecker/Forgejo builds: a mirror may serve releases built and signed there; Steward then also accepts a **company key** configured by an administrator (cosign public key, step-up) – only if the owner wants it later (_Decided_, question 6: not for now).
 
 ## Test strategy
 
@@ -171,13 +171,15 @@ Default off: no request leaves the installation. With GitHub as the source, GitH
 - The changelog's _Check before updating_ items become data that the app shows, so they must be written for administrators – short and actionable.
 - Revisit for SLSA Build L3 or OS code signing when users ask, and for a company signing key when releases are rebuilt inside plants.
 
-## Open questions for the owner
+## Decided (November 2026)
 
-1. **Attestation action:** (a) move both workflows to `actions/attest` v4.2.2 and publish the bundles as release assets – recommended; (b) keep the two current actions until `attest-sbom` stops working.
-2. **SLSA level:** (a) stay at Build L2 – recommended; (b) Build L3 with an isolated provenance workflow.
-3. **Code signing of the executables:** (a) no OS code signing; Sigstore provenance is the proof – recommended; (b) Authenticode and Apple notarisation in the release workflow.
-4. **Default source of the update notice:** (a) off; GitHub and a mirror opt-in – recommended; (b) GitHub on by default for the desktop app only; (c) only file import, no network source at all.
-5. **Desktop update:** (a) download and verify, unpack next to the executable, the person restarts – recommended; (b) a link to the release page only.
-6. **Releases rebuilt in the company (Woodpecker/Forgejo):** (a) not accepted by the notice – only this repository's releases – recommended for now; (b) also accept a company cosign key configured by an administrator.
-7. **SBOM of the executables:** (a) npm production dependencies, documented as not listing Node.js itself – recommended; (b) Syft over the unpacked archive, as for the image.
-8. **Offline bundle:** (a) a script that builds it on a connected machine – recommended; (b) a ready-made bundle as release asset.
+The owner took the recommended answer to every open question ("go with your recommendation if it fits Steward's purpose, architecture, UI/UX and best practices"), decided on 2026-11-10:
+
+1. **Attestation action:** both workflows move to `actions/attest` v4.2.2, and the bundles are published as release assets.
+2. **SLSA level:** Build L2; an isolated provenance workflow for L3 is not planned.
+3. **Code signing of the executables:** no operating-system code signing; the Sigstore provenance is the proof.
+4. **Default source of the update notice:** off; GitHub and a mirror are opt-in.
+5. **Desktop update:** download and verify, unpack next to the executable; the person restarts.
+6. **Releases rebuilt in the company (Woodpecker/Forgejo):** not accepted by the notice for now – only this repository's releases. A company cosign key stays a later option.
+7. **SBOM of the executables:** the npm production dependencies, documented as not listing Node.js itself.
+8. **Offline bundle:** a script that builds it on a connected machine; no ready-made bundle as a release asset.

@@ -6,7 +6,7 @@ How Steward signs in to a platform is its **auth type** (_Platforms → a platfo
 | ------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------- |
 | None                            | –                                                           | public APIs (endoflife.date)                                  |
 | Basic                           | `username`, `password`                                      | many on-prem APIs; on Kafka platforms the Schema Registry key |
-| Static bearer token             | `token`                                                     | GitHub, GitLab, Forgejo, Kubernetes, CheckMk                  |
+| Static bearer token             | `token`                                                     | GitHub, GitLab, Forgejo, Kubernetes, Checkmk                  |
 | API key                         | `apiKey` (header or query)                                  |                                                               |
 | OAuth2 client credentials       | `clientId`, `clientSecret` – or `privateKey`, `certificate` | Insights Hub, Microsoft Graph (Entra ID)                      |
 | Custom login request            | any, referenced as `{{ secrets.x }}`                        | Industrial Edge Management, IBM Verify Privilege Vault        |

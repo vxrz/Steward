@@ -45,6 +45,16 @@ The words Steward uses, in English and German. The web app has the same list und
 | Team, owning team    | Team, verantwortliches Team | A team groups people with roles. The owning teams of an item decide who may see and change it ([ADR 0006](adr/0006-owning-teams-policy-module.md)).                                                                              |
 | Module               | Modul                       | An optional area an administrator can switch off in _Settings → Modules_ ([MODULES.md](MODULES.md)).                                                                                                                             |
 
+## Costs
+
+| Term           | German        | Meaning                                                                                                                                                                          |
+| -------------- | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Fiscal year    | Geschäftsjahr | The planning period of cost plans: twelve months from the start month the instance sets (_Costs → Settings_), named by the year it starts in – _FY 2026_ or _FY 2026/27_.        |
+| Plan line      | Planposition  | What a service plans to spend in a fiscal year on a licence, cloud, support, hardware or other: an amount and a cadence, optionally for an application or system of the service. |
+| Cost entry     | Kostenbuchung | What a service incurred: a date, an amount and a reference (invoice or order number), on a plan line or unplanned. Not effort – Steward plans no person-hours.                   |
+| Unplanned      | Ungeplant     | A cost entry without a plan line of its fiscal year.                                                                                                                             |
+| Monthly budget | Monatsbudget  | A limit per month for the costs read for a service, application or team, with notices at 80 % and 100 % – independent of the cost plan.                                          |
+
 ## Plant registry
 
 | Term             | German                 | Meaning                                                                                                                                                    |

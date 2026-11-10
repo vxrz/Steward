@@ -24,7 +24,7 @@ import {
 import { useMediaQuery } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
-import { IconAlertTriangle, IconDatabaseImport, IconDownload, IconFileUpload, IconPencil, IconPlus, IconTrash } from '@tabler/icons-react';
+import { IconAlertTriangle, IconArrowsMove, IconDatabaseImport, IconDownload, IconFileUpload, IconPencil, IconPlus, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import {
   COLLECTION_FORMATS,
@@ -51,6 +51,8 @@ import { DescribedText, DescriptionModal } from '../../components/plant/describe
 import { CollectionFlowView, CollectionSourcesView } from '../../components/plant/CollectionFlow';
 import { PlantDocumentsPanel } from '../../components/plant/DocumentsPanel';
 import { draftSave } from '../../components/plant/changes/common';
+import { MoveEntriesModal } from '../../components/plant/MoveEntries';
+import { usePlantLabel } from '../../components/plant/common';
 
 /**
  * The data collections of an asset (0.11.0, ADR 0019): what collectors read from it, mapped to its data points. The
@@ -63,7 +65,7 @@ const base = (assetId: string) => `/plant/assets/${encodeURIComponent(assetId)}/
 const key = (assetId: string) => ['plant', 'collections', assetId];
 
 function useCollectionText() {
-  const { t, i18n } = useTranslation(['plantModel', 'plantNetwork', 'plantDocs', 'common']);
+  const { t, i18n } = useTranslation(['plantModel', 'plantNetwork', 'plantDocs', 'plant', 'common']);
   const nf = new Intl.NumberFormat(i18n.language);
   const how = (c: Pick<PlantCollectionView, 'mode' | 'intervalMs' | 'debounceMs'>) =>
     [
@@ -343,6 +345,7 @@ function NewCollectionModal({
 
 function CollectionDetail({ assetId, id, data, onClose }: { assetId: string; id: string; data: PlantAssetCollections; onClose: () => void }) {
   const { t, how, collector } = useCollectionText();
+  const plantLabel = usePlantLabel();
   const qc = useQueryClient();
   const narrow = useMediaQuery('(max-width: 48em)') ?? false;
   const q = useQuery({ queryKey: [...key(assetId), id], queryFn: () => get<PlantCollectionView>(`${base(assetId)}/${encodeURIComponent(id)}`) });
@@ -351,6 +354,8 @@ function CollectionDetail({ assetId, id, data, onClose }: { assetId: string; id:
   // the collection's description (-1) or an item's (its index)
   const [describing, setDescribing] = useState<number | null>(null);
   const [tab, setTab] = useState('items');
+  // 0.16: the collection to another asset (its collector was reassigned)
+  const [moving, setMoving] = useState(false);
   // 0.13.0: who may only propose edits here too – what they save goes into their draft
   const canEdit = data.canManage || !!data.canPropose;
   const c = q.data;
@@ -627,6 +632,11 @@ function CollectionDetail({ assetId, id, data, onClose }: { assetId: string; id:
                 ))}
               </Group>
               {canEdit && (
+                <Button size="xs" variant="default" leftSection={<IconArrowsMove size={14} />} onClick={() => setMoving(true)} data-testid="collection-move">
+                  {t('plant:moveEntries.menu', { type: plantLabel('asset', false, true) })}
+                </Button>
+              )}
+              {canEdit && (
                 <Button size="xs" color="red" variant="subtle" leftSection={<IconTrash size={14} />} onClick={() => void remove()}>
                   {t('collections.remove')}
                 </Button>
@@ -640,6 +650,15 @@ function CollectionDetail({ assetId, id, data, onClose }: { assetId: string; id:
           </Stack>
         </Tabs.Panel>
       </Tabs>
+      {moving && (
+        <MoveEntriesModal
+          kind="collection"
+          items={[{ asset: assetId, id: c.id, name: c.name }]}
+          siteId={data.asset.siteId}
+          onClose={() => setMoving(false)}
+          onDone={onClose}
+        />
+      )}
       {editing !== null && (
         <MapModal
           value={c.items[editing]!.dataPoint}

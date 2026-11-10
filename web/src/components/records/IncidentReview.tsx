@@ -309,7 +309,7 @@ export function TimelineModal({ rec, onClose, onSaved }: { rec: RecordDetail; on
           </Text>
         )}
         {q.data?.truncated && (
-          <Text size="xs" c="orange.8">
+          <Text size="xs" c="orange">
             {t('review.truncated')}
           </Text>
         )}

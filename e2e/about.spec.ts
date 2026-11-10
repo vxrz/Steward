@@ -19,7 +19,7 @@ test.describe('About page', () => {
     await expect(page.getByTestId('version-web')).toHaveText(VERSION);
     await expect(page.getByTestId('version-server')).toHaveText(VERSION);
     await expect(page.getByText('A newer version is running')).toHaveCount(0);
-    for (const name of ['Changelog', 'Report a vulnerability (SECURITY.md)', 'Source code', 'License (Apache-2.0)']) {
+    for (const name of ['Changelog', 'Report a vulnerability (SECURITY.md)', 'Source code', 'Licence (Apache-2.0)']) {
       await expect(page.getByRole('link', { name })).toHaveAttribute('href', /github\.com/);
     }
     // footer: version and link back here
@@ -31,7 +31,7 @@ test.describe('About page', () => {
     const table = page.getByRole('table').filter({ hasText: 'Package' });
     await expect(table.getByRole('link', { name: 'react', exact: true })).toBeVisible();
     expect(await table.getByRole('row').count()).toBeGreaterThan(50);
-    await page.getByRole('textbox', { name: 'Filter by package or license' }).fill('fastify');
+    await page.getByRole('textbox', { name: 'Filter by package or licence' }).fill('fastify');
     await expect(table.getByRole('link', { name: 'fastify', exact: true })).toBeVisible();
     await expect(table.getByRole('link', { name: 'react', exact: true })).toHaveCount(0);
   });

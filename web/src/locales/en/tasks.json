@@ -73,7 +73,7 @@
     "complete": "Complete step",
     "ticketHint": "Ticket number, e.g. INC0012345 – linked when it is documented under Tickets",
     "fieldNotAvailable": "“{{field}}” is not available",
-    "because": "Not available, because …",
+    "because": "Not available, because…",
     "uploadFailed": "Could not add the file",
     "addEvidence": "Add evidence file",
     "noEvidence": "No evidence files yet.",

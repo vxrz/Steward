@@ -14,7 +14,9 @@
     "acknowledgedBy": "acknowledged by {{user}}",
     "hideOff": "Hide off",
     "offAgree": "{{state}} – all checks agree",
-    "offSettling": "{{state}} · settling {{minutes}} min"
+    "offSettling": "{{state}} · settling {{minutes}} min",
+    "settling_one": "{{state}} · settling {{minutes}} min – {{count}} check not as expected yet",
+    "settling_other": "{{state}} · settling {{minutes}} min – {{count}} checks not as expected yet"
   },
   "title": "Monitors",
   "description": "Composable health checks with dependencies: every check runs on its own schedule; links explain failures (root causes) and keep follow-up alerts quiet.",
@@ -186,11 +188,11 @@
       "api": "Gatus status API",
       "metrics": "Scraped metrics"
     },
-    "cmkHost": "Host name in CheckMk",
+    "cmkHost": "Host name in Checkmk",
     "cmkService": "Service",
-    "cmkServiceHint": "The service description exactly as in CheckMk, e.g. \"Filesystem /var\". Empty: the state of the host",
+    "cmkServiceHint": "The service description exactly as in Checkmk, e.g. \"Filesystem /var\". Empty: the state of the host",
     "cmkMaxAge": "Unknown when not checked for (s)",
-    "cmkMaxAgeHint": "Optional: the state counts as unknown when CheckMk has not checked it for this long",
+    "cmkMaxAgeHint": "Optional: the state counts as unknown when Checkmk has not checked it for this long",
     "promQuery": "PromQL query",
     "promQueryHint": "An instant query, e.g. 100 * (1 - node_filesystem_avail_bytes{mountpoint=\"/var\"} / node_filesystem_size_bytes{mountpoint=\"/var\"}). With several series the worst one counts",
     "promDirection": "Bad when the value is",
@@ -809,8 +811,8 @@
       "help": "Status of an endpoint monitored by Gatus"
     },
     "checkmk": {
-      "label": "CheckMk host or service",
-      "help": "Current state of a host or service in CheckMk (OK, WARN, CRIT, UNKNOWN)"
+      "label": "Checkmk host or service",
+      "help": "Current state of a host or service in Checkmk (OK, WARN, CRIT, UNKNOWN)"
     },
     "prometheus": {
       "label": "Prometheus query",
@@ -897,7 +899,7 @@
     "freshness": "Data in Insights Hub",
     "heartbeat": "Data reported by the gateway",
     "gatus": "Gatus endpoint",
-    "checkmk": "CheckMk service",
+    "checkmk": "Checkmk service",
     "prometheus": "Prometheus query",
     "kubernetes": "Kubernetes deployments",
     "git": "Repository pipeline",
@@ -1033,7 +1035,6 @@
     "maxOff": "Maximum off time (hours)",
     "maxOffHint": "Off for longer is degraded and notifies; empty: {{hours}} h, 0: no maximum",
     "leaderIds": "States of the monitor it follows: {{ids}}",
-    "legend": "Up, Down and Off are expectations; “selects” cells are the condition of the state; Required checks must be up for the state to be trusted.",
     "order": "Order",
     "state": "State",
     "shows": "Shows",
@@ -1043,15 +1044,15 @@
     "moveUp": "Move {{state}} up",
     "moveDown": "Move {{state}} down",
     "name": "Name of state {{n}}",
-    "id": "Id of state {{n}}",
+    "id": "ID of state {{n}}",
     "matchesNow": "Matches now",
     "showsOf": "{{state}} shows",
     "cellLabel": "{{state}} – {{check}}",
     "choice": {
       "any": "Any",
-      "up": "Up",
-      "down": "Down",
-      "off": "Off",
+      "up": "Up · expected",
+      "down": "Down · expected",
+      "off": "Off · expected",
       "when_up": "Up · selects",
       "when_down": "Down · selects",
       "when_off": "Off · selects",
@@ -1070,6 +1071,25 @@
     "leaderState": "State of the leading monitor",
     "try": "Try it",
     "wins": "{{state}} wins",
-    "otherwiseWins": "No state matches – evaluated as without states"
+    "otherwiseWins": "No state matches – evaluated as without states",
+    "group": {
+      "selects": "Selects this state",
+      "expected": "Expected in this state",
+      "precondition": "Precondition"
+    },
+    "caption": "Decision table: one row per state, one column per check",
+    "legendTitle": "How to read the table",
+    "legendSelects": "the condition: the first row whose condition matches wins.",
+    "legendExpected": "what the check should be while the state holds; a check that still deviates after the settle time is a contradiction.",
+    "legendRequired": "the check must be up for the state to be trusted; otherwise the monitor is down at once.",
+    "legendAny": "no rule for this check.",
+    "legendOff": "Off is offered only in sub-monitor columns (a sub-monitor that is off itself); a check of its own is Down when its device is off. The Shows column decides whether a state shows as grey Off.",
+    "onContradiction": "On contradiction",
+    "contradictionOf": "{{state}} on contradiction",
+    "contradictionDown": "Down (default)",
+    "legendContradiction": "what a contradiction in this state makes the monitor: Down (default) or Degraded. The other way, per check: a check without “Critical” (in its card) only degrades the monitor when it deviates.",
+    "notAsExpectedYet_one": "{{count}} check not as expected yet",
+    "notAsExpectedYet_other": "{{count}} checks not as expected yet",
+    "settlingCard": "Settling – not counted yet"
   }
 }

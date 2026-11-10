@@ -3,6 +3,7 @@ import {
   PLANT_ENTRY_SCOPE,
   mergeThreeWay,
   plantBulkInput,
+  plantMoveInput,
   type PlantChangeOperationInput,
   type PlantEntryChanged,
   type PlantEntryKind,
@@ -180,10 +181,24 @@ export function operationOf(input: PlantChangeOperationInput, u: AuthUser): NewO
   return { op: 'rename', kind, scope, id, name: now.name, origin: 'authored', baseRevision: now.revision, base: null, value: { newId } };
 }
 
-/** A document operation (an import or a bulk change added to a draft). */
-export function documentOperation(op: 'import' | 'bulk', value: unknown, u: AuthUser): NewOp {
+/** A document operation (an import, a bulk change or – 0.16 – a move added to a draft). */
+export function documentOperation(op: 'import' | 'bulk' | 'move', value: unknown, u: AuthUser): NewOp {
   requirePlant();
   if (!plantProposesSome(u)) throw new HttpError(403, 'You may not propose changes to the plant registry', 'FORBIDDEN', { context: 'proposePlant' });
+  if (op === 'move') {
+    const { fingerprint: _f, ...rest } = plantMoveInput.parse(value);
+    return {
+      op,
+      kind: null,
+      scope: '',
+      id: '',
+      name: `move ${rest.items.length} ${rest.kind} to ${rest.toAsset}`,
+      origin: 'derived',
+      baseRevision: null,
+      base: null,
+      value: rest,
+    };
+  }
   if (op === 'bulk') {
     const b = plantBulkInput.parse(value);
     const { fingerprint: _f, ...rest } = b as typeof b & { fingerprint?: string };

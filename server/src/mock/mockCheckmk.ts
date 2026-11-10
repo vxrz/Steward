@@ -1,8 +1,8 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
 /**
- * Simulated CheckMk site for demo mode and tests, mounted at /mock/checkmk/demo/check_mk/api/1.0 (#130). It mirrors
- * the parts of the REST API 1.0 (CheckMk 2.2+) Steward uses:
+ * Simulated Checkmk site for demo mode and tests, mounted at /mock/checkmk/demo/check_mk/api/1.0 (#130). It mirrors
+ * the parts of the REST API 1.0 (Checkmk 2.2+) Steward uses:
  *   GET  /version
  *   GET  /domain-types/host/collections/all?query=<Livestatus filter>&columns=…
  *   GET  /domain-types/service/collections/all?query=<Livestatus filter>&columns=…
@@ -48,7 +48,7 @@ const wave = (t: number, amp: number) => amp * Math.sin((2 * Math.PI * (t % DAY)
 
 function seed(): { hosts: Host[]; services: Service[] } {
   const t0 = Date.now();
-  // /var on db01 fills by about 0.8 % a day: 82 % today, at 90 % (CheckMk's CRIT level) in about 10 days – far enough
+  // /var on db01 fills by about 0.8 % a day: 82 % today, at 90 % (Checkmk's CRIT level) in about 10 days – far enough
   // from the example's 14-day warning that the daily wave cannot move it across (at 0.6 % a day it did, by time of day)
   const varUsed = (t: number) => 82 - (0.8 * (t0 - t)) / DAY + wave(t, 0.4);
   return {
@@ -169,7 +169,7 @@ export async function mockCheckmk(app: FastifyInstance): Promise<void> {
     const start = ms(b.time_range?.start, end - DAY);
     if (!Number.isFinite(start) || !Number.isFinite(end) || start >= end)
       return reply.code(400).send({ title: 'Bad request', status: 400, detail: 'time_range is not valid' });
-    // CheckMk's RRDs: one value per minute for two days, then per 5 minutes, per 30 minutes, per 6 hours
+    // Checkmk's RRDs: one value per minute for two days, then per 5 minutes, per 30 minutes, per 6 hours
     const span = end - start;
     const step = span <= 2 * DAY ? 60 : span <= 10 * DAY ? 300 : span <= 90 * DAY ? 1800 : 21600;
     const rrddata: (number | null)[] = [];

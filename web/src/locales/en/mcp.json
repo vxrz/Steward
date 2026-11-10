@@ -158,9 +158,9 @@
   },
   "consent": {
     "title": "Allow an AI assistant",
-    "checking": "Checking the request …",
+    "checking": "Checking the request…",
     "cannotTitle": "This request cannot be accepted",
-    "returning": "Returning to the application …",
+    "returning": "Returning to the application…",
     "asks": "<b>{{client}}</b> asks to use Steward's MCP server as <b>{{user}}</b>.",
     "returnsTo": "After your answer the browser returns to <c>{{host}}</c>. Allow only if you started this from that application.",
     "selfRegistered": "The client registered itself: Steward cannot check its name. Make sure the return address is the application you use.",

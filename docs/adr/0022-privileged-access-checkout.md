@@ -1,6 +1,6 @@
 # 0022. Privileged access: credentials checked out from a PAM vault
 
-- **Status:** Proposed – everything marked _Recommendation_ is open to change; the questions for the owner are at the end
+- **Status:** Accepted (owner decision 2026-11-10) – every _Recommendation_ below was taken as recommended (see _Decided (November 2026)_); not built yet
 - **Date:** 2026-11-09
 - **Since:** planned for 0.14 – the PAM part of step 4 of platform identities ([ADR 0009](0009-platform-identities.md#migration-and-rollout-plan))
 
@@ -123,7 +123,7 @@ interface PamConnector {
 | **B. A sealed emergency credential in Steward**, behind step-up and four-eyes              | runs work when the PAM is down                                              | the standing copy option 1A removes, under another name; the first thing an attacker targets                     |
 | **C. A one-time credential typed in by a person** for one run, four-eyes, memory only      | no copy at rest; automation still possible in an emergency                  | a person handles the raw credential (they have it from the PAM's break-glass anyway); a new input path to secure |
 
-_Recommendation:_ **A** in the first version: when the PAM is down, people use its break-glass and document what they did with a manual step ([MANUAL-STEPS.md](../MANUAL-STEPS.md)) in the run, with evidence files and a second person's verification. C is possible later as control point `platform.breakGlass` (step-up, four-eyes `required`, audited `pam.break_glass`, value never stored); see the open questions.
+_Recommendation:_ **A** in the first version: when the PAM is down, people use its break-glass and document what they did with a manual step ([MANUAL-STEPS.md](../MANUAL-STEPS.md)) in the run, with evidence files and a second person's verification. C is possible later as control point `platform.breakGlass` (step-up, four-eyes `required`, audited `pam.break_glass`, value never stored); see _Decided_, question 4.
 
 ### 7. Audit and evidence correlation
 
@@ -182,12 +182,14 @@ _Recommendation:_ **A** in the first version: when the PAM is down, people use i
 - Steward reads secret values from one kind of platform for the first time; the reversal of "Steward never reads a secret value" ([IBM-PAM.md](../IBM-PAM.md)) is limited to one account, listed secrets and Steward's own code, and the docs must say so plainly.
 - Revisit when a second PAM is asked for (the interface is built for it), when monitors need privileged reads, or when the PAM-side approval should be awaited instead of refused.
 
-## Open questions for the owner
+## Decided (November 2026)
 
-1. **First connector:** (a) IBM Verify Privilege Vault / Secret Server – recommended, it is the PAM in use and Steward already speaks to it; (b) HashiCorp Vault / OpenBao; (c) CyberArk CCP.
-2. **How long a credential is held:** (a) while the run executes steps, checked in during waits for people – recommended; (b) the whole run; (c) per step.
-3. **A secret that needs an approval in the PAM:** (a) refused for checkout; Steward's start approval is the second person – recommended; (b) Steward waits for the PAM approval (up to the start approval's 24 hours).
-4. **Break-glass:** (a) only the PAM's own break-glass, documented as a manual step – recommended; (b) also a one-time credential typed in for one run with four-eyes; (c) a sealed emergency credential in Steward.
-5. **Dry runs with a `pam` identity:** (a) check out like a real run (they sign in and read) – recommended; (b) never check out; dry runs use the default identity only.
-6. **What the vault's audit comment names:** (a) run id, process, starter and approver – recommended, it makes the PAM's audit readable on its own; (b) run id only (fewer personal data in the PAM).
-7. **Monitors and background readers with `pam` identities:** (a) not allowed – recommended; (b) allowed with a checkout per check.
+The owner took the recommended answer to every open question ("go with your recommendation if it fits Steward's purpose, architecture, UI/UX and best practices"), decided on 2026-11-10:
+
+1. **First connector:** IBM Verify Privilege Vault / Secret Server – the PAM in use, which Steward already speaks to. HashiCorp Vault / OpenBao and CyberArk CCP may follow behind the same connector interface.
+2. **How long a credential is held:** while the run executes steps; it is checked in during waits for people (approvals, user tasks) and checked out again when the run continues.
+3. **A secret that needs an approval in the PAM:** refused for checkout; Steward's start approval is the second person. Steward never waits for an approval in the PAM.
+4. **Break-glass:** only the PAM's own break-glass, documented as a manual step in the run (evidence files, a second person's verification). No credential typed in for one run and no sealed emergency credential in Steward – the control point `platform.breakGlass` stays a later option.
+5. **Dry runs with a `pam` identity:** check out like a real run – they sign in and read, so they need the credential.
+6. **The vault's audit comment** names the run id, the process, the starter and the approver, so the PAM's audit is readable on its own.
+7. **Monitors and background readers with `pam` identities:** not allowed; saving refuses them.

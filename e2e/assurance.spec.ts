@@ -59,15 +59,15 @@ test('the assurance policy page shows the control points with their baseline, ov
     await page.goto('/settings/assurance');
     await expect(page.getByRole('heading', { name: 'Assurance policy', level: 5 })).toBeVisible();
     await expect(page.getByTestId('assurance-version')).toHaveText(/^Version \d+$/);
-    for (const g of ['Identity and access', 'Audit and evidence', 'Changes and records', 'Processes and runs', 'MCP and AI'])
+    for (const g of ['Identity and access', 'Audit and evidence', 'Changes and documents', 'Processes and runs', 'MCP and AI'])
       await expect(page.getByRole('heading', { name: g })).toBeVisible();
     // the baseline is locked; the new points are off and marked new
     const vault = page.getByTestId('assurance-row-vault.passphrase');
     await expect(vault.locator('[data-locked]')).toHaveText('Always – Baseline – cannot be lowered');
     const approve = page.getByTestId('assurance-row-record.approve');
-    await expect(approve).toContainText('Approve or reject a record');
+    await expect(approve).toContainText('Approve or reject a document');
     await expect(approve).toContainText('new');
-    await expect(page.getByTestId('assurance-overrides')).toContainText('Record type');
+    await expect(page.getByTestId('assurance-overrides')).toContainText('Document type');
     await expect(page.getByTestId('assurance-history')).toBeVisible();
     await expect(page.getByTestId('assurance-report-download')).toBeVisible();
     await expectAccessible(page, 'assurance policy');
@@ -103,7 +103,7 @@ test('turning on the step-up for record approval asks the approver to confirm be
   await expect(page.getByTestId('settings-save-bar')).toContainText('Unsaved changes');
   await page.getByTestId('settings-save-bar').getByRole('button', { name: 'Save' }).click();
   await expect(page.getByTestId('assurance-version')).toHaveText('Version 1');
-  await expect(page.getByTestId('assurance-history')).toContainText('Approve or reject a record – step-up: off → on');
+  await expect(page.getByTestId('assurance-history')).toContainText('Approve or reject a document – step-up: off → on');
   await adminCtx.close();
 
   // Dana submits a change request
@@ -128,7 +128,7 @@ test('turning on the step-up for record approval asks the approver to confirm be
     await decide.getByRole('button', { name: 'Approve', exact: true }).click();
     const stepUp = ap.getByRole('dialog', { name: 'Confirm it is you' });
     await expect(stepUp).toBeVisible();
-    await expect(stepUp.getByTestId('step-up-actions')).toContainText('Approve or reject a record');
+    await expect(stepUp.getByTestId('step-up-actions')).toContainText('Approve or reject a document');
     await expectAccessible(ap, 'step-up dialog (record approval)');
     await stepUp.getByLabel('Your password').fill(USERS.adam.password);
     await stepUp.getByRole('button', { name: 'Confirm' }).click();

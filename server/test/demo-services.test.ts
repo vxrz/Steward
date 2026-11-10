@@ -57,6 +57,23 @@ describe('demo services', () => {
     const systems = (await s.api('GET', '/systems')) as { name: string }[];
     expect(systems.map((x) => x.name)).toContain('k8s-shop-01 (demo)');
 
+    // cost plans of the shop and the plant (ADR 0026): the demo's fiscal year starts in October
+    expect((await s.api('GET', '/costs/settings')).fiscalYearStartMonth).toBe(10);
+    const shopPlan = await s.api('GET', `/costs/plans/${shop.id}`);
+    expect(shopPlan.label).toMatch(/^FY \d{4}\/\d{2}$/);
+    expect(shopPlan.lines.map((l: { title: string }) => l.title)).toEqual(
+      expect.arrayContaining(['Cloud hosting of the webshop', 'Payment gateway licence', 'Cluster support subscription']),
+    );
+    expect(shopPlan.lines.find((l: { title: string }) => l.title === 'Cluster support subscription').target).toMatchObject({
+      kind: 'system',
+      name: 'k8s-shop-01 (demo)',
+    });
+    expect(shopPlan.entries.some((e: { unplanned: boolean }) => e.unplanned)).toBe(true);
+    const plantId = services.find((x) => x.name === 'Plant monitoring (demo)')!.id;
+    const plantPlan = await s.api('GET', `/costs/plans/${plantId}`);
+    expect(plantPlan.lines.map((l: { title: string }) => l.title)).toContain('Historian licences');
+    expect(plantPlan.renewals.map((r: { title: string }) => r.title)).toContain('Historian licences');
+
     // the Home tiles have figures instead of "not set up yet"
     const home = await s.api('GET', '/dashboard');
     for (const tile of ['credentials', 'reviews', 'duties', 'scorecard']) expect(home.attention[tile], tile).toBeTruthy();

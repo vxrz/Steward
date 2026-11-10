@@ -174,9 +174,16 @@
       "state": "Zustand",
       "confidence": "Verlässlichkeit",
       "addFlags": "Merkmale hinzufügen",
-      "removeFlags": "Merkmale entfernen"
+      "removeFlags": "Merkmale entfernen",
+      "areaId": "Bereich",
+      "workCenterId": "Arbeitszentrum",
+      "workUnitId": "Arbeitseinheit"
     },
-    "siteOnly": "Gebäude und Ort gelten für die Anlagen eines Standorts: Wählen Sie Anlagen eines Standorts aus."
+    "siteOnly": "Gebäude und Ort gelten für die Anlagen eines Standorts: Wählen Sie Anlagen eines Standorts aus.",
+    "moveTitle_one": "{{count}} Eintrag verschieben",
+    "moveTitle_other": "{{count}} Einträge verschieben",
+    "moveOneSite": "Verschieben an einen anderen Ort geht nur für {{type}} eines Standorts – wählen Sie {{type}} eines Standorts aus.",
+    "applyMove": "Verschieben"
   },
   "mapping": {
     "title": "Kennungen ändern oder Einträge entfernen (optional)",

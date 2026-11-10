@@ -17,7 +17,7 @@ What constrains the design:
 - **The outbound policy** (`platforms/outbound.ts`) governs what the _server_ sends: address safety always (no cloud metadata, no link-local, not Steward's own port, the address pinned against DNS rebinding), and the origin policy (`platforms`, `allowList`, `open`). What the _browser_ fetches is limited only by the CSP.
 - **Privacy** ([PRIVACY.md](../PRIVACY.md)): Steward keeps personal data in, and error reporting is off by default and sends no IP addresses. A browser that loads tiles from a provider gives it the user's IP address and the area they look at.
 - **Rights** ([0007](0007-plant-registry.md)): a site follows `decide()` with its access list; assets follow their site; the _Plant viewer_ role sees only the registry; status viewers never reach it; status pages never show it; a hidden site is never named or counted.
-- **Pictures have a table twin** ([PLANT.md](../PLANT.md), visualizations of 0.8.0): _Picture_ or _Table_ above each view, phones start with the table, status as icon and word, keyboard focus, light and dark, axe clean, `prefers-reduced-motion` respected.
+- **Pictures have a table twin** ([PLANT.md](../PLANT.md), visualisations of 0.8.0): _Picture_ or _Table_ above each view, phones start with the table, status as icon and word, keyboard focus, light and dark, axe clean, `prefers-reduced-motion` respected.
 - **Dependencies** are taken at least two weeks after their release ([SECURITY-PIPELINE.md](../ci/SECURITY-PIPELINE.md); Dependabot cooldown 14 days).
 - **OT networks** often have no internet access, neither for the server nor for the browser.
 

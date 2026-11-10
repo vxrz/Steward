@@ -1290,6 +1290,11 @@ export async function resyncInstance(idOrKey: string): Promise<MonitorSaveResult
 // ---------- YAML import / export / examples ----------
 
 export function exportMonitor(idOrKey: string): string {
+  return YAML.stringify(exportMonitorDocument(idOrKey), { lineWidth: 0 });
+}
+
+/** A monitor in its import format, as an object (exportMonitor writes it as YAML). */
+export function exportMonitorDocument(idOrKey: string): Record<string, unknown> {
   const r = requireMonitor(idOrKey);
   const def = parseJson<Record<string, unknown>>(r.definition, {});
   const platformNames = new Map(
@@ -1315,7 +1320,7 @@ export function exportMonitor(idOrKey: string): string {
   if (st?.from) st.from = monitorKeys.get(st.from) ?? st.from;
   for (const c of (portable.checks ?? []) as Record<string, unknown>[])
     if (c.x !== undefined) ((c.x = Math.round(Number(c.x))), (c.y = Math.round(Number(c.y))));
-  return YAML.stringify({ kind: r.is_template ? 'monitorTemplate' : 'monitor', key: r.key, ...portable }, { lineWidth: 0 });
+  return { kind: r.is_template ? 'monitorTemplate' : 'monitor', key: r.key, ...portable };
 }
 
 function parseMonitorFile(text: string): { kind: unknown; key: unknown; enabled: unknown; definition: Record<string, unknown> } {

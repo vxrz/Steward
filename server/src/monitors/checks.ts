@@ -582,7 +582,7 @@ async function checkGatus(c: CheckOf<'gatus'>, ctx: ExecContext): Promise<RawRes
   return { status: 'up', message: `Gatus: ${e.name} is up`, durationMs: ms };
 }
 
-// ---------- CheckMk ----------
+// ---------- Checkmk ----------
 
 const cmkPlan = (c: CheckOf<'checkmk'>, owner: string) => ({ owner, hosts: c.service ? [] : [c.host], serviceHosts: c.service ? [c.host] : [] });
 
@@ -602,7 +602,7 @@ const SERVICE_STATES: Record<number, { word: string; status: RawResult['status']
   3: { word: 'UNKNOWN', status: 'unknown' },
 };
 
-/** The current state in CheckMk: OK / WARN / CRIT / UNKNOWN → up / degraded / down / unknown, the plugin output as message. */
+/** The current state in Checkmk: OK / WARN / CRIT / UNKNOWN → up / degraded / down / unknown, the plugin output as message. */
 async function checkCheckmk(c: CheckOf<'checkmk'>, ctx: ExecContext): Promise<RawResult> {
   const t0 = Date.now();
   let data;
@@ -610,23 +610,23 @@ async function checkCheckmk(c: CheckOf<'checkmk'>, ctx: ExecContext): Promise<Ra
     data = await checkmkFetch.get(sourceKey(c.platform, c.identity), cmkPlan(c, ctx.owner));
   } catch (e) {
     if (e instanceof CheckSetupError) throw e;
-    return { status: 'unknown', message: `CheckMk could not be read: ${(e as Error).message}`.slice(0, 500), durationMs: Date.now() - t0 };
+    return { status: 'unknown', message: `Checkmk could not be read: ${(e as Error).message}`.slice(0, 500), durationMs: Date.now() - t0 };
   }
   const ms = Date.now() - t0;
   const label = c.service ? `${c.host} / ${c.service}` : c.host;
   const s = c.service ? data.services.get(checkmkServiceKey(c.host, c.service)) : data.hosts.get(c.host);
-  if (!s) return { status: 'unknown', message: `CheckMk has no ${c.service ? 'service' : 'host'} "${label}"`, durationMs: ms };
-  if (!s.checked) return { status: 'unknown', message: `CheckMk has not checked ${label} yet (pending)`, durationMs: ms };
+  if (!s) return { status: 'unknown', message: `Checkmk has no ${c.service ? 'service' : 'host'} "${label}"`, durationMs: ms };
+  if (!s.checked) return { status: 'unknown', message: `Checkmk has not checked ${label} yet (pending)`, durationMs: ms };
   if (c.maxAgeSeconds && s.lastCheck !== null) {
     const age = Math.round((Date.now() - s.lastCheck) / 1000);
     if (age > c.maxAgeSeconds)
-      return { status: 'unknown', message: `CheckMk last checked ${label} ${fmtAge(age)} ago (maximum ${fmtAge(c.maxAgeSeconds)})`, durationMs: ms };
+      return { status: 'unknown', message: `Checkmk last checked ${label} ${fmtAge(age)} ago (maximum ${fmtAge(c.maxAgeSeconds)})`, durationMs: ms };
   }
   const known = (c.service ? SERVICE_STATES : HOST_STATES)[s.state] ?? { word: `state ${s.state}`, status: 'unknown' as const };
-  const notes = [s.downtime ? 'in a CheckMk downtime' : '', s.acknowledged ? 'acknowledged in CheckMk' : ''].filter(Boolean);
+  const notes = [s.downtime ? 'in a Checkmk downtime' : '', s.acknowledged ? 'acknowledged in Checkmk' : ''].filter(Boolean);
   return {
     status: known.status,
-    message: `CheckMk: ${label} ${known.word}${s.output ? ` – ${s.output}` : ''}${notes.length ? ` (${notes.join(', ')})` : ''}`.slice(0, 500),
+    message: `Checkmk: ${label} ${known.word}${s.output ? ` – ${s.output}` : ''}${notes.length ? ` (${notes.join(', ')})` : ''}`.slice(0, 500),
     durationMs: ms,
     value: { state: s.state, lastCheck: s.lastCheck ? new Date(s.lastCheck).toISOString() : null, downtime: s.downtime, acknowledged: s.acknowledged },
   };
@@ -1305,7 +1305,7 @@ export async function runActiveCheck(c: Active, ctx: ExecContext): Promise<RawRe
 
 export const isActive = (c: { type: string }): c is Active => isActiveCheckType(c.type);
 
-/** Registers the shared reads of due checks (Insights Hub, Gatus, CheckMk) before any of them starts. */
+/** Registers the shared reads of due checks (Insights Hub, Gatus, Checkmk) before any of them starts. */
 export function planCheck(c: CheckDef, owner: string): void {
   if (isActive(c) && !storedPlatformKindProblem(c, owner)) runnerOf(c).plan?.(c, owner);
 }

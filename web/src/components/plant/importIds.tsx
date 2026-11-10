@@ -340,7 +340,7 @@ export function ImportIdsPreview({ preview }: { preview: PlantImportPreview }) {
                     <Table.Td>
                       {r.with.length > 0 && <Text size="xs">{t('bulk.with', { list: countsText(r.with) })}</Text>}
                       {r.refused && (
-                        <Text size="xs" c="orange.8">
+                        <Text size="xs" c="orange">
                           {problemText(r.refused)}
                         </Text>
                       )}

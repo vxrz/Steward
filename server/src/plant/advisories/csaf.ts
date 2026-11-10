@@ -439,7 +439,7 @@ export const PUBLIC_TLP = new Set(['WHITE', 'GREEN', 'UNLABELED', 'CLEAR', '']);
 /** Documents marked TLP:AMBER or RED are not kept: everyone who sees the plant registry would read them. */
 export function assertPublicTlp(p: ParsedCsaf): void {
   if (!PUBLIC_TLP.has(p.meta.tlp.toUpperCase()))
-    throw new HttpError(400, `The document is marked TLP:${p.meta.tlp} – Steward keeps only TLP:WHITE, GREEN or unlabeled documents`, 'PLANT_ADVISORY_TLP', {
+    throw new HttpError(400, `The document is marked TLP:${p.meta.tlp} – Steward keeps only TLP:WHITE, GREEN or unlabelled documents`, 'PLANT_ADVISORY_TLP', {
       tlp: p.meta.tlp,
     });
 }

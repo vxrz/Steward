@@ -168,17 +168,24 @@ function seed() {
     }
   }
   const devices = [
-    { id: 'dev-001', name: 'edge-line-1', deviceStatus: 'ACTIVE', connectionState: 'ONLINE', lastSeen: daysAgo(0.001), firmware: '2.4.0' },
-    { id: 'dev-002', name: 'edge-line-2', deviceStatus: 'ACTIVE', connectionState: 'ONLINE', lastSeen: daysAgo(0.002), firmware: '2.4.0' },
-    { id: 'dev-003', name: 'edge-paint-shop', deviceStatus: 'ACTIVE', connectionState: 'OFFLINE', lastSeen: daysAgo(3), firmware: '2.1.3' },
-    { id: 'dev-004', name: 'edge-warehouse', deviceStatus: 'ACTIVE', connectionState: 'ONLINE', lastSeen: daysAgo(0.01), firmware: '1.9.0' },
-    { id: 'dev-005', name: 'edge-lab', deviceStatus: 'INACTIVE', connectionState: 'OFFLINE', lastSeen: daysAgo(40), firmware: '2.4.0' },
-    { id: 'dev-006', name: 'edge-press-hall', deviceStatus: 'ACTIVE', connectionState: 'ONLINE', lastSeen: daysAgo(0.003), firmware: '2.2.1' },
-    { id: 'dev-007', name: 'edge-old-line-7', deviceStatus: 'ACTIVE', connectionState: 'OFFLINE', lastSeen: Date.parse(daysAgo(45)), firmware: '1.9.4' }, // epoch millis, as some IEM versions send
-    { id: 'dev-008', name: 'edge-test-bench', deviceStatus: 'ACTIVE', connectionState: 'OFFLINE', lastSeen: daysAgo(0.4), firmware: '2.4.0' },
-    { id: 'dev-009', name: 'edge-qa', deviceStatus: 'ACTIVE', connectionState: 'ONLINE', lastSeen: daysAgo(0.002), firmware: '2.3.0' },
+    { deviceId: 'dev-001', deviceName: 'edge-line-1', deviceStatus: 'ACTIVE', connectionState: 'ONLINE', lastSeen: daysAgo(0.001), firmware: '2.4.0' },
+    { deviceId: 'dev-002', deviceName: 'edge-line-2', deviceStatus: 'ACTIVE', connectionState: 'ONLINE', lastSeen: daysAgo(0.002), firmware: '2.4.0' },
+    { deviceId: 'dev-003', deviceName: 'edge-paint-shop', deviceStatus: 'ACTIVE', connectionState: 'OFFLINE', lastSeen: daysAgo(3), firmware: '2.1.3' },
+    { deviceId: 'dev-004', deviceName: 'edge-warehouse', deviceStatus: 'ACTIVE', connectionState: 'ONLINE', lastSeen: daysAgo(0.01), firmware: '1.9.0' },
+    { deviceId: 'dev-005', deviceName: 'edge-lab', deviceStatus: 'INACTIVE', connectionState: 'OFFLINE', lastSeen: daysAgo(40), firmware: '2.4.0' },
+    { deviceId: 'dev-006', deviceName: 'edge-press-hall', deviceStatus: 'ACTIVE', connectionState: 'ONLINE', lastSeen: daysAgo(0.003), firmware: '2.2.1' },
+    {
+      deviceId: 'dev-007',
+      deviceName: 'edge-old-line-7',
+      deviceStatus: 'ACTIVE',
+      connectionState: 'OFFLINE',
+      lastSeen: Date.parse(daysAgo(45)), // epoch millis, as some IEM versions send
+      firmware: '1.9.4',
+    },
+    { deviceId: 'dev-008', deviceName: 'edge-test-bench', deviceStatus: 'ACTIVE', connectionState: 'OFFLINE', lastSeen: daysAgo(0.4), firmware: '2.4.0' },
+    { deviceId: 'dev-009', deviceName: 'edge-qa', deviceStatus: 'ACTIVE', connectionState: 'ONLINE', lastSeen: daysAgo(0.002), firmware: '2.3.0' },
   ];
-  // application catalog (latest versions) and what is installed per device
+  // application catalog (latest versions) and what is installed per device (served flat by /devices/installed-apps)
   const catalog = [
     { applicationId: 'app-1', title: 'Data Service', version: '1.8.0' },
     { applicationId: 'app-2', title: 'IE Databus', version: '2.1.0' },
@@ -485,23 +492,32 @@ export async function mockPlatform(app: FastifyInstance): Promise<void> {
     const t = String(req.headers.authorization ?? '').replace(/^Bearer\s+/i, '');
     if (!iemTokens.has(t)) return reply.code(401).send({ errors: [{ message: 'unauthorized' }] });
   };
-  app.get('/iem/portal/api/v1/devices', { preHandler: iemAuth }, async () => ({ data: state.devices, page: { totalElements: state.devices.length } }));
+  // list answers as the Portal API sends them: { data: [...], page: { pageNo, pageSize, totalPages, totalCount } }
+  const iemPage = <T>(data: T[]) => ({ data, page: { pageNo: 1, pageSize: Math.max(data.length, 1), totalPages: 1, totalCount: data.length } });
+  app.get('/iem/portal/api/v1/devices', { preHandler: iemAuth }, async () => iemPage(state.devices));
   app.get('/iem/portal/api/v1/applications', { preHandler: iemAuth }, async () => ({ data: state.catalog }));
-  // installed apps of a device (path/shape to verify against your IEM version)
-  app.get('/iem/portal/api/v1/devices/:id/apps', { preHandler: iemAuth }, async (req, reply) => {
-    const id = (req.params as { id: string }).id;
-    const d = state.devices.find((x) => x.id === id);
-    if (!d) return reply.code(404).send({ errors: [{ message: 'device not found' }] });
-    if (d.deviceStatus === 'INACTIVE') return reply.code(409).send({ errors: [{ message: 'device is not onboarded' }] });
-    const list = (state.installed[id] ?? []).map((a) => ({
-      ...a,
-      title: state.catalog.find((c) => c.applicationId === a.applicationId)?.title ?? a.applicationId,
-    }));
-    return { data: list };
+  // installed apps of all devices (or of one with ?deviceId=), one entry per device and app – `verionId` is spelled as the real API does
+  app.get('/iem/portal/api/v1/devices/installed-apps', { preHandler: iemAuth }, async (req) => {
+    const only = (req.query as { deviceId?: string }).deviceId;
+    const list = state.devices
+      .filter((d) => !only || d.deviceId === only)
+      .flatMap((d) =>
+        (state.installed[d.deviceId] ?? []).map((a) => ({
+          applicationId: a.applicationId,
+          icon: `https://iem.example.local/pp/PortalCache/app/${a.applicationId}/appicon.png`,
+          title: state.catalog.find((c) => c.applicationId === a.applicationId)?.title ?? a.applicationId,
+          deviceId: d.deviceId,
+          deviceName: d.deviceName,
+          verionId: `ver-${a.applicationId}-${a.version}`,
+          versionNumber: a.version,
+          status: 'LIVE',
+        })),
+      );
+    return iemPage(list);
   });
   app.delete('/iem/portal/api/v1/devices/:id', { preHandler: iemAuth }, async (req, reply) => {
     const id = (req.params as { id: string }).id;
-    const idx = state.devices.findIndex((x) => x.id === id);
+    const idx = state.devices.findIndex((x) => x.deviceId === id);
     if (idx < 0) return reply.code(404).send({ errors: [{ message: 'device not found' }] });
     state.devices.splice(idx, 1);
     return reply.code(204).send();
@@ -530,7 +546,7 @@ export async function mockPlatform(app: FastifyInstance): Promise<void> {
     return reply.type('text/html').send(
       html(`<h1>Welcome, Admin</h1><p id="system-status">System status: ${offline ? 'Degraded' : 'Operational'}</p>
 <p>License usage: <span id="license-usage">72%</span></p>
-<table><tr><th>Device</th><th>State</th></tr>${state.devices.map((d) => `<tr><td>${d.name}</td><td class="state">${d.connectionState}</td></tr>`).join('')}</table>`),
+<table><tr><th>Device</th><th>State</th></tr>${state.devices.map((d) => `<tr><td>${d.deviceName}</td><td class="state">${d.connectionState}</td></tr>`).join('')}</table>`),
     );
   });
   app.addContentTypeParser('application/x-www-form-urlencoded', { parseAs: 'string' }, (_req, body, done) => {
