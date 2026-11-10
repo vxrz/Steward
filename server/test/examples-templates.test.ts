@@ -1,11 +1,16 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
+import { timeLimit } from './time.js';
 
 /**
  * The integration templates of the example library (Snowflake, Git, AWS, Prometheus) end to end against the
  * built-in mocks: what they publish, what the reviewers see and what they document. examples.test.ts runs every
  * template once; this file looks at the results.
  */
+
+// the time limit of one expression is wall-clock time: on a loaded machine the demo's CheckMk trend summary took longer
+// than its 5 s and its dataset stayed empty – the limit is not what these tests look at (expr-guard.test.ts does)
+process.env.SM_EXPR_TIMEOUT_MS ??= String(timeLimit(15_000));
 
 let s: TestServer;
 let adam: Client;
