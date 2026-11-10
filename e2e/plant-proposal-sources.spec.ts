@@ -5,7 +5,7 @@ import { json, expectNoHorizontalScroll } from './support/helpers';
 import { expectAccessible } from './support/axe';
 
 /**
- * The plant registry, 0.16.1: an assistant reads a manual and proposes a device profile's data points in two parts,
+ * The plant registry, 0.17.0: an assistant reads a manual and proposes a device profile's data points in two parts,
  * each data point with its source. The review lists the sources by document, offers to attach the manual on the
  * profile's Documents panel – or names the record that keeps it – and the profile's data points show their source once
  * applied. On a desktop and on a phone, with axe. Every test makes its own invented records.

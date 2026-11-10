@@ -21958,7 +21958,7 @@
                                   "type": "null"
                                 }
                               ],
-                              "description": "0.16.1: where it is described – the document (its title or a record number) and the page and section in it"
+                              "description": "0.17.0: where it is described – the document (its title or a record number) and the page and section in it"
                             }
                           },
                           "required": [
@@ -23483,7 +23483,7 @@
                                               "type": "null"
                                             }
                                           ],
-                                          "description": "0.16.1: where it is described – the document (its title or a record number) and the page and section in it"
+                                          "description": "0.17.0: where it is described – the document (its title or a record number) and the page and section in it"
                                         }
                                       },
                                       "required": [
@@ -23701,7 +23701,7 @@
                                   "type": "null"
                                 }
                               ],
-                              "description": "0.16.1: where it is described – the document (its title or a record number) and the page and section in it"
+                              "description": "0.17.0: where it is described – the document (its title or a record number) and the page and section in it"
                             },
                             "interface": {
                               "type": "string"
@@ -24018,7 +24018,7 @@
                                           "type": "null"
                                         }
                                       ],
-                                      "description": "0.16.1: where it is described – the document (its title or a record number) and the page and section in it"
+                                      "description": "0.17.0: where it is described – the document (its title or a record number) and the page and section in it"
                                     }
                                   },
                                   "required": [
@@ -24331,7 +24331,7 @@
                                   "type": "null"
                                 }
                               ],
-                              "description": "0.16.1: where it is described – the document (its title or a record number) and the page and section in it"
+                              "description": "0.17.0: where it is described – the document (its title or a record number) and the page and section in it"
                             }
                           },
                           "required": [

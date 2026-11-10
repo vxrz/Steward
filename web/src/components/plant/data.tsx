@@ -106,13 +106,13 @@ export function Breakable({ text }: { text: string }) {
   );
 }
 
-/** 0.16.1: a data point's source in one line – the document, its page and section. */
+/** 0.17.0: a data point's source in one line – the document, its page and section. */
 export function useSourceText() {
   const { t } = useTranslation('plant');
   return (s: PlantPointSource): string => [s.document, s.page ? t('data.sourcePageIs', { page: s.page }) : '', s.section].filter(Boolean).join(' · ');
 }
 
-/** 0.16.1: where a data point is described, as a quiet line below it (nothing when it has no source). */
+/** 0.17.0: where a data point is described, as a quiet line below it (nothing when it has no source). */
 export function PointSource({ source }: { source: PlantDataPoint['source'] }) {
   const { t } = useTranslation('plant');
   const text = useSourceText();

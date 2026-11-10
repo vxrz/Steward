@@ -147,7 +147,7 @@ export interface DataPlan {
 
 export const emptyDataPlan = (): DataPlan => ({ profiles: new Map(), kpis: new Map(), assignments: new Map() });
 
-/** 0.16.1: a data point's source as written (a page may be a number); null: none. */
+/** 0.17.0: a data point's source as written (a page may be a number); null: none. */
 function sourceFromFile(x: DataPointFile['source']): PlantPointSource | null {
   if (!x) return null;
   return { document: x.document.trim(), page: x.page === null || x.page === undefined ? '' : String(x.page).trim(), section: str(x.section) };
@@ -173,7 +173,7 @@ function pointFromFile(d: DataPointFile, o: Origin, problems: PlantImportProblem
     aliases: [...new Set((d.aliases ?? []).map((x) => x.trim()).filter(Boolean))],
     notes: str(d.notes),
     publications: (d.publications ?? []).map((x) => ({ target: str(x.target), path: str(x.path), name: str(x.name) })),
-    // 0.16.1: only when given – a data point without one has none (as those stored before 0.16.1)
+    // 0.17.0: only when given – a data point without one has none (as those stored before 0.17.0)
     ...(d.source ? { source: sourceFromFile(d.source) } : {}),
   };
 }
@@ -194,14 +194,14 @@ function pointOverrideFromFile(d: DataPointFile, o: Origin, problems: PlantImpor
   if (has(d, 'aliases')) x.aliases = full.aliases;
   if (has(d, 'notes')) x.notes = full.notes;
   if (has(d, 'publications')) x.publications = full.publications;
-  // 0.16.1: null says the derived device's data point has no source (not the inherited one)
+  // 0.17.0: null says the derived device's data point has no source (not the inherited one)
   if (has(d, 'source')) x.source = sourceFromFile(d.source);
   return x;
 }
 
-/** 0.16.1: a data point of a file as stored (problems of its address are the preview's, not repeated here). */
+/** 0.17.0: a data point of a file as stored (problems of its address are the preview's, not repeated here). */
 export const pointOfFile = (d: DataPointFile): PlantDataPoint => pointFromFile(d, { file: '', path: '' }, []);
-/** 0.16.1: the keys an inherited data point's entry gives, as stored. */
+/** 0.17.0: the keys an inherited data point's entry gives, as stored. */
 export const pointKeysOfFile = (d: DataPointFile): PlantProfilePointOverride => pointOverrideFromFile(d, { file: '', path: '' }, []);
 
 /**

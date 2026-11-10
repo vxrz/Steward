@@ -4,7 +4,7 @@ import { PLANT_PROPOSAL_LIMITS } from '@sm/shared';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
 /**
- * 0.16.1: plant proposals in parts and sources of data points. An assistant sends a document of the import format in
+ * 0.17.0: plant proposals in parts and sources of data points. An assistant sends a document of the import format in
  * parts (`more: true`, then `proposalId`); Steward combines them – entries merged by key, lists by their ids, a value
  * given differently refused – and previews the combined document with the last part. Until then nobody reviews it, no
  * reviewer is told, and it expires a day after its last part; its owner can withdraw it. Data points carry a `source`

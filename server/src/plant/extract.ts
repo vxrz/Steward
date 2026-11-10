@@ -375,7 +375,7 @@ function buildBase(input: PlantExtractInput, own: OwnProfiles, shared: string[])
                 all.map((x) => x.publications),
                 [],
               ),
-              // 0.16.1: the source where every profile names the same one (else each keeps its own as an override)
+              // 0.17.0: the source where every profile names the same one (else each keeps its own as an override)
               ...((src) => (src ? { source: src } : {}))(
                 agree(
                   all.map((x) => x.source ?? null),

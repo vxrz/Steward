@@ -1602,7 +1602,7 @@
           }
         },
         "source": {
-          "description": "0.16.1: where it is described – a manual and the page; in a profile that extends another, null: not the inherited source",
+          "description": "0.17.0: where it is described – a manual and the page; in a profile that extends another, null: not the inherited source",
           "anyOf": [
             {
               "$ref": "#/$defs/DataPointSource"
@@ -1670,7 +1670,7 @@
         "document"
       ],
       "additionalProperties": false,
-      "description": "Where a data point is described: a document and the place in it (0.16.1)"
+      "description": "Where a data point is described: a document and the place in it (0.17.0)"
     },
     "FileSet": {
       "type": "object",
@@ -2792,7 +2792,7 @@
                     }
                   },
                   "source": {
-                    "description": "0.16.1: where it is described – a manual and the page; in a profile that extends another, null: not the inherited source",
+                    "description": "0.17.0: where it is described – a manual and the page; in a profile that extends another, null: not the inherited source",
                     "anyOf": [
                       {
                         "$ref": "#/$defs/DataPointSource"

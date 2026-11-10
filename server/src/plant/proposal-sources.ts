@@ -9,7 +9,7 @@ import { plantDocuments } from './documents.js';
 import { currentId } from './ids.js';
 
 /**
- * The sources of the data points a plant proposal adds or changes (0.16.1, docs/PLANT.md "Sources of data points"): an
+ * The sources of the data points a plant proposal adds or changes (0.17.0, docs/PLANT.md "Sources of data points"): an
  * assistant that reads a manual names, per data point, the document and the page. The review lists them by entry and
  * document, and says whether that document is kept in Steward – a record linked to the profile (or the asset), its own
  * or inherited, whose number or title is the one the source names. Otherwise the reviewer is offered to attach it on the

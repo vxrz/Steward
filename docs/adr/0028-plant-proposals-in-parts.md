@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-11-10
-- **Since:** 0.16.1
+- **Since:** 0.17.0
 
 ## Context
 
@@ -21,4 +21,4 @@ Since 0.12 an AI assistant proposes plant registry changes as one document of th
 - A profile of up to about 5,000 data points can arrive as one reviewable proposal (25 parts, 1 MB combined). The preview of the parts so far is answered with each part only while they are small (256 kB), so a large proposal finds some problems only with its last part.
 - A part cannot correct an earlier one: a wrong value in part 2 means a new proposal (the unfinished one expires or its owner withdraws it). Replacing a part would make the combined document depend on the order of corrections; we accept the simpler rule.
 - Merging by "the first key every item has" is a heuristic over the format, not a schema per list; a list it cannot key must be given whole in one part. A list type that later gets an id key combines better without a change here.
-- Sources need no migration: rows written before 0.16.1 read without one. A source is a citation, not a link: a renamed or deleted record does not change it. Uploads through MCP and reading PDFs stay out of scope.
+- Sources need no migration: rows written before 0.17.0 read without one. A source is a citation, not a link: a renamed or deleted record does not change it. Uploads through MCP and reading PDFs stay out of scope.

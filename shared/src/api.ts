@@ -2070,7 +2070,7 @@ export interface McpPlantPreview {
 }
 
 /**
- * 0.16.1: the data points a plant proposal adds or changes with a source, grouped by entry and document (docs/PLANT.md
+ * 0.17.0: the data points a plant proposal adds or changes with a source, grouped by entry and document (docs/PLANT.md
  * "Sources of data points"): the reviewer sees where each comes from, and whether the document is kept in Steward.
  */
 export interface McpPlantSourceGroup {
@@ -2110,13 +2110,13 @@ export interface McpPlantProposal {
   importId: string | null;
   /** 0.13.0: the change set it is (Plant → Changes shows it too) */
   changeSetId?: string | null;
-  /** 0.16.1: the parts it came in (1: one document); while incomplete, the parts received so far */
+  /** 0.17.0: the parts it came in (1: one document); while incomplete, the parts received so far */
   parts?: number;
-  /** 0.16.1: its last part never came – still being sent (`incomplete`), or withdrawn or expired before */
+  /** 0.17.0: its last part never came – still being sent (`incomplete`), or withdrawn or expired before */
   unfinished?: boolean;
-  /** 0.16.1: the data points it adds or changes with a source, by entry and document */
+  /** 0.17.0: the data points it adds or changes with a source, by entry and document */
   sources?: McpPlantSourceGroup[];
-  /** 0.16.1: data points with a source beyond the ones listed */
+  /** 0.17.0: data points with a source beyond the ones listed */
   sourcesMore?: number;
 }
 

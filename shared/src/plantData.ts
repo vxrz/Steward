@@ -453,7 +453,7 @@ export interface PlantPublicationTarget {
 }
 
 /**
- * 0.16.1: where a data point is described – the document (a manual, a data sheet) and the place in it. An assistant that
+ * 0.17.0: where a data point is described – the document (a manual, a data sheet) and the place in it. An assistant that
  * reads a manual names it in its proposal; the review and the profile show it (docs/PLANT.md "Sources of data points").
  */
 export interface PlantPointSource {
@@ -465,7 +465,7 @@ export interface PlantPointSource {
   section: string;
 }
 
-/** 0.16.1: the length of a source's texts. */
+/** 0.17.0: the length of a source's texts. */
 export const PLANT_POINT_SOURCE_LIMITS = { document: 200, page: 40, section: 200 } as const;
 
 export interface PlantDataPoint {
@@ -489,7 +489,7 @@ export interface PlantDataPoint {
   notes: string;
   /** Where it is usually published (the assignment of an asset says where it really is) */
   publications: PlantPublicationTarget[];
-  /** 0.16.1: where it is described (a manual and the page); left out or null: not known */
+  /** 0.17.0: where it is described (a manual and the page); left out or null: not known */
   source?: PlantPointSource | null;
 }
 

@@ -1,5 +1,5 @@
 /**
- * Plant proposals in parts (0.16.1, docs/PLANT.md "Proposals in parts"). A manual with hundreds of data points does not
+ * Plant proposals in parts (0.17.0, docs/PLANT.md "Proposals in parts"). A manual with hundreds of data points does not
  * fit into one MCP request, so an assistant sends its document in parts – each a document of the import format by itself
  * – and Steward combines them into one document before the import's preview runs on it.
  *

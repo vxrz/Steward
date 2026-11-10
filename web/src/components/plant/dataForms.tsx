@@ -447,7 +447,7 @@ export function DataPointFormModal({
   const [description, setDescription] = useState(point?.description ?? '');
   const [notes, setNotes] = useState(point?.notes ?? '');
   const [pubs, setPubs] = useState(point?.publications ?? []);
-  // 0.16.1: where it is described (a manual and the page); an assistant's proposal fills it in
+  // 0.17.0: where it is described (a manual and the page); an assistant's proposal fills it in
   const [srcDocument, setSrcDocument] = useState(point?.source?.document ?? '');
   const [srcPage, setSrcPage] = useState(point?.source?.page ?? '');
   const [srcSection, setSrcSection] = useState(point?.source?.section ?? '');

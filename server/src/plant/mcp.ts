@@ -66,7 +66,7 @@ const pointOut = (d: PlantDataPoint, detail = false) => ({
   ...(detail && d.enumValues.length ? { enumValues: d.enumValues } : {}),
   ...(detail && d.notes ? { notes: d.notes } : {}),
   ...(detail && d.publications.length ? { publications: d.publications } : {}),
-  // 0.16.1: where it is described (a manual and the page)
+  // 0.17.0: where it is described (a manual and the page)
   ...(d.source ? { source: sourceOut(d.source) } : {}),
 });
 
@@ -285,7 +285,7 @@ export const plantReadTools: ToolDef[] = [
     name: 'get_device_profile',
     title: 'Get a device profile',
     description:
-      'One device profile as it is in effect (resolved): its interfaces, data point groups, data points (with known-as names and, since 0.16.1, their `source`: the document and page that describe them) and file sets, each with where it comes from when the profile extends another (`origin`, `descriptionFrom`), the chain of bases, the items marked as not present, the profiles that extend it and its assets. `file` is the profile’s own part in the plant import format (a derived profile lists only what it adds or changes) – change it and send it with propose_plant_changes. Use interfaceId and points: false for a large profile.',
+      'One device profile as it is in effect (resolved): its interfaces, data point groups, data points (with known-as names and, since 0.17.0, their `source`: the document and page that describe them) and file sets, each with where it comes from when the profile extends another (`origin`, `descriptionFrom`), the chain of bases, the items marked as not present, the profiles that extend it and its assets. `file` is the profile’s own part in the plant import format (a derived profile lists only what it adds or changes) – change it and send it with propose_plant_changes. Use interfaceId and points: false for a large profile.',
     input: z
       .object({
         profileId: plantId('Device profile id (from list_device_profiles)'),

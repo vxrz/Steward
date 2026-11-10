@@ -12,7 +12,7 @@ const entryPath = (g: McpPlantSourceGroup) =>
   g.kind === 'profile' ? `/plant/profiles/${encodeURIComponent(g.entry)}` : `/plant/assets/${encodeURIComponent(g.entry)}`;
 
 /**
- * 0.16.1: the data points of one entry described by one document – each with its page and section – and whether the
+ * 0.17.0: the data points of one entry described by one document – each with its page and section – and whether the
  * document is kept in Steward: the record linked to the entry, or the offer to attach it on the entry's Documents panel.
  */
 function SourceGroup({ g }: { g: McpPlantSourceGroup }) {
@@ -79,7 +79,7 @@ function SourceGroup({ g }: { g: McpPlantSourceGroup }) {
   );
 }
 
-/** 0.16.1: where the proposed data points come from, by entry and document. */
+/** 0.17.0: where the proposed data points come from, by entry and document. */
 function Sources({ p }: { p: McpPlantProposal }) {
   const { t } = useTranslation('mcp');
   const groups = p.sources ?? [];
@@ -182,7 +182,7 @@ export function PlantProposalReview({
     else if (p.changedSince) onChange(confirmed ? { plant: { fingerprint: now.fingerprint } } : {}, confirmed ? count : 0);
     else onChange({ plant: { fingerprint: now.fingerprint } }, count);
   }, [now, p.changedSince, confirmed, onChange]);
-  // 0.16.1: the assistant is still sending parts – nothing to review yet (or it never sent the last one)
+  // 0.17.0: the assistant is still sending parts – nothing to review yet (or it never sent the last one)
   if (p.incomplete || p.unfinished)
     return (
       <Stack gap="sm" data-testid="plant-proposal">

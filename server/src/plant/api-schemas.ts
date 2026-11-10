@@ -202,7 +202,7 @@ const DataPoint = z.object({
     .object({ document: z.string(), page: z.string(), section: z.string() })
     .nullable()
     .optional()
-    .describe('0.16.1: where it is described – the document (its title or a record number) and the page and section in it'),
+    .describe('0.17.0: where it is described – the document (its title or a record number) and the page and section in it'),
 });
 
 const Interface = z.object({

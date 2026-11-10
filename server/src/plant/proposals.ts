@@ -44,7 +44,7 @@ import { proposalSources } from './proposal-sources.js';
 
 /**
  * What a proposal's request carries (mcp_requests.payload); the document and its preview are in its change set (0.13),
- * or in plant_proposals (0.12). 0.16.1: while the assistant is still sending parts, the parts received so far are kept
+ * or in plant_proposals (0.12). 0.17.0: while the assistant is still sending parts, the parts received so far are kept
  * here (`documents`, each as sent) – there is no change set yet; the last part makes it one and leaves only the count.
  */
 interface Payload {
@@ -53,9 +53,9 @@ interface Payload {
   incomplete: boolean;
   added: number;
   changed: number;
-  /** 0.16.1: the number of parts (left out: one) */
+  /** 0.17.0: the number of parts (left out: one) */
   parts?: number;
-  /** 0.16.1: the parts received so far, while incomplete */
+  /** 0.17.0: the parts received so far, while incomplete */
   documents?: string[];
 }
 
@@ -73,7 +73,7 @@ interface ProposalRow {
 type Stored = Omit<McpPlantPreview, 'checks'> & { checks: { code: string; message: string; siteId: string | null }[] };
 
 const payloadOf = (r: Pick<Row, 'payload'>): Payload => parseJson<Payload>(r.payload, { type: 'plant', title: '', incomplete: false, added: 0, changed: 0 });
-/** 0.16.1: the assistant is still sending parts – nobody reviews it yet. */
+/** 0.17.0: the assistant is still sending parts – nobody reviews it yet. */
 const unfinished = (r: Pick<Row, 'payload'>): boolean => !!payloadOf(r).incomplete;
 /** The payload without the parts' documents (what stays when it is complete, withdrawn or expired). */
 const withoutDocuments = ({ documents, ...p }: Payload): Payload => ({ ...p, parts: documents?.length ?? p.parts ?? 0 });
@@ -236,7 +236,7 @@ function view(r: Row, u: AuthUser): McpPlantProposal {
   const p = rowOf(r.id);
   const pay = payloadOf(r);
   const empty: McpPlantPreview = { counts: { add: 0, change: 0 }, changes: [], warnings: [], checks: [] };
-  // 0.16.1: still coming in parts – only its owner (and who reads every request) sees it, without a preview yet; once
+  // 0.17.0: still coming in parts – only its owner (and who reads every request) sees it, without a preview yet; once
   // withdrawn or expired without its last part, it was never proposed
   if (pay.incomplete)
     return {
@@ -282,7 +282,7 @@ function view(r: Row, u: AuthUser): McpPlantProposal {
       };
     }
   }
-  // 0.16.1: the data points it adds or changes with their source, and whether that document is kept in Steward
+  // 0.17.0: the data points it adds or changes with their source, and whether that document is kept in Steward
   const sources = proposalSources(p.document, seesFor(u));
   return {
     type: 'plant',
@@ -390,7 +390,7 @@ function deciders(r: Row): UserInfo[] {
 }
 
 registerReviewKind('plant', {
-  // 0.16.1: an unfinished proposal is no reviewer's yet (its owner sees it, may withdraw it; nobody accepts it)
+  // 0.17.0: an unfinished proposal is no reviewer's yet (its owner sees it, may withdraw it; nobody accepts it)
   mayAccept: (u, r) => !unfinished(r) && mayApply(u) && !(needsReview(r.id) && samePerson(r.requested_by, u)),
   deciders,
   describe: (r) => {
@@ -405,7 +405,7 @@ registerReviewKind('plant', {
   view,
   precheck,
   apply,
-  // 0.16.1: the parts of an unfinished proposal are not kept once it is closed
+  // 0.17.0: the parts of an unfinished proposal are not kept once it is closed
   onExpired: (r) => {
     if (unfinished(r)) db().run('UPDATE mcp_requests SET payload = ? WHERE id = ?', JSON.stringify(withoutDocuments(payloadOf(r))), r.id);
   },
@@ -482,12 +482,12 @@ function openBytes(username: string, except: string | null): number {
     sum(
       "SELECT SUM(LENGTH(p.document)) AS n FROM plant_proposals p JOIN mcp_requests r ON r.id = p.id WHERE r.requested_by = ? AND r.status = 'pending' AND r.id <> ?",
     ) +
-    // 0.16.1: the parts of unfinished proposals
+    // 0.17.0: the parts of unfinished proposals
     sum("SELECT SUM(LENGTH(payload)) AS n FROM mcp_requests WHERE requested_by = ? AND status = 'pending' AND kind = 'plant' AND id <> ?")
   );
 }
 
-/** The token owner's unfinished proposal a further part belongs to (0.16.1). */
+/** The token owner's unfinished proposal a further part belongs to (0.17.0). */
 function unfinishedOf(id: string, ctx: ToolContext): Row {
   const r = db().get<Row>('SELECT * FROM mcp_requests WHERE id = ?', id);
   if (!r || r.kind !== 'plant' || r.status !== 'pending' || r.expires_at <= new Date().toISOString() || !samePerson(r.requested_by, ctx.principal.user))
@@ -683,10 +683,10 @@ export const plantProposalTools: ToolDef[] = [
       const title = typeof a.title === 'string' ? a.title : undefined;
       const rationale = typeof a.rationale === 'string' ? a.rationale : undefined;
       if (!a.proposalId && (!title || !rationale)) throw new ToolError('Give `title` and `rationale` (with the first part of a proposal in parts)');
-      // one document, as before 0.16.1
+      // one document, as before 0.17.0
       if (!a.proposalId && !more) return finish(ctx, { title: title!, rationale, document, requestId: null, parts: 1 });
 
-      // ---------- in parts (0.16.1) ----------
+      // ---------- in parts (0.17.0) ----------
       // each part is a document of the format by itself: its own problems are told now, when they are cheap to fix
       const own = plantFileSchema.safeParse(doc);
       if (!own.success)

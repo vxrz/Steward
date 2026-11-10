@@ -107,7 +107,7 @@ export interface ReviewKind {
   precheck?: (r: Row, selection: McpProposalSelection | undefined, u: AuthUser) => void;
   /** 0.12.0: called in the transaction that rejects or withdraws it (an audit entry of the module, for example) */
   onRejected?: (r: Row, u: AuthUser, o: { withdrawn: boolean; comment: string }) => void;
-  /** 0.16.1: called when it expired without a decision (what an unfinished proposal kept can go, for example) */
+  /** 0.17.0: called when it expired without a decision (what an unfinished proposal kept can go, for example) */
   onExpired?: (r: Row) => void;
 }
 const REVIEW_KINDS = new Map<McpRequestKind, ReviewKind>();

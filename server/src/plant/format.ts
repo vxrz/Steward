@@ -241,7 +241,7 @@ const publicationTarget = z
   })
   .strict();
 
-/** 0.16.1: where a data point is described – a manual or data sheet and the place in it. */
+/** 0.17.0: where a data point is described – a manual or data sheet and the place in it. */
 export const pointSourceSchema = z
   .object({
     document: z
@@ -257,7 +257,7 @@ export const pointSourceSchema = z
     section: text(PLANT_POINT_SOURCE_LIMITS.section).describe('The section: its number and title (6.3 OPC UA variables)'),
   })
   .strict()
-  .meta({ id: 'DataPointSource', description: 'Where a data point is described: a document and the place in it (0.16.1)' });
+  .meta({ id: 'DataPointSource', description: 'Where a data point is described: a document and the place in it (0.17.0)' });
 
 export const dataPointSchema = z
   .object({
@@ -296,7 +296,7 @@ export const dataPointSchema = z
     source: pointSourceSchema
       .nullable()
       .optional()
-      .describe('0.16.1: where it is described – a manual and the page; in a profile that extends another, null: not the inherited source'),
+      .describe('0.17.0: where it is described – a manual and the page; in a profile that extends another, null: not the inherited source'),
     present: z
       .boolean()
       .optional()
