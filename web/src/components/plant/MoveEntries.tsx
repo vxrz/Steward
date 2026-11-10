@@ -282,7 +282,8 @@ export function MoveEntriesModal({
                               <TextInput
                                 size="xs"
                                 aria-label={t('moveEntries.newIdOf', { name: e.name })}
-                                value={ids[k] ?? e.suggested ?? ''}
+                                value={ids[k] ?? ''}
+                                placeholder={e.suggested ?? undefined}
                                 onChange={(ev) => {
                                   const v = ev.currentTarget.value;
                                   setIds((cur) => ({ ...cur, [k]: v }));
