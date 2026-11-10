@@ -49,6 +49,7 @@ export function defaultRoutes(): Record<NotificationEvent, NotificationChannel[]
     'maintenance.announced',
     'measure.due',
     'backup.failed',
+    'export.failed',
     'mcp.request',
     'platform.failing',
     'ai.budget',

@@ -1139,6 +1139,8 @@ export interface Resources {
     'points.notifications.delivery.description': string;
     'points.backup.settings.label': string;
     'points.backup.settings.description': string;
+    'points.export.settings.label': string;
+    'points.export.settings.description': string;
     'points.migration.export.label': string;
     'points.migration.export.description': string;
     'points.migration.apply.label': string;
@@ -7525,6 +7527,8 @@ export interface Resources {
     'events.maintenance.announced.info': string;
     'events.backup.failed.label': string;
     'events.backup.failed.info': string;
+    'events.export.failed.label': string;
+    'events.export.failed.info': string;
     'events.mcp.request.label': string;
     'events.mcp.request.info': string;
     'events.platform.failing.label': string;

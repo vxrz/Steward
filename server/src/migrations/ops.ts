@@ -244,4 +244,40 @@ export const OPS_MIGRATIONS: NamedMigration[] = [
     name: 'ops-014-dataset-rows-in-parts',
     sql: `UPDATE datasets SET rows = '[]' WHERE key IN (SELECT dataset_key FROM dataset_parts);`,
   },
+  {
+    // 0.16.0 (ADR 0027, docs/EXPORTS.md): scheduled exports of readable files to S3 and their runs
+    name: 'ops-015-export-jobs',
+    sql: `CREATE TABLE export_jobs (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL UNIQUE,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      platform_id TEXT,
+      prefix TEXT NOT NULL,
+      cron TEXT NOT NULL,
+      timezone TEXT NOT NULL,
+      parts TEXT NOT NULL DEFAULT '[]',
+      encrypt INTEGER NOT NULL DEFAULT 0,
+      keep_runs INTEGER NOT NULL DEFAULT 10,
+      created_at TEXT NOT NULL,
+      created_by TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      updated_by TEXT NOT NULL
+    );
+    CREATE TABLE export_runs (
+      id TEXT PRIMARY KEY,
+      job_id TEXT NOT NULL,
+      status TEXT NOT NULL,
+      trigger_kind TEXT NOT NULL,
+      triggered_by TEXT,
+      started_at TEXT NOT NULL,
+      finished_at TEXT,
+      platform_id TEXT,
+      folder TEXT,
+      files TEXT NOT NULL DEFAULT '[]',
+      bytes INTEGER,
+      message TEXT,
+      pruned INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE INDEX export_runs_job ON export_runs(job_id, started_at);`,
+  },
 ];

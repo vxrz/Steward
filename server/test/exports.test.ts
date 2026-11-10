@@ -1,0 +1,358 @@
+import crypto from 'node:crypto';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { EXPORT_PART_IDS } from '@sm/shared';
+import { ADMIN, setup, startTestServer, type Client, type TestServer } from './helpers.js';
+
+/**
+ * Scheduled exports to S3 (0.16.0, docs/EXPORTS.md, ADR 0027): the registry of parts, each part's files (and no secret
+ * in any of them), module switches, permissions and the step-up, the run against the mock S3 with its manifest,
+ * encryption with the backup key, the retention rule, the schedule, failures and the audit log.
+ */
+
+process.env.SM_GATUS_AUTOSTART = '0';
+process.env.SM_MONITOR_AUTOSTART = '0';
+
+let s: TestServer;
+let mockBase: string;
+let storageId = '';
+let service = '';
+let olivia: Client;
+const BUCKET = 'steward-exports';
+const PASSPHRASE = 'an export passphrase of some length';
+const MASTER = 'correct horse battery';
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'sm-export-test-'));
+/** Secret values the installation holds – none may appear in an exported file. */
+const secrets: string[] = ['demoSecretKey', PASSPHRASE, MASTER, ADMIN.password, 'Olivia-password-123'];
+
+const refused = (c: Client, method: string, url: string, body?: unknown): Promise<{ status: number; body: any }> =>
+  c(method, url, body).then(
+    () => {
+      throw new Error(`${method} ${url} was not refused`);
+    },
+    (e: { status: number; body: any }) => e,
+  );
+
+const objects = async () => (await import('../src/mock/mockS3.js')).mockS3Objects(BUCKET);
+
+async function idle(): Promise<void> {
+  const { exportsIdle } = await import('../src/export/jobs.js');
+  await exportsIdle();
+}
+
+const ALL_PARTS = [
+  { id: 'costPlans', format: 'csv', fiscalYear: 'current' },
+  { id: 'plant', format: 'yaml' },
+  { id: 'services', format: 'csv' },
+  { id: 'applications', format: 'csv' },
+  { id: 'systems', format: 'csv' },
+  { id: 'monitors', format: 'yaml' },
+  { id: 'auditLog', format: 'csv', days: 2 },
+];
+const job = (extra: Record<string, unknown> = {}) => ({
+  name: 'nightly-share',
+  enabled: false,
+  platformId: storageId,
+  prefix: 'exports/',
+  cron: '30 3 * * 1',
+  timezone: 'Europe/Berlin',
+  parts: ALL_PARTS,
+  encrypt: false,
+  keepRuns: 10,
+  ...extra,
+});
+
+beforeAll(async () => {
+  s = await startTestServer();
+  await setup(s);
+  mockBase = `${s.base.replace(/\/$/, '')}/mock`;
+  const p = await s.api('POST', '/platforms', {
+    name: 'Export bucket',
+    kind: 'generic',
+    baseUrl: `${mockBase}/s3/${BUCKET}`,
+    config: { auth: { type: 'aws_sigv4', aws: { region: 'eu-central-1', service: 's3' } }, variables: {}, http: { proxy: 'none' } },
+    secrets: { accessKeyId: 'AKIADEMOEXAMPLE', secretAccessKey: 'demoSecretKey' },
+  });
+  storageId = p.id;
+  await s.api('POST', '/users', { username: 'olivia', roles: ['operator'], password: 'Olivia-password-123' });
+  olivia = await s.as('olivia', 'Olivia-password-123');
+  // the plant registry on (the demo loads its invented example enterprise)
+  await s.api('PUT', '/settings/plant', { enabled: true, enterprise: 'Brightwater Components', labels: {}, fields: {} });
+  // a service with a cost plan line and an entry in the current fiscal year
+  service = (await s.api('POST', '/services', { name: 'Invented Billing Service', owners: [] })).id;
+  const year = (await s.api('GET', `/costs/plans/${service}`)).fiscalYear as number;
+  await s.api('POST', `/costs/plans/${service}/lines`, {
+    title: 'Historian licence',
+    category: 'licence',
+    amount: '1200',
+    currency: 'EUR',
+    cadence: 'yearly',
+    fiscalYear: year,
+    vendor: 'Invented Historian GmbH',
+  });
+  await s.api('POST', `/costs/plans/${service}/entries`, {
+    date: new Date().toISOString().slice(0, 10),
+    amount: '300',
+    currency: 'EUR',
+    reference: 'INV-4711',
+  });
+  // a monitor with a heartbeat check: its secret must not be exported
+  const m = await s.api('POST', '/monitors', {
+    definition: {
+      name: 'Nightly import',
+      checks: [{ id: 'hb', name: 'Heartbeat', type: 'heartbeat', key: 'export.nightly', mode: 'maxAge', maxAgeSeconds: 600 }],
+    },
+  });
+  for (const x of m.secrets ?? []) secrets.push(x.secret);
+  // an API token and a credential with a secret value
+  secrets.push((await s.api('POST', '/me/tokens', { name: 'export-test', scope: 'read' })).token);
+});
+afterAll(async () => {
+  (await import('../src/export/jobs.js')).stopExportJobs();
+  fs.rmSync(tmp, { recursive: true, force: true });
+});
+
+describe('the registry of exportable parts', () => {
+  it('has every part once, with formats and a module where it belongs to one', async () => {
+    const { EXPORT_PARTS, objectsCsv } = await import('../src/export/parts.js');
+    expect(EXPORT_PARTS.map((p) => p.id)).toEqual([...EXPORT_PART_IDS]);
+    for (const p of EXPORT_PARTS) expect(p.formats.length, p.id).toBeGreaterThan(0);
+    expect(Object.fromEntries(EXPORT_PARTS.filter((p) => p.module).map((p) => [p.id, p.module]))).toEqual({ costPlans: 'costs', plant: 'plant' });
+    // one column per key; formulas defused, lists joined
+    expect(objectsCsv([{ a: '=1+1', b: ['x', 'y'] }, { c: { d: 1 } }])).toBe('\uFEFFa,b,c\r\n\'=1+1,"x; y",\r\n,,"{""d"":1}"\r\n');
+  });
+});
+
+describe('defining an export', () => {
+  it('is for administrators only, and asks for a step-up', async () => {
+    expect((await refused(olivia, 'GET', '/exports')).status).toBe(403);
+    expect((await refused(olivia, 'POST', '/exports', job())).status).toBe(403);
+    const fresh = await s.as(ADMIN.username, ADMIN.password, { autoStepUp: false });
+    // the sign-in counts as a confirmation: end it, as a session some minutes old would have
+    await fresh('DELETE', '/auth/step-up');
+    const r = await refused(fresh, 'POST', '/exports', job());
+    expect(r.status).toBe(403);
+    expect(r.body.code).toBe('STEP_UP_REQUIRED');
+    expect(r.body.stepUp.action).toBe('changeExports');
+    expect(await refused(fresh, 'PUT', '/exports/exp_none', job())).toMatchObject({ status: 403, body: { code: 'STEP_UP_REQUIRED' } });
+    expect(await refused(fresh, 'DELETE', '/exports/exp_none')).toMatchObject({ status: 403, body: { code: 'STEP_UP_REQUIRED' } });
+    expect((await s.api('GET', '/exports')).jobs).toEqual([]);
+  });
+
+  it('checks the target, the parts and their formats, the name and the schedule', async () => {
+    const plain = await s.api('POST', '/platforms', {
+      name: 'Not S3 for exports',
+      kind: 'generic',
+      baseUrl: `${mockBase}/test`,
+      config: { auth: { type: 'none' }, variables: {}, http: { proxy: 'none' } },
+    });
+    const code = async (body: unknown) => (await refused(s.api, 'POST', '/exports', body)).body.code;
+    expect(await code(job({ platformId: null }))).toBe('EXPORT_NO_STORAGE');
+    expect(await code(job({ platformId: plain.id }))).toBe('BACKUP_NOT_S3');
+    expect(await code(job({ parts: [{ id: 'plant', format: 'csv' }] }))).toBe('EXPORT_FORMAT_UNSUPPORTED');
+    expect(await code(job({ parts: [ALL_PARTS[2], ALL_PARTS[2]] }))).toBe('EXPORT_PART_TWICE');
+    expect(await code(job({ encrypt: true }))).toBe('EXPORT_NO_KEY');
+    expect(await code(job({ name: 'audit-archives' }))).toBe('EXPORT_NAME_RESERVED');
+    expect(await code(job({ cron: '0 0 3 * * 1' }))).toBe('CRON_FIVE_FIELDS');
+    expect((await refused(s.api, 'POST', '/exports', job({ name: '../escape' }))).status).toBe(400);
+    expect((await refused(s.api, 'POST', '/exports', job({ parts: [] }))).status).toBe(400);
+    expect((await refused(s.api, 'POST', '/exports', job({ parts: [{ id: 'vault', format: 'yaml' }] }))).status).toBe(400);
+  });
+});
+
+describe('an export run', () => {
+  let id = '';
+  const run = async (): Promise<any> => {
+    const started = await s.api('POST', `/exports/${id}/run`, {});
+    expect(started).toMatchObject({ status: 'running', trigger: 'manual', triggeredBy: 'admin' });
+    await idle();
+    return (await s.api('GET', `/exports/${id}/runs?limit=1`))[0];
+  };
+
+  it('writes readable files of every part with a manifest, and no secret', async () => {
+    const created = await s.api('POST', '/exports', job());
+    id = created.id;
+    expect(created).toMatchObject({ name: 'nightly-share', running: false, lastRun: null, nextRunAt: null });
+    const status = await s.api('GET', '/exports');
+    expect(status.parts.map((p: any) => [p.id, p.available])).toEqual(EXPORT_PART_IDS.map((p) => [p, true]));
+    expect(status.encryptionAvailable).toBe(false);
+
+    const r = await run();
+    expect(r.status, r.message).toBe('succeeded');
+    expect(r.message).toBeNull();
+    expect(r.folder).toMatch(/^exports\/nightly-share\/\d{8}T\d{6}Z\/$/);
+    const objs = await objects();
+    const names = r.files.map((f: any) => f.name).sort();
+    const fy = names.find((n: string) => n.startsWith('cost-plan-lines-'))!.slice('cost-plan-lines-'.length);
+    expect(names).toEqual(
+      [
+        'applications.csv',
+        'audit-log.csv',
+        `cost-entries-${fy}`,
+        `cost-plan-lines-${fy}`,
+        'manifest.json',
+        'monitors.yaml',
+        'plant-registry.yaml',
+        'services.csv',
+        'systems.csv',
+      ].sort(),
+    );
+    const text = (name: string) => objs.get(`${r.folder}${name}`)!.body.toString('utf8');
+    // the manifest names every other file with its size and SHA-256
+    const manifest = JSON.parse(text('manifest.json'));
+    expect(manifest).toMatchObject({ format: 'steward-export', v: 1, name: 'nightly-share', encrypted: false, skipped: [] });
+    expect(manifest.parts.map((p: any) => p.id)).toEqual(ALL_PARTS.map((p) => p.id));
+    expect(manifest.files).toHaveLength(names.length - 1);
+    for (const f of manifest.files) {
+      const body = objs.get(`${r.folder}${f.name}`)!.body;
+      expect(crypto.createHash('sha256').update(body).digest('hex'), f.name).toBe(f.sha256);
+      expect(body.length).toBe(f.bytes);
+    }
+    // what each part wrote
+    const lines = text(`cost-plan-lines-${fy}`);
+    expect(lines.startsWith('\uFEFFService id,Service,Fiscal year,Title')).toBe(true);
+    expect(lines).toContain(`${service},Invented Billing Service,`);
+    expect(lines).toContain('Historian licence');
+    expect(lines).toContain('Invented Historian GmbH');
+    expect(text(`cost-entries-${fy}`)).toContain('INV-4711');
+    expect(text('plant-registry.yaml')).toMatch(/^# yaml-language-server: \$schema=/);
+    expect(text('plant-registry.yaml')).toContain('Brightwater');
+    expect(text('services.csv')).toContain('Invented Billing Service');
+    expect(text('monitors.yaml')).toContain('key: export.nightly');
+    expect(text('audit-log.csv')).toContain('export.job_created');
+    // no secret in any file
+    for (const [key, o] of objs) {
+      const body = o.body.toString('utf8');
+      for (const secret of secrets) expect(body.includes(secret), `${key} holds a secret`).toBe(false);
+      // stored encrypted values never leave (the audit log names which secrets a platform has, never their values)
+      expect(body).not.toMatch(/secret_enc|v1:[A-Za-z0-9+/]{16}:[A-Za-z0-9+/]{22}==:/);
+    }
+  });
+
+  it('leaves out a part whose module is switched off, and says so', async () => {
+    await s.api('PUT', '/settings/plant', { enabled: false, enterprise: 'Brightwater Components', labels: {}, fields: {} });
+    await s.api('PUT', '/settings/modules/costs', { enabled: false });
+    try {
+      const st = await s.api('GET', '/exports');
+      expect(st.parts.filter((p: any) => !p.available).map((p: any) => p.id)).toEqual(['costPlans', 'plant']);
+      const r = await run();
+      expect(r.status).toBe('succeeded');
+      expect(r.message).toMatch(/Not exported: costPlans \(the module costs is switched off\), plant \(the module plant is switched off\)/);
+      expect(r.files.some((f: any) => /^(cost-|plant-)/.test(f.name))).toBe(false);
+      const manifest = JSON.parse((await objects()).get(`${r.folder}manifest.json`)!.body.toString('utf8'));
+      expect(manifest.skipped.map((x: any) => x.part)).toEqual(['costPlans', 'plant']);
+    } finally {
+      await s.api('PUT', '/settings/modules/costs', { enabled: true });
+      await s.api('PUT', '/settings/plant', { enabled: true, enterprise: 'Brightwater Components', labels: {}, fields: {} });
+    }
+  });
+
+  it('encrypts every file with the backup key when asked to', async () => {
+    await s.api('PUT', '/backups/passphrase', { passphrase: PASSPHRASE });
+    expect((await s.api('GET', '/exports')).encryptionAvailable).toBe(true);
+    await s.api('PUT', `/exports/${id}`, job({ encrypt: true, parts: [ALL_PARTS[2], ALL_PARTS[0]] }));
+    const r = await run();
+    expect(r.status, r.message).toBe('succeeded');
+    expect(r.files.every((f: any) => f.name.endsWith('.smbackup'))).toBe(true);
+    const objs = await objects();
+    const { decryptFile, deriveBackupKey, readHeader } = await import('../src/backup/crypto.js');
+    const file = path.join(tmp, 'services.smbackup');
+    fs.writeFileSync(file, objs.get(`${r.folder}services.csv.smbackup`)!.body);
+    expect(objs.get(`${r.folder}services.csv.smbackup`)!.body.includes(Buffer.from('Invented Billing Service'))).toBe(false);
+    const { header } = await readHeader(file);
+    expect(header.info).toMatchObject({ content: 'export', file: 'services.csv' });
+    const key = await deriveBackupKey(PASSPHRASE, header.kdf);
+    await decryptFile(file, path.join(tmp, 'services.csv'), key);
+    const plain = fs.readFileSync(path.join(tmp, 'services.csv'));
+    expect(plain.toString('utf8')).toContain('Invented Billing Service');
+    // the SHA-256 in the run (and the manifest) is the one of the content
+    expect(crypto.createHash('sha256').update(plain).digest('hex')).toBe(r.files.find((f: any) => f.name === 'services.csv.smbackup').sha256);
+    // the offline tool reads it too
+    const { runBackupCli } = await import('../src/cli/backup.js');
+    const pf = path.join(tmp, 'pass.txt');
+    fs.writeFileSync(pf, `${PASSPHRASE}\n`);
+    fs.writeFileSync(path.join(tmp, 'manifest.smbackup'), objs.get(`${r.folder}manifest.json.smbackup`)!.body);
+    expect(
+      await runBackupCli(['decrypt', path.join(tmp, 'manifest.smbackup'), '--out', path.join(tmp, 'manifest.json'), '--passphrase-file', pf], 'backup'),
+    ).toBe(0);
+    const manifest = JSON.parse(fs.readFileSync(path.join(tmp, 'manifest.json'), 'utf8'));
+    expect(manifest).toMatchObject({ encrypted: true, keyId: header.keyId });
+    expect(manifest.files.map((f: any) => f.name).sort()).toEqual(
+      r.files
+        .filter((f: any) => f.part !== 'manifest')
+        .map((f: any) => f.name)
+        .sort(),
+    );
+  });
+
+  it('keeps the newest runs and removes only the files of older runs', async () => {
+    const objs = await objects();
+    objs.set('exports/nightly-share/notes.txt', { body: Buffer.from('not an export'), meta: {}, lastModified: new Date() });
+    await s.api('PUT', `/exports/${id}`, job({ keepRuns: 2, parts: [ALL_PARTS[2]] }));
+    const before = (await s.api('GET', `/exports/${id}/runs`)).filter((x: any) => x.status === 'succeeded');
+    const r = await run();
+    expect(r.status).toBe('succeeded');
+    const runs = (await s.api('GET', `/exports/${id}/runs`)).filter((x: any) => x.status === 'succeeded');
+    expect(runs.slice(0, 2).every((x: any) => !x.pruned)).toBe(true);
+    expect(runs.slice(2).every((x: any) => x.pruned)).toBe(true);
+    for (const old of runs.slice(2)) for (const f of old.files) expect(objs.has(f.key), f.key).toBe(false);
+    for (const kept of runs.slice(0, 2)) for (const f of kept.files) expect(objs.has(f.key), f.key).toBe(true);
+    expect(before.length).toBeGreaterThanOrEqual(3);
+    expect(objs.has('exports/nightly-share/notes.txt')).toBe(true);
+  });
+
+  it('runs on its schedule', async () => {
+    const jobs = await import('../src/export/jobs.js');
+    await s.api('PUT', `/exports/${id}`, job({ enabled: true, keepRuns: 2, parts: [ALL_PARTS[4]] }));
+    jobs.startExportJobs();
+    const j = await s.api('GET', `/exports/${id}`);
+    expect(j.nextRunAt).toEqual(expect.any(String));
+    const scheduled = jobs.scheduledExports();
+    expect(scheduled.map((x) => x.jobId)).toEqual([id]);
+    scheduled[0]!.cron.trigger();
+    await new Promise((r) => setTimeout(r, 50));
+    await idle();
+    const last = (await s.api('GET', `/exports/${id}/runs?limit=1`))[0];
+    expect(last).toMatchObject({ trigger: 'schedule', triggeredBy: null, status: 'succeeded' });
+    await s.api('PUT', `/exports/${id}`, job({ enabled: false, keepRuns: 2, parts: [ALL_PARTS[4]] }));
+    expect(jobs.scheduledExports()).toEqual([]);
+  });
+
+  it('records a failure without secrets and tells the administrators', async () => {
+    const bad = await s.api('POST', '/platforms', {
+      name: 'Export bucket, wrong key',
+      kind: 'generic',
+      baseUrl: `${mockBase}/s3/${BUCKET}`,
+      config: { auth: { type: 'aws_sigv4', aws: { region: 'eu-central-1', service: 's3' } }, variables: {}, http: { proxy: 'none' } },
+      secrets: { accessKeyId: 'AKIADEMOEXAMPLE', secretAccessKey: 'a-wrong-secret-value' },
+    });
+    await s.api('PUT', `/exports/${id}`, job({ platformId: bad.id, parts: [ALL_PARTS[2]] }));
+    const r = await run();
+    expect(r.status).toBe('failed');
+    expect(r.message).toMatch(/HTTP 403/);
+    expect(r.message).not.toContain('a-wrong-secret-value');
+    expect(r.files).toEqual([]);
+    let notes: any[] = [];
+    for (let i = 0; i < 50 && !notes.some((n) => n.event === 'export.failed'); i++) {
+      notes = (await s.api('GET', '/notifications')).items;
+      await new Promise((res) => setTimeout(res, 50));
+    }
+    expect(notes.find((n) => n.event === 'export.failed')).toMatchObject({ title: expect.stringContaining('nightly-share'), link: '/settings/exports' });
+  });
+
+  it('is audited, and removing it keeps the files in the bucket', async () => {
+    const keys = [...(await objects()).keys()].filter((k) => k.startsWith('exports/nightly-share/'));
+    await s.api('DELETE', `/exports/${id}`);
+    expect((await refused(s.api, 'GET', `/exports/${id}`)).status).toBe(404);
+    expect([...(await objects()).keys()].filter((k) => k.startsWith('exports/nightly-share/'))).toEqual(keys);
+    const actions = (await s.api('GET', '/audit?entityType=export&limit=200')).map((e: any) => e.action);
+    expect(actions).toEqual(
+      expect.arrayContaining(['export.job_created', 'export.job_changed', 'export.completed', 'export.failed', 'export.pruned', 'export.job_removed']),
+    );
+    const [created] = await s.api('GET', '/audit?action=export.job_created&limit=1');
+    expect(created.actor).toBe('admin');
+    expect(created.summary).toContain('nightly-share');
+  });
+});

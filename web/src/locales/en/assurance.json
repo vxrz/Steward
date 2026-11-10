@@ -278,6 +278,12 @@
         "description": "Where encrypted backups go and their passphrase."
       }
     },
+    "export": {
+      "settings": {
+        "label": "Change the exports",
+        "description": "Define, change or remove a scheduled export of readable data to S3."
+      }
+    },
     "migration": {
       "export": {
         "label": "Export this instance",

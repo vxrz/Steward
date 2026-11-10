@@ -172,6 +172,12 @@
         "info": "Eine Sicherung oder der wöchentliche Wiederherstellungstest der Sicherungen ist fehlgeschlagen (Administratoren)"
       }
     },
+    "export": {
+      "failed": {
+        "label": "Export fehlgeschlagen",
+        "info": "Ein geplanter Export nach S3 ist fehlgeschlagen (Administratoren)"
+      }
+    },
     "mcp": {
       "request": {
         "label": "Anfrage eines KI-Assistenten",
