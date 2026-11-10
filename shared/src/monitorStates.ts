@@ -256,7 +256,8 @@ export function evaluateStates(input: StateInput): StateOutcome {
   const since = changed ? now : (mem.since ?? now);
   // a state change starts the settle time; the very first state (nothing selected before) is taken as it is.
   // A running settle follows the current definition: its end is the state change + today's settle time, so a
-  // shorter or longer settle time applies at once (it is not fixed at the state change).
+  // shorter or longer settle time applies at once (it is not fixed at the state change). A settle that has ended
+  // stays ended: a longer settle time later does not reopen it (a confirmed contradiction would turn up again).
   const wasKnown = !!input.memory && (input.memory.id !== null || !!input.memory.known);
   const settleUntil = !row
     ? null
@@ -264,7 +265,7 @@ export function evaluateStates(input: StateInput): StateOutcome {
       ? wasKnown
         ? now + settleSecondsOf(def, row, input.subSettle) * 1000
         : null
-      : mem.settleUntil !== null && mem.since !== null
+      : mem.settleUntil !== null && mem.since !== null && now < mem.settleUntil
         ? mem.since + settleSecondsOf(def, row, input.subSettle) * 1000
         : mem.settleUntil;
   const settling = settleUntil !== null && now < settleUntil;
