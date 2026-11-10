@@ -616,4 +616,36 @@ export const PLANT_MIGRATIONS: NamedMigration[] = [
     name: 'plant-015-kpi-roll-up',
     sql: `ALTER TABLE plant_kpis ADD COLUMN roll_up TEXT NOT NULL DEFAULT 'none';`,
   },
+  {
+    // 0.14: Insights Hub as a mapped sink (docs/PLANT.md "Insights Hub mapping"): the last check of a sink's mapping
+    // against the tenant (per item: the asset, aspect and variable exist, unit and type as hints), and the links of a
+    // sink's items to the monitor checks that watch them (made from the mapping, or found by its last check)
+    name: 'plant-021-ih-mapping',
+    sql: `
+      CREATE TABLE plant_ih_checks (
+        asset_id TEXT NOT NULL,
+        collection_id TEXT NOT NULL,
+        sink_id TEXT NOT NULL,
+        platform_id TEXT NOT NULL,
+        checked_at TEXT NOT NULL,
+        checked_by TEXT NOT NULL,
+        run TEXT NOT NULL DEFAULT '{}',
+        items TEXT NOT NULL DEFAULT '[]',
+        PRIMARY KEY (asset_id, collection_id, sink_id)
+      );
+      CREATE TABLE plant_ih_monitor_links (
+        asset_id TEXT NOT NULL,
+        collection_id TEXT NOT NULL,
+        sink_id TEXT NOT NULL,
+        item TEXT NOT NULL,
+        monitor_id TEXT NOT NULL,
+        check_id TEXT NOT NULL,
+        origin TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        created_by TEXT NOT NULL,
+        PRIMARY KEY (asset_id, collection_id, sink_id, item, monitor_id, check_id)
+      );
+      CREATE INDEX plant_ih_monitor_links_monitor ON plant_ih_monitor_links(monitor_id);
+    `,
+  },
 ];

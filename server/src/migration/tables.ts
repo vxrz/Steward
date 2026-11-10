@@ -206,6 +206,9 @@ export const HISTORY_COLUMNS: string[] = [
   'plant_collection_mappings.created_by',
   // the kept files of collection imports (0.12)
   'plant_collection_sources.imported_by',
+  // 0.14: the last check of an Insights Hub mapping and the links of sink items to monitor checks
+  'plant_ih_checks.checked_by',
+  'plant_ih_monitor_links.created_by',
   // old ids of renamed plant entries (0.11.0)
   'plant_id_aliases.renamed_by',
   // the history of plant entries (0.13.0): who wrote a change and who applied it

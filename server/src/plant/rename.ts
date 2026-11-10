@@ -276,6 +276,9 @@ const REFERENCES_ALL: RefSpec[] = [
   pair('item_links', 'to_kind', 'asset', 'to_id', 'asset', 'link'),
   // 0.12: the kept files of its collection imports; links to its collections and sinks (<asset>/<collection>[/<sink>])
   col('plant_collection_sources', 'asset_id', 'asset', 'collection_source'),
+  // 0.14: the Insights Hub checks of its sinks and the links of their items to monitor checks
+  col('plant_ih_checks', 'asset_id', 'asset', 'ih_check'),
+  col('plant_ih_monitor_links', 'asset_id', 'asset', 'ih_link'),
   {
     table: 'item_links',
     column: 'to_id[to_kind=data-collection|data-sink, asset part]',

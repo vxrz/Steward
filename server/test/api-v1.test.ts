@@ -96,6 +96,23 @@ beforeAll(async () => {
   await allowEmailDomains(s, ['example.com']);
   [vera, audrey, dana] = await Promise.all(['vera', 'audrey', 'dana'].map((u) => s.as(u, PW)));
   hub = (await s.api('GET', '/platforms')).find((p: any) => p.kind === 'insights-hub').id;
+  // 0.14: a data collection whose sink is the Insights Hub platform, its items mapped to an asset and aspect there
+  await s.api('POST', '/plant/assets/rvs-mill-01/collections', {
+    id: 'v1-ih',
+    name: 'To Insights Hub',
+    collector: { kind: 'job', ref: 'v1-gateway' },
+    items: [{ address: 'ns=2;s=Speed', outputName: 'speed' }],
+    sinks: [
+      {
+        id: 'ih',
+        name: 'Insights Hub',
+        kind: 'platform',
+        ref: hub,
+        ih: { assetId: 'v1-asset', assetName: '', aspect: 'Energy' },
+        mappings: [{ item: 'speed', target: 'speed' }],
+      },
+    ],
+  });
 
   const { DEMO_CREDENTIALS } = await import('../src/mock/mockPlatform.js');
   SECRETS.push(DEMO_CREDENTIALS.client.secret, DEMO_CREDENTIALS.iem.password);
@@ -514,7 +531,16 @@ async function crawl(token: string): Promise<{ template: string; url: string; re
   for (const x of await listAll('/plant/sites', '/plant/sites')) await get('/plant/sites/{siteId}/network', `/plant/sites/${x.id}/network`);
   for (const id of ['rvs-mill-01', 'rvs-mill-02']) await get('/plant/assets/{assetId}/network', `/plant/assets/${id}/network`);
   // data collections (0.11): what collectors read from an asset
-  for (const id of ['rvs-mill-01', 'rvs-mill-02']) await get('/plant/assets/{assetId}/collections', `/plant/assets/${id}/collections`);
+  for (const id of ['rvs-mill-01', 'rvs-mill-02']) {
+    const r = await get('/plant/assets/{assetId}/collections', `/plant/assets/${id}/collections`);
+    // 0.14: the Insights Hub mapping of each sink
+    for (const c of r.status === 200 ? ((r.body as any).collections ?? []) : [])
+      for (const sk of c.sinks ?? [])
+        await get(
+          '/plant/assets/{assetId}/collections/{collectionId}/sinks/{sinkId}/insights-hub',
+          `/plant/assets/${id}/collections/${c.id}/sinks/${sk.id}/insights-hub`,
+        );
+  }
   // what Steward checks, and the export in the import format (YAML; JSON is the same document)
   await listAll('/plant/checks', '/plant/checks');
   await get('/plant/export', '/plant/export');

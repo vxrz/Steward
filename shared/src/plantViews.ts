@@ -242,6 +242,11 @@ export interface PlantCoverageCell {
    * data point input ("Collected – ready"), or not ("Device delivers, not collected")
    */
   collected?: boolean;
+  /**
+   * 0.14, could and collected: every input also goes to Insights Hub through a sink whose mapping was checked against
+   * the tenant (the asset, aspect and variable exist) – "Collected – ready, verified in Insights Hub"
+   */
+  ihVerified?: boolean;
   /** 0.12.0, could and has: data point inputs the asset delivers in another unit than the KPI expects */
   units?: PlantUnitMismatch[];
   /**
@@ -260,6 +265,8 @@ export interface PlantCoverageCell {
 export interface PlantKpiPotential {
   ready: number;
   collect: number;
+  /** 0.14: of the ready ones, those whose inputs are verified in Insights Hub */
+  ihVerified?: number;
 }
 
 /** 0.12.0: the totals of one site (areaId null) or one area of it, over every asset that matches the filters. */

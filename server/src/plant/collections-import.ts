@@ -45,6 +45,7 @@ import {
   collectionValuesOf,
   collectorKey,
   destinationOfSink,
+  ihClean,
   mappingsOf,
   nameKey,
   rememberMapping,
@@ -198,17 +199,27 @@ function mergeSinks(fresh: PlantCollectionSink[], stored: PlantCollectionSink[],
     const prev = stored.find((x) => x.id === s.id) ?? stored.find((x) => x.name === s.name);
     if (!prev) return s;
     const mapped = new Set(s.mappings.map((m) => m.item));
+    // 0.14: an Insights Hub mapping written in Steward stays – the sink's target, default asset and each item's asset and aspect
+    const ih = prev.kind === 'platform' && (!!prev.ih || prev.mappings.some((m) => m.assetId || m.aspect));
+    const before = new Map(prev.mappings.map((m) => [m.item, m]));
+    const keepIh = (m: PlantCollectionSink['mappings'][number]) => {
+      const p = before.get(m.item);
+      return p && (p.assetId || p.aspect) && !m.assetId && !m.aspect
+        ? ihClean({ ...m, target: m.target || p.target, assetId: p.assetId, assetName: p.assetName, aspect: p.aspect })
+        : m;
+    };
     return {
       ...s,
       id: prev.id,
-      kind: prev.kind !== 'other' && !s.ref ? prev.kind : s.kind,
-      ref: s.ref || prev.ref,
+      kind: ih ? prev.kind : prev.kind !== 'other' && !s.ref ? prev.kind : s.kind,
+      ref: ih ? prev.ref : s.ref || prev.ref,
+      ...(ih && prev.ih ? { ih: prev.ih } : {}),
       description: prev.description || s.description,
       owner: prev.owner || s.owner,
       schedule: s.schedule || prev.schedule,
       format: s.format || prev.format,
       transforms: s.transforms.length ? s.transforms : prev.transforms,
-      mappings: [...s.mappings, ...prev.mappings.filter((m) => !mapped.has(m.item))],
+      mappings: [...s.mappings.map(keepIh), ...prev.mappings.filter((m) => !mapped.has(m.item))],
     };
   });
   const manual = legacy && fresh.length ? [] : stored.filter((x) => !x.imported && !out.some((o) => o.id === x.id));

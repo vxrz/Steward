@@ -27532,10 +27532,23 @@
                               "description": "The item’s output name, else its address"
                             },
                             "target": {
-                              "type": "string"
+                              "type": "string",
+                              "description": "Its name in the sink (on an Insights Hub sink: the variable)"
                             },
                             "transform": {
                               "type": "string"
+                            },
+                            "assetId": {
+                              "type": "string",
+                              "description": "0.14, an Insights Hub sink: the item’s asset id there (or a placeholder); missing: the sink’s default"
+                            },
+                            "assetName": {
+                              "type": "string",
+                              "description": "0.14: the Insights Hub asset’s name, for display"
+                            },
+                            "aspect": {
+                              "type": "string",
+                              "description": "0.14, an Insights Hub sink: the item’s aspect; missing: the sink’s default"
                             }
                           },
                           "required": [
@@ -27549,6 +27562,27 @@
                       "imported": {
                         "type": "boolean",
                         "description": "Written by an import (the next import replaces it)"
+                      },
+                      "ih": {
+                        "description": "0.14, a sink whose target is an Insights Hub platform: the default asset and aspect of its items",
+                        "type": "object",
+                        "properties": {
+                          "assetId": {
+                            "type": "string"
+                          },
+                          "assetName": {
+                            "type": "string"
+                          },
+                          "aspect": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "assetId",
+                          "assetName",
+                          "aspect"
+                        ],
+                        "additionalProperties": false
                       }
                     },
                     "required": [
@@ -28181,6 +28215,652 @@
           "collections",
           "points",
           "totals"
+        ],
+        "additionalProperties": false
+      },
+      "PlantSinkInsightsHubEntry": {
+        "title": "PlantSinkInsightsHubEntry",
+        "type": "object",
+        "properties": {
+          "assetId": {
+            "type": "string"
+          },
+          "assetName": {
+            "type": "string"
+          },
+          "collectionId": {
+            "type": "string"
+          },
+          "collectionName": {
+            "type": "string"
+          },
+          "sinkId": {
+            "type": "string"
+          },
+          "sinkName": {
+            "type": "string"
+          },
+          "isIh": {
+            "type": "boolean",
+            "description": "The sink’s target is an Insights Hub platform"
+          },
+          "platform": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "path": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "path"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "default": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "assetId": {
+                    "type": "string"
+                  },
+                  "assetName": {
+                    "type": "string"
+                  },
+                  "aspect": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "assetId",
+                  "assetName",
+                  "aspect"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The sink’s default asset and aspect"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "index": {
+                  "type": "integer"
+                },
+                "item": {
+                  "type": "string",
+                  "description": "The item’s key in the mapping: its output name, else its address"
+                },
+                "address": {
+                  "type": "string"
+                },
+                "outputName": {
+                  "type": "string"
+                },
+                "dataPoint": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "unit": {
+                          "type": "string"
+                        },
+                        "dataType": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "unit",
+                        "dataType"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "target": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "assetId": {
+                          "type": "string",
+                          "description": "The asset’s id in Insights Hub"
+                        },
+                        "assetName": {
+                          "type": "string"
+                        },
+                        "aspect": {
+                          "type": "string"
+                        },
+                        "variable": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "assetId",
+                        "assetName",
+                        "aspect",
+                        "variable"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Where it goes (null: not mapped)"
+                },
+                "fromDefault": {
+                  "type": "boolean"
+                },
+                "placeholder": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "The placeholder its asset id came from ({asset.ref:<system>})"
+                },
+                "check": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "item": {
+                          "type": "string"
+                        },
+                        "assetId": {
+                          "type": "string"
+                        },
+                        "aspect": {
+                          "type": "string"
+                        },
+                        "variable": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "ok",
+                            "unit_differs",
+                            "type_differs",
+                            "asset_missing",
+                            "aspect_missing",
+                            "variable_missing",
+                            "not_checked",
+                            "failed"
+                          ]
+                        },
+                        "unit": {
+                          "type": "object",
+                          "properties": {
+                            "point": {
+                              "type": "string"
+                            },
+                            "ih": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "point",
+                            "ih"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "type": {
+                          "type": "object",
+                          "properties": {
+                            "point": {
+                              "type": "string"
+                            },
+                            "ih": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "point",
+                            "ih"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "assetName": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "item",
+                        "assetId",
+                        "aspect",
+                        "variable",
+                        "status"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The last check’s result for its current target (null: not checked, or changed since)"
+                },
+                "watchedBy": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "monitorId": {
+                        "type": "string"
+                      },
+                      "monitorKey": {
+                        "type": "string"
+                      },
+                      "monitorName": {
+                        "type": "string"
+                      },
+                      "checkId": {
+                        "type": "string"
+                      },
+                      "checkName": {
+                        "type": "string"
+                      },
+                      "enabled": {
+                        "type": "boolean",
+                        "description": "false: the monitor or check is switched off (a draft made from the mapping)"
+                      },
+                      "linked": {
+                        "type": "boolean",
+                        "description": "The link is stored (made from the mapping, or found by its last check)"
+                      },
+                      "path": {
+                        "type": [
+                          "null",
+                          "string"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "monitorId",
+                      "monitorKey",
+                      "monitorName",
+                      "checkId",
+                      "checkName",
+                      "enabled",
+                      "linked",
+                      "path"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "hiddenWatchers": {
+                  "type": "integer",
+                  "description": "Watched by monitors the token owner may not see"
+                }
+              },
+              "required": [
+                "index",
+                "item",
+                "address",
+                "outputName",
+                "dataPoint",
+                "target",
+                "fromDefault",
+                "placeholder",
+                "check",
+                "watchedBy",
+                "hiddenWatchers"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "groups": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "assetId": {
+                  "type": "string"
+                },
+                "assetName": {
+                  "type": "string"
+                },
+                "aspect": {
+                  "type": "string"
+                },
+                "variables": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "watched": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "unwatched": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "monitors": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "monitorId": {
+                        "type": "string"
+                      },
+                      "monitorKey": {
+                        "type": "string"
+                      },
+                      "monitorName": {
+                        "type": "string"
+                      },
+                      "checkId": {
+                        "type": "string"
+                      },
+                      "checkName": {
+                        "type": "string"
+                      },
+                      "enabled": {
+                        "type": "boolean",
+                        "description": "false: the monitor or check is switched off (a draft made from the mapping)"
+                      },
+                      "linked": {
+                        "type": "boolean",
+                        "description": "The link is stored (made from the mapping, or found by its last check)"
+                      },
+                      "path": {
+                        "type": [
+                          "null",
+                          "string"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "monitorId",
+                      "monitorKey",
+                      "monitorName",
+                      "checkId",
+                      "checkName",
+                      "enabled",
+                      "linked",
+                      "path"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "hiddenMonitors": {
+                  "type": "integer"
+                },
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer"
+                  }
+                }
+              },
+              "required": [
+                "assetId",
+                "assetName",
+                "aspect",
+                "variables",
+                "watched",
+                "unwatched",
+                "monitors",
+                "hiddenMonitors",
+                "items"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "counts": {
+            "type": "object",
+            "properties": {
+              "items": {
+                "type": "integer"
+              },
+              "mapped": {
+                "type": "integer"
+              },
+              "verified": {
+                "type": "integer",
+                "description": "Mapped items whose last check found the asset, aspect and variable"
+              },
+              "watched": {
+                "type": "integer",
+                "description": "Mapped items a monitor check watches"
+              },
+              "gaps": {
+                "type": "object",
+                "properties": {
+                  "unmapped": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  },
+                  "unverified": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  },
+                  "unwatched": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  }
+                },
+                "required": [
+                  "unmapped",
+                  "unverified",
+                  "unwatched"
+                ],
+                "additionalProperties": false,
+                "description": "Item indexes"
+              }
+            },
+            "required": [
+              "items",
+              "mapped",
+              "verified",
+              "watched",
+              "gaps"
+            ],
+            "additionalProperties": false
+          },
+          "lastRun": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "checkedAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "ISO 8601 timestamp (UTC)"
+                  },
+                  "checkedBy": {
+                    "type": "string"
+                  },
+                  "platformId": {
+                    "type": "string"
+                  },
+                  "identity": {
+                    "type": "string"
+                  },
+                  "counts": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "integer"
+                    }
+                  },
+                  "assets": {
+                    "type": "integer"
+                  },
+                  "requests": {
+                    "type": "integer"
+                  },
+                  "capped": {
+                    "type": "boolean"
+                  },
+                  "error": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "code": {
+                            "type": "string",
+                            "enum": [
+                              "unauthorized",
+                              "forbidden",
+                              "rate_limited",
+                              "failed"
+                            ]
+                          },
+                          "message": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "integer"
+                          },
+                          "retryAfterSeconds": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "code",
+                          "message"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "checkedAt",
+                  "checkedBy",
+                  "platformId",
+                  "identity",
+                  "counts",
+                  "assets",
+                  "requests",
+                  "capped",
+                  "error"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "leader": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "monitorId": {
+                    "type": "string"
+                  },
+                  "key": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "states": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "off": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "off"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "monitorId",
+                  "key",
+                  "name",
+                  "states"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A monitor with states the asset links to (a monitor made from the mapping follows it)"
+          }
+        },
+        "required": [
+          "assetId",
+          "assetName",
+          "collectionId",
+          "collectionName",
+          "sinkId",
+          "sinkName",
+          "isIh",
+          "platform",
+          "default",
+          "items",
+          "groups",
+          "counts",
+          "lastRun",
+          "leader"
         ],
         "additionalProperties": false
       },
@@ -38456,6 +39136,92 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PlantAssetCollectionsEntry"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/plant/assets/{assetId}/collections/{collectionId}/sinks/{sinkId}/insights-hub": {
+      "get": {
+        "operationId": "getPlantSinkInsightsHub",
+        "summary": "Get the Insights Hub mapping of a sink and its last check",
+        "tags": [
+          "Plant"
+        ],
+        "description": "0.14: per item of the collection the Insights Hub asset, aspect and variable it goes to (its own, or the sink's default), the result of the last check of the mapping against the tenant (the asset, aspect and variable exist; a unit or type that differs from the data point's is a hint), the monitor checks that watch it (a monitor the token owner may not see is counted, not named), and the counts: mapped, verified, watched. The asset hierarchy in Insights Hub is not compared with the plant's. Only while the plant registry module is on (Settings → Modules); otherwise 404.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "assetId",
+            "required": true,
+            "description": "Asset id"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "collectionId",
+            "required": true,
+            "description": "Data collection id"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "sinkId",
+            "required": true,
+            "description": "Sink id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlantSinkInsightsHubEntry"
                 }
               }
             },

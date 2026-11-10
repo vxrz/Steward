@@ -24,6 +24,7 @@ import {
   LIBRARY_LIMITS,
   PLANT_LIMITS,
   PLANT_COLLECTION_LIMITS,
+  PLANT_IH_LIMITS,
   RECORDING_LIMITS,
   REPORT_LOGO_MAX_BYTES,
 } from '@sm/shared';
@@ -81,6 +82,14 @@ export const LARGE_BODIES = {
   plantCollectionImport: {
     routes: ['POST /api/plant/assets/:assetId/collections/import', 'POST /api/plant/assets/:assetId/collections/import/preview'],
     bytes: jsonText(PLANT_COLLECTION_LIMITS.fileBytes * 2, 2 * 1024 * KIB),
+  },
+  /** 0.14: an Insights Hub mapping as CSV (PLANT_IH_LIMITS.csvBytes, 1 MB), or every item of a collection with its target */
+  plantIhMapping: {
+    routes: [
+      'PUT /api/plant/assets/:assetId/collections/:collectionId/sinks/:sinkId/insights-hub/mapping',
+      'POST /api/plant/assets/:assetId/collections/:collectionId/sinks/:sinkId/insights-hub/csv',
+    ],
+    bytes: jsonText(PLANT_IH_LIMITS.csvBytes),
   },
   /** A monitor file (YAML): MONITOR_IMPORT_LIMITS.yamlChars (512 KB) – line breaks are escaped in JSON */
   monitorImport: { routes: ['POST /api/monitors/import', 'POST /api/monitors/import/preview'], bytes: jsonText(MONITOR_IMPORT_LIMITS.yamlChars) },

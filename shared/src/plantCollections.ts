@@ -100,13 +100,30 @@ export interface PlantSinkTransform {
   description: string;
 }
 
-/** An item of the collection as the sink knows it: its target name or field there, and its own transformation. */
+/**
+ * An item of the collection as the sink knows it: its target name or field there, and its own transformation. On an
+ * Insights Hub sink (0.14) the target is the item's **variable** there, and the item may name its own asset (by its
+ * Insights Hub id, its name kept for display) and aspect – else the sink's default (`PlantCollectionSink.ih`) applies.
+ */
 export interface PlantSinkMapping {
   /** The item: its output name, else its address */
   item: string;
   target: string;
   /** A transformation for this item only (overrides the sink's steps for it; text) */
   transform: string;
+  /** 0.14, Insights Hub: the asset's id there (or a placeholder such as `{asset.ref:insights-hub}`); empty: the sink's default */
+  assetId?: string;
+  /** 0.14, Insights Hub: the asset's name, as last seen (display only) */
+  assetName?: string;
+  /** 0.14, Insights Hub: the aspect; empty: the sink's default */
+  aspect?: string;
+}
+
+/** 0.14: the default Insights Hub asset and aspect of a sink (an item's own asset or aspect wins). */
+export interface PlantSinkIhDefault {
+  assetId: string;
+  assetName: string;
+  aspect: string;
 }
 
 /**
@@ -134,6 +151,8 @@ export interface PlantCollectionSink {
   mappings: PlantSinkMapping[];
   /** Written by an import (an import replaces it; one added by hand stays) */
   imported: boolean;
+  /** 0.14, a sink whose target is an Insights Hub platform: the default asset and aspect of its items */
+  ih?: PlantSinkIhDefault | null;
 }
 
 export interface PlantCollectionValues {
@@ -260,6 +279,14 @@ export interface PlantSinkTarget {
   object: string;
   /** The item's name in the sink (its mapping), if documented */
   target: string;
+  /** 0.14, an Insights Hub sink: the asset, aspect and variable it goes to, and the last check of the mapping */
+  ih?: PlantIhTargetBrief | null;
+}
+
+/** 0.14: where an item goes in Insights Hub, with the last check of the mapping (data point page). */
+export interface PlantIhTargetBrief extends PlantIhTarget {
+  status: PlantIhItemStatus | null;
+  checkedAt: string | null;
 }
 
 /** Where a sink's data goes next, as far as Steward knows it: data paths that read from its system, a dataset's dashboards. */
@@ -289,6 +316,211 @@ export interface PlantCollectionFlow {
   }[];
   sinks: (PlantCollectionSink & { targetRef: PlantItemRef | null; downstream: PlantSinkDownstream })[];
 }
+
+// ---------- Insights Hub as a mapped sink (0.14, docs/PLANT.md "Insights Hub mapping") ----------
+
+/** Where an item goes in Insights Hub: an asset (its id there, its name as last seen), an aspect and a variable. */
+export interface PlantIhTarget {
+  assetId: string;
+  assetName: string;
+  aspect: string;
+  variable: string;
+}
+
+/**
+ * What the check against the tenant found for an item: the asset, the aspect on it and the variable in its aspect type
+ * exist (ok) – with a unit or type that differs from the data point's as a hint only –, or the first thing missing;
+ * not checked (the run's cap on assets), failed (the read failed: no right, rate limited), unmapped.
+ */
+export const PLANT_IH_ITEM_STATUSES = [
+  'ok',
+  'unit_differs',
+  'type_differs',
+  'asset_missing',
+  'aspect_missing',
+  'variable_missing',
+  'not_checked',
+  'failed',
+] as const;
+export type PlantIhItemStatus = (typeof PLANT_IH_ITEM_STATUSES)[number];
+/** The statuses that count as verified: the target exists (a unit or type that differs is a hint). */
+export const PLANT_IH_VERIFIED: readonly PlantIhItemStatus[] = ['ok', 'unit_differs', 'type_differs'];
+
+/** One item's result of the last check, as stored. */
+export interface PlantIhItemCheck {
+  item: string;
+  assetId: string;
+  aspect: string;
+  variable: string;
+  status: PlantIhItemStatus;
+  /** The data point's and the variable's unit or type, where they differ */
+  unit?: { point: string; ih: string };
+  type?: { point: string; ih: string };
+  /** The asset's name in Insights Hub, as read */
+  assetName?: string;
+}
+
+/** Why a check run stopped early (every item it did not reach is `failed` or `not_checked`). */
+export const PLANT_IH_RUN_ERRORS = ['unauthorized', 'forbidden', 'rate_limited', 'failed'] as const;
+export type PlantIhRunError = (typeof PLANT_IH_RUN_ERRORS)[number];
+
+/** The last check of a sink's mapping against the tenant. */
+export interface PlantIhCheckRun {
+  checkedAt: string;
+  checkedBy: string;
+  platformId: string;
+  /** The identity the reads used (its name) */
+  identity: string;
+  counts: Partial<Record<PlantIhItemStatus, number>>;
+  /** Assets read (at most PLANT_IH_LIMITS.assetsPerRun) and requests sent */
+  assets: number;
+  requests: number;
+  /** More assets than one run reads: the rest is `not_checked` */
+  capped: boolean;
+  error: { code: PlantIhRunError; message: string; status?: number; retryAfterSeconds?: number } | null;
+}
+
+/** A monitor check that watches an item: an Insights Hub freshness check of the same platform, asset and aspect with its variable. */
+export interface PlantIhWatcher {
+  monitorId: string;
+  monitorKey: string;
+  monitorName: string;
+  checkId: string;
+  checkName: string;
+  /** The monitor (or the check) is switched off – e.g. a draft made from the mapping */
+  enabled: boolean;
+  /** The link is stored (made from the mapping, or by the last check of the mapping) */
+  linked: boolean;
+  /** Its page (null for plant-only readers) */
+  path: string | null;
+}
+
+export interface PlantIhMappingItem {
+  index: number;
+  /** The item's key in the sink's mapping (its output name, else its address) */
+  item: string;
+  address: string;
+  outputName: string;
+  dataPoint: { id: string; name: string; unit: string; dataType: string } | null;
+  /** Where it goes (null: not mapped – no asset, aspect or variable) */
+  target: PlantIhTarget | null;
+  /** The asset or aspect is the sink's default */
+  fromDefault: boolean;
+  /** The asset id was a placeholder that the asset's external reference resolved (or could not: target null) */
+  placeholder: string | null;
+  /** The last check's result for this target (null: not checked, or the mapping changed since) */
+  check: PlantIhItemCheck | null;
+  watchedBy: PlantIhWatcher[];
+  /** Watched by monitors the reader may not see */
+  hiddenWatchers: number;
+}
+
+/** The mapped items of one Insights Hub asset and aspect, and who watches which of their variables. */
+export interface PlantIhGroup {
+  assetId: string;
+  assetName: string;
+  aspect: string;
+  variables: string[];
+  /** Variables a check already watches */
+  watched: string[];
+  unwatched: string[];
+  monitors: PlantIhWatcher[];
+  hiddenMonitors: number;
+  /** The items (indexes) that go here */
+  items: number[];
+}
+
+export interface PlantIhCounts {
+  items: number;
+  mapped: number;
+  verified: number;
+  watched: number;
+  /** Indexes of items: not mapped, mapped but not verified (missing, failed, not checked), mapped but watched by no check */
+  gaps: { unmapped: number[]; unverified: number[]; unwatched: number[] };
+}
+
+/** A monitor with states the asset links to: a new monitor made from the mapping follows its states. */
+export interface PlantIhLeader {
+  monitorId: string;
+  key: string;
+  name: string;
+  states: { id: string; name: string; off: boolean }[];
+}
+
+/** GET …/collections/:collectionId/sinks/:sinkId/insights-hub */
+export interface PlantIhMapping {
+  assetId: string;
+  assetName: string;
+  collectionId: string;
+  collectionName: string;
+  sinkId: string;
+  sinkName: string;
+  /** The sink's target is an Insights Hub platform */
+  isIh: boolean;
+  platform: { id: string; name: string; path: string | null } | null;
+  default: PlantSinkIhDefault | null;
+  items: PlantIhMappingItem[];
+  groups: PlantIhGroup[];
+  counts: PlantIhCounts;
+  lastRun: PlantIhCheckRun | null;
+  leader: PlantIhLeader | null;
+  canManage: boolean;
+  /** May check the mapping: manage the collection and use the platform's identity */
+  canCheck: boolean;
+  /** Why not (no right on the platform or its identity) */
+  checkProblem: string | null;
+  /** May create monitors */
+  canCreateMonitor: boolean;
+}
+
+/** A sink's counts on a site's or a monitor's coverage list. */
+export interface PlantIhCoverageEntry {
+  assetId: string;
+  assetName: string;
+  collectionId: string;
+  collectionName: string;
+  sinkId: string;
+  sinkName: string;
+  counts: PlantIhCounts;
+  checkedAt: string | null;
+}
+
+/** GET /api/plant/sites/:siteId/insights-hub: every Insights Hub sink of the site's collections. */
+export interface PlantIhSiteCoverage {
+  siteId: string;
+  entries: PlantIhCoverageEntry[];
+  totals: { sinks: number; items: number; mapped: number; verified: number; watched: number };
+}
+
+/** GET /api/plant/monitors/:monitorId/insights-hub: the mapped items a monitor's checks cover. */
+export interface PlantIhMonitorCoverage {
+  monitorId: string;
+  entries: {
+    assetId: string;
+    assetName: string;
+    collectionId: string;
+    collectionName: string;
+    sinkId: string;
+    sinkName: string;
+    items: number;
+    checks: string[];
+  }[];
+  /** Collections of sites the reader may not see */
+  hidden: number;
+}
+
+export const PLANT_IH_LIMITS = {
+  /** Assets one check run reads (the rest is not checked) */
+  assetsPerRun: 50,
+  /** Aspects per page and pages per asset */
+  aspectPage: 100,
+  aspectPages: 5,
+  /** Aspect types read per run (when an aspect has no variables of its own) */
+  aspectTypes: 50,
+  /** Lines of a pasted CSV mapping */
+  csvLines: 5000,
+  csvBytes: 1024 * 1024,
+} as const;
 
 // ---------- import ----------
 

@@ -88,6 +88,7 @@ const PLANT_TOOLS = [
   'get_kpi_definition',
   'list_data_collections',
   'get_data_collection',
+  'get_insights_hub_mapping',
   'get_plant_import_format',
 ];
 

@@ -771,7 +771,9 @@ export function removeAssetRow(id: string): void {
   // its devices, data paths and linked checks (#220)
   for (const t of ['plant_devices', 'plant_data_paths', 'plant_asset_checks']) db().run(`DELETE FROM ${t} WHERE asset_id = ?`, id);
   // its data collections and the mappings remembered for it (0.11.0)
-  for (const t of ['plant_collections', 'plant_collection_mappings']) db().run(`DELETE FROM ${t} WHERE asset_id = ?`, id);
+  // 0.14: the Insights Hub checks of their sinks and the links of their items to monitor checks
+  for (const t of ['plant_collections', 'plant_collection_mappings', 'plant_ih_checks', 'plant_ih_monitor_links'])
+    db().run(`DELETE FROM ${t} WHERE asset_id = ?`, id);
   // 0.12: the kept files of its collection imports, and the links of records to its collections and their sinks
   db().run('DELETE FROM plant_collection_sources WHERE asset_id = ?', id);
   removeCollectionLinks(id);
