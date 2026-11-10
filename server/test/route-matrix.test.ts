@@ -1336,6 +1336,10 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
   // (harmless: no list, so nobody gains a right – refused by the route's validation, the fixture stays)
   // an access list of a plant registry site gives rights to others (#218)
   'PUT /api/plant/sites/:siteId/access': 'always',
+  // 0.14: where Steward reads security advisories from (plant.advisorySources)
+  'POST /api/plant/advisory-sources': 'always',
+  'PUT /api/plant/advisory-sources/:advisorySourceId': 'always',
+  'DELETE /api/plant/advisory-sources/:advisorySourceId': 'always',
   'PUT /api/platforms/:id/access': {
     sensitive: { acl: [{ subject: 'user:vera', permissions: ['manage'] }] },
     harmless: { acl: 'not a list' },

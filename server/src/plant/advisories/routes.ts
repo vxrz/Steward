@@ -28,7 +28,8 @@ import * as sources from './fetch.js';
  *   PUT    plant/advisories/:advisoryId/assets/:assetId/decision | …/remediation   (who manages the asset's site)
  *   PUT    plant/advisories/:advisoryId/sites/:siteId    not applicable at a site (who manages it)
  *   GET    plant/assets/:assetId/advisories              the asset page's section
- *   …      plant/advisory-sources[/:advisorySourceId[/fetch]]    providers, aggregators, ROLIE feeds (administrators)
+ *   …      plant/advisory-sources[/:advisorySourceId[/fetch]]    providers, aggregators, ROLIE feeds (administrators; adding,
+ *                                                         changing and removing one asks for a step-up: plant.advisorySources)
  */
 
 const listQuery = z.object({
@@ -82,7 +83,8 @@ export async function advisoryRoutes(app: FastifyInstance): Promise<void> {
   app.get('/plant/assets/:assetId/advisories', async (req) => store.assetAdvisories(p(req).assetId!));
 
   // ---------- sources: administrators ----------
-  const admin = { config: { access: ACCESS.admin, rateLimit: ROUTE_LIMITS.action } };
+  // where Steward fetches from: a step-up like other administrator settings that make it fetch (control point plant.advisorySources)
+  const admin = { config: { access: ACCESS.admin, rateLimit: ROUTE_LIMITS.action, stepUp: { action: 'changeAdvisorySources' as const } } };
   app.get('/plant/advisory-sources', { config: { access: ACCESS.admin } }, async () => sources.listSources());
   app.post('/plant/advisory-sources', admin, async (req) => sources.createSource(advisorySourceInput.parse(req.body)));
   app.put('/plant/advisory-sources/:advisorySourceId', admin, async (req) =>

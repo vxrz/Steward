@@ -1044,6 +1044,8 @@ export interface Resources {
     'points.cost.budget.description': string;
     'points.plant.mapSource.label': string;
     'points.plant.mapSource.description': string;
+    'points.plant.advisorySources.label': string;
+    'points.plant.advisorySources.description': string;
     'points.plant.renameId.label': string;
     'points.plant.renameId.description': string;
     'points.plant.bulkChange.label': string;
@@ -1285,6 +1287,7 @@ export interface Resources {
     'stepUp.actions.changeAiBudget': string;
     'stepUp.actions.changeCostBudget': string;
     'stepUp.actions.changeMapSource': string;
+    'stepUp.actions.changeAdvisorySources': string;
     'stepUp.actions.changeTrustedPublishers': string;
     'stepUp.actions.pseudonymiseUser': string;
     'stepUp.actions.exportPersonalData': string;

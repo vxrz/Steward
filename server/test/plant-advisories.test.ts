@@ -54,6 +54,25 @@ describe('sources', () => {
     expect((await status(users.dana!('POST', '/plant/advisory-sources', { name: 'x', url: 'https://x.example/provider-metadata.json' }))).status).toBe(403);
   });
 
+  it('adding, changing and removing a source needs a step-up (plant.advisorySources); reading one now does not', async () => {
+    const noAuto = await s.as('admin', 'Admin-password-1', { autoStepUp: false });
+    await noAuto('DELETE', '/auth/step-up').catch(() => undefined);
+    const body = { name: 'Step-up', url: 'https://psirt.stepup.example/.well-known/csaf/provider-metadata.json' };
+    const refused = await noAuto('POST', '/plant/advisory-sources', body).catch((e: { status: number; body: any }) => e);
+    expect(refused).toMatchObject({ status: 403, body: { code: 'STEP_UP_REQUIRED', stepUp: { action: 'changeAdvisorySources' } } });
+    const src = await s.api('POST', '/plant/advisory-sources', body);
+    const log = await s.api('GET', '/audit?action=plant.advisory_source_added&limit=1');
+    expect(log[0].details.assurance?.[0]).toMatchObject({ point: 'plant.advisorySources' });
+    for (const [method, url, b] of [
+      ['PUT', `/plant/advisory-sources/${src.id}`, { ...body, name: 'Step-up 2' }],
+      ['DELETE', `/plant/advisory-sources/${src.id}`, undefined],
+    ] as const)
+      expect((await noAuto(method, url, b).catch((e: { status: number; body: any }) => e)).body?.code, `${method} ${url}`).toBe('STEP_UP_REQUIRED');
+    // reading now changes nothing about where Steward reads from (it fails here: the host does not exist)
+    expect((await noAuto('POST', `/plant/advisory-sources/${src.id}/fetch`)).read).toBe(0);
+    await s.api('DELETE', `/plant/advisory-sources/${src.id}`);
+  });
+
   it('reads a provider through the outbound policy: refused, then allowed; hash files checked', async () => {
     const url = `${s.base}/mock/csaf/.well-known/csaf/provider-metadata.json`;
     const before = await s.api('GET', '/settings');
