@@ -58,7 +58,7 @@ export async function frameworkFetch(
   url: string,
   init: { method?: string; headers?: Record<string, string>; body?: string },
   bodySecrets: string[] = [],
-): Promise<{ status: number; json: unknown }> {
+): Promise<{ status: number; json: unknown; retryAfter?: number }> {
   const ctx = outboundContext();
   await assertOutboundAllowed(url, ctx);
   const res = await fetchCheckingRedirects(url, { ...init, headers: { 'user-agent': BRAND.slug, ...init.headers }, signal: AbortSignal.timeout(10_000) }, ctx, {
@@ -74,5 +74,9 @@ export async function frameworkFetch(
       return null; // not JSON: the caller looks at the status
     }
   };
-  return { status: res.status, json: parse() };
+  // Retry-After in seconds (throttling, ADR 0025); an HTTP date is read as the seconds until then
+  const ra = res.headers.get('retry-after');
+  const retryAfter =
+    ra === null ? undefined : /^\d+$/.test(ra.trim()) ? Number(ra.trim()) : Math.max(0, Math.ceil((Date.parse(ra) - Date.now()) / 1000)) || undefined;
+  return { status: res.status, json: parse(), ...(retryAfter !== undefined ? { retryAfter } : {}) };
 }

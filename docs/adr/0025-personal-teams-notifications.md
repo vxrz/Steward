@@ -27,8 +27,8 @@ We take **(a)**: the bot's personal chat becomes a third personal channel, **Tea
 
 - _Profile → Teams (personal)_ lists the events the person can choose and a checkbox per event. **Nothing is chosen by default**; nothing changes for anybody until they choose.
 - An event can be chosen when the instance (or the source's notification policy) **routes it to e-mail** – Teams (personal) goes where a personal e-mail would go, with the person's own text, so administrators keep one place that decides which events may interrupt people outside the app. Decision cards (`task.assigned`, `mcp.request`) are not offered: they come to the chat as decision cards already (ADR 0013). The daily summary (`summary.daily`) has its own path and is not offered.
-- It comes **in addition** to e-mail. Whoever wants Teams instead turns _E-mail notifications_ off.
-- Stored in a new table `notification_personal_channels (user_id, channel, events, updated_at)` (migration `notifications-004-teams-personal`), one row per person and channel (`teamsPersonal`); a migration package moves it with the identity mapping like the quiet hours. Saving is audited (`notification.personal_channel_changed`, before and after). API: `GET`/`PUT /api/me/teams-personal`.
+- A chosen event comes to the chat **instead of by e-mail**; e-mail stays its fallback (below). While the chat cannot be used (bot off, app removed, account no longer linked), the event goes by e-mail as before. _E-mail notifications_ off still means no e-mail – also no fallback.
+- Stored in a new table `notification_personal_channels (user_id, teams, updated_at)` (migration `notifications-004-teams-personal`): one row per person, `teams` the chosen events; a migration package moves it with the identity mapping like the quiet hours. Saving is audited (`notification.personal_channel_changed`, before and after). API: `GET`/`PUT /api/me/teams-personal`.
 
 ### The conversation reference
 
@@ -38,20 +38,21 @@ We take **(a)**: the bot's personal chat becomes a third personal channel, **Tea
 
 ### Delivery
 
-- In `notify()` (`notifications/service.ts`) each recipient who chose the event and has a usable chat gets the **same text as their e-mail** (`text(locale, recipient)` with `personal`), rendered with `teamsCard()`: title, lead, body, facts, items, links (_Open in Steward_, runbook, settings) – `Action.OpenUrl` only. Never secrets, channel URLs or anything the e-mail does not carry. Only recipients of the notice get it, and the notice's recipients are already the people who may see what it is about.
+- In `notify()` (`notifications/service.ts`) each recipient who chose the event and has a usable chat gets, instead of the e-mail, the **same text as their e-mail** (`text(locale, recipient)` with `personal`), rendered with `teamsCard()`: title, lead, body, facts, items, links (_Open in Steward_, runbook, settings) – `Action.OpenUrl` only. Never secrets, channel URLs or anything the e-mail does not carry. Only recipients of the notice get it, and the notice's recipients are already the people who may see what it is about.
 - **Quiet hours and digests apply**: the person's own settings or their team's default, `deliveryPlan()` with `personal: true`, target `teamsChat:<user>`. Held messages are released there as one catch-up or digest card, with the rights checked again at release (`renderHeld()`, `stillVisible()`). Break-throughs (emergency access, expiring decisions, urgent sources) are the same as for e-mail. The send is claimed per event key and person (`claimSend`), like e-mail.
-- **Throttling**: the Bot Connector answers 429 (or 502/503/504) under load. Steward retries a personal message up to three times with exponential backoff (1 s, 2 s, 4 s; a `Retry-After` up to 30 s is honoured). When it still fails, it falls back to **e-mail once**: the same message, only when e-mail can reach the person (SMTP on, an address, _E-mail notifications_ on, an allowed domain) and the e-mail for the same notice was not already sent (the same `claimSend` key). Logged, not audited – a delivery is not a change.
+- **Throttling**: the Bot Connector answers 429 (or 502/503/504) under load. Steward retries a personal message up to three times with exponential backoff (1 s, 2 s, 4 s; a `Retry-After` up to 30 s is honoured). When it still fails – or the chat turns out to be gone (403/404) – it falls back to **e-mail once**: the same message, only when e-mail can reach the person (SMTP on, an address, _E-mail notifications_ on, an allowed domain) and the e-mail for the same notice was not already sent (the same `claimSend` key as the e-mail path). Logged, not audited – a delivery is not a change.
+- A catch-up or digest due for a chat that is gone at release is not sent there (as for decision cards today); the app keeps every message.
 - **Bot off** (switched off, not approved, module off): the profile card is hidden, nothing is sent, the choices stay for when it is on again.
 
 ### Out of scope
 
-Group chats and meeting chats; card actions other than links and the existing approvals of ADR 0013; Microsoft Graph; Power Automate; a team default for the choices; choosing Teams _instead of_ e-mail per event; a separate administrator route for Teams (personal).
+Group chats and meeting chats; card actions other than links and the existing approvals of ADR 0013; Microsoft Graph; Power Automate; a team default for the choices; getting a chosen event both by e-mail and in Teams; a separate administrator route for Teams (personal).
 
 ## Consequences
 
 - People who live in Teams get their own messages there without any new permission, host or secret: the bot, its credential and its outbound hosts are those of ADR 0013.
 - The feature inherits the preview status of the bot and its limits: it needs inbound HTTPS from Microsoft for the first contact, Entra `tid` + `oid` sign-in, and a person must add the app themselves (or an administrator installs it for them through Teams policies).
-- One more personal target means a person in quiet hours may get a catch-up both by e-mail and in Teams. We accept it: each is the channel they chose.
+- Because a chosen event goes to Teams _instead of_ e-mail, nobody gets the same message twice; a person who chose some events gets a catch-up by e-mail for the others and one in Teams for the chosen ones.
 - Retries hold a send for up to about 40 seconds in the background; they never block the notice for others.
 - Tests: `server/test/teams-personal.test.ts` against the mock Bot Connector (`server/src/mock/mockBotConnector.ts`, which can now throttle): the conversation lifecycle (install, first message, uninstall, deactivation, 403/404, pseudonymisation, export), the choices and their audit, delivery with quiet hours and digests, only to recipients, the fallback to e-mail after repeated throttling, and the channel hidden while the bot is off; the migration on PostgreSQL. `e2e/teams-personal.spec.ts` turns the channel on in the profile and checks that the demo's mock Bot Connector received the message.
-- We revisit this if Microsoft retires proactive bot messages, if many people want Teams _instead of_ e-mail (a per-event choice), or if administrators need their own route for it.
+- We revisit this if Microsoft retires proactive bot messages, if people want a chosen event both ways, or if administrators need their own route for it.

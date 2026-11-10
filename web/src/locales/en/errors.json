@@ -1097,6 +1097,7 @@
     "TEAMS_BOT_CREDENTIAL": "Enter the credential of the bot: a certificate with its private key, or a secret.",
     "TEAMS_BOT_NEEDS_OID": "The sign-in provider must identify people by tid + oid (the Entra ID preset).",
     "TEAMS_BOT_TENANT": "Enter at least one allowed tenant.",
+    "TEAMS_PERSONAL_OFF": "Messages in Teams (personal) need the Teams bot, which is off.",
     "LIBRARY_HELD_resume": "The library {{library}} is on hold: what it paused stays off until an administrator lifts the hold.",
     "LIBRARY_HELD_uninstall": "The library {{library}} is on hold: an administrator lifts the hold before it can be uninstalled.",
     "LIBRARY_REQUEST_CHANGED": "The request changed since you looked at it – review it again.",

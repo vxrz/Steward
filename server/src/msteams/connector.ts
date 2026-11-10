@@ -54,6 +54,17 @@ export async function botToken(): Promise<string> {
   return cached.token;
 }
 
+/** A refusal of the Bot Connector: its status, and Retry-After (seconds) when it throttles. */
+export class BotConnectorError extends Error {
+  readonly status: number;
+  readonly retryAfter: number | undefined;
+  constructor(status: number, retryAfter?: number) {
+    super(`Bot Connector: HTTP ${status}`);
+    this.status = status;
+    this.retryAfter = retryAfter;
+  }
+}
+
 const activitiesUrl = (serviceUrl: string, conversationId: string, activityId?: string) =>
   `${serviceUrl.replace(/\/+$/, '')}/v3/conversations/${encodeURIComponent(conversationId)}/activities${activityId ? `/${encodeURIComponent(activityId)}` : ''}`;
 
@@ -65,7 +76,7 @@ async function call(method: 'POST' | 'PUT', serviceUrl: string, conversationId: 
     { method, headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify(activity) },
     [token],
   );
-  if (r.status < 200 || r.status > 299) throw new Error(`Bot Connector: HTTP ${r.status}`);
+  if (r.status < 200 || r.status > 299) throw new BotConnectorError(r.status, r.retryAfter);
   return { id: typeof (r.json as { id?: unknown } | null)?.id === 'string' ? (r.json as { id: string }).id : undefined };
 }
 
