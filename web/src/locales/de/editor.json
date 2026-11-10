@@ -192,7 +192,7 @@
         },
         "notify": {
           "label": "Melden, wenn die Prüfung fehlschlägt",
-          "help": "Standard: ja. Nein: eine informative Prüfung – im Lauf sichtbar, nie gemeldet"
+          "help": "Standard: ja. Nein: eine informative Prüfung – in der Ausführung sichtbar, nie gemeldet"
         },
         "headline": {
           "label": "Überschrift der Nachricht (optional)",
@@ -307,10 +307,10 @@
         },
         "staleAfterMinutes": {
           "label": "Veraltet nach (Minuten)",
-          "help": "Für Läufe ohne Zeitplan (Standard 24 Stunden). Geplante Läufe richten sich nach ihrem Zeitplan: 2,5 × sein Intervall, mindestens 15 Minuten"
+          "help": "Für Ausführungen ohne Zeitplan (Standard 24 Stunden). Geplante Ausführungen richten sich nach ihrem Zeitplan: 2,5 × sein Intervall, mindestens 15 Minuten"
         },
         "staleAfterFixed": {
-          "label": "„Veraltet nach“ auch für geplante Läufe verwenden",
+          "label": "„Veraltet nach“ auch für geplante Ausführungen verwenden",
           "help": "Statt 2,5 × das Intervall des Zeitplans, z. B. für eine engere oder großzügigere Grenze, als der Zeitplan ergibt"
         },
         "maxRows": {
@@ -402,7 +402,7 @@
     },
     "ai": {
       "label": "Ein KI-Modell fragen",
-      "description": "Sendet eine vorab festgelegte Frage an ein Modell eines LLM-Gateways, mit dem Kontext, den Sie wählen (Ergebnisse früherer Schritte, Datensätze), und verwendet die Antwort in späteren Schritten. Grenzen und Budgets werden geprüft, bevor etwas gesendet wird; Werte, die nach Geheimnissen aussehen, werden entfernt. Probeläufe und Testläufe rufen das Modell nie auf. Verbinden Sie „Fehler“, um einen abgelehnten oder fehlgeschlagenen Aufruf zu behandeln.",
+      "description": "Sendet eine vorab festgelegte Frage an ein Modell eines LLM-Gateways, mit dem Kontext, den Sie wählen (Ergebnisse früherer Schritte, Datenquellen), und verwendet die Antwort in späteren Schritten. Grenzen und Budgets werden geprüft, bevor etwas gesendet wird; Werte, die nach Geheimnissen aussehen, werden entfernt. Probeläufe und Testläufe rufen das Modell nie auf. Verbinden Sie „Fehler“, um einen abgelehnten oder fehlgeschlagenen Aufruf zu behandeln.",
       "fields": {
         "connection": {
           "label": "Verbindung zum LLM-Gateway"
@@ -802,9 +802,9 @@
     "defaultCsv": "Standard-CSV",
     "defaultJson": "Standard-JSON",
     "defaultApplication": "Standard-Anwendung",
-    "applicationHint": "Der Lauf erhält die Anwendung mit ihren Komponenten und ihrem Tech-Stack, z. B. {{example}}",
+    "applicationHint": "Die Ausführung erhält die Anwendung mit ihren Komponenten und ihrem Tech-Stack, z. B. {{example}}",
     "defaultApplications": "Standard-Anwendungen",
-    "applicationsHint": "Leer: alle nicht archivierten Anwendungen. Der Lauf erhält eine Liste von Anwendungen mit Komponenten und Tech-Stack, z. B. {{example}}"
+    "applicationsHint": "Leer: alle nicht archivierten Anwendungen. Die Ausführung erhält eine Liste von Anwendungen mit Komponenten und Tech-Stack, z. B. {{example}}"
   },
   "inputTypes": {
     "string": "Text",
@@ -933,7 +933,7 @@
     "aiUnknownStep": "Kontext „{{name}}“: kein Schritt „{{step}}“",
     "aiStepNeedsSaveAs": "Kontext „{{name}}“: Schritt „{{step}}“ braucht „Ergebnis speichern als“, damit sein Ergebnis gesendet werden kann",
     "aiContextOverwritten": "Kontext „{{name}}“: Die Variable „{{variable}}“ schreibt auch der Schritt „{{step}}“ – geben Sie dem Ergebnis einen eigenen Namen",
-    "aiNoDataset": "Kontext „{{name}}“: Nennen Sie den Datensatz",
+    "aiNoDataset": "Kontext „{{name}}“: Nennen Sie die Datenquelle",
     "aiUnknownInput": "Kontext „{{name}}“: keine Eingabe „{{input}}“",
     "aiPlaceholder": "{{placeholder}}: Ein Platzhalter im Prompt ist der Name einer Kontextquelle, z. B. {{example}}",
     "aiUnknownVariable": "{{name}} ist keine Kontextquelle dieses Schritts",
@@ -1049,7 +1049,7 @@
     "base64decode": "Base64-dekodieren.",
     "encodeUrlComponent": "Wert URL-kodieren.",
     "systems": "Alle Systeme mit Tech-Stack und Supportende.",
-    "trend": "Trend einer Kennzahl eines Datensatzes: change, changePct, perDay, confidence.",
+    "trend": "Trend einer Kennzahl einer Datenquelle: change, changePct, perDay, confidence.",
     "daysUntil": "Tage, bis der Trend das Limit erreicht; null, wenn er sich ihm nicht nähert."
   },
   "suggest": {
@@ -1123,7 +1123,7 @@
       "number": "Zahl",
       "datetime": "Datum und Uhrzeit",
       "link": "Link",
-      "ticket": "Ticketreferenz"
+      "ticket": "Ticket-Referenz"
     },
     "evidence": "Nachweisdateien",
     "evidenceHint": "Screenshots, Exporte, Fotos: gespeichert mit Name, Größe und SHA-256, Inhalt geprüft wie bei Anhängen von Einträgen.",
@@ -1150,7 +1150,7 @@
     "invalidPlaceholders": "Zwischen doppelte geschweifte Klammern gehören nur Namen von Kontextquellen, keine Ausdrücke: {{list}}",
     "from": {
       "step": "Früherer Schritt",
-      "dataset": "Datensatz",
+      "dataset": "Datenquelle",
       "input": "Eingabe"
     },
     "fromLabel": "Stammt aus",
@@ -1162,7 +1162,7 @@
     "removeNamed": "Kontextquelle {{name}} entfernen",
     "step": "Schritt",
     "needsSaveAs": "Dieser Schritt braucht „Ergebnis speichern als“, damit sein Ergebnis gesendet werden kann",
-    "dataset": "Datensatz-Schlüssel",
+    "dataset": "Schlüssel der Datenquelle",
     "columns": "Nur diese Spalten (optional)",
     "columnsHint": "Leer lassen, um alle Spalten zu senden; der Status jeder Zeile bleibt immer erhalten",
     "input": "Eingabe der Ausführung",

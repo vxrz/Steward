@@ -74,19 +74,19 @@
     "unknownStatus": "{{status}}",
     "from": {
       "monitor": "Vom verknüpften Monitor „{{name}}“",
-      "dataset": "Aktualität des Datensatzes {{name}}"
+      "dataset": "Aktualität der Datenquelle {{name}}"
     },
     "fromAny": {
       "monitor": "Von den verknüpften Monitoren",
-      "dataset": "Aktualität des Datensatzes"
+      "dataset": "Aktualität der Datenquelle"
     },
     "sourceName": {
       "monitor": "Monitor",
-      "dataset": "Datensatz"
+      "dataset": "Datenquelle"
     },
     "sourceWord": {
       "monitor": "Monitorstatus: {{word}}",
-      "dataset": "Datensatz: {{word}}"
+      "dataset": "Datenquelle: {{word}}"
     },
     "hidden": {
       "ok": "Online",
@@ -115,7 +115,7 @@
     "collector": "Sammler",
     "target": "Zielsystem",
     "kpi": "KPI-Job",
-    "dataset": "Datensatz",
+    "dataset": "Datenquelle",
     "dashboard": "Dashboard",
     "kpiDefinition": "KPI-Definition",
     "zone": "Sicherheitszone",
@@ -197,7 +197,7 @@
   "flow": {
     "title": "Datenfluss",
     "help": "Wohin die Daten dieser {{type}} gehen, wie das Verzeichnis sie dokumentiert: Schnittstellen, das Gateway, das sie sammelt, wohin sie veröffentlicht werden, die KPI-Jobs, die sie lesen, und wo deren Ergebnisse zu sehen sind.",
-    "live": "Monitore, die mit der Anlage verknüpft sind, die Aktualität der Datensätze ihrer KPI-Jobs und die Anlagenprüfungen.",
+    "live": "Monitore, die mit der Anlage verknüpft sind, die Aktualität der Datenquellen ihrer KPI-Jobs und die Anlagenprüfungen.",
     "points": "Datenpunkte",
     "exportTitle": "Datenfluss von {{name}}",
     "emptyTitle": "Noch kein Datenfluss dokumentiert",
@@ -209,7 +209,7 @@
   "lineage": {
     "title": "Herkunft",
     "help": "Welche {{type}} diesen Datenpunkt liefern, wohin jede ihn veröffentlicht und welche KPIs ihn lesen.",
-    "live": "Monitore, die mit einer Anlage verknüpft sind, die Aktualität der Datensätze der KPI-Jobs und die Anlagenprüfungen.",
+    "live": "Monitore, die mit einer Anlage verknüpft sind, die Aktualität der Datenquellen der KPI-Jobs und die Anlagenprüfungen.",
     "exportTitle": "Herkunft von {{name}}",
     "grouped": "Viele {{type}} haben dieses Profil: Das Bild zeigt einen Knoten je {{site}}; die Tabelle nennt alle.",
     "emptyTitle": "Noch keine {{type}} mit diesem Profil",
@@ -335,7 +335,7 @@
   "network": {
     "title": "Diagramm",
     "help": "Zonen (IEC 62443-3-2) in Bändern nach ihrer Ebene, Feld unten, mit ihren VLANs und {{type}}; Conduits sind die Übergänge zwischen ihnen. Zeigen Sie auf einen Teil oder wählen Sie ihn aus, um Details zu sehen.",
-    "live": "die Prüfungen, die mit einer Anlage und ihren Geräten verknüpft sind (Monitore – Gatus, Checkmk, die MQTT- und Kafka-Prüfungen – und die Aktualität von Datensätzen): online, offline oder „keine Daten“. Ein Weg von einer Anlage, die offline ist, ist rot und steht still.",
+    "live": "die Prüfungen, die mit einer Anlage und ihren Geräten verknüpft sind (Monitore – Gatus, Checkmk, die MQTT- und Kafka-Prüfungen – und die Aktualität von Datenquellen): online, offline oder „keine Daten“. Ein Weg von einer Anlage, die offline ist, ist rot und steht still.",
     "exportTitle": "OT-Netz von {{site}}",
     "emptyTitle": "Noch nichts zu zeichnen",
     "emptyText": "Legen Sie Zonen und VLANs sowie Geräte und Datenwege der {{type}} an, um das Diagramm zu sehen.",

@@ -38,7 +38,7 @@
       }
     },
     "postgresql-read-only": {
-      "description": "Eine PostgreSQL-Datenbank (auch Amazon RDS / Aurora PostgreSQL, Azure Database for PostgreSQL, Cloud SQL), direkt mit SQL gelesen: Zugriffsprüfungen von Rollen und Rechten, Kontenhygiene, Monitor-Prüfungen (Verbindung, Replikationsverzug, eine Abfrage, deren Wert beurteilt wird) und Datensätze. Jede Anweisung läuft in einer nur lesenden Transaktion, die zurückgerollt wird, mit Zeit-, Zeilen- und Größenlimit; angenommen wird nur ein SELECT auf einmal. Host, Port, Datenbank und TLS legen Sie nach dem Anlegen unter Plattform → Datenbank fest; Zugangsdaten username und password einer nur lesenden Rolle (die GRANT-Anweisungen stehen in docs/DATABASES.md). Die Richtlinie für ausgehende Verbindungen muss host:port erlauben, wenn sie nicht „platforms“ ist.",
+      "description": "Eine PostgreSQL-Datenbank (auch Amazon RDS / Aurora PostgreSQL, Azure Database for PostgreSQL, Cloud SQL), direkt mit SQL gelesen: Zugriffsprüfungen von Rollen und Rechten, Kontenhygiene, Monitor-Prüfungen (Verbindung, Replikationsverzug, eine Abfrage, deren Wert beurteilt wird) und Datenquellen. Jede Anweisung läuft in einer nur lesenden Transaktion, die zurückgerollt wird, mit Zeit-, Zeilen- und Größenlimit; angenommen wird nur ein SELECT auf einmal. Host, Port, Datenbank und TLS legen Sie nach dem Anlegen unter Plattform → Datenbank fest; Zugangsdaten username und password einer nur lesenden Rolle (die GRANT-Anweisungen stehen in docs/DATABASES.md). Die Richtlinie für ausgehende Verbindungen muss host:port erlauben, wenn sie nicht „platforms“ ist.",
       "secrets": {
         "username": "Benutzername",
         "password": "Passwort"
@@ -48,7 +48,7 @@
       }
     },
     "mariadb-mysql-read-only": {
-      "description": "Eine MariaDB- oder MySQL-Datenbank (auch Amazon RDS / Aurora MySQL, Azure Database for MySQL), direkt mit SQL gelesen: Zugriffsprüfungen von Benutzern, Rollen und Rechten, Kontenhygiene (gesperrte und abgelaufene Konten, Passwortalter, Standardkonten), Monitor-Prüfungen (Verbindung, Replikatverzug, eine Abfrage, deren Wert beurteilt wird) und Datensätze. Jede Anweisung läuft in START TRANSACTION READ ONLY und wird zurückgerollt, mit Zeit-, Zeilen- und Größenlimit; angenommen wird nur ein SELECT auf einmal. Host, Port, Datenbank und TLS legen Sie nach dem Anlegen unter Plattform → Datenbank fest; Zugangsdaten username und password eines nur lesenden Kontos (docs/DATABASES.md).",
+      "description": "Eine MariaDB- oder MySQL-Datenbank (auch Amazon RDS / Aurora MySQL, Azure Database for MySQL), direkt mit SQL gelesen: Zugriffsprüfungen von Benutzern, Rollen und Rechten, Kontenhygiene (gesperrte und abgelaufene Konten, Passwortalter, Standardkonten), Monitor-Prüfungen (Verbindung, Replikatverzug, eine Abfrage, deren Wert beurteilt wird) und Datenquellen. Jede Anweisung läuft in START TRANSACTION READ ONLY und wird zurückgerollt, mit Zeit-, Zeilen- und Größenlimit; angenommen wird nur ein SELECT auf einmal. Host, Port, Datenbank und TLS legen Sie nach dem Anlegen unter Plattform → Datenbank fest; Zugangsdaten username und password eines nur lesenden Kontos (docs/DATABASES.md).",
       "secrets": {
         "username": "Benutzername",
         "password": "Passwort"
@@ -58,7 +58,7 @@
       }
     },
     "microsoft-sql-server-read-only": {
-      "description": "Eine Microsoft-SQL-Server-Datenbank (2016 oder neuer, auch Azure SQL Managed Instance und Amazon RDS for SQL Server), direkt mit SQL gelesen: Zugriffsprüfungen von Logins, Benutzern, Rollen und Berechtigungen, Kontenhygiene (sysadmins, deaktivierte, gesperrte und abgelaufene Logins, Passwortalter, sa), Monitor-Prüfungen (Verbindung, Verzug der Verfügbarkeitsgruppe, eine Abfrage, deren Wert beurteilt wird) und Datensätze. SQL Server kennt keine nur lesende Transaktion: Jede Anweisung läuft in einer Transaktion, die zurückgerollt wird, und das Login muss nur lesend sein (db_datareader, VIEW SERVER STATE, VIEW ANY DEFINITION – docs/DATABASES.md). Angenommen wird nur ein SELECT auf einmal. Anmeldung mit einem SQL-Login (Benutzername und Passwort); Host, Port, Datenbank und TLS legen Sie unter Plattform → Datenbank fest.",
+      "description": "Eine Microsoft-SQL-Server-Datenbank (2016 oder neuer, auch Azure SQL Managed Instance und Amazon RDS for SQL Server), direkt mit SQL gelesen: Zugriffsprüfungen von Logins, Benutzern, Rollen und Berechtigungen, Kontenhygiene (sysadmins, deaktivierte, gesperrte und abgelaufene Logins, Passwortalter, sa), Monitor-Prüfungen (Verbindung, Verzug der Verfügbarkeitsgruppe, eine Abfrage, deren Wert beurteilt wird) und Datenquellen. SQL Server kennt keine nur lesende Transaktion: Jede Anweisung läuft in einer Transaktion, die zurückgerollt wird, und das Login muss nur lesend sein (db_datareader, VIEW SERVER STATE, VIEW ANY DEFINITION – docs/DATABASES.md). Angenommen wird nur ein SELECT auf einmal. Anmeldung mit einem SQL-Login (Benutzername und Passwort); Host, Port, Datenbank und TLS legen Sie unter Plattform → Datenbank fest.",
       "secrets": {
         "username": "Login (SQL-Authentifizierung)",
         "password": "Passwort"
@@ -615,7 +615,7 @@
   },
   "recordings": {
     "title": "Aufgezeichnete Antworten",
-    "help": "Antworten dieser Plattform für Testläufe: Ein Testlauf eines Prozesses oder Monitors verwendet sie, statt die Plattform aufzurufen, und nennt jeden Aufruf ohne Aufzeichnung. Echte Läufe und Probeläufe verwenden sie nie. Sie können personenbezogene Daten enthalten – alle, die die Plattform verwenden dürfen, sehen sie.",
+    "help": "Antworten dieser Plattform für Testläufe: Ein Testlauf eines Prozesses oder Monitors verwendet sie, statt die Plattform aufzurufen, und nennt jeden Aufruf ohne Aufzeichnung. Echte Ausführungen und Probeläufe verwenden sie nie. Sie können personenbezogene Daten enthalten – alle, die die Plattform verwenden dürfen, sehen sie.",
     "add": "Antwort aufzeichnen",
     "addTitle": "Antwort von {{name}} aufzeichnen",
     "editTitle": "Aufgezeichnete Antwort ändern",
@@ -807,15 +807,15 @@
     "setUpNamed": "{{model}} einrichten",
     "allowed": {
       "title": "Erlaubte Daten",
-      "intro": "Was Prozesse an dieses Gateway senden dürfen. Geprüft wird der gesendete Wert, gleich welcher Schritt ihn geschrieben hat: Ein von einer Plattform gelesener Wert trägt die Daten dieser Plattform; ein berechneter (Variablen setzen, Für jedes, Unterprozesse) gilt als Träger von allem aus seiner Ausführung – den Daten aller Plattformen, ihren Eingaben und den Datensätzen, die sie liest. Nichts ist erlaubt, bis Sie es erlauben.",
+      "intro": "Was Prozesse an dieses Gateway senden dürfen. Geprüft wird der gesendete Wert, gleich welcher Schritt ihn geschrieben hat: Ein von einer Plattform gelesener Wert trägt die Daten dieser Plattform; ein berechneter (Variablen setzen, Für jedes, Unterprozesse) gilt als Träger von allem aus seiner Ausführung – den Daten aller Plattformen, ihren Eingaben und den Datenquellen, die sie liest. Nichts ist erlaubt, bis Sie es erlauben.",
       "nothing": "Noch darf nichts gesendet werden: Schritte, die über dieses Gateway ein Modell fragen, schlagen mit AI_DATA_NOT_ALLOWED fehl.",
       "every": "Daten aller Plattformen",
       "everyHint": "Auch später hinzugefügter Plattformen",
       "platforms": "Daten dieser Plattformen",
       "platformsHint": "Die Plattformen, deren Antworten gesendet werden dürfen",
       "noPlatforms": "Keine Plattform gefunden",
-      "datasets": "Datensätze",
-      "datasetsHint": "Schlüssel oder Muster wie checkmk.*; * erlaubt jeden Datensatz, den die Ausführung lesen darf",
+      "datasets": "Datenquellen",
+      "datasetsHint": "Schlüssel oder Muster wie checkmk.*; * erlaubt jede Datenquelle, die die Ausführung lesen darf",
       "inputs": "Eingaben einer Ausführung",
       "inputsHint": "Werte, die Personen oder Auslöser beim Start einer Ausführung angeben",
       "save": "Erlaubte Daten speichern"
@@ -846,7 +846,7 @@
     "tokensPerMonth": "Tokens pro Monat",
     "noLimit": "Keine Grenze",
     "comment": "Warum (optional)",
-    "commentHint": "Wird mit der Änderung im Audit-Protokoll aufbewahrt",
+    "commentHint": "Wird mit der Änderung im Audit-Log aufbewahrt",
     "raiseHint": "Wenn Sie ein Budget erhöhen (oder seine Grenze entfernen), bestätigen Sie, dass Sie es sind.",
     "saved": "Budget gespeichert",
     "notSaved": "Das Budget wurde nicht gespeichert",

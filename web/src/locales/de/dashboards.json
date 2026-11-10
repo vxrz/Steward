@@ -107,7 +107,7 @@
     },
     "vega": {
       "label": "Vega-Lite-Diagramm",
-      "info": "Diagramm aus einer Vega-Lite-Spezifikation zu einem Datensatz, für Ansichten, die die anderen Widgets nicht abdecken"
+      "info": "Diagramm aus einer Vega-Lite-Spezifikation zu einer Datenquelle, für Ansichten, die die anderen Widgets nicht abdecken"
     },
     "sitesMap": {
       "label": "Standortkarte",
@@ -174,7 +174,7 @@
     "trendLine": "Trendlinien zeigen",
     "trendLineHint": "Eine gestrichelte Linie je Kennzahl: der Trend über die gewählten Tage",
     "spec": "Vega-Lite-Spezifikation (JSON)",
-    "specHint": "Die Daten sind die Zeilen des Datensatzes (Name „dataset“); Daten nachladen, Links und Bilder sind nicht erlaubt. Die Farbschemata „steward“ und „steward-status“ folgen dem Design.",
+    "specHint": "Die Daten sind die Zeilen der Datenquelle (Name „dataset“); Daten nachladen, Links und Bilder sind nicht erlaubt. Die Farbschemata „steward“ und „steward-status“ folgen dem Design.",
     "specJson": "Kein gültiges JSON: {{error}}",
     "specDocs": "Vega-Lite-Dokumentation",
     "combine": "Bei mehreren Quellen",
@@ -245,10 +245,10 @@
     "noDataScheduled": "Noch keine Daten – <b>{{process}}</b> füllt es bei der nächsten geplanten Ausführung.",
     "noDataRunIt": "Noch keine Daten – führen Sie <b>{{process}}</b> aus oder planen Sie es ein, es füllt dieses Widget.",
     "noDataAsk": "Noch keine Daten – bitten Sie einen Designer, <b>{{process}}</b> einzuplanen.",
-    "noDataHowTo": "Für Designer: Ein Prozess mit einem Knoten „{{node}}“ für den Datensatz <c>{{dataset}}</c> füllt es.",
+    "noDataHowTo": "Für Designer: Ein Prozess mit einem Knoten „{{node}}“ für die Datenquelle <c>{{dataset}}</c> füllt es.",
     "openProcess": "Prozess öffnen",
     "scheduleIt": "Einplanen",
-    "datasetKey": "Datensatz <c>{{dataset}}</c>",
+    "datasetKey": "Datenquelle <c>{{dataset}}</c>",
     "noDataHidden": "Sie dürfen die Daten dieses Widgets nicht sehen. Fragen Sie einen Administrator oder das verantwortliche Team nach Zugriff."
   },
   "charts": {
@@ -305,8 +305,8 @@
       "scheduleUnnamed": "aus seinem Zeitplan",
       "via": "über den Zeitplan von „{{process}}“",
       "fixedScheduled": "fest im Veröffentlichungsschritt",
-      "fixed": "fest, Lauf ohne Zeitplan",
-      "default": "Standard, Lauf ohne Zeitplan"
+      "fixed": "fest, Ausführung ohne Zeitplan",
+      "default": "Standard, Ausführung ohne Zeitplan"
     }
   }
 }

@@ -97,7 +97,7 @@ test('the editor\'s decision table: rows, cells, and "Try it"', async ({ page, a
   await page.keyboard.press('Escape');
   const legend = page.getByTestId('states-legend');
   await expect(legend).toContainText('Off is offered only in sub-monitor columns');
-  await expect(legend).toContainText('Whether a state shows grey Off is the Shows column.');
+  await expect(legend).toContainText('The Shows column decides whether a state shows as grey Off.');
   // the derived settle time of Off: 600 s + 2 × 60 s
   await expect(table.getByTestId('state-row-off')).toContainText('12 min (derived)');
 

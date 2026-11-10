@@ -42,11 +42,11 @@
     "noOwnChecks": "Mit der Anlage selbst ist keine Prüfung verknüpft.",
     "hiddenCheck": "Eine Prüfung, die Sie nicht sehen dürfen",
     "notWatched": "Nicht überwacht",
-    "nothingWatched": "An diesem Standort wird noch nichts überwacht: Verknüpfen Sie Monitor-Prüfungen oder die Aktualität eines Datensatzes auf der Seite einer Anlage oder eines Geräts (Live-Status → Prüfungen)."
+    "nothingWatched": "An diesem Standort wird noch nichts überwacht: Verknüpfen Sie Monitor-Prüfungen oder die Aktualität einer Datenquelle auf der Seite einer Anlage oder eines Geräts (Live-Status → Prüfungen)."
   },
   "checkKinds": {
     "monitor": "Monitor",
-    "dataset": "Datensatz"
+    "dataset": "Datenquelle"
   },
   "reasons": {
     "up": "Der Monitor ist erreichbar.",
@@ -60,13 +60,13 @@
     "fresh": "Aktuelle Daten.",
     "stale": "Die Daten sind älter als erlaubt.",
     "no_data": "Unter diesem Schlüssel ist (noch) nichts veröffentlicht.",
-    "no_row": "Der Datensatz hat keine Zeile dafür.",
+    "no_row": "Die Datenquelle hat keine Zeile dafür.",
     "no_time": "Die Zeitspalte enthält keine lesbare Zeit.",
     "hidden": "Sie zählt für den Status; was sie prüft, wird Ihnen nicht gezeigt."
   },
   "checks": {
     "title": "Verknüpfte Prüfungen",
-    "help": "Ein Monitor (oder eine seiner Prüfungen: ein Gatus-Endpunkt, ein Checkmk-Service, die MQTT-Prüfung auf stille Geräte, Kafka …) oder die Aktualität eines Datensatzes.",
+    "help": "Ein Monitor (oder eine seiner Prüfungen: ein Gatus-Endpunkt, ein Checkmk-Service, die MQTT-Prüfung auf stille Geräte, Kafka …) oder die Aktualität einer Datenquelle.",
     "assetTitle": "Prüfungen für den Live-Status der Anlage",
     "edit": "Prüfungen",
     "add": "Prüfung verknüpfen",
@@ -77,14 +77,14 @@
     "check": "Prüfung des Monitors",
     "checkHelp": "Leer: der Status des ganzen Monitors.",
     "wholeMonitor": "Der ganze Monitor",
-    "dataset": "Schlüssel des Datensatzes",
+    "dataset": "Schlüssel der Datenquelle",
     "datasetHelp": "Der Schlüssel, unter dem ein Prozess veröffentlicht, z. B. iot.last-values",
     "column": "Spalte",
     "value": "Wert",
     "timeColumn": "Zeitspalte",
-    "timeColumnHelp": "Die Zeit des letzten Werts; leer: wann der Datensatz geschrieben wurde.",
+    "timeColumnHelp": "Die Zeit des letzten Werts; leer: wann die Datenquelle geschrieben wurde.",
     "maxAge": "Höchstalter (Minuten)",
-    "maxAgeHelp": "Älter ist offline; leer: die eigene Aktualität des Datensatzes.",
+    "maxAgeHelp": "Älter ist offline; leer: die eigene Aktualität der Datenquelle.",
     "hidden": "Eine Prüfung, die Sie nicht sehen dürfen – sie bleibt, wie sie ist. Sie können sie entfernen."
   },
   "hints": {
@@ -162,7 +162,7 @@
   },
   "destinationKinds": {
     "system": "Steward-System",
-    "dataset": "Steward-Datensatz",
+    "dataset": "Steward-Datenquelle",
     "other": "Anderes"
   },
   "vlan": {

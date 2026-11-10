@@ -17,7 +17,7 @@
     "anyChecks": "Alle",
     "failedChecks": "Mit Befunden (fehlgeschlagene Prüfungen)",
     "kind": "Art",
-    "ordinaryRuns": "Normale Läufe",
+    "ordinaryRuns": "Normale Ausführungen",
     "debugRuns": "Debug-Läufe"
   },
   "table": {
@@ -92,10 +92,10 @@
     "rowsReadHeaderless_other": "{{count}} Zeilen gelesen – ohne Kopfzeile, nach der Reihenfolge der Spalten",
     "noRows": "Keine Zeilen gelesen – die erste Zeile ist die Kopfzeile",
     "secretHint": "Wird nur verschlüsselt gespeichert; im Ausführungsbericht, in anderen Berichten und im Audit-Log als *** angezeigt",
-    "applicationHint": "Der Lauf liest die Komponenten und den Tech-Stack der Anwendung beim Start",
+    "applicationHint": "Die Ausführung liest die Komponenten und den Tech-Stack der Anwendung beim Start",
     "noApplications": "Keine Anwendung gefunden",
     "allApplications": "Alle Anwendungen",
-    "applicationsHint": "Leer: alle Anwendungen. Der Lauf liest beim Start ihre Komponenten und den Tech-Stack"
+    "applicationsHint": "Leer: alle Anwendungen. Die Ausführung liest beim Start ihre Komponenten und den Tech-Stack"
   },
   "trigger": {
     "manual": "manuell",
@@ -212,9 +212,9 @@
     "label": "Ausführungsart",
     "dry": "Probelauf",
     "test": "Testlauf",
-    "real": "Lauf",
+    "real": "Ausführung",
     "dryHint": "Lesende Aufrufe werden ausgeführt, schreibende (POST/PUT/PATCH/DELETE) nur aufgezeichnet. Benutzeraufgaben fragen trotzdem nach.",
-    "testHint": "Plattformaufrufe werden aus den aufgezeichneten Antworten der Plattformen beantwortet, nichts wird gesendet. Ein Aufruf ohne Aufzeichnung lässt den Lauf fehlschlagen und wird genannt.",
+    "testHint": "Plattformaufrufe werden aus den aufgezeichneten Antworten der Plattformen beantwortet, nichts wird gesendet. Ein Aufruf ohne Aufzeichnung lässt die Ausführung fehlschlagen und wird genannt.",
     "realHint": "Alle Aufrufe werden ausgeführt, auch schreibende.",
     "recordings_one": "{{name}}: {{count}} aufgezeichnete Antwort",
     "recordings_other": "{{name}}: {{count}} aufgezeichnete Antworten",

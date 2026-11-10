@@ -10,7 +10,7 @@
     "when": "Wann",
     "sections": "Abschnitte",
     "last": "Letzter Bericht",
-    "next": "Nächster Lauf",
+    "next": "Nächste Ausführung",
     "owner": "Läuft mit den Rechten von {{owner}}",
     "team": "Team „{{team}}“",
     "actions": "Aktionen"
@@ -25,7 +25,7 @@
     "daily": "Jeden Tag um 06:00 über den Vortag.",
     "weekly": "Jeden Montag um 06:00 über die Vorwoche (Montag bis Sonntag).",
     "monthly": "Am 1. um 06:00 über den Vormonat.",
-    "custom": "Ihr Cron-Ausdruck (fünf Felder: Minute Stunde Tag Monat Wochentag; höchstens einmal pro Stunde); der Bericht umfasst die angegebene Zahl von Tagen vor jedem Lauf."
+    "custom": "Ihr Cron-Ausdruck (fünf Felder: Minute Stunde Tag Monat Wochentag; höchstens einmal pro Stunde); der Bericht umfasst die angegebene Zahl von Tagen vor jeder Ausführung."
   },
   "sections": {
     "availability": {
@@ -102,7 +102,7 @@
     "titleHint": "Steht auf der Titelseite; Standard: der Name",
     "when": "Wann",
     "cron": "Cron-Ausdruck",
-    "periodDays": "Zeitraum (Tage vor dem Lauf)",
+    "periodDays": "Zeitraum (Tage vor der Ausführung)",
     "timezone": "Zeitzone",
     "lang": "Berichtssprache",
     "classification": "Einstufung",

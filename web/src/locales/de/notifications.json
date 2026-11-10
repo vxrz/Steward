@@ -53,7 +53,7 @@
       },
       "resolved": {
         "label": "Prüfung wieder erfolgreich",
-        "info": "Eine Prüfung eines geplanten Laufs ist nach einem Fehlschlag wieder erfolgreich (wenn der Zeitplan das vorsieht)"
+        "info": "Eine Prüfung einer geplanten Ausführung ist nach einem Fehlschlag wieder erfolgreich (wenn der Zeitplan das vorsieht)"
       }
     },
     "dataset": {
@@ -241,22 +241,22 @@
     "allDay": "Ganze Tage",
     "gridLabel": "Ruhezeiten der Woche, Montag bis Sonntag",
     "urgent": "Dringende Nachrichten durchlassen",
-    "urgentHint": "Fehlgeschlagene Läufe und Fehler von Quellen, die als dringend markiert sind, erreichen Sie sofort.",
-    "urgentHintChannel": "Fehlgeschlagene Läufe und Fehler von Quellen, die als dringend markiert sind, werden sofort gepostet.",
+    "urgentHint": "Fehlgeschlagene Ausführungen und Fehler von Quellen, die als dringend markiert sind, erreichen Sie sofort.",
+    "urgentHintChannel": "Fehlgeschlagene Ausführungen und Fehler von Quellen, die als dringend markiert sind, werden sofort gepostet.",
     "digests": "Sammelnachrichten",
     "digestsIntro": "Gesammelte E-Mails kommen als eine Nachricht im gewählten Rhythmus.",
     "digestsOff": "Jede E-Mail kommt sofort. Wählen Sie einen Rhythmus, um eine Gruppe in einer Nachricht zu sammeln.",
     "groups": {
       "decisions": "Entscheidungen",
-      "runs": "Läufe und Prüfungen",
+      "runs": "Ausführungen und Prüfungen",
       "monitors": "Monitore und Plattformen",
       "reminders": "Erinnerungen",
       "reports": "Berichte und Releases",
       "costs": "Budgets und Kosten"
     },
     "groupHints": {
-      "decisions": "Entscheidungsschritte, KI-Anfragen, ausgelassene Pflichten, zu prüfende Werksänderungen. Ein Lauf wartet: höchstens stündlich.",
-      "runs": "Fehlgeschlagene Läufe und Prüfungen, ausgelassene Zeitpläne, veraltete Daten, Backups, Datenverträge.",
+      "decisions": "Entscheidungsschritte, KI-Anfragen, ausgelassene Pflichten, zu prüfende Werksänderungen. Eine Ausführung wartet: höchstens stündlich.",
+      "runs": "Fehlgeschlagene Ausführungen und Prüfungen, ausgelassene Zeitpläne, veraltete Daten, Backups, Datenverträge.",
       "monitors": "Monitorstatus, Verbindungstests von Plattformen, Ziele, Wartung.",
       "reminders": "Zugangsdaten, Dokumentprüfungen, Tickets, Pflichten, Maßnahmen, Zugriffsänderungen, entschiedene Werksänderungen.",
       "reports": "Geplante Berichte, Supportende und neue Releases.",
@@ -330,12 +330,12 @@
     "tenantsHint": "Mandanten-IDs (GUIDs), deren Personen den Bot nutzen dürfen.",
     "provider": "Anmeldeanbieter",
     "providerHint": "Konten werden nur über diesen Entra-Anbieter erkannt, per tid + oid – nie über Namen oder E-Mail.",
-    "credential": "Anmeldedaten des Bots",
+    "credential": "Zugangsdaten des Bots",
     "credentials": {
       "certificate": "Zertifikat (empfohlen)",
       "secret": "Geheimnis"
     },
-    "credentialStored": "Anmeldedaten sind gespeichert. Lassen Sie die Felder leer, um sie zu behalten.",
+    "credentialStored": "Zugangsdaten sind gespeichert. Lassen Sie die Felder leer, um sie zu behalten.",
     "credentialHint": "Damit meldet sich Steward bei Microsoft an, um Karten zu posten und zu aktualisieren.",
     "secret": "Client-Geheimnis",
     "certificate": "Zertifikat (PEM)",
