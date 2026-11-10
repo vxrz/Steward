@@ -34,3 +34,9 @@ regexes = [
 [[allowlists]]
 description = "Upgrade test fixtures (server/test/fixtures/upgrade/<version>/datadir): data folders written by released versions for server/test/upgrade.test.ts. Their vault, audit anchor and database hold keys and encrypted secrets protected by the published test passphrase (see the fixture README). Only these three generated files; the README, manifest.json and any other file there are still scanned."
 paths = ['''^server/test/fixtures/upgrade/v\d+\.\d+\.\d+/datadir/(vault\.json|audit-anchor\.json|service-manager\.db)$''']
+
+[[allowlists]]
+description = "A false positive in one commit of the 0.14 Confluent work: the import line `import { getConfluentView, refreshConfluent } from './service.js'` matches the confluent-access-token pattern (the word confluent, a comma, 16 letters). The line was rewritten in a later commit; only that commit and that file are allowed."
+condition = "AND"
+commits = ['''ef65632e7a4a4f8d08e9e9d6dd0dd95dee3a0602''']
+paths = ['''^server/src/confluent/routes\.ts$''']

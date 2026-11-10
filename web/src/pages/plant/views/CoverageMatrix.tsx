@@ -87,7 +87,9 @@ function useCellText() {
       ...(c.via ? [`${t('coverage.via', { name: c.via.name })} – ${t('coverage.viaHint')}`] : []),
       ...(c.rolledUp ? [t('coverage.rolledUpHint', { name: c.rolledUp.name })] : []),
     ];
-    const details = [...rollUp, ...(c.gaps ?? []).map((g) => checkText(fake(g))), ...(c.checks ?? []).map((x) => checkText(x)), ...units];
+    // 0.14: every input also goes to Insights Hub through a sink whose mapping was checked against the tenant
+    const ih = c.ihVerified ? [t('coverage.ihVerified')] : [];
+    const details = [...rollUp, ...ih, ...(c.gaps ?? []).map((g) => checkText(fake(g))), ...(c.checks ?? []).map((x) => checkText(x)), ...units];
     const shown = shownOf(c);
     return { state: t(`coverage.states.${shown}`), explain: t(`coverage.legend.${shown}`), details, jobs: c.jobs ?? [] };
   };
@@ -310,6 +312,7 @@ export function CoverageSummary({
         {potential && potential.ready + potential.collect > 0 && (
           <Text size="xs" data-testid="coverage-potential">
             {t('coverage.potential', { ready: potential.ready, collect: potential.collect })}
+            {potential.ihVerified ? ` · ${t('coverage.potentialIh', { count: potential.ihVerified })}` : ''}
           </Text>
         )}
       </Stack>

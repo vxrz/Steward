@@ -182,7 +182,9 @@ export function MaintenancePage() {
           onOpen={setOpen}
         />
       )}
-      {open && <MaintenanceDetailModal key={open} id={open} startEditing={params.get('edit') === '1'} onClose={() => setOpen(null)} />}
+      {open && (
+        <MaintenanceDetailModal key={open} id={open} startEditing={params.get('edit') === '1'} onClose={() => setOpen(null)} onOpen={(id) => setOpen(id)} />
+      )}
       {creating && (
         <MaintenanceFormModal
           onClose={() => setCreating(false)}

@@ -771,13 +771,17 @@ export function removeAssetRow(id: string): void {
   // its devices, data paths and linked checks (#220)
   for (const t of ['plant_devices', 'plant_data_paths', 'plant_asset_checks']) db().run(`DELETE FROM ${t} WHERE asset_id = ?`, id);
   // its data collections and the mappings remembered for it (0.11.0)
-  for (const t of ['plant_collections', 'plant_collection_mappings']) db().run(`DELETE FROM ${t} WHERE asset_id = ?`, id);
+  // 0.14: the Insights Hub checks of their sinks and the links of their items to monitor checks
+  for (const t of ['plant_collections', 'plant_collection_mappings', 'plant_ih_checks', 'plant_ih_monitor_links'])
+    db().run(`DELETE FROM ${t} WHERE asset_id = ?`, id);
   // 0.12: the kept files of its collection imports, and the links of records to its collections and their sinks
   db().run('DELETE FROM plant_collection_sources WHERE asset_id = ?', id);
   removeCollectionLinks(id);
   db().run("DELETE FROM plant_refs WHERE kind = 'asset' AND item_id = ?", id);
   db().run("DELETE FROM item_links WHERE from_kind = 'asset' AND from_id = ?", id);
   db().run("DELETE FROM copied_from WHERE kind = 'asset' AND id = ?", id);
+  // 0.14: the last "still current" of its documentation as a whole
+  db().run("DELETE FROM plant_doc_confirmations WHERE kind = 'asset' AND target_id = ?", id);
   db().run('DELETE FROM plant_assets WHERE id = ?', id);
 }
 

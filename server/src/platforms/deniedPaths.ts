@@ -1,6 +1,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import {
   CHANGEDETECTION_KIND,
+  CONFLUENT_KIND,
   CONTAINER_REGISTRY_KIND,
   DATA_CONTRACT_SERVICE_KIND,
   KAFKA_CONNECT_KIND,
@@ -137,7 +138,9 @@ export function deniedPath(kind: string, url: string): string | null {
  * Kinds that are only read (0.9.0): Kafka Connect (#223) – no connector is created, changed, restarted, paused or
  * resumed –, changedetection.io (#242) – no watch, tag, notification or history is created, changed or deleted – and
  * container registries (the version watch reads image tags) through Steward, whoever asks (process steps, the explorer,
- * the MCP gateway, monitors, recordings, redirect hops).
+ * the MCP gateway, monitors, recordings, redirect hops). Confluent Cloud (#123) is not one of them: processes may manage
+ * it through Steward (e.g. rotating an API key with approvals); Steward's own readers only send GET, and a team that
+ * wants no change at all marks the platform's identity read-only (ADR 0009).
  */
 const READ_ONLY_KINDS: ReadonlySet<string> = new Set([KAFKA_CONNECT_KIND, CHANGEDETECTION_KIND, CONTAINER_REGISTRY_KIND]);
 
@@ -145,7 +148,14 @@ const READ_ONLY_KINDS: ReadonlySet<string> = new Set([KAFKA_CONNECT_KIND, CHANGE
  * Kinds with rules of their own – read-only, refused paths or values removed from answers. Their rules also apply to a
  * request that another platform sends to their origin (0.9.0, destinationKinds in restrictedOrigins.ts).
  */
-export const RESTRICTED_KINDS: readonly string[] = [PVAULT_KIND, CHANGEDETECTION_KIND, KAFKA_CONNECT_KIND, CONTAINER_REGISTRY_KIND, DATA_CONTRACT_SERVICE_KIND];
+export const RESTRICTED_KINDS: readonly string[] = [
+  PVAULT_KIND,
+  CHANGEDETECTION_KIND,
+  KAFKA_CONNECT_KIND,
+  CONTAINER_REGISTRY_KIND,
+  DATA_CONTRACT_SERVICE_KIND,
+  CONFLUENT_KIND,
+];
 const READ_METHODS = new Set(['GET', 'HEAD']);
 
 /** Why this method is refused for the platform kind (a changing method to a read-only kind), or null. */
@@ -238,6 +248,32 @@ const VALUE_KEYS: Record<string, ReadonlySet<string>> = {
 const UNSAFE_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 const URL_KEYS = new Set(['url', 'link']);
 
+/**
+ * A Confluent Cloud answer (0.14.0, #123) as Steward passes it on: no "secret" key at any depth (an API key's secret is
+ * only in the answer that creates it – a process that creates a key never gets it through Steward), and a
+ * managed connector's configuration and status ("config" and "status" objects) with their secret-looking values
+ * removed and error traces trimmed, like Kafka Connect's.
+ * Everything else – pagination links included – stays as it is.
+ */
+function confluentAnswer<T>(body: T): T {
+  const walk = (x: unknown, depth: number): unknown => {
+    if (depth > 64) return null;
+    if (Array.isArray(x)) return x.map((v) => walk(v, depth + 1));
+    if (x && typeof x === 'object') {
+      const entries: [string, unknown][] = [];
+      for (const [k, v] of Object.entries(x)) {
+        if (UNSAFE_KEYS.has(k) || k.toLowerCase() === 'secret') continue;
+        // a connector's configuration and status (its error traces and task messages) like Kafka Connect's answers
+        const connectPart = (k === 'config' || k === 'status') && v && typeof v === 'object' && !Array.isArray(v);
+        entries.push([k, connectPart ? redactConnectAnswer(walk(v, depth + 1)) : walk(v, depth + 1)]);
+      }
+      return Object.fromEntries(entries);
+    }
+    return x;
+  };
+  return walk(body, 0) as T;
+}
+
 /** The origin of a URL for a message (the text itself when it is none). */
 function originOfSafe(url: string): string {
   try {
@@ -254,6 +290,7 @@ function originOfSafe(url: string): string {
  */
 export function stripValues<T>(kind: string, body: T): T {
   if (kind === KAFKA_CONNECT_KIND) return redactConnectAnswer(body);
+  if (kind === CONFLUENT_KIND) return confluentAnswer(body);
   const keys = VALUE_KEYS[kind];
   if (!keys) return body;
   const walk = (x: unknown, depth: number): unknown => {

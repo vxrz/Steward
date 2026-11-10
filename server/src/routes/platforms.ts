@@ -1,5 +1,5 @@
 import fs from 'node:fs';
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { audit } from '../audit.js';
 import { confirmPlatformConfig, confirmReview } from '../platforms/integrity.js';
@@ -23,6 +23,7 @@ import { moduleOfPlatformKind } from '@sm/shared';
 import { moduleEnabled } from '../modules/registry.js';
 import { params } from './params.js';
 import { platformIdentityRoutes } from './platform-identities.js';
+import { isPrivileged, privilegedRefusal } from '../platforms/privileged.js';
 
 const platformBody = z.object({
   name: z.string().min(1).max(200),
@@ -204,38 +205,63 @@ export async function platformRoutes(app: FastifyInstance): Promise<void> {
     return { ok: true };
   });
 
-  app.post('/platforms/:id/request', { config: { rateLimit: ROUTE_LIMITS.action } }, async (req) => {
-    const id = params(req).id!;
-    const b = z
-      .object({
-        method: z.enum(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD']),
-        path: z.string().min(1).max(8000),
-        query: boundedRecord(z.string().max(8000), 200).optional(),
-        headers: boundedRecord(z.string().max(8000), 100).optional(),
-        body: z.any().optional(),
-        // one of the platform's identities (0.13.0, ADR 0009): the caller must be allowed to use it; missing: the default
-        identityId: z.string().max(100).optional(),
-      })
-      .parse(req.body);
-    const write = !(b.method === 'GET' || b.method === 'HEAD');
-    requirePlatform(id, write ? 'manage' : 'use', write ? 'send changing requests to this platform' : 'use this platform');
-    if (b.identityId) {
-      const { mayUseIdentity, requireIdentity } = await import('../platforms/identityService.js');
-      const row = requireIdentity(id, b.identityId);
-      if (!mayUseIdentity(me(), platforms.getPlatform(id), row))
-        throw new HttpError(403, `You are not allowed to use the identity "${row.name}"`, 'IDENTITY_NOT_ALLOWED', { identity: row.name });
-    }
-    const { platform: p, secrets } = platforms.getConnection(id, b.identityId);
-    const res = await platformRequest(p, secrets, { method: b.method, url: b.path, query: b.query, headers: b.headers, body: b.body });
-    audit({
-      action: write ? 'api.adhoc_write' : 'api.adhoc_read',
-      entityType: 'platform',
-      entityId: id,
-      summary: `Ad-hoc ${b.method} ${b.path} on "${p.name}${(p.identities?.length ?? 0) > 1 ? ` · ${p.identityName}` : ''}" → HTTP ${res.status}`,
-      details: { query: b.query, body: write ? redact(b.body, secrets) : undefined, identityId: p.identityId },
-    });
-    return redact(res, secrets);
-  });
+  // a request with a privileged identity (0.14.0, ADR 0009 step 4): a step-up (platform.privilegedIdentity)
+  const privilegedRequest = (req: FastifyRequest) => {
+    const b = req.body && typeof req.body === 'object' ? (req.body as { identityId?: unknown }) : {};
+    return isPrivileged(params(req).id!, typeof b.identityId === 'string' ? b.identityId : undefined);
+  };
+  app.post(
+    '/platforms/:id/request',
+    {
+      config: {
+        rateLimit: ROUTE_LIMITS.action,
+        // only for someone who may use the platform (anyone else gets the route's own refusal)
+        stepUp: { action: 'usePrivilegedIdentity', who: (req) => platforms.getPlatform(params(req).id!).permissions.includes('use'), when: privilegedRequest },
+      },
+    },
+    async (req, reply) => {
+      const id = params(req).id!;
+      const b = z
+        .object({
+          method: z.enum(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD']),
+          path: z.string().min(1).max(8000),
+          query: boundedRecord(z.string().max(8000), 200).optional(),
+          headers: boundedRecord(z.string().max(8000), 100).optional(),
+          body: z.any().optional(),
+          // one of the platform's identities (0.13.0, ADR 0009): the caller must be allowed to use it; missing: the default
+          identityId: z.string().max(100).optional(),
+        })
+        .parse(req.body);
+      const write = !(b.method === 'GET' || b.method === 'HEAD');
+      requirePlatform(id, write ? 'manage' : 'use', write ? 'send changing requests to this platform' : 'use this platform');
+      if (b.identityId) {
+        const { mayUseIdentity, requireIdentity } = await import('../platforms/identityService.js');
+        const row = requireIdentity(id, b.identityId);
+        if (!mayUseIdentity(me(), platforms.getPlatform(id), row))
+          throw new HttpError(403, `You are not allowed to use the identity "${row.name}"`, 'IDENTITY_NOT_ALLOWED', { identity: row.name });
+      }
+      const { platform: p, secrets, identity } = platforms.getConnection(id, b.identityId);
+      if (identity.privileged) {
+        const refused = privilegedRefusal([{ platformId: id, platformName: p.name, identityId: identity.id, identityName: identity.name }]);
+        if (refused) return reply.code(refused.status).send(refused.body);
+      }
+      const res = await platformRequest(p, secrets, { method: b.method, url: b.path, query: b.query, headers: b.headers, body: b.body });
+      audit({
+        action: write ? 'api.adhoc_write' : 'api.adhoc_read',
+        entityType: 'platform',
+        entityId: id,
+        summary: `Ad-hoc ${b.method} ${b.path} on "${p.name}${(p.identities?.length ?? 0) > 1 ? ` · ${p.identityName}` : ''}" → HTTP ${res.status}`,
+        details: {
+          query: b.query,
+          body: write ? redact(b.body, secrets) : undefined,
+          identityId: p.identityId,
+          identityName: p.identityName,
+          ...(identity.privileged ? { privileged: true } : {}),
+        },
+      });
+      return redact(res, secrets);
+    },
+  );
 
   // API specifications and operations reveal a platform's endpoints: only for users with some permission on it.
   app.get('/platforms/:id/specs', async (req) => (visiblePlatform(params(req).id!), platforms.listSpecs(params(req).id!)));

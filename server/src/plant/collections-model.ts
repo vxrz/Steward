@@ -123,9 +123,17 @@ const fullSink = (x: Partial<PlantCollectionSink>): PlantCollectionSink => ({
   owner: x.owner ?? '',
   description: x.description ?? '',
   transforms: x.transforms ?? [],
-  mappings: x.mappings ?? [],
+  mappings: (x.mappings ?? []).map(ihClean),
   imported: x.imported ?? false,
+  ...(x.ih && (x.ih.assetId || x.ih.aspect) ? { ih: { assetId: x.ih.assetId ?? '', assetName: x.ih.assetName ?? '', aspect: x.ih.aspect ?? '' } } : {}),
 });
+
+/** A mapping without empty Insights Hub fields (0.14): what an older version stored and what it reads back stay the same. */
+export function ihClean<T extends { assetId?: string; assetName?: string; aspect?: string }>(m: T): T {
+  const out = { ...m };
+  for (const k of ['assetId', 'assetName', 'aspect'] as const) if (!out[k]) delete out[k];
+  return out;
+}
 
 /** The sinks of a row: the stored ones, else the 0.11 destination as the first one. */
 export function sinksOf(r: Pick<CollectionRow, 'sinks' | 'destination'>): PlantCollectionSink[] {
@@ -222,12 +230,33 @@ const sinkInput = z
       .max(L.transforms)
       .default([]),
     mappings: z
-      .array(z.object({ item: z.string().trim().min(1).max(L.address), target: text(L.address), transform: text(2000) }).strict())
+      .array(
+        z
+          .object({
+            item: z.string().trim().min(1).max(L.address),
+            target: text(L.address),
+            transform: text(2000),
+            // 0.14, an Insights Hub sink: the item's own asset (its id there, or a placeholder) and aspect
+            assetId: z.string().trim().max(L.text).optional(),
+            assetName: z.string().trim().max(L.text).optional(),
+            aspect: z.string().trim().max(L.text).optional(),
+          })
+          .strict()
+          .transform(ihClean),
+      )
       .max(L.items)
       .default([]),
     imported: z.boolean().default(false),
+    /** 0.14, an Insights Hub sink: the default asset and aspect of its items */
+    ih: z
+      .object({ assetId: text(L.text), assetName: text(L.text), aspect: text(L.text) })
+      .strict()
+      .nullable()
+      .optional()
+      .transform((x) => (x && (x.assetId || x.aspect) ? x : undefined)),
   })
-  .strict();
+  .strict()
+  .transform(({ ih, ...x }) => (ih ? { ...x, ih } : x));
 
 export const collectionInput = z
   .object({

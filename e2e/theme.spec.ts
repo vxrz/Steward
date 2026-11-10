@@ -3,7 +3,7 @@ import { appHref } from './support/env';
 import type { Browser, BrowserContext, Page } from '@playwright/test';
 import { test, expect, USERS } from './support/fixtures';
 import { expectAccessible, settle } from './support/axe';
-import { sessionState, startIsolatedServer, type IsolatedServer } from './support/server';
+import { sessionState, ISOLATED_SETUP_MS, startIsolatedServer, type IsolatedServer } from './support/server';
 import { BRAND } from '../shared/src/brand';
 import { confirmDialog, settingsSave } from './support/helpers';
 
@@ -63,6 +63,7 @@ test.describe('custom theme (own server)', () => {
   const contexts: BrowserContext[] = [];
 
   test.beforeAll(async () => {
+    test.setTimeout(ISOLATED_SETUP_MS);
     srv = await startIsolatedServer();
   });
   test.afterAll(async () => {

@@ -11,6 +11,7 @@ import { useMe } from '../auth';
 import { ManualTaskPanel } from './ManualTaskPanel';
 import { TaskHeader } from './TaskHeader';
 import { DecideFromLinkModal, DecideNotPossible, useDecideParam } from './DecideFromLink';
+import { PrivilegedBadge } from './platform/PrivilegedBadge';
 
 const MAX_ROWS = 1000;
 
@@ -21,6 +22,42 @@ export function DecideFromLinkNotice({ tasks }: { tasks: TaskRecord[] }) {
   const task = tasks.find((x) => x.id === link.task);
   const decidable = !!task && task.status === 'open' && task.canDecide !== false && task.mode === 'approve';
   return decidable ? null : <DecideNotPossible onClose={link.clear} />;
+}
+
+/**
+ * What a start approval is about (0.14.0, ADR 0009 step 4): the privileged identities per connection, who asked (none of
+ * them approves) and when the run is cancelled without a decision.
+ */
+function StartApprovalDetails({ task }: { task: TaskRecord }) {
+  const { t } = useTranslation(['tasks', 'common']);
+  const a = task.startApproval!;
+  return (
+    <Stack gap={4} data-testid="start-approval">
+      <Text size="sm">{t('startApproval.text')}</Text>
+      <Text size="sm" fw={500}>
+        {t('startApproval.identities')}
+      </Text>
+      <ul style={{ margin: 0, paddingInlineStart: 20 }}>
+        {a.identities.map((i) => (
+          <li key={i.slot}>
+            <Text size="sm" span>
+              <span className="mono">{i.slot}</span> → {i.platformName} · {i.identityName} <PrivilegedBadge size="xs" />
+            </Text>
+          </li>
+        ))}
+      </ul>
+      <Text size="sm" c="dimmed">
+        {t('startApproval.requesters', { users: a.requesters.join(', ') })}
+        {' · '}
+        {t(a.reason === 'policy' ? 'startApproval.byPolicy' : 'startApproval.byProcess')}
+      </Text>
+      {task.status === 'open' && (
+        <Text size="sm" c="dimmed">
+          {t('startApproval.expires', { date: fmtDate(a.expiresAt) })}
+        </Text>
+      )}
+    </Stack>
+  );
 }
 
 export function TaskPanel({ task, showRunLink = true }: { task: TaskRecord; showRunLink?: boolean }) {
@@ -81,7 +118,7 @@ function DecisionPanel({ task, showRunLink }: { task: TaskRecord; showRunLink: b
       {fromLink && <DecideFromLinkModal verb={fromLink} title={task.title} onConfirm={(approve, note) => submit(approve, note)} onClose={link.clear} />}
       <Stack gap="sm">
         <TaskHeader task={task} showRunLink={showRunLink} />
-        <Markdown text={task.instructions} />
+        {task.startApproval ? <StartApprovalDetails task={task} /> : <Markdown text={task.instructions} />}
 
         {task.mode === 'select' && (
           <>
@@ -161,8 +198,11 @@ function DecisionPanel({ task, showRunLink }: { task: TaskRecord; showRunLink: b
         {isOpen && !open ? (
           <Alert color="gray" variant="light">
             {t('panel.waitingForOthers', {
-              reason:
-                task.fourEyes && task.startedBy && task.startedBy.toLowerCase() === username.toLowerCase()
+              reason: task.startApproval
+                ? [task.startedBy, ...task.startApproval.requesters].some((n) => !!n && n.toLowerCase() === username.toLowerCase())
+                  ? t('startApproval.reasonRequester')
+                  : t('startApproval.reasonRights')
+                : task.fourEyes && task.startedBy && task.startedBy.toLowerCase() === username.toLowerCase()
                   ? t('panel.reasonFourEyes')
                   : task.assignees?.length
                     ? t('panel.reasonAssigned', { subjects: task.assignees.map(subjectLabel).join(', ') })

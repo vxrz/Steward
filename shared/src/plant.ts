@@ -182,6 +182,8 @@ export interface PlantSiteSummary extends PlantSource {
   canPropose?: boolean;
   /** 0.13.0: "Changes need a second person" (the site's switch, used while plant.changeSet is optional) */
   review?: boolean;
+  /** 0.14: how often the site's documentation should be confirmed as still current (months; null: no interval) */
+  docReviewMonths?: number | null;
   updatedAt: string;
 }
 
@@ -296,6 +298,8 @@ export interface PlantSettings {
   labels: Partial<Record<PlantRecordType, Record<string, PlantLabel>>>;
   /** Own fields per record type */
   fields: Partial<Record<PlantRecordType, PlantFieldDef[]>>;
+  /** 0.14: review intervals of plant documents per document type (record type key → months; "still current" hints) */
+  documentReview?: Record<string, number>;
   updatedAt: string | null;
   updatedBy: string | null;
 }

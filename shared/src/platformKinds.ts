@@ -159,7 +159,16 @@ const KINDS = {
   'llm-gateway': { label: 'LLM gateway', group: 'ai', connectionTest: 'own', stepTypes: ['ai'], costSource: 'ai', maturity: beta },
   // 0.9.0 and later
   'kafka-connect': { label: 'Kafka Connect', group: 'cloud', checkTypes: ['kafka-connect'], maturity: preview },
-  'confluent-cloud': { label: 'Confluent Cloud', group: 'cloud', jsonApi: true, accessSource: 'confluent', costSource: 'confluent', maturity: preview },
+  'confluent-cloud': {
+    label: 'Confluent Cloud',
+    group: 'cloud',
+    jsonApi: true,
+    apiExample: 'https://api.confluent.cloud',
+    checkTypes: ['confluent'],
+    accessSource: 'confluent',
+    costSource: 'confluent',
+    maturity: preview,
+  },
   datacontract: { label: 'Data contract service', group: 'databases', maturity: preview },
   changedetection: { label: 'changedetection.io', group: 'monitoring', checkTypes: ['page-watch'], maturity: preview },
   // the Workflows URL of a channel, kept as a credential: the Teams card of a webhook output posts to it

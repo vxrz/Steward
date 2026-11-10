@@ -142,4 +142,10 @@ export const PLATFORM_MIGRATIONS: NamedMigration[] = [
     name: 'platforms-007-identity-disabled',
     sql: `ALTER TABLE platform_identities ADD COLUMN disabled INTEGER NOT NULL DEFAULT 0;`,
   },
+  {
+    // Privileged identities (0.14.0, ADR 0009 step 4): a run's start approval is a task with what it is about (JSON:
+    // the privileged identities, who asked, why, until when); NULL for every other task
+    name: 'platforms-008-start-approval',
+    sql: `ALTER TABLE run_tasks ADD COLUMN start_approval TEXT;`,
+  },
 ];

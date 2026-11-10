@@ -137,7 +137,13 @@ export function CheckForm({ check: c, onChange, platforms, monitors, monitorKey,
       />
       {/* the identity it reads with, where the platform has several (0.13.0, ADR 0009) */}
       {'platform' in c && typeof c.platform === 'string' && c.platform && (
-        <IdentitySelect platform={platformByRef(platforms, c.platform)} value={c.identity} onChange={(identity) => set({ identity })} disabled={disabled} />
+        <IdentitySelect
+          platform={platformByRef(platforms, c.platform)}
+          value={c.identity}
+          onChange={(identity) => set({ identity })}
+          disabled={disabled}
+          noPrivileged
+        />
       )}
 
       <Divider label={t('form.schedule')} labelPosition="left" />

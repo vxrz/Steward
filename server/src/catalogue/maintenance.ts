@@ -4,6 +4,7 @@ import {
   MAINTENANCE_KINDS,
   MAINTENANCE_LIMITS,
   MAINTENANCE_TARGET_KINDS,
+  isPlantMaintenanceTarget,
   occurrencesBetween,
   type AclEntry,
   type MaintenanceList,
@@ -29,6 +30,7 @@ import { logger } from '../log.js';
 import { setCatalogueMaintenance, setPlannedDowntime } from '../monitors/maintenance-hook.js';
 import { permissionsOfRow } from '../monitors/model.js';
 import { setMaintenancePause } from '../notifications/service.js';
+import { mayPlanPlantTarget, plantTarget, plantTargetName } from '../plant/targets.js';
 
 /**
  * Maintenance windows (#108): planned work on platforms, systems, applications, services and monitors, once or
@@ -78,8 +80,8 @@ interface WindowRow {
   updated_at: string;
   updated_by: string;
 }
-type TargetRef = { kind: MaintenanceTargetKind; id: string };
-type CatalogueKind = Exclude<MaintenanceTargetKind, 'platform' | 'monitor'>;
+export type TargetRef = { kind: MaintenanceTargetKind; id: string };
+type CatalogueKind = 'service' | 'application' | 'system';
 const catalogueTable = (kind: CatalogueKind) => (kind === 'service' ? 'services' : kind === 'application' ? 'applications' : 'systems');
 
 // ---------- input ----------
@@ -115,7 +117,8 @@ export const maintenanceInput = z
       .nullable()
       .default(null),
     targets: z
-      .array(z.object({ kind: z.enum(MAINTENANCE_TARGET_KINDS), id: z.string().trim().min(1).max(100) }).strict())
+      // a plant device or collection is written <asset>/<id> (0.14)
+      .array(z.object({ kind: z.enum(MAINTENANCE_TARGET_KINDS), id: z.string().trim().min(1).max(161) }).strict())
       .min(1)
       .max(MAINTENANCE_LIMITS.targets),
     responsible: z.array(subject).max(20).default([]),
@@ -138,15 +141,17 @@ const platformRights = (u: AuthUser | null, p: Pick<PlatformRow, 'id' | 'acl'>) 
 
 type MonitorRef = { id: string; name: string; owner: string; acl: string };
 /** A monitor (not a template) by id. */
-const monitorRef = (id: string) => db().get<MonitorRef>('SELECT id, name, owner, acl FROM monitors WHERE id = ? AND is_template = 0', id);
+export const monitorRef = (id: string) => db().get<MonitorRef>('SELECT id, name, owner, acl FROM monitors WHERE id = ? AND is_template = 0', id);
 
-function ownersOf(kind: CatalogueKind, id: string): string[] | null {
+export function ownersOf(kind: CatalogueKind, id: string): string[] | null {
   const r = db().get<{ owners: string }>(`SELECT owners FROM ${catalogueTable(kind)} WHERE id = ?`, id);
   return r ? parseJson<string[]>(r.owners, []) : null;
 }
 
 /** The item's name, or null when it does not exist or the reader may not see it (#131); jobs without a reader see all. */
-function nameOf(t: TargetRef, u: AuthUser | null): string | null {
+export function nameOf(t: TargetRef, u: AuthUser | null): string | null {
+  // 0.14: a site, asset, device or collection of the plant registry – who may see its site
+  if (isPlantMaintenanceTarget(t.kind)) return plantTargetName(t.kind, t.id, u);
   if (t.kind === 'platform') {
     const p = db().get<PlatformRow>('SELECT id, name, acl FROM platforms WHERE id = ?', t.id);
     return p && platformRights(u, p).length ? p.name : null;
@@ -163,13 +168,15 @@ function nameOf(t: TargetRef, u: AuthUser | null): string | null {
 
 /** Whether the item belongs to owning teams (#131): then only those who may change it plan its maintenance. */
 const teamScopedTarget = (t: TargetRef): boolean =>
-  (t.kind === 'platform' || t.kind === 'monitor' ? owningTeams(t.kind, t.id) : catalogueTeams(t.kind, t.id)).length > 0;
+  isPlantMaintenanceTarget(t.kind) || (t.kind === 'platform' || t.kind === 'monitor' ? owningTeams(t.kind, t.id) : catalogueTeams(t.kind, t.id)).length > 0;
 
 /**
  * May the user change this item (and so plan its maintenance)? For a platform the manage right; for a monitor the
  * acknowledge right, which its own maintenance windows needed before 0.11.
  */
 function mayChange(u: AuthUser, t: TargetRef): boolean {
+  // 0.14: plant entries – who manages their site
+  if (isPlantMaintenanceTarget(t.kind)) return mayPlanPlantTarget(t.kind, t.id, u);
   if (t.kind === 'platform') {
     const p = db().get<PlatformRow>('SELECT id, name, acl FROM platforms WHERE id = ?', t.id);
     return !!p && platformRights(u, p).includes('manage');
@@ -185,9 +192,9 @@ function mayChange(u: AuthUser, t: TargetRef): boolean {
 /**
  * Planning maintenance for these items: each one the user may change, or – for items of the whole instance (no owning
  * team), as before team scopes – any item a service editor can see. Monitors always need the acknowledge right (as
- * their own windows did). A window without items: service editors.
+ * their own windows did); plant entries who manages their site (0.14). A window without items: service editors.
  */
-const canPlan = (u: AuthUser, targets: TargetRef[]) =>
+export const canPlan = (u: AuthUser, targets: TargetRef[]) =>
   targets.length
     ? targets.every((t) => mayChange(u, t) || (t.kind !== 'monitor' && canCreateServices(u) && !teamScopedTarget(t) && nameOf(t, u) !== null))
     : canCreateServices(u);
@@ -248,7 +255,7 @@ export const reachesMonitor = (reach: Reach, monitorId: string): boolean =>
 
 // ---------- reading ----------
 
-const targetsOf = (id: string): TargetRef[] =>
+export const targetsOf = (id: string): TargetRef[] =>
   db()
     .all<{ kind: MaintenanceTargetKind; target_id: string }>('SELECT kind, target_id FROM maintenance_targets WHERE window_id = ? ORDER BY kind, target_id', id)
     .map((t) => ({ kind: t.kind, id: t.target_id }));
@@ -275,7 +282,7 @@ function row(id: string): WindowRow {
 }
 
 /** A window the reader may see (404 otherwise, as for one that does not exist). */
-function visibleRow(id: string, u: AuthUser | null): WindowRow {
+export function visibleRow(id: string, u: AuthUser | null): WindowRow {
   const r = row(id);
   if (!windowVisible(u, targetsOf(id))) throw new HttpError(404, `Maintenance window ${id} not found`, 'MAINTENANCE_NOT_FOUND', { id });
   return r;
@@ -324,7 +331,7 @@ function toSummary(r: WindowRow, u: AuthUser | null, now: number): MaintenanceWi
 }
 
 /** Monitors that check one of these platforms (their definitions name the platform ids). */
-function monitorsOn(platforms: Set<string>): string[] {
+export function monitorsOn(platforms: Set<string>): string[] {
   if (!platforms.size) return [];
   return db()
     .all<{ id: string; definition: string }>('SELECT id, definition FROM monitors WHERE is_template = 0')
@@ -365,7 +372,17 @@ export function listMaintenance(f: MaintenanceFilter = {}, now = Date.now()): Ma
     .filter((r) => windowVisible(u, targetsOf(r.id)));
   if (f.target) {
     const [kind, id] = [f.target.slice(0, f.target.indexOf(':')), f.target.slice(f.target.indexOf(':') + 1)];
+    // 0.14: a plant entry – windows that list it, or (an asset, device or collection) the site or asset it is in
+    const site = isPlantMaintenanceTarget(kind) ? plantTarget(kind, id) : null;
+    const listing = (r: WindowRow) =>
+      targetsOf(r.id).some(
+        (t) =>
+          (t.kind === kind && t.id === id) ||
+          (!!site && kind !== 'site' && t.kind === 'site' && t.id === site.siteId) ||
+          (!!site?.assetId && (kind === 'device' || kind === 'collection') && t.kind === 'asset' && t.id === site.assetId),
+      );
     rows = rows.filter((r) => {
+      if (isPlantMaintenanceTarget(kind)) return listing(r);
       const reach = reachOf(targetsOf(r.id));
       if (kind === 'monitor') return reachesMonitor(reach, id);
       const set = reach[`${kind}s` as keyof Reach] as Set<string> | undefined;
@@ -455,7 +472,28 @@ function writeTargets(id: string, targets: TargetRef[]): void {
 /** The reminder: as given, else 24 hours before maintenance and none before planned downtime (ADR 0021). */
 const reminderOf = (input: MaintenanceInput): number => input.reminderHours ?? (input.kind === 'downtime' ? 0 : 24);
 
-export function createMaintenance(input: MaintenanceInput): MaintenanceWindowDetail {
+/** The input that would save a window as it is (0.14: the impact's actions change one part of it). */
+export function inputOfWindow(id: string): MaintenanceInput {
+  const r = row(id);
+  return {
+    kind: r.kind === 'downtime' ? 'downtime' : 'maintenance',
+    title: r.title,
+    note: r.note,
+    startsAt: r.starts_at,
+    endsAt: r.ends_at,
+    recurrence: recurrenceOf(r),
+    targets: targetsOf(id),
+    responsible: parseJson<string[]>(r.responsible, []),
+    changeRecordId: r.change_record_id,
+    quietMonitors: !!r.quiet_monitors,
+    pauseMessages: !!r.pause_messages,
+    reminderHours: Number(r.reminder_hours),
+    enabled: r.enabled !== 0,
+  };
+}
+
+/** `from`: the window whose impact it was made from (0.14, "Planned downtime for the affected monitors"). */
+export function createMaintenance(input: MaintenanceInput, meta: { from?: string } = {}): MaintenanceWindowDetail {
   const u = me();
   // service editors hear first about an item that does not exist (or that they may not see), as before team scopes
   if (canCreateServices(u)) checkTargets(input.targets, u);
@@ -495,8 +533,8 @@ export function createMaintenance(input: MaintenanceInput): MaintenanceWindowDet
       action: 'maintenance.created',
       entityType: 'maintenance',
       entityId: id,
-      summary: `Maintenance "${input.title}" planned (${describe(input)}; ${input.targets.length} item(s)${input.enabled === false ? ', disabled' : ''})`,
-      details: { ...input },
+      summary: `${input.kind === 'downtime' ? 'Planned downtime' : 'Maintenance'} "${input.title}" planned (${describe(input)}; ${input.targets.length} item(s)${input.enabled === false ? ', disabled' : ''})${meta.from ? `, for the monitors affected by ${meta.from}` : ''}`,
+      details: { ...input, ...(meta.from ? { from: meta.from } : {}) },
     });
   });
   invalidate();
@@ -949,6 +987,64 @@ setMaintenancePause((runId) => maintenancePausesRun(runId));
 
 type NoticeKind = 'planned' | 'reminder' | 'start' | 'end';
 
+/**
+ * 0.14: the affected owners told from the impact view – the announcement "Maintenance planned" to the people the impact
+ * names (not only those the window lists), once per version of the window (a changed window may be announced again).
+ * Returns the number of recipients; null when it was sent for this version before.
+ */
+export async function announceImpact(id: string, contacts: { subject: string; of: string[] }[]): Promise<number | null> {
+  const u = me();
+  const r = row(id);
+  if (!canPlan(u, targetsOf(id))) forbid('tell the owners about this maintenance window', 'planMaintenance');
+  if (r.cancelled_at) throw new HttpError(409, 'The maintenance window was cancelled', 'MAINTENANCE_CANCELLED');
+  const claimed =
+    db().run(
+      'INSERT INTO maintenance_notices (window_id, occurrence_start, kind, sent_at) VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING',
+      id,
+      r.updated_at,
+      'impact',
+      nowIso(),
+    ).changes === 1;
+  if (!claimed) return null;
+  const { usersOfSubjects } = await import('../tickets/reminders.js');
+  const { notify } = await import('../notifications/service.js');
+  const { t, formatDateTime } = await import('../i18n/index.js');
+  // each person hears what of theirs it affects (through their teams too)
+  const ofUser = new Map<string, Set<string>>();
+  for (const c of contacts)
+    for (const x of usersOfSubjects([c.subject])) for (const o of c.of) (ofUser.get(x.id) ?? ofUser.set(x.id, new Set()).get(x.id)!).add(o);
+  const recipients = usersOfSubjects(contacts.map((c) => c.subject));
+  const start = Date.parse(currentOf(r, Date.now())?.startsAt ?? r.starts_at);
+  const dur = Date.parse(r.ends_at) - Date.parse(r.starts_at);
+  const items = targetsOf(id)
+    .map((x) => nameOf(x, null))
+    .filter((x): x is string => !!x);
+  db().tx(() =>
+    audit({
+      action: 'maintenance.impact_notified',
+      entityType: 'maintenance',
+      entityId: id,
+      summary: `The owners affected by maintenance "${r.title}" were told (${recipients.length} people)`,
+      details: { subjects: contacts.map((c) => c.subject), recipients: recipients.map((x) => x.username) },
+    }),
+  );
+  notify({
+    event: 'maintenance.announced',
+    personal: true,
+    text: (l, x) => {
+      const of = [...(x ? (ofUser.get(x.id) ?? []) : [])].slice(0, 10).join(', ') || '–';
+      const params = { title: r.title, start: formatDateTime(l, iso(start)), end: formatDateTime(l, iso(start + dur)), items: items.join(', ') || '–', of };
+      return { title: t(l, 'maintenance.impact.title', params), body: t(l, 'maintenance.impact.body', params) + (r.note ? `\n\n${r.note.slice(0, 500)}` : '') };
+    },
+    link: `/maintenance?open=${r.id}`,
+    recipients,
+    inAppKey: `maintenance:${r.id}:impact:${r.updated_at}`,
+    externalKey: `maintenance:${r.id}:impact:${r.updated_at}`,
+    data: { windowId: r.id, phase: 'impact', startsAt: iso(start), endsAt: iso(start + dur) },
+  });
+  return recipients.length;
+}
+
 /** The people to tell: the responsible people and the owners of what it lists and reaches (applications, systems). */
 async function recipientsOf(r: WindowRow) {
   const { usersOfSubjects } = await import('../tickets/reminders.js');
@@ -957,6 +1053,12 @@ async function recipientsOf(r: WindowRow) {
   const subjects = new Set<string>(parseJson<string[]>(r.responsible, []));
   for (const t of targets) {
     if (t.kind === 'platform') continue;
+    // 0.14: a plant entry – the owning teams of its site
+    if (isPlantMaintenanceTarget(t.kind)) {
+      const site = plantTarget(t.kind, t.id)?.siteId;
+      if (site) for (const team of owningTeams('site', site)) subjects.add(`team:${team.name.toLowerCase()}`);
+      continue;
+    }
     if (t.kind === 'monitor') {
       const owner = monitorRef(t.id)?.owner;
       if (owner) subjects.add(`user:${owner.toLowerCase()}`);

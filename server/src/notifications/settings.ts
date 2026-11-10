@@ -56,6 +56,7 @@ export function defaultRoutes(): Record<NotificationEvent, NotificationChannel[]
     'contract.failed',
     'plant.change_proposed',
     'plant.change_decided',
+    'plant.advisory_matched',
   ];
   // emergency access: every channel that is set up, so nobody can use it unnoticed
   return Object.fromEntries(

@@ -19,9 +19,9 @@ import { requireCapability } from '../auth/permissions.js';
  *   GET    /platforms/:id/identities                              whoever sees the platform (names and flags)
  *   POST   /platforms/:id/identities                              manage
  *   GET    /platforms/:id/identities/:identityId/settings         manage (sign-in settings, variables – never credentials)
- *   PUT    /platforms/:id/identities/:identityId                  manage; loosening (read-only off, wider filter): step-up
+ *   PUT    /platforms/:id/identities/:identityId                  manage; loosening (read-only or privileged off, wider filter): step-up
  *   DELETE /platforms/:id/identities/:identityId                  manage; never the default, never one still in use
- *   PUT    /platforms/:id/identities/:identityId/secrets          manage
+ *   PUT    /platforms/:id/identities/:identityId/secrets          manage; ?rotation=1 records it on the register entries (0.14.0)
  *   PUT    /platforms/:id/identities/:identityId/access           manage; adding someone: step-up (grantAccess)
  *   PUT    /platforms/:id/identities/:identityId/mcp              manage; approved writes on: step-up (allowMcpWrites)
  *   POST   /platforms/:id/identities/:identityId/default          manage; step-up (everyone with "use" gets it)
@@ -49,6 +49,8 @@ const identityBody = z
       .optional(),
     variables: boundedRecord(z.string().max(2000), 100).optional(),
     readOnly: z.boolean().optional(),
+    // 0.14.0 (ADR 0009 step 4): turning it off loosens the identity (step-up, like read-only off)
+    privileged: z.boolean().optional(),
     operationFilter: filterBody.optional(),
   })
   .strict();
@@ -106,7 +108,16 @@ export async function platformIdentityRoutes(app: FastifyInstance): Promise<void
   app.put('/platforms/:id/identities/:identityId/secrets', async (req) => {
     const { id, identityId } = ids(req);
     requirePlatform(id, 'manage', 'change the credentials of this identity');
-    return identities.setIdentitySecrets(id, identityId, boundedRecord(z.string().max(20000).nullable(), 100).parse(req.body));
+    // "This is a rotation" (0.14.0, ADR 0009 step 4): ?rotation=1 records it on the register entries that document the identity
+    const { rotation } = z.object({ rotation: z.enum(['0', '1']).optional() }).parse(req.query ?? {});
+    const patch = boundedRecord(z.string().max(20000).nullable(), 100).parse(req.body);
+    const out = identities.setIdentitySecrets(id, identityId, patch);
+    // a new value, not only removed ones
+    if (rotation === '1' && Object.values(patch).some((v) => !!v)) {
+      const { recordIdentityRotation } = await import('../credentials/service.js');
+      recordIdentityRotation(id, identityId, me().username);
+    }
+    return out;
   });
   app.put(
     '/platforms/:id/identities/:identityId/access',

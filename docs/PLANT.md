@@ -9,10 +9,13 @@ The plant registry documents the factories of the enterprise an installation ser
 - [Sites, hierarchy and buildings](#sites-hierarchy-and-buildings)
 - [Assets](#assets)
 - [Links to Steward items](#links-to-steward-items)
+- [Documentation still current](#documentation-still-current)
+- [Maintenance of plant entries](#maintenance-of-plant-entries)
 - [Own fields and display names](#own-fields-and-display-names)
 - [Device profiles, data points and KPIs](#device-profiles-data-points-and-kpis)
 - [Profile inheritance and asset additions](#profile-inheritance-and-asset-additions)
 - [Part 3: OT network](#part-3-ot-network)
+- [Security advisories](#security-advisories)
 - [Data collections](#data-collections)
 - [Visualizations](#visualizations)
 - [Map](#map)
@@ -101,6 +104,42 @@ Below them, read-only and marked _Inherited_, the panel lists what the entry inh
 | A data collection        | those of its sinks                                                                                       |
 
 A record is listed once: where the entry has it itself, else under the first entry it comes from. A record the reader may not read is counted (_1 more document you may not read_), not named; a plant viewer reads no records and sees only the counts. `GET /api/plant/documents?kind=site|asset|device-profile|data-collection|data-sink&id=…` answers the panel, with the rights of the page it belongs to.
+
+## Documentation still current
+
+Since 0.14. Plant assets and their documents live for decades: a manual written at commissioning may well still be right twenty years later – or quietly be wrong since the last retrofit. Steward does not judge that; it records that **someone looked**.
+
+- **Still current** beside each document of a [Documents](#documents) panel – also the inherited ones – stores who confirmed it and when, shown as _Last confirmed by dana on 4 Nov 2026_ (the user name) (_Not confirmed yet_ before). On an asset, **All still current** confirms the asset's documentation **as a whole** – its documents and what the registry records about it.
+- **Who:** who may propose changes on the site (operators and the role _Plant viewer_ included – who works on the plant knows best whether its papers still fit); on a device profile's panel, who manages the catalogues. A plant viewer reads no records, so they confirm only an asset's documentation as a whole. Each confirmation is audited (`plant.document_confirmed` on the record, `plant.documentation_confirmed` on the asset, with the previous confirmation); the last one is kept per document and per asset, follows a renamed asset and goes with a removed one.
+- **Not a change set operation.** Confirming changes no entry: no value, no revision, nothing a second person could review, compare or revert – it is a note that someone looked, as a periodic review is on a record. A site whose changes need a second person ([Change sets](#change-sets)) is confirmed by one person like any other. It is also not the [periodic review of living documents](RECORDS.md#periodic-reviews), which is a control with reminders and new editions; a document can have both.
+
+### Review intervals
+
+A **review interval** is optional and only ever a **hint**:
+
+- **per site**: _Documentation review interval_ (months) on the site's overview, beside _Changes need a second person_ and the access list – a setting of the site, changed by who manages it (`PUT /api/plant/sites/:siteId/doc-review`, audited as `site.doc_review_changed`; not part of the file format);
+- **per document type**: _Settings → Modules → Plant registry → Review intervals of documents_ (months per living-document type, `documentReview` in the plant settings) – it applies instead of the site's.
+
+When the last confirmation – or, before the first, the document's last change (an asset: when it was added) – is older than the interval, the document shows **A look is due** in a quiet blue, else _Next look by …_. Never red, never an alert, no notification: nothing is wrong with an old document, and a reminder every three years for every manual of a site would only teach people to ignore reminders. Without an interval nothing is ever due.
+
+### Documentation health
+
+The site's **Documentation** tab (`/plant/sites/:siteId/documentation`) lists, as folding sections that work on a phone, what is **missing** – each entry linked to where to fill it in:
+
+| Gap                                         | Where it leads                                                                            |
+| ------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| Assets without a device profile             | the asset (its _Data and KPIs_)                                                           |
+| Devices without a VLAN                      | the site's OT network, _Devices_                                                          |
+| Data paths without a destination            | the site's OT network, _Data paths_                                                       |
+| Data collections without a sink             | the collection                                                                            |
+| Data collections without items              | the collection                                                                            |
+| KPIs the machines could have, not collected | the asset's collections ([KPI coverage](#kpi-coverage): _Device delivers, not collected_) |
+
+Below them, marked _hint_ and folded, the **confirmations that are due**: assets whose documentation was not confirmed within the site's interval, and documents of the site, its assets and their collections not confirmed within their interval. The header says which intervals apply and how many assets have their documentation confirmed. The tab follows the site's rights; documents the reader may not read are left out (a plant viewer sees the gaps). API: `GET /api/plant/sites/:siteId/documentation`; `POST /api/plant/documents/confirm` with `{ kind: "record", id, entry: { kind, id } }` (a document as listed on that page) or `{ kind: "asset", id }`; the Documents panel answer carries `confirmation` and `review` per document and `documentation` for an asset. Read-only in the public API: `GET /api/v1/plant/assets/{assetId}/documentation`, and `docReviewMonths` on a site.
+
+## Maintenance of plant entries
+
+Since 0.14 a [maintenance window](APPLICATIONS.md#maintenance-windows) can list a **site**, an **asset**, a **device** (a gateway, a switch) or a **data collection** (its collector), and the site and asset pages show and plan their maintenance (who manages the site plans it). Before it is saved and on its page, the window shows [what it affects](APPLICATIONS.md#impact-before-maintenance): the devices behind a switch, data paths and collections, the KPI jobs and coverage that read their data points, datasets, dashboards, monitors and the owners to tell. Renamed entries stay listed; while the module is off they read like deleted items.
 
 ## Own fields and display names
 
@@ -369,6 +408,10 @@ Linking a monitor or a dataset needs the right to see it – in the editor, the 
 
 The OT network follows its site ([Permissions](#permissions)): who **sees the site** sees its VLANs, zones, conduits and the devices, data paths and live status of its assets – the role _Plant viewer_ included; who **manages the site** changes them. Status viewers never reach it, and nothing of it is shown on status pages. A site or asset someone may not see answers `404`, in the import too ("There is no site …", "You may not add or change asset …"); a VLAN's other sites (`sites` and `otherSites`, in the internal API, `/api/v1` and the export) and the conduit link targets leave out sites they may not see – a save or an import keeps those, as they cannot name or remove them. Linking a monitor or a dataset as a check, a segment, a collector or a host needs to see it (an item that was linked before may stay); a dataset as a data path's destination is documentation and may be one that is published later. Every change is audited on its site or asset: `site.vlan_added|vlan_changed|vlan_removed`, `site.zone_*`, `site.conduit_*`, `asset.device_added|device_changed|device_removed`, `asset.data_path_*`, `asset.checks_set`; creating a segment from a VLAN is also `system.created`.
 
+## Security advisories
+
+Since 0.14 _Plant → Advisories_ matches **CSAF 2.0 security advisories** of device vendors and CISA to the assets by manufacturer, model and firmware – the asset's own and its device profile's, with the assignment's _controller firmware_: which assets of which sites and zones (with their SL-T) are affected, how badly, and which firmware fixes it. Only an exact (normalised) vendor and model with the firmware in the affected range counts; weaker matches are _possible matches_ that a person confirms or dismisses. Each affected asset has a remediation status (open, planned, mitigated, accepted risk, not affected), a site can mark an advisory not applicable, and new high and critical matches notify the site's managers. Advisories come from sources an administrator adds (none by default) or are uploaded as files – the way for plants without internet access. The asset page has a section _Advisories_. Everything about sources, matching rules, statuses, rights and limits is in [ADVISORIES.md](ADVISORIES.md).
+
 ## Data collections
 
 Since 0.11.0 ([ADR 0019](adr/0019-data-collections.md)) an asset documents **what collectors read from it** – a gateway, an ETL job, a Node-RED flow: which addresses, how often, under which name, what they do with the values and where they load them. Asset page → **Collections**.
@@ -429,6 +472,32 @@ Since 0.12 a collection documents **where its data goes** after it is loaded –
 Everything is documentation: Steward runs no step, no expression and no code. Every item goes to every sink; the mapping names it there. The page shows the flow _items → transformation steps → sinks_, per sink its steps and items, and what reads its data **next** as far as Steward knows it: the data paths that read from the sink's Steward system (the next link of a chain, as on the data path page) and the dashboards that show its dataset. A data point's page says per collection where the data point **goes** (sink, target, its name there). The asset's data flow and the data point's lineage draw every sink. Rights: a target, data path or dashboard the reader may not see is not named – a target reads _a target you may not see_, the others are counted.
 
 Importers fill sinks where the format names them (see [Formats](#formats)). A re-import replaces the sinks it wrote earlier and keeps what people added: a sink entered by hand (or from a YAML file) stays, and on a sink of the import the description, owner and item names the file does not have stay. In the [YAML format](#yaml-import-and-export) an asset network takes `collections` (0.12, the collections with their items) and `collection_sinks`.
+
+### Insights Hub mapping
+
+Since 0.14 a sink whose target is an **Insights Hub platform** (kind _platform_, the platform as its target) maps each item of its collection to an Insights Hub **asset, aspect and variable** – freely per item: one collection may feed several assets and aspects (a machine's state to its own asset, its power meter's values to another), and the variable may be named differently from the data point. Collection → **Where the data goes** → the sink's **Insights Hub mapping**.
+
+- **Per item**: the asset by its **Insights Hub id** (its name is kept for display only), the aspect, and the **variable** – the item's name in the sink (`target`). An item without an asset or aspect of its own takes the sink's **default asset and aspect**. The asset id may be a placeholder: `{asset.ref:insights-hub}` is the plant asset's external reference of that system (`refs`), so one mapping – in a file imported for many assets – serves each of them.
+- **Tools**: _One asset for many items_ maps the items with a data point (or all) to one asset and aspect with the same variable names – the collector's output names, the data points' ids, or the names in the sink as they are – and leaves mapped items alone unless asked; **CSV** (`item,asset_id,asset_name,aspect,variable`, an item by its output name or address, `;` works too) is read with _merge_ (the lines change their items) or _replace_ (items the file does not list lose their target), and downloads the same way; _Per item_ edits each line and the default. A change of the mapping is a change of the collection: its revision, a draft where the site needs a second person, audited as `plant.collection_updated` (with `insightsHub: { sink, via: edit | bulk | csv, items }`).
+- **In the file format** (additive): a sink takes `insights_hub: { asset_id, asset_name, aspect }`, a mapping `asset_id`, `asset_name` and `aspect` – empty values are left out, so files of 0.12 and 0.13 read and export as before. A re-import of the collector's configuration keeps the mapping written in Steward (the sink's target, its default and each item's asset and aspect).
+
+**Check mapping** reads the tenant – **never writes** – and reports per item:
+
+| Result                                | Means                                                                                                                                                                                                 |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **OK**                                | the asset exists, the aspect is on it and the variable is in the aspect's type                                                                                                                        |
+| **Unit differs**, **Type differs**    | as OK – a hint: the data point's unit (rpm and /min are the same) or type does not fit the variable's                                                                                                 |
+| **Asset / Aspect / Variable missing** | the first thing that is not there                                                                                                                                                                     |
+| **Not checked**                       | more assets than one run reads (50): the rest waits for the next check                                                                                                                                |
+| **Check failed**                      | the run stopped: Insights Hub refused the credentials (401), the identity may not read Asset Management (403), or limits the requests (429, after the platform's own retries – with the time to wait) |
+
+It does **not** compare the plant's ISA-95 hierarchy with the asset hierarchy in Insights Hub – they differ regularly, and that is fine. Per asset it reads `GET …/assetmanagement/v3/assets/{id}` and its aspects with their variables (`…/assets/{id}/aspects`, 100 per page, at most 5 pages; an aspect without its variables: `…/aspecttypes/{id}`, at most 50 per run), each once per run, with the platform's **default identity** – a read-only identity is enough. The result is stored with its time, who checked and the identity (`plant.ih_mapping_checked`, with the counts), shown on the sink and on the data point's page (_Insights Hub: Machine 17 / MachineData / spindleSpeed – OK, checked on …_); an item whose target changes since shows _not checked_ until the next check.
+
+**Monitors first.** Freshness alone says little about a machine that may be off on purpose, so the mapping is watched by [monitors with states](MONITORS.md#states-off-is-not-an-outage), and **existing monitors come first**: per asset and aspect the sink shows the Insights Hub freshness checks that read the same platform, asset and aspect with the variable – linked, a monitor the reader may not see counted only – and which variables nobody watches. Only for those does it offer **Create monitor**: a disabled draft ([From an Insights Hub mapping](MONITORS.md#from-an-insights-hub-mapping)). The links of items to monitor checks are stored (made from the mapping, or found by its last check), so the monitor's page says _Covers 3 mapped items of Mill 17 · Mill data_.
+
+**Coverage.** The sink counts its items **mapped**, **verified** (the last check found the target) and **watched** by a monitor check, and lists the gaps; a site's tab **Insights Hub** does so for every Insights Hub sink of its collections, with the way to each collection (phones fold the gaps). In the [KPI coverage](#kpi-coverage) a _Collected – ready_ cell whose inputs all go to verified targets says so (`ihVerified: true` on the cell, `potential.ihVerified` – additive; the states stay as they are).
+
+**Rights.** The mapping follows the collection: who sees the site sees it, who manages the site changes it (as the collection). **Check mapping** also needs the right to **use the platform** and its default identity – it reads the tenant as that identity; without it the button says why. **Create monitor** also needs the right to create monitors. Routes: `GET …/collections/:collectionId/sinks/:sinkId/insights-hub`, `PUT …/insights-hub/mapping`, `POST …/insights-hub/bulk | /csv | /check | /monitor`, `GET …/insights-hub/mapping.csv`, `GET /api/plant/sites/:siteId/insights-hub`, `GET /api/plant/monitors/:monitorId/insights-hub`; public: `GET /api/v1/plant/assets/{assetId}/collections/{collectionId}/sinks/{sinkId}/insights-hub`; MCP: `get_insights_hub_mapping`. Renaming the asset keeps its checks and links; removing a collection, a sink or the asset takes them along.
 
 ### Gateway configurations
 
@@ -1075,7 +1144,10 @@ The public, read-only API ([API.md](API.md), tag _Plant_):
 - `GET /api/v1/plant/sites/{siteId}/network` – the OT network of a site: VLANs (with the linked segment and the hint), zones, conduits (with the records that link to them), the devices and data paths of its assets and every asset's live status;
 - `GET /api/v1/plant/assets/{assetId}/network` – an asset's devices, data paths, own checks and live status;
 - `GET /api/v1/plant/assets/{assetId}/collections` – an asset's data collections with their items, mapping and coverage (0.11.0);
-- `GET /api/v1/plant/export?site=|part=catalogue|profile=|kpi=&format=yaml|json` – the registry in the import format (with the OT network).
+- `GET /api/v1/plant/assets/{assetId}/documentation` – whether the asset's documentation and each of its documents are confirmed as still current, by whom, and whether a look is due (0.14, [Documentation still current](#documentation-still-current));
+- `GET /api/v1/plant/export?site=|part=catalogue|profile=|kpi=&format=yaml|json` – the registry in the import format (with the OT network);
+- `GET /api/v1/plant/advisories`, `GET /api/v1/plant/advisories/{advisoryId}`, `GET /api/v1/plant/assets/{assetId}/advisories` – security advisories with their matches at the sites the token owner may see (0.14, [ADVISORIES.md](ADVISORIES.md#api-and-assistants));
+- `GET /api/v1/plant/assets/{assetId}/collections/{collectionId}/sinks/{sinkId}/insights-hub` – a sink's Insights Hub mapping per item, the last check against the tenant and the monitor checks that watch it (0.14).
 
 They answer `404` while the module is off.
 

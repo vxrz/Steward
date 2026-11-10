@@ -210,6 +210,10 @@
       "change_decided": {
         "label": "Plant change decided",
         "info": "A plant change you wrote was applied, rejected, returned to you or expired (with the reviewer’s comment)"
+      },
+      "advisory_matched": {
+        "label": "Security advisory affects a site",
+        "info": "A new high or critical security advisory affects assets of a site you manage (plant registry)"
       }
     }
   },

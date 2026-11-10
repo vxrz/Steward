@@ -206,16 +206,32 @@ export const HISTORY_COLUMNS: string[] = [
   'plant_collection_mappings.created_by',
   // the kept files of collection imports (0.12)
   'plant_collection_sources.imported_by',
+  // 0.14: the last check of an Insights Hub mapping and the links of sink items to monitor checks
+  'plant_ih_checks.checked_by',
+  'plant_ih_monitor_links.created_by',
   // old ids of renamed plant entries (0.11.0)
   'plant_id_aliases.renamed_by',
   // the history of plant entries (0.13.0): who wrote a change and who applied it
   'plant_entry_history.author',
   'plant_entry_history.applied_by',
+  // security advisories (0.14): who added a source or a document, who decided on a match, recorded a remediation or
+  // marked an advisory as not applicable at a site
+  'plant_advisory_sources.created_by',
+  'plant_advisory_sources.updated_by',
+  'plant_advisories.created_by',
+  'plant_advisories.updated_by',
+  'plant_advisory_matches.decided_by',
+  'plant_advisory_matches.remediation_by',
+  'plant_advisory_sites.decided_by',
+  // who confirmed plant documentation as still current (0.14)
+  'plant_doc_confirmations.confirmed_by',
   'access_checks.updated_by',
   'application_components.created_by',
   'platform_recordings.created_by',
   'platform_recordings.updated_by',
   'platform_health.updated_by',
+  // who last read a Confluent Cloud platform (0.14)
+  'confluent_readouts.read_by',
   'kafka_connect_readouts.read_by',
   // platform identities (0.9.0, ADR 0009): who created and last changed one
   'platform_identities.created_by',

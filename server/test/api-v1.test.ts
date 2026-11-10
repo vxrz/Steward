@@ -92,10 +92,33 @@ beforeAll(async () => {
   const otExample = 'brightwater-ot-network.plant.yaml';
   const otContent = (await import('node:fs')).readFileSync(path.resolve(__dirname, '../../examples/plant', otExample), 'utf8');
   await s.api('POST', '/plant/import', { files: [{ name: otExample, content: otContent }], mode: 'add' });
+  // 0.14: security advisories – the invented examples, matching the demo's assets
+  for (const name of ['exctl-sa-2026-001.json', 'exmet-sa-2026-003.json', 'expm-sa-2026-007.json'])
+    await s.api('POST', '/plant/advisories/upload', {
+      content: (await import('node:fs')).readFileSync(path.resolve(__dirname, '../../examples/plant/advisories', name), 'utf8'),
+      fileName: name,
+    });
   await s.api('POST', '/demo/setup', {});
   await allowEmailDomains(s, ['example.com']);
   [vera, audrey, dana] = await Promise.all(['vera', 'audrey', 'dana'].map((u) => s.as(u, PW)));
   hub = (await s.api('GET', '/platforms')).find((p: any) => p.kind === 'insights-hub').id;
+  // 0.14: a data collection whose sink is the Insights Hub platform, its items mapped to an asset and aspect there
+  await s.api('POST', '/plant/assets/rvs-mill-01/collections', {
+    id: 'v1-ih',
+    name: 'To Insights Hub',
+    collector: { kind: 'job', ref: 'v1-gateway' },
+    items: [{ address: 'ns=2;s=Speed', outputName: 'speed' }],
+    sinks: [
+      {
+        id: 'ih',
+        name: 'Insights Hub',
+        kind: 'platform',
+        ref: hub,
+        ih: { assetId: 'v1-asset', assetName: '', aspect: 'Energy' },
+        mappings: [{ item: 'speed', target: 'speed' }],
+      },
+    ],
+  });
 
   const { DEMO_CREDENTIALS } = await import('../src/mock/mockPlatform.js');
   SECRETS.push(DEMO_CREDENTIALS.client.secret, DEMO_CREDENTIALS.iem.password);
@@ -514,9 +537,23 @@ async function crawl(token: string): Promise<{ template: string; url: string; re
   for (const x of await listAll('/plant/sites', '/plant/sites')) await get('/plant/sites/{siteId}/network', `/plant/sites/${x.id}/network`);
   for (const id of ['rvs-mill-01', 'rvs-mill-02']) await get('/plant/assets/{assetId}/network', `/plant/assets/${id}/network`);
   // data collections (0.11): what collectors read from an asset
-  for (const id of ['rvs-mill-01', 'rvs-mill-02']) await get('/plant/assets/{assetId}/collections', `/plant/assets/${id}/collections`);
+  for (const id of ['rvs-mill-01', 'rvs-mill-02']) {
+    const r = await get('/plant/assets/{assetId}/collections', `/plant/assets/${id}/collections`);
+    // 0.14: the Insights Hub mapping of each sink
+    for (const c of r.status === 200 ? ((r.body as any).collections ?? []) : [])
+      for (const sk of c.sinks ?? [])
+        await get(
+          '/plant/assets/{assetId}/collections/{collectionId}/sinks/{sinkId}/insights-hub',
+          `/plant/assets/${id}/collections/${c.id}/sinks/${sk.id}/insights-hub`,
+        );
+  }
+  // 0.14: whether an asset's documentation is confirmed as still current
+  for (const id of ['rvs-mill-01', 'rvs-mill-02']) await get('/plant/assets/{assetId}/documentation', `/plant/assets/${id}/documentation`);
   // what Steward checks, and the export in the import format (YAML; JSON is the same document)
   await listAll('/plant/checks', '/plant/checks');
+  // security advisories (0.14): the invented examples, uploaded in beforeAll; matches of the demo's assets
+  for (const x of await listAll('/plant/advisories', '/plant/advisories?all=true')) await get('/plant/advisories/{advisoryId}', `/plant/advisories/${x.id}`);
+  for (const id of ['rvs-mill-02', 'hlc-im-01']) await get('/plant/assets/{assetId}/advisories', `/plant/assets/${id}/advisories`);
   await get('/plant/export', '/plant/export');
   await get('/plant/export', '/plant/export?part=catalogue');
   // database schemas (#222): the demo database platform (read) and a system (a tbls import)

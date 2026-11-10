@@ -195,7 +195,7 @@ export const MODULES: readonly ModuleDef[] = [
     nav: ['plantSites', 'plantAssets', 'plantMap', 'plantProfiles', 'plantKpis', 'plantExplore', 'plantChecks', 'plantImport', 'plantChanges'],
     pages: ['/plant'],
     routes: ['/api/plant', '/api/v1/plant'],
-    jobs: ['plant-changes'],
+    jobs: ['plant-changes', 'plant-advisories'],
   },
   {
     id: 'plantMap',

@@ -397,6 +397,10 @@
     "end": {
       "title": "Wartung beendet: {{title}}",
       "body": "{{title}} endete um {{end}}. Betrifft: {{items}}. Monitore melden wieder."
+    },
+    "impact": {
+      "title": "Wartung geplant: {{title}}",
+      "body": "{{title}} ist von {{start}} bis {{end}} geplant und betrifft, was Sie verantworten oder betreuen: {{of}}. Geplant für: {{items}}."
     }
   },
   "measure": {
@@ -570,5 +574,18 @@
       "expired": "Werksänderung von {{author}} verfallen"
     },
     "decidedChannelBody": "Öffnen Sie sie in Steward unter Werk → Änderungen."
+  },
+  "advisoryMatched": {
+    "title": "Sicherheitshinweis {{id}} ({{severity}}) betrifft {{site}}",
+    "body_one": "Der Sicherheitshinweis „{{title}}“ ({{id}}, {{publisher}}, CVSS {{cvss}}) betrifft {{count}} Anlage in {{site}}: {{assets}}. Öffnen Sie den Hinweis, um die Gründe und die korrigierte Firmware zu sehen und die Behebung zu erfassen.",
+    "body_other": "Der Sicherheitshinweis „{{title}}“ ({{id}}, {{publisher}}, CVSS {{cvss}}) betrifft {{count}} Anlagen in {{site}}: {{assets}}. Öffnen Sie den Hinweis, um die Gründe und die korrigierte Firmware zu sehen und die Behebung zu erfassen.",
+    "severity": {
+      "critical": "kritisch",
+      "high": "hoch",
+      "medium": "mittel",
+      "low": "niedrig",
+      "none": "ohne Risiko",
+      "unknown": "ohne Bewertung"
+    }
   }
 }

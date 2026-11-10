@@ -13,6 +13,7 @@ import { mockKafkaConnect } from './mockKafkaConnect.js';
 import { mockMqtt } from './mockMqtt.js';
 import { mockGatus } from './mockGatus.js';
 import { iotTimeseries, mockIotRoutes } from './mockIot.js';
+import { mockAssetManagementRoutes } from './mockAssetManagement.js';
 import { mockZabbix } from './mockZabbix.js';
 import { mockGit } from './mockGit.js';
 import { mockS3 } from './mockS3.js';
@@ -26,6 +27,7 @@ import { mockDtrack } from './mockDtrack.js';
 import { mockChangedetection } from './mockChangedetection.js';
 import { mockDataContract } from './mockDataContract.js';
 import { mockEndoflife } from './mockEndoflife.js';
+import { mockCsaf } from './mockCsaf.js';
 import { mockRegistries } from './mockRegistries.js';
 import { mockMapTiles } from './mockMapTiles.js';
 import { mockUsageRoutes } from './mockUsage.js';
@@ -238,6 +240,7 @@ export async function mockPlatform(app: FastifyInstance): Promise<void> {
   await mockChangedetection(app);
   await mockDataContract(app);
   await mockEndoflife(app);
+  await mockCsaf(app);
   await mockRegistries(app);
   await mockMapTiles(app);
 
@@ -455,6 +458,8 @@ export async function mockPlatform(app: FastifyInstance): Promise<void> {
   };
   app.get(`${AM}/assets`, { preHandler: ihAuth }, async (req) => pageOf('assets', state.assets, req.query as Record<string, string>));
   app.get(`${AM}/assettypes`, { preHandler: ihAuth }, async (req) => pageOf('assetTypes', state.assetTypes, req.query as Record<string, string>));
+  // 0.14: one asset, its aspects with their variables, an aspect type – what "Check mapping" reads
+  mockAssetManagementRoutes(app, AM, ihAuth, () => state);
   app.get('/ih/api/iottimeseries/v3/timeseries/:entity/:aspect', { preHandler: ihAuth }, async (req, reply) => {
     const { entity, aspect } = req.params as { entity: string; aspect: string };
     const iot = iotTimeseries(entity, aspect, req.query as Record<string, string>);

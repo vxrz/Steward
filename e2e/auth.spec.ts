@@ -53,7 +53,7 @@ test.describe('sign-in', () => {
 
   test('too many requests shows how long to wait', async ({ page, allowConsole }) => {
     allowConsole(/status of 429/);
-    // the server's 429 answer (server/test/rate-limit.test.ts), simulated: the shared demo server keeps its limits
+    // the server's 429 answer (server/test/rate-limit.test.ts), simulated: the shared demo server is not run out of its budget on purpose
     await page.route('**/api/auth/login', (route) =>
       route.fulfill({
         status: 429,

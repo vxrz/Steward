@@ -38,6 +38,8 @@ export function ownerProblem(owner: string, platformId: string, identityRef?: st
           : p.identities?.find((x) => x.default);
         if (ref && !i) problem = `the identity "${ref.slice(0, 100)}" of platform "${p.name}" does not exist`;
         else if (i && !i.mayUse) problem = `the monitor owner ${owner} may not use the identity "${i.name}" of platform "${p.name}"`;
+        // privileged identities (0.14.0, ADR 0009 step 4) are used by people who confirm each use, never in the background
+        else if (i?.privileged) problem = `the identity "${i.name}" of platform "${p.name}" is privileged – monitors do not use privileged identities`;
       }
     } catch {
       problem = `platform ${platformId} does not exist`;

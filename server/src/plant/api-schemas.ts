@@ -33,6 +33,8 @@ import {
   VLAN_RANGE_TYPES,
   ZONE_CRITICALITIES,
   ZONE_LEVELS,
+  PLANT_IH_ITEM_STATUSES,
+  PLANT_IH_RUN_ERRORS,
 } from '@sm/shared';
 import { RecordLink } from '../records/api-schemas.js';
 
@@ -100,6 +102,12 @@ export const PlantSiteEntry = z.object({
   assetCount: z.number().int(),
   statusCounts,
   ...source,
+  docReviewMonths: z
+    .number()
+    .int()
+    .nullable()
+    .optional()
+    .describe('0.14: how often the site’s documentation should be confirmed as still current, in months (null: no interval)'),
   updatedAt: ts(),
 });
 
@@ -765,8 +773,21 @@ const Collection = z.object({
             }),
           )
           .describe('The transformation steps on the way, in order (documentation only)'),
-        mappings: z.array(z.object({ item: z.string().describe('The item’s output name, else its address'), target: z.string(), transform: z.string() })),
+        mappings: z.array(
+          z.object({
+            item: z.string().describe('The item’s output name, else its address'),
+            target: z.string().describe('Its name in the sink (on an Insights Hub sink: the variable)'),
+            transform: z.string(),
+            assetId: z.string().optional().describe('0.14, an Insights Hub sink: the item’s asset id there (or a placeholder); missing: the sink’s default'),
+            assetName: z.string().optional().describe('0.14: the Insights Hub asset’s name, for display'),
+            aspect: z.string().optional().describe('0.14, an Insights Hub sink: the item’s aspect; missing: the sink’s default'),
+          }),
+        ),
         imported: z.boolean().describe('Written by an import (the next import replaces it)'),
+        ih: z
+          .object({ assetId: z.string(), assetName: z.string(), aspect: z.string() })
+          .optional()
+          .describe('0.14, a sink whose target is an Insights Hub platform: the default asset and aspect of its items'),
       }),
     )
     .describe('Where the data goes (0.12)'),
@@ -816,6 +837,133 @@ export const PlantAssetCollectionsEntry = z.object({
   totals: z.object({ mapped: z.number().int(), raw: z.number().int(), notCollected: z.number().int() }),
 });
 
+const DocConfirmation = z.object({ at: ts(), by: z.string() }).nullable().describe('The last “Still current”: when and by whom (null: never confirmed)');
+const DocReview = z
+  .object({
+    months: z.number().int().describe('The interval that applies: the document type’s, else the site’s'),
+    dueAt: ts().describe('When the next confirmation is due: the last one – else the last change – plus the interval'),
+    due: z.boolean().describe('A confirmation is due (a hint, never an error)'),
+  })
+  .nullable()
+  .describe('Null: no review interval applies');
+
+export const PlantAssetDocumentationEntry = z.object({
+  assetId: z.string(),
+  confirmation: DocConfirmation.describe('The asset’s documentation as a whole'),
+  review: DocReview,
+  documents: z
+    .array(
+      z.object({
+        id: z.string().describe('Record id'),
+        number: z.string(),
+        title: z.string(),
+        typeKey: z.string(),
+        inheritedFrom: z
+          .object({ kind: z.string(), id: z.string() })
+          .nullable()
+          .describe('Null: linked to the asset itself; else the profile, collection or sink it comes from'),
+        confirmation: DocConfirmation,
+        review: DocReview,
+      }),
+    )
+    .describe('The documents of the asset and those it inherits, as far as the token owner may read them'),
+  hidden: z.number().int().describe('Linked documents the token owner may not read: counted, not named'),
+});
+
+// 0.14: the Insights Hub mapping of a sink and the last check of it against the tenant
+const IhTarget = z.object({ assetId: z.string().describe('The asset’s id in Insights Hub'), assetName: z.string(), aspect: z.string(), variable: z.string() });
+const IhWatcher = z.object({
+  monitorId: z.string(),
+  monitorKey: z.string(),
+  monitorName: z.string(),
+  checkId: z.string(),
+  checkName: z.string(),
+  enabled: z.boolean().describe('false: the monitor or check is switched off (a draft made from the mapping)'),
+  linked: z.boolean().describe('The link is stored (made from the mapping, or found by its last check)'),
+  path: z.string().nullable(),
+});
+const IhCounts = z.object({
+  items: z.number().int(),
+  mapped: z.number().int(),
+  verified: z.number().int().describe('Mapped items whose last check found the asset, aspect and variable'),
+  watched: z.number().int().describe('Mapped items a monitor check watches'),
+  gaps: z.object({ unmapped: z.array(z.number().int()), unverified: z.array(z.number().int()), unwatched: z.array(z.number().int()) }).describe('Item indexes'),
+});
+export const PlantSinkInsightsHubEntry = z.object({
+  assetId: z.string(),
+  assetName: z.string(),
+  collectionId: z.string(),
+  collectionName: z.string(),
+  sinkId: z.string(),
+  sinkName: z.string(),
+  isIh: z.boolean().describe('The sink’s target is an Insights Hub platform'),
+  platform: z.object({ id: z.string(), name: z.string(), path: z.string().nullable() }).nullable(),
+  default: z.object({ assetId: z.string(), assetName: z.string(), aspect: z.string() }).nullable().describe('The sink’s default asset and aspect'),
+  items: z.array(
+    z.object({
+      index: z.number().int(),
+      item: z.string().describe('The item’s key in the mapping: its output name, else its address'),
+      address: z.string(),
+      outputName: z.string(),
+      dataPoint: z.object({ id: z.string(), name: z.string(), unit: z.string(), dataType: z.string() }).nullable(),
+      target: IhTarget.nullable().describe('Where it goes (null: not mapped)'),
+      fromDefault: z.boolean(),
+      own: z
+        .object({ assetId: z.string(), assetName: z.string(), aspect: z.string() })
+        .describe('The item’s own asset and aspect as written (empty: the sink’s default)'),
+      placeholder: z.string().nullable().describe('The placeholder its asset id came from ({asset.ref:<system>})'),
+      check: z
+        .object({
+          item: z.string(),
+          assetId: z.string(),
+          aspect: z.string(),
+          variable: z.string(),
+          status: z.enum(PLANT_IH_ITEM_STATUSES),
+          unit: z.object({ point: z.string(), ih: z.string() }).optional(),
+          type: z.object({ point: z.string(), ih: z.string() }).optional(),
+          assetName: z.string().optional(),
+        })
+        .nullable()
+        .describe('The last check’s result for its current target (null: not checked, or changed since)'),
+      watchedBy: z.array(IhWatcher),
+      hiddenWatchers: z.number().int().describe('Watched by monitors the token owner may not see'),
+    }),
+  ),
+  groups: z.array(
+    z.object({
+      assetId: z.string(),
+      assetName: z.string(),
+      aspect: z.string(),
+      variables: z.array(z.string()),
+      watched: z.array(z.string()),
+      unwatched: z.array(z.string()),
+      monitors: z.array(IhWatcher),
+      hiddenMonitors: z.number().int(),
+      items: z.array(z.number().int()),
+    }),
+  ),
+  counts: IhCounts,
+  lastRun: z
+    .object({
+      checkedAt: ts(),
+      checkedBy: z.string(),
+      platformId: z.string(),
+      identity: z.string(),
+      counts: z.record(z.string(), z.number().int()),
+      assets: z.number().int(),
+      requests: z.number().int(),
+      capped: z.boolean(),
+      error: z
+        .object({ code: z.enum(PLANT_IH_RUN_ERRORS), message: z.string(), status: z.number().int().optional(), retryAfterSeconds: z.number().int().optional() })
+        .nullable(),
+    })
+    .nullable(),
+  leader: z
+    .object({ monitorId: z.string(), key: z.string(), name: z.string(), states: z.array(z.object({ id: z.string(), name: z.string(), off: z.boolean() })) })
+    .nullable()
+    .describe('A monitor with states the asset links to (a monitor made from the mapping follows it)'),
+});
+
 export const PLANT_COMPONENTS: Record<string, ZodTypeAny> = {
   PlantCheckEntry,
   PlantSiteEntry,
@@ -832,4 +980,6 @@ export const PLANT_COMPONENTS: Record<string, ZodTypeAny> = {
   PlantSiteNetworkEntry,
   PlantAssetNetworkEntry,
   PlantAssetCollectionsEntry,
+  PlantAssetDocumentationEntry,
+  PlantSinkInsightsHubEntry,
 };

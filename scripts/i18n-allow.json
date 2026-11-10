@@ -198,7 +198,16 @@
       "Maven",
       "Releases",
       "OpenStreetMap",
-      "{{count}} offline"
+      "{{count}} offline",
+      "Confluent Cloud",
+      "Schema Registry",
+      "Schemas",
+      "Subject",
+      "Firmware",
+      "Aggregator",
+      "Variable",
+      "Insights Hub: {{target}}",
+      "Insights Hub"
     ]
   }
 }

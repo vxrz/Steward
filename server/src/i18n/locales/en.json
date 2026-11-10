@@ -397,6 +397,10 @@
     "end": {
       "title": "Maintenance ended: {{title}}",
       "body": "{{title}} ended at {{end}}. Affects: {{items}}. Monitors report again."
+    },
+    "impact": {
+      "title": "Maintenance planned: {{title}}",
+      "body": "{{title}} is planned from {{start}} to {{end}} and affects what you own or look after: {{of}}. Planned for: {{items}}."
     }
   },
   "measure": {
@@ -570,5 +574,18 @@
       "expired": "Plant change by {{author}} expired"
     },
     "decidedChannelBody": "Open it in Steward under Plant → Changes."
+  },
+  "advisoryMatched": {
+    "title": "{{severity}} security advisory {{id}} affects {{site}}",
+    "body_one": "Advisory “{{title}}” ({{id}}, {{publisher}}, CVSS {{cvss}}) affects {{count}} asset at {{site}}: {{assets}}. Open the advisory to see the reasons, the fixed firmware and to record the remediation.",
+    "body_other": "Advisory “{{title}}” ({{id}}, {{publisher}}, CVSS {{cvss}}) affects {{count}} assets at {{site}}: {{assets}}. Open the advisory to see the reasons, the fixed firmware and to record the remediation.",
+    "severity": {
+      "critical": "Critical",
+      "high": "High",
+      "medium": "Medium",
+      "low": "Low",
+      "none": "No-risk",
+      "unknown": "Unrated"
+    }
   }
 }

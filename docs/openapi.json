@@ -986,6 +986,10 @@
                 "identityName": {
                   "type": "string",
                   "description": "Its name when the run started"
+                },
+                "privileged": {
+                  "type": "boolean",
+                  "description": "The identity was privileged when the run resolved its connection (0.14.0; missing: not privileged)"
                 }
               },
               "required": [
@@ -4382,6 +4386,7 @@
               "git",
               "kafka",
               "kafka-connect",
+              "confluent",
               "mqtt",
               "snowflake",
               "database",
@@ -5182,6 +5187,7 @@
                     "git",
                     "kafka",
                     "kafka-connect",
+                    "confluent",
                     "mqtt",
                     "snowflake",
                     "database",
@@ -12909,7 +12915,11 @@
                     "system",
                     "application",
                     "service",
-                    "monitor"
+                    "monitor",
+                    "site",
+                    "asset",
+                    "device",
+                    "collection"
                   ]
                 },
                 "id": {
@@ -13166,7 +13176,11 @@
                           "system",
                           "application",
                           "service",
-                          "monitor"
+                          "monitor",
+                          "site",
+                          "asset",
+                          "device",
+                          "collection"
                         ]
                       },
                       "id": {
@@ -13357,7 +13371,11 @@
                           "system",
                           "application",
                           "service",
-                          "monitor"
+                          "monitor",
+                          "site",
+                          "asset",
+                          "device",
+                          "collection"
                         ]
                       },
                       "id": {
@@ -19493,6 +19511,17 @@
             "minimum": 1,
             "description": "0.13.0: the entry’s revision – one more with every change (docs/PLANT.md \"Change sets\")"
           },
+          "docReviewMonths": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "0.14: how often the site’s documentation should be confirmed as still current, in months (null: no interval)"
+          },
           "updatedAt": {
             "type": "string",
             "format": "date-time",
@@ -19623,6 +19652,17 @@
             "type": "integer",
             "minimum": 1,
             "description": "0.13.0: the entry’s revision – one more with every change (docs/PLANT.md \"Change sets\")"
+          },
+          "docReviewMonths": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "0.14: how often the site’s documentation should be confirmed as still current, in months (null: no interval)"
           },
           "updatedAt": {
             "type": "string",
@@ -27532,10 +27572,23 @@
                               "description": "The item’s output name, else its address"
                             },
                             "target": {
-                              "type": "string"
+                              "type": "string",
+                              "description": "Its name in the sink (on an Insights Hub sink: the variable)"
                             },
                             "transform": {
                               "type": "string"
+                            },
+                            "assetId": {
+                              "type": "string",
+                              "description": "0.14, an Insights Hub sink: the item’s asset id there (or a placeholder); missing: the sink’s default"
+                            },
+                            "assetName": {
+                              "type": "string",
+                              "description": "0.14: the Insights Hub asset’s name, for display"
+                            },
+                            "aspect": {
+                              "type": "string",
+                              "description": "0.14, an Insights Hub sink: the item’s aspect; missing: the sink’s default"
                             }
                           },
                           "required": [
@@ -27549,6 +27602,27 @@
                       "imported": {
                         "type": "boolean",
                         "description": "Written by an import (the next import replaces it)"
+                      },
+                      "ih": {
+                        "description": "0.14, a sink whose target is an Insights Hub platform: the default asset and aspect of its items",
+                        "type": "object",
+                        "properties": {
+                          "assetId": {
+                            "type": "string"
+                          },
+                          "assetName": {
+                            "type": "string"
+                          },
+                          "aspect": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "assetId",
+                          "assetName",
+                          "aspect"
+                        ],
+                        "additionalProperties": false
                       }
                     },
                     "required": [
@@ -28181,6 +28255,2066 @@
           "collections",
           "points",
           "totals"
+        ],
+        "additionalProperties": false
+      },
+      "PlantAssetDocumentationEntry": {
+        "title": "PlantAssetDocumentationEntry",
+        "type": "object",
+        "properties": {
+          "assetId": {
+            "type": "string"
+          },
+          "confirmation": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "at": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "ISO 8601 timestamp (UTC)"
+                  },
+                  "by": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "at",
+                  "by"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The asset’s documentation as a whole"
+          },
+          "review": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "months": {
+                    "type": "integer",
+                    "description": "The interval that applies: the document type’s, else the site’s"
+                  },
+                  "dueAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "When the next confirmation is due: the last one – else the last change – plus the interval"
+                  },
+                  "due": {
+                    "type": "boolean",
+                    "description": "A confirmation is due (a hint, never an error)"
+                  }
+                },
+                "required": [
+                  "months",
+                  "dueAt",
+                  "due"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null: no review interval applies"
+          },
+          "documents": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "Record id"
+                },
+                "number": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "typeKey": {
+                  "type": "string"
+                },
+                "inheritedFrom": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string"
+                        },
+                        "id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "id"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Null: linked to the asset itself; else the profile, collection or sink it comes from"
+                },
+                "confirmation": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "at": {
+                          "type": "string",
+                          "format": "date-time",
+                          "description": "ISO 8601 timestamp (UTC)"
+                        },
+                        "by": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "at",
+                        "by"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The last “Still current”: when and by whom (null: never confirmed)"
+                },
+                "review": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "months": {
+                          "type": "integer",
+                          "description": "The interval that applies: the document type’s, else the site’s"
+                        },
+                        "dueAt": {
+                          "type": "string",
+                          "format": "date-time",
+                          "description": "When the next confirmation is due: the last one – else the last change – plus the interval"
+                        },
+                        "due": {
+                          "type": "boolean",
+                          "description": "A confirmation is due (a hint, never an error)"
+                        }
+                      },
+                      "required": [
+                        "months",
+                        "dueAt",
+                        "due"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Null: no review interval applies"
+                }
+              },
+              "required": [
+                "id",
+                "number",
+                "title",
+                "typeKey",
+                "inheritedFrom",
+                "confirmation",
+                "review"
+              ],
+              "additionalProperties": false
+            },
+            "description": "The documents of the asset and those it inherits, as far as the token owner may read them"
+          },
+          "hidden": {
+            "type": "integer",
+            "description": "Linked documents the token owner may not read: counted, not named"
+          }
+        },
+        "required": [
+          "assetId",
+          "confirmation",
+          "review",
+          "documents",
+          "hidden"
+        ],
+        "additionalProperties": false
+      },
+      "PlantSinkInsightsHubEntry": {
+        "title": "PlantSinkInsightsHubEntry",
+        "type": "object",
+        "properties": {
+          "assetId": {
+            "type": "string"
+          },
+          "assetName": {
+            "type": "string"
+          },
+          "collectionId": {
+            "type": "string"
+          },
+          "collectionName": {
+            "type": "string"
+          },
+          "sinkId": {
+            "type": "string"
+          },
+          "sinkName": {
+            "type": "string"
+          },
+          "isIh": {
+            "type": "boolean",
+            "description": "The sink’s target is an Insights Hub platform"
+          },
+          "platform": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "path": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "path"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "default": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "assetId": {
+                    "type": "string"
+                  },
+                  "assetName": {
+                    "type": "string"
+                  },
+                  "aspect": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "assetId",
+                  "assetName",
+                  "aspect"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The sink’s default asset and aspect"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "index": {
+                  "type": "integer"
+                },
+                "item": {
+                  "type": "string",
+                  "description": "The item’s key in the mapping: its output name, else its address"
+                },
+                "address": {
+                  "type": "string"
+                },
+                "outputName": {
+                  "type": "string"
+                },
+                "dataPoint": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "unit": {
+                          "type": "string"
+                        },
+                        "dataType": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "unit",
+                        "dataType"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "target": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "assetId": {
+                          "type": "string",
+                          "description": "The asset’s id in Insights Hub"
+                        },
+                        "assetName": {
+                          "type": "string"
+                        },
+                        "aspect": {
+                          "type": "string"
+                        },
+                        "variable": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "assetId",
+                        "assetName",
+                        "aspect",
+                        "variable"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Where it goes (null: not mapped)"
+                },
+                "fromDefault": {
+                  "type": "boolean"
+                },
+                "own": {
+                  "type": "object",
+                  "properties": {
+                    "assetId": {
+                      "type": "string"
+                    },
+                    "assetName": {
+                      "type": "string"
+                    },
+                    "aspect": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "assetId",
+                    "assetName",
+                    "aspect"
+                  ],
+                  "additionalProperties": false,
+                  "description": "The item’s own asset and aspect as written (empty: the sink’s default)"
+                },
+                "placeholder": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "The placeholder its asset id came from ({asset.ref:<system>})"
+                },
+                "check": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "item": {
+                          "type": "string"
+                        },
+                        "assetId": {
+                          "type": "string"
+                        },
+                        "aspect": {
+                          "type": "string"
+                        },
+                        "variable": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "ok",
+                            "unit_differs",
+                            "type_differs",
+                            "asset_missing",
+                            "aspect_missing",
+                            "variable_missing",
+                            "not_checked",
+                            "failed"
+                          ]
+                        },
+                        "unit": {
+                          "type": "object",
+                          "properties": {
+                            "point": {
+                              "type": "string"
+                            },
+                            "ih": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "point",
+                            "ih"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "type": {
+                          "type": "object",
+                          "properties": {
+                            "point": {
+                              "type": "string"
+                            },
+                            "ih": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "point",
+                            "ih"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "assetName": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "item",
+                        "assetId",
+                        "aspect",
+                        "variable",
+                        "status"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The last check’s result for its current target (null: not checked, or changed since)"
+                },
+                "watchedBy": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "monitorId": {
+                        "type": "string"
+                      },
+                      "monitorKey": {
+                        "type": "string"
+                      },
+                      "monitorName": {
+                        "type": "string"
+                      },
+                      "checkId": {
+                        "type": "string"
+                      },
+                      "checkName": {
+                        "type": "string"
+                      },
+                      "enabled": {
+                        "type": "boolean",
+                        "description": "false: the monitor or check is switched off (a draft made from the mapping)"
+                      },
+                      "linked": {
+                        "type": "boolean",
+                        "description": "The link is stored (made from the mapping, or found by its last check)"
+                      },
+                      "path": {
+                        "type": [
+                          "null",
+                          "string"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "monitorId",
+                      "monitorKey",
+                      "monitorName",
+                      "checkId",
+                      "checkName",
+                      "enabled",
+                      "linked",
+                      "path"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "hiddenWatchers": {
+                  "type": "integer",
+                  "description": "Watched by monitors the token owner may not see"
+                }
+              },
+              "required": [
+                "index",
+                "item",
+                "address",
+                "outputName",
+                "dataPoint",
+                "target",
+                "fromDefault",
+                "own",
+                "placeholder",
+                "check",
+                "watchedBy",
+                "hiddenWatchers"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "groups": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "assetId": {
+                  "type": "string"
+                },
+                "assetName": {
+                  "type": "string"
+                },
+                "aspect": {
+                  "type": "string"
+                },
+                "variables": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "watched": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "unwatched": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "monitors": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "monitorId": {
+                        "type": "string"
+                      },
+                      "monitorKey": {
+                        "type": "string"
+                      },
+                      "monitorName": {
+                        "type": "string"
+                      },
+                      "checkId": {
+                        "type": "string"
+                      },
+                      "checkName": {
+                        "type": "string"
+                      },
+                      "enabled": {
+                        "type": "boolean",
+                        "description": "false: the monitor or check is switched off (a draft made from the mapping)"
+                      },
+                      "linked": {
+                        "type": "boolean",
+                        "description": "The link is stored (made from the mapping, or found by its last check)"
+                      },
+                      "path": {
+                        "type": [
+                          "null",
+                          "string"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "monitorId",
+                      "monitorKey",
+                      "monitorName",
+                      "checkId",
+                      "checkName",
+                      "enabled",
+                      "linked",
+                      "path"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "hiddenMonitors": {
+                  "type": "integer"
+                },
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer"
+                  }
+                }
+              },
+              "required": [
+                "assetId",
+                "assetName",
+                "aspect",
+                "variables",
+                "watched",
+                "unwatched",
+                "monitors",
+                "hiddenMonitors",
+                "items"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "counts": {
+            "type": "object",
+            "properties": {
+              "items": {
+                "type": "integer"
+              },
+              "mapped": {
+                "type": "integer"
+              },
+              "verified": {
+                "type": "integer",
+                "description": "Mapped items whose last check found the asset, aspect and variable"
+              },
+              "watched": {
+                "type": "integer",
+                "description": "Mapped items a monitor check watches"
+              },
+              "gaps": {
+                "type": "object",
+                "properties": {
+                  "unmapped": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  },
+                  "unverified": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  },
+                  "unwatched": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  }
+                },
+                "required": [
+                  "unmapped",
+                  "unverified",
+                  "unwatched"
+                ],
+                "additionalProperties": false,
+                "description": "Item indexes"
+              }
+            },
+            "required": [
+              "items",
+              "mapped",
+              "verified",
+              "watched",
+              "gaps"
+            ],
+            "additionalProperties": false
+          },
+          "lastRun": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "checkedAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "ISO 8601 timestamp (UTC)"
+                  },
+                  "checkedBy": {
+                    "type": "string"
+                  },
+                  "platformId": {
+                    "type": "string"
+                  },
+                  "identity": {
+                    "type": "string"
+                  },
+                  "counts": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "integer"
+                    }
+                  },
+                  "assets": {
+                    "type": "integer"
+                  },
+                  "requests": {
+                    "type": "integer"
+                  },
+                  "capped": {
+                    "type": "boolean"
+                  },
+                  "error": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "code": {
+                            "type": "string",
+                            "enum": [
+                              "unauthorized",
+                              "forbidden",
+                              "rate_limited",
+                              "failed"
+                            ]
+                          },
+                          "message": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "integer"
+                          },
+                          "retryAfterSeconds": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "code",
+                          "message"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "checkedAt",
+                  "checkedBy",
+                  "platformId",
+                  "identity",
+                  "counts",
+                  "assets",
+                  "requests",
+                  "capped",
+                  "error"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "leader": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "monitorId": {
+                    "type": "string"
+                  },
+                  "key": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "states": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "off": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "off"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "monitorId",
+                  "key",
+                  "name",
+                  "states"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A monitor with states the asset links to (a monitor made from the mapping follows it)"
+          }
+        },
+        "required": [
+          "assetId",
+          "assetName",
+          "collectionId",
+          "collectionName",
+          "sinkId",
+          "sinkName",
+          "isIh",
+          "platform",
+          "default",
+          "items",
+          "groups",
+          "counts",
+          "lastRun",
+          "leader"
+        ],
+        "additionalProperties": false
+      },
+      "PlantAdvisoryEntry": {
+        "title": "PlantAdvisoryEntry",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Steward’s id of the advisory (from the publisher’s namespace and tracking id)"
+          },
+          "trackingId": {
+            "type": "string",
+            "description": "/document/tracking/id of the CSAF document"
+          },
+          "title": {
+            "type": "string"
+          },
+          "publisher": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "critical",
+              "high",
+              "medium",
+              "low",
+              "none",
+              "unknown"
+            ],
+            "description": "The highest severity of its vulnerabilities (CVSS), else its aggregate severity"
+          },
+          "cvss": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "description": "The highest CVSS base score"
+          },
+          "cves": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "published": {
+            "type": "string",
+            "description": "initial_release_date"
+          },
+          "updated": {
+            "type": "string",
+            "description": "current_release_date"
+          },
+          "version": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "mitigated",
+              "not_applicable",
+              "unaffected"
+            ],
+            "description": "For the token owner’s sites: open, mitigated, not_applicable or unaffected"
+          },
+          "affectedAssets": {
+            "type": "integer",
+            "description": "Exact or confirmed matches at sites the token owner may see (not marked not applicable)"
+          },
+          "openAssets": {
+            "type": "integer",
+            "description": "Of them, not yet mitigated, accepted or not affected"
+          },
+          "possibleMatches": {
+            "type": "integer",
+            "description": "Possible matches nobody confirmed or dismissed – never counted as affected"
+          },
+          "sites": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "name"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "zones": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "siteId": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "slTarget": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "IEC 62443-3-2 target security level of the zone (null: open)"
+                }
+              },
+              "required": [
+                "siteId",
+                "id",
+                "name",
+                "slTarget"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "origin": {
+            "type": "string",
+            "enum": [
+              "feed",
+              "upload"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "trackingId",
+          "title",
+          "publisher",
+          "severity",
+          "cvss",
+          "cves",
+          "published",
+          "updated",
+          "version",
+          "status",
+          "affectedAssets",
+          "openAssets",
+          "possibleMatches",
+          "sites",
+          "zones",
+          "origin"
+        ],
+        "additionalProperties": false
+      },
+      "PlantAdvisoryMatchEntry": {
+        "title": "PlantAdvisoryMatchEntry",
+        "type": "object",
+        "properties": {
+          "assetId": {
+            "type": "string"
+          },
+          "assetName": {
+            "type": "string"
+          },
+          "siteId": {
+            "type": "string"
+          },
+          "zones": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "siteId": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "slTarget": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "IEC 62443-3-2 target security level of the zone (null: open)"
+                }
+              },
+              "required": [
+                "siteId",
+                "id",
+                "name",
+                "slTarget"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "firmware": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "exact",
+              "possible"
+            ],
+            "description": "exact: vendor, model and firmware match; possible: similar – a person confirms or dismisses"
+          },
+          "counted": {
+            "type": "boolean",
+            "description": "Counted as affected: exact and not dismissed, or possible and confirmed"
+          },
+          "decision": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "confirmed",
+                  "dismissed"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "decisionReason": {
+            "type": "string"
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Why it matches, one sentence per product"
+          },
+          "fixedFirmware": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Firmware versions that fix it, as the advisory names them"
+          },
+          "siteNotApplicable": {
+            "type": "boolean"
+          },
+          "remediation": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "open",
+                  "planned",
+                  "mitigated",
+                  "accepted",
+                  "not_affected"
+                ]
+              },
+              "reason": {
+                "type": "string"
+              },
+              "until": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "An accepted risk: until this day"
+              },
+              "expired": {
+                "type": "boolean",
+                "description": "An accepted risk past its day (counts as open again)"
+              },
+              "windowId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Planned: the maintenance window"
+              },
+              "changeSetId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Planned: the plant change set"
+              },
+              "by": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "at": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "status",
+              "reason",
+              "until",
+              "expired",
+              "windowId",
+              "changeSetId",
+              "by",
+              "at"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "assetId",
+          "assetName",
+          "siteId",
+          "zones",
+          "firmware",
+          "kind",
+          "counted",
+          "decision",
+          "decisionReason",
+          "reasons",
+          "fixedFirmware",
+          "siteNotApplicable",
+          "remediation"
+        ],
+        "additionalProperties": false
+      },
+      "PlantAdvisoryDetailEntry": {
+        "title": "PlantAdvisoryDetailEntry",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Steward’s id of the advisory (from the publisher’s namespace and tracking id)"
+          },
+          "trackingId": {
+            "type": "string",
+            "description": "/document/tracking/id of the CSAF document"
+          },
+          "title": {
+            "type": "string"
+          },
+          "publisher": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "critical",
+              "high",
+              "medium",
+              "low",
+              "none",
+              "unknown"
+            ],
+            "description": "The highest severity of its vulnerabilities (CVSS), else its aggregate severity"
+          },
+          "cvss": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "description": "The highest CVSS base score"
+          },
+          "cves": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "published": {
+            "type": "string",
+            "description": "initial_release_date"
+          },
+          "updated": {
+            "type": "string",
+            "description": "current_release_date"
+          },
+          "version": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "mitigated",
+              "not_applicable",
+              "unaffected"
+            ],
+            "description": "For the token owner’s sites: open, mitigated, not_applicable or unaffected"
+          },
+          "affectedAssets": {
+            "type": "integer",
+            "description": "Exact or confirmed matches at sites the token owner may see (not marked not applicable)"
+          },
+          "openAssets": {
+            "type": "integer",
+            "description": "Of them, not yet mitigated, accepted or not affected"
+          },
+          "possibleMatches": {
+            "type": "integer",
+            "description": "Possible matches nobody confirmed or dismissed – never counted as affected"
+          },
+          "sites": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "name"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "zones": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "siteId": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "slTarget": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "IEC 62443-3-2 target security level of the zone (null: open)"
+                }
+              },
+              "required": [
+                "siteId",
+                "id",
+                "name",
+                "slTarget"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "origin": {
+            "type": "string",
+            "enum": [
+              "feed",
+              "upload"
+            ]
+          },
+          "category": {
+            "type": "string"
+          },
+          "tlp": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "references": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "url": {
+                  "type": "string"
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "category": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "url",
+                "summary",
+                "category"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "vulnerabilities": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "cve": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "cwe": {
+                  "type": "string"
+                },
+                "cvss": {
+                  "type": [
+                    "null",
+                    "number"
+                  ]
+                },
+                "severity": {
+                  "type": "string",
+                  "enum": [
+                    "critical",
+                    "high",
+                    "medium",
+                    "low",
+                    "none",
+                    "unknown"
+                  ]
+                },
+                "vector": {
+                  "type": "string"
+                },
+                "remediations": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "category": {
+                        "type": "string",
+                        "enum": [
+                          "mitigation",
+                          "no_fix_planned",
+                          "none_available",
+                          "vendor_fix",
+                          "workaround"
+                        ]
+                      },
+                      "details": {
+                        "type": "string"
+                      },
+                      "url": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "category",
+                      "details",
+                      "url"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "cve",
+                "title",
+                "cwe",
+                "cvss",
+                "severity",
+                "vector",
+                "remediations"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "integrity": {
+            "type": "string",
+            "enum": [
+              "sha512",
+              "sha256",
+              "none",
+              "uploaded",
+              "uploaded_sha256"
+            ],
+            "description": "How the document was checked: its published SHA-512 or SHA-256 matched, none was published, or it was uploaded"
+          },
+          "sha256": {
+            "type": "string"
+          },
+          "matches": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "assetId": {
+                  "type": "string"
+                },
+                "assetName": {
+                  "type": "string"
+                },
+                "siteId": {
+                  "type": "string"
+                },
+                "zones": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "siteId": {
+                        "type": "string"
+                      },
+                      "id": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "slTarget": {
+                        "anyOf": [
+                          {
+                            "type": "integer"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "IEC 62443-3-2 target security level of the zone (null: open)"
+                      }
+                    },
+                    "required": [
+                      "siteId",
+                      "id",
+                      "name",
+                      "slTarget"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "firmware": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "exact",
+                    "possible"
+                  ],
+                  "description": "exact: vendor, model and firmware match; possible: similar – a person confirms or dismisses"
+                },
+                "counted": {
+                  "type": "boolean",
+                  "description": "Counted as affected: exact and not dismissed, or possible and confirmed"
+                },
+                "decision": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "confirmed",
+                        "dismissed"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "decisionReason": {
+                  "type": "string"
+                },
+                "reasons": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Why it matches, one sentence per product"
+                },
+                "fixedFirmware": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Firmware versions that fix it, as the advisory names them"
+                },
+                "siteNotApplicable": {
+                  "type": "boolean"
+                },
+                "remediation": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "open",
+                        "planned",
+                        "mitigated",
+                        "accepted",
+                        "not_affected"
+                      ]
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "until": {
+                      "type": [
+                        "null",
+                        "string"
+                      ],
+                      "description": "An accepted risk: until this day"
+                    },
+                    "expired": {
+                      "type": "boolean",
+                      "description": "An accepted risk past its day (counts as open again)"
+                    },
+                    "windowId": {
+                      "type": [
+                        "null",
+                        "string"
+                      ],
+                      "description": "Planned: the maintenance window"
+                    },
+                    "changeSetId": {
+                      "type": [
+                        "null",
+                        "string"
+                      ],
+                      "description": "Planned: the plant change set"
+                    },
+                    "by": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "at": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "reason",
+                    "until",
+                    "expired",
+                    "windowId",
+                    "changeSetId",
+                    "by",
+                    "at"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "assetId",
+                "assetName",
+                "siteId",
+                "zones",
+                "firmware",
+                "kind",
+                "counted",
+                "decision",
+                "decisionReason",
+                "reasons",
+                "fixedFirmware",
+                "siteNotApplicable",
+                "remediation"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "hiddenMatches": {
+            "type": "integer",
+            "description": "Matches at sites the token owner may not see (counted, never named)"
+          },
+          "sitesNotApplicable": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "siteId": {
+                  "type": "string"
+                },
+                "reason": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "siteId",
+                "reason"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "id",
+          "trackingId",
+          "title",
+          "publisher",
+          "severity",
+          "cvss",
+          "cves",
+          "published",
+          "updated",
+          "version",
+          "status",
+          "affectedAssets",
+          "openAssets",
+          "possibleMatches",
+          "sites",
+          "zones",
+          "origin",
+          "category",
+          "tlp",
+          "summary",
+          "references",
+          "vulnerabilities",
+          "integrity",
+          "sha256",
+          "matches",
+          "hiddenMatches",
+          "sitesNotApplicable"
+        ],
+        "additionalProperties": false
+      },
+      "PlantAssetAdvisoriesEntry": {
+        "title": "PlantAssetAdvisoriesEntry",
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "advisory": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "description": "Steward’s id of the advisory (from the publisher’s namespace and tracking id)"
+                    },
+                    "trackingId": {
+                      "type": "string",
+                      "description": "/document/tracking/id of the CSAF document"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "publisher": {
+                      "type": "string"
+                    },
+                    "severity": {
+                      "type": "string",
+                      "enum": [
+                        "critical",
+                        "high",
+                        "medium",
+                        "low",
+                        "none",
+                        "unknown"
+                      ],
+                      "description": "The highest severity of its vulnerabilities (CVSS), else its aggregate severity"
+                    },
+                    "cvss": {
+                      "type": [
+                        "null",
+                        "number"
+                      ],
+                      "description": "The highest CVSS base score"
+                    },
+                    "cves": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "published": {
+                      "type": "string",
+                      "description": "initial_release_date"
+                    },
+                    "updated": {
+                      "type": "string",
+                      "description": "current_release_date"
+                    },
+                    "version": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "open",
+                        "mitigated",
+                        "not_applicable",
+                        "unaffected"
+                      ],
+                      "description": "For the token owner’s sites: open, mitigated, not_applicable or unaffected"
+                    },
+                    "affectedAssets": {
+                      "type": "integer",
+                      "description": "Exact or confirmed matches at sites the token owner may see (not marked not applicable)"
+                    },
+                    "openAssets": {
+                      "type": "integer",
+                      "description": "Of them, not yet mitigated, accepted or not affected"
+                    },
+                    "possibleMatches": {
+                      "type": "integer",
+                      "description": "Possible matches nobody confirmed or dismissed – never counted as affected"
+                    },
+                    "sites": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "zones": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "siteId": {
+                            "type": "string"
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "slTarget": {
+                            "anyOf": [
+                              {
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "IEC 62443-3-2 target security level of the zone (null: open)"
+                          }
+                        },
+                        "required": [
+                          "siteId",
+                          "id",
+                          "name",
+                          "slTarget"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "origin": {
+                      "type": "string",
+                      "enum": [
+                        "feed",
+                        "upload"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "trackingId",
+                    "title",
+                    "publisher",
+                    "severity",
+                    "cvss",
+                    "cves",
+                    "published",
+                    "updated",
+                    "version",
+                    "status",
+                    "affectedAssets",
+                    "openAssets",
+                    "possibleMatches",
+                    "sites",
+                    "zones",
+                    "origin"
+                  ],
+                  "additionalProperties": false
+                },
+                "match": {
+                  "type": "object",
+                  "properties": {
+                    "assetId": {
+                      "type": "string"
+                    },
+                    "assetName": {
+                      "type": "string"
+                    },
+                    "siteId": {
+                      "type": "string"
+                    },
+                    "zones": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "siteId": {
+                            "type": "string"
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "slTarget": {
+                            "anyOf": [
+                              {
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "IEC 62443-3-2 target security level of the zone (null: open)"
+                          }
+                        },
+                        "required": [
+                          "siteId",
+                          "id",
+                          "name",
+                          "slTarget"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "firmware": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "exact",
+                        "possible"
+                      ],
+                      "description": "exact: vendor, model and firmware match; possible: similar – a person confirms or dismisses"
+                    },
+                    "counted": {
+                      "type": "boolean",
+                      "description": "Counted as affected: exact and not dismissed, or possible and confirmed"
+                    },
+                    "decision": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "confirmed",
+                            "dismissed"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "decisionReason": {
+                      "type": "string"
+                    },
+                    "reasons": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Why it matches, one sentence per product"
+                    },
+                    "fixedFirmware": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Firmware versions that fix it, as the advisory names them"
+                    },
+                    "siteNotApplicable": {
+                      "type": "boolean"
+                    },
+                    "remediation": {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "open",
+                            "planned",
+                            "mitigated",
+                            "accepted",
+                            "not_affected"
+                          ]
+                        },
+                        "reason": {
+                          "type": "string"
+                        },
+                        "until": {
+                          "type": [
+                            "null",
+                            "string"
+                          ],
+                          "description": "An accepted risk: until this day"
+                        },
+                        "expired": {
+                          "type": "boolean",
+                          "description": "An accepted risk past its day (counts as open again)"
+                        },
+                        "windowId": {
+                          "type": [
+                            "null",
+                            "string"
+                          ],
+                          "description": "Planned: the maintenance window"
+                        },
+                        "changeSetId": {
+                          "type": [
+                            "null",
+                            "string"
+                          ],
+                          "description": "Planned: the plant change set"
+                        },
+                        "by": {
+                          "type": [
+                            "null",
+                            "string"
+                          ]
+                        },
+                        "at": {
+                          "type": [
+                            "null",
+                            "string"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "status",
+                        "reason",
+                        "until",
+                        "expired",
+                        "windowId",
+                        "changeSetId",
+                        "by",
+                        "at"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "assetId",
+                    "assetName",
+                    "siteId",
+                    "zones",
+                    "firmware",
+                    "kind",
+                    "counted",
+                    "decision",
+                    "decisionReason",
+                    "reasons",
+                    "fixedFirmware",
+                    "siteNotApplicable",
+                    "remediation"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "advisory",
+                "match"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "items"
         ],
         "additionalProperties": false
       },
@@ -35663,7 +37797,7 @@
           {
             "schema": {
               "type": "string",
-              "pattern": "^(platform|system|application|service|monitor):[\\w-]{1,80}$"
+              "pattern": "^(platform|system|application|service|monitor|site|asset|device|collection):[\\w.-]{1,80}(\\/[\\w.-]{1,80})?$"
             },
             "in": "query",
             "name": "target",
@@ -38492,6 +40626,156 @@
         }
       }
     },
+    "/plant/assets/{assetId}/documentation": {
+      "get": {
+        "operationId": "getPlantAssetDocumentation",
+        "summary": "Get whether an asset’s documentation is confirmed as still current",
+        "tags": [
+          "Plant"
+        ],
+        "description": "0.14: the last “Still current” of the asset’s documentation as a whole and of each of its documents (records linked to the asset, and those it inherits from its profile, collections and sinks), who confirmed it when, and whether a confirmation is due by the review interval of the document type or the site – a hint, never an error. Read-only. Only while the plant registry module is on (Settings → Modules); otherwise 404.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "assetId",
+            "required": true,
+            "description": "Asset id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlantAssetDocumentationEntry"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/plant/assets/{assetId}/collections/{collectionId}/sinks/{sinkId}/insights-hub": {
+      "get": {
+        "operationId": "getPlantSinkInsightsHub",
+        "summary": "Get the Insights Hub mapping of a sink and its last check",
+        "tags": [
+          "Plant"
+        ],
+        "description": "0.14: per item of the collection the Insights Hub asset, aspect and variable it goes to (its own, or the sink's default), the result of the last check of the mapping against the tenant (the asset, aspect and variable exist; a unit or type that differs from the data point's is a hint), the monitor checks that watch it (a monitor the token owner may not see is counted, not named), and the counts: mapped, verified, watched. The asset hierarchy in Insights Hub is not compared with the plant's. Only while the plant registry module is on (Settings → Modules); otherwise 404.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "assetId",
+            "required": true,
+            "description": "Asset id"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "collectionId",
+            "required": true,
+            "description": "Data collection id"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "sinkId",
+            "required": true,
+            "description": "Sink id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlantSinkInsightsHubEntry"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
     "/plant/checks": {
       "get": {
         "operationId": "listPlantChecks",
@@ -38760,6 +41044,321 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/plant/advisories": {
+      "get": {
+        "operationId": "listPlantAdvisories",
+        "summary": "List the security advisories affecting the plant’s sites",
+        "tags": [
+          "Plant"
+        ],
+        "description": "CSAF 2.0 advisories matched to assets by manufacturer, model and firmware – by default only those with a match at a site the token owner may see (`all=true`: every advisory), filtered, sorted (`sort`: severity – the default –, updated, published, affected, title; `order`) and paged by the server. Counts and status are for those sites (with `site`: for that site). Only while the plant registry module is on (Settings → Modules); otherwise 404.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "in": "query",
+            "name": "site",
+            "required": false,
+            "description": "Only advisories affecting this site (id)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "open",
+                "mitigated",
+                "not_applicable",
+                "unaffected"
+              ]
+            },
+            "in": "query",
+            "name": "status",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "critical",
+                "high",
+                "medium",
+                "low",
+                "none",
+                "unknown"
+              ]
+            },
+            "in": "query",
+            "name": "severity",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "in": "query",
+            "name": "vendor",
+            "required": false,
+            "description": "Only advisories naming this vendor (compared normalised: letters and digits, legal forms left out)"
+          },
+          {
+            "schema": {
+              "type": "boolean",
+              "default": false
+            },
+            "in": "query",
+            "name": "all",
+            "required": false,
+            "description": "Also advisories that match no asset of the token owner’s sites"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "severity",
+                "updated",
+                "published",
+                "affected",
+                "title"
+              ]
+            },
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "description": "severity (default, with CVSS), updated, published, affected (assets), title"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            },
+            "in": "query",
+            "name": "order",
+            "required": false,
+            "description": "Default: desc (title: asc)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of advisories",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A page of advisories",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/PlantAdvisoryEntry"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/plant/advisories/{advisoryId}": {
+      "get": {
+        "operationId": "getPlantAdvisory",
+        "summary": "Get a security advisory with the assets it affects",
+        "tags": [
+          "Plant"
+        ],
+        "description": "Its vulnerabilities and remediations, and its matches at the token owner's sites: exact and possible, with the reasons, the decisions, the fixed firmware and the remediation per asset. Only while the plant registry module is on (Settings → Modules); otherwise 404.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "advisoryId",
+            "required": true,
+            "description": "Advisory id (adv_…)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlantAdvisoryDetailEntry"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/plant/assets/{assetId}/advisories": {
+      "get": {
+        "operationId": "getPlantAssetAdvisories",
+        "summary": "Get the security advisories of an asset",
+        "tags": [
+          "Plant"
+        ],
+        "description": "Every advisory that matches the asset – exact, possible and dismissed – with the match and its remediation. Only while the plant registry module is on (Settings → Modules); otherwise 404.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "assetId",
+            "required": true,
+            "description": "Asset id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlantAssetAdvisoriesEntry"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"

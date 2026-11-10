@@ -1,6 +1,7 @@
 import { createElement, type ComponentType } from 'react';
 import type { CheckType } from '@sm/shared';
 import { CheckmkFields } from './CheckmkFields';
+import { ConfluentFields } from './ConfluentFields';
 import { CostCheckFields } from '../../costs/CostCheckFields';
 import { DataContractFields } from './DataContractFields';
 import { DatabaseFields } from './DatabaseFields';
@@ -46,6 +47,7 @@ export const CHECK_FIELDS: { [T in CheckType]: ComponentType<CheckFieldsProps<T>
   git: GitFields,
   kafka: KafkaFields,
   'kafka-connect': KafkaConnectFields,
+  confluent: ConfluentFields,
   mqtt: MqttFields,
   snowflake: SnowflakeFields,
   database: DatabaseFields,

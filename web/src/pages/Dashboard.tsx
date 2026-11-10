@@ -18,6 +18,7 @@ import { useState } from 'react';
 import { dashboardKeys } from '../queryKeys';
 import { IfModule } from '../components/modules/ModuleOff';
 import { CollapsibleSection } from '../components/page/CollapsibleSection';
+import { AdvisoriesCard } from '../components/plant/advisories/AssetAdvisories';
 
 /** The tiles of each start page focus, most relevant first (operations: all of them). */
 const FOCUS_TILES: Record<StartFocus, readonly TileKey[] | undefined> = {
@@ -131,6 +132,11 @@ export function DashboardPage({ demo }: { demo: boolean }) {
           )}
 
           {view !== 'viewer' && <FailedChecksCard checks={data.failedChecks} />}
+
+          {/* 0.14: open security advisories affecting the reader's plant sites */}
+          <IfModule module="plant">
+            <AdvisoriesCard />
+          </IfModule>
 
           {ops && <CredentialsDueCard />}
 

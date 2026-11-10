@@ -66,7 +66,19 @@
     "collection_mapping_one": "{{count}} remembered gateway name",
     "collection_mapping_other": "{{count}} remembered gateway names",
     "collection_source_one": "{{count}} kept file of a collection import",
-    "collection_source_other": "{{count}} kept files of collection imports"
+    "collection_source_other": "{{count}} kept files of collection imports",
+    "advisory_match_one": "{{count}} security advisory match",
+    "advisory_match_other": "{{count}} security advisory matches",
+    "advisory_site_one": "{{count}} advisory marked not applicable",
+    "advisory_site_other": "{{count}} advisories marked not applicable",
+    "maintenance_one": "{{count}} maintenance window target",
+    "maintenance_other": "{{count}} maintenance window targets",
+    "doc_confirmation_one": "{{count}} “still current” confirmation",
+    "doc_confirmation_other": "{{count}} “still current” confirmations",
+    "ih_check_one": "{{count}} check of an Insights Hub mapping",
+    "ih_check_other": "{{count}} checks of Insights Hub mappings",
+    "ih_link_one": "{{count}} link of a mapped item to a monitor check",
+    "ih_link_other": "{{count}} links of mapped items to monitor checks"
   },
   "problems": {
     "PLANT_ID_FORMAT": "Use lower-case letters, digits, “.”, “_” and “-”, starting with a letter or digit (at most 80).",

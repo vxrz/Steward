@@ -14,7 +14,10 @@ import * as cat from './catalogue.js';
 import { getAssignment } from './assignments.js';
 import { assetNetwork, siteNetwork } from './network.js';
 import { assetCollections } from './collections.js';
+import { ihMapping } from './ih.js';
 import { exportYaml } from './import.js';
+import { assetDocumentation } from './doc-review.js';
+import { visibleAsset } from './service.js';
 import type { ApiPrincipal } from '../api/v1/auth.js';
 import { PlantAssetListQuery, PlantCatalogueListQuery, PlantCheckListQuery, PlantExportQuery, PlantSiteListQuery } from './api-schemas.js';
 
@@ -331,6 +334,40 @@ export function plantApiRoutes(getRoute: Get): void {
         ...x
       } = found(() => assetCollections((req.params as { assetId: string }).assetId), 'Asset');
       return x;
+    },
+  );
+
+  get(
+    '/plant/assets/:assetId/documentation',
+    {
+      operationId: 'getPlantAssetDocumentation',
+      tag: 'Plant',
+      summary: 'Get whether an asset’s documentation is confirmed as still current',
+      description: `0.14: the last “Still current” of the asset’s documentation as a whole and of each of its documents (records linked to the asset, and those it inherits from its profile, collections and sinks), who confirmed it when, and whether a confirmation is due by the review interval of the document type or the site – a hint, never an error. Read-only. ${MODULE}`,
+      params: { assetId: 'Asset id' },
+      response: { $ref: 'PlantAssetDocumentationEntry#' },
+    },
+    async (req) => {
+      const id = (req.params as { assetId: string }).assetId;
+      found(() => visibleAsset(id), 'Asset');
+      return assetDocumentation(id);
+    },
+  );
+
+  get(
+    '/plant/assets/:assetId/collections/:collectionId/sinks/:sinkId/insights-hub',
+    {
+      operationId: 'getPlantSinkInsightsHub',
+      tag: 'Plant',
+      summary: 'Get the Insights Hub mapping of a sink and its last check',
+      description: `0.14: per item of the collection the Insights Hub asset, aspect and variable it goes to (its own, or the sink's default), the result of the last check of the mapping against the tenant (the asset, aspect and variable exist; a unit or type that differs from the data point's is a hint), the monitor checks that watch it (a monitor the token owner may not see is counted, not named), and the counts: mapped, verified, watched. The asset hierarchy in Insights Hub is not compared with the plant's. ${MODULE}`,
+      params: { assetId: 'Asset id', collectionId: 'Data collection id', sinkId: 'Sink id' },
+      response: { $ref: 'PlantSinkInsightsHubEntry#' },
+    },
+    async (req) => {
+      const x = req.params as { assetId: string; collectionId: string; sinkId: string };
+      const { canManage: _m, canCheck: _c, checkProblem: _p, canCreateMonitor: _n, ...m } = found(() => ihMapping(x.assetId, x.collectionId, x.sinkId), 'Sink');
+      return m;
     },
   );
 

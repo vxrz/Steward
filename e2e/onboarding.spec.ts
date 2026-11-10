@@ -20,7 +20,7 @@ test('the setup wizard: connector, credentials, a failing test with hints, fixed
   await dialog.getByRole('textbox', { name: 'Search connectors' }).fill('confluent');
   await expect(dialog.getByTestId('wizard-connector')).toHaveCount(2);
   await expectAccessible(page, 'setup wizard: connectors');
-  await dialog.getByTestId('wizard-connector').filter({ hasText: 'Confluent Cloud API (access reviews)' }).click();
+  await dialog.getByTestId('wizard-connector').filter({ hasText: 'Confluent Cloud API' }).click();
 
   // only the connector's fields; a wrong secret first
   // the platform's name (the variables' name fields come after it)

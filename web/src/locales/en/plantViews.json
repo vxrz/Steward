@@ -6,7 +6,9 @@
     "site": {
       "overview": "Overview",
       "structure": "Structure",
-      "history": "History"
+      "documentation": "Documentation",
+      "history": "History",
+      "insights-hub": "Insights Hub"
     },
     "asset": {
       "overview": "Overview",
@@ -308,7 +310,10 @@
     "via": "via part {{name}}",
     "viaHint": "The KPI rolls up from parts: this part has the job or delivers the inputs, and counts for the asset.",
     "rolledUp": "counted for {{name}}",
-    "rolledUpHint": "The KPI rolls up from parts: this asset is a part of {{name}}, which counts the KPI once for both – not counted again in the totals."
+    "rolledUpHint": "The KPI rolls up from parts: this asset is a part of {{name}}, which counts the KPI once for both – not counted again in the totals.",
+    "ihVerified": "Every input is also verified in Insights Hub (the sink’s mapping was checked against the tenant)",
+    "potentialIh_one": "{{count}} of them verified in Insights Hub",
+    "potentialIh_other": "{{count}} of them verified in Insights Hub"
   },
   "explore": {
     "coverage": "KPI coverage"

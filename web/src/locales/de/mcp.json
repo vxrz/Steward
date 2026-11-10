@@ -104,7 +104,8 @@
     },
     "acceptProposal_one": "{{count}} Eintrag übernehmen",
     "acceptProposal_other": "{{count}} Einträge übernehmen",
-    "viaTeams": "(über Microsoft Teams)"
+    "viaTeams": "(über Microsoft Teams)",
+    "privilegedHint": "Eine privilegierte Identität: Beim Freigeben bestätigen Sie, dass Sie es sind. In Microsoft Teams kann sie nicht freigegeben werden."
   },
   "oauth": {
     "title": "OAuth für MCP-Clients (optional)",

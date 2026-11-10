@@ -3,7 +3,7 @@ import { test, expect } from './support/fixtures';
 import { USERS, authFile } from './support/env';
 import { expectAccessible, settle } from './support/axe';
 import { expectNoHorizontalScroll } from './support/helpers';
-import { sessionState, startIsolatedServer, type IsolatedServer } from './support/server';
+import { sessionState, ISOLATED_SETUP_MS, startIsolatedServer, type IsolatedServer } from './support/server';
 
 /**
  * The module registry (0.11.0, ADR 0016): Settings → Modules lists the optional areas with their maturity and a
@@ -19,6 +19,7 @@ test.describe('switching a module (own server)', () => {
   let srv: IsolatedServer;
   const contexts: BrowserContext[] = [];
   test.beforeAll(async () => {
+    test.setTimeout(ISOLATED_SETUP_MS);
     srv = await startIsolatedServer({ demo: true });
     await srv.api('POST', '/demo/setup', {});
   });

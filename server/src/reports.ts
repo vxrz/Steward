@@ -152,9 +152,12 @@ ${run.libraryOrigin ? `<tr><td>From library</td><td>${esc(run.libraryOrigin.libr
 </table>
 
 <h2>Connections</h2>
-<table><tr><th>Slot</th><th>Platform</th><th>Base URL</th></tr>
+<table><tr><th>Slot</th><th>Platform</th><th>Identity</th><th>Base URL</th></tr>
 ${Object.entries(run.bindings)
-  .map(([k, b]) => `<tr><td>${esc(k)}</td><td>${esc(b.platformName)}</td><td class="mono">${esc(b.baseUrl)}</td></tr>`)
+  .map(
+    ([k, b]) =>
+      `<tr><td>${esc(k)}</td><td>${esc(b.platformName)}</td><td>${b.identityName ? `${esc(b.identityName)}${b.privileged ? ' <strong>(privileged)</strong>' : ''}` : '–'}</td><td class="mono">${esc(b.baseUrl)}</td></tr>`,
+  )
   .join('')}
 </table>
 

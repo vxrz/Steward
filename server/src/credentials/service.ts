@@ -64,6 +64,8 @@ export interface CredentialRow {
   name: string;
   type: (typeof CREDENTIAL_TYPES)[number];
   platform_id: string | null;
+  /** 0.14.0 (ADR 0009 step 4): the platform identity the entry documents */
+  identity_id?: string | null;
   platform_text: string;
   belongs_kind?: string | null;
   belongs_id?: string | null;
@@ -306,8 +308,21 @@ function platformName(id: string | null, u: AuthUser | null): string | null {
   return p && platformPermissions(u, { id, acl: parseJson(p.acl, []) }).length ? p.name : null;
 }
 
+/** The linked identity's name and flag – only where the platform's name is shown (a right on it). */
+function identityOf(r: Pick<CredentialRow, 'platform_id' | 'identity_id'>, visible: boolean): { name: string; privileged: boolean } | null {
+  if (!visible || !r.platform_id || !r.identity_id) return null;
+  const i = db().get<{ name: string; privileged: number | boolean }>(
+    'SELECT name, privileged FROM platform_identities WHERE id = ? AND platform_id = ?',
+    r.identity_id,
+    r.platform_id,
+  );
+  return i ? { name: i.name, privileged: Number(i.privileged) === 1 || i.privileged === true } : null;
+}
+
 export function toCredential(r: CredentialRow, u: AuthUser | null = currentUser(), now = Date.now(), settings = reminderSettings()): Credential {
   const dues = computeDues(r, now, settings.dueSoonDays);
+  const pname = platformName(r.platform_id, u);
+  const identity = identityOf(r, pname !== null);
   const usedBy = parseJson<{ text?: string; links?: CredentialLink[]; urls?: CredentialUrl[] }>(r.used_by, {});
   const next = dues.map((d) => d.dueAt).sort()[0] ?? null;
   return {
@@ -316,7 +331,10 @@ export function toCredential(r: CredentialRow, u: AuthUser | null = currentUser(
     type: r.type,
     belongsTo: toBelongsTo(r.belongs_kind ?? null, r.belongs_id ?? null),
     platformId: r.platform_id,
-    platformName: platformName(r.platform_id, u),
+    platformName: pname,
+    identityId: r.identity_id ?? null,
+    identityName: identity?.name ?? null,
+    ...(identity?.privileged ? { identityPrivileged: true } : {}),
     platformText: r.platform_text,
     environment: r.environment,
     description: r.description,
@@ -401,6 +419,8 @@ export const credentialInputSchema = z.object({
   /** The application, component or system it belongs to (#143); missing: unchanged on update */
   belongsTo: belongsToSchema.nullable().optional(),
   platformId: z.string().max(100).nullable().optional(),
+  /** The platform identity it documents (0.14.0, ADR 0009 step 4); missing: unchanged on update (dropped with another platform) */
+  identityId: z.string().max(100).nullable().optional(),
   platformText: z.string().trim().max(200).default(''),
   environment: z.string().trim().max(100).default(''),
   description: z.string().max(4000).default(''),
@@ -510,6 +530,21 @@ function checkPlatform(id: string | null | undefined, unchanged: string | null):
     throw new HttpError(400, `Platform ${id} not found`, 'PLATFORM_NOT_FOUND', { id });
 }
 
+/**
+ * The identity an entry documents (0.14.0, ADR 0009 step 4): one of the linked platform's identities. A named one that is
+ * not refuses the entry; a kept one is dropped when the platform changes.
+ */
+function checkIdentity(b: CredentialInput, before?: CredentialRow): string | null {
+  const platformId = b.platformId || null;
+  const kept = b.identityId === undefined;
+  const id = kept ? (before?.identity_id ?? null) : b.identityId || null;
+  if (!id) return null;
+  const ok = !!platformId && !!db().get('SELECT 1 FROM platform_identities WHERE id = ? AND platform_id = ?', id, platformId);
+  if (ok) return id;
+  if (kept) return null;
+  throw new HttpError(400, `Identity ${id} is not one of the linked platform's identities`, 'CREDENTIAL_IDENTITY', { id });
+}
+
 /** A vault link needs an IBM Verify Privilege Vault platform the user may use (an unchanged link is kept). */
 function checkVault(v: CredentialInput['vault'], before?: CredentialRow): void {
   if (!v || (v.platformId === before?.vault_platform_id && v.secretId === Number(before?.vault_secret_id))) return;
@@ -565,6 +600,8 @@ export interface CredentialFilter {
   q?: string;
   type?: string[];
   platform?: string;
+  /** 0.14.0: entries that document this platform identity */
+  identity?: string;
   status?: string[];
   owner?: string;
   tag?: string;
@@ -619,6 +656,7 @@ export function listCredentials(f: CredentialFilter = {}, now = Date.now()): Cre
         c.platformText.toLowerCase() === f.platform.toLowerCase() ||
         (c.platformName ?? '').toLowerCase() === f.platform.toLowerCase(),
     )
+    .filter((c) => !f.identity || c.identityId === f.identity)
     .filter((c) => !f.status?.length || f.status.includes(c.status))
     .filter((c) => !owner || c.owners.some((o) => o.email.includes(owner)) || c.ownerSubjects.some((s) => s.includes(owner)))
     .filter((c) => tagsMatch(c.tags, f.tag))
@@ -789,6 +827,8 @@ function prepare(b: CredentialInput, before?: CredentialRow): { values: Record<s
     b.belongsTo === undefined ? { kind: before?.belongs_kind ?? null, id: before?.belongs_id ?? null } : (b.belongsTo ?? { kind: null, id: null });
   values.belongs_kind = belongs.kind;
   values.belongs_id = belongs.id;
+  // the identity it documents (0.14.0): one of the linked platform's; missing in an update keeps it while the platform stays
+  values.identity_id = checkIdentity(b, before);
   // roles: missing in an update keeps them
   values.roles = b.roles !== undefined ? JSON.stringify(normRoles(b.roles)) : (before?.roles ?? '[]');
   let certificate: CertificateInfo | null | undefined;
@@ -970,6 +1010,32 @@ export function markRotated(id: string, b: z.infer<typeof rotatedSchema>): Crede
     });
   });
   return toCredential(credentialRow(id), u);
+}
+
+/**
+ * A new set of credentials for a platform identity was saved as a rotation (0.14.0, ADR 0009 step 4: "This is a
+ * rotation"): every entry of the register that documents the identity records it – the date, a history event and
+ * credential.rotated with the identity. The register stays documentation: it never receives a secret. Recorded for the
+ * identity's manager, whatever their rights on the entries (a fact of the platform, audited with who saved it).
+ */
+export function recordIdentityRotation(platformId: string, identityId: string, by: string): { id: string; name: string }[] {
+  const rows = db().all<CredentialRow>('SELECT * FROM credentials WHERE identity_id = ? AND platform_id = ? AND archived = 0', identityId, platformId);
+  const identity = db().get<{ name: string }>('SELECT name FROM platform_identities WHERE id = ?', identityId)?.name ?? identityId;
+  const at = nowIso();
+  db().tx(() => {
+    for (const r of rows) {
+      db().run('UPDATE credentials SET last_rotated_at = ?, version = version + 1, updated_at = ?, updated_by = ? WHERE id = ?', at, at, by, r.id);
+      addEvent(r.id, 'rotated', by, '', { rotatedAt: at, platformId, identityId, identityName: identity, source: 'identity' });
+      audit({
+        action: 'credential.rotated',
+        entityType: 'credential',
+        entityId: r.id,
+        summary: `Credential register: "${r.name}" rotated on ${at.slice(0, 10)} – new credentials of the identity "${identity}" were saved`,
+        details: { rotatedAt: at, platformId, identityId, identityName: identity, source: 'identity' },
+      });
+    }
+  });
+  return rows.map((r) => ({ id: r.id, name: r.name }));
 }
 
 export const reviewedSchema = z.object({ reviewedAt: dateish.optional(), comment: z.string().max(2000).default('') });

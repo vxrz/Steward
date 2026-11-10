@@ -356,6 +356,9 @@ const EXPECT: Record<string, Access> = {
   'GET /api/platforms/:id/kafka-connect': USE,
   'POST /api/platforms/:id/kafka-connect/read': USE,
   'GET /api/platforms/:id/kafka-connect/connectors/:name/config': USE,
+  // Confluent Cloud (#123): the readout for who sees the platform, "Read now" for who may use it
+  'GET /api/platforms/:id/confluent': USE,
+  'POST /api/platforms/:id/confluent/read': USE,
   'GET /api/platforms/:id/specs': USE,
   'POST /api/platforms/:id/specs': ADMIN,
   'DELETE /api/platforms/:id/specs/:specId': ADMIN,
@@ -708,6 +711,12 @@ const EXPECT: Record<string, Access> = {
   'PUT /api/maintenance-windows/:id': DESIGN,
   'POST /api/maintenance-windows/:id/cancel': DESIGN,
   'GET /api/maintenance-windows/:id/ics': ALL,
+  // 0.14: impact before maintenance – before saving and of a window; planned downtime for its monitors, telling the owners
+  'GET /api/maintenance-windows/impact': ALL,
+  'GET /api/maintenance-windows/plant-targets': ALL,
+  'GET /api/maintenance-windows/:id/impact': ALL,
+  'POST /api/maintenance-windows/:id/impact/downtime': DESIGN,
+  'POST /api/maintenance-windows/:id/impact/notify': DESIGN,
   'GET /api/platforms/:id/application': USE,
   'PUT /api/services/:id/applications/:applicationId': DESIGN,
   'DELETE /api/services/:id/applications/:applicationId': DESIGN,
@@ -856,6 +865,12 @@ const EXPECT: Record<string, Access> = {
   'GET /api/v1/plant/sites/:siteId/network': PLANT,
   'GET /api/v1/plant/assets/:assetId/network': PLANT,
   'GET /api/v1/plant/assets/:assetId/collections': PLANT,
+  // 0.14: security advisories – published documents everyone in the registry reads; matches per visible site
+  'GET /api/v1/plant/advisories': PLANT,
+  'GET /api/v1/plant/advisories/:advisoryId': PLANT,
+  'GET /api/v1/plant/assets/:assetId/advisories': PLANT,
+  'GET /api/v1/plant/assets/:assetId/documentation': PLANT,
+  'GET /api/v1/plant/assets/:assetId/collections/:collectionId/sinks/:sinkId/insights-hub': PLANT,
   // database schemas (#222): of the demo database platform (who sees it) and of the matrix system (everyone);
   'GET /api/v1/platforms/:platformId/schema/snapshots': USE,
   // platform costs (#226): the overview for everyone (each sees what they may see); one scope as in the web app
@@ -1104,6 +1119,10 @@ const EXPECT: Record<string, Access> = {
   'POST /api/plant/history/:historyId/revert': PROPOSE,
   // the site's switch "Changes need a second person": who manages the site, confirmed like an access grant
   'PUT /api/plant/sites/:siteId/review': DESIGN,
+  // 0.14: documentation still current – confirming (who may propose on the site), the site's interval, the health view
+  'POST /api/plant/documents/confirm': [...DESIGN, 'operator', 'approver', 'plant'],
+  'PUT /api/plant/sites/:siteId/doc-review': DESIGN,
+  'GET /api/plant/sites/:siteId/documentation': PLANT,
   // part 2 (#219): device profiles and KPI definitions (catalogues of the installation), an asset's assignment
   'GET /api/plant/profiles': PLANT,
   'POST /api/plant/profiles': DESIGN,
@@ -1169,6 +1188,35 @@ const EXPECT: Record<string, Access> = {
   'GET /api/plant/documents': PLANT,
   'GET /api/plant/collections': PLANT,
   'GET /api/plant/profiles/:profileId/points/:pointId/collections': PLANT,
+  // 0.14: security advisories – read by everyone in the registry; upload and removal by who manages the catalogues;
+  // decisions and remediation by who manages the asset's site (the fixture advisory matches no asset: refused roles
+  // only); the sources (providers, aggregators, ROLIE feeds) are the administrators'
+  'GET /api/plant/advisories': PLANT,
+  'GET /api/plant/advisories/summary': PLANT,
+  'POST /api/plant/advisories/upload': DESIGN,
+  'GET /api/plant/advisories/:advisoryId': PLANT,
+  'DELETE /api/plant/advisories/:advisoryId': DESIGN,
+  'GET /api/plant/advisories/:advisoryId/document': PLANT,
+  'PUT /api/plant/advisories/:advisoryId/assets/:assetId/decision': DESIGN,
+  'PUT /api/plant/advisories/:advisoryId/assets/:assetId/remediation': DESIGN,
+  'PUT /api/plant/advisories/:advisoryId/sites/:siteId': DESIGN,
+  'GET /api/plant/assets/:assetId/advisories': PLANT,
+  'GET /api/plant/advisory-sources': ADMIN,
+  'POST /api/plant/advisory-sources': ADMIN,
+  'PUT /api/plant/advisory-sources/:advisorySourceId': ADMIN,
+  'DELETE /api/plant/advisory-sources/:advisorySourceId': ADMIN,
+  'POST /api/plant/advisory-sources/:advisorySourceId/fetch': ADMIN,
+  // 0.14: the Insights Hub mapping of a sink follows the collection; checking it also needs the platform's use right
+  'GET /api/plant/assets/:assetId/collections/:collectionId/sinks/:sinkId/insights-hub': PLANT,
+  'GET /api/plant/assets/:assetId/collections/:collectionId/sinks/:sinkId/insights-hub/mapping.csv': PLANT,
+  'PUT /api/plant/assets/:assetId/collections/:collectionId/sinks/:sinkId/insights-hub/mapping': DESIGN,
+  'POST /api/plant/assets/:assetId/collections/:collectionId/sinks/:sinkId/insights-hub/bulk': DESIGN,
+  'POST /api/plant/assets/:assetId/collections/:collectionId/sinks/:sinkId/insights-hub/csv': DESIGN,
+  'POST /api/plant/assets/:assetId/collections/:collectionId/sinks/:sinkId/insights-hub/check': DESIGN,
+  'POST /api/plant/assets/:assetId/collections/:collectionId/sinks/:sinkId/insights-hub/monitor': DESIGN,
+  'GET /api/plant/sites/:siteId/insights-hub': PLANT,
+  // the monitor's page: who sees the monitor
+  'GET /api/plant/monitors/:monitorId/insights-hub': ALL,
 };
 
 /** Routes that only work with an interactive session: an API token must not manage identities, the vault or sign-in. */
@@ -1329,6 +1377,10 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
   // (harmless: no list, so nobody gains a right – refused by the route's validation, the fixture stays)
   // an access list of a plant registry site gives rights to others (#218)
   'PUT /api/plant/sites/:siteId/access': 'always',
+  // 0.14: where Steward reads security advisories from (plant.advisorySources)
+  'POST /api/plant/advisory-sources': 'always',
+  'PUT /api/plant/advisory-sources/:advisorySourceId': 'always',
+  'DELETE /api/plant/advisory-sources/:advisorySourceId': 'always',
   'PUT /api/platforms/:id/access': {
     sensitive: { acl: [{ subject: 'user:vera', permissions: ['manage'] }] },
     harmless: { acl: 'not a list' },
@@ -1363,6 +1415,48 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
   },
   'PUT /api/platforms/:id/identities/:identityId/mcp': { sensitive: { mode: 'writes', writes: 'confirm' }, harmless: { mode: 'read' } },
   'POST /api/platforms/:id/identities/:identityId/default': 'always',
+  // privileged identities (0.14.0, ADR 0009 step 4): naming one asks for a step-up (platform.privilegedIdentity); the
+  // routes where it depends on a stored object (approving a start approval or an MCP request, "Run now") ask in the handler
+  'POST /api/runs': {
+    get sensitive() {
+      return { processId: fx.process, bindings: { api: fx.platform }, identities: { api: fx.privIdentity } };
+    },
+    get harmless() {
+      return { processId: fx.process, dryRun: true, bindings: { api: fx.platform }, identities: { api: fx.identity } };
+    },
+  },
+  ...Object.fromEntries(
+    ['POST /api/schedules', 'PUT /api/schedules/:id'].map((k) => [
+      k,
+      {
+        get sensitive() {
+          return { name: 'x', processId: fx.process, cron: '0 3 * * *', bindings: { api: fx.platform }, identities: { api: fx.privIdentity } };
+        },
+        get harmless() {
+          return { name: '!', processId: fx.process, cron: 'not a cron' };
+        },
+      },
+    ]),
+  ),
+  ...Object.fromEntries(
+    ['POST /api/triggers', 'PUT /api/triggers/:id'].map((k) => [
+      k,
+      {
+        get sensitive() {
+          return { ...TRIGGER, processId: fx.process, bindings: { api: fx.platform }, identities: { api: fx.privIdentity } };
+        },
+        get harmless() {
+          return { name: 1 };
+        },
+      },
+    ]),
+  ),
+  'POST /api/platforms/:id/request': {
+    get sensitive() {
+      return { method: 'GET', path: '/x', identityId: fx.privIdentity };
+    },
+    harmless: { method: 'GET', path: '/x', identityId: 'pi_none' },
+  },
   'POST /api/platforms/:id/identities/:identityId/enable': 'always',
   // raising an AI budget (the fixtures set 1,000 tokens a day for the installation); lowering it needs no confirmation
   'PUT /api/ai/budgets': {
@@ -1508,6 +1602,8 @@ function fill(url: string): string {
       // Kafka Connect (#223): the demo cluster and its Debezium connector
       .replace(/\/api\/platforms\/:id\/kafka-connect/, `/api/platforms/${fx.connectPlatform}/kafka-connect`)
       .replace(/:name\/config/, 'shop-cdc/config')
+      // Confluent Cloud (#123): the demo organisation
+      .replace(/\/api\/platforms\/:id\/confluent/, `/api/platforms/${fx.confluentPlatform}/confluent`)
       // platform costs (#226): the demo platform
       .replace(/\/api\/(v1\/)?costs\/:scope\/:id/, `/api/$1costs/platform/${fx.platform}`)
       .replace(/\/api\/costs\/platform\/:id/, `/api/costs/platform/${fx.platform}`)
@@ -1525,6 +1621,9 @@ function fill(url: string): string {
       .replace(/:taskId/g, 'tsk_none')
       // plant change sets (0.13.0): a proposed one that removes two entries; one operation; no history row
       .replace(/:changeSetId/g, fx.changeSet!)
+      // 0.14: an uploaded advisory (matching no asset) and an advisory source (never read)
+      .replace(/:advisoryId/g, fx.advisory!)
+      .replace(/:advisorySourceId/g, fx.advisorySource!)
       .replace(/:seq/g, '1')
       .replace(/:historyId/g, 'peh_none')
       .replace(/:triggerId/g, fx.trigger!)
@@ -1574,6 +1673,7 @@ function fill(url: string): string {
       .replace(/:profileId/g, 'matrix-profile')
       .replace(/:pointId/g, 'matrix_point')
       .replace(/:collectionId/g, 'matrix-collection')
+      .replace(/:sinkId/g, 'matrix-sink')
       .replace(/:sourceId/g, 'pcs_matrix')
       .replace(/:kpiId/g, 'matrix-kpi')
       .replace(
@@ -1979,6 +2079,8 @@ beforeAll(async () => {
     name: 'Matrix collection',
     collector: { kind: 'job', ref: 'matrix-job' },
     items: [{ address: 'ns=2;s=X', outputName: 'x', dataPoint: 'matrix_point' }],
+    // 0.14: a sink (not Insights Hub: its mapping reads, a change is refused)
+    sinks: [{ id: 'matrix-sink', name: 'Matrix sink', kind: 'other', ref: 'matrix-broker' }],
   });
   // 0.12: a kept file of a collection import (secrets removed), as an import writes it
   (await import('../src/db.js')).db().run(
@@ -1992,6 +2094,28 @@ beforeAll(async () => {
   await a('POST', `/plant/change-sets/${changeSet}/operations`, { op: 'remove', kind: 'building', scope: 'matrix-site', id: 'matrix-building', value: {} });
   await a('POST', `/plant/change-sets/${changeSet}/operations`, { op: 'remove', kind: 'node', scope: 'matrix-site', id: 'matrix-area', value: {} });
   await a('POST', `/plant/change-sets/${changeSet}/propose`, {});
+  // 0.14: a security advisory (uploaded; it matches no asset) and an advisory source that is never read
+  const advisory = (
+    await a('POST', '/plant/advisories/upload', {
+      content: JSON.stringify({
+        document: {
+          category: 'csaf_security_advisory',
+          csaf_version: '2.0',
+          publisher: { category: 'vendor', name: 'Matrix Vendor', namespace: 'https://psirt.matrix.example' },
+          title: 'Matrix advisory',
+          tracking: {
+            id: 'MATRIX-1',
+            version: '1',
+            status: 'final',
+            initial_release_date: '2026-01-01T00:00:00Z',
+            current_release_date: '2026-01-01T00:00:00Z',
+            revision_history: [{ date: '2026-01-01T00:00:00Z', number: '1', summary: 'x' }],
+          },
+        },
+      }),
+    })
+  ).advisory.id;
+  const advisorySource = (await a('POST', '/plant/advisory-sources', { name: 'Matrix source', url: 'https://csaf.matrix.example/provider-metadata.json' })).id;
   const siteLink = (await a('POST', '/plant/sites/matrix-site/links', { url: 'https://cmdb.example.com/4', label: 'x' })).id;
   const assetLink = (await a('POST', '/plant/assets/matrix-asset/links', { url: 'https://cmdb.example.com/5', label: 'x' })).id;
   const procs = await a('GET', '/processes');
@@ -2069,6 +2193,8 @@ beforeAll(async () => {
     platform: plat.id,
     // a read-only identity of the platform (0.13.0, ADR 0009)
     identity: (await a('POST', `/platforms/${plat.id}/identities`, { name: 'Matrix read only', readOnly: true })).id,
+    // a privileged identity of the platform (0.14.0, ADR 0009 step 4): naming it asks for a step-up
+    privIdentity: (await a('POST', `/platforms/${plat.id}/identities`, { name: 'Matrix privileged', privileged: true })).id,
     platformKind: (await a('POST', '/platform-types', { fromPlatformId: gatus.id, kind: 'matrix-connector', label: 'Matrix connector' })).kind,
     gatusPlatform: gatus.id,
     doc: doc.id,
@@ -2117,6 +2243,8 @@ beforeAll(async () => {
     plantNode: 'matrix-area',
     building: 'matrix-building',
     changeSet,
+    advisory,
+    advisorySource,
     siteLink,
     assetLink,
   };
@@ -2125,6 +2253,7 @@ beforeAll(async () => {
   // database schemas (#222): a read of the demo database platform, a tbls import for the matrix system
   fx.dbPlatform = platforms.find((p: { kind: string }) => p.kind === 'database').id;
   fx.connectPlatform = platforms.find((p: { kind: string }) => p.kind === 'kafka-connect').id;
+  fx.confluentPlatform = platforms.find((p: { kind: string }) => p.kind === 'confluent-cloud').id;
   // changedetection.io (#242): the demo platform, read by the demo setup
   fx.cdPlatform = platforms.find((p: { kind: string }) => p.kind === 'changedetection').id;
   // a cost budget (#226), so raising it is a sensitive change (STEP_UP)

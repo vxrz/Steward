@@ -144,6 +144,14 @@ const DEFS: Defs = {
     active: true,
     defaults: { platform: '', notRunningAs: 'down', pausedAs: 'degraded', failedMinutes: 10, quietAs: 'degraded' },
   },
+  confluent: {
+    label: 'Confluent Cloud',
+    help: 'The Kafka clusters of a Confluent Cloud organisation are provisioned, or its managed connectors and their tasks are RUNNING (a task failed for N minutes)',
+    defaultName: 'Confluent connectors running',
+    platform: 'kind',
+    active: true,
+    defaults: { platform: '', target: 'connectors', notRunningAs: 'down', pausedAs: 'degraded', failedMinutes: 10 },
+  },
   mqtt: {
     label: 'MQTT topics',
     help: 'Messages on an MQTT topic within N minutes, devices (topics of a pattern) that went silent, connected clients',

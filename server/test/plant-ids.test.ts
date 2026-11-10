@@ -50,7 +50,10 @@ beforeAll(async () => {
 describe('the registry of reference columns', () => {
   /** Columns of plant tables that hold no plant id (or the entry's own data); a new column fails until it is listed. */
   const PLAIN: Record<string, string[]> = {
-    plant_sites: ['code', 'name', 'names', 'description', 'lat', 'lon', 'zoom', 'contacts', 'fields', 'acl'],
+    // 0.14: the site's review interval of its documentation
+    plant_sites: ['code', 'name', 'names', 'description', 'lat', 'lon', 'zoom', 'contacts', 'fields', 'acl', 'doc_review_months'],
+    // 0.14: "still current" – of a record (its id is not a plant id) or of an asset's documentation (in REFERENCES)
+    plant_doc_confirmations: ['kind', 'confirmed_at', 'confirmed_by'],
     plant_nodes: ['level', 'name', 'names', 'type', 'domain', 'description', 'position', 'fields'],
     plant_buildings: ['name', 'names', 'kind', 'description', 'position', 'fields'],
     plant_assets: [
@@ -165,6 +168,10 @@ describe('the registry of reference columns', () => {
       'document_id',
     ],
     plant_collection_mappings: ['collector_key', 'gateway_name'],
+    // 0.14: the last check of an Insights Hub mapping and the links of sink items to monitor checks (their asset is in
+    // REFERENCES; collection, sink and item are names within the asset, monitor and platform are Steward ids)
+    plant_ih_checks: ['collection_id', 'sink_id', 'platform_id', 'checked_at', 'checked_by', 'run', 'items'],
+    plant_ih_monitor_links: ['collection_id', 'sink_id', 'item', 'monitor_id', 'check_id', 'origin'],
     // 0.12: the kept files of collection imports (their asset is in REFERENCES; `collections` are ids within the asset)
     plant_collection_sources: [
       'id',
@@ -221,6 +228,81 @@ describe('the registry of reference columns', () => {
     plant_change_sources: ['change_set_id', 'seq', 'content', 'sha256'],
     plant_entry_history: ['id', 'kind', 'revision', 'change_set_id', 'op', 'at', 'author', 'applied_by', 'before_values', 'after_values', 'removed_at'],
     plant_import_baselines: ['kind', 'field_values'],
+    // 0.14: security advisories – documents and their sources name vendors and models as text, never plant ids (the
+    // site and asset of a match are in REFERENCES)
+    plant_advisory_sources: [
+      'id',
+      'name',
+      'url',
+      'kind',
+      'enabled',
+      'interval_hours',
+      'publishers',
+      'since',
+      'last_run_at',
+      'last_ok_at',
+      'last_error',
+      'last_count',
+    ],
+    plant_advisory_fetched: ['source_id', 'url', 'updated', 'sha256', 'advisory_id', 'error', 'fetched_at'],
+    plant_advisories: [
+      'id',
+      'publisher',
+      'namespace',
+      'tracking_id',
+      'title',
+      'category',
+      'doc_status',
+      'version',
+      'initial_release',
+      'current_release',
+      'language',
+      'tlp',
+      'aggregate_severity',
+      'severity',
+      'cvss',
+      'cves',
+      'vendors',
+      'severity_rank',
+      'match_stamp',
+      'content',
+      'document',
+      'sha256',
+      'size',
+      'origin',
+      'source_id',
+      'url',
+      'file_name',
+      'integrity',
+      'signature_url',
+    ],
+    plant_advisory_matches: [
+      'advisory_id',
+      'kind',
+      'current',
+      'product_ids',
+      'cves',
+      'cvss',
+      'severity',
+      'reasons',
+      'fixes',
+      'first_matched_at',
+      'last_matched_at',
+      'decision',
+      'decision_reason',
+      'decided_by',
+      'decided_at',
+      'remediation',
+      'remediation_reason',
+      'remediation_until',
+      'remediation_window',
+      'remediation_change_set',
+      'remediation_note',
+      'remediation_by',
+      'remediation_at',
+      'notified_at',
+    ],
+    plant_advisory_sites: ['advisory_id', 'not_applicable', 'reason', 'decided_by', 'decided_at'],
   };
   // 0.13.0: every entry's revision; a site's switch "Changes need a second person"
   const SOURCE = ['import_id', 'not_in_source', 'created_at', 'created_by', 'updated_at', 'updated_by', 'renamed_by', 'revision', 'review'];
@@ -251,7 +333,7 @@ describe('the registry of reference columns', () => {
     maintenance_windows: 'a window kind: maintenance or downtime',
     eol_notices: 'components',
     systems: 'the system kind',
-    maintenance_targets: 'MAINTENANCE_TARGET_KINDS: platforms, systems, applications, services, monitors',
+    maintenance_targets: 'MAINTENANCE_TARGET_KINDS: platforms, systems, applications, services, monitors – and plant entries (in REFERENCES)',
     maintenance_notices: 'a notice kind',
     stack_version_watch: 'applications and systems',
     service_duties: 'an interval',

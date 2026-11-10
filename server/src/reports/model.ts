@@ -62,7 +62,15 @@ export interface RunReportModel extends ReportContext {
     /** The library release this version came from (ADR 0014), with its signing key */
     library?: { library: string; release: string; publisher: string; keyFingerprint: string; releaseSha256: string; keyRevoked: boolean } | null;
   };
-  connections: { slot: string; platformName: string; kind: string | null; environment: string | null }[];
+  /** identityName, privileged (0.14.0, ADR 0009 step 4): the identity the slot used, and whether it was privileged then */
+  connections: {
+    slot: string;
+    platformName: string;
+    identityName?: string | null;
+    privileged?: boolean;
+    kind: string | null;
+    environment: string | null;
+  }[];
   inputs: { name: string; label: string | null; value: string }[];
   steps: {
     startedAt: string;
@@ -197,7 +205,14 @@ export function buildRunModel(runId: string, ctx: ReportContext): RunReportModel
 
   const connections = Object.entries(run.bindings).map(([slot, b]) => {
     const p = db().get<{ kind: string; environment: string | null }>('SELECT kind, environment FROM platforms WHERE id = ?', b.platformId);
-    return { slot, platformName: b.platformName, kind: p?.kind ?? null, environment: p?.environment || null };
+    return {
+      slot,
+      platformName: b.platformName,
+      identityName: b.identityName || null,
+      privileged: !!b.privileged,
+      kind: p?.kind ?? null,
+      environment: p?.environment || null,
+    };
   });
 
   let inputLabels: Record<string, string> = {};

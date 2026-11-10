@@ -210,6 +210,10 @@
       "change_decided": {
         "label": "Werksänderung entschieden",
         "info": "Eine Werksänderung von Ihnen wurde übernommen, abgelehnt, an Sie zurückgegeben oder ist verfallen (mit dem Kommentar der Prüfung)"
+      },
+      "advisory_matched": {
+        "label": "Sicherheitshinweis betrifft einen Standort",
+        "info": "Ein neuer Sicherheitshinweis mit hohem oder kritischem Schweregrad betrifft Anlagen eines Standorts, den Sie verwalten (Werksregister)"
       }
     }
   },

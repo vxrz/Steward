@@ -6,7 +6,9 @@
     "site": {
       "overview": "Überblick",
       "structure": "Struktur",
-      "history": "Verlauf"
+      "documentation": "Dokumentation",
+      "history": "Verlauf",
+      "insights-hub": "Insights Hub"
     },
     "asset": {
       "overview": "Überblick",
@@ -308,7 +310,10 @@
     "via": "über das Teil {{name}}",
     "viaHint": "Die KPI wird von Teilen übernommen: Dieses Teil hat den Job oder liefert die Eingaben und zählt für die Anlage.",
     "rolledUp": "gezählt für {{name}}",
-    "rolledUpHint": "Die KPI wird von Teilen übernommen: Diese Anlage ist ein Teil von {{name}}, das die KPI für beide einmal zählt – in den Summen nicht noch einmal gezählt."
+    "rolledUpHint": "Die KPI wird von Teilen übernommen: Diese Anlage ist ein Teil von {{name}}, das die KPI für beide einmal zählt – in den Summen nicht noch einmal gezählt.",
+    "ihVerified": "Jede Eingangsgröße ist auch in Insights Hub geprüft (die Zuordnung der Senke wurde mit dem Tenant abgeglichen)",
+    "potentialIh_one": "{{count}} davon in Insights Hub geprüft",
+    "potentialIh_other": "{{count}} davon in Insights Hub geprüft"
   },
   "explore": {
     "coverage": "KPI-Abdeckung"

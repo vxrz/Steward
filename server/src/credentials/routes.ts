@@ -14,7 +14,7 @@ import { params } from '../routes/params.js';
 /**
  * Credentials register (mounted under /api). Documentation only: no route
  * accepts or returns a secret value.
- *   GET    /credentials                   list (filters: q, type, platform, status, owner, tag, dueWithinDays, archived)
+ *   GET    /credentials                   list (filters: q, type, platform, identity, status, owner, tag, dueWithinDays, archived)
  *   GET    /credentials/export.csv        the same list as CSV
  *   GET    /credentials/summary           due soon / overdue / expired (home page)
  *   GET    /credentials/settings          reminder defaults; PUT: administrators
@@ -41,6 +41,8 @@ export const listQuery = z.object({
   q: z.string().max(200).optional(),
   type: z.preprocess(list, z.array(z.string().max(40)).max(20).optional()),
   platform: z.string().max(200).optional(),
+  // 0.14.0 (ADR 0009 step 4): entries that document one platform identity
+  identity: z.string().max(100).optional(),
   status: z.preprocess(list, z.array(z.enum(CREDENTIAL_STATUSES)).max(4).optional()),
   owner: z.string().max(254).optional(),
   tag: z.string().max(161).optional(),

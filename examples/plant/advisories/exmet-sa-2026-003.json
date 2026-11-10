@@ -1,0 +1,129 @@
+{
+  "document": {
+    "category": "csaf_security_advisory",
+    "csaf_version": "2.0",
+    "distribution": {
+      "text": "Invented example for Steward's demo and tests – not a real advisory.",
+      "tlp": {
+        "label": "WHITE",
+        "url": "https://www.first.org/tlp/"
+      }
+    },
+    "lang": "en",
+    "notes": [
+      {
+        "category": "summary",
+        "title": "Summary",
+        "text": "PM-200 power meters with firmware before 2.1.0 accept Modbus/TCP writes to configuration registers from any host, including the CT ratio and the energy counter."
+      },
+      {
+        "category": "legal_disclaimer",
+        "title": "Invented",
+        "text": "Vendor, products, vulnerabilities and identifiers are invented for Steward's demo and tests."
+      }
+    ],
+    "publisher": {
+      "category": "vendor",
+      "name": "Example Meters Ltd.",
+      "namespace": "https://psirt.example.com/example-meters"
+    },
+    "references": [
+      {
+        "category": "self",
+        "summary": "This advisory",
+        "url": "https://psirt.example.com/example-meters/advisories/exmet-sa-2026-003.json"
+      }
+    ],
+    "title": "Example Meters PM-200: Modbus/TCP write without authorisation",
+    "tracking": {
+      "current_release_date": "2026-10-02T10:00:00.000Z",
+      "id": "EXMET-SA-2026-003",
+      "initial_release_date": "2026-10-02T10:00:00.000Z",
+      "revision_history": [
+        {
+          "date": "2026-10-02T10:00:00.000Z",
+          "number": "1",
+          "summary": "Initial release"
+        }
+      ],
+      "status": "final",
+      "version": "1"
+    }
+  },
+  "product_tree": {
+    "branches": [
+      {
+        "category": "vendor",
+        "name": "Example Meters Ltd.",
+        "branches": [
+          {
+            "category": "product_name",
+            "name": "PM-200",
+            "branches": [
+              {
+                "category": "product_version_range",
+                "name": "vers:generic/<2.1.0",
+                "product": {
+                  "name": "Example Meters PM-200 firmware <2.1.0",
+                  "product_id": "CSAFPID-0001"
+                }
+              },
+              {
+                "category": "product_version",
+                "name": "2.1.0",
+                "product": {
+                  "name": "Example Meters PM-200 firmware 2.1.0",
+                  "product_id": "CSAFPID-0002"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "vulnerabilities": [
+    {
+      "cve": "CVE-2099-10002",
+      "title": "Missing authorisation for configuration registers",
+      "cwe": {
+        "id": "CWE-862",
+        "name": "Missing Authorization"
+      },
+      "notes": [
+        {
+          "category": "description",
+          "title": "Description",
+          "text": "Holding registers 4000–4099 can be written by any Modbus/TCP client."
+        }
+      ],
+      "product_status": {
+        "known_affected": ["CSAFPID-0001"],
+        "fixed": ["CSAFPID-0002"]
+      },
+      "remediations": [
+        {
+          "category": "vendor_fix",
+          "details": "Update the meter firmware to 2.1.0 and turn on the write protection.",
+          "product_ids": ["CSAFPID-0001"]
+        },
+        {
+          "category": "workaround",
+          "details": "Allow Modbus/TCP (tcp/502) only from the collecting gateway.",
+          "product_ids": ["CSAFPID-0001"]
+        }
+      ],
+      "scores": [
+        {
+          "cvss_v3": {
+            "version": "3.1",
+            "baseScore": 9.1,
+            "baseSeverity": "CRITICAL",
+            "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:H/A:H"
+          },
+          "products": ["CSAFPID-0001"]
+        }
+      ]
+    }
+  ]
+}

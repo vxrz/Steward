@@ -23,6 +23,7 @@ import { isAdmin } from '../auth/permissions.js';
 import { noteFourEyes, samePerson } from '../auth/assurance.js';
 import { findUserByName, listUsers, toAuthUser } from '../auth/users.js';
 import * as platforms from '../platforms/service.js';
+import { assertPrivilegedConfirmed, isPrivileged, type PrivilegedUse } from '../platforms/privileged.js';
 import { getProcess } from '../processes/service.js';
 import { engine } from '../engine/index.js';
 import { startProblem } from '../engine/commands.js';
@@ -172,6 +173,7 @@ function toRequest(r: Row, u: AuthUser, detail = true): McpRequest {
     reason: r.reason,
     createdAt: r.created_at,
     expiresAt: r.expires_at,
+    ...(privilegedRequest(r) ? { privileged: true } : {}),
     platformId: r.platform_id,
     platformName: r.platform_id ? (platformName(u, r.platform_id) ?? null) : null,
     identityId: r.identity_id ?? null,
@@ -199,6 +201,24 @@ function toRequest(r: Row, u: AuthUser, detail = true): McpRequest {
     canApprove: mayApprove(u, r),
     canReject: mayReject(u, r),
   };
+}
+
+/**
+ * A gateway request whose identity is privileged now (0.14.0, ADR 0009 step 4): approving it needs the approver's step-up
+ * (platform.privilegedIdentity) and is never done in Microsoft Teams.
+ */
+export function privilegedRequest(r: Pick<Row, 'kind' | 'platform_id' | 'identity_id'>): boolean {
+  return r.kind === 'gateway' && !!r.platform_id && isPrivileged(r.platform_id, r.identity_id);
+}
+
+/** What approving this request (by id) uses of a privileged identity – the decision route asks for the step-up. */
+export function privilegedUsesOf(id: string, approve: unknown): PrivilegedUse[] {
+  if (approve !== true) return [];
+  const r = rowOf(id);
+  if (!r || !privilegedRequest(r)) return [];
+  const name = db().get<{ name: string }>('SELECT name FROM platform_identities WHERE id = ?', r.identity_id)?.name ?? r.identity_id ?? '';
+  const platform = db().get<{ name: string }>('SELECT name FROM platforms WHERE id = ?', r.platform_id)?.name ?? r.platform_id!;
+  return [{ platformId: r.platform_id!, platformName: platform, identityId: r.identity_id ?? '', identityName: name }];
 }
 
 function identityName(u: AuthUser, platformId: string, identityId: string): string | undefined {
@@ -628,6 +648,11 @@ export async function decide(
           : 'An approver or administrator other than the token owner approves this request',
       'MCP_REQUEST_APPROVE',
     );
+  // a privileged identity (0.14.0): the approver confirmed in Steward (the route's step-up) – never from a Teams card
+  if (privilegedRequest(r)) {
+    if (input.via) throw new HttpError(403, 'A request with a privileged identity is approved in Steward, with a confirmation', 'MCP_REQUEST_PRIVILEGED');
+    assertPrivilegedConfirmed(privilegedUsesOf(id, true));
+  }
   if (r.mode === 'fourEyes') noteFourEyes('mcp.write', [r.requested_by], u, { itemRequires: true });
   // a proposal's own check as the reviewer: refused, the request stays open (0.12.0)
   const pre = reviewOf(r)?.precheck;

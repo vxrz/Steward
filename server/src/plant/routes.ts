@@ -16,6 +16,7 @@ import { contentDisposition } from '../records/attachments.js';
 import { diffSources, listSources, sourceFile } from './collections-sources.js';
 import { plantDocuments } from './documents.js';
 import { currentParams, currentQuery, listAliases, removeAlias } from './ids.js';
+import * as docReview from './doc-review.js';
 import { previewRename, renameId } from './rename.js';
 import { applyBulk, bulkNeedsStepUp, previewBulk } from './bulk.js';
 import { plantJsonSchema } from './format.js';
@@ -25,6 +26,12 @@ import { assignmentInput, deleteAssignment, getAssignment, putAssignment } from 
 import * as net from './network.js';
 import * as coll from './collections.js';
 import { applyCollectionImport, collectionImportInput, previewCollectionImport } from './collections-import.js';
+import * as ih from './ih.js';
+import { checkIhMapping } from './ih-check.js';
+import { createIhMonitor, ihMonitorInput } from './ih-draft.js';
+import { collectionRowOf, collectionValuesOf } from './collections-model.js';
+import { refsOf } from './model.js';
+import type { PlantCollectionSink } from '@sm/shared';
 import { assetFlow, coverage, hostPlacement, overview, pointLineage, siteStructure } from './views.js';
 import { candidatesInput, extractBase, extractCandidates, extractInput, previewExtract } from './extract.js';
 import {
@@ -67,7 +74,8 @@ import { revisionOf } from './changesets/entries.js';
 import type { EntryChange, Region } from './changesets/track.js';
 import { me } from '../auth/access.js';
 import { asProposer, canManageCatalogue, plantManagesSome, plantProposesSome } from './access.js';
-import { audit } from '../audit.js';
+import { advisoryRoutes } from './advisories/routes.js';
+import { audit, withAuditDetails } from '../audit.js';
 
 /**
  * The plant registry's internal API (#218), mounted under /api. Every route answers 404 PLANT_MODULE_OFF while the
@@ -84,7 +92,10 @@ import { audit } from '../audit.js';
  *   …       /api/plant/assets/:assetId/network, …/devices[/:deviceId], …/paths[/:pathId], …/checks
  *   …       /api/plant/assets/:assetId/collections[/:collectionId[/mapping|/flow]], …/collections/import[/preview]   data collections (0.11.0; flow 0.12)
  *   GET     /api/plant/assets/:assetId/collection-sources[/diff | /:sourceId/file]   the kept files of collection imports (0.12)
+ *   …       …/collections/:collectionId/sinks/:sinkId/insights-hub[/mapping|/mapping.csv|/bulk|/csv|/check|/monitor]   the Insights Hub mapping of a sink (0.14)
+ *   GET     /api/plant/sites/:siteId/insights-hub, /api/plant/monitors/:monitorId/insights-hub   its coverage per site and per monitor (0.14)
  *   GET     /api/plant/documents?kind=&id=                the Documents panel of plant pages (0.12)
+ *   POST    /api/plant/documents/confirm, PUT …/sites/:siteId/doc-review, GET …/sites/:siteId/documentation   still current (0.14)
  *   GET     /api/plant/collections?collectorKind=&collectorRef=, …/profiles/:profileId/points/:pointId/collections
  *   GET     /api/plant/views/overview | /views/coverage, …/structure, …/flow, …/lineage   the visualizations (#230)
  *   POST    /api/plant/import/preview | /api/plant/import, GET /api/plant/imports, GET /api/plant/export
@@ -215,6 +226,8 @@ export function plantDemo(): void {
 export async function plantRoutes(app: FastifyInstance): Promise<void> {
   // 0.13.0: change sets – drafts, review, apply, history (docs/PLANT.md "Change sets")
   await changeSetRoutes(app);
+  // 0.14: security advisories (CSAF 2.0) matched to assets (docs/ADVISORIES.md)
+  await advisoryRoutes(app);
   // ---------- settings (the module switch works while the module is off) ----------
   app.get('/settings/plant', { config: { access: ACCESS.admin } }, async () => plantSettings());
   // turning the module on or off is a module switch (0.11.0, ADR 0016): the same step-up as Settings → Modules
@@ -753,6 +766,74 @@ export async function plantRoutes(app: FastifyInstance): Promise<void> {
       applyCollectionImport(p(req).assetId!, input),
     );
   });
+  // ---------- 0.14: Insights Hub as a mapped sink (docs/PLANT.md "Insights Hub mapping") ----------
+  const sinkBase = '/plant/assets/:assetId/collections/:collectionId/sinks/:sinkId/insights-hub';
+  const ids = (req: FastifyRequest) => [p(req).assetId!, p(req).collectionId!, p(req).sinkId!] as const;
+  /**
+   * A change of the mapping is a change of the collection: saved as its edit form saves it (its revision, a draft where
+   * the site needs a second person), audited as plant.collection_updated with what the change was.
+   */
+  const ihWrite = (
+    req: FastifyRequest,
+    reply: FastifyReply,
+    via: 'edit' | 'bulk' | 'csv',
+    revision: number | undefined,
+    change: (v: ReturnType<typeof collectionValuesOf>, refs: ReturnType<typeof refsOf>) => { sinks: PlantCollectionSink[]; changed: number },
+  ) => {
+    const [assetId, collectionId, sinkId] = ids(req);
+    ih.sinkOf(assetId, collectionId, sinkId);
+    const v = collectionValuesOf(collectionRowOf(assetId, collectionId)!);
+    const { sinks, changed } = change(v, refsOf('asset', [assetId]));
+    const { id: _id, ...rest } = v;
+    const body = coll.collectionUpdate.parse({ ...rest, destination: null, sinks });
+    return entryWrite(
+      req,
+      reply,
+      { kind: 'collection', op: 'set', scope: assetId, id: collectionId },
+      body,
+      revision,
+      () =>
+        withAuditDetails({ insightsHub: { sink: sinkId, via, items: changed } }, () => {
+          coll.updateCollection(assetId, collectionId, body);
+          return { ...ih.ihMapping(assetId, collectionId, sinkId), changed };
+        }),
+      () => ({ ...ih.ihMapping(assetId, collectionId, sinkId), changed }),
+    );
+  };
+  app.get(sinkBase, async (req) => ih.ihMapping(...ids(req)));
+  app.put(`${sinkBase}/mapping`, { bodyLimit: LARGE_BODIES.plantIhMapping.bytes }, async (req, reply) => {
+    const b = ih.ihMappingInput.parse(req.body);
+    return ihWrite(req, reply, 'edit', b.revision, (v) => ({ sinks: ih.mappingSinks(v, p(req).sinkId!, b), changed: b.items.length }));
+  });
+  app.post(`${sinkBase}/bulk`, async (req, reply) => {
+    const b = ih.ihBulkInput.parse(req.body);
+    return ihWrite(req, reply, 'bulk', b.revision, (v, refs) => ih.bulkSinks(v, p(req).sinkId!, b, refs.get(p(req).assetId!) ?? []));
+  });
+  app.post(`${sinkBase}/csv`, { bodyLimit: LARGE_BODIES.plantIhMapping.bytes }, async (req, reply) => {
+    const b = ih.ihCsvInput.parse(req.body);
+    return ihWrite(req, reply, 'csv', b.revision, (v) => ih.csvSinks(v, p(req).sinkId!, b));
+  });
+  app.get(`${sinkBase}/mapping.csv`, async (req, reply) => {
+    const x = ih.mappingCsv(...ids(req));
+    reply.header('content-disposition', contentDisposition(x.filename));
+    reply.header('cache-control', 'no-store');
+    return reply.type('text/csv; charset=utf-8').send(x.content);
+  });
+  // reads the tenant (read-only, bounded) with the platform's identity: the right to use it is needed besides
+  app.post(`${sinkBase}/check`, { config: { rateLimit: ROUTE_LIMITS.heavy } }, async (req) => checkIhMapping(...ids(req)));
+  // a disabled monitor for the variables no check watches – a draft for review, never enabled here
+  app.post(`${sinkBase}/monitor`, { config: { rateLimit: ROUTE_LIMITS.heavy } }, async (req, reply) => {
+    const r = await createIhMonitor(...ids(req), ihMonitorInput.parse(req.body ?? {}));
+    return reply.code(201).send(r);
+  });
+  app.get('/plant/sites/:siteId/insights-hub', async (req) => {
+    requirePlant();
+    return ih.siteIhCoverage(p(req).siteId!);
+  });
+  app.get('/plant/monitors/:monitorId/insights-hub', async (req) => {
+    requirePlant();
+    return ih.monitorIhCoverage(p(req).monitorId!);
+  });
   app.get('/plant/collections', async (req) => {
     const q = z.object({ collectorKind: z.enum(['application', 'platform', 'process', 'job']), collectorRef: z.string().min(1).max(200) }).parse(req.query);
     return coll.collectorCollections(q.collectorKind, q.collectorRef);
@@ -773,6 +854,11 @@ export async function plantRoutes(app: FastifyInstance): Promise<void> {
             : q.id;
     return plantDocuments(q.kind, id);
   });
+  // 0.14: documentation still current – "Still current" on a document or an asset's documentation as a whole (a light
+  // action, not a change set: it changes no entry), the site's review interval (a setting of the site), the health view
+  app.post('/plant/documents/confirm', async (req) => docReview.confirmCurrent(docReview.confirmInput.parse(req.body)));
+  app.put('/plant/sites/:siteId/doc-review', async (req) => docReview.setSiteDocReview(p(req).siteId!, docReview.siteDocReviewInput.parse(req.body).months));
+  app.get('/plant/sites/:siteId/documentation', async (req) => docReview.documentationHealth(p(req).siteId!));
 
   // ---------- visualizations (#230): read-only aggregates, the same rights as the pages they picture ----------
   app.get('/plant/views/overview', async () => overview());

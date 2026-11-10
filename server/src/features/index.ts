@@ -35,6 +35,7 @@ import ai from './ai.js';
 import dbms from './dbms.js';
 import kafka from './kafka.js';
 import kafkaconnect from './kafkaconnect.js';
+import confluent from './confluent.js';
 import aws from './aws.js';
 import snowflake from './snowflake.js';
 import dtrack from './dtrack.js';
@@ -89,6 +90,7 @@ export const FEATURES: readonly FeatureManifest[] = [
   dbms,
   kafka,
   kafkaconnect,
+  confluent,
   aws,
   snowflake,
   dtrack,

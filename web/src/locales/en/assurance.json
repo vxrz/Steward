@@ -90,7 +90,8 @@
       "manualStep": "Manual step",
       "platformMcp": "Platform (MCP)",
       "personReview": "Person review",
-      "setting": "Setting"
+      "setting": "Setting",
+      "process": "Process"
     },
     "fourEyes": "four-eyes",
     "stepUp": "step-up",
@@ -304,6 +305,10 @@
         "label": "Change where the map of sites fetches its tiles",
         "description": "A new tile source for the map of sites: OpenStreetMap, Light/Dark, an own URL or API key, a self-hosted file, or the own style read again. Turning the map off needs no confirmation."
       },
+      "advisorySources": {
+        "label": "Change where security advisories are read from",
+        "description": "Adding, changing or removing a source of security advisories (a CSAF provider, aggregator or ROLIE feed) – Steward fetches from it. Reading a source now and uploading files need no confirmation."
+      },
       "renameId": {
         "label": "Change the id of a plant entry",
         "description": "A plant registry entry gets a new id; every reference follows and the old id keeps leading to it. Off by default: whoever may change the entry renames it."
@@ -343,6 +348,12 @@
       "switch": {
         "label": "Switch a module on or off",
         "description": "Turning an optional area (costs, data contracts, compliance, status pages and others) on or off for everyone: its pages, routes and background jobs come or go. Its data stays."
+      }
+    },
+    "platform": {
+      "privilegedIdentity": {
+        "label": "Use a privileged platform identity",
+        "description": "Starting a run, saving a schedule or webhook trigger, a request explorer call or approving an MCP request with a privileged identity. Four-eyes: the run waits for a start approval by a second person – off: only where a process asks for it; required: every such run."
       }
     }
   },

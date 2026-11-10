@@ -31,6 +31,7 @@ import { dataPathRows } from './network-model.js';
 import { itemRef, pathsReadingFrom, refProblems } from './network.js';
 import { dashboardVisible, datasetsOf } from '../dashboards/service.js';
 import { isOrExtends } from './resolve.js';
+import { ihTargetBrief, removeIhState } from './ih-core.js';
 import {
   assetPoints,
   collectionInput,
@@ -222,6 +223,12 @@ export function updateCollection(assetId: string, id: string, input: z.infer<typ
   db().tx(() => {
     upsertCollection(assetId, v, cur.position, { at: nowIso(), by: me().username });
     const linksRemoved = goneSinks.reduce((n, sk) => n + db().run("DELETE FROM item_links WHERE to_kind = 'data-sink' AND to_id = ?", sk).changes, 0);
+    // 0.14: a sink that goes takes its Insights Hub check and the links of its items to monitor checks along
+    removeIhState(
+      assetId,
+      id,
+      before.sinks.filter((x) => !v.sinks.some((y) => y.id === x.id)).map((x) => x.id),
+    );
     audit({
       action: 'plant.collection_updated',
       entityType: 'asset',
@@ -263,6 +270,7 @@ export function deleteCollection(assetId: string, id: string, cascade = false): 
   db().tx(() => {
     db().run('DELETE FROM plant_collections WHERE asset_id = ? AND id = ?', assetId, id);
     const linksRemoved = removeCollectionLinks(assetId, id);
+    removeIhState(assetId, id);
     const sources = pruneSources(assetId);
     audit({
       action: 'plant.collection_deleted',
@@ -356,7 +364,7 @@ export function collectionFlow(assetId: string, id: string): PlantCollectionFlow
 }
 
 /** Where a data point goes through one collection: its sinks, with what the reader may see of their targets. */
-function goesTo(v: PlantCollectionValues, pointId: string): PlantSinkTarget[] {
+function goesTo(v: PlantCollectionValues, pointId: string, assetId: string): PlantSinkTarget[] {
   const keys = new Set(v.items.filter((i) => i.dataPoint === pointId).map(itemKey));
   return v.sinks.map((sk) => {
     const ref = sinkRef(sk);
@@ -368,6 +376,8 @@ function goesTo(v: PlantCollectionValues, pointId: string): PlantSinkTarget[] {
       path: ref?.path ?? null,
       object: sk.object,
       target: sk.mappings.find((m) => keys.has(m.item))?.target ?? '',
+      // 0.14: an Insights Hub sink names the asset, aspect and variable, with the last check of the mapping
+      ...(sk.kind === 'platform' ? { ih: ihTargetBrief(assetId, v, sk, pointId) } : {}),
     };
   });
 }
@@ -417,7 +427,7 @@ export function pointCollections(profileId: string, pointId: string): PlantColle
     const names = collectionValuesOf(r)
       .items.filter((i) => i.dataPoint === pointId)
       .map((i) => i.outputName || i.address);
-    if (names.length) out.push({ ...brief(r, asset), outputNames: [...new Set(names)], goesTo: goesTo(collectionValuesOf(r), pointId) });
+    if (names.length) out.push({ ...brief(r, asset), outputNames: [...new Set(names)], goesTo: goesTo(collectionValuesOf(r), pointId, r.asset_id) });
   }
   return out;
 }

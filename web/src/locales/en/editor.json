@@ -775,7 +775,9 @@
       "runbookHint": "What to do when a check fails: a living document id (rec_…) or an http(s) URL. Messages about failed checks show \"Open runbook\" only when one is set; a check step can name its own.",
       "runbookInvalid": "A living document id (rec_…) or an http(s) URL",
       "runbookPlaceholder": "https://… or rec_…"
-    }
+    },
+    "privilegedFourEyes": "Privileged runs need a second person",
+    "privilegedFourEyesHint": "A run that uses a privileged platform identity waits before its first step until a person with the approve right on the process approves its start – never whoever started it or owns its schedule or trigger. Without a decision it is cancelled after 24 hours."
   },
   "general": {
     "name": "Name",

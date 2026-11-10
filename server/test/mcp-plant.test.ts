@@ -88,6 +88,7 @@ const PLANT_TOOLS = [
   'get_kpi_definition',
   'list_data_collections',
   'get_data_collection',
+  'get_insights_hub_mapping',
   'get_plant_import_format',
 ];
 
@@ -567,5 +568,37 @@ describe('proposals', () => {
     expect(await toolNames(tok.dana)).not.toContain('propose_plant_changes');
     expect(await toolNames(tok.dana)).not.toContain('list_plant_sites');
     await s.api('PUT', '/settings/plant', { enabled: true, enterprise: 'Brightwater Components', labels: {}, fields: {} });
+  });
+});
+
+describe('security advisories (0.14)', () => {
+  it('lists the advisories affecting a site and one with its assets – only sites the token owner may see', async () => {
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    for (const name of ['exctl-sa-2026-001.json', 'expm-sa-2026-007.json'])
+      await s.api('POST', '/plant/advisories/upload', {
+        content: fs.readFileSync(path.resolve(__dirname, '../../examples/plant/advisories', name), 'utf8'),
+        fileName: name,
+      });
+    expect(await toolNames(tok.vera)).toEqual(expect.arrayContaining(['list_plant_advisories', 'get_plant_advisory']));
+    const r = (await call(tok.vera, 'list_plant_advisories', { site: 'riverside' })).data;
+    expect(r.items.map((x: { trackingId: string }) => x.trackingId)).toEqual(['EXCTL-SA-2026-001']);
+    expect(r.items[0]).toMatchObject({ severity: 'high', affectedAssets: 1, sites: ['riverside'] });
+    const d = (await call(tok.vera, 'get_plant_advisory', { id: r.items[0].id })).data;
+    expect(d.affected).toEqual([expect.objectContaining({ asset: 'rvs-mill-02', fixedFirmware: ['3.4.0'], remediation: 'open' })]);
+    expect(d.affected[0].why).toContain('firmware 3.2.0 in vers:generic/>=3.0.0|<3.4.0');
+    // the possible matches of Hillcrest: listed apart, never counted
+    const hill = (await call(tok.vera, 'list_plant_advisories', { site: 'hillcrest' })).data;
+    expect(hill.items[0]).toMatchObject({ trackingId: 'EXPM-SA-2026-007', affectedAssets: 0, possibleMatches: 2 });
+    // a site the token owner may not see: nothing named
+    (await db()).run('UPDATE plant_sites SET acl = ? WHERE id = ?', JSON.stringify([{ subject: 'user:admin', permissions: ['view', 'manage'] }]), 'hillcrest');
+    try {
+      expect((await call(tok.vera, 'list_plant_advisories', { site: 'hillcrest' })).data.items).toEqual([]);
+      const all = (await call(tok.vera, 'list_plant_advisories', { all: true })).data;
+      expect(all.items.find((x: { trackingId: string }) => x.trackingId === 'EXPM-SA-2026-007')).toMatchObject({ sites: [], possibleMatches: 0 });
+      expect((await call(tok.vera, 'get_plant_advisory', { id: 'adv_nope' })).isError).toBe(true);
+    } finally {
+      (await db()).run("UPDATE plant_sites SET acl = '[]' WHERE id = ?", 'hillcrest');
+    }
   });
 });

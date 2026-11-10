@@ -218,6 +218,9 @@ const REFERENCES_ALL: RefSpec[] = [
   col('plant_vlans', 'site_id', 'site', 'vlan'),
   col('plant_zones', 'site_id', 'site', 'zone'),
   col('plant_conduits', 'site_id', 'site', 'conduit'),
+  // 0.14: advisories – the site of a match, a site's "not applicable"
+  col('plant_advisory_matches', 'site_id', 'site', 'advisory_match'),
+  col('plant_advisory_sites', 'site_id', 'site', 'advisory_site'),
   json<string[]>('plant_vlans', 'sites', '[]', 'site', 'vlan', ['site_id', 'id'], inList),
   pair('plant_refs', 'kind', 'site', 'item_id', 'site', 'external_ref'),
   pair('item_links', 'from_kind', 'site', 'from_id', 'site', 'link'),
@@ -276,6 +279,11 @@ const REFERENCES_ALL: RefSpec[] = [
   pair('item_links', 'to_kind', 'asset', 'to_id', 'asset', 'link'),
   // 0.12: the kept files of its collection imports; links to its collections and sinks (<asset>/<collection>[/<sink>])
   col('plant_collection_sources', 'asset_id', 'asset', 'collection_source'),
+  // 0.14: the advisories that match it, with their decisions and remediation
+  col('plant_advisory_matches', 'asset_id', 'asset', 'advisory_match'),
+  // 0.14: the Insights Hub checks of its sinks and the links of their items to monitor checks
+  col('plant_ih_checks', 'asset_id', 'asset', 'ih_check'),
+  col('plant_ih_monitor_links', 'asset_id', 'asset', 'ih_link'),
   {
     table: 'item_links',
     column: 'to_id[to_kind=data-collection|data-sink, asset part]',
@@ -515,6 +523,44 @@ const REFERENCES_ALL: RefSpec[] = [
   col('plant_data_paths', 'id', 'data_path', 'data_path', 'asset_id'),
   // 0.11.0: a data collection of the asset may belong to one of its data paths
   col('plant_collections', 'data_path_id', 'data_path', 'collection', 'asset_id'),
+  // 0.14: the last "still current" of an asset's documentation as a whole
+  pair('plant_doc_confirmations', 'kind', 'asset', 'target_id', 'asset', 'doc_confirmation'),
+  // 0.14: maintenance windows planned for a site, an asset, a device (<asset>/<device>) or a collection (<asset>/<collection>)
+  pair('maintenance_targets', 'kind', 'site', 'target_id', 'site', 'maintenance'),
+  pair('maintenance_targets', 'kind', 'asset', 'target_id', 'asset', 'maintenance'),
+  {
+    table: 'maintenance_targets',
+    column: 'target_id[kind=device|collection, asset part]',
+    kind: 'asset',
+    what: 'maintenance',
+    apply: (r) =>
+      db()
+        .all<{ window_id: string; kind: string; target_id: string }>(
+          // an exact prefix (no pattern: ids may hold "_")
+          "SELECT window_id, kind, target_id FROM maintenance_targets WHERE kind IN ('device', 'collection') AND substr(target_id, 1, ?) = ?",
+          r.from.length + 1,
+          `${r.from}/`,
+        )
+        .reduce(
+          (n, t) =>
+            n +
+            run(
+              'UPDATE maintenance_targets SET target_id = ? WHERE window_id = ? AND kind = ? AND target_id = ?',
+              `${r.to}${t.target_id.slice(r.from.length)}`,
+              t.window_id,
+              t.kind,
+              t.target_id,
+            ),
+          0,
+        ),
+  },
+  {
+    table: 'maintenance_targets',
+    column: 'target_id[kind=device]',
+    kind: 'device',
+    what: 'maintenance',
+    apply: (r) => run("UPDATE maintenance_targets SET target_id = ? WHERE kind = 'device' AND target_id = ?", `${r.scope}/${r.to}`, `${r.scope}/${r.from}`),
+  },
 ];
 export const REFERENCES: readonly RefSpec[] = REFERENCES_ALL;
 

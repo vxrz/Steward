@@ -19,6 +19,8 @@ test('a document created from the service page shows in its documentation sectio
   const create = page.getByRole('dialog', { name: `New document for ${name}` });
   // more than one document type (other tests may add some): pick the built-in one
   const type = create.getByRole('combobox', { name: 'Type' });
+  // the types load with the dialog: wait for the choice or the single type's name before counting
+  await expect(create.getByText(/^Type\b/).first()).toBeVisible();
   if (await type.count()) {
     await type.click();
     await page.getByRole('option', { name: /^DOC – / }).click();

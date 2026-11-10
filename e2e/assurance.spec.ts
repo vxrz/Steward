@@ -1,7 +1,7 @@
 import { type Browser, type BrowserContext } from '@playwright/test';
 import { test, expect, USERS } from './support/fixtures';
 import { expectAccessible } from './support/axe';
-import { sessionState, startIsolatedServer, type IsolatedServer } from './support/server';
+import { sessionState, ISOLATED_SETUP_MS, startIsolatedServer, type IsolatedServer } from './support/server';
 
 /**
  * Assurance policy (#210): Settings → Assurance policy shows every control point with its four-eyes and step-up rule,
@@ -11,6 +11,7 @@ import { sessionState, startIsolatedServer, type IsolatedServer } from './suppor
 
 let srv: IsolatedServer;
 test.beforeAll(async () => {
+  test.setTimeout(ISOLATED_SETUP_MS);
   srv = await startIsolatedServer({ demo: true });
   await srv.api('POST', '/demo/setup', {});
 });
