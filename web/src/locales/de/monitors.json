@@ -239,6 +239,14 @@
     "connectMaxLagHint": "Gelesen auf der Kafka-Plattform des Clusters; leer: nicht geprüft",
     "connectQuiet": "Debezium-Topics ruhig nach (Minuten)",
     "connectQuietHint": "Keine Nachricht auf einem Topic eines Debezium-Connectors; leer: nicht geprüft",
+    "confluentTarget": "Was geprüft wird",
+    "confluentConnectors": "Verwaltete Connectoren",
+    "confluentClusters": "Kafka-Cluster",
+    "confluentConnector": "Connector",
+    "confluentConnectorHint": "Sein Name oder seine ID (lcc-…); leer: jeder verwaltete Connector der Organisation",
+    "confluentCluster": "Cluster",
+    "confluentClusterHint": "Seine ID (lkc-…) oder sein Name; leer: jeder Kafka-Cluster der Organisation",
+    "confluentFailedAs": "Status bei FAILED",
     "mqttTopic": "Topic oder Muster",
     "mqttTopicHint": "+ eine Ebene, # der Rest, z. B. plant/+/status",
     "mqttMode": "Was ankommen muss",
@@ -824,6 +832,10 @@
       "label": "Kafka-Connect-Connectoren",
       "help": "Connectoren und ihre Tasks laufen (RUNNING), ein Task ist seit N Minuten fehlgeschlagen, der Rückstand eines Sink-Connectors, ein Debezium-Connector, dessen Topics seit N Minuten keine Nachricht bekamen"
     },
+    "confluent": {
+      "label": "Confluent Cloud",
+      "help": "Die Kafka-Cluster einer Confluent-Cloud-Organisation sind bereitgestellt, oder ihre verwalteten Connectoren und deren Tasks laufen (RUNNING; ein Task ist seit N Minuten fehlgeschlagen)"
+    },
     "mqtt": {
       "label": "MQTT-Topics",
       "help": "Nachrichten auf einem MQTT-Topic innerhalb von N Minuten, verstummte Geräte (Topics eines Musters), verbundene Clients"
@@ -891,6 +903,7 @@
     "git": "Repository-Pipeline",
     "kafka": "Kafka-Topic",
     "kafka-connect": "Connectoren laufen",
+    "confluent": "Confluent-Connectoren laufen",
     "mqtt": "MQTT-Topics",
     "monitor": "Untermonitor",
     "snowflake": "Snowflake-Tabelle aktuell",

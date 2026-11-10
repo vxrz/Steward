@@ -37,6 +37,7 @@ import {
 } from '@sm/shared';
 import { db } from '../db.js';
 import { topicConnectors } from '../kafkaconnect/service.js';
+import { confluentTopicConnectors } from '../confluent/service.js';
 import { audit } from '../audit.js';
 import { currentUser, type AuthUser } from '../auth/context.js';
 import { assertOutboundAllowed, guardedLookup } from '../platforms/outbound.js';
@@ -327,10 +328,15 @@ export function componentsOf(appId: string): ApplicationComponent[] {
     .all<ComponentRow>('SELECT * FROM application_components WHERE application_id = ?', appId)
     .sort((a, b) => typeOrder(a.type) - typeOrder(b.type) || a.name.localeCompare(b.name) || rankOf(a.environment) - rankOf(b.environment));
   const stacks = stackOf(appId);
-  // Kafka topics (#223): the Kafka Connect connectors that use them, per Kafka platform
+  // Kafka topics (#223): the Kafka Connect connectors that use them, per Kafka platform – and the managed connectors of
+  // the Confluent Cloud cluster the Kafka platform is (0.14.0, #123)
   const connectors = new Map<string, Map<string, TopicConnectorRef[]>>();
   for (const r of rows)
-    if (r.type === 'kafka-topic' && r.platform_id && !connectors.has(r.platform_id)) connectors.set(r.platform_id, topicConnectors(r.platform_id));
+    if (r.type === 'kafka-topic' && r.platform_id && !connectors.has(r.platform_id)) {
+      const own = topicConnectors(r.platform_id);
+      for (const [topic, refs] of confluentTopicConnectors(r.platform_id)) own.set(topic, [...(own.get(topic) ?? []), ...refs]);
+      connectors.set(r.platform_id, own);
+    }
   return rows.map((r) => {
     const c = toComponent(r, stacks.get(r.id) ?? []);
     return r.type === 'kafka-topic' && r.platform_id ? { ...c, connectors: connectors.get(r.platform_id)?.get(r.name) ?? [] } : c;

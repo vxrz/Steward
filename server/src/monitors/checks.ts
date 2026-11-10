@@ -1270,6 +1270,8 @@ export const CHECK_RUNNERS: { [T in ActiveType]: CheckRunner<T> } = {
   kafka: { run: checkKafka },
   // Kafka Connect (0.9.0, #223): connectors and tasks, a sink's lag, a Debezium connector's topics
   'kafka-connect': { run: async (c, ctx) => (await import('../kafkaconnect/check.js')).checkKafkaConnect(c, ctx) },
+  // Confluent Cloud (0.14.0, #123): clusters provisioned, managed connectors and tasks running
+  confluent: { run: async (c, ctx) => (await import('../confluent/check.js')).checkConfluent(c, ctx) },
   mqtt: {
     run: checkMqtt,
     validate: (c) => {

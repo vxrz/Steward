@@ -190,7 +190,8 @@ describe('Kafka Connect platforms', () => {
     noSecrets(v);
     // the application page names the connectors of its topic
     const a = await s.api('GET', `/applications/${app.id}`);
-    expect(a.components.find((c: any) => c.name === 'orders').connectors).toEqual([
+    // (Kafka Connect's; the demo's Confluent Cloud cluster adds its managed connectors, confluent-readout.test.ts)
+    expect(a.components.find((c: any) => c.name === 'orders').connectors.filter((x: any) => x.platformId === connectId)).toEqual([
       { platformId: connectId, platformName: 'Kafka Connect (demo)', connector: 'orders-archive', type: 'sink', state: 'RUNNING' },
     ]);
     // a second read keeps the time the task failed
@@ -266,7 +267,7 @@ describe('Kafka Connect platforms', () => {
     await expect(olivia('GET', `/platforms/${connectId}/kafka-connect`)).rejects.toMatchObject({ status: 400, body: { code: 'PLATFORM_NOT_FOUND' } });
     await expect(olivia('GET', `/platforms/${connectId}/kafka-connect/connectors/shop-cdc/config`)).rejects.toMatchObject({ status: 403 });
     const app = (await olivia('GET', '/applications')).find((a: any) => a.name === 'Shop on Kafka Connect');
-    expect((await olivia('GET', `/applications/${app.id}`)).components[0].connectors).toEqual([]);
+    expect((await olivia('GET', `/applications/${app.id}`)).components[0].connectors.filter((x: any) => x.platformId === connectId)).toEqual([]);
     await s.api('PUT', `/platforms/${connectId}/access`, { acl: [] });
     // another kind of platform
     await expect(s.api('GET', `/platforms/${kafkaId}/kafka-connect`)).rejects.toMatchObject({ status: 400, body: { code: 'KAFKA_CONNECT_PLATFORM' } });

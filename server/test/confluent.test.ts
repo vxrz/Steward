@@ -42,7 +42,7 @@ describe('Confluent Cloud platform', () => {
   it('has a preset (Cloud API key, basic auth) and its connection test reads the users', async () => {
     const preset = (await s.api('GET', '/platform-presets')).find((p: any) => p.kind === 'confluent-cloud');
     expect(preset).toMatchObject({ baseUrl: 'https://api.confluent.cloud', config: { auth: { type: 'basic' }, testPath: '/iam/v2/users?page_size=1' } });
-    expect(preset.secretFields.map((f: any) => f.key)).toEqual(['username', 'password', 'clusterApiKey', 'clusterApiSecret']);
+    expect(preset.secretFields.map((f: any) => f.key)).toEqual(['username', 'password', 'registryKey', 'registrySecret', 'clusterApiKey', 'clusterApiSecret']);
     expect(await s.api('POST', `/platforms/${platformId}/test`, {})).toMatchObject({ ok: true, status: 200 });
   });
 

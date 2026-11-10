@@ -405,26 +405,34 @@ export const PRESETS: PlatformPreset[] = [
   },
   {
     kind: 'confluent-cloud',
-    label: 'Confluent Cloud API (access reviews)',
+    label: 'Confluent Cloud API (read-only)',
     description:
-      'The Confluent Cloud API (https://api.confluent.cloud) for access reviews: an access check of source "Confluent" snapshots the role bindings of an organisation, environment or cluster (IAM v2, by CRN) and – with the variables kafkaRestUrl (the cluster\'s REST endpoint, https://pkc-….confluent.cloud:443) and clusterId (lkc-…) and the cluster\'s own API key – its Kafka ACLs; users are named by their e-mail address, so person reviews include Confluent. Platform costs read the Costs API (the key needs OrganizationAdmin or BillingAdmin for it, docs/COSTS.md). Credentials: a Cloud API key and secret (not a cluster key) of a service account with a role that may list role bindings, users and service accounts. Read-only. For topics, consumer lag and schemas use a "Kafka cluster" platform. See docs/CONFLUENT.md.',
+      'The Confluent Cloud API (https://api.confluent.cloud): Steward reads, read-only, the environments, Kafka clusters (type, cloud, region, availability, status), Schema Registry clusters, service accounts, the metadata of API keys (owner, resource, created, expiry – never a secret) and the managed connectors with their tasks, every hour or on Read now; clusters link to the Kafka platform whose variable confluentClusterId names them, connectors to the Kafka topic components of that platform; monitors check that clusters are provisioned and connectors and tasks run. With the variable schemaRegistryUrl (https://psrc-….confluent.cloud) and a key of that Schema Registry (registryKey/registrySecret) also its subjects with versions and compatibility. Access checks of source "Confluent" snapshot the role bindings of an organisation, environment or cluster (by CRN) and – with the variables kafkaRestUrl (https://pkc-….confluent.cloud:443) and clusterId (lkc-…) and the cluster\'s own API key – its Kafka ACLs; users are named by their e-mail address, so person reviews include Confluent. Platform costs read the Costs API. Credentials: a Cloud API key and secret (not a cluster key) of a service account – OrganizationAdmin reads everything (API keys and costs need it, or BillingAdmin for costs). Steward\'s own reads only send GET; process steps may call the API, so mark the identity read-only if Steward should never change anything. Secrets in answers (a new API key\'s secret, connector credentials) are removed. For topics, consumer lag and schemas of topics use a "Kafka cluster" platform. See docs/CONFLUENT.md.',
     baseUrl: 'https://api.confluent.cloud',
     config: {
       auth: { type: 'basic' },
-      variables: { kafkaRestUrl: '', clusterId: '' },
+      variables: { schemaRegistryUrl: '', kafkaRestUrl: '', clusterId: '' },
       http: {},
       testPath: '/iam/v2/users?page_size=1',
     },
     secretFields: [
       { key: 'username', label: 'Cloud API key', help: 'A Cloud API key (resource "Cloud resource management"), not a Kafka cluster key' },
       { key: 'password', label: 'Cloud API secret' },
+      {
+        key: 'registryKey',
+        label: 'Schema Registry API key (optional, for subjects)',
+        help: 'A key of the Schema Registry the variable schemaRegistryUrl names',
+      },
+      { key: 'registrySecret', label: 'Schema Registry API secret (optional)' },
       { key: 'clusterApiKey', label: 'Kafka cluster API key (optional, for ACLs)' },
       { key: 'clusterApiSecret', label: 'Kafka cluster API secret (optional, for ACLs)' },
     ],
     docs: [
+      { title: 'Confluent Cloud API reference', url: 'https://docs.confluent.io/cloud/current/api.html' },
       { title: 'Confluent Cloud IAM role bindings API', url: 'https://docs.confluent.io/cloud/current/api.html#tag/Role-Bindings-(iamv2)' },
       { title: 'Confluent Cloud users and service accounts API', url: 'https://docs.confluent.io/cloud/current/api.html#tag/Users-(iamv2)' },
       { title: 'Kafka REST API v3: ACLs', url: 'https://docs.confluent.io/cloud/current/api.html#tag/ACL-(v3)' },
+      { title: 'OpenAPI descriptions of the Confluent Cloud APIs (ccloud-sdk-go-v2)', url: 'https://github.com/confluentinc/ccloud-sdk-go-v2' },
     ],
   },
   {

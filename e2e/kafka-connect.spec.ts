@@ -64,7 +64,8 @@ async function connectorsTab(page: Page, api: APIRequestContext, mobile: boolean
 async function topicComponent(page: Page, api: APIRequestContext, mobile: boolean) {
   const app = (await json<{ id: string; name: string }[]>(await api.get('/api/applications'))).find((a) => a.name === 'Webshop (demo)')!;
   await page.goto(`/applications/${app.id}`);
-  const line = page.getByTestId('topic-connectors');
+  // the orders topic's line (the demo's Confluent Cloud connectors add lines of their own)
+  const line = page.getByTestId('topic-connectors').filter({ hasText: 'orders-archive' });
   await expect(line).toContainText('Connectors: orders-archive (sink, RUNNING)');
   await expect(line.getByRole('link', { name: 'orders-archive' })).toHaveAttribute('href', /\/platforms\/.+\?tab=connectors$/);
   if (mobile) await expectNoHorizontalScroll(page);

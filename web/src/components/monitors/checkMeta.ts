@@ -25,6 +25,7 @@ import {
   IconFileDiff,
   IconCoin,
   IconContract,
+  IconCloudDataConnection,
 } from '@tabler/icons-react';
 import { CHECK_TYPE_DEFS, type CheckDef, type CheckType } from '@sm/shared';
 import i18n from '../../i18n';
@@ -43,6 +44,7 @@ export const CHECK_ICONS: Record<CheckType, typeof IconApi> = {
   git: IconGitBranch,
   kafka: IconTopologyStar3,
   'kafka-connect': IconArrowsExchange,
+  confluent: IconCloudDataConnection,
   mqtt: IconAntenna,
   snowflake: IconSnowflake,
   database: IconDatabase,

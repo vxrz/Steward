@@ -89,7 +89,7 @@ Every page of Steward's documentation, grouped by what you want to do. New here?
 | [AWS.md](AWS.md)                                 | AWS accounts: tagged resources, costs, IAM access keys, DynamoDB checks, AWS calls    |
 | [CHANGEDETECTION.md](CHANGEDETECTION.md)         | changedetection.io for pages without an API: vendor changelogs, terms, status pages   |
 | [CHECKMK.md](CHECKMK.md)                         | Reading CheckMk states and metrics into monitors and datasets                         |
-| [CONFLUENT.md](CONFLUENT.md)                     | Confluent Cloud access reviews: role bindings and Kafka ACLs                          |
+| [CONFLUENT.md](CONFLUENT.md)                     | Confluent Cloud: clusters, connectors, schemas, API keys, access reviews, costs       |
 | [DATABASES.md](DATABASES.md)                     | PostgreSQL, MariaDB/MySQL and SQL Server, read-only: queries, access reviews, schemas |
 | [DEPENDENCY-TRACK.md](DEPENDENCY-TRACK.md)       | Vulnerabilities and policy violations of an application's components                  |
 | [ENTRA.md](ENTRA.md)                             | Microsoft Graph and Entra ID, read-only: users, groups, roles, app credentials        |

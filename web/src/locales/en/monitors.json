@@ -239,6 +239,14 @@
     "connectMaxLagHint": "Read on the Kafka platform of the cluster; empty: not checked",
     "connectQuiet": "Debezium topics quiet after (minutes)",
     "connectQuietHint": "No message on any topic of a Debezium connector; empty: not checked",
+    "confluentTarget": "What to check",
+    "confluentConnectors": "Managed connectors",
+    "confluentClusters": "Kafka clusters",
+    "confluentConnector": "Connector",
+    "confluentConnectorHint": "Its name or id (lcc-…); empty: every managed connector of the organisation",
+    "confluentCluster": "Cluster",
+    "confluentClusterHint": "Its id (lkc-…) or name; empty: every Kafka cluster of the organisation",
+    "confluentFailedAs": "Status when FAILED",
     "mqttTopic": "Topic or pattern",
     "mqttTopicHint": "+ one level, # the rest, e.g. plant/+/status",
     "mqttMode": "What must arrive",
@@ -824,6 +832,10 @@
       "label": "Kafka Connect connectors",
       "help": "Connectors and their tasks are RUNNING, a task failed for N minutes, the consumer lag of a sink connector, a Debezium connector whose topics got no message for N minutes"
     },
+    "confluent": {
+      "label": "Confluent Cloud",
+      "help": "The Kafka clusters of a Confluent Cloud organisation are provisioned, or its managed connectors and their tasks are RUNNING (a task failed for N minutes)"
+    },
     "mqtt": {
       "label": "MQTT topics",
       "help": "Messages on an MQTT topic within N minutes, devices (topics of a pattern) that went silent, connected clients"
@@ -891,6 +903,7 @@
     "git": "Repository pipeline",
     "kafka": "Kafka topic",
     "kafka-connect": "Connectors running",
+    "confluent": "Confluent connectors running",
     "mqtt": "MQTT topics",
     "monitor": "Sub-monitor",
     "snowflake": "Snowflake table fresh",
