@@ -8643,6 +8643,7 @@ export interface Resources {
     'sources.rename': string;
     'sources.assistant': string;
     'sources.revert': string;
+    'sources.move': string;
     'kinds.site': string;
     'kinds.node': string;
     'kinds.building': string;
@@ -8664,14 +8665,17 @@ export interface Resources {
     'ops.rename': string;
     'ops.import': string;
     'ops.bulk': string;
+    'ops.move': string;
     'actions.change': string;
     'actions.add': string;
     'actions.remove': string;
     'actions.rename': string;
+    'actions.move': string;
     'groups.change': string;
     'groups.add': string;
     'groups.rename': string;
     'groups.remove': string;
+    'groups.move': string;
     'list.title': string;
     'list.state': string;
     'list.source': string;
@@ -8715,6 +8719,7 @@ export interface Resources {
     'history.ops.set': string;
     'history.ops.remove': string;
     'history.ops.rename': string;
+    'history.ops.move': string;
     'history.byOne': string;
     'history.byTwo': string;
     'history.revision': string;

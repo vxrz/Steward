@@ -68,6 +68,7 @@ export * from './plantViews.js';
 export * from './plantMap.js';
 export * from './plantIds.js';
 export * from './plantChanges.js';
+export * from './plantMove.js';
 export * from './plantAdvisories.js';
 export * from './layout.js';
 export * from './database.js';

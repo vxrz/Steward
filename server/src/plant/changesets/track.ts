@@ -3,7 +3,7 @@ import { PLANT_ENTRY_KINDS, sameValue, type PlantEntryKind, type PlantIdKind } f
 import { db } from '../../db.js';
 import { newId, nowIso } from '../../util.js';
 import { refsOf } from '../model.js';
-import { setRenameListener, type RenameOf } from '../rename.js';
+import { setRenameListener, type MovedOf, type RenameOf } from '../rename.js';
 import { ASSET_SCOPED, KINDS, PER_ASSET, SITE_SCOPED, entryKey, readEntry, type EntrySnap } from './entries.js';
 import { historyRetention } from './retention.js';
 import { historyText, historyValues, storedValues } from './values.js';
@@ -14,7 +14,8 @@ import { historyText, historyValues, storedValues } from './values.js';
  * write that changes nothing raises nothing) and one row of history with the full values of its changed fields before
  * and after – whatever wrote it: an edit form, the import, a bulk change, the rename or removal core. Renames are
  * followed (the rename core says what it renamed), so a renamed entry is one entry with a new id, not a removal and an
- * addition.
+ * addition; 0.16: a moved entry (a device, data path or data collection to another asset) is one entry under its new
+ * asset (op `move`, its old and new asset as the field `asset`).
  */
 
 /** What a change may reach: everything, sites (their rows, hierarchy, buildings, OT network and assets), assets (with
@@ -57,8 +58,8 @@ export interface EntryChange {
   id: string;
   name: string;
   siteId: string;
-  op: 'add' | 'set' | 'remove' | 'rename';
-  /** rename: the key before */
+  op: 'add' | 'set' | 'remove' | 'rename' | 'move';
+  /** rename and move: the key before */
   from?: { scope: string; id: string };
   /** The changed fields before and after (add: everything after; remove: everything before) */
   before: Record<string, unknown> | null;
@@ -177,22 +178,28 @@ export function snapshot(region: Region): Map<string, EntrySnap> {
 // ---------- the tracker ----------
 
 interface Active {
-  renames: RenameOf[];
+  renames: (RenameOf | MovedOf)[];
 }
 let active: Active | null = null;
 setRenameListener((r) => active?.renames.push(r));
 
-/** Where an entry of before is after the renames (in their order). */
-function follow(e: { kind: PlantEntryKind; scope: string; id: string }, renames: RenameOf[]): { scope: string; id: string } {
+/** Where an entry of before is after the renames and moves (in their order); `moved`: it went to another asset itself. */
+function follow(e: { kind: PlantEntryKind; scope: string; id: string }, renames: (RenameOf | MovedOf)[]): { scope: string; id: string; moved: boolean } {
   let { scope, id } = e;
+  let moved = false;
   for (const r of renames) {
     const k = r.kind as PlantIdKind;
-    if ((k as string) === e.kind && r.scope === scope && r.from === id) id = r.to;
-    else if (k === 'site' && SITE_SCOPED.includes(e.kind) && scope === r.from) scope = r.to;
+    if ((k as string) === e.kind && r.scope === scope && r.from === id) {
+      id = r.to;
+      if (r.toScope !== undefined && r.toScope !== scope) {
+        scope = r.toScope;
+        moved = true;
+      }
+    } else if (k === 'site' && SITE_SCOPED.includes(e.kind) && scope === r.from) scope = r.to;
     else if (k === 'asset' && ASSET_SCOPED.includes(e.kind) && scope === r.from) scope = r.to;
     else if (k === 'asset' && PER_ASSET.includes(e.kind) && id === r.from) id = r.to;
   }
-  return { scope, id };
+  return { scope, id, moved };
 }
 
 const changedFields = (a: Record<string, unknown>, b: Record<string, unknown>) =>
@@ -203,9 +210,9 @@ const pick = (o: Record<string, unknown>, keys: string[]) => Object.fromEntries(
  * The entries that differ between two snapshots (renames followed). Entries whose rows (and references) are the same
  * are left out before their values are computed; the others are compared by their values, field by field.
  */
-function compare(before: Map<string, RawEntry>, after: Map<string, RawEntry>, renames: RenameOf[]): EntryChange[] {
+function compare(before: Map<string, RawEntry>, after: Map<string, RawEntry>, renames: (RenameOf | MovedOf)[]): EntryChange[] {
   // what differs, by the stored rows: removed, added, renamed or rows not the same
-  const pairs: { b: RawEntry; a: RawEntry | undefined; to: { scope: string; id: string } }[] = [];
+  const pairs: { b: RawEntry; a: RawEntry | undefined; to: { scope: string; id: string; moved: boolean } }[] = [];
   const seen = new Set<string>();
   for (const b of before.values()) {
     const to = follow(b, renames);
@@ -231,16 +238,18 @@ function compare(before: Map<string, RawEntry>, after: Map<string, RawEntry>, re
     const renamed = to.id !== b.id || to.scope !== b.scope;
     const fields = changedFields(b.values, a.values);
     if (!fields.length && !renamed) continue;
+    // a move shows (and its history keeps) the asset it left and the one it is on now
+    const where = to.moved ? (side: string) => ({ asset: side }) : () => ({});
     out.push({
       kind: a.kind,
       scope: a.scope,
       id: a.id,
       name: a.name,
       siteId: a.siteId,
-      op: renamed && to.id !== b.id ? 'rename' : 'set',
+      op: to.moved ? 'move' : renamed && to.id !== b.id ? 'rename' : 'set',
       ...(renamed ? { from: { scope: b.scope, id: b.id } } : {}),
-      before: pick(b.values, fields),
-      after: pick(a.values, fields),
+      before: { ...where(b.scope), ...pick(b.values, fields) },
+      after: { ...where(a.scope), ...pick(a.values, fields) },
       revision: b.revision + 1,
     });
   }
@@ -314,7 +323,7 @@ export function tracked<T>(region: Region, meta: TrackMeta, fn: () => T): Tracke
   const rows = list.map((c) => ({ c, beforeJson: JSON.stringify(c.before), afterJson: JSON.stringify(c.after) }));
   // the revisions reached, per table, scope and revision
   for (const group of groupBy(
-    list.filter((c) => c.op === 'set' || c.op === 'rename'),
+    list.filter((c) => c.op === 'set' || c.op === 'rename' || c.op === 'move'),
     (c) => `${c.kind}\u0000${c.scope}\u0000${c.revision}`,
   )) {
     const { kind, scope, revision } = group[0]!;
@@ -410,7 +419,7 @@ export function historySha256Of(changeSetId: string): string {
 }
 
 /** The region after renames: a renamed site or asset is read under its new id, too. */
-function widen(r: Region, renames: RenameOf[]): Region {
+function widen(r: Region, renames: (RenameOf | MovedOf)[]): Region {
   if (r.all || !renames.length) return r;
   const sites = [...(r.sites ?? [])];
   const assets = [...(r.assets ?? [])];

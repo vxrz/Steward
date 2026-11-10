@@ -13,7 +13,7 @@ import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { me } from '../auth/access.js';
 import { HttpError, parseJson, sha256 } from '../util.js';
-import { aliasesOf, aliasTarget, checkScope, entryOf, entryPath, entryPermissions, idFormatProblem, writeAlias, type Entry } from './ids.js';
+import { aliasesOf, aliasTarget, checkScope, entryOf, entryPath, entryPermissions, idFormatProblem, moveAliases, writeAlias, type Entry } from './ids.js';
 import { requirePlant } from './settings.js';
 import { allProfiles, pointsOf } from './data-model.js';
 
@@ -33,6 +33,20 @@ export interface RenameOf {
   scope: string;
   from: string;
   to: string;
+  /**
+   * 0.16: a move – the entry goes to another scope (a device or data path to another asset, move.ts): the entry's own
+   * row, its history and what names it by scope follow there; references inside the old scope are renamed as by a rename
+   */
+  toScope?: string;
+}
+
+/** 0.16: an entry that moved to another asset, as the change sets' tracker follows it (a rename to another scope). */
+export interface MovedOf {
+  kind: 'device' | 'data_path' | 'collection';
+  scope: string;
+  from: string;
+  to: string;
+  toScope: string;
 }
 
 export interface RefSpec {
@@ -51,13 +65,19 @@ export interface RefSpec {
 
 const run = (sql: string, ...p: unknown[]) => db().run(sql, ...p).changes;
 
-/** A plain column; `scoped`: the column that holds the entry's scope (site, asset or profile id). */
+/**
+ * A plain column; `scoped`: the column that holds the entry's scope (site, asset or profile id). The entry's own id
+ * column takes the new scope along in a move (0.16); other columns are references inside the old scope.
+ */
 const col = (table: string, column: string, kind: PlantIdKind, what: string, scoped?: string): RefSpec => ({
   table,
   column,
   kind,
   what,
-  apply: (r) => run(`UPDATE ${table} SET ${column} = ? WHERE ${column} = ?${scoped ? ` AND ${scoped} = ?` : ''}`, r.to, r.from, ...(scoped ? [r.scope] : [])),
+  apply: (r) =>
+    scoped && r.toScope !== undefined && SELF[kind] === `${table}.${column}`
+      ? run(`UPDATE ${table} SET ${column} = ?, ${scoped} = ? WHERE ${column} = ? AND ${scoped} = ?`, r.to, r.toScope, r.from, r.scope)
+      : run(`UPDATE ${table} SET ${column} = ? WHERE ${column} = ?${scoped ? ` AND ${scoped} = ?` : ''}`, r.to, r.from, ...(scoped ? [r.scope] : [])),
 });
 
 /** A (kind, id) pair: links, owning teams, copies, external references. */
@@ -559,7 +579,9 @@ const REFERENCES_ALL: RefSpec[] = [
     column: 'target_id[kind=device]',
     kind: 'device',
     what: 'maintenance',
-    apply: (r) => run("UPDATE maintenance_targets SET target_id = ? WHERE kind = 'device' AND target_id = ?", `${r.scope}/${r.to}`, `${r.scope}/${r.from}`),
+    // 0.16: a moved device keeps its windows under its new asset
+    apply: (r) =>
+      run("UPDATE maintenance_targets SET target_id = ? WHERE kind = 'device' AND target_id = ?", `${r.toScope ?? r.scope}/${r.to}`, `${r.scope}/${r.from}`),
   },
 ];
 export const REFERENCES: readonly RefSpec[] = REFERENCES_ALL;
@@ -577,7 +599,9 @@ function entryRefs(table: string): RefSpec[] {
       kind: k,
       what: 'history',
       silent: true,
-      apply: (r) => run(`UPDATE ${table} SET entry_id = ? WHERE kind = ? AND scope = ? AND entry_id = ?`, r.to, k, r.scope, r.from),
+      // 0.16: a moved entry's history, baselines and open operations follow it to its new scope
+      apply: (r) =>
+        run(`UPDATE ${table} SET entry_id = ?, scope = ? WHERE kind = ? AND scope = ? AND entry_id = ?`, r.to, r.toScope ?? r.scope, k, r.scope, r.from),
     })),
     {
       table,
@@ -705,11 +729,101 @@ export function renameEntry(r: RenameOf, by: string): PlantReferenceCount[] {
   return counts;
 }
 
-/** 0.13.0: the change sets' tracker follows renames (changesets/track.ts). */
-let renameListener: ((r: RenameOf) => void) | null = null;
-export const setRenameListener = (fn: (r: RenameOf) => void): void => {
+/** 0.13.0: the change sets' tracker follows renames (changesets/track.ts); 0.16: and moves. */
+let renameListener: ((r: RenameOf | MovedOf) => void) | null = null;
+export const setRenameListener = (fn: (r: RenameOf | MovedOf) => void): void => {
   renameListener = fn;
 };
+
+/**
+ * 0.16: moves a device or data path to another asset (`toScope`), with a new id there or its own: every reference
+ * follows through REFERENCES as in a rename – inside the old asset first (data paths that name a device, collections
+ * that name a data path; they move after it), then the entry's row, its maintenance windows, history, baselines and
+ * open operations under the new asset. Its old ids (aliases) go along where the new asset has them free. No rights or
+ * rules are checked here (move.ts); call it inside a transaction. The counts leave the entry itself out.
+ */
+export function moveEntry(r: RenameOf & { kind: 'device' | 'data_path'; toScope: string }): PlantReferenceCount[] {
+  const counts = applyReferences(r);
+  renameListener?.(r);
+  const aliases = moveAliases(r.kind, r.scope, r.from, r.toScope, r.to);
+  if (aliases) counts.push({ what: 'alias', count: aliases });
+  return counts;
+}
+
+/**
+ * 0.16: what names a data collection – it has no id of its own kind (no rename; `<asset>/<collection>` names it): its
+ * row, the Insights Hub check of its sinks and the links of their items to monitor checks, the links of records to it
+ * and its sinks, maintenance windows and its history, baselines and open operations. A move walks this list; a test
+ * walks the schema for the columns that hold a collection's id.
+ */
+export interface CollectionMove {
+  asset: string;
+  id: string;
+  toAsset: string;
+  toId: string;
+}
+interface CollectionRef {
+  table: string;
+  column: string;
+  what: string;
+  apply(m: CollectionMove): number;
+}
+const linkTo = (kind: string, m: CollectionMove, prefix: boolean): number => {
+  const from = `${m.asset}/${m.id}`;
+  const to = `${m.toAsset}/${m.toId}`;
+  if (!prefix) return run('UPDATE item_links SET to_id = ? WHERE to_kind = ? AND to_id = ?', to, kind, from);
+  return db()
+    .all<{ id: string; to_id: string }>(
+      // an exact prefix (no pattern: ids may hold "_")
+      'SELECT id, to_id FROM item_links WHERE to_kind = ? AND substr(to_id, 1, ?) = ?',
+      kind,
+      from.length + 1,
+      `${from}/`,
+    )
+    .reduce((n, l) => n + run('UPDATE item_links SET to_id = ? WHERE id = ?', `${to}${l.to_id.slice(from.length)}`, l.id), 0);
+};
+const collectionEntryRefs = (table: string): CollectionRef => ({
+  table,
+  column: 'scope, entry_id[kind=collection]',
+  what: 'history',
+  apply: (m) => run(`UPDATE ${table} SET scope = ?, entry_id = ? WHERE kind = 'collection' AND scope = ? AND entry_id = ?`, m.toAsset, m.toId, m.asset, m.id),
+});
+export const COLLECTION_REFERENCES: readonly CollectionRef[] = [
+  {
+    table: 'plant_collections',
+    column: 'asset_id, id',
+    what: 'collection',
+    apply: (m) => run('UPDATE plant_collections SET asset_id = ?, id = ? WHERE asset_id = ? AND id = ?', m.toAsset, m.toId, m.asset, m.id),
+  },
+  ...['plant_ih_checks', 'plant_ih_monitor_links'].map((table): CollectionRef => ({
+    table,
+    column: 'asset_id, collection_id',
+    what: table === 'plant_ih_checks' ? 'ih_check' : 'ih_link',
+    apply: (m) => run(`UPDATE ${table} SET asset_id = ?, collection_id = ? WHERE asset_id = ? AND collection_id = ?`, m.toAsset, m.toId, m.asset, m.id),
+  })),
+  { table: 'item_links', column: 'to_id[to_kind=data-collection]', what: 'link', apply: (m) => linkTo('data-collection', m, false) },
+  { table: 'item_links', column: 'to_id[to_kind=data-sink]', what: 'link', apply: (m) => linkTo('data-sink', m, true) },
+  {
+    table: 'maintenance_targets',
+    column: 'target_id[kind=collection]',
+    what: 'maintenance',
+    apply: (m) =>
+      run("UPDATE maintenance_targets SET target_id = ? WHERE kind = 'collection' AND target_id = ?", `${m.toAsset}/${m.toId}`, `${m.asset}/${m.id}`),
+  },
+  ...['plant_entry_history', 'plant_import_baselines', 'plant_entry_baselines', 'plant_change_ops'].map(collectionEntryRefs),
+];
+
+/** 0.16: moves a data collection to another asset and everything that names it (inside a transaction, no checks). */
+export function moveCollectionRefs(m: CollectionMove): PlantReferenceCount[] {
+  const counts = new Map<string, number>();
+  for (const ref of COLLECTION_REFERENCES) {
+    const n = ref.apply(m);
+    if (ref.what === 'history' || ref.table === 'plant_collections') continue;
+    if (n) counts.set(ref.what, (counts.get(ref.what) ?? 0) + n);
+  }
+  renameListener?.({ kind: 'collection', scope: m.asset, from: m.id, to: m.toId, toScope: m.toAsset });
+  return [...counts].map(([what, count]) => ({ what, count })).sort((a, b) => a.what.localeCompare(b.what));
+}
 
 class Rollback extends Error {}
 

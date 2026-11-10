@@ -22,7 +22,8 @@
     "bulk": "Many at once",
     "rename": "Change id",
     "assistant": "Assistant",
-    "revert": "Revert"
+    "revert": "Revert",
+    "move": "Move"
   },
   "kinds": {
     "site": "Site",
@@ -47,19 +48,22 @@
     "remove": "Remove",
     "rename": "Change id",
     "import": "Import",
-    "bulk": "Many at once"
+    "bulk": "Many at once",
+    "move": "Move"
   },
   "actions": {
     "change": "Changed",
     "add": "Added",
     "remove": "Removed",
-    "rename": "Renamed"
+    "rename": "Renamed",
+    "move": "Moved"
   },
   "groups": {
     "change": "Changed entries",
     "add": "Added entries",
     "rename": "Renamed entries",
-    "remove": "Removed entries"
+    "remove": "Removed entries",
+    "move": "Moved entries"
   },
   "list": {
     "title": "Title",
@@ -115,7 +119,8 @@
       "add": "Added",
       "set": "Changed",
       "remove": "Removed",
-      "rename": "Renamed"
+      "rename": "Renamed",
+      "move": "Moved"
     },
     "byOne": "By {{by}}",
     "byTwo": "By {{by}}, applied by {{appliedBy}}",

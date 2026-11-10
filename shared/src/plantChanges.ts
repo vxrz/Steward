@@ -12,8 +12,11 @@ export const PLANT_CHANGESET_STATES = ['draft', 'proposed', 'applied', 'rejected
 export type PlantChangeSetState = (typeof PLANT_CHANGESET_STATES)[number];
 export const PLANT_CHANGESET_OPEN: readonly PlantChangeSetState[] = ['draft', 'proposed'];
 
-/** Where a change set comes from: an edit form, a person's draft, an import, a bulk change, a rename, an assistant, a revert. */
-export const PLANT_CHANGESET_SOURCES = ['edit', 'draft', 'import', 'bulk', 'rename', 'assistant', 'revert'] as const;
+/**
+ * Where a change set comes from: an edit form, a person's draft, an import, a bulk change, a rename, an assistant, a
+ * revert; 0.16: a move of devices or data collections to another asset.
+ */
+export const PLANT_CHANGESET_SOURCES = ['edit', 'draft', 'import', 'bulk', 'rename', 'assistant', 'revert', 'move'] as const;
 export type PlantChangeSetSource = (typeof PLANT_CHANGESET_SOURCES)[number];
 
 /**
@@ -60,9 +63,11 @@ export const PLANT_ENTRY_SCOPE: Record<PlantEntryKind, 'none' | 'site' | 'asset'
 /**
  * Operations: `set` the fields of an entry (authored: the values a person or form gave, against the base they saw),
  * `add` an entry, `remove` one (the removal core; `cascade` takes along what belongs to it), `rename` it (the rename
- * core); `import` and `bulk` are documents compiled again when previewed and applied (derived).
+ * core); `import` and `bulk` are documents compiled again when previewed and applied (derived); 0.16: `move` – devices
+ * or data collections to another asset, with what follows them (a document too: docs/PLANT.md "Moving devices and data
+ * collections").
  */
-export const PLANT_CHANGE_OPS = ['set', 'add', 'remove', 'rename', 'import', 'bulk'] as const;
+export const PLANT_CHANGE_OPS = ['set', 'add', 'remove', 'rename', 'import', 'bulk', 'move'] as const;
 export type PlantChangeOpKind = (typeof PLANT_CHANGE_OPS)[number];
 
 export const PLANT_CHANGESET_LIMITS = {
@@ -182,7 +187,7 @@ export interface PlantChangeOperation {
   /** set: the entry's revision and values when the operation was written (the base of the three-way merge) */
   baseRevision: number | null;
   base: unknown;
-  /** set / add: the values; remove: { cascade }; rename: { newId }; import / bulk: the request body (files shortened) */
+  /** set / add: the values; remove: { cascade }; rename: { newId }; import / bulk / move: the request body (files shortened) */
   value: unknown;
   /** The entry's page, when it has one */
   path: string | null;
@@ -207,9 +212,11 @@ export interface PlantChangeEntryDiff {
   scope: string;
   id: string;
   name: string;
-  action: 'add' | 'change' | 'remove' | 'rename';
-  /** rename: the old id */
+  action: 'add' | 'change' | 'remove' | 'rename' | 'move';
+  /** rename and move: the old id */
   from?: string;
+  /** move (0.16): the asset it was on */
+  fromScope?: string;
   diff: PlantFieldDiff[];
   /** Changed in Steward since the operation's base (an authored operation) */
   stale?: boolean;
@@ -231,7 +238,7 @@ export interface PlantChangeSetPreview {
   /** Why the reader may not apply it (null: they may) */
   applyBlocked: { code: string; message: string } | null;
   review: boolean;
-  counts: { add: number; change: number; remove: number; rename: number };
+  counts: { add: number; change: number; remove: number; rename: number; move?: number };
 }
 
 export interface PlantChangeSetDetail extends PlantChangeSetSummary {
@@ -286,7 +293,7 @@ export interface PlantEntryHistoryItem {
   scope: string;
   entryId: string;
   revision: number;
-  op: 'add' | 'set' | 'remove' | 'rename';
+  op: 'add' | 'set' | 'remove' | 'rename' | 'move';
   at: string;
   /** The change set's author(s) and who applied it */
   by: string;
