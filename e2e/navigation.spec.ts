@@ -234,6 +234,8 @@ test.describe('first steps on an empty installation (own server)', () => {
     const checklist = page.getByRole('region', { name: 'Get started' });
     await expect(checklist).toBeVisible();
     await expect(checklist).toContainText('0 of 8 done');
+    // the guide for the team's first days, on GitHub
+    await expect(checklist.getByRole('link', { name: 'Your first week with Steward' })).toHaveAttribute('href', /\/docs\/FIRST-WEEK\.md$/);
     await expectAccessible(page, 'dashboard with checklist');
 
     await srv.api('POST', '/credentials', { name: 'Gateway certificate', type: 'certificate' });

@@ -4,7 +4,7 @@ import type { APIRequestContext, Page } from '@playwright/test';
 import { test, expect } from './support/fixtures';
 import { ROOT, authFile } from './support/env';
 import { expectAccessible, settle } from './support/axe';
-import { expectNoHorizontalScroll, json } from './support/helpers';
+import { expectNoHorizontalScroll, json, withLock } from './support/helpers';
 
 /**
  * The OT network diagram (#230, view 5, on #220's data): IEC 62443-3-2 zones in bands by their level with their VLANs
@@ -19,6 +19,8 @@ import { expectNoHorizontalScroll, json } from './support/helpers';
 const SETTINGS = { enabled: true, enterprise: 'Brightwater Components', labels: {}, fields: {} };
 const EXAMPLE = 'brightwater-ot-network.plant.yaml';
 const PATH = 'e2e-to-edge';
+/** The lock around linking a monitor to milling centre 2, and around the tests that read it as not watched */
+const MILL_2_CHECKS = 'riverside-mill-02-checks';
 
 /** The module on, the example imported, an edge server in VLAN 900's segment, and a data path of milling centre 2 to it. */
 async function setup(api: APIRequestContext) {
@@ -95,6 +97,12 @@ test.describe('as a designer', () => {
   test.beforeEach(async ({ apiAs }) => setup(await apiAs('admin')));
 
   test('zones in bands, the conduit as a gate, data paths through it, devices on hover, the table and the export', async ({ page }) => {
+    // milling centre 2 is not watched here (the live status test links a monitor to it for a while)
+    test.slow();
+    await withLock(MILL_2_CHECKS, () => diagramTour(page));
+  });
+
+  async function diagramTour(page: Page) {
     await page.goto('/plant/sites/riverside/network');
     await page.getByTestId('network-tab-diagram').click();
     await expect(page).toHaveURL(/\/plant\/sites\/riverside\/network\/diagram$/);
@@ -164,7 +172,7 @@ test.describe('as a designer', () => {
     await expect(page.getByTestId('flow-paths-table')).toContainText('E2E machine state to the edge');
     await expectAccessible(page, 'OT network diagram as a table');
     await picture(page);
-  });
+  }
 
   test('fits the frame on open and after zooming; full screen; the side panel folds and stays folded', async ({ page }) => {
     await page.goto('/plant/sites/riverside/network/diagram');
@@ -232,15 +240,26 @@ test.describe('as a designer', () => {
     await graph.locator('.react-flow__node[data-id="asset:rvs-mill-01"]').focus();
     await page.keyboard.press('Escape');
     await expect(page.getByTestId('nd-clear-selection')).toHaveCount(0);
-    // a click selects, a click on an empty spot clears
-    await mill.click();
-    await expect(mill).toHaveAttribute('data-sel', 'true');
+    // a click selects, a click on an empty spot clears. The pointer comes from outside the picture (centring on the
+    // data path may have moved a part under the resting pointer); on a loaded machine a click can land while the
+    // picture still settles – clicked again only while nothing is selected, so it never toggles back
+    await page.mouse.move(1, 1);
+    await expect(async () => {
+      if ((await mill.getAttribute('data-sel')) !== 'true') await mill.click();
+      await expect(mill).toHaveAttribute('data-sel', 'true', { timeout: 2_000 });
+    }).toPass({ timeout: 15_000 });
     const pane = (await graph.boundingBox())!;
     await graph.locator('.react-flow__pane').click({ position: { x: 20, y: pane.height / 2 } });
     await expect(mill).not.toHaveAttribute('data-sel', 'true');
   });
 
   test('filters narrow the data paths: zones, protocols, live status, crossing zones, without a conduit', async ({ page }) => {
+    // the live status filter finds milling centre 2's paths not watched (see MILL_2_CHECKS)
+    test.slow();
+    await withLock(MILL_2_CHECKS, () => filterTour(page));
+  });
+
+  async function filterTour(page: Page) {
     await page.goto('/plant/sites/riverside/network/diagram');
     await picture(page);
     await openPanel(page);
@@ -273,11 +292,15 @@ test.describe('as a designer', () => {
     await page.getByTestId('nd-filter-panel').click({ position: { x: 4, y: 4 } });
     await expect(list).toContainText('NC programs');
     await page.getByTestId('nd-filter-clear').click();
+    // the panel keeps the focus (the button disabled itself): Escape closes it
+    await expect(page.getByTestId('nd-filter-panel')).toBeFocused();
     await page.keyboard.press('Escape');
+    await expect(page.getByTestId('nd-filter-panel')).toBeHidden();
     await expect(page.getByTestId('nd-shown-count')).toHaveCount(0);
     await expect(list).toContainText('E2E machine state to the edge');
-    // a zone
+    // a zone (the panel opened again, then its list of zones)
     await page.getByTestId('nd-filters').click();
+    await expect(page.getByTestId('nd-filter-panel')).toBeVisible();
     await page.getByTestId('nd-filter-zones').click({ force: true });
     await page.getByRole('option', { name: 'OT DMZ' }).click();
     await page.keyboard.press('Escape');
@@ -285,7 +308,7 @@ test.describe('as a designer', () => {
     await expect(list).not.toContainText('NC programs');
     await page.getByTestId('nd-shown-count').getByRole('button', { name: 'Clear filters' }).click();
     await expect(list).toContainText('NC programs');
-  });
+  }
 
   test('the legend folds into a button and opens from the keyboard; parts are reached and used by keyboard', async ({ page }) => {
     await page.goto('/plant/sites/riverside/network/diagram');
@@ -318,23 +341,26 @@ test.describe('as a designer', () => {
     const api = await apiAs('dana');
     const monitors = await json<{ id: string; key: string; isTemplate: boolean }[]>(await api.get('/api/monitors'));
     const m = monitors.find((x) => !x.isTemplate)!;
-    await json(await api.put('/api/plant/assets/rvs-mill-02/checks', { data: { checks: [{ kind: 'monitor', ref: m.key }] } }));
-    try {
-      await page.emulateMedia({ reducedMotion: 'reduce' });
-      await page.goto('/plant/sites/riverside/network/diagram');
-      await picture(page);
-      const graph = page.getByTestId('flow-graph');
-      await expect(graph.getByTestId('flow-node-asset:rvs-mill-02').locator('[data-live]')).toBeVisible();
-      await expect(graph).not.toHaveAttribute('data-animated', 'true');
-      await expect(graph.locator('.pv-edge-flow')).toHaveCount(0);
-      await expect(page.getByRole('switch', { name: 'Animation off' })).toBeDisabled();
-      await expectAccessible(page, 'OT network diagram with live status');
-      // dark too
-      await page.emulateMedia({ reducedMotion: 'reduce', colorScheme: 'dark' });
-      await expectAccessible(page, 'OT network diagram, dark');
-    } finally {
-      await api.put('/api/plant/assets/rvs-mill-02/checks', { data: { checks: [] } });
-    }
+    test.slow();
+    await withLock(MILL_2_CHECKS, async () => {
+      await json(await api.put('/api/plant/assets/rvs-mill-02/checks', { data: { checks: [{ kind: 'monitor', ref: m.key }] } }));
+      try {
+        await page.emulateMedia({ reducedMotion: 'reduce' });
+        await page.goto('/plant/sites/riverside/network/diagram');
+        await picture(page);
+        const graph = page.getByTestId('flow-graph');
+        await expect(graph.getByTestId('flow-node-asset:rvs-mill-02').locator('[data-live]')).toBeVisible();
+        await expect(graph).not.toHaveAttribute('data-animated', 'true');
+        await expect(graph.locator('.pv-edge-flow')).toHaveCount(0);
+        await expect(page.getByRole('switch', { name: 'Animation off' })).toBeDisabled();
+        await expectAccessible(page, 'OT network diagram with live status');
+        // dark too
+        await page.emulateMedia({ reducedMotion: 'reduce', colorScheme: 'dark' });
+        await expectAccessible(page, 'OT network diagram, dark');
+      } finally {
+        await api.put('/api/plant/assets/rvs-mill-02/checks', { data: { checks: [] } });
+      }
+    });
   });
 
   test('the site structure leads to the diagram', async ({ page }) => {

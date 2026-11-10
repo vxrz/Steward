@@ -1,6 +1,6 @@
 import type { NamedMigration } from '../db.js';
 
-/** Quiet hours and digests (0.10.0, ADR 0012) and approvals from Microsoft Teams (ADR 0013). Additive only. */
+/** Quiet hours and digests (0.10.0, ADR 0012), approvals from Microsoft Teams (ADR 0013) and personal Teams notifications (ADR 0025). Additive only. */
 export const NOTIFICATION_MIGRATIONS: NamedMigration[] = [
   {
     // held messages per target (a person's e-mail, a Teams channel): the rendered text in the target's language, never a
@@ -82,6 +82,20 @@ export const NOTIFICATION_MIGRATIONS: NamedMigration[] = [
         answer TEXT
       );
       ALTER TABLE mcp_requests ADD COLUMN decided_via TEXT;
+    `,
+  },
+  {
+    // personal Teams notifications through the bot (0.15.0, ADR 0025): the events a person chose for the bot's chat
+    // (JSON array, nothing by default), and the Entra object id a personal chat was recorded for (it is used only while
+    // the person is still linked to that id; NULL for chats recorded before)
+    name: 'notifications-004-teams-personal',
+    sql: `
+      CREATE TABLE notification_personal_channels (
+        user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+        teams TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      ALTER TABLE teams_conversations ADD COLUMN aad_object_id TEXT;
     `,
   },
 ];

@@ -35,7 +35,7 @@ import { allowedDomainRules, domainAllowed } from './domains.js';
 import { flushEmails, queueEmail } from './email.js';
 import { teamChannelUrl, teamChannelsFor, teamsOf } from './team-channels.js';
 import { deliveryPlan, inQuietHours, type BreakReason, type DeliveryPlan } from './quiet.js';
-import { holdMessage, type HeldAbout } from './outbox.js';
+import { emailBlocked, holdMessage, type HeldAbout } from './outbox.js';
 import { effectiveNotificationPrefs, quietHoursAllowed } from './prefs.js';
 import { eventTone } from './look.js';
 import { isCardTarget, recordApprovalPost } from '../msteams/posts.js';
@@ -105,6 +105,10 @@ export interface BotDelivery {
   postChannel: (target: string, item: NonNullable<Notice['decision']>) => Promise<void>;
   hasPersonal: (u: UserInfo) => boolean;
   postPersonal: (u: UserInfo, item: NonNullable<Notice['decision']>) => Promise<void>;
+  /** 0.15.0 (ADR 0025): the person chose this event for their chat with the bot, and the chat may be used now */
+  wantsNotice: (u: UserInfo, event: NotificationEvent) => boolean;
+  /** Posts a personal message there (retries when throttled; rejects with the last error) */
+  postNotice: (u: UserInfo, m: OutgoingMessage) => Promise<void>;
 }
 let botDelivery: BotDelivery | null = null;
 export function setBotDelivery(b: BotDelivery | null): void {
@@ -241,7 +245,12 @@ export function notify(n: Notice): void {
   const toChannel = channels.includes('teams') || channels.includes('webhook');
   const teamChannels = toChannel ? teamChannelsFor(teamsOf(n.about, n.runId)) : { channels: [], skipInstance: false };
   if (teamChannels.skipInstance) external = external.filter((c) => c !== 'teams' && c !== 'webhook');
-  if (!external.length && !teamChannels.channels.length) return;
+  // Teams (personal) (ADR 0025): instead of the personal e-mail – the route says e-mail – for the recipients who chose
+  // the event and have a chat with the bot that may be used; decision cards take their own path below
+  const bot = botDelivery;
+  const toChat = bot && !n.decision && channels.includes('email') ? n.recipients.filter((u) => bot.wantsNotice(u, n.event)) : [];
+  const chatIds = new Set(toChat.map((u) => u.id));
+  if (!external.length && !teamChannels.channels.length && !toChat.length) return;
   if (!vault().unlocked) {
     logger.warn({ event: n.event }, 'notification not sent: the vault is locked');
     return;
@@ -309,6 +318,7 @@ export function notify(n: Notice): void {
     const reachable = (o: UserInfo) => !!o.email && o.emailNotifications && !inQuietHours(allowed ? personPrefs(o).quietHours : null, now);
     for (const u of n.recipients) {
       if (!u.email || !u.emailNotifications) continue;
+      if (chatIds.has(u.id)) continue; // Teams (personal) instead, e-mail only as its fallback (below)
       const prefs = personPrefs(u);
       const plan = deliveryPlan(
         { personal: true, quietHours: prefs.quietHours, digests: prefs.digests },
@@ -334,6 +344,36 @@ export function notify(n: Notice): void {
       if (claimSend(`email:${key}:${addr}`, DEDUPE_WINDOW_MS))
         queueEmail({ event: n.event, to: { address: addr }, message: message(fallback), rules, secrets });
     }
+  }
+  // Teams (personal): the person's quiet hours and digests, the text of their e-mail; e-mail once when the chat fails
+  for (const u of toChat) {
+    const prefs = personPrefs(u);
+    const plan = deliveryPlan(
+      { personal: true, quietHours: prefs.quietHours, digests: prefs.digests },
+      { event: n.event, urgent, expiresAt: n.expiresAt },
+      now,
+      {
+        allowed,
+      },
+    );
+    const locale = userLocale(u, fallback);
+    if (!plan.send) {
+      hold(`teamsChat:${u.id}`, plan, locale, u);
+      continue;
+    }
+    if (!claimSend(`teamsChat:${key}:${u.id}`, DEDUPE_WINDOW_MS)) continue;
+    const msg = broke(message(locale, u), plan, true, prefs.quietHours.timeZone);
+    jobs.push({
+      channel: 'teamsChat',
+      to: u.username,
+      send: () =>
+        bot!.postNotice(u, msg).catch((err: unknown) => {
+          // the same message by e-mail, once: only when e-mail can reach the person and it did not go out by e-mail already
+          if (emailBlocked(u) || !claimSend(`email:${key}:${u.id}`, DEDUPE_WINDOW_MS)) throw err;
+          logger.warn({ err: { message: (err as Error).message }, event: n.event, to: u.username }, 'Teams (personal) failed: sent by e-mail instead');
+          queueEmail({ event: n.event, to: { user: u }, message: msg, secrets });
+        }),
+    });
   }
   // decision cards through the Teams bot where an administrator chose its conversation for a channel target (stage 2)
   const byBot = (target: string): (() => Promise<void>) | null =>

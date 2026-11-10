@@ -1,11 +1,13 @@
 import type { FastifyInstance } from 'fastify';
-import type { TeamsBotConversation } from '@sm/shared';
+import { teamsPersonalInputSchema, type TeamsBotConversation, type TeamsPersonalState } from '@sm/shared';
 import { db } from '../db.js';
 import { ACCESS } from '../auth/access.js';
 import { currentUser } from '../auth/context.js';
 import { HttpError } from '../util.js';
-import { listUsers } from '../auth/users.js';
-import { botConfig, botSettingsView, saveBotSettings, teamsBotInput } from './settings.js';
+import { getUser, listUsers } from '../auth/users.js';
+import { me } from '../auth/access.js';
+import { botActive, botConfig, botSettingsView, saveBotSettings, teamsBotInput } from './settings.js';
+import { saveTeamsPersonal, teamsPersonalState } from './personal.js';
 import { appPackage } from './package.js';
 import { wireBotDelivery } from './delivery.js';
 
@@ -15,6 +17,8 @@ import { wireBotDelivery } from './delivery.js';
  *   PUT  /settings/teams-bot                 save them (step-up changeNotificationDelivery, audited)
  *   GET  /settings/teams-bot/conversations   where the bot is installed
  *   GET  /settings/teams-bot/package         the Teams app package (zip) to upload to the tenant
+ *   GET  /me/teams-personal                  Profile → Teams (personal), ADR 0025: the chat and the chosen events
+ *   PUT  /me/teams-personal                  { events }: choose them (no step-up: they only reach oneself; audited)
  */
 export async function teamsBotRoutes(app: FastifyInstance): Promise<void> {
   wireBotDelivery();
@@ -37,6 +41,12 @@ export async function teamsBotRoutes(app: FastifyInstance): Promise<void> {
         installedAt: r.installed_at,
         removedAt: r.removed_at,
       }));
+  });
+  app.get('/me/teams-personal', async (): Promise<TeamsPersonalState> => teamsPersonalState(getUser(me().id)));
+  app.put('/me/teams-personal', async (req): Promise<TeamsPersonalState> => {
+    const input = teamsPersonalInputSchema.parse(req.body ?? {});
+    if (!botActive()) throw new HttpError(409, 'Messages in Teams (personal) need the Teams bot, which is off', 'TEAMS_PERSONAL_OFF');
+    return saveTeamsPersonal(getUser(me().id), input.events);
   });
   app.get('/settings/teams-bot/package', { config: { access: ACCESS.admin } }, async (_req, reply) => {
     if (!botConfig().appId) throw new HttpError(409, 'Enter the app id of the bot first', 'TEAMS_BOT_APP_ID');

@@ -200,7 +200,14 @@ export function exportPersonalData(userId: string, opts: { auditAfter?: number }
     }>('SELECT issued_by, created_at, expires_at, used_at, used_ip, revoked_at FROM emergency_access_grants WHERE user_id = ? ORDER BY created_at', userId).map(
       (g) => ({ issuedBy: g.issued_by, createdAt: g.created_at, expiresAt: g.expires_at, usedAt: g.used_at, usedIp: g.used_ip, revokedAt: g.revoked_at }),
     ),
-    settings: { notificationPrefs: pref('notification_prefs'), dailySummary: pref('daily_summary_prefs') },
+    settings: {
+      notificationPrefs: pref('notification_prefs'),
+      dailySummary: pref('daily_summary_prefs'),
+      // 0.15.0 (ADR 0025): the events chosen for the chat with the Teams bot
+      personalChannels: ((r) => (r ? { teams: parseJson<unknown>(r.teams, []), updatedAt: r.updated_at } : null))(
+        db().get<{ teams: string; updated_at: string }>('SELECT teams, updated_at FROM notification_personal_channels WHERE user_id = ?', userId),
+      ),
+    },
     notifications: {
       total: notifications,
       items: all<{ ts: string; event: string; title: string; read: number }>(
@@ -237,7 +244,7 @@ export function auditExport(subject: UserInfo, by: { username: string; id: strin
 /**
  * Replaces the personal data of a deactivated account by a pseudonym, for good: display, first and last name, e-mail,
  * the single sign-on profile fields and identity link, language and e-mail setting; deletes its settings, notifications,
- * held messages, Teams chats, team memberships, sessions, API tokens, emergency access and MCP client connections.
+ * held messages, Teams chats and the events chosen for them, team memberships, sessions, API tokens, emergency access and MCP client connections.
  * Keeps the account id and the user name (the audit chain and the evidence name it), its roles (what it could do) and
  * its dates. Cannot be undone; the account cannot be activated again.
  */
@@ -274,6 +281,7 @@ export function pseudonymiseUser(userId: string, opts: { actor?: string } = {}):
     del('heldMessages', 'DELETE FROM notification_outbox WHERE user_id = ?');
     // the person's chat with the Teams bot (its cards and activities go with it)
     del('teamsChats', 'DELETE FROM teams_conversations WHERE user_id = ?');
+    del('personalChannels', 'DELETE FROM notification_personal_channels WHERE user_id = ?');
     del('oauthCodes', 'DELETE FROM oauth_codes WHERE user_id = ?');
     const grants = revokeOAuthGrants({ userId, username: u.username }, 'personal data replaced by a pseudonym');
     if (grants) removed.mcpClients = grants;

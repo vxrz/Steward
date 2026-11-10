@@ -1,6 +1,6 @@
 # Notifications
 
-Steward notifies people in the app (the bell in the header) and – depending on _Settings → Notifications_ – by e-mail, Microsoft Teams or a webhook. Administrators choose per event which channels are used. People choose their language and whether they get e-mails on their profile page.
+Steward notifies people in the app (the bell in the header) and – depending on _Settings → Notifications_ – by e-mail, Microsoft Teams or a webhook. Administrators choose per event which channels are used. People choose their language and whether they get e-mails on their profile page – and, with the Teams bot on, which messages come to their own chat in Teams instead ([Teams (personal)](#teams-personal)).
 
 - [The bell](#the-bell)
 - [Events](#events)
@@ -10,6 +10,7 @@ Steward notifies people in the app (the bell in the header) and – depending on
 - [Look of e-mails and Teams messages](#look-of-e-mails-and-teams-messages)
 - [Daily summary](#daily-summary)
 - [Quiet hours and digests](#quiet-hours-and-digests)
+- [Teams (personal)](#teams-personal)
 - [Decisions from Microsoft Teams](#decisions-from-microsoft-teams)
 
 ## The bell
@@ -70,7 +71,7 @@ A process that runs every few minutes and is expected to find failures (the Gatu
 1. the instance: channels on or off, and the routes per event (_Settings → Notifications_)
 2. teams
 3. the source's policy (this section)
-4. personal: _E-mail notifications_ in the profile
+4. personal: _E-mail notifications_ and _Teams (personal)_ in the profile
 
 ### When
 
@@ -206,7 +207,7 @@ The design is in [ADR 0012](adr/0012-quiet-hours-and-digests.md). **Quiet hours 
 
 **Order.** The pause of a source, maintenance windows, a monitor's quiet reasons and the dry-run setting decide first whether a message goes out at all (as before). Quiet hours and digests then decide when.
 
-**What is held.** E-mail to a person, and posts in Teams format: the instance Teams channel, the instance webhook in format _Teams card_, a team's channel in Teams format and monitor outputs in Teams format. **JSON webhooks are never held** – they feed tickets and on-call tools that have their own rules. Steward does not escalate and has no on-call rota: point an on-call tool at a JSON webhook for paging.
+**What is held.** E-mail to a person, a person's chat with the Teams bot ([Teams (personal)](#teams-personal) and decision cards), and posts in Teams format: the instance Teams channel, the instance webhook in format _Teams card_, a team's channel in Teams format and monitor outputs in Teams format. **JSON webhooks are never held** – they feed tickets and on-call tools that have their own rules. Steward does not escalate and has no on-call rota: point an on-call tool at a JSON webhook for paging.
 
 **Setting them.** _Profile → Quiet hours and digests_: on/off, the time zone ([IANA](https://www.iana.org/time-zones) name, prefilled from the browser), up to 14 times (days + from/until), whole days, and _Let urgent messages through_. A time whose end is not after its start runs past midnight and belongs to its start day: _weekdays 18:00–07:30_ is Monday 18:00 to Tuesday 07:30 … Friday 18:00 to Saturday 07:30; with Saturday and Sunday as whole days the weekend joins up to Monday 07:30. A week grid shows the result.
 
@@ -224,13 +225,23 @@ The design is in [ADR 0012](adr/0012-quiet-hours-and-digests.md). **Quiet hours 
 
 **The catch-up message** goes out at the first check after the quiet hours end: _While you were away: 2 decisions waiting, 3 checks still failing_. Groups, most important first: _Decisions waiting for you_, _Still failing_, _Failed and passed again_, _Other_. Repeats of the same thing are one item with its start and latest state (a check that failed at 02:10 and passed at 05:40 is one item); "still failing" is the state at release. A decision someone else took meanwhile is left out and counted. When your daily summary e-mail is due within 60 minutes after the quiet hours end, the catch-up becomes its first section, _While you were away_, instead of a separate e-mail. Channels get the catch-up as one card.
 
-**Digests** (e-mail only): per event group – _Decisions_, _Runs and checks_, _Monitors and platforms_, _Reminders_, _Reports and releases_, _Budgets and costs_ – _immediately_ (default), _hourly_, _daily_ at a time or _weekly_ on a day and time. Decisions are immediately or hourly only (a run waits). Emergency access and urgent sources are never digested; an expiring decision breaks through a digest like it breaks through quiet hours. A digest due inside quiet hours is not sent; the catch-up takes its items. Digests are _the messages you would have got_; the daily summary stays _an overview of the state_.
+**Digests** (e-mail and [Teams (personal)](#teams-personal)): per event group – _Decisions_, _Runs and checks_, _Monitors and platforms_, _Reminders_, _Reports and releases_, _Budgets and costs_ – _immediately_ (default), _hourly_, _daily_ at a time or _weekly_ on a day and time. Decisions are immediately or hourly only (a run waits). Emergency access and urgent sources are never digested; an expiring decision breaks through a digest like it breaks through quiet hours. A digest due inside quiet hours is not sent; the catch-up takes its items. Digests are _the messages you would have got_; the daily summary stays _an overview of the state_.
 
 **Rights at release.** A held message goes out only when the person is still active, still has e-mail on and an allowed address, and may still see what the item is about – the process of a run, and every kind of resource (platform, monitor, credential, document, service, application, system, ticket …) with the access decision of its page; a plant change set to review while they may still see it and it still waits (one decided meanwhile is counted as decided by others). Items that fail are left out (logged); the in-app copy is unaffected. Released messages use the same send path as immediate ones.
 
 **Limits and storage.** Held messages are kept in `notification_outbox` as the rendered text in the target's language – never a channel URL or a secret. At most 500 open items per target; beyond that the oldest of the same event (else of another event) are folded into a count – a decision waiting for someone is never folded. Released items are deleted after 7 days by the cleanup. Each catch-up or digest is claimed per target and period before it is sent (`notification_digest_sends`), so it goes out at most once, also after a restart. While the vault is locked nothing is released. The bell shows _Quiet hours until 07:30 · 4 messages held_.
 
 API: `GET`/`PUT`/`DELETE /api/me/notification-prefs`; administrators `GET`/`PUT /api/settings/quiet-hours`; the team settings (`quietHours`, `digests`, `channel.quietHours`) and `/api/settings/notifications` (`teams.quietHours`, `webhook.quietHours`) take the fields above.
+
+## Teams (personal)
+
+With the [Teams bot](TEAMS-APPROVALS.md#personal-notifications-in-the-chat-preview) on (a preview), each person can choose messages that come to their own chat with the Steward app in Microsoft Teams **instead of by e-mail** ([ADR 0025](adr/0025-personal-teams-notifications.md)): _Profile → Teams (personal)_. Nothing is chosen by default.
+
+- **What can be chosen**: the events the instance routes to e-mail (_Settings → Notifications_). Teams (personal) goes where a personal e-mail would go – a source that sends _only to these channels_ without e-mail sends nothing there either. Decisions (`task.assigned`, `mcp.request`) come to the chat as decision cards anyway; the daily summary has its own settings.
+- **What the message says**: the same as the e-mail – in the person's language, only what they may see, with links into Steward and no buttons that change anything.
+- **Quiet hours and digests** of the person apply: a held message comes as one catch-up or digest card in the chat; rights are checked again at release.
+- **When Teams cannot deliver** (throttled after three retries, or the app was removed): **once by e-mail**, if e-mail can reach the person.
+- The chat is used only while the person's account is active and linked through the bot's Entra sign-in, and the tenant is allowed. While the bot is off, the card is hidden and the chosen events go by e-mail as before.
 
 ## Decisions from Microsoft Teams
 

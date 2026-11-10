@@ -72,6 +72,8 @@ Only administrators change owning teams. Adding a team is confirmed with a step-
 
 A team can have its own Teams or webhook channel (_Users → Teams_ → settings): messages about its resources go there, besides the instance channel or instead of it. A team can also set a daily summary for its members and its own report branding. See [SETTINGS.md](SETTINGS.md#team-settings).
 
+Microsoft Teams also reaches people one by one: with the Teams bot on, each person can choose messages that come to their own chat with the Steward app instead of by e-mail (_Profile → Teams (personal)_, [TEAMS-APPROVALS.md](TEAMS-APPROVALS.md#personal-notifications-in-the-chat-preview), [ADR 0025](adr/0025-personal-teams-notifications.md)). A team cannot set this for its members: it is each person's choice.
+
 ## Single sign-on
 
 An SSO claim mapping can set team memberships (_Teams_) and, beside them, the **roles in these teams**. On each sign-in with _Synchronise roles_, the member's team roles follow the mapping: they are added, changed, or removed when the mapping no longer gives any.

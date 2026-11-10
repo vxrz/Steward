@@ -87,6 +87,47 @@ export const PLANT_CHANGESET_LIMITS = {
   historyPage: 100,
 } as const;
 
+/**
+ * How long the history and its bookkeeping is kept (0.15.0, Settings → Data & retention → Plant registry history; administrators):
+ * the history of removed entries (it stays while its entry exists), closed change sets (rejected, withdrawn, expired;
+ * their audit entries stay) and the import's baselines per entry (the last ones; the import's "changed in Steward since
+ * the last import" needs the last). Bounds and defaults; the defaults are those of 0.13.
+ */
+export const PLANT_HISTORY_RETENTION = {
+  removedHistoryDays: { min: 30, max: 3650, default: PLANT_CHANGESET_LIMITS.historyYears * 365 },
+  closedDays: { min: 7, max: 3650, default: PLANT_CHANGESET_LIMITS.closedDays },
+  baselinesPerEntry: { min: 1, max: 10, default: 3 },
+} as const;
+
+export const plantHistorySettingsInput = z
+  .object({
+    removedHistoryDays: z.number().int().min(PLANT_HISTORY_RETENTION.removedHistoryDays.min).max(PLANT_HISTORY_RETENTION.removedHistoryDays.max),
+    closedDays: z.number().int().min(PLANT_HISTORY_RETENTION.closedDays.min).max(PLANT_HISTORY_RETENTION.closedDays.max),
+    baselinesPerEntry: z.number().int().min(PLANT_HISTORY_RETENTION.baselinesPerEntry.min).max(PLANT_HISTORY_RETENTION.baselinesPerEntry.max),
+  })
+  .strict();
+export type PlantHistorySettingsInput = z.infer<typeof plantHistorySettingsInput>;
+
+export interface PlantHistorySettings extends PlantHistorySettingsInput {
+  updatedAt: string | null;
+  updatedBy: string | null;
+}
+
+/** What the history and its bookkeeping take in the database now (bytes with indexes; -1 where the database cannot say). */
+export interface PlantHistoryUsage {
+  history: { rows: number; bytes: number; removedRows: number };
+  baselines: { rows: number; bytes: number };
+  changeSets: { rows: number; bytes: number; closedRows: number };
+  /** The whole database */
+  databaseBytes: number;
+}
+
+/** GET /api/settings/plant/history */
+export interface PlantHistorySettingsView {
+  settings: PlantHistorySettings;
+  usage: PlantHistoryUsage;
+}
+
 /** A person's own drafts and proposals per page of the inbox. */
 export const PLANT_CHANGES_PAGE = 200;
 

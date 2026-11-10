@@ -20,13 +20,15 @@ export default defineFeature({
   mcpTools: [...plantReadTools, ...plantProposalTools, ...advisoryTools],
   migrations: [PLANT_MIGRATIONS],
   jobs: [
-    // 0.13.0 (ADR 0020): open change sets expire; closed ones go after 90 days, the history of removed entries after 3 years
+    // 0.13.0 (ADR 0020): open change sets expire; closed ones and the history of removed entries go after their retention
+    // (plant settings since 0.15.0: 90 days and 3 years by default), baselines beyond the last ones of an entry; rows
+    // written before 0.15.0 are compacted, a bounded number per run
     {
       name: 'plant-changes',
       intervalMs: 24 * 60 * MINUTE,
       firstRunAfterMs: 10 * MINUTE,
       timeoutMs: 10 * MINUTE,
-      run: () => import('../plant/changesets/core.js').then((m) => m.cleanUpChangeSets()),
+      run: () => import('../plant/changesets/core.js').then((m) => m.changeSetUpkeep()),
     },
     // 0.14: security advisories – matches after plant changes, and the configured sources that are due (none by default)
     every5Minutes('plant-advisories', 30 * MINUTE, () => import('../plant/advisories/fetch.js').then((m) => m.runAdvisoryJob())),

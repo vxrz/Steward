@@ -1100,6 +1100,7 @@
     "TEAMS_BOT_CREDENTIAL": "Geben Sie die Anmeldedaten des Bots ein: ein Zertifikat mit privatem Schlüssel oder ein Geheimnis.",
     "TEAMS_BOT_NEEDS_OID": "Der Anmeldeanbieter muss Personen per tid + oid erkennen (Voreinstellung Entra ID).",
     "TEAMS_BOT_TENANT": "Geben Sie mindestens einen erlaubten Mandanten ein.",
+    "TEAMS_PERSONAL_OFF": "Nachrichten in Teams (persönlich) brauchen den Teams-Bot, der ausgeschaltet ist.",
     "LIBRARY_HELD_resume": "Die Bibliothek {{library}} ist angehalten: Was sie pausiert hat, bleibt aus, bis die Administration das Anhalten aufhebt.",
     "LIBRARY_HELD_uninstall": "Die Bibliothek {{library}} ist angehalten: Die Administration hebt das Anhalten auf, bevor sie deinstalliert werden kann.",
     "LIBRARY_REQUEST_CHANGED": "Die Anfrage hat sich geändert, seit Sie sie angesehen haben – prüfen Sie sie erneut.",

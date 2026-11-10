@@ -980,6 +980,8 @@ const EXPECT: Record<string, Access> = {
   'GET /api/me/notification-prefs': ALL,
   'PUT /api/me/notification-prefs': ALL,
   'DELETE /api/me/notification-prefs': ALL,
+  'GET /api/me/teams-personal': ALL,
+  'PUT /api/me/teams-personal': ALL,
   'GET /api/settings/quiet-hours': ADMIN,
   'PUT /api/settings/quiet-hours': ADMIN,
   // ---- the Teams bot (ADR 0013, preview): administrators; the bot endpoint itself is on its own listener (teams-bot.test.ts) ----
@@ -1035,6 +1037,9 @@ const EXPECT: Record<string, Access> = {
   // ---- the plant registry (#218, on in these fixtures): its switch is the administrators'; rights per site ----
   'GET /api/settings/plant': ADMIN,
   'PUT /api/settings/plant': ADMIN,
+  // 0.15.0: the retention of the change-set history (ADR 0020)
+  'GET /api/settings/plant/history': ADMIN,
+  'PUT /api/settings/plant/history': ADMIN,
   // ---- the module registry (0.11.0, ADR 0016): the switches are the administrators' (a session, step-up) ----
   'GET /api/settings/modules': ADMIN,
   'PUT /api/settings/modules/:id': ADMIN,
@@ -1915,6 +1920,7 @@ const bodies = (): Record<string, unknown> => ({
     digests: { timeZone: 'UTC', groups: {} },
   },
   'PUT /api/settings/quiet-hours': { allowed: true },
+  'PUT /api/me/teams-personal': { events: [] },
   'PUT /api/settings/teams-bot': { enabled: false, appId: '', tenantIds: [], providerId: null, credential: 'secret' },
   'POST /api/report-schedules': REPORT_SCHEDULE,
   'PUT /api/report-schedules/:id': REPORT_SCHEDULE,

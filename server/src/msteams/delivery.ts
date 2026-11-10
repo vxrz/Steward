@@ -13,13 +13,15 @@ import { asAttachment, itemCard } from './botcard.js';
 import { sendActivity, updateActivity } from './connector.js';
 import { botActive, botConfig } from './settings.js';
 import { setBotCardUpdater } from './followup.js';
+import { personalChat, postNotice, wantsNotice } from './personal.js';
 
 /**
  * Posting through the bot (ADR 0013 stage 2b, preview). With the bot on, decision cards – and only those – go through
  * the bot: to a channel target's conversation when the administrator picked one (instead of its webhook), and to the
  * personal chat of each decider who installed the app (`teamsChat:<userId>`, with their quiet hours, ADR 0012). A
  * channel card shows the status and Open to everyone; `refresh.userIds` lists the eligible deciders (at most 60), who
- * see their own buttons. When the decision is made, Steward updates its cards for everyone (teams_cards).
+ * see their own buttons. When the decision is made, Steward updates its cards for everyone (teams_cards). Since 0.15.0
+ * (ADR 0025) the personal chat also takes the other messages a person chose (personal.ts).
  */
 
 interface Conversation {
@@ -32,11 +34,8 @@ interface Conversation {
 
 const activeConversation = (id: string) =>
   db().get<Conversation>('SELECT id, conversation_id, service_url, kind, user_id FROM teams_conversations WHERE id = ? AND removed_at IS NULL', id);
-const personalConversation = (userId: string) =>
-  db().get<Conversation>(
-    "SELECT id, conversation_id, service_url, kind, user_id FROM teams_conversations WHERE user_id = ? AND kind = 'personal' AND removed_at IS NULL ORDER BY installed_at DESC LIMIT 1",
-    userId,
-  );
+/** The person's chat: an allowed tenant, still linked to the Entra object id it was recorded for (ADR 0025) */
+const personalConversation = (u: UserInfo | undefined): Conversation | undefined => personalChat(u);
 
 /** The Entra object ids of the people who may decide an item in a card now (for the card's refresh list, at most 60). */
 const eligibleCache = new Map<string, { at: number; ids: string[] }>();
@@ -86,7 +85,7 @@ async function postToChannel(target: string, item: { kind: ItemKind; id: string 
 }
 
 async function postToPerson(u: UserInfo, item: { kind: ItemKind; id: string }): Promise<void> {
-  const conv = personalConversation(u.id);
+  const conv = personalConversation(u);
   if (!conv) return;
   const card = itemCard(userLocale(u), item.kind, item.id, { viewer: u, personal: true });
   const r = await sendActivity(conv.service_url, conv.conversation_id, { type: 'message', attachments: [asAttachment(card)] });
@@ -121,21 +120,25 @@ export function wireBotDelivery(): void {
   setBotDelivery({
     covers: (target) => botActive() && !!activeConversation(botConfig().channels[target] ?? ''),
     postChannel: postToChannel,
-    hasPersonal: (u) => botActive() && !!personalConversation(u.id),
+    hasPersonal: (u) => botActive() && !!personalConversation(u),
     postPersonal: postToPerson,
+    wantsNotice,
+    postNotice,
   });
   setBotCardUpdater(async (kind, id) => {
     if (botActive()) await updateCards(kind, id);
   });
-  // held messages of a person's chat with the bot (their quiet hours) are released there as one card
+  // held messages of a person's chat with the bot (their quiet hours and – for the messages they chose, ADR 0025 –
+  // their digests) are released there as one card
   registerOutboxTarget('teamsChat', (userId) => {
     const u = listUsers().find((x) => x.id === userId);
-    const conv = u?.active && botActive() ? personalConversation(userId) : undefined;
+    const conv = u?.active && botActive() ? personalConversation(u) : undefined;
+    const prefs = effectiveNotificationPrefs(userId).prefs;
     return {
       personal: true,
       user: u,
-      quietHours: effectiveNotificationPrefs(userId).prefs.quietHours,
-      digests: null,
+      quietHours: prefs.quietHours,
+      digests: prefs.digests,
       send: conv
         ? async (m) => {
             await sendActivity(conv.service_url, conv.conversation_id, teamsCard(m));

@@ -1,6 +1,6 @@
 # Getting started for administrators
 
-This guide takes you from an installation to a Steward the team can use: the first start, unlocking, single sign-on, teams, the first platform and process, monitors, notifications and backups. Each step is short and links to the page with the details. The in-app checklist (_Help → Getting-started checklist_) follows the same order.
+This guide takes you from an installation to a Steward the team can use: the first start, unlocking, single sign-on, teams, the first platform and process, monitors, notifications and backups. Each step is short and links to the page with the details. The in-app checklist (_Help → Getting-started checklist_) follows the same order. Once it is installed, [Your first week with Steward](FIRST-WEEK.md) plans the team's first five days.
 
 To look around first, start the demo with simulated platforms ([README](../README.md#quick-start-demo-with-simulated-platforms)).
 

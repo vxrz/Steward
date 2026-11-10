@@ -303,6 +303,8 @@ describe('the registry of reference columns', () => {
       'notified_at',
     ],
     plant_advisory_sites: ['advisory_id', 'not_applicable', 'reason', 'decided_by', 'decided_at'],
+    // 0.15.0: the baselines per entry and import
+    plant_entry_baselines: ['kind', 'import_id', 'seq', 'revision', 'field_values', 'recorded_at'],
   };
   // 0.13.0: every entry's revision; a site's switch "Changes need a second person"
   const SOURCE = ['import_id', 'not_in_source', 'created_at', 'created_by', 'updated_at', 'updated_by', 'renamed_by', 'revision', 'review'];
