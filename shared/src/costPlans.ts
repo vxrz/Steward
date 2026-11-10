@@ -257,6 +257,11 @@ export interface CostEntry {
   note: string;
   /** No plan line of this fiscal year */
   unplanned: boolean;
+  /**
+   * The fiscal year of its plan line when that is another one than the entry's (the fiscal year start changed since
+   * the entry was linked): the link stays, the entry counts as unplanned in its own year (docs/COSTS.md).
+   */
+  planLineYear: { fiscalYear: number; label: string } | null;
   createdAt: string;
   createdBy: string;
   updatedAt: string;
@@ -283,6 +288,16 @@ export interface CostPlanCurrency extends CostPlanFigures {
 
 /** shown: the reader sees every application of the service; hidden: they do not, so no cloud figures; none: nothing read. */
 export type CostPlanCloudState = 'shown' | 'hidden' | 'none';
+
+/** What changing the fiscal year start would do (GET /api/costs/settings/fiscal-year-change). */
+export interface FiscalYearChange {
+  startMonth: number;
+  /** Plan lines and cost entries of all services: none, and the change moves nothing */
+  lines: number;
+  entries: number;
+  /** Entries whose date would then fall into another fiscal year than their plan line's (they keep the link) */
+  entriesOtherYear: number;
+}
 
 export interface CostPlanYear {
   serviceId: string;

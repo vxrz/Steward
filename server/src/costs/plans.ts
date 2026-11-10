@@ -488,8 +488,17 @@ function planYearOf(info: ScopeInfo, year: number | undefined, now: number, star
 
   const titleOf = new Map(lines.map((l) => [l.id, l.title]));
   const lineTarget = new Map(lines.map((l) => [l.id, l]));
+  // entries linked to a line of another fiscal year (the start month changed since): the link stays, named with its year
+  const elsewhere = new Map<string, { title: string; fiscalYear: number }>();
+  const otherIds = [...new Set(entries.filter((e) => e.plan_line_id && !lineIds.has(e.plan_line_id)).map((e) => e.plan_line_id!))];
+  for (const r of rowsByIds<{ id: string; title: string; fiscal_year: number }>(
+    (m) => `SELECT id, title, fiscal_year FROM cost_plan_lines WHERE id IN (${m})`,
+    otherIds,
+  ))
+    elsewhere.set(r.id, { title: r.title, fiscalYear: Number(r.fiscal_year) });
   const outEntries: CostEntry[] = entries.map((e) => {
     const line = e.plan_line_id ? lineTarget.get(e.plan_line_id) : undefined;
+    const other = e.plan_line_id && !line ? elsewhere.get(e.plan_line_id) : undefined;
     return {
       id: e.id,
       serviceId: e.service_id,
@@ -497,11 +506,12 @@ function planYearOf(info: ScopeInfo, year: number | undefined, now: number, star
       amount: show(Number(e.amount)),
       currency: e.currency,
       planLineId: e.plan_line_id,
-      planLineTitle: e.plan_line_id ? (titleOf.get(e.plan_line_id) ?? null) : null,
+      planLineTitle: e.plan_line_id ? (titleOf.get(e.plan_line_id) ?? other?.title ?? null) : null,
       target: e.target_kind ? targets.of(e.target_kind, e.target_id) : line ? targets.of(line.target_kind, line.target_id) : null,
       reference: e.reference,
       note: e.note,
       unplanned: !line,
+      planLineYear: other ? { fiscalYear: other.fiscalYear, label: fiscalYearLabel(other.fiscalYear, start) } : null,
       createdAt: e.created_at,
       createdBy: e.created_by,
       updatedAt: e.updated_at,
@@ -829,13 +839,17 @@ interface EntryValues {
   note: string;
 }
 
-/** `before`: the entry being changed (its target may stay as it is; it counts towards the limit already). */
+/**
+ * `before`: the entry being changed – its target may stay as it is, and so may its plan line: a line of another fiscal
+ * year than the entry's (the fiscal year start changed since it was linked) stays linked while it is kept.
+ */
 function checkEntry(serviceId: string, body: unknown, before?: EntryRow): EntryValues {
   const x = costEntryInput.parse(body);
   const fy = fiscalYearOf(x.date, startMonth());
   if (x.planLineId) {
+    const kept = !!before && before.plan_line_id === x.planLineId;
     const l = db().get<LineRow>('SELECT * FROM cost_plan_lines WHERE id = ? AND service_id = ?', x.planLineId, serviceId);
-    if (!l || Number(l.fiscal_year) !== fy || l.currency !== x.currency)
+    if (!l || (!kept && Number(l.fiscal_year) !== fy) || l.currency !== x.currency)
       throw new HttpError(400, `Not a plan line of this service in ${fiscalYearLabel(fy, startMonth())} and ${x.currency}`, 'COST_ENTRY_PLAN_LINE', {
         year: fiscalYearLabel(fy, startMonth()),
         currency: x.currency,

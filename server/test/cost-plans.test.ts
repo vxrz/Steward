@@ -355,6 +355,69 @@ describe('entries and the year view', () => {
     expect(audit).toEqual(expect.arrayContaining(['cost.entry_added', 'cost.entry_changed', 'cost.entry_removed']));
   });
 
+  it('a changed fiscal year start keeps an entry’s plan line; it counts as unplanned in its year and stays editable', async () => {
+    const svc = (await s.api('POST', '/services', { name: 'Start change service', owners: ['user:olivia'] })).id;
+    const y0 = await s.api('POST', `/costs/plans/${svc}/lines`, {
+      fiscalYear: 2036,
+      title: 'Annual support',
+      category: 'support',
+      amount: '1200',
+      currency: 'EUR',
+      cadence: 'yearly',
+    });
+    const lineId = y0.lines[0].id;
+    // February 2037 is in FY 2036/37 while the year starts in April
+    const y1 = await olivia<CostPlanYear>('POST', `/costs/plans/${svc}/entries`, { date: '2037-02-10', amount: '1200', currency: 'EUR', planLineId: lineId });
+    const entryId = y1.entries[0]!.id;
+    expect(y1.entries[0]).toMatchObject({ unplanned: false, planLineYear: null });
+    // what a January start would do: asked by the settings dialog (administrators only)
+    await expect(olivia('GET', '/costs/settings/fiscal-year-change?startMonth=1')).rejects.toMatchObject({ status: 403 });
+    const same = await s.api('GET', '/costs/settings/fiscal-year-change?startMonth=4');
+    const preview = await s.api('GET', '/costs/settings/fiscal-year-change?startMonth=1');
+    expect(preview).toMatchObject({ startMonth: 1 });
+    expect(preview.lines).toBeGreaterThan(0);
+    expect(preview.entriesOtherYear).toBe(same.entriesOtherYear + 1);
+    await s.api('PUT', '/costs/settings', { hideAmountsFromViewers: false, defaultCurrency: 'USD', fiscalYearStartMonth: 1 });
+    try {
+      const [a] = await s.api('GET', '/audit?action=cost.settings_changed');
+      expect(a.details).toMatchObject({ entriesOtherYear: preview.entriesOtherYear });
+      expect(a.summary).toContain('into another fiscal year than their plan line now');
+      // the entry is in FY 2037 now: unplanned there, its link kept and named with the line's year
+      const y2037 = await olivia<CostPlanYear>('GET', `/costs/plans/${svc}?year=2037`);
+      expect(y2037.entries[0]).toMatchObject({
+        id: entryId,
+        unplanned: true,
+        planLineId: lineId,
+        planLineTitle: 'Annual support',
+        planLineYear: { fiscalYear: 2036, label: 'FY 2036' },
+      });
+      expect(y2037.currencies[0]!.unplanned.count).toBe(1);
+      // the line of FY 2036 no longer counts it
+      const y2036 = await olivia<CostPlanYear>('GET', `/costs/plans/${svc}?year=2036`);
+      expect(y2036.lines[0]!.entries).toBe(0);
+      // a change that keeps the link is allowed; linking it to that line anew, or in another currency, is not
+      const kept = await olivia<CostPlanYear>('PUT', `/costs/plans/${svc}/entries/${entryId}`, {
+        date: '2037-02-10',
+        amount: '1200',
+        currency: 'EUR',
+        planLineId: lineId,
+        reference: 'INV-2037-7',
+      });
+      expect(kept.entries[0]).toMatchObject({ reference: 'INV-2037-7', planLineId: lineId, planLineYear: { fiscalYear: 2036 } });
+      await expect(
+        olivia('PUT', `/costs/plans/${svc}/entries/${entryId}`, { date: '2037-02-10', amount: '1200', currency: 'USD', planLineId: lineId }),
+      ).rejects.toMatchObject({ status: 400, body: { code: 'COST_ENTRY_PLAN_LINE' } });
+      await expect(
+        olivia('POST', `/costs/plans/${svc}/entries`, { date: '2037-02-11', amount: '5', currency: 'EUR', planLineId: lineId }),
+      ).rejects.toMatchObject({ status: 400, body: { code: 'COST_ENTRY_PLAN_LINE' } });
+      // unlinked, it is an ordinary unplanned entry
+      const unlinked = await olivia<CostPlanYear>('PUT', `/costs/plans/${svc}/entries/${entryId}`, { date: '2037-02-10', amount: '1200', currency: 'EUR' });
+      expect(unlinked.entries[0]).toMatchObject({ unplanned: true, planLineId: null, planLineYear: null });
+    } finally {
+      await s.api('PUT', '/costs/settings', { hideAmountsFromViewers: false, defaultCurrency: 'USD', fiscalYearStartMonth: 4 });
+    }
+  });
+
   it('has a limit of entries per fiscal year', async () => {
     const { db } = await import('../src/db.js');
     const now = new Date().toISOString();

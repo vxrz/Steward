@@ -49,7 +49,14 @@
     "saved": "Einstellungen der Kosten gespeichert",
     "notSaved": "Einstellungen der Kosten nicht gespeichert",
     "fiscalYear": "Geschäftsjahr beginnt im",
-    "fiscalYearHint": "Ein Startmonat für die ganze Instanz; die Kostenpläne der Services verwenden ihn. Eine spätere Änderung liest alle Pläne in den neuen Jahresgrenzen."
+    "fiscalYearHint": "Ein Startmonat für die ganze Instanz; die Kostenpläne der Services verwenden ihn. Eine spätere Änderung ordnet alle Pläne den neuen Geschäftsjahren zu – legen Sie ihn einmal fest.",
+    "fiscalYearChange": {
+      "title": "Beginn des Geschäftsjahres ändern?",
+      "message": "Alle Pläne werden dann in den neuen Grenzen der Geschäftsjahre gelesen: Planpositionen behalten ihr Geschäftsjahr, Kostenbuchungen zählen in dem Jahr, in das ihr Datum fällt.",
+      "otherYear_one": "{{count}} Kostenbuchung fällt dann in ein anderes Geschäftsjahr als ihre Planposition. Die Verknüpfung bleibt erhalten; die Buchung zählt in ihrem Jahr als ungeplant und kann einer Planposition dieses Jahres zugeordnet werden.",
+      "otherYear_other": "{{count}} Kostenbuchungen fallen dann in ein anderes Geschäftsjahr als ihre Planposition. Die Verknüpfungen bleiben erhalten; die Buchungen zählen in ihrem Jahr als ungeplant und können einer Planposition dieses Jahres zugeordnet werden.",
+      "button": "Ändern"
+    }
   },
   "tabsLabel": "Kosten der Plattform",
   "tabs": {
@@ -414,7 +421,9 @@
       "referenceHint": "Rechnungs- oder Bestellnummer",
       "note": "Notiz",
       "saved": "Kostenbuchung gespeichert",
-      "notSaved": "Kostenbuchung nicht gespeichert"
+      "notSaved": "Kostenbuchung nicht gespeichert",
+      "otherYear": "Planposition von {{label}}: {{title}}",
+      "otherYearOption": "{{title}} ({{label}}, beibehalten)"
     },
     "team": {
       "title": "Pläne der Services des Teams",

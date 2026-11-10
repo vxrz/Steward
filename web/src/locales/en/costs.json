@@ -49,7 +49,14 @@
     "saved": "Cost settings saved",
     "notSaved": "Cost settings not saved",
     "fiscalYear": "Fiscal year starts in",
-    "fiscalYearHint": "One start month for the whole instance; the service cost plans use it. Changing it later reads every plan in the new year boundaries."
+    "fiscalYearHint": "One start month for the whole instance; the service cost plans use it. Changing it later moves every plan into the new fiscal-year boundaries – choose it once.",
+    "fiscalYearChange": {
+      "title": "Change the fiscal year start?",
+      "message": "Every plan is then read in the new fiscal-year boundaries: plan lines keep their fiscal year, cost entries count in the year their date falls in.",
+      "otherYear_one": "{{count}} cost entry then falls into another fiscal year than its plan line. The link stays; the entry counts as unplanned in its year and can be linked to a plan line of that year.",
+      "otherYear_other": "{{count}} cost entries then fall into another fiscal year than their plan line. The links stay; the entries count as unplanned in their year and can be linked to a plan line of that year.",
+      "button": "Change"
+    }
   },
   "tabsLabel": "Costs of the platform",
   "tabs": {
@@ -414,7 +421,9 @@
       "referenceHint": "Invoice or order number",
       "note": "Note",
       "saved": "Cost entry saved",
-      "notSaved": "Cost entry not saved"
+      "notSaved": "Cost entry not saved",
+      "otherYear": "Plan line of {{label}}: {{title}}",
+      "otherYearOption": "{{title}} ({{label}}, kept)"
     },
     "team": {
       "title": "Plans of the team's services",

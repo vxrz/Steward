@@ -4,7 +4,7 @@ import { COST_SCOPES, costBudgetInput, FISCAL_YEAR_MAX, FISCAL_YEAR_MIN } from '
 import { ACCESS } from '../auth/access.js';
 import { LARGE_BODIES } from '../bodyLimits.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
-import { costSettings, setCostSettings } from './access.js';
+import { costSettings, fiscalYearChange, setCostSettings } from './access.js';
 import { overview, scopeDetail } from './query.js';
 import { getSource, importFromUi, listImports, previewImport, setSource } from './service.js';
 import { readNow } from './sources.js';
@@ -30,6 +30,7 @@ import {
  *   GET  /api/costs/:scope/:id                                        one scope: 12 months, this month, trend, forecast, budget
  *   PUT  /api/costs/budgets                                           a month's budget (raising one: step-up, control point cost.budget)
  *   GET|PUT /api/costs/settings                                       hide amounts from viewers, default currency (PUT: administrators)
+ *   GET  /api/costs/settings/fiscal-year-change?startMonth=           what a new fiscal year start would move (administrators)
  *   GET|PUT /api/costs/platform/:id/source                            how a platform's costs are read (PUT: its manage right)
  *   POST /api/costs/platform/:id/read                                 read a connector's costs now (its manage right)
  *   GET  /api/costs/platform/:id/imports, POST …/imports/preview | …/imports    FOCUS files
@@ -65,6 +66,9 @@ export async function costRoutes(app: FastifyInstance): Promise<void> {
   });
   app.get('/costs/settings', async () => costSettings());
   app.put('/costs/settings', { config: { access: ACCESS.admin } }, async (req) => setCostSettings(req.body));
+  app.get('/costs/settings/fiscal-year-change', { config: { access: ACCESS.admin } }, async (req) =>
+    fiscalYearChange(z.object({ startMonth: z.coerce.number().int().min(1).max(12) }).parse(req.query ?? {}).startMonth),
+  );
   app.put(
     '/costs/budgets',
     {

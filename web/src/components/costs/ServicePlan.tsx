@@ -684,9 +684,16 @@ function EntriesSection({
   const rows = only ? d.entries.filter((e) => e.unplanned) : d.entries;
   const lineCell = (e: CostEntry) =>
     e.unplanned ? (
-      <Badge size="sm" variant="light" color="orange" data-testid="entry-unplanned">
-        {t('plan.entry.unplanned')}
-      </Badge>
+      <Stack gap={2} align="flex-start">
+        <Badge size="sm" variant="light" color="orange" data-testid="entry-unplanned">
+          {t('plan.entry.unplanned')}
+        </Badge>
+        {e.planLineYear && (
+          <Text size="xs" c="dimmed" data-testid="entry-other-year">
+            {t('plan.entry.otherYear', { label: e.planLineYear.label, title: e.planLineTitle ?? '' })}
+          </Text>
+        )}
+      </Stack>
     ) : (
       <Text span size="sm">
         {e.planLineTitle}
@@ -1062,7 +1069,14 @@ function EntryDialog({ d, entry, onClose, onSaved }: { d: CostPlanYear; entry: C
         <Select
           label={t('plan.entry.line')}
           description={t('plan.entry.lineHint', { label: d.label })}
-          data={[{ value: NONE, label: t('plan.entry.unplannedOption') }, ...d.lines.map((l) => ({ value: l.id, label: `${l.title} (${l.currency})` }))]}
+          data={[
+            { value: NONE, label: t('plan.entry.unplannedOption') },
+            ...d.lines.map((l) => ({ value: l.id, label: `${l.title} (${l.currency})` })),
+            // a plan line of another fiscal year (the start month changed since): kept while it is not changed
+            ...(entry?.planLineYear && entry.planLineId
+              ? [{ value: entry.planLineId, label: t('plan.entry.otherYearOption', { title: entry.planLineTitle ?? '', label: entry.planLineYear.label }) }]
+              : []),
+          ]}
           value={lineId}
           onChange={chooseLine}
           searchable

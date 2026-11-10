@@ -2334,6 +2334,11 @@ export interface Resources {
     'settings.notSaved': string;
     'settings.fiscalYear': string;
     'settings.fiscalYearHint': string;
+    'settings.fiscalYearChange.title': string;
+    'settings.fiscalYearChange.message': string;
+    'settings.fiscalYearChange.otherYear_one': string;
+    'settings.fiscalYearChange.otherYear_other': string;
+    'settings.fiscalYearChange.button': string;
     tabsLabel: string;
     'tabs.overview': string;
     'tabs.source': string;
@@ -2624,6 +2629,8 @@ export interface Resources {
     'plan.entry.note': string;
     'plan.entry.saved': string;
     'plan.entry.notSaved': string;
+    'plan.entry.otherYear': string;
+    'plan.entry.otherYearOption': string;
     'plan.team.title': string;
     'plan.team.hint': string;
     'plan.team.service': string;

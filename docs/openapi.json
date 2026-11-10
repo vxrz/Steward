@@ -32555,6 +32555,30 @@
                   "type": "boolean",
                   "description": "No plan line of this fiscal year"
                 },
+                "planLineYear": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "fiscalYear": {
+                          "type": "integer"
+                        },
+                        "label": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "fiscalYear",
+                        "label"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The fiscal year of its plan line when that is another one (the fiscal year start changed since): the entry counts as unplanned"
+                },
                 "createdAt": {
                   "type": "string"
                 },
@@ -32580,6 +32604,7 @@
                 "reference",
                 "note",
                 "unplanned",
+                "planLineYear",
                 "createdAt",
                 "createdBy",
                 "updatedAt",

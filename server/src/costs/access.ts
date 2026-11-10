@@ -1,4 +1,4 @@
-import { costSettingsInput, type AclEntry, type CostScope, type CostSettings, type PlatformPermission } from '@sm/shared';
+import { costSettingsInput, type AclEntry, type CostScope, type CostSettings, type FiscalYearChange, type PlatformPermission } from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { currentUser, type AuthUser } from '../auth/context.js';
@@ -33,15 +33,38 @@ export function setCostSettings(body: unknown): CostSettings {
   const before = costSettings();
   // the fiscal year start stays as it is when left out (clients from before 0.16)
   const next: CostSettings = { ...x, fiscalYearStartMonth: x.fiscalYearStartMonth ?? before.fiscalYearStartMonth };
+  const moved = next.fiscalYearStartMonth !== before.fiscalYearStartMonth ? fiscalYearChange(next.fiscalYearStartMonth) : null;
   writeSetting(KEY, next);
   audit({
     action: 'cost.settings_changed',
     entityType: 'settings',
     entityId: KEY,
-    summary: `Cost settings changed: amounts ${next.hideAmountsFromViewers ? 'hidden from' : 'shown to'} viewers, default currency ${next.defaultCurrency}, fiscal year starts in month ${next.fiscalYearStartMonth}`,
-    details: { before, after: next },
+    summary: `Cost settings changed: amounts ${next.hideAmountsFromViewers ? 'hidden from' : 'shown to'} viewers, default currency ${next.defaultCurrency}, fiscal year starts in month ${next.fiscalYearStartMonth}${moved?.entriesOtherYear ? `; ${moved.entriesOtherYear} cost entr${moved.entriesOtherYear === 1 ? 'y falls' : 'ies fall'} into another fiscal year than their plan line now` : ''}`,
+    details: { before, after: next, ...(moved ? { entriesOtherYear: moved.entriesOtherYear } : {}) },
   });
   return next;
+}
+
+/**
+ * What a fiscal year start month would do to the plans (docs/COSTS.md#planning-per-service): plan lines keep their
+ * fiscal year, entries fall into the year their date is in – an entry whose plan line is then of another year keeps
+ * its link and counts as unplanned. The settings dialog asks before such a change.
+ */
+export function fiscalYearChange(startMonth: number): FiscalYearChange {
+  if (!capabilities(currentUser()).manageSettings)
+    throw new HttpError(403, 'Only administrators change the cost settings', 'FORBIDDEN', { context: 'costSettings' });
+  const n = (sql: string, ...params: unknown[]) => Number(db().get<{ n: number }>(sql, ...params)?.n ?? 0);
+  return {
+    startMonth,
+    lines: n('SELECT COUNT(*) AS n FROM cost_plan_lines'),
+    entries: n('SELECT COUNT(*) AS n FROM cost_entries'),
+    // the fiscal year of a date: its year, one less before the start month
+    entriesOtherYear: n(
+      `SELECT COUNT(*) AS n FROM cost_entries e JOIN cost_plan_lines l ON l.id = e.plan_line_id
+        WHERE CAST(substr(e.entry_date, 1, 4) AS INTEGER) - (CASE WHEN CAST(substr(e.entry_date, 6, 2) AS INTEGER) < ? THEN 1 ELSE 0 END) <> l.fiscal_year`,
+      startMonth,
+    ),
+  };
 }
 
 export interface ScopeInfo {

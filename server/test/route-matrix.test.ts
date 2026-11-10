@@ -292,6 +292,7 @@ const EXPECT: Record<string, Access> = {
   'GET /api/costs': ALL,
   'GET /api/costs/settings': ALL,
   'PUT /api/costs/settings': ADMIN,
+  'GET /api/costs/settings/fiscal-year-change': ADMIN,
   'PUT /api/costs/budgets': DESIGN,
   'GET /api/costs/:scope/:id': RECON_READ,
   'GET /api/costs/platform/:id/source': RECON_READ,
@@ -1797,6 +1798,7 @@ const QUERY: Record<string, string> = {
   'GET /api/backlinks': '', // filled in beforeAll (needs the record id)
   'GET /api/runs/compare': '', // filled in beforeAll (needs the run id)
   'GET /api/ticket-references/open-counts': '?kind=service',
+  'GET /api/costs/settings/fiscal-year-change': '?startMonth=4',
   'GET /api/compliance/coverage': `?from=2026-01-01T00:00:00Z&to=${encodeURIComponent(new Date().toISOString())}`,
   'GET /api/assurance/policy/as-of': '?at=2026-01-01T00:00:00Z',
   'GET /api/assurance/report': `?from=2026-01-01T00:00:00Z&to=${encodeURIComponent(new Date().toISOString())}`,
