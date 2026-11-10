@@ -202,5 +202,30 @@
     "proposedForReview": "Changes here need a second person: proposed for review as “{{title}}”.",
     "openChangeSet": "Open the change set",
     "importProposeOnly": "You may propose changes: preview the files, then add them to your draft. Someone who manages the sites applies it."
+  },
+  "retention": {
+    "title": "Plant registry history",
+    "description": "Every change to the plant registry keeps a row of history per entry, and every import what it wrote (the baseline its preview compares with). The history of an entry stays while the entry exists; what is older than set here is deleted by the daily clean-up.",
+    "removedHistoryDays": "History of removed entries (days)",
+    "removedHistoryDaysHint": "Kept after the removal, then deleted ({{min}} to {{max}} days; 1,095 days = 3 years)",
+    "closedDays": "Closed change sets (days)",
+    "closedDaysHint": "Rejected, withdrawn and expired change sets; their audit entries stay ({{min}} to {{max}} days)",
+    "baselinesPerEntry": "Import baselines per entry",
+    "baselinesPerEntryHint": "What the last imports wrote into an entry; the import compares with the last one ({{min}} to {{max}})",
+    "usage": "What the history takes in the database",
+    "usageHint": "Rows and their size with indexes, now; the whole database: {{size}}",
+    "what": "Kept",
+    "rows": "Rows",
+    "size": "Size",
+    "sizeUnknown": "not known",
+    "history": "History of entries",
+    "historyRemoved_one": "{{n}} row of a removed entry",
+    "historyRemoved_other": "{{n}} rows of removed entries",
+    "baselines": "Import baselines",
+    "changeSets": "Change sets with their changes and files",
+    "changeSetsClosed_one": "{{n}} closed",
+    "changeSetsClosed_other": "{{n}} closed",
+    "save": "Save",
+    "saved": "Retention of the plant registry history saved"
   }
 }

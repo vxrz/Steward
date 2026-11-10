@@ -140,6 +140,8 @@ export const plantKeys = {
   mapSites: ['plant', 'map', 'sites'] as const,
   mapStatus: ['plant', 'map', 'status'] as const,
   mapSettings: ['plant', 'map', 'settings'] as const,
+  /** 0.15.0: the retention of the change-set history and what it takes */
+  historySettings: ['plant', 'history', 'settings'] as const,
   coverage: (filter: string) => ['plant', 'views', 'coverage', filter] as const,
   structure: (siteId: string | null | undefined) => ['plant', 'views', 'structure', siteId] as const,
   flow: (assetId: string | null | undefined) => ['plant', 'views', 'flow', assetId] as const,
