@@ -900,11 +900,10 @@ export function removeEntry(serviceId: string, entryId: string): CostPlanYear {
 /** A cell; amounts (decimal strings Steward wrote) stay numbers – also negative ones, which are no formula. */
 const num = (v: string | null) => v ?? '';
 
-/** The plan lines or the entries of a fiscal year as CSV (UTF-8 with a byte order mark, comma separated). */
-export function planCsv(serviceId: string, year: number | undefined, what: 'plan' | 'entries'): { name: string; csv: string } {
-  const y = planYear(serviceId, year);
+/** The header and the rows (CSV lines) of the plan lines or the entries of a year – also for scheduled exports. */
+export function planCsvRows(y: CostPlanYear, what: 'plan' | 'entries'): { head: string; rows: string[] } {
   const target = (t: CostPlanTarget | null) => (t ? (t.visible ? t.name : '') : '');
-  const rows: string[] =
+  const [head, ...rows]: string[] =
     what === 'plan'
       ? [
           'Fiscal year,Title,Category,For (kind),For,Vendor or contract,Amount,Currency,Cadence,Once in,Renewal,Planned (year),Planned to date,Incurred to date,Expected,Difference,Note',
@@ -946,8 +945,15 @@ export function planCsv(serviceId: string, year: number | undefined, what: 'plan
             ].join(','),
           ),
         ];
+  return { head: head!, rows };
+}
+
+/** The plan lines or the entries of a fiscal year as CSV (UTF-8 with a byte order mark, comma separated). */
+export function planCsv(serviceId: string, year: number | undefined, what: 'plan' | 'entries'): { name: string; csv: string } {
+  const y = planYear(serviceId, year);
+  const { head, rows } = planCsvRows(y, what);
   const fyText = y.label.replace(/[^0-9A-Za-z]+/g, '-');
-  return { name: `cost-${what}-${fyText}.csv`, csv: '﻿' + rows.join('\r\n') + '\r\n' };
+  return { name: `cost-${what}-${fyText}.csv`, csv: '﻿' + [head, ...rows].join('\r\n') + '\r\n' };
 }
 
 // ---------- the team rollup ----------

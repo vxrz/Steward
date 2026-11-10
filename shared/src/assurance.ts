@@ -231,6 +231,8 @@ export const CONTROL_POINTS: readonly ControlPoint[] = [
     defaults: { stepUp: false, teams: false },
   },
   sp('backup.settings', 'system', ['changeBackups']),
+  // 0.16.0 (ADR 0027): a scheduled export sends readable data out of Steward to S3
+  sp('export.settings', 'system', ['changeExports']),
   sp('migration.export', 'system', ['exportMigration']),
   sp('migration.apply', 'system', ['applyMigration']),
   // where the map of sites fetches its tiles from (0.10.0, #234): a new style, URL, key or file; turning it off never asks

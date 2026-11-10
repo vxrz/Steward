@@ -319,6 +319,7 @@ describe('the registry of reference columns', () => {
     run_artifacts: 'an artifact kind',
     users: 'users.profile is the person profile, not a device profile',
     backup_runs: 'what started a backup',
+    export_runs: 'what started an export run',
     mcp_requests: 'a request kind',
     reports: 'a report kind',
     credential_events: 'an event kind',

@@ -57,6 +57,7 @@ export const EVENT_DIGEST_GROUP: Record<NotificationEvent, DigestGroup | null> =
   'schedule.skipped': 'runs',
   'dataset.stale': 'runs',
   'backup.failed': 'runs',
+  'export.failed': 'runs',
   'contract.failed': 'runs',
   'plant.advisory_matched': 'reminders',
   'monitor.status': 'monitors',

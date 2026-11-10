@@ -12,9 +12,29 @@ Set it up under _Settings → Backups_ (administrators; changes ask for your pas
 | Data folder | `vault.json`, `artifacts/`, `docs/`, `reports/`, `audit-anchor.json`, …         | the same                                                                  |
 | Manifest    | `manifest.json`: every file with its size and SHA-256, the last audit log entry | the same                                                                  |
 
-Not included: the live database files (the snapshot stands for them), the automatic copies made before upgrades (`backups/`) and the work folder of backups.
+Not included: the live database files (the snapshot stands for them), the automatic copies made before upgrades (`backups/`), the work folders of backups and exports, and – when an administrator leaves them out ([Contents](#contents)) – run artifacts, archived reports and evidence packs.
 
 **The master passphrase is never in a backup.** The credentials in the database are encrypted with the vault's key, which `vault.json` holds encrypted with the master passphrase. To restore you need the backup, the **backup passphrase** and the **master passphrase**. Keep both passphrases offline, apart from each other and from the bucket.
+
+### Contents
+
+From 0.16.0 an administrator chooses under _Settings → Backups → Contents_ which bulky folders of the data folder a backup holds. The page shows every part with its current size (_Show sizes_) and what a restore lacks without it.
+
+| Part                                       | In a backup    | Without it, a restore lacks …                                                                                                                                                                                         |
+| ------------------------------------------ | -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Database                                   | always         | everything – it is the backup                                                                                                                                                                                         |
+| `vault.json`                               | always         | the keys of the credentials: the database could not be read                                                                                                                                                           |
+| `audit-anchor.json`                        | always         | the proof that the audit log was not cut short                                                                                                                                                                        |
+| `audit-archives/`                          | always         | audit entries the audit retention moved out of the database                                                                                                                                                           |
+| `records/`, `docs/`, `branding/`, the rest | always         | originals people uploaded (attachments of records and documents, platform documents, logos)                                                                                                                           |
+| `manifest.json`                            | always         | the SHA-256 of every file: nothing could be checked                                                                                                                                                                   |
+| Run artifacts (`artifacts/`)               | yes, by choice | screenshots, files and evidence of manual steps of every run. **Evidence that cannot be made again**; reports and evidence packs generated after the restore miss them                                                |
+| Archived reports (`reports/`)              | yes, by choice | the archived PDF reports. **Evidence**: a report can be generated again from its run, as a new version with another SHA-256 – the archived copy and signatures added to it are gone (the audit log names its SHA-256) |
+| Evidence packs (`evidence-packs/`)         | yes, by choice | the packs built so far (they expire after `SM_EVIDENCE_RETENTION_DAYS` anyway). They can be built again for the same period – with a new signature, from the data still in Steward                                    |
+
+All three optional parts are evidence, so **all are included by default** (as before 0.16.0) and the page warns while one is left out. Leave one out only when it is kept elsewhere – e.g. artifacts on storage with its own backup – or not needed after a restore. A required part cannot be left out: the API refuses it (`BACKUP_PART_REQUIRED`) instead of dropping it.
+
+A backup that leaves parts out says so everywhere: `manifest.json` lists them under `excluded` (folder, files and bytes at the time of the backup), the unencrypted header of the file names them (`npm run backup -- info <file>` prints _Left out by the backup settings (a restore lacks them): artifacts/, reports/_), the run's steps show a step _contents_, and the restore test adds a passing step _contents_ with what a restore from that backup lacks. The audit entry of the settings (`backup.settings_updated`) names the parts left out.
 
 ## Encryption
 
@@ -72,7 +92,8 @@ _Back up now_ and _Test the newest backup_ start one right away. _History_ shows
 1. Download the newest backup and compare its SHA-256 with the one recorded at upload – a copy changed in the bucket fails here.
 2. Decrypt it: every chunk must authenticate.
 3. Check every file of the archive against the manifest (SHA-256, size, CRC, nothing missing, nothing extra).
-4. The database: SQLite – `PRAGMA integrity_check` on the snapshot and the **audit chain of the snapshot** (every entry, against the installation's audit key, ending at the entry the manifest names; after archived entries were deleted, from the signed checkpoint they were deleted up to). PostgreSQL – `pg_restore --list` reads the dump; with a restore test database (below), the dump is restored and checked like a SQLite snapshot.
+4. What the backup settings left out ([Contents](#contents)): a passing step _contents_ names the folders a restore from this backup lacks.
+5. The database: SQLite – `PRAGMA integrity_check` on the snapshot and the **audit chain of the snapshot** (every entry, against the installation's audit key, ending at the entry the manifest names; after archived entries were deleted, from the signed checkpoint they were deleted up to). PostgreSQL – `pg_restore --list` reads the dump; with a restore test database (below), the dump is restored and checked like a SQLite snapshot.
 
 **PostgreSQL: a restore test database.** `pg_restore --list` only shows that the table of contents of a dump can be read. To find out whether the data restores, give the restore test a database of its own: `SM_BACKUP_RESTORE_TEST_DATABASE_URL=postgres://steward_restore@db.corp.example:5432/steward_restore_test` (or `SM_BACKUP_RESTORE_TEST_DATABASE_URL_FILE`). The test then restores the dump there with `pg_restore --no-owner --no-privileges`, checks that the tables and the schema version are there and verifies the **audit chain of the restored data** as above (step _restore_ and _audit_), and drops the restored schema again.
 
@@ -119,6 +140,8 @@ cp -a restore/data/. /data/
 pg_restore --clean --if-exists --no-owner -d "postgres://steward@db:5432/steward" restore/database/steward.pgdump
 ```
 
+A backup that left parts out ([Contents](#contents)) restores without them: copy those folders back from where you keep them, or accept what the table above says is missing.
+
 Start Steward and unlock the vault with the **master passphrase**. Verify the audit log (_Audit log → Verify_). If the installation moved, also set up single sign-on redirect URLs and the public URL again.
 
 ## Limits and notes
@@ -132,3 +155,4 @@ Start Steward and unlock the vault with the **master passphrase**. Verify the au
 - One backup or restore test runs at a time. A backup in progress when Steward stops is marked _Interrupted_ at the next start.
 - Whoever may change the storage platform (its managers) can point backups at another bucket. The copies stay encrypted, but give that platform only administrators as managers.
 - Backups are per installation: a migration package (_Settings → Migration_) does not carry backup settings, the passphrase or the history.
+- Readable copies of chosen data for people outside Steward – cost plans, the plant registry, the catalogue – are [exports](EXPORTS.md), not backups: they go to S3 on a schedule of their own and cannot restore Steward.

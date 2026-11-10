@@ -136,6 +136,7 @@ const SETTING_ENTRIES: [string, string][] = [
   ['catalogue', 'applications:environments.title'],
   ['data', 'settings:retention.title'],
   ['data', 'settings:backups.title'],
+  ['data', 'settings:exports.title'],
 ];
 
 /** Settings of a module (ADR 0016): not offered while it is switched off. */

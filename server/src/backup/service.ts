@@ -5,6 +5,8 @@ import { z } from 'zod';
 import {
   BRAND,
   DEFAULT_BACKUP_SETTINGS,
+  isBackupOptionalPart,
+  type BackupContents,
   type BackupRun,
   type BackupRunKind,
   type BackupSettings,
@@ -22,7 +24,8 @@ import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { currentActor } from '../auth/context.js';
 import { listUsers } from '../auth/users.js';
 import { getPlatform, getSecrets } from '../platforms/service.js';
-import { createArchive, checkArchive, workDir } from './archive.js';
+import { createArchive, checkArchive, dataFiles, workDir } from './archive.js';
+import { checkExclude, contentsOf, excludedText } from './contents.js';
 import { BACKUP_PASSPHRASE_MIN, decryptFile, deriveBackupKey, encryptFile, keyIdOf, newKdf, readHeader, type KdfParams } from './crypto.js';
 import { retained } from './retention.js';
 import { S3Client, type S3Object } from './s3.js';
@@ -67,6 +70,8 @@ export const backupSettingsSchema = z.object({
   timezone: z.string().trim().min(1).max(64),
   retention: retentionSchema,
   restoreTest: z.object({ enabled: z.boolean(), cron: z.string().trim().min(1).max(100) }),
+  // checked by checkExclude (contents.ts): a required part is refused with its own code
+  exclude: z.array(z.string().max(40)).max(20).optional(),
 });
 
 export function backupSettings(): BackupSettings {
@@ -76,6 +81,8 @@ export function backupSettings(): BackupSettings {
     ...s,
     retention: { ...DEFAULT_BACKUP_SETTINGS.retention, ...s.retention },
     restoreTest: { ...DEFAULT_BACKUP_SETTINGS.restoreTest, ...s.restoreTest },
+    // only optional parts, whatever was stored by hand
+    exclude: Array.isArray(s.exclude) ? s.exclude.filter((p) => isBackupOptionalPart(p)) : [],
   };
 }
 
@@ -93,8 +100,8 @@ function checkCron(cron: string, tz: string, what: string): Cron {
   return job;
 }
 
-/** The platform must sign with AWS SigV4 for S3 – a backup is never sent with other credentials. */
-function storagePlatform(id: string | null) {
+/** The platform must sign with AWS SigV4 for S3 – a backup is never sent with other credentials (also for exports). */
+export function storagePlatform(id: string | null) {
   if (!id) throw new HttpError(400, 'Choose the S3 platform the backups go to', 'BACKUP_NO_STORAGE');
   const p = getPlatform(id);
   const aws = p.config.auth?.type === 'aws_sigv4' ? p.config.auth.aws : undefined;
@@ -108,7 +115,10 @@ function storagePlatform(id: string | null) {
 }
 
 export function saveBackupSettings(input: unknown): BackupSettings {
-  const v = backupSettingsSchema.parse(input) as BackupSettings;
+  const parsed = backupSettingsSchema.parse(input);
+  // a client that does not know the contents (before 0.16.0) keeps what is set
+  const exclude = parsed.exclude === undefined ? backupSettings().exclude : checkExclude(parsed.exclude);
+  const v: BackupSettings = { ...parsed, exclude };
   checkCron(v.cron, v.timezone, 'backup').stop();
   checkCron(v.restoreTest.cron, v.timezone, 'restore test').stop();
   if (v.platformId) storagePlatform(v.platformId);
@@ -119,8 +129,8 @@ export function saveBackupSettings(input: unknown): BackupSettings {
     action: 'backup.settings_updated',
     entityType: 'backup',
     summary: v.enabled
-      ? `Backups to ${getPlatform(v.platformId!).name}/${v.prefix} (${v.cron} ${v.timezone}), keeping ${v.retention.daily} daily, ${v.retention.weekly} weekly and ${v.retention.monthly} monthly`
-      : 'Scheduled backups off',
+      ? `Backups to ${getPlatform(v.platformId!).name}/${v.prefix} (${v.cron} ${v.timezone}), keeping ${v.retention.daily} daily, ${v.retention.weekly} weekly and ${v.retention.monthly} monthly${v.exclude.length ? `, leaving out ${v.exclude.join(', ')}` : ''}`
+      : `Scheduled backups off${v.exclude.length ? `, leaving out ${v.exclude.join(', ')}` : ''}`,
     details: v,
   });
   scheduleJobs();
@@ -131,7 +141,10 @@ export function saveBackupSettings(input: unknown): BackupSettings {
 
 const storedKey = (): StoredKey | null => readSetting<StoredKey | null>(KEY_KEY, null);
 
-function backupKey(): { key: Buffer; stored: StoredKey } {
+/** Whether the backup passphrase is set (exports can then be encrypted with the backup key). */
+export const backupKeySet = (): boolean => !!storedKey();
+
+export function backupKey(): { key: Buffer; stored: StoredKey } {
   const stored = storedKey();
   if (!stored) throw new HttpError(400, 'Set the backup passphrase first', 'BACKUP_NO_KEY');
   return { key: Buffer.from(vault().decrypt<string>(stored.blob), 'base64'), stored };
@@ -378,8 +391,27 @@ export function backupTime(key: string): Date | null {
 }
 
 function client(s: BackupSettings): S3Client {
-  const p = storagePlatform(s.platformId);
+  return s3Client(s.platformId);
+}
+
+/** An S3 client for a storage platform (checked: SigV4 for s3, https) – backups and exports. */
+export function s3Client(platformId: string | null): S3Client {
+  const p = storagePlatform(platformId);
   return new S3Client(p, getSecrets(p.id));
+}
+
+/** The parts of a backup with their size now, and which ones the settings leave out. */
+export function backupContents(): BackupContents {
+  const files = dataFiles().map((f) => {
+    let size = 0;
+    try {
+      size = fs.statSync(f.abs).size;
+    } catch {
+      // removed meanwhile
+    }
+    return { rel: f.rel, size };
+  });
+  return { parts: contentsOf(files, backupSettings().exclude) };
 }
 
 async function backup(run: BackupRun): Promise<void> {
@@ -392,17 +424,24 @@ async function backup(run: BackupRun): Promise<void> {
   const enc = path.join(dir, `${run.id}.smbackup`);
   const step = (name: string, ok: boolean, message: string) => run.steps.push({ name, ok, message });
   try {
-    const manifest = await createArchive(zip, { now });
+    const manifest = await createArchive(zip, { now, exclude: s.exclude });
     const zipSize = fs.statSync(zip).size;
     step(
       'archive',
       true,
       `${manifest.database.kind === 'sqlite' ? 'SQLite snapshot' : 'pg_dump'} and ${manifest.files.length - 1} files of the data folder (${zipSize} bytes)`,
     );
+    if (manifest.excluded?.length) step('contents', true, `Left out by the backup settings: ${excludedText(manifest.excluded)}`);
     const e = await encryptFile(zip, enc, key, {
       kdf: stored.kdf,
       now,
-      info: { product: BRAND.name, version: config.version, database: manifest.database.kind },
+      // the header is readable without the passphrase (`steward backup info`): it names what was left out
+      info: {
+        product: BRAND.name,
+        version: config.version,
+        database: manifest.database.kind,
+        ...(manifest.excluded?.length ? { excluded: manifest.excluded.map((x) => x.path).join(',') } : {}),
+      },
     });
     fs.rmSync(zip, { force: true });
     step('encrypt', true, `AES-256-GCM with key ${e.header.keyId}`);

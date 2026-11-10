@@ -521,7 +521,164 @@
       "restore_test": "Restore test"
     },
     "by": "by {{who}}",
-    "scheduled": "scheduled"
+    "scheduled": "scheduled",
+    "contents": {
+      "title": "Contents",
+      "intro": "A backup always holds the database, the vault, the audit anchor, the audit archives and the manifest – a restore needs them. Run artifacts, archived reports and evidence packs can be left out to keep backups small. All three are evidence: leave one out only when it is kept elsewhere.",
+      "load": "Show sizes",
+      "always": "Always included",
+      "include": "Include {{part}} in backups",
+      "size": "{{size}} in {{count}} file",
+      "size_other": "{{size}} in {{count}} files",
+      "evidence": "Evidence",
+      "warningTitle": "A restore from these backups lacks evidence",
+      "warning": "Left out: {{parts}}. Every backup names this in its manifest and its header (backup info), and the restore test shows it. Keep these files elsewhere, or include them again.",
+      "save": "Save contents",
+      "saved": "Backup contents saved.",
+      "parts": {
+        "database": {
+          "label": "Database",
+          "lacks": "Everything Steward stores: processes, runs, the catalogue, settings and the audit log."
+        },
+        "vault": {
+          "label": "Vault (vault.json)",
+          "lacks": "The keys of the encrypted credentials – without it the database cannot be read."
+        },
+        "auditAnchor": {
+          "label": "Audit anchor (audit-anchor.json)",
+          "lacks": "Shows that the audit log was not cut short."
+        },
+        "auditArchives": {
+          "label": "Audit archives (audit-archives/)",
+          "lacks": "Audit entries the audit retention moved out of the database."
+        },
+        "records": {
+          "label": "Record attachments (records/)",
+          "lacks": "Files attached to records and documents – originals."
+        },
+        "documents": {
+          "label": "Platform documents (docs/)",
+          "lacks": "Files uploaded to platforms – originals."
+        },
+        "branding": {
+          "label": "Branding (branding/)",
+          "lacks": "The logos of reports and messages."
+        },
+        "artifacts": {
+          "label": "Run artifacts (artifacts/)",
+          "lacks": "Without it a restore lacks the screenshots, files and evidence of manual steps of every run. They cannot be made again; reports and evidence packs generated after the restore miss them."
+        },
+        "reports": {
+          "label": "Archived reports (reports/)",
+          "lacks": "Without it a restore lacks the archived PDF reports. A report can be generated again from its run as a new version with another SHA-256; the archived copy and signatures added to it are gone – the audit log still names its SHA-256."
+        },
+        "evidencePacks": {
+          "label": "Evidence packs (evidence-packs/)",
+          "lacks": "Without it a restore lacks the evidence packs built so far (they expire after their retention anyway). They can be built again for the same period, with a new signature, from the data still in Steward."
+        },
+        "other": {
+          "label": "Other files",
+          "lacks": "Everything else in the data folder."
+        }
+      }
+    }
+  },
+  "exports": {
+    "title": "Exports",
+    "card": "Readable files of chosen data – cost plans, the plant registry, the catalogue, monitors, the audit log – written to S3 on a schedule, for sharing and archiving.",
+    "open": "Open exports",
+    "readOnly": "Only administrators manage the exports.",
+    "intro": "On a schedule, Steward writes readable files of the parts you choose to a folder in an S3 bucket – the backup's bucket or another one – with a manifest of their SHA-256 checksums.",
+    "notForRestore": "Exports are for sharing and archiving outside Steward, not for a restore – that is what backups are for. They run as the system and hold everything of their parts, so only administrators define them; they never hold secrets. Whoever can read the bucket can read readable exports.",
+    "new": "New export",
+    "editTitle": "Edit export",
+    "newTitle": "New export",
+    "edit": "Edit",
+    "remove": "Remove",
+    "removeConfirm": "Remove the export \"{{name}}\" and its history? Its files stay in the bucket.",
+    "removed": "Export removed.",
+    "none": "No exports yet.",
+    "name": "Name",
+    "nameHint": "Also the folder in the bucket: letters, digits and . _ -",
+    "enabled": "Run on the schedule",
+    "storage": "S3 storage",
+    "storageHint": "A platform with AWS request signing (SigV4) for the service s3 – the backup's or another one.",
+    "noStorage": "No S3 platform yet – create one under Platforms.",
+    "prefix": "Folder in the bucket",
+    "prefixHint": "e.g. exports/ – each run writes to a subfolder named after the export and the UTC time",
+    "cron": "Schedule (cron)",
+    "cronHint": "Five fields: minute hour day month weekday – default 03:30 every Monday",
+    "timezone": "Time zone",
+    "parts": "What to export",
+    "partsHint": "Choose at least one part.",
+    "format": "Format of {{part}}",
+    "fiscalYear": "Fiscal year",
+    "fiscalYears": {
+      "current": "Current fiscal year",
+      "previous": "Previous fiscal year",
+      "next": "Next fiscal year"
+    },
+    "days": "Days back",
+    "moduleOff": "The module is switched off: this part is left out until it is on again.",
+    "encrypt": "Encrypt the files with the backup key",
+    "encryptHint": "Off (default): readable files – protect the bucket. On: every file, the manifest included, is encrypted like a backup and read with steward backup decrypt and the backup passphrase.",
+    "encryptNoKey": "Set the backup passphrase first (Settings → Backups).",
+    "keepRuns": "Runs to keep",
+    "keepRunsHint": "The files of older successful runs are removed from the bucket.",
+    "saved": "Export saved.",
+    "runNow": "Run now",
+    "runStarted": "The export is running.",
+    "lastRun": "Last run",
+    "nextRun": "Next run",
+    "notScheduled": "Not scheduled",
+    "never": "Never",
+    "history": "History of {{name}}",
+    "showHistory": "History",
+    "noRuns": "No runs yet.",
+    "started": "Started",
+    "result": "Result",
+    "files": "Files",
+    "size": "Size",
+    "by": "by {{who}}",
+    "scheduled": "scheduled",
+    "pruned": "Files removed by the retention rule",
+    "encrypted": "Encrypted",
+    "readable": "Readable",
+    "status": {
+      "running": "Running",
+      "succeeded": "Succeeded",
+      "failed": "Failed"
+    },
+    "partNames": {
+      "costPlans": {
+        "label": "Cost plans and entries",
+        "description": "The plan lines and the cost entries of every service for a fiscal year, as CSV (Costs module)."
+      },
+      "plant": {
+        "label": "Plant registry",
+        "description": "The whole registry in its import format (YAML or JSON) – it imports back unchanged (plant registry module)."
+      },
+      "services": {
+        "label": "Services",
+        "description": "The service catalogue as CSV, archived services included."
+      },
+      "applications": {
+        "label": "Applications",
+        "description": "The applications as CSV, archived ones included."
+      },
+      "systems": {
+        "label": "Systems",
+        "description": "The systems as CSV."
+      },
+      "monitors": {
+        "label": "Monitors",
+        "description": "Every monitor in its import format, one YAML document each (no heartbeat secrets)."
+      },
+      "auditLog": {
+        "label": "Audit log",
+        "description": "The audit entries of the last days, as CSV or JSON Lines."
+      }
+    }
   },
   "scope": {
     "instance": "<b>Instance settings</b> apply to the whole installation; administrators change them.",

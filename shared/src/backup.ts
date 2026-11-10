@@ -19,6 +19,12 @@ export interface BackupSettings {
   retention: BackupRetention;
   /** Weekly test: download the newest backup, decrypt it and check it completely */
   restoreTest: { enabled: boolean; cron: string };
+  /**
+   * Parts of the data folder an administrator left out of the backups (0.16.0, docs/BACKUPS.md#contents). Empty: all,
+   * as before. Only BACKUP_OPTIONAL_PARTS can be left out – the database, vault.json, audit-anchor.json and the
+   * manifest never.
+   */
+  exclude: BackupOptionalPart[];
 }
 
 export const DEFAULT_BACKUP_SETTINGS: BackupSettings = {
@@ -29,7 +35,83 @@ export const DEFAULT_BACKUP_SETTINGS: BackupSettings = {
   timezone: 'UTC',
   retention: { daily: 7, weekly: 4, monthly: 12 },
   restoreTest: { enabled: true, cron: '45 3 * * 0' },
+  exclude: [],
 };
+
+// ---------- contents (0.16.0) ----------
+
+/**
+ * What a backup holds, part by part. `required` parts are always in it – a restore needs them. The optional parts are
+ * bulky folders of the data folder; each of them is evidence or the original of something, so all are included by
+ * default and leaving one out is shown with what a restore then lacks.
+ */
+export const BACKUP_PARTS = [
+  'database',
+  'vault',
+  'auditAnchor',
+  'auditArchives',
+  'records',
+  'documents',
+  'branding',
+  'artifacts',
+  'reports',
+  'evidencePacks',
+  'other',
+] as const;
+export type BackupPart = (typeof BACKUP_PARTS)[number];
+
+/** The parts an administrator may leave out. */
+export const BACKUP_OPTIONAL_PARTS = ['artifacts', 'reports', 'evidencePacks'] as const;
+export type BackupOptionalPart = (typeof BACKUP_OPTIONAL_PARTS)[number];
+export const isBackupOptionalPart = (x: unknown): x is BackupOptionalPart => typeof x === 'string' && (BACKUP_OPTIONAL_PARTS as readonly string[]).includes(x);
+
+/** Where a part lives in the data folder (null: the database snapshot; "other": everything not named here). */
+export const BACKUP_PART_PATHS: Record<BackupPart, string | null> = {
+  database: null,
+  vault: 'vault.json',
+  auditAnchor: 'audit-anchor.json',
+  auditArchives: 'audit-archives/',
+  records: 'records/',
+  documents: 'docs/',
+  branding: 'branding/',
+  artifacts: 'artifacts/',
+  reports: 'reports/',
+  evidencePacks: 'evidence-packs/',
+  other: null,
+};
+
+/**
+ * Whether Steward can make a part again after a restore without it: never (the original is gone), as a new version
+ * (reports: generated again from the runs, with another SHA-256) or by building it again (evidence packs).
+ */
+export const BACKUP_PART_REGENERABLE: Record<BackupOptionalPart, 'no' | 'newVersion' | 'rebuild'> = {
+  artifacts: 'no',
+  reports: 'newVersion',
+  evidencePacks: 'rebuild',
+};
+
+export interface BackupContentPart {
+  id: BackupPart;
+  path: string | null;
+  required: boolean;
+  /** Left out by the current settings */
+  excluded: boolean;
+  files: number;
+  bytes: number;
+}
+
+/** GET /api/backups/contents: the parts with their current size (the data folder is walked once per call). */
+export interface BackupContents {
+  parts: BackupContentPart[];
+}
+
+/** What a backup left out (manifest.json "excluded", and the restore test's step "contents"). */
+export interface BackupExcludedPart {
+  part: BackupOptionalPart;
+  path: string;
+  files: number;
+  bytes: number;
+}
 
 export type BackupRunKind = 'backup' | 'restore_test';
 export type BackupRunStatus = 'running' | 'succeeded' | 'failed';

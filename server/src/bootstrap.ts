@@ -7,6 +7,7 @@ import { startGatusScraper, stopGatusScraper } from './gatus/metrics.js';
 import { startReportSchedules, stopReportSchedules } from './reports/schedules.js';
 import { startAccessChecks, stopAccessChecks } from './compliance/reconciliation.js';
 import { startBackupJobs, stopBackupJobs } from './backup/service.js';
+import { startExportJobs, stopExportJobs } from './export/jobs.js';
 import { startJobs, stopJobs } from './jobs/registry.js';
 import { closeAllPools } from './dbms/pool.js';
 import { startEventLoopMonitor, stopEventLoopMonitor } from './eventloop.js';
@@ -17,14 +18,14 @@ import { lifecyclePhase, setLifecyclePhase, shuttingDown } from './lifecycle.js'
  * Start-up and shutdown order of Steward's background work, in one place.
  *
  * startBackground() – when the HTTP server listens:
- *   1. event-loop monitor  2. background jobs (registered from features/ by main.ts)  3. scheduled backups
+ *   1. event-loop monitor  2. background jobs (registered from features/ by main.ts)  3. scheduled backups and exports
  * startUnlocked() – once, when the vault is unlocked (at start with SM_MASTER_PASSPHRASE[_FILE], or by a person):
  *   1. recovery of runs (resume waiting ones, mark running ones interrupted, re-queue queued ones)
  *   2. scheduler (records the fires missed while Steward was not running, starts catch-up runs)
  *   3. monitor engine  4. Gatus scraper  5. report schedules  6. access checks
  * shutdown() – SIGTERM/SIGINT (main.ts) and the desktop executable:
  *   1. not ready any more (/api/ready answers 503), no new runs (503 SHUTTING_DOWN) and no new scheduled fires
- *   2. report schedules, access checks, backups, background jobs, monitor engine and Gatus scraper stop
+ *   2. report schedules, access checks, backups, exports, background jobs, monitor engine and Gatus scraper stop
  *   3. up to SM_SHUTDOWN_GRACE_SECONDS (default 25) for running steps and jobs to end – runs waiting for a person
  *      are persisted and resume after the restart, so they are not waited for
  *   4. runs still running are marked interrupted (as recovery would do at the next start)
@@ -38,6 +39,7 @@ export function startBackground(): void {
   // the jobs are registered by the entry point (main.ts: registerFeatureJobs() from the composition root, features/)
   startJobs();
   startBackupJobs();
+  startExportJobs();
   if (lifecyclePhase() === 'starting') setLifecyclePhase('running');
 }
 
@@ -94,6 +96,7 @@ async function doShutdown(graceMs: number): Promise<ShutdownReport> {
   stopReportSchedules();
   stopAccessChecks();
   stopBackupJobs();
+  stopExportJobs();
   const safely = async <T>(what: string, p: Promise<T>, fallback: T): Promise<T> => {
     try {
       return await p;

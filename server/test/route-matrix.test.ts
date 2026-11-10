@@ -232,6 +232,15 @@ const EXPECT: Record<string, Access> = {
   'PUT /api/backups/passphrase': ADMIN,
   'POST /api/backups/run': ADMIN,
   'POST /api/backups/restore-test': ADMIN,
+  'GET /api/backups/contents': ADMIN,
+  // scheduled exports to S3 (0.16.0, ADR 0027)
+  'GET /api/exports': ADMIN,
+  'POST /api/exports': ADMIN,
+  'GET /api/exports/:id': ADMIN,
+  'PUT /api/exports/:id': ADMIN,
+  'DELETE /api/exports/:id': ADMIN,
+  'GET /api/exports/:id/runs': ADMIN,
+  'POST /api/exports/:id/run': ADMIN,
   'GET /api/audit/public-key.pem': ADMIN_AUDITOR,
   'GET /api/audit/export': ADMIN_AUDITOR,
   // ---- assurance policy (#210): administrators and auditors read it, administrators change it (sessions only) ----
@@ -1425,6 +1434,10 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
   'POST /api/migration/imports/staged/:id/apply': 'always',
   'PUT /api/catalogue/cia-scale': 'always',
   'PUT /api/backups/settings': 'always',
+  // a scheduled export sends data out of Steward (0.16.0, control point export.settings)
+  'POST /api/exports': 'always',
+  'PUT /api/exports/:id': 'always',
+  'DELETE /api/exports/:id': 'always',
   'PUT /api/platforms/:id/mcp-gateway': { sensitive: { enabled: true, writes: 'confirm' }, harmless: { enabled: true } },
   // identities (0.13.0, ADR 0009): loosening (read-only off), adding someone to the list, MCP writes on, a new default
   'PUT /api/platforms/:id/identities/:identityId': { sensitive: { readOnly: false }, harmless: { description: 'Matrix' } },
@@ -1567,6 +1580,9 @@ const NO_POSITIVE = new Set([
   'GET /api/teams/:id/settings/logo', // the matrix team has no logo of its own
   // no S3 storage set up in the fixtures
   'GET /api/backups/stored',
+  // no scheduled export in the fixtures
+  'GET /api/exports/:id',
+  'GET /api/exports/:id/runs',
   'GET /api/artifacts/:id', // the demo runs write no artifacts
   'GET /api/mcp-requests/:requestId', // no MCP client asked for anything
   'GET /api/tasks/:id', // no open approval

@@ -78,7 +78,7 @@ Themes of this release (details in the CHANGELOG once released):
 
 **0.15.0 – consolidation and personal notifications.** The plant change-set history in a fraction of the space with retention as a setting, fixes in the OT network diagram and sturdier UI tests; personal Microsoft Teams notifications through the bot (opt-in per event); a first-week guide. After it, **0.16.0** plans costs per service over a fiscal year. The candidates for later releases are under _Later_.
 
-**0.16.0 – lightweight cost planning per service.** Plan lines and cost entries per service and fiscal year (one start month for the instance), set against the cloud and platform costs already read: planned, incurred, expected and the difference, renewals, unplanned entries and a team rollup – no person-hours, approvals, chargeback or currency conversion ([COSTS.md](COSTS.md#planning-per-service), [ADR 0026](adr/0026-service-cost-planning.md)).
+**0.16.0 – lightweight cost planning per service.** Plan lines and cost entries per service and fiscal year (one start month for the instance), set against the cloud and platform costs already read: planned, incurred, expected and the difference, renewals, unplanned entries and a team rollup – no person-hours, approvals, chargeback or currency conversion ([COSTS.md](COSTS.md#planning-per-service), [ADR 0026](adr/0026-service-cost-planning.md)). Administrators choose which bulky, evidence-bearing folders the backups hold, and scheduled exports write readable files – cost plans, the plant registry, the catalogue, monitors, the audit log – to S3 for sharing outside Steward ([BACKUPS.md](BACKUPS.md#contents), [EXPORTS.md](EXPORTS.md), [ADR 0027](adr/0027-backup-contents-and-exports.md)).
 
 ## Later
 

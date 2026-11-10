@@ -76,7 +76,7 @@ Where a personal value has a default, the profile says where it comes from:
 | Four-eyes rule for access findings, CIA scale, expected documents, environments    | instance        | administrators                                  | _Settings → Catalogue & compliance_          |
 | Modules: on/off (step-up)                                                          | instance        | administrators                                  | _Settings → Modules_                         |
 | Plant registry: on/off, enterprise, display names, own fields                      | instance        | administrators                                  | _Settings → Modules_                         |
-| Data retention and storage, backups, system status                                 | instance        | administrators (system status: auditors see it) | _Settings → Maintenance_                     |
+| Data retention and storage, backups, exports, system status                        | instance        | administrators (system status: auditors see it) | _Settings → Maintenance_                     |
 | Single sign-on providers and accounts                                              | instance        | administrators                                  | _Users_                                      |
 | A report schedule's sections, recipients and team                                  | report schedule | its owner and administrators                    | _Reports_                                    |
 

@@ -286,6 +286,7 @@ const BAD_EVENTS = new Set([
   'security.emergency',
   'access.undocumented',
   'backup.failed',
+  'export.failed',
   'platform.failing',
   'contract.failed',
   'plant.advisory_matched',
