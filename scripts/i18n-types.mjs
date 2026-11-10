@@ -77,16 +77,25 @@ async function main(argv) {
   const text = await generate(root);
   const file = path.join(root, OUT);
   if (check) {
-    const current = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
-    if (current === text) {
+    if (readIfExists(file) === text) {
       process.stdout.write(`✓ ${OUT} is up to date\n`);
       return 0;
     }
     process.stderr.write(`✗ ${OUT} is outdated – run npm run i18n:types\n`);
     return 1;
   }
-  if (!fs.existsSync(file) || fs.readFileSync(file, 'utf8') !== text) fs.writeFileSync(file, text);
+  if (readIfExists(file) !== text) fs.writeFileSync(file, text);
   return 0;
+}
+
+/** The file's text, or '' when there is none (one read, no separate existence check that could race with it). */
+function readIfExists(file) {
+  try {
+    return fs.readFileSync(file, 'utf8');
+  } catch (e) {
+    if (e && e.code === 'ENOENT') return '';
+    throw e;
+  }
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
