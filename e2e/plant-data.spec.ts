@@ -206,7 +206,11 @@ test.describe('on a phone', () => {
 
   test('profiles, a profile, a data point, KPI definitions, a KPI, an asset, explore and checks fit the screen @mobile', async ({ page }) => {
     const pages: [string, string, (p: Page) => Promise<void>][] = [
-      ['/plant/profiles', 'device profiles', (p) => expect(p.getByTestId('plant-profile-cards').getByRole('link', { name: /Example Controls/ })).toBeVisible()],
+      [
+        '/plant/profiles',
+        'device profiles',
+        (p) => expect(p.getByTestId('plant-profile-cards').getByRole('link', { name: 'Example Controls C80 CNC controller', exact: true })).toBeVisible(),
+      ],
       ['/plant/profiles/example-controls-c80', 'device profile', (p) => expect(p.getByTestId('data-point-cards').first()).toBeVisible()],
       ['/plant/profiles/example-controls-c80/points/program_status', 'data point', (p) => expect(p.getByTestId('point-facts')).toBeVisible()],
       ['/plant/kpis', 'KPI definitions', (p) => expect(p.getByTestId('plant-kpi-cards').getByRole('link', { name: 'Time in machine state' })).toBeVisible()],
