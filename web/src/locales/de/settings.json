@@ -521,7 +521,164 @@
       "restore_test": "Wiederherstellungstest"
     },
     "by": "von {{who}}",
-    "scheduled": "geplant"
+    "scheduled": "geplant",
+    "contents": {
+      "title": "Inhalt",
+      "intro": "Eine Sicherung enthält immer die Datenbank, den Tresor, den Audit-Anker, die Audit-Archive und das Manifest – eine Wiederherstellung braucht sie. Ausführungsartefakte, archivierte Berichte und Nachweispakete können weggelassen werden, damit Sicherungen klein bleiben. Alle drei sind Nachweise: Lassen Sie einen Teil nur weg, wenn er anderswo aufbewahrt wird.",
+      "load": "Größen anzeigen",
+      "always": "Immer enthalten",
+      "include": "{{part}} in Sicherungen aufnehmen",
+      "size": "{{size}} in {{count}} Datei",
+      "size_other": "{{size}} in {{count}} Dateien",
+      "evidence": "Nachweis",
+      "warningTitle": "Einer Wiederherstellung aus diesen Sicherungen fehlen Nachweise",
+      "warning": "Weggelassen: {{parts}}. Jede Sicherung nennt das in ihrem Manifest und ihrem Kopf (backup info), und der Wiederherstellungstest zeigt es an. Bewahren Sie diese Dateien anderswo auf oder nehmen Sie sie wieder auf.",
+      "save": "Inhalt speichern",
+      "saved": "Inhalt der Sicherungen gespeichert.",
+      "parts": {
+        "database": {
+          "label": "Datenbank",
+          "lacks": "Alles, was Steward speichert: Prozesse, Ausführungen, den Katalog, Einstellungen und das Audit-Log."
+        },
+        "vault": {
+          "label": "Tresor (vault.json)",
+          "lacks": "Die Schlüssel der verschlüsselten Zugangsdaten – ohne ihn ist die Datenbank nicht lesbar."
+        },
+        "auditAnchor": {
+          "label": "Audit-Anker (audit-anchor.json)",
+          "lacks": "Zeigt, dass das Audit-Log nicht gekürzt wurde."
+        },
+        "auditArchives": {
+          "label": "Audit-Archive (audit-archives/)",
+          "lacks": "Audit-Einträge, die die Aufbewahrung des Audit-Logs aus der Datenbank verschoben hat."
+        },
+        "records": {
+          "label": "Anhänge von Datensätzen (records/)",
+          "lacks": "Dateien an Datensätzen und Dokumenten – Originale."
+        },
+        "documents": {
+          "label": "Plattform-Dokumente (docs/)",
+          "lacks": "Zu Plattformen hochgeladene Dateien – Originale."
+        },
+        "branding": {
+          "label": "Erscheinungsbild (branding/)",
+          "lacks": "Die Logos von Berichten und Nachrichten."
+        },
+        "artifacts": {
+          "label": "Ausführungsartefakte (artifacts/)",
+          "lacks": "Ohne sie fehlen einer Wiederherstellung die Bildschirmfotos, Dateien und Nachweise manueller Schritte aller Ausführungen. Sie lassen sich nicht wieder erzeugen; Berichte und Nachweispakete, die nach der Wiederherstellung erzeugt werden, enthalten sie nicht."
+        },
+        "reports": {
+          "label": "Archivierte Berichte (reports/)",
+          "lacks": "Ohne sie fehlen einer Wiederherstellung die archivierten PDF-Berichte. Ein Bericht lässt sich aus seiner Ausführung neu erzeugen – als neue Version mit anderem SHA-256; die archivierte Kopie und nachträglich hinzugefügte Signaturen sind verloren – das Audit-Log nennt weiterhin ihren SHA-256."
+        },
+        "evidencePacks": {
+          "label": "Nachweispakete (evidence-packs/)",
+          "lacks": "Ohne sie fehlen einer Wiederherstellung die bisher erstellten Nachweispakete (sie verfallen ohnehin nach ihrer Aufbewahrungsfrist). Sie lassen sich für denselben Zeitraum neu erstellen – mit neuer Signatur und aus den Daten, die noch in Steward sind."
+        },
+        "other": {
+          "label": "Weitere Dateien",
+          "lacks": "Alles Übrige im Datenordner."
+        }
+      }
+    }
+  },
+  "exports": {
+    "title": "Exporte",
+    "card": "Lesbare Dateien ausgewählter Daten – Kostenpläne, das Anlagenregister, der Katalog, Monitore, das Audit-Log – nach Zeitplan in S3 abgelegt, zum Weitergeben und Archivieren.",
+    "open": "Exporte öffnen",
+    "readOnly": "Nur Administratoren verwalten die Exporte.",
+    "intro": "Nach Zeitplan schreibt Steward lesbare Dateien der gewählten Teile in einen Ordner eines S3-Buckets – des Sicherungs-Buckets oder eines anderen – mit einem Manifest ihrer SHA-256-Prüfsummen.",
+    "notForRestore": "Exporte dienen dem Weitergeben und Archivieren außerhalb von Steward, nicht der Wiederherstellung – dafür sind die Sicherungen da. Sie laufen als System und enthalten alles ihrer Teile, daher legen nur Administratoren sie an; Geheimnisse enthalten sie nie. Wer den Bucket lesen kann, kann lesbare Exporte lesen.",
+    "new": "Neuer Export",
+    "editTitle": "Export bearbeiten",
+    "newTitle": "Neuer Export",
+    "edit": "Bearbeiten",
+    "remove": "Entfernen",
+    "removeConfirm": "Den Export „{{name}}“ und seinen Verlauf entfernen? Seine Dateien bleiben im Bucket.",
+    "removed": "Export entfernt.",
+    "none": "Noch keine Exporte.",
+    "name": "Name",
+    "nameHint": "Zugleich der Ordner im Bucket: Buchstaben, Ziffern und . _ -",
+    "enabled": "Nach Zeitplan ausführen",
+    "storage": "S3-Speicher",
+    "storageHint": "Eine Plattform mit AWS-Anfragesignierung (SigV4) für den Dienst s3 – die der Sicherungen oder eine andere.",
+    "noStorage": "Noch keine S3-Plattform – legen Sie eine unter Plattformen an.",
+    "prefix": "Ordner im Bucket",
+    "prefixHint": "z. B. exports/ – jede Ausführung schreibt in einen Unterordner mit dem Namen des Exports und der UTC-Zeit",
+    "cron": "Zeitplan (Cron)",
+    "cronHint": "Fünf Felder: Minute Stunde Tag Monat Wochentag – Standard 03:30 jeden Montag",
+    "timezone": "Zeitzone",
+    "parts": "Was exportiert wird",
+    "partsHint": "Wählen Sie mindestens einen Teil.",
+    "format": "Format von {{part}}",
+    "fiscalYear": "Geschäftsjahr",
+    "fiscalYears": {
+      "current": "Laufendes Geschäftsjahr",
+      "previous": "Vorheriges Geschäftsjahr",
+      "next": "Nächstes Geschäftsjahr"
+    },
+    "days": "Tage zurück",
+    "moduleOff": "Das Modul ist ausgeschaltet: Dieser Teil wird weggelassen, bis es wieder eingeschaltet ist.",
+    "encrypt": "Dateien mit dem Sicherungsschlüssel verschlüsseln",
+    "encryptHint": "Aus (Standard): lesbare Dateien – schützen Sie den Bucket. An: Jede Datei, auch das Manifest, wird wie eine Sicherung verschlüsselt und mit steward backup decrypt und der Sicherungspassphrase gelesen.",
+    "encryptNoKey": "Legen Sie zuerst die Sicherungspassphrase fest (Einstellungen → Sicherungen).",
+    "keepRuns": "Aufbewahrte Ausführungen",
+    "keepRunsHint": "Die Dateien älterer erfolgreicher Ausführungen werden aus dem Bucket entfernt.",
+    "saved": "Export gespeichert.",
+    "runNow": "Jetzt ausführen",
+    "runStarted": "Der Export läuft.",
+    "lastRun": "Letzte Ausführung",
+    "nextRun": "Nächste Ausführung",
+    "notScheduled": "Nicht geplant",
+    "never": "Nie",
+    "history": "Verlauf von {{name}}",
+    "showHistory": "Verlauf",
+    "noRuns": "Noch keine Ausführungen.",
+    "started": "Gestartet",
+    "result": "Ergebnis",
+    "files": "Dateien",
+    "size": "Größe",
+    "by": "von {{who}}",
+    "scheduled": "geplant",
+    "pruned": "Dateien durch die Aufbewahrungsregel entfernt",
+    "encrypted": "Verschlüsselt",
+    "readable": "Lesbar",
+    "status": {
+      "running": "Läuft",
+      "succeeded": "Erfolgreich",
+      "failed": "Fehlgeschlagen"
+    },
+    "partNames": {
+      "costPlans": {
+        "label": "Kostenpläne und Kostenbuchungen",
+        "description": "Die Planpositionen und Kostenbuchungen aller Services eines Geschäftsjahres als CSV (Modul Kosten)."
+      },
+      "plant": {
+        "label": "Anlagenregister",
+        "description": "Das ganze Register im Importformat (YAML oder JSON) – es lässt sich unverändert wieder importieren (Modul Anlagenregister)."
+      },
+      "services": {
+        "label": "Services",
+        "description": "Der Service-Katalog als CSV, archivierte Services eingeschlossen."
+      },
+      "applications": {
+        "label": "Anwendungen",
+        "description": "Die Anwendungen als CSV, archivierte eingeschlossen."
+      },
+      "systems": {
+        "label": "Systeme",
+        "description": "Die Systeme als CSV."
+      },
+      "monitors": {
+        "label": "Monitore",
+        "description": "Jeder Monitor im Importformat, je ein YAML-Dokument (ohne Heartbeat-Geheimnisse)."
+      },
+      "auditLog": {
+        "label": "Audit-Log",
+        "description": "Die Audit-Einträge der letzten Tage als CSV oder JSON Lines."
+      }
+    }
   },
   "scope": {
     "instance": "<b>Instanzeinstellungen</b> gelten für die ganze Installation; Administratoren ändern sie.",

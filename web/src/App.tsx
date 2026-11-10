@@ -99,6 +99,7 @@ const CiaScalePage = page(() => import('./pages/CiaScale'), 'CiaScalePage');
 const GitSyncPage = page(() => import('./pages/GitSync'), 'GitSyncPage');
 const MigrationPage = page(() => import('./pages/Migration'), 'MigrationPage');
 const BackupsPage = page(() => import('./pages/Backups'), 'BackupsPage');
+const ExportsPage = page(() => import('./pages/Exports'), 'ExportsPage');
 const GitUpdatesPage = page(() => import('./pages/GitUpdates'), 'GitUpdatesPage');
 const GitUpdateDetailPage = page(() => import('./pages/GitUpdates'), 'GitUpdateDetailPage');
 const LibrariesPage = page(() => import('./pages/Libraries'), 'LibrariesPage');
@@ -778,6 +779,7 @@ function Shell({ status }: { status: AuthStatus }) {
                     />
                     <Route path="/settings/migration" element={<MigrationPage />} />
                     <Route path="/settings/backups" element={<BackupsPage />} />
+                    <Route path="/settings/exports" element={<ExportsPage />} />
                     <Route path="/profile" element={<ProfilePage />} />
                     <Route path="/oauth/authorize" element={<OAuthAuthorizePage />} />
                     <Route path="/about" element={<AboutPage />} />
