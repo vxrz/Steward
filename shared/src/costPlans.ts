@@ -163,9 +163,10 @@ export const costPlanLineUpdate = z
   .superRefine(onceNeedsMonth);
 export type CostPlanLineUpdate = z.input<typeof costPlanLineUpdate>;
 
+/** Copies the lines of `fiscalYear` into the next fiscal year. */
 export const costPlanCopyInput = z
   .object({
-    fromYear: z
+    fiscalYear: z
       .number()
       .int()
       .min(FISCAL_YEAR_MIN)

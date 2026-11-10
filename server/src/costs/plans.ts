@@ -774,7 +774,7 @@ export function removePlanLine(serviceId: string, lineId: string): CostPlanYear 
  */
 export function copyPlanYear(serviceId: string, body: unknown): CostPlanYear {
   const info = requireEdit(serviceId);
-  const { fromYear } = costPlanCopyInput.parse(body);
+  const { fiscalYear: fromYear } = costPlanCopyInput.parse(body);
   const toYear = fromYear + 1;
   const src = lineRows(serviceId, fromYear);
   if (!src.length) throw new HttpError(400, `${fiscalYearLabel(fromYear, startMonth())} has no plan lines to copy`, 'COST_PLAN_NOTHING_TO_COPY');

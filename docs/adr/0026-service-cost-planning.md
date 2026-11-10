@@ -60,7 +60,7 @@ Per line and per currency (never converted):
 
 ### Interfaces
 
-Internal: `GET /api/costs/plans/:serviceId?year=`, `…/export?year=&what=plan|entries` (CSV, formulas defused), `POST …/lines`, `PUT|DELETE …/lines/:lineId`, `POST …/copy`, `POST …/entries`, `PUT|DELETE …/entries/:entryId`, `GET /api/costs/team-plans/:teamId?year=`. Public: `GET /api/v1/services/{serviceId}/cost-plan?year=`. Built-in dataset `costs.plans` (administrators and auditors, like `costs.overview`). MCP tool `get_service_cost_plan`.
+Internal: `GET /api/costs/plans/:serviceId?fiscalYear=`, `…/export?fiscalYear=&what=plan|entries` (CSV, formulas defused), `POST …/lines`, `PUT|DELETE …/lines/:lineId`, `POST …/copy`, `POST …/entries`, `PUT|DELETE …/entries/:entryId`, `GET /api/costs/team-plans/:teamId?fiscalYear=`. Public: `GET /api/v1/services/{serviceId}/cost-plan?fiscalYear=`. Built-in dataset `costs.plans` (administrators and auditors, like `costs.overview`). MCP tool `get_service_cost_plan`.
 
 ### Scope boundaries
 

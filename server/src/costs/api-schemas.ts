@@ -230,7 +230,7 @@ export const CostPlanYear = z.object({
 });
 
 export const CostPlanQuery = z.object({
-  year: z.coerce
+  fiscalYear: z.coerce
     .number()
     .int()
     .min(FISCAL_YEAR_MIN)

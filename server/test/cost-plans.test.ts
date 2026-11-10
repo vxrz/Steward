@@ -167,7 +167,7 @@ describe('plan lines', () => {
     });
     expect(line.months.map(m)).toEqual(Array.from({ length: 12 }, () => 100));
     // a viewer reads it, may not change it
-    expect((await vera<CostPlanYear>('GET', `/costs/plans/${service}?year=2030`)).lines).toHaveLength(1);
+    expect((await vera<CostPlanYear>('GET', `/costs/plans/${service}?fiscalYear=2030`)).lines).toHaveLength(1);
     await expect(vera('POST', `/costs/plans/${service}/lines`, { ...base, fiscalYear: 2030 })).rejects.toMatchObject({ status: 403 });
     await expect(vera('DELETE', `/costs/plans/${service}/lines/${line.id}`)).rejects.toMatchObject({ status: 403 });
     // changed and removed by the owner
@@ -250,17 +250,17 @@ describe('plan lines', () => {
       onceMonth: '2032-06',
       renewalDate: '2035-05-31',
     });
-    const y = await olivia<CostPlanYear>('POST', `/costs/plans/${service}/copy`, { fromYear: 2032 });
+    const y = await olivia<CostPlanYear>('POST', `/costs/plans/${service}/copy`, { fiscalYear: 2032 });
     expect(y.fiscalYear).toBe(2033);
     const byTitle = Object.fromEntries(y.lines.map((l) => [l.title, l]));
     // a renewal before the new year moves on by a year; a later one stays; one-off payments keep their place
     expect(byTitle['Support contract']!.renewalDate).toBe('2033-12-31');
     expect(byTitle['Laptop']).toMatchObject({ renewalDate: '2035-05-31', onceMonth: '2033-06' });
-    await expect(s.api('POST', `/costs/plans/${service}/copy`, { fromYear: 2032 })).rejects.toMatchObject({
+    await expect(s.api('POST', `/costs/plans/${service}/copy`, { fiscalYear: 2032 })).rejects.toMatchObject({
       status: 409,
       body: { code: 'COST_PLAN_YEAR_NOT_EMPTY' },
     });
-    await expect(s.api('POST', `/costs/plans/${service}/copy`, { fromYear: 2050 })).rejects.toMatchObject({
+    await expect(s.api('POST', `/costs/plans/${service}/copy`, { fiscalYear: 2050 })).rejects.toMatchObject({
       status: 400,
       body: { code: 'COST_PLAN_NOTHING_TO_COPY' },
     });
@@ -391,7 +391,7 @@ describe('entries and the year view', () => {
       expect(a.details).toMatchObject({ entriesOtherYear: preview.entriesOtherYear });
       expect(a.summary).toContain('into another fiscal year than their plan line now');
       // the entry is in FY 2037 now: unplanned there, its link kept and named with the line's year
-      const y2037 = await olivia<CostPlanYear>('GET', `/costs/plans/${svc}?year=2037`);
+      const y2037 = await olivia<CostPlanYear>('GET', `/costs/plans/${svc}?fiscalYear=2037`);
       expect(y2037.entries[0]).toMatchObject({
         id: entryId,
         unplanned: true,
@@ -401,7 +401,7 @@ describe('entries and the year view', () => {
       });
       expect(y2037.currencies[0]!.unplanned.count).toBe(1);
       // the line of FY 2036 no longer counts it
-      const y2036 = await olivia<CostPlanYear>('GET', `/costs/plans/${svc}?year=2036`);
+      const y2036 = await olivia<CostPlanYear>('GET', `/costs/plans/${svc}?fiscalYear=2036`);
       expect(y2036.lines[0]!.entries).toBe(0);
       // a change that keeps the link is allowed; linking it to that line anew, or in another currency, is not
       const kept = await olivia<CostPlanYear>('PUT', `/costs/plans/${svc}/entries/${entryId}`, {
@@ -661,14 +661,14 @@ describe('the costs read from the cost model', () => {
       currency: 'USD',
       cadence: 'monthly',
     });
-    const mine = await olivia<CostPlanYear>('GET', `/costs/plans/${service}?year=2026`);
+    const mine = await olivia<CostPlanYear>('GET', `/costs/plans/${service}?fiscalYear=2026`);
     expect(mine.cloud).toBe('hidden');
     expect(mine.lines.find((l) => l.title === 'Hosting A')!.read).toBe('hidden');
     expect(mine.currencies.every((c) => c.read === null && c.months.every((x) => x.read === null))).toBe(true);
     expect(JSON.stringify(mine)).not.toContain('99.00');
     // the hidden application is not offered either
     expect(mine.targets.map((t) => t.id)).toEqual([appA, system]);
-    const admin = await s.api('GET', `/costs/plans/${service}?year=2026`);
+    const admin = await s.api('GET', `/costs/plans/${service}?fiscalYear=2026`);
     expect(admin.cloud).toBe('shown');
     expect(admin.currencies.find((c: { currency: string }) => c.currency === 'USD').read.incurredToDate).toBe('99.00');
   });
@@ -676,10 +676,10 @@ describe('the costs read from the cost model', () => {
   it('amounts follow "hide amounts from viewers"', async () => {
     await s.api('PUT', '/costs/settings', { hideAmountsFromViewers: true, defaultCurrency: 'USD' });
     try {
-      const y = await vera<CostPlanYear>('GET', `/costs/plans/${service}?year=2026`);
+      const y = await vera<CostPlanYear>('GET', `/costs/plans/${service}?fiscalYear=2026`);
       expect(y.amountsVisible).toBe(false);
       expect(y.lines[0]).toMatchObject({ title: 'Hosting A', amount: null, planned: null, expected: null });
-      expect((await olivia<CostPlanYear>('GET', `/costs/plans/${service}?year=2026`)).lines[0]!.amount).toBe('100.00');
+      expect((await olivia<CostPlanYear>('GET', `/costs/plans/${service}?fiscalYear=2026`)).lines[0]!.amount).toBe('100.00');
     } finally {
       await s.api('PUT', '/costs/settings', { hideAmountsFromViewers: false, defaultCurrency: 'USD' });
     }
@@ -697,13 +697,13 @@ describe('export, API and the team rollup', () => {
       cadence: 'monthly',
     });
     await s.api('POST', `/costs/plans/${service}/entries`, { date: '2035-06-01', amount: '-3.25', currency: 'EUR', reference: 'CN-7, credit' });
-    const plan: string = await vera('GET', `/costs/plans/${service}/export?year=2035`);
+    const plan: string = await vera('GET', `/costs/plans/${service}/export?fiscalYear=2035`);
     const lines = plan.replace('﻿', '').trim().split('\r\n');
     expect(lines[0]).toContain('Fiscal year,Title,Category');
     // a formula is defused
     expect(lines[1]).toContain(`FY 2035/36,"'=HYPERLINK(""x"")"`);
     expect(lines[1]).toContain(',12.50,EUR,monthly,');
-    const entries: string = await vera('GET', `/costs/plans/${service}/export?year=2035&what=entries`);
+    const entries: string = await vera('GET', `/costs/plans/${service}/export?fiscalYear=2035&what=entries`);
     expect(entries).toContain('2035-06-01,-3.25,EUR,,yes,,,"CN-7, credit",');
   });
 
@@ -713,12 +713,12 @@ describe('export, API and the team rollup', () => {
       const res = await fetch(`${s.base}/api/v1${path}`, { headers: { authorization: `Bearer ${token}` } });
       return { status: res.status, json: await res.json() };
     };
-    const one = await v1(`/services/${service}/cost-plan?year=2026`);
+    const one = await v1(`/services/${service}/cost-plan?fiscalYear=2026`);
     expect(one.status).toBe(200);
     expect(one.json).toMatchObject({ fiscalYear: 2026, label: 'FY 2026/27', cloud: 'hidden' });
     expect(one.json.lines[0]).toMatchObject({ title: 'Hosting A', read: 'hidden' });
     expect((await v1('/services/svc_missing/cost-plan')).status).toBe(404);
-    expect((await v1(`/services/${service}/cost-plan?year=1999`)).status).toBe(400);
+    expect((await v1(`/services/${service}/cost-plan?fiscalYear=1999`)).status).toBe(400);
   });
 
   it('offers the MCP tool get_service_cost_plan with the token owner’s rights', async () => {
@@ -783,7 +783,7 @@ describe('export, API and the team rollup', () => {
       currency: 'USD',
       cadence: 'monthly',
     });
-    const r = await olivia('GET', `/costs/team-plans/${planTeam}?year=2026`);
+    const r = await olivia('GET', `/costs/team-plans/${planTeam}?fiscalYear=2026`);
     expect(r).toMatchObject({ teamName: 'Plan team', label: 'FY 2026/27' });
     expect(r.services.map((x: { name: string; shared: boolean }) => [x.name, x.shared])).toEqual([
       ['Team service 1', false],
@@ -832,7 +832,7 @@ describe('export, API and the team rollup', () => {
     expect(ids).toContain(onlyEntries);
     expect(ids).not.toContain(archived);
     expect(ids).not.toContain(nothing);
-    const team = await olivia('GET', `/costs/team-plans/${setTeam}?year=2026`);
+    const team = await olivia('GET', `/costs/team-plans/${setTeam}?fiscalYear=2026`);
     expect(team.services.map((x: { id: string }) => x.id)).toEqual([onlyEntries]);
     await publishCostPlansDataset(true, Date.parse('2026-11-10T12:00:00Z'));
     const ds = await s.api('GET', '/datasets/costs.plans');

@@ -637,7 +637,7 @@ const steward: ToolDef[] = [
     name: 'get_service_cost_plan',
     title: 'Get the cost plan of a service',
     description:
-      'Service cost planning (Costs module): the plan lines and cost entries of a service for a fiscal year (the instance has one start month), per line and currency planned for the year, planned to date, incurred to date, expected for the year and the difference; unplanned entries; renewals in the next 90 days. Cloud and platform costs read for the service only when you see every application of it. Amounts are decimals in their currency (never converted).',
+      'Service cost planning (Costs module): the plan lines and cost entries of a service for a fiscal year (the instance has one start month), per line and currency planned for the year, planned to date, incurred to date, expected for the year and the difference; unplanned entries; renewals in the next 90 days. Cloud and platform costs read for the service only when you see every application of it. Amounts are decimals in their currency (never converted). Not paged: at most 200 plan lines and 2,000 entries per service and fiscal year.',
     input: z
       .object({
         serviceId: idArg('The id of the service'),

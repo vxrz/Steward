@@ -43295,7 +43295,7 @@
         "tags": [
           "Costs"
         ],
-        "description": "Service cost planning (docs/COSTS.md#planning-per-service): the plan lines and cost entries of a fiscal year (one start month for the whole instance), per line and currency planned, planned to date, incurred to date, expected and the difference, the months, the cloud and platform costs read for the service (only when the token owner sees every application of it), unplanned entries and renewals in the next 90 days.",
+        "description": "Service cost planning (docs/COSTS.md#planning-per-service): the plan lines and cost entries of a fiscal year (one start month for the whole instance), per line and currency planned, planned to date, incurred to date, expected and the difference, the months, the cloud and platform costs read for the service (only when the token owner sees every application of it), unplanned entries and renewals in the next 90 days. Not paged: a service has at most 200 plan lines and 2,000 cost entries per fiscal year, so the answer is bounded.",
         "parameters": [
           {
             "schema": {
@@ -43304,7 +43304,7 @@
               "maximum": 2100
             },
             "in": "query",
-            "name": "year",
+            "name": "fiscalYear",
             "required": false,
             "description": "The fiscal year (the calendar year it starts in); default: the current one"
           },

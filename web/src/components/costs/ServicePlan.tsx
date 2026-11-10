@@ -66,7 +66,7 @@ export function ServiceCostPlan({ serviceId }: { serviceId: string }) {
   const [entryDialog, setEntryDialog] = useState<CostEntry | 'new' | null>(null);
   const q = useQuery({
     queryKey: costKeys.plan(serviceId, year),
-    queryFn: () => get<CostPlanYear>(`/costs/plans/${encodeURIComponent(serviceId)}${year ? `?year=${year}` : ''}`),
+    queryFn: () => get<CostPlanYear>(`/costs/plans/${encodeURIComponent(serviceId)}${year ? `?fiscalYear=${year}` : ''}`),
   });
   const d = q.data;
   /** Shows the year an answer is about (a change answers with the year view of its year). */
@@ -89,7 +89,7 @@ export function ServiceCostPlan({ serviceId }: { serviceId: string }) {
     )
       return;
     try {
-      show(await post<CostPlanYear>(`/costs/plans/${encodeURIComponent(serviceId)}/copy`, { fromYear: d.fiscalYear }));
+      show(await post<CostPlanYear>(`/costs/plans/${encodeURIComponent(serviceId)}/copy`, { fiscalYear: d.fiscalYear }));
       notifyOk(t('plan.copy.done', { to: nextLabel }));
     } catch (e) {
       notifyError(e, t('plan.copy.failed'));
@@ -112,7 +112,7 @@ export function ServiceCostPlan({ serviceId }: { serviceId: string }) {
       notifyError(err);
     }
   };
-  const exportUrl = (what: 'plan' | 'entries') => apiUrl(`/costs/plans/${encodeURIComponent(serviceId)}/export?year=${d.fiscalYear}&what=${what}`);
+  const exportUrl = (what: 'plan' | 'entries') => apiUrl(`/costs/plans/${encodeURIComponent(serviceId)}/export?fiscalYear=${d.fiscalYear}&what=${what}`);
   const unplanned = d.entries.filter((e) => e.unplanned);
   return (
     <Stack gap="lg" data-testid="service-cost-plan">

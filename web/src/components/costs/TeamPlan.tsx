@@ -21,7 +21,7 @@ export function TeamCostPlan({ teamId }: { teamId: string }) {
   const [year, setYear] = useState<number | null>(null);
   const q = useQuery({
     queryKey: costKeys.teamPlan(teamId, year),
-    queryFn: () => get<CostPlanTeamYear>(`/costs/team-plans/${encodeURIComponent(teamId)}${year ? `?year=${year}` : ''}`),
+    queryFn: () => get<CostPlanTeamYear>(`/costs/team-plans/${encodeURIComponent(teamId)}${year ? `?fiscalYear=${year}` : ''}`),
   });
   const d = q.data;
   if (!d) return <QueryState query={q} />;

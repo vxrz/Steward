@@ -1933,7 +1933,7 @@ const bodies = (): Record<string, unknown> => ({
   'PUT /api/records/:id/applications': { applicationIds: [] },
   'POST /api/costs/plans/:serviceId/lines': { fiscalYear: 2030, title: 'Matrix line x', category: 'other', amount: '1', currency: 'EUR', cadence: 'monthly' },
   'PUT /api/costs/plans/:serviceId/lines/:lineId': { title: 'Matrix line', category: 'other', amount: '100', currency: 'EUR', cadence: 'monthly' },
-  'POST /api/costs/plans/:serviceId/copy': { fromYear: 2030 },
+  'POST /api/costs/plans/:serviceId/copy': { fiscalYear: 2030 },
   'POST /api/costs/plans/:serviceId/entries': { date: '2030-05-01', amount: '1', currency: 'EUR' },
   'PUT /api/costs/plans/:serviceId/entries/:entryId': { date: new Date().toISOString().slice(0, 10), amount: '10', currency: 'EUR' },
   'POST /api/duties': { serviceId: fx.service, name: 'Matrix duty x', processId: fx.process, interval: 'monthly', level: 'mandatory' },
