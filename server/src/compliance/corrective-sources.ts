@@ -16,6 +16,7 @@ import {
 } from '@sm/shared';
 import type { z } from 'zod';
 import { db } from '../db.js';
+import { logger } from '../log.js';
 import { audit } from '../audit.js';
 import type { AuthUser } from '../auth/context.js';
 import { hasRole, isAdmin } from '../auth/permissions.js';
@@ -81,8 +82,12 @@ export function updateSettings(input: z.input<typeof caSettingsInput>): CaSettin
       details: { before, after },
     });
   });
-  // a source switched on suggests right away (at the next run of the job, not after an hour)
-  lastScan = 0;
+  // a source switched on suggests right away, not after the hour of the job
+  try {
+    scanSuggestions(Date.now(), true);
+  } catch (err) {
+    logger.warn({ err }, 'corrective actions: suggestions could not be collected after a source changed');
+  }
   return getSettings();
 }
 

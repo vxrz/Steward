@@ -315,6 +315,7 @@ export const VISIBILITY_AREAS = [
   'accessChanges',
   'reconciliation',
   'personReviews',
+  'correctiveActions',
 ] as const;
 export type VisibilityArea = (typeof VISIBILITY_AREAS)[number];
 

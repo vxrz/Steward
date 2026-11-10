@@ -177,9 +177,11 @@ describe('GET /api/me/visibility', () => {
     expect(vera.processes).toEqual({ show: true, hiddenByPermissions: false });
     // nothing to see and nothing to add: no entry, and nothing hidden either
     expect(vera.personReviews).toEqual({ show: false, hiddenByPermissions: false });
+    expect(vera.correctiveActions).toEqual({ show: false, hiddenByPermissions: false });
     const dana = (await (await as('dana'))('GET', '/me/visibility')).areas;
     expect(dana.reconciliation.show).toBe(true);
     expect(dana.personReviews.show).toBe(true);
+    expect(dana.correctiveActions.show).toBe(true);
   });
 
   it('is refused to status viewers and needs a sign-in', async () => {

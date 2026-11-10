@@ -186,6 +186,7 @@ function FindingsTab() {
       title={<Title />}
       description={t('description')}
       view="corrective-actions"
+      area="correctiveActions"
       primaryAction={
         list.data?.canCreate && (
           <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setCreating(true)} data-testid="ca-new">

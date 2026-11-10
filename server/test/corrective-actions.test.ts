@@ -119,6 +119,9 @@ describe('the register', () => {
     expect(await numbers(olivia)).toContain(id);
     expect(await numbers(otto)).not.toContain(id);
     expect(await numbers(vera)).toEqual([]);
+    // the sidebar: the viewer has nothing there, and is told that findings exist she may not see
+    expect((await vera('GET', '/me/visibility')).areas.correctiveActions).toEqual({ show: false, hiddenByPermissions: true });
+    expect((await olivia('GET', '/me/visibility')).areas.correctiveActions.show).toBe(true);
     expect(await status(otto('GET', `/compliance/corrective-actions/${id}`))).toBe(404);
     expect(await status(vera('GET', `/compliance/corrective-actions/${id}`))).toBe(404);
     // by number too
