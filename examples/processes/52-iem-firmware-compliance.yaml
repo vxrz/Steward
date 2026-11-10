@@ -31,7 +31,11 @@ steps:
         {{ (
           $norm := function($v){ $join($map($split($string($v) & '.0.0', '.')[[0..2]], function($p){ $pad($p, -6, '0') }), '.') };
           $all := vars.devices.body.data ? vars.devices.body.data : vars.devices.body;
-          [$all.$merge([$, { "compliant": $norm(firmware) >= $norm($inputs.minFirmware) }])]
+          [$all.$merge([$, {
+            "id": deviceId ? deviceId : id,
+            "name": deviceName ? deviceName : name,
+            "compliant": $norm(firmware) >= $norm($inputs.minFirmware)
+          }])]
         ) }}
       outdated: "{{ [vars.fleet[$not(compliant)]] }}"
   - id: compliance

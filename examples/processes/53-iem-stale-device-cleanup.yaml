@@ -6,7 +6,7 @@ description: |
   Always start with a dry run.
 
   Recommended schedule: monthly. Verify the delete endpoint
-  (DELETE /portal/api/v1/devices/{id}) and the field names against your IEM
+  (DELETE /portal/api/v1/devices/{deviceId}) and the field names against your IEM
   version before running it for real; removing a device from IEM requires
   re-onboarding to use it again.
 tags: [housekeeping, devices, industrial-edge]
@@ -38,7 +38,11 @@ steps:
     type: set
     name: Find stale devices
     values:
-      all: "{{ [vars.devices.body.data ? vars.devices.body.data : vars.devices.body] }}"
+      all: >-
+        {{ [(vars.devices.body.data ? vars.devices.body.data : vars.devices.body).$merge([$, {
+          "id": deviceId ? deviceId : id,
+          "name": deviceName ? deviceName : name
+        }])] }}
       stale: "{{ [vars.all[$lookup($, $inputs.statusField) != $inputs.onlineValue and $ts(lastSeen) and $daysSince(lastSeen) >= $inputs.offlineDays]] }}"
   - id: pick
     type: userTask

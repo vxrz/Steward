@@ -9,10 +9,11 @@ description: |
   minimum, serious = offline (short), critical = offline longer than the
   threshold or not onboarded (INACTIVE).
 
-  Verify against your IEM version: field names for connection state
-  (`connectionState`), `lastSeen`, `firmware` and `deviceStatus` differ between
-  IEM releases – adapt the inputs / expressions after checking a real response
-  in the platform's API explorer.
+  Devices are identified by `deviceId` and `deviceName` (with `id` and `name`
+  as a fallback); `deviceStatus` is ACTIVE for onboarded devices. Verify against
+  your IEM version: the fields for connection state (`connectionState`),
+  `lastSeen` and `firmware` differ between IEM releases – adapt the inputs /
+  expressions after checking a real response in the platform's API explorer.
 tags: [inventory, dashboard, devices, industrial-edge]
 connections:
   - slot: iem
@@ -54,7 +55,11 @@ steps:
     type: set
     name: Evaluate devices
     values:
-      all: "{{ [vars.devices.body.data ? vars.devices.body.data : vars.devices.body] }}"
+      all: >-
+        {{ [(vars.devices.body.data ? vars.devices.body.data : vars.devices.body).$merge([$, {
+          "id": deviceId ? deviceId : id,
+          "name": deviceName ? deviceName : name
+        }])] }}
       fleet: >-
         {{ (
           $norm := function($v){ $join($map($split($string($v) & '.0.0', '.')[[0..2]], function($p){ $pad($p, -6, '0') }), '.') };
@@ -103,7 +108,7 @@ steps:
     key: applicationId
     columns:
       - { label: Application, value: title }
-      - { label: Latest version, value: version }
+      - { label: Latest version, value: "latestVersion ? latestVersion : (versionNumber ? versionNumber : version)" }
     status: "'good'"
     metrics:
       apps: "$count(vars.apps.body.data ? vars.apps.body.data : vars.apps.body)"
