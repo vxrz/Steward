@@ -2,7 +2,7 @@ import { COST_PLANS_DATASET, COSTS_DATASET, COST_SCOPES, toMicros, type DatasetR
 import { db } from '../db.js';
 import { publishDataset } from '../dashboards/datasets.js';
 import { overview } from './query.js';
-import { planYear } from './plans.js';
+import { planYearsOfAll } from './plans.js';
 
 /**
  * The built-in dataset "Costs" (`costs.overview`, docs/COSTS.md#dashboards-and-the-api): one row per service, application, team
@@ -80,18 +80,24 @@ let plansPublished = 0;
 /**
  * The built-in dataset "Cost plans" (`costs.plans`): one row per service and currency of the current fiscal year with
  * planned, to date, incurred, expected and the difference (status warning when more is expected than planned) – the
- * services of the whole instance, so administrators and auditors see it, like "Costs". At most hourly.
+ * services of the whole instance with plan lines or entries in that year (planServices: the same as the team rollup and
+ * the export), so administrators and auditors see it, like "Costs". At most hourly; yields between services.
  */
-export function publishCostPlansDataset(force = false, now = Date.now()): boolean {
+export async function publishCostPlansDataset(force = false, now = Date.now()): Promise<boolean> {
   if (!force && now - plansPublished < 3600_000) return false;
-  if (!db().get('SELECT id FROM cost_plan_lines LIMIT 1') && !db().get('SELECT key FROM datasets WHERE key = ?', COST_PLANS_DATASET)) return false;
+  if (
+    !db().get('SELECT id FROM cost_plan_lines LIMIT 1') &&
+    !db().get('SELECT id FROM cost_entries LIMIT 1') &&
+    !db().get('SELECT key FROM datasets WHERE key = ?', COST_PLANS_DATASET)
+  )
+    return false;
   plansPublished = now;
   const rows: DatasetRow[] = [];
-  const services = db().all<{ id: string }>(
-    'SELECT DISTINCT s.id, s.name FROM services s JOIN cost_plan_lines l ON l.service_id = s.id WHERE s.archived = 0 ORDER BY s.name, s.id',
-  );
-  for (const s of services) {
-    const y = planYear(s.id, undefined, now);
+  let services = 0;
+  // the services of the team rollup and the export (planServices), one after the other with a pause between them
+  for await (const y of planYearsOfAll(now)) {
+    services++;
+    const s = { id: y.serviceId };
     for (const c of y.currencies) {
       const diff = num(c.difference) ?? 0;
       rows.push({
@@ -119,7 +125,7 @@ export function publishCostPlansDataset(force = false, now = Date.now()): boolea
     dryRun: false,
     columns: PLAN_COLUMNS,
     rows,
-    metrics: { services: services.length, overPlan: rows.filter((r) => r._status === 'warning').length },
+    metrics: { services, overPlan: rows.filter((r) => r._status === 'warning').length },
     limits: {},
     staleAfterMinutes: 24 * 60 * 2,
     staleAfterFixed: true,

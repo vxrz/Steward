@@ -377,6 +377,81 @@ describe('entries and the year view', () => {
   });
 });
 
+describe('at scale', () => {
+  it('computes a year of 200 lines and 2,000 entries with as many statements as a year of one of each', async () => {
+    const { db } = await import('../src/db.js');
+    const { planYear } = await import('../src/costs/plans.js');
+    const { requestDbStats } = await import('../src/database/timing.js');
+    const svc = (await s.api('POST', '/services', { name: 'Large plan service' })).id;
+    const app = (await s.api('POST', '/applications', { name: 'Large plan app' })).id;
+    await s.api('PUT', `/services/${svc}/applications/${app}`, {});
+    const sys = (await s.api('POST', '/systems', { name: 'large-plan-host', kind: 'vm' })).id;
+    await s.api('POST', `/applications/${app}/systems`, { systemId: sys, environment: 'prod' });
+    const targets = [
+      ['application', app],
+      ['system', sys],
+      ['platform', platform],
+      [null, null],
+    ] as const;
+    const now = new Date().toISOString();
+    const insert = (lines: number, entries: number, tag: string) =>
+      db().tx(() => {
+        for (let i = 0; i < lines; i++) {
+          const [kind, id] = targets[i % 4]!;
+          db().run(
+            `INSERT INTO cost_plan_lines (id, service_id, fiscal_year, title, category, target_kind, target_id, vendor, amount, currency, cadence, note, created_at, created_by, updated_at, updated_by)
+             VALUES (?, ?, 2045, ?, 'cloud', ?, ?, '', 1000000, 'EUR', 'monthly', '', ?, 'admin', ?, 'admin')`,
+            `cpl_${tag}_${i}`,
+            svc,
+            `Line ${tag} ${i}`,
+            kind,
+            id,
+            now,
+            now,
+          );
+        }
+        for (let i = 0; i < entries; i++) {
+          const [kind, id] = targets[(i + 1) % 4]!;
+          db().run(
+            `INSERT INTO cost_entries (id, service_id, entry_date, amount, currency, plan_line_id, target_kind, target_id, reference, note, created_at, created_by, updated_at, updated_by)
+             VALUES (?, ?, ?, 1000000, 'EUR', ?, ?, ?, '', '', ?, 'admin', ?, 'admin')`,
+            `cen_${tag}_${i}`,
+            svc,
+            `${shiftMonth('2045-04', i % 12)}-15`,
+            i % 3 ? `cpl_${tag}_${i % Math.max(lines, 1)}` : null,
+            kind,
+            id,
+            now,
+            now,
+          );
+        }
+      });
+    const statements = (fn: () => void) => {
+      const st = { statements: 0, ms: 0 };
+      requestDbStats.run(st, fn);
+      return st.statements;
+    };
+    const at = Date.parse('2045-08-15T12:00:00Z');
+    insert(4, 4, 'few');
+    const few = statements(() => planYear(svc, 2045, at));
+    expect(few).toBeGreaterThan(0);
+    insert(196, 1996, 'many');
+    let y = planYear(svc, 2045, at);
+    expect([y.lines.length, y.entries.length]).toEqual([200, 2000]);
+    const many = statements(() => (y = planYear(svc, 2045, at)));
+    // no statement per line or entry: the same count as with four of each
+    expect(many).toBe(few);
+    expect(many).toBeLessThan(30);
+    expect(y.lines.find((l) => l.target?.kind === 'platform')!.target).toMatchObject({ name: 'AWS (demo)', visible: true });
+    expect(y.entries.find((e) => e.target?.kind === 'system')!.target).toMatchObject({ name: 'large-plan-host', visible: true });
+    const started = performance.now();
+    planYear(svc, 2045, at);
+    expect(performance.now() - started).toBeLessThan(2000);
+    db().run('DELETE FROM cost_entries WHERE service_id = ?', svc);
+    db().run('DELETE FROM cost_plan_lines WHERE service_id = ?', svc);
+  });
+});
+
 describe('the costs read from the cost model', () => {
   let svc: string;
   let a1: string;
@@ -619,13 +694,56 @@ describe('export, API and the team rollup', () => {
 
   it('publishes the dataset "Cost plans" for administrators and auditors', async () => {
     const { publishCostPlansDataset } = await import('../src/costs/dataset.js');
-    expect(publishCostPlansDataset(true, Date.parse('2026-11-10T12:00:00Z'))).toBe(true);
+    expect(await publishCostPlansDataset(true, Date.parse('2026-11-10T12:00:00Z'))).toBe(true);
     const ds = await s.api('GET', '/datasets/costs.plans');
     const row = ds.rows.find((r: { Service: string; Currency: string }) => r.Service === 'Planned service' && r.Currency === 'USD');
     expect(row).toMatchObject({ 'Fiscal year': 'FY 2026/27', Planned: 1200 });
     const audrey = await s.as('audrey', PW);
     expect((await audrey('GET', '/datasets/costs.plans')).rows.length).toBeGreaterThan(0);
     await expect(vera('GET', '/datasets/costs.plans')).rejects.toMatchObject({ status: 404 });
+  });
+
+  it('covers the same services in the team rollup, the dataset and the export: not archived, with lines or entries in the year', async () => {
+    const { db } = await import('../src/db.js');
+    const { planServices, planExportRows, PLAN_EXPORT_HEADS } = await import('../src/costs/plans.js');
+    const { publishCostPlansDataset } = await import('../src/costs/dataset.js');
+    const setTeam = (await s.api('POST', '/teams', { name: 'Same set team', members: ['olivia'] })).id;
+    const own = (sid: string) =>
+      db().run("INSERT INTO resource_teams (kind, resource_id, team_id, created_at) VALUES ('service', ?, ?, ?)", sid, setTeam, new Date().toISOString());
+    const onlyEntries = (await s.api('POST', '/services', { name: 'Set entries only' })).id;
+    const archived = (await s.api('POST', '/services', { name: 'Set archived' })).id;
+    const nothing = (await s.api('POST', '/services', { name: 'Set nothing' })).id;
+    for (const sid of [onlyEntries, archived, nothing]) own(sid);
+    await s.api('POST', `/costs/plans/${onlyEntries}/entries`, { date: '2026-05-04', amount: '30', currency: 'EUR' });
+    await s.api('POST', `/costs/plans/${archived}/lines`, {
+      fiscalYear: 2026,
+      title: 'Old',
+      category: 'other',
+      amount: '5',
+      currency: 'EUR',
+      cadence: 'monthly',
+    });
+    db().run('UPDATE services SET archived = 1 WHERE id = ?', archived);
+    const ids = planServices(2026, 4).map((x) => x.id);
+    expect(ids).toContain(onlyEntries);
+    expect(ids).not.toContain(archived);
+    expect(ids).not.toContain(nothing);
+    const team = await olivia('GET', `/costs/team-plans/${setTeam}?year=2026`);
+    expect(team.services.map((x: { id: string }) => x.id)).toEqual([onlyEntries]);
+    await publishCostPlansDataset(true, Date.parse('2026-11-10T12:00:00Z'));
+    const ds = await s.api('GET', '/datasets/costs.plans');
+    expect(ds.rows.map((r: { Service: string }) => r.Service)).toEqual(expect.arrayContaining(['Set entries only']));
+    expect(ds.rows.map((r: { Service: string }) => r.Service)).not.toContain('Set archived');
+    const out: string[] = [];
+    for await (const x of planExportRows(2026, Date.parse('2026-11-10T12:00:00Z'))) out.push(...x.entries);
+    expect(out.some((r) => r.startsWith(`${onlyEntries},Set entries only,2026-05-04,30.00,EUR`))).toBe(true);
+    expect(out.join('\n')).not.toContain('Set archived');
+    // the same columns whether there is anything to export or not
+    expect(PLAN_EXPORT_HEADS.plan.split(',')).toHaveLength(19);
+    expect(PLAN_EXPORT_HEADS.entries.split(',')).toHaveLength(11);
+    const none: unknown[] = [];
+    for await (const x of planExportRows(2090)) none.push(x);
+    expect(none).toEqual([]);
   });
 
   it('answers 404 while the costs module is off', async () => {

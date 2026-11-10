@@ -27,7 +27,6 @@ import {
 import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { currentActor } from '../auth/context.js';
-import { catalogueTeams } from '../auth/policy.js';
 import { catalogueVisibleNow } from '../records/access.js';
 import { csvCell } from '../csv.js';
 import { HttpError, newId, nowIso } from '../util.js';
@@ -128,20 +127,86 @@ function catalogueOf(serviceId: string): Catalogue {
   return { apps: new Set(apps), systems: new Set(serviceSystems(apps)) };
 }
 
-function targetOf(kind: CostPlanTargetKind | null, id: string | null, cat: Catalogue): CostPlanTarget | null {
-  if (!kind || !id) return null;
-  if (kind === 'platform') {
-    const p = db().get<{ name: string }>('SELECT name FROM platforms WHERE id = ?', id);
-    const visible = !!p && !!scopeInfo('platform', id);
-    return { kind, id, name: visible ? p!.name : '', visible, ...(p ? {} : { gone: true }) };
+/** Rows fetched by id in chunks (one statement per 500 ids, never one per id). */
+function rowsByIds<R extends { id: string }>(sql: (marks: string) => string, ids: string[]): R[] {
+  const out: R[] = [];
+  for (let i = 0; i < ids.length; i += 500) {
+    const part = ids.slice(i, i + 500);
+    out.push(...db().all<R>(sql(part.map(() => '?').join(', ')), ...part));
   }
-  const r = db().get<{ id: string; name: string; owners: string }>(
-    `SELECT id, name, owners FROM ${kind === 'application' ? 'applications' : 'systems'} WHERE id = ?`,
-    id,
-  );
-  const visible = !!r && catalogueVisibleNow(kind, r);
-  const gone = !r || !(kind === 'application' ? cat.apps : cat.systems).has(id);
-  return { kind, id, name: visible ? r!.name : '', visible, ...(gone ? { gone: true } : {}) };
+  return out;
+}
+
+interface CatalogueRow {
+  id: string;
+  name: string;
+  owners: string;
+}
+
+/**
+ * What the lines and entries of a view are for, resolved in bulk: one statement per kind for every target (and the
+ * service's own applications and systems, for the forms) – not one or two per line and entry. A platform's visibility
+ * is looked up once per platform.
+ */
+class Targets {
+  private readonly apps = new Map<string, CatalogueRow>();
+  private readonly systems = new Map<string, CatalogueRow>();
+  private readonly platforms = new Map<string, { name: string; visible: boolean }>();
+  private readonly seen = new Map<string, boolean>();
+
+  constructor(
+    pairs: Iterable<readonly [CostPlanTargetKind | null, string | null]>,
+    private readonly cat: Catalogue,
+    withOffered = true,
+  ) {
+    const want: Record<CostPlanTargetKind, Set<string>> = withOffered
+      ? { application: new Set(cat.apps), system: new Set(cat.systems), platform: new Set() }
+      : { application: new Set(), system: new Set(), platform: new Set() };
+    for (const [kind, id] of pairs) if (kind && id) want[kind].add(id);
+    for (const r of rowsByIds<CatalogueRow>((m) => `SELECT id, name, owners FROM applications WHERE id IN (${m})`, [...want.application]))
+      this.apps.set(r.id, r);
+    for (const r of rowsByIds<CatalogueRow>((m) => `SELECT id, name, owners FROM systems WHERE id IN (${m})`, [...want.system])) this.systems.set(r.id, r);
+    for (const r of rowsByIds<{ id: string; name: string }>((m) => `SELECT id, name FROM platforms WHERE id IN (${m})`, [...want.platform]))
+      this.platforms.set(r.id, { name: r.name, visible: !!scopeInfo('platform', r.id) });
+  }
+
+  private visible(kind: 'application' | 'system', r: CatalogueRow): boolean {
+    const k = `${kind}|${r.id}`;
+    let v = this.seen.get(k);
+    if (v === undefined) {
+      v = catalogueVisibleNow(kind, r);
+      this.seen.set(k, v);
+    }
+    return v;
+  }
+
+  of(kind: CostPlanTargetKind | null, id: string | null): CostPlanTarget | null {
+    if (!kind || !id) return null;
+    if (kind === 'platform') {
+      const p = this.platforms.get(id);
+      const visible = !!p?.visible;
+      return { kind, id, name: visible ? p!.name : '', visible, ...(p ? {} : { gone: true }) };
+    }
+    const r = (kind === 'application' ? this.apps : this.systems).get(id);
+    const visible = !!r && this.visible(kind, r);
+    const gone = !r || !(kind === 'application' ? this.cat.apps : this.cat.systems).has(id);
+    return { kind, id, name: visible ? r!.name : '', visible, ...(gone ? { gone: true } : {}) };
+  }
+
+  /** The service's applications and systems the reader may see, by name (for the forms). */
+  offered(): CostPlanYear['targets'] {
+    const of = (kind: 'application' | 'system', ids: Set<string>, rows: Map<string, CatalogueRow>) =>
+      [...ids]
+        .map((id) => rows.get(id))
+        .filter((r): r is CatalogueRow => !!r && this.visible(kind, r))
+        .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : a.id < b.id ? -1 : 1))
+        .map((r) => ({ kind, id: r.id, name: r.name }));
+    return [...of('application', this.cat.apps, this.apps), ...of('system', this.cat.systems, this.systems)];
+  }
+}
+
+function targetOf(kind: CostPlanTargetKind | null, id: string | null, cat: Catalogue): CostPlanTarget | null {
+  return new Targets([[kind, id]], cat, false).of(kind, id);
 }
 
 /** An application or system of the service, or a platform – one the caller may see. */
@@ -210,8 +275,12 @@ const matchable = (l: LineRow) => l.category === 'cloud' && (l.target_kind === '
  * docs/COSTS.md#planning-per-service for how "to date" and "expected" are worked out.
  */
 export function planYear(serviceId: string, year?: number, now = Date.now()): CostPlanYear {
-  const info = serviceInfo(serviceId);
-  const start = startMonth();
+  return planYearOf(serviceInfo(serviceId), year, now, startMonth());
+}
+
+/** The year view for a service the caller may see (`info`), with the fiscal year start read once by the caller. */
+function planYearOf(info: ScopeInfo, year: number | undefined, now: number, start: number): CostPlanYear {
+  const serviceId = info.id;
   const nowMonth = monthOf(now);
   const day = today(now);
   const fy = year ?? fiscalYearOf(nowMonth, start);
@@ -221,6 +290,7 @@ export function planYear(serviceId: string, year?: number, now = Date.now()): Co
   const cat = catalogueOf(serviceId);
   const lines = lineRows(serviceId, fy);
   const entries = entryRows(serviceId, bounds.from, bounds.to);
+  const targets = new Targets([...lines.map((l) => [l.target_kind, l.target_id] as const), ...entries.map((e) => [e.target_kind, e.target_id] as const)], cat);
   const show = (n: number) => (info.amounts ? fromMicros(n) : null);
   const monthIndex = (date: string) => months.indexOf(date.slice(0, 7));
 
@@ -239,7 +309,9 @@ export function planYear(serviceId: string, year?: number, now = Date.now()): Co
   if (cloud === 'shown')
     for (const b of buckets) {
       const owner = (b.app && takers.get(`application|${b.app}|${b.currency}`)) || takers.get(`platform|${b.plat}|${b.currency}`) || '';
-      readOf.set(owner, [...(readOf.get(owner) ?? []), b]);
+      const list = readOf.get(owner);
+      if (list) list.push(b);
+      else readOf.set(owner, [b]);
     }
   /** Per month what was read, and the forecast of the current month (null: none) */
   const readMonths = (bs: Bucket[], currency?: string) => {
@@ -257,7 +329,12 @@ export function planYear(serviceId: string, year?: number, now = Date.now()): Co
   // ---- the lines ----
   const lineIds = new Set(lines.map((l) => l.id));
   const byLine = new Map<string, EntryRow[]>();
-  for (const e of entries) if (e.plan_line_id && lineIds.has(e.plan_line_id)) byLine.set(e.plan_line_id, [...(byLine.get(e.plan_line_id) ?? []), e]);
+  for (const e of entries)
+    if (e.plan_line_id && lineIds.has(e.plan_line_id)) {
+      const list = byLine.get(e.plan_line_id);
+      if (list) list.push(e);
+      else byLine.set(e.plan_line_id, [e]);
+    }
   const perCurrency = new Map<string, { plan: number[]; incurred: number[]; read: number[]; f: Figures }>();
   const acc = (currency: string) => {
     let x = perCurrency.get(currency);
@@ -326,7 +403,7 @@ export function planYear(serviceId: string, year?: number, now = Date.now()): Co
       fiscalYear: Number(l.fiscal_year),
       title: l.title,
       category: l.category,
-      target: targetOf(l.target_kind, l.target_id, cat),
+      target: targets.of(l.target_kind, l.target_id),
       vendor: l.vendor,
       amount: show(Number(l.amount)),
       currency: l.currency,
@@ -421,7 +498,7 @@ export function planYear(serviceId: string, year?: number, now = Date.now()): Co
       currency: e.currency,
       planLineId: e.plan_line_id,
       planLineTitle: e.plan_line_id ? (titleOf.get(e.plan_line_id) ?? null) : null,
-      target: e.target_kind ? targetOf(e.target_kind, e.target_id, cat) : line ? targetOf(line.target_kind, line.target_id, cat) : null,
+      target: e.target_kind ? targets.of(e.target_kind, e.target_id) : line ? targets.of(line.target_kind, line.target_id) : null,
       reference: e.reference,
       note: e.note,
       unplanned: !line,
@@ -449,7 +526,7 @@ export function planYear(serviceId: string, year?: number, now = Date.now()): Co
     entries: outEntries,
     currencies,
     renewals: renewals(serviceId, now),
-    targets: targetsOf(cat),
+    targets: targets.offered(),
     years: yearsOf(serviceId, fy, fiscalYearOf(nowMonth, start), start),
     limits: { linesPerYear: COST_PLAN_LIMITS.linesPerYear, entriesPerYear: COST_PLAN_LIMITS.entriesPerYear },
   };
@@ -490,20 +567,6 @@ function renewals(serviceId: string, now: number): CostPlanYear['renewals'] {
     });
   }
   return out;
-}
-
-function targetsOf(cat: Catalogue): CostPlanYear['targets'] {
-  const of = (kind: 'application' | 'system', ids: Set<string>) =>
-    ids.size
-      ? db()
-          .all<{ id: string; name: string; owners: string }>(
-            `SELECT id, name, owners FROM ${kind === 'application' ? 'applications' : 'systems'} WHERE id IN (${[...ids].map(() => '?').join(', ')}) ORDER BY name`,
-            ...ids,
-          )
-          .filter((r) => catalogueVisibleNow(kind, r))
-          .map((r) => ({ kind, id: r.id, name: r.name }))
-      : [];
-  return [...of('application', cat.apps), ...of('system', cat.systems)];
 }
 
 function yearsOf(serviceId: string, shown: number, current: number, start: number): CostPlanYear['years'] {
@@ -608,7 +671,7 @@ export function addPlanLine(serviceId: string, body: unknown): CostPlanYear {
       details: { lineId: id, fiscalYear: x.fiscalYear, after: lineSnapshot(row) },
     });
   });
-  return planYear(serviceId, x.fiscalYear);
+  return planYearOf(info, x.fiscalYear, Date.now(), startMonth());
 }
 
 export function updatePlanLine(serviceId: string, lineId: string, body: unknown): CostPlanYear {
@@ -665,7 +728,7 @@ export function updatePlanLine(serviceId: string, lineId: string, body: unknown)
       details: { lineId, fiscalYear: fy, before: lineSnapshot(before), after: lineSnapshot(row) },
     });
   });
-  return planYear(serviceId, fy);
+  return planYearOf(info, fy, Date.now(), startMonth());
 }
 
 /** Removes a plan line; its entries stay and become unplanned. */
@@ -684,7 +747,7 @@ export function removePlanLine(serviceId: string, lineId: string): CostPlanYear 
       details: { lineId, fiscalYear: fy, before: lineSnapshot(before), entriesUnplanned: unlinked },
     });
   });
-  return planYear(serviceId, fy);
+  return planYearOf(info, fy, Date.now(), startMonth());
 }
 
 /**
@@ -737,7 +800,7 @@ export function copyPlanYear(serviceId: string, body: unknown): CostPlanYear {
       details: { fromYear, toYear, lines: src.length },
     });
   });
-  return planYear(serviceId, toYear);
+  return planYearOf(info, toYear, Date.now(), startMonth());
 }
 
 /** The same day a year later (29 February: 28 February). */
@@ -845,7 +908,7 @@ export function addEntry(serviceId: string, body: unknown): CostPlanYear {
       details: { entryId: id, after: entrySnapshot(x) },
     });
   });
-  return planYear(serviceId, fiscalYearOf(x.date, startMonth()));
+  return planYearOf(info, fiscalYearOf(x.date, startMonth()), Date.now(), startMonth());
 }
 
 export function updateEntry(serviceId: string, entryId: string, body: unknown): CostPlanYear {
@@ -876,7 +939,7 @@ export function updateEntry(serviceId: string, entryId: string, body: unknown): 
       details: { entryId, before: entrySnapshot(entryOfRow(before)), after: entrySnapshot(x) },
     });
   });
-  return planYear(serviceId, fiscalYearOf(x.date, startMonth()));
+  return planYearOf(info, fiscalYearOf(x.date, startMonth()), Date.now(), startMonth());
 }
 
 export function removeEntry(serviceId: string, entryId: string): CostPlanYear {
@@ -892,7 +955,7 @@ export function removeEntry(serviceId: string, entryId: string): CostPlanYear {
       details: { entryId, before: entrySnapshot(entryOfRow(before)) },
     });
   });
-  return planYear(serviceId, fiscalYearOf(before.entry_date, startMonth()));
+  return planYearOf(info, fiscalYearOf(before.entry_date, startMonth()), Date.now(), startMonth());
 }
 
 // ---------- CSV ----------
@@ -900,13 +963,19 @@ export function removeEntry(serviceId: string, entryId: string): CostPlanYear {
 /** A cell; amounts (decimal strings Steward wrote) stay numbers – also negative ones, which are no formula. */
 const num = (v: string | null) => v ?? '';
 
+/** The CSV headers of the plan lines and of the entries – fixed, whatever a year holds. */
+export const PLAN_CSV_HEADS = {
+  plan: 'Fiscal year,Title,Category,For (kind),For,Vendor or contract,Amount,Currency,Cadence,Once in,Renewal,Planned (year),Planned to date,Incurred to date,Expected,Difference,Note',
+  entries: 'Date,Amount,Currency,Plan line,Unplanned,For (kind),For,Reference,Note',
+} as const;
+
 /** The header and the rows (CSV lines) of the plan lines or the entries of a year – also for scheduled exports. */
 export function planCsvRows(y: CostPlanYear, what: 'plan' | 'entries'): { head: string; rows: string[] } {
   const target = (t: CostPlanTarget | null) => (t ? (t.visible ? t.name : '') : '');
   const [head, ...rows]: string[] =
     what === 'plan'
       ? [
-          'Fiscal year,Title,Category,For (kind),For,Vendor or contract,Amount,Currency,Cadence,Once in,Renewal,Planned (year),Planned to date,Incurred to date,Expected,Difference,Note',
+          PLAN_CSV_HEADS.plan,
           ...y.lines.map((l) =>
             [
               csvCell(y.label, 'needed'),
@@ -930,7 +999,7 @@ export function planCsvRows(y: CostPlanYear, what: 'plan' | 'entries'): { head: 
           ),
         ]
       : [
-          'Date,Amount,Currency,Plan line,Unplanned,For (kind),For,Reference,Note',
+          PLAN_CSV_HEADS.entries,
           ...y.entries.map((e) =>
             [
               e.date,
@@ -956,27 +1025,95 @@ export function planCsv(serviceId: string, year: number | undefined, what: 'plan
   return { name: `cost-${what}-${fyText}.csv`, csv: '﻿' + [head, ...rows].join('\r\n') + '\r\n' };
 }
 
-// ---------- the team rollup ----------
+// ---------- many services: the team rollup, the dataset, the export ----------
+
+/** Lets other work run between two services: on PostgreSQL every statement holds the event loop (pg-bridge.ts). */
+const breathe = () => new Promise<void>((resolve) => setImmediate(resolve));
+
+/**
+ * The services whose plans the team rollup, the dataset "Cost plans" and the scheduled export cover – one rule for
+ * all three: not archived, with plan lines or cost entries in the fiscal year, by name. With `teamId`: of that team
+ * (its owning teams, like catalogueTeams), with how many teams own each.
+ */
+export function planServices(fiscalYear: number, start: number, teamId?: string): { id: string; name: string; teams: number }[] {
+  const b = fiscalYearBounds(fiscalYear, start);
+  const has = `(EXISTS (SELECT 1 FROM cost_plan_lines l WHERE l.service_id = s.id AND l.fiscal_year = ?)
+      OR EXISTS (SELECT 1 FROM cost_entries e WHERE e.service_id = s.id AND e.entry_date >= ? AND e.entry_date < ?))`;
+  const teams = `(SELECT COUNT(*) FROM resource_teams r2 JOIN teams t2 ON t2.id = r2.team_id WHERE r2.kind = 'service' AND r2.resource_id = s.id)`;
+  const rows = teamId
+    ? db().all<{ id: string; name: string; teams: number }>(
+        `SELECT s.id, s.name, ${teams} AS teams FROM services s JOIN resource_teams r ON r.kind = 'service' AND r.resource_id = s.id AND r.team_id = ?
+          WHERE s.archived = 0 AND ${has} ORDER BY s.name, s.id`,
+        teamId,
+        fiscalYear,
+        b.from,
+        b.to,
+      )
+    : db().all<{ id: string; name: string; teams: number }>(
+        `SELECT s.id, s.name, ${teams} AS teams FROM services s WHERE s.archived = 0 AND ${has} ORDER BY s.name, s.id`,
+        fiscalYear,
+        b.from,
+        b.to,
+      );
+  return rows.map((r) => ({ id: r.id, name: r.name, teams: Number(r.teams) }));
+}
+
+/** The CSV headers of the scheduled export: the service first, so one file holds every service's lines or entries. */
+export const PLAN_EXPORT_HEADS = {
+  plan: `Service id,Service,${PLAN_CSV_HEADS.plan}`,
+  entries: `Service id,Service,${PLAN_CSV_HEADS.entries}`,
+} as const;
+
+/**
+ * The plan lines and entries of every service of a fiscal year (planServices), service by service as CSV lines under
+ * PLAN_EXPORT_HEADS – the same columns whether there are services or not. Yields between services.
+ */
+export async function* planExportRows(fiscalYear: number, now = Date.now()): AsyncGenerator<{ serviceId: string; plan: string[]; entries: string[] }> {
+  const start = startMonth();
+  for (const s of planServices(fiscalYear, start)) {
+    const info = scopeInfo('service', s.id);
+    if (!info) continue;
+    const y = planYearOf(info, fiscalYear, now, start);
+    const svc = `${csvCell(y.serviceId, 'needed')},${csvCell(y.serviceName, 'needed')}`;
+    yield {
+      serviceId: s.id,
+      plan: planCsvRows(y, 'plan').rows.map((r) => `${svc},${r}`),
+      entries: planCsvRows(y, 'entries').rows.map((r) => `${svc},${r}`),
+    };
+    await breathe();
+  }
+}
+
+/** The year views of every service of the current fiscal year (planServices) – for the dataset; yields between services. */
+export async function* planYearsOfAll(now = Date.now()): AsyncGenerator<CostPlanYear> {
+  const start = startMonth();
+  const fy = fiscalYearOf(monthOf(now), start);
+  for (const s of planServices(fy, start)) {
+    const info = scopeInfo('service', s.id);
+    if (!info) continue;
+    yield planYearOf(info, fy, now, start);
+    await breathe();
+  }
+}
 
 /** The plans of the team's services in a fiscal year, per currency; a service of two teams counts for both. */
-export function teamPlanYear(teamId: string, year?: number, now = Date.now()): CostPlanTeamYear {
+export async function teamPlanYear(teamId: string, year?: number, now = Date.now()): Promise<CostPlanTeamYear> {
   const team = requireScope('team', teamId);
   const start = startMonth();
-  const fy = year ?? fiscalYearOf(monthOf(now), start);
+  const cur = fiscalYearOf(monthOf(now), start);
+  const fy = year ?? cur;
   const totals = new Map<string, Figures>();
   const services: CostPlanTeamYear['services'] = [];
-  for (const s of db().all<{ id: string }>('SELECT id FROM services WHERE archived = 0 ORDER BY name')) {
-    const teams = catalogueTeams('service', s.id);
-    if (!teams.some((t) => t.id === teamId)) continue;
-    if (!scopeInfo('service', s.id)) continue;
-    const y = planYear(s.id, fy, now);
-    if (!y.lines.length && !y.entries.length && y.cloud === 'none') continue;
+  for (const s of planServices(fy, start, teamId)) {
+    const info = scopeInfo('service', s.id);
+    if (!info) continue;
+    const y = planYearOf(info, fy, now, start);
     services.push({
       id: s.id,
       name: y.serviceName,
       amountsVisible: y.amountsVisible,
       cloud: y.cloud,
-      shared: teams.length > 1,
+      shared: s.teams > 1,
       currencies: y.currencies.map((c) => ({
         currency: c.currency,
         planned: c.planned,
@@ -986,17 +1123,17 @@ export function teamPlanYear(teamId: string, year?: number, now = Date.now()): C
         difference: c.difference,
       })),
     });
-    if (!y.amountsVisible) continue;
-    for (const c of y.currencies) {
-      const t = totals.get(c.currency) ?? { planned: 0, plannedToDate: 0, incurredToDate: 0, expected: 0 };
-      t.planned += toMicros(c.planned) ?? 0;
-      t.plannedToDate += toMicros(c.plannedToDate) ?? 0;
-      t.incurredToDate += toMicros(c.incurredToDate) ?? 0;
-      t.expected += toMicros(c.expected) ?? 0;
-      totals.set(c.currency, t);
-    }
+    if (y.amountsVisible)
+      for (const c of y.currencies) {
+        const t = totals.get(c.currency) ?? { planned: 0, plannedToDate: 0, incurredToDate: 0, expected: 0 };
+        t.planned += toMicros(c.planned) ?? 0;
+        t.plannedToDate += toMicros(c.plannedToDate) ?? 0;
+        t.incurredToDate += toMicros(c.incurredToDate) ?? 0;
+        t.expected += toMicros(c.expected) ?? 0;
+        totals.set(c.currency, t);
+      }
+    await breathe();
   }
-  const cur = fiscalYearOf(monthOf(now), start);
   return {
     teamId,
     teamName: team.name,
