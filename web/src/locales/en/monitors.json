@@ -1080,6 +1080,10 @@
     "legendExpected": "what the check is while the state holds; a check that deviates after the settle time is a contradiction.",
     "legendRequired": "Required: the check must be up for the state to be trusted, otherwise the monitor is down at once.",
     "legendAny": "no rule for this check.",
-    "legendOff": "Off is offered only in sub-monitor columns (a sub-monitor that is off itself); a check of its own is Down when its device is off. Whether a state shows grey Off is the Shows column."
+    "legendOff": "Off is offered only in sub-monitor columns (a sub-monitor that is off itself); a check of its own is Down when its device is off. Whether a state shows grey Off is the Shows column.",
+    "onContradiction": "On contradiction",
+    "contradictionOf": "{{state}} on contradiction",
+    "contradictionDown": "Down (default)",
+    "legendContradiction": "what a contradiction in this state makes the monitor: Down (default) or Degraded. The other way, per check: a check without “Critical” (in its card) only degrades the monitor when it deviates."
   }
 }

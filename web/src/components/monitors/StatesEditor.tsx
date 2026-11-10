@@ -272,6 +272,27 @@ export function StatesEditor({
           )}
         </>
       ),
+      contradiction: (
+        <Select
+          size="xs"
+          w={130}
+          aria-label={t('states.contradictionOf', { state: label })}
+          value={r.contradiction ?? 'down'}
+          allowDeselect={false}
+          data={[
+            { value: 'down', label: t('states.contradictionDown') },
+            { value: 'degraded', label: monitorStatusLabel('degraded') },
+          ]}
+          onChange={(v) => {
+            const next = { ...r };
+            // down is the default: not written
+            if (v === 'degraded') next.contradiction = 'degraded';
+            else delete next.contradiction;
+            setRow(i, next);
+          }}
+          data-testid={`contradiction-${r.id}`}
+        />
+      ),
       maxOff:
         (r.status ?? 'up') === 'off' ? (
           <NumberInput
@@ -384,6 +405,10 @@ export function StatesEditor({
                     <Text size="sm">{t('states.settle')}</Text>
                     <div>{x.settle}</div>
                   </Group>
+                  <Group gap="xs" wrap="nowrap" justify="space-between">
+                    <Text size="sm">{t('states.onContradiction')}</Text>
+                    {x.contradiction}
+                  </Group>
                   {!follower && (
                     <Group gap="xs" wrap="nowrap" justify="space-between">
                       <Text size="sm">{t('states.maxOffShort')}</Text>
@@ -418,6 +443,7 @@ export function StatesEditor({
                   </Table.Th>
                 ))}
                 <Table.Th scope="col">{t('states.settle')}</Table.Th>
+                <Table.Th scope="col">{t('states.onContradiction')}</Table.Th>
                 {!follower && <Table.Th scope="col">{t('states.maxOffShort')}</Table.Th>}
                 <Table.Th scope="col">{t('states.remove')}</Table.Th>
               </Table.Tr>
@@ -436,6 +462,7 @@ export function StatesEditor({
                       <Table.Td key={c.id}>{x.cell(c)}</Table.Td>
                     ))}
                     <Table.Td>{x.settle}</Table.Td>
+                    <Table.Td>{x.contradiction}</Table.Td>
                     {!follower && <Table.Td>{x.maxOff}</Table.Td>}
                     <Table.Td>{x.remove}</Table.Td>
                   </Table.Tr>
@@ -444,7 +471,7 @@ export function StatesEditor({
               <Table.Tr>
                 <Table.Td>–</Table.Td>
                 <Table.Th scope="row">{t('states.otherwise')}</Table.Th>
-                <Table.Td colSpan={checks.length + (follower ? 3 : 4)}>
+                <Table.Td colSpan={checks.length + (follower ? 4 : 5)}>
                   <Text size="sm" c="dimmed">
                     {t('states.otherwiseHint')}
                   </Text>
@@ -571,6 +598,9 @@ function StatesLegend({ follower }: { follower: boolean }) {
       </Text>
       <Text size="xs" c="dimmed">
         {t('states.legendOff')}
+      </Text>
+      <Text size="xs" c="dimmed">
+        <b>{t('states.onContradiction')}</b> – {t('states.legendContradiction')}
       </Text>
     </Stack>
   );

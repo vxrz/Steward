@@ -1080,6 +1080,10 @@
     "legendExpected": "wie die Prüfung ist, solange der Zustand gilt; weicht sie nach der Einschwingzeit ab, ist das ein Widerspruch.",
     "legendRequired": "Vorausgesetzt: Die Prüfung muss in Betrieb sein, damit dem Zustand vertraut wird, sonst ist der Monitor sofort ausgefallen.",
     "legendAny": "keine Regel für diese Prüfung.",
-    "legendOff": "Aus gibt es nur in Spalten von Unter-Monitoren (ein Unter-Monitor, der selbst aus ist); eine eigene Prüfung ist Ausgefallen, wenn ihr Gerät aus ist. Ob ein Zustand grau Aus zeigt, legt die Spalte Zeigt fest."
+    "legendOff": "Aus gibt es nur in Spalten von Unter-Monitoren (ein Unter-Monitor, der selbst aus ist); eine eigene Prüfung ist Ausgefallen, wenn ihr Gerät aus ist. Ob ein Zustand grau Aus zeigt, legt die Spalte Zeigt fest.",
+    "onContradiction": "Bei Widerspruch",
+    "contradictionOf": "{{state}} bei Widerspruch",
+    "contradictionDown": "Ausgefallen (Standard)",
+    "legendContradiction": "was ein Widerspruch in diesem Zustand aus dem Monitor macht: Ausgefallen (Standard) oder Beeinträchtigt. Der andere Weg, je Prüfung: Eine Prüfung ohne „Kritisch“ (in ihrer Karte) beeinträchtigt den Monitor nur, wenn sie abweicht."
   }
 }

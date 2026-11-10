@@ -7264,6 +7264,10 @@ export interface Resources {
     'states.legendRequired': string;
     'states.legendAny': string;
     'states.legendOff': string;
+    'states.onContradiction': string;
+    'states.contradictionOf': string;
+    'states.contradictionDown': string;
+    'states.legendContradiction': string;
   };
   nav: {
     'items.dashboard': string;

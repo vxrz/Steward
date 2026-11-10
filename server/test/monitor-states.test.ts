@@ -799,6 +799,31 @@ describe('outputs while off', () => {
   });
 });
 
+describe('on contradiction (the States tab column)', () => {
+  it('a row saves contradiction degraded, down is the default, other values are refused', async () => {
+    const definition = (contradiction?: unknown) => ({
+      name: 'Lathe 9 – PowerMeter',
+      checks: [
+        { id: 'pm', name: 'PowerMeter reachable', type: 'heartbeat', mode: 'maxAge', maxAgeSeconds: 600 },
+        { id: 'data', name: 'PowerMeter data', type: 'heartbeat', mode: 'maxAge', maxAgeSeconds: 600 },
+      ],
+      states: {
+        cases: [
+          { id: 'running', name: 'Running', when: { pm: 'up' }, expect: { data: 'up' }, ...(contradiction ? { contradiction } : {}) },
+          { id: 'off', name: 'Off', status: 'off', when: { pm: 'down' }, expect: { data: 'down' } },
+        ],
+      },
+    });
+    const r = await s.api('POST', '/monitors', { key: 'test-lathe-contradiction', definition: definition('degraded') });
+    const saved = (await get(r.monitor.id)).definition.states.cases;
+    expect(saved[0].contradiction).toBe('degraded');
+    expect(saved[1].contradiction).toBeUndefined();
+    await s.api('PUT', `/monitors/${r.monitor.id}`, { definition: definition('down') });
+    expect((await get(r.monitor.id)).definition.states.cases[0].contradiction).toBe('down');
+    await expect(s.api('PUT', `/monitors/${r.monitor.id}`, { definition: definition('warning') })).rejects.toThrow(/states\.cases\.0\.contradiction/);
+  });
+});
+
 describe('uptime with off', () => {
   it('off is excluded from the uptime and returned apart', async () => {
     const { upAndDown, uptimeHundredths } = await import('../src/monitors/stats.js');

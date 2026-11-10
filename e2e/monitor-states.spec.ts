@@ -122,11 +122,19 @@ test('the editor\'s decision table: rows, cells, and "Try it"', async ({ page, a
   // change a cell: the data path is not expected any more in Off; saved with the definition
   await page.getByRole('combobox', { name: 'Off – PowerMeter data', exact: true }).click();
   await page.getByRole('option', { name: 'Any', exact: true }).click();
+  // On contradiction: Running only degrades the monitor
+  const onContradiction = page.getByRole('combobox', { name: 'Running on contradiction', exact: true });
+  await expect(onContradiction).toHaveValue('Down (default)');
+  await onContradiction.click();
+  await page.getByRole('option', { name: 'Degraded', exact: true }).click();
+  await expect(page.getByTestId('states-legend')).toContainText('a check without “Critical”');
   await page.getByRole('button', { name: 'Save' }).click();
   await expect(page).toHaveURL((url) => url.pathname.endsWith(`/monitors/${id}`));
   const saved = await json(await api.get(`/api/monitors/${id}`));
   expect(saved.definition.states.cases[1]).toMatchObject({ id: 'off', status: 'off', when: { pm: 'down' } });
   expect(saved.definition.states.cases[1].expect).toBeUndefined();
+  expect(saved.definition.states.cases[0]).toMatchObject({ id: 'running', contradiction: 'degraded' });
+  expect(saved.definition.states.cases[1].contradiction).toBeUndefined();
   await api.delete(`/api/monitors/${id}`);
 });
 
