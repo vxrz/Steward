@@ -50,6 +50,7 @@ import { costKeys, platformKeys } from '../../queryKeys';
 import { fmtDay } from '../../format';
 import { fmtMonth, fmtMonthOnly, fmtMoney, SCOPE_PATH } from './common';
 import '../dashboard/viz.css';
+import { SupplierPicker, useSupplierChoice, useSupplierOptions } from '../suppliers/SupplierPicker';
 
 /**
  * The cost plan of a service (0.16.0, ADR 0026, docs/COSTS.md#planning-per-service): per fiscal year the plan lines,
@@ -574,9 +575,14 @@ function LineGroups({
             </Text>
             <ReadBadge l={l} />
           </Group>
-          {(l.vendor || l.renewalDate) && (
+          {(l.supplier || l.vendor || l.renewalDate) && (
             <Text size="xs" c="dimmed">
-              {[l.vendor, l.renewalDate ? t('plan.renewsOn', { date: fmtDay(l.renewalDate) }) : ''].filter(Boolean).join(' · ')}
+              {[
+                l.supplier ? [l.supplier.name, l.supplierContract?.title].filter(Boolean).join(' – ') : l.vendor,
+                l.renewalDate ? t('plan.renewsOn', { date: fmtDay(l.renewalDate) }) : '',
+              ]
+                .filter(Boolean)
+                .join(' · ')}
             </Text>
           )}
         </div>
@@ -860,10 +866,16 @@ function useTargetOptions(d: CostPlanYear, current: CostPlanTarget | null, withP
 
 function LineDialog({ d, line, onClose, onSaved }: { d: CostPlanYear; line: CostPlanLine | null; onClose: () => void; onSaved: (y: CostPlanYear) => void }) {
   const { t } = useTranslation(['costs', 'common']);
+  const { t: tSup } = useTranslation('suppliers');
   const [title, setTitle] = useState(line?.title ?? '');
   const [category, setCategory] = useState<CostPlanCategory>(line?.category ?? 'licence');
   const [target, setTarget] = useState(targetValue(line?.target ?? null));
   const [vendor, setVendor] = useState(line?.vendor ?? '');
+  const supplier = useSupplierChoice(line?.supplier);
+  const [contract, setContract] = useState<string | null | undefined>(undefined);
+  const supplierOptions = useSupplierOptions();
+  const contractValue = contract === undefined ? (supplier.value === (line?.supplier?.id ?? null) ? (line?.supplierContract?.id ?? null) : null) : contract;
+  const contracts = supplierOptions.data?.find((o) => o.id === supplier.value)?.contracts ?? [];
   const [amount, setAmount] = useState(line?.amount ?? '');
   const [currency, setCurrency] = useState(line?.currency ?? d.currencies[0]?.currency ?? 'EUR');
   const [cadence, setCadence] = useState<CostPlanCadence>(line?.cadence ?? 'yearly');
@@ -885,6 +897,8 @@ function LineDialog({ d, line, onClose, onSaved }: { d: CostPlanYear; line: Cost
       category,
       target: parseTarget(target),
       vendor: vendor.trim(),
+      ...(supplier.body !== undefined ? { supplierId: supplier.body } : {}),
+      ...(contract !== undefined || supplier.body !== undefined ? { supplierContractId: supplier.value ? contractValue : null } : {}),
       amount: amountText(amount),
       currency: currency.trim().toUpperCase(),
       cadence,
@@ -943,13 +957,42 @@ function LineDialog({ d, line, onClose, onSaved }: { d: CostPlanYear; line: Cost
               {t('plan.form.cloudHint')}
             </Text>
           )}
-          <TextInput
-            label={t('plan.form.vendor')}
-            description={t('plan.form.vendorHint')}
-            maxLength={COST_PLAN_LIMITS.vendorChars}
-            value={vendor}
-            onChange={(e) => setVendor(e.currentTarget.value)}
-          />
+          <SimpleGrid cols={{ base: 1, xs: 2 }}>
+            <SupplierPicker
+              value={supplier.value}
+              onChange={(v) => {
+                supplier.set(v);
+                setContract(null);
+              }}
+              initial={line?.supplier}
+              testId="plan-line-supplier"
+            >
+              <TextInput
+                label={t('plan.form.vendor')}
+                description={t('plan.form.vendorHint')}
+                maxLength={COST_PLAN_LIMITS.vendorChars}
+                value={vendor}
+                onChange={(e) => setVendor(e.currentTarget.value)}
+              />
+            </SupplierPicker>
+            {supplier.value && (
+              <Select
+                label={tSup('picker.contract')}
+                description={tSup('picker.contractHint')}
+                placeholder={tSup('picker.noContract')}
+                data={[
+                  ...contracts.map((c) => ({ value: c.id, label: c.reference ? `${c.title} (${c.reference})` : c.title })),
+                  ...(line?.supplierContract && !contracts.some((c) => c.id === line.supplierContract!.id) && supplier.value === line.supplier?.id
+                    ? [{ value: line.supplierContract.id, label: line.supplierContract.title }]
+                    : []),
+                ]}
+                value={contractValue}
+                onChange={(v) => setContract(v)}
+                clearable
+                data-testid="plan-line-contract"
+              />
+            )}
+          </SimpleGrid>
           <SimpleGrid cols={{ base: 1, xs: 3 }}>
             <Select
               label={t('plan.form.cadence')}

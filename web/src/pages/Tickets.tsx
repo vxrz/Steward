@@ -14,6 +14,7 @@ import { DataTable, ListFooter, type DataColumn } from '../components/DataTable'
 import { fmtDate, fmtRelative } from '../format';
 import { ListPage } from '../components/page/ListPage';
 import { RestrictedEmpty, useHiddenByPermissions } from '../components/modules/RestrictedEmpty';
+import { SupplierText } from '../components/suppliers/SupplierPicker';
 
 type State = 'open' | 'closed' | 'all';
 
@@ -126,7 +127,12 @@ export function TicketsPage() {
       ),
     },
     { key: 'status', header: t('table.status'), sortValue: (x) => TICKET_STATUS_IDS.indexOf(x.status), cell: (x) => <TicketStatusBadge status={x.status} /> },
-    { key: 'vendor', header: t('table.vendor'), sortValue: (x) => x.vendor, cell: (x) => x.vendor || '–' },
+    {
+      key: 'vendor',
+      header: t('table.vendor'),
+      sortValue: (x) => x.supplier?.name ?? x.vendor,
+      cell: (x) => <SupplierText supplier={x.supplier} vendor={x.vendor} />,
+    },
     {
       key: 'affected',
       header: t('table.affected'),

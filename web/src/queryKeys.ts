@@ -216,3 +216,11 @@ export const libraryKeys = {
   publishers: ['libraries', 'publishers'] as const,
   origins: (kind: string) => ['libraries', 'origins', kind] as const,
 };
+
+/** Suppliers (0.17.0, ADR 0029): the list (by status), the picker of the forms and one supplier. */
+export const supplierKeys = {
+  all: ['suppliers'] as const,
+  list: (status: string | null) => ['suppliers', 'list', status] as const,
+  options: ['suppliers', 'options'] as const,
+  detail: (id: string | null | undefined) => ['suppliers', 'detail', id] as const,
+};

@@ -18,6 +18,7 @@ import { DataTable, ListFooter, type DataColumn } from '../components/DataTable'
 import { platformKeys } from '../queryKeys';
 import { NetworkFields, emptyNetwork, networkErrors } from '../components/catalogue/network';
 import { RestrictedEmpty, useHiddenByPermissions } from '../components/modules/RestrictedEmpty';
+import { SupplierPicker, useSupplierChoice } from '../components/suppliers/SupplierPicker';
 
 /** Systems (#129): servers, VMs, clusters, appliances and cloud services that applications run on. */
 export function SystemsPage() {
@@ -42,7 +43,7 @@ export function SystemsPage() {
   const all = systems.data ?? [];
   const list = all.filter(
     (s) =>
-      (!needle || [s.name, s.vendor, s.note].some((x) => x.toLowerCase().includes(needle))) &&
+      (!needle || [s.name, s.vendor, s.supplier?.name ?? '', s.note].some((x) => x.toLowerCase().includes(needle))) &&
       (!kind || s.kind === kind) &&
       (!env || s.environments.includes(env)) &&
       (!owner || s.owners.includes(owner)),
@@ -72,9 +73,9 @@ export function SystemsPage() {
           <Anchor component={Link} to={`/systems/${s.id}`} fw={500} size="sm" onClick={(e) => e.stopPropagation()}>
             {s.name}
           </Anchor>
-          {s.vendor && (
+          {(s.supplier || s.vendor) && (
             <Text size="xs" c="dimmed">
-              {s.vendor}
+              {s.supplier?.name ?? s.vendor}
             </Text>
           )}
         </>
@@ -217,9 +218,9 @@ export function SystemsPage() {
                   {kindLabel(s)}
                 </Badge>
               </Group>
-              {s.vendor && (
+              {(s.supplier || s.vendor) && (
                 <Text size="xs" c="dimmed">
-                  {s.vendor}
+                  {s.supplier?.name ?? s.vendor}
                 </Text>
               )}
               <Group gap={4} mt={4}>
@@ -255,6 +256,7 @@ export function SystemFormModal({ system, onClose, onSaved }: { system?: SystemD
   const [name, setName] = useState(system?.name ?? '');
   const [kind, setKind] = useState<SystemKind>(system?.kind ?? 'server');
   const [vendor, setVendor] = useState(system?.vendor ?? '');
+  const supplier = useSupplierChoice(system?.supplier);
   const [cmdbUrl, setCmdbUrl] = useState(system?.cmdbUrl ?? '');
   const [owners, setOwners] = useState<string[]>(system?.owners ?? []);
   const [note, setNote] = useState(system?.note ?? '');
@@ -280,6 +282,7 @@ export function SystemFormModal({ system, onClose, onSaved }: { system?: SystemD
       name: name.trim(),
       kind,
       vendor: vendor.trim(),
+      supplierId: supplier.body,
       cmdbUrl: cmdbUrl.trim(),
       owners: owners.map((o) => (/^(user|team):/i.test(o) ? o : `user:${o}`)),
       note,
@@ -324,13 +327,15 @@ export function SystemFormModal({ system, onClose, onSaved }: { system?: SystemD
             />
           </Group>
           <Group grow align="flex-start">
-            <TextInput
-              label={t('systems.vendor')}
-              description={t('systems.vendorHint')}
-              maxLength={SYSTEM_LIMITS.vendor}
-              value={vendor}
-              onChange={(e) => setVendor(e.currentTarget.value)}
-            />
+            <SupplierPicker value={supplier.value} onChange={supplier.set} initial={system?.supplier} testId="system-supplier">
+              <TextInput
+                label={t('systems.vendor')}
+                description={t('systems.vendorHint')}
+                maxLength={SYSTEM_LIMITS.vendor}
+                value={vendor}
+                onChange={(e) => setVendor(e.currentTarget.value)}
+              />
+            </SupplierPicker>
             <TextInput
               label={t('systems.cmdbUrl')}
               placeholder="https://"

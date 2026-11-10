@@ -61,7 +61,7 @@ export function TicketDetailPage() {
             <TicketStatusBadge status={x.status} size="md" />
           </Group>
         }
-        description={[sourceLabel(x.source), x.vendor].filter(Boolean).join(' · ')}
+        description={[sourceLabel(x.source), x.supplier?.name ?? x.vendor].filter(Boolean).join(' · ')}
         actions={
           <>
             {x.externalUrl && /^https?:\/\//i.test(x.externalUrl) && (

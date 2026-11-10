@@ -52,6 +52,7 @@ import {
   IconWebhook,
   type Icon,
   IconGitPullRequest,
+  IconTruckDelivery,
 } from '@tabler/icons-react';
 import type { Capabilities, VisibilitySummary } from '@sm/shared';
 import { useOwnLabel } from './plant/labels';
@@ -76,6 +77,7 @@ export type NavKey =
   | 'services'
   | 'applications'
   | 'systems'
+  | 'suppliers'
   | 'maintenance'
   | 'statusPages'
   | 'duties'
@@ -181,6 +183,8 @@ export const NAV_GROUPS: { key: NavGroupKey; items: NavItemDef[] }[] = [
       { to: '/services', key: 'services', icon: IconStack2, also: ['/scorecard', '/costs'] },
       { to: '/applications', key: 'applications', icon: IconApps },
       { to: '/systems', key: 'systems', icon: IconServer2 },
+      // suppliers (0.17.0, ADR 0029): who runs, backs up and recovers what the services use
+      { to: '/suppliers', key: 'suppliers', icon: IconTruckDelivery },
       { to: '/platforms', key: 'platforms', icon: IconServer },
       { to: '/data-contracts', key: 'dataContracts', icon: IconContract },
     ],

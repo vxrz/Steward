@@ -36,6 +36,7 @@ import { get, getOptional, notifyError, post, put } from '../../api';
 import { useMe } from '../../auth';
 import { TICKET_STATUS_IDS, useSourceLabel, useTicketSettings } from './common';
 import { useFieldErrors } from '../common';
+import { SupplierPicker, useSupplierChoice } from '../suppliers/SupplierPicker';
 
 type Affected = { kind: TicketLinkKind; id: string; label: string };
 
@@ -112,6 +113,7 @@ export function TicketForm({
   const { username, hasRole } = useMe();
   const [d, setD] = useState<Draft>(() => draftOf(ticket, preset, username));
   const [busy, setBusy] = useState(false);
+  const supplier = useSupplierChoice(ticket?.supplier);
   const set = (patch: Partial<Draft>) => setD((x) => ({ ...x, ...patch }));
   const settings = useTicketSettings();
   const sourceLabel = useSourceLabel();
@@ -139,6 +141,7 @@ export function TicketForm({
         title: d.title.trim(),
         note: d.note,
         vendor: d.vendor.trim(),
+        supplierId: supplier.body,
         responsible: d.responsible.map((s) => (/^(user|team):/i.test(s) ? s : `user:${s}`)),
         status: d.status,
         openedAt: d.openedAt || undefined,
@@ -211,14 +214,16 @@ export function TicketForm({
             error={d.externalUrl.trim() && !/^https?:\/\/\S+$/i.test(d.externalUrl.trim()) ? t('hints.externalUrl') : undefined}
           />
           <SimpleGrid cols={{ base: 1, sm: 2 }}>
-            <Autocomplete
-              label={t('fields.vendor')}
-              description={t('hints.vendor')}
-              data={vendors.data ?? []}
-              value={d.vendor}
-              onChange={(v) => set({ vendor: v })}
-              maxLength={TICKET_LIMITS.vendor}
-            />
+            <SupplierPicker value={supplier.value} onChange={supplier.set} initial={ticket?.supplier} testId="ticket-supplier">
+              <Autocomplete
+                label={t('fields.vendor')}
+                description={t('hints.vendor')}
+                data={vendors.data ?? []}
+                value={d.vendor}
+                onChange={(v) => set({ vendor: v })}
+                maxLength={TICKET_LIMITS.vendor}
+              />
+            </SupplierPicker>
             <Select
               label={t('fields.status')}
               data={TICKET_STATUS_IDS.map((s) => ({ value: s, label: t(`status.${s}`) }))}

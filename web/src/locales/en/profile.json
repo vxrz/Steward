@@ -125,7 +125,8 @@
       "reviews": "Document reviews due for me",
       "duties": "Service duties due or missed that I am responsible for",
       "trends": "Trends of dashboard metrics: limits reached soon and strong changes",
-      "topics": "New Kafka topics under prefixes of my applications that are kept in sync"
+      "topics": "New Kafka topics under prefixes of my applications that are kept in sync",
+      "suppliers": "Supplier certificates and notice dates of suppliers I own"
     },
     "skipEmpty": "Send nothing on days without anything to report",
     "save": "Save",

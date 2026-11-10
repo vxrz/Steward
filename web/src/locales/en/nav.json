@@ -20,6 +20,7 @@
     "services": "Services",
     "applications": "Applications",
     "systems": "Systems",
+    "suppliers": "Suppliers",
     "maintenance": "Maintenance",
     "statusPages": "Status pages",
     "gitUpdates": "Git sync",
@@ -149,7 +150,8 @@
       "asset": "Asset",
       "profile": "Device profile",
       "kpi": "KPI definition",
-      "contract": "Data contract"
+      "contract": "Data contract",
+      "supplier": "Supplier"
     }
   },
   "groups": {

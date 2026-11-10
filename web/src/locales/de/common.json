@@ -210,6 +210,7 @@
     "services": "Designer und Administratoren legen Services an.",
     "applications": "Designer und Administratoren legen Anwendungen an.",
     "systems": "Designer und Administratoren legen Systeme an.",
+    "suppliers": "Designer und Administratoren legen Lieferanten an.",
     "credentials": "Operatoren, Designer und Administratoren dokumentieren Zugangsdaten.",
     "records": "Operatoren, Designer und Administratoren schreiben Dokumente.",
     "tickets": "Operatoren, Designer und Administratoren fügen Ticket-Referenzen hinzu.",

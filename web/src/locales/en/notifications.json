@@ -221,6 +221,16 @@
         "label": "Security advisory affects a site",
         "info": "A new high or critical security advisory affects assets of a site you manage (plant registry)"
       }
+    },
+    "supplier": {
+      "certificate_expiring": {
+        "label": "Supplier certificate runs out",
+        "info": "A certificate of a supplier you own runs out in 90 or 30 days"
+      },
+      "notice_due": {
+        "label": "Supplier notice date",
+        "info": "The last day to give notice on a contract of a supplier you own is 90 or 30 days away"
+      }
     }
   },
   "quiet": {
@@ -258,7 +268,7 @@
       "decisions": "Decision steps, AI requests, skipped duties, plant changes to review. A run waits: at most hourly.",
       "runs": "Failed runs and checks, skipped schedules, stale data, backups, data contracts.",
       "monitors": "Monitor status, platform connection tests, objectives, maintenance.",
-      "reminders": "Credentials, document reviews, tickets, duties, measures, access changes, decided plant changes.",
+      "reminders": "Credentials, document reviews, tickets, duties, measures, access changes, decided plant changes, supplier certificates and notice dates.",
       "reports": "Scheduled reports, end of life and new releases.",
       "costs": "AI token budgets and cost budgets."
     },
