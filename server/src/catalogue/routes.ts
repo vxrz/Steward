@@ -14,6 +14,7 @@ import * as net from './network.js';
 import * as envs from './environments.js';
 import * as maint from './maintenance.js';
 import * as impact from './maintenance-impact.js';
+import { plantTargetOptions } from '../plant/targets.js';
 import { contentDisposition } from '../records/attachments.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { LARGE_BODIES } from '../bodyLimits.js';
@@ -213,6 +214,7 @@ export async function catalogueRoutes(app: FastifyInstance): Promise<void> {
     const q = impactQuery.parse(req.query);
     return impact.previewImpact({ targets: q.targets, kind: q.kind, quietMonitors: q.quietMonitors === undefined ? undefined : q.quietMonitors === 'true' });
   });
+  app.get('/maintenance-windows/plant-targets', async () => plantTargetOptions(currentUser()));
   app.get('/maintenance-windows/:id/impact', async (req) => impact.windowImpact(params(req).id!));
   app.post('/maintenance-windows/:id/impact/downtime', async (req) =>
     impact.downtimeForMonitors(params(req).id!, z.object({ mode: z.enum(['downtime', 'include']).default('downtime') }).parse(req.body ?? {}).mode),

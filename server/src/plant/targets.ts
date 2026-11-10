@@ -79,3 +79,40 @@ export function mayPlanPlantTarget(kind: PlantMaintenanceTargetKind, id: string,
 
 /** The site (and with it the rights) an entry belongs to – null when it does not exist. */
 export const plantTargetSite = (kind: PlantMaintenanceTargetKind, id: string): string | null => plantTarget(kind, id)?.siteId ?? null;
+
+/** The most entries the form's list offers (GET /api/maintenance-windows/plant-targets). */
+export const PLANT_TARGET_OPTIONS = 2000;
+
+/**
+ * The plant entries a planner may list in a window's form: the sites they may see, their assets, the assets' devices
+ * and collections – by name, at most PLANT_TARGET_OPTIONS (sites and assets first). Empty while the module is off.
+ */
+export function plantTargetOptions(u: AuthUser | null): { kind: PlantMaintenanceTargetKind; id: string; name: string }[] {
+  if (!plantEnabled()) return [];
+  const sites = db()
+    .all<{ id: string; name: string; acl: string }>('SELECT id, name, acl FROM plant_sites')
+    .filter((s) => siteAccess(u, s).permissions.includes('view'));
+  const seen = new Set(sites.map((s) => s.id));
+  const assets = db()
+    .all<{ id: string; name: string; site_id: string }>('SELECT id, name, site_id FROM plant_assets')
+    .filter((a) => seen.has(a.site_id));
+  const assetName = new Map(assets.map((a) => [a.id, a.name]));
+  const byName = <T extends { name: string; id: string }>(l: T[]) => l.sort((a, b) => a.name.localeCompare(b.name) || (a.id < b.id ? -1 : 1));
+  const out = [
+    ...byName(sites).map((s) => ({ kind: 'site' as const, id: s.id, name: s.name })),
+    ...byName(assets).map((a) => ({ kind: 'asset' as const, id: a.id, name: a.name })),
+    ...byName(
+      db()
+        .all<{ asset_id: string; id: string; hostname: string }>('SELECT asset_id, id, hostname FROM plant_devices')
+        .filter((d) => assetName.has(d.asset_id))
+        .map((d) => ({ kind: 'device' as const, id: `${d.asset_id}/${d.id}`, name: `${d.hostname || d.id} (${assetName.get(d.asset_id)})` })),
+    ),
+    ...byName(
+      db()
+        .all<{ asset_id: string; id: string; name: string }>('SELECT asset_id, id, name FROM plant_collections')
+        .filter((c) => assetName.has(c.asset_id))
+        .map((c) => ({ kind: 'collection' as const, id: `${c.asset_id}/${c.id}`, name: `${c.name} (${assetName.get(c.asset_id)})` })),
+    ),
+  ];
+  return out.slice(0, PLANT_TARGET_OPTIONS);
+}

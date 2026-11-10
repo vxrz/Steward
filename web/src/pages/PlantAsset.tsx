@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { IconArrowMoveRight, IconBuilding, IconChevronRight, IconEdit, IconPhoto, IconTrash, IconUpload } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
+import { useMe } from '../auth';
 import { PLANT_LIMITS, type PlantAssetDetail } from '@sm/shared';
 import { apiUrl, del, get, notifyError, patch, post, put } from '../api';
 import { DetailState } from '../components/common';
@@ -20,6 +21,7 @@ import { MoveAssetModal } from '../components/plant/MoveTo';
 import { AssetDataSection } from '../components/plant/AssetData';
 import { AssetNetworkSection } from '../components/plant/AssetNetwork';
 import { PlantDocumentsPanel } from '../components/plant/DocumentsPanel';
+import { MaintenancePanel } from '../components/catalogue/maintenance';
 import { SourceLine } from './PlantSite';
 import { AssetTabs, PlantAssetTabPage } from './plant/views/tabs';
 import { OpenChangesChip, ProposeEditButton } from '../components/plant/changes/common';
@@ -38,6 +40,7 @@ export function PlantAssetPage() {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const [search, setSearch] = useSearchParams();
+  const { caps } = useMe();
   const q = useQuery({ queryKey: plantKeys.asset(assetId), queryFn: () => get<PlantAssetDetail>(`/plant/assets/${encodeURIComponent(assetId!)}`) });
   const [editing, setEditing] = useState(false);
   const [moving, setMoving] = useState(false);
@@ -228,6 +231,8 @@ export function PlantAssetPage() {
             <AssetDataSection assetId={a.id} />
             <AssetNetworkSection assetId={a.id} />
             <PlantDocumentsPanel kind="asset" id={a.id} />
+            {/* 0.14: maintenance planned for it, and planning one (the plant viewer reads no maintenance windows) */}
+            {!caps.plantOnly && <MaintenancePanel kind="asset" id={a.id} canPlan={a.canManage} />}
             <LinksPanel
               links={a.links}
               backlinks={a.backlinks}

@@ -17,6 +17,7 @@ import { allAssignments, allKpis, allProfiles } from './data-model.js';
 import { assetInputPoints, inputGaps } from './checks.js';
 import { isCollected } from './potential.js';
 import { splitAssetId } from './targets.js';
+import { resolveTarget } from '../records/links.js';
 
 /**
  * Impact before maintenance (0.14, docs/APPLICATIONS.md "Impact before maintenance"): what a window's plant targets –
@@ -189,9 +190,12 @@ export function plantImpact(targets: { kind: MaintenanceTargetKind; id: string }
     if (!c) return null;
     if (c.ref && collectors.has(collectorKey(c as PlantCollectionValues['collector'])))
       return collectors.get(collectorKey(c as PlantCollectionValues['collector']))!;
-    if ((c.kind === 'application' && reach.applications.has(c.ref)) || (c.kind === 'platform' && reach.platforms.has(c.ref))) return c.ref;
+    // named as the reader may see it (an item they may not see: its kind only)
+    if ((c.kind === 'application' && reach.applications.has(c.ref)) || (c.kind === 'platform' && reach.platforms.has(c.ref)))
+      return resolveTarget(c.kind, c.ref)?.label ?? c.kind;
     return null;
   };
+  const systemName = (id: string) => resolveTarget('system', id)?.label ?? null;
   const hostsOf = (p: PlantDataPathValues) => ({
     from: [...p.transfers.filter((t) => t.peerKind === 'system').map((t) => t.peer), ...(p.collector?.host ? [p.collector.host] : [])],
     to: p.destinations.filter((x) => x.kind === 'system').map((x) => x.ref),
@@ -223,7 +227,7 @@ export function plantImpact(targets: { kind: MaintenanceTargetKind; id: string }
     }
     const h = hostsOf(v);
     const host = [...h.from, ...h.to].find((x) => reach.systems.has(x));
-    if (host) affPaths.set(k, { via: 'host', from: host });
+    if (host) affPaths.set(k, { via: 'host', from: systemName(host) });
   }
   // the paths that continue from affected ones: they read from a system an affected path writes to
   const readers = new Map<string, string[]>();
@@ -261,8 +265,8 @@ export function plantImpact(targets: { kind: MaintenanceTargetKind; id: string }
     else if (v.dataPathId && affPaths.has(key2(assetId, v.dataPathId)))
       affColls.set(k, { via: 'dataPath', from: pathByKey.get(key2(assetId, v.dataPathId))!.v.subject });
     else if (collectorAffected(v.collector)) affColls.set(k, { via: 'collector', from: collectorAffected(v.collector) });
-    else if (v.collector.host && reach.systems.has(v.collector.host)) affColls.set(k, { via: 'host', from: v.collector.host });
-    else if (sinkHit(v)) affColls.set(k, { via: 'sink', from: sinkHit(v)!.name || sinkHit(v)!.ref });
+    else if (v.collector.host && reach.systems.has(v.collector.host)) affColls.set(k, { via: 'host', from: systemName(v.collector.host) });
+    else if (sinkHit(v)) affColls.set(k, { via: 'sink', from: sinkHit(v)!.name || null });
   }
   for (const k of [...affPaths.keys(), ...affColls.keys()]) {
     const a = k.slice(0, k.indexOf('/'));

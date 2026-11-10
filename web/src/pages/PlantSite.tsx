@@ -16,6 +16,7 @@ import {
   IconTrash,
 } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
+import { useMe } from '../auth';
 import {
   ASSET_STATUSES,
   LEVEL_RECORD_TYPE,
@@ -50,6 +51,7 @@ import { AssetFormModal, BuildingFormModal, NodeFormModal, SiteFormModal } from 
 import { MoveNodeModal } from '../components/plant/MoveTo';
 import { SiteNetworkCard } from '../components/plant/network';
 import { PlantDocumentsPanel } from '../components/plant/DocumentsPanel';
+import { MaintenancePanel } from '../components/catalogue/maintenance';
 import { PlantSiteTabPage, SiteTabs } from './plant/views/tabs';
 import { SectionGroup, SectionGroupControls, useCollapsible } from '../components/page/CollapsibleSection';
 import { OpenChangesChip, ProposeEditButton, useChangeSetConfig } from '../components/plant/changes/common';
@@ -61,6 +63,7 @@ type NodeDialog = { level: PlantLevel; parentId: string | null; node?: PlantNode
  * buildings (the spatial axis), its assets by status, contacts, external references, own fields, links and access.
  */
 export function PlantSitePage() {
+  const { caps } = useMe();
   const { t } = useTranslation(['plant', 'common', 'plantMap', 'plantIds']);
   const label = usePlantLabel();
   const nameOf = useNameOf();
@@ -356,6 +359,8 @@ export function PlantSitePage() {
             </Stack>
 
             <PlantDocumentsPanel kind="site" id={s.id} />
+            {/* 0.14: maintenance planned for it, and planning one (the plant viewer reads no maintenance windows) */}
+            {!caps.plantOnly && <MaintenancePanel kind="site" id={s.id} canPlan={canManage} />}
             <LinksPanel
               links={s.links}
               backlinks={s.backlinks}

@@ -18,6 +18,7 @@ import {
   type MaintenanceWindowSummary,
   type MonitorSummary,
   type Platform,
+  type PlantMaintenanceTargetKind,
   type RecordSummary,
   type ServiceSummary,
   type SystemSummary,
@@ -31,6 +32,7 @@ import { monitorKeys, platformKeys } from '../../queryKeys';
 import { useMe } from '../../auth';
 import { CopiedFromNote, DuplicateButton } from '../duplicate/DuplicateButton';
 import { CollapsibleSection } from '../page/CollapsibleSection';
+import { MaintenanceImpactPanel } from './MaintenanceImpact';
 
 /**
  * Maintenance windows (#108): forms, details and the panel on platform, system, application, service and monitor pages.
@@ -51,14 +53,24 @@ const fromLocal = (v: string): string | null => {
   return v && Number.isFinite(ms) ? new Date(ms).toISOString() : null;
 };
 
-const TARGET_PATHS: Record<MaintenanceTargetKind, string> = {
+const TARGET_PATHS: Record<Exclude<MaintenanceTargetKind, PlantMaintenanceTargetKind>, string> = {
   platform: '/platforms',
   system: '/systems',
   application: '/applications',
   service: '/services',
   monitor: '/monitors',
 };
-export const targetLink = (t: { kind: MaintenanceTargetKind; id: string }) => `${TARGET_PATHS[t.kind]}/${t.id}`;
+/** The page of a target (0.14: plant entries – a device or collection is `<asset>/<id>`). */
+export const targetLink = (t: { kind: MaintenanceTargetKind; id: string }): string => {
+  const enc = encodeURIComponent;
+  if (t.kind === 'site') return `/plant/sites/${enc(t.id)}`;
+  if (t.kind === 'asset') return `/plant/assets/${enc(t.id)}`;
+  if (t.kind === 'device' || t.kind === 'collection') {
+    const [asset = '', id = ''] = t.id.split('/');
+    return t.kind === 'device' ? `/plant/assets/${enc(asset)}#device-${enc(id)}` : `/plant/assets/${enc(asset)}/collections?collection=${enc(id)}`;
+  }
+  return `${TARGET_PATHS[t.kind]}/${t.id}`;
+};
 
 /** "Weekly", "Every 2 months until 1 Mar 2027", or "Once". */
 export function useRepeatLabel() {
@@ -155,6 +167,11 @@ export function MaintenanceFormModal({
   const services = useQuery({ queryKey: ['services', false], queryFn: () => getOptional<ServiceSummary[]>('/services', []) });
   const monitors = useQuery({ queryKey: monitorKeys.all, queryFn: () => getOptional<MonitorSummary[]>('/monitors', []) });
   const records = useQuery({ queryKey: ['records', 'maintenance'], queryFn: () => getOptional<RecordSummary[]>('/records', []) });
+  // 0.14: sites, assets, devices and collections of the plant registry (empty while the module is off)
+  const plant = useQuery({
+    queryKey: ['maintenance-windows', 'plant-targets'],
+    queryFn: () => getOptional<{ kind: PlantMaintenanceTargetKind; id: string; name: string }[]>('/maintenance-windows/plant-targets', []),
+  });
 
   const options = useMemo(() => {
     const names: Record<MaintenanceTargetKind, { id: string; name: string }[]> = {
@@ -163,7 +180,12 @@ export function MaintenanceFormModal({
       application: (apps.data ?? []).filter((a) => !a.archived).map((a) => ({ id: a.id, name: a.name })),
       service: (services.data ?? []).map((s) => ({ id: s.id, name: s.name })),
       monitor: (monitors.data ?? []).filter((m) => !m.isTemplate).map((m) => ({ id: m.id, name: m.name })),
+      site: [],
+      asset: [],
+      device: [],
+      collection: [],
     };
+    for (const x of plant.data ?? []) names[x.kind].push({ id: x.id, name: x.name });
     const known = new Set(MAINTENANCE_TARGET_KINDS.flatMap((k) => names[k].map((x) => `${k}:${x.id}`)));
     // targets of the window that are not in the lists (a platform the user may not see): kept with their name
     const extra = (w?.targets ?? []).filter((x) => !known.has(`${x.kind}:${x.id}`));
@@ -174,7 +196,7 @@ export function MaintenanceFormModal({
         ...extra.filter((x) => x.kind === k).map((x) => ({ value: `${k}:${x.id}`, label: x.name ?? t('maintenance.hiddenTarget') })),
       ],
     })).filter((g) => g.items.length);
-  }, [platforms.data, systems.data, apps.data, services.data, monitors.data, w, t]);
+  }, [platforms.data, systems.data, apps.data, services.data, monitors.data, plant.data, w, t]);
 
   const startIso = fromLocal(start);
   const endIso = fromLocal(end);
@@ -315,6 +337,13 @@ export function MaintenanceFormModal({
             error={v.error('targets')}
             data-testid="maintenance-targets"
           />
+          {/* 0.14: what it affects, before saving – the monitors it would leave down can be listed in one click */}
+          <MaintenanceImpactPanel
+            targets={targets}
+            kind={kind}
+            quietMonitors={quietMonitors}
+            onIncludeMonitors={(ids) => setTargets((cur) => [...new Set([...cur, ...ids.map((id) => `monitor:${id}`)])].slice(0, MAINTENANCE_LIMITS.targets))}
+          />
           <SubjectsInput
             label={t('maintenance.responsible')}
             description={t('maintenance.responsibleHelp')}
@@ -391,7 +420,18 @@ export function MaintenanceFormModal({
 }
 
 /** One window: when, what it affects and reaches, the next occurrences, the calendar file; change or cancel it. */
-export function MaintenanceDetailModal({ id, onClose, startEditing }: { id: string; onClose: () => void; startEditing?: boolean }) {
+export function MaintenanceDetailModal({
+  id,
+  onClose,
+  startEditing,
+  onOpen,
+}: {
+  id: string;
+  onClose: () => void;
+  startEditing?: boolean;
+  /** Open another window (the planned downtime made from this one's impact) */
+  onOpen?: (id: string) => void;
+}) {
   const { t } = useTranslation(['applications', 'common']);
   const qc = useQueryClient();
   const repeat = useRepeatLabel();
@@ -449,6 +489,16 @@ export function MaintenanceDetailModal({ id, onClose, startEditing }: { id: stri
                 {t('maintenance.affected', w.affected)}
               </Text>
             </Stack>
+            {!w.cancelledAt && (
+              <MaintenanceImpactPanel
+                windowId={w.id}
+                targets={w.targets.map((x) => `${x.kind}:${x.id}`)}
+                kind={w.kind}
+                quietMonitors={w.quietMonitors}
+                canEdit={w.canEdit}
+                onWindow={onOpen}
+              />
+            )}
             {w.note && (
               <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>
                 {w.note}
@@ -581,7 +631,7 @@ export function MaintenancePanel({ kind, id, canPlan }: { kind: MaintenanceTarge
             {t('maintenance.panelEmpty')}
           </Text>
         )}
-        {open && <MaintenanceDetailModal id={open} onClose={() => setOpen(null)} />}
+        {open && <MaintenanceDetailModal key={open} id={open} onClose={() => setOpen(null)} onOpen={setOpen} />}
         {planning && <MaintenanceFormModal preset={{ kind, id }} onClose={() => setPlanning(false)} onSaved={() => void q.refetch()} />}
       </Stack>
     </CollapsibleSection>
