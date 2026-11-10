@@ -19,13 +19,25 @@ async function scene(admin: APIRequestContext) {
     .toLowerCase()
     .replace(/[^a-z0-9-]/g, '-');
   const name = `Cooling unit ${id}`;
-  const a = await admin.post('/api/plant/assets', { data: { id, siteId: 'riverside', name } });
+  // a site of its own: its interval and documentation tab change nothing of the shared demo sites
+  const site = `${id}-site`;
+  expect((await admin.post('/api/plant/sites', { data: { id: site, name: `Works ${id}` } })).ok()).toBe(true);
+  const a = await admin.post('/api/plant/assets', { data: { id, siteId: site, name } });
   expect(a.ok(), await a.text()).toBe(true);
   expect((await admin.post(`/api/plant/assets/${id}/devices`, { data: { id: `${id}-plc`, hostname: `${id}-plc` } })).ok()).toBe(true);
   const rec = await json<{ id: string; title: string }>(
     await admin.post('/api/records', { data: { type: 'DOC', title: `Manual of ${name}`, links: [{ kind: 'asset', id, note: '' }] } }),
   );
-  return { id, name, rec, cleanup: async () => void (await admin.delete(`/api/plant/assets/${id}`)) };
+  return {
+    id,
+    name,
+    site,
+    rec,
+    cleanup: async () => {
+      await admin.delete(`/api/plant/assets/${id}`);
+      await admin.delete(`/api/plant/sites/${site}`);
+    },
+  };
 }
 
 test.describe('as a designer', () => {
@@ -34,7 +46,6 @@ test.describe('as a designer', () => {
   test('confirms a document and the asset’s documentation as still current; the site’s documentation tab', async ({ page, apiAs }) => {
     const admin = await apiAs('admin');
     const s = await scene(admin);
-    const before = (await json<{ docReviewMonths?: number | null }>(await admin.get('/api/plant/sites/riverside'))).docReviewMonths ?? null;
     try {
       await page.goto(`/plant/assets/${s.id}`);
       const docs = page.getByTestId('plant-documents');
@@ -49,23 +60,22 @@ test.describe('as a designer', () => {
       await expectAccessible(page, 'documents panel with confirmations');
 
       // the site's review interval (its settings) and its Documentation tab
-      await page.goto('/plant/sites/riverside');
+      await page.goto(`/plant/sites/${s.site}`);
       const setting = page.getByTestId('site-doc-review');
       await setting.getByRole('textbox', { name: 'Documentation review interval' }).fill('36');
       await setting.getByRole('button', { name: 'Save interval' }).click();
       await expect(page.getByText('Review interval saved.')).toBeVisible();
       await page.getByTestId('site-tab-documentation').click();
-      await expect(page).toHaveURL(/\/plant\/sites\/riverside\/documentation$/);
+      await expect(page).toHaveURL(new RegExp(`/plant/sites/${s.site}/documentation$`));
       const health = page.getByTestId('doc-health');
       await expect(health).toContainText('every 36 months');
       const noProfile = health.getByTestId('doc-gap-assetNoProfile');
       await expect(noProfile.getByRole('link', { name: s.name })).toHaveAttribute('href', new RegExp(`/plant/assets/${s.id}$`));
       const noVlan = health.getByTestId('doc-gap-deviceNoVlan');
       if (!(await noVlan.getByRole('link', { name: `${s.id}-plc` }).isVisible())) await noVlan.getByTestId('doc-gap-deviceNoVlan-toggle').click();
-      await expect(noVlan.getByRole('link', { name: `${s.id}-plc` })).toHaveAttribute('href', /\/plant\/sites\/riverside\/network\/devices$/);
+      await expect(noVlan.getByRole('link', { name: `${s.id}-plc` })).toHaveAttribute('href', new RegExp(`/plant/sites/${s.site}/network/devices$`));
       await expectAccessible(page, 'documentation health of a site');
     } finally {
-      await admin.put('/api/plant/sites/riverside/doc-review', { data: { months: before } });
       await s.cleanup();
     }
   });
@@ -78,7 +88,7 @@ test.describe('on a phone', () => {
     const admin = await apiAs('admin');
     const s = await scene(admin);
     try {
-      await page.goto('/plant/sites/riverside/documentation');
+      await page.goto(`/plant/sites/${s.site}/documentation`);
       await expect(page.getByTestId('doc-gap-assetNoProfile')).toBeVisible();
       await settle(page);
       await expectNoHorizontalScroll(page);

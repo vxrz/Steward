@@ -107,7 +107,20 @@ export function MaintenanceImpactPanel({
   const qc = useQueryClient();
   const q = useMaintenanceImpact({ windowId, targets, kind, quietMonitors });
   const [busy, setBusy] = useState<string | null>(null);
-  const i = q.data;
+  // in the form the targets are listed just above it: the impact names what lies beyond them
+  const i: MaintenanceImpact | undefined =
+    q.data && !windowId
+      ? {
+          ...q.data,
+          groups: Object.fromEntries(
+            IMPACT_GROUPS.map((g) => {
+              const x = q.data!.groups[g];
+              const items = x.items.filter((y) => y.via !== 'target');
+              return [g, { ...x, items, total: x.total - (x.items.length - items.length) }];
+            }),
+          ) as MaintenanceImpact['groups'],
+        }
+      : q.data;
   if (!windowId && !targets.length) return null;
   const shown = IMPACT_GROUPS.filter((g) => i && i.groups[g].total + i.groups[g].hidden > 0);
   const total = i ? shown.reduce((n, g) => n + i.groups[g].total + i.groups[g].hidden, 0) : 0;
@@ -243,7 +256,8 @@ export function MaintenanceImpactPanel({
               )}
             </CollapsibleSection>
           ))}
-          {i.contacts.length > 0 && (
+          {/* who to tell: on the window's page, where they can be told */}
+          {!!windowId && i.contacts.length > 0 && (
             <CollapsibleSection
               id="impact-contacts"
               testId="impact-contacts"

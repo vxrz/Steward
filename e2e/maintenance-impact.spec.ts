@@ -1,8 +1,6 @@
-import fs from 'node:fs';
-import path from 'node:path';
 import type { APIRequestContext } from '@playwright/test';
 import { test, expect } from './support/fixtures';
-import { ROOT, authFile } from './support/env';
+import { authFile } from './support/env';
 import { expectAccessible, settle } from './support/axe';
 import { expectNoHorizontalScroll, json, uniq } from './support/helpers';
 
@@ -14,16 +12,10 @@ import { expectNoHorizontalScroll, json, uniq } from './support/helpers';
  */
 
 const SETTINGS = { enabled: true, enterprise: 'Brightwater Components', labels: {}, fields: {} };
-const EXAMPLE = 'brightwater-ot-network.plant.yaml';
 
 async function plantOn(api: APIRequestContext) {
   const res = await api.put('/api/settings/plant', { data: SETTINGS });
   expect(res.ok(), await res.text()).toBe(true);
-  const n = await (await api.get('/api/plant/sites/riverside/network')).json();
-  if (n.vlans?.some((v: { id: string }) => v.id === 'rvs-vlan-110')) return;
-  const content = fs.readFileSync(path.join(ROOT, 'examples/plant', EXAMPLE), 'utf8');
-  const imp = await api.post('/api/plant/import', { data: { files: [{ name: EXAMPLE, content }], mode: 'add' } });
-  expect(imp.ok(), await imp.text()).toBe(true);
 }
 
 const ok = async (p: Promise<Awaited<ReturnType<APIRequestContext['get']>>>) => {
@@ -40,9 +32,12 @@ async function gatewayScene(admin: APIRequestContext) {
   const gw = `${n}-gw`;
   const mill = `${n}-mill`;
   await plantOn(admin);
-  await ok(admin.post('/api/plant/assets', { data: { id: gw, siteId: 'riverside', name: `Edge gateway ${n}` } }));
+  // a site of its own: nothing of the shared demo sites changes (other tests count their assets and live status)
+  const site = `${n}-site`;
+  await ok(admin.post('/api/plant/sites', { data: { id: site, name: `Works ${n}` } }));
+  await ok(admin.post('/api/plant/assets', { data: { id: gw, siteId: site, name: `Edge gateway ${n}` } }));
   await ok(admin.post(`/api/plant/assets/${gw}/devices`, { data: { id: gw, hostname: gw, purpose: 'Edge gateway' } }));
-  await ok(admin.post('/api/plant/assets', { data: { id: mill, siteId: 'riverside', name: `Milling centre ${n}` } }));
+  await ok(admin.post('/api/plant/assets', { data: { id: mill, siteId: site, name: `Milling centre ${n}` } }));
   await ok(admin.post(`/api/plant/assets/${mill}/devices`, { data: { id: `${mill}-pc`, hostname: `${mill}-pc`, switch: gw, switchPort: 'eth1' } }));
   await ok(
     admin.put(`/api/plant/assets/${mill}/assignment`, {
@@ -101,6 +96,7 @@ async function gatewayScene(admin: APIRequestContext) {
     await admin.delete(`/api/monitors/${monitor.monitor.id}`);
     await admin.delete(`/api/plant/assets/${mill}`);
     await admin.delete(`/api/plant/assets/${gw}`);
+    await admin.delete(`/api/plant/sites/${site}`);
   };
   return { n, gw, mill, monitorId: monitor.monitor.id, cleanup };
 }
