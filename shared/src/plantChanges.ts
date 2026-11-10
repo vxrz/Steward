@@ -88,7 +88,7 @@ export const PLANT_CHANGESET_LIMITS = {
 } as const;
 
 /**
- * How long the history and its bookkeeping is kept (0.15.0, Settings → Data → Plant registry history; administrators):
+ * How long the history and its bookkeeping is kept (0.15.0, Settings → Data & retention → Plant registry history; administrators):
  * the history of removed entries (it stays while its entry exists), closed change sets (rejected, withdrawn, expired;
  * their audit entries stay) and the import's baselines per entry (the last ones; the import's "changed in Steward since
  * the last import" needs the last). Bounds and defaults; the defaults are those of 0.13.

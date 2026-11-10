@@ -9,7 +9,7 @@ import { KINDS, readEntry } from './entries.js';
 import { historyValues, isCompressed, storedValues } from './values.js';
 
 /**
- * How long the plant history and its bookkeeping are kept (0.15.0, ADR 0020; Settings → Data → Plant registry history):
+ * How long the plant history and its bookkeeping are kept (0.15.0, ADR 0020; Settings → Data & retention → Plant registry history):
  * the history of removed entries, closed change sets and the import's baselines per entry – plant settings of
  * administrators, audited – and what they take in the database. The daily job `plant-changes` deletes what is older
  * and compacts rows written before 0.15.0 (a bounded number per run).

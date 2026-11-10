@@ -19,7 +19,7 @@ const inputOf = (v: PlantHistorySettingsView): PlantHistorySettingsInput => ({
 });
 
 /**
- * Settings → Data → Plant registry history (0.15.0, ADR 0020): how long the history of removed entries and closed
+ * Settings → Data & retention → Plant registry history (0.15.0, ADR 0020): how long the history of removed entries and closed
  * change sets are kept and how many of the import's baselines per entry, with what they take in the database now.
  * Administrators; saved with the area's save bar, audited.
  */
