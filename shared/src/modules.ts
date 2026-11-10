@@ -111,7 +111,7 @@ export const MODULES: readonly ModuleDef[] = [
     switchable: true,
     nav: ['costs'],
     pages: ['/costs'],
-    routes: ['/api/costs', '/api/hooks/costs', '/api/v1/costs'],
+    routes: ['/api/costs', '/api/hooks/costs', '/api/v1/costs', '/api/v1/services/:serviceId/cost-plan'],
     jobs: ['costs'],
     datasets: ['costs:'],
   },

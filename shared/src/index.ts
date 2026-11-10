@@ -78,6 +78,7 @@ export * from './confluent.js';
 export * from './versions.js';
 export * from './changedetection.js';
 export * from './costs.js';
+export * from './costPlans.js';
 export * from './datacontracts.js';
 export * from './libraries.js';
 export * from './modules.js';

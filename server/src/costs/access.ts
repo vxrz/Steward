@@ -20,7 +20,7 @@ import { HttpError, parseJson } from '../util.js';
  */
 
 const KEY = 'costs.settings';
-const DEFAULTS: CostSettings = { hideAmountsFromViewers: false, defaultCurrency: 'USD' };
+const DEFAULTS: CostSettings = { hideAmountsFromViewers: false, defaultCurrency: 'USD', fiscalYearStartMonth: 1 };
 
 export function costSettings(): CostSettings {
   return { ...DEFAULTS, ...readSetting<Partial<CostSettings>>(KEY, {}) };
@@ -29,14 +29,16 @@ export function costSettings(): CostSettings {
 export function setCostSettings(body: unknown): CostSettings {
   if (!capabilities(currentUser()).manageSettings)
     throw new HttpError(403, 'Only administrators change the cost settings', 'FORBIDDEN', { context: 'costSettings' });
-  const next = costSettingsInput.parse(body);
+  const x = costSettingsInput.parse(body);
   const before = costSettings();
+  // the fiscal year start stays as it is when left out (clients from before 0.16)
+  const next: CostSettings = { ...x, fiscalYearStartMonth: x.fiscalYearStartMonth ?? before.fiscalYearStartMonth };
   writeSetting(KEY, next);
   audit({
     action: 'cost.settings_changed',
     entityType: 'settings',
     entityId: KEY,
-    summary: `Cost settings changed: amounts ${next.hideAmountsFromViewers ? 'hidden from' : 'shown to'} viewers, default currency ${next.defaultCurrency}`,
+    summary: `Cost settings changed: amounts ${next.hideAmountsFromViewers ? 'hidden from' : 'shown to'} viewers, default currency ${next.defaultCurrency}, fiscal year starts in month ${next.fiscalYearStartMonth}`,
     details: { before, after: next },
   });
   return next;

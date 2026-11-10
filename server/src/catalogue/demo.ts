@@ -14,6 +14,8 @@ import { createTicket, ticketInputSchema } from '../tickets/service.js';
 import { createDuty, dutyInput } from '../duties/service.js';
 import { createObjective, objectiveInput, readPromObjectives } from '../scorecard/objectives.js';
 import { createReportSchedule, scheduleInputSchema } from '../reports/schedules.js';
+import { setupCostPlanDemo } from '../costs/demo.js';
+import { moduleEnabled } from '../modules/registry.js';
 
 /**
  * The service half of the demo (U5 of the 0.10 review): three services built from the sample applications, with the
@@ -335,5 +337,7 @@ export async function setupServiceDemo(now = Date.now()): Promise<number> {
       }),
     ),
   );
+  // ---- cost plans of the shop and the plant service (ADR 0026; the demo's fiscal year starts in October) ----
+  if (moduleEnabled('costs')) step('cost plans', () => setupCostPlanDemo({ shop: shop.id, plant: plant.id }, now));
   return 3;
 }

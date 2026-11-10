@@ -162,6 +162,11 @@ export const HISTORY_COLUMNS: string[] = [
   'cost_sources.updated_by',
   'cost_imports.actor',
   'cost_budgets.updated_by',
+  // service cost planning (0.16.0, ADR 0026)
+  'cost_plan_lines.created_by',
+  'cost_plan_lines.updated_by',
+  'cost_entries.created_by',
+  'cost_entries.updated_by',
   // the plant registry (#218)
   'plant_sites.created_by',
   'plant_sites.updated_by',

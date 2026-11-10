@@ -5,8 +5,9 @@ import { HttpError } from '../util.js';
 import { notFound } from '../api/v1/helpers.js';
 import { linkNext, pageArray } from '../api/v1/pagination.js';
 import type { Op } from '../api/v1/routes.js';
-import { CostListQuery } from './api-schemas.js';
+import { CostListQuery, CostPlanQuery } from './api-schemas.js';
 import { overview, scopeDetail } from './query.js';
+import { planYear } from './plans.js';
 
 /**
  * Platform costs in the public, read-only API (#226): the overview of a kind and one scope, with the rights of the web
@@ -59,6 +60,29 @@ export function costApiRoutes(get: Get): void {
         return scopeDetail(p.scope as CostScope, p.id);
       } catch (e) {
         if (e instanceof HttpError && e.statusCode === 404) throw notFound(`${p.scope} ${p.id}`);
+        throw e;
+      }
+    },
+  );
+  get(
+    '/services/:serviceId/cost-plan',
+    {
+      operationId: 'getServiceCostPlan',
+      tag: 'Costs',
+      summary: 'Get the cost plan of a service for a fiscal year',
+      description:
+        'Service cost planning (docs/COSTS.md#planning-per-service): the plan lines and cost entries of a fiscal year (one start month for the whole instance), per line and currency planned, planned to date, incurred to date, expected and the difference, the months, the cloud and platform costs read for the service (only when the token owner sees every application of it), unplanned entries and renewals in the next 90 days.',
+      params: { serviceId: 'The id of the service' },
+      query: CostPlanQuery,
+      response: { $ref: 'CostPlanYear#' },
+    },
+    async (req) => {
+      const p = req.params as { serviceId: string };
+      const q = req.query as z.infer<typeof CostPlanQuery>;
+      try {
+        return planYear(p.serviceId, q.year);
+      } catch (e) {
+        if (e instanceof HttpError && e.statusCode === 404) throw notFound(`Service ${p.serviceId}`);
         throw e;
       }
     },

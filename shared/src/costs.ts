@@ -432,8 +432,17 @@ export interface CostSettings {
   hideAmountsFromViewers: boolean;
   /** The currency of AI gateway prices when a gateway names none */
   defaultCurrency: string;
+  /** The month the fiscal year starts in, for the whole instance (1 = January; service cost planning, ADR 0026) */
+  fiscalYearStartMonth: number;
 }
-export const costSettingsInput = z.object({ hideAmountsFromViewers: z.boolean(), defaultCurrency: currencyCode }).strict();
+export const costSettingsInput = z
+  .object({
+    hideAmountsFromViewers: z.boolean(),
+    defaultCurrency: currencyCode,
+    /** Left out: unchanged */
+    fiscalYearStartMonth: z.number().int().min(1).max(12).optional(),
+  })
+  .strict();
 
 // ---------- push tokens (FOCUS files from CI) ----------
 
