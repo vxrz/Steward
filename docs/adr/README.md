@@ -25,5 +25,6 @@ Short records of decisions that shape Steward's design: the context, what was de
 | [0019](0019-data-collections.md)                       | Data collections: what a collector reads, mapped        | Accepted                                                               |
 | [0020](0020-plant-change-sets.md)                      | Plant change sets: one path for every change            | Accepted                                                               |
 | [0021](0021-monitor-states.md)                         | Monitor states and expected statuses                    | Accepted                                                               |
+| [0025](0025-personal-teams-notifications.md)           | Personal Teams notifications through the bot            | Accepted                                                               |
 
 New record: copy [template.md](template.md) to `NNNN-short-title.md`, fill it in, add it to the table, and link it from [ARCHITECTURE.md](../ARCHITECTURE.md) where it applies.
