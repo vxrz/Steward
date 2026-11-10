@@ -298,6 +298,31 @@ describe('defining an export', () => {
   });
 });
 
+describe('the number of exports', () => {
+  it('is limited (409, like the other limits)', async () => {
+    const { db } = await import('../src/db.js');
+    const { EXPORT_LIMITS } = await import('@sm/shared');
+    const at = new Date().toISOString();
+    for (let i = 0; i < EXPORT_LIMITS.jobs; i++)
+      db().run(
+        "INSERT INTO export_jobs (id, name, enabled, platform_id, prefix, cron, timezone, parts, created_at, created_by, updated_at, updated_by) VALUES (?, ?, 0, ?, 'exports/', '30 3 * * 1', 'UTC', '[]', ?, 'admin', ?, 'admin')",
+        `exp_filler_${i}`,
+        `filler-${i}`,
+        storageId,
+        at,
+        at,
+      );
+    try {
+      expect(await refused(s.api, 'POST', '/exports', job())).toMatchObject({
+        status: 409,
+        body: { code: 'EXPORT_LIMIT', params: { max: EXPORT_LIMITS.jobs } },
+      });
+    } finally {
+      db().run("DELETE FROM export_jobs WHERE id LIKE 'exp_filler_%'");
+    }
+  });
+});
+
 describe('an export run', () => {
   let id = '';
   const run = async (): Promise<any> => {

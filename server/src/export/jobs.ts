@@ -281,7 +281,7 @@ const describe = (v: ExportJobInput) =>
 
 export function createExportJob(input: unknown): ExportJob {
   const n = Number(db().get<{ n: number }>('SELECT COUNT(*) AS n FROM export_jobs')?.n ?? 0);
-  if (n >= EXPORT_LIMITS.jobs) throw new HttpError(400, `At most ${EXPORT_LIMITS.jobs} exports`, 'EXPORT_LIMIT', { max: EXPORT_LIMITS.jobs });
+  if (n >= EXPORT_LIMITS.jobs) throw new HttpError(409, `At most ${EXPORT_LIMITS.jobs} exports`, 'EXPORT_LIMIT', { max: EXPORT_LIMITS.jobs });
   const v = checkInput(input, null);
   const id = newId('exp');
   const at = nowIso();
