@@ -254,7 +254,9 @@ export function NotificationSettingsCard() {
 
   return (
     <Card withBorder>
-      <Title order={5}>{t('notify.title')}</Title>
+      <Title order={2} size="h5">
+        {t('notify.title')}
+      </Title>
       <Text size="sm" c="dimmed" mb="sm">
         {t('notify.intro')}
       </Text>

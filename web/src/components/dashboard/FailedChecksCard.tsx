@@ -84,6 +84,8 @@ export function FailedChecksCard({ checks }: { checks: FailedCheckGroup[] }) {
                   hideLabel={t('checks.showLess')}
                   styles={{ control: { fontSize: 'var(--mantine-font-size-xs)' } }}
                   style={{ minWidth: 0 }}
+                  // each finding's region has a name of its own (axe landmark-unique)
+                  attributes={{ content: { 'aria-label': `${c.name} · ${c.processName}` } }}
                 >
                   <Anchor component={Link} to={`/runs/${c.runId}`} size="sm" style={{ overflowWrap: 'anywhere' }} data-testid="failed-check-result">
                     {c.message || t('checks.failedName', { name: c.name })}

@@ -7,7 +7,7 @@ test.use({ storageState: authFile('audrey') });
 test('a user turns on the daily summary, previews it, and administrators see the subscription', async ({ page, loginAs }) => {
   await page.goto('/profile');
   await settle(page);
-  const card = page.getByRole('heading', { name: 'Daily summary', level: 5 }).locator('xpath=ancestor::div[contains(@class, "mantine-Card-root")]');
+  const card = page.getByRole('heading', { name: 'Daily summary', level: 2 }).locator('xpath=ancestor::div[contains(@class, "mantine-Card-root")]');
   await card.getByLabel('Send me a daily summary').click();
   await expect(card.getByRole('switch', { name: 'Send me a daily summary' })).toBeChecked();
   await card.getByLabel('Time', { exact: true }).fill('06:45');

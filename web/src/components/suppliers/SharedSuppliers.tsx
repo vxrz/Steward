@@ -8,10 +8,9 @@ import type { SupplierContactChoice, SupplierMergePreview, SupplierProposedServi
 import { del, get, notifyError, notifyOk, post } from '../../api';
 import { useMe } from '../../auth';
 import { SubjectsInput } from '../SubjectsInput';
-import { FormModal, FormModalCancel } from '../FormModal';
+import { supplierKeys } from '../../queryKeys';
 import { FormModal, FormModalCancel } from '../FormModal';
 import { useSubjectLabel } from '../SubjectsInput';
-import { supplierKeys } from '../../queryKeys';
 
 /** The administrators' one-time notice after the update to 0.18: contracts now seen only by their owners and services. */
 export function ContractScopeNotice() {
@@ -218,8 +217,8 @@ function PreviewDetails({
   choices: Record<string, SupplierContactChoice>;
   setChoices: (c: Record<string, SupplierContactChoice>) => void;
 }) {
-  const ownerLabel = useSubjectLabel();
   const { t } = useTranslation(['suppliers', 'common']);
+  const ownerLabel = useSubjectLabel();
   return (
     <>
       {p.widens && (

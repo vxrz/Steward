@@ -583,7 +583,7 @@ function NotBooked({ l }: { l: CostPlanLine }) {
   const { t } = useTranslation('costs');
   if (!l.notBooked.length) return null;
   return (
-    <Badge size="xs" variant="light" color="orange" data-testid="plan-not-booked">
+    <Badge size="xs" variant="light" color="orange" className="badge-wrap" data-testid="plan-not-booked">
       {t('plan.book.notBooked', { months: listFormat().format(l.notBooked.map((mo) => fmtMonth(mo))) })}
     </Badge>
   );

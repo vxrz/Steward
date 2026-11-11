@@ -1499,6 +1499,7 @@ export interface Resources {
     'permissions.acknowledge': string;
     breadcrumb: string;
     loadFailed: string;
+    notFound: string;
     retry: string;
     filters: string;
     filtersActive_one: string;

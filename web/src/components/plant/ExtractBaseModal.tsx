@@ -231,7 +231,7 @@ export function ExtractBaseModal({ profiles, preselect, onClose }: { profiles: P
                             w={170}
                           />
                           {r.include && problem && (
-                            <Text size="xs" c="red.8" mt={2} data-testid={`extract-problem-${p.id}`}>
+                            <Text size="xs" c="red" mt={2} data-testid={`extract-problem-${p.id}`}>
                               {t(`extract.problems.${problem.code}`, { ...problem.params, defaultValue: problem.message })}
                             </Text>
                           )}

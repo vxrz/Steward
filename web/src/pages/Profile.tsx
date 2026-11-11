@@ -78,7 +78,7 @@ function LanguageCard({ user }: { user: UserInfo }) {
   const { t } = useTranslation('profile');
   return (
     <Card withBorder>
-      <Title order={5} mb="sm">
+      <Title order={2} size="h5" mb="sm">
         {t('language.title')}
       </Title>
       <LanguageSelect label={t('language.label')} description={t('language.hint')} maw={320} />
@@ -123,7 +123,7 @@ function AccountCard({ user, local }: { user: UserInfo; local: boolean }) {
   };
   return (
     <Card withBorder>
-      <Title order={5} mb="sm">
+      <Title order={2} size="h5" mb="sm">
         {t('account.title')}
       </Title>
       <Stack gap="sm">
@@ -200,7 +200,7 @@ function NotificationsCard({ user }: { user: UserInfo }) {
 
   return (
     <Card withBorder>
-      <Title order={5} mb="sm">
+      <Title order={2} size="h5" mb="sm">
         {t('notifications.title')}
       </Title>
       <Stack gap="md">
@@ -292,7 +292,9 @@ function DataCard() {
     <Card withBorder>
       <Group justify="space-between" gap="sm">
         <div style={{ flex: '1 1 16rem', minWidth: 0 }}>
-          <Title order={5}>{t('data.title')}</Title>
+          <Title order={2} size="h5">
+            {t('data.title')}
+          </Title>
           <Text size="sm" c="dimmed">
             {t('data.hint')}
           </Text>
@@ -312,7 +314,9 @@ function PasswordCard() {
     <Card withBorder>
       <Group justify="space-between" gap="sm">
         <div>
-          <Title order={5}>{t('password.title')}</Title>
+          <Title order={2} size="h5">
+            {t('password.title')}
+          </Title>
           <Text size="sm" c="dimmed">
             {t('password.hint')}
           </Text>
@@ -363,7 +367,9 @@ function TokensCard({ plantOnly }: { plantOnly: boolean }) {
     <Card withBorder>
       <Group justify="space-between" mb="sm" gap="sm">
         <div>
-          <Title order={5}>{t('tokens.title')}</Title>
+          <Title order={2} size="h5">
+            {t('tokens.title')}
+          </Title>
           <Text size="sm" c="dimmed">
             {t('tokens.hint')}
           </Text>

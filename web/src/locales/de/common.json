@@ -101,6 +101,7 @@
   },
   "breadcrumb": "Navigationspfad",
   "loadFailed": "Die Seite konnte nicht geladen werden",
+  "notFound": "Nicht gefunden",
   "retry": "Erneut versuchen",
   "filters": "Filter",
   "filtersActive_one": "Filter ({{count}} aktiv)",

@@ -39,7 +39,7 @@ export function DailySummaryAdminCard() {
   const d = q.data;
   return (
     <Card withBorder>
-      <Title order={5} mb="xs">
+      <Title order={2} size="h5" mb="xs">
         {t('dailySummary.title')}
       </Title>
       <Text size="xs" c="dimmed" mb="sm">

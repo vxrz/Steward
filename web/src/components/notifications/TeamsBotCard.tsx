@@ -123,7 +123,9 @@ export function TeamsBotCard() {
   return (
     <Card withBorder data-testid="teams-bot-card">
       <Group gap="xs" mb="xs">
-        <Title order={5}>{t('bot.title')}</Title>
+        <Title order={2} size="h5">
+          {t('bot.title')}
+        </Title>
         <Badge color="grape" variant="light" data-testid="teams-bot-preview">
           {t('bot.preview')}
         </Badge>

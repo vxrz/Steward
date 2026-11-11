@@ -446,7 +446,8 @@ function ServicesTab({ s }: { s: SupplierDetail }) {
       {s.serviceUse.map((x) => (
         <Paper withBorder p="sm" key={x.id}>
           <Group gap="xs" wrap="wrap">
-            <Anchor component={Link} to={`/services/${x.id}`} fw={600} size="sm">
+            {/* a 24 px target: the contract links sit right below it (WCAG 2.5.8) */}
+            <Anchor component={Link} to={`/services/${x.id}`} fw={600} size="sm" display="inline-flex" mih={24} style={{ alignItems: 'center' }}>
               {x.name}
             </Anchor>
             {x.contracts.length === 0 && (

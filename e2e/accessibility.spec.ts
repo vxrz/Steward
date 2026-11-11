@@ -31,14 +31,14 @@ async function expectAccessible(page: Page, name: string) {
 }
 
 /**
- * Page structure beyond the WCAG 2.1 tags: exactly one level-1 heading (axe "page-has-heading-one") and buttons
- * of at least 24 × 24 px (WCAG 2.2, 2.5.8 "target-size"; links in text are exempt, stacked links are not checked yet).
+ * Page structure beyond the WCAG 2.1 tags: exactly one level-1 heading (axe "page-has-heading-one") and buttons and
+ * links of at least 24 × 24 px or far enough apart (WCAG 2.2, 2.5.8 "target-size"; axe exempts links in running text).
  */
 async function expectStructure(page: Page, name: string) {
   await expect(page.getByRole('heading', { level: 1 }), `one h1 on ${name}`).toHaveCount(1);
   const result = await new AxeBuilder({ page }).withRules(['page-has-heading-one', 'target-size']).analyze();
   const bad = result.violations
-    .map((v) => ({ id: v.id, nodes: v.id === 'target-size' ? v.nodes.filter((n) => /^<button/.test(n.html)) : v.nodes }))
+    .map((v) => ({ id: v.id, nodes: v.id === 'target-size' ? v.nodes.filter((n) => /^<(button|a)[\s>]/.test(n.html)) : v.nodes }))
     .filter((v) => v.nodes.length)
     .map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`);
   expect(bad, `structure violations on ${name}`).toEqual([]);
@@ -66,6 +66,8 @@ test.describe('accessibility (axe, WCAG 2.1 AA)', () => {
     ['platforms', '/platforms'],
     ['credentials', '/credentials'],
     ['ticket references', '/tickets'],
+    // service names and the tickets badge are links in dense rows (target size)
+    ['services', '/services'],
     ['suppliers', '/suppliers'],
     ['suppliers to confirm', '/suppliers?status=unconfirmed'],
     ['reports', '/reports'],
@@ -234,6 +236,7 @@ test.describe('accessibility – dark color scheme', () => {
     ['settings', '/settings'],
     // filled status badges ("Up", "Degraded") on the dark page
     ['monitors', '/monitors'],
+    ['statement of applicability', '/compliance/soa/ISO27001'],
   ] as const) {
     test(`${name} (dark)`, async ({ page }) => {
       await page.goto(path);
@@ -241,4 +244,21 @@ test.describe('accessibility – dark color scheme', () => {
       await expectAccessible(page, `${name} (dark)`);
     });
   }
+
+  // links beside dimmed text (the supplier of a cost entry next to its contract, link-in-text-block)
+  test('a cost plan with contract entries and a contract page (dark)', async ({ page, apiAs }) => {
+    const api = await apiAs('admin');
+    const services = await json<{ id: string; name: string }[]>(await api.get('/api/services'));
+    const shop = services.find((s) => s.name === 'Online shop (demo)') ?? services[0]!;
+    await page.goto(`/services/${shop.id}/costs`);
+    await settle(page);
+    await expect(page.getByTestId('service-cost-plan')).toBeVisible();
+    await expectAccessible(page, 'service cost plan (dark)');
+    const cloud = (await json<{ id: string; name: string }[]>(await api.get('/api/suppliers'))).find((s) => s.name === 'Example Cloud GmbH')!;
+    const detail = await json<{ contracts: { id: string }[] }>(await api.get(`/api/suppliers/${cloud.id}`));
+    await page.goto(`/suppliers/${cloud.id}/contracts/${detail.contracts[0]!.id}`);
+    await settle(page);
+    await expect(page.getByTestId('contract-visibility')).toBeVisible();
+    await expectAccessible(page, 'supplier contract (dark)');
+  });
 });

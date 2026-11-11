@@ -54,7 +54,9 @@ export function QuietHoursCard() {
   return (
     <Card withBorder data-testid="quiet-hours-card">
       <Group justify="space-between" align="flex-start" wrap="nowrap" mb="xs">
-        <Title order={5}>{t('quiet.title')}</Title>
+        <Title order={2} size="h5">
+          {t('quiet.title')}
+        </Title>
         <Badge variant="light" color={st.source.from === 'own' ? 'blue' : 'gray'} data-testid="quiet-source">
           {st.source.from === 'team' ? t('quiet.source.team', { team: st.source.team }) : t(`quiet.source.${st.source.from}`)}
         </Badge>
@@ -136,7 +138,7 @@ export function QuietHoursAdminCard() {
   const d = q.data;
   return (
     <Card withBorder data-testid="quiet-hours-admin">
-      <Title order={5} mb="xs">
+      <Title order={2} size="h5" mb="xs">
         {t('quiet.admin.title')}
       </Title>
       <Text size="xs" c="dimmed" mb="sm">

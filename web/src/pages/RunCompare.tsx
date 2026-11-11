@@ -94,13 +94,13 @@ function Side({ s }: { s?: CompareStepSide }) {
         </Text>
       )}
       {s.check && (
-        <Text size="xs" c={s.check.passed ? undefined : 'red.8'} style={{ overflowWrap: 'anywhere' }}>
+        <Text size="xs" c={s.check.passed ? undefined : 'red'} style={{ overflowWrap: 'anywhere' }}>
           {s.check.passed ? t('compare.passed') : t('compare.notPassed')}
           {s.check.message ? `: ${s.check.message}` : ''}
         </Text>
       )}
       {s.error ? (
-        <Text size="xs" c="red.8" style={{ overflowWrap: 'anywhere' }}>
+        <Text size="xs" c="red" style={{ overflowWrap: 'anywhere' }}>
           {s.error}
         </Text>
       ) : (

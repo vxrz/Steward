@@ -287,7 +287,7 @@ function ConnectorCard({ c, canRead, onConfig }: { c: ConnectConnectorView; canR
               component="button"
               type="button"
               size="xs"
-              c="red.8"
+              c="red"
               onClick={() => setTraces((x) => !x)}
               aria-expanded={traces}
               data-testid="connect-trace-toggle"

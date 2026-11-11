@@ -118,7 +118,7 @@ export function DashboardsCard() {
   return (
     <Card withBorder component="section" aria-labelledby="start-dashboards" data-testid="start-dashboards">
       <Group justify="space-between" mb="xs">
-        <Title order={5} id="start-dashboards">
+        <Title order={2} size="h5" id="start-dashboards">
           {t('focus.viewer.title')}
         </Title>
         <Anchor component={Link} to="/dashboards" size="sm">
