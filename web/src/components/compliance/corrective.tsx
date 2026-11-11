@@ -21,6 +21,7 @@ import {
 import { get, getOptional, notifyError, notifyOk, post, put } from '../../api';
 import { TONE, useFieldErrors } from '../common';
 import { SubjectsInput } from '../SubjectsInput';
+import { NamedOutsideHint } from '../NamedOutsideHint';
 import { fmtDay } from '../../format';
 import { correctiveKeys } from '../../queryKeys';
 import { SupplierPicker, useSupplierChoice, useSupplierOptions } from '../suppliers/SupplierPicker';
@@ -334,6 +335,13 @@ export function FindingForm({
               miw={200}
             />
           </Group>
+          {serviceId && (
+            <NamedOutsideHint
+              scope={{ kind: 'service', id: serviceId }}
+              value={owner ? [`user:${owner}`] : []}
+              saved={finding?.owner ? [`user:${finding.owner}`] : []}
+            />
+          )}
           {finding?.supplierId && !finding.supplierName ? (
             <TextInput label={t('fields.supplier')} value={t('notVisible')} readOnly />
           ) : (
@@ -489,6 +497,8 @@ export function ActionForm({
             onChange={setOwners}
             max={CA_LIMITS.owners}
             error={v.error('owners') || undefined}
+            scope={finding.record ? { kind: 'record', id: finding.record.id } : finding.serviceId ? { kind: 'service', id: finding.serviceId } : undefined}
+            saved={action?.owners}
           />
           <TextInput
             type="date"

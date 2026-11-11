@@ -150,7 +150,7 @@
     "access": {
       "grant": {
         "label": "Rechte in einer Zugriffsliste vergeben",
-        "description": "Zugriffslisten von Plattformen, Prozessen und Monitoren, zuständige Teams, Kopien mit ihren Zugriffseinstellungen."
+        "description": "Zugriffslisten von Plattformen, Prozessen und Monitoren, zuständige Teams, Kopien mit ihren Zugriffseinstellungen, Eigentümer und Verantwortliche außerhalb der zuständigen Teams."
       }
     },
     "sso": {

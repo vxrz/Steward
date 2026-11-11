@@ -499,7 +499,15 @@ export function SupplierFormModal({ supplier, onClose, onSaved }: { supplier?: S
             value={description}
             onChange={(e) => setDescription(e.currentTarget.value)}
           />
-          <SubjectsInput label={t('fields.owners')} description={t('fields.ownersHelp')} value={owners} onChange={setOwners} max={20} />
+          <SubjectsInput
+            label={t('fields.owners')}
+            description={t('fields.ownersHelp')}
+            value={owners}
+            onChange={setOwners}
+            max={20}
+            scope={{ kind: 'supplier', id: supplier?.id }}
+            saved={supplier?.owners}
+          />
           <Switch label={t('fields.personalData')} checked={personalData} onChange={(e) => setPersonalData(e.currentTarget.checked)} />
           {personalData && (
             <Group grow align="flex-start">

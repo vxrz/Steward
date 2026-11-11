@@ -256,3 +256,9 @@ export const soaKeys = {
 export const responsibilityKeys = {
   service: (serviceId: string) => ['responsibilities', serviceId] as const,
 };
+
+/** Owning teams and access (#131, #195): who a form names from outside an item's owning teams. */
+export const accessKeys = {
+  namedOutside: (kind: string, id: string | null | undefined, supplierId: string | undefined, subjects: readonly string[]) =>
+    ['access', 'named-outside', kind, id ?? null, supplierId ?? null, [...subjects].sort().join('\n')] as const,
+};

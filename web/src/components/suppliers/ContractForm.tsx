@@ -231,6 +231,8 @@ export function ContractModal({
             value={owners}
             onChange={setOwners}
             max={SUPPLIER_LIMITS.contractOwners}
+            scope={{ kind: 'supplierContract', id: c?.id, supplierId: supplier.id }}
+            saved={c?.owners}
           />
           {willOpen && (
             <Alert color="orange" variant="light" data-testid="contract-opens">

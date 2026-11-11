@@ -314,7 +314,15 @@ export function DutyFormModal({
               />
             )
           )}
-          <SubjectsInput label={t('owners')} description={t('ownersHint')} value={owners} onChange={setOwners} max={DUTY_LIMITS.owners} />
+          <SubjectsInput
+            label={t('owners')}
+            description={t('ownersHint')}
+            value={owners}
+            onChange={setOwners}
+            max={DUTY_LIMITS.owners}
+            scope={{ kind: 'service', id: serviceId }}
+            saved={duty?.owners}
+          />
           <Textarea
             label={t('descriptionLabel')}
             value={description}

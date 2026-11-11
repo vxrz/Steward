@@ -334,7 +334,15 @@ export function ApplicationFormModal({ app, onClose, onSaved }: { app?: Applicat
             onChange={setCriticality}
             clearable
           />
-          <SubjectsInput label={t('owners')} description={t('ownersHelp')} value={owners} onChange={setOwners} max={20} />
+          <SubjectsInput
+            label={t('owners')}
+            description={t('ownersHelp')}
+            value={owners}
+            onChange={setOwners}
+            max={20}
+            scope={{ kind: 'application', id: app?.id }}
+            saved={app?.owners}
+          />
           <Text fw={600} size="sm">
             {t('cmdb')}
           </Text>

@@ -75,11 +75,13 @@
     "explainFailed": "Could not explain the access.",
     "reason": {
       "admin": "Administrator: {{rights}}",
-      "owner": "Owner of the process: {{rights}}",
+      "owner": "Owner: {{rights}}",
       "auditor": "Auditor: {{rights}}",
       "instanceRole": "Role {{role}}: {{rights}}",
       "teamRole": "{{role}} in team {{team}}: {{rights}}",
-      "accessList": "Access list ({{subject}}): {{rights}}"
+      "accessList": "Access list ({{subject}}): {{rights}}",
+      "namedOwner": "Named owner ({{subject}}): {{rights}}",
+      "namedResponsible": "Named responsible ({{subject}}): {{rights}}"
     },
     "save": "Save owning teams",
     "bulk": {
@@ -130,5 +132,9 @@
   "defaultsIdentity": "<b>Closed:</b> only administrators and members of its owning teams (designers, operators) may use this identity. Add the users, teams or roles that need it.",
   "helpIdentity": {
     "use": "Use this identity in runs, schedules, triggers, monitors and MCP (needs “use” on the platform as well)"
+  },
+  "namedOutside": {
+    "hint_one": "{{names}} is not in the owning teams ({{teams}}) and will see and change this item. Saving asks you to confirm it is you.",
+    "hint_other": "{{names}} are not in the owning teams ({{teams}}) and will see and change this item. Saving asks you to confirm it is you."
   }
 }

@@ -22,6 +22,7 @@ import {
 } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { useDebouncedValue } from '@mantine/hooks';
+import { NamedOutsideHint } from '../NamedOutsideHint';
 import { IconPlus, IconShieldLock, IconTrash, IconUpload, IconX } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type {
@@ -460,6 +461,7 @@ export function CredentialEditor({
             value={d.ownerSubjects}
             onChange={(v) => set({ ownerSubjects: v })}
           />
+          <NamedOutsideHint scope={{ kind: 'credential', id: initial?.id }} value={d.ownerSubjects} saved={initial?.ownerSubjects} />
         </Stack>
 
         <Divider label={t('fields.usedBy')} labelPosition="left" />

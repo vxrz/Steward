@@ -37,6 +37,7 @@ import { useMe } from '../../auth';
 import { TICKET_STATUS_IDS, useSourceLabel, useTicketSettings } from './common';
 import { useFieldErrors } from '../common';
 import { SupplierPicker, useSupplierChoice } from '../suppliers/SupplierPicker';
+import { NamedOutsideHint } from '../NamedOutsideHint';
 
 type Affected = { kind: TicketLinkKind; id: string; label: string };
 
@@ -272,6 +273,11 @@ export function TicketForm({
               maxTags={TICKET_LIMITS.responsible}
             />
           )}
+          <NamedOutsideHint
+            scope={{ kind: 'ticket', id: ticket?.id }}
+            value={d.responsible.map((s) => (/^(user|team):/i.test(s) ? s : `user:${s}`))}
+            saved={ticket?.responsible}
+          />
           <Textarea
             label={t('fields.note')}
             description={t('hints.note')}

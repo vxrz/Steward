@@ -345,7 +345,15 @@ export function SystemFormModal({ system, onClose, onSaved }: { system?: SystemD
             />
           </Group>
           {kind === 'network' && <NetworkFields value={network} onChange={setNetwork} showErrors={networkShown} />}
-          <SubjectsInput label={t('owners')} description={t('systems.ownersHelp')} value={owners} onChange={setOwners} max={20} />
+          <SubjectsInput
+            label={t('owners')}
+            description={t('systems.ownersHelp')}
+            value={owners}
+            onChange={setOwners}
+            max={20}
+            scope={{ kind: 'system', id: system?.id }}
+            saved={system?.owners}
+          />
           <Select
             label={t('systems.platform')}
             description={system?.platformHidden ? t('systems.platformHiddenHint') : t('systems.platformHint')}

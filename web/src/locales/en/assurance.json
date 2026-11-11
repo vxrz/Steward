@@ -150,7 +150,7 @@
     "access": {
       "grant": {
         "label": "Give rights in an access list",
-        "description": "Access lists of platforms, processes and monitors, owning teams, copies with their access settings."
+        "description": "Access lists of platforms, processes and monitors, owning teams, copies with their access settings, owners and responsibles named from outside the owning teams."
       }
     },
     "sso": {

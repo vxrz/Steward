@@ -186,7 +186,14 @@ export function MergePreviewModal({ intoId, ids, onClose, onMerged }: { intoId: 
       ) : (
         <Stack gap="sm" data-testid="merge-preview">
           <PreviewDetails p={p} choices={choices} setChoices={setChoices} />
-          <SubjectsInput label={t('shared.owners')} value={owners ?? p.owners} onChange={setOwners} max={20} />
+          <SubjectsInput
+            label={t('shared.owners')}
+            value={owners ?? p.owners}
+            onChange={setOwners}
+            max={20}
+            scope={{ kind: 'supplier', id: intoId }}
+            saved={p.owners}
+          />
           <Text size="xs" c="dimmed">
             {t('shared.moves', { spellings: p.moves.spellings.length, schedules: p.moves.schedules })}
           </Text>

@@ -403,7 +403,15 @@ export function ServiceFormModal({ service, onClose, onSaved }: { service?: Serv
           >
             {t('addContact')}
           </Button>
-          <SubjectsInput label={t('owners')} description={t('ownersHelp')} value={owners} onChange={setOwners} max={20} />
+          <SubjectsInput
+            label={t('owners')}
+            description={t('ownersHelp')}
+            value={owners}
+            onChange={setOwners}
+            max={20}
+            scope={{ kind: 'service', id: service?.id }}
+            saved={service?.owners}
+          />
           <Text fw={600} size="sm">
             {t('cmdb')}
           </Text>

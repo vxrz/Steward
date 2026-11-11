@@ -74,6 +74,8 @@ export interface Resources {
     'owning.reason.instanceRole': string;
     'owning.reason.teamRole': string;
     'owning.reason.accessList': string;
+    'owning.reason.namedOwner': string;
+    'owning.reason.namedResponsible': string;
     'owning.save': string;
     'owning.bulk.open': string;
     'owning.bulk.title': string;
@@ -113,6 +115,8 @@ export interface Resources {
     restrictedIdentity: string;
     defaultsIdentity: string;
     'helpIdentity.use': string;
+    'namedOutside.hint_one': string;
+    'namedOutside.hint_other': string;
   };
   applications: {
     title: string;
@@ -1384,6 +1388,7 @@ export interface Resources {
     'stepUp.actions.changeNotificationDelivery': string;
     'stepUp.actions.changeTeamMembers': string;
     'stepUp.actions.grantAccess': string;
+    'stepUp.actions.grantNamedAccess': string;
     'stepUp.actions.exportEvidencePack': string;
     'stepUp.actions.exportAuditLog': string;
     'stepUp.actions.exportCredentials': string;

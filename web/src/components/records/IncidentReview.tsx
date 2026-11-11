@@ -94,7 +94,15 @@ function MeasureModal({
             error={v.error('title')}
             data-autofocus
           />
-          <SubjectsInput label={t('review.owners')} value={owners} onChange={setOwners} max={10} error={v.error('owners') || undefined} />
+          <SubjectsInput
+            label={t('review.owners')}
+            value={owners}
+            onChange={setOwners}
+            max={10}
+            error={v.error('owners') || undefined}
+            scope={{ kind: 'record', id: recordId }}
+            saved={measure?.owners}
+          />
           <TextInput
             type="date"
             label={t('review.dueDate')}
