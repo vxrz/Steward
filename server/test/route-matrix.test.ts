@@ -1587,6 +1587,14 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
   'POST /api/plant/advisory-sources': 'always',
   'PUT /api/plant/advisory-sources/:advisorySourceId': 'always',
   'DELETE /api/plant/advisory-sources/:advisorySourceId': 'always',
+  // a new address of a platform's stored credentials (security review 0.19.0 H1, control point platform.destination)
+  'PUT /api/platforms/:id': { sensitive: { baseUrl: 'https://matrix.example' }, harmless: {} },
+  'PUT /api/platforms/:id/database': {
+    sensitive: { dialect: 'postgresql', host: 'db.example.com', database: 'shop' },
+    // (not a valid connection: refused by the route's validation, the fixture stays)
+    harmless: { dialect: 'postgresql' },
+    path: () => `/api/platforms/${fx.dbPlatform}/database`,
+  },
   'PUT /api/platforms/:id/access': {
     sensitive: { acl: [{ subject: 'user:vera', permissions: ['manage'] }] },
     harmless: { acl: 'not a list' },

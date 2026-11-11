@@ -89,6 +89,7 @@ describe('get a new platform token', () => {
     const p = await oauthPlatform();
     await s.api('PUT', `/platforms/${p.id}`, {
       config: { variables: {}, http: { proxy: 'none' }, auth: { type: 'oauth2_client_credentials', tokenUrl: `${idpBase}/oauth/missing`, clientAuth: 'body' } },
+      credentials: 'keep',
     });
     const failed = await s.api('POST', `/platforms/${p.id}/token/renew`);
     expect(failed.ok).toBe(false);

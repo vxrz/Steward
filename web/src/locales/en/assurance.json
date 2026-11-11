@@ -361,6 +361,10 @@
       "privilegedIdentity": {
         "label": "Use a privileged platform identity",
         "description": "Starting a run, saving a schedule or webhook trigger, a request explorer call or approving an MCP request with a privileged identity. Four-eyes: the run waits for a start approval by a second person – off: only where a process asks for it; required: every such run."
+      },
+      "destination": {
+        "label": "Send a platform's credentials to a new address",
+        "description": "A new base URL, trusted origin, sign-in address, proxy, broker or database host of a platform with stored credentials. Signed-in sessions only; the credentials are removed unless an administrator keeps them."
       }
     },
     "correctiveAction": {

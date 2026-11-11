@@ -6,6 +6,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Security
+
+- **Changing where a platform's credentials go** ([docs/PLATFORMS.md](docs/PLATFORMS.md#changing-the-address)): a new base URL, trusted origin, sign-in address, proxy, broker or database host of a platform with stored credentials needs a signed-in session and a step-up (control point `platform.destination`), and removes the credentials unless an administrator confirms sending them to the new address; audited as `platform.destination_changed`. **Check before updating:** API tokens can no longer change these settings, and platform managers who are not administrators enter the credentials again after such a change.
+
 ## [0.18.0] - 2026-11-11
 
 Steward 0.18.0 plans contracts that run for several years and are paid monthly, quarterly or yearly: payment schedules on supplier contracts propose each fiscal year's plan lines, part years included, and show what a service is still committed to – to the end and to the earliest exit. Costs no platform reports are booked from a plan line in one step or imported from CSV. A supplier shared by several services gets contracts that name the services they cover, with owners and visibility of their own, data protection per contract, master agreements with order forms and contacts scoped to contracts, applications or systems; the suppliers the 0.17 update split by team can be merged without showing one team's contracts to another. The freshness check reads InfluxDB 1.x and 2.x (preview). The follow-ups of the 0.17 review – backups pinned to their S3 target, amounts in currencies without cents, redacted request bodies in exports – and dependency updates with three advisories fixed are included. A security review of these changes found nothing critical or high; its findings are fixed. Migrations are additive (`costs-003-contract-payments`, `costs-004-entry-imports`, `notifications-005-opt-ins`, `suppliers-003-contract-scope`, `suppliers-004-contract-links`).

@@ -658,7 +658,8 @@ describe('an export run', () => {
     expect((await s.api('GET', `/exports/${id}`)).targetChanged).toBe(false);
 
     // the platform now names another bucket: the run fails before it writes or lists anything
-    await olivia('PUT', `/platforms/${delegated.id}`, { baseUrl: `${mockBase}/s3/invented-other-bucket` });
+    // (a platform manager who is not an administrator: the stored credentials are removed – security review 0.19.0 H1)
+    await olivia('PUT', `/platforms/${delegated.id}`, { baseUrl: `${mockBase}/s3/invented-other-bucket`, credentials: 'clear' });
     expect((await s.api('GET', `/exports/${id}`)).targetChanged).toBe(true);
     const r = await run();
     expect(r).toMatchObject({ status: 'failed', files: [], folder: null });

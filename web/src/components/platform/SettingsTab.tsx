@@ -26,6 +26,7 @@ import { notifyError, notifyOk, put } from '../../api';
 import { EnvironmentInput } from '../catalogue/environments';
 import { Hint, KeyValueEditor } from '../common';
 import { platformKeys } from '../../queryKeys';
+import { withCredentialChoice } from './destination';
 
 const AUTH_OPTIONS: AuthType[] = ['none', 'basic', 'bearer', 'apiKey', 'oauth2_client_credentials', 'token_request', 'jwt', 'aws_sigv4'];
 
@@ -117,7 +118,11 @@ export function SettingsTab({ platform, readOnly = false }: { platform: Platform
     }
     setBusy(true);
     try {
-      await put(`/platforms/${platform.id}`, { name, kind, description, baseUrl, environment, config });
+      // a new address of stored credentials: ask what happens to them (docs/PLATFORMS.md#changing-the-address)
+      const saved = await withCredentialChoice((credentials) =>
+        put(`/platforms/${platform.id}`, { name, kind, description, baseUrl, environment, config, ...(credentials ? { credentials } : {}) }),
+      );
+      if (saved === null) return;
       await Promise.all([qc.invalidateQueries({ queryKey: platformKeys.detail(platform.id) }), qc.invalidateQueries({ queryKey: platformKeys.all })]);
       notifyOk(t('settings.saved'));
     } catch (e) {

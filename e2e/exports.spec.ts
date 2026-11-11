@@ -180,7 +180,7 @@ test.describe('exports and backup contents (own server)', () => {
     const { settings } = await srv.api('GET', '/backups');
     await srv.api('PUT', '/backups/settings', { ...settings, platformId: platform.id, prefix: 'e2e/' });
     // whoever manages the platform points it at another bucket
-    await srv.api('PUT', `/platforms/${platform.id}`, { baseUrl: `${srv.baseURL}/mock/s3/e2e-other-backups` });
+    await srv.api('PUT', `/platforms/${platform.id}`, { baseUrl: `${srv.baseURL}/mock/s3/e2e-other-backups`, credentials: 'keep' });
 
     const page = await open(browser);
     await page.goto('/settings/backups');

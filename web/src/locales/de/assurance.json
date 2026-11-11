@@ -361,6 +361,10 @@
       "privilegedIdentity": {
         "label": "Eine privilegierte Plattform-Identität verwenden",
         "description": "Eine Ausführung starten, einen Zeitplan oder Webhook-Auslöser speichern, eine Anfrage im Request-Explorer oder eine MCP-Anfrage freigeben – mit einer privilegierten Identität. Vier-Augen-Prinzip: Die Ausführung wartet auf die Freigabe ihres Starts durch eine zweite Person – aus: nur wo ein Prozess es verlangt; erforderlich: bei jeder solchen Ausführung."
+      },
+      "destination": {
+        "label": "Die Zugangsdaten einer Plattform an eine neue Adresse senden",
+        "description": "Eine neue Basis-URL, vertrauenswürdige Origin, Anmeldeadresse, ein neuer Proxy, Broker oder Datenbank-Host einer Plattform mit gespeicherten Zugangsdaten. Nur in angemeldeten Sitzungen; die Zugangsdaten werden entfernt, sofern eine Administratorin oder ein Administrator sie nicht behält."
       }
     },
     "correctiveAction": {

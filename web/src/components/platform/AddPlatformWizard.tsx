@@ -153,9 +153,11 @@ export function AddPlatformWizard({
           typeKind: preset.custom ? preset.kind : undefined,
         });
       } else {
-        p = await put<Platform>(`/platforms/${created.id}`, { name, environment, baseUrl, config: { ...created.config, ...config } });
+        // a corrected address removes the credentials stored at creation: they are sent again below (the wizard still has them)
+        const again = Object.keys(filled).length ? ({ credentials: 'clear' } as const) : {};
+        p = await put<Platform>(`/platforms/${created.id}`, { name, environment, baseUrl, config: { ...created.config, ...config }, ...again });
         // the database connection changes only through its own route
-        if (dbConn) p = await put<Platform>(`/platforms/${created.id}/database`, dbConn);
+        if (dbConn) p = await put<Platform>(`/platforms/${created.id}/database`, { ...dbConn, ...again });
         if (Object.keys(filled).length) await put(`/platforms/${created.id}/secrets`, filled);
       }
       setCreated(p);

@@ -7,6 +7,7 @@
 import type { AclEntry, IdentityMcp, McpGatewayConfig, McpWriteMode, PlatformIdentity } from '@sm/shared';
 import { db } from '../db.js';
 import { parseJson } from '../util.js';
+import { destinationVariables } from './destination.js';
 
 export interface IdentityRow {
   id: string;
@@ -217,6 +218,8 @@ export function templateVariableNames(text: string): string[] {
 
 /** Where a platform's requests and credentials go: its base URL, the token URLs of its sign-in, its trusted origins and portal. */
 interface FixedSources {
+  /** The kind: its connection variables (MQTT broker, Kafka bootstrap servers …) are fixed too (destination.ts) */
+  kind?: string;
   baseUrl: string;
   auth?: { tokenUrl?: string; request?: { url?: string }; refresh?: { request?: { url?: string } } } | null;
   http?: { trustedOrigins?: string[] };
@@ -225,13 +228,14 @@ interface FixedSources {
 
 /**
  * The variables an identity may not override (ADR 0009, IDENTITY_VARIABLE_FIXED): those used in the base URL, the token
- * URL of the platform's or the identity's sign-in, the trusted origins or the portal URL – an identity cannot point at
- * another system.
+ * URL of the platform's or the identity's sign-in, the trusted origins or the portal URL, and the connection variables
+ * of the kind (the MQTT broker, Kafka bootstrap servers, token URL, Schema Registry and REST endpoint – 0.19.0) – an
+ * identity cannot point at another system.
  */
 export function fixedVariables(platform: FixedSources, identityAuth?: FixedSources['auth']): Set<string> {
   const texts = [platform.baseUrl, platform.portalUrl ?? '', ...(platform.http?.trustedOrigins ?? [])];
   for (const a of [platform.auth, identityAuth]) if (a) texts.push(a.tokenUrl ?? '', a.request?.url ?? '', a.refresh?.request?.url ?? '');
-  return new Set(texts.flatMap((t) => (typeof t === 'string' ? templateVariableNames(t) : [])));
+  return new Set([...texts.flatMap((t) => (typeof t === 'string' ? templateVariableNames(t) : [])), ...destinationVariables(platform.kind ?? '')]);
 }
 
 /**
@@ -240,13 +244,13 @@ export function fixedVariables(platform: FixedSources, identityAuth?: FixedSourc
  * database and sealed cannot move the base URL or a token URL.
  */
 export function mergedAuthAndVariables<A, V extends Record<string, string>>(
-  platform: { auth: A; variables: V; baseUrl?: string; http?: { trustedOrigins?: string[] }; portalUrl?: string },
+  platform: { auth: A; variables: V; kind?: string; baseUrl?: string; http?: { trustedOrigins?: string[] }; portalUrl?: string },
   r: IdentityRow,
 ): { auth: A; variables: V } {
   const auth = r.auth ? parseJson<A | null>(r.auth, null) : null;
   const vars = parseJson<Record<string, unknown>>(r.variables, {});
   const fixed = fixedVariables(
-    { baseUrl: platform.baseUrl ?? '', auth: platform.auth as FixedSources['auth'], http: platform.http, portalUrl: platform.portalUrl },
+    { kind: platform.kind, baseUrl: platform.baseUrl ?? '', auth: platform.auth as FixedSources['auth'], http: platform.http, portalUrl: platform.portalUrl },
     auth as FixedSources['auth'],
   );
   const overlay = Object.fromEntries(

@@ -546,6 +546,9 @@ export const STEP_UP_ACTIONS = [
   // approver off (control point soa.approve)
   'approveSoa',
   'changeSoaApproval',
+  // 0.19.0 (security review H1): a new address of a platform's stored credentials (base URL, trusted origins, sign-in,
+  // proxy, broker or database host)
+  'changePlatformDestination',
 ] as const;
 export type StepUpAction = (typeof STEP_UP_ACTIONS)[number];
 

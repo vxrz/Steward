@@ -258,6 +258,8 @@ export const CONTROL_POINTS: readonly ControlPoint[] = [
   sp('backup.settings', 'system', ['changeBackups']),
   // 0.16.0 (ADR 0027): a scheduled export sends readable data out of Steward to S3
   sp('export.settings', 'system', ['changeExports']),
+  // 0.19.0 (security review H1): a platform's stored credentials would go to a new address – always asks
+  sp('platform.destination', 'system', ['changePlatformDestination'], true),
   sp('migration.export', 'system', ['exportMigration']),
   sp('migration.apply', 'system', ['applyMigration']),
   // where the map of sites fetches its tiles from (0.10.0, #234): a new style, URL, key or file; turning it off never asks
