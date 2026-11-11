@@ -75,7 +75,10 @@
   "overrides": {
     "tinypool": "$tinypool",
     "@maplibre/maplibre-gl-style-spec": "26.4.4",
-    "@maplibre/vt-pbf": "4.3.2"
+    "@maplibre/vt-pbf": "4.3.2",
+    "@azure/msal-node": "7.1.2",
+    "glob": "14.0.3",
+    "minimatch": "11.0.3"
   },
   "allowScripts": {
     "esbuild@0.28.2": true,

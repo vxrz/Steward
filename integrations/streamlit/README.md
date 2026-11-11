@@ -122,4 +122,4 @@ In short (details in [docs/EXTERNAL-DASHBOARDS.md](../../docs/EXTERNAL-DASHBOARD
 uv pip compile requirements.in --universal --python-version 3.11 -o requirements.txt
 ```
 
-Change the versions in `requirements.in` first. The pinned versions were current on 2026-10-14 (pandas 3.0.6, requests 2.34.2; image `python:3.13.15-slim-trixie`), except Streamlit 1.66.1, Pillow 13.0.0, Authlib 1.9.1 and certifi 2026.10.18, which fix security advisories.
+Change the versions in `requirements.in` first. The pinned versions were current on 2026-10-14 (pandas 3.0.6, requests 2.34.2; image `python:3.13.15-slim-trixie`), except Streamlit 1.66.1, Pillow 13.0.0, Authlib 1.9.1, certifi 2026.10.18 and joserfc 1.7.7, which fix security advisories.

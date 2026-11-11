@@ -85,7 +85,10 @@ with a notice; the full-history scan in CI still runs.
 2. **Real → fix it.** Update the dependency (`npm update <pkg>`, or wait for /
    merge the Dependabot PR), change the code, or rebuild the image to pick up a
    fixed base image. A leaked secret must be **revoked and rotated** – deleting it
-   from the code does not help, it stays in the history.
+   from the code does not help, it stays in the history. When the package that
+   pulls in the vulnerable one has no release with the fix yet (or none that is
+   two weeks old), pin the fixed release with `overrides` in `package.json` and
+   list it under [Security overrides](#security-overrides).
 3. **Not real, or accepted risk → suppress it where it belongs, with a reason**,
    as narrowly as possible, and with an expiry where the tool supports one:
 
@@ -228,14 +231,24 @@ access_.
 
 ## Accepted findings (state of the last review)
 
-Reviewed 2026-10-22 with the tool versions pinned in `install-tools.sh`; updated for 0.11.0 (the Vitest ignores are gone: Vitest is at 5, the advisories no longer apply). Every ignore in `osv-scanner.toml` has its reason and expiry date there.
+Reviewed 2026-10-22 with the tool versions pinned in `install-tools.sh`; updated for 0.11.0 (the Vitest ignores are gone: Vitest is at 5, the advisories no longer apply) and on 2026-11-11 (the `glob`, `minimatch` and `@azure/msal-node` ignores are gone: `overrides` in `package.json` take the fixed releases, see the changelog). Every ignore in `osv-scanner.toml` has its reason and expiry date there; it has none at the moment.
 
-| Tool                   | Finding                                                                                                                                        | Decision                                                                                                                                                                                                                  |
-| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Trivy/Grype image      | Debian 13 packages of `node:24-trixie-slim` without a fix (the counts change with every base image; see the reports of the Container workflow) | not failing (`--ignore-unfixed` / `--only-fixed`); they disappear with base image updates and `apt-get upgrade` (see [Container image](#container-image)).                                                                |
-| OSV-Scanner, npm audit | GHSA-3g3m-2fjr-6pw4 in `glob` 13.0.6 (via `@fastify/static`), GHSA-g3hv-75wg-m249 in `minimatch` 10.2.6 (via `glob`, ESLint)                   | ignored until 2026-11-30 in `osv-scanner.toml`: Steward never makes the affected glob call (`@fastify/static` with the default `wildcard: true`); the fixes are new majors from 2026-10-27, too new for the two-week rule |
-| OSV-Scanner, npm audit | GHSA-xcx6-jx8p-x3h5 in `@azure/msal-node` 6.0.1 (via `tedious` → `@azure/identity`, the SQL Server driver)                                     | ignored until 2026-11-30 in `osv-scanner.toml`: Steward signs in to SQL Server with a SQL login only, MSAL never asks for a token; the fix is too new for the two-week rule                                               |
-| zizmor                 | `superfluous-actions` for `softprops/action-gh-release` in `release.yml`                                                                       | informational; pinned by SHA. Could be replaced with `gh release create`                                                                                                                                                  |
+| Tool              | Finding                                                                                                                                        | Decision                                                                                                                                                   |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Trivy/Grype image | Debian 13 packages of `node:24-trixie-slim` without a fix (the counts change with every base image; see the reports of the Container workflow) | not failing (`--ignore-unfixed` / `--only-fixed`); they disappear with base image updates and `apt-get upgrade` (see [Container image](#container-image)). |
+| zizmor            | `superfluous-actions` for `softprops/action-gh-release` in `release.yml`                                                                       | informational; pinned by SHA. Could be replaced with `gh release create`                                                                                   |
+
+### Security overrides
+
+`overrides` in `package.json` that only exist for a security fix. Remove an entry
+once every package that pulls it in requires the fixed release itself (`npm ls <package>`
+shows no `overridden`).
+
+| Override                 | Fixes                        | Pulled in by                                                        | Remove when                                                                           |
+| ------------------------ | ---------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `@azure/msal-node` 7.1.2 | GHSA-xcx6-jx8p-x3h5 (6.0.1)  | `tedious` → `@azure/identity` 4.14.0 (`^6.0.0`)                     | `@azure/identity` 4.14.1 or later (it requires `^7.1.0`; the only other change)       |
+| `glob` 14.0.3            | GHSA-3g3m-2fjr-6pw4 (13.0.6) | `@fastify/static` (`^13.0.0`)                                       | `@fastify/static` 10.1.9 or later (requires `glob` `^14.0.0`)                         |
+| `minimatch` 11.0.3       | GHSA-g3hv-75wg-m249 (10.2.6) | `glob`, ESLint, `@eslint/config-array`, `typescript-eslint` (`^10`) | ESLint and typescript-eslint require `minimatch` 11 (they use only `Minimatch#match`) |
 
 Fixed during the review: AES-GCM decryption without a fixed tag length
 (`vault.ts`), unpinned actions and base image, persisted checkout credentials,
