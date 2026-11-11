@@ -1081,6 +1081,8 @@ const EXPECT: Record<string, Access> = {
   'POST /api/owning-teams/bulk': ADMIN,
   // own rights on what one can see; others' rights for administrators and auditors (checked in team-scopes.test.ts)
   'GET /api/access/explain': ALL,
+  // which named users and teams are outside an item's owning teams (#195): the forms' hint; who may change the item
+  'POST /api/access/named-outside': ALL,
 
   // ---- daily summary ----
   'GET /api/me/daily-summary': ALL,
@@ -1562,6 +1564,10 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
     },
     path: () => `/api/suppliers/${fx.supplierTeam}/merge`,
   },
+  // #195: naming an owner or responsible from outside the owning teams (vera; the administrator is a member of
+  // "Matrix owners", which owns the *Team fixtures and is chosen for the administrator's new resources in this test)
+  // grants access like an access list; a covered subject or an invalid body is harmless
+  ...namedGrantRoutes(),
   'POST /api/users': { sensitive: { username: 'matrix-new', roles: ['viewer'] }, harmless: { username: '!' } },
   'PUT /api/users/:id': { sensitive: { roles: ['admin'] }, harmless: {} },
   'POST /api/users/:id/reset-password': 'always',
@@ -1744,6 +1750,125 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
     harmless: { files: [{ name: 'r.yaml', content: 'version: 1\nremove: []\n' }], mode: 'update' },
   },
 };
+
+/** The step-up table of named owners and responsibles from outside the owning teams (#195). */
+function namedGrantRoutes(): typeof STEP_UP {
+  type Rule = Exclude<(typeof STEP_UP)[string], 'always'>;
+  const rule = (sensitive: () => unknown, harmless: () => unknown, path?: () => string): Rule => ({
+    get sensitive() {
+      return sensitive();
+    },
+    get harmless() {
+      return harmless();
+    },
+    ...(path ? { path } : {}),
+  });
+  // (read when the test runs: the bodies are defined further down)
+  const credential = () => ({ ...CREDENTIAL, name: 'Matrix team credential' });
+  const ticket = () => ({ ...TICKET, externalNumber: 'INC-MATRIX-T', title: 'Matrix team ticket' });
+  const duty = () => ({ name: 'Matrix team duty', processId: fx.process, interval: 'monthly', level: 'mandatory' });
+  return {
+    'POST /api/credentials': rule(
+      () => ({ ...CREDENTIAL, name: 'Matrix new credential', ownerSubjects: ['user:vera'] }),
+      () => ({ name: '' }),
+    ),
+    'PUT /api/credentials/:id': rule(
+      () => ({ ...credential(), ownerSubjects: ['user:vera'] }),
+      () => ({ ...credential(), ownerSubjects: ['team:matrix owners'] }),
+      () => `/api/credentials/${fx.credentialTeam}`,
+    ),
+    'POST /api/ticket-references': rule(
+      () => ({ ...TICKET, externalNumber: 'INC-MATRIX-N', responsible: ['user:vera'] }),
+      () => ({ source: '' }),
+    ),
+    'PUT /api/ticket-references/:id': rule(
+      () => ({ ...ticket(), responsible: ['user:vera'] }),
+      () => ({ ...ticket(), responsible: ['user:admin'] }),
+      () => `/api/ticket-references/${fx.ticketTeam}`,
+    ),
+    ...Object.fromEntries(
+      (['services', 'applications', 'systems'] as const).flatMap((kind) => {
+        const extra = kind === 'systems' ? { kind: 'server' } : {};
+        const name = `Matrix team ${kind.slice(0, -1)}`;
+        return [
+          [
+            `POST /api/${kind}`,
+            rule(
+              () => ({ name: `Matrix new ${kind}`, ...extra, owners: ['user:vera'] }),
+              () => ({ name: '' }),
+            ),
+          ],
+          [
+            `PUT /api/${kind}/:id`,
+            rule(
+              () => ({ name, ...extra, owners: ['user:vera'] }),
+              () => ({ name, ...extra, owners: ['team:matrix owners'] }),
+              () => `/api/${kind}/${fx[`${kind.slice(0, -1)}Team`]}`,
+            ),
+          ],
+        ];
+      }),
+    ),
+    'PUT /api/suppliers/:id': rule(
+      () => ({ name: 'Matrix team supplier', type: 'saas', owners: ['user:vera'] }),
+      () => ({ name: '' }),
+      () => `/api/suppliers/${fx.supplierTeam}`,
+    ),
+    'POST /api/suppliers/:id/contracts': rule(
+      () => ({ title: 'Matrix new contract', owners: ['user:vera'] }),
+      () => ({ title: '' }),
+      () => `/api/suppliers/${fx.supplierTeam}/contracts`,
+    ),
+    'PUT /api/suppliers/:id/contracts/:contractId': rule(
+      () => ({ title: 'Matrix team contract', owners: ['team:matrix owners', 'user:vera'] }),
+      () => ({ title: 'Matrix team contract', owners: ['team:matrix owners', 'user:admin'] }),
+      () => `/api/suppliers/${fx.supplierTeam}/contracts/${fx.contractTeam}`,
+    ),
+    'PUT /api/records/:id': rule(
+      () => ({ owner: 'vera' }),
+      () => ({ owner: 'admin' }),
+      () => `/api/records/${fx.reviewTeam}`,
+    ),
+    'POST /api/records/:id/measures': rule(
+      () => ({ title: 'Matrix new measure', owners: ['user:vera'], dueDate: '2030-01-01' }),
+      () => ({ title: '' }),
+      () => `/api/records/${fx.reviewTeam}/measures`,
+    ),
+    'PUT /api/records/:id/measures/:measureId': rule(
+      () => ({ owners: ['user:vera'] }),
+      () => ({ owners: ['user:admin'] }),
+      () => `/api/records/${fx.reviewTeam}/measures/${fx.measureTeam}`,
+    ),
+    'POST /api/duties': rule(
+      () => ({ serviceId: fx.serviceTeam, ...duty(), name: 'Matrix new duty', owners: ['user:vera'] }),
+      () => ({ serviceId: fx.serviceTeam, name: '' }),
+    ),
+    'PUT /api/duties/:id': rule(
+      () => ({ ...duty(), owners: ['user:vera'] }),
+      () => ({ ...duty(), owners: [] }),
+      () => `/api/duties/${fx.dutyTeam}`,
+    ),
+    'POST /api/compliance/corrective-actions': rule(
+      () => ({ title: 'Matrix new finding', source: 'internalAudit', serviceId: fx.serviceTeam, owner: 'vera' }),
+      () => ({ title: '' }),
+    ),
+    'PUT /api/compliance/corrective-actions/:findingId': rule(
+      () => ({ owner: 'vera' }),
+      () => ({ title: 'Matrix team finding' }),
+      () => `/api/compliance/corrective-actions/${fx.findingTeam}`,
+    ),
+    'POST /api/compliance/corrective-actions/:findingId/actions': rule(
+      () => ({ title: 'Matrix new action', owners: ['user:vera'], dueDate: '2030-01-01' }),
+      () => ({ title: '' }),
+      () => `/api/compliance/corrective-actions/${fx.findingTeam}/actions`,
+    ),
+    'PUT /api/compliance/corrective-actions/:findingId/actions/:actionId': rule(
+      () => ({ owners: ['user:vera'] }),
+      () => ({ owners: ['user:admin'] }),
+      () => `/api/compliance/corrective-actions/${fx.findingTeam}/actions/${fx.actionTeam}`,
+    ),
+  };
+}
 
 /**
  * Control points whose step-up the assurance policy turns on (#210, auth/assurance.ts) – off by default, so they never
@@ -2012,6 +2137,7 @@ const bodies = (): Record<string, unknown> => ({
   'POST /api/runs/:id/debug': { type: 'debug.continue' },
   'PUT /api/owning-teams/:kind/:id': { teamIds: [] },
   'POST /api/owning-teams/bulk': { teamIds: [], resources: [] },
+  'POST /api/access/named-outside': { kind: 'service', subjects: ['user:vera'] },
   'POST /api/schedules': { name: 'x', processId: fx.process, cron: '0 3 * * *' },
   'PUT /api/schedules/:id': { name: 'x', processId: fx.process, cron: '0 3 * * *' },
   'POST /api/triggers': { ...TRIGGER, processId: fx.process },
@@ -2439,6 +2565,40 @@ beforeAll(async () => {
   // a supplier of that team (ADR 0031): merging it into one of the whole instance widens who sees it
   const supplierTeam = (await a('POST', '/suppliers', { name: 'Matrix team supplier', type: 'saas' })).id as string;
   await a('PUT', `/owning-teams/supplier/${supplierTeam}`, { teamIds: [team.id] });
+  // #195: a team of the administrator that owns a service, application, system, credential, ticket reference and
+  // incident review (with a measure), a duty and a finding of its service, and a contract of the team's supplier
+  const owners = await a('POST', '/teams', { name: 'Matrix owners', members: ['admin'] });
+  const owned = async (kind: string, path: string, body: unknown) => {
+    const made = await a('POST', path, body);
+    await a('PUT', `/owning-teams/${kind}/${made.id}`, { teamIds: [owners.id] });
+    return made.id as string;
+  };
+  const reviewTeam = await owned('record', '/records', { type: 'PIR', title: 'Matrix team review' });
+  const findingTeamService = await owned('service', '/services', { name: 'Matrix team service', owners: [] });
+  const findingTeam = (
+    await a('POST', '/compliance/corrective-actions', { title: 'Matrix team finding', source: 'internalAudit', serviceId: findingTeamService })
+  ).id as string;
+  const teamFixtures = {
+    ownersTeam: owners.id as string,
+    serviceTeam: findingTeamService,
+    applicationTeam: await owned('application', '/applications', { name: 'Matrix team application', owners: [] }),
+    systemTeam: await owned('system', '/systems', { name: 'Matrix team system', kind: 'server' }),
+    credentialTeam: await owned('credential', '/credentials', { ...CREDENTIAL, name: 'Matrix team credential' }),
+    ticketTeam: await owned('ticket', '/ticket-references', { ...TICKET, externalNumber: 'INC-MATRIX-T', title: 'Matrix team ticket' }),
+    reviewTeam,
+    measureTeam: (await a('POST', `/records/${reviewTeam}/measures`, { title: 'Matrix team measure', owners: ['user:admin'], dueDate: '2030-01-01' })).items[0]
+      .id as string,
+    dutyTeam: (
+      await a('POST', '/duties', { serviceId: findingTeamService, name: 'Matrix team duty', processId: proc.id, interval: 'monthly', level: 'mandatory' })
+    ).id as string,
+    findingTeam,
+    actionTeam: (
+      await a('POST', `/compliance/corrective-actions/${findingTeam}/actions`, { title: 'Matrix team action', owners: ['user:admin'], dueDate: '2030-01-01' })
+    ).actions[0].id as string,
+    contractTeam: (await a('POST', `/suppliers/${supplierTeam}/contracts`, { title: 'Matrix team contract', owners: ['team:matrix owners'] })).contracts.find(
+      (c: { title: string }) => c.title === 'Matrix team contract',
+    ).id as string,
+  };
   const report = await a('POST', `/runs/${run.id}/reports`, {});
   const users = await a('GET', '/users');
   const syncSource = (
@@ -2526,6 +2686,7 @@ beforeAll(async () => {
     advisorySource,
     siteLink,
     assetLink,
+    ...teamFixtures,
   };
   QUERY['GET /api/backlinks'] = `?kind=record&id=${rec.id}`;
   QUERY['GET /api/runs/compare'] = `?a=${run.id}&b=${run.id}`;
@@ -2786,6 +2947,14 @@ describe('route permission matrix', () => {
     const cookie = await loginCookie(s.base, 'admin', 'Admin-password-1');
     const ended = await fetch(`${s.base}/api/auth/step-up`, { method: 'DELETE', headers: { 'x-sm-client': '1', ...authHeaders(cookie) } });
     expect(ended.status).toBe(200);
+    // the administrator's new resources go to "Matrix owners" (#195: naming vera on a new item grants across teams)
+    const choose = async (teamId: string | null) =>
+      fetch(`${s.base}/api/me/new-resource-teams`, {
+        method: 'PUT',
+        headers: { 'x-sm-client': '1', 'content-type': 'application/json', ...authHeaders(cookie) },
+        body: JSON.stringify({ teamId }),
+      });
+    expect((await choose(fx.ownersTeam!)).status).toBe(200);
     const send = async (headers: Record<string, string>, k: string, body: unknown, query = '') => {
       const [method, url] = k.split(' ') as [string, string];
       const send = method !== 'DELETE' && method !== 'GET';
@@ -2811,6 +2980,7 @@ describe('route permission matrix', () => {
         if (harmless.code === 'STEP_UP_REQUIRED') problems.push(`${k} harmless change: asks for a step-up`);
       }
     }
+    expect((await choose(null)).status).toBe(200);
     expect(problems).toEqual([]);
   });
 

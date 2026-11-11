@@ -30,6 +30,8 @@ import { evaluateDuty, type DutyRow, type Evaluated, type PeriodRow } from './ev
 import { closeForChange, persistDuty, storeInactiveGap } from './store.js';
 import { addLocalDays, instanceTimeZone, nextPeriod, periodAt, periodOfKey } from './periods.js';
 import { assertKnownSubjects } from '../auth/subjects.js';
+import { catalogueTeams } from '../auth/policy.js';
+import { auditNamedGrant, outsidersOf, requireNamedGrant, type NamedGrant } from '../auth/named-grants.js';
 
 /**
  * Service duties (#85): CRUD, the period view of a duty, exceptions with four-eyes, and the figures for the start
@@ -405,6 +407,36 @@ function checkName(serviceId: string, name: string, except?: string): void {
     throw new HttpError(409, `The service has a duty named "${name}" already`, 'DUTY_EXISTS', { name });
 }
 
+/**
+ * The owners a duty names (#195): they are responsible for it – reminders with the service's name, asking for a skip,
+ * deciding one – so from outside the service's owning teams, a grant.
+ */
+function dutyGrant(s: ServiceRef, dutyId: string | null, name: string, before: readonly string[], after: readonly string[]): NamedGrant {
+  return {
+    entityType: 'duty',
+    entityId: dutyId,
+    label: `duty "${name}" of service "${s.name}"`,
+    field: 'owners',
+    teams: catalogueTeams('service', s.id),
+    before,
+    after: [...new Set(after)],
+    rights: ['view', 'requestSkip'],
+  };
+}
+
+/** The route's step-up rule (#195): duty owners from outside the service's owning teams (create: dutyId null). */
+export function dutyNamesOutsiders(dutyId: string | null, body: unknown): string[] {
+  if (!dutyId) {
+    const input = dutyInput.parse(body);
+    const s = serviceRef(input.serviceId);
+    return canEditDuty(me(), s) ? outsidersOf(dutyGrant(s, null, input.name, [], input.owners ?? [])) : [];
+  }
+  const input = dutyUpdate.parse(body);
+  const cur = dutyRow(dutyId);
+  const s = serviceRef(cur.service_id);
+  return canEditDuty(me(), s) ? outsidersOf(dutyGrant(s, cur.id, input.name, dutyOwners(cur), input.owners ?? [])) : [];
+}
+
 export function createDuty(input: DutyInputData): DutyDetail {
   const u = me();
   const s = serviceRef(input.serviceId);
@@ -413,6 +445,9 @@ export function createDuty(input: DutyInputData): DutyDetail {
   checkReferences(s.id, input);
   checkName(s.id, input.name);
   assertKnownSubjects(input.owners ?? []);
+  // owners from outside the service's owning teams: confirmed like an access list (#195)
+  const grant = dutyGrant(s, null, input.name, [], input.owners ?? []);
+  const named = requireNamedGrant(grant);
   const supplierId = resolveSupplierLink(input.supplierId, null);
   // a contract of the supplier that covers the duty's service (choosing another adds the service when the person may)
   const contractId = resolveSupplierContract(supplierId, input.supplierContractId, null, s.id);
@@ -462,6 +497,7 @@ export function createDuty(input: DutyInputData): DutyDetail {
         owners: input.owners,
       },
     });
+    auditNamedGrant({ ...grant, entityId: dutyId }, named);
   });
   refreshStored(dutyId);
   return getDuty(dutyId);
@@ -507,6 +543,9 @@ export function updateDuty(dutyId: string, input: DutyUpdateData): DutyDetail {
   next.supplier_contract_id = resolveSupplierContract(next.supplier_id, input.supplierContractId, keptContract, s.id);
   const changes = (Object.keys(next) as (keyof typeof next)[]).filter((k) => (next[k] ?? null) !== (cur[k] ?? null));
   if (!changes.length) return getDuty(dutyId);
+  // owners from outside the service's owning teams: confirmed like an access list (#195)
+  const grant = dutyGrant(s, cur.id, input.name, dutyOwners(cur), input.owners ?? []);
+  const named = changes.includes('owners') ? requireNamedGrant(grant) : [];
   const rules = changes.some((k) => (JUDGED_BY as readonly string[]).includes(k));
   const stricter = rules && stricterOnly(cur, next, changes);
   let endedNow: Evaluated[] = [];
@@ -552,6 +591,7 @@ export function updateDuty(dutyId: string, input: DutyUpdateData): DutyDetail {
         ...(change ? { rulesFrom: new Date(change.rulesFrom).toISOString() } : {}),
       },
     });
+    auditNamedGrant({ ...grant, entityId: cur.id }, named);
   });
   notifyEnded(cur, s, endedNow, u, 'duty changed');
   refreshStored(dutyId);

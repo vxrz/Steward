@@ -461,6 +461,8 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
             params: err.params,
             issues: (err as HttpError & { issues?: unknown }).issues,
             entryChanged: (err as HttpError & { entryChanged?: unknown }).entryChanged,
+            // a confirmation asked by a service (auth/named-grants.ts): the same answer as the step-up hook's
+            stepUp: (err as HttpError & { stepUp?: unknown }).stepUp,
           })
       );
     }

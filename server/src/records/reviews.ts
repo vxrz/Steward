@@ -17,6 +17,8 @@ import { audit, queryAudit } from '../audit.js';
 import type { AuthUser } from '../auth/context.js';
 import { capabilities, matches, processPermissions } from '../auth/permissions.js';
 import { assertKnownSubjects } from '../auth/subjects.js';
+import { owningTeams } from '../auth/policy.js';
+import { auditNamedGrant, outsidersOf, requireNamedGrant, type NamedGrant } from '../auth/named-grants.js';
 import { getUser } from '../auth/users.js';
 import { formatDateTime, resolveLocale, t, type MessageKey } from '../i18n/index.js';
 import { getSettings } from '../settings.js';
@@ -135,6 +137,37 @@ function measureRow(recordId: string, measureId: string): MeasureRow {
   return m;
 }
 
+/**
+ * The owners a measure names (#195): they get its reminders (with the review's number and title), mark it done and read
+ * the corrective action finding of the review – from outside the review's owning teams, a grant.
+ */
+function measureGrant(r: RecordRef, before: readonly string[], after: readonly string[], title: string): NamedGrant {
+  return {
+    entityType: 'record',
+    entityId: r.id,
+    label: `measure "${title}" of ${r.number}`,
+    field: 'owners',
+    teams: owningTeams('record', r.id),
+    before,
+    after,
+    rights: ['view', 'markDone'],
+  };
+}
+
+/** The route's step-up rule (#195): measure owners from outside the review's owning teams (add: measureId null). */
+export function measureNamesOutsiders(recordId: string, measureId: string | null, body: unknown): string[] {
+  const r = reviewRow(recordId);
+  if (!canEditMeasures(me(), r)) return [];
+  if (!measureId) {
+    const input = measureInput.parse(body);
+    return outsidersOf(measureGrant(r, [], input.owners, input.title));
+  }
+  const input = measureInput.partial().strict().parse(body);
+  if (!input.owners) return [];
+  const m = measureRow(r.id, measureId);
+  return outsidersOf(measureGrant(r, parseJson<string[]>(m.owners, []), input.owners, m.title));
+}
+
 export function addMeasure(recordId: string, input: MeasureInput): RecordMeasures {
   const u = me();
   const r = reviewRow(recordId);
@@ -143,6 +176,9 @@ export function addMeasure(recordId: string, input: MeasureInput): RecordMeasure
   if (Number(n) >= MEASURE_LIMITS.perRecord)
     throw new HttpError(400, `At most ${MEASURE_LIMITS.perRecord} measures per review`, 'MEASURE_LIMIT', { max: MEASURE_LIMITS.perRecord });
   assertKnownSubjects(input.owners);
+  // owners from outside the review's owning teams: confirmed like an access list (#195)
+  const grant = measureGrant(r, [], input.owners, input.title);
+  const named = requireNamedGrant(grant);
   const now = nowIso();
   const id = newId('msr_');
   db().tx(() => {
@@ -169,6 +205,7 @@ export function addMeasure(recordId: string, input: MeasureInput): RecordMeasure
       summary: `Measure "${input.title}" added to ${r.number} (due ${input.dueDate})`,
       details: { measureId: id, owners: input.owners, dueDate: input.dueDate },
     });
+    auditNamedGrant({ ...grant, entityId: r.id, details: { measureId: id } }, named);
     // a corrective action finding of the review reads its measures as actions: who takes part in the fix
     measureChanged(r.id, { kind: 'added', after: { owners: input.owners, doneBy: input.done ? u.username : null }, actor: u.username });
   });
@@ -186,6 +223,9 @@ export function updateMeasure(recordId: string, measureId: string, input: Partia
     throw new HttpError(403, 'You are not allowed to change this measure', 'FORBIDDEN', { context: 'editMeasures' });
   const owners = input.owners ?? parseJson<string[]>(m.owners, []);
   if (input.owners) assertKnownSubjects(input.owners, parseJson<string[]>(m.owners, []));
+  // owners from outside the review's owning teams: confirmed like an access list (#195)
+  const grant = measureGrant(r, parseJson<string[]>(m.owners, []), owners, input.title ?? m.title);
+  const named = requireNamedGrant(grant);
   const now = nowIso();
   const done = input.done === undefined ? !!m.done_at : input.done;
   const doneAt = done ? (m.done_at ?? now) : null;
@@ -211,6 +251,7 @@ export function updateMeasure(recordId: string, measureId: string, input: Partia
       summary: `Measure "${input.title ?? m.title}" of ${r.number} ${what === 'changed' ? 'changed' : what === 'done' ? 'marked done' : 'reopened'}`,
       details: { measureId: m.id, owners, dueDate: input.dueDate ?? m.due_date },
     });
+    auditNamedGrant({ ...grant, entityId: r.id, details: { measureId: m.id } }, named);
     measureChanged(r.id, {
       kind: 'changed',
       before: { owners: parseJson<string[]>(m.owners, []), doneBy: m.done_by },

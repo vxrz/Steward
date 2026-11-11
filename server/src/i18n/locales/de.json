@@ -287,6 +287,7 @@
       "changeNotificationDelivery": "ändern, wohin Benachrichtigungen gehen",
       "changeTeamMembers": "Teammitglieder hinzufügen",
       "grantAccess": "jemandem Rechte in einer Zugriffsliste geben",
+      "grantNamedAccess": "Eigentümer oder Verantwortliche außerhalb der zuständigen Teams benennen",
       "exportEvidencePack": "ein Nachweispaket exportieren",
       "exportAuditLog": "das Audit-Log exportieren",
       "exportCredentials": "das Zugangsdatenregister exportieren",

@@ -22,6 +22,7 @@ import { getService } from './service.js';
 import * as status from './status-pages.js';
 import { ACCESS } from '../auth/access.js';
 import { params } from '../routes/params.js';
+import { namedGrantRule } from '../auth/named-grants.js';
 
 /**
  * Applications of the service catalogue, the applications of services, protection needs and the CIA scale, and the
@@ -50,9 +51,14 @@ export async function catalogueRoutes(app: FastifyInstance): Promise<void> {
 
   // ---------- applications ----------
   app.get('/applications', async (req) => apps.listApplications({ archived: (req.query as { archived?: string }).archived === '1' }));
-  app.post('/applications', async (req) => apps.createApplication(apps.applicationInput.parse(req.body)));
+  // owners from outside the owning teams ask for the step-up like an access list (#195)
+  app.post('/applications', { config: { stepUp: namedGrantRule((req) => apps.applicationNamesOutsiders(null, req.body)) } }, async (req) =>
+    apps.createApplication(apps.applicationInput.parse(req.body)),
+  );
   app.get('/applications/:id', async (req) => apps.getApplication(params(req).id!));
-  app.put('/applications/:id', async (req) => apps.updateApplication(params(req).id!, apps.applicationInput.parse(req.body)));
+  app.put('/applications/:id', { config: { stepUp: namedGrantRule((req) => apps.applicationNamesOutsiders(params(req).id!, req.body)) } }, async (req) =>
+    apps.updateApplication(params(req).id!, apps.applicationInput.parse(req.body)),
+  );
   app.post('/applications/:id/archive', async (req) =>
     apps.setApplicationArchived(params(req).id!, z.object({ archived: z.boolean() }).strict().parse(req.body).archived),
   );
@@ -161,9 +167,13 @@ export async function catalogueRoutes(app: FastifyInstance): Promise<void> {
 
   // ---------- systems and "runs on" (#129) ----------
   app.get('/systems', async () => systems.listSystems());
-  app.post('/systems', async (req) => systems.createSystem(systems.systemInput.parse(req.body)));
+  app.post('/systems', { config: { stepUp: namedGrantRule((req) => systems.systemNamesOutsiders(null, req.body)) } }, async (req) =>
+    systems.createSystem(systems.systemInput.parse(req.body)),
+  );
   app.get('/systems/:id', async (req) => systems.getSystem(params(req).id!));
-  app.put('/systems/:id', async (req) => systems.updateSystem(params(req).id!, systems.systemInput.parse(req.body)));
+  app.put('/systems/:id', { config: { stepUp: namedGrantRule((req) => systems.systemNamesOutsiders(params(req).id!, req.body)) } }, async (req) =>
+    systems.updateSystem(params(req).id!, systems.systemInput.parse(req.body)),
+  );
   app.delete('/systems/:id', async (req) => {
     systems.deleteSystem(params(req).id!);
     return { ok: true };

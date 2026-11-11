@@ -73,7 +73,8 @@ import {
   type DocRow,
   type EditionRow,
 } from './document-model.js';
-import { assignCreatorTeams } from '../auth/policy.js';
+import { assignCreatorTeams, owningTeams } from '../auth/policy.js';
+import { auditNamedGrant, outsidersOf, requireNamedGrant, userSubject, type NamedGrant } from '../auth/named-grants.js';
 import { sameIdentity } from '../auth/aliases.js';
 import { applyClose, firewallActionReason, planClose } from './firewall.js';
 
@@ -864,6 +865,29 @@ export interface UpdateInput {
   baseVersion?: number;
 }
 
+/** A hand-over to another owner (#195): the new owner sees and changes the record – from outside its owning teams, a grant. */
+function handOver(r: RecordRow, owner: string): NamedGrant {
+  return {
+    entityType: 'record',
+    entityId: r.id,
+    label: `record ${r.number}`,
+    field: 'owner',
+    teams: owningTeams('record', r.id),
+    before: userSubject(r.owner),
+    after: userSubject(owner),
+    rights: ['view', 'edit'],
+  };
+}
+
+/** The route's step-up rule (#195): a hand-over to someone outside the record's owning teams. */
+export function recordNamesOutsiders(idOrNumber: string, owner: string | undefined): string[] {
+  if (owner === undefined) return [];
+  const r = requireRecordRow(idOrNumber);
+  if (!canEditRecord(me(), r)) return [];
+  const target = findUserByName(owner.trim());
+  return target ? outsidersOf(handOver(r, target.username)) : [];
+}
+
 export function updateRecord(idOrNumber: string, input: UpdateInput): RecordDetail {
   const u = me();
   const r = requireRecordRow(idOrNumber);
@@ -917,6 +941,9 @@ export function updateRecord(idOrNumber: string, input: UpdateInput): RecordDeta
   }
   const ownerChanged = owner !== r.owner;
   if (!contentChanged && !tagsChanged && !ownerChanged) return getRecord(r.id);
+  // a hand-over to someone outside the owning teams: confirmed like an access list (#195)
+  const grant = handOver(r, owner);
+  const named = ownerChanged ? requireNamedGrant(grant) : [];
   const comment = (input.comment ?? '').trim().slice(0, LIMITS.comment);
   db().tx(() => {
     const version = contentChanged ? Number(r.version) + 1 : Number(r.version);
@@ -948,6 +975,7 @@ export function updateRecord(idOrNumber: string, input: UpdateInput): RecordDeta
         ...(ownerChanged ? { owner, previousOwner: r.owner } : {}),
       },
     });
+    auditNamedGrant({ ...grant, entityId: r.id }, named);
   });
   return getRecord(r.id);
 }

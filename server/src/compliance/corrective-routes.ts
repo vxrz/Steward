@@ -1,8 +1,9 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { CA_SEVERITIES, CA_SOURCES, CA_STATUSES, CA_SUGGESTION_STATUSES, caReasonInput } from '@sm/shared';
 import { ACCESS } from '../auth/access.js';
 import { params } from '../routes/params.js';
+import { namedGrantRule } from '../auth/named-grants.js';
 import * as ca from './corrective.js';
 import * as sug from './corrective-sources.js';
 
@@ -45,12 +46,34 @@ export async function correctiveRoutes(app: FastifyInstance): Promise<void> {
       .parse(req.query);
     return sug.listRegister({ ...q, overdue: q.overdue === undefined ? undefined : q.overdue === 'true' });
   });
-  app.post('/compliance/corrective-actions', session, async (req) => ca.createFinding(req.body as never));
+  // owners from outside the owning teams of the finding's service ask for the step-up like an access list (#195)
+  const naming = (actionId: (req: FastifyRequest) => string | null | undefined, findingId: (req: FastifyRequest) => string | null) => ({
+    config: { access: ACCESS.session, stepUp: namedGrantRule((req) => ca.findingNamesOutsiders(findingId(req), actionId(req), req.body)) },
+  });
+  const finding = (req: FastifyRequest) => params(req).findingId!;
+  app.post(
+    '/compliance/corrective-actions',
+    naming(
+      () => undefined,
+      () => null,
+    ),
+    async (req) => ca.createFinding(req.body as never),
+  );
   app.get('/compliance/corrective-actions/:findingId', async (req) => ca.getFinding(params(req).findingId!));
-  app.put('/compliance/corrective-actions/:findingId', session, async (req) => ca.updateFinding(params(req).findingId!, req.body as never));
-  app.post('/compliance/corrective-actions/:findingId/actions', session, async (req) => ca.addAction(params(req).findingId!, req.body as never));
-  app.put('/compliance/corrective-actions/:findingId/actions/:actionId', session, async (req) =>
-    ca.updateAction(params(req).findingId!, params(req).actionId!, req.body as never),
+  app.put(
+    '/compliance/corrective-actions/:findingId',
+    naming(() => undefined, finding),
+    async (req) => ca.updateFinding(params(req).findingId!, req.body as never),
+  );
+  app.post(
+    '/compliance/corrective-actions/:findingId/actions',
+    naming(() => null, finding),
+    async (req) => ca.addAction(params(req).findingId!, req.body as never),
+  );
+  app.put(
+    '/compliance/corrective-actions/:findingId/actions/:actionId',
+    naming((req) => params(req).actionId!, finding),
+    async (req) => ca.updateAction(params(req).findingId!, params(req).actionId!, req.body as never),
   );
   app.delete('/compliance/corrective-actions/:findingId/actions/:actionId', session, async (req) =>
     ca.deleteAction(params(req).findingId!, params(req).actionId!),

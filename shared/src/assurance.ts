@@ -69,7 +69,7 @@ export const CONTROL_POINTS: readonly ControlPoint[] = [
   sp('user.resetPassword', 'identity', ['resetPassword'], true),
   sp('user.pseudonymise', 'identity', ['pseudonymiseUser'], true),
   sp('team.members', 'identity', ['changeTeamMembers'], true),
-  sp('access.grant', 'identity', ['grantAccess'], true),
+  sp('access.grant', 'identity', ['grantAccess', 'grantNamedAccess'], true),
   sp('sso.providers', 'identity', ['addSsoProvider', 'changeSsoProvider', 'deleteSsoProvider'], true),
   sp('signIn.settings', 'identity', ['changeSignInSettings'], true),
   sp('vault.passphrase', 'identity', ['changeVaultPassphrase'], true),

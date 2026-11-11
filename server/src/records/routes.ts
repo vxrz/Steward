@@ -40,6 +40,7 @@ import { firewallContext } from './firewall.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { LARGE_BODIES } from '../bodyLimits.js';
 import { params } from '../routes/params.js';
+import { namedGrantRule } from '../auth/named-grants.js';
 
 const csv = (v: unknown): string[] | undefined =>
   typeof v === 'string' && v
@@ -111,9 +112,16 @@ export async function recordRoutes(app: FastifyInstance): Promise<void> {
   const windowQuery = z.object({ from: z.string().datetime({ offset: true }), to: z.string().datetime({ offset: true }) });
   app.get('/measures', async (req) => reviews.listOpenMeasures(measureQuery.parse(req.query)));
   app.get('/records/:id/measures', async (req) => reviews.listMeasures(params(req).id!));
-  app.post('/records/:id/measures', async (req) => reviews.addMeasure(params(req).id!, reviews.measureInput.parse(req.body)));
-  app.put('/records/:id/measures/:measureId', async (req) =>
-    reviews.updateMeasure(params(req).id!, params(req).measureId!, reviews.measureInput.partial().strict().parse(req.body)),
+  // owners from outside the review's owning teams ask for the step-up like an access list (#195)
+  app.post(
+    '/records/:id/measures',
+    { config: { stepUp: namedGrantRule((req) => reviews.measureNamesOutsiders(params(req).id!, null, req.body)) } },
+    async (req) => reviews.addMeasure(params(req).id!, reviews.measureInput.parse(req.body)),
+  );
+  app.put(
+    '/records/:id/measures/:measureId',
+    { config: { stepUp: namedGrantRule((req) => reviews.measureNamesOutsiders(params(req).id!, params(req).measureId!, req.body)) } },
+    async (req) => reviews.updateMeasure(params(req).id!, params(req).measureId!, reviews.measureInput.partial().strict().parse(req.body)),
   );
   app.delete('/records/:id/measures/:measureId', async (req) => reviews.deleteMeasure(params(req).id!, params(req).measureId!));
   app.get('/records/:id/timeline', async (req) => {
@@ -199,7 +207,12 @@ export async function recordRoutes(app: FastifyInstance): Promise<void> {
     return importMarkdown(b.files, { type: b.type, dryRun: b.dryRun });
   });
   app.get('/records/:id', async (req) => svc.getRecord(params(req).id!));
-  app.put('/records/:id', async (req) => svc.updateRecord(params(req).id!, updateBody.parse(req.body)));
+  // a hand-over to someone outside the owning teams asks for the step-up like an access list (#195)
+  app.put(
+    '/records/:id',
+    { config: { stepUp: namedGrantRule((req) => svc.recordNamesOutsiders(params(req).id!, updateBody.parse(req.body).owner)) } },
+    async (req) => svc.updateRecord(params(req).id!, updateBody.parse(req.body)),
+  );
   app.get('/records/:id/versions', async (req) => svc.listVersions(params(req).id!));
   app.get('/records/:id/versions/:version', async (req) => svc.getVersion(params(req).id!, z.coerce.number().int().min(1).parse(params(req).version)));
   app.post('/records/:id/transition', { config: { stepUp: recordTransitionStepUp } }, async (req) => {
@@ -337,9 +350,14 @@ export async function recordRoutes(app: FastifyInstance): Promise<void> {
 
   // ---------- service catalogue ----------
   app.get('/services', async (req) => catalogue.listServices({ archived: (req.query as { archived?: string }).archived === '1' }));
-  app.post('/services', async (req) => catalogue.createService(catalogue.serviceInput.parse(req.body)));
+  // owners from outside the owning teams ask for the step-up like an access list (#195)
+  app.post('/services', { config: { stepUp: namedGrantRule((req) => catalogue.serviceNamesOutsiders(null, req.body)) } }, async (req) =>
+    catalogue.createService(catalogue.serviceInput.parse(req.body)),
+  );
   app.get('/services/:id', async (req) => catalogue.getService(params(req).id!));
-  app.put('/services/:id', async (req) => catalogue.updateService(params(req).id!, catalogue.serviceInput.parse(req.body)));
+  app.put('/services/:id', { config: { stepUp: namedGrantRule((req) => catalogue.serviceNamesOutsiders(params(req).id!, req.body)) } }, async (req) =>
+    catalogue.updateService(params(req).id!, catalogue.serviceInput.parse(req.body)),
+  );
   app.post('/services/:id/archive', async (req) =>
     catalogue.setArchived(params(req).id!, z.object({ archived: z.boolean() }).strict().parse(req.body).archived),
   );

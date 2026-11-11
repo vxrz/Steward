@@ -377,8 +377,9 @@ export function catalogueAccess(u: AuthUser | null, r: { kind: CatalogueKind; id
   if (!u) return { view: false, edit: false, reasons: [] };
   if (isAdmin(u)) return { view: true, edit: true, reasons: [{ source: 'admin', role: 'admin', permissions: ['view', 'edit'] }] };
   const reasons: AccessReason[] = [];
+  // a named owner (#195: "Why do I have access?" says so; adding one from outside the owning teams is a confirmed grant)
   const owner = r.owners.find((s) => matches(u, s));
-  if (owner) reasons.push({ source: 'accessList', subject: owner, permissions: ['view', 'edit'] });
+  if (owner) reasons.push({ source: 'named', as: 'owner', subject: owner, permissions: ['view', 'edit'] });
   const teams = catalogueTeams(r.kind, r.id);
   if (!teams.length) {
     for (const role of u.roles) reasons.push({ source: 'instanceRole', role, permissions: CATALOGUE_EDITORS.includes(role) ? ['view', 'edit'] : ['view'] });
@@ -453,7 +454,8 @@ export function teamScoped<P extends string>(
   o: {
     all: readonly P[];
     byRole: (role: Role) => readonly P[];
-    personal?: { permissions: readonly P[]; subject?: string } | null;
+    /** `as`: a named owner or responsible (#195) – the subject that matched; without it the item's own owner */
+    personal?: { permissions: readonly P[]; subject?: string; as?: 'owner' | 'responsible' } | null;
     auditor?: readonly P[];
     unscoped: () => P[];
   },
@@ -462,7 +464,13 @@ export function teamScoped<P extends string>(
   if (isAdmin(u)) return { permissions: [...o.all], reasons: [{ source: 'admin', role: 'admin', permissions: [...o.all] }] };
   const reasons: AccessReason[] = [];
   const add = (reason: AccessReason) => reason.permissions.length && reasons.push(reason);
-  if (o.personal) add({ source: 'owner', ...(o.personal.subject ? { subject: o.personal.subject } : {}), permissions: [...o.personal.permissions] });
+  if (o.personal)
+    add({
+      source: o.personal.as ? 'named' : 'owner',
+      ...(o.personal.as ? { as: o.personal.as } : {}),
+      ...(o.personal.subject ? { subject: o.personal.subject } : {}),
+      permissions: [...o.personal.permissions],
+    });
   const teams = owningTeams(r.kind, r.id);
   if (!teams.length) {
     for (const role of u.roles) add({ source: 'instanceRole', role, permissions: [...o.byRole(role)] });

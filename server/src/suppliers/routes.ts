@@ -16,6 +16,7 @@ import { ACCESS } from '../auth/access.js';
 import type { StepUpRule } from '../auth/step-up.js';
 import { teamsGrantAccess } from '../auth/scope-routes.js';
 import { params } from '../routes/params.js';
+import { namedGrantRule } from '../auth/named-grants.js';
 import * as s from './service.js';
 import * as shared from './shared.js';
 import { contractScopeNotice, dismissContractScopeNotice } from './contract-scope.js';
@@ -75,7 +76,12 @@ export async function supplierRoutes(app: FastifyInstance): Promise<void> {
     const d = s.getSupplier(params(req).id!);
     return viaToken(req) ? s.toPublic(d) : d;
   });
-  app.put('/suppliers/:id', session, async (req) => s.updateSupplier(params(req).id!, supplierInput.parse(req.body)));
+  // owners from outside the owning teams ask for the step-up like an access list (#195)
+  app.put(
+    '/suppliers/:id',
+    { config: { access: ACCESS.session, stepUp: namedGrantRule((req) => s.supplierNamesOutsiders(params(req).id!, req.body)) } },
+    async (req) => s.updateSupplier(params(req).id!, supplierInput.parse(req.body)),
+  );
   app.post('/suppliers/:id/archive', session, async (req) => s.setSupplierArchived(params(req).id!, supplierArchiveInput.parse(req.body).archived));
   // the "To confirm" list: decisions of people in a session (ADR 0029, decided 9)
   app.post('/suppliers/:id/confirm', session, async (req) => s.confirmSupplier(params(req).id!));
@@ -141,9 +147,16 @@ export async function supplierRoutes(app: FastifyInstance): Promise<void> {
   );
   app.delete('/suppliers/:id/contacts/:contactId', session, async (req) => s.removeContact(params(req).id!, params(req).contactId!));
 
-  app.post('/suppliers/:id/contracts', session, async (req) => s.addContract(params(req).id!, supplierContractInput.parse(req.body)));
-  app.put('/suppliers/:id/contracts/:contractId', session, async (req) =>
-    s.updateContract(params(req).id!, params(req).contractId!, supplierContractInput.parse(req.body)),
+  // contract owners from outside the contract's teams ask for the step-up like an access list (#195)
+  app.post(
+    '/suppliers/:id/contracts',
+    { config: { access: ACCESS.session, stepUp: namedGrantRule((req) => s.contractNamesOutsiders(params(req).id!, null, req.body)) } },
+    async (req) => s.addContract(params(req).id!, supplierContractInput.parse(req.body)),
+  );
+  app.put(
+    '/suppliers/:id/contracts/:contractId',
+    { config: { access: ACCESS.session, stepUp: namedGrantRule((req) => s.contractNamesOutsiders(params(req).id!, params(req).contractId!, req.body)) } },
+    async (req) => s.updateContract(params(req).id!, params(req).contractId!, supplierContractInput.parse(req.body)),
   );
   app.delete('/suppliers/:id/contracts/:contractId', session, async (req) =>
     s.removeContract(params(req).id!, params(req).contractId!, removeContractQuery.parse(req.query ?? {})),

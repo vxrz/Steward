@@ -287,6 +287,7 @@
       "changeNotificationDelivery": "change where notifications go",
       "changeTeamMembers": "add team members",
       "grantAccess": "give someone rights in an access list",
+      "grantNamedAccess": "name an owner or responsible from outside the owning teams",
       "exportEvidencePack": "export an evidence pack",
       "exportAuditLog": "export the audit log",
       "exportCredentials": "export the credential register",

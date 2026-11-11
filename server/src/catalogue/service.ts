@@ -22,6 +22,7 @@ import { protectionNeedOf, protectionNeeds } from './cia.js';
 import { serviceApplications } from './applications.js';
 import { assertKnownSubjects } from '../auth/subjects.js';
 import { assignCreatorTeams } from '../auth/policy.js';
+import { auditNamedGrant, catalogueGrant, outsidersOf, requireNamedGrant } from '../auth/named-grants.js';
 
 /**
  * A deliberately small service catalogue ("lightweight CMDB"): name,
@@ -265,12 +266,24 @@ export function getService(id: string): ServiceDetail {
 
 const dedupe = <T>(xs: T[], key: (x: T) => string) => [...new Map(xs.map((x) => [key(x), x])).values()];
 
+/** The route's step-up rule (#195): owners from outside the service's owning teams in the request (create: id null). */
+export function serviceNamesOutsiders(id: string | null, body: unknown): string[] {
+  const input = serviceInput.parse(body);
+  if (!id) return canCreateServices(me()) ? outsidersOf(catalogueGrant('service', undefined, input.name, input.owners)) : [];
+  const cur = row(id);
+  if (!canEditService(me(), { kind: 'service', id: cur.id, owners: parseJson(cur.owners, []) })) return [];
+  return outsidersOf(catalogueGrant('service', cur, input.name, input.owners));
+}
+
 export function createService(input: ServiceInput): ServiceDetail {
   const u = me();
   if (!canCreateServices(u)) forbid('create services', 'createServices');
   assertKnownSubjects(input.owners);
   if (db().get('SELECT 1 FROM services WHERE lower(name) = lower(?) AND archived = 0', input.name))
     throw new HttpError(409, `A service named "${input.name}" exists already`, 'SERVICE_EXISTS', { name: input.name });
+  // owners from outside the owning teams it gets: confirmed like an access list (#195)
+  const grant = catalogueGrant('service', undefined, input.name, input.owners);
+  const named = requireNamedGrant(grant);
   const id = newId('svc_');
   const now = nowIso();
   db().tx(() => {
@@ -300,6 +313,7 @@ export function createService(input: ServiceInput): ServiceDetail {
       summary: `Service "${input.name}" created`,
       details: { criticality: input.criticality, cmdb: input.cmdb },
     });
+    auditNamedGrant({ ...grant, entityId: id }, named);
   });
   return getService(id);
 }
@@ -324,6 +338,9 @@ export function updateService(id: string, input: ServiceInput): ServiceDetail {
   };
   const changes = (Object.keys(next) as (keyof typeof next)[]).filter((k) => (next[k] ?? null) !== (cur[k] ?? null));
   if (!changes.length) return getService(id);
+  // owners from outside the owning teams: confirmed like an access list (#195)
+  const grant = catalogueGrant('service', cur, input.name, input.owners);
+  const named = requireNamedGrant(grant);
   db().tx(() => {
     db().run(
       'UPDATE services SET name = ?, description = ?, contacts = ?, owners = ?, criticality = ?, cmdb_system = ?, cmdb_id = ?, cmdb_url = ?, tags = ?, updated_at = ?, updated_by = ? WHERE id = ?',
@@ -347,6 +364,7 @@ export function updateService(id: string, input: ServiceInput): ServiceDetail {
       summary: `Service "${input.name}" changed (${changes.join(', ')})`,
       details: { changes },
     });
+    auditNamedGrant({ ...grant, entityId: id }, named);
   });
   return getService(id);
 }

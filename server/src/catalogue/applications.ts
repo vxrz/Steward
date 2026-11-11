@@ -44,6 +44,7 @@ import { systemCounts, systemLinksOf } from './systems.js';
 import { credentialsBelongingTo, credentialsLinkingTo, toCredential, type CredentialRow } from '../credentials/service.js';
 import { assertKnownSubjects } from '../auth/subjects.js';
 import { assignCreatorTeams, catalogueTeams } from '../auth/policy.js';
+import { auditNamedGrant, catalogueGrant, outsidersOf, requireNamedGrant } from '../auth/named-grants.js';
 import { resolveSupplierLink, supplierRefs } from '../suppliers/links.js';
 
 /**
@@ -398,11 +399,21 @@ function nameTaken(name: string, except = ''): boolean {
   return !!db().get('SELECT 1 FROM applications WHERE lower(name) = lower(?) AND archived = 0 AND id <> ?', name, except);
 }
 
+/** The route's step-up rule (#195): owners from outside the application's teams in the request (create: id null). */
+export function applicationNamesOutsiders(id: string | null, body: unknown): string[] {
+  const input = applicationInput.parse(body);
+  if (!id) return canCreateServices(me()) ? outsidersOf(catalogueGrant('application', undefined, input.name, input.owners)) : [];
+  return outsidersOf(catalogueGrant('application', requireEditableApplication(id, 'change this application'), input.name, input.owners));
+}
+
 export function createApplication(input: ApplicationInput): ApplicationDetail {
   const u = me();
   if (!canCreateServices(u)) forbid('create applications', 'createApplications');
   if (nameTaken(input.name)) throw new HttpError(409, `An application named "${input.name}" exists already`, 'APPLICATION_EXISTS', { name: input.name });
   assertKnownSubjects(input.owners);
+  // owners from outside the owning teams it gets: confirmed like an access list (#195)
+  const grant = catalogueGrant('application', undefined, input.name, input.owners);
+  const named = requireNamedGrant(grant);
   const id = newId('app_');
   const now = nowIso();
   const c = columns(input);
@@ -436,6 +447,7 @@ export function createApplication(input: ApplicationInput): ApplicationDetail {
       summary: `Application "${input.name}" created`,
       details: { vendor: input.vendor, supplierId: c.supplier_id, criticality: input.criticality, owners: dedupe(input.owners), cmdb: input.cmdb },
     });
+    auditNamedGrant({ ...grant, entityId: id }, named);
   });
   return getApplication(id);
 }
@@ -448,6 +460,9 @@ export function updateApplication(id: string, input: ApplicationInput): Applicat
   const next = columns(input, cur.supplier_id);
   const changes = (Object.keys(next) as (keyof typeof next)[]).filter((k) => (next[k] ?? null) !== (cur[k] ?? null));
   if (!changes.length) return getApplication(id);
+  // owners from outside the owning teams: confirmed like an access list (#195)
+  const grant = catalogueGrant('application', cur, input.name, input.owners);
+  const named = requireNamedGrant(grant);
   db().tx(() => {
     db().run(
       'UPDATE applications SET name = ?, description = ?, vendor = ?, supplier_id = ?, version = ?, url = ?, owners = ?, criticality = ?, cmdb_system = ?, cmdb_id = ?, cmdb_url = ?, tags = ?, updated_at = ?, updated_by = ? WHERE id = ?',
@@ -478,6 +493,7 @@ export function updateApplication(id: string, input: ApplicationInput): Applicat
         ...(changes.includes('supplier_id') ? { supplierId: { old: cur.supplier_id, new: next.supplier_id } } : {}),
       },
     });
+    auditNamedGrant({ ...grant, entityId: id }, named);
   });
   return getApplication(id);
 }

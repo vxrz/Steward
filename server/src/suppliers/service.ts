@@ -51,7 +51,8 @@ import { currentUser, type AuthUser } from '../auth/context.js';
 import { isAdmin, matches, platformPermissions } from '../auth/permissions.js';
 import { canCreateServices, canEditService, canReadRecordRow, canViewCatalogue, catalogueVisibleNow, forbid, me } from '../records/access.js';
 import { assertKnownSubjects } from '../auth/subjects.js';
-import { catalogueTeams, forgetOwningTeams, newResourceTeams } from '../auth/policy.js';
+import { catalogueTeams, forgetOwningTeams, newResourceTeams, type OwningTeam } from '../auth/policy.js';
+import { auditNamedGrant, catalogueGrant, outsidersOf, requireNamedGrant, type NamedGrant } from '../auth/named-grants.js';
 import { currentScale, protectionNeeds, ratingsOf } from '../catalogue/cia.js';
 import { ScopeCtx, contractOwnersOf, finishContractScopeUpgrade } from './contract-scope.js';
 import { ticketAccess } from '../tickets/service.js';
@@ -975,6 +976,12 @@ export function createSupplier(input: Input): SupplierDetail {
   return getSupplier(id);
 }
 
+/** The route's step-up rule (#195): owners from outside the supplier's owning teams in the request. */
+export function supplierNamesOutsiders(id: string, body: unknown): string[] {
+  const input = supplierInput.parse(body);
+  return outsidersOf(catalogueGrant('supplier', requireEditable(id, 'change this supplier'), input.name, input.owners));
+}
+
 export function updateSupplier(id: string, input: Input): SupplierDetail {
   const u = me();
   const cur = requireEditable(id, 'change this supplier');
@@ -995,6 +1002,9 @@ export function updateSupplier(id: string, input: Input): SupplierDetail {
   };
   const fields = (Object.keys(next) as (keyof typeof next)[]).filter((k) => (next[k] ?? null) !== (k === 'personal_data' ? Number(cur[k]) : (cur[k] ?? null)));
   if (!fields.length) return getSupplier(id);
+  // owners from outside the owning teams: confirmed like an access list (#195)
+  const grant = catalogueGrant('supplier', cur, input.name, owners);
+  const named = requireNamedGrant(grant);
   // a renamed supplier keeps its former name as a spelling, so the free texts and the picker still find it
   const aliases = fields.includes('name') ? [...new Set([...aliasesOf(cur), cur.name])].slice(0, SUPPLIER_LIMITS.aliases) : aliasesOf(cur);
   db().tx(() => {
@@ -1029,6 +1039,7 @@ export function updateSupplier(id: string, input: Input): SupplierDetail {
         ...(fields.includes('dpa_status') ? { dpaStatus: { old: cur.dpa_status, new: dpa.status } } : {}),
       },
     });
+    auditNamedGrant({ ...grant, entityId: id }, named);
   });
   return getSupplier(id);
 }
@@ -1610,6 +1621,58 @@ function checkOpening(before: string[], after: string[], confirmed: boolean | un
     });
 }
 
+/** The teams among a contract's owners (its scope, ADR 0031). */
+function ownerTeams(owners: readonly string[]): OwningTeam[] {
+  const names = [...new Set(owners.filter((o) => /^team:/i.test(o)).map((o) => o.slice(5).trim().toLowerCase()))];
+  if (!names.length) return [];
+  return db().all<OwningTeam>(`SELECT id, name FROM teams WHERE lower(name) IN (${names.map(() => '?').join(', ')}) ORDER BY name`, ...names);
+}
+
+/**
+ * The owners a contract change names (#195): a contract's teams are the teams among its owners – for a new one those
+ * of its creator's new resources; without any, those of the supplier (who reads the contract then); without those
+ * either, the contract is the whole instance's.
+ */
+function contractGrant(s: SupplierRow, cur: ContractRow | undefined, title: string, owners: readonly string[]): NamedGrant {
+  const u = currentUser();
+  const before = cur ? contractOwnersOf(cur) : [];
+  let teams = cur ? ownerTeams(before) : u ? newResourceTeams(u).teams : [];
+  if (!teams.length) teams = catalogueTeams('supplier', s.id);
+  return {
+    entityType: 'supplier',
+    entityId: s.id,
+    label: `contract "${title}" of supplier "${s.name}"`,
+    field: 'owners',
+    teams,
+    before,
+    after: [...owners],
+    rights: ['view', 'edit'],
+    details: { contractId: cur?.id ?? null },
+  };
+}
+
+/** The teams a contract's owners are covered by (#195), for the form's hint: a contract the caller changes, or a new one (null). */
+export function contractScopeTeams(supplierId: string, contractId: string | null): OwningTeam[] {
+  const s = supplierRow(supplierId);
+  const cur = contractId ? editableContractRow(s, contractId, new ScopeCtx(me())) : undefined;
+  return [...contractGrant(s, cur, cur?.title ?? '', []).teams];
+}
+
+/** The route's step-up rule (#195): contract owners from outside the contract's teams in the request (add: contractId null). */
+export function contractNamesOutsiders(supplierId: string, contractId: string | null, body: unknown): string[] {
+  const input = supplierContractInput.parse(body);
+  const u = me();
+  const s = supplierRow(supplierId);
+  const ctx = new ScopeCtx(u);
+  if (!contractId) {
+    const services = (input.services ?? []).map((x) => x.serviceId);
+    if (!mayAddContract(s, ctx, services)) return [];
+    return outsidersOf(contractGrant(s, undefined, input.title, [...new Set(input.owners ?? defaultContractOwners(u))]));
+  }
+  const cur = editableContractRow(s, contractId, ctx);
+  return input.owners ? outsidersOf(contractGrant(s, cur, input.title, [...new Set(input.owners)])) : [];
+}
+
 export function addContract(supplierId: string, input: ContractInput): SupplierDetail {
   const u = me();
   const s = supplierRow(supplierId);
@@ -1634,6 +1697,9 @@ export function addContract(supplierId: string, input: ContractInput): SupplierD
   const c = contractColumns(input);
   const sc = scopeColumns(input, null);
   checkMaster(s, null, sc.parent_id, ctx);
+  // owners from outside the teams it gets: confirmed like an access list (#195)
+  const grant = contractGrant(s, undefined, c.title, owners);
+  const named = requireNamedGrant(grant);
   const id = newId('sct_');
   const now = nowIso();
   db().tx(() => {
@@ -1697,6 +1763,7 @@ export function addContract(supplierId: string, input: ContractInput): SupplierD
         services: services.map((x) => ({ serviceId: x.serviceId, purpose: x.purpose })),
       },
     });
+    auditNamedGrant({ ...grant, entityId: supplierId, details: { contractId: id } }, named);
   });
   return getSupplier(supplierId);
 }
@@ -1720,6 +1787,9 @@ export function updateContract(supplierId: string, contractId: string, input: Co
   const fields: string[] = (Object.keys(next) as (keyof typeof next)[]).filter((k) => norm(k, next[k]) !== norm(k, cur[k]));
   if (ownersChanged) fields.push('owners');
   if (!fields.length) return getSupplier(supplierId);
+  // owners from outside the contract's teams: confirmed like an access list (#195)
+  const grant = contractGrant(s, cur, next.title, owners);
+  const named = ownersChanged ? requireNamedGrant(grant) : [];
   const plain = fields.filter((f) => f !== 'note' && f !== 'sla_response' && f !== 'owners') as (keyof typeof next)[];
   db().tx(() => {
     db().run(
@@ -1763,6 +1833,7 @@ export function updateContract(supplierId: string, contractId: string, input: Co
         new: { ...Object.fromEntries(plain.map((f) => [f, next[f] ?? null])), ...(ownersChanged ? { owners } : {}) },
       },
     });
+    auditNamedGrant({ ...grant, entityId: supplierId }, named);
   });
   return getSupplier(supplierId);
 }

@@ -41,6 +41,7 @@ import { byEnvironment, environmentValue } from './environments.js';
 import { credentialsBelongingTo, toCredential } from '../credentials/service.js';
 import { assertKnownSubjects } from '../auth/subjects.js';
 import { assignCreatorTeams, forgetOwningTeams } from '../auth/policy.js';
+import { auditNamedGrant, catalogueGrant, outsidersOf, requireNamedGrant } from '../auth/named-grants.js';
 import { listBacklinks } from '../records/links.js';
 import { firewallOf } from '../records/firewall.js';
 import { resolveSupplierLink, supplierRefs } from '../suppliers/links.js';
@@ -402,6 +403,13 @@ function checkPlatform(platformId: string | null, u: AuthUser): void {
   if (!p || !platformVisible(u, p)) throw new HttpError(404, `Platform ${platformId} not found`, 'PLATFORM_NOT_FOUND', { id: platformId });
 }
 
+/** The route's step-up rule (#195): owners from outside the system's owning teams in the request (create: id null). */
+export function systemNamesOutsiders(id: string | null, body: unknown): string[] {
+  const input = systemInput.parse(body);
+  if (!id) return canCreateServices(me()) ? outsidersOf(catalogueGrant('system', undefined, input.name, input.owners)) : [];
+  return outsidersOf(catalogueGrant('system', requireEditable(id, 'change this system'), input.name, input.owners));
+}
+
 export function createSystem(input: SystemInput): SystemDetail {
   const u = me();
   if (!canCreateServices(u)) forbid('create systems', 'createSystem');
@@ -412,6 +420,9 @@ export function createSystem(input: SystemInput): SystemDetail {
   if (input.stack) requireKnownProducts(input.stack);
   const attributes = attributesFor(input.kind, input.attributes, null);
   const supplierId = resolveSupplierLink(input.supplierId, null);
+  // owners from outside the owning teams it gets: confirmed like an access list (#195)
+  const grant = catalogueGrant('system', undefined, input.name, input.owners);
+  const named = requireNamedGrant(grant);
   const id = newId('sys_');
   const now = nowIso();
   const owners = [...new Set(input.owners)];
@@ -452,6 +463,7 @@ export function createSystem(input: SystemInput): SystemDetail {
         ...(input.kind === 'network' ? { attributes } : {}),
       },
     });
+    auditNamedGrant({ ...grant, entityId: id }, named);
   });
   return getSystem(id);
 }
@@ -486,6 +498,9 @@ export function updateSystem(id: string, input: SystemInput): SystemDetail {
   };
   const attributeChanges = changedAttributes(beforeAttributes, attributes);
   const fields = (Object.keys(next) as (keyof typeof next)[]).filter((k) => (k === 'attributes' ? attributeChanges.length > 0 : next[k] !== cur[k]));
+  // owners from outside the owning teams: confirmed like an access list (#195)
+  const grant = catalogueGrant('system', cur, input.name, owners);
+  const named = requireNamedGrant(grant);
   db().tx(() => {
     const diff = input.stack ? writeStack(systemHolder(id), input.stack, u) : { added: [], changed: [], removed: [] };
     const stackChanged = diff.added.length + diff.changed.length + diff.removed.length > 0;
@@ -542,6 +557,7 @@ export function updateSystem(id: string, input: SystemInput): SystemDetail {
         ...(stackChanged ? { stack: diff } : {}),
       },
     });
+    auditNamedGrant({ ...grant, entityId: id }, named);
   });
   return getSystem(id);
 }

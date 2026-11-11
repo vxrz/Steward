@@ -27,6 +27,7 @@ import {
   catalogueTeams,
   contractAccess,
   identityAccess,
+  newResourceTeams,
   owningTeams,
   plantOnly,
   platformAccess,
@@ -39,6 +40,8 @@ import {
 } from './policy.js';
 import { findUserByName, listUsers, toAuthUser } from './users.js';
 import { protectOpening } from '../suppliers/shared.js';
+import { contractScopeTeams } from '../suppliers/service.js';
+import { uncoveredSubjects } from './named-grants.js';
 import type { AuthUser } from './context.js';
 
 /**
@@ -47,6 +50,7 @@ import type { AuthUser } from './context.js';
  *   PUT  /api/owning-teams/:kind/:id          set them (administrators; adding a team is confirmed with a step-up)
  *   GET  /api/access/explain?kind&id&user     the rights of a user and where they come from (administrators and
  *                                             auditors for anyone, everybody for themselves)
+ *   POST /api/access/named-outside            which named users and teams are outside an item's owning teams (#195)
  */
 
 const kindParam = z.enum(OWNED_KINDS);
@@ -156,6 +160,13 @@ function visible(kind: OwnedKind, id: string): ResourceRow {
 }
 
 const teamIds = z.object({ teamIds: z.array(z.string().max(64)).max(50) });
+/** POST /access/named-outside (#195): an item (or a supplier's contract) and the users and teams a form names */
+const namedOutsideInput = z.object({
+  kind: z.union([kindParam, z.literal('supplierContract')]),
+  id: z.string().max(64).optional(),
+  supplierId: z.string().max(64).optional(),
+  subjects: z.array(z.string().max(200)).max(50),
+});
 /** A supplier's company-wide contacts that cannot be scoped when it is opened: the administrator's choice (ADR 0031) */
 const supplierContactChoices = z.object({ contacts: boundedRecord(z.enum(SUPPLIER_CONTACT_CHOICES), 100).optional() });
 
@@ -389,6 +400,26 @@ export async function scopeRoutes(app: FastifyInstance): Promise<void> {
       return { applied: !b.preview && changed.length > 0, changed: changed.length, resources };
     },
   );
+
+  /**
+   * Which of these users and teams are outside the owning teams of an item (#195): the forms say so before saving
+   * ("… is not in the owning teams and will see and change this item"); saving them asks for the step-up. Without `id`:
+   * a new item, with the teams its creator's new resources get. For whoever may change the item.
+   */
+  app.post('/access/named-outside', async (req): Promise<{ teams: string[]; outside: string[] }> => {
+    const b = namedOutsideInput.parse(req.body);
+    const u = me();
+    let teams: OwningTeam[];
+    if (b.kind === 'supplierContract') teams = contractScopeTeams(b.supplierId ?? '', b.id ?? null);
+    else if (!b.id) teams = b.kind === 'supplier' ? [] : newResourceTeams(u).teams;
+    else {
+      const r = visible(b.kind, b.id);
+      // the rights beyond seeing it: only who may change the item learns who is in its owning teams
+      if (!access(b.kind, r, u).permissions.some((p) => p !== 'view')) throw notFound(b.kind, b.id);
+      teams = isCatalogue(b.kind) ? catalogueTeams(b.kind, r.id) : owningTeams(b.kind, r.id);
+    }
+    return { teams: teams.map((t) => t.name), outside: uncoveredSubjects(teams, [], b.subjects) };
+  });
 
   app.get('/access/explain', async (req): Promise<AccessExplanation> => {
     const q = z.object({ kind: kindParam, id: z.string().max(64), user: z.string().max(64).optional() }).parse(req.query);
