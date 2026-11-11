@@ -149,7 +149,7 @@ export function storageTargetFingerprint(platformId: string | null, prefix: stri
   );
 }
 
-/** The backup target an administrator confirmed (0.17.1): saved with the backup settings or with _Confirm target_. */
+/** The backup target an administrator confirmed (0.18.0): saved with the backup settings or with _Confirm target_. */
 interface StoredTarget {
   fingerprint: string;
   platformId: string;
@@ -178,7 +178,7 @@ function backupTargetChanged(s: BackupSettings = backupSettings()): boolean {
 }
 
 /**
- * An installation updated from before 0.17.1 has no confirmed target yet: the target as it is now is taken over once
+ * An installation updated from before 0.18.0 has no confirmed target yet: the target as it is now is taken over once
  * (at the start, or by the first run), audited, so backups keep running after the update.
  */
 function adoptTarget(s: BackupSettings): void {
@@ -253,7 +253,7 @@ export function saveBackupSettings(input: unknown): BackupSettings {
   if (v.enabled && !v.platformId) throw new HttpError(400, 'Choose the S3 platform the backups go to', 'BACKUP_NO_STORAGE');
   if (v.enabled && !storedKey()) throw new HttpError(400, 'Set the backup passphrase first', 'BACKUP_NO_KEY');
   writeSetting(SETTINGS_KEY, v);
-  // what the administrator confirmed with the step-up (0.17.1)
+  // what the administrator confirmed with the step-up (0.18.0)
   if (v.platformId) pinTarget(v.platformId, v.prefix);
   audit({
     action: 'backup.settings_updated',

@@ -23,7 +23,7 @@ import { ismsSectionDraw, ISMS_MAX_ROWS, type IsmsSectionData } from './isms-rep
  * "ISMS summary" section of scheduled reports (ADR 0029 part 4, docs/REPORTS.md, docs/COMPLIANCE.md#isms-summary): the
  * figures of a management review (ISO/IEC 27001 clause 9.3) from what Steward already has – the statement of
  * applicability per catalogue, corrective actions, mandatory duty periods, reviews done, gaps of the responsibility
- * matrix and the certificates and notice dates of suppliers, and (0.17.1) the periodic reviews of living documents. No page and no state of its own: it reads the parts, with
+ * matrix and the certificates and notice dates of suppliers, and (0.18.0) the periodic reviews of living documents. No page and no state of its own: it reads the parts, with
  * the rights of the schedule's owner (runAs, like every section) – findings, services, suppliers and person reviews
  * the owner may not see are not counted. Compliance module: while it is off the section says so and holds nothing.
  */
@@ -174,7 +174,7 @@ function build(c: IsmsConfig, ctx: { from: number; to: number; now: number }): I
     else if (p.status !== 'skipped') out.reviews.supplierReviews.notDone++;
   }
 
-  // 4b. periodic reviews of living documents (0.17.1, docs/RECORDS.md#periodic-reviews): of the documents with a review
+  // 4b. periodic reviews of living documents (0.18.0, docs/RECORDS.md#periodic-reviews): of the documents with a review
   // cycle the owner may read, those not overdue at the end of the period (reviewed or approved within their interval)
   // and those overdue then – replayed like the records section – and the reviews recorded in the period
   const docs = livingDocumentsAt(u, { from: ctx.from, to: ctx.to, now: ctx.now, dueSoonDays: reminderSettings().dueSoonDays }).filter(

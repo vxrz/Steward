@@ -844,7 +844,7 @@ const submit = (save: () => Promise<void>) => (e: FormEvent) => {
 };
 const amountText = (v: string) => v.trim().replace(',', '.');
 
-/** The form error of an amount with more decimals than its currency has (no decimals for JPY, 0.17.1), or null. */
+/** The form error of an amount with more decimals than its currency has (no decimals for JPY, 0.18.0), or null. */
 function useDecimalsError(): (amount: string, currency: string) => string | null {
   const { t } = useTranslation('common');
   return (amount, currency) => {

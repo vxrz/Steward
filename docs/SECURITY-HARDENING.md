@@ -250,7 +250,7 @@ What Steward guarantees: every entry is HMAC-signed and chained, so an edit, an 
 - After a restore, _Verify chain_ against the last checkpoint from the SIEM tells you exactly which entries the restore lost; the local anchor file of a newer state reports the difference too.
 - SQLite: stop the app or use `sqlite3 service-manager.db ".backup …"`; PostgreSQL: `pg_dump` of the schema.
 - **Backup contents** (0.16.0, [BACKUPS.md](BACKUPS.md#contents)): run artifacts, archived reports and evidence packs can be left out of Steward's own backups. They are evidence – leave one out only when it is kept elsewhere; every backup that lacks them says so in its manifest, its header and the restore test. The database, the vault, the audit anchor and the audit archives are always in it.
-- **The backup target is pinned** (0.17.1, [BACKUPS.md](BACKUPS.md#2-the-storage-platform)): a change of the backup platform's address, region, connection or access key id makes backups and restore tests fail (`BACKUP_TARGET_CHANGED`) until an administrator confirms the target again with a step-up. Alert on `backup.target_confirmed`.
+- **The backup target is pinned** (0.18.0, [BACKUPS.md](BACKUPS.md#2-the-storage-platform)): a change of the backup platform's address, region, connection or access key id makes backups and restore tests fail (`BACKUP_TARGET_CHANGED`) until an administrator confirms the target again with a step-up. Alert on `backup.target_confirmed`.
 
 ## Exports
 

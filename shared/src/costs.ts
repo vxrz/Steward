@@ -92,7 +92,7 @@ export const ISO_4217_CODES: ReadonlySet<string> = new Set(
 export const isoCurrencyCode = currencyCode.refine((s) => ISO_4217_CODES.has(s), 'an ISO 4217 currency code like EUR or USD');
 
 /**
- * The minor units (decimals) of the ISO 4217 currencies that do not have two (0.17.1): no decimals for the yen, the
+ * The minor units (decimals) of the ISO 4217 currencies that do not have two (0.18.0): no decimals for the yen, the
  * won, the króna, the Chilean peso, the dong …, three for the dinars of Bahrain, Iraq, Jordan, Kuwait, Libya and
  * Tunisia and the Omani rial, four for the Chilean and Uruguayan units of account. Every other code has two – also the
  * funds codes and precious metals, which ISO 4217 gives none (N.A.). Static, like ISO_4217_CODES.
@@ -516,7 +516,7 @@ export const costBudgetInput = z
     comment: z.string().trim().max(1000).optional(),
   })
   .strict()
-  // no more decimals than the currency has (0.17.1): a budget of 1500.50 JPY is refused
+  // no more decimals than the currency has (0.18.0): a budget of 1500.50 JPY is refused
   .superRefine(checkCurrencyDecimals);
 export type CostBudgetInput = z.input<typeof costBudgetInput>;
 

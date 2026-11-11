@@ -66,7 +66,7 @@ export interface CostSectionData {
   totals: { currency: string; period: string; before: string }[];
 }
 
-/** An amount with the decimals of its currency (no decimals for JPY, three for KWD, 0.17.1). */
+/** An amount with the decimals of its currency (no decimals for JPY, three for KWD, 0.18.0). */
 const money = (lang: ReportLang, v: string | null, currency: string): string => {
   const digits = currencyMinorUnits(currency);
   return v === null ? '–' : `${Number(v).toLocaleString(lang, { minimumFractionDigits: digits, maximumFractionDigits: digits })} ${currency}`;

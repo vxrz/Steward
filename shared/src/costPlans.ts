@@ -153,7 +153,7 @@ const planLineFields = {
 
 const onceNeedsMonth = (x: { cadence: CostPlanCadence; onceMonth: string | null; amount: string; currency: string }, ctx: z.RefinementCtx) => {
   if (x.cadence === 'once' && !x.onceMonth) ctx.addIssue({ code: 'custom', path: ['onceMonth'], message: 'the month of the payment' });
-  // no more decimals than the currency has (0.17.1): 1500.50 JPY is refused
+  // no more decimals than the currency has (0.18.0): 1500.50 JPY is refused
   checkCurrencyDecimals(x, ctx);
 };
 

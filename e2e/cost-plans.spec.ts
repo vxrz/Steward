@@ -167,7 +167,7 @@ test('cost plan on a phone @mobile', async ({ page, apiAs }) => {
   }
 });
 
-test('cost plan: an amount in yen has no decimals (0.17.1)', async ({ page, apiAs }) => {
+test('cost plan: an amount in yen has no decimals (0.18.0)', async ({ page, apiAs }) => {
   const api = await apiAs('admin');
   const f = await fixture(api);
   try {

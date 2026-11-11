@@ -1028,7 +1028,7 @@ export function removeEntry(serviceId: string, entryId: string): CostPlanYear {
 // ---------- CSV ----------
 
 /**
- * A cell with an amount (a decimal string Steward wrote), rounded to the minor units of its currency (0.17.1: no
+ * A cell with an amount (a decimal string Steward wrote), rounded to the minor units of its currency (0.18.0: no
  * decimals for JPY, three for KWD); stays a number – also a negative one, which is no formula.
  */
 const num = (v: string | null, currency: string) => {

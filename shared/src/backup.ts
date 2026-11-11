@@ -156,7 +156,7 @@ export interface BackupStatus {
   key: { keyId: string; setAt: string; setBy: string } | null;
   /**
    * The platform of the backups (its address, region, connection or access key id) or the folder changed since an
-   * administrator confirmed the target (0.17.1). Runs fail with BACKUP_TARGET_CHANGED until it is confirmed again
+   * administrator confirmed the target (0.18.0). Runs fail with BACKUP_TARGET_CHANGED until it is confirmed again
    * (POST /api/backups/confirm-target, step-up); saving the backup settings confirms it too.
    */
   targetChanged: boolean;

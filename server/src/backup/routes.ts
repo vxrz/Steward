@@ -41,7 +41,7 @@ export async function backupRoutes(app: FastifyInstance): Promise<void> {
     },
   );
   // the platform of the backups changed (whoever manages it may change it without the step-up of the backup settings):
-  // an administrator checks it and confirms the target again (0.17.1, BACKUP_TARGET_CHANGED)
+  // an administrator checks it and confirms the target again (0.18.0, BACKUP_TARGET_CHANGED)
   app.post('/backups/confirm-target', { config: { access: ACCESS.admin, stepUp: { action: 'changeBackups', who: 'manageSettings' } } }, async () => {
     admin('confirm the target of the backups');
     return confirmBackupTarget();

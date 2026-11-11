@@ -5,7 +5,7 @@
  * (`https://user:password@host/`), a key in a query (`…/api/hook?code=…`) or in the path of a webhook service that
  * puts it there (Slack, Discord). The request body of a check (HTTP, platform, freshness) can carry them too – a
  * login form, a GraphQL query with a token, a JSON document with a password – and nothing tells those apart from
- * harmless bodies reliably, so a body goes as a whole unless it is empty (0.17.1). In the copy that leaves Steward
+ * harmless bodies reliably, so a body goes as a whole unless it is empty (0.18.0). In the copy that leaves Steward
  * each such value becomes `<redacted>`; the paths of what was redacted are kept (never the values) and listed in the
  * manifest.
  *

@@ -6,7 +6,7 @@ import { dateTimeFormat, numberFormat } from '../../format';
 
 /**
  * An amount (decimal text) in its currency, in the UI language: "1,840.00 USD" → "$1,840.00" / "1.840,00 $" – rounded
- * to the currency's minor units (0.17.1): "¥8,333" for JPY, "KWD 12.500" for the Kuwaiti dinar.
+ * to the currency's minor units (0.18.0): "¥8,333" for JPY, "KWD 12.500" for the Kuwaiti dinar.
  */
 export function fmtMoney(amount: string | null | undefined, currency: string, digits = currencyMinorUnits(currency)): string {
   if (amount === null || amount === undefined || amount === '') return '–';
@@ -30,7 +30,7 @@ export function fmtAmount(amount: string | null | undefined, currency: string): 
 
 /**
  * When an amount has more decimals than its currency has minor units (1500.50 JPY): the decimals allowed and the
- * code, for the form's error; null when it fits (the server refuses it as well, 0.17.1).
+ * code, for the form's error; null when it fits (the server refuses it as well, 0.18.0).
  */
 export function tooManyDecimals(amount: string, currency: string): { digits: number; currency: string } | null {
   const m = /[.,](\d+)$/.exec(amount.trim());

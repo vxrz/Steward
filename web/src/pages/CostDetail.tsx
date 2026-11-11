@@ -414,7 +414,7 @@ function BudgetDialog({ d, onClose }: { d: CostScopeDetail; onClose: () => void 
   const check = useFieldErrors({
     amount:
       (!amount.trim() && t('common:validation.required')) ||
-      // no more decimals than the currency has (0.17.1)
+      // no more decimals than the currency has (0.18.0)
       (tooMany && (tooMany.digits ? t('common:validation.currencyDecimals', tooMany) : t('common:validation.currencyWhole', tooMany))),
     currency: !/^[A-Za-z]{3}$/.test(currency.trim()) && t('common:validation.currency'),
   });

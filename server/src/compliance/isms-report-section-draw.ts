@@ -266,9 +266,9 @@ export interface IsmsSectionData {
     gone: number;
     supplierReviews: { done: number; late: number; notDone: number };
     /**
-     * Living documents with a review cycle the owner may read (0.17.1): within their review interval and overdue at the
+     * Living documents with a review cycle the owner may read (0.18.0): within their review interval and overdue at the
      * end of the period, the reviews recorded in it, and the overdue ones (at most ISMS_MAX_ROWS). Missing in data
-     * collected before 0.17.1.
+     * collected before 0.18.0.
      */
     documents?: {
       withinInterval: number;

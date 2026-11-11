@@ -145,7 +145,7 @@ function nextRun(cron: string, tz: string, on: boolean): string | null {
 // ---------- the confirmed target ----------
 
 /**
- * The fingerprint of an export's S3 target (shared with the backups since 0.17.1): the platform, its address, region,
+ * The fingerprint of an export's S3 target (shared with the backups since 0.18.0): the platform, its address, region,
  * connection, the access key id (hashed) and the folder. Whoever manages the platform can change it without the
  * export's step-up; a run compares it with the fingerprint an administrator confirmed (ADR 0027).
  */

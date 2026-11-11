@@ -1335,7 +1335,7 @@ export interface ApprovedSoaFiles {
  * their creator), `hidden` says whether the version names suppliers or services the reader may not see – the files are
  * signed bytes that cannot be filtered, so the caller leaves them out then.
  *
- * `asOf` (an ISO time, 0.17.1): the version that was valid then instead – the one approved latest on or before it,
+ * `asOf` (an ISO time, 0.18.0): the version that was valid then instead – the one approved latest on or before it,
  * also when a later approval has superseded it since. An evidence pack of a past period holds the statement that was
  * in force at its end; a catalogue whose first approval came later is left out.
  */

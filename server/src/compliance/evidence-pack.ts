@@ -759,7 +759,7 @@ async function buildPack(id: string, lang: ReportLang, opts: { assurance?: boole
     }
 
     // the statement of applicability (ADR 0029 part 4): of each catalogue whose controls are in the pack, the version
-    // valid at the end of the period – approved latest on or before it (0.17.1; a pack of a past period does not get a
+    // valid at the end of the period – approved latest on or before it (0.18.0; a pack of a past period does not get a
     // statement approved after it) – the archived PDF (checked against its recorded SHA-256), its CSV and the frozen JSON
     const catalogueIds = [...new Set(controls.map((c) => c.catalogue))]
       .map((key) => db().get<{ id: string }>('SELECT id FROM control_catalogues WHERE key = ?', key)?.id)

@@ -160,7 +160,7 @@ export type LivingDocumentAt = RecordsSectionData['documents'][number] & { revie
  * The living documents (workflow "document") `reader` may read, with the edition valid and the review status at the
  * end of the period – or now, when the period ends in the future – replayed from the record events, editions and
  * reviews (the review settings are today's), and the editions approved and reviews recorded in the period. The
- * records section and the ISMS summary (0.17.1) count them the same way. `typeIds` narrows the document types.
+ * records section and the ISMS summary (0.18.0) count them the same way. `typeIds` narrows the document types.
  */
 export function livingDocumentsAt(
   reader: AuthUser | null,

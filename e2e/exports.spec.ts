@@ -8,7 +8,7 @@ import { sessionState, ISOLATED_SETUP_MS, startIsolatedServer, type IsolatedServ
 /**
  * 0.16.0 (ADR 0027): Settings → Exports – an export of the cost plans and the plant registry to the demo's S3, run now,
  * its run in the history – and Settings → Backups → Contents: leaving run artifacts out shows what a restore lacks.
- * – and (0.17.1) a backup target changed by whoever manages its platform, confirmed again. They change the whole
+ * – and (0.18.0) a backup target changed by whoever manages its platform, confirmed again. They change the whole
  * installation (backup settings, the plant module), so they run on a server of their own.
  */
 
