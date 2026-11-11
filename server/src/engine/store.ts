@@ -992,66 +992,80 @@ export function protocolHash(runId: string): string {
  */
 export function failedCheckGroups(visible: (processId: string) => boolean, days = 7, limit = 50): FailedCheckGroup[] {
   const from = new Date(Date.now() - days * 86400000).toISOString();
+  // Two statements whatever the number of checks (security review 0.19.0 H2): the groups with their streak and the id
+  // of their latest failure – the database answers the per-group questions in correlated subqueries, without a round
+  // trip each – then the latest failures themselves.
+  const CHECKS = `FROM run_steps s JOIN runs r ON r.id = s.run_id WHERE r.debug IS NULL AND s.type = 'check'`;
+  const SAME = 'r.process_id = h.process_id AND s.step_id = h.step_id';
+  // the current streak: the failures after the last pass before the latest failure (resolved: it passed again later)
+  const STREAK = `${CHECKS} AND ${SAME} AND s.status = 'failed' AND s.finished_at > COALESCE(h.streak_from, ?) AND s.finished_at <= h.last_failed`;
   const groups = db()
-    .all<{ process_id: string; step_id: string; failures: number; last_failed: string; last_passed: string | null }>(
-      `SELECT r.process_id, s.step_id,
-              SUM(CASE WHEN s.status = 'failed' THEN 1 ELSE 0 END) AS failures,
-              MAX(CASE WHEN s.status = 'failed' THEN s.finished_at END) AS last_failed,
-              MAX(CASE WHEN s.status = 'succeeded' THEN s.finished_at END) AS last_passed
-       FROM run_steps s JOIN runs r ON r.id = s.run_id
-       WHERE r.debug IS NULL AND s.type = 'check' AND s.status IN ('failed', 'succeeded') AND s.finished_at > ?
-       GROUP BY r.process_id, s.step_id
-       HAVING SUM(CASE WHEN s.status = 'failed' THEN 1 ELSE 0 END) > 0`,
+    .all<{
+      process_id: string;
+      step_id: string;
+      failures: number;
+      last_failed: string;
+      last_passed: string | null;
+      streak_n: number;
+      streak_first: string | null;
+      latest_id: number | string | null;
+    }>(
+      `SELECT h.process_id, h.step_id, h.failures, h.last_failed, h.last_passed,
+              (SELECT COUNT(*) ${STREAK}) AS streak_n,
+              (SELECT MIN(s.finished_at) ${STREAK}) AS streak_first,
+              (SELECT s.id ${CHECKS} AND ${SAME} AND s.status = 'failed' AND s.finished_at = h.last_failed ORDER BY s.id DESC LIMIT 1) AS latest_id
+       FROM (
+         SELECT g.process_id, g.step_id, g.failures, g.last_failed, g.last_passed,
+                CASE WHEN g.last_passed IS NOT NULL AND g.last_passed > g.last_failed
+                  THEN (SELECT MAX(s.finished_at) ${CHECKS} AND r.process_id = g.process_id AND s.step_id = g.step_id AND s.status = 'succeeded'
+                          AND s.finished_at > ? AND s.finished_at < g.last_failed)
+                  ELSE g.last_passed END AS streak_from
+         FROM (
+           SELECT r.process_id, s.step_id,
+                  SUM(CASE WHEN s.status = 'failed' THEN 1 ELSE 0 END) AS failures,
+                  MAX(CASE WHEN s.status = 'failed' THEN s.finished_at END) AS last_failed,
+                  MAX(CASE WHEN s.status = 'succeeded' THEN s.finished_at END) AS last_passed
+           ${CHECKS} AND s.status IN ('failed', 'succeeded') AND s.finished_at > ?
+           GROUP BY r.process_id, s.step_id
+           HAVING SUM(CASE WHEN s.status = 'failed' THEN 1 ELSE 0 END) > 0
+         ) g
+       ) h`,
+      from,
+      from,
+      from,
       from,
     )
-    .filter((g) => visible(g.process_id));
+    .filter((g) => visible(g.process_id) && g.latest_id !== null);
+  const latest = new Map<string, { run_id: string; process_name: string; name: string; output: string | null; finished_at: string }>();
+  const ids = groups.map((g) => g.latest_id!);
+  for (let i = 0; i < ids.length; i += 500) {
+    const chunk = ids.slice(i, i + 500);
+    for (const r of db().all<{ id: number | string; run_id: string; process_name: string; name: string; output: string | null; finished_at: string }>(
+      `SELECT s.id, s.run_id, r.process_name, s.name, s.output, s.finished_at FROM run_steps s JOIN runs r ON r.id = s.run_id WHERE s.id IN (${chunk.map(() => '?').join(', ')})`,
+      ...chunk,
+    ))
+      latest.set(String(r.id), r);
+  }
   const rank: Record<string, number> = { error: 0, warning: 1, info: 2 };
   const out: FailedCheckGroup[] = [];
   for (const g of groups) {
-    const latest = db().get<{ run_id: string; process_name: string; name: string; output: string | null; finished_at: string }>(
-      `SELECT s.run_id, r.process_name, s.name, s.output, s.finished_at FROM run_steps s JOIN runs r ON r.id = s.run_id
-       WHERE r.debug IS NULL AND r.process_id = ? AND s.step_id = ? AND s.type = 'check' AND s.status = 'failed' AND s.finished_at = ?
-       ORDER BY s.id DESC LIMIT 1`,
-      g.process_id,
-      g.step_id,
-      g.last_failed,
-    );
-    if (!latest) continue;
-    const o = parseJson<{ message?: string; severity?: string; notify?: boolean }>(latest.output, {});
+    const l = latest.get(String(g.latest_id));
+    if (!l) continue;
+    const o = parseJson<{ message?: string; severity?: string; notify?: boolean }>(l.output, {});
     if (o.notify === false) continue;
-    const resolved = !!g.last_passed && g.last_passed > g.last_failed;
-    // the current streak: failures after the last pass before the latest failure
-    const lastPassBefore = resolved
-      ? (db().get<{ t: string | null }>(
-          `SELECT MAX(s.finished_at) AS t FROM run_steps s JOIN runs r ON r.id = s.run_id
-           WHERE r.debug IS NULL AND r.process_id = ? AND s.step_id = ? AND s.type = 'check' AND s.status = 'succeeded' AND s.finished_at > ? AND s.finished_at < ?`,
-          g.process_id,
-          g.step_id,
-          from,
-          g.last_failed,
-        )?.t ?? null)
-      : g.last_passed;
-    const streak = db().get<{ n: number; first: string }>(
-      `SELECT COUNT(*) AS n, MIN(s.finished_at) AS first FROM run_steps s JOIN runs r ON r.id = s.run_id
-       WHERE r.debug IS NULL AND r.process_id = ? AND s.step_id = ? AND s.type = 'check' AND s.status = 'failed' AND s.finished_at > ? AND s.finished_at <= ?`,
-      g.process_id,
-      g.step_id,
-      lastPassBefore ?? from,
-      g.last_failed,
-    )!;
     out.push({
       processId: g.process_id,
-      processName: latest.process_name,
+      processName: l.process_name,
       checkId: g.step_id,
-      name: latest.name,
+      name: l.name,
       severity: o.severity ?? 'error',
       message: o.message ?? '',
-      runId: latest.run_id,
-      ts: latest.finished_at,
+      runId: l.run_id,
+      ts: l.finished_at,
       count: Number(g.failures),
-      since: streak.first,
-      streak: Number(streak.n),
-      resolved,
+      since: g.streak_first!,
+      streak: Number(g.streak_n),
+      resolved: !!g.last_passed && g.last_passed > g.last_failed,
     });
   }
   return out

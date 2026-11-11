@@ -149,6 +149,19 @@ export function registerCounts(platformId: string): Map<string, number> {
   );
 }
 
+/** registerCounts of every platform in one statement (the platform list): platform id → identity id → number. */
+export function allRegisterCounts(): Map<string, Map<string, number>> {
+  const out = new Map<string, Map<string, number>>();
+  for (const x of db().all<{ platform_id: string; identity_id: string; n: number }>(
+    'SELECT platform_id, identity_id, COUNT(*) AS n FROM credentials WHERE identity_id IS NOT NULL AND archived = 0 GROUP BY platform_id, identity_id',
+  )) {
+    const m = out.get(x.platform_id) ?? new Map<string, number>();
+    m.set(x.identity_id, Number(x.n));
+    out.set(x.platform_id, m);
+  }
+  return out;
+}
+
 /** Names and flags of an identity – never secrets, the sign-in settings or variables. */
 export function toIdentity(
   r: IdentityRow,

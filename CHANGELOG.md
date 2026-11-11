@@ -8,6 +8,7 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- **Start page, scorecard, costs and monitor list on large instances** ([docs/TESTING.md](docs/TESTING.md#6-performance-and-volume)): these pages, and the platform, process and schedule lists, read their items in bulk – the number of database statements no longer grows with the number of services, processes, schedules or monitors, which on PostgreSQL held up every other request. The start page refreshes every 30 seconds instead of every 5, and when its tab is shown again.
 - **The audit log export streams** ([docs/SECURITY-HARDENING.md](docs/SECURITY-HARDENING.md#audit-log-as-evidence)): `GET /api/audit/export` reads and writes the chain in pages of 5,000 entries instead of holding it in memory, as the scheduled export does; the files are the same.
 - **The platform list stays fast with many connection tests**: the latest test of each platform is found through an index instead of reading every connection test ever recorded.
 

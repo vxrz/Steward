@@ -15,7 +15,18 @@ import {
 import { db } from '../db.js';
 import { currentUser, type AuthUser } from '../auth/context.js';
 import { capabilities } from '../auth/permissions.js';
-import { costSettings, coverOf, coverWhere, requireScope, scopeInfo, seesWholeScope, visibleScopes, type ScopeCover, type ScopeInfo } from './access.js';
+import {
+  costSettings,
+  coverOf,
+  coverWhere,
+  requireScope,
+  scopeInfo,
+  seesWholeScope,
+  serviceCovers,
+  visibleScopes,
+  type ScopeCover,
+  type ScopeInfo,
+} from './access.js';
 
 /**
  * Reading the cost model (#226): per scope the last 12 complete months and the current month so far, per currency
@@ -164,7 +175,7 @@ function currencySummary(
 
 // ---------- budgets (read side; budgets.ts changes them) ----------
 
-interface BudgetRow {
+export interface BudgetRow {
   scope: CostBudgetScope;
   scope_id: string;
   amount: number;
@@ -178,13 +189,30 @@ export function budgetRow(scope: CostBudgetScope, id: string): BudgetRow | undef
   return db().get<BudgetRow>('SELECT * FROM cost_budgets WHERE scope = ? AND scope_id = ?', scope, id);
 }
 
+/** Every budget of a scope kind, by id – one statement for a list (the overview, the scorecard). */
+export function budgetRows(scope: CostBudgetScope): Map<string, BudgetRow> {
+  return new Map(
+    db()
+      .all<BudgetRow>('SELECT * FROM cost_budgets WHERE scope = ?', scope)
+      .map((b) => [b.scope_id, b]),
+  );
+}
+
 /**
  * A budget with this month's use (in the budget's currency) and its forecast – always over the whole scope. A reader
  * who does not see every application of a service or team gets its state only (`stateOnly`): the use and the
  * percentages minus what they see would be the costs of the others. No reader (jobs, notices): everything.
  */
-export function budgetOf(scope: CostBudgetScope, id: string, amounts: boolean, now = Date.now(), reader: AuthUser | null = currentUser()): CostBudget | null {
-  const b = budgetRow(scope, id);
+export function budgetOf(
+  scope: CostBudgetScope,
+  id: string,
+  amounts: boolean,
+  now = Date.now(),
+  reader: AuthUser | null = currentUser(),
+  /** The budgets read for a list (budgetRows): no statement for a scope without one */
+  rows?: Map<string, BudgetRow>,
+): CostBudget | null {
+  const b = rows ? rows.get(id) : budgetRow(scope, id);
   if (!b) return null;
   const month = monthOf(now);
   const m = sums(coverWhere(coverOf(scope, id, false)), month)
@@ -384,8 +412,11 @@ export function overview(scope: CostScope, now = Date.now()): CostOverview {
     .map((r) => ({ ...r, e: Number(r.e) }));
   const rows: CostOverviewRow[] = [];
   const totals = new Map<string, { t: number; l: number }>();
+  // what each service covers and the budgets, read once for the list (security review 0.19.0 H2)
+  const covers = scope === 'service' ? serviceCovers() : null;
+  const budgets = scope === 'platform' ? undefined : budgetRows(scope);
   for (const info of visibleScopes(scope)) {
-    const c = coverOf(scope, info.id);
+    const c = covers ? covers(info.id) : coverOf(scope, info.id);
     const apps = new Set(c.applications);
     const unassigned = new Set(c.unassignedPlatforms);
     const mine = agg.filter((a) => (c.platform ? a.plat === c.platform : a.app ? apps.has(a.app) : unassigned.has(a.plat)));
@@ -405,7 +436,7 @@ export function overview(scope: CostScope, now = Date.now()): CostOverview {
       month,
       now,
     );
-    const budget = scope === 'platform' ? null : budgetOf(scope, info.id, info.amounts, now);
+    const budget = scope === 'platform' ? null : budgetOf(scope, info.id, info.amounts, now, currentUser(), budgets);
     // a platform without costs and without a cost source is left out of the list
     if (!byCurrency.size && scope === 'platform' && !db().get('SELECT platform_id FROM cost_sources WHERE platform_id = ? AND enabled = 1', info.id)) continue;
     if (!byCurrency.size)

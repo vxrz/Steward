@@ -40,6 +40,7 @@ import {
   mcpFromSetting,
   mergedAuthAndVariables,
   parseMcp,
+  allRegisterCounts,
   registerCounts,
   toIdentity,
   type IdentityRow,
@@ -88,7 +89,7 @@ function worst(states: Platform['integrity'][]): Platform['integrity'] {
   return 'ok';
 }
 
-function toPlatform(r: PlatformRow, idents: IdentityRow[]): Platform {
+function toPlatform(r: PlatformRow, idents: IdentityRow[], registerOf?: Map<string, number>): Platform {
   const stored = { ...defaultConfig(), ...parseJson<Partial<PlatformConfig>>(r.config, {}) };
   const acl = parseJson<AclEntry<PlatformPermission>[]>(r.acl, []);
   const permissions = platformPermissions(currentUser(), { id: r.id, acl });
@@ -107,7 +108,7 @@ function toPlatform(r: PlatformRow, idents: IdentityRow[]): Platform {
   };
   const user = currentUser();
   // entries of the credentials register that document each identity (0.14.0): their number only
-  const register = registerCounts(r.id);
+  const register = registerOf ?? registerCounts(r.id);
   const identities: PlatformIdentity[] = idents.map((i) =>
     toIdentity(i, {
       secretKeys: secretNames(i.secrets),
@@ -144,9 +145,11 @@ function toPlatform(r: PlatformRow, idents: IdentityRow[]): Platform {
 
 export function listPlatforms(): Platform[] {
   const idents = allIdentityRows();
+  // the register's counts of all platforms at once (not one statement per platform: security review 0.19.0 H2)
+  const register = allRegisterCounts();
   return db()
     .all<PlatformRow>('SELECT * FROM platforms ORDER BY name')
-    .map((r) => toPlatform(r, idents.get(r.id) ?? []));
+    .map((r) => toPlatform(r, idents.get(r.id) ?? [], register.get(r.id) ?? new Map()));
 }
 
 /**

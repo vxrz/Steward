@@ -42,6 +42,7 @@ import {
 import { db } from '../db.js';
 import { currentUser, type AuthUser } from '../auth/context.js';
 import { matches } from '../auth/permissions.js';
+import { withServiceLinks } from '../auth/policy.js';
 import { HttpError, parseJson } from '../util.js';
 import { canReadRecordRow, canViewCatalogue, me } from '../records/access.js';
 import { documentStates } from '../records/document-model.js';
@@ -68,7 +69,7 @@ import { productLabel } from '../catalogue/components.js';
 import { isWellBehind, versionSettings, watchOf, type WatchedEntry } from '../versions/service.js';
 import { applicationEntries } from '../versions/check.js';
 import { scopeInfo as costScopeInfo } from '../costs/access.js';
-import { budgetOf as costBudgetOf } from '../costs/query.js';
+import { budgetOf as costBudgetOf, budgetRows as costBudgetRows, type BudgetRow as CostBudgetRow } from '../costs/query.js';
 import { contractRow, contractStates, contractsLinkedTo, permissionsOf as contractPermissions, type ContractState } from '../datacontracts/service.js';
 
 /**
@@ -707,10 +708,12 @@ function contractsPart(d: Data, serviceId: string, ctx: ContractCtx): ScorecardC
  * reader who may see the service's costs (costs/access.ts); the state for everyone who sees the service – and only the
  * state for a reader who does not see every application of the service (the budget covers them all).
  */
-function costsPart(serviceId: string, viewer: AuthUser | null, now: number): ScorecardCosts {
+function costsPart(s: ServiceRow, viewer: AuthUser | null, now: number, budgets: Map<string, CostBudgetRow>): ScorecardCosts {
   const none: ScorecardCosts = { status: 'none', budgetPct: null, forecastPct: null, currency: null, thisMonth: null, budget: null, stateOnly: false };
-  const amounts = viewer ? (costScopeInfo('service', serviceId, viewer)?.amounts ?? false) : false;
-  const b = costBudgetOf('service', serviceId, amounts, now, viewer);
+  // (no budget: nothing to read – the reader's cost rights only matter for one)
+  if (!budgets.has(s.id)) return none;
+  const amounts = viewer ? (costScopeInfo('service', s.id, viewer, s)?.amounts ?? false) : false;
+  const b = costBudgetOf('service', s.id, amounts, now, viewer, budgets);
   if (!b) return none;
   const status: ScorecardPartStatus =
     b.state === 'exceeded' ? 'attention' : b.state === 'warning' || (b.forecastPct !== null && b.forecastPct > 100) ? 'pending' : 'ok';
@@ -730,6 +733,11 @@ export interface Computed {
  * particular reader (every document counts) – the daily snapshot.
  */
 export function computeScorecards(serviceIds: string[] | undefined, viewer: AuthUser | null, now = Date.now()): Computed[] {
+  // the links of services and applications, the cost budgets: read once for all services (security review 0.19.0 H2)
+  return withServiceLinks(() => computeWithLinks(serviceIds, viewer, now));
+}
+
+function computeWithLinks(serviceIds: string[] | undefined, viewer: AuthUser | null, now: number): Computed[] {
   const d = load(serviceIds, now, viewer);
   if (!d.services.length) return [];
   const oc: ObjCtx = { cache: readingCache(now), facts: sampleFacts(), platforms: platformLookup(), monitors: monitorLookup(), viewer };
@@ -739,6 +747,7 @@ export function computeScorecards(serviceIds: string[] | undefined, viewer: Auth
   const vc = vulnerabilityCtx(d);
   const uc = upToDateCtx(d, viewer, now);
   const cc = contractCtx(d, viewer);
+  const budgets = costBudgetRows('service');
   return d.services.map((s) => {
     const duties = dutiesPart(d, s.id);
     const availability = availabilityPart(d, s.id, oc);
@@ -747,7 +756,7 @@ export function computeScorecards(serviceIds: string[] | undefined, viewer: Auth
     const lifecycle = lifecyclePart(d, s.id, lc, now);
     const vulnerabilities = vulnerabilitiesPart(d, s.id, vc, now);
     const upToDate = upToDatePart(d, s.id, uc);
-    const costs = costsPart(s.id, viewer, now);
+    const costs = costsPart(s, viewer, now, budgets);
     const contracts = contractsPart(d, s.id, cc);
     return {
       card: {
