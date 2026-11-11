@@ -20,7 +20,7 @@ const refused = (p: Promise<unknown>) =>
     (e: { status: number; body: any }) => ({ status: e.status, code: (typeof e.body === 'string' ? JSON.parse(e.body) : e.body)?.code }),
   );
 
-let supplier: string, shopContract: string, careContract: string, app: string, system: string;
+let supplier: string, shopContract: string, careContract: string, app: string, system: string, serviceShop: string;
 const contacts = async (c: Client) => ((await c('GET', `/suppliers/${supplier}`)) as any).contacts as any[];
 const names = async (c: Client) => (await contacts(c)).map((x) => x.name).sort();
 
@@ -35,6 +35,7 @@ beforeAll(async () => {
   const shop = (await s.api('POST', '/teams', { name: 'Contact shop team', members: ['olivia'] })).id;
   const care = (await s.api('POST', '/teams', { name: 'Contact care team', members: ['bert'] })).id;
   const svcShop = (await s.api('POST', '/services', { name: 'Contact shop', owners: ['user:olivia'] })).id;
+  serviceShop = svcShop;
   const svcCare = (await s.api('POST', '/services', { name: 'Contact care', owners: ['user:bert'] })).id;
   await s.api('PUT', `/owning-teams/service/${svcShop}`, { teamIds: [shop] });
   await s.api('PUT', `/owning-teams/service/${svcCare}`, { teamIds: [care] });
@@ -174,6 +175,53 @@ describe('scoped contacts', () => {
     expect(JSON.stringify(body)).not.toContain('@platform.example');
     const internal = await fetch(`${s.base}/api/suppliers/scoped-contacts?kind=application&id=${app}`, { headers: { authorization: `Bearer ${token}` } });
     expect(JSON.stringify(await internal.json())).not.toContain('@');
+  });
+
+  it('never gives e-mail or phone to an API token on any supplier or contract route (ADR 0029 decided 8)', async () => {
+    await s.api('POST', `/suppliers/${supplier}/contacts`, {
+      name: 'Crawled contact',
+      email: 'crawl@platform.example',
+      phone: '+49 30 777',
+      scope: [{ kind: 'contract', id: shopContract }],
+    });
+    await s.api('POST', `/suppliers/${supplier}/contacts`, { name: 'Crawled desk', email: 'crawl-desk@platform.example', phone: '+49 30 778' });
+    // an administrator's read token sees every contact: the widest view a token can have
+    const { token } = await s.api('POST', '/me/tokens', { name: 'crawl read', scope: 'read' });
+    const { routeAccess } = await import('../src/app.js');
+    const routes = Object.keys(routeAccess(s.app))
+      .filter((k) => k.startsWith('GET '))
+      .map((k) => k.slice(4))
+      .filter((u) => /^\/api\/(v1\/)?suppliers|^\/api\/(v1\/)?services\/[^/]+\/contracts$/.test(u));
+    const fill = (u: string) => {
+      const service = u.startsWith('/api/services/') || u.startsWith('/api/v1/services/');
+      return (
+        u
+          .replace(/:contractId/g, shopContract)
+          .replace(/:(supplierId|serviceId|id)/g, service ? serviceShop : supplier)
+          .replace(/:key/g, 'none') + (u.endsWith('/scoped-contacts') ? `?kind=application&id=${app}` : '')
+      );
+    };
+    const seen: string[] = [];
+    const problems: string[] = [];
+    for (const u of routes) {
+      const res = await fetch(s.base + fill(u), { headers: { authorization: `Bearer ${token}` } });
+      const text = await res.text();
+      if (res.status === 200) seen.push(u);
+      if (/crawl(-desk)?@|\+49 30 77[78]/.test(text)) problems.push(`${u}: ${res.status}`);
+      // the token still gets the contacts themselves (name and role)
+      if (u === '/api/suppliers/:id/contracts/:contractId') expect(text).toContain('Crawled contact');
+    }
+    expect(problems).toEqual([]);
+    // the routes that return contacts were read, not refused
+    expect(seen).toEqual(
+      expect.arrayContaining([
+        '/api/suppliers/:id',
+        '/api/suppliers/:id/contracts/:contractId',
+        '/api/suppliers/scoped-contacts',
+        '/api/services/:id/contracts',
+        '/api/v1/suppliers/:supplierId',
+      ]),
+    );
   });
 
   it('keeps the limits', async () => {

@@ -105,7 +105,11 @@ export async function supplierRoutes(app: FastifyInstance): Promise<void> {
     s.removeContract(params(req).id!, params(req).contractId!, removeContractQuery.parse(req.query ?? {})),
   );
   // contracts with their own scope (ADR 0031): the contract page, covered services, the service's contracts
-  app.get('/suppliers/:id/contracts/:contractId', async (req) => s.getContract(params(req).id!, params(req).contractId!));
+  app.get('/suppliers/:id/contracts/:contractId', async (req) => {
+    const d = s.getContract(params(req).id!, params(req).contractId!);
+    // with an API token: the contacts scoped to the contract without e-mail and phone (ADR 0029 decided 8)
+    return viaToken(req) ? { ...d, contacts: d.contacts.map(s.toPublicContact) } : d;
+  });
   app.put('/suppliers/:id/contracts/:contractId/services/:serviceId', session, async (req) =>
     s.setContractService(params(req).id!, params(req).contractId!, params(req).serviceId!, supplierContractServiceInput.parse(req.body ?? {})),
   );
