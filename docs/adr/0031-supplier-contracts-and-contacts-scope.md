@@ -1,6 +1,6 @@
 # 0031. Suppliers shared by services: contracts and contacts with their own scope
 
-- **Status:** Accepted (owner decision 2026-11-11) – the model and the answers to the open questions were set by the owner, each as recommended; the further questions are settled below (see _Decided (November 2026)_). To be built in 0.18.0, after the parts of [ADR 0030](0030-contract-payments-and-recorded-costs.md)
+- **Status:** Accepted (owner decision 2026-11-11) and built in 0.18.0, after the parts of [ADR 0030](0030-contract-payments-and-recorded-costs.md) – the model and the answers to the open questions were set by the owner, each as recommended; the further questions are settled below (see _Decided (November 2026)_). What the build added or settled differently is listed under _Built in 0.18.0_
 - **Date:** 2026-11-11
 - **Since:** 0.18.0 ([ROADMAP.md](../ROADMAP.md#next))
 
@@ -246,6 +246,18 @@ Settled with this record, following those answers:
 26. **Datasets and export parts stay instance-wide** (administrators and auditors; the export target) with the new columns – they never were filtered.
 27. **Migrations are additive** (`suppliers-003`, `suppliers-004`); the upgrade may narrow who sees a contract, never widen, and says so.
 28. **Limits** as above – a shared supplier holds many teams' contracts and contacts.
+
+## Built in 0.18.0
+
+Built as decided, in the six parts of the delivery order. Settled while building:
+
+- **Proposals also from cost entries.** The upgrade proposes covered services from cost plan lines, matrix rows **and cost entries** that name a contract (`proposed_from` names each source) – an entry names the contract its service paid for, so it counts like a plan line for "nobody loses sight of a contract their service pays for".
+- **Gone scope items stay as marks.** A contact's scope row whose contract was removed or whose system was deleted stays in `supplier_contact_scopes` as a mark and no longer counts as an item: that is how a contact whose items are all gone is told apart from a company-wide one (_No longer in use_) without a column of its own. Taking off the last item by hand is refused (`SUPPLIER_CONTACT_LAST_ITEM`) – remove the contact instead.
+- **Hidden contracts in the API** are a flag beside the existing field (`supplierContractHidden` on plan lines and entries, `contractHidden` on matrix rows, `supplierContract` with `supplierContractHidden` on duties and findings) rather than `{ hidden: true }` in place of the contract, so the shape of the 0.17 fields does not change.
+- **Opening a supplier** goes through the _Owning teams_ panel as before (`PUT /api/owning-teams/supplier/:id`, with the protections and an optional `contacts` choice) and through `POST /api/suppliers/:id/open[/preview]`.
+- **"Replaced by …"** refuses when a payment schedule's paying service may not join the replacement – a schedule needs its service covered, and adding a service the person may not see would widen the replacement.
+- **No shared-package test runner**: the pure rules (`contractReaders`, `effectiveTerms`) are tested in `server/test/supplier-contract-scope.test.ts`.
+- **The service's audit view**: services have no audit view of their own; the `supplier.contract_service_*` entries name the service in their details.
 
 ## Consequences
 

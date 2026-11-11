@@ -13,11 +13,13 @@ Steward keeps the records and reminds you of dates. It is not a GRC tool: no sup
 - [Contacts and data protection](#contacts-and-data-protection)
 - [Linking a supplier](#linking-a-supplier)
 - [After the update: suppliers to confirm](#after-the-update-suppliers-to-confirm)
+- [After the update to 0.18: contracts with owners](#after-the-update-to-018-contracts-with-owners)
 - [Shared suppliers: merging and opening](#shared-suppliers-merging-and-opening)
 - [The yearly supplier review](#the-yearly-supplier-review)
 - [Reminders](#reminders)
 - [Who may do what](#who-may-do-what)
 - [Audit, API, MCP and the dataset](#audit-api-mcp-and-the-dataset)
+- [Try it in the demo](#try-it-in-the-demo)
 - [Limits](#limits)
 
 ## What a supplier holds
@@ -33,6 +35,10 @@ Steward keeps the records and reminds you of dates. It is not a GRC tool: no sup
 **New suppliers belong to the whole instance** (0.18.0): they get no owning team, whoever creates them – the company record is shared, while each team holds its own contracts ([TEAMS.md](TEAMS.md#new-resources)). Suppliers made by the 0.17 update keep their team scope; an administrator can open one to the whole instance or merge it into a shared supplier ([below](#shared-suppliers-merging-and-opening)).
 
 The list shows the next notice-by date (over the contracts you may see) and the next certificate expiry of each supplier, in orange within 90 days and in red once passed, and how many items link it. A supplier owned by a team is seen only by its members, its owners, administrators and auditors – as for systems ([TEAMS.md](TEAMS.md)).
+
+**The supplier page** (0.18.0) has the tabs **Overview** (company data, owners, owning teams, personal data and DPA as the default for contracts, criticality, review duties, open findings), **Contracts** (master agreements with their order forms indented; per contract the services it covers with their purposes, owners, term end, notice-by date, DPA state and _To confirm_ on proposed services; filters _Mine_ and _Covering services I edit_; the payments and what they owe, with the Costs module), **Services** (the services covered by contracts you may see, with purposes, and those that use the supplier through applications or systems without a contract – _No contract for this service_), **Contacts** (company-wide first, then the scoped ones with what they apply to), **Certificates** and **Used by**. Each contract has **its own page** (`/suppliers/:id/contracts/:contractId`, 404 for who may not see it): services and purpose, owners and visibility (who sees it and why), term and notice, SLA (inherited values in grey), data protection, payments (Costs module), contacts, reviews and findings.
+
+**The service page** lists under **Suppliers** the contracts covering the service – supplier, contract, purpose, owners, term end, notice-by date, SLA with RTO/RPO, DPA state – with _Confirm_ and _Not this service_ on proposed ones and _Leave contract_; _Add contract_ (choose a supplier – the new contract covers the service) and _Add to a contract_ (contracts you may change); and the suppliers its applications and systems link without a contract covering the service. The _Supplier_ panel of an application or system lists the contacts scoped to it.
 
 ## Contracts and the notice-by date
 
@@ -220,6 +226,10 @@ The daily summary (section _Supplier certificates and notice dates_) lists, in t
 Writes are only in the app: every changing route – also marking a certificate as looked at – needs a signed-in session and refuses API tokens (ADR 0029 decision 9). Reading one supplier through the internal route with an API token gives what the public API gives: contacts without e-mail or phone. Internal routes: `GET|POST /api/suppliers[?status=]`, `GET /api/suppliers/options`, `GET|PUT /api/suppliers/:id`, `POST /api/suppliers/:id/archive|confirm|merge|not-a-supplier`, `POST /api/suppliers/:id/contacts|contracts|certificates`, `PUT|DELETE …/:itemId`; since 0.18 `GET /api/suppliers/:id/contracts/:contractId` (the contract page), contracts take `owners`, `services` (`[{ serviceId, purpose }]`, on create), `confirmOpen`, `parentId`, `personalData`, `dpaStatus`, `dpaSince` and `dpaLink` (null: inherited), `DELETE …/contracts/:contractId?orderForms=standalone` removes a master, `PUT|DELETE /api/suppliers/:id/contracts/:contractId/services/:serviceId` (`purpose`, `confirm: true`; leave or dismiss), contacts take `scope` (`[{ kind, id }]`), `GET /api/suppliers/scoped-contacts?kind=application|system&id=`, `GET /api/services/:id/contracts` and `GET|DELETE /api/suppliers/scope-notice` (the administrators' notice after the update).
 
 Suppliers and their contracts, certificates and contacts move with migration packages ([MIGRATION.md](MIGRATION.md)); the reminders sent do not.
+
+## Try it in the demo
+
+With the demo services, _Catalogue → Suppliers_ holds the invented managed platform _Example Cloud GmbH_, shared by two services: its contract _Managed Kubernetes_ hosts the online shop's clusters and is held by the service desk team (open it: _Owners and visibility_ says who sees it and why), and customer care's agent licences are an order form of the _Platform framework agreement_ – its SLA and DPA come from the master agreement, shown in grey. The hosting contract's account manager is a contact scoped to that contract. Under _To confirm_, administrators find _Invented Relay Mail_ twice – once for the service desk team, once for the whole instance – under _Same supplier in several teams_: open _Merge…_ to see the preview.
 
 ## Limits
 
