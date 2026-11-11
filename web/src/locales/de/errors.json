@@ -689,6 +689,7 @@
     "SUPPLIER_CONTACT_NOT_FOUND": "Diesen Kontakt gibt es nicht (mehr).",
     "SUPPLIER_CONTRACT_NOT_FOUND": "Diesen Vertrag gibt es nicht (mehr), oder er gehört zu einem anderen Lieferanten.",
     "SUPPLIER_CONTRACT_NOT_COVERING": "Der Vertrag „{{contract}}“ deckt diesen Service nicht ab, und Sie dürfen den Service nicht hinzufügen: Das darf, wer den Vertrag ändern darf.",
+    "SUPPLIER_CONTRACT_COVER_SESSION": "Der Vertrag „{{contract}}“ deckt diesen Service nicht ab. API-Tokens können einem Vertrag keinen Service hinzufügen – melden Sie sich bei Steward an und wählen Sie den Vertrag dort, oder wählen Sie einen Vertrag, der den Service abdeckt.",
     "SUPPLIER_CONTRACT_OPENS": "Ohne ein Team unter den Eigentümern sieht jeder, der den Lieferanten sehen darf, den Vertrag „{{title}}“. Bestätigen Sie, dass Sie ihn öffnen möchten.",
     "SUPPLIER_CONTRACT_SERVICE_LIMIT": "Ein Vertrag deckt höchstens {{max}} Services ab.",
     "SUPPLIER_CONTRACT_SERVICE_ARCHIVED": "Der Service „{{name}}“ ist archiviert: Er kann keinem Vertrag hinzugefügt werden.",

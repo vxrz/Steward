@@ -1,6 +1,6 @@
 import type { SupplierRef, SupplierStatus } from '@sm/shared';
 import { db } from '../db.js';
-import { currentUser, type AuthUser } from '../auth/context.js';
+import { currentUser, viaApiToken, type AuthUser } from '../auth/context.js';
 import { canViewCatalogue } from '../records/access.js';
 import { ScopeCtx } from './contract-scope.js';
 import { HttpError, nowIso, parseJson } from '../util.js';
@@ -87,6 +87,15 @@ export function resolveSupplierContract(supplierId: string | null, next: string 
       throw new HttpError(409, `The contract "${c.title}" does not cover this service, and you may not add it`, 'SUPPLIER_CONTRACT_NOT_COVERING', {
         contract: c.title,
       });
+    // adding a covered service widens who sees the contract: a decision of a person in a session, like the contract's
+    // own route (ADR 0031 part 2; security review 0.18.0, L3) – an API token links only contracts covering the service
+    if (viaApiToken())
+      throw new HttpError(
+        403,
+        `The contract "${c.title}" does not cover this service – API tokens cannot add a service to a contract; sign in to the web UI`,
+        'SUPPLIER_CONTRACT_COVER_SESSION',
+        { contract: c.title },
+      );
   }
   return c.id;
 }

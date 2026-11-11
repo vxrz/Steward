@@ -382,6 +382,26 @@ describe('a contract you may not see, named elsewhere', () => {
         }),
       ),
     ).toEqual({ status: 409, code: 'SUPPLIER_CONTRACT_NOT_COVERING' });
+    // an API token never adds a covered service (it widens who sees the contract): only a person in a session does
+    const { token } = await s.api('POST', '/me/tokens', { name: 'cover by token', scope: 'full' });
+    const send = (url: string, body: unknown) =>
+      fetch(s.base + url, { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    const line = { fiscalYear: 2031, title: 'Token line', category: 'support', currency: 'EUR', amount: '5', cadence: 'monthly', supplierId: supplier };
+    const res = await send(`/api/costs/plans/${svcOps2}/lines`, { ...line, supplierContractId: hosting });
+    expect(res.status).toBe(403);
+    expect(((await res.json()) as { code: string }).code).toBe('SUPPLIER_CONTRACT_COVER_SESSION');
+    const entry = await send(`/api/costs/plans/${svcOps2}/entries`, {
+      date: '2031-03-01',
+      amount: '5',
+      currency: 'EUR',
+      supplierId: supplier,
+      supplierContractId: hosting,
+    });
+    expect(((await entry.json()) as { code: string }).code).toBe('SUPPLIER_CONTRACT_COVER_SESSION');
+    expect((await s.api('GET', `/suppliers/${supplier}/contracts/${hosting}`)).contract.services.map((x: any) => x.id)).not.toContain(svcOps2);
+    // a contract covering the service is linked as before
+    await s.api('PUT', `/suppliers/${supplier}/contracts/${addOn}/services/${svcOps2}`, {});
+    expect((await send(`/api/costs/plans/${svcOps2}/lines`, { ...line, supplierContractId: addOn })).status).toBe(200);
   });
 
   it('lists items naming a hidden contract under Used by with the neutral note', async () => {

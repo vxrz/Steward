@@ -689,6 +689,7 @@
     "SUPPLIER_CONTACT_NOT_FOUND": "This contact does not exist (any more).",
     "SUPPLIER_CONTRACT_NOT_FOUND": "This contract does not exist (any more), or it belongs to another supplier.",
     "SUPPLIER_CONTRACT_NOT_COVERING": "The contract “{{contract}}” does not cover this service, and you may not add the service to it: that takes who may change the contract.",
+    "SUPPLIER_CONTRACT_COVER_SESSION": "The contract “{{contract}}” does not cover this service. API tokens cannot add a service to a contract – sign in to Steward and choose the contract there, or choose a contract that covers the service.",
     "SUPPLIER_CONTRACT_OPENS": "Without a team among its owners, everyone who may see the supplier sees the contract “{{title}}”. Confirm that you want to open it.",
     "SUPPLIER_CONTRACT_SERVICE_LIMIT": "A contract covers at most {{max}} services.",
     "SUPPLIER_CONTRACT_SERVICE_ARCHIVED": "Service “{{name}}” is archived: it cannot be added to a contract.",
