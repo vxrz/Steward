@@ -2,7 +2,7 @@
 
 Where Steward stands, what it deliberately does not do, and what comes next. Shipped changes are in the [CHANGELOG](../CHANGELOG.md); how it is built is in [ARCHITECTURE.md](ARCHITECTURE.md). Ideas and requests are collected as GitHub issues.
 
-_Last reviewed for 0.16.0 (November 2026)._
+_Last reviewed for 0.17.0 (November 2026)._
 
 ## What Steward is for
 
@@ -75,17 +75,11 @@ Themes of this release (details in the CHANGELOG once released):
 - **0.14.0:** privileged platform identities with a step-up and an optional start approval; Confluent Cloud; security advisories for OT devices (CSAF 2.0); what a maintenance window affects, with planned downtime for its monitors in one step; documentation confirmed as still current; Insights Hub as a mapped sink checked against the tenant; decision records for a PAM checkout, an edge runner and signed releases (proposed).
 - **0.15.0:** consolidation: the plant change-set history in a fraction of the space with retention as a setting, fixes in the OT network diagram, sturdier UI tests; personal Microsoft Teams notifications through the bot (preview); a first-week guide.
 - **0.16.0:** lightweight cost planning per service and fiscal year; scheduled readable exports to S3 and a choice of what backups contain; moving devices and data collections between assets; clearer monitor states; a review of architecture, security, performance, UI and wording with its fixes.
+- **0.17.0:** ISO/IEC 27001 support for service management – suppliers instead of free-text vendors, a statement of applicability with a responsibility matrix per service, one register of corrective actions with an effectiveness check, an ISMS summary for the management review; device profiles from manuals – plant proposals from assistants in parts, with a source per data point.
 
 ## Next
 
-**0.17.0 – device profiles from manuals, and ISO/IEC 27001 support for service management.**
-
-- **Plant proposals in parts** ([ADR 0028](adr/0028-plant-proposals-in-parts.md), built): proposals from AI assistants (MCP) in parts, so a whole manual with hundreds of data points arrives as one reviewable proposal; and a source per data point – the document and page it comes from – shown in the review, with the manual kept as a plant document on the profile.
-- **ISO/IEC 27001 support** ([ADR 0029](adr/0029-iso-27001-support.md), built): evidence for an audit, not compliance by itself – risk registers, policy management, questionnaires and audit planning stay in a GRC tool ([non-goals](#non-goals)). In this order:
-  1. **Suppliers** as records instead of free-text vendor fields – type, contacts, contracts with notice periods and renewals linked to cost plan lines, SLA, data processing agreement, certificates with expiry, an annual supplier review as a service duty; existing vendor texts become unconfirmed suppliers to confirm or merge.
-  2. **Statement of applicability with a responsibility matrix**: per catalogue and control applicability with a justification, status, how it is met, the responsible party and the evidence Steward already has; versions approved and exported signed (PDF and CSV). Per service who does backup, recovery, patching, access management, logging and incident handling – our team, a supplier (with its SLA and certificate) or central IT – suggesting the SoA's responsible party.
-  3. **Corrective actions**: one register of nonconformities from audits and from Steward's own events (suggested, confirmed by a person), with actions, owners, due dates and an effectiveness check; incident review measures read through.
-  4. **ISMS summary** as a section of scheduled reports: SoA status, overdue corrective actions, duties on time, reviews done, supplier certificates and contracts expiring.
+The next release is not planned yet; the candidates are under _Later_.
 
 ## Later
 

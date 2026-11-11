@@ -6,6 +6,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-11-11
+
+Steward 0.17.0 supports an ISO/IEC 27001 audit of IT service management – as evidence, not as compliance by itself. Suppliers become records with contracts, SLAs, certificates and reminders instead of free-text vendor fields; each service gets a responsibility matrix that says who does backup, recovery, patching, access, logging and incident handling – the team, a supplier or central IT. A statement of applicability per control catalogue records applicability, status, how a control is met and the evidence Steward already has, approved by a second person and exported signed. One register of corrective actions takes findings from audits and from Steward's own events, with actions and an effectiveness check by someone who took no part in the fix, and an ISMS summary section gives the figures of a management review. AI assistants send plant proposals in parts, so a whole manual becomes one reviewable proposal, with a source per data point. A security review of these changes found nothing critical or high; its findings are fixed. Migrations are additive (`suppliers-001-suppliers`, `suppliers-002-links`, `compliance-004-soa` to `compliance-007-corrective-participants`); on the update every free-text vendor becomes a supplier to confirm.
+
 ### Added
 
 - **Plant proposals in parts** ([docs/PLANT.md](docs/PLANT.md#proposals-in-parts), [docs/MCP.md](docs/MCP.md#plant-registry)). An AI assistant that reads a manual with hundreds of data points sends `propose_plant_changes` in parts of up to 48 kB (`more: true`, then `proposalId`; at most 25 parts and 1 MB together): each part is a document of the import format, checked when it comes, and Steward merges the parts by key into one proposal – the same entry in several parts is merged, interfaces, groups and data points by their ids, and a value given differently in two parts refuses that part. The import's preview and the rules of a proposal (only additions and changes, no credentials) run on the combined document with the last part; only then do reviewers see it and are told. An unfinished proposal is its owner's, can be withdrawn and expires 24 hours after its last part; every part is audited (`plant.proposal_part_received`).
@@ -1313,7 +1317,8 @@ The first public version.
 - Monitors adopt the same policies: http/tcp/ping checks and webhook/Zabbix outputs are subject to the outbound policy (DNS-pinned; raw `host:port` checks need an explicit allow-list entry such as an IP/CIDR and are not inferred from platform origins); monitor http checks follow redirects manually and drop custom headers cross-origin; check error messages no longer echo the upstream response body; the guarded expression evaluation bounds condition/heartbeat/freshness expressions (CPU, memory via a `$pad` cap, and regex time); and gateway heartbeat batches share a global evaluation-concurrency cap (`SM_MONITOR_EVAL_CONCURRENCY`).
 - Semgrep findings triaged (all rule sets of the CI job, see [docs/ci/SECURITY-PIPELINE.md](docs/ci/SECURITY-PIPELINE.md#semgrep-triage)): the dev, PostgreSQL-test and install-script helpers start npm without a shell, also on Windows (`scripts/npm-command.mjs`); monitor-gateway key patterns (glob) and the API path editor match without regular expressions built from configured data; translation lookups ignore inherited properties; the CI gate also blocks HIGH/CRITICAL findings; SARIF uploads get the `actions: read` permission they need.
 
-[Unreleased]: https://github.com/vxrz/steward/compare/v0.16.0...HEAD
+[Unreleased]: https://github.com/vxrz/steward/compare/v0.17.0...HEAD
+[0.17.0]: https://github.com/vxrz/steward/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/vxrz/steward/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/vxrz/steward/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/vxrz/steward/compare/v0.13.0...v0.14.0
