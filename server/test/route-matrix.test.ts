@@ -1495,7 +1495,8 @@ const SESSION_ONLY = [
  * one that does not (`harmless`, never STEP_UP_REQUIRED). A route that loses its step-up fails this test.
  */
 /** `query`: what is appended to the URL of the sensitive and the harmless request (a GET route whose query decides) */
-const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown; query?: { sensitive: string; harmless: string } }> = {
+/** `path`: the filled path to send to instead of the route's fixture path (a route whose path parameter decides) */
+const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown; query?: { sensitive: string; harmless: string }; path?: () => string }> = {
   // copying the access settings of an original shares the copy with its access list and owning teams (0.4.0);
   // harmless: no access settings, refused for the key (nothing is created)
   ...Object.fromEntries(
@@ -1534,6 +1535,32 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
     get harmless() {
       return { teamIds: [fx.team], resources: [{ kind: 'process', id: fx.process }], preview: true };
     },
+  },
+  // shared suppliers (ADR 0031 part 8, security review 0.18.0 M5): adding an owning team and a merge that widens who
+  // sees a supplier grant access like the owning-teams panel
+  'POST /api/suppliers/:id/open': {
+    get sensitive() {
+      return { teamIds: [fx.team] };
+    },
+    harmless: { teamIds: [] as string[] },
+  },
+  'POST /api/suppliers/merge': {
+    get sensitive() {
+      return { intoId: fx.supplier, ids: [fx.supplierTeam] };
+    },
+    // nothing to merge (refused as a merge into itself)
+    get harmless() {
+      return { intoId: fx.supplier, ids: [fx.supplier] };
+    },
+  },
+  'POST /api/suppliers/:id/merge': {
+    get sensitive() {
+      return { into: fx.supplier };
+    },
+    get harmless() {
+      return { into: fx.supplierTeam };
+    },
+    path: () => `/api/suppliers/${fx.supplierTeam}/merge`,
   },
   'POST /api/users': { sensitive: { username: 'matrix-new', roles: ['viewer'] }, harmless: { username: '!' } },
   'PUT /api/users/:id': { sensitive: { roles: ['admin'] }, harmless: {} },
@@ -2409,6 +2436,9 @@ beforeAll(async () => {
   });
   const gw = await a('POST', '/monitor-gateways', { name: 'Matrix gateway', allowedKeys: ['test.*'] });
   const team = await a('POST', '/teams', { name: 'Matrix team', members: [] });
+  // a supplier of that team (ADR 0031): merging it into one of the whole instance widens who sees it
+  const supplierTeam = (await a('POST', '/suppliers', { name: 'Matrix team supplier', type: 'saas' })).id as string;
+  await a('PUT', `/owning-teams/supplier/${supplierTeam}`, { teamIds: [team.id] });
   const report = await a('POST', `/runs/${run.id}/reports`, {});
   const users = await a('GET', '/users');
   const syncSource = (
@@ -2470,6 +2500,7 @@ beforeAll(async () => {
     supplierContract,
     supplierCertificate,
     supplierUnconfirmed: supplier.id,
+    supplierTeam,
     catalogueMaintenance: catalogueMaintenance.id,
     reportSchedule: (await a('POST', '/report-schedules', REPORT_SCHEDULE)).id,
     report: report.id,
@@ -2758,7 +2789,8 @@ describe('route permission matrix', () => {
     const send = async (headers: Record<string, string>, k: string, body: unknown, query = '') => {
       const [method, url] = k.split(' ') as [string, string];
       const send = method !== 'DELETE' && method !== 'GET';
-      const res = await fetch(s.base + fill(url) + query, {
+      const rule = STEP_UP[k];
+      const res = await fetch(s.base + (rule !== 'always' && rule?.path ? rule.path() : fill(url)) + query, {
         method,
         headers: { 'x-sm-client': '1', ...headers, ...(send ? { 'content-type': 'application/json' } : {}) },
         body: send ? JSON.stringify(body ?? {}) : undefined,

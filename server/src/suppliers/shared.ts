@@ -266,6 +266,18 @@ function plan(target: SupplierRow, sources: SupplierRow[], choices: Record<strin
   return out;
 }
 
+/**
+ * Whether a merge widens who sees a source (a team-scoped source into a supplier of other teams or the whole instance):
+ * the step-up of the merge routes (`grantAccess`, security review 0.18.0, M5). Unknown suppliers: false – the route
+ * answers 404 itself.
+ */
+export function mergeGrants(intoId: string, ids: readonly string[]): boolean {
+  const target = db().get<{ id: string }>('SELECT id FROM suppliers WHERE id = ?', intoId);
+  if (!target) return false;
+  const targetTeams = owningTeams('supplier', target.id);
+  return [...new Set(ids)].filter((id) => id !== intoId).some((id) => widens(owningTeams('supplier', id), targetTeams));
+}
+
 function loadMerge(intoId: string, ids: string[]): { target: SupplierRow; sources: SupplierRow[] } {
   const want = [...new Set(ids)].filter((id) => id !== intoId);
   if (!want.length) throw new HttpError(400, 'A supplier cannot be merged into itself', 'SUPPLIER_MERGE_SELF');

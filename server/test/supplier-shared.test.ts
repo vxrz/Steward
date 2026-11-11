@@ -339,6 +339,32 @@ describe('opening through the bulk change of owning teams', () => {
   });
 });
 
+describe('step-up for granting access', () => {
+  it('asks an administrator to confirm before an opening, a widening merge or a bulk change opens a supplier', async () => {
+    const adm = await s.as('admin', 'Admin-password-1', { autoStepUp: false });
+    const id = await teamSupplier('Invented Step-up Supplier', shopTeam);
+    const open = (await adm('POST', '/suppliers', { name: 'Invented Step-up Shared' })).id;
+    await adm('DELETE', '/auth/step-up');
+    const stepUp = { status: 403, code: 'STEP_UP_REQUIRED' };
+    // adding a team, and removing every team (the whole instance then sees it)
+    expect(await refused(adm('POST', `/suppliers/${open}/open`, { teamIds: [careTeam] }))).toEqual(stepUp);
+    expect(await refused(adm('POST', `/suppliers/${id}/open`, { teamIds: [] }))).toEqual(stepUp);
+    expect(await refused(adm('PUT', `/owning-teams/supplier/${id}`, { teamIds: [] }))).toEqual(stepUp);
+    expect(await refused(adm('POST', '/owning-teams/bulk', { mode: 'remove', teamIds: [shopTeam], resources: [{ kind: 'supplier', id }] }))).toEqual(stepUp);
+    // a merge that widens who sees the team's supplier
+    expect(await refused(adm('POST', '/suppliers/merge', { intoId: open, ids: [id] }))).toEqual(stepUp);
+    expect(await refused(adm('POST', `/suppliers/${id}/merge`, { into: open }))).toEqual(stepUp);
+    // what grants nothing needs no confirmation: previews, a removal that leaves a team
+    await adm('POST', `/suppliers/${id}/open/preview`, { teamIds: [] });
+    await adm('POST', '/suppliers/merge/preview', { intoId: open, ids: [id] });
+    await adm('POST', '/owning-teams/bulk', { mode: 'add', teamIds: [], resources: [{ kind: 'supplier', id }] });
+    // confirmed, it goes through
+    await adm('POST', '/auth/step-up', { password: 'Admin-password-1' });
+    await adm('POST', `/suppliers/${id}/open`, { teamIds: [] });
+    expect((await adm('GET', `/owning-teams/supplier/${id}`)).teams).toEqual([]);
+  });
+});
+
 describe('Replaced by …', () => {
   it('moves what named a contract to another contract of the supplier', async () => {
     const sup = (await dana('POST', '/suppliers', { name: 'Invented Replacement Hosting' })).id;

@@ -159,14 +159,23 @@ const teamIds = z.object({ teamIds: z.array(z.string().max(64)).max(50) });
 /** A supplier's company-wide contacts that cannot be scoped when it is opened: the administrator's choice (ADR 0031) */
 const supplierContactChoices = z.object({ contacts: boundedRecord(z.enum(SUPPLIER_CONTACT_CHOICES), 100).optional() });
 
-/** Adding an owning team gives its members their roles on the resource: confirmed like other grants. */
+/**
+ * Whether new owning teams grant access: adding a team gives its members their roles on the resource, and removing
+ * every team opens it to the whole instance (security review 0.18.0, M4/M5). Confirmed like other grants (step-up
+ * `grantAccess`, the baseline control point access.grant).
+ */
+export function teamsGrantAccess(kind: OwnedKind, id: string, after: readonly string[]): boolean {
+  const before = owningTeams(kind, ownedResource(kind, id)?.id ?? '').map((t) => t.id);
+  return after.some((t) => !before.includes(t)) || (before.length > 0 && after.length === 0);
+}
+
+/** PUT /owning-teams/:kind/:id: the change grants access (teamsGrantAccess). */
 function addsTeam(req: FastifyRequest): boolean {
   const p = req.params as { kind?: string; id?: string };
   const kind = kindParam.safeParse(p.kind);
   const b = teamIds.safeParse(req.body);
   if (!kind.success || !b.success) return false;
-  const before = new Set(owningTeams(kind.data, ownedResource(kind.data, String(p.id ?? ''))?.id ?? '').map((t) => t.id));
-  return b.data.teamIds.some((t) => !before.has(t));
+  return teamsGrantAccess(kind.data, String(p.id ?? ''), b.data.teamIds);
 }
 
 const bulkInput = z.object({
