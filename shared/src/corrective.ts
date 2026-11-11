@@ -281,6 +281,8 @@ export interface CaFinding extends CaFindingSummary {
   effectiveness: CaEffectiveness | null;
   cancelReason: string;
   suggestionId: string | null;
+  /** The owners of the contract it names, when the reader may see it (0.18.0): proposed as owners of the first action */
+  supplierContractOwners: string[];
   actions: CaAction[];
   createdBy: string;
   updatedBy: string;

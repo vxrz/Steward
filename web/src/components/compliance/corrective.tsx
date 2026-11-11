@@ -432,7 +432,9 @@ export function ActionForm({
 }) {
   const { t } = useTranslation(['corrective', 'common']);
   const [title, setTitle] = useState(action?.title ?? '');
-  const [owners, setOwners] = useState<string[]>(action?.owners ?? []);
+  // the first action of a finding that names a contract: its owners are proposed, so the reminders reach them (ADR 0031)
+  const proposed = !action && !finding.actions.length && finding.supplierContract ? (finding.supplierContractOwners ?? []) : [];
+  const [owners, setOwners] = useState<string[]>(action?.owners ?? proposed);
   const [dueDate, setDueDate] = useState(action?.dueDate ?? inDays(14));
   const [note, setNote] = useState(action?.note ?? '');
   const [busy, setBusy] = useState(false);
@@ -478,7 +480,11 @@ export function ActionForm({
           />
           <SubjectsInput
             label={t('actions.owners')}
-            description={t('actions.ownersHint')}
+            description={
+              proposed.length && finding.supplierContract
+                ? t('actions.ownersFromContract', { contract: finding.supplierContract.title })
+                : t('actions.ownersHint')
+            }
             value={owners}
             onChange={setOwners}
             max={CA_LIMITS.owners}

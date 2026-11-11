@@ -14,7 +14,7 @@ import { aliasTarget, teamAliasTarget } from './aliases.js';
 const lower = (s: string) => s.trim().toLowerCase();
 
 /** Does `user:<name>` / `team:<name>` (or a role) name something that exists? Former names of imported accounts count. */
-function exists(subject: string): boolean {
+export function subjectExists(subject: string): boolean {
   const m = /^(user|team|role):(.+)$/i.exec(subject.trim());
   if (!m) return false;
   const kind = m[1]!.toLowerCase();
@@ -32,7 +32,7 @@ export function assertKnownSubjects(next: readonly string[], before: readonly st
   const kept = new Set(before.map(lower));
   for (const s of next) {
     if (kept.has(lower(s))) continue;
-    if (!exists(s)) {
+    if (!subjectExists(s)) {
       const name = s.replace(/^(user|team):/i, '');
       throw new HttpError(400, `${/^team:/i.test(s) ? 'Team' : 'User'} "${name}" does not exist`, /^team:/i.test(s) ? 'TEAM_UNKNOWN' : 'USER_UNKNOWN', {
         name,

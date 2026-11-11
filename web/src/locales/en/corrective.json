@@ -154,6 +154,7 @@
     "fieldTitle": "Action",
     "owners": "Owners",
     "ownersHint": "They are reminded before the due date, on it and weekly while it is overdue.",
+    "ownersFromContract": "Proposed: the owners of the contract “{{contract}}”, so the action reminders reach them.",
     "dueDate": "Due date",
     "note": "Note",
     "done": "Done",

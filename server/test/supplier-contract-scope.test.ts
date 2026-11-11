@@ -660,7 +660,10 @@ describe('reviews, findings and reminders', () => {
     });
     expect(f.supplierContract).toEqual({ id: reviewed, title: 'Reviewed hosting' });
     // bert owns the contract (not the service): he reads it
-    expect((await bert('GET', `/compliance/corrective-actions/${f.id}`)).number).toBe(f.number);
+    const asBert = await bert('GET', `/compliance/corrective-actions/${f.id}`);
+    expect(asBert.number).toBe(f.number);
+    // the contract's owners, proposed as owners of the first action (ADR 0031 part 7)
+    expect(asBert.supplierContractOwners.sort()).toEqual(['team:care team', 'user:bert']);
     expect(await refused(olivia('GET', `/compliance/corrective-actions/${f.id}`))).toMatchObject({ status: 404 });
     // a contract of another supplier is refused
     expect(

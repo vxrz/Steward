@@ -161,6 +161,36 @@ test('an administrator merges a pair split by team, with the preview', async ({ 
   }
 });
 
+test('a finding naming a contract proposes its owners for the first action', async ({ page, apiAs }) => {
+  const api = await apiAs('admin');
+  const f = await fixture(api);
+  try {
+    const finding = await json<{ id: string }>(
+      await api.post('/api/compliance/corrective-actions', {
+        data: {
+          title: uniq('Hosting SLA report missing'),
+          source: 'supplierReview',
+          serviceId: f.shop.id,
+          supplierId: f.supplier.id,
+          supplierContractId: f.hosting,
+        },
+      }),
+    );
+    const owners = (await json<{ contract: { owners: string[] } }>(await api.get(`/api/suppliers/${f.supplier.id}/contracts/${f.hosting}`))).contract.owners;
+    await page.goto(`/compliance/corrective-actions/${finding.id}`);
+    await page.getByTestId('ca-add-action').click();
+    const action = page.getByTestId('ca-action-form');
+    await expect(action).toContainText('Proposed: the owners of the contract “Shop hosting”');
+    await action.getByRole('textbox', { name: 'Action' }).fill('Ask the provider for the missing report');
+    await action.getByRole('button', { name: 'Save' }).click();
+    await expect(action).toBeHidden();
+    const saved = await json<{ actions: { owners: string[] }[] }>(await api.get(`/api/compliance/corrective-actions/${finding.id}`));
+    expect(saved.actions[0]!.owners.sort()).toEqual([...owners].sort());
+  } finally {
+    await cleanup(api, f);
+  }
+});
+
 test('a shared supplier on a phone @mobile', async ({ page, apiAs }) => {
   const api = await apiAs('admin');
   const f = await fixture(api);

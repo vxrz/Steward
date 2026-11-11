@@ -2435,6 +2435,7 @@ export interface Resources {
     'actions.fieldTitle': string;
     'actions.owners': string;
     'actions.ownersHint': string;
+    'actions.ownersFromContract': string;
     'actions.dueDate': string;
     'actions.note': string;
     'actions.done': string;

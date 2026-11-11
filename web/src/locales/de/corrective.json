@@ -154,6 +154,7 @@
     "fieldTitle": "Maßnahme",
     "owners": "Verantwortliche",
     "ownersHint": "Sie werden vor der Fälligkeit, am Fälligkeitstag und wöchentlich während der Überfälligkeit erinnert.",
+    "ownersFromContract": "Vorgeschlagen: die Eigentümer des Vertrags „{{contract}}“, damit die Erinnerungen an die Maßnahme sie erreichen.",
     "dueDate": "Fällig am",
     "note": "Notiz",
     "done": "Erledigt",

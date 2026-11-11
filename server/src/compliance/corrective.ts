@@ -21,7 +21,7 @@ import { db } from '../db.js';
 import { audit } from '../audit.js';
 import type { AuthUser } from '../auth/context.js';
 import { hasRole, isAdmin, matches } from '../auth/permissions.js';
-import { assertKnownSubjects } from '../auth/subjects.js';
+import { assertKnownSubjects, subjectExists } from '../auth/subjects.js';
 import { findUserByName } from '../auth/users.js';
 import { checkFourEyes, fourEyesRequired } from '../auth/assurance.js';
 import { canEditService, canReadRecordRow, canViewCatalogue } from '../records/access.js';
@@ -525,6 +525,10 @@ export function toFinding(f: FindingRow, ctx = new CaContext(), u = me()): CaFin
         : null,
     cancelReason: f.cancel_reason,
     suggestionId: f.suggestion_id,
+    // the owners of the contract it names, when the reader may see it: the form proposes them as owners of the first
+    // action, so the action reminders reach them (ADR 0031 part 7) – only users and teams that exist
+    supplierContractOwners:
+      f.supplier_contract_id && ctx.contractOf(f.supplier_contract_id).supplierContract ? ctx.contractOwners(f.supplier_contract_id).filter(subjectExists) : [],
     actions: items,
     createdBy: f.created_by,
     updatedBy: f.updated_by,
