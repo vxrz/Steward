@@ -317,6 +317,16 @@ const EXPECT: Record<string, Access> = {
   'PUT /api/costs/plans/:serviceId/lines/:lineId': DESIGN,
   'DELETE /api/costs/plans/:serviceId/lines/:lineId': DESIGN,
   'POST /api/costs/plans/:serviceId/copy': DESIGN,
+  // 0.18.0 (ADR 0030): Book – who may change the service, in a session
+  'POST /api/costs/plans/:serviceId/lines/:lineId/book': DESIGN,
+  // payment schedules: who may change the contract (designers, administrators, the supplier's owners) or edit the paying service
+  'GET /api/costs/schedules': ALL,
+  'POST /api/costs/schedules': DESIGN,
+  'PUT /api/costs/schedules/:costScheduleId': DESIGN,
+  'DELETE /api/costs/schedules/:costScheduleId': DESIGN,
+  'GET /api/costs/plans/:serviceId/proposals': ALL,
+  'POST /api/costs/plans/:serviceId/proposals': DESIGN,
+  'POST /api/costs/plans/:serviceId/contract-updates': DESIGN,
   'POST /api/costs/plans/:serviceId/entries': DESIGN,
   'PUT /api/costs/plans/:serviceId/entries/:entryId': DESIGN,
   'DELETE /api/costs/plans/:serviceId/entries/:entryId': DESIGN,
@@ -1328,6 +1338,13 @@ const SESSION_ONLY = [
   'POST /api/suppliers/:id/certificates',
   'PUT /api/suppliers/:id/certificates/:certificateId',
   'DELETE /api/suppliers/:id/certificates/:certificateId',
+  // contract payments and recorded costs (ADR 0030): new writes for people, in a session
+  'POST /api/costs/plans/:serviceId/lines/:lineId/book',
+  'POST /api/costs/schedules',
+  'PUT /api/costs/schedules/:costScheduleId',
+  'DELETE /api/costs/schedules/:costScheduleId',
+  'POST /api/costs/plans/:serviceId/proposals',
+  'POST /api/costs/plans/:serviceId/contract-updates',
   'PUT /api/settings/modules/:id',
   'GET /api/settings/plant/map',
   'PUT /api/settings/plant/map',
@@ -2480,6 +2497,7 @@ beforeAll(async () => {
   QUERY['GET /api/v1/platforms/:platformId/schema/compare'] = `?from=${dbSnap}&to=${dbSnap}`;
   QUERY['GET /api/v1/systems/:systemId/schema/compare'] = `?from=${sysSnap}&to=${sysSnap}`;
   QUERY['GET /api/access/explain'] = `?kind=process&id=${fx.process}`;
+  QUERY['GET /api/costs/schedules'] = `?serviceId=${fx.service}`;
   const vaultPlatform = (await a('GET', '/platforms')).find((p: { kind: string }) => p.kind === 'privilege-vault').id;
   QUERY['GET /api/credentials/vault-secrets'] = `?platformId=${vaultPlatform}&q=`;
   // compliance: the demo access check with a finding, a control, an access change entry, an evidence pack

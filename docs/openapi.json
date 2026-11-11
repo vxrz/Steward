@@ -34396,6 +34396,10 @@
                   ],
                   "description": "The linked supplier (0.17.0; null: none, or one the token owner may not see); vendor is the fallback text"
                 },
+                "supplierHidden": {
+                  "type": "boolean",
+                  "description": "A supplier is linked that the token owner may not see (0.18.0)"
+                },
                 "supplierContract": {
                   "anyOf": [
                     {
@@ -34439,6 +34443,7 @@
                   "enum": [
                     "yearly",
                     "monthly",
+                    "quarterly",
                     "once"
                   ]
                 },
@@ -34448,6 +34453,34 @@
                     "string"
                   ]
                 },
+                "fromMonth": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "Only part of the year (0.18.0): the first month (YYYY-MM); null: the whole year"
+                },
+                "toMonth": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "Only part of the year (0.18.0): the last month (YYYY-MM); null: the whole year"
+                },
+                "coversFrom": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "A prepaid one-off payment (0.18.0): the first day it covers"
+                },
+                "coversTo": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "A prepaid one-off payment: the last day it covers"
+                },
                 "renewalDate": {
                   "type": [
                     "null",
@@ -34456,6 +34489,66 @@
                 },
                 "note": {
                   "type": "string"
+                },
+                "schedule": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "contractId": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "changed": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "contractId",
+                        "title",
+                        "changed"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The payment schedule of a supplier contract the line was made from (0.18.0); changed: the contract changed since (Contract changed)"
+                },
+                "paymentDates": {
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "A schedule line: the payment date in each month of the year (null: no payment)"
+                },
+                "bookable": {
+                  "type": "boolean",
+                  "description": "Monthly, quarterly and one-off lines with a payment: a person can book them"
+                },
+                "notBooked": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Months (YYYY-MM) up to the current one with a planned payment and no entry on the line"
                 },
                 "months": {
                   "type": "array",
@@ -34547,13 +34640,22 @@
                 "target",
                 "vendor",
                 "supplier",
+                "supplierHidden",
                 "supplierContract",
                 "amount",
                 "currency",
                 "cadence",
                 "onceMonth",
+                "fromMonth",
+                "toMonth",
+                "coversFrom",
+                "coversTo",
                 "renewalDate",
                 "note",
+                "schedule",
+                "paymentDates",
+                "bookable",
+                "notBooked",
                 "months",
                 "incurredMonths",
                 "planned",
@@ -34649,6 +34751,78 @@
                   ],
                   "description": "What it is for: an application or system of the service, or a platform"
                 },
+                "supplier": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "unconfirmed",
+                            "active",
+                            "archived"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "status"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The supplier (0.18.0; null: none, or one the token owner may not see)"
+                },
+                "supplierHidden": {
+                  "type": "boolean",
+                  "description": "A supplier is linked that the token owner may not see"
+                },
+                "supplierContract": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "reference": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "title",
+                        "reference"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The supplier contract"
+                },
+                "importId": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "The CSV import the entry came from (0.18.0)"
+                },
                 "reference": {
                   "type": "string",
                   "description": "Invoice or order number"
@@ -34706,6 +34880,10 @@
                 "planLineId",
                 "planLineTitle",
                 "target",
+                "supplier",
+                "supplierHidden",
+                "supplierContract",
+                "importId",
                 "reference",
                 "note",
                 "unplanned",

@@ -191,6 +191,15 @@ export const costKeys = {
   plan: (serviceId: string, year: number | null) => ['costs', 'plan', serviceId, year ?? 'current'] as const,
   planOf: (serviceId: string) => ['costs', 'plan', serviceId] as const,
   teamPlan: (teamId: string, year: number | null) => ['costs', 'team-plan', teamId, year ?? 'current'] as const,
+  /** Payment schedules of a contract or a service (ADR 0030) */
+  schedules: (by: 'contract' | 'service', id: string) => ['costs', 'schedules', by, id] as const,
+  /** "Contract payments to plan" of a service's fiscal year */
+  proposals: (serviceId: string, year: number) => ['costs', 'proposals', serviceId, year] as const,
+  /** Commitments across services (the filters as a query string), of one service, of a supplier */
+  commitments: (qs: string) => ['costs', 'commitments', qs] as const,
+  supplierCosts: (supplierId: string) => ['costs', 'supplier', supplierId] as const,
+  /** CSV imports of a service's entries */
+  entryImports: (serviceId: string) => ['costs', 'entry-imports', serviceId] as const,
 };
 
 /** Data contracts (#221): the list, one contract, its versions, comparisons and test runs. */

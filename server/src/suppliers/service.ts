@@ -47,6 +47,7 @@ import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { moduleEnabled } from '../modules/registry.js';
 import { supplierVisible } from './links.js';
 import { CaContext, canReadFinding, type FindingRow } from '../compliance/corrective.js';
+import { dropSchedules, type ScheduleRow } from '../costs/schedule-model.js';
 
 /**
  * Suppliers (0.17.0, ADR 0029 part 1, docs/SUPPLIERS.md): records with contacts, contracts and certificates, linked
@@ -813,6 +814,8 @@ export const LINKING_TABLES = [
   'soa_entries',
   // corrective action findings about the supplier (ADR 0029 part 3)
   'ca_findings',
+  // cost entries name their supplier (ADR 0030); not listed under "Used by"
+  'cost_entries',
 ] as const;
 
 function countLinks(id: string): Record<string, number> {
@@ -1121,13 +1124,20 @@ export function updateContract(supplierId: string, contractId: string, input: Co
   return getSupplier(supplierId);
 }
 
-/** Removes a contract; the cost plan lines that named it keep their supplier and lose the contract. */
+/**
+ * Removes a contract; the cost plan lines and entries that named it keep their supplier and lose the contract, its
+ * payment schedules go (audited on their services) and the lines made from them become ordinary lines (ADR 0030).
+ */
 export function removeContract(supplierId: string, contractId: string): SupplierDetail {
   const u = me();
   const s = requireEditable(supplierId, 'change this supplier');
   const cur = contractRow(supplierId, contractId);
   db().tx(() => {
     const lines = db().run('UPDATE cost_plan_lines SET supplier_contract_id = NULL WHERE supplier_contract_id = ?', contractId).changes;
+    // cost entries keep their supplier, without the contract; its payment schedules go, the lines made from them
+    // become ordinary lines (ADR 0030)
+    db().run('UPDATE cost_entries SET supplier_contract_id = NULL WHERE supplier_contract_id = ?', contractId);
+    dropSchedules(db().all<ScheduleRow>('SELECT * FROM cost_schedules WHERE contract_id = ?', contractId), 'contractRemoved', cur.title, s.name);
     // a responsibility matrix row keeps its supplier, without the contract
     const responsibilities = db().run('UPDATE service_responsibilities SET contract_id = NULL WHERE contract_id = ?', contractId).changes;
     db().run('DELETE FROM supplier_contracts WHERE id = ?', contractId);

@@ -314,7 +314,8 @@
     "cadences": {
       "yearly": "Jährlich (gleichmäßig verteilt)",
       "monthly": "Monatlich",
-      "once": "Einmalig"
+      "once": "Einmalig",
+      "quarterly": "Vierteljährlich"
     },
     "cadenceOnceIn": "Einmalig, {{month}}",
     "read": {
@@ -360,7 +361,8 @@
       "title": "Plan kopieren",
       "message": "Alle Planpositionen von {{from}} in {{to}} kopieren? Verlängerungstermine vor dem neuen Jahr rücken um ein Jahr vor. Buchungen werden nicht kopiert.",
       "done": "Plan in {{to}} kopiert",
-      "failed": "Plan nicht kopiert"
+      "failed": "Plan nicht kopiert",
+      "result": "Nach {{to}} kopiert: {{copied}} Position(en) ({{shortened}} bis zum Vertragsende), {{proposed}} Zahlungsplan/-pläne vorgeschlagen, {{leftOut}} ausgelassen (Vertrag beendet)"
     },
     "line": {
       "add": "Planposition hinzufügen",
@@ -388,14 +390,29 @@
       "amount": {
         "yearly": "Betrag pro Jahr",
         "monthly": "Betrag pro Monat",
-        "once": "Betrag"
+        "once": "Betrag",
+        "quarterly": "Betrag pro Quartal"
       },
       "currency": "Währung",
       "onceMonth": "Monat der Zahlung",
       "renewal": "Vertragsende oder Verlängerung",
       "renewalHint": "Wird 90 Tage vorher angezeigt",
       "note": "Notiz",
-      "noEffort": "Nur Kosten: Aufwand und Personenstunden werden hier nicht geplant."
+      "noEffort": "Nur Kosten: Aufwand und Personenstunden werden hier nicht geplant.",
+      "partOfYear": "Nur ein Teil des Jahres",
+      "partOfYearHint": {
+        "monthly": "Der Betrag in jedem Monat vom ersten bis zum letzten",
+        "quarterly": "Der Betrag jeden dritten Monat ab dem ersten Monat, bis zum letzten",
+        "yearly": "Der Betrag ist, was die Position in diesen Monaten kostet, gleichmäßig auf sie verteilt"
+      },
+      "fromMonth": "Erster Monat",
+      "toMonth": "Letzter Monat",
+      "toBeforeFrom": "Das Ende liegt vor dem Anfang",
+      "prepaid": "Deckt mehr als ihren Monat ab (vorausbezahlt)",
+      "prepaidHint": "Zählt im Geschäftsjahr, in dem sie bezahlt wird; spätere Jahre, die sie abdeckt, zeigen sie als vorausbezahlt",
+      "coversFrom": "Deckt ab",
+      "coversTo": "Deckt bis",
+      "renewalFromContract": "Verlängerungen einer Vertragsposition sind die Kündigungsfrist und das Laufzeitende des Vertrags."
     },
     "entries": {
       "title": "Kostenbuchungen",
@@ -426,7 +443,9 @@
       "otherYear": "Planposition von {{label}}: {{title}}",
       "otherYearOption": "{{title}} ({{label}}, beibehalten)",
       "removed": "Kostenbuchung entfernt",
-      "currencyFromLine": "Aus der Planposition"
+      "currencyFromLine": "Aus der Planposition",
+      "supplier": "Lieferant",
+      "supplierHint": "Standard: Lieferant und Vertrag der Planposition"
     },
     "team": {
       "title": "Pläne der Services des Teams",
@@ -439,6 +458,107 @@
       "totalsLine": "{{planned}} geplant · {{expected}} erwartet"
     },
     "costsRead": "Gelesene Kosten",
-    "costsReadHint": "Die Kosten, die Steward für diesen Service Monat für Monat von den Plattformen liest"
+    "costsReadHint": "Die Kosten, die Steward für diesen Service Monat für Monat von den Plattformen liest",
+    "cadenceSpan": "{{cadence}}, {{from}} – {{to}}",
+    "covers": "Deckt {{from}} – {{to}} ab",
+    "supplierHidden": "Ein Lieferant, den Sie nicht sehen dürfen",
+    "book": {
+      "action": "Eine Zahlung von {{title}} buchen",
+      "title": "Buchen: {{title}}",
+      "help": "Hält fest, dass diese Zahlung geleistet wurde. Steward bucht nie von sich aus: Eine Buchung sagt, dass Geld ausgegeben wurde.",
+      "month": "Monat",
+      "monthBooked": "{{month}} (gebucht)",
+      "save": "Buchen",
+      "done": "Zahlung gebucht",
+      "failed": "Zahlung nicht gebucht",
+      "againTitle": "Erneut buchen?",
+      "again": "Für {{month}} bereits gebucht: {{amount}} – erneut buchen?",
+      "againButton": "Erneut buchen",
+      "notBooked": "Nicht gebucht: {{months}}"
+    }
+  },
+  "schedules": {
+    "title": "Zahlungsplan",
+    "add": "Zahlungen hinzufügen",
+    "none": "Noch kein Zahlungsplan. Fügen Sie einen hinzu, um die Planpositionen dieses Vertrags je Geschäftsjahr vorzuschlagen.",
+    "edit": "Zahlungen {{title}} bearbeiten",
+    "remove": "Zahlungen {{title}} entfernen",
+    "removeConfirm": "Den Zahlungsplan „{{title}}“ von {{service}} entfernen? Daraus erstellte Planpositionen bleiben als gewöhnliche Positionen.",
+    "removed": "Zahlungsplan entfernt",
+    "saved": "Zahlungsplan gespeichert",
+    "notSaved": "Zahlungsplan nicht gespeichert",
+    "addTitle": "Zahlungen hinzufügen: {{contract}}",
+    "editTitle": "Zahlungen bearbeiten",
+    "datedCount_one": "{{count}} datierte Zahlung",
+    "datedCount_other": "{{count}} datierte Zahlungen",
+    "term": "{{from}} – {{to}}",
+    "next": "nächste {{date}}: {{amount}}",
+    "billings": {
+      "monthly": "monatlich",
+      "quarterly": "vierteljährlich",
+      "yearly": "jährlich",
+      "once": "einmalig",
+      "dates": "datierte Zahlungen"
+    },
+    "form": {
+      "title": "Titel",
+      "titleHint": "z. B. Grundgebühr, Einrichtung, Zusätzliche Benutzer",
+      "service": "Zahlender Service",
+      "serviceHint": "Der Service, dessen Kostenplan die Positionen erhält",
+      "billing": "Abrechnung",
+      "amount": "Betrag je Zahlung",
+      "amountHint": "Im Vertragsjahr 1",
+      "firstPayment": "Erste Zahlung",
+      "firstPaymentHint": "Standard: der Beginn",
+      "startsOn": "Beginn",
+      "startsOnHint": "Standard: der Beginn des Vertrags",
+      "endsOn": "Geplant bis",
+      "endsOnHint": "Standard: folgt dem Vertrag",
+      "yearAmounts": "Betrag je Vertragsjahr",
+      "yearAmountsHint": "Vertragsjahre zählen ab dem Beginn in Zwölfmonatsschritten. Ein Jahr ohne Betrag übernimmt den des Vorjahres.",
+      "percent": "+ % pro Jahr",
+      "fill": "Ausfüllen",
+      "year": "Jahr {{year}}",
+      "yearBefore": "Wie das Vorjahr",
+      "payments": "Datierte Zahlungen",
+      "paymentDate": "Datum",
+      "paymentAmount": "Betrag",
+      "coversUntil": "Deckt bis",
+      "addPayment": "Zahlung hinzufügen",
+      "removePayment": "Diese Zahlung entfernen",
+      "paymentsInvalid": "Jede Zahlung braucht ein Datum und einen Betrag mit den Nachkommastellen der Währung.",
+      "noProRata": "Eine Zahlung zählt im Monat ihres Datums – keine anteilige Berechnung. Eine anteilig abgerechnete erste Rechnung erfassen Sie als datierte Zahlung."
+    }
+  },
+  "contractLines": {
+    "changed": "Vertrag geändert",
+    "contract": "Vertrag",
+    "fromSchedule": "Aus dem Zahlungsplan „{{title}}“ erstellt",
+    "twoLines": "Zwei Positionen für diesen Vertrag",
+    "ends": "Vertrag endet {{date}}",
+    "toPlan": "Vertragszahlungen zum Planen in {{label}}",
+    "toPlanHelp": "Zahlungspläne dieses Service mit Zahlungen in diesem Geschäftsjahr und noch ohne Positionen dafür. Nichts wird hinzugefügt, bevor Sie bestätigen.",
+    "hiddenContract": "{{title}} (ein Vertrag eines Lieferanten, den Sie nicht sehen dürfen)",
+    "addToPlan_one": "{{count}} zum Plan hinzufügen",
+    "addToPlan_other": "{{count}} zum Plan hinzufügen",
+    "added": "Vertragspositionen hinzugefügt",
+    "notAdded": "Vertragspositionen nicht hinzugefügt",
+    "changedTitle": "Vertrag geändert",
+    "changedHelp": "Der Vertrag oder seine Zahlungen haben sich geändert, seit diese Positionen erstellt wurden. Wählen Sie die Änderungen, die übernommen werden sollen; abgelaufene Jahre bleiben wie geplant.",
+    "choose": "Übernehmen",
+    "chooseChange": "Diese Änderung von {{title}} übernehmen",
+    "before": "Vorher",
+    "after": "Nachher",
+    "newLine": "Neue Position",
+    "gone": "Position entfällt",
+    "goneWithEntries_one": "Position entfällt – ihre {{count}} Buchung wird ungeplant",
+    "goneWithEntries_other": "Position entfällt – ihre {{count}} Buchungen werden ungeplant",
+    "update_one": "{{count}} Position aktualisieren",
+    "update_other": "{{count}} Positionen aktualisieren",
+    "updated": "Positionen aktualisiert",
+    "notUpdated": "Positionen nicht aktualisiert",
+    "prepaid": "Vorausbezahlt in {{label}}: {{title}}, {{amount}} (deckt {{from}} – {{to}} ab) – hier nicht gezählt",
+    "unlink": "Vom Vertrag lösen",
+    "unlinkPending": "Beim Speichern wird dies eine gewöhnliche Position ohne Vertragshinweise."
   }
 }

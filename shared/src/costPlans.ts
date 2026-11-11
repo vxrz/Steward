@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { checkCurrencyDecimals, isoCurrencyCode, toMicros } from './costs.js';
+import { checkCurrencyDecimals, currencyMinorUnits, isoCurrencyCode, toMicros } from './costs.js';
 import type { SupplierRef } from './suppliers.js';
+import type { CostContractChange } from './costContracts.js';
 
 /**
  * Service cost planning (0.16.0, ADR 0026, docs/COSTS.md#planning-per-service): what a service plans to spend on the
@@ -11,7 +12,10 @@ import type { SupplierRef } from './suppliers.js';
  *   fiscal year is named by the calendar year it starts in: "FY 2026" (start January), "FY 2026/27" (start October).
  * - Plan lines per service and fiscal year: a title, a category, what it is for (an application or system of the
  *   service, or a platform; else free text), an amount in a currency with a cadence (yearly spread evenly over the
- *   12 months, monthly, once in one month), an optional renewal date and a note.
+ *   12 months, monthly, quarterly, once in one month), an optional renewal date and a note.
+ * - 0.18.0 (ADR 0030): monthly, quarterly and yearly lines may cover only part of the year (a from and a to month,
+ *   stored as positions 0–11 like the month of a one-off payment); a one-off payment may say which days it covers
+ *   (prepaid); entries name a supplier and a contract.
  * - Cost entries: a date, an amount and a currency, optionally a plan line (without one: "unplanned") and an
  *   application or system of the service, a reference (invoice or PO number) and a note.
  *
@@ -78,8 +82,11 @@ export function isMonth(s: string): boolean {
 export const COST_PLAN_CATEGORIES = ['licence', 'cloud', 'support', 'hardware', 'other'] as const;
 export type CostPlanCategory = (typeof COST_PLAN_CATEGORIES)[number];
 
-/** yearly: the amount is the year's, spread evenly over its 12 months; monthly: the amount every month; once: in one month. */
-export const COST_PLAN_CADENCES = ['yearly', 'monthly', 'once'] as const;
+/**
+ * yearly: the amount is the year's (of the months the line covers), spread evenly over them; monthly: the amount every
+ * month; quarterly (0.18.0): the amount every third month from the line's first month; once: in one month.
+ */
+export const COST_PLAN_CADENCES = ['yearly', 'monthly', 'quarterly', 'once'] as const;
 export type CostPlanCadence = (typeof COST_PLAN_CADENCES)[number];
 
 /** What a plan line or an entry is for: an application or system of the service, or a platform. */
@@ -100,13 +107,78 @@ export const COST_PLAN_LIMITS = {
 } as const;
 
 /**
- * Whole millionths per month of a plan line in its fiscal year (12 values). A yearly amount is spread evenly: the
- * months get the year's amount in twelfths, rounded so that they add up to it exactly.
+ * An amount split into `n` parts that add up to it exactly – in whole minor units of the currency when it has one and
+ * the amount fits it (8333.33 + … EUR, 8333 + … JPY), else in micros (amounts entered before 0.18.0 with more decimals
+ * than their currency). The parts differ by one unit at most.
  */
-export function planMonths(amountMicros: number, cadence: CostPlanCadence, onceIndex: number | null): number[] {
-  if (cadence === 'monthly') return Array.from({ length: 12 }, () => amountMicros);
-  if (cadence === 'once') return Array.from({ length: 12 }, (_, i) => (i === onceIndex ? amountMicros : 0));
-  return Array.from({ length: 12 }, (_, i) => Math.floor((amountMicros * (i + 1)) / 12) - Math.floor((amountMicros * i) / 12));
+export function spreadAmount(amountMicros: number, n: number, currency?: string): number[] {
+  if (n <= 0) return [];
+  let unit = currency ? BigInt(10 ** (6 - currencyMinorUnits(currency))) : 1n;
+  const total = BigInt(Math.round(amountMicros));
+  if (total % unit !== 0n) unit = 1n;
+  const units = total / unit;
+  const nn = BigInt(n);
+  // floor division that also holds for a negative total
+  const fl = (a: bigint) => (a >= 0n ? a / nn : -((-a + nn - 1n) / nn));
+  return Array.from({ length: n }, (_, i) => Number((fl(units * BigInt(i + 1)) - fl(units * BigInt(i))) * unit));
+}
+
+/** The months of a plan line in its fiscal year (positions 0–11), as stored: none means the whole year. */
+export interface PlanLineSpan {
+  from?: number | null;
+  to?: number | null;
+  /** The currency: a yearly amount is spread in its minor units (0.18.0) */
+  currency?: string;
+}
+
+/**
+ * Whole millionths per month of a plan line in its fiscal year (12 values). A yearly amount is spread evenly over the
+ * months the line covers (from–to, default the whole year), in the currency's minor units, so that they add up to it
+ * exactly; monthly: the amount in each month from–to; quarterly: every third month from the from month up to the to
+ * month; once: in its month.
+ */
+export function planMonths(amountMicros: number, cadence: CostPlanCadence, onceIndex: number | null, span: PlanLineSpan = {}): number[] {
+  const from = Math.max(0, Math.min(11, span.from ?? 0));
+  const to = Math.max(from, Math.min(11, span.to ?? 11));
+  const out = Array.from({ length: 12 }, () => 0);
+  if (cadence === 'once') {
+    if (onceIndex !== null && onceIndex >= 0 && onceIndex < 12) out[onceIndex] = amountMicros;
+    return out;
+  }
+  if (cadence === 'monthly') {
+    for (let i = from; i <= to; i++) out[i] = amountMicros;
+    return out;
+  }
+  if (cadence === 'quarterly') {
+    for (let i = from; i <= to; i += 3) out[i] = amountMicros;
+    return out;
+  }
+  spreadAmount(amountMicros, to - from + 1, span.currency).forEach((v, k) => (out[from + k] = v));
+  return out;
+}
+
+/** Book (0.18.0): offered on lines whose months are payments – monthly, quarterly and one-off – not on yearly spreads. */
+export const isBookable = (cadence: CostPlanCadence): boolean => cadence !== 'yearly';
+
+/**
+ * The month Book offers first (position 0–11; null: no payment up to now): the current month when it has a payment
+ * without an entry, else the latest earlier month with one, else the current month (booked already: Book asks), else
+ * the latest month with a payment. Months after the current one are never offered – an entry says money was spent.
+ */
+export function defaultBookIndex(planned: readonly boolean[], booked: readonly boolean[], cur: number): number | null {
+  const upto = Math.min(cur, 11);
+  if (upto < 0) return null;
+  if (cur <= 11 && planned[cur] && !booked[cur]) return cur;
+  for (let i = upto; i >= 0; i--) if (planned[i] && !booked[i]) return i;
+  if (cur <= 11 && planned[cur]) return cur;
+  for (let i = upto; i >= 0; i--) if (planned[i]) return i;
+  return null;
+}
+
+/** The last day (YYYY-MM-DD) of a month YYYY-MM. */
+export function lastDayOf(month: string): string {
+  const d = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0));
+  return d.toISOString().slice(0, 10);
 }
 
 const dateText = z
@@ -146,13 +218,38 @@ const planLineFields = {
   cadence: z.enum(COST_PLAN_CADENCES),
   /** "once": the month (YYYY-MM) in the fiscal year */
   onceMonth: monthText.nullable().default(null),
+  /** Only part of the year (0.18.0; monthly, quarterly, yearly): the first and the last month (YYYY-MM) in the fiscal year; none: the whole year */
+  fromMonth: monthText.nullable().default(null),
+  toMonth: monthText.nullable().default(null),
+  /** A one-off payment that covers more than its month (prepaid, 0.18.0): the first and the last day it covers */
+  coversFrom: dateText.nullable().default(null),
+  coversTo: dateText.nullable().default(null),
   /** Contract end or renewal (YYYY-MM-DD) */
   renewalDate: dateText.nullable().default(null),
   note: z.string().trim().max(COST_PLAN_LIMITS.noteChars).default(''),
+  /** "Unlink from contract" (0.18.0): null makes a line made from a payment schedule an ordinary line; missing keeps it */
+  scheduleId: z.null().optional(),
 };
 
-const onceNeedsMonth = (x: { cadence: CostPlanCadence; onceMonth: string | null; amount: string; currency: string }, ctx: z.RefinementCtx) => {
+const onceNeedsMonth = (
+  x: {
+    cadence: CostPlanCadence;
+    onceMonth: string | null;
+    fromMonth: string | null;
+    toMonth: string | null;
+    coversFrom: string | null;
+    coversTo: string | null;
+    amount: string;
+    currency: string;
+  },
+  ctx: z.RefinementCtx,
+) => {
   if (x.cadence === 'once' && !x.onceMonth) ctx.addIssue({ code: 'custom', path: ['onceMonth'], message: 'the month of the payment' });
+  if (x.fromMonth && x.toMonth && x.toMonth < x.fromMonth) ctx.addIssue({ code: 'custom', path: ['toMonth'], message: 'the last month is before the first' });
+  if (!x.coversFrom !== !x.coversTo)
+    ctx.addIssue({ code: 'custom', path: [x.coversFrom ? 'coversTo' : 'coversFrom'], message: 'the first and the last day it covers' });
+  if (x.coversFrom && x.coversTo && x.coversTo < x.coversFrom)
+    ctx.addIssue({ code: 'custom', path: ['coversTo'], message: 'the last day is before the first' });
   // no more decimals than the currency has (0.18.0): 1500.50 JPY is refused
   checkCurrencyDecimals(x, ctx);
 };
@@ -195,6 +292,10 @@ export const costEntryInput = z
     /** The plan line (same service, fiscal year and currency); none: unplanned */
     planLineId: z.string().trim().min(1).max(100).nullable().default(null),
     target,
+    /** The supplier (0.18.0, ADR 0030): missing keeps it – on a new entry with a plan line, the line's; null clears it */
+    supplierId: z.string().trim().min(1).max(100).nullable().optional(),
+    /** The supplier's contract: missing keeps it (a new entry with a plan line: the line's); null clears it */
+    supplierContractId: z.string().trim().min(1).max(100).nullable().optional(),
     /** Invoice or order number */
     reference: z.string().trim().max(COST_PLAN_LIMITS.referenceChars).default(''),
     note: z.string().trim().max(COST_PLAN_LIMITS.noteChars).default(''),
@@ -202,6 +303,30 @@ export const costEntryInput = z
   .strict()
   .superRefine(checkCurrencyDecimals);
 export type CostEntryInput = z.input<typeof costEntryInput>;
+
+/**
+ * Book (0.18.0, ADR 0030): one entry from a plan line's payment in a month – prefilled with the planned amount, the
+ * line's currency, supplier, contract and target. `again` books a month that has an entry on the line already.
+ */
+export const costBookInput = z
+  .object({
+    /** The month (YYYY-MM) of the fiscal year; default: the current one, or an earlier one without an entry */
+    month: monthText.optional(),
+    /** Default: the schedule's payment date in the month, else today (the current month) or the month's last day */
+    date: dateText.optional(),
+    /** Default: the planned amount of the month */
+    amount: z
+      .string()
+      .trim()
+      .max(32)
+      .refine((v) => toMicros(v) !== null && toMicros(v)! !== 0, 'an amount like 1500.50 (negative for a credit)')
+      .optional(),
+    reference: z.string().trim().max(COST_PLAN_LIMITS.referenceChars).default(''),
+    note: z.string().trim().max(COST_PLAN_LIMITS.noteChars).default(''),
+    again: z.boolean().default(false),
+  })
+  .strict();
+export type CostBookInput = z.input<typeof costBookInput>;
 
 // ---------- the year view ----------
 
@@ -228,6 +353,8 @@ export interface CostPlanLine {
   vendor: string;
   /** The supplier (0.17.0, ADR 0029; null: none, or one the reader may not see); `vendor` is the fallback text */
   supplier: SupplierRef | null;
+  /** A supplier is linked that the reader may not see (0.18.0): shown without its name, kept on save */
+  supplierHidden: boolean;
   /** The supplier's contract the line pays for */
   supplierContract: { id: string; title: string; reference: string } | null;
   /** As entered (null when the reader may not see amounts) */
@@ -235,8 +362,29 @@ export interface CostPlanLine {
   currency: string;
   cadence: CostPlanCadence;
   onceMonth: string | null;
+  /** Only part of the year (0.18.0): the first and the last month (YYYY-MM); null: the whole year */
+  fromMonth: string | null;
+  toMonth: string | null;
+  /** A one-off payment that covers more than its month (prepaid): the days it covers */
+  coversFrom: string | null;
+  coversTo: string | null;
   renewalDate: string | null;
   note: string;
+  /**
+   * The payment schedule the line was made from (0.18.0, ADR 0030): `changed` when the schedule's proposal for the
+   * year differs from what the line was made from (Contract changed); null: an ordinary line
+   */
+  schedule: { id: string; contractId: string; title: string; changed: boolean } | null;
+  /** A line naming a contract without a schedule (0.17 style) whose contract ends in this fiscal year: its end */
+  contractEnds: string | null;
+  /** A hand-made line for a contract that also has a payment schedule with payments in this year (a hint, not a block) */
+  twoLines: boolean;
+  /** The schedule's payment date per month of the year (Book's default date; null: none, or not a schedule line) */
+  paymentDates: (string | null)[] | null;
+  /** Book is offered (monthly, quarterly and one-off lines with a planned amount) */
+  bookable: boolean;
+  /** Months (YYYY-MM) that are over, and the current one, with a planned payment and no entry on the line */
+  notBooked: string[];
   /** Planned per month of the fiscal year */
   months: (string | null)[];
   /** Incurred per month: entries and, for a matched cloud line, the costs read */
@@ -266,6 +414,13 @@ export interface CostEntry {
   planLineId: string | null;
   planLineTitle: string | null;
   target: CostPlanTarget | null;
+  /** The supplier (0.18.0; null: none, or one the reader may not see – `supplierHidden`) */
+  supplier: SupplierRef | null;
+  /** A supplier is linked that the reader may not see: kept on save */
+  supplierHidden: boolean;
+  supplierContract: { id: string; title: string; reference: string } | null;
+  /** The CSV import the entry came from (0.18.0; null: entered or booked) */
+  importId: string | null;
   reference: string;
   note: string;
   /** No plan line of this fiscal year */
@@ -336,6 +491,26 @@ export interface CostPlanYear {
   /** Fiscal years with plan lines or entries, and the current and next one */
   years: { fiscalYear: number; label: string }[];
   limits: { linesPerYear: number; entriesPerYear: number };
+  /**
+   * Prepaid payments of earlier fiscal years that cover part of this one (0.18.0): shown quietly, not counted in
+   * planned, incurred or expected
+   */
+  prepaid: {
+    lineId: string;
+    title: string;
+    fiscalYear: number;
+    label: string;
+    amount: string | null;
+    currency: string;
+    coversFrom: string;
+    coversTo: string;
+  }[];
+  /** Payment schedules of the service with payments in this year and no lines for it yet (Contract payments to plan) */
+  proposals: number;
+  /** Contract changed (the current and later fiscal years): per schedule, its lines before and after */
+  contractChanges: { scheduleId: string; title: string; changes: CostContractChange[] }[];
+  /** What a copy into this year did (only in the answer of the copy) */
+  copyResult?: { copied: string[]; proposed: string[]; shortened: string[]; leftOut: string[] };
 }
 
 /** The plans of a team's services in one fiscal year (a service of two teams counts for both). */

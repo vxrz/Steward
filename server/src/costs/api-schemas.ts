@@ -132,6 +132,8 @@ const PlanTarget = z
   })
   .nullable()
   .describe('What it is for: an application or system of the service, or a platform');
+const SupplierRef = z.object({ id: z.string(), name: z.string(), status: z.enum(SUPPLIER_STATUSES) }).nullable();
+const ContractRef = z.object({ id: z.string(), title: z.string(), reference: z.string() }).nullable();
 const figures = {
   planned: planAmount('Planned for the fiscal year'),
   plannedToDate: planAmount('Planned up to and including the current month'),
@@ -164,17 +166,26 @@ export const CostPlanYear = z.object({
       category: z.enum(COST_PLAN_CATEGORIES),
       target: PlanTarget,
       vendor: z.string().describe('Vendor or contract (free text)'),
-      supplier: z
-        .object({ id: z.string(), name: z.string(), status: z.enum(SUPPLIER_STATUSES) })
-        .nullable()
-        .describe('The linked supplier (0.17.0; null: none, or one the token owner may not see); vendor is the fallback text'),
-      supplierContract: z.object({ id: z.string(), title: z.string(), reference: z.string() }).nullable().describe('The supplier contract the line pays for'),
+      supplier: SupplierRef.describe('The linked supplier (0.17.0; null: none, or one the token owner may not see); vendor is the fallback text'),
+      supplierHidden: z.boolean().describe('A supplier is linked that the token owner may not see (0.18.0)'),
+      supplierContract: ContractRef.describe('The supplier contract the line pays for'),
       amount: planAmount('As entered: a year for yearly, a month for monthly, the payment for once'),
       currency: z.string(),
       cadence: z.enum(COST_PLAN_CADENCES),
       onceMonth: z.string().nullable(),
+      fromMonth: z.string().nullable().describe('Only part of the year (0.18.0): the first month (YYYY-MM); null: the whole year'),
+      toMonth: z.string().nullable().describe('Only part of the year (0.18.0): the last month (YYYY-MM); null: the whole year'),
+      coversFrom: z.string().nullable().describe('A prepaid one-off payment (0.18.0): the first day it covers'),
+      coversTo: z.string().nullable().describe('A prepaid one-off payment: the last day it covers'),
       renewalDate: z.string().nullable(),
       note: z.string(),
+      schedule: z
+        .object({ id: z.string(), contractId: z.string(), title: z.string(), changed: z.boolean() })
+        .nullable()
+        .describe('The payment schedule of a supplier contract the line was made from (0.18.0); changed: the contract changed since (Contract changed)'),
+      paymentDates: z.array(z.string().nullable()).nullable().describe('A schedule line: the payment date in each month of the year (null: no payment)'),
+      bookable: z.boolean().describe('Monthly, quarterly and one-off lines with a payment: a person can book them'),
+      notBooked: z.array(z.string()).describe('Months (YYYY-MM) up to the current one with a planned payment and no entry on the line'),
       months: z.array(z.string().nullable()).describe('Planned per month'),
       incurredMonths: z.array(z.string().nullable()).describe('Incurred per month'),
       ...figures,
@@ -200,6 +211,10 @@ export const CostPlanYear = z.object({
       planLineId: z.string().nullable(),
       planLineTitle: z.string().nullable(),
       target: PlanTarget,
+      supplier: SupplierRef.describe('The supplier (0.18.0; null: none, or one the token owner may not see)'),
+      supplierHidden: z.boolean().describe('A supplier is linked that the token owner may not see'),
+      supplierContract: ContractRef.describe('The supplier contract'),
+      importId: z.string().nullable().describe('The CSV import the entry came from (0.18.0)'),
       reference: z.string().describe('Invoice or order number'),
       note: z.string(),
       unplanned: z.boolean().describe('No plan line of this fiscal year'),

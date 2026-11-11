@@ -314,7 +314,8 @@
     "cadences": {
       "yearly": "Yearly (spread evenly)",
       "monthly": "Monthly",
-      "once": "Once"
+      "once": "Once",
+      "quarterly": "Quarterly"
     },
     "cadenceOnceIn": "Once, {{month}}",
     "read": {
@@ -360,7 +361,8 @@
       "title": "Copy the plan",
       "message": "Copy every plan line of {{from}} into {{to}}? Renewal dates before the new year move on by a year. Entries are not copied.",
       "done": "Plan copied to {{to}}",
-      "failed": "Plan not copied"
+      "failed": "Plan not copied",
+      "result": "Copied to {{to}}: {{copied}} line(s) ({{shortened}} up to their contract's end), {{proposed}} payment schedule(s) proposed, {{leftOut}} left out (contract ended)"
     },
     "line": {
       "add": "Add plan line",
@@ -388,14 +390,29 @@
       "amount": {
         "yearly": "Amount per year",
         "monthly": "Amount per month",
-        "once": "Amount"
+        "once": "Amount",
+        "quarterly": "Amount per quarter"
       },
       "currency": "Currency",
       "onceMonth": "Month of the payment",
       "renewal": "Contract end or renewal",
       "renewalHint": "Shown 90 days ahead",
       "note": "Note",
-      "noEffort": "Costs only: effort and person-hours are not planned here."
+      "noEffort": "Costs only: effort and person-hours are not planned here.",
+      "partOfYear": "Only part of the year",
+      "partOfYearHint": {
+        "monthly": "The amount in each month from the first to the last",
+        "quarterly": "The amount every third month from the first month, up to the last",
+        "yearly": "The amount is what the line costs in these months, spread evenly over them"
+      },
+      "fromMonth": "First month",
+      "toMonth": "Last month",
+      "toBeforeFrom": "The end is before the start",
+      "prepaid": "Covers more than its month (prepaid)",
+      "prepaidHint": "Counted in the fiscal year it is paid; later years it covers show it as prepaid",
+      "coversFrom": "Covers from",
+      "coversTo": "Covers until",
+      "renewalFromContract": "Renewals of a contract line are the contract's notice-by date and term end."
     },
     "entries": {
       "title": "Cost entries",
@@ -426,7 +443,9 @@
       "otherYear": "Plan line of {{label}}: {{title}}",
       "otherYearOption": "{{title}} ({{label}}, kept)",
       "removed": "Cost entry removed",
-      "currencyFromLine": "From the plan line"
+      "currencyFromLine": "From the plan line",
+      "supplier": "Supplier",
+      "supplierHint": "Default: the plan line's supplier and contract"
     },
     "team": {
       "title": "Plans of the team's services",
@@ -439,6 +458,107 @@
       "totalsLine": "{{planned}} planned · {{expected}} expected"
     },
     "costsRead": "Costs read",
-    "costsReadHint": "The costs Steward reads from the platforms for this service, month by month"
+    "costsReadHint": "The costs Steward reads from the platforms for this service, month by month",
+    "cadenceSpan": "{{cadence}}, {{from}} – {{to}}",
+    "covers": "Covers {{from}} – {{to}}",
+    "supplierHidden": "A supplier you may not see",
+    "book": {
+      "action": "Book a payment of {{title}}",
+      "title": "Book: {{title}}",
+      "help": "Records that this payment was made. Steward never books on its own: an entry says money was spent.",
+      "month": "Month",
+      "monthBooked": "{{month}} (booked)",
+      "save": "Book",
+      "done": "Payment booked",
+      "failed": "Payment not booked",
+      "againTitle": "Book again?",
+      "again": "Already booked for {{month}}: {{amount}} – book again?",
+      "againButton": "Book again",
+      "notBooked": "Not booked: {{months}}"
+    }
+  },
+  "schedules": {
+    "title": "Payments",
+    "add": "Add payments",
+    "none": "No payment schedule yet. Add one to propose this contract's plan lines per fiscal year.",
+    "edit": "Edit the payments {{title}}",
+    "remove": "Remove the payments {{title}}",
+    "removeConfirm": "Remove the payment schedule “{{title}}” of {{service}}? Plan lines made from it stay as ordinary lines.",
+    "removed": "Payment schedule removed",
+    "saved": "Payment schedule saved",
+    "notSaved": "Payment schedule not saved",
+    "addTitle": "Add payments: {{contract}}",
+    "editTitle": "Edit payments",
+    "datedCount_one": "{{count}} dated payment",
+    "datedCount_other": "{{count}} dated payments",
+    "term": "{{from}} – {{to}}",
+    "next": "next {{date}}: {{amount}}",
+    "billings": {
+      "monthly": "monthly",
+      "quarterly": "quarterly",
+      "yearly": "yearly",
+      "once": "once",
+      "dates": "dated payments"
+    },
+    "form": {
+      "title": "Title",
+      "titleHint": "e.g. Base fee, Setup, Additional users",
+      "service": "Paying service",
+      "serviceHint": "The service whose cost plan gets the lines",
+      "billing": "Billing",
+      "amount": "Amount per payment",
+      "amountHint": "In contract year 1",
+      "firstPayment": "First payment",
+      "firstPaymentHint": "Default: the start",
+      "startsOn": "Start",
+      "startsOnHint": "Default: the contract's start",
+      "endsOn": "Planned until",
+      "endsOnHint": "Default: follows the contract",
+      "yearAmounts": "Amount per contract year",
+      "yearAmountsHint": "Contract years count from the start in twelve-month steps. A year without an amount takes the year before.",
+      "percent": "+ % per year",
+      "fill": "Fill in",
+      "year": "Year {{year}}",
+      "yearBefore": "As the year before",
+      "payments": "Dated payments",
+      "paymentDate": "Date",
+      "paymentAmount": "Amount",
+      "coversUntil": "Covers until",
+      "addPayment": "Add a payment",
+      "removePayment": "Remove this payment",
+      "paymentsInvalid": "Each payment needs a date and an amount with the currency's decimals.",
+      "noProRata": "A payment counts in the month of its date – no pro rata. Enter a first invoice billed pro rata as a dated payment."
+    }
+  },
+  "contractLines": {
+    "changed": "Contract changed",
+    "contract": "Contract",
+    "fromSchedule": "Made from the payment schedule “{{title}}”",
+    "twoLines": "Two lines for this contract",
+    "ends": "Contract ends {{date}}",
+    "toPlan": "Contract payments to plan in {{label}}",
+    "toPlanHelp": "Payment schedules of this service with payments in this fiscal year and no lines for it yet. Nothing is added until you confirm.",
+    "hiddenContract": "{{title}} (a contract of a supplier you may not see)",
+    "addToPlan_one": "Add {{count}} to plan",
+    "addToPlan_other": "Add {{count}} to plan",
+    "added": "Contract lines added",
+    "notAdded": "Contract lines not added",
+    "changedTitle": "Contract changed",
+    "changedHelp": "The contract or its payments changed since these lines were made. Choose the changes to apply; years that are over stay as planned.",
+    "choose": "Apply",
+    "chooseChange": "Apply this change of {{title}}",
+    "before": "Before",
+    "after": "After",
+    "newLine": "New line",
+    "gone": "Line removed",
+    "goneWithEntries_one": "Line removed – its {{count}} entry becomes unplanned",
+    "goneWithEntries_other": "Line removed – its {{count}} entries become unplanned",
+    "update_one": "Update {{count}} line",
+    "update_other": "Update {{count}} lines",
+    "updated": "Lines updated",
+    "notUpdated": "Lines not updated",
+    "prepaid": "Prepaid in {{label}}: {{title}}, {{amount}} (covers {{from}} – {{to}}) – not counted here",
+    "unlink": "Unlink from contract",
+    "unlinkPending": "Saving makes this an ordinary line without contract hints."
   }
 }

@@ -155,7 +155,9 @@
     "rtoRpo": "RTO {{rto}} h · RPO {{rpo}} h",
     "note": "Notiz",
     "costPlanLines": "Bezahlt über",
-    "removeConfirm": "Den Vertrag „{{name}}“ entfernen? Planpositionen, die ihn nennen, behalten den Lieferanten."
+    "removeConfirm": "Den Vertrag „{{name}}“ entfernen? Planpositionen, die ihn nennen, behalten den Lieferanten.",
+    "removeWithPayments_one": "Den Vertrag „{{name}}“ entfernen? Seine Zahlungspläne entfallen – bezahlt von {{services}}; daraus erstellte Planpositionen bleiben als gewöhnliche Positionen.",
+    "removeWithPayments_other": "Den Vertrag „{{name}}“ entfernen? Seine Zahlungspläne entfallen – bezahlt von {{services}}; daraus erstellte Planpositionen bleiben als gewöhnliche Positionen."
   },
   "certificates": {
     "title": "Zertifikate und Berichte",

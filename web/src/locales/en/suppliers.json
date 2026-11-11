@@ -155,7 +155,9 @@
     "rtoRpo": "RTO {{rto}} h · RPO {{rpo}} h",
     "note": "Note",
     "costPlanLines": "Paid by",
-    "removeConfirm": "Remove the contract “{{name}}”? Cost plan lines that name it keep the supplier."
+    "removeConfirm": "Remove the contract “{{name}}”? Cost plan lines that name it keep the supplier.",
+    "removeWithPayments_one": "Remove the contract “{{name}}”? Its payment schedules go – paid by {{services}}; plan lines made from them stay as ordinary lines.",
+    "removeWithPayments_other": "Remove the contract “{{name}}”? Its payment schedules go – paid by {{services}}; plan lines made from them stay as ordinary lines."
   },
   "certificates": {
     "title": "Certificates and reports",

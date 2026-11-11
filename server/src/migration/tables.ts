@@ -87,6 +87,7 @@ export const NOT_MOVED: Record<string, string> = {
   cost_push_tokens: 'push tokens of CI for FOCUS cost files (#226), only their hashes: created again on the target, like API tokens',
   cost_budget_notices: 'send bookkeeping of the source (a cost budget notice of the current month may be sent again on the target)',
   supplier_reminders: 'send bookkeeping of the source (a supplier reminder of a date ahead may be sent again on the target)',
+  cost_booking_reminders: 'send bookkeeping of the source (a reminder of contract payments not booked may be sent again on the target)',
 };
 
 /** Rows keyed by user id: moved for mapped users only, with the target user's id. */
@@ -178,6 +179,11 @@ export const HISTORY_COLUMNS: string[] = [
   'cost_plan_lines.updated_by',
   'cost_entries.created_by',
   'cost_entries.updated_by',
+  // contract payments and recorded costs (0.18.0, ADR 0030): payment schedules, CSV imports of entries
+  'cost_schedules.created_by',
+  'cost_schedules.updated_by',
+  'cost_entry_imports.created_by',
+  'cost_entry_imports.removed_by',
   // suppliers (0.17.0, ADR 0029): who made and changed one, who looked at a certificate
   'suppliers.created_by',
   'suppliers.updated_by',

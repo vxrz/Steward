@@ -33,6 +33,7 @@ import {
   type SupplierContact,
   type SupplierContactRole,
   type SupplierContract,
+  type CostScheduleList,
   type SupplierDetail,
   type SupplierRenewal,
 } from '@sm/shared';
@@ -41,13 +42,14 @@ import { CopyId } from '../components/CopyId';
 import { DetailState, subjectLabel, useFieldErrors } from '../components/common';
 import { Field } from '../components/records/common';
 import { confirmDanger } from '../components/confirm';
-import { fmtDate, fmtDay, fmtNumber } from '../format';
+import { fmtDate, fmtDay, fmtNumber, listFormat } from '../format';
 import { OwningTeams } from '../components/OwningTeams';
 import { DetailHeader } from '../components/page/DetailPage';
 import { supplierKeys } from '../queryKeys';
 import { DueDate, MergeModal, SupplierFormModal, SupplierStatusBadge } from './Suppliers';
 import { SupplierFindings } from '../components/compliance/corrective';
 import { useModuleOn } from '../modules';
+import { ContractPayments } from '../components/costs/ContractPayments';
 
 const DOC_LINK = /^(https?:\/\/\S+|rec_[A-Za-z0-9_-]{4,40}|[A-Z][A-Z0-9]{0,9}-\d{4}-\d{4,6})$/i;
 
@@ -73,6 +75,7 @@ export function SupplierDetailPage() {
   const { t } = useTranslation(['suppliers', 'common', 'applications', 'corrective']);
   const { id } = useParams();
   const complianceOn = useModuleOn('compliance');
+  const costsOn = useModuleOn('costs');
   const qc = useQueryClient();
   const navigate = useNavigate();
   const q = useQuery({ queryKey: supplierKeys.detail(id), queryFn: () => get<SupplierDetail>(`/suppliers/${id}`) });
@@ -127,6 +130,23 @@ export function SupplierDetailPage() {
     } catch (e) {
       notifyError(e);
     }
+  };
+  /** Removing a contract removes its payment schedules (ADR 0030): the dialog names the paying services first. */
+  const removeContract = async (c: SupplierContract) => {
+    let services: string[] = [];
+    if (costsOn)
+      try {
+        services = [...new Set((await get<CostScheduleList>(`/costs/schedules?contractId=${encodeURIComponent(c.id)}`)).schedules.map((x) => x.serviceName))];
+      } catch {
+        // no list (the Costs module switched off meanwhile): the plain question
+      }
+    await remove(
+      'contracts',
+      c.id,
+      services.length
+        ? t('contracts.removeWithPayments', { name: c.title, services: listFormat().format(services), count: services.length })
+        : t('contracts.removeConfirm', { name: c.title }),
+    );
   };
   const certName = (c: SupplierCertificate) => (c.kind === 'other' && c.name ? c.name : t(`certificates.kinds.${c.kind}`));
   const crit = CIA_DIMENSIONS.filter((d) => s.criticality[d]);
@@ -241,12 +261,7 @@ export function SupplierDetailPage() {
                           <ActionIcon variant="subtle" aria-label={t('contracts.edit')} onClick={() => setContract(c)}>
                             <IconEdit size={14} />
                           </ActionIcon>
-                          <ActionIcon
-                            variant="subtle"
-                            color="red"
-                            aria-label={t('common:remove')}
-                            onClick={() => void remove('contracts', c.id, t('contracts.removeConfirm', { name: c.title }))}
-                          >
+                          <ActionIcon variant="subtle" color="red" aria-label={t('common:remove')} onClick={() => void removeContract(c)}>
                             <IconTrash size={14} />
                           </ActionIcon>
                         </Group>
@@ -303,6 +318,7 @@ export function SupplierDetailPage() {
                         {c.note}
                       </Text>
                     )}
+                    {costsOn && <ContractPayments contractId={c.id} contractTitle={c.title} />}
                   </Paper>
                 ))
               )}
