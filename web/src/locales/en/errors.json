@@ -1357,6 +1357,7 @@
     "COST_BOOK_AMOUNT_REQUIRED": "“{{title}}” is billed by use: enter the amount of the invoice to book it.",
     "SUPPLIER_CONTRACT_ITEM": "Not an application or system of the service, or one you may not see.",
     "SUPPLIER_CONTRACT_PLATFORM_LIMIT": "A contract covers at most {{max}} platforms.",
+    "SUPPLIER_CONTRACT_PLATFORM_GRANT": "Covering the platform “{{platform}}” would let people outside the owning teams of the contract “{{contract}}” see it. Add the platform on the contract’s page first – there you confirm it.",
     "SUPPLIER_CONTRACT_PLATFORM_NOT_FOUND": "The contract does not cover this platform (any more).",
     "SUPPLIER_CONTRACT_PLATFORM_HAS_SCHEDULES": "The platform pays {{count}} payment schedules of this contract ({{schedules}}). Move or remove them first."
   },

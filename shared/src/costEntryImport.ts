@@ -80,6 +80,8 @@ export const COST_IMPORT_PROBLEMS = [
   'supplierArchived',
   'contractUnknown',
   'contractNotCovering',
+  /** 0.19.0: the contract does not cover the platform, and adding it here would give the contract to another team */
+  'contractPlatformGrant',
   'targetUnknown',
   'limit',
 ] as const;

@@ -1357,6 +1357,7 @@
     "COST_BOOK_AMOUNT_REQUIRED": "„{{title}}“ wird nach Nutzung abgerechnet: Geben Sie den Betrag der Rechnung ein, um sie zu buchen.",
     "SUPPLIER_CONTRACT_ITEM": "Keine Anwendung und kein System des Service, oder eines, das Sie nicht sehen dürfen.",
     "SUPPLIER_CONTRACT_PLATFORM_LIMIT": "Ein Vertrag deckt höchstens {{max}} Plattformen ab.",
+    "SUPPLIER_CONTRACT_PLATFORM_GRANT": "Wenn der Vertrag „{{contract}}“ die Plattform „{{platform}}“ abdeckt, sehen ihn Personen außerhalb seiner zuständigen Teams. Fügen Sie die Plattform zuerst auf der Seite des Vertrags hinzu – dort bestätigen Sie das.",
     "SUPPLIER_CONTRACT_PLATFORM_NOT_FOUND": "Der Vertrag deckt diese Plattform nicht (mehr) ab.",
     "SUPPLIER_CONTRACT_PLATFORM_HAS_SCHEDULES": "Die Plattform zahlt {{count}} Zahlungspläne dieses Vertrags ({{schedules}}). Verschieben oder entfernen Sie diese zuerst."
   },

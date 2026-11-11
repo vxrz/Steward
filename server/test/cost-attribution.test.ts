@@ -369,7 +369,9 @@ describe('contracts covering a platform', () => {
     await expect(read(adam)).rejects.toMatchObject({ status: 404 });
     const listed: PlatformContracts = await olivia('GET', `/platforms/${platform}/contracts`);
     expect(listed.contracts.map((x) => x.contract.title)).toEqual(['Capacity contract']);
-    expect(listed.canEdit).toBe(true);
+    // a member of the owning team reads them; who changes them through the platform manages it (security review 0.19.0 M1)
+    expect(listed.canEdit).toBe(false);
+    expect(((await dana('GET', `/platforms/${platform}/contracts`)) as PlatformContracts).canEdit).toBe(true);
     expect(((await adam('GET', `/platforms/${platform}/contracts`)) as PlatformContracts).contracts).toEqual([]);
     // taking the platform off needs a session and who changes the contract or manages the platform
     await expect(adam('DELETE', `/suppliers/${supplier}/contracts/${contract}/platforms/${platform}`)).rejects.toMatchObject({ status: 404 });

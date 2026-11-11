@@ -14,8 +14,9 @@ import {
 import { db } from '../db.js';
 import { currentUser, type AuthUser } from '../auth/context.js';
 import { isAdmin, matches, platformPermissions } from '../auth/permissions.js';
-import { catalogueAccess, memberships, owningTeams } from '../auth/policy.js';
-import { parseJson } from '../util.js';
+import { catalogueAccess, catalogueTeams, memberships, owningTeams, type OwningTeam } from '../auth/policy.js';
+import { outsidersOf, type NamedGrant } from '../auth/named-grants.js';
+import { HttpError, parseJson } from '../util.js';
 import { audit } from '../audit.js';
 import { readSetting, writeSetting } from '../settings.js';
 
@@ -99,6 +100,7 @@ export class ScopeCtx {
   private readonly itemRows = new Map<string, ItemRow[]>();
   private readonly platformView = new Map<string, boolean>();
   private readonly platformManage = new Map<string, boolean>();
+  private readonly platformMember = new Map<string, boolean>();
   private readonly itemView = new Map<string, boolean>();
   private readonly supplierSeen = new Map<string, boolean>();
   private readonly supplierEdit = new Map<string, boolean>();
@@ -176,19 +178,34 @@ export class ScopeCtx {
   }
 
   /**
-   * The reader manages the platform or is a member of its owning teams (0.19.0, ADR 0032) – who changes its cost plan
-   * and sees a team-owned contract covering it; not every reader of the platform.
+   * The reader manages the platform (the right `manage`, 0.19.0, ADR 0032): who changes a contract through a platform
+   * it covers. Membership of its owning teams alone does not (security review 0.19.0 M1).
    */
   managesPlatform(id: string): boolean {
     const p = this.platform(id);
     if (!p) return false;
     if (!this.u) return true;
-    if (!this.platformManage.has(id)) {
-      const perms = platformPermissions(this.u, { id, acl: parseJson<AclEntry<PlatformPermission>[]>(p.acl, []) });
-      const mine = memberships(this.u);
-      this.platformManage.set(id, perms.includes('manage') || owningTeams('platform', id).some((t) => mine.has(t.id)));
-    }
+    if (!this.platformManage.has(id))
+      this.platformManage.set(id, platformPermissions(this.u, { id, acl: parseJson<AclEntry<PlatformPermission>[]>(p.acl, []) }).includes('manage'));
     return this.platformManage.get(id)!;
+  }
+
+  /**
+   * The reader reads a team-owned contract through a platform it covers (0.19.0, ADR 0032): who may see the platform and
+   * manages it or is a member of its owning teams – not every reader of it, and not who may not see it (security review
+   * 0.19.0 L1: a viewer of an owning team gets 404 on the platform, so not the contract either).
+   */
+  readsThroughPlatform(id: string): boolean {
+    if (!this.seesPlatform(id)) return false;
+    if (!this.u || this.managesPlatform(id)) return true;
+    if (!this.platformMember.has(id)) {
+      const mine = memberships(this.u);
+      this.platformMember.set(
+        id,
+        owningTeams('platform', id).some((t) => mine.has(t.id)),
+      );
+    }
+    return this.platformMember.get(id)!;
   }
 
   /** The reader may see an application or system named on a contract. */
@@ -267,8 +284,8 @@ export class ScopeCtx {
         owner: this.ownsContract(c),
         // proposed covered services count for reading (the upgrade), archived ones give no rights
         seesCoveredService: this.coverOf(c.id).some((x) => this.seesService(x.service_id)),
-        // a covered platform (ADR 0032): its managers and the members of its owning teams – not every reader of it
-        managesCoveredPlatform: this.platformCoverOf(c.id).some((x) => this.managesPlatform(x.platform_id)),
+        // a covered platform (ADR 0032): its managers and the members of its owning teams who see it – not every reader of it
+        managesCoveredPlatform: this.platformCoverOf(c.id).some((x) => this.readsThroughPlatform(x.platform_id)),
       },
     );
   }
@@ -280,7 +297,8 @@ export class ScopeCtx {
   /**
    * Whether the reader may change the contract (ADR 0031 part 2): administrators, its owners, designers and the
    * supplier's owners who may see it, and editors of a confirmed covered service – or (0.19.0, ADR 0032) who manage a
-   * covered platform – who see every service and every platform it covers. Not while the supplier is archived.
+   * covered platform (the right `manage`, not membership of its owning teams) – who see every service and every
+   * platform it covers. Not while the supplier is archived.
    */
   edits(c: ScopeContract, s: ScopeSupplier): boolean {
     if (s.status === 'archived') return false;
@@ -293,7 +311,7 @@ export class ScopeCtx {
     return holds && cover.every((x) => this.seesService(x.service_id)) && platforms.every((x) => this.seesPlatform(x.platform_id));
   }
 
-  /** May change one covered platform of the contract (purpose, take it off): who changes the contract, or manages that platform (0.19.0). */
+  /** May change one covered platform of the contract (purpose, take it off): who changes the contract, or manages that platform (0.19.0, `manage`). */
   editsPlatformCover(c: ScopeContract, s: ScopeSupplier, platformId: string): boolean {
     if (s.status === 'archived') return false;
     return this.edits(c, s) || (this.reads(c, s) && this.managesPlatform(platformId));
@@ -372,6 +390,94 @@ export function scopeRowsOf(
       out.set(r.id, r);
   }
   return out;
+}
+
+/** The teams among a contract's owners (its scope, ADR 0031). */
+export function ownerTeams(owners: readonly string[]): OwningTeam[] {
+  const names = [...new Set(owners.filter((o) => /^team:/i.test(o)).map((o) => o.slice(5).trim().toLowerCase()))];
+  if (!names.length) return [];
+  return db().all<OwningTeam>(`SELECT id, name FROM teams WHERE lower(name) IN (${names.map(() => '?').join(', ')}) ORDER BY name`, ...names);
+}
+
+/**
+ * Who reads a team-owned contract through a platform it covers (0.19.0, ADR 0032): the platform's owning teams (their
+ * members who see the platform read it) and the subjects of the `manage` entries of its access list (they read and
+ * change it). The subjects of `manage` entries are also those who change it.
+ */
+export function platformGrantees(platformId: string): { subjects: string[]; managers: string[] } {
+  const p = db().get<{ acl: string }>('SELECT acl FROM platforms WHERE id = ?', platformId);
+  if (!p) return { subjects: [], managers: [] };
+  const managers = parseJson<AclEntry<PlatformPermission>[]>(p.acl, [])
+    .filter((e) => Array.isArray(e.permissions) && e.permissions.includes('manage') && typeof e.subject === 'string')
+    .map((e) => e.subject.trim().toLowerCase());
+  const teams = owningTeams('platform', platformId).map((t) => `team:${t.name.toLowerCase()}`);
+  return { subjects: [...new Set([...teams, ...managers])], managers: [...new Set(managers)] };
+}
+
+/**
+ * Covering a platform as a named grant (security review 0.19.0 M1, #195): on a contract with a team among its owners,
+ * the platform's grantees (platformGrantees) not covered by the contract's teams (the teams among its owners – without
+ * any that still exist, the supplier's) are given sight of the contract, its managers also the right to change it. Like
+ * naming an owner from outside those teams, that asks for the step-up (access.grant) and is audited as
+ * `access.named_subjects_granted` (field `platforms`). null: the contract has no team among its owners – who reads it
+ * does not change.
+ */
+export function platformCoverGrant(
+  c: { id: string | null; title: string; owners: readonly string[] },
+  s: { id: string; name: string },
+  platform: { id: string; name: string },
+): NamedGrant | null {
+  if (!hasTeamOwner(c.owners)) return null;
+  let teams = ownerTeams(c.owners);
+  if (!teams.length) teams = catalogueTeams('supplier', s.id);
+  const g = platformGrantees(platform.id);
+  return {
+    entityType: 'supplier',
+    entityId: s.id,
+    label: `contract "${c.title}" of supplier "${s.name}" (platform "${platform.name}")`,
+    field: 'platforms',
+    teams,
+    before: [],
+    after: g.subjects,
+    // its managers change it; so do designers among them (they change the contracts they read, ADR 0031)
+    rights: ['view', 'edit'],
+    details: { contractId: c.id, platformId: platform.id, platform: platform.name, managers: g.managers },
+  };
+}
+
+/** Who covering the platform gives the contract to from outside its teams (empty: nobody; see platformCoverGrant). */
+export function platformCoverOutsiders(
+  c: { id: string | null; title: string; owners: readonly string[] },
+  s: { id: string; name: string },
+  platformId: string,
+): string[] {
+  const name = db().get<{ name: string }>('SELECT name FROM platforms WHERE id = ?', platformId)?.name;
+  if (!name) return [];
+  const g = platformCoverGrant(c, s, { id: platformId, name });
+  return g ? outsidersOf(g) : [];
+}
+
+/**
+ * The paths that add a covered platform on the side (a payment schedule, a cost plan line or entry, the CSV import of
+ * entries, "Replaced by …"): never a grant – a platform whose grantees are outside the contract's teams is refused there
+ * (SUPPLIER_CONTRACT_PLATFORM_GRANT); the person adds it on the contract, where the step-up asks (security review
+ * 0.19.0 M1).
+ */
+export function checkSideCover(contractId: string, platformId: string): void {
+  const c = db().get<{ id: string; title: string; owners: string; supplier_id: string; s_name: string }>(
+    'SELECT c.id, c.title, c.owners, c.supplier_id, s.name AS s_name FROM supplier_contracts c JOIN suppliers s ON s.id = c.supplier_id WHERE c.id = ?',
+    contractId,
+  );
+  if (!c) return;
+  if (platformCoverOutsiders({ id: c.id, title: c.title, owners: contractOwnersOf(c) }, { id: c.supplier_id, name: c.s_name }, platformId).length) {
+    const platform = db().get<{ name: string }>('SELECT name FROM platforms WHERE id = ?', platformId)?.name ?? platformId;
+    throw new HttpError(
+      409,
+      `Covering the platform "${platform}" lets people outside the owning teams of the contract "${c.title}" see it – add the platform on the contract first, where you confirm it`,
+      'SUPPLIER_CONTRACT_PLATFORM_GRANT',
+      { contract: c.title, platform },
+    );
+  }
 }
 
 /**

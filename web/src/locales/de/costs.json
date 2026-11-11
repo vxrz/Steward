@@ -679,6 +679,7 @@
       "supplierArchived": "Archivierter Lieferant",
       "contractUnknown": "Unbekannter Vertrag oder einer, den Sie nicht sehen dürfen",
       "contractNotCovering": "Der Vertrag deckt diesen Service nicht ab, und Sie dürfen den Service nicht hinzufügen",
+      "contractPlatformGrant": "Der Vertrag deckt diese Plattform nicht ab, und sie hier hinzuzufügen würde den Vertrag einem anderen Team zeigen – fügen Sie die Plattform zuerst beim Vertrag hinzu",
       "targetUnknown": "Unbekannte Anwendung oder unbekanntes System",
       "limit": "Über der Grenze an Buchungen je Geschäftsjahr"
     },

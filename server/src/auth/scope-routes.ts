@@ -40,7 +40,7 @@ import {
 } from './policy.js';
 import { findUserByName, listUsers, toAuthUser } from './users.js';
 import { protectOpening } from '../suppliers/shared.js';
-import { contractScopeTeams } from '../suppliers/service.js';
+import { contractPlatformNamesOutsiders, contractScopeTeams } from '../suppliers/service.js';
 import { uncoveredSubjects } from './named-grants.js';
 import type { AuthUser } from './context.js';
 
@@ -166,6 +166,8 @@ const namedOutsideInput = z.object({
   id: z.string().max(64).optional(),
   supplierId: z.string().max(64).optional(),
   subjects: z.array(z.string().max(200)).max(50),
+  /** A platform to be added to the contract (`supplierContract` with `id`): who it gives the contract to from outside its teams (0.19.0) */
+  platformId: z.string().max(64).optional(),
 });
 /** A supplier's company-wide contacts that cannot be scoped when it is opened: the administrator's choice (ADR 0031) */
 const supplierContactChoices = z.object({ contacts: boundedRecord(z.enum(SUPPLIER_CONTACT_CHOICES), 100).optional() });
@@ -410,6 +412,11 @@ export async function scopeRoutes(app: FastifyInstance): Promise<void> {
     const b = namedOutsideInput.parse(req.body);
     const u = me();
     let teams: OwningTeam[];
+    if (b.kind === 'supplierContract' && b.id && b.platformId) {
+      // covering a platform (security review 0.19.0 M1): its grantees from outside the contract's teams
+      teams = contractScopeTeams(b.supplierId ?? '', b.id);
+      return { teams: teams.map((t) => t.name), outside: contractPlatformNamesOutsiders(b.supplierId ?? '', b.id, b.platformId) };
+    }
     if (b.kind === 'supplierContract') teams = contractScopeTeams(b.supplierId ?? '', b.id ?? null);
     else if (!b.id) teams = b.kind === 'supplier' ? [] : newResourceTeams(u).teams;
     else {

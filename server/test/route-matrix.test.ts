@@ -1892,6 +1892,11 @@ function namedGrantRoutes(): typeof STEP_UP {
       () => ({ title: 'Matrix team contract', owners: ['team:matrix owners', 'user:admin'] }),
       () => `/api/suppliers/${fx.supplierTeam}/contracts/${fx.contractTeam}`,
     ),
+    'PUT /api/suppliers/:id/contracts/:contractId/platforms/:platformId': rule(
+      () => ({ purpose: 'Matrix' }),
+      () => ({ purpose: 5 }),
+      () => `/api/suppliers/${fx.supplierTeam}/contracts/${fx.contractTeam}/platforms/${fx.platformOutside}`,
+    ),
     'PUT /api/records/:id': rule(
       () => ({ owner: 'vera' }),
       () => ({ owner: 'admin' }),
@@ -2667,6 +2672,12 @@ beforeAll(async () => {
     contractTeam: (await a('POST', `/suppliers/${supplierTeam}/contracts`, { title: 'Matrix team contract', owners: ['team:matrix owners'] })).contracts.find(
       (c: { title: string }) => c.title === 'Matrix team contract',
     ).id as string,
+    // a platform of another team (security review 0.19.0 M1): covering it gives that team the contract
+    platformOutside: await (async () => {
+      const id = (await a('POST', '/platforms', { name: 'Matrix outside platform', kind: 'rest', baseUrl: 'https://matrix-outside.example' })).id as string;
+      await a('PUT', `/owning-teams/platform/${id}`, { teamIds: [team.id] });
+      return id;
+    })(),
   };
   const report = await a('POST', `/runs/${run.id}/reports`, {});
   const users = await a('GET', '/users');

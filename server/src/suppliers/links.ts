@@ -2,7 +2,7 @@ import type { SupplierRef, SupplierStatus } from '@sm/shared';
 import { db } from '../db.js';
 import { currentUser, viaApiToken, type AuthUser } from '../auth/context.js';
 import { canViewCatalogue } from '../records/access.js';
-import { ScopeCtx } from './contract-scope.js';
+import { ScopeCtx, checkSideCover } from './contract-scope.js';
 import { HttpError, nowIso, parseJson } from '../util.js';
 import { audit } from '../audit.js';
 
@@ -114,6 +114,8 @@ export function resolveSupplierContract(
         'SUPPLIER_CONTRACT_COVER_SESSION',
         { contract: c.title },
       );
+    // a platform: never a grant to another team on the side (security review 0.19.0 M1)
+    if (p.kind === 'platform') checkSideCover(c.id, p.id);
   }
   return c.id;
 }
@@ -130,6 +132,8 @@ export function coverChosenContract(contractId: string | null, before: string | 
   if (p.kind === 'platform') {
     const plat = db().get<{ name: string }>('SELECT name FROM platforms WHERE id = ?', p.id);
     if (!c || !plat) return;
+    // checked again with what is stored now (resolveSupplierContract asked before): the caller's transaction is undone
+    checkSideCover(contractId, p.id);
     db().run(
       `INSERT INTO supplier_contract_platforms (contract_id, platform_id, purpose, added_by, added_at) VALUES (?, ?, '', ?, ?)`,
       contractId,

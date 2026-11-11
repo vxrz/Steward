@@ -135,6 +135,8 @@
   },
   "namedOutside": {
     "hint_one": "{{names}} is not in the owning teams ({{teams}}) and will see and change this item. Saving asks you to confirm it is you.",
-    "hint_other": "{{names}} are not in the owning teams ({{teams}}) and will see and change this item. Saving asks you to confirm it is you."
+    "hint_other": "{{names}} are not in the owning teams ({{teams}}) and will see and change this item. Saving asks you to confirm it is you.",
+    "platformHint_one": "{{names}} is not in the contract’s owning teams ({{teams}}) and will see this contract through the platform. Adding it asks you to confirm it is you.",
+    "platformHint_other": "{{names}} are not in the contract’s owning teams ({{teams}}) and will see this contract through the platform. Adding it asks you to confirm it is you."
   }
 }

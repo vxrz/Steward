@@ -117,6 +117,8 @@ export interface Resources {
     'helpIdentity.use': string;
     'namedOutside.hint_one': string;
     'namedOutside.hint_other': string;
+    'namedOutside.platformHint_one': string;
+    'namedOutside.platformHint_other': string;
   };
   applications: {
     title: string;
@@ -3095,6 +3097,7 @@ export interface Resources {
     'entryImport.problems.supplierArchived': string;
     'entryImport.problems.contractUnknown': string;
     'entryImport.problems.contractNotCovering': string;
+    'entryImport.problems.contractPlatformGrant': string;
     'entryImport.problems.targetUnknown': string;
     'entryImport.problems.limit': string;
     'entryImport.import_one': string;
@@ -6263,6 +6266,7 @@ export interface Resources {
     'codes.COST_BOOK_AMOUNT_REQUIRED': string;
     'codes.SUPPLIER_CONTRACT_ITEM': string;
     'codes.SUPPLIER_CONTRACT_PLATFORM_LIMIT': string;
+    'codes.SUPPLIER_CONTRACT_PLATFORM_GRANT': string;
     'codes.SUPPLIER_CONTRACT_PLATFORM_NOT_FOUND': string;
     'codes.SUPPLIER_CONTRACT_PLATFORM_HAS_SCHEDULES': string;
     'boundary.title': string;

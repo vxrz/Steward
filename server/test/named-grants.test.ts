@@ -214,3 +214,98 @@ describe('other named owners', () => {
     ).toBe('ok');
   });
 });
+
+describe('supplier contracts covering a platform (security review 0.19.0 M1, L1)', () => {
+  let supplier: string;
+  let contract: string;
+  let other: string;
+  let platform: string;
+  let paul: Client; // operator in Cloud, the platform's owning team: sees the platform, does not manage it
+  let vince: Client; // viewer in Cloud: the platform is answered like a missing one
+  const contractPath = () => `/suppliers/${supplier}/contracts/${contract}`;
+
+  beforeAll(async () => {
+    const users = await import('../src/auth/users.js');
+    users.createUser({ username: 'paul', roles: ['operator'], password: PW, mustChangePassword: false });
+    users.createUser({ username: 'vince', roles: ['viewer'], password: PW, mustChangePassword: false });
+    paul = await s.as('paul', PW);
+    vince = await s.as('vince', PW);
+    const cloud = (await s.api('POST', '/teams', { name: 'Cloud', members: ['paul', 'vince'] })).id;
+    platform = (await s.api('POST', '/platforms', { name: 'Cloud platform', kind: 'rest', baseUrl: 'https://cloud.invented.example' })).id;
+    await s.api('PUT', `/owning-teams/platform/${platform}`, { teamIds: [cloud] });
+    // tara uses the platform (she may pick it), she does not manage it
+    await s.api('PUT', `/platforms/${platform}/access`, { acl: [{ subject: 'user:tara', permissions: ['use'] }] });
+    supplier = (await s.api('POST', '/suppliers', { name: 'Invented Hosting AG', type: 'serviceProvider' })).id;
+    await confirm();
+    const terms = { startsOn: '2026-01-01', endsOn: '2028-12-31', renewal: 'fixedEnd' };
+    let d = await tara('POST', `/suppliers/${supplier}/contracts`, { title: 'Orders hosting', ...terms });
+    contract = d.contracts.find((c: { title: string }) => c.title === 'Orders hosting').id;
+    d = await tara('POST', `/suppliers/${supplier}/contracts`, { title: 'Orders hosting 2', ...terms });
+    other = d.contracts.find((c: { title: string }) => c.title === 'Orders hosting 2').id;
+    expect(d.contracts.find((c: { id: string }) => c.id === contract).owners).toEqual(['user:tara', 'team:orders']);
+  });
+
+  it('asks for the step-up when a platform of another team is added to a team-owned contract', async () => {
+    await unconfirm();
+    expect(await code(vince('GET', `/platforms/${platform}`))).not.toBe('ok');
+    // the review's path: adding the owner team:cloud asks, adding Cloud's platform did not
+    expect(await code(tara('PUT', contractPath(), { title: 'Orders hosting', owners: ['user:tara', 'team:orders', 'team:cloud'] }))).toBe('STEP_UP_REQUIRED');
+    expect(await code(tara('PUT', `${contractPath()}/platforms/${platform}`, { purpose: 'Hosting' }))).toBe('STEP_UP_REQUIRED');
+    // a new contract covering it from the start asks too
+    expect(
+      await code(tara('POST', `/suppliers/${supplier}/contracts`, { title: 'Orders hosting 3', platforms: [{ platformId: platform, purpose: '' }] })),
+    ).toBe('STEP_UP_REQUIRED');
+    // nothing was given away
+    expect(await code(paul('GET', contractPath()))).toBe('SUPPLIER_CONTRACT_NOT_FOUND');
+    // the forms say so before adding
+    expect(
+      await tara('POST', '/access/named-outside', { kind: 'supplierContract', supplierId: supplier, id: contract, subjects: [], platformId: platform }),
+    ).toEqual({
+      teams: ['Orders'],
+      outside: ['team:cloud'],
+    });
+  });
+
+  it('refuses the paths that add a covered platform on the side when that would grant it', async () => {
+    await confirm();
+    // a payment schedule the platform pays
+    expect(
+      await code(
+        tara('POST', '/costs/schedules', {
+          contractId: contract,
+          platformId: platform,
+          title: 'Hosting',
+          category: 'cloud',
+          amount: '1000',
+          currency: 'USD',
+          billing: 'volume',
+          volume: { per: 'term', billing: 'prepaid', committed: 'full' },
+        }),
+      ),
+    ).toBe('SUPPLIER_CONTRACT_PLATFORM_GRANT');
+    expect(await code(paul('GET', contractPath()))).toBe('SUPPLIER_CONTRACT_NOT_FOUND');
+  });
+
+  it('gives the platform the contract once confirmed, audited as an access change; its owning teams read it, they do not change it', async () => {
+    // (confirmed in the test before)
+    await tara('PUT', `${contractPath()}/platforms/${platform}`, { purpose: 'Hosting' });
+    const [entry] = (await granted(supplier)).filter((e) => e.details?.field === 'platforms');
+    expect(entry).toMatchObject({
+      details: { field: 'platforms', granted: ['team:cloud'], owningTeams: ['Orders'], contractId: contract, platformId: platform },
+    });
+    expect((entry!.details!.assurance as { point: string }[]).map((p) => p.point)).toContain('access.grant');
+    // a member of Cloud who sees the platform reads it – the right to change it comes from `manage` only
+    const read = await paul('GET', contractPath());
+    expect(read.contract).toMatchObject({ readReason: 'platform', canEdit: false });
+    expect(await code(paul('PUT', contractPath(), { title: 'Orders hosting', owners: ['team:cloud'] }))).toBe('FORBIDDEN');
+    // L1: a viewer of Cloud, who may not see the platform, does not read the contract through it
+    expect(await code(vince('GET', contractPath()))).toBe('SUPPLIER_CONTRACT_NOT_FOUND');
+  });
+
+  it('refuses "Replaced by …" when the platform would join another team’s contract on the side', async () => {
+    // the replacement belongs to Payments: Cloud's platform would give it to Cloud
+    await s.api('PUT', `/suppliers/${supplier}/contracts/${other}`, { title: 'Orders hosting 2', owners: ['user:tara', 'team:payments'] });
+    expect(await code(tara('DELETE', `${contractPath()}?replacedBy=${other}`))).toBe('SUPPLIER_CONTRACT_PLATFORM_GRANT');
+    expect(await code(tara('GET', contractPath()))).toBe('ok');
+  });
+});

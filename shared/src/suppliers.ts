@@ -392,7 +392,7 @@ export interface SupplierContractPlatform {
   purpose: string;
   /** The reader may change the purpose or take the platform off the contract */
   canChange: boolean;
-  /** The reader manages the platform or is a member of its owning teams */
+  /** The reader manages the platform (the right `manage`; membership of its owning teams alone does not count) */
   managesPlatform: boolean;
 }
 
@@ -735,7 +735,7 @@ export function contractReaders(
     auditor: boolean;
     owner: boolean;
     seesCoveredService: boolean;
-    /** 0.19.0 (ADR 0032): manages a covered platform or is a member of its owning teams – not every reader of the platform */
+    /** 0.19.0 (ADR 0032): sees a covered platform and manages it or is a member of its owning teams – not every reader of the platform */
     managesCoveredPlatform?: boolean;
   },
 ): SupplierContractReadReason | null {

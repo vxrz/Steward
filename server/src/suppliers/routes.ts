@@ -179,8 +179,20 @@ export async function supplierRoutes(app: FastifyInstance): Promise<void> {
   );
   app.get('/services/:id/contracts', async (req) => s.serviceContracts(params(req).id!));
   // platforms covered by a contract (0.19.0, ADR 0032): covering one lets its managers see a team-owned contract
-  app.put('/suppliers/:id/contracts/:contractId/platforms/:platformId', session, async (req) =>
-    s.setContractPlatform(params(req).id!, params(req).contractId!, params(req).platformId!, supplierContractPlatformInput.parse(req.body ?? {})),
+  // a platform of another team gives it the contract: confirmed like naming an owner (security review 0.19.0 M1)
+  app.put(
+    '/suppliers/:id/contracts/:contractId/platforms/:platformId',
+    {
+      config: {
+        access: ACCESS.session,
+        stepUp: namedGrantRule((req) => {
+          supplierContractPlatformInput.parse(req.body ?? {});
+          return s.contractPlatformNamesOutsiders(params(req).id!, params(req).contractId!, params(req).platformId!);
+        }),
+      },
+    },
+    async (req) =>
+      s.setContractPlatform(params(req).id!, params(req).contractId!, params(req).platformId!, supplierContractPlatformInput.parse(req.body ?? {})),
   );
   app.delete('/suppliers/:id/contracts/:contractId/platforms/:platformId', session, async (req) =>
     s.removeContractPlatform(params(req).id!, params(req).contractId!, params(req).platformId!),

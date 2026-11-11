@@ -26,7 +26,7 @@ import { audit } from '../audit.js';
 import { currentActor, currentUser } from '../auth/context.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { contractEditable, contractVisible, supplierRefs, visibleContracts } from '../suppliers/links.js';
-import { ScopeCtx } from '../suppliers/contract-scope.js';
+import { ScopeCtx, checkSideCover } from '../suppliers/contract-scope.js';
 import { scopeInfo, visibleScopes, type ScopeInfo } from './access.js';
 import {
   catalogueOf,
@@ -337,6 +337,8 @@ export function addSchedule(body: unknown): CostScheduleList {
   checkOwnerTarget(payer, x.target);
   checkLimits(c.id, payer);
   checkVolume(x, c.id, payer, null);
+  // a platform added on the side: never a grant to another team (security review 0.19.0 M1)
+  if (payer.kind === 'platform' && !cover) checkSideCover(c.id, payer.id);
   const cols = columnsOf(x, payer);
   const id = newId('csc_');
   const now = nowIso();
