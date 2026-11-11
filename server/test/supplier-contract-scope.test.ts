@@ -131,6 +131,15 @@ describe('contracts with owners and covered services', () => {
     expect(c.services.map((x: any) => x.id)).toEqual([svcShop]);
     expect(c.hiddenServices).toBe(1);
     expect(JSON.stringify(c)).not.toContain('Chat widget');
+    // the supplier picker names only the covered services she may see, not even the id of the other
+    const option = (await olivia('GET', '/suppliers/options')).find((x: any) => x.id === supplier).contracts.find((x: any) => x.id === hosting);
+    expect(option.services).toEqual([svcShop]);
+    expect(
+      (await s.api('GET', '/suppliers/options'))
+        .find((x: any) => x.id === supplier)
+        .contracts.find((x: any) => x.id === hosting)
+        .services.sort(),
+    ).toEqual([svcShop, svcCare].sort());
     // bert now sees the contract through customer care, but may not change it: he sees no hidden-service count
     const b = (await bert('GET', `/suppliers/${supplier}/contracts/${hosting}`)).contract;
     expect(b).toMatchObject({ readReason: 'service', canEdit: false, hiddenServices: 0 });

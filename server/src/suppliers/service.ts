@@ -769,8 +769,12 @@ export function supplierOptions(): SupplierOption[] {
       id: c.id,
       title: c.title,
       reference: c.reference,
-      // the pickers offer the contracts covering a service first (ADR 0031 part 4), and those the person may add it to
-      services: ctx.coverOf(c.id).map((x) => x.service_id),
+      // the pickers offer the contracts covering a service first (ADR 0031 part 4), and those the person may add it to;
+      // only the services the reader may see – the others are not named, not even by id
+      services: ctx
+        .coverOf(c.id)
+        .filter((x) => ctx.seesService(x.service_id, true))
+        .map((x) => x.service_id),
       canEdit: ctx.edits(c, byId.get(r.id)!),
       owners: contractOwnersOf(c),
     })),
