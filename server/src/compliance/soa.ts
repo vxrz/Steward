@@ -129,6 +129,8 @@ interface VersionRow {
   decided_by: string | null;
   comment: string;
   files: string;
+  /** A second person approves this version: fixed when it was submitted (the SoA's switch or the policy then) */
+  four_eyes: number;
 }
 
 interface ControlRow {
@@ -399,6 +401,7 @@ function versionSummary(v: VersionRow, u: AuthUser): SoaVersionSummary {
     decidedBy: v.decided_by,
     comment: v.comment,
     pdfSha256: files.pdf?.sha256 ?? null,
+    fourEyes: versionFourEyes(v),
     counts: content?.counts ?? countsOf([], new Map(), new Map()),
     canExport: (v.status === 'approved' || v.status === 'superseded') && canExportEvidence(u),
   };
@@ -446,7 +449,7 @@ export function listSoas(): SoaList {
         controls: Number(db().get<{ n: number }>('SELECT COUNT(*) AS n FROM controls WHERE catalogue_id = ?', c.id)!.n),
       });
   }
-  return { items, catalogues: free, canCreate: canEditSoa(u) };
+  return { items, catalogues: free, canCreate: canEditSoa(u), fourEyesOff: canSwitchFourEyesOff(u) };
 }
 
 const coveragePeriod = (now = Date.now()) => {
@@ -560,9 +563,11 @@ export function getSoa(catalogueIdOrKey: string): Soa {
     : [];
   const fourEyes = fourEyesRequired(SOA_POINT, !!Number(soa.four_eyes));
   const waiting = summary.waiting;
+  const waitingRow = waiting ? versionsOf(soa.id).find((v) => v.status === 'submitted') : undefined;
   const edit = canEditSoa(u);
   const undecided = entries.filter((e) => !e.decided).length;
-  const ownSubmission = !!waiting && fourEyes && samePerson(waiting.submittedBy, u);
+  // a waiting version keeps the rule it was submitted with (switching the second person off later does not apply to it)
+  const ownSubmission = !!waitingRow && versionFourEyes(waitingRow) && samePerson(waitingRow.submitted_by, u);
   const storedAreas = parseJson<SoaAreaControls>(soa.area_controls, {});
   return {
     ...summary,
@@ -582,6 +587,7 @@ export function getSoa(catalogueIdOrKey: string): Soa {
       decideBlocked: waiting && canApproveSoa(u) && ownSubmission ? 'ownSubmission' : null,
       fourEyes,
       fourEyesRequiredByPolicy: fourEyesRequired(SOA_POINT, false),
+      fourEyesOff: canSwitchFourEyesOff(u),
       export: canExportEvidence(u),
     },
   };
@@ -612,6 +618,7 @@ export function createSoa(input: z.input<typeof soaCreateInput>): Soa {
   const u = me();
   if (!canEditSoa(u)) forbid('create statements of applicability (designers, administrators)', 'editSoa');
   const v = soaCreateInput.parse(input);
+  if (!v.fourEyes) assertFourEyesOff(u);
   const cat = catalogueOf(v.catalogueId);
   if (db().get('SELECT 1 FROM soas WHERE catalogue_id = ?', cat.id))
     throw new HttpError(409, `There is a statement of applicability for ${cat.key} already`, 'SOA_EXISTS', { catalogue: cat.key });
@@ -668,6 +675,9 @@ export function updateSettings(catalogueIdOrKey: string, input: z.input<typeof s
     checkServices(added);
   }
   if (v.fourEyes !== undefined) after.fourEyes = v.fourEyes;
+  // switching the second person off loosens the control point soa.approve: administrators only, with the confirmation of
+  // approving (the route), and never while the policy requires it. Versions waiting keep the rule they were submitted with
+  if (before.fourEyes && !after.fourEyes) assertFourEyesOff(u);
   if (v.areaControls !== undefined) {
     const next = Object.fromEntries(RESPONSIBILITY_AREAS.map((a) => [a, [...new Set(v.areaControls![a] ?? [])]])) as SoaAreaControls;
     if (JSON.stringify(next) !== JSON.stringify(Object.fromEntries(RESPONSIBILITY_AREAS.map((a) => [a, before.areaControls[a] ?? []])))) {
@@ -896,12 +906,14 @@ export function submitVersion(catalogueIdOrKey: string): Soa {
   const content = freeze(cat, soa, number, u, at);
   const text = JSON.stringify(content);
   const hash = sha256(text);
+  // fixed now: the switch or the policy as they are at submission (security review 0.17.0, M1)
+  const fourEyes = fourEyesRequired(SOA_POINT, !!Number(soa.four_eyes));
   db().tx(() => {
     if (db().get("SELECT 1 FROM soa_versions WHERE soa_id = ? AND status = 'submitted'", soa.id))
       throw new HttpError(409, 'A version is waiting for approval already', 'SOA_VERSION_WAITING');
     db().run(
-      `INSERT INTO soa_versions (id, soa_id, number, status, content, content_sha256, submitted_at, submitted_by)
-       VALUES (?, ?, ?, 'submitted', ?, ?, ?, ?)`,
+      `INSERT INTO soa_versions (id, soa_id, number, status, content, content_sha256, submitted_at, submitted_by, four_eyes)
+       VALUES (?, ?, ?, 'submitted', ?, ?, ?, ?, ?)`,
       newId('soav_'),
       soa.id,
       number,
@@ -909,13 +921,14 @@ export function submitVersion(catalogueIdOrKey: string): Soa {
       hash,
       at,
       u.username,
+      fourEyes ? 1 : 0,
     );
     audit({
       action: 'soa.version_submitted',
       entityType: 'soa',
       entityId: soa.id,
       summary: `Version ${number} of the statement of applicability for ${cat.key} submitted for approval (sha256 ${hash.slice(0, 16)}…)`,
-      details: { catalogue: cat.key, number, contentSha256: hash, counts: content.counts, fourEyes: fourEyesRequired(SOA_POINT, !!Number(soa.four_eyes)) },
+      details: { catalogue: cat.key, number, contentSha256: hash, counts: content.counts, fourEyes },
     });
   });
   notifyApprovalWaiting(cat, soa, number, u.username, content.counts.applicable);
@@ -945,6 +958,24 @@ function notifyApprovalWaiting(cat: Catalogue, soa: SoaRow, number: number, subm
       data: { catalogue: cat.key, number, submittedBy },
     });
   })().catch((err: unknown) => logger.warn({ err, catalogue: cat.key, number }, 'statement of applicability: the approvers could not be told'));
+}
+
+/** Whether a second person approves a version: fixed at submission, or required by the policy now. */
+const versionFourEyes = (v: Pick<VersionRow, 'four_eyes'>): boolean => fourEyesRequired(SOA_POINT, !!Number(v.four_eyes));
+
+/** Switch an SoA's second person off: administrators, while the assurance policy does not require it for every SoA. */
+export const canSwitchFourEyesOff = (u: AuthUser): boolean => isAdmin(u) && !fourEyesRequired(SOA_POINT, false);
+
+/** The step-up rule of the settings route: the request switches the stored second person off (the route checks the rest). */
+export function switchesFourEyesOff(catalogueIdOrKey: string, body: unknown): boolean {
+  if ((body as { fourEyes?: unknown } | null)?.fourEyes !== false || fourEyesRequired(SOA_POINT, false)) return false;
+  return !!Number(soaOf(catalogueIdOrKey).soa.four_eyes);
+}
+
+function assertFourEyesOff(u: AuthUser): void {
+  if (fourEyesRequired(SOA_POINT, false))
+    throw new HttpError(409, 'The assurance policy requires a second person for every statement of applicability', 'SOA_FOUR_EYES_POLICY');
+  if (!isAdmin(u)) forbid('switch off the approval by a second person (administrators)', 'changeSoaApproval');
 }
 
 function versionRow(soa: SoaRow, n: number): VersionRow {
@@ -998,7 +1029,8 @@ export async function decideVersion(catalogueIdOrKey: string, n: number, input: 
   const v = versionRow(soa, n);
   if (v.status !== 'submitted')
     throw new HttpError(409, `Version ${n} is not waiting for approval`, 'SOA_VERSION_NOT_WAITING', { number: n, status: v.status });
-  const fe = checkFourEyes(SOA_POINT, [v.submitted_by], u, { itemRequires: !!Number(soa.four_eyes) });
+  // the rule the version was submitted with, or the policy now if it is stricter – never the switch as it is now
+  const fe = checkFourEyes(SOA_POINT, [v.submitted_by], u, { itemRequires: !!Number(v.four_eyes) });
   if (!fe.ok) throw new HttpError(403, 'A second person approves: not who submitted the version', 'SOA_FOUR_EYES');
   const at = nowIso();
   if (!d.approve) {

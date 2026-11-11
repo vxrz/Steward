@@ -122,7 +122,7 @@ export const soaCreateInput = z
     catalogueId: id,
     scopeName: z.string().trim().max(SOA_LIMITS.scopeName).default(''),
     scopeServiceIds: z.array(id).max(SOA_LIMITS.scopeServices).default([]),
-    /** A second person approves (on by default; the assurance policy may require it for every SoA) */
+    /** A second person approves (on by default; off only by administrators, and never while the policy requires it) */
     fourEyes: z.boolean().default(true),
   })
   .strict();
@@ -347,6 +347,8 @@ export interface SoaVersionSummary {
   comment: string;
   /** SHA-256 of the archived PDF (approved versions) */
   pdfSha256: string | null;
+  /** A second person approves this version: fixed when it was submitted (or required by the policy now) */
+  fourEyes: boolean;
   counts: SoaCounts;
   canExport: boolean;
 }
@@ -396,6 +398,8 @@ export interface Soa extends SoaSummary {
     fourEyes: boolean;
     /** The policy requires a second person for every SoA */
     fourEyesRequiredByPolicy: boolean;
+    /** Switch the second person off: administrators (with a confirmation), unless the policy requires it */
+    fourEyesOff: boolean;
     export: boolean;
   };
 }
@@ -405,6 +409,8 @@ export interface SoaList {
   /** Catalogues without an SoA yet */
   catalogues: { id: string; key: string; name: string; controls: number }[];
   canCreate: boolean;
+  /** Create a statement without a second person: administrators, unless the policy requires one */
+  fourEyesOff: boolean;
 }
 
 /** One version with its frozen content (soa.json of the signed export). */

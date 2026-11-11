@@ -137,10 +137,11 @@ export const CONTROL_POINTS: readonly ControlPoint[] = [
   {
     // the statement of applicability (0.17.0, ADR 0029): approving or returning a version – approvers and administrators,
     // after a fresh confirmation. Four-eyes optional: each SoA's switch "A second person approves" (on by default); the
-    // policy may require it for every SoA (the submitter then never approves)
+    // policy may require it for every SoA (the submitter then never approves). Switching an SoA's second approver off is
+    // protected like approving (administrators, with the same confirmation): changeSoaApproval
     key: 'soa.approve',
     group: 'audit',
-    actions: ['approveSoa'],
+    actions: ['approveSoa', 'changeSoaApproval'],
     supports: { fourEyes: true, stepUp: true },
     baseline: {},
     defaults: { fourEyes: 'optional', stepUp: true },

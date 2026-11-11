@@ -438,7 +438,7 @@ function ScheduleModal({ draft, sections, onClose, onSaved }: { draft: Draft; se
   });
   const soas = useQuery({
     queryKey: soaKeys.list,
-    queryFn: () => getOptional<SoaList>('/compliance/soa', { items: [], catalogues: [], canCreate: false }),
+    queryFn: () => getOptional<SoaList>('/compliance/soa', { items: [], catalogues: [], canCreate: false, fourEyesOff: false }),
     enabled: sections.includes('isms'),
   });
   const services = useQuery({ queryKey: ['services', false], queryFn: () => get<ServiceSummary[]>('/services'), enabled: sections.includes('isms') });

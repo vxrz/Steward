@@ -140,6 +140,7 @@ export function SoaListPage() {
       {creating && list.data && (
         <NewSoaModal
           catalogues={list.data.catalogues}
+          fourEyesOff={list.data.fourEyesOff}
           onClose={() => setCreating(false)}
           onCreated={(s) => {
             setCreating(false);

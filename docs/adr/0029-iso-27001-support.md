@@ -96,6 +96,7 @@ Public, read-only: `GET /api/v1/suppliers`, `/api/v1/suppliers/{supplierId}`, `/
 | Change a service's responsibility matrix                                | whoever may edit the service                                                                                                        |
 | See the SoA                                                             | everyone who can sign in (evidence by the coverage rule)                                                                            |
 | Change SoA rows and settings; submit a version                          | designers, administrators; a row's owner changes its status, _how it is met_ and _last review_                                      |
+| Switch an SoA's second person off                                       | administrators, with the confirmation of `soa.approve`; never while the policy requires a second person                             |
 | Approve or return an SoA version                                        | approvers, administrators – control point `soa.approve`                                                                             |
 | See findings and suggestions                                            | administrators, auditors, designers, approvers, owners of a finding or action, whoever may edit the affected service                |
 | Record findings; confirm or dismiss suggestions; change findings        | designers, administrators, whoever may edit the affected service; owners mark their actions done                                    |
@@ -143,6 +144,12 @@ The owner took the recommended answer to every open question ("go with the recom
 12. **The SoA export:** the evidence-pack format and key with a separate signature domain – one verifier, one key to trust.
 13. **The supplier review:** a service duty that names the supplier, done by the example process with manual steps – duties already store periods, remind and judge.
 14. **Limits** as above – generous for one installation, bounded for the pages and exports.
+
+### Changed after the security review of 0.17.0 (November 2026)
+
+Before the release, a security review found ways around the decisions above; the fixes change them as follows.
+
+- **Decision 2, the SoA's second person:** whether a second person approves is fixed into each version when it is submitted (`soa_versions.four_eyes`, migration `compliance-006-soa-version-four-eyes`); approving reads that value, or the policy now if it is stricter, never the switch as it is now. Designers switch it on; only administrators switch it off (also when creating a statement), after the confirmation of `soa.approve` (step-up action `changeSoaApproval`), and not at all while the policy requires a second person.
 
 ## Consequences
 

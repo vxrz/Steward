@@ -1414,6 +1414,7 @@ export interface Resources {
     'stepUp.actions.changePlantInBulk': string;
     'stepUp.actions.usePrivilegedIdentity': string;
     'stepUp.actions.approveSoa': string;
+    'stepUp.actions.changeSoaApproval': string;
   };
   common: {
     add: string;
@@ -5868,11 +5869,13 @@ export interface Resources {
     'codes.SOA_VERSION_NOT_APPROVED': string;
     'codes.SOA_PDF_MISSING': string;
     'codes.SOA_PDF_CHANGED': string;
+    'codes.SOA_FOUR_EYES_POLICY': string;
     'codes.RESPONSIBILITY_CENTRAL_NAME': string;
     'codes.RESPONSIBILITY_NOTE_REQUIRED': string;
     'codes.RESPONSIBILITY_DUTY_UNKNOWN': string;
     'codes.FORBIDDEN_editSoa': string;
     'codes.FORBIDDEN_approveSoa': string;
+    'codes.FORBIDDEN_changeSoaApproval': string;
     'boundary.title': string;
     'boundary.text': string;
     'boundary.retry': string;
@@ -14485,6 +14488,7 @@ export interface Resources {
     'settings.title': string;
     'settings.saved': string;
     'settings.fourEyesPolicy': string;
+    'settings.fourEyesAdmins': string;
     'settings.areaControls': string;
     'settings.areaDefault': string;
     'settings.areaOwn': string;

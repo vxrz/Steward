@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { controlPoint, instanceRule } from '@sm/shared';
-import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
+import { ADMIN, setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
 /**
  * The statement of applicability with the responsibility matrix (ISO/IEC 27001 clause 6.1.3 d, ADR 0029 part 2): the
@@ -448,19 +448,54 @@ describe('versions, approval and the signed export', () => {
     expect((await auditOf(soaId)).filter((a) => a.action === 'soa.exported').length).toBe(3);
   });
 
+  it('fixes the second person when a version is submitted; only administrators switch it off, after a confirmation', async () => {
+    // the administrator submits with the switch on
+    const submitted = await s.api('POST', '/compliance/soa/ISO27001/versions');
+    expect(submitted.versions[0]).toMatchObject({ number: 3, status: 'submitted', fourEyes: true });
+    // a designer (or an approver) never switches it off – also not when creating a statement
+    expect(await code(dana('PUT', '/compliance/soa/ISO27001/settings', { fourEyes: false }))).toBe('FORBIDDEN');
+    expect(await code(dana('POST', '/compliance/soa', { catalogueId: 'none', fourEyes: false }))).toBe('FORBIDDEN');
+    expect((await dana('GET', '/compliance/soa/ISO27001')).permissions.fourEyesOff).toBe(false);
+    expect((await dana('GET', '/compliance/soa')).fourEyesOff).toBe(false);
+    // an administrator confirms it is them first; other settings need no confirmation
+    const fresh = await s.as(ADMIN.username, ADMIN.password, { autoStepUp: false });
+    await fresh('DELETE', '/auth/step-up');
+    expect(await code(fresh('PUT', '/compliance/soa/ISO27001/settings', { fourEyes: false }))).toBe('STEP_UP_REQUIRED');
+    expect(await code(fresh('POST', '/compliance/soa', { catalogueId: 'none', fourEyes: false }))).toBe('STEP_UP_REQUIRED');
+    expect((await fresh('PUT', '/compliance/soa/ISO27001/settings', { scopeName: 'Payroll', fourEyes: true })).fourEyes).toBe(true);
+    const off = await s.api('PUT', '/compliance/soa/ISO27001/settings', { fourEyes: false });
+    expect(off.fourEyes).toBe(false);
+    const changed = (await auditOf(soaId)).find((a) => a.action === 'soa.settings_changed' && a.details.fields.includes('fourEyes'))!;
+    expect(changed.details).toMatchObject({ before: { fourEyes: true }, after: { fourEyes: false } });
+    expect(changed.details.assurance?.[0]).toMatchObject({ point: 'soa.approve', actor: 'admin' });
+    // the waiting version keeps the rule it was submitted with: its submitter still does not approve it
+    expect(off.permissions).toMatchObject({ decide: false, decideBlocked: 'ownSubmission' });
+    expect(off.versions[0]).toMatchObject({ number: 3, fourEyes: true });
+    expect(await code(s.api('POST', '/compliance/soa/ISO27001/versions/3/decision', { approve: true }))).toBe('SOA_FOUR_EYES');
+    // a designer may switch it on again
+    expect((await dana('PUT', '/compliance/soa/ISO27001/settings', { fourEyes: true })).fourEyes).toBe(true);
+    await s.api('PUT', '/compliance/soa/ISO27001/settings', { fourEyes: false });
+    await adam('POST', '/compliance/soa/ISO27001/versions/3/decision', { approve: false, comment: 'Submitted again without a second person' });
+  });
+
   it('supersedes the approved version with the next one; without the switch the submitter may approve', async () => {
-    await dana('PUT', '/compliance/soa/ISO27001/settings', { fourEyes: false });
     await s.api('POST', '/compliance/soa/ISO27001/versions');
-    const soa = await s.api('POST', '/compliance/soa/ISO27001/versions/3/decision', { approve: true });
+    expect((await s.api('GET', '/compliance/soa/ISO27001/versions/4')).fourEyes).toBe(false);
+    const soa = await s.api('POST', '/compliance/soa/ISO27001/versions/4/decision', { approve: true });
     expect(soa.versions.map((v: any) => [v.number, v.status])).toEqual([
-      [3, 'approved'],
+      [4, 'approved'],
+      [3, 'returned'],
       [2, 'superseded'],
       [1, 'returned'],
     ]);
     // the policy can require a second person for every SoA
     const policy = await s.api('GET', '/assurance/policy');
     await s.api('PUT', '/assurance/policy', { points: { ...policy.policy.points, 'soa.approve': { fourEyes: 'required' } }, mfa: policy.policy.mfa });
-    expect((await s.api('GET', '/compliance/soa/ISO27001')).permissions).toMatchObject({ fourEyes: true, fourEyesRequiredByPolicy: true });
+    expect((await s.api('GET', '/compliance/soa/ISO27001')).permissions).toMatchObject({ fourEyes: true, fourEyesRequiredByPolicy: true, fourEyesOff: false });
+    // then the switch cannot be turned off at all, not even by an administrator
+    await s.api('PUT', '/compliance/soa/ISO27001/settings', { fourEyes: true });
+    expect(await code(s.api('PUT', '/compliance/soa/ISO27001/settings', { fourEyes: false }))).toBe('SOA_FOUR_EYES_POLICY');
+    expect(await code(s.api('POST', '/compliance/soa', { catalogueId: 'none', fourEyes: false }))).toBe('SOA_FOUR_EYES_POLICY');
     const list = await s.api('GET', '/assurance/policy');
     expect(list.overrides.some((o: any) => o.point === 'soa.approve' && o.kind === 'soa' && o.label === 'ISO27001')).toBe(true);
   });
@@ -517,12 +552,12 @@ describe('reading through the API, MCP and the dataset', () => {
     };
     const list = await v1('/statements-of-applicability');
     expect(list.status).toBe(200);
-    expect(list.json.items.find((x: any) => x.catalogueKey === 'ISO27001')).toMatchObject({ latestApproved: { number: 3 } });
+    expect(list.json.items.find((x: any) => x.catalogueKey === 'ISO27001')).toMatchObject({ latestApproved: { number: 4 } });
     const one = await v1('/statements-of-applicability/ISO27001');
     expect(one.status).toBe(200);
     expect(one.json.entries.find((e: any) => e.ref === '5.18')).toMatchObject({ applicable: true, owner: 'user:olivia', grcRef: 'RISK-1' });
     expect(one.json.entries[0].canEdit).toBeUndefined();
-    expect(one.json.versions.map((v: any) => v.number)).toEqual([3, 2, 1]);
+    expect(one.json.versions.map((v: any) => v.number)).toEqual([4, 3, 2, 1]);
     expect((await v1('/statements-of-applicability/NIS2')).status).toBe(404);
     const m = await v1(`/services/${svcA}/responsibilities`);
     expect(m.json.rows.find((r: any) => r.area === 'backup')).toMatchObject({ party: 'supplier', supplier: { name: 'Hostwell (soa)' } });
@@ -582,13 +617,14 @@ describe('reading through the API, MCP and the dataset', () => {
     const soa = await import('../src/compliance/soa.js');
     const { runAs } = await import('../src/auth/context.js');
     const st = runAs(null, () => soa.soaStatusOf('ISO27001'))!;
-    expect(st.latestApproved?.number).toBe(3);
+    expect(st.latestApproved?.number).toBe(4);
     expect(st.counts.undecided).toBe(0);
     expect(soa.soaStatusOf('NIS2')).toBeNull();
     const decisions = soa.soaDecisions(new Date(Date.now() - 86_400_000).toISOString(), new Date(Date.now() + 60_000).toISOString());
     expect(decisions.map((d) => [d.number, d.status])).toEqual(
       expect.arrayContaining([
-        [3, 'approved'],
+        [4, 'approved'],
+        [3, 'returned'],
         [1, 'returned'],
       ]),
     );

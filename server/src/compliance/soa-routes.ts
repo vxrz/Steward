@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { SOA_EXPORT_FORMATS } from '@sm/shared';
 import { ACCESS } from '../auth/access.js';
 import { currentUser } from '../auth/context.js';
+import { isAdmin } from '../auth/permissions.js';
 import { contentDisposition } from '../records/attachments.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { params } from '../routes/params.js';
@@ -12,18 +13,39 @@ import { getResponsibilities, setResponsibilities } from './responsibilities.js'
 /**
  * The statement of applicability and the responsibility matrix in the web app (ADR 0029 part 2; Compliance module).
  * Reading also works with an API token; every change is a decision of a person in a session in the app (ADR 0029
- * decision 9), so the changing routes refuse API tokens. Approving or returning a version asks for a fresh
- * confirmation (control point soa.approve). Rights on single rows are checked in soa.ts.
+ * decision 9), so the changing routes refuse API tokens. Approving or returning a version, and switching the second
+ * person off (administrators), ask for a fresh confirmation (control point soa.approve). Rights on single rows are
+ * checked in soa.ts.
  */
 
 const session = { config: { access: ACCESS.session } };
+const adminCaller = () => isAdmin(currentUser());
 const versionNo = (req: FastifyRequest) => z.coerce.number().int().min(1).max(1_000_000).parse(params(req).n);
 
 export async function soaRoutes(app: FastifyInstance): Promise<void> {
   app.get('/compliance/soa', async () => soa.listSoas());
-  app.post('/compliance/soa', session, async (req) => soa.createSoa(req.body as never));
+  app.post(
+    '/compliance/soa',
+    {
+      config: {
+        access: ACCESS.session,
+        stepUp: { action: 'changeSoaApproval', who: adminCaller, when: (req) => (req.body as { fourEyes?: unknown } | null)?.fourEyes === false },
+      },
+    },
+    async (req) => soa.createSoa(req.body as never),
+  );
   app.get('/compliance/soa/:catalogueId', async (req) => soa.getSoa(params(req).catalogueId!));
-  app.put('/compliance/soa/:catalogueId/settings', session, async (req) => soa.updateSettings(params(req).catalogueId!, req.body as never));
+  app.put(
+    '/compliance/soa/:catalogueId/settings',
+    // switching the second person off loosens soa.approve: confirmed like approving (administrators; others get the refusal)
+    {
+      config: {
+        access: ACCESS.session,
+        stepUp: { action: 'changeSoaApproval', who: adminCaller, when: (req) => soa.switchesFourEyesOff(params(req).catalogueId!, req.body) },
+      },
+    },
+    async (req) => soa.updateSettings(params(req).catalogueId!, req.body as never),
+  );
   app.put('/compliance/soa/:catalogueId/entries/:controlId', session, async (req) =>
     soa.updateEntry(params(req).catalogueId!, params(req).controlId!, req.body as never),
   );

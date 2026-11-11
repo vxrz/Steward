@@ -395,4 +395,13 @@ export const COMPLIANCE_MIGRATIONS: NamedMigration[] = [
       CREATE INDEX service_responsibilities_supplier ON service_responsibilities(supplier_id);
     `,
   },
+  {
+    // whether a second person approves a version is fixed when it is submitted (security review 0.17.0): switching the
+    // SoA's "A second person approves" off later never lets the submitter approve a version that waits already.
+    // Versions submitted before this migration need a second person (the default of the switch).
+    name: 'compliance-006-soa-version-four-eyes',
+    sql: `
+      ALTER TABLE soa_versions ADD COLUMN four_eyes INTEGER NOT NULL DEFAULT 1;
+    `,
+  },
 ];

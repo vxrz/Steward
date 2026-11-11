@@ -1290,11 +1290,13 @@
     "SOA_VERSION_NOT_APPROVED": "Only approved versions are exported. Version {{number}} is not approved.",
     "SOA_PDF_MISSING": "The archived PDF of version {{number}} is missing in the data folder.",
     "SOA_PDF_CHANGED": "The archived PDF of version {{number}} does not match its recorded SHA-256: it was changed outside Steward.",
+    "SOA_FOUR_EYES_POLICY": "The assurance policy requires a second person for every statement of applicability: the switch stays on.",
     "RESPONSIBILITY_CENTRAL_NAME": "Name the central IT or group that does it.",
     "RESPONSIBILITY_NOTE_REQUIRED": "Shared: say in the note who does what.",
     "RESPONSIBILITY_DUTY_UNKNOWN": "The recovery-test duty must be an active duty of this service.",
     "FORBIDDEN_editSoa": "Designers and administrators change the statement of applicability; a row’s owner changes its status, how it is met and its last review.",
-    "FORBIDDEN_approveSoa": "Approvers and administrators approve or return a version of the statement of applicability."
+    "FORBIDDEN_approveSoa": "Approvers and administrators approve or return a version of the statement of applicability.",
+    "FORBIDDEN_changeSoaApproval": "Administrators switch off the approval by a second person, after confirming it is them."
   },
   "boundary": {
     "title": "Something went wrong on this page",

@@ -167,6 +167,7 @@
     "title": "Settings of the statement",
     "saved": "Settings saved",
     "fourEyesPolicy": "The assurance policy requires a second person for every statement.",
+    "fourEyesAdmins": "Administrators switch it off, after confirming it is them. A version waiting keeps the rule it was submitted with.",
     "areaControls": "Controls per responsibility area",
     "areaDefault": "The built-in identifiers of ISO/IEC 27001:2022 Annex A apply.",
     "areaOwn": "These controls apply instead of the built-in ones.",

@@ -167,6 +167,7 @@
     "title": "Einstellungen der Erklärung",
     "saved": "Einstellungen gespeichert",
     "fourEyesPolicy": "Die Absicherungsrichtlinie verlangt für jede Erklärung eine zweite Person.",
+    "fourEyesAdmins": "Abschalten können Administratoren, nachdem sie bestätigt haben, dass sie es sind. Eine wartende Version behält die Regel, mit der sie eingereicht wurde.",
     "areaControls": "Kontrollen je Verantwortungsbereich",
     "areaDefault": "Es gelten die eingebauten Kennungen von ISO/IEC 27001:2022 Anhang A.",
     "areaOwn": "Diese Kontrollen gelten anstelle der eingebauten.",

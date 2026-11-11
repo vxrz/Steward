@@ -469,7 +469,18 @@ function useServices() {
 }
 
 /** A new statement: one per catalogue (designers, administrators). */
-export function NewSoaModal({ catalogues, onClose, onCreated }: { catalogues: SoaList['catalogues']; onClose: () => void; onCreated: (s: Soa) => void }) {
+export function NewSoaModal({
+  catalogues,
+  fourEyesOff,
+  onClose,
+  onCreated,
+}: {
+  catalogues: SoaList['catalogues'];
+  /** The person may create a statement without a second person (administrators, unless the policy requires one) */
+  fourEyesOff: boolean;
+  onClose: () => void;
+  onCreated: (s: Soa) => void;
+}) {
   const { t } = useTranslation(['soa', 'common']);
   const services = useServices();
   const [catalogueId, setCatalogueId] = useState<string | null>(catalogues.find((c) => c.key === 'ISO27001')?.id ?? catalogues[0]?.id ?? null);
@@ -513,7 +524,7 @@ export function NewSoaModal({ catalogues, onClose, onCreated }: { catalogues: So
             data-testid="soa-new-catalogue"
           />
           <ScopeFields services={services.data ?? []} scopeName={scopeName} setScopeName={setScopeName} scope={scope} setScope={setScope} />
-          <Switch label={t('fields.fourEyes')} description={t('hints.fourEyes')} checked={fourEyes} onChange={(e) => setFourEyes(e.currentTarget.checked)} />
+          <FourEyesSwitch checked={fourEyes} onChange={setFourEyes} mayTurnOff={fourEyesOff} />
           <Group justify="flex-end" gap="xs">
             <Button variant="default" onClick={onClose}>
               {t('common:cancel')}
@@ -525,6 +536,49 @@ export function NewSoaModal({ catalogues, onClose, onCreated }: { catalogues: So
         </Stack>
       </form>
     </Modal>
+  );
+}
+
+/**
+ * "A second person approves": everyone with the form switches it on; switching it off loosens the control point
+ * soa.approve – administrators only, after confirming it is them, and never while the policy requires it. A version
+ * waiting keeps the rule it was submitted with.
+ */
+function FourEyesSwitch({
+  checked,
+  onChange,
+  mayTurnOff,
+  policy,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  mayTurnOff: boolean;
+  policy?: boolean;
+}) {
+  const { t } = useTranslation('soa');
+  return (
+    <Stack gap={4}>
+      <Switch
+        label={t('fields.fourEyes')}
+        description={t('hints.fourEyes')}
+        checked={checked}
+        disabled={checked && !mayTurnOff}
+        onChange={(e) => onChange(e.currentTarget.checked)}
+        data-testid="soa-four-eyes"
+      />
+      {policy ? (
+        <Text size="xs" c="dimmed">
+          {t('settings.fourEyesPolicy')}
+        </Text>
+      ) : (
+        checked &&
+        !mayTurnOff && (
+          <Text size="xs" c="dimmed">
+            {t('settings.fourEyesAdmins')}
+          </Text>
+        )
+      )}
+    </Stack>
   );
 }
 
@@ -595,12 +649,12 @@ export function SoaSettingsModal({ soa, onClose, onSaved }: { soa: Soa; onClose:
       >
         <Stack gap="sm">
           <ScopeFields services={services.data ?? []} scopeName={scopeName} setScopeName={setScopeName} scope={scope} setScope={setScope} />
-          <Switch label={t('fields.fourEyes')} description={t('hints.fourEyes')} checked={fourEyes} onChange={(e) => setFourEyes(e.currentTarget.checked)} />
-          {soa.permissions.fourEyesRequiredByPolicy && (
-            <Text size="xs" c="dimmed">
-              {t('settings.fourEyesPolicy')}
-            </Text>
-          )}
+          <FourEyesSwitch
+            checked={fourEyes}
+            onChange={setFourEyes}
+            mayTurnOff={soa.permissions.fourEyesOff || !soa.fourEyes}
+            policy={soa.permissions.fourEyesRequiredByPolicy}
+          />
           <Text size="sm" fw={500}>
             {t('settings.areaControls')}
           </Text>

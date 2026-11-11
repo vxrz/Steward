@@ -1508,6 +1508,9 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
   'POST /api/compliance/evidence-packs': 'always',
   // approving or returning a version of the statement of applicability (soa.approve, ADR 0029)
   'POST /api/compliance/soa/:catalogueId/versions/:n/decision': 'always',
+  // switching the second person of a statement of applicability off (soa.approve, security review 0.17.0)
+  'PUT /api/compliance/soa/:catalogueId/settings': { sensitive: { fourEyes: false }, harmless: { scopeName: 'Matrix' } },
+  'POST /api/compliance/soa': { sensitive: { catalogueId: 'none', fourEyes: false }, harmless: { catalogueId: 'none' } },
   'GET /api/audit/export': 'always',
   'PUT /api/assurance/policy': 'always',
   'POST /api/assurance/policy/changes/:changeId/approve': 'always',
