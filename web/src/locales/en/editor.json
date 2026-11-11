@@ -894,7 +894,7 @@
       "access": "Access"
     },
     "viewOnly": "You may view but not change this process",
-    "restored": "Version v{{version}} loaded as working copy – save to make it the current version.",
+    "restored": "Version v{{version}} loaded as working copy – save to make it the current version",
     "accessSaved": "Access saved",
     "accessNotSaved": "Access not saved",
     "unsavedTitle": "Unsaved changes",

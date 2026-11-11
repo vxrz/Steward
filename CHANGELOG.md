@@ -11,6 +11,7 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 - **Amounts in currencies without cents** ([docs/COSTS.md](docs/COSTS.md#the-cost-model-focus)): cost pages, CSV files, report sections, notifications and monitor messages show amounts with the decimals of their currency – none for JPY, KRW, ISK, CLP or VND, three for BHD, KWD, OMR, JOD, TND, LYD and IQD – instead of always two, and a plan line, cost entry or budget with more decimals than its currency has (`1500.50 JPY`) is refused. The API keeps every decimal.
 - **Scheduled exports redact the request body of a monitor's check** ([docs/EXPORTS.md](docs/EXPORTS.md#security)): `monitors.yaml` writes the body of an HTTP, platform or freshness check as `<redacted>` unless it is empty, and the manifest lists it with the other redactions – a body can hold a password typed into it.
 
+- **Confirmations end without a full stop** ([docs/I18N.md](docs/I18N.md#english-style)): 57 older confirmation messages (_Backup settings saved_, _Action saved_, _Schema imported_ …) in English and German follow the style of the others.
 - **Evidence packs of a past period hold the statement of applicability valid then** ([docs/COMPLIANCE.md](docs/COMPLIANCE.md#evidence-packs)): `soa/` takes the version approved latest on or before the end of the pack's period instead of the latest approved one; a catalogue whose first version was approved later gets no folder, and `index.json` says so under `omitted`.
 
 ### Changed

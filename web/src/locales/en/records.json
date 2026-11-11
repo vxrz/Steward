@@ -484,7 +484,7 @@
     "upload": "Upload signed PDF",
     "uploadHelp": "Steward accepts a signed PDF only if it starts unchanged with a PDF generated here for the current, frozen revision of this document and every signature in it has a signature value and a complete byte range. The structure is checked; the signatures are not cryptographically validated, and the signer names are what the signing tool claims.",
     "plain": "Attach without check (administrators)",
-    "uploaded": "The signed PDF was stored with the document.",
+    "uploaded": "The signed PDF was stored with the document",
     "noneSigned": "No signed PDF yet.",
     "derivedBadge": "Derived from a generated PDF",
     "unverifiedBadge": "Not checked",

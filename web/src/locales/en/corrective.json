@@ -109,9 +109,9 @@
     "editTitle": "Change finding {{number}}",
     "confirmTitle": "Confirm as a finding",
     "confirmIntro": "The finding is filled in from the suggestion. Change what you need; it links to what it came from.",
-    "saved": "Saved.",
-    "created": "Finding {{number}} recorded.",
-    "confirmed": "Finding {{number}} recorded from the suggestion.",
+    "saved": "Saved",
+    "created": "Finding {{number}} recorded",
+    "confirmed": "Finding {{number}} recorded from the suggestion",
     "noService": "No service",
     "noOwner": "Nobody yet",
     "controlsPlaceholder": "Search controls",
@@ -124,7 +124,7 @@
     "reopen": "Back to in progress",
     "checkEffectiveness": "Check effectiveness",
     "cancel": "Cancel finding",
-    "statusChanged": "Status changed.",
+    "statusChanged": "Status changed",
     "about": "About the finding",
     "noDescription": "No description.",
     "sourceLink": "Came from",
@@ -158,8 +158,8 @@
     "doneBy": "Done by {{user}} on {{date}}",
     "due": "Due {{date}}",
     "measure": "Measure of the review",
-    "saved": "Action saved.",
-    "removed": "Action removed."
+    "saved": "Action saved",
+    "removed": "Action removed"
   },
   "effectiveness": {
     "title": "Check effectiveness of {{number}}",
@@ -171,14 +171,14 @@
     "notEffective": "Not effective",
     "note": "Note",
     "submit": "Record the check",
-    "done": "Effectiveness check recorded."
+    "done": "Effectiveness check recorded"
   },
   "cancel": {
     "title": "Cancel finding {{number}}",
     "reason": "Reason",
     "reasonHint": "For example: recorded twice, or not a nonconformity after all",
     "submit": "Cancel finding",
-    "done": "Finding cancelled."
+    "done": "Finding cancelled"
   },
   "suggestions": {
     "intro": "Steward suggests findings from its own events; a person confirms each one or dismisses it with a reason. The same event is never suggested twice.",
@@ -195,7 +195,7 @@
     "dismiss": "Dismiss",
     "dismissTitle": "Dismiss the suggestion",
     "dismissReason": "Why it is not a finding",
-    "dismissed": "Suggestion dismissed.",
+    "dismissed": "Suggestion dismissed",
     "occurred": "Happened on {{date}}",
     "decided": "{{status}} by {{user}} on {{date}}",
     "finding": "Finding {{number}}",
@@ -229,7 +229,7 @@
     "intro": "Which of Steward's events become suggestions. Nothing becomes a finding without a person; switched on, a source suggests the events of the last 90 days.",
     "readOnly": "Only administrators change the sources.",
     "updated": "Last changed by {{user}} {{when}}.",
-    "saved": "Sources saved.",
+    "saved": "Sources saved",
     "sources": {
       "dutyMandatory": {
         "label": "Missed or failed periods of mandatory duties",

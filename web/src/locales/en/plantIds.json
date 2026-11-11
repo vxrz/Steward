@@ -108,7 +108,7 @@
     "nothing": "Nothing else names this entry.",
     "aliasNote": "Links, bookmarks, API calls and import files keep working: {{ids}} still leads here.",
     "confirm": "Change id",
-    "done": "The id is now {{id}}."
+    "done": "The id is now {{id}}"
   },
   "aliases": {
     "title": "Old ids",
@@ -120,7 +120,7 @@
     "when": "Renamed",
     "remove": "Remove old id {{id}}",
     "removeConfirm": "Remove the old id “{{id}}”? Links, bookmarks and files that use it no longer lead to “{{target}}”, and the id is free for a new entry.",
-    "removed": "Old id {{id}} removed."
+    "removed": "Old id {{id}} removed"
   },
   "bulk": {
     "selectAll": "Select all shown",

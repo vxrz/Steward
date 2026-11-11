@@ -43,9 +43,9 @@
   "comment": "Why (shown to the second administrator)",
   "loosens_one": "{{count}} change loosens the policy: it waits for a second administrator.",
   "loosens_other": "{{count}} changes loosen the policy: they wait for a second administrator.",
-  "saved": "Saved: the stricter rules apply now.",
-  "savedPending": "Saved: the looser rules wait for a second administrator.",
-  "unchanged": "Nothing changed – the baseline cannot be lowered.",
+  "saved": "Saved: the stricter rules apply now",
+  "savedPending": "Saved: the looser rules wait for a second administrator",
+  "unchanged": "Nothing changed – the baseline cannot be lowered",
   "pending": {
     "title": "A looser policy waits for a second administrator",
     "by": "Asked for by {{user}} on {{date}} – expires on {{expires}}.",
@@ -53,9 +53,9 @@
     "approve": "Approve",
     "reject": "Reject",
     "withdraw": "Withdraw",
-    "approved": "Approved: the looser rules apply now.",
-    "rejected": "Rejected: the rules stay as they are.",
-    "withdrawn": "Withdrawn."
+    "approved": "Approved: the looser rules apply now",
+    "rejected": "Rejected: the rules stay as they are",
+    "withdrawn": "Withdrawn"
   },
   "change": "{{point}} – {{field}}: {{from}} → {{to}}",
   "fields": {

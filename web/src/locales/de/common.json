@@ -251,7 +251,7 @@
     "submit": "Kopie anlegen",
     "failed": "Nicht dupliziert",
     "doneTitle": "„{{name}}“ angelegt",
-    "done": "Die Kopie ist fertig.",
+    "done": "Die Kopie ist fertig",
     "skipped": {
       "components_one": "{{count}} Komponente konnte nicht kopiert werden.",
       "components_other": "{{count}} Komponenten konnten nicht kopiert werden.",

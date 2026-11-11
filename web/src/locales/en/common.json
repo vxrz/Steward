@@ -251,7 +251,7 @@
     "submit": "Create copy",
     "failed": "Not duplicated",
     "doneTitle": "“{{name}}” created",
-    "done": "The copy is ready.",
+    "done": "The copy is ready",
     "skipped": {
       "components_one": "{{count}} component could not be copied.",
       "components_other": "{{count}} components could not be copied.",

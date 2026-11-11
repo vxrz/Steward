@@ -109,9 +109,9 @@
     "editTitle": "Befund {{number}} ändern",
     "confirmTitle": "Als Befund bestätigen",
     "confirmIntro": "Der Befund ist aus dem Vorschlag vorausgefüllt. Ändern Sie, was nötig ist; er verweist auf das, woher er stammt.",
-    "saved": "Gespeichert.",
-    "created": "Befund {{number}} erfasst.",
-    "confirmed": "Befund {{number}} aus dem Vorschlag erfasst.",
+    "saved": "Gespeichert",
+    "created": "Befund {{number}} erfasst",
+    "confirmed": "Befund {{number}} aus dem Vorschlag erfasst",
     "noService": "Kein Service",
     "noOwner": "Noch niemand",
     "controlsPlaceholder": "Kontrollen suchen",
@@ -124,7 +124,7 @@
     "reopen": "Zurück auf in Arbeit",
     "checkEffectiveness": "Wirksamkeit prüfen",
     "cancel": "Befund stornieren",
-    "statusChanged": "Status geändert.",
+    "statusChanged": "Status geändert",
     "about": "Zum Befund",
     "noDescription": "Keine Beschreibung.",
     "sourceLink": "Stammt aus",
@@ -158,8 +158,8 @@
     "doneBy": "Erledigt von {{user}} am {{date}}",
     "due": "Fällig am {{date}}",
     "measure": "Maßnahme des Reviews",
-    "saved": "Maßnahme gespeichert.",
-    "removed": "Maßnahme entfernt."
+    "saved": "Maßnahme gespeichert",
+    "removed": "Maßnahme entfernt"
   },
   "effectiveness": {
     "title": "Wirksamkeit von {{number}} prüfen",
@@ -171,14 +171,14 @@
     "notEffective": "Nicht wirksam",
     "note": "Notiz",
     "submit": "Prüfung festhalten",
-    "done": "Wirksamkeitsprüfung festgehalten."
+    "done": "Wirksamkeitsprüfung festgehalten"
   },
   "cancel": {
     "title": "Befund {{number}} stornieren",
     "reason": "Begründung",
     "reasonHint": "Zum Beispiel: doppelt erfasst oder doch keine Nichtkonformität",
     "submit": "Befund stornieren",
-    "done": "Befund storniert."
+    "done": "Befund storniert"
   },
   "suggestions": {
     "intro": "Steward schlägt Befunde aus eigenen Ereignissen vor; eine Person bestätigt jeden oder verwirft ihn mit Begründung. Dasselbe Ereignis wird nie zweimal vorgeschlagen.",
@@ -195,7 +195,7 @@
     "dismiss": "Verwerfen",
     "dismissTitle": "Vorschlag verwerfen",
     "dismissReason": "Warum es kein Befund ist",
-    "dismissed": "Vorschlag verworfen.",
+    "dismissed": "Vorschlag verworfen",
     "occurred": "Geschehen am {{date}}",
     "decided": "{{status}} von {{user}} am {{date}}",
     "finding": "Befund {{number}}",
@@ -229,7 +229,7 @@
     "intro": "Welche Ereignisse von Steward zu Vorschlägen werden. Nichts wird ohne eine Person zum Befund; eingeschaltet schlägt eine Quelle die Ereignisse der letzten 90 Tage vor.",
     "readOnly": "Nur Administratoren ändern die Quellen.",
     "updated": "Zuletzt geändert von {{user}} {{when}}.",
-    "saved": "Quellen gespeichert.",
+    "saved": "Quellen gespeichert",
     "sources": {
       "dutyMandatory": {
         "label": "Versäumte oder fehlgeschlagene Zeiträume verpflichtender Pflichten",

@@ -150,7 +150,7 @@
   "detail": {
     "previewReady_one": "Vorschau bereit: {{count}} Eintrag, {{conflicts}} Konflikte zu entscheiden.",
     "previewReady_other": "Vorschau bereit: {{count}} Einträge, {{conflicts}} Konflikte zu entscheiden.",
-    "applied": "Der Änderungssatz ist übernommen.",
+    "applied": "Der Änderungssatz ist übernommen",
     "review": "Braucht eine zweite Person",
     "by": "Von {{by}}, {{when}}",
     "decided": {
@@ -199,12 +199,12 @@
     "draftHint": "Sie dürfen hier Änderungen vorschlagen: Was Sie speichern, landet in Ihrem Entwurf; jemand, der den Standort verwaltet, übernimmt es.",
     "proposeEdit": "Änderung vorschlagen",
     "catalogueHint": "Sie dürfen Änderungen an Geräteprofilen und KPI-Definitionen vorschlagen: Was Sie speichern, landet in Ihrem Entwurf; jemand, der den Katalog verwaltet, übernimmt es.",
-    "savedToDraft": "In Ihrem Entwurf „{{title}}“ gespeichert – in Steward ändert sich nichts, bis er übernommen wird.",
+    "savedToDraft": "In Ihrem Entwurf „{{title}}“ gespeichert – in Steward ändert sich nichts, bis er übernommen wird",
     "addToDraft": "Zum Entwurf hinzufügen",
     "addToDraftHint": "Noch ändert sich nichts: Es kommt als eine Änderung in Ihren Entwurf und wird erneut in der Vorschau gezeigt, wenn der Entwurf geprüft und übernommen wird.",
     "addedToDraft": "Zu Ihrem Entwurf „{{title}}“ hinzugefügt",
     "openDraft": "Entwurf öffnen",
-    "proposedForReview": "Änderungen hier brauchen eine zweite Person: zur Prüfung vorgeschlagen als „{{title}}“.",
+    "proposedForReview": "Änderungen hier brauchen eine zweite Person: zur Prüfung vorgeschlagen als „{{title}}“",
     "openChangeSet": "Änderung öffnen",
     "importProposeOnly": "Sie dürfen Änderungen vorschlagen: Lassen Sie sich die Dateien in der Vorschau zeigen und fügen Sie sie dann Ihrem Entwurf hinzu. Jemand, der die Standorte verwaltet, übernimmt sie."
   },

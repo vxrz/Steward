@@ -165,7 +165,7 @@
     "due": "A look is due",
     "dueHelp": "Not confirmed for longer than {{months}} months – a hint, nothing is wrong.",
     "next": "Next look by {{date}}",
-    "saved": "Confirmed as still current.",
+    "saved": "Confirmed as still current",
     "whole": "Documentation as a whole",
     "wholeButton": "All still current"
   },
@@ -213,7 +213,7 @@
     "none": "No interval",
     "months": "months",
     "save": "Save interval",
-    "saved": "Review interval saved."
+    "saved": "Review interval saved"
   },
   "settings": {
     "title": "Review intervals of documents",

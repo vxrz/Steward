@@ -3,7 +3,7 @@
   "comment": "Reviewer comment",
   "generatePdf": "Generate PDF",
   "downloadPdf": "Download PDF",
-  "archived": "{{file}} was archived.",
+  "archived": "{{file}} was archived",
   "run": {
     "dialogTitle": "Generate PDF report",
     "generated": "PDF report generated",

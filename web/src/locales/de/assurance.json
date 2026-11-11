@@ -43,9 +43,9 @@
   "comment": "Begründung (sieht der zweite Administrator)",
   "loosens_one": "{{count}} Änderung lockert die Richtlinie: Sie wartet auf einen zweiten Administrator.",
   "loosens_other": "{{count}} Änderungen lockern die Richtlinie: Sie warten auf einen zweiten Administrator.",
-  "saved": "Gespeichert: Die strengeren Regeln gelten jetzt.",
-  "savedPending": "Gespeichert: Die lockereren Regeln warten auf einen zweiten Administrator.",
-  "unchanged": "Nichts geändert – die Grundlinie lässt sich nicht absenken.",
+  "saved": "Gespeichert: Die strengeren Regeln gelten jetzt",
+  "savedPending": "Gespeichert: Die lockereren Regeln warten auf einen zweiten Administrator",
+  "unchanged": "Nichts geändert – die Grundlinie lässt sich nicht absenken",
   "pending": {
     "title": "Eine lockerere Richtlinie wartet auf einen zweiten Administrator",
     "by": "Beantragt von {{user}} am {{date}} – läuft am {{expires}} ab.",
@@ -53,9 +53,9 @@
     "approve": "Freigeben",
     "reject": "Ablehnen",
     "withdraw": "Zurückziehen",
-    "approved": "Freigegeben: Die lockereren Regeln gelten jetzt.",
-    "rejected": "Abgelehnt: Die Regeln bleiben, wie sie sind.",
-    "withdrawn": "Zurückgezogen."
+    "approved": "Freigegeben: Die lockereren Regeln gelten jetzt",
+    "rejected": "Abgelehnt: Die Regeln bleiben, wie sie sind",
+    "withdrawn": "Zurückgezogen"
   },
   "change": "{{point}} – {{field}}: {{from}} → {{to}}",
   "fields": {

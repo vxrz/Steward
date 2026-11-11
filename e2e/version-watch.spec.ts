@@ -64,7 +64,7 @@ test('the tech stack shows the newest version and how far behind', async ({ page
     await expectAccessible(page, 'version watch of an entry');
     await chooseOption(page, 'Source', 'endoflife.date');
     await dialog.getByRole('button', { name: 'Save' }).click();
-    await expect(page.getByText('Saved and read again.')).toBeVisible();
+    await expect(page.getByText('Saved and read again')).toBeVisible();
     await expect(dialog.getByTestId('version-newest')).toHaveText('19.4');
     await chooseOption(page, 'Source', 'Automatic');
     await dialog.getByRole('button', { name: 'Save' }).click();

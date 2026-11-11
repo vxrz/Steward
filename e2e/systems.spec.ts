@@ -103,7 +103,7 @@ test.describe('as an administrator', () => {
       await card.getByRole('button', { name: 'Move staging up' }).click();
       await expectAccessible(page, 'environments settings');
       await card.getByRole('button', { name: 'Save environments' }).click();
-      await expect(page.getByText('Environments saved.')).toBeVisible();
+      await expect(page.getByText('Environments saved')).toBeVisible();
       const after = await json<{ environments: { name: string }[] }>(await api.get('/api/catalogue/environments'));
       expect(after.environments.map((e) => e.name)).toEqual(['dev', 'test', 'staging', 'prod']);
     } finally {

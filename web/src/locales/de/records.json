@@ -484,7 +484,7 @@
     "upload": "Unterschriebenes PDF hochladen",
     "uploadHelp": "Steward nimmt ein unterschriebenes PDF nur an, wenn es unverändert mit einem hier für die aktuelle, eingefrorene Revision dieses Dokuments erzeugten PDF beginnt und jede Unterschrift darin einen Signaturwert und einen vollständigen Byte-Bereich hat. Geprüft wird die Struktur; die Signaturen werden nicht kryptografisch validiert, und die Namen der Unterzeichnenden sind die Angaben des Signaturprogramms.",
     "plain": "Ohne Prüfung anhängen (Administratoren)",
-    "uploaded": "Das unterschriebene PDF wurde beim Dokument abgelegt.",
+    "uploaded": "Das unterschriebene PDF wurde beim Dokument abgelegt",
     "noneSigned": "Noch kein unterschriebenes PDF.",
     "derivedBadge": "Stammt von einem erzeugten PDF ab",
     "unverifiedBadge": "Nicht geprüft",

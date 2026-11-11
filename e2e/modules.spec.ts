@@ -68,7 +68,7 @@ test.describe('switching a module (own server)', () => {
     await dialog.getByRole('button', { name: 'Confirm' }).click();
     await expect(dialog).toBeHidden();
     await expect(toggle).not.toBeChecked();
-    await expect(page.getByText('Costs is switched off. Its data is kept.')).toBeVisible();
+    await expect(page.getByText('Costs is switched off – its data is kept')).toBeVisible();
 
     // off: no Costs tab beside Services, the page explains, the API answers 404
     await page.goto('/services');

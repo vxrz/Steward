@@ -165,7 +165,7 @@
     "due": "Ein Blick ist fällig",
     "dueHelp": "Länger als {{months}} Monate nicht bestätigt – ein Hinweis, kein Fehler.",
     "next": "Nächster Blick bis {{date}}",
-    "saved": "Als noch aktuell bestätigt.",
+    "saved": "Als noch aktuell bestätigt",
     "whole": "Dokumentation insgesamt",
     "wholeButton": "Alles noch aktuell"
   },
@@ -213,7 +213,7 @@
     "none": "Kein Intervall",
     "months": "Monate",
     "save": "Intervall speichern",
-    "saved": "Prüfintervall gespeichert."
+    "saved": "Prüfintervall gespeichert"
   },
   "settings": {
     "title": "Prüfintervalle von Dokumenten",

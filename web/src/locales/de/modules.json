@@ -2,8 +2,8 @@
   "title": "Module",
   "intro": "Optionale Bereiche von {{brand}}. Schalten Sie aus, was Ihr Team nicht nutzt: Seiten, Menüeinträge, Routen und Hintergrundaufgaben verschwinden für alle. Die Daten bleiben und sind wieder da, wenn Sie den Bereich wieder einschalten.",
   "switchLabel": "{{name}} einschalten",
-  "switchedOn": "{{name}} ist eingeschaltet.",
-  "switchedOff": "{{name}} ist ausgeschaltet. Die Daten bleiben erhalten.",
+  "switchedOn": "{{name}} ist eingeschaltet",
+  "switchedOff": "{{name}} ist ausgeschaltet – die Daten bleiben erhalten",
   "off": {
     "title": "Dieser Bereich ist ausgeschaltet",
     "text": "Ein Administrator kann ihn unter Einstellungen → Module einschalten.",

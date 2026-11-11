@@ -64,7 +64,7 @@ test.describe('as a designer', () => {
       const setting = page.getByTestId('site-doc-review');
       await setting.getByRole('textbox', { name: 'Documentation review interval' }).fill('36');
       await setting.getByRole('button', { name: 'Save interval' }).click();
-      await expect(page.getByText('Review interval saved.')).toBeVisible();
+      await expect(page.getByText('Review interval saved')).toBeVisible();
       await page.getByTestId('site-tab-documentation').click();
       await expect(page).toHaveURL((url) => url.pathname.endsWith(`/plant/sites/${s.site}/documentation`));
       const health = page.getByTestId('doc-health');

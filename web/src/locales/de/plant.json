@@ -320,7 +320,7 @@
     "apply": "Importieren",
     "removeConfirm_one": "Der Import entfernt {{count}} Eintrag. Trotzdem importieren?",
     "removeConfirm_other": "Der Import entfernt {{count}} Einträge. Trotzdem importieren?",
-    "done": "Importiert: {{add}} hinzugefügt, {{change}} geändert, {{remove}} entfernt, {{mark}} markiert.",
+    "done": "Importiert: {{add}} hinzugefügt, {{change}} geändert, {{remove}} entfernt, {{mark}} markiert",
     "resultTitle": "Importiert",
     "toSites": "Zu den {{type}}",
     "history": "Frühere Importe",
