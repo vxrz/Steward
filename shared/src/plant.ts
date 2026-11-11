@@ -3,7 +3,7 @@ import type { AclEntry, AccessReason } from './api.js';
 import type { Backlink, ItemLink } from './records.js';
 import type { PlantCheck } from './plantData.js';
 import type { PlantAliasUse, PlantPlannedRename, PlantRemovalPlan } from './plantIds.js';
-import type { PlantChangeSetConfig } from './plantChanges.js';
+import type { PlantChangeSetConfig, PlantStewardFlags } from './plantChanges.js';
 
 /**
  * Plant registry (#217, #218): an opt-in module, off by default (Settings → Modules). The sites of the enterprise
@@ -459,6 +459,11 @@ export interface PlantImportPreview {
   stepUp: boolean;
   /** 0.13.0: what importing writes – send it with the import: a different result is refused (PLANT_IMPORT_CHANGED) */
   fingerprint?: string;
+  /**
+   * 0.19.0: fields the import would change that were changed in Steward since the last import – they keep Steward's
+   * value unless taken from the file (`changedInSteward` of the body); left out when there are none
+   */
+  changedInSteward?: PlantStewardFlags;
 }
 
 export interface PlantImportSummary {

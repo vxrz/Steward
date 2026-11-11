@@ -17,6 +17,7 @@ import { HttpError, nowIso } from '../../util.js';
 import { canCreateSites, plantProposesSome, siteRights } from '../access.js';
 import { requirePlant } from '../settings.js';
 import { importInput } from '../import.js';
+import { collectionsOperationInput } from '../collections-import.js';
 import { CATALOGUE_KINDS, KINDS, PER_ASSET, assetSites, bodyOf, readEntry, type EntrySnap } from './entries.js';
 import { insertChangeSet, insertOp, isAuthor, opsOf, rowOf, touch, type CsRow, type NewOp } from './core.js';
 import { historyValues } from './values.js';
@@ -181,10 +182,30 @@ export function operationOf(input: PlantChangeOperationInput, u: AuthUser): NewO
   return { op: 'rename', kind, scope, id, name: now.name, origin: 'authored', baseRevision: now.revision, base: null, value: { newId } };
 }
 
-/** A document operation (an import, a bulk change or – 0.16 – a move added to a draft). */
-export function documentOperation(op: 'import' | 'bulk' | 'move', value: unknown, u: AuthUser): NewOp {
+/** A document operation (an import, a bulk change, – 0.16 – a move or – 0.19 – a collection import added to a draft). */
+export function documentOperation(op: 'import' | 'bulk' | 'move' | 'collections', value: unknown, u: AuthUser): NewOp {
   requirePlant();
   if (!plantProposesSome(u)) throw new HttpError(403, 'You may not propose changes to the plant registry', 'FORBIDDEN', { context: 'proposePlant' });
+  if (op === 'collections') {
+    const { files, mappingFile, assetId, ...options } = collectionsOperationInput.parse(value);
+    // the asset as the person sees it: one of a site they may not see reads as missing
+    const site = assetSites([assetId]).get(assetId) ?? null;
+    const sees = site !== null && !!siteRights(db().all<{ id: string; acl: string }>('SELECT id, acl FROM plant_sites'), u).get(site)?.includes('view');
+    if (!sees) throw new HttpError(404, `There is no asset "${assetId}"`, 'PLANT_ENTRY_NOT_FOUND', { kind: 'asset', id: assetId });
+    if (!mayPropose(u, site)) throw new HttpError(403, 'You may not propose changes here', 'FORBIDDEN', { context: 'proposePlant' });
+    return {
+      op,
+      kind: null,
+      scope: '',
+      id: '',
+      name: `collections of ${assetId}: ${files.map((f) => f.name).join(', ')}`.slice(0, 200),
+      origin: 'derived',
+      baseRevision: null,
+      base: null,
+      value: { assetId, ...options },
+      source: JSON.stringify({ files, mappingFile }),
+    };
+  }
   if (op === 'move') {
     const { fingerprint: _f, ...rest } = plantMoveInput.parse(value);
     return {
@@ -234,7 +255,7 @@ export function documentOperation(op: 'import' | 'bulk' | 'move', value: unknown
 export function addOperation(cs: CsRow, o: NewOp, u: AuthUser): number {
   const ops = opsOf(cs.id);
   const size = JSON.stringify(o.value ?? null).length + (o.source?.length ?? 0);
-  if (size > PLANT_CHANGESET_LIMITS.operationBytes + (o.op === 'import' ? 2 * 1024 * 1024 : 0))
+  if (size > PLANT_CHANGESET_LIMITS.operationBytes + (o.op === 'import' || o.op === 'collections' ? 2 * 1024 * 1024 : 0))
     throw new HttpError(413, 'The operation is too large', 'PLANT_CHANGESET_TOO_LARGE', { kb: PLANT_CHANGESET_LIMITS.operationBytes / 1024 });
   checkOpenLimits(u, 0, size);
   if (o.op === 'set') {

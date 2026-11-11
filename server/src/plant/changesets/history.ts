@@ -7,7 +7,7 @@ import { HttpError } from '../../util.js';
 import { plantProposesSome, siteRights } from '../access.js';
 import { requirePlant } from '../settings.js';
 import { fieldDiff } from '../diff.js';
-import { CATALOGUE_KINDS, assetSites, bodyOf, readEntry } from './entries.js';
+import { CATALOGUE_KINDS, KINDS, PER_ASSET, assetSites, bodyOf, entryKey, readEntry } from './entries.js';
 import { insertChangeSet, insertOp, rowOf, type NewOp } from './core.js';
 import { checkOpenLimits, siteOfTarget } from './drafts.js';
 import { historyValues } from './values.js';
@@ -15,8 +15,8 @@ import { historyValues } from './values.js';
 /**
  * The history of an entry (0.13.0, ADR 0020): one row per applied change set that touched it, with the full values of
  * its changed fields before and after. Undo never rewrites it: Revert writes a new draft with the inverse operations
- * (set back, remove what was added, rename back; 0.16: move back), based on now – later edits conflict instead of being
- * overwritten.
+ * (set back, remove what was added, rename back; 0.16: move back; 0.19: add a removed entry again from the snapshot
+ * its removal kept), based on now – later edits conflict instead of being overwritten.
  */
 
 interface HistoryRow {
@@ -94,7 +94,10 @@ export function entryHistory(kind: PlantEntryKind, scope: string, id: string, u:
     appliedBy: r.applied_by,
     changeSet: r.title !== null ? { id: r.change_set_id, title: r.title, source: r.source!, importId: r.import_id } : null,
     diff: diffOf(r),
-    canRevert: revert && r.op !== 'remove' && !(r.op === 'set' && !Object.keys(valuesOf(r.before_values)).length),
+    // 0.19.0: a removal is reverted by adding the entry again – while it is not there (a site is added again by hand)
+    canRevert:
+      revert &&
+      (r.op === 'remove' ? r.kind !== 'site' && !readEntry(r.kind, r.scope, r.entry_id) : !(r.op === 'set' && !Object.keys(valuesOf(r.before_values)).length)),
   }));
   // before 0.13 the audit log has it (searched by the id; old ids are aliases)
   return { items, auditPath: `/audit?q=${encodeURIComponent(id)}` };
@@ -170,16 +173,95 @@ function moveBack(rows: HistoryRow[]): NewOp[] {
   return ops;
 }
 
-/** The inverse operations of history rows, against the entries now (removals are restored in phase 2). */
+/** The order removed entries are added again in: what others name first (a node's parent, an asset's parent asset). */
+const RESTORE_ORDER: Record<string, number> = {
+  building: 1,
+  node: 2,
+  profile: 3,
+  kpi: 4,
+  vlan: 5,
+  zone: 6,
+  conduit: 7,
+  asset: 8,
+  assignment: 9,
+  asset_checks: 10,
+  device: 11,
+  data_path: 12,
+  collection: 13,
+};
+const LEVELS = ['area', 'work_center', 'work_unit'];
+
+/**
+ * 0.19.0: removed entries added again from the snapshot their removal kept (ADR 0020 section 4) – while they are not
+ * there: with the body of their edit form's POST, in an order that lets each find what it names (buildings, the
+ * hierarchy level by level, the catalogue, assets parents first, then what belongs to an asset). A removed site is not
+ * added again: its access list and owning teams are not in the history (add it by hand, then revert to restore what it
+ * held). A snapshot the form's rules no longer take is skipped.
+ */
+function restores(rows: HistoryRow[]): { ops: NewOp[]; skipped: number } {
+  let skipped = 0;
+  const list: { r: HistoryRow; before: Record<string, unknown>; body: Record<string, unknown> }[] = [];
+  for (const r of rows) {
+    const create = KINDS[r.kind].create;
+    if (r.kind === 'site' || !create || readEntry(r.kind, r.scope, r.entry_id)) {
+      skipped++;
+      continue;
+    }
+    const before = valuesOf(r.before_values);
+    const shape = (create as unknown as { shape?: Record<string, unknown> }).shape ?? {};
+    const picked: Record<string, unknown> = Object.fromEntries(Object.keys(shape).flatMap((k) => (k in before ? [[k, before[k]]] : [])));
+    if (!PER_ASSET.includes(r.kind)) picked.id = r.entry_id;
+    const parsed = create.safeParse(picked);
+    if (!parsed.success) {
+      skipped++;
+      continue;
+    }
+    list.push({ r, before, body: parsed.data as Record<string, unknown> });
+  }
+  // assets after their parent asset (when it comes back too)
+  const parentOf = new Map(
+    list.filter((x) => x.r.kind === 'asset').map((x) => [x.r.entry_id, typeof x.before.parentId === 'string' ? x.before.parentId : null] as const),
+  );
+  const depth = (id: string, seen = new Set<string>()): number => {
+    const p = parentOf.get(id);
+    if (!p || !parentOf.has(p) || seen.has(p)) return 0;
+    seen.add(p);
+    return 1 + depth(p, seen);
+  };
+  const rank = (x: (typeof list)[number]) =>
+    (RESTORE_ORDER[x.r.kind] ?? 20) * 1000 +
+    (x.r.kind === 'node' ? Math.max(0, LEVELS.indexOf(String(x.before.level))) * 100 : 0) +
+    (x.r.kind === 'asset' ? Math.min(depth(x.r.entry_id), 99) : 0);
+  const key = (x: (typeof list)[number]) => entryKey({ kind: x.r.kind, scope: x.r.scope, id: x.r.entry_id });
+  list.sort((a, b) => rank(a) - rank(b) || (key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0));
+  return {
+    ops: list.map(({ r, before, body }) => ({
+      op: 'add',
+      kind: r.kind,
+      scope: r.scope,
+      id: r.entry_id,
+      name: String(before.name ?? before.hostname ?? before.subject ?? r.entry_id),
+      origin: 'authored',
+      baseRevision: null,
+      base: null,
+      value: body,
+    })),
+    skipped,
+  };
+}
+
+/** The inverse operations of history rows, against the entries now (0.19.0: removed entries are added again). */
 function inverse(rows: HistoryRow[]): { ops: NewOp[]; skipped: number } {
   const ops: NewOp[] = [];
-  let skipped = 0;
+  const restored = restores(rows.filter((r) => r.op === 'remove'));
+  let skipped = restored.skipped;
   const order = { set: 0, add: 1, rename: 2, move: 2, remove: 3 } as const;
   for (const r of [...rows].sort((a, b) => order[a.op] - order[b.op] || (a.at < b.at ? 1 : -1))) {
     const before = valuesOf(r.before_values);
     const after = valuesOf(r.after_values);
+    if (r.op === 'remove') continue;
     const now = readEntry(r.kind, r.scope, r.entry_id);
-    if (r.op === 'remove' || !now) {
+    if (!now) {
       skipped++;
       continue;
     }
@@ -244,7 +326,8 @@ function inverse(rows: HistoryRow[]): { ops: NewOp[]; skipped: number } {
         value: { newId: before.id },
       });
   }
-  return { ops: [...moveBack(rows.filter((r) => r.op === 'move')), ...ops], skipped };
+  // what comes back first: the other operations (a reference set back) may name it
+  return { ops: [...restored.ops, ...moveBack(rows.filter((r) => r.op === 'move')), ...ops], skipped };
 }
 
 /** Revert: a new draft (the person's current one) with the inverse of a change set, or of one history row. */
@@ -258,14 +341,21 @@ export function revert(o: { changeSetId?: string; historyId?: string }, u: AuthU
   // only what the person may see
   const rights = siteRights(db().all<{ id: string; acl: string }>('SELECT id, acl FROM plant_sites'), u);
   const assets = assetSites(rows.map((r) => (PLANT_ENTRY_SCOPE[r.kind] === 'asset' ? r.scope : r.entry_id)));
+  // 0.19.0: removed assets are found through the site their snapshot names (what they held follows them)
+  const removedAssets = new Map(
+    rows.filter((r) => r.op === 'remove' && r.kind === 'asset').map((r) => [r.entry_id, String(valuesOf(r.before_values).siteId ?? '')] as const),
+  );
   const visible = rows.filter((r) => {
     if (CATALOGUE_KINDS.includes(r.kind)) return true;
+    const asset = PLANT_ENTRY_SCOPE[r.kind] === 'asset' ? r.scope : r.entry_id;
     const site =
       r.kind === 'site'
         ? r.entry_id
         : PLANT_ENTRY_SCOPE[r.kind] === 'site'
           ? r.scope
-          : assets.get(PLANT_ENTRY_SCOPE[r.kind] === 'asset' ? r.scope : r.entry_id);
+          : (assets.get(asset) ?? (r.op === 'remove' ? removedAssets.get(asset) : undefined));
+    // a removed entry comes back only where the person sees its site now (fail closed: its site unknown or gone)
+    if (r.op === 'remove') return !!site && !!rights.get(site)?.includes('view');
     return !site || !!rights.get(site)?.includes('view');
   });
   const csId = rows[0]!.change_set_id;
@@ -273,8 +363,7 @@ export function revert(o: { changeSetId?: string; historyId?: string }, u: AuthU
   if (!original || original.state !== 'applied')
     throw new HttpError(409, 'Only an applied change set is reverted', 'PLANT_CHANGESET_NOT_APPLIED', { id: csId });
   const { ops, skipped } = inverse(visible);
-  if (!ops.length)
-    throw new HttpError(409, 'Nothing of it can be reverted now (removed entries are restored in a later version)', 'PLANT_CHANGESET_NOTHING', { id: csId });
+  if (!ops.length) throw new HttpError(409, 'Nothing of it can be reverted now', 'PLANT_CHANGESET_NOTHING', { id: csId });
   checkOpenLimits(u);
   const title = `Revert "${original.title}"`;
   return db().tx(() => {

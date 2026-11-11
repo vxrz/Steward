@@ -8653,6 +8653,23 @@ export interface Resources {
     'import.checks_one': string;
     'import.checks_other': string;
     'import.checksHelp': string;
+    'import.steward.title_one': string;
+    'import.steward.title_other': string;
+    'import.steward.intro': string;
+    'import.steward.keepAll': string;
+    'import.steward.takeAll': string;
+    'import.steward.kept': string;
+    'import.steward.listLabel': string;
+    'import.steward.legend': string;
+    'import.steward.lastImport': string;
+    'import.steward.keep': string;
+    'import.steward.take': string;
+    'import.steward.unknown': string;
+    'import.steward.wholeEntry': string;
+    'import.steward.showMore': string;
+    'import.steward.rest_one': string;
+    'import.steward.rest_other': string;
+    'import.steward.updated': string;
     'settings.title': string;
     'settings.description': string;
     'settings.enabled': string;
@@ -9373,6 +9390,7 @@ export interface Resources {
     'sources.assistant': string;
     'sources.revert': string;
     'sources.move': string;
+    'sources.api': string;
     'kinds.site': string;
     'kinds.node': string;
     'kinds.building': string;
@@ -9395,6 +9413,7 @@ export interface Resources {
     'ops.import': string;
     'ops.bulk': string;
     'ops.move': string;
+    'ops.collections': string;
     'actions.change': string;
     'actions.add': string;
     'actions.remove': string;
@@ -9455,6 +9474,7 @@ export interface Resources {
     'history.revert': string;
     'history.before': string;
     'history.audit': string;
+    'history.restore': string;
     'entryChanged.title': string;
     'entryChanged.intro': string;
     'entryChanged.taken': string;
@@ -9502,6 +9522,9 @@ export interface Resources {
     'detail.opBy': string;
     'detail.remove': string;
     'detail.removeOp': string;
+    'detail.apiProposal.title': string;
+    'detail.apiProposal.token': string;
+    'detail.apiProposal.rationale': string;
     'blocked.PLANT_CHANGESET_OWN': string;
     'blocked.PLANT_CHANGESET_PROPOSE_FIRST': string;
     'blocked.FORBIDDEN': string;

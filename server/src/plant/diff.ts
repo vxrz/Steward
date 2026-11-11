@@ -13,6 +13,7 @@ const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 
 const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 
 /** A value cut to a readable size (long text, long lists, deep nesting). */
+export const cutValue = (v: unknown): unknown => cut(v);
 function cut(v: unknown, depth = 0): unknown {
   if (typeof v === 'string') return v.length > PLANT_DIFF_LIMITS.text ? `${v.slice(0, PLANT_DIFF_LIMITS.text)}…` : v;
   if (v === undefined) return null;

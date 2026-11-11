@@ -6,6 +6,22 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Imports flag fields changed in Steward since the last import** ([docs/PLANT.md](docs/PLANT.md#modes), [ADR 0020](docs/adr/0020-plant-change-sets.md#built-in-0190)): the import's preview lists, per field, what the last import wrote, Steward's value and the file's for every field the files would change that someone changed in Steward since, and keeps Steward's value unless you take the file's – per field (a radio group each, keyboard and phone friendly) or with _Take all from the file_ / _Keep all of Steward's_. The counts, differences and fingerprint follow the choices; a kept field stays flagged at the next import; `plant.imported` names the kept fields. Scripts send `changedInSteward` with the import (`{ take: "file" }` for the file's values). Finding the changed entries takes a fixed number of statements per kind however large the import.
+- **Restore removed plant entries with Revert** ([docs/PLANT.md](docs/PLANT.md#change-sets)): _Revert_ on a change set that removed entries, or _Restore_ on a removal in an entry's History, writes a draft that adds them again from the snapshot their removal kept – an asset before its devices, data paths and collections, references others lost set back – reviewed and applied like any change set. A removed site is added again by hand (its access list is not in the history).
+- **Collection imports are change set operations** ([docs/PLANT.md](docs/PLANT.md#import)): a collector's files imported into an asset's data collections are an operation `collections` of a change set – proposed for a second person where the site needs one (managers' imports too), and added to their draft by who may only propose (_Add to draft_ in the import dialog).
+- **Plant change sets in the public API, and proposals from CI** ([docs/PLANT.md](docs/PLANT.md#proposals-through-the-public-api), [docs/API.md](docs/API.md)): `GET /api/v1/plant/change-sets`, `…/{changeSetId}` (its status) and `…/{changeSetId}/operations` with the token owner's sight; `POST /api/v1/plant/proposals` – the one `/api/v1` endpoint that writes, and it only proposes – takes a document of the import format with a full-access token and lands as a proposed change set (source _Public API_) with the rules of an assistant's proposal (only additions and changes, no credentials, sources of data points in the review), applied by a person under _Plant → Changes_. Refusals are problem details of the new type `proposal-refused`.
+
+### Changed
+
+- **An import keeps Steward's value of a field changed since the last import by default** ([docs/PLANT.md](docs/PLANT.md#modes)), also for scripts and API tokens. **Check before updating:** a nightly sync that should overwrite edits made in Steward sends `changedInSteward: { take: "file" }` with `POST /api/plant/import`.
+- **Plant proposals record no import baseline** ([docs/MCP.md](docs/MCP.md#plant-registry)): an assistant's (or CI's) applied proposal is a reviewed change in Steward, so a file import after it flags what it changed instead of overwriting it.
+
+### Fixed
+
+- **The history of plant sites and assets keeps their external references** ([docs/PLANT.md](docs/PLANT.md#change-sets)): a removal's snapshot lost them, and a change of only the external references raised no revision and wrote no history.
+
 ### Security
 
 - **Owners and responsible people from outside the owning teams are a confirmed grant** ([docs/TEAMS.md](docs/TEAMS.md#named-owners-and-responsibles)): naming a user or team who is not in an item's owning teams as owner or responsible of a credential, ticket reference, service, application, system, supplier, supplier contract, document, measure, duty or corrective action asks for the step-up like an access list, is audited as an access change (`access.named_subjects_granted`) and is refused for API tokens; the forms say so before saving, and _Why do I have access?_ names the entry as a named owner or responsible. **Check before updating:** scripts that name owners from other teams with an API token get `403 SESSION_REQUIRED` – name them in the web app, or add the person to an owning team.

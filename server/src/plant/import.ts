@@ -6,6 +6,7 @@ import {
   PLANT_IMPORT_MODES,
   PLANT_DIFF_LIMITS,
   PLANT_LIMITS,
+  plantStewardChoicesInput,
   PLANT_MISSING,
   type ExternalRef,
   type FieldValues,
@@ -106,6 +107,11 @@ export const importInput = z
     cascade: z.boolean().default(false),
     /** 0.13.0: the preview's fingerprint – a different result is refused (PLANT_IMPORT_CHANGED); without it (scripts) the import applies as before */
     fingerprint: z.string().trim().max(80).optional(),
+    /**
+     * 0.19.0: fields changed in Steward since the last import keep Steward's value (`take: steward`, the default) or
+     * take the file's – for all, and per field (changesets/steward.ts)
+     */
+    changedInSteward: plantStewardChoicesInput.optional(),
   })
   .strict();
 export type ImportInput = z.infer<typeof importInput>;

@@ -24,6 +24,7 @@ import { asProposer, canManageCatalogue, plantManagesSome, plantProposesSome, si
 import { samePerson } from '../auth/assurance.js';
 import { withAuditDetails } from '../audit.js';
 import { applyStored, insertChangeSet, insertOp, quietDryRun, reviewNeeded, sourceOf, type CsRow } from './changesets/core.js';
+import { checkOpenLimits } from './changesets/drafts.js';
 import { plantEnabled } from './settings.js';
 import { applyImport, importInput, previewImport, type ImportInput } from './import.js';
 import { issueMessages, plantFileSchema, SCHEMA_ID } from './format.js';
@@ -773,3 +774,106 @@ export const plantProposalTools: ToolDef[] = [
     },
   }),
 ];
+
+// ---------- 0.19.0: proposals through the public API (a CI job) ----------
+
+/** A refusal of a proposal sent through the public API: its message and where in the document. */
+export class ApiProposalRefused extends Error {
+  constructor(
+    message: string,
+    public places: { name: string; message: string }[] = [],
+  ) {
+    super(message);
+  }
+}
+
+/**
+ * A proposal sent through the public API (`POST /api/v1/plant/proposals`, ADR 0020 "Built in 0.19.0"): the same rules as
+ * an assistant's – a document of the import format, adding and changing only, never a dropped item or a credential, at
+ * most PLANT_PROPOSAL_LIMITS.totalBytes, previewed with the token owner's rights (their propose right counts) – and it
+ * lands the same way: a proposed change set (source `api`) that a person reviews and applies under Plant → Changes. It
+ * is never applied by the call; under review its token owner never applies it.
+ */
+export function proposeViaApi(
+  body: { title: string; rationale: string; document: Record<string, unknown> },
+  token: { id: string; name: string },
+): { changeSetId: string; counts: { add: number; change: number }; checks: string[]; warnings: string[] } {
+  const u = me();
+  if (!plantEnabled()) throw new HttpError(404, 'The plant registry module is off', 'PLANT_MODULE_OFF');
+  if (!plantManagesSome(u) && !plantProposesSome(u)) throw new HttpError(403, 'You may not propose changes to the plant registry', 'FORBIDDEN');
+  const doc = body.document;
+  if ('remove' in doc) throw new ApiProposalRefused(REFUSED_KEYS.remove!, [{ name: 'document.remove', message: 'Leave out remove' }]);
+  const secrets = secretPaths(doc);
+  if (secrets.length)
+    throw new ApiProposalRefused(
+      'The document holds what looks like a credential – nothing was proposed. Leave out passwords, tokens, keys and passwords in URLs (a setting may say "[redacted]")',
+      secrets.map((p) => ({ name: `document.${p}`, message: 'looks like a credential' })),
+    );
+  const document = JSON.stringify(doc);
+  const bytes = Buffer.byteLength(document);
+  if (bytes > L.totalBytes) throw new ApiProposalRefused(`The document is too large (${kb(bytes)}, at most ${L.totalBytes / 1024 / 1024} MB)`);
+  const preview = proposerPreview(document);
+  if (!preview.ok)
+    throw new ApiProposalRefused(
+      `The document has ${preview.problems.length} problem(s) – nothing was proposed`,
+      preview.problems.slice(0, 50).map((x) => ({ name: `${x.file === 'proposal.json' ? 'document' : x.file}.${x.path}`, message: x.message })),
+    );
+  const drops = dropsOf(preview);
+  if (drops.length)
+    throw new ApiProposalRefused(
+      'A proposal may only add and change: it may change an item of a list, never drop one – send the lists with every item they have now',
+      drops.slice(0, 20).map((d) => ({ name: d.entry, message: `would lose ${d.path}` })),
+    );
+  const refused = refusedByPreview(preview);
+  if (refused) throw new ApiProposalRefused(refused);
+  if (!preview.counts.add && !preview.counts.change)
+    throw new ApiProposalRefused('The document changes nothing: every entry in it is as it is in Steward already');
+  // the person's open change sets stay bounded (the reviewers' inbox)
+  checkOpenLimits(u, 1, bytes);
+  const snapshot = stored(preview);
+  const sites = [...new Set(preview.changes.map((c) => c.siteId).filter(Boolean))].sort();
+  const catalogue = preview.changes.some((c) => c.kind === 'profile' || c.kind === 'kpi');
+  const csId = db().tx(() => {
+    const id = insertChangeSet({ state: 'proposed', source: 'api', title: body.title, by: u.username, sites, catalogue });
+    insertOp(
+      id,
+      {
+        op: 'import',
+        kind: null,
+        scope: '',
+        id: '',
+        name: body.title,
+        origin: 'derived',
+        baseRevision: null,
+        base: null,
+        value: { proposal: true, rationale: body.rationale, tokenName: token.name },
+        source: document,
+      },
+      u.username,
+    );
+    const at = new Date().toISOString();
+    db().run(
+      'UPDATE plant_change_sets SET preview = ?, fingerprint = ?, proposed_at = ?, proposed_by = ?, review = ? WHERE id = ?',
+      JSON.stringify(snapshot),
+      fingerprintOf(snapshot),
+      at,
+      u.username,
+      reviewNeeded(sites, catalogue) ? 1 : 0,
+      id,
+    );
+    audit({
+      action: 'plant.proposal_created',
+      entityType: 'plant_change_set',
+      entityId: id,
+      summary: `${u.username} (API token "${token.name}") proposes plant registry changes "${body.title}": ${preview.counts.add} added, ${preview.counts.change} changed – a person reviews them`,
+      details: { via: 'api', tokenId: token.id, counts: preview.counts, byKind: preview.byKind, bytes, sha256: sha256(document), changeSetId: id },
+    });
+    return id;
+  });
+  return {
+    changeSetId: csId,
+    counts: { add: preview.counts.add, change: preview.counts.change },
+    checks: preview.checks.slice(0, 20).map((c) => c.message),
+    warnings: preview.warnings.slice(0, 20).map((w) => `${w.path}: ${w.message}`),
+  };
+}

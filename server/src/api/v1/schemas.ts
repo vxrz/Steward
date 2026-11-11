@@ -90,7 +90,9 @@ export const Me = z.object({
   token: z.object({
     id: z.string(),
     name: z.string(),
-    scope: z.enum(['read', 'full']).describe('Both scopes may call every /api/v1 endpoint (all are read-only)'),
+    scope: z
+      .enum(['read', 'full'])
+      .describe('Both scopes may call every reading /api/v1 endpoint; proposing plant registry changes (POST /plant/proposals) needs full'),
     createdAt: ts(),
     expiresAt: nullableTs('Expiry; null = never'),
     lastUsedAt: nullableTs('Previous use (updated at most once a minute)'),

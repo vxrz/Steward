@@ -23,7 +23,8 @@
     "rename": "Kennung ändern",
     "assistant": "Assistent",
     "revert": "Rückgängig",
-    "move": "Verschieben"
+    "move": "Verschieben",
+    "api": "Öffentliche API"
   },
   "kinds": {
     "site": "Standort",
@@ -49,7 +50,8 @@
     "rename": "Kennung ändern",
     "import": "Importieren",
     "bulk": "Viele auf einmal",
-    "move": "Verschieben"
+    "move": "Verschieben",
+    "collections": "Import von Datenerfassungen"
   },
   "actions": {
     "change": "Geändert",
@@ -127,7 +129,8 @@
     "revision": "Stand {{revision}}",
     "revert": "Rückgängig machen",
     "before": "Frühere Änderungen:",
-    "audit": "das Prüfprotokoll"
+    "audit": "das Prüfprotokoll",
+    "restore": "Wiederherstellen"
   },
   "entryChanged": {
     "title": "Von jemand anderem geändert",
@@ -182,7 +185,12 @@
     "hiddenOps_other": "{{count}} Änderungen von Standorten, die Sie nicht sehen dürfen, sind ausgelassen.",
     "opBy": "von {{by}}",
     "remove": "Entfernen",
-    "removeOp": "Änderung {{seq}} entfernen"
+    "removeOp": "Änderung {{seq}} entfernen",
+    "apiProposal": {
+      "title": "Über die öffentliche API vorgeschlagen",
+      "token": "Gesendet mit dem API-Token „{{token}}“ von {{by}}",
+      "rationale": "Begründung (in den Worten der Absenderin oder des Absenders)"
+    }
   },
   "blocked": {
     "PLANT_CHANGESET_OWN": "Eine zweite Person übernimmt ihn: Sie haben ihn geschrieben.",

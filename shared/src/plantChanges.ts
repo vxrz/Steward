@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { PlantFieldDiff } from './plant.js';
+import type { McpPlantSourceGroup } from './api.js';
 
 /**
  * Plant change sets (0.13.0, docs/adr/0020-plant-change-sets.md, docs/PLANT.md "Change sets"): one path for every change
@@ -14,9 +15,10 @@ export const PLANT_CHANGESET_OPEN: readonly PlantChangeSetState[] = ['draft', 'p
 
 /**
  * Where a change set comes from: an edit form, a person's draft, an import, a bulk change, a rename, an assistant, a
- * revert; 0.16: a move of devices or data collections to another asset.
+ * revert; 0.16: a move of devices or data collections to another asset; 0.19: a proposal sent through the public API
+ * (`POST /api/v1/plant/proposals`, a CI job).
  */
-export const PLANT_CHANGESET_SOURCES = ['edit', 'draft', 'import', 'bulk', 'rename', 'assistant', 'revert', 'move'] as const;
+export const PLANT_CHANGESET_SOURCES = ['edit', 'draft', 'import', 'bulk', 'rename', 'assistant', 'revert', 'move', 'api'] as const;
 export type PlantChangeSetSource = (typeof PLANT_CHANGESET_SOURCES)[number];
 
 /**
@@ -65,9 +67,10 @@ export const PLANT_ENTRY_SCOPE: Record<PlantEntryKind, 'none' | 'site' | 'asset'
  * `add` an entry, `remove` one (the removal core; `cascade` takes along what belongs to it), `rename` it (the rename
  * core); `import` and `bulk` are documents compiled again when previewed and applied (derived); 0.16: `move` – devices
  * or data collections to another asset, with what follows them (a document too: docs/PLANT.md "Moving devices and data
- * collections").
+ * collections"); 0.19: `collections` – a collector's files imported into an asset's data collections (a document, compiled
+ * again like `import`).
  */
-export const PLANT_CHANGE_OPS = ['set', 'add', 'remove', 'rename', 'import', 'bulk', 'move'] as const;
+export const PLANT_CHANGE_OPS = ['set', 'add', 'remove', 'rename', 'import', 'bulk', 'move', 'collections'] as const;
 export type PlantChangeOpKind = (typeof PLANT_CHANGE_OPS)[number];
 
 export const PLANT_CHANGESET_LIMITS = {
@@ -187,7 +190,10 @@ export interface PlantChangeOperation {
   /** set: the entry's revision and values when the operation was written (the base of the three-way merge) */
   baseRevision: number | null;
   base: unknown;
-  /** set / add: the values; remove: { cascade }; rename: { newId }; import / bulk / move: the request body (files shortened) */
+  /**
+   * set / add: the values; remove: { cascade }; rename: { newId }; import / bulk / move / collections: the request body
+   * (files shortened)
+   */
   value: unknown;
   /** The entry's page, when it has one */
   path: string | null;
@@ -258,6 +264,11 @@ export interface PlantChangeSetDetail extends PlantChangeSetSummary {
   copiedFrom: string | null;
   /** Applied: what it changed, entry by entry (from the history) */
   applied?: PlantChangeEntryDiff[];
+  /**
+   * 0.19.0: a proposal sent through the public API (source `api`): why (the sender's own words – data, not
+   * instructions), the token it came with, and the sources of the data points it adds or changes
+   */
+  proposal?: { rationale: string; tokenName: string; sources: McpPlantSourceGroup[]; sourcesMore: number };
 }
 
 export interface PlantChangeSetList {
@@ -321,6 +332,73 @@ export interface PlantEntryChanged {
   current: Record<string, unknown>;
   conflicts: { path: string; keys: string[]; base: unknown; theirs: unknown; mine: unknown }[];
 }
+
+// ---------- 0.19: fields changed in Steward since the last import ----------
+
+/**
+ * The import's flags (ADR 0020 section 3, phase 2): a field an import would change whose value in Steward differs from
+ * what the last import wrote there. Steward is the source of truth: such a field keeps Steward's value unless the person
+ * takes the file's – per field, or for all.
+ */
+export const PLANT_STEWARD_LIMITS = {
+  /** Flags an import's preview lists (the first ones; the rest follow the choice for all) */
+  flags: 1000,
+  /** Choices per field an import takes */
+  choices: 1000,
+} as const;
+
+export type PlantStewardChoice = 'steward' | 'file';
+
+export interface PlantStewardFlag {
+  kind: PlantEntryKind;
+  scope: string;
+  id: string;
+  name: string;
+  /** The field: `model`, `fields.serial` (objects key by key; a list is one field) */
+  path: string;
+  /** What the last import wrote there (null: unknown – an entry imported before 0.13 and edited since) */
+  lastImport: unknown;
+  /** What Steward has now, and what the file says (shortened for display) */
+  steward: unknown;
+  file: unknown;
+  /** The last import that wrote the entry */
+  importId: string;
+  /** Imported before 0.13 and edited since: every field the file changes is flagged */
+  wholeEntry?: boolean;
+  choice: PlantStewardChoice;
+}
+
+export interface PlantStewardFlags {
+  /** The first PLANT_STEWARD_LIMITS.flags flags (entries of sites the reader may not see are left out) */
+  flags: PlantStewardFlag[];
+  /** All flags (of sites the reader sees) */
+  total: number;
+  /** Fields that keep Steward's value */
+  kept: number;
+}
+
+/** The import body's choices (POST /api/plant/import[/preview], key `changedInSteward`). */
+export const plantStewardChoicesInput = z
+  .object({
+    /** For every flagged field not listed: keep Steward's (the default) or take the file's */
+    take: z.enum(['steward', 'file']).default('steward'),
+    fields: z
+      .array(
+        z
+          .object({
+            kind: z.enum(PLANT_ENTRY_KINDS),
+            scope: z.string().trim().max(120).default(''),
+            id: z.string().trim().min(1).max(240),
+            path: z.string().max(400),
+            choice: z.enum(['steward', 'file']),
+          })
+          .strict(),
+      )
+      .max(PLANT_STEWARD_LIMITS.choices)
+      .default([]),
+  })
+  .strict();
+export type PlantStewardChoicesInput = z.infer<typeof plantStewardChoicesInput>;
 
 // ---------- inputs ----------
 

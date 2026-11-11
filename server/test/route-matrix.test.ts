@@ -978,6 +978,12 @@ const EXPECT: Record<string, Access> = {
   'GET /api/v1/plant/assets/:assetId/advisories': PLANT,
   'GET /api/v1/plant/assets/:assetId/documentation': PLANT,
   'GET /api/v1/plant/assets/:assetId/collections/:collectionId/sinks/:sinkId/insights-hub': PLANT,
+  // 0.19.0: change sets (a proposed one is seen by who sees its site) and proposals from CI (a full-access token of who
+  // may propose; read tokens are refused with token-scope)
+  'GET /api/v1/plant/change-sets': PLANT,
+  'GET /api/v1/plant/change-sets/:changeSetId': PLANT,
+  'GET /api/v1/plant/change-sets/:changeSetId/operations': PLANT,
+  'POST /api/v1/plant/proposals': PROPOSE,
   // database schemas (#222): of the demo database platform (who sees it) and of the matrix system (everyone);
   'GET /api/v1/platforms/:platformId/schema/snapshots': USE,
   // platform costs (#226): the overview for everyone (each sees what they may see); one scope as in the web app
@@ -1307,7 +1313,8 @@ const EXPECT: Record<string, Access> = {
   'PUT /api/plant/assets/:assetId/collections/:collectionId': DESIGN,
   'DELETE /api/plant/assets/:assetId/collections/:collectionId': DESIGN,
   'GET /api/plant/assets/:assetId/collections/:collectionId/mapping': PLANT,
-  'POST /api/plant/assets/:assetId/collections/import/preview': DESIGN,
+  // 0.19.0: who may propose previews a collector's files to add them to their draft (importing stays with who manages)
+  'POST /api/plant/assets/:assetId/collections/import/preview': PROPOSE,
   'POST /api/plant/assets/:assetId/collections/import': DESIGN,
   // 0.12: where the data goes, the kept files of imports (secrets removed) and the Documents panel: who sees the entry
   'GET /api/plant/assets/:assetId/collections/:collectionId/flow': PLANT,

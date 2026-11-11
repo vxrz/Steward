@@ -378,7 +378,26 @@
     },
     "checks_one": "{{count}} Hinweis der Prüfungen",
     "checks_other": "{{count}} Hinweise der Prüfungen",
-    "checksHelp": "Was Steward in den Einträgen der Dateien findet, wenn sie importiert sind. Das hält den Import nicht auf."
+    "checksHelp": "Was Steward in den Einträgen der Dateien findet, wenn sie importiert sind. Das hält den Import nicht auf.",
+    "steward": {
+      "title_one": "{{count}} Feld seit dem letzten Import in Steward geändert",
+      "title_other": "{{count}} Felder seit dem letzten Import in Steward geändert",
+      "intro": "Diese Felder wurden in Steward geändert, nachdem der letzte Import sie geschrieben hat, und die Datei würde sie wieder ändern. Steward ist die maßgebliche Quelle: Jedes Feld behält den Wert aus Steward, sofern Sie nicht den Wert der Datei übernehmen.",
+      "keepAll": "Alle Werte aus Steward behalten",
+      "takeAll": "Alle aus der Datei übernehmen",
+      "kept": "{{kept}} von {{total}} behalten den Wert aus Steward",
+      "listLabel": "In Steward geänderte Felder",
+      "legend": "{{kind}} {{name}}: {{path}}",
+      "lastImport": "Letzter Import",
+      "keep": "Wert aus Steward behalten",
+      "take": "Wert der Datei übernehmen",
+      "unknown": "Nicht bekannt (vor 0.13 importiert)",
+      "wholeEntry": "Vor 0.13 importiert und seither bearbeitet: Jedes Feld, das die Datei ändert, ist aufgeführt.",
+      "showMore": "{{count}} weitere anzeigen",
+      "rest_one": "{{count}} weiteres Feld ist nicht aufgeführt: Es folgt der Wahl für alle.",
+      "rest_other": "{{count}} weitere Felder sind nicht aufgeführt: Sie folgen der Wahl für alle.",
+      "updated": "Vorschau aktualisiert: {{kept}} von {{total}} Feldern behalten den Wert aus Steward"
+    }
   },
   "settings": {
     "title": "Werksregister",

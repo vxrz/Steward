@@ -23,7 +23,8 @@
     "rename": "Change id",
     "assistant": "Assistant",
     "revert": "Revert",
-    "move": "Move"
+    "move": "Move",
+    "api": "Public API"
   },
   "kinds": {
     "site": "Site",
@@ -49,7 +50,8 @@
     "rename": "Change id",
     "import": "Import",
     "bulk": "Many at once",
-    "move": "Move"
+    "move": "Move",
+    "collections": "Collection import"
   },
   "actions": {
     "change": "Changed",
@@ -127,7 +129,8 @@
     "revision": "revision {{revision}}",
     "revert": "Revert",
     "before": "Earlier changes:",
-    "audit": "the audit log"
+    "audit": "the audit log",
+    "restore": "Restore"
   },
   "entryChanged": {
     "title": "Changed by someone else",
@@ -182,7 +185,12 @@
     "hiddenOps_other": "{{count}} changes of sites you may not see are left out.",
     "opBy": "by {{by}}",
     "remove": "Remove",
-    "removeOp": "Remove change {{seq}}"
+    "removeOp": "Remove change {{seq}}",
+    "apiProposal": {
+      "title": "Proposed through the public API",
+      "token": "Sent with the API token “{{token}}” of {{by}}",
+      "rationale": "Why (the sender’s own words)"
+    }
   },
   "blocked": {
     "PLANT_CHANGESET_OWN": "A second person applies it: you wrote it.",

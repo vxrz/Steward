@@ -23,7 +23,8 @@ export type ProblemType =
   | 'vault-locked'
   | 'token-in-url'
   | 'method-not-allowed'
-  | 'token-scope';
+  | 'token-scope'
+  | 'proposal-refused';
 
 export interface ProblemInit {
   type?: ProblemType;

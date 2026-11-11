@@ -79,8 +79,11 @@ function SourceGroup({ g }: { g: McpPlantSourceGroup }) {
   );
 }
 
-/** 0.17.0: where the proposed data points come from, by entry and document. */
-function Sources({ p }: { p: McpPlantProposal }) {
+/**
+ * 0.17.0: where the proposed data points come from, by entry and document (0.19.0: also on the review page of a
+ * proposal sent through the public API).
+ */
+export function Sources({ p }: { p: Pick<McpPlantProposal, 'sources' | 'sourcesMore'> }) {
   const { t } = useTranslation('mcp');
   const groups = p.sources ?? [];
   if (!groups.length) return null;

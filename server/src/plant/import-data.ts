@@ -86,6 +86,24 @@ export interface Write {
   drops?: () => string[];
 }
 
+/**
+ * 0.19.0 (ADR 0020 "Imports versus edits in Steward"): a hook that sees each entry an import writes over an existing one
+ * before it is compared – the change sets' layer keeps there the fields changed in Steward since the last import
+ * (changesets/steward.ts). It may change `after` (the values the write closure writes), never `before`.
+ */
+export type ImportWriteHook = (kind: PlantChangeKind, siteId: string, id: string, before: object, after: object) => void;
+let writeHook: ImportWriteHook | null = null;
+/** Installs the hook for the length of fn (the import runs synchronously inside it). */
+export function withImportWriteHook<T>(hook: ImportWriteHook, fn: () => T): T {
+  const outer = writeHook;
+  writeHook = hook;
+  try {
+    return fn();
+  } finally {
+    writeHook = outer;
+  }
+}
+
 export function pushWrite<V extends object>(
   writes: Write[],
   mode: PlantImportMode,
@@ -101,6 +119,7 @@ export function pushWrite<V extends object>(
 ): void {
   if (!before) return void writes.push({ kind, action: 'add', siteId, id, name, apply: write });
   if (mode === 'add') return void writes.push({ kind, action: 'skip', siteId, id, name, note: 'exists (add only)', apply: () => undefined });
+  writeHook?.(kind, siteId, id, before, after);
   const fields = changedKeys(before, after);
   if (cur?.not_in_source) fields.push('notInSource');
   if (fields.length)

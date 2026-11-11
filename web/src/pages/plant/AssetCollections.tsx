@@ -41,8 +41,10 @@ import {
   type PlantCollectionView,
   type PlantCollector,
   type PlantItemDecision,
+  type PlantChangeSetDetail,
+  type PlantChangeSetSummary,
 } from '@sm/shared';
-import { ApiError, apiUrl, del, get, notifyError, post, put } from '../../api';
+import { ApiError, apiUrl, del, get, notifyError, notifyOk, post, put } from '../../api';
 import { EmptyState, QueryState } from '../../components/common';
 import { confirmDanger } from '../../components/confirm';
 import { Breakable } from '../../components/plant/data';
@@ -136,8 +138,9 @@ export function AssetCollectionsView({ assetId }: { assetId: string }) {
             <Button size="xs" variant="default" leftSection={<IconPlus size={14} />} onClick={() => setCreating(true)} data-testid="collections-new">
               {t('collections.new')}
             </Button>
-            {/* a collector's files are imported by who manages the site (as operations of a change set: phase 2) */}
-            {v.canManage && (
+            {/* 0.19.0: an operation of a change set – who manages imports (or proposes it where review is required), who may
+                only propose adds it to their draft */}
+            {(v.canManage || v.canPropose) && (
               <Button size="xs" leftSection={<IconDatabaseImport size={14} />} onClick={() => setImporting(true)} data-testid="collections-import">
                 {t('collections.import.button')}
               </Button>
@@ -849,6 +852,7 @@ const exact = (it: PlantCollectionPreviewItem) => it.suggestion.accepted && it.s
 
 function ImportModal({ assetId, data, onClose }: { assetId: string; data: PlantAssetCollections; onClose: () => void }) {
   const { t } = useTranslation(['plantModel', 'plantNetwork', 'common']);
+  const { t: tc } = useTranslation('plantChanges');
   const qc = useQueryClient();
   const [collector, setCollector] = useState<PlantCollector>({ kind: 'job', ref: '', host: null });
   const [format, setFormat] = useState<CollectionFormat | 'auto'>('auto');
@@ -862,6 +866,8 @@ function ImportModal({ assetId, data, onClose }: { assetId: string; data: PlantA
   const [threshold, setThreshold] = useState<number | ''>(0.7);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<PlantCollectionImportResult | null>(null);
+  // 0.19.0: proposed for review (a site that needs a second person), or added to the person's draft
+  const [changeSet, setChangeSet] = useState<{ id: string; title: string; drafted: boolean } | null>(null);
   const read = (list: File[]) => Promise.all(list.map(async (f) => ({ name: f.name, content: await f.text() })));
   const body = () => ({
     collector: { ...collector, ref: collector.ref.trim() },
@@ -934,9 +940,27 @@ function ImportModal({ assetId, data, onClose }: { assetId: string; data: PlantA
   const applyIt = async () => {
     setBusy(true);
     try {
-      const r = await post<PlantCollectionImportResult>(`${base(assetId)}/import`, { ...body(), decisions });
-      setDone(r);
+      const r = await post<PlantCollectionImportResult | { changeSet: PlantChangeSetSummary }>(`${base(assetId)}/import`, { ...body(), decisions });
+      if ('changeSet' in r && r.changeSet) setChangeSet({ id: r.changeSet.id, title: r.changeSet.title, drafted: false });
+      else setDone(r as PlantCollectionImportResult);
       void qc.invalidateQueries({ queryKey: key(assetId) });
+      void qc.invalidateQueries({ queryKey: ['plant'] });
+    } catch (e) {
+      notifyError(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+  /** Who may only propose: the files, options and decisions become one change of their current draft. */
+  const addToDraft = async () => {
+    setBusy(true);
+    try {
+      const d = await post<PlantChangeSetDetail>('/plant/change-sets/current/operations', {
+        op: 'collections',
+        value: { assetId, ...body(), decisions },
+      });
+      setChangeSet({ id: d.id, title: d.title, drafted: true });
+      notifyOk(tc('form.addedToDraft', { title: d.title }));
       void qc.invalidateQueries({ queryKey: ['plant'] });
     } catch (e) {
       notifyError(e);
@@ -948,7 +972,19 @@ function ImportModal({ assetId, data, onClose }: { assetId: string; data: PlantA
   const nameOfPoint = (id: string | null) => (preview?.points ?? data.points).find((p) => p.id === id)?.name ?? id ?? '';
   return (
     <Modal opened onClose={onClose} title={t('collections.import.title')} size="xl" data-testid="collections-import-dialog">
-      {done ? (
+      {changeSet ? (
+        <Stack gap="sm" data-testid="collections-import-change-set">
+          <Text size="sm">
+            {changeSet.drafted ? tc('form.addedToDraft', { title: changeSet.title }) : tc('form.proposedForReview', { title: changeSet.title })}
+          </Text>
+          <Group justify="flex-end">
+            <Button component={Link} to={`/plant/changes/${encodeURIComponent(changeSet.id)}`} variant="default">
+              {changeSet.drafted ? tc('form.openDraft') : tc('form.openChangeSet')}
+            </Button>
+            <Button onClick={onClose}>{t('common:close')}</Button>
+          </Group>
+        </Stack>
+      ) : done ? (
         <Stack gap="sm" data-testid="collections-import-done">
           <Text size="sm">
             {t('collections.import.done', {
@@ -1217,9 +1253,16 @@ function ImportModal({ assetId, data, onClose }: { assetId: string; data: PlantA
             <Button variant="default" onClick={() => setPreview(null)}>
               {t('collections.import.back')}
             </Button>
-            <Button loading={busy} disabled={preview.problems.length > 0} onClick={() => void applyIt()} data-testid="collections-apply">
-              {t('collections.import.apply')}
-            </Button>
+            {!data.canManage && data.canPropose && (
+              <Button loading={busy} disabled={preview.problems.length > 0} onClick={() => void addToDraft()} data-testid="collections-add-to-draft">
+                {tc('form.addToDraft')}
+              </Button>
+            )}
+            {data.canManage && (
+              <Button loading={busy} disabled={preview.problems.length > 0} onClick={() => void applyIt()} data-testid="collections-apply">
+                {t('collections.import.apply')}
+              </Button>
+            )}
           </Group>
         </Stack>
       )}
