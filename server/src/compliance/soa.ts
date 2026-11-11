@@ -1210,6 +1210,56 @@ async function signedZip(cat: Catalogue, v: VersionRow, content: SoaVersionConte
   }
 }
 
+// ---------- for evidence packs and scheduled exports (ADR 0029 part 4) ----------
+
+export interface ApprovedSoaFiles {
+  catalogueId: string;
+  catalogueKey: string;
+  number: number;
+  approvedAt: string;
+  approvedBy: string;
+  contentSha256: string;
+  /** File names without extension: soa-<catalogue>-v<n> */
+  base: string;
+  /** The frozen content, byte for byte (its SHA-256 is contentSha256) */
+  json: string;
+  csv: string;
+  /** The archived PDF in the data folder and its recorded SHA-256 (null: none recorded) */
+  pdf: { file: string; sha256: string } | null;
+}
+
+/**
+ * The latest approved version of the SoA of each catalogue (`catalogueIds` narrows it) as files: the frozen JSON,
+ * its CSV and the archived PDF. Catalogues without an approved version are left out. Read as Steward or any reader –
+ * the SoA is readable by everyone who can sign in.
+ */
+export function latestApprovedFiles(catalogueIds?: readonly string[]): ApprovedSoaFiles[] {
+  const out: ApprovedSoaFiles[] = [];
+  for (const r of db().all<VersionRow & { key: string; catalogue_id: string }>(
+    `SELECT v.*, k.key, k.id AS catalogue_id FROM soa_versions v JOIN soas s ON s.id = v.soa_id JOIN control_catalogues k ON k.id = s.catalogue_id
+     WHERE v.status = 'approved' ORDER BY k.key, v.number DESC`,
+  )) {
+    if (catalogueIds && !catalogueIds.includes(r.catalogue_id)) continue;
+    if (out.some((x) => x.catalogueId === r.catalogue_id)) continue;
+    const files = parseJson<{ pdf?: { path: string; sha256: string } }>(r.files, {});
+    const file = files.pdf ? path.join(reportsDir(), files.pdf.path) : null;
+    const inside = !!file && path.resolve(file).startsWith(path.resolve(reportsDir()) + path.sep);
+    out.push({
+      catalogueId: r.catalogue_id,
+      catalogueKey: r.key,
+      number: Number(r.number),
+      approvedAt: r.decided_at ?? r.submitted_at,
+      approvedBy: r.decided_by ?? '',
+      contentSha256: r.content_sha256,
+      base: `soa-${r.key.replace(/[^A-Za-z0-9._-]+/g, '_')}-v${Number(r.number)}`,
+      json: r.content,
+      csv: versionCsv(JSON.parse(r.content) as SoaVersionContent),
+      pdf: inside && files.pdf ? { file: file!, sha256: files.pdf.sha256 } : null,
+    });
+  }
+  return out;
+}
+
 // ---------- for the ISMS summary (ADR 0029 part 4) and the dataset ----------
 
 /**

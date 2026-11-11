@@ -43,6 +43,7 @@ import { toAccessChange } from './access-changes.js';
 import { evidenceForControls, evidenceOf, getControl, type PackCoverageStatus } from './controls.js';
 import { getReview, verifySeal } from './person-reviews.js';
 import { findingsOfControls } from './corrective.js';
+import { latestApprovedFiles } from './soa.js';
 import { getCheck, getSnapshot, listFindings, listSnapshots, verifyChain } from './reconciliation.js';
 import type { PackPdfModel } from './pack-pdf.js';
 import { drawPdf } from '../reports/pdf/pool.js';
@@ -723,6 +724,7 @@ async function buildPack(id: string, lang: ReportLang, opts: { assurance?: boole
         'severity',
         'status',
         'serviceName',
+        'supplierName',
         'owner',
         'dueDate',
         'overdue',
@@ -754,6 +756,24 @@ async function buildPack(id: string, lang: ReportLang, opts: { assurance?: boole
           ),
         ),
       );
+    }
+
+    // the statement of applicability (ADR 0029 part 4): the latest approved version of each catalogue whose controls are
+    // in the pack – the archived PDF (checked against its recorded SHA-256), its CSV and the frozen JSON
+    const catalogueIds = [...new Set(controls.map((c) => c.catalogue))]
+      .map((key) => db().get<{ id: string }>('SELECT id FROM control_catalogues WHERE key = ?', key)?.id)
+      .filter((x): x is string => !!x);
+    const soas: { catalogue: string; number: number; approvedAt: string; approvedBy: string; contentSha256: string; files: string[] }[] = [];
+    for (const v of catalogueIds.length ? latestApprovedFiles(catalogueIds) : []) {
+      const dir = `soa/${safe(v.catalogueKey)}`;
+      const files: string[] = [];
+      if (v.pdf) {
+        const p = await b.file(`${dir}/${v.base}.pdf`, v.pdf.file, v.pdf.sha256);
+        if (p) files.push(p);
+      } else b.omitted.push(`${dir}/${v.base}.pdf: no archived PDF is recorded for version ${v.number}`);
+      files.push(await b.buffer(`${dir}/${v.base}.csv`, Buffer.from(v.csv, 'utf8')));
+      files.push(await b.buffer(`${dir}/${v.base}.json`, Buffer.from(v.json, 'utf8')));
+      soas.push({ catalogue: v.catalogueKey, number: v.number, approvedAt: v.approvedAt, approvedBy: v.approvedBy, contentSha256: v.contentSha256, files });
     }
 
     // privileged use of the vault platforms in scope (#205)
@@ -820,6 +840,7 @@ async function buildPack(id: string, lang: ReportLang, opts: { assurance?: boole
       ...(findings.length
         ? { correctiveActions: { findings: findings.length, files: ['corrective-actions/findings.json', 'corrective-actions/findings.csv'] } }
         : {}),
+      ...(soas.length ? { statementsOfApplicability: soas } : {}),
       audit: auditInfo,
       assurance: assuranceInfo,
       omitted: b.omitted,
@@ -848,6 +869,12 @@ async function buildPack(id: string, lang: ReportLang, opts: { assurance?: boole
           files: p.files.length,
         })),
         ...findings.map((f) => ({ kind: 'correctiveAction', label: `${f.number} ${f.title} (${f.status})`, at: f.updatedAt, files: 2 })),
+        ...soas.map((v) => ({
+          kind: 'soa',
+          label: `${v.catalogue}, version ${v.number} (approved by ${v.approvedBy})`,
+          at: v.approvedAt,
+          files: v.files.length,
+        })),
       ],
       omitted: b.omitted,
       assurance: assuranceInfo.included === true,
