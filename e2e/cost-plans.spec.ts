@@ -58,9 +58,14 @@ async function plan(page: Page, f: { app: { name: string }; service: { id: strin
   await expect(dialog).toBeHidden();
   await expect(view.getByTestId('plan-lines')).toContainText('Support contract');
 
-  // an entry on the licence line (its currency comes from the line), and an unplanned one saved with Enter
+  // an entry on the licence line (its currency comes from the line), and an unplanned one saved with Enter – both dated
+  // the server's day: the dialog offers the browser's (Europe/Berlin), a day ahead of the server's between 23:00 and
+  // midnight UTC, and an entry dated after the server's today is not incurred to date
+  const now = new Date();
+  const serverDay = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   await view.getByTestId('plan-add-entry').click();
   dialog = page.getByRole('dialog', { name: 'New cost entry' });
+  await dialog.getByTestId('plan-entry-date').fill(serverDay);
   await dialog.getByRole('textbox', { name: 'Amount' }).fill('1200');
   await chooseOption(page, 'Plan line', 'Historian licences (EUR)');
   await expect(dialog.getByRole('textbox', { name: 'Currency' })).toHaveAttribute('readonly', '');
@@ -70,6 +75,7 @@ async function plan(page: Page, f: { app: { name: string }; service: { id: strin
   await expect(dialog).toBeHidden();
   await view.getByTestId('plan-add-entry').click();
   dialog = page.getByRole('dialog', { name: 'New cost entry' });
+  await dialog.getByTestId('plan-entry-date').fill(serverDay);
   await dialog.getByRole('textbox', { name: 'Amount' }).fill('50');
   await dialog.getByRole('textbox', { name: 'Reference' }).fill('PO-55790');
   await dialog.getByRole('textbox', { name: 'Reference' }).press('Enter');
