@@ -9,10 +9,13 @@ import {
   supplierContractServiceInput,
   supplierInput,
   supplierMergeInput,
+  supplierOpenInput,
+  supplierSharedMergeInput,
 } from '@sm/shared';
 import { ACCESS } from '../auth/access.js';
 import { params } from '../routes/params.js';
 import * as s from './service.js';
+import * as shared from './shared.js';
 import { contractScopeNotice, dismissContractScopeNotice } from './contract-scope.js';
 
 /**
@@ -27,6 +30,9 @@ import { contractScopeNotice, dismissContractScopeNotice } from './contract-scop
  *   GET    /suppliers/:id/contracts/:contractId              the contract page (404 for who may not see it)
  *   PUT|DELETE /suppliers/:id/contracts/:contractId/services/:serviceId   add, purpose, confirm; leave or dismiss
  *   GET    /services/:id/contracts                            the contracts covering a service (its "Suppliers" section)
+ *   GET    /suppliers/shared-suggestions, POST …/:key/keep-separate   "Same supplier in several teams" (administrators)
+ *   POST   /suppliers/merge/preview | merge                    a merge of up to ten suppliers (widening: administrators)
+ *   POST   /suppliers/:id/open/preview | open                  new owning teams with the protections (administrators)
  *
  * Every change is a decision of a person in a session in the app – also marking a certificate as looked at (ADR 0029
  * decision 9): the changing routes refuse API tokens. Reading one supplier with an API token gives what /api/v1 gives –
@@ -34,8 +40,11 @@ import { contractScopeNotice, dismissContractScopeNotice } from './contract-scop
  */
 const listQuery = z.object({ status: z.enum(SUPPLIER_STATUSES).optional() });
 const scopedQuery = z.object({ kind: z.enum(['application', 'system']), id: z.string().min(1).max(100) });
-/** Removing a master agreement: `orderForms=standalone` says the order forms become standalone (ADR 0031) */
-const removeContractQuery = z.object({ orderForms: z.enum(['standalone']).optional() });
+/**
+ * Removing a contract (ADR 0031): `orderForms=standalone` says the order forms of a master become standalone;
+ * `replacedBy` names the contract of the same supplier that takes over what named it
+ */
+const removeContractQuery = z.object({ orderForms: z.enum(['standalone']).optional(), replacedBy: z.string().min(1).max(100).optional() });
 const session = { config: { access: ACCESS.session } };
 /** The request comes with an API token (no session in the app). */
 const viaToken = (req: FastifyRequest) => !!(req as unknown as { smToken?: string }).smToken;
@@ -62,7 +71,24 @@ export async function supplierRoutes(app: FastifyInstance): Promise<void> {
   app.post('/suppliers/:id/archive', session, async (req) => s.setSupplierArchived(params(req).id!, supplierArchiveInput.parse(req.body).archived));
   // the "To confirm" list: decisions of people in a session (ADR 0029, decided 9)
   app.post('/suppliers/:id/confirm', session, async (req) => s.confirmSupplier(params(req).id!));
-  app.post('/suppliers/:id/merge', session, async (req) => s.mergeSupplier(params(req).id!, supplierMergeInput.parse(req.body).into));
+  app.post('/suppliers/:id/merge', session, async (req) => shared.mergeOne(params(req).id!, supplierMergeInput.parse(req.body).into));
+  // shared suppliers (ADR 0031 part 8): suggestions, the preview, the merge of up to ten, opening a team-scoped one
+  app.get('/suppliers/shared-suggestions', { config: { access: ACCESS.admin } }, async () => shared.sharedSuggestions());
+  app.post('/suppliers/shared-suggestions/:key/keep-separate', { config: { access: ACCESS.adminSession } }, async (req) =>
+    shared.keepSeparate(params(req).key!),
+  );
+  app.post('/suppliers/merge/preview', session, async (req) => shared.mergePreview(supplierSharedMergeInput.parse(req.body)));
+  app.post('/suppliers/merge', session, async (req) => shared.mergeSuppliers(supplierSharedMergeInput.parse(req.body)));
+  app.post('/suppliers/:id/open/preview', { config: { access: ACCESS.admin } }, async (req) => {
+    const b = supplierOpenInput.parse(req.body);
+    return shared.openPreview(params(req).id!, b.teamIds, b.contacts ?? {});
+  });
+  app.post('/suppliers/:id/open', { config: { access: ACCESS.adminSession } }, async (req) => {
+    const b = supplierOpenInput.parse(req.body);
+    return shared.openSupplier(params(req).id!, b.teamIds, b.contacts ?? {});
+  });
+  // contracts with services proposed by the update to 0.18, for who may confirm them ("To confirm")
+  app.get('/suppliers/proposed-services', async () => s.proposedServices());
   app.post('/suppliers/:id/not-a-supplier', session, async (req) => s.dismissSupplier(params(req).id!));
 
   app.post('/suppliers/:id/contacts', session, async (req) => s.addContact(params(req).id!, supplierContactInput.parse(req.body)));

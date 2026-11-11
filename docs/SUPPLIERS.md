@@ -13,6 +13,7 @@ Steward keeps the records and reminds you of dates. It is not a GRC tool: no sup
 - [Contacts and data protection](#contacts-and-data-protection)
 - [Linking a supplier](#linking-a-supplier)
 - [After the update: suppliers to confirm](#after-the-update-suppliers-to-confirm)
+- [Shared suppliers: merging and opening](#shared-suppliers-merging-and-opening)
 - [The yearly supplier review](#the-yearly-supplier-review)
 - [Reminders](#reminders)
 - [Who may do what](#who-may-do-what)
@@ -28,6 +29,8 @@ Steward keeps the records and reminds you of dates. It is not a GRC tool: no sup
 - **Criticality** (shown, not stored): the highest protection need per dimension of the applications that link the supplier ([APPLICATIONS.md](APPLICATIONS.md#rate-an-application-cia)) and – since 0.18.0 – of the services covered by the contracts you may see ([APPLICATIONS.md](APPLICATIONS.md#the-protection-need-of-a-service)).
 - **Other spellings**: the free-text vendors it was made from or merged with, and its former names. The supplier picker of the forms finds a supplier by them.
 - **Status**: _active_; _to confirm_ (made from free text on the update, see [below](#after-the-update-suppliers-to-confirm)); _archived_ (kept for its history and the items that still link it, no longer offered in forms).
+
+**New suppliers belong to the whole instance** (0.18.0): they get no owning team, whoever creates them – the company record is shared, while each team holds its own contracts ([TEAMS.md](TEAMS.md#new-resources)). Suppliers made by the 0.17 update keep their team scope; an administrator can open one to the whole instance or merge it into a shared supplier ([below](#shared-suppliers-merging-and-opening)).
 
 The list shows the next notice-by date (over the contracts you may see) and the next certificate expiry of each supplier, in orange within 90 days and in red once passed, and how many items link it. A supplier owned by a team is seen only by its members, its owners, administrators and auditors – as for systems ([TEAMS.md](TEAMS.md)).
 
@@ -138,7 +141,7 @@ On the update to 0.17, Steward turns the free-text vendors into suppliers, once,
 _Suppliers → To confirm_ lists them with their spellings and how many items link them. Designers and administrators work through it once:
 
 - **Confirm** a real supplier – it becomes active.
-- **Merge into …** another supplier: its links (also in responsibility matrices, statements of applicability and corrective action findings), contacts, contracts, certificates and spellings move, and it goes.
+- **Merge into …** another supplier: its links (also in responsibility matrices, statements of applicability and corrective action findings), contacts, contracts, certificates and spellings move, and it goes. Since 0.18 by the rules of [shared suppliers](#shared-suppliers-merging-and-opening): a merge that would show anything to more people is for administrators, with a preview.
 - **Not a supplier** (`On-premises`, an AWS account name): the supplier goes, the items lose the link and keep their text, and the text is not made a supplier again. A responsibility matrix area or a statement row that named it keeps the party _supplier_ without a name.
 
 Summaries, reminders and the dataset leave unconfirmed suppliers out. Confirming, merging, marking _not a supplier_ and archiving are decisions of people: they need a signed-in session, not an API token.
@@ -155,6 +158,25 @@ The update to 0.18.0 gives every contract a scope, in the migration itself (SQLi
 Proposed services are confirmed or dismissed by a person – on the contract and on the service page's _Suppliers_ section. Dismissing one leaves the plan lines and matrix rows as they are, with the hint _This contract no longer covers the service_.
 
 **What can narrow:** a contract whose supplier had a team among its owners becomes team-owned. Who saw it in 0.17 only through the supplier – and neither owns it nor sees a service it is proposed for – no longer sees it. The supplier list shows administrators _Contracts now seen only by their owners and services_ once (audited as `supplier.contracts_scoped`, system); removing the team owner reopens a contract. Nothing becomes visible to more people.
+
+## Shared suppliers: merging and opening
+
+The 0.17 update made one supplier per vendor text **and** set of owning teams, so as not to widen anyone's view – the same company used by two teams became two suppliers. Since 0.18.0 Steward suggests merging them into one shared supplier without showing anyone's contracts to another team.
+
+**Same supplier in several teams** (_Suppliers → To confirm_, administrators): groups of active or unconfirmed suppliers with the same normalised name (or a spelling of one matching the other's name) and different owning teams. Each group proposes one shared supplier – the instance-wide one if there is one, else the confirmed one, else the oldest. _Merge…_ opens the preview; _Keep separate_ dismisses the group until another supplier joins it (audited as `supplier.merge_kept_separate`).
+
+**The preview** – for any merge in which a source is seen by fewer people than the result, and for opening a team-scoped supplier by changing its owning teams – lists before anything changes:
+
+- who **gains sight of the company record** – name, certificates, company-wide contacts;
+- each **contract** with the owners it will have: a contract without a team owner gets the source's owning teams as owners, so it stays seen by exactly those teams (plus the readers of the services it covers, administrators and auditors); a contract with a team owner keeps its owners. Contracts with the same contract number are flagged – contracts are never merged automatically;
+- each **company-wide contact** of the source with the scope it will get: the source's contracts; without contracts, the applications and systems that link the source; without those, the administrator chooses – _make it company-wide_ (a widening) or _remove it_;
+- the source's **personal data and DPA**, written onto its moved contracts where they differ from the target's defaults, so no contract's answer changes;
+- **certificates** that are the same (kind, scope and valid until) become one, keeping the latest _looked at_; **contacts** that are the same (name and e-mail, letter case aside) become one with the wider of their scopes;
+- the **owners** of the shared supplier: the union of all owners, editable; and what moves – links, spellings, contracts with their payment schedules, the free-text migrations.
+
+**Who:** a merge or an opening that shows anything to more people is for **administrators**; merging suppliers with the same owning teams stays with designers and administrators. One merge combines up to ten suppliers in one transaction, audited as `supplier.merged` with the contracts and the owners they got, the contacts and their scope, what was combined and the owning teams of the result; an opening is audited as `access.owning_teams_changed` with what was protected. Routes: `POST /api/suppliers/merge/preview` and `POST /api/suppliers/merge` (`{ intoId, ids, owners, contacts: { [id]: 'scope' | 'companyWide' | 'remove' } }`), `GET /api/suppliers/shared-suggestions`, `POST /api/suppliers/shared-suggestions/:key/keep-separate`, `POST /api/suppliers/:id/open/preview` and `…/open` – the _Owning teams_ panel (`PUT /api/owning-teams/supplier/:id`) applies the same protections.
+
+**Replaced by …** To combine two contracts afterwards: _Remove contract_ → _Replaced by…_ another contract of the same supplier that you may change (`DELETE …/contracts/:contractId?replacedBy=`). Its covered services, payment schedules, plan lines, entries, matrix rows, duties, findings and scoped contacts move to it; covered services join only where you may add them (a schedule whose paying service cannot join is refused), and its order forms follow it. The removal is audited with `replacedBy` and what moved.
 
 ## The yearly supplier review
 
@@ -179,15 +201,15 @@ The daily summary (section _Supplier certificates and notice dates_) lists, in t
 | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | See suppliers, certificates and contacts                         | everyone who can sign in (team scope as for systems)                                                                                                                 |
 | See a contract                                                   | who sees the supplier; a team-owned contract only its owners, readers of its services, administrators and auditors ([above](#contracts-and-the-services-they-cover)) |
-| Create suppliers; confirm, merge, mark _not a supplier_; archive | designers, administrators                                                                                                                                            |
+| Create suppliers; confirm, merge, mark _not a supplier_; archive | designers, administrators (a merge that shows anything to more people: administrators)                                                                               |
 | Change a supplier, its contacts and certificates                 | designers, administrators, the supplier's owners                                                                                                                     |
 | Add and change contracts                                         | see [the rights table](#contracts-and-the-services-they-cover)                                                                                                       |
 | Link a supplier to an item                                       | whoever may change the item and may see the supplier                                                                                                                 |
-| Owning teams of a supplier                                       | administrators ([TEAMS.md](TEAMS.md))                                                                                                                                |
+| Owning teams of a supplier, _Same supplier in several teams_     | administrators ([TEAMS.md](TEAMS.md))                                                                                                                                |
 
 ## Audit, API, MCP and the dataset
 
-**Audit actions:** `supplier.created`, `.changed`, `.archived`, `.unarchived`, `.confirmed`, `.merged`, `.dismissed` (not a supplier), `.migrated` (system, the update), `.contact_added|changed|removed` (with the scope since 0.18, without e-mail or phone values), `.contract_added|changed|removed` (since 0.18 with the owners, the master, personal data and the DPA before and after, and the order forms made standalone), `.contract_service_added|changed|removed|confirmed|dismissed` (on the supplier, naming the contract and the service; _removed_ is also _Leave contract_), `.contracts_scoped` (system, once, the update to 0.18), `.certificate_added|changed|removed`.
+**Audit actions:** `supplier.created`, `.changed`, `.archived`, `.unarchived`, `.confirmed`, `.merged` (since 0.18 with what was protected), `.merge_kept_separate`, `.dismissed` (not a supplier), `.migrated` (system, the update), `.contact_added|changed|removed` (with the scope since 0.18, without e-mail or phone values), `.contract_added|changed|removed` (since 0.18 with the owners, the master, personal data and the DPA before and after, and the order forms made standalone), `.contract_service_added|changed|removed|confirmed|dismissed` (on the supplier, naming the contract and the service; _removed_ is also _Leave contract_), `.contracts_scoped` (system, once, the update to 0.18), `.certificate_added|changed|removed`.
 
 **Public API** (read-only, [API.md](API.md)): `GET /api/v1/suppliers` (paged; default unconfirmed and active, `?status=`) and `GET /api/v1/suppliers/{supplierId}` – the contracts the token owner may see with notice-by date, SLA and RTO/RPO (the values that apply, `inherited` naming those of the master), `owners`, `services` (id, name, purpose, status – the services the token owner may see, no count of others), `parentId`, `personalData` and `dpa` (as it applies, with `inheritedFrom`: `contract`, `master`, `supplier`), certificates, contacts without e-mail or phone, what links the supplier and its review duties. `GET /api/v1/services/{serviceId}/contracts` lists the contracts covering a service (0.18).
 

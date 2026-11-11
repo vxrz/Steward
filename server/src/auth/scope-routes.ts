@@ -1,6 +1,15 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import { OWNED_KINDS, type AccessExplanation, type AccessReason, type AclEntry, type OwnedKind, type PlatformPermission } from '@sm/shared';
+import {
+  OWNED_KINDS,
+  SUPPLIER_CONTACT_CHOICES,
+  boundedRecord,
+  type AccessExplanation,
+  type AccessReason,
+  type AclEntry,
+  type OwnedKind,
+  type PlatformPermission,
+} from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { HttpError, parseJson } from '../util.js';
@@ -29,6 +38,7 @@ import {
   type OwningTeam,
 } from './policy.js';
 import { findUserByName, listUsers, toAuthUser } from './users.js';
+import { protectOpening } from '../suppliers/shared.js';
 import type { AuthUser } from './context.js';
 
 /**
@@ -146,6 +156,8 @@ function visible(kind: OwnedKind, id: string): ResourceRow {
 }
 
 const teamIds = z.object({ teamIds: z.array(z.string().max(64)).max(50) });
+/** A supplier's company-wide contacts that cannot be scoped when it is opened: the administrator's choice (ADR 0031) */
+const supplierContactChoices = z.object({ contacts: boundedRecord(z.enum(SUPPLIER_CONTACT_CHOICES), 100).optional() });
 
 /** Adding an owning team gives its members their roles on the resource: confirmed like other grants. */
 function addsTeam(req: FastifyRequest): boolean {
@@ -246,6 +258,8 @@ export async function scopeRoutes(app: FastifyInstance): Promise<void> {
       if (unknown) throw new HttpError(400, `Unknown team "${unknown}"`, 'TEAM_NOT_FOUND', { id: unknown });
       const before = owningTeams(kind, r.id);
       db().tx(() => {
+        // opening a team-scoped supplier protects its contracts and contacts (ADR 0031 part 8; suppliers/shared.ts)
+        const protectedWhat = kind === 'supplier' ? protectOpening(r.id, ids, supplierContactChoices.parse(req.body).contacts ?? {}) : null;
         setOwningTeams(kind, r.id, ids);
         const names = ids.map((t) => known.get(t)!);
         audit({
@@ -253,7 +267,7 @@ export async function scopeRoutes(app: FastifyInstance): Promise<void> {
           entityType: kind,
           entityId: r.id,
           summary: `Owning teams of ${kind} "${r.name}": ${names.length ? names.join(', ') : 'none (the whole instance)'}${before.length ? ` (were: ${before.map((t) => t.name).join(', ')})` : ''}`,
-          details: { before: before.map((t) => t.name), after: names },
+          details: { before: before.map((t) => t.name), after: names, ...(protectedWhat ? { protected: protectedWhat } : {}) },
         });
       });
       return { teams: owningTeams(kind, r.id), canChange: true };

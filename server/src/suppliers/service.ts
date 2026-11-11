@@ -13,6 +13,7 @@ import {
   supplierInput,
   type ServiceContract,
   type ServiceContracts,
+  type SupplierProposedServices,
   type SupplierContractDetail,
   type SupplierContractServiceInput,
   type SupplierContractOwnTerms,
@@ -50,7 +51,7 @@ import { currentUser, type AuthUser } from '../auth/context.js';
 import { isAdmin, matches, platformPermissions } from '../auth/permissions.js';
 import { canCreateServices, canEditService, canReadRecordRow, canViewCatalogue, catalogueVisibleNow, forbid, me } from '../records/access.js';
 import { assertKnownSubjects } from '../auth/subjects.js';
-import { assignCreatorTeams, catalogueTeams, forgetOwningTeams, newResourceTeams } from '../auth/policy.js';
+import { catalogueTeams, forgetOwningTeams, newResourceTeams } from '../auth/policy.js';
 import { currentScale, protectionNeeds, ratingsOf } from '../catalogue/cia.js';
 import { ScopeCtx, contractOwnersOf, finishContractScopeUpgrade } from './contract-scope.js';
 import { ticketAccess } from '../tickets/service.js';
@@ -92,7 +93,7 @@ export interface SupplierRow {
   updated_by: string;
 }
 
-interface ContactRow {
+export interface ContactRow {
   id: string;
   supplier_id: string;
   name: string;
@@ -157,7 +158,7 @@ export function supplierToday(now = Date.now()): string {
 
 const num = (v: unknown): number | null => (v === null || v === undefined ? null : Number(v));
 export const ownersOf = (r: Pick<SupplierRow, 'owners'>): string[] => parseJson<string[]>(r.owners, []);
-const aliasesOf = (r: Pick<SupplierRow, 'aliases'>): string[] => parseJson<string[]>(r.aliases, []);
+export const aliasesOf = (r: Pick<SupplierRow, 'aliases'>): string[] => parseJson<string[]>(r.aliases, []);
 
 /** Change a supplier, its contacts, contracts and certificates: designers, administrators and its owners (team scope). */
 export const canEditSupplier = (u: AuthUser | null, r: Pick<SupplierRow, 'id' | 'owners'>): boolean =>
@@ -915,7 +916,8 @@ export function createSupplier(input: Input): SupplierDetail {
       dpa.link,
       id,
     );
-    assignCreatorTeams('supplier', id, currentUser());
+    // new suppliers are instance-wide (ADR 0031 decided 2): the company record is shared, the team setting "New
+    // resources" does not apply; an administrator can still restrict one on its "Owning teams" panel
     audit({
       action: 'supplier.created',
       entityType: 'supplier',
@@ -1007,10 +1009,6 @@ export function setSupplierArchived(id: string, archived: boolean): SupplierDeta
   return getSupplier(id);
 }
 
-function requireUnconfirmedOrActive(r: SupplierRow): void {
-  if (r.status === 'archived') throw new HttpError(409, `Supplier "${r.name}" is archived`, 'SUPPLIER_ARCHIVED', { name: r.name });
-}
-
 /** An unconfirmed supplier (made from a free-text vendor) becomes an active one. */
 export function confirmSupplier(id: string): SupplierDetail {
   const u = requireManager('confirm suppliers');
@@ -1054,49 +1052,6 @@ function countLinks(id: string): Record<string, number> {
     if (n) out[t] = n;
   }
   return out;
-}
-
-/**
- * Merges a supplier into another: its links (in every linking table), contacts, contracts (with the cost plan lines
- * that name them), certificates and spellings move to the target, the free-text migrations name the target, and the
- * merged supplier goes. The target keeps its own name, type and owners; an unconfirmed target stays unconfirmed.
- */
-export function mergeSupplier(id: string, intoId: string): SupplierDetail {
-  const u = requireManager('merge suppliers');
-  if (id === intoId) throw new HttpError(400, 'A supplier cannot be merged into itself', 'SUPPLIER_MERGE_SELF');
-  const src = supplierRow(id);
-  const dst = supplierRow(intoId);
-  requireUnconfirmedOrActive(src);
-  requireUnconfirmedOrActive(dst);
-  const count = (table: string, sid: string) => Number(db().get<{ n: number }>(`SELECT COUNT(*) AS n FROM ${table} WHERE supplier_id = ?`, sid)?.n ?? 0);
-  const over = (table: string, max: number) => count(table, id) + count(table, intoId) > max;
-  if (over('supplier_contacts', SUPPLIER_LIMITS.contacts))
-    throw new HttpError(409, `A supplier has at most ${SUPPLIER_LIMITS.contacts} contacts`, 'SUPPLIER_CONTACT_LIMIT', { max: SUPPLIER_LIMITS.contacts });
-  if (over('supplier_contracts', SUPPLIER_LIMITS.contracts))
-    throw new HttpError(409, `A supplier has at most ${SUPPLIER_LIMITS.contracts} contracts`, 'SUPPLIER_CONTRACT_LIMIT', { max: SUPPLIER_LIMITS.contracts });
-  if (over('supplier_certificates', SUPPLIER_LIMITS.certificates))
-    throw new HttpError(409, `A supplier has at most ${SUPPLIER_LIMITS.certificates} certificates`, 'SUPPLIER_CERTIFICATE_LIMIT', {
-      max: SUPPLIER_LIMITS.certificates,
-    });
-  const aliases = [...new Set([...aliasesOf(dst), src.name, ...aliasesOf(src)])].filter((a) => a !== dst.name).slice(0, SUPPLIER_LIMITS.aliases);
-  const moved = countLinks(id);
-  db().tx(() => {
-    for (const t of LINKING_TABLES) db().run(`UPDATE ${t} SET supplier_id = ? WHERE supplier_id = ?`, intoId, id);
-    for (const t of ['supplier_contacts', 'supplier_contracts', 'supplier_certificates'])
-      db().run(`UPDATE ${t} SET supplier_id = ? WHERE supplier_id = ?`, intoId, id);
-    db().run('UPDATE supplier_text_migrations SET supplier_id = ? WHERE supplier_id = ?', intoId, id);
-    db().run('UPDATE suppliers SET aliases = ?, updated_at = ?, updated_by = ? WHERE id = ?', JSON.stringify(aliases), nowIso(), u.username, intoId);
-    db().run('DELETE FROM suppliers WHERE id = ?', id);
-    forgetOwningTeams('supplier', id);
-    audit({
-      action: 'supplier.merged',
-      entityType: 'supplier',
-      entityId: intoId,
-      summary: `Supplier "${src.name}" merged into "${dst.name}"`,
-      details: { from: { id, name: src.name, status: src.status, aliases: aliasesOf(src) }, into: { id: intoId, name: dst.name }, links: moved },
-    });
-  });
-  return getSupplier(intoId);
 }
 
 /**
@@ -1771,21 +1726,27 @@ export function updateContract(supplierId: string, contractId: string, input: Co
  * payment schedules go (audited on their services) and the lines made from them become ordinary lines (ADR 0030); its
  * covered services go, contacts scoped to it lose the item (ADR 0031).
  */
-export function removeContract(supplierId: string, contractId: string, opts: { orderForms?: 'standalone' } = {}): SupplierDetail {
+export function removeContract(supplierId: string, contractId: string, opts: { orderForms?: 'standalone'; replacedBy?: string } = {}): SupplierDetail {
   const u = me();
   const s = supplierRow(supplierId);
   const ctx = new ScopeCtx(u);
   const cur = editableContractRow(s, contractId, ctx);
+  // "Replaced by …" (ADR 0031 part 8): another contract of the supplier the person may change takes over what names this one
+  const replacement = opts.replacedBy ? replacementOf(s, cur, opts.replacedBy, ctx) : null;
   // a master agreement asks first: its order forms become standalone, with the values they inherited copied into them
   const orderForms = db().all<ContractRow>('SELECT * FROM supplier_contracts WHERE parent_id = ? ORDER BY id', contractId);
-  if (orderForms.length && opts.orderForms !== 'standalone')
+  if (orderForms.length && opts.orderForms !== 'standalone' && !(replacement && !replacement.row.parent_id))
     throw new HttpError(409, `"${cur.title}" is the master agreement of ${orderForms.length} order form(s)`, 'SUPPLIER_CONTRACT_HAS_ORDER_FORMS', {
       title: cur.title,
       count: orderForms.length,
     });
   db().tx(() => {
-    const standalone = orderForms.map((f) => makeStandalone(f, cur, u.username));
+    const moved = replacement ? moveToReplacement(cur, replacement, ctx, u.username) : null;
+    const standalone = moved ? [] : orderForms.map((f) => makeStandalone(f, cur, u.username));
     const lines = db().run('UPDATE cost_plan_lines SET supplier_contract_id = NULL WHERE supplier_contract_id = ?', contractId).changes;
+    // duties and findings keep their supplier, without the contract
+    db().run('UPDATE service_duties SET supplier_contract_id = NULL WHERE supplier_contract_id = ?', contractId);
+    db().run('UPDATE ca_findings SET supplier_contract_id = NULL WHERE supplier_contract_id = ?', contractId);
     // cost entries keep their supplier, without the contract; its payment schedules go, the lines made from them
     // become ordinary lines (ADR 0030)
     db().run('UPDATE cost_entries SET supplier_contract_id = NULL WHERE supplier_contract_id = ?', contractId);
@@ -1804,7 +1765,7 @@ export function removeContract(supplierId: string, contractId: string, opts: { o
       action: 'supplier.contract_removed',
       entityType: 'supplier',
       entityId: supplierId,
-      summary: `Contract "${cur.title}" removed from supplier "${s.name}"`,
+      summary: `Contract "${cur.title}" removed from supplier "${s.name}"${replacement ? `, replaced by "${replacement.row.title}"` : ''}`,
       details: {
         contractId,
         title: cur.title,
@@ -1817,10 +1778,81 @@ export function removeContract(supplierId: string, contractId: string, opts: { o
         costPlanLinesUnlinked: lines,
         responsibilitiesUnlinked: responsibilities,
         ...(standalone.length ? { orderFormsStandalone: standalone } : {}),
+        ...(moved ? { replacedBy: { id: replacement!.row.id, title: replacement!.row.title, moved } } : {}),
       },
     });
   });
   return getSupplier(supplierId);
+}
+
+/** The replacement of a contract: another contract of the same supplier the person may change. */
+function replacementOf(s: SupplierRow, cur: ContractRow, id: string, ctx: ScopeCtx): { row: ContractRow; joining: string[]; leftOut: string[] } {
+  if (id === cur.id) throw new HttpError(400, 'A contract cannot replace itself', 'SUPPLIER_CONTRACT_REPLACE_SELF');
+  const row = editableContractRow(s, id, ctx);
+  const have = new Set(ctx.coverOf(row.id).map((x) => x.service_id));
+  // covered services join only where the person may add them (who changes the replacement and sees the service)
+  const joining = ctx
+    .coverOf(cur.id)
+    .filter((x) => !have.has(x.service_id) && ctx.seesService(x.service_id))
+    .map((x) => x.service_id);
+  const leftOut = ctx
+    .coverOf(cur.id)
+    .filter((x) => !have.has(x.service_id) && !ctx.seesService(x.service_id))
+    .map((x) => x.service_id);
+  // a payment schedule moves with its paying service only: one whose service cannot join is refused
+  const paying = db().all<{ service_id: string; title: string }>('SELECT service_id, title FROM cost_schedules WHERE contract_id = ?', cur.id);
+  const stuck = paying.find((x) => !have.has(x.service_id) && !joining.includes(x.service_id));
+  if (stuck)
+    throw new HttpError(
+      409,
+      `The payment schedule "${stuck.title}" pays for a service you may not add to "${row.title}"`,
+      'SUPPLIER_CONTRACT_REPLACE_SCHEDULE',
+      { schedule: stuck.title, contract: row.title },
+    );
+  return { row, joining, leftOut };
+}
+
+/** Moves what names a contract to its replacement (in the caller's transaction); returns what moved. */
+function moveToReplacement(cur: ContractRow, r: { row: ContractRow; joining: string[]; leftOut: string[] }, ctx: ScopeCtx, by: string) {
+  const to = r.row.id;
+  const now = nowIso();
+  for (const x of ctx.coverOf(cur.id).filter((c) => r.joining.includes(c.service_id)))
+    db().run(
+      `INSERT INTO supplier_contract_services (contract_id, service_id, purpose, status, proposed_from, added_by, added_at, confirmed_by, confirmed_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      to,
+      x.service_id,
+      x.purpose,
+      x.status,
+      x.proposed_from,
+      by,
+      now,
+      x.status === 'confirmed' ? by : null,
+      x.status === 'confirmed' ? now : null,
+    );
+  const run = (sql: string) => db().run(sql, to, cur.id).changes;
+  const moved = {
+    services: r.joining,
+    servicesLeftOut: r.leftOut.length,
+    schedules: run('UPDATE cost_schedules SET contract_id = ? WHERE contract_id = ?'),
+    costPlanLines: run('UPDATE cost_plan_lines SET supplier_contract_id = ? WHERE supplier_contract_id = ?'),
+    costEntries: run('UPDATE cost_entries SET supplier_contract_id = ? WHERE supplier_contract_id = ?'),
+    responsibilities: run('UPDATE service_responsibilities SET contract_id = ? WHERE contract_id = ?'),
+    duties: run('UPDATE service_duties SET supplier_contract_id = ? WHERE supplier_contract_id = ?'),
+    findings: run('UPDATE ca_findings SET supplier_contract_id = ? WHERE supplier_contract_id = ?'),
+    contacts: 0,
+    orderForms: 0,
+  };
+  // scoped contacts: the item moves (a contact scoped to both keeps one)
+  for (const k of db().all<{ contact_id: string }>("SELECT contact_id FROM supplier_contact_scopes WHERE kind = 'contract' AND item_id = ?", cur.id)) {
+    db().run("INSERT INTO supplier_contact_scopes (contact_id, kind, item_id) VALUES (?, 'contract', ?) ON CONFLICT DO NOTHING", k.contact_id, to);
+    db().run("DELETE FROM supplier_contact_scopes WHERE contact_id = ? AND kind = 'contract' AND item_id = ?", k.contact_id, cur.id);
+    moved.contacts++;
+  }
+  // order forms follow a replacement that is no order form itself (one level)
+  if (!r.row.parent_id) moved.orderForms = run('UPDATE supplier_contracts SET parent_id = ? WHERE parent_id = ?');
+  else for (const f of db().all<ContractRow>('SELECT * FROM supplier_contracts WHERE parent_id = ?', cur.id)) makeStandalone(f, cur, by);
+  return moved;
 }
 
 /**
@@ -1988,6 +2020,37 @@ export function removeContractService(supplierId: string, contractId: string, se
   });
   // who could see the contract only through the service no longer does
   return new ScopeCtx(u).reads(c, s) ? getContract(supplierId, contractId) : { ok: true };
+}
+
+/**
+ * Contracts with services proposed by the update to 0.18 that the reader may confirm or dismiss (who may change the
+ * contract, or edit the service): "Suppliers → To confirm".
+ */
+export function proposedServices(): SupplierProposedServices[] {
+  const u = me();
+  const ctx = new ScopeCtx(u);
+  const ids = [
+    ...new Set(
+      db()
+        .all<{ contract_id: string }>("SELECT contract_id FROM supplier_contract_services WHERE status = 'proposed'")
+        .map((r) => r.contract_id),
+    ),
+  ];
+  const rows = contractRowsById(ids);
+  ctx.load(ids);
+  const suppliers = new Map(visibleSupplierRows().map((r) => [r.id, r]));
+  const out: SupplierProposedServices[] = [];
+  for (const c of rows.values()) {
+    const s = suppliers.get(c.supplier_id);
+    if (!s || !ctx.reads(c, s)) continue;
+    const services = ctx
+      .servicesOf(c, s)
+      .services.filter((x) => x.status === 'proposed' && x.canChange)
+      .map((x) => ({ id: x.id, name: x.name, proposedFrom: x.proposedFrom }));
+    if (services.length)
+      out.push({ supplier: { id: s.id, name: s.name, status: s.status }, contract: { id: c.id, title: c.title, reference: c.reference }, services });
+  }
+  return out.sort((a, b) => a.supplier.name.localeCompare(b.supplier.name) || a.contract.title.localeCompare(b.contract.title));
 }
 
 // ---------- the contract page and the service's contracts (ADR 0031) ----------

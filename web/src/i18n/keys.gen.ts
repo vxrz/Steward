@@ -5465,6 +5465,7 @@ export interface Resources {
     'codes.SYSTEM_LINK_LIMIT': string;
     'codes.FORBIDDEN_changeSupplier': string;
     'codes.FORBIDDEN_changeContract': string;
+    'codes.FORBIDDEN_mergeWidening': string;
     'codes.FORBIDDEN_addContract': string;
     'codes.FORBIDDEN_manageSuppliers': string;
     'codes.SUPPLIER_NOT_FOUND': string;
@@ -5492,6 +5493,11 @@ export interface Resources {
     'codes.SUPPLIER_CONTRACT_MASTER_SELF': string;
     'codes.SUPPLIER_CONTRACT_MASTER_LEVEL': string;
     'codes.SUPPLIER_CONTRACT_HAS_ORDER_FORMS': string;
+    'codes.SUPPLIER_MERGE_LIMIT': string;
+    'codes.SUPPLIER_MERGE_CONTACT_CHOICE': string;
+    'codes.SUPPLIER_GROUP_NOT_FOUND': string;
+    'codes.SUPPLIER_CONTRACT_REPLACE_SELF': string;
+    'codes.SUPPLIER_CONTRACT_REPLACE_SCHEDULE': string;
     'codes.SUPPLIER_CERTIFICATE_NOT_FOUND': string;
     'codes.SUPPLIER_CONTRACT_WITHOUT_SUPPLIER': string;
     'codes.ENVIRONMENT_TWICE': string;

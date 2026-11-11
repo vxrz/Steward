@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { isCalendarDate } from './costPlans.js';
+import { boundedRecord } from './zodLimits.js';
 
 /**
  * Suppliers (0.17.0, ADR 0029 part 1, docs/SUPPLIERS.md): who runs, backs up, patches and recovers what a service team
@@ -49,6 +50,8 @@ export const SUPPLIER_LIMITS = {
   contacts: 100,
   /** Items one contact is scoped to (contracts, applications, systems) */
   contactScope: 20,
+  /** Suppliers one merge combines (ADR 0031 part 8) */
+  merge: 10,
   /** 200 since 0.18.0 (ADR 0031): a shared supplier holds several teams' contracts */
   contracts: 200,
   /** Services one contract covers, its owners and the purpose of each covered service (ADR 0031) */
@@ -286,6 +289,32 @@ export type SupplierContractServiceInput = z.input<typeof supplierContractServic
 /** Merge a supplier into another: its links, contacts, contracts, certificates and spellings move. */
 export const supplierMergeInput = z.object({ into: z.string().trim().min(1).max(100) }).strict();
 export const supplierArchiveInput = z.object({ archived: z.boolean() }).strict();
+
+/** What happens to a company-wide contact of a supplier that is merged or opened (ADR 0031 part 8). */
+export const SUPPLIER_CONTACT_CHOICES = ['scope', 'companyWide', 'remove'] as const;
+export type SupplierContactChoice = (typeof SUPPLIER_CONTACT_CHOICES)[number];
+
+/**
+ * A merge into one shared supplier (ADR 0031 part 8): up to ten suppliers into `intoId`, with the owners of the result
+ * (default: all owners) and, for company-wide contacts that cannot be scoped, the administrator's choice.
+ */
+export const supplierSharedMergeInput = z
+  .object({
+    intoId: z.string().trim().min(1).max(100),
+    ids: z.array(z.string().trim().min(1).max(100)).min(1).max(SUPPLIER_LIMITS.merge),
+    owners: z.array(ownerSubject).max(20).optional(),
+    contacts: boundedRecord(z.enum(SUPPLIER_CONTACT_CHOICES), SUPPLIER_LIMITS.contacts * SUPPLIER_LIMITS.merge).optional(),
+  })
+  .strict();
+export type SupplierSharedMergeInput = z.input<typeof supplierSharedMergeInput>;
+
+/** Opening a team-scoped supplier: its new owning teams (none: the whole instance) and the contact choices. */
+export const supplierOpenInput = z
+  .object({
+    teamIds: z.array(z.string().max(64)).max(50),
+    contacts: boundedRecord(z.enum(SUPPLIER_CONTACT_CHOICES), SUPPLIER_LIMITS.contacts).optional(),
+  })
+  .strict();
 
 /** The supplier of a linked item in a form: missing keeps it, null clears it. */
 export const supplierLinkField = z.string().trim().min(1).max(100).nullable().optional();
@@ -645,6 +674,51 @@ export function contractReaders(
 
 /** Whether a set of owners holds a team (a team-owned contract). */
 export const hasTeamOwner = (owners: readonly string[]): boolean => owners.some((o) => o.toLowerCase().startsWith('team:'));
+
+/** A contract with services the update to 0.18 proposed, for who may confirm them ("Suppliers → To confirm"). */
+export interface SupplierProposedServices {
+  supplier: SupplierRef;
+  contract: { id: string; title: string; reference: string };
+  services: { id: string; name: string; proposedFrom: SupplierContractProposalSource[] }[];
+}
+
+/** "Same supplier in several teams" (ADR 0031 part 8): suppliers that look like one company, kept apart by team. */
+export interface SupplierSharedSuggestion {
+  /** The group: the normalised name and the suppliers' ids – a new member makes a new group */
+  key: string;
+  name: string;
+  /** The proposed shared supplier: the instance-wide one, else the confirmed one, else the oldest */
+  intoId: string;
+  suppliers: { id: string; name: string; status: SupplierStatus; teams: string[]; contracts: number; contacts: number; certificates: number }[];
+}
+
+/** What a merge or an opening changes, before anything changes (ADR 0031 part 8). */
+export interface SupplierMergePreview {
+  intoId: string;
+  ids: string[];
+  /** Widens who sees anything: administrators only */
+  widens: boolean;
+  /** Who gains sight of the company record (name, certificates, company-wide contacts) */
+  gainers: string[];
+  /** The owning teams of the result (none: the whole instance) */
+  teams: string[];
+  contracts: { supplierId: string; id: string; title: string; reference: string; owners: string[]; ownersAfter: string[]; sameReference: boolean }[];
+  contacts: {
+    supplierId: string;
+    id: string;
+    name: string;
+    /** keep: as it is; scope: scoped to `scope`; choose: the administrator chooses; companyWide / remove: chosen; combined: one with `into` */
+    action: 'keep' | 'scope' | 'choose' | 'companyWide' | 'remove' | 'combined';
+    scope: { kind: SupplierContactScopeKind; id: string; name: string }[];
+    into: string | null;
+  }[];
+  certificates: { supplierId: string; id: string; kind: SupplierCertificateKind; name: string; validUntil: string | null; into: string }[];
+  /** Personal data and DPA of a source written onto its moved contracts, so no contract's answer changes */
+  dpa: { contractId: string; title: string; personalData: boolean | null; dpaStatus: SupplierDpaStatus | null }[];
+  /** The owners of the result: the union of all owners (editable) */
+  owners: string[];
+  moves: { links: Record<string, number>; spellings: string[]; schedules: number };
+}
 
 /** The built-in dataset of certificates and notice-by dates in the next 90 days (administrators and auditors). */
 export const SUPPLIERS_EXPIRING_DATASET = 'suppliers.expiring';
