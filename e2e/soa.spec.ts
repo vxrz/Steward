@@ -30,7 +30,7 @@ test.describe('as an administrator', () => {
     const area = page.getByTestId('responsibility-backup');
     await expect(area).toContainText('Not decided');
     await area.getByRole('button', { name: 'Change Backup' }).click();
-    const form = page.getByRole('dialog', { name: new RegExp(`^Backup – `) });
+    const form = page.getByRole('dialog', { name: /^Backup – / });
     await form.getByTestId('responsibility-party').click();
     await page.getByRole('option', { name: 'Our team' }).click();
     await expectAccessible(page, 'responsibility form');
@@ -46,10 +46,10 @@ test.describe('as an administrator', () => {
     await page.getByTestId('soa-new').click();
     const create = page.getByRole('dialog', { name: 'New statement of applicability' });
     await create.getByTestId('soa-new-catalogue').click();
-    await page.getByRole('option', { name: new RegExp(`^${cat.name}`) }).click();
+    await page.getByRole('option').filter({ hasText: cat.name }).first().click();
     await expectAccessible(page, 'new statement dialog');
     await create.getByTestId('soa-new-submit').click();
-    await expect(page).toHaveURL(new RegExp(`/compliance/soa/${key}$`));
+    await expect(page).toHaveURL((url) => url.pathname.endsWith(`/compliance/soa/${key}`));
     expect(
       (await admin.put(`/api/compliance/soa/${key}/settings`, { data: { scopeServiceIds: [service.id], areaControls: { backup: [backup.id] } } })).ok(),
     ).toBe(true);

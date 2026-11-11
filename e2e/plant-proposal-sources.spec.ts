@@ -130,7 +130,8 @@ for (const tag of ['', ' @mobile'])
       await expect(doc.getByTestId('plant-proposal-source-points')).toContainText('p. 112 · 6.3 OPC UA variables');
       await expect(doc.getByTestId('plant-proposal-source-points')).not.toContainText('Running');
       const attach = doc.getByTestId('plant-proposal-attach').getByRole('link', { name: 'Attach the manual' });
-      await expect(attach).toHaveAttribute('href', new RegExp(`/plant/profiles/${f.id}#plant-docs-device-profile$`));
+      await expect(attach).toHaveAttribute('href', /#plant-docs-device-profile$/);
+      expect((await attach.getAttribute('href')) ?? '').toContain(`/plant/profiles/${f.id}#`);
       await expectAccessible(page, 'plant proposal sources');
       await expectNoHorizontalScroll(page);
 
