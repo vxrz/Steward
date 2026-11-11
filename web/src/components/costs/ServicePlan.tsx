@@ -48,7 +48,7 @@ import { confirmDanger, confirmDialog } from '../confirm';
 import { compact, niceTicks } from '../dashboard/format';
 import { costKeys, platformKeys } from '../../queryKeys';
 import { fmtDay } from '../../format';
-import { fmtMonth, fmtMonthOnly, fmtMoney, SCOPE_PATH } from './common';
+import { fmtMonth, fmtMonthOnly, fmtMoney, SCOPE_PATH, tooManyDecimals } from './common';
 import '../dashboard/viz.css';
 import { SupplierPicker, useSupplierChoice, useSupplierOptions } from '../suppliers/SupplierPicker';
 
@@ -844,6 +844,15 @@ const submit = (save: () => Promise<void>) => (e: FormEvent) => {
 };
 const amountText = (v: string) => v.trim().replace(',', '.');
 
+/** The form error of an amount with more decimals than its currency has (no decimals for JPY, 0.17.1), or null. */
+function useDecimalsError(): (amount: string, currency: string) => string | null {
+  const { t } = useTranslation('common');
+  return (amount, currency) => {
+    const x = tooManyDecimals(amount, currency);
+    return x && (x.digits ? t('validation.currencyDecimals', x) : t('validation.currencyWhole', x));
+  };
+}
+
 /** The targets to choose from: the service's applications and systems (and a platform for cloud lines), plus the current one. */
 function useTargetOptions(d: CostPlanYear, current: CostPlanTarget | null, withPlatforms: boolean) {
   const { t } = useTranslation('costs');
@@ -884,9 +893,10 @@ function LineDialog({ d, line, onClose, onSaved }: { d: CostPlanYear; line: Cost
   const [note, setNote] = useState(line?.note ?? '');
   const [busy, setBusy] = useState(false);
   const options = useTargetOptions(d, line?.target ?? null, category === 'cloud');
+  const decimals = useDecimalsError();
   const check = useFieldErrors({
     title: !title.trim() && t('common:validation.required'),
-    amount: (!amount.trim() && t('common:validation.required')) || (!amountOk(amount) && t('common:validation.invalid')),
+    amount: (!amount.trim() && t('common:validation.required')) || (!amountOk(amount) && t('common:validation.invalid')) || decimals(amount, currency),
     currency: !ISO_4217_CODES.has(currency.trim().toUpperCase()) && t('common:validation.currency'),
   });
   const save = async () => {
@@ -1076,13 +1086,17 @@ function EntryDialog({ d, entry, onClose, onSaved }: { d: CostPlanYear; entry: C
   const [note, setNote] = useState(entry?.note ?? '');
   const [busy, setBusy] = useState(false);
   const options = useTargetOptions(d, entry?.target ?? null, false);
-  const check = useFieldErrors({
-    date: !date && t('common:validation.required'),
-    amount: (!amount.trim() && t('common:validation.required')) || (!amountOk(amount) && t('common:validation.invalid')),
-    currency: !ISO_4217_CODES.has(currency.trim().toUpperCase()) && t('common:validation.currency'),
-  });
   // a plan line sets the currency (the entry must be in the line's) and, when nothing is chosen yet, what it is for
   const lineCurrency = (id: string) => d.lines.find((x) => x.id === id)?.currency ?? (id && id === entry?.planLineId ? entry.currency : null);
+  const decimals = useDecimalsError();
+  const check = useFieldErrors({
+    date: !date && t('common:validation.required'),
+    amount:
+      (!amount.trim() && t('common:validation.required')) ||
+      (!amountOk(amount) && t('common:validation.invalid')) ||
+      decimals(amount, lineCurrency(lineId) ?? currency),
+    currency: !ISO_4217_CODES.has(currency.trim().toUpperCase()) && t('common:validation.currency'),
+  });
   const chooseLine = (v: string | null) => {
     setLineId(v ?? NONE);
     const l = d.lines.find((x) => x.id === v);

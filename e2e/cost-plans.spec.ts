@@ -166,3 +166,29 @@ test('cost plan on a phone @mobile', async ({ page, apiAs }) => {
     await cleanup(api, f);
   }
 });
+
+test('cost plan: an amount in yen has no decimals (0.17.1)', async ({ page, apiAs }) => {
+  const api = await apiAs('admin');
+  const f = await fixture(api);
+  try {
+    await page.goto(`/services/${f.service.id}/costs`);
+    const view = page.getByTestId('service-cost-plan');
+    await view.getByTestId('plan-add-line').click();
+    const dialog = page.getByRole('dialog', { name: /^New plan line, FY / });
+    await dialog.getByRole('textbox', { name: 'Title' }).fill('Kestrel licence in yen');
+    await dialog.getByRole('textbox', { name: 'Amount per year' }).fill('100000.50');
+    await dialog.getByRole('textbox', { name: 'Currency' }).fill('JPY');
+    await dialog.getByTestId('plan-line-save').click();
+    await expect(dialog.getByText('A whole amount: JPY has no decimals')).toBeVisible();
+    await dialog.getByRole('textbox', { name: 'Amount per year' }).fill('100000');
+    await dialog.getByTestId('plan-line-save').click();
+    await expect(dialog).toBeHidden();
+    // shown without decimals (a month is 8,333.33… yen in the API, 8,333 here)
+    const total = view.getByTestId('plan-currency-JPY').getByTestId('plan-total-planned');
+    await expect(total).toContainText('100,000');
+    await expect(total).not.toContainText('100,000.');
+    await expectAccessible(page, 'cost plan: yen');
+  } finally {
+    await cleanup(api, f);
+  }
+});

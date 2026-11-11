@@ -10,7 +10,7 @@ import { get, notifyError, notifyOk, put } from '../api';
 import { EmptyState, QueryState, useFieldErrors } from '../components/common';
 import { DetailPage } from '../components/page/DetailPage';
 import { LinkTabs } from '../components/page/LinkTabs';
-import { BudgetBadge, BudgetBar, ChangeText, fmtChange, fmtMoney, SCOPE_PATH } from '../components/costs/common';
+import { BudgetBadge, BudgetBar, ChangeText, fmtChange, fmtMoney, SCOPE_PATH, tooManyDecimals } from '../components/costs/common';
 import { CostChart, CostMonthsTable } from '../components/costs/CostChart';
 import { PlatformCostSource } from '../components/costs/PlatformCostSource';
 import { TeamCostPlan } from '../components/costs/TeamPlan';
@@ -410,8 +410,12 @@ function BudgetDialog({ d, onClose }: { d: CostScopeDetail; onClose: () => void 
   const [busy, setBusy] = useState(false);
   const n = Number(amount);
   const raising = !!b && (amount.trim() === '' || currency !== b.currency || (b.amount !== null && Number.isFinite(n) && n > Number(b.amount)));
+  const tooMany = tooManyDecimals(amount, currency);
   const check = useFieldErrors({
-    amount: !amount.trim() && t('common:validation.required'),
+    amount:
+      (!amount.trim() && t('common:validation.required')) ||
+      // no more decimals than the currency has (0.17.1)
+      (tooMany && (tooMany.digits ? t('common:validation.currencyDecimals', tooMany) : t('common:validation.currencyWhole', tooMany))),
     currency: !/^[A-Za-z]{3}$/.test(currency.trim()) && t('common:validation.currency'),
   });
   const save = async (remove = false) => {

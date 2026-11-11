@@ -1,4 +1,4 @@
-import { fromMicros, toMicros, type CheckOf, type MonitorStatus } from '@sm/shared';
+import { fromMicros, moneyText, toMicros, type CheckOf, type MonitorStatus } from '@sm/shared';
 import { runAs, type AuthUser } from '../auth/context.js';
 import { findUserByName, toAuthUser } from '../auth/users.js';
 import { CheckSetupError } from '../monitors/platforms.js';
@@ -61,7 +61,7 @@ function ownerCheck(c: CheckOf<'cost'>, owner: AuthUser, now: number): { status:
   if (current === undefined || previous === undefined || !currency) return { status: c.noData, message: `${what}: no costs to compare (${label})` };
   const change = current - previous;
   const pct = previous > 0 ? Math.round((change / previous) * 1000) / 10 : null;
-  const amount = (n: number) => (info.amounts ? `${fromMicros(n)} ${currency}` : '');
+  const amount = (n: number) => (info.amounts ? moneyText(n, currency) : '');
   const value = {
     currency,
     period: c.period,
@@ -75,7 +75,7 @@ function ownerCheck(c: CheckOf<'cost'>, owner: AuthUser, now: number): { status:
   if (overPct || overAmount) {
     const limits = [
       overPct ? `more than ${c.maxIncreasePct} %` : '',
-      overAmount && info.amounts ? `more than ${fromMicros(limitAmount!)} ${currency}` : overAmount ? 'more than the amount allowed' : '',
+      overAmount && info.amounts ? `more than ${moneyText(limitAmount!, currency)}` : overAmount ? 'more than the amount allowed' : '',
     ]
       .filter(Boolean)
       .join(' and ');

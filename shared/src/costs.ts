@@ -91,6 +91,44 @@ export const ISO_4217_CODES: ReadonlySet<string> = new Set(
 /** An ISO 4217 code from the list above – for amounts typed by hand (cost plans), where a typo would open a currency of its own. */
 export const isoCurrencyCode = currencyCode.refine((s) => ISO_4217_CODES.has(s), 'an ISO 4217 currency code like EUR or USD');
 
+/**
+ * The minor units (decimals) of the ISO 4217 currencies that do not have two (0.17.1): no decimals for the yen, the
+ * won, the króna, the Chilean peso, the dong …, three for the dinars of Bahrain, Iraq, Jordan, Kuwait, Libya and
+ * Tunisia and the Omani rial, four for the Chilean and Uruguayan units of account. Every other code has two – also the
+ * funds codes and precious metals, which ISO 4217 gives none (N.A.). Static, like ISO_4217_CODES.
+ */
+export const CURRENCY_MINOR_UNITS: Readonly<Record<string, number>> = {
+  BIF: 0,
+  CLP: 0,
+  DJF: 0,
+  GNF: 0,
+  ISK: 0,
+  JPY: 0,
+  KMF: 0,
+  KRW: 0,
+  PYG: 0,
+  RWF: 0,
+  UGX: 0,
+  UYI: 0,
+  VND: 0,
+  VUV: 0,
+  XAF: 0,
+  XOF: 0,
+  XPF: 0,
+  BHD: 3,
+  IQD: 3,
+  JOD: 3,
+  KWD: 3,
+  LYD: 3,
+  OMR: 3,
+  TND: 3,
+  CLF: 4,
+  UYW: 4,
+};
+
+/** The decimals of a currency's amounts: 0 for JPY, 3 for KWD, 2 for EUR and any other or unknown code. */
+export const currencyMinorUnits = (currency: string): number => CURRENCY_MINOR_UNITS[currency.trim().toUpperCase()] ?? 2;
+
 // ---------- decimals ----------
 
 const MICROS = 1_000_000n;
@@ -167,6 +205,37 @@ export function fromMicros(micros: number, min = 2): string {
 
 /** Rounded to cents (two decimals) as a decimal string. */
 export const microsToCents = (micros: number): string => fromMicros(Math.round(micros / 10_000) * 10_000);
+
+/** Whole millionths rounded (half away from zero) to the minor units of the currency: 1500.5 JPY → 1501 JPY. */
+export function roundToCurrency(micros: number, currency: string): number {
+  const unit = 10 ** (6 - currencyMinorUnits(currency));
+  const r = Math.round(Math.abs(micros) / unit) * unit;
+  return micros < 0 && r !== 0 ? -r : r;
+}
+
+/**
+ * Whole millionths → a decimal string with exactly the currency's minor units, rounded: "1501" for JPY, "8333.33"
+ * for EUR, "12.500" for KWD – how amounts are shown and written to CSV (the API keeps every decimal).
+ */
+export const fromMicrosIn = (micros: number, currency: string): string => fromMicros(roundToCurrency(micros, currency), currencyMinorUnits(currency));
+
+/** "1501 JPY" – an amount with its code for texts (audit summaries, notifications, monitor messages). */
+export const moneyText = (micros: number, currency: string): string => `${fromMicrosIn(micros, currency)} ${currency}`;
+
+/** Whether an amount has no more decimals than its currency has minor units (1500.50 JPY has too many). */
+export const fitsCurrency = (micros: number, currency: string): boolean => micros % 10 ** (6 - currencyMinorUnits(currency)) === 0;
+
+/** The zod issue for an amount with more decimals than its currency allows (path `amount`). */
+export function checkCurrencyDecimals(x: { amount: string | null; currency: string }, ctx: z.RefinementCtx): void {
+  const micros = x.amount === null ? null : toMicros(x.amount);
+  if (micros === null || fitsCurrency(micros, x.currency)) return;
+  const n = currencyMinorUnits(x.currency);
+  ctx.addIssue({
+    code: 'custom',
+    path: ['amount'],
+    message: n ? `at most ${n} decimals for ${x.currency}` : `a whole amount: ${x.currency} has no decimals`,
+  });
+}
 
 // ---------- FOCUS columns ----------
 
@@ -443,7 +512,9 @@ export const costBudgetInput = z
     currency: currencyCode,
     comment: z.string().trim().max(1000).optional(),
   })
-  .strict();
+  .strict()
+  // no more decimals than the currency has (0.17.1): a budget of 1500.50 JPY is refused
+  .superRefine(checkCurrencyDecimals);
 export type CostBudgetInput = z.input<typeof costBudgetInput>;
 
 // ---------- settings ----------

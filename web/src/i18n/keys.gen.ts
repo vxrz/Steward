@@ -1538,6 +1538,8 @@ export interface Resources {
     'validation.url': string;
     'validation.minLength': string;
     'validation.currency': string;
+    'validation.currencyWhole': string;
+    'validation.currencyDecimals': string;
     'tags.hint': string;
     'tags.key': string;
     'tags.value': string;

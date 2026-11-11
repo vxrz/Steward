@@ -1,4 +1,4 @@
-import type { CostScope, ReportLang } from '@sm/shared';
+import { currencyMinorUnits, type CostScope, type ReportLang } from '@sm/shared';
 import type { CellInput, Tone } from '../reports/pdf/engine.js';
 import type { ReportSectionDraw } from '../reports/section-draw.js';
 
@@ -66,8 +66,11 @@ export interface CostSectionData {
   totals: { currency: string; period: string; before: string }[];
 }
 
-const money = (lang: ReportLang, v: string | null, currency: string): string =>
-  v === null ? '–' : `${Number(v).toLocaleString(lang, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`;
+/** An amount with the decimals of its currency (no decimals for JPY, three for KWD, 0.17.1). */
+const money = (lang: ReportLang, v: string | null, currency: string): string => {
+  const digits = currencyMinorUnits(currency);
+  return v === null ? '–' : `${Number(v).toLocaleString(lang, { minimumFractionDigits: digits, maximumFractionDigits: digits })} ${currency}`;
+};
 
 export const costsSectionDraw: ReportSectionDraw<CostSectionData> = {
   id: 'costs',

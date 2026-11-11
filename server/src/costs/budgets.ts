@@ -1,4 +1,4 @@
-import { costBudgetInput, fromMicros, toMicros, type CostBudget, type CostBudgetScope } from '@sm/shared';
+import { costBudgetInput, fromMicros, moneyText, toMicros, type CostBudget, type CostBudgetScope } from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { currentActor } from '../auth/context.js';
@@ -47,7 +47,7 @@ export function setBudget(body: unknown): CostBudget | null {
   const before = budgetRow(x.scope, x.scopeId);
   const raised = raisesBudget({ scope: x.scope, scopeId: x.scopeId, amount: x.amount, currency: x.currency });
   const micros = x.amount === null ? null : toMicros(x.amount)!;
-  const fmt = (a: number | null | undefined, c: string | undefined) => (a === null || a === undefined ? 'no budget' : `${fromMicros(a)} ${c}`);
+  const fmt = (a: number | null | undefined, c: string | undefined) => (a === null || a === undefined || !c ? 'no budget' : moneyText(a, c));
   db().tx(() => {
     if (micros === null) db().run('DELETE FROM cost_budgets WHERE scope = ? AND scope_id = ?', x.scope, x.scopeId);
     else

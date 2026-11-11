@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { isoCurrencyCode, toMicros } from './costs.js';
+import { checkCurrencyDecimals, isoCurrencyCode, toMicros } from './costs.js';
 import type { SupplierRef } from './suppliers.js';
 
 /**
@@ -151,8 +151,10 @@ const planLineFields = {
   note: z.string().trim().max(COST_PLAN_LIMITS.noteChars).default(''),
 };
 
-const onceNeedsMonth = (x: { cadence: CostPlanCadence; onceMonth: string | null }, ctx: z.RefinementCtx) => {
+const onceNeedsMonth = (x: { cadence: CostPlanCadence; onceMonth: string | null; amount: string; currency: string }, ctx: z.RefinementCtx) => {
   if (x.cadence === 'once' && !x.onceMonth) ctx.addIssue({ code: 'custom', path: ['onceMonth'], message: 'the month of the payment' });
+  // no more decimals than the currency has (0.17.1): 1500.50 JPY is refused
+  checkCurrencyDecimals(x, ctx);
 };
 
 export const costPlanLineInput = z
@@ -197,7 +199,8 @@ export const costEntryInput = z
     reference: z.string().trim().max(COST_PLAN_LIMITS.referenceChars).default(''),
     note: z.string().trim().max(COST_PLAN_LIMITS.noteChars).default(''),
   })
-  .strict();
+  .strict()
+  .superRefine(checkCurrencyDecimals);
 export type CostEntryInput = z.input<typeof costEntryInput>;
 
 // ---------- the year view ----------

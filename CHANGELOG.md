@@ -8,6 +8,7 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- **Amounts in currencies without cents** ([docs/COSTS.md](docs/COSTS.md#the-cost-model-focus)): cost pages, CSV files, report sections, notifications and monitor messages show amounts with the decimals of their currency – none for JPY, KRW, ISK, CLP or VND, three for BHD, KWD, OMR, JOD, TND, LYD and IQD – instead of always two, and a plan line, cost entry or budget with more decimals than its currency has (`1500.50 JPY`) is refused. The API keeps every decimal.
 - **Scheduled exports redact the request body of a monitor's check** ([docs/EXPORTS.md](docs/EXPORTS.md#security)): `monitors.yaml` writes the body of an HTTP, platform or freshness check as `<redacted>` unless it is empty, and the manifest lists it with the other redactions – a body can hold a password typed into it.
 
 ### Changed

@@ -9,6 +9,8 @@ import {
   fiscalYearMonths,
   fiscalYearOf,
   fromMicros,
+  fromMicrosIn,
+  moneyText,
   planMonths,
   toMicros,
   type CostEntry,
@@ -602,7 +604,7 @@ function yearsOf(serviceId: string, shown: number, current: number, start: numbe
 
 // ---------- plan lines ----------
 
-const fmt = (micros: number, currency: string) => `${fromMicros(micros)} ${currency}`;
+const fmt = (micros: number, currency: string) => moneyText(micros, currency);
 
 function lineRow(serviceId: string, lineId: string): LineRow {
   const r = db().get<LineRow>('SELECT * FROM cost_plan_lines WHERE id = ? AND service_id = ?', lineId, serviceId);
@@ -1025,8 +1027,14 @@ export function removeEntry(serviceId: string, entryId: string): CostPlanYear {
 
 // ---------- CSV ----------
 
-/** A cell; amounts (decimal strings Steward wrote) stay numbers – also negative ones, which are no formula. */
-const num = (v: string | null) => v ?? '';
+/**
+ * A cell with an amount (a decimal string Steward wrote), rounded to the minor units of its currency (0.17.1: no
+ * decimals for JPY, three for KWD); stays a number – also a negative one, which is no formula.
+ */
+const num = (v: string | null, currency: string) => {
+  const micros = v === null ? null : toMicros(v);
+  return micros === null ? (v ?? '') : fromMicrosIn(micros, currency);
+};
 
 /** The CSV headers of the plan lines and of the entries – fixed, whatever a year holds. */
 export const PLAN_CSV_HEADS = {
@@ -1050,16 +1058,16 @@ export function planCsvRows(y: CostPlanYear, what: 'plan' | 'entries'): { head: 
               csvCell(target(l.target), 'needed'),
               // the linked supplier (and its contract), else the free text (0.17.0)
               csvCell(l.supplier ? [l.supplier.name, l.supplierContract?.title].filter(Boolean).join(' – ') : l.vendor, 'needed'),
-              num(l.amount),
+              num(l.amount, l.currency),
               l.currency,
               l.cadence,
               l.onceMonth ?? '',
               l.renewalDate ?? '',
-              num(l.planned),
-              num(l.plannedToDate),
-              num(l.incurredToDate),
-              num(l.expected),
-              num(l.difference),
+              num(l.planned, l.currency),
+              num(l.plannedToDate, l.currency),
+              num(l.incurredToDate, l.currency),
+              num(l.expected, l.currency),
+              num(l.difference, l.currency),
               csvCell(l.note, 'needed'),
             ].join(','),
           ),
@@ -1069,7 +1077,7 @@ export function planCsvRows(y: CostPlanYear, what: 'plan' | 'entries'): { head: 
           ...y.entries.map((e) =>
             [
               e.date,
-              num(e.amount),
+              num(e.amount, e.currency),
               e.currency,
               csvCell(e.planLineTitle ?? '', 'needed'),
               e.unplanned ? 'yes' : 'no',
