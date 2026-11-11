@@ -33,7 +33,18 @@ type Data = {
     suggestions: number;
   };
   duties: { counts: Record<string, number>; notMet: any[] };
-  reviews: { personReviews: number; removals: number; gone: number; supplierReviews: { done: number; late: number; notDone: number } };
+  reviews: {
+    personReviews: number;
+    removals: number;
+    gone: number;
+    supplierReviews: { done: number; late: number; notDone: number };
+    documents?: {
+      withinInterval: number;
+      overdue: number;
+      reviewed: number;
+      overdueList: { number: string; title: string; owner: string; nextReviewAt: string }[];
+    };
+  };
   gaps: { service: string; undecided: string[]; noRecoveryTest: string[] }[];
   suppliers: { items: { supplier: string; kind: string; title: string; date: string; state: string }[]; unconfirmed: number };
 };
@@ -182,6 +193,24 @@ describe('the ISMS summary section', () => {
       now,
       now,
     );
+    // living documents (0.17.1): one approved and reviewed now, one approved 400 days ago and not reviewed since
+    const publish = async (title: string) => {
+      const rec = await dana('POST', '/records', { type: 'DOC', title, body: '## Purpose and scope\n\nInvented.\n' });
+      await dana('POST', `/records/${rec.id}/transition`, { action: 'submit', changeSummary: 'First edition' });
+      return adam('POST', `/records/${rec.id}/transition`, { action: 'approve', comment: 'Fine' });
+    };
+    const current = await publish('Payroll concept (isms)');
+    await adam('POST', `/records/${current.id}/review`, { outcome: 'no_change', comment: 'Still right' });
+    const late = await publish('Archive manual (isms)');
+    // record_editions refuses changes: the trigger is lifted for this one statement, as someone with database access could
+    const { immutableRowTriggers } = await import('../src/migrations/records.js');
+    const triggers = immutableRowTriggers(db().dialect, 'record_editions');
+    db().exec(triggers.drop);
+    try {
+      db().run('UPDATE record_editions SET approved_at = ? WHERE record_id = ?', new Date(Date.now() - 400 * DAY).toISOString(), late.id);
+    } finally {
+      db().exec(triggers.create);
+    }
   });
 
   it('is a section of scheduled reports with its options and their defaults', async () => {
@@ -221,6 +250,13 @@ describe('the ISMS summary section', () => {
     expect(d.duties.notMet).toEqual([expect.objectContaining({ duty: 'Key review (isms)', period: '2026-09', status: 'missed' })]);
     expect(d.reviews.supplierReviews).toEqual({ done: 0, late: 1, notDone: 0 });
     expect(d.reviews.personReviews).toBeGreaterThanOrEqual(1);
+    // living documents with a review cycle: within their interval or overdue at the end of the period (0.17.1)
+    const docs = d.reviews.documents!;
+    expect(docs.overdueList).toEqual(expect.arrayContaining([expect.objectContaining({ title: 'Archive manual (isms)', owner: 'dana' })]));
+    expect(docs.overdueList.some((x) => x.title === 'Payroll concept (isms)')).toBe(false);
+    expect(docs.overdue).toBe(docs.overdueList.length);
+    expect(docs.withinInterval).toBeGreaterThanOrEqual(1);
+    expect(docs.reviewed).toBeGreaterThanOrEqual(1);
     const gapA = d.gaps.find((g) => g.service === 'Payroll (isms)')!;
     expect(gapA).toEqual({ service: 'Payroll (isms)', undecided: ['patching', 'access', 'logging', 'incidents'], noRecoveryTest: ['recovery'] });
     expect(d.gaps.find((g) => g.service === 'Archive (isms)')!.undecided).toHaveLength(6);
@@ -265,6 +301,9 @@ describe('the ISMS summary section', () => {
     expect(past.corrective.checks).toEqual({ effective: 0, notEffective: 0 });
     expect(past.duties.counts.missed).toBe(0);
     expect(past.reviews.supplierReviews.late).toBe(0);
+    // the documents did not exist then
+    expect(past.reviews.documents!.overdueList.some((x) => x.title === 'Archive manual (isms)')).toBe(false);
+    expect(past.reviews.documents!.reviewed).toBe(0);
     // the state now stays: open findings and the statement
     expect(past.corrective.open.major).toBe(1);
     expect(past.soa.items[0].latestApproved.number).toBe(1);
@@ -282,11 +321,51 @@ describe('the ISMS summary section', () => {
     }
   });
 
+  it('lists the living documents overdue for review in the PDF of a period that ends now (0.17.1)', async () => {
+    const schedules = await import('../src/reports/schedules.js');
+    const sch = await dana('POST', '/report-schedules', {
+      name: 'Document reviews (isms)',
+      preset: 'custom',
+      cron: '0 6 * * 1',
+      timezone: 'UTC',
+      periodDays: 2,
+      lang: 'en',
+      title: 'Document reviews (isms)',
+      sections: { isms: { catalogue: 'ISMSX' } },
+      recipients: { users: [], teams: [], emails: [] },
+      attachPdf: false,
+      enabled: false,
+    });
+    const text = (await schedules.runReportSchedule(sch.id, { actor: 'dana', compress: false })).texts.join('\n');
+    for (const fact of ['Living documents overdue for review', 'Archive manual (isms)']) expect(text, fact).toContain(fact);
+    expect(text).not.toContain('Payroll concept (isms)');
+  });
+
   it('is drawn into the PDF of a scheduled report, in English and German', async () => {
     const schedules = await import('../src/reports/schedules.js');
     for (const [lang, facts] of [
-      ['en', ['ISMS summary', 'Statement of applicability', 'ISMSX · Payroll', 'Corrective actions', 'Payroll leavers keep access (isms)', 'Payrollio (isms)']],
-      ['de', ['ISMS-Zusammenfassung', 'Erklärung zur Anwendbarkeit', 'Korrekturmaßnahmen', 'Lücken in der Verantwortungsmatrix']],
+      [
+        'en',
+        [
+          'ISMS summary',
+          'Statement of applicability',
+          'ISMSX · Payroll',
+          'Corrective actions',
+          'Payroll leavers keep access (isms)',
+          'Payrollio (isms)',
+          'within their review interval',
+        ],
+      ],
+      [
+        'de',
+        [
+          'ISMS-Zusammenfassung',
+          'Erklärung zur Anwendbarkeit',
+          'Korrekturmaßnahmen',
+          'Lücken in der Verantwortungsmatrix',
+          'innerhalb ihres Überprüfungsintervalls',
+        ],
+      ],
     ] as const) {
       const sch = await dana('POST', '/report-schedules', {
         name: `Management review ${lang} (isms)`,

@@ -15,6 +15,7 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- **The ISMS summary counts document reviews** ([docs/COMPLIANCE.md](docs/COMPLIANCE.md#isms-summary)): under _Reviews done_ the section shows the living documents with a review cycle that are within their review interval and those overdue at the end of the period (listed with their review owner and due date), and the reviews recorded in the period – only documents the schedule's owner may read.
 - **Backups are pinned to their S3 target** like exports ([docs/BACKUPS.md](docs/BACKUPS.md#2-the-storage-platform), [ADR 0027](docs/adr/0027-backup-contents-and-exports.md#changed-in-0171)): when whoever manages the backup platform changes its address, region, connection or access key id, backups, restore tests and uploads of audit archives fail before writing anything (`BACKUP_TARGET_CHANGED`, notification _Backup failed_) until an administrator presses _Confirm target_ under _Settings → Backups_ (step-up). The first start after the update records the current target.
 
 ## [0.17.0] - 2026-11-11

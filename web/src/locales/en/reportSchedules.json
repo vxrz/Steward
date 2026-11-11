@@ -62,7 +62,7 @@
     },
     "isms": {
       "title": "ISMS summary",
-      "hint": "Figures for the management review: the statement of applicability, corrective actions, mandatory duties, reviews done, gaps in the responsibility matrix, supplier certificates and notice dates (Compliance module)"
+      "hint": "Figures for the management review: the statement of applicability, corrective actions, mandatory duties, reviews done (also of living documents), gaps in the responsibility matrix, supplier certificates and notice dates (Compliance module)"
     },
     "ai": {
       "title": "AI usage",

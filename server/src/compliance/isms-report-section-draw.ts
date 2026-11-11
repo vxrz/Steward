@@ -76,6 +76,12 @@ const en = {
   personReviewsValue: '{n} ({removals} rights to remove, {gone} confirmed gone)',
   supplierReviews: 'Supplier reviews',
   supplierReviewsValue: '{done} on time, {late} late, {notDone} not done',
+  documentReviews: 'Living documents (periodic reviews)',
+  documentReviewsValue: '{within} within their review interval, {overdue} overdue at the end of the period; {reviewed} reviews recorded',
+  overdueDocuments: 'Living documents overdue for review',
+  document: 'Document',
+  reviewOwner: 'Review owner',
+  reviewDueOn: 'Review due',
   gaps: 'Gaps in the responsibility matrix',
   gapsIntro: 'Services whose responsibility matrix has areas not decided, or where the team does backup or recovery itself without a recovery-test duty.',
   noGaps: 'No service has a gap in its responsibility matrix.',
@@ -175,6 +181,12 @@ const de: Texts = {
   personReviewsValue: '{n} ({removals} zu entziehende Rechte, {gone} bestätigt entfernt)',
   supplierReviews: 'Lieferantenbewertungen',
   supplierReviewsValue: '{done} rechtzeitig, {late} verspätet, {notDone} nicht erledigt',
+  documentReviews: 'Lebende Dokumente (regelmäßige Überprüfungen)',
+  documentReviewsValue: '{within} innerhalb ihres Überprüfungsintervalls, {overdue} am Ende des Zeitraums überfällig; {reviewed} Überprüfungen erfasst',
+  overdueDocuments: 'Lebende Dokumente mit überfälliger Überprüfung',
+  document: 'Dokument',
+  reviewOwner: 'Verantwortlich für die Überprüfung',
+  reviewDueOn: 'Überprüfung fällig',
   gaps: 'Lücken in der Verantwortungsmatrix',
   gapsIntro:
     'Services, deren Verantwortungsmatrix nicht entschiedene Bereiche hat oder bei denen das Team Datensicherung oder Wiederherstellung selbst übernimmt, ohne Pflicht für einen Wiederherstellungstest.',
@@ -248,7 +260,23 @@ export interface IsmsSectionData {
     counts: { done: number; late: number; skipped: number; failed: number; missed: number; ended: number };
     notMet: { service: string; duty: string; period: string; status: 'missed' | 'failed' | 'ended' }[];
   };
-  reviews: { personReviews: number; removals: number; gone: number; supplierReviews: { done: number; late: number; notDone: number } };
+  reviews: {
+    personReviews: number;
+    removals: number;
+    gone: number;
+    supplierReviews: { done: number; late: number; notDone: number };
+    /**
+     * Living documents with a review cycle the owner may read (0.17.1): within their review interval and overdue at the
+     * end of the period, the reviews recorded in it, and the overdue ones (at most ISMS_MAX_ROWS). Missing in data
+     * collected before 0.17.1.
+     */
+    documents?: {
+      withinInterval: number;
+      overdue: number;
+      reviewed: number;
+      overdueList: { number: string; title: string; owner: string; nextReviewAt: string }[];
+    };
+  };
   gaps: { service: string; undecided: ResponsibilityArea[]; noRecoveryTest: ResponsibilityArea[] }[];
   /** All services with gaps (the list holds at most ISMS_MAX_ROWS) */
   gapCount?: number;
@@ -428,7 +456,29 @@ export const ismsSectionDraw: ReportSectionDraw<IsmsSectionData> = {
         value: fill(x.supplierReviewsValue, r.supplierReviews),
         tone: r.supplierReviews.notDone ? 'danger' : r.supplierReviews.late ? 'warning' : 'default',
       },
+      ...(r.documents
+        ? [
+            {
+              label: x.documentReviews,
+              value: fill(x.documentReviewsValue, { within: r.documents.withinInterval, overdue: r.documents.overdue, reviewed: r.documents.reviewed }),
+              tone: (r.documents.overdue ? 'warning' : 'default') as Tone,
+            },
+          ]
+        : []),
     ]);
+    if (r.documents?.overdueList.length) {
+      w.paragraph(x.overdueDocuments, { size: 8 });
+      w.table(
+        [
+          { header: x.document, width: 4 },
+          { header: x.reviewOwner, width: 1.6 },
+          { header: x.reviewDueOn, width: 1.4 },
+        ],
+        r.documents.overdueList.map((o) => [{ text: `${o.number} ${o.title}`, bold: true }, o.owner, { text: day(o.nextReviewAt), tone: 'danger' }]),
+        { size: 7.4 },
+      );
+      more(r.documents.overdueList.length, r.documents.overdue);
+    }
 
     // the responsibility matrix
     w.subheading(x.gaps);
