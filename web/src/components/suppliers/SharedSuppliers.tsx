@@ -7,9 +7,10 @@ import { useTranslation } from 'react-i18next';
 import type { SupplierContactChoice, SupplierMergePreview, SupplierProposedServices, SupplierSharedSuggestion } from '@sm/shared';
 import { del, get, notifyError, notifyOk, post } from '../../api';
 import { useMe } from '../../auth';
-import { subjectLabel } from '../common';
 import { SubjectsInput } from '../SubjectsInput';
 import { FormModal, FormModalCancel } from '../FormModal';
+import { FormModal, FormModalCancel } from '../FormModal';
+import { useSubjectLabel } from '../SubjectsInput';
 import { supplierKeys } from '../../queryKeys';
 
 /** The administrators' one-time notice after the update to 0.18: contracts now seen only by their owners and services. */
@@ -217,6 +218,7 @@ function PreviewDetails({
   choices: Record<string, SupplierContactChoice>;
   setChoices: (c: Record<string, SupplierContactChoice>) => void;
 }) {
+  const ownerLabel = useSubjectLabel();
   const { t } = useTranslation(['suppliers', 'common']);
   return (
     <>
@@ -240,7 +242,7 @@ function PreviewDetails({
             {p.contracts.map((c) => (
               <List.Item key={c.id}>
                 {c.title}
-                {c.reference ? ` · ${c.reference}` : ''}: {c.ownersAfter.length ? c.ownersAfter.map(subjectLabel).join(', ') : t('shared.noOwners')}
+                {c.reference ? ` · ${c.reference}` : ''}: {c.ownersAfter.length ? c.ownersAfter.map(ownerLabel).join(', ') : t('shared.noOwners')}
                 {c.sameReference && (
                   <Badge size="xs" color="yellow" variant="light" ml={4}>
                     {t('shared.sameReference')}

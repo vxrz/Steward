@@ -6,7 +6,7 @@ import { IconEdit, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { SupplierContract, SupplierContractDetail, SupplierDetail } from '@sm/shared';
 import { get } from '../api';
-import { DetailState, subjectLabel } from '../components/common';
+import { DetailState } from '../components/common';
 import { CopyId } from '../components/CopyId';
 import { Field } from '../components/records/common';
 import { DetailHeader } from '../components/page/DetailPage';
@@ -19,6 +19,7 @@ import { ContractModal } from '../components/suppliers/ContractForm';
 import { ContractServices } from '../components/suppliers/ContractServices';
 import { SupplierContacts } from '../components/suppliers/ScopedContacts';
 import { ContractPayments } from '../components/costs/ContractPayments';
+import { useSubjectLabel } from '../components/SubjectsInput';
 
 /** A value of the contract, in grey with "from the master agreement" when the order form inherits it (ADR 0031). */
 function Inherited({ c, field, children }: { c: SupplierContract; field: SupplierContract['inherited'][number]; children: React.ReactNode }) {
@@ -41,6 +42,7 @@ function Inherited({ c, field, children }: { c: SupplierContract; field: Supplie
  */
 export function SupplierContractPage() {
   const { t } = useTranslation(['suppliers', 'common']);
+  const ownerLabel = useSubjectLabel();
   const { id, contractId } = useParams();
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -222,7 +224,7 @@ export function SupplierContractPage() {
                 <Text fw={600} size="sm">
                   {t('contract.visibility')}
                 </Text>
-                <Field label={t('contractForm.owners')}>{c.owners.length ? c.owners.map(subjectLabel).join(', ') : '–'}</Field>
+                <Field label={t('contractForm.owners')}>{c.owners.length ? c.owners.map(ownerLabel).join(', ') : '–'}</Field>
                 <Text size="sm">
                   {d.visibility.open ? t('contract.visibleOpen') : t('contract.visibleTeam', { teams: d.visibility.teams.join(', ') || '–' })}
                 </Text>

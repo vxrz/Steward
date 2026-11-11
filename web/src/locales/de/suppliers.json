@@ -20,7 +20,7 @@
     "notice": "Nächste Kündigungsfrist",
     "certificate": "Nächster Zertifikatsablauf",
     "usage": "Verknüpft",
-    "owners": "Eigentümer",
+    "owners": "Verantwortlich",
     "spellings": "Schreibweisen",
     "updated": "Geändert",
     "dpa": "AV-Vertrag"
@@ -51,8 +51,8 @@
     "type": "Art",
     "description": "Beschreibung",
     "website": "Webseite",
-    "owners": "Eigentümer",
-    "ownersHelp": "Steward-Benutzer und Teams, die für den Lieferanten verantwortlich sind: Sie ändern ihn und erhalten seine Erinnerungen.",
+    "owners": "Verantwortlich",
+    "ownersHelp": "Erhalten die Erinnerungen zum Lieferanten und dürfen ihn ändern – schränkt nicht ein, wer ihn sieht.",
     "personalData": "Verarbeitet personenbezogene Daten für unsere Services",
     "dpaStatus": "Auftragsverarbeitungsvertrag",
     "dpaSince": "Gültig seit",
@@ -104,7 +104,7 @@
   "confirmArchive": "„{{name}}“ archivieren? Er bleibt dort verknüpft, wo er es ist, und wird in Formularen nicht mehr angeboten.",
   "merge": {
     "title": "„{{name}}“ mit einem anderen Lieferanten zusammenführen",
-    "intro": "Seine Verknüpfungen, Kontakte, Verträge, Zertifikate und Schreibweisen gehen auf den gewählten Lieferanten über, „{{name}}“ wird entfernt. Der andere Lieferant behält Namen, Art und Eigentümer.",
+    "intro": "Seine Verknüpfungen, Kontakte, Verträge, Zertifikate und Schreibweisen gehen auf den gewählten Lieferanten über, „{{name}}“ wird entfernt. Der andere Lieferant behält Namen, Art und Verantwortliche.",
     "into": "Zusammenführen mit",
     "submit": "Zusammenführen"
   },
@@ -166,7 +166,7 @@
   },
   "certificates": {
     "title": "Zertifikate und Berichte",
-    "help": "Die Eigentümer werden 90 und 30 Tage vor dem Ablauf eines Zertifikats erinnert. Ein SOC-2-Bericht gilt zwölf Monate nach dem Ende seines Zeitraums, wenn Sie kein anderes Datum eintragen.",
+    "help": "Die Verantwortlichen des Lieferanten und die Eigentümer seiner Verträge werden 90 und 30 Tage vor dem Ablauf eines Zertifikats erinnert. Ein SOC-2-Bericht gilt zwölf Monate nach dem Ende seines Zeitraums, wenn Sie kein anderes Datum eintragen.",
     "empty": "Noch keine Zertifikate.",
     "add": "Zertifikat hinzufügen",
     "edit": "Zertifikat ändern",

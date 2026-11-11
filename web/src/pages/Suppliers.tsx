@@ -16,7 +16,7 @@ import {
   type SupplierType,
 } from '@sm/shared';
 import { get, notifyError, notifyOk, post, put } from '../api';
-import { EmptyState, QueryState, subjectLabel, useCreateParam, useFieldErrors } from '../components/common';
+import { EmptyState, QueryState, useCreateParam, useFieldErrors } from '../components/common';
 import { SubjectsInput } from '../components/SubjectsInput';
 import { useMe } from '../auth';
 import { fmtDate, fmtDay, fmtRelative, localToday } from '../format';
@@ -28,6 +28,7 @@ import { confirmDanger } from '../components/confirm';
 import { supplierKeys } from '../queryKeys';
 import { ContractScopeNotice, ProposedServices, SharedSuppliers } from '../components/suppliers/SharedSuppliers';
 import { FormModal, FormModalCancel } from '../components/FormModal';
+import { useSubjectLabel } from '../components/SubjectsInput';
 
 const usageTotal = (s: SupplierSummary) => Object.values(s.usage).reduce((a, b) => a + b, 0);
 const DOC_LINK = /^(https?:\/\/\S+|rec_[A-Za-z0-9_-]{4,40}|[A-Z][A-Z0-9]{0,9}-\d{4}-\d{4,6})$/i;
@@ -60,6 +61,7 @@ export function SupplierStatusBadge({ status }: { status: SupplierStatus }) {
 /** Suppliers (0.17.0, ADR 0029): the active ones, those to confirm after the update, and the archived ones. */
 export function SuppliersPage() {
   const { t } = useTranslation(['suppliers', 'common']);
+  const ownerLabel = useSubjectLabel();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [creating, setCreating] = useState(false);
@@ -206,7 +208,7 @@ export function SuppliersPage() {
             cell: (s) => <DueDate date={s.nextCertificateExpiry} state={s.certificateState} />,
           },
           usage,
-          { key: 'owners', header: t('columns.owners'), sortValue: (s) => s.owners.join(', '), cell: (s) => s.owners.map(subjectLabel).join(', ') || '–' },
+          { key: 'owners', header: t('columns.owners'), sortValue: (s) => s.owners.join(', '), cell: (s) => s.owners.map(ownerLabel).join(', ') || '–' },
           {
             key: 'updated',
             header: t('columns.updated'),

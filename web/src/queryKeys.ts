@@ -256,3 +256,8 @@ export const soaKeys = {
 export const responsibilityKeys = {
   service: (serviceId: string) => ['responsibilities', serviceId] as const,
 };
+
+/** Users, teams and roles for owner pickers and owner names (`GET /api/subjects`; empty for read-only accounts). */
+export const subjectKeys = {
+  all: ['subjects'] as const,
+};

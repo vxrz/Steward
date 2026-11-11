@@ -20,7 +20,7 @@
     "notice": "Next notice date",
     "certificate": "Next certificate expiry",
     "usage": "Linked",
-    "owners": "Owners",
+    "owners": "Responsible",
     "spellings": "Spellings",
     "updated": "Updated",
     "dpa": "DPA"
@@ -51,8 +51,8 @@
     "type": "Type",
     "description": "Description",
     "website": "Website",
-    "owners": "Owners",
-    "ownersHelp": "Steward users and teams responsible for the supplier: they change it and get its reminders.",
+    "owners": "Responsible",
+    "ownersHelp": "Get the supplier's reminders and may change it – does not limit who sees it.",
     "personalData": "Processes personal data for our services",
     "dpaStatus": "Data processing agreement",
     "dpaSince": "In place since",
@@ -104,7 +104,7 @@
   "confirmArchive": "Archive “{{name}}”? It stays linked where it is and is no longer offered in forms.",
   "merge": {
     "title": "Merge “{{name}}” into another supplier",
-    "intro": "Its links, contacts, contracts, certificates and spellings move to the supplier you choose, and “{{name}}” goes. The other supplier keeps its name, type and owners.",
+    "intro": "Its links, contacts, contracts, certificates and spellings move to the supplier you choose, and “{{name}}” goes. The other supplier keeps its name, type and who is responsible.",
     "into": "Merge into",
     "submit": "Merge"
   },
@@ -166,7 +166,7 @@
   },
   "certificates": {
     "title": "Certificates and reports",
-    "help": "The owners are reminded 90 and 30 days before a certificate runs out. A SOC 2 report is valid for twelve months after the end of its period unless you enter another date.",
+    "help": "Those responsible for the supplier and the owners of its contracts are reminded 90 and 30 days before a certificate runs out. A SOC 2 report is valid for twelve months after the end of its period unless you enter another date.",
     "empty": "No certificates yet.",
     "add": "Add certificate",
     "edit": "Change certificate",
