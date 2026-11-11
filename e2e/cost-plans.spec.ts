@@ -40,7 +40,7 @@ async function plan(page: Page, f: { app: { name: string }; service: { id: strin
   let dialog = page.getByRole('dialog', { name: /^New plan line, FY / });
   await dialog.getByRole('textbox', { name: 'Title' }).fill('Historian licences');
   await chooseOption(page, 'For', f.app.name);
-  await dialog.getByRole('textbox', { name: 'Vendor or contract' }).fill('Kestrel Historian (invented)');
+  await dialog.getByRole('textbox', { name: 'Supplier (text)' }).fill('Kestrel Historian (invented)');
   await dialog.getByRole('textbox', { name: 'Amount per year' }).fill('1200');
   await dialog.getByRole('textbox', { name: 'Currency' }).fill('EUR');
   await expectAccessible(page, 'cost plan: line dialog');

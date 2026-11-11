@@ -283,7 +283,7 @@ test.describe('the demo shows the service half (U5)', () => {
     await page.goto('/');
     await settle(page);
     const tiles = page.getByTestId('start-tiles');
-    for (const label of ['Credentials due', 'Reviews due', 'Duties due', 'Services needing attention', 'Waiting on vendors'])
+    for (const label of ['Credentials due', 'Reviews due', 'Duties due', 'Services needing attention', 'Waiting on vendor tickets'])
       await expect(tiles.getByRole('link', { name: new RegExp(`^${label} \\d`) }), label).toBeVisible();
     await expect(page.getByText('Not set up yet')).toHaveCount(0);
   });

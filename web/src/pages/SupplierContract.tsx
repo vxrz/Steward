@@ -122,7 +122,7 @@ export function SupplierContractPage() {
             <Stack gap="xs">
               <Text fw={600}>{t('contract.term')}</Text>
               <Group gap="lg" wrap="wrap" align="flex-start">
-                <Field label={t('contract.term')}>{terms || '–'}</Field>
+                <Field label={t('contract.termField')}>{terms || '–'}</Field>
                 <Field label={t('contracts.noticeBy')}>
                   <DueDate date={c.noticeBy} state={c.noticeState} />
                 </Field>

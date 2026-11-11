@@ -46,7 +46,7 @@ test.describe('as a designer', () => {
     // another supplier for the finding
     await page.goto(findingUrl);
     await page.getByRole('button', { name: 'Edit' }).click();
-    const edit = page.getByRole('dialog', { name: /^Change finding CA-/ });
+    const edit = page.getByRole('dialog', { name: /^Edit finding CA-/ });
     await chooseOption(page, 'Supplier', other.name);
     await edit.getByRole('button', { name: 'Save' }).click();
     await expect(edit).toBeHidden();

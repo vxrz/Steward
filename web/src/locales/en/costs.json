@@ -384,7 +384,7 @@
       "forHint": "An application or system of the service (a platform for cloud lines)",
       "noTarget": "Not tied to an application or system",
       "cloudHint": "A cloud line for an application or platform is compared with the costs Steward reads for it (the platform: the share of the service's applications).",
-      "vendor": "Vendor or contract",
+      "vendor": "Supplier (text)",
       "vendorHint": "Free text, e.g. the vendor and the contract number",
       "cadence": "Cadence",
       "amount": {

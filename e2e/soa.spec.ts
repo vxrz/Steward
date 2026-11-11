@@ -29,7 +29,7 @@ test.describe('as an administrator', () => {
     await page.goto(`/services/${service.id}/responsibilities`);
     const area = page.getByTestId('responsibility-backup');
     await expect(area).toContainText('Not decided');
-    await area.getByRole('button', { name: 'Change Backup' }).click();
+    await area.getByRole('button', { name: 'Edit Backup' }).click();
     const form = page.getByRole('dialog', { name: /^Backup – / });
     await form.getByTestId('responsibility-party').click();
     await page.getByRole('option', { name: 'Service team' }).click();

@@ -90,7 +90,7 @@
   "actions": {
     "create": "Anlegen",
     "confirm": "Bestätigen",
-    "merge": "Zusammenführen mit …",
+    "merge": "Mit anderem Lieferanten zusammenführen",
     "notSupplier": "Kein Lieferant",
     "archive": "Archivieren",
     "unarchive": "Aus dem Archiv zurückholen",
@@ -113,7 +113,7 @@
     "help": "Ansprechpersonen beim Lieferanten. E-Mail und Telefon bleiben in der App: API, MCP, Datensätze und Exporte lassen sie weg.",
     "empty": "Noch keine Kontakte.",
     "add": "Kontakt hinzufügen",
-    "edit": "Kontakt ändern",
+    "edit": "Kontakt bearbeiten",
     "name": "Name",
     "role": "Rolle",
     "email": "E-Mail",
@@ -133,7 +133,7 @@
     "help": "Laufzeit, Kündigungsfrist und Verlängerung ergeben das Kündigungsdatum: den letzten Tag, um zu kündigen. Die Eigentümer werden 90 und 30 Tage vorher erinnert.",
     "empty": "Noch keine Verträge.",
     "add": "Vertrag hinzufügen",
-    "edit": "Vertrag ändern",
+    "edit": "Vertrag bearbeiten",
     "titleField": "Titel",
     "reference": "Vertragsnummer",
     "startsOn": "Beginn",
@@ -169,7 +169,7 @@
     "help": "Die Verantwortlichen des Lieferanten und die Eigentümer seiner Verträge werden 90 und 30 Tage vor dem Ablauf eines Zertifikats erinnert. Ein SOC-2-Bericht gilt zwölf Monate nach dem Ende seines Zeitraums, wenn Sie kein anderes Datum eintragen.",
     "empty": "Noch keine Zertifikate.",
     "add": "Zertifikat hinzufügen",
-    "edit": "Zertifikat ändern",
+    "edit": "Zertifikat bearbeiten",
     "kind": "Art",
     "name": "Name",
     "nameHint": "Bei „Sonstiges“: worum es sich handelt",
@@ -251,6 +251,7 @@
   "contract": {
     "services": "Services und Zweck",
     "term": "Laufzeit und Kündigung",
+    "termField": "Laufzeit",
     "payments": "Zahlungen",
     "reviews": "Prüfungen und Feststellungen",
     "noReviews": "Keine Lieferantenprüfung und keine Feststellung nennt diesen Vertrag.",
@@ -274,8 +275,8 @@
     },
     "personalDataFrom": {
       "contract": "Eigene Antwort.",
-      "master": "Personenbezogene Daten: wie der Rahmenvertrag.",
-      "supplier": "Personenbezogene Daten: wie der Lieferant."
+      "master": "Aus dem Rahmenvertrag übernommen.",
+      "supplier": "Aus den Angaben zum Lieferanten übernommen."
     },
     "personalDataOwn": "Personenbezogene Daten: eigene Antwort.",
     "fromMaster": "aus dem Rahmenvertrag",
@@ -290,7 +291,7 @@
     "removed": "Vertrag entfernt",
     "removeMaster_one": "Dieser Rahmenvertrag hat {{count}} Einzelvertrag. Er wird eigenständig, die geerbten Werte werden übernommen. Rahmenvertrag entfernen?",
     "removeMaster_other": "Dieser Rahmenvertrag hat {{count}} Einzelverträge. Sie werden eigenständig, die geerbten Werte werden übernommen. Rahmenvertrag entfernen?",
-    "replacedBy": "Ersetzt durch …",
+    "replacedBy": "Durch anderen Vertrag ersetzen",
     "replacedByHint": "Optional: Ein anderer Vertrag dieses Lieferanten, den Sie ändern dürfen, übernimmt Services, Zahlungspläne, Planzeilen, Buchungen, Matrixzeilen, Pflichten, Feststellungen und Kontakte."
   },
   "contractForm": {
@@ -387,7 +388,7 @@
     "wholeInstance": "die ganze Instanz",
     "counts": "{{contracts}} Verträge, {{contacts}} Kontakte",
     "proposed": "Vorgeschlagener gemeinsamer Lieferant",
-    "merge": "Zusammenführen …",
+    "merge": "Zusammenführen",
     "keepSeparate": "Getrennt lassen",
     "keptSeparate": "Getrennt gelassen",
     "previewTitle": "Zu einem gemeinsamen Lieferanten zusammenführen",

@@ -31,7 +31,8 @@ import { FormModal, FormModalCancel } from '../FormModal';
 const STATUS_TONE: Record<CaStatus, string> = {
   open: TONE.person,
   inProgress: TONE.active,
-  implemented: TONE.soon,
+  // done, its effectiveness not checked yet: no warning colour, and apart from "in progress" (blue) and "closed" (green)
+  implemented: 'teal',
   closed: TONE.ok,
   cancelled: TONE.neutral,
 };

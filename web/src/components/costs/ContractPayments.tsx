@@ -54,12 +54,10 @@ export function ContractPayments({ contractId, contractTitle }: { contractId: st
   };
   return (
     <Stack gap={4} mt="xs" data-testid="contract-payments">
-      <Group justify="space-between" wrap="nowrap">
-        <Text size="xs" fw={600}>
-          {t('schedules.title')}
-        </Text>
+      {/* the contract page heads the section "Payments" itself */}
+      <Group justify="flex-end" wrap="nowrap">
         {list.canAdd && (
-          <Button size="compact-xs" variant="subtle" leftSection={<IconPlus size={12} />} onClick={() => setDialog('new')} data-testid="contract-payments-add">
+          <Button size="compact-xs" variant="light" leftSection={<IconPlus size={12} />} onClick={() => setDialog('new')} data-testid="contract-payments-add">
             {t('schedules.add')}
           </Button>
         )}

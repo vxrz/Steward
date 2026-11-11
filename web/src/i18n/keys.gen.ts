@@ -15093,6 +15093,7 @@ export interface Resources {
     'servicesTab.via': string;
     'contract.services': string;
     'contract.term': string;
+    'contract.termField': string;
     'contract.payments': string;
     'contract.reviews': string;
     'contract.noReviews': string;
