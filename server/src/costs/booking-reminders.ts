@@ -3,13 +3,14 @@ import { db } from '../db.js';
 import { logger } from '../log.js';
 import { vault } from '../vault.js';
 import { nowIso, parseJson } from '../util.js';
-import { listUsers } from '../auth/users.js';
+import { listUsers, toAuthUser } from '../auth/users.js';
+import { visibleContracts } from '../suppliers/links.js';
 import { owningTeams } from '../auth/policy.js';
 import { notify, titleName } from '../notifications/service.js';
 import { optedIn } from '../notifications/opt-ins.js';
 import { t } from '../i18n/index.js';
 import { usersOfSubjects } from '../tickets/reminders.js';
-import { lineMonths, startMonth, today, type LineRow } from './plans.js';
+import { lineMonths, lineTitle, startMonth, today, type LineRow } from './plans.js';
 
 /**
  * The reminder "contract payments not booked" (0.18.0, ADR 0030, event `cost.booking_due`): off by default, opted in
@@ -20,7 +21,10 @@ import { lineMonths, startMonth, today, type LineRow } from './plans.js';
  */
 
 interface Missing {
+  /** The line's own title (a schedule's line: the schedule's title) */
   title: string;
+  scheduleId: string | null;
+  contractId: string | null;
   amount: number;
   currency: string;
 }
@@ -38,12 +42,26 @@ function ownersOf(serviceId: string, owners: string, all: UserInfo[]): UserInfo[
   return usersOfSubjects(subjects, all);
 }
 
-function text(l: Locale, service: string, month: string, missing: Missing[]): { title: string; body: string } {
+/**
+ * The message in one language. A recipient reads each line's title with the contract's title in front when they may
+ * see the contract (plans.ts lineTitle, security review 0.18.0 M6); channel posts (no recipient) get the lines' own
+ * titles only.
+ */
+function text(l: Locale, service: string, month: string, missing: Missing[], recipient?: UserInfo): { title: string; body: string } {
+  const contracts = recipient
+    ? visibleContracts(
+        missing.map((m) => m.contractId),
+        toAuthUser(recipient),
+      )
+    : new Map<string, { title: string }>();
   return {
     title: t(l, 'costBooking.title', { service: titleName(service), month, count: missing.length }),
     body: [
       t(l, 'costBooking.body', { service, month, count: missing.length }),
-      ...missing.map((m) => `• ${m.title}: ${moneyText(m.amount, m.currency)}`),
+      ...missing.map(
+        (m) =>
+          `• ${lineTitle({ title: m.title, schedule_id: m.scheduleId, supplier_contract_id: m.contractId }, contracts)}: ${moneyText(m.amount, m.currency)}`,
+      ),
       t(l, 'costBooking.hint'),
     ].join('\n'),
   };
@@ -84,7 +102,7 @@ export function checkBookingReminders(now = Date.now()): number {
     const amount = lineMonths(l)[index] ?? 0;
     if (!amount || booked.has(l.id)) continue;
     const s = byService.get(l.service_id) ?? { name: l.service_name, owners: l.owners, missing: [] };
-    s.missing.push({ title: l.title, amount, currency: l.currency });
+    s.missing.push({ title: l.title, scheduleId: l.schedule_id, contractId: l.supplier_contract_id, amount, currency: l.currency });
     byService.set(l.service_id, s);
   }
   const all = listUsers().filter((u) => u.active);
@@ -96,7 +114,8 @@ export function checkBookingReminders(now = Date.now()): number {
     try {
       notify({
         event: 'cost.booking_due',
-        text: (l) => text(l, s.name, month, s.missing),
+        text: (l, recipient) => text(l, s.name, month, s.missing, recipient),
+        personal: true,
         link: `/services/${encodeURIComponent(serviceId)}/costs`,
         recipients,
         about: { kind: 'service', id: serviceId },

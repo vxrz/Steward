@@ -31,7 +31,7 @@ import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { supplierVisible, visibleContracts } from '../suppliers/links.js';
 import { csvRows } from './csv.js';
 import { requireScope } from './access.js';
-import { catalogueOf, insertEntry, planYearOf, requireEdit, startMonth, targetOf, type EntryValues, type LineRow } from './plans.js';
+import { catalogueOf, insertEntry, lineTitle, planYearOf, requireEdit, startMonth, targetOf, type EntryValues, type LineRow } from './plans.js';
 
 /**
  * CSV import of cost entries (0.18.0, ADR 0030 part 6, docs/COSTS.md#importing-entries-csv) on the reader of csv.ts:
@@ -112,7 +112,10 @@ function lookups(serviceId: string) {
     "SELECT entry_date, amount, currency, reference FROM cost_entries WHERE service_id = ? AND reference <> ''",
     serviceId,
   );
-  return { lines, suppliers, contracts, names, existing };
+  // a contract line's title as the person reads it ("contract – schedule" when they may see the contract, plans.ts)
+  const lineContracts = visibleContracts(lines.map((l) => l.supplier_contract_id));
+  const shown = new Map(lines.map((l) => [l.id, lineTitle(l, lineContracts)]));
+  return { lines, shown, suppliers, contracts, names, existing };
 }
 
 const dupKey = (reference: string, date: string, amount: number, currency: string) => `${norm(reference)}|${date}|${amount}|${currency}`;
@@ -198,7 +201,7 @@ function resolve(serviceId: string, p: Parsed, m: CostEntryImportMapping): Resol
     let line: LineRow | undefined;
     const lineText = cell(r.cells, c.planLine);
     if (lineText) {
-      const named = L.lines.filter((l) => l.id === lineText || norm(l.title) === norm(lineText));
+      const named = L.lines.filter((l) => l.id === lineText || norm(l.title) === norm(lineText) || norm(L.shown.get(l.id)!) === norm(lineText));
       line = named.find((l) => Number(l.fiscal_year) === fy && l.currency === currency) ?? named[0];
       if (!line) problems.push('planLineUnknown');
       else if (fy !== null && Number(line.fiscal_year) !== fy) problems.push('planLineOtherYear');
@@ -237,7 +240,7 @@ function resolve(serviceId: string, p: Parsed, m: CostEntryImportMapping): Resol
       currency,
       fiscalYear: fy,
       label: fy === null ? null : fiscalYearLabel(fy, start),
-      planLine: line ? { id: line.id, title: line.title } : null,
+      planLine: line ? { id: line.id, title: L.shown.get(line.id)! } : null,
       supplier: ref,
       contract: shownContract ? { id: shownContract.id, title: shownContract.title } : null,
       target,

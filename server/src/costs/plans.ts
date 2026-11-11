@@ -46,8 +46,16 @@ import { costSettings, requireScope, scopeInfo, seesWholeScope, type ScopeInfo }
 import { forecastFromGroups } from './query.js';
 import { instanceTimeZone, localDate } from '../duties/periods.js';
 import { coveredPairs } from '../suppliers/contract-scope.js';
-import { allContracts, coverChosenContract, resolveSupplierContract, resolveSupplierLink, supplierRefs, visibleContracts } from '../suppliers/links.js';
-import { insertScheduleLine, proposalLine, schedulesOfService, scheduleLineTitle, type Schedule } from './schedule-model.js';
+import {
+  allContracts,
+  contractTitles,
+  coverChosenContract,
+  resolveSupplierContract,
+  resolveSupplierLink,
+  supplierRefs,
+  visibleContracts,
+} from '../suppliers/links.js';
+import { contractLineTitle, insertScheduleLine, ownLineTitle, proposalLine, schedulesOfService, scheduleLineTitle, type Schedule } from './schedule-model.js';
 
 /**
  * Service cost planning (0.16.0, ADR 0026, docs/COSTS.md#planning-per-service): plan lines per service and fiscal year,
@@ -370,8 +378,8 @@ export function planYearOf(info: ScopeInfo, year: number | undefined, now: numbe
           changes.push({
             part: l.schedule_part ?? '',
             lineId: l.id,
-            before: lineAsProposal(l, months, show),
-            after: p ? proposalLine(p, l.title, months, show) : null,
+            before: lineAsProposal(l, suppliers.title(l), months, show),
+            after: p ? proposalLine(p, suppliers.title(l), months, show) : null,
             entries: entries.filter((e) => e.plan_line_id === l.id).length,
           });
       }
@@ -497,7 +505,7 @@ export function planYearOf(info: ScopeInfo, year: number | undefined, now: numbe
       id: l.id,
       serviceId: l.service_id,
       fiscalYear: Number(l.fiscal_year),
-      title: l.title,
+      title: suppliers.title(l),
       category: l.category,
       target: targets.of(l.target_kind, l.target_id),
       vendor: l.vendor,
@@ -594,16 +602,17 @@ export function planYearOf(info: ScopeInfo, year: number | undefined, now: numbe
     };
   });
 
-  const titleOf = new Map(lines.map((l) => [l.id, l.title]));
+  const titleOf = new Map(lines.map((l) => [l.id, suppliers.title(l)]));
   const lineTarget = new Map(lines.map((l) => [l.id, l]));
   // entries linked to a line of another fiscal year (the start month changed since): the link stays, named with its year
   const elsewhere = new Map<string, { title: string; fiscalYear: number }>();
   const otherIds = [...new Set(entries.filter((e) => e.plan_line_id && !lineIds.has(e.plan_line_id)).map((e) => e.plan_line_id!))];
-  for (const r of rowsByIds<{ id: string; title: string; fiscal_year: number }>(
-    (m) => `SELECT id, title, fiscal_year FROM cost_plan_lines WHERE id IN (${m})`,
+  const others = rowsByIds<Pick<LineRow, 'id' | 'title' | 'fiscal_year' | 'schedule_id' | 'supplier_contract_id'>>(
+    (m) => `SELECT id, title, fiscal_year, schedule_id, supplier_contract_id FROM cost_plan_lines WHERE id IN (${m})`,
     otherIds,
-  ))
-    elsewhere.set(r.id, { title: r.title, fiscalYear: Number(r.fiscal_year) });
+  );
+  const otherContracts = visibleContracts(others.map((r) => r.supplier_contract_id));
+  for (const r of others) elsewhere.set(r.id, { title: lineTitle(r, otherContracts), fiscalYear: Number(r.fiscal_year) });
   const outEntries: CostEntry[] = entries.map((e) => {
     const line = e.plan_line_id ? lineTarget.get(e.plan_line_id) : undefined;
     const other = e.plan_line_id && !line ? elsewhere.get(e.plan_line_id) : undefined;
@@ -664,6 +673,16 @@ function lineTitleFor(s: Schedule): string {
   return visibleContracts([s.contract.id]).has(s.contract.id) ? scheduleLineTitle(s) : s.row.title;
 }
 
+/**
+ * The title of a plan line as the reader reads it: a line made from a payment schedule stores the schedule's title
+ * only, and gets its contract's title in front for who may see the contract (`contracts`: visibleContracts of the
+ * reader) – "a contract you may not see" is never named, also not through a line's title (security review 0.18.0, M6).
+ */
+export function lineTitle(l: Pick<LineRow, 'title' | 'schedule_id' | 'supplier_contract_id'>, contracts: ReadonlyMap<string, { title: string }>): string {
+  const c = l.schedule_id && l.supplier_contract_id ? contracts.get(l.supplier_contract_id) : undefined;
+  return c ? contractLineTitle(c.title, l.title) : l.title;
+}
+
 /** The twelve month amounts a schedule line was made from. */
 const basisOf = (l: LineRow): number[] | null => {
   if (!l.schedule_basis) return null;
@@ -672,11 +691,11 @@ const basisOf = (l: LineRow): number[] | null => {
 };
 
 /** A line as "before" in Update lines: its values now (a line changed by hand shows the hand-made value). */
-function lineAsProposal(l: LineRow, months: string[], show: (n: number) => string | null): CostProposalLine {
+function lineAsProposal(l: LineRow, title: string, months: string[], show: (n: number) => string | null): CostProposalLine {
   const m = lineMonths(l);
   return {
     part: l.schedule_part ?? '',
-    title: l.title,
+    title,
     cadence: l.cadence,
     fromMonth: l.cadence === 'once' ? null : (months[l.from_index === null ? 0 : Number(l.from_index)] ?? null),
     toMonth: l.cadence === 'once' ? null : (months[l.to_index === null ? 11 : Number(l.to_index)] ?? null),
@@ -699,25 +718,35 @@ function prepaidRows(
   start: number,
   show: (n: number) => string | null,
 ): CostPlanYear['prepaid'] {
-  return db()
-    .all<{ id: string; title: string; fiscal_year: number; amount: number; currency: string; covers_from: string; covers_to: string }>(
-      `SELECT id, title, fiscal_year, amount, currency, covers_from, covers_to FROM cost_plan_lines
+  const rows = db().all<
+    Pick<LineRow, 'schedule_id' | 'supplier_contract_id'> & {
+      id: string;
+      title: string;
+      fiscal_year: number;
+      amount: number;
+      currency: string;
+      covers_from: string;
+      covers_to: string;
+    }
+  >(
+    `SELECT id, title, fiscal_year, amount, currency, covers_from, covers_to, schedule_id, supplier_contract_id FROM cost_plan_lines
         WHERE service_id = ? AND fiscal_year < ? AND covers_from IS NOT NULL AND covers_to >= ? AND covers_from <= ? ORDER BY fiscal_year, title, id`,
-      serviceId,
-      fy,
-      bounds.from,
-      bounds.last,
-    )
-    .map((r) => ({
-      lineId: r.id,
-      title: r.title,
-      fiscalYear: Number(r.fiscal_year),
-      label: fiscalYearLabel(Number(r.fiscal_year), start),
-      amount: show(Number(r.amount)),
-      currency: r.currency,
-      coversFrom: r.covers_from,
-      coversTo: r.covers_to,
-    }));
+    serviceId,
+    fy,
+    bounds.from,
+    bounds.last,
+  );
+  const contracts = visibleContracts(rows.map((r) => r.supplier_contract_id));
+  return rows.map((r) => ({
+    lineId: r.id,
+    title: lineTitle(r, contracts),
+    fiscalYear: Number(r.fiscal_year),
+    label: fiscalYearLabel(Number(r.fiscal_year), start),
+    amount: show(Number(r.amount)),
+    currency: r.currency,
+    coversFrom: r.covers_from,
+    coversTo: r.covers_to,
+  }));
 }
 
 function figures(f: Figures, show: (n: number) => string | null): CostPlanFigures {
@@ -825,6 +854,10 @@ class Suppliers {
     this.covered = coveredPairs(
       rows.flatMap((r) => (r.supplier_contract_id && r.service_id ? [{ contractId: r.supplier_contract_id, serviceId: r.service_id }] : [])),
     );
+  }
+  /** The line's title as the reader reads it (lineTitle). */
+  title(l: Pick<LineRow, 'title' | 'schedule_id' | 'supplier_contract_id'>): string {
+    return lineTitle(l, this.contracts);
   }
   /** A 0.17-style contract line (no schedule): the end of its contract when that falls in the line's fiscal year. */
   contractEnds(l: Pick<LineRow, 'supplier_contract_id' | 'schedule_id'>, bounds: { from: string; last: string }): string | null {
@@ -967,7 +1000,11 @@ export function addPlanLine(serviceId: string, body: unknown): CostPlanYear {
 export function updatePlanLine(serviceId: string, lineId: string, body: unknown): CostPlanYear {
   const info = requireEdit(serviceId);
   const before = lineRow(serviceId, lineId);
-  const x = costPlanLineUpdate.parse(body);
+  const parsed = costPlanLineUpdate.parse(body);
+  // a line made from a schedule keeps its own title: the contract's title a form showed in front is not stored (M6)
+  const contractTitle =
+    before.schedule_id && before.supplier_contract_id ? contractTitles([before.supplier_contract_id]).get(before.supplier_contract_id)?.title : undefined;
+  const x = contractTitle ? { ...parsed, title: ownLineTitle(contractTitle, parsed.title) } : parsed;
   const fy = Number(before.fiscal_year);
   // a target already on the line may stay as it is (also one removed from the service since)
   const sameTarget = x.target && x.target.kind === before.target_kind && x.target.id === before.target_id;

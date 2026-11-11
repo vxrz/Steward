@@ -130,8 +130,18 @@ export function schedulesWhere(column: 'contract_id' | 'service_id' | 'id', ids:
 /** Every schedule (the dataset, the export, the reminder job: no reader). */
 export const allSchedules = (): Schedule[] => withTerms(db().all<ScheduleRow>('SELECT * FROM cost_schedules ORDER BY created_at, id'));
 
-/** The title of a line made from a schedule: "contract – schedule". */
-export const scheduleLineTitle = (s: Schedule): string => `${s.contract.title} – ${s.row.title}`.slice(0, 200);
+/**
+ * The title of a line made from a schedule as a reader who may see the contract reads it: "contract – schedule". A line
+ * stores the schedule's title only (and the contract's id) – the contract's title is added when the line is read, for
+ * who may see the contract (security review 0.18.0, M6; plans.ts lineTitle).
+ */
+export const scheduleLineTitle = (s: Schedule): string => contractLineTitle(s.contract.title, s.row.title);
+
+/** "contract – line": the title of a schedule's line with its contract's title in front. */
+export const contractLineTitle = (contract: string, title: string): string => `${contract} – ${title}`;
+
+/** A title given for a schedule's line without its contract's title in front (a form sends back what it showed). */
+export const ownLineTitle = (contract: string, title: string): string => (title.startsWith(`${contract} – `) ? title.slice(contract.length + 3) : title);
 
 /** A proposed part as the cost plan shows it (amounts by the reader's right). */
 export function proposalLine(p: ProposalPart, title: string, months: string[], show: (n: number) => string | null): CostProposalLine {
@@ -161,7 +171,8 @@ export function insertScheduleLine(serviceId: string, fiscalYear: number, s: Sch
     id,
     serviceId,
     fiscalYear,
-    scheduleLineTitle(s),
+    // the schedule's title only: the contract's title is added when the line is read, for who may see the contract
+    s.row.title.slice(0, 200),
     s.row.category,
     s.row.target_kind,
     s.row.target_id,

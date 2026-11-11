@@ -423,3 +423,82 @@ describe('the reminder "contract payments not booked"', () => {
     expect(audit.details).toMatchObject({ from: [], to: ['cost.booking_due'] });
   });
 });
+
+describe('the title of a contract line', () => {
+  it('names the contract only for who may see it – plan, entries, API, CSV and the booking reminder', async () => {
+    const team = (await s.api('POST', '/teams', { name: 'Secret contract team', members: [] })).id;
+    const sup = (await s.api('POST', '/suppliers', { name: 'Invented Secret Hosting' })).id;
+    await s.api('PUT', `/owning-teams/supplier/${sup}`, { teamIds: [team] });
+    const svc = (await s.api('POST', '/services', { name: 'Secret-paying service', owners: ['user:olivia', 'user:admin'] })).id;
+    const c = await s.api('POST', `/suppliers/${sup}/contracts`, {
+      title: 'Secret hosting contract',
+      startsOn: '2020-01-01',
+      endsOn: '2035-12-31',
+      services: [{ serviceId: svc }],
+    });
+    const sch = await s.api('POST', '/costs/schedules', {
+      title: 'Hosting fee',
+      amount: '100',
+      currency: 'EUR',
+      billing: 'monthly',
+      firstPaymentOn: '2020-01-05',
+      contractId: c.contracts[0].id,
+      serviceId: svc,
+    });
+    const prev = month === `${fy}-01` ? `${fy - 1}-12` : `${fy}-${String(Number(month.slice(5, 7)) - 1).padStart(2, '0')}`;
+    const pfy = fiscalYearOf(prev, 1);
+    await s.api('POST', `/costs/plans/${svc}/proposals`, { fiscalYear: pfy, scheduleIds: [sch.schedules[0].id] });
+    // stored: the schedule's title only
+    const { db } = await import('../src/db.js');
+    const stored = () =>
+      db()
+        .all<{ title: string }>('SELECT title FROM cost_plan_lines WHERE service_id = ?', svc)
+        .map((r) => r.title);
+    expect(new Set(stored())).toEqual(new Set(['Hosting fee']));
+    const asAdmin: CostPlanYear = await s.api('GET', `/costs/plans/${svc}?fiscalYear=${pfy}`);
+    expect(new Set(asAdmin.lines.map((l) => l.title))).toEqual(new Set(['Secret hosting contract – Hosting fee']));
+    const line = asAdmin.lines[0]!;
+    // an entry on the line in another month (the month before stays unbooked for the reminder below)
+    const other = fiscalYearMonths(pfy, 1).find((m) => m !== prev)!;
+    await s.api('POST', `/costs/plans/${svc}/entries`, { date: `${other}-05`, amount: '100', currency: 'EUR', planLineId: line.id });
+    // olivia edits the service but may not see the supplier: the line is "Hosting fee", the contract unnamed
+    const asOlivia: CostPlanYear = await olivia('GET', `/costs/plans/${svc}?fiscalYear=${pfy}`);
+    expect(new Set(asOlivia.lines.map((l) => l.title))).toEqual(new Set(['Hosting fee']));
+    expect(asOlivia.entries[0]!.planLineTitle).toBe('Hosting fee');
+    expect(JSON.stringify(asOlivia)).not.toContain('Secret hosting');
+    expect((await s.api('GET', `/costs/plans/${svc}?fiscalYear=${pfy}`)).entries[0].planLineTitle).toBe('Secret hosting contract – Hosting fee');
+    // the public API, the CSV export
+    const { token } = await olivia('POST', '/me/tokens', { name: 'secret contract', scope: 'read' });
+    for (const url of [`/api/v1/services/${svc}/cost-plan?fiscalYear=${pfy}`, `/api/costs/plans/${svc}/export?fiscalYear=${pfy}&what=plan`]) {
+      const res = await fetch(s.base + url, { headers: { authorization: `Bearer ${token}` } });
+      const text = await res.text();
+      expect(res.status, url).toBe(200);
+      expect(text, url).toContain('Hosting fee');
+      expect(text, url).not.toContain('Secret hosting');
+    }
+    // the title a form shows (with the contract in front) is saved as the line's own title
+    await s.api('PUT', `/costs/plans/${svc}/lines/${line.id}`, {
+      title: 'Secret hosting contract – Hosting fee, renewed',
+      category: line.category,
+      amount: line.amount,
+      currency: 'EUR',
+      cadence: line.cadence,
+      fromMonth: line.fromMonth,
+      toMonth: line.toMonth,
+    });
+    expect(db().get<{ title: string }>('SELECT title FROM cost_plan_lines WHERE id = ?', line.id)!.title).toBe('Hosting fee, renewed');
+    // the booking reminder: each recipient reads the titles by their own rights
+    await s.api('PUT', '/me/notification-opt-ins', { events: ['cost.booking_due'] });
+    await olivia('PUT', '/me/notification-opt-ins', { events: ['cost.booking_due'] });
+    const { checkBookingReminders } = await import('../src/costs/booking-reminders.js');
+    expect(checkBookingReminders(Date.parse(`${month}-03T12:00:00Z`))).toBe(1);
+    const bodyOf = async (c: Client) =>
+      ((await c('GET', '/notifications')) as { items: { event: string; title: string; body: string }[] }).items.find(
+        (n) => n.event === 'cost.booking_due' && n.title.includes('Secret-paying service'),
+      )!.body;
+    const oliviaBody = await bodyOf(olivia);
+    expect(oliviaBody).toContain('Hosting fee');
+    expect(oliviaBody).not.toContain('Secret hosting');
+    expect(await bodyOf(s.api)).toContain('Secret hosting contract – Hosting fee');
+  });
+});

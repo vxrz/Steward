@@ -1013,10 +1013,16 @@ function useTargetOptions(d: CostPlanYear, current: CostPlanTarget | null, withP
   return [{ value: NONE, label: t('plan.form.noTarget') }, ...groups];
 }
 
+/** A contract line's own title: the server puts the contract's title in front for who may see it, and stores the rest. */
+function ownTitle(l: CostPlanLine): string {
+  const prefix = l.schedule && l.supplierContract ? `${l.supplierContract.title} – ` : '';
+  return prefix && l.title.startsWith(prefix) ? l.title.slice(prefix.length) : l.title;
+}
+
 function LineDialog({ d, line, onClose, onSaved }: { d: CostPlanYear; line: CostPlanLine | null; onClose: () => void; onSaved: (y: CostPlanYear) => void }) {
   const { t } = useTranslation(['costs', 'common']);
   const { t: tSup } = useTranslation('suppliers');
-  const [title, setTitle] = useState(line?.title ?? '');
+  const [title, setTitle] = useState(line ? ownTitle(line) : '');
   const [category, setCategory] = useState<CostPlanCategory>(line?.category ?? 'licence');
   const [target, setTarget] = useState(targetValue(line?.target ?? null));
   const [vendor, setVendor] = useState(line?.vendor ?? '');
