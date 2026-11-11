@@ -1187,6 +1187,7 @@
     "PLANT_CHANGESET_CLOSED": "Der Änderungssatz ist nicht mehr offen.",
     "PLANT_CHANGESET_CONFLICT": "Der Änderungssatz kann noch nicht übernommen werden: Wählen Sie für jedes Feld, das seither in Steward geändert wurde.",
     "PLANT_CHANGESET_DECIDE": "Das dürfen Sie mit diesem Änderungssatz (nicht mehr) tun.",
+    "PLANT_CHANGESET_COPY_PARTIAL": "Dieser Änderungssatz enthält Änderungen in Standorten, die Sie nicht sehen dürfen, oder importierte Dateien. Einer seiner Autoren kann ihn kopieren.",
     "PLANT_CHANGESET_DRAFT": "Einen Entwurf übernimmt seine Autorin oder sein Autor.",
     "PLANT_CHANGESET_EMPTY": "Der Entwurf enthält noch keine Änderungen.",
     "PLANT_CHANGESET_ENTRY_GONE": "Den Eintrag gibt es nicht mehr.",

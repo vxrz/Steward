@@ -537,3 +537,36 @@ describe('0.12 scripts keep working (plant.changeSet off)', () => {
     expect(new Set(sources)).toEqual(new Set(['edit', 'import', 'bulk', 'rename']));
   });
 });
+
+describe('copying someone else’s change set (security review 0.19.0)', () => {
+  it('is refused when it has changes in sites the copier may not see; its author copies it', async () => {
+    const a = await s.api('GET', '/plant/assets/press-1');
+    const m = await s.api('GET', '/plant/assets/mill-1');
+    const d = await s.api('POST', '/plant/change-sets/current/operations', {
+      op: 'set',
+      kind: 'asset',
+      id: 'press-1',
+      value: assetBody(a, { description: 'Copy north' }),
+      revision: a.revision,
+    });
+    await s.api('POST', '/plant/change-sets/current/operations', {
+      op: 'set',
+      kind: 'asset',
+      id: 'mill-1',
+      value: assetBody(m, { description: 'Copy south' }),
+      revision: m.revision,
+    });
+    await s.api('POST', `/plant/change-sets/${d.id}/withdraw`);
+    // South for the administrator only: dirk sees the change set through North
+    await s.api('PUT', '/plant/sites/south/access', { acl: [{ subject: `user:${ADMIN.username}`, permissions: ['view', 'manage'] }] });
+    try {
+      expect(await users.dirk!('GET', `/plant/change-sets/${d.id}`)).toMatchObject({ hiddenOperations: 1, canCopy: false });
+      expect(await status(users.dirk!('POST', `/plant/change-sets/${d.id}/copy`))).toMatchObject({ status: 409, code: 'PLANT_CHANGESET_COPY_PARTIAL' });
+      const copy = await s.api('POST', `/plant/change-sets/${d.id}/copy`);
+      expect(copy).toMatchObject({ state: 'draft', operationCount: 2 });
+      await s.api('POST', `/plant/change-sets/${copy.id}/withdraw`);
+    } finally {
+      await s.api('PUT', '/plant/sites/south/access', { acl: [] });
+    }
+  });
+});

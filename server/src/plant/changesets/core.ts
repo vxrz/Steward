@@ -1235,7 +1235,12 @@ export function detailOf(r: CsRow, u: AuthUser = me()): PlantChangeSetDetail {
     canReject: r.state === 'proposed' && !author && !rightsProblem(r, u),
     canReturn: r.state === 'proposed' && !author && !blocked && r.source !== 'assistant' && r.source !== 'api',
     canRevert: r.state === 'applied' && plantProposesSome(u),
-    canCopy: (r.state === 'rejected' || r.state === 'withdrawn' || r.state === 'expired') && plantProposesSome(u) && r.source !== 'assistant',
+    // someone else's change set with changes the reader may not see, or imported files: copied by one of its authors
+    canCopy:
+      (r.state === 'rejected' || r.state === 'withdrawn' || r.state === 'expired') &&
+      plantProposesSome(u) &&
+      r.source !== 'assistant' &&
+      (author || (!hidden && !db().get('SELECT 1 AS x FROM plant_change_sources WHERE change_set_id = ?', r.id))),
     copiedFrom: r.copied_from,
     ...(r.state === 'applied' ? { applied: appliedEntries(r.id, u) } : {}),
     ...(r.source === 'api' ? { proposal: apiProposalOf(r, u) } : {}),

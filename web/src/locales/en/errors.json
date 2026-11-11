@@ -1187,6 +1187,7 @@
     "PLANT_CHANGESET_CLOSED": "The change set is no longer open.",
     "PLANT_CHANGESET_CONFLICT": "The change set cannot be applied yet: choose for every field that was changed in Steward since.",
     "PLANT_CHANGESET_DECIDE": "You may not do this with this change set (any more).",
+    "PLANT_CHANGESET_COPY_PARTIAL": "This change set has changes in sites you may not see, or imported files. One of its authors can copy it.",
     "PLANT_CHANGESET_DRAFT": "A draft is applied by its author.",
     "PLANT_CHANGESET_EMPTY": "The draft has no changes yet.",
     "PLANT_CHANGESET_ENTRY_GONE": "The entry is no longer there.",
