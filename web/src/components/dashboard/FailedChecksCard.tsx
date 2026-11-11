@@ -74,7 +74,7 @@ export function FailedChecksCard({ checks }: { checks: FailedCheckGroup[] }) {
         )}
         {list.items.map((c) => (
           <Group key={`${c.processId}/${c.checkId}`} justify="space-between" gap={4} wrap="wrap" align="flex-start" data-testid="failed-check">
-            <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ minWidth: 0, flex: '1 1 18rem' }}>
               {/* what was found first (the check's result), the expectation (its name) under it */}
               <Group gap={6} wrap="nowrap" align="flex-start">
                 <SeverityBadge severity={c.severity} />
@@ -108,7 +108,7 @@ export function FailedChecksCard({ checks }: { checks: FailedCheckGroup[] }) {
                 </Anchor>
               </Text>
             </div>
-            <Text size="xs" c="dimmed" className="nowrap">
+            <Text size="xs" c="dimmed" style={{ overflowWrap: 'anywhere' }}>
               {c.processName} · {fmtRelative(c.ts)}
             </Text>
           </Group>

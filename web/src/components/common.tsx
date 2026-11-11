@@ -144,7 +144,7 @@ export function FilterPanel({ active, children }: { active: number; children: Re
 export function SeverityBadge({ severity, size = 'xs' }: { severity: string; size?: 'xs' | 'sm' }) {
   useTranslation();
   return (
-    <Badge color={SEVERITY_COLORS[severity] ?? TONE.neutral} variant="light" size={size}>
+    <Badge color={SEVERITY_COLORS[severity] ?? TONE.neutral} variant="light" size={size} style={{ flexShrink: 0 }}>
       {severityLabel(severity)}
     </Badge>
   );

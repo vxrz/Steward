@@ -1,6 +1,6 @@
 import { test, expect } from './support/fixtures';
 import { PROCESS, authFile } from './support/env';
-import { expectNoHorizontalScroll, startRunApi, taskRegion, waitForRun } from './support/helpers';
+import { expectNoHorizontalScroll, json, startRunApi, taskRegion, waitForRun } from './support/helpers';
 
 /** Runs in the "mobile" project only (390×844, touch). */
 test.describe('phone @mobile', () => {
@@ -98,6 +98,29 @@ test.describe('phone @mobile', () => {
       await expectNoHorizontalScroll(page);
     });
   }
+
+  // pages with section actions, cost tables and badges (review of 0.19: the start page, plant pages and the
+  // statement of applicability overflowed without the check noticing)
+  test('no horizontal scroll on plant, cost and compliance pages', async ({ loginAs, apiAs }) => {
+    const api = await apiAs('admin');
+    const plant = await api.put('/api/settings/plant', { data: { enabled: true, enterprise: 'Brightwater Components', labels: {}, fields: {} } });
+    expect(plant.ok(), await plant.text()).toBe(true);
+    const services = await json<{ id: string; name: string }[]>(await api.get('/api/services'));
+    const shop = services.find((s) => s.name === 'Online shop (demo)') ?? services[0]!;
+    const admin = await loginAs('admin');
+    for (const path of [
+      '/plant/assets/rvs-mill-01',
+      '/plant/sites/riverside',
+      `/services/${shop.id}/costs`,
+      '/costs/commitments',
+      '/compliance/soa/ISO27001',
+    ]) {
+      await admin.goto(path);
+      await expect(admin.getByRole('main').getByRole('heading', { level: 1 }).first()).toBeVisible();
+      await admin.waitForLoadState('networkidle');
+      await expectNoHorizontalScroll(admin);
+    }
+  });
 
   test('list filters fold behind a button', async ({ page }) => {
     await page.goto('/credentials');

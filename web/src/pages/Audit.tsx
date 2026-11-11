@@ -120,7 +120,7 @@ export function AuditPage() {
   );
   const details = (a: AuditEntry) => (
     <div id={`audit-entry-${a.seq}`} data-testid="audit-row-details">
-      <Text size="xs" c="dimmed" className="mono" mb={4}>
+      <Text size="xs" c="dimmed" className="mono" mb={4} style={{ overflowWrap: 'anywhere' }}>
         {t('table.hash', { hash: a.hash })}
       </Text>
       {a.details != null && <JsonView value={a.details} maxHeight={240} />}

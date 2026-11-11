@@ -86,17 +86,40 @@ export function taskRegion(page: Page, opts: { title?: RegExp; runId?: string } 
 /** No horizontal page scroll (mobile layout check). */
 export async function expectNoHorizontalScroll(page: Page): Promise<void> {
   // Retried: right after a viewport change the layout is still settling (the navbar collapses with a
-  // transition); a real overflow still fails once the timeout is over.
-  const measure = () => page.evaluate(() => ({ scrollWidth: document.documentElement.scrollWidth, innerWidth: window.innerWidth }));
-  await expect
-    .poll(
-      async () => {
-        const { scrollWidth, innerWidth } = await measure();
-        return scrollWidth - innerWidth;
-      },
-      { message: 'the page must not be wider than the screen', timeout: 5_000 },
-    )
-    .toBeLessThanOrEqual(0);
+  // transition); a real overflow still fails once the timeout is over. Compared with the client width:
+  // with `isMobile` Chromium widens the layout viewport (`innerWidth`) to the content, so an overflowing
+  // page would pass against `innerWidth`.
+  const measure = () => page.evaluate(() => ({ scrollWidth: document.documentElement.scrollWidth, clientWidth: document.documentElement.clientWidth }));
+  // on failure the message names the outermost elements that reach past the right edge
+  const offenders = () =>
+    page.evaluate(() => {
+      const w = document.documentElement.clientWidth;
+      const out: string[] = [];
+      for (const el of document.querySelectorAll<HTMLElement>('body *')) {
+        if (out.length >= 5 || el.getBoundingClientRect().right <= w + 1) continue;
+        if (el.parentElement && el.parentElement.getBoundingClientRect().right > w + 1) continue;
+        const position = getComputedStyle(el).position;
+        if (position === 'fixed') continue;
+        // inside a box that scrolls it is no overflow – unless it is positioned and escapes that box
+        const scrolls = (x: Element | null): boolean => !!x && (getComputedStyle(x).overflowX !== 'visible' || scrolls(x.parentElement));
+        if (position !== 'absolute' && scrolls(el.parentElement)) continue;
+        out.push(`${el.tagName.toLowerCase()}.${[...el.classList].slice(0, 3).join('.')} "${(el.textContent ?? '').trim().slice(0, 40)}"`);
+      }
+      return out.join('; ');
+    });
+  try {
+    await expect
+      .poll(
+        async () => {
+          const { scrollWidth, clientWidth } = await measure();
+          return scrollWidth - clientWidth;
+        },
+        { message: 'the page must not be wider than the screen', timeout: 5_000 },
+      )
+      .toBeLessThanOrEqual(0);
+  } catch (e) {
+    throw new Error(`${(e as Error).message}\nWider than the screen: ${await offenders()}`, { cause: e });
+  }
 }
 
 /** Waits until the app shell (header with the user menu) is rendered. */

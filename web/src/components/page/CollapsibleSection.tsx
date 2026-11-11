@@ -312,8 +312,10 @@ export function CollapsibleSection({
     </>
   );
   const header = (
-    <Group justify="space-between" wrap="nowrap" align="flex-start" gap="xs">
-      <Group gap={6} wrap="wrap" align="center" style={{ minWidth: 0, flex: 1, rowGap: 2 }}>
+    // wraps: on a phone, actions that do not fit beside the title go to a line of their own (right-aligned) instead
+    // of squeezing the title to a column of letters
+    <Group justify="space-between" wrap="wrap" align="flex-start" gap="xs">
+      <Group gap={6} wrap="wrap" align="center" style={{ minWidth: 0, flex: '1 1 8rem', rowGap: 2 }}>
         <Title order={order} size={size ?? (order === 2 ? 'h4' : 'h5')} style={{ minWidth: 0 }}>
           {isStatic ? (
             <span className="sm-section-label">{label}</span>
@@ -327,7 +329,7 @@ export function CollapsibleSection({
         {summary}
       </Group>
       {actions && (
-        <Group gap={4} wrap="nowrap" style={{ flexShrink: 0 }}>
+        <Group gap={4} wrap="wrap" justify="flex-end" style={{ minWidth: 0, marginLeft: 'auto' }}>
           {actions}
         </Group>
       )}
