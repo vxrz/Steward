@@ -210,6 +210,10 @@
       "booking_due": {
         "label": "Vertragszahlungen nicht gebucht",
         "info": "Vertragszahlungen des letzten Monats eines Service, der Ihnen gehört, haben noch keine Kostenbuchung (standardmäßig aus: in Ihrem Profil einschalten)"
+      },
+      "volume": {
+        "label": "Vertragsvolumen",
+        "info": "Ein Vertragsvolumen, das Ihr Service oder Ihre Plattform bezahlt, wird knapp, ist aufgebraucht, überschreitet seine Obergrenze oder endet voraussichtlich deutlich unter seinem zugesagten Minimum"
       }
     },
     "contract": {

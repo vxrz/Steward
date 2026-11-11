@@ -31,6 +31,7 @@ import { platformKeys } from '../queryKeys';
 import { CopiedFromNote, DuplicateButton } from '../components/duplicate/DuplicateButton';
 import { useMe } from '../auth';
 import { IfModule } from '../components/modules/ModuleOff';
+import { CostAttributionPanel } from '../components/costs/Attribution';
 import { CollectorCollections } from '../components/plant/CollectorCollections';
 import { CollapsibleSection, SectionGroup } from '../components/page/CollapsibleSection';
 import { SupplierText } from '../components/suppliers/SupplierPicker';
@@ -162,6 +163,9 @@ export function ApplicationDetailPage() {
                   </Stack>
                 )}
               </CollapsibleSection>
+              <IfModule module="costs">
+                <CostAttributionPanel kind="application" id={a.id} />
+              </IfModule>
               <ApplicationCredentials app={a} />
               <ApplicationDocuments documents={a.documents} />
               <DutiesPanel applicationId={a.id} />

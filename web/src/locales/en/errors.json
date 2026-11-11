@@ -1345,7 +1345,16 @@
     "COST_ENTRY_IMPORT_COLUMN": "The file has no column “{{column}}”.",
     "COST_ENTRY_IMPORT_NOTHING": "No row of the file can be imported ({{skipped}} left out).",
     "COST_ENTRY_IMPORT_NOT_FOUND": "This import does not exist (any more).",
-    "COST_ENTRY_IMPORT_REMOVED": "This import was removed already."
+    "COST_ENTRY_IMPORT_REMOVED": "This import was removed already.",
+    "COST_SCHEDULE_PLATFORM_NOT_COVERED": "The contract “{{contract}}” does not cover the platform “{{platform}}”. Who may change the contract adds the platform to it with the schedule.",
+    "COST_VOLUME_READ_PLATFORM": "Only a volume a platform pays can be used up by the platform's read costs. Choose the cost entries as its use.",
+    "COST_VOLUME_ONE_PER_CURRENCY": "The contract has a volume in {{currency}} already (“{{title}}”). A contract has one volume per currency.",
+    "COST_BOOK_READ": "The use of “{{title}}” is read from the platform – there is nothing to book.",
+    "COST_BOOK_AMOUNT_REQUIRED": "“{{title}}” is billed by use: enter the amount of the invoice to book it.",
+    "SUPPLIER_CONTRACT_ITEM": "Not an application or system of the service, or one you may not see.",
+    "SUPPLIER_CONTRACT_PLATFORM_LIMIT": "A contract covers at most {{max}} platforms.",
+    "SUPPLIER_CONTRACT_PLATFORM_NOT_FOUND": "The contract does not cover this platform (any more).",
+    "SUPPLIER_CONTRACT_PLATFORM_HAS_SCHEDULES": "The platform pays {{count}} payment schedules of this contract ({{schedules}}). Move or remove them first."
   },
   "boundary": {
     "title": "Something went wrong on this page",

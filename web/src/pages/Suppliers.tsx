@@ -247,6 +247,7 @@ export function SuppliersPage() {
             <Select
               size="xs"
               label={t('columns.type')}
+              placeholder={t('filterAll')}
               data={SUPPLIER_TYPES.map((k) => ({ value: k, label: t(`types.${k}`) }))}
               value={type}
               onChange={(v) => set('type', v)}

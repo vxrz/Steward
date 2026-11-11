@@ -24,6 +24,8 @@ import { useMe } from '../auth';
 import { SystemSchemaField } from '../components/dbschema/SystemSchemaField';
 import { SupplierText } from '../components/suppliers/SupplierPicker';
 import { ItemContacts } from '../components/suppliers/ScopedContacts';
+import { CostAttributionPanel } from '../components/costs/Attribution';
+import { IfModule } from '../components/modules/ModuleOff';
 
 /** A system (#129): what it is, its tech stack, the platform it is, and the applications that run on it per environment. */
 export function SystemDetailPage() {
@@ -161,6 +163,9 @@ export function SystemDetailPage() {
                 </div>
               )}
             </Stack>
+            <IfModule module="costs">
+              <CostAttributionPanel kind="system" id={s.id} />
+            </IfModule>
           </Stack>
         </Grid.Col>
         <Grid.Col span={{ base: 12, md: 4 }}>

@@ -263,7 +263,8 @@
       "admin": "You see it as an administrator.",
       "auditor": "You see it as an auditor.",
       "owner": "You see it as one of its owners.",
-      "service": "You see it because you see a service it covers."
+      "service": "You see it because you see a service it covers.",
+      "platform": "You see it because you manage a platform it covers."
     },
     "dataProtection": "Data protection",
     "noPersonalData": "No personal data",
@@ -291,7 +292,9 @@
     "removeMaster_one": "This master agreement has {{count}} order form. It becomes standalone, with the values it inherited copied into it. Remove the master agreement?",
     "removeMaster_other": "This master agreement has {{count}} order forms. They become standalone, with the values they inherited copied into them. Remove the master agreement?",
     "replacedBy": "Replaced by …",
-    "replacedByHint": "Optional: another contract of this supplier that you may change takes over its services, payment schedules, plan lines, entries, matrix rows, duties, findings and contacts."
+    "replacedByHint": "Optional: another contract of this supplier that you may change takes over its services, payment schedules, plan lines, entries, matrix rows, duties, findings and contacts.",
+    "platforms": "Platforms covered",
+    "visiblePlatforms": "Also seen by the managers and owning teams of: {{platforms}}"
   },
   "contractForm": {
     "services": "Services covered",
@@ -313,7 +316,9 @@
       "yes": "Yes",
       "no": "No"
     },
-    "dpaInherited": "As the master agreement or supplier"
+    "dpaInherited": "As the master agreement or supplier",
+    "platforms": "Platforms covered",
+    "platformsHint": "Optional: a platform team's own contract (capacity, a cloud spend commitment). Their managers and owning teams see it."
   },
   "contractServices": {
     "none": "No services – a company-wide agreement.",
@@ -343,7 +348,15 @@
     "hidden_other": "and {{count}} services you may not see",
     "add": "Add a service",
     "added": "Service added to the contract",
-    "service": "Service"
+    "service": "Service",
+    "itemsFor": "For:",
+    "items": "Applications and systems",
+    "itemsHint": "Optional: what of the service the contract is for. None: the service as a whole.",
+    "itemsNone": "The service as a whole",
+    "itemKinds": {
+      "application": "application",
+      "system": "system"
+    }
   },
   "scopedContacts": {
     "appliesTo": "Applies to",
@@ -425,5 +438,26 @@
     "proposedIntro": "The update to 0.18 proposed these services from the plan lines, cost entries and matrix rows that name the contracts. Confirm each one, or choose “Not this service”."
   },
   "dpaMissingCount_one": "{{count}} contract without a DPA",
-  "dpaMissingCount_other": "{{count}} contracts without a DPA"
+  "dpaMissingCount_other": "{{count}} contracts without a DPA",
+  "filterAll": "All",
+  "contractPlatforms": {
+    "leave": "Take off the contract",
+    "leaveConfirm": "Take “{{platform}}” off the contract “{{contract}}”?",
+    "left": "Platform taken off the contract",
+    "none": "No platforms",
+    "hidden_one": "and {{count}} platform you may not see",
+    "hidden_other": "and {{count}} platforms you may not see",
+    "add": "Add a platform",
+    "added": "Platform added",
+    "platform": "Platform",
+    "addHint": "A platform team's own contract. Its managers and the members of its owning teams then see a team-owned contract."
+  },
+  "platformContracts": {
+    "title": "Contracts",
+    "help": "The contracts covering this platform – the platform team's own. Add payments to plan them; a contract's costs are never split among the services that use the platform.",
+    "empty": "No contract covers this platform yet.",
+    "teamOwned": "Team-owned",
+    "noticeBy": "Notice by {{date}}",
+    "leaveConfirm": "Take this platform off the contract “{{contract}}”?"
+  }
 }

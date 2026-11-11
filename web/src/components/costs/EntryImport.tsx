@@ -35,7 +35,11 @@ import { del, get, notifyError, notifyOk, post } from '../../api';
 import { confirmDanger } from '../confirm';
 import { costKeys } from '../../queryKeys';
 import { fmtDate, fmtDay } from '../../format';
-import { fmtMoney } from './common';
+import { fmtMoney, ownerKey, type PlanOwner } from './common';
+
+/** The API path of a cost plan (a service's or a platform's) – spelled out in this file so the route contract test follows it. */
+const planBase = (o: PlanOwner): string =>
+  o.kind === 'service' ? `/costs/plans/${encodeURIComponent(o.id)}` : `/costs/platform-plans/${encodeURIComponent(o.id)}`;
 
 /**
  * Import entries (CSV) of a service's cost plan (0.18.0, ADR 0030, docs/COSTS.md#importing-entries-csv): upload,
@@ -93,8 +97,8 @@ export function EntryImportDialog({ d, onClose, onSaved }: { d: CostPlanYear; on
   const { t } = useTranslation(['costs', 'common']);
   const qc = useQueryClient();
   const imports = useQuery({
-    queryKey: costKeys.entryImports(d.serviceId),
-    queryFn: () => get<CostEntryImports>(`/costs/plans/${encodeURIComponent(d.serviceId)}/imports`),
+    queryKey: costKeys.entryImports(ownerKey(d.owner)),
+    queryFn: () => get<CostEntryImports>(`${planBase(d.owner)}/imports`),
   });
   const [file, setFile] = useState<File | null>(null);
   const [csv, setCsv] = useState('');
@@ -153,7 +157,7 @@ export function EntryImportDialog({ d, onClose, onSaved }: { d: CostPlanYear; on
       decimal,
     };
   };
-  const base = `/costs/plans/${encodeURIComponent(d.serviceId)}/entries/import`;
+  const base = `${planBase(d.owner)}/entries/import`;
   const runPreview = async () => {
     const m = mapping();
     if (!m) {
@@ -178,7 +182,7 @@ export function EntryImportDialog({ d, onClose, onSaved }: { d: CostPlanYear; on
     try {
       const y = await post<CostPlanYear & { added: number }>(base, { csv, fileName: file?.name ?? '', mapping: m, include: [...include] });
       onSaved(y);
-      void qc.invalidateQueries({ queryKey: costKeys.entryImports(d.serviceId) });
+      void qc.invalidateQueries({ queryKey: costKeys.entryImports(ownerKey(d.owner)) });
       notifyOk(t('entryImport.done', { count: y.added }));
       onClose();
     } catch (e) {
@@ -214,6 +218,7 @@ export function EntryImportDialog({ d, onClose, onSaved }: { d: CostPlanYear; on
           label={t('entryImport.file')}
           description={t('entryImport.fileHint')}
           accept=".csv,text/csv,text/plain"
+          placeholder={t('entryImport.filePlaceholder')}
           value={file}
           onChange={(f) => void choose(f)}
           clearable
@@ -365,7 +370,7 @@ export function EntryImportDialog({ d, onClose, onSaved }: { d: CostPlanYear; on
             {t('common:cancel')}
           </Button>
           <Button onClick={() => void runImport()} loading={busy && !!preview} disabled={!preview || !ready} data-testid="import-run">
-            {t('entryImport.import', { count: ready })}
+            {ready ? t('entryImport.import', { count: ready }) : t('entryImport.importNone')}
           </Button>
         </Group>
       </Stack>
@@ -373,23 +378,21 @@ export function EntryImportDialog({ d, onClose, onSaved }: { d: CostPlanYear; on
   );
 }
 
-/** The service's import records: file, rows, entries still there, and "Remove import". */
-export function EntryImports({ serviceId, onChanged }: { serviceId: string; onChanged: () => void }) {
+/** The plan's import records: file, rows, entries still there, and "Remove import". */
+export function EntryImports({ owner, onChanged }: { owner: PlanOwner; onChanged: () => void }) {
+  const serviceId = ownerKey(owner);
   const { t } = useTranslation('costs');
   const qc = useQueryClient();
   const q = useQuery({
     queryKey: costKeys.entryImports(serviceId),
-    queryFn: () => get<CostEntryImports>(`/costs/plans/${encodeURIComponent(serviceId)}/imports`),
+    queryFn: () => get<CostEntryImports>(`${planBase(owner)}/imports`),
   });
   const list = q.data;
   if (!list?.imports.length) return null;
   const remove = async (id: string, name: string, entries: number) => {
     if (!(await confirmDanger({ action: 'remove', message: t('entryImport.removeConfirm', { name: name || '–', count: entries }) }))) return;
     try {
-      qc.setQueryData(
-        costKeys.entryImports(serviceId),
-        await del<CostEntryImports>(`/costs/plans/${encodeURIComponent(serviceId)}/imports/${encodeURIComponent(id)}`),
-      );
+      qc.setQueryData(costKeys.entryImports(serviceId), await del<CostEntryImports>(`${planBase(owner)}/imports/${encodeURIComponent(id)}`));
       onChanged();
       notifyOk(t('entryImport.removed'));
     } catch (e) {

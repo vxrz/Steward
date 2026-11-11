@@ -16,7 +16,7 @@ import { useModuleOn } from '../modules';
 import { DueDate } from './Suppliers';
 import { DocLink, DpaState, RemoveContractModal } from '../components/suppliers/contractParts';
 import { ContractModal } from '../components/suppliers/ContractForm';
-import { ContractServices } from '../components/suppliers/ContractServices';
+import { ContractPlatforms, ContractServices } from '../components/suppliers/ContractServices';
 import { SupplierContacts } from '../components/suppliers/ScopedContacts';
 import { ContractPayments } from '../components/costs/ContractPayments';
 
@@ -117,6 +117,12 @@ export function SupplierContractPage() {
               <Text fw={600}>{t('contract.services')}</Text>
               <ContractServices supplierId={d.supplier.id} contract={c} onChanged={refresh} />
             </Stack>
+            {(c.platforms.length > 0 || c.hiddenPlatforms > 0 || c.canEdit) && (
+              <Stack gap="xs" data-testid="contract-platforms-section">
+                <Text fw={600}>{t('contract.platforms')}</Text>
+                <ContractPlatforms supplierId={d.supplier.id} contract={c} onChanged={refresh} />
+              </Stack>
+            )}
             <Stack gap="xs">
               <Text fw={600}>{t('contract.term')}</Text>
               <Group gap="lg" wrap="wrap" align="flex-start">
@@ -229,6 +235,11 @@ export function SupplierContractPage() {
                 {!d.visibility.open && d.visibility.services.length > 0 && (
                   <Text size="xs" c="dimmed">
                     {t('contract.visibleServices', { services: d.visibility.services.map((x) => x.name).join(', ') })}
+                  </Text>
+                )}
+                {!d.visibility.open && d.visibility.platforms.length > 0 && (
+                  <Text size="xs" c="dimmed" data-testid="contract-visible-platforms">
+                    {t('contract.visiblePlatforms', { platforms: d.visibility.platforms.map((x) => x.name).join(', ') })}
                   </Text>
                 )}
                 <Text size="xs" c="dimmed">

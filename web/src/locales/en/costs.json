@@ -23,7 +23,8 @@
     "lastMonth": "Last month",
     "change": "Change",
     "unassigned": "Unassigned",
-    "budget": "Budget"
+    "budget": "Budget",
+    "plan": "Cost plan"
   },
   "totals": "Platforms this month ({{currency}})",
   "totalsLast": "Last month: {{amount}}",
@@ -455,7 +456,8 @@
       "cloudHidden": "Cloud figures hidden",
       "totals": "All services ({{currency}})",
       "none": "None of the team's services has a plan for {{label}}.",
-      "totalsLine": "{{planned}} planned · {{expected}} expected"
+      "totalsLine": "{{planned}} planned · {{expected}} expected",
+      "platform": "Platform"
     },
     "costsRead": "Costs read",
     "costsReadHint": "The costs Steward reads from the platforms for this service, month by month",
@@ -498,7 +500,8 @@
       "quarterly": "quarterly",
       "yearly": "yearly",
       "once": "once",
-      "dates": "dated payments"
+      "dates": "dated payments",
+      "volume": "volume"
     },
     "form": {
       "title": "Title",
@@ -527,8 +530,14 @@
       "addPayment": "Add a payment",
       "removePayment": "Remove this payment",
       "paymentsInvalid": "Each payment needs a date and an amount with the currency's decimals.",
-      "noProRata": "A payment counts in the month of its date – no pro rata. Enter a first invoice billed pro rata as a dated payment."
-    }
+      "noProRata": "A payment counts in the month of its date – no pro rata. Enter a first invoice billed pro rata as a dated payment.",
+      "payer": "Paid by",
+      "payerService": "Service",
+      "payerPlatform": "Platform",
+      "platform": "Paying platform",
+      "platformHint": "The platform's own cost plan gets the lines; it must be covered by the contract"
+    },
+    "paidByPlatform": "{{name}} (platform)"
   },
   "contractLines": {
     "changed": "Contract changed",
@@ -563,7 +572,7 @@
   },
   "commitments": {
     "title": "Commitments",
-    "description": "What the payment schedules of supplier contracts still owe, per fiscal year and currency – scheduled payments dated today or later, not liabilities.",
+    "description": "What supplier contracts still owe under their payment schedules, per fiscal year and currency.",
     "back": "Costs",
     "export": "Export (CSV)",
     "search": "Search schedules, services and suppliers",
@@ -571,12 +580,14 @@
       "team": "Team",
       "service": "Service",
       "supplier": "Supplier",
-      "ending": "Ending within … days"
+      "ending": "Ends within (days)",
+      "platform": "Platform",
+      "all": "All"
     },
     "groupBy": "Group by",
     "groups": {
       "supplier": "Supplier",
-      "service": "Service",
+      "service": "Service or platform",
       "team": "Team"
     },
     "warnings_one": "{{count}} notice date before an unplanned year",
@@ -601,12 +612,17 @@
     "total": "Owed in {{currency}} to contract end",
     "totalExit": "To the earliest exit {{amount}} · this fiscal year {{thisYear}}",
     "serviceTitle": "Contracts",
-    "help": "The contracts this service pays, from their payment schedules: what is still owed from today, to contract end and to the earliest exit (the end of the term after the next notice-by date). Entries are not subtracted.",
+    "help": "The contracts this plan pays, from their payment schedules: what is still owed from today, to contract end and to the earliest exit (the end of the term after the next notice-by date). Entries are not subtracted; a volume owes only what is committed.",
     "noneForService": "No payment schedules for this service yet.",
     "supplierTitle": "Payments and commitments",
     "supplierHelp": "The payment schedules of this supplier's contracts for services you may see, what they still owe, and what was incurred with the supplier.",
     "incurred": "Incurred (entries naming this supplier)",
-    "note": "Commitments are the scheduled payments of contracts dated today or later – not liabilities, not accounting. Totals are per currency and only count amounts you may see."
+    "note": "Commitments are the scheduled payments of contracts dated today or later – not liabilities, not accounting. Totals are per currency and only count amounts you may see.",
+    "platformGroup": "{{name}} (platform)",
+    "noticeByLine": "Notice by {{date}}",
+    "showPaid_one": "Show {{count}} paid schedule",
+    "showPaid_other": "Show {{count}} paid schedules",
+    "hidePaid": "Hide paid schedules"
   },
   "entryImport": {
     "button": "Import entries (CSV)",
@@ -614,6 +630,7 @@
     "help": "For invoice lists and ERP exports: UTF-8, separated by commas, semicolons or tabs, with a header row. Map the columns, check the preview, then import the rows without problems in one step – all or nothing. At most 5 MB and 5,000 rows.",
     "file": "CSV file",
     "fileHint": "The preview stores nothing; the file is read again on import.",
+    "filePlaceholder": "Choose a CSV file",
     "tooLarge": "The file is larger than 5 MB.",
     "dateFormat": "Date format",
     "dateFormatHint": "Chosen, never guessed",
@@ -667,6 +684,7 @@
     },
     "import_one": "Import {{count}} row",
     "import_other": "Import {{count}} rows",
+    "importNone": "Import",
     "done_one": "{{count}} entry imported",
     "done_other": "{{count}} entries imported",
     "failed": "Nothing imported",
@@ -678,5 +696,110 @@
     "removeConfirm_other": "Remove the import of {{name}}? Its {{count}} entries that are still there go.",
     "removed": "Import removed",
     "clearFile": "Remove the file"
+  },
+  "platformPlan": {
+    "help": "What the platform team plans to spend per fiscal year on the platform's own contracts – capacity, a cloud spend commitment, a subscription – set against the platform's whole bill as Steward reads it, plus the cost entries. Its costs are not allocated to the services that use the platform.",
+    "readLine": "The platform's costs (read) no line takes: {{soFar}} so far, {{expected}} expected for the year.",
+    "cloudHint": "A line of category Cloud takes the platform's costs read in its currency (the oldest such line); a volume billed by use from the read costs takes those of its months first."
+  },
+  "volumes": {
+    "title": "Volumes",
+    "help": "Contract volumes this plan pays: what the current period used, what is left and – an estimate at the rate of the recent months – where it ends. A prepaid volume covers the use until it is used up; that use is not counted as incurred again.",
+    "estimateNote": "Estimates are linear: the use per day of the last 90 days times the days left. They change when the use does.",
+    "column": "Volume",
+    "drawnLine": "Drawn from prepaid volumes: {{soFar}} so far – shown, not counted again (the payment is the cost).",
+    "bookHelp": "A volume billed by use is booked with the amount of the invoice. The average use per month so far in the period is filled in as a start.",
+    "entryDrawn": "{{amount}} from a prepaid volume",
+    "billing": {
+      "prepaid": "Prepaid",
+      "byUse": "Billed by use"
+    },
+    "committed": {
+      "full": "Fully committed",
+      "minimum": "Committed minimum",
+      "none": "Ceiling only"
+    },
+    "consumption": {
+      "entries": "Use from cost entries",
+      "read": "Use from the platform's read costs"
+    },
+    "warnings": {
+      "runsOut": "Runs out before the period ends (estimate)",
+      "runsOutOn": "Runs out around {{date}} (estimate)",
+      "usedUp": "Used up",
+      "shortfall": "Well below the committed minimum (estimate)",
+      "ceiling": "Expected over the ceiling (estimate)",
+      "overCeiling": "Over the ceiling"
+    },
+    "per": {
+      "year": "Contract year {{from}} – {{to}}",
+      "term": "Term {{from}} – {{to}}"
+    },
+    "shareLabel": "{{pct}} % used",
+    "usedOf": "{{used}} of {{amount}} used ({{pct}} %)",
+    "left": "{{left}} left",
+    "minimum": "minimum {{amount}}",
+    "estimate": "Estimate: {{amount}} by {{date}}",
+    "tooEarly": "No estimate yet: less than 28 days of use.",
+    "stateOnly": "The use counts services or platforms you may not see: warnings only.",
+    "amountsHidden": "Amounts are hidden.",
+    "upTo": "Up to {{amount}} more may be billed",
+    "upToLabel": "Up to (not owed)",
+    "upToTotal": "Volumes may bill up to {{amount}} more – not owed",
+    "summary": {
+      "year": "{{amount}} per contract year",
+      "term": "{{amount}} for the term"
+    },
+    "form": {
+      "amount": "Volume",
+      "amountHint": "Contract year 1, or the whole term",
+      "help": "The contract names an amount that may or may not be used in full. Prepaid: paid up front at the start of each period, then drawn down. By use: billed from what is used; choose what is committed.",
+      "per": "Volume per",
+      "perOptions": {
+        "year": "Contract year",
+        "term": "Whole term"
+      },
+      "billing": "Billed",
+      "billingOptions": {
+        "prepaid": "Prepaid (paid up front, drawn down)",
+        "byUse": "By use (billed from what is used)"
+      },
+      "committed": "Committed",
+      "committedOptions": {
+        "full": "The full volume (use it or lose it)",
+        "minimum": "A minimum – the rest is an upper limit",
+        "none": "Nothing – a ceiling only"
+      },
+      "minimumAs": "Minimum as",
+      "minimumPct": "Percentage",
+      "minimumAmount": "Amount per period",
+      "consumption": "Use comes from",
+      "consumptionHint": "The platform's read costs, or the cost entries booked to the contract – one of them, never both."
+    }
+  },
+  "attribution": {
+    "title": "Costs and contracts",
+    "help": {
+      "application": "The services plan and pay; this shows what they attribute to the application – each line, entry and schedule once, also when several services use it.",
+      "system": "The services plan and pay; this shows what they attribute to the system – each line, entry and schedule once, also when several services use it."
+    },
+    "amountsHidden": "Some amounts are hidden from you and are not in the totals.",
+    "columns": {
+      "year": "Fiscal year",
+      "currency": "Currency",
+      "incurred": "Incurred"
+    },
+    "contracts": "Contracts",
+    "named": "Named for {{services}}",
+    "viaLines": "Through lines or entries",
+    "endsOn": "ends {{date}}",
+    "lines": "Plan lines in {{label}}",
+    "schedules": "Payment schedules",
+    "entries_one": "{{count}} cost entry in {{label}}",
+    "entries_other": "{{count}} cost entries in {{label}}",
+    "empty": {
+      "application": "No contract, plan line or cost entry names this application.",
+      "system": "No contract, plan line or cost entry names this system."
+    }
   }
 }

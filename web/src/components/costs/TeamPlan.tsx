@@ -8,13 +8,13 @@ import type { CostPlanTeamYear } from '@sm/shared';
 import { get } from '../../api';
 import { QueryState } from '../common';
 import { costKeys } from '../../queryKeys';
-import { fmtMoney } from './common';
+import { fmtMoney, planPath } from './common';
 import { Difference } from './ServicePlan';
 
 /**
- * The cost plans of a team's services in one fiscal year (ADR 0026): per service and currency planned, incurred to
- * date, expected and the difference, and the sums per currency – never across currencies. A service of several teams
- * counts for each of them (marked).
+ * The cost plans of a team's services – and (0.19.0, ADR 0032) the platforms it owns – in one fiscal year (ADR 0026):
+ * per service or platform and currency planned, incurred to date, expected and the difference, and the sums per
+ * currency – never across currencies. One of several teams counts for each of them (marked).
  */
 export function TeamCostPlan({ teamId }: { teamId: string }) {
   const { t } = useTranslation('costs');
@@ -26,12 +26,23 @@ export function TeamCostPlan({ teamId }: { teamId: string }) {
   });
   const d = q.data;
   if (!d) return <QueryState query={q} />;
-  const rows = d.services.flatMap((s) => s.currencies.map((c) => ({ s, c, key: `${s.id}|${c.currency}` })));
-  const name = (s: CostPlanTeamYear['services'][number]) => (
+  // the team's services, then (0.19.0, ADR 0032) its platforms with a cost plan of their own
+  type Owner = { kind: 'service' | 'platform'; id: string; name: string; shared: boolean; cloud?: string };
+  const owners: (Owner & { currencies: CostPlanTeamYear['services'][number]['currencies'] })[] = [
+    ...d.services.map((x) => ({ ...x, kind: 'service' as const })),
+    ...d.platforms.map((x) => ({ ...x, kind: 'platform' as const })),
+  ];
+  const rows = owners.flatMap((s) => s.currencies.map((c) => ({ s, c, key: `${s.kind}|${s.id}|${c.currency}` })));
+  const name = (s: Owner) => (
     <Group gap={6} wrap="wrap">
-      <Anchor component={Link} to={`/services/${s.id}/costs`} size="sm">
+      <Anchor component={Link} to={planPath(s)} size="sm">
         {s.name}
       </Anchor>
+      {s.kind === 'platform' && (
+        <Badge size="xs" variant="light" color="grape">
+          {t('plan.team.platform')}
+        </Badge>
+      )}
       {s.shared && (
         <Badge size="xs" variant="light" color="gray">
           {t('plan.team.shared')}
