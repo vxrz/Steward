@@ -24,7 +24,14 @@ import { moduleEnabled } from '../modules/registry.js';
 import { params } from './params.js';
 import { platformIdentityRoutes } from './platform-identities.js';
 import { isPrivileged, privilegedRefusal } from '../platforms/privileged.js';
-import { afterPlatformUpdate, credentialChoice, destinationRules, planDestinationChange, recordDestinationChange } from '../platforms/destinationChange.js';
+import {
+  afterPlatformUpdate,
+  credentialChoice,
+  destinationRules,
+  guardDestinationSecrets,
+  planDestinationChange,
+  recordDestinationChange,
+} from '../platforms/destinationChange.js';
 import { db } from '../db.js';
 
 const platformBody = z.object({
@@ -157,7 +164,10 @@ export async function platformRoutes(app: FastifyInstance): Promise<void> {
   });
   app.put('/platforms/:id/secrets', async (req) => {
     requirePlatform(params(req).id!, 'manage', 'change credentials of this platform');
-    return platforms.setSecrets(params(req).id!, boundedRecord(z.string().nullable(), 100).parse(req.body));
+    const patch = boundedRecord(z.string().nullable(), 100).parse(req.body);
+    // a secret a destination template names decides where the credentials go (security review 0.19.0 L3)
+    guardDestinationSecrets(params(req).id!, undefined, patch);
+    return platforms.setSecrets(params(req).id!, patch);
   });
 
   app.post('/platforms/:id/test', { config: { rateLimit: ROUTE_LIMITS.action } }, async (req) => {

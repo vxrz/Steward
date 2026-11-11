@@ -4,10 +4,11 @@ import { audit } from '../audit.js';
 import { currentUser } from '../auth/context.js';
 import { isAdmin } from '../auth/permissions.js';
 import { requireSession } from '../auth/step-up.js';
+import { requireStepUpNow } from '../auth/named-grants.js';
 import { HttpError } from '../util.js';
-import { changedDestination, platformDestination, type DestinationSource, type PlatformDestination } from './destination.js';
+import { changedDestination, destinationSecretKeys, platformDestination, type DestinationSource, type PlatformDestination } from './destination.js';
 import { clearStoredCredentials, hasStoredCredentials } from './identityService.js';
-import { getPlatform, storedConfig } from './service.js';
+import { getConnection, getPlatform, storedConfig } from './service.js';
 
 /**
  * A change of where a platform's stored credentials go (security review 0.19.0 H1, docs/PLATFORMS.md#changing-the-address):
@@ -38,6 +39,7 @@ interface PlatformPatch {
   kind?: string;
   baseUrl?: string;
   config?: unknown;
+  name?: string;
 }
 
 const isObject = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
@@ -50,6 +52,7 @@ export function afterPlatformUpdate(id: string, patch: PlatformPatch): Destinati
     kind: typeof patch.kind === 'string' ? patch.kind : p.kind,
     baseUrl: typeof patch.baseUrl === 'string' ? patch.baseUrl : p.baseUrl,
     config: isObject(patch.config) ? { ...patch.config, ...(stored.database ? { database: stored.database } : {}) } : stored,
+    name: typeof patch.name === 'string' ? patch.name : p.name,
   };
 }
 
@@ -57,12 +60,12 @@ export function afterPlatformUpdate(id: string, patch: PlatformPatch): Destinati
 export function afterDatabaseUpdate(id: string, settings: DatabaseSettings): DestinationSource {
   const p = getPlatform(id);
   // other kinds have no connection to change (the route refuses them)
-  return { kind: p.kind, baseUrl: p.baseUrl, config: { ...storedConfig(id), ...(p.kind === DATABASE_KIND ? { database: settings } : {}) } };
+  return { kind: p.kind, baseUrl: p.baseUrl, name: p.name, config: { ...storedConfig(id), ...(p.kind === DATABASE_KIND ? { database: settings } : {}) } };
 }
 
 function destinationOf(id: string): PlatformDestination {
   const p = getPlatform(id);
-  return platformDestination({ kind: p.kind, baseUrl: p.baseUrl, config: storedConfig(id) });
+  return platformDestination({ kind: p.kind, baseUrl: p.baseUrl, name: p.name, config: storedConfig(id) });
 }
 
 /** For the step-up rule: the change moves stored credentials to another address. */
@@ -74,7 +77,7 @@ export function movesCredentials(id: string, after: DestinationSource): boolean 
 export const destinationRules = {
   platform: (id: string, body: unknown) => {
     const b = isObject(body) ? body : {};
-    return movesCredentials(id, afterPlatformUpdate(id, { kind: b.kind as string, baseUrl: b.baseUrl as string, config: b.config }));
+    return movesCredentials(id, afterPlatformUpdate(id, { kind: b.kind as string, baseUrl: b.baseUrl as string, config: b.config, name: b.name as string }));
   },
   database: (id: string, body: unknown) => {
     const parsed = databaseSettingsSchema.safeParse(isObject(body) ? Object.fromEntries(Object.entries(body).filter(([k]) => k !== 'credentials')) : body);
@@ -109,6 +112,35 @@ export function planDestinationChange(id: string, after: DestinationSource, choi
       );
   }
   return { before, after: next, changed, stored, clear: stored && choice !== 'keep' };
+}
+
+/**
+ * A change of stored secrets that a destination template names (security review 0.19.0 L3, destination.ts
+ * destinationSecretKeys): `{{ secrets.tenant }}` in the base URL sends every credential wherever `tenant` points, so
+ * changing or removing it changes the destination. Only administrators, in a signed-in session (API tokens:
+ * SESSION_REQUIRED), after the step-up platform.destination; others get 403 PLATFORM_DESTINATION_SECRET. Returns the
+ * destination secrets the change touches (for the audit entry); empty: an ordinary change of credentials.
+ */
+export function guardDestinationSecrets(id: string, identityId: string | undefined, patch: Record<string, string | null>): string[] {
+  const p = getPlatform(id);
+  const keys = destinationSecretKeys({ kind: p.kind, baseUrl: p.baseUrl, name: p.name, config: storedConfig(id) });
+  if (keys !== 'all' && !keys.size) return [];
+  const current = getConnection(id, identityId).secrets;
+  const touched = Object.entries(patch)
+    .filter(([k, v]) => (v === null || v === '' ? k in current : current[k] !== v))
+    .map(([k]) => k);
+  const hit = keys === 'all' ? touched : touched.filter((k) => keys.has(k));
+  if (!hit.length) return [];
+  const u = requireSession(currentUser());
+  if (!isAdmin(u))
+    throw new HttpError(
+      403,
+      `${hit.join(', ')} decide${hit.length === 1 ? 's' : ''} where the credentials of "${p.name}" go – only an administrator can change ${hit.length === 1 ? 'it' : 'them'}`,
+      'PLATFORM_DESTINATION_SECRET',
+      { name: p.name, keys: hit },
+    );
+  requireStepUpNow('platform.destination', u, 'changePlatformDestination');
+  return hit;
 }
 
 /** A proxy URL may carry a user and password: never in the audit log. */

@@ -8,6 +8,11 @@ import { MQTT_KIND, dbPort, type AuthConfig, type DatabaseSettings, type Platfor
  * endpoint, and the host and port of a database platform. A change of any of these is a change of destination: it
  * needs a signed-in session with a step-up (control point platform.destination), and the stored credentials are removed
  * unless an administrator confirms sending them to the new address (routes/platforms.ts).
+ *
+ * Templates the comparison cannot fill in (security review 0.19.0 L3): `{{ baseUrl }}` and `{{ vars.x }}` are filled
+ * in; a template that reads the platform's name or kind makes them part of the destination (a rename is a change of
+ * destination); a stored secret a template names is a destination secret – changing it is for administrators only, in a
+ * session, after the same step-up (destinationChange.ts guardDestinationSecrets).
  */
 export interface PlatformDestination {
   baseUrl: string;
@@ -18,11 +23,13 @@ export interface PlatformDestination {
   connection: string[];
 }
 
-/** What a destination is computed from: the platform's kind, base URL and stored configuration. */
+/** What a destination is computed from: the platform's kind, base URL and stored configuration (and its name, L3). */
 export interface DestinationSource {
   kind: string;
   baseUrl: string;
   config: Partial<PlatformConfig> | null | undefined;
+  /** The platform's name: part of the destination when a destination template uses {{ platform.… }} */
+  name?: string;
 }
 
 /**
@@ -73,6 +80,41 @@ function addressOf(raw: string, base: string, vars: Record<string, string>): str
 
 const sorted = (xs: string[]) => [...new Set(xs.filter(Boolean))].sort();
 
+/** The texts of the destination fields that may hold templates: base URL, trusted origins, sign-in URLs, portal, proxy, connection variables. */
+function destinationTexts(p: DestinationSource): string[] {
+  const cfg = p.config ?? {};
+  const vars = cfg.variables && typeof cfg.variables === 'object' ? (cfg.variables as Record<string, unknown>) : {};
+  return [
+    p.baseUrl ?? '',
+    ...(cfg.http?.trustedOrigins ?? []),
+    ...authUrls(cfg.auth).map((a) => a.url),
+    cfg.portalUrl ?? '',
+    cfg.http?.proxy ?? '',
+    ...destinationVariables(p.kind).map((n) => vars[n]),
+  ].filter((t): t is string => typeof t === 'string' && t.includes('{{'));
+}
+
+/** The expressions in {{ … }} of these texts other than {{ baseUrl }} and {{ vars.x }} (those the check fills in). */
+const opaqueExpressions = (texts: string[]): string[] =>
+  texts.flatMap((t) => [...t.matchAll(/\{\{([\s\S]*?)\}\}/g)].map((m) => m[1]!.trim())).filter((e) => !/^(baseUrl|vars\.[A-Za-z_][A-Za-z0-9_]*)$/.test(e));
+
+/**
+ * The stored secrets a destination template names (security review 0.19.0 L3): `{{ secrets.tenant }}` in a base URL
+ * or token URL sends the credentials wherever that secret points – changing it changes the destination, which the
+ * comparison above cannot see. `all`: a template reads the secrets in a way that names no key (every secret counts).
+ */
+export function destinationSecretKeys(p: DestinationSource): Set<string> | 'all' {
+  const keys = new Set<string>();
+  for (const e of opaqueExpressions(destinationTexts(p))) {
+    if (!/\bsecrets\b/.test(e)) continue;
+    const named = [...e.matchAll(/\bsecrets\s*(?:\.\s*([A-Za-z_$][\w$]*)|\[\s*(['"])([^'"]*)\2\s*\])/g)];
+    // every mention of `secrets` must name a key, else the expression may read any of them
+    if (named.length !== [...e.matchAll(/\bsecrets\b/g)].length) return 'all';
+    for (const m of named) keys.add(m[1] ?? m[3]!);
+  }
+  return keys;
+}
+
 /** The destination of a platform (see above). */
 export function platformDestination(p: DestinationSource): PlatformDestination {
   const cfg = p.config ?? {};
@@ -92,6 +134,8 @@ export function platformDestination(p: DestinationSource): PlatformDestination {
   const db = (cfg as { database?: Partial<DatabaseSettings> }).database;
   if (db && typeof db.host === 'string' && db.dialect)
     connection.push(`database=${db.host.trim().toLowerCase()}:${dbPort({ dialect: db.dialect, port: db.port })}`);
+  // a template that reads the platform's name or kind (L3): renaming the platform moves the destination too
+  if (opaqueExpressions(destinationTexts(p)).some((e) => /\bplatform\b/.test(e))) connection.push(`platform=${p.kind}|${p.name ?? ''}`);
   return {
     baseUrl,
     trustedOrigins: sorted((cfg.http?.trustedOrigins ?? []).map((t) => (typeof t === 'string' ? addressOf(t, base, vars) : ''))),

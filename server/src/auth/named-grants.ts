@@ -2,10 +2,11 @@ import type { FastifyRequest } from 'fastify';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { HttpError, parseJson } from '../util.js';
-import { currentStore, currentUser } from './context.js';
+import { currentStore, currentUser, type AuthUser } from './context.js';
 import { aliasTarget, teamAliasTarget } from './aliases.js';
 import { requireStepUp } from './assurance.js';
 import type { StepUpRule } from './step-up.js';
+import type { StepUpAction } from '@sm/shared';
 import { catalogueTeams, newResourceTeams, type CatalogueKind, type OwningTeam } from './policy.js';
 
 /**
@@ -123,9 +124,22 @@ class StepUpRefused extends HttpError {
   }
 }
 
-/** Whether this request confirmed the control point access.grant already (the route's rule or an earlier call). */
-const grantConfirmed = (): boolean =>
-  ((currentStore()?.assurance?.proofs ?? []) as { point?: string; stepUp?: unknown }[]).some((p) => p.point === 'access.grant' && !!p.stepUp);
+/** Whether this request confirmed the control point already (the route's rule or an earlier call). */
+const confirmed = (point: string): boolean =>
+  ((currentStore()?.assurance?.proofs ?? []) as { point?: string; stepUp?: unknown }[]).some((p) => p.point === point && !!p.stepUp);
+
+/**
+ * The step-up of a control point asked inside a handler or service (no route rule could tell beforehand): returns when
+ * the request is confirmed, else throws 403 STEP_UP_REQUIRED (SESSION_REQUIRED for API tokens, ASSURANCE_MFA_REQUIRED
+ * when the policy wants a second factor) – answered like the step-up hook, so the web app asks and retries.
+ */
+export function requireStepUpNow(point: string, u: AuthUser, action: StepUpAction): void {
+  if (confirmed(point)) return;
+  const refusal = requireStepUp([point], u, action);
+  if (!refusal) return;
+  const b = refusal.body as { error?: string; code?: string; params?: Record<string, unknown>; stepUp?: unknown };
+  throw new StepUpRefused(refusal.status, String(b.error ?? 'Confirm it is you first'), String(b.code ?? 'STEP_UP_REQUIRED'), b.params, b.stepUp);
+}
 
 /**
  * The step-up of a change that names uncovered subjects (see above): returns them (empty: nothing to confirm), or
@@ -136,11 +150,8 @@ export function requireNamedGrant(g: NamedGrant): string[] {
   const added = uncoveredSubjects(g.teams, g.before, g.after);
   if (!added.length) return added;
   const u = currentUser();
-  if (!u || grantConfirmed()) return added;
-  const refusal = requireStepUp(['access.grant'], u, 'grantNamedAccess');
-  if (!refusal) return added;
-  const b = refusal.body as { error?: string; code?: string; params?: Record<string, unknown>; stepUp?: unknown };
-  throw new StepUpRefused(refusal.status, String(b.error ?? 'Confirm it is you first'), String(b.code ?? 'STEP_UP_REQUIRED'), b.params, b.stepUp);
+  if (u) requireStepUpNow('access.grant', u, 'grantNamedAccess');
+  return added;
 }
 
 /**

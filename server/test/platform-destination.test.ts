@@ -94,6 +94,8 @@ describe('what counts as a new address', () => {
   });
 });
 
+const base0 = { kind: 'generic', baseUrl: '', config: {} };
+
 describe('changing the address of a platform with stored credentials', () => {
   it('refuses API tokens, also an administrator’s full one – other changes still work with a token', async () => {
     const p = await platform();
@@ -171,6 +173,44 @@ describe('changing the address of a platform with stored credentials', () => {
     expect(after.config.auth.tokenUrl).toBe('https://attacker.example/token');
     expect(after.secretKeys).toEqual([]);
     expect((await auditOf(p.id))[0]).toMatchObject({ actor: 'dana', details: { changed: ['signIn'], credentials: 'removed' } });
+  });
+
+  it('treats a secret a destination template names as part of the address (security review 0.19.0 L3)', async () => {
+    // the base URL uses a stored secret: changing it alone would send the stored token to another host
+    const p = await platform({ baseUrl: 'https://{{ secrets.tenant }}.api.invented.example/v1', secrets: { token: 'stored-token-value', tenant: 'acme' } });
+    await s.api('PUT', `/platforms/${p.id}/access`, { acl: [{ subject: 'user:dana', permissions: ['manage'] }] });
+    const identity = (await s.api('GET', `/platforms/${p.id}/identities`))[0].id;
+    expect(await refused(dana('PUT', `/platforms/${p.id}/identities/${identity}/secrets`, { tenant: 'attacker' }))).toMatchObject({
+      status: 403,
+      body: { code: 'PLATFORM_DESTINATION_SECRET', params: { keys: ['tenant'] } },
+    });
+    expect(await refused(dana('PUT', `/platforms/${p.id}/secrets`, { tenant: null }))).toMatchObject({
+      status: 403,
+      body: { code: 'PLATFORM_DESTINATION_SECRET' },
+    });
+    // other credentials change as before
+    expect(await refused(dana('PUT', `/platforms/${p.id}/identities/${identity}/secrets`, { token: 'rotated' }))).toMatchObject({ status: 200 });
+    // an API token cannot, an administrator confirms it first
+    expect((await bearer('PUT', `/platforms/${p.id}/identities/${identity}/secrets`, { tenant: 'other' })).body.code).toBe('SESSION_REQUIRED');
+    const fresh = await s.as(ADMIN.username, ADMIN.password, { autoStepUp: false });
+    await fresh('DELETE', '/auth/step-up');
+    expect(await refused(fresh('PUT', `/platforms/${p.id}/identities/${identity}/secrets`, { tenant: 'other' }))).toMatchObject({
+      status: 403,
+      body: { code: 'STEP_UP_REQUIRED', stepUp: { action: 'changePlatformDestination' } },
+    });
+    expect(await refused(s.api('PUT', `/platforms/${p.id}/identities/${identity}/secrets`, { tenant: 'other' }))).toMatchObject({ status: 200 });
+    // a template that reads the platform's name: a rename moves the address
+    const named = { ...base0, baseUrl: 'https://{{ platform.name }}.invented.example' };
+    expect(changedDestination(platformDestination({ ...named, name: 'a' }), platformDestination({ ...named, name: 'b' }))).toEqual(['connection']);
+    const { destinationSecretKeys } = await import('../src/platforms/destination.js');
+    expect(
+      destinationSecretKeys({
+        ...base0,
+        baseUrl: 'https://{{ secrets["region"] }}.example',
+        config: { auth: { type: 'oauth2_client_credentials', tokenUrl: '{{ secrets.idp }}/token' } } as any,
+      }),
+    ).toEqual(new Set(['region', 'idp']));
+    expect(destinationSecretKeys({ ...base0, baseUrl: 'https://{{ secrets[vars.k] }}.example' })).toBe('all');
   });
 
   it('counts a variable that moves the base URL, and leaves other variables alone', async () => {

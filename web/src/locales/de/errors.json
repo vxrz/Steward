@@ -30,6 +30,7 @@
     "PLATFORM_CONFIG_UNVERIFIED": "Die Verbindungseinstellungen dieser Plattform wurden außerhalb von Steward geändert. Bis ein Administrator sie auf der Plattformseite geprüft und bestätigt hat, werden keine Anfragen gesendet.",
     "PLATFORM_DESTINATION_CREDENTIALS": "„{{name}}“ würde seine gespeicherten Zugangsdaten an eine neue Adresse senden. Wählen Sie, ob sie behalten (nur Administratoren) oder entfernt werden.",
     "PLATFORM_CREDENTIALS_KEEP_ADMIN": "Nur Administratoren können die gespeicherten Zugangsdaten von „{{name}}“ an eine neue Adresse senden. Speichern Sie ohne sie und geben Sie sie erneut ein.",
+    "PLATFORM_DESTINATION_SECRET": "{{keys}} bestimmt, wohin die Zugangsdaten von „{{name}}“ gesendet werden: Der Wert wird in der Adresse der Plattform verwendet. Nur ein Administrator kann ihn ändern.",
     "SSO_CONFIG_UNVERIFIED": "Die Einstellungen dieses Anmeldeanbieters wurden außerhalb von Steward geändert. Ein Administrator muss sie prüfen und erneut speichern.",
     "ANCHOR_INVALID": "Das ist kein Prüfpunkt (erwartet wird das JSON eines Prüfpunkts oder seq:hash).",
     "ANCHOR_SIGNATURE_INVALID": "Die Signatur des Prüfpunkts ist ungültig – er wurde verändert oder stammt von einer anderen Installation.",
