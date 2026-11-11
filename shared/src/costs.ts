@@ -206,7 +206,10 @@ export function fromMicros(micros: number, min = 2): string {
 /** Rounded to cents (two decimals) as a decimal string. */
 export const microsToCents = (micros: number): string => fromMicros(Math.round(micros / 10_000) * 10_000);
 
-/** Whole millionths rounded (half away from zero) to the minor units of the currency: 1500.5 JPY → 1501 JPY. */
+/**
+ * Whole millionths rounded (half away from zero) to the minor units of the currency: 1500.5 JPY → 1501 JPY. The one
+ * rounding of amounts to their currency – display, CSV and the check of typed amounts (fitsCurrency) use it.
+ */
 export function roundToCurrency(micros: number, currency: string): number {
   const unit = 10 ** (6 - currencyMinorUnits(currency));
   const r = Math.round(Math.abs(micros) / unit) * unit;
@@ -222,8 +225,8 @@ export const fromMicrosIn = (micros: number, currency: string): string => fromMi
 /** "1501 JPY" – an amount with its code for texts (audit summaries, notifications, monitor messages). */
 export const moneyText = (micros: number, currency: string): string => `${fromMicrosIn(micros, currency)} ${currency}`;
 
-/** Whether an amount has no more decimals than its currency has minor units (1500.50 JPY has too many). */
-export const fitsCurrency = (micros: number, currency: string): boolean => micros % 10 ** (6 - currencyMinorUnits(currency)) === 0;
+/** Whether an amount has no more decimals than its currency has minor units (1500.50 JPY has too many): rounding keeps it. */
+export const fitsCurrency = (micros: number, currency: string): boolean => roundToCurrency(micros, currency) === micros;
 
 /** The zod issue for an amount with more decimals than its currency allows (path `amount`). */
 export function checkCurrencyDecimals(x: { amount: string | null; currency: string }, ctx: z.RefinementCtx): void {
