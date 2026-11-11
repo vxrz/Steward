@@ -55,6 +55,8 @@ beforeAll(async () => {
     endsOn: '2034-01-31',
     noticeDays: 90,
     renewal: 'fixedEnd',
+    // the paying service must be covered by the contract (ADR 0031)
+    services: [{ serviceId: service, purpose: 'Payments' }],
   });
   contract = d.contracts[0]!.id;
 }, 240_000);
@@ -338,11 +340,22 @@ describe('copy to the next fiscal year with contracts', () => {
       title: 'Ends in March',
       startsOn: '2030-01-01',
       endsOn: '2042-03-15',
+      services: [{ serviceId: svc }],
     });
     const endsInMarch = sup.contracts.find((c) => c.title === 'Ends in March')!.id;
-    const sup2: SupplierDetail = await s.api('POST', `/suppliers/${supplier}/contracts`, { title: 'Ended', startsOn: '2030-01-01', endsOn: '2041-09-30' });
+    const sup2: SupplierDetail = await s.api('POST', `/suppliers/${supplier}/contracts`, {
+      title: 'Ended',
+      startsOn: '2030-01-01',
+      endsOn: '2041-09-30',
+      services: [{ serviceId: svc }],
+    });
     const ended = sup2.contracts.find((c) => c.title === 'Ended')!.id;
-    const longC: SupplierDetail = await s.api('POST', `/suppliers/${supplier}/contracts`, { title: 'Long', startsOn: '2040-10-01', endsOn: '2045-09-30' });
+    const longC: SupplierDetail = await s.api('POST', `/suppliers/${supplier}/contracts`, {
+      title: 'Long',
+      startsOn: '2040-10-01',
+      endsOn: '2045-09-30',
+      services: [{ serviceId: svc }],
+    });
     const long = longC.contracts.find((c) => c.title === 'Long')!.id;
     const line = (title: string, extra: Record<string, unknown>) =>
       olivia('POST', `/costs/plans/${svc}/lines`, { fiscalYear: 2040, title, category: 'support', currency: 'EUR', supplierId: supplier, ...extra });
@@ -390,6 +403,7 @@ describe('prepaid payments', () => {
       title: 'Historian licence',
       startsOn: '2035-02-01',
       endsOn: '2038-01-31',
+      services: [{ serviceId: svc }],
     });
     const cid = c.contracts.find((x) => x.title === 'Historian licence')!.id;
     const sch: CostScheduleList = await olivia('POST', '/costs/schedules', {
@@ -417,7 +431,12 @@ describe('prepaid payments', () => {
 describe('removing a contract and merging suppliers', () => {
   it('removes its schedules; lines made from them stay as ordinary lines with their amounts', async () => {
     const svc = (await s.api('POST', '/services', { name: 'Removal service', owners: ['user:olivia'] })).id;
-    const c: SupplierDetail = await s.api('POST', `/suppliers/${supplier}/contracts`, { title: 'Short-lived', startsOn: '2036-01-01', endsOn: '2036-12-31' });
+    const c: SupplierDetail = await s.api('POST', `/suppliers/${supplier}/contracts`, {
+      title: 'Short-lived',
+      startsOn: '2036-01-01',
+      endsOn: '2036-12-31',
+      services: [{ serviceId: svc }],
+    });
     const cid = c.contracts.find((x) => x.title === 'Short-lived')!.id;
     const sch: CostScheduleList = await olivia('POST', '/costs/schedules', { ...base, yearAmounts: [], contractId: cid, serviceId: svc });
     await olivia('POST', `/costs/plans/${svc}/proposals`, { fiscalYear: 2035, scheduleIds: [sch.schedules[0]!.id] });
@@ -434,6 +453,7 @@ describe('removing a contract and merging suppliers', () => {
       title: 'Duplicate contract',
       startsOn: '2036-01-01',
       endsOn: '2037-12-31',
+      services: [{ serviceId: service }],
     });
     const cid = c.contracts[0]!.id;
     await olivia('POST', '/costs/schedules', { ...base, yearAmounts: [], contractId: cid, serviceId: service });
@@ -499,6 +519,7 @@ describe('commitments', () => {
       noticeDays: 90,
       renewal: 'automatic',
       renewalMonths: 12,
+      services: [{ serviceId: svc }],
     });
     const hosting = sup.contracts.find((c) => c.title === 'Hosting renewing')!.id;
     await olivia('POST', '/costs/schedules', { ...base, yearAmounts: [], startsOn: '2024-02-01', endsOn: '2029-01-31', contractId: hosting, serviceId: svc });

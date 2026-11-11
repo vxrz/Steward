@@ -316,6 +316,7 @@ describe('the registry of reference columns', () => {
     ca_findings: 'the source of a corrective action finding',
     ca_suggestions: 'the source of a suggested finding',
     supplier_certificates: 'a certificate kind (ISO 27001, SOC 2 …)',
+    supplier_contact_scopes: 'what a supplier contact is about: a contract, application or system (ADR 0031)',
     platforms: 'the platform type',
     platform_docs: 'a document kind',
     platform_types: 'the platform type',

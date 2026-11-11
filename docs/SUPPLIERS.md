@@ -6,6 +6,7 @@ Steward keeps the records and reminds you of dates. It is not a GRC tool: no sup
 
 - [What a supplier holds](#what-a-supplier-holds)
 - [Contracts and the notice-by date](#contracts-and-the-notice-by-date)
+- [Contracts and the services they cover](#contracts-and-the-services-they-cover)
 - [Certificates and reports](#certificates-and-reports)
 - [Contacts and data protection](#contacts-and-data-protection)
 - [Linking a supplier](#linking-a-supplier)
@@ -20,13 +21,13 @@ Steward keeps the records and reminds you of dates. It is not a GRC tool: no sup
 
 - **Name** and **type**: SaaS, managed platform, software vendor, support or service provider, other. Names are unique (letter case aside, archived suppliers left out); when a supplier you may not see has the name, Steward says only that the name cannot be used, without naming or linking that supplier.
 - **Description** and **website**.
-- **Owners**: Steward users and teams (`user:dana`, `team:service desk`), like systems. They change the supplier and get its reminders.
+- **Owners**: Steward users and teams (`user:dana`, `team:service desk`), like systems. They maintain the company record – the supplier, its certificates and company-wide contacts – may add contracts and get the certificate reminders. Since 0.18.0 owning a supplier does **not** show its contracts: those belong to the teams that hold them ([below](#contracts-and-the-services-they-cover)).
 - **Data processing**: whether the supplier processes personal data for your services and, if so, the **data processing agreement** – _in place_ (since when, and the document) or _missing_.
-- **Criticality** (shown, not stored): the highest protection need per dimension of the applications that link the supplier ([APPLICATIONS.md](APPLICATIONS.md#rate-an-application-cia)).
+- **Criticality** (shown, not stored): the highest protection need per dimension of the applications that link the supplier ([APPLICATIONS.md](APPLICATIONS.md#rate-an-application-cia)) and – since 0.18.0 – of the services covered by the contracts you may see ([APPLICATIONS.md](APPLICATIONS.md#the-protection-need-of-a-service)).
 - **Other spellings**: the free-text vendors it was made from or merged with, and its former names. The supplier picker of the forms finds a supplier by them.
 - **Status**: _active_; _to confirm_ (made from free text on the update, see [below](#after-the-update-suppliers-to-confirm)); _archived_ (kept for its history and the items that still link it, no longer offered in forms).
 
-The list shows the next notice-by date and the next certificate expiry of each supplier, in orange within 90 days and in red once passed, and how many items link it. A supplier owned by a team is seen only by its members, its owners, administrators and auditors – as for systems ([TEAMS.md](TEAMS.md)).
+The list shows the next notice-by date (over the contracts you may see) and the next certificate expiry of each supplier, in orange within 90 days and in red once passed, and how many items link it. A supplier owned by a team is seen only by its members, its owners, administrators and auditors – as for systems ([TEAMS.md](TEAMS.md)).
 
 ## Contracts and the notice-by date
 
@@ -43,6 +44,38 @@ The contract also holds its document (an http(s) link, or the number of a docume
 A **cost plan line** and, since 0.18.0, a **cost entry** can name the supplier and the contract it pays for ([COSTS.md](COSTS.md#planning-per-service)); the contract lists the lines that pay for it. Removing a contract keeps the lines' and entries' supplier.
 
 **Payments** (0.18.0, Costs module, [ADR 0030](adr/0030-contract-payments-and-recorded-costs.md)): a contract can carry **payment schedules** – per paying service the billing (monthly, quarterly, yearly, once or dated payments), the amount per payment with amounts per contract year, start and end (default: the contract's; an automatic renewal runs on term by term). Steward proposes each fiscal year's plan lines from them, a person confirms them, and the plan shows _Contract changed_ when the contract changes later ([COSTS.md](COSTS.md#contract-payments-and-commitments)). Who may change the contract adds and changes them, and so may who edits the paying service and sees the supplier. The supplier page shows per contract its schedules (services you may see) and what they still owe – to contract end and to the earliest exit – the supplier's total per currency, and what was incurred per fiscal year from entries that name it. Removing a contract removes its schedules (the dialog names the paying services); merging suppliers moves them with their contracts; archiving keeps them – the money is still owed. `GET /api/v1/suppliers/{supplierId}` lists them per contract as `paymentSchedules`.
+
+## Contracts and the services they cover
+
+Since 0.18.0 a contract has a scope of its own ([ADR 0031](adr/0031-supplier-contracts-and-contacts-scope.md)): one company can be shared by several services, each under its own contract held by its own team. The invented example: _Invented Shared Platform AG_ hosts the online shop's clusters under a contract of the shop team, and sells 40 agent licences to customer care under a contract of the care team – one supplier, two contracts, and each team sees only its own.
+
+- **Services covered**: one or more services, each with a short **purpose** (_Hosting of the shop's clusters_, _Licences for 40 agents_; up to 200 characters). A contract without services is allowed – a company-wide agreement.
+- **Owners**: users and teams (`user:dana`, `team:orders`) who manage the contract and get its notice reminders. A new contract's owners default to the person who adds it and their teams for new resources ([TEAMS.md](TEAMS.md#new-resources)).
+
+**Who sees a contract.** Only who may see its supplier, and of them:
+
+- if **a team is among its owners** (a team-owned contract): the members of those teams, its user owners, whoever may see a service it covers, administrators and auditors. Others see the supplier, but not the contract, its amounts or that it exists;
+- otherwise (only user owners, or none): everyone who may see the supplier – as every contract was in 0.17.
+
+The contract's page (_Suppliers → the supplier → a contract_, `/suppliers/:id/contracts/:contractId`) says under _Owners and visibility_ who sees it and why. Covered services you may not see are left out; the contract's owners and whoever may change it see _and 2 services you may not see_ – no names, no purposes, no amounts.
+
+**Who may do what with a contract:**
+
+| Action                                                                     | Who                                                                                                                                                                                                           |
+| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Add a contract                                                             | designers, administrators and the supplier's owners; whoever may edit a service the new contract covers and may see the supplier                                                                              |
+| Change it (terms, SLA, owners, remove it)                                  | administrators; its owners; designers and the supplier's owners who may see it; editors of a covered service who may see **every** service it covers – otherwise read-only                                    |
+| Add a covered service                                                      | who may change the contract and may see that service                                                                                                                                                          |
+| Change the purpose of a covered service, _Leave contract_                  | who may change the contract, or who may edit that service                                                                                                                                                     |
+| Confirm a proposed service, _Not this service_                             | who may change the contract, or who may edit that service                                                                                                                                                     |
+| Payment schedules ([COSTS.md](COSTS.md#contract-payments-and-commitments)) | who may change the contract, or who may edit the paying service and may see the contract; the paying service must be covered – a schedule for another service adds it when the person may change the contract |
+
+- A change that leaves **no team among the owners** opens the contract to everyone who sees the supplier: the form says so and asks to confirm (`confirmOpen`). Owners need no step-up; the change is audited with before and after.
+- A covered service that pays a payment schedule of the contract cannot leave it until the schedule is moved or removed. Plan lines, matrix rows, duties and findings of the service that name the contract keep it and show _This contract no longer covers the service_.
+- An archived service stays listed as covered (_archived_) and gives no rights.
+- **Proposed services** (the update to 0.18, [below](#after-the-update-to-018-contracts-with-owners)) count for reading, not for changing, until a person confirms them or chooses _Not this service_.
+
+**A contract you may not see**, named on a plan line, a cost entry or a responsibility matrix row you may see, shows as _a contract you may not see_ – no title, number, dates, SLA, RTO/RPO or amounts; the supplier as its own rule allows. Saving such a form keeps the link. The contract pickers offer the contracts covering the service first; choosing another contract of the supplier adds the service to it when you may change that contract, and is refused otherwise. _Used by_ lists such an item by its own rule, with the same neutral text.
 
 ## Certificates and reports
 
@@ -85,6 +118,19 @@ _Suppliers → To confirm_ lists them with their spellings and how many items li
 
 Summaries, reminders and the dataset leave unconfirmed suppliers out. Confirming, merging, marking _not a supplier_ and archiving are decisions of people: they need a signed-in session, not an API token.
 
+## After the update to 0.18: contracts with owners
+
+The update to 0.18.0 gives every contract a scope, in the migration itself (SQLite and PostgreSQL, no vault needed):
+
+1. Every contract gets **its supplier's owners as its owners**.
+2. **Covered services are proposed** from what already names the contract: the services of cost plan lines, cost entries and responsibility matrix rows that name it – each as _proposed_, with where it came from. The paying services of payment schedules are added as _confirmed_.
+3. Contacts stay company-wide; personal data and the data processing agreement of contracts stay _as the supplier_.
+4. Suppliers keep their owning teams.
+
+Proposed services are confirmed or dismissed by a person – on the contract and on the service page's _Suppliers_ section. Dismissing one leaves the plan lines and matrix rows as they are, with the hint _This contract no longer covers the service_.
+
+**What can narrow:** a contract whose supplier had a team among its owners becomes team-owned. Who saw it in 0.17 only through the supplier – and neither owns it nor sees a service it is proposed for – no longer sees it. The supplier list shows administrators _Contracts now seen only by their owners and services_ once (audited as `supplier.contracts_scoped`, system); removing the team owner reopens a contract. Nothing becomes visible to more people.
+
 ## The yearly supplier review
 
 A service duty can name a supplier ([DUTIES.md](DUTIES.md)): _Service → Duties → New duty_, choose the supplier, interval _yearly_, level _mandatory_. The example process _Supplier review (manual procedure)_ (`examples/processes/96-supplier-review.yaml`, _Processes → From template_) walks through certificates and audit reports, SLA reports, the data processing agreement, the contract's notice date and open findings as manual steps with evidence files and a second person's verification ([MANUAL-STEPS.md](MANUAL-STEPS.md)). The supplier page shows the duty and its last periods.
@@ -99,28 +145,30 @@ The owners of an active supplier (without owners: the administrators) are remind
 
 ## Who may do what
 
-| Action                                                           | Who                                                  |
-| ---------------------------------------------------------------- | ---------------------------------------------------- |
-| See suppliers, contracts, certificates and contacts              | everyone who can sign in (team scope as for systems) |
-| Create suppliers; confirm, merge, mark _not a supplier_; archive | designers, administrators                            |
-| Change a supplier, its contacts, contracts and certificates      | designers, administrators, the supplier's owners     |
-| Link a supplier to an item                                       | whoever may change the item and may see the supplier |
-| Owning teams of a supplier                                       | administrators ([TEAMS.md](TEAMS.md))                |
+| Action                                                           | Who                                                                                                                                                                  |
+| ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| See suppliers, certificates and contacts                         | everyone who can sign in (team scope as for systems)                                                                                                                 |
+| See a contract                                                   | who sees the supplier; a team-owned contract only its owners, readers of its services, administrators and auditors ([above](#contracts-and-the-services-they-cover)) |
+| Create suppliers; confirm, merge, mark _not a supplier_; archive | designers, administrators                                                                                                                                            |
+| Change a supplier, its contacts and certificates                 | designers, administrators, the supplier's owners                                                                                                                     |
+| Add and change contracts                                         | see [the rights table](#contracts-and-the-services-they-cover)                                                                                                       |
+| Link a supplier to an item                                       | whoever may change the item and may see the supplier                                                                                                                 |
+| Owning teams of a supplier                                       | administrators ([TEAMS.md](TEAMS.md))                                                                                                                                |
 
 ## Audit, API, MCP and the dataset
 
-**Audit actions:** `supplier.created`, `.changed`, `.archived`, `.unarchived`, `.confirmed`, `.merged`, `.dismissed` (not a supplier), `.migrated` (system, the update), `.contact_added|changed|removed` (without e-mail or phone values), `.contract_added|changed|removed`, `.certificate_added|changed|removed`.
+**Audit actions:** `supplier.created`, `.changed`, `.archived`, `.unarchived`, `.confirmed`, `.merged`, `.dismissed` (not a supplier), `.migrated` (system, the update), `.contact_added|changed|removed` (without e-mail or phone values), `.contract_added|changed|removed` (since 0.18 with the owners before and after), `.contract_service_added|changed|removed|confirmed|dismissed` (on the supplier, naming the contract and the service; _removed_ is also _Leave contract_), `.contracts_scoped` (system, once, the update to 0.18), `.certificate_added|changed|removed`.
 
-**Public API** (read-only, [API.md](API.md)): `GET /api/v1/suppliers` (paged; default unconfirmed and active, `?status=`) and `GET /api/v1/suppliers/{supplierId}` – contracts with notice-by date, SLA and RTO/RPO, certificates, contacts without e-mail or phone, what links the supplier and its review duties.
+**Public API** (read-only, [API.md](API.md)): `GET /api/v1/suppliers` (paged; default unconfirmed and active, `?status=`) and `GET /api/v1/suppliers/{supplierId}` – the contracts the token owner may see with notice-by date, SLA and RTO/RPO, `owners` and `services` (id, name, purpose, status – the services the token owner may see, no count of others), certificates, contacts without e-mail or phone, what links the supplier and its review duties. `GET /api/v1/services/{serviceId}/contracts` lists the contracts covering a service (0.18).
 
-**MCP** ([MCP.md](MCP.md)): `list_suppliers` and `get_supplier`, read-only, with your rights.
+**MCP** ([MCP.md](MCP.md)): `list_suppliers`, `get_supplier` and `list_service_contracts` (0.18), read-only, with your rights.
 
-**Dataset** _Suppliers: expiring_ (`suppliers.expiring`): one row per certificate and notice-by date of an active supplier in the next 90 days or passed in the last 30, with status _warning_ within 30 days and _serious_ once passed; administrators and auditors, published at most hourly ([DASHBOARDS.md](DASHBOARDS.md)).
+**Dataset** _Suppliers: expiring_ (`suppliers.expiring`): one row per certificate and notice-by date of an active supplier in the next 90 days or passed in the last 30, with status _warning_ within 30 days and _serious_ once passed; a notice-by date also names the contract's owners and the services it covers (0.18). Administrators and auditors, published at most hourly ([DASHBOARDS.md](DASHBOARDS.md)).
 
-Writes are only in the app: every changing route – also marking a certificate as looked at – needs a signed-in session and refuses API tokens (ADR 0029 decision 9). Reading one supplier through the internal route with an API token gives what the public API gives: contacts without e-mail or phone. Internal routes: `GET|POST /api/suppliers[?status=]`, `GET /api/suppliers/options`, `GET|PUT /api/suppliers/:id`, `POST /api/suppliers/:id/archive|confirm|merge|not-a-supplier`, `POST /api/suppliers/:id/contacts|contracts|certificates`, `PUT|DELETE …/:itemId`.
+Writes are only in the app: every changing route – also marking a certificate as looked at – needs a signed-in session and refuses API tokens (ADR 0029 decision 9). Reading one supplier through the internal route with an API token gives what the public API gives: contacts without e-mail or phone. Internal routes: `GET|POST /api/suppliers[?status=]`, `GET /api/suppliers/options`, `GET|PUT /api/suppliers/:id`, `POST /api/suppliers/:id/archive|confirm|merge|not-a-supplier`, `POST /api/suppliers/:id/contacts|contracts|certificates`, `PUT|DELETE …/:itemId`; since 0.18 `GET /api/suppliers/:id/contracts/:contractId` (the contract page), contracts take `owners`, `services` (`[{ serviceId, purpose }]`, on create) and `confirmOpen`, `PUT|DELETE /api/suppliers/:id/contracts/:contractId/services/:serviceId` (`purpose`, `confirm: true`; leave or dismiss), `GET /api/services/:id/contracts` and `GET|DELETE /api/suppliers/scope-notice` (the administrators' notice after the update).
 
 Suppliers and their contracts, certificates and contacts move with migration packages ([MIGRATION.md](MIGRATION.md)); the reminders sent do not.
 
 ## Limits
 
-2,000 suppliers (not counting archived ones); per supplier 20 contacts, 50 contracts, 20 certificates and 50 spellings.
+2,000 suppliers (not counting archived ones); per supplier 20 contacts, 200 contracts (50 before 0.18), 20 certificates and 50 spellings; per contract 50 covered services, 20 owners and a purpose of 200 characters.

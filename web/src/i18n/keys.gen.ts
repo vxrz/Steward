@@ -5464,6 +5464,8 @@ export interface Resources {
     'codes.SYSTEM_LINK_EXISTS': string;
     'codes.SYSTEM_LINK_LIMIT': string;
     'codes.FORBIDDEN_changeSupplier': string;
+    'codes.FORBIDDEN_changeContract': string;
+    'codes.FORBIDDEN_addContract': string;
     'codes.FORBIDDEN_manageSuppliers': string;
     'codes.SUPPLIER_NOT_FOUND': string;
     'codes.SUPPLIER_EXISTS': string;
@@ -5478,6 +5480,12 @@ export interface Resources {
     'codes.SUPPLIER_CERTIFICATE_LIMIT': string;
     'codes.SUPPLIER_CONTACT_NOT_FOUND': string;
     'codes.SUPPLIER_CONTRACT_NOT_FOUND': string;
+    'codes.SUPPLIER_CONTRACT_NOT_COVERING': string;
+    'codes.SUPPLIER_CONTRACT_OPENS': string;
+    'codes.SUPPLIER_CONTRACT_SERVICE_LIMIT': string;
+    'codes.SUPPLIER_CONTRACT_SERVICE_ARCHIVED': string;
+    'codes.SUPPLIER_CONTRACT_SERVICE_NOT_FOUND': string;
+    'codes.SUPPLIER_CONTRACT_SERVICE_HAS_SCHEDULES': string;
     'codes.SUPPLIER_CERTIFICATE_NOT_FOUND': string;
     'codes.SUPPLIER_CONTRACT_WITHOUT_SUPPLIER': string;
     'codes.ENVIRONMENT_TWICE': string;
@@ -6107,6 +6115,7 @@ export interface Resources {
     'codes.COST_BOOK_DECIMALS': string;
     'codes.COST_SCHEDULE_NOT_FOUND': string;
     'codes.COST_SCHEDULE_FORBIDDEN': string;
+    'codes.COST_SCHEDULE_SERVICE_NOT_COVERED': string;
     'codes.COST_SCHEDULE_QUERY': string;
     'codes.COST_PROPOSAL_NONE': string;
     'codes.COST_PROPOSAL_LIMIT': string;

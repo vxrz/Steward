@@ -10,6 +10,7 @@ import { t } from '../i18n/index.js';
 import { publishDataset } from '../dashboards/datasets.js';
 import { usersOfSubjects } from '../tickets/reminders.js';
 import { expiringItems, type ExpiringItem } from './service.js';
+import { finishContractScopeUpgrade } from './contract-scope.js';
 
 /**
  * Supplier reminders and the dataset "Suppliers: expiring" (0.17.0, ADR 0029):
@@ -88,7 +89,7 @@ export function checkSupplierReminders(now = Date.now()): number {
   return sent;
 }
 
-const COLUMNS = ['Supplier', 'Kind', 'Item', 'Date', 'Days'];
+const COLUMNS = ['Supplier', 'Kind', 'Item', 'Date', 'Days', 'Contract owners', 'Services'];
 
 /**
  * The built-in dataset "Suppliers: expiring" (`suppliers.expiring`): certificates that run out and notice-by dates in
@@ -104,6 +105,9 @@ export function publishSuppliersDataset(now = Date.now()): boolean {
     Item: x.title,
     Date: x.date,
     Days: x.days,
+    // a notice-by date names the contract's owners and the services it covers (ADR 0031); empty for certificates
+    'Contract owners': x.contractOwners.join(', '),
+    Services: x.services.map((s) => (s.purpose ? `${s.name}: ${s.purpose}` : s.name)).join('; '),
     _key: `${x.supplierId}/${x.itemId}`,
     _status: x.days < 0 ? 'serious' : x.days <= 30 ? 'warning' : 'good',
     _reason: x.days < 0 ? (x.kind === 'certificate' ? 'Expired' : 'Notice date passed') : x.days <= 30 ? 'Within 30 days' : '',
@@ -133,6 +137,12 @@ export function publishSuppliersDataset(now = Date.now()): boolean {
 export function runSupplierJob(now = Date.now(), force = false): { reminders: number; dataset: boolean } {
   if (!force && now - lastRun < HOUR) return { reminders: 0, dataset: false };
   lastRun = now;
+  // the upgrade to 0.18 (ADR 0031): audited once, the administrators' notice opened
+  try {
+    finishContractScopeUpgrade();
+  } catch (err) {
+    logger.warn({ err }, 'the upgrade of supplier contracts could not be finished');
+  }
   const reminders = checkSupplierReminders(now);
   let dataset = false;
   try {

@@ -513,6 +513,7 @@ async function crawl(token: string): Promise<{ template: string; url: string; re
   for (const x of (await listAll('/statements-of-applicability', '/statements-of-applicability')).slice(0, 3))
     await get('/statements-of-applicability/{catalogueKey}', `/statements-of-applicability/${x.catalogueKey}`);
   if (apiService) await get('/services/{serviceId}/responsibilities', `/services/${apiService}/responsibilities`);
+  if (apiService) await get('/services/{serviceId}/contracts', `/services/${apiService}/contracts`);
   for (const x of (await listAll('/corrective-actions', '/corrective-actions')).slice(0, 5))
     await get('/corrective-actions/{findingId}', `/corrective-actions/${x.id}`);
   await get('/environments', '/environments');

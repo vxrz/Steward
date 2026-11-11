@@ -46,7 +46,12 @@ export const SUPPLIER_DUE_DAYS = 90;
 export const SUPPLIER_LIMITS = {
   suppliers: 2000,
   contacts: 20,
-  contracts: 50,
+  /** 200 since 0.18.0 (ADR 0031): a shared supplier holds several teams' contracts */
+  contracts: 200,
+  /** Services one contract covers, its owners and the purpose of each covered service (ADR 0031) */
+  contractServices: 50,
+  contractOwners: 20,
+  purpose: 200,
   certificates: 20,
   aliases: 50,
   name: 160,
@@ -181,6 +186,16 @@ export type SupplierContactInput = z.input<typeof supplierContactInput>;
 
 const hours = z.number().min(0).max(SUPPLIER_LIMITS.hours).nullable().default(null);
 
+/** A covered service of a contract (ADR 0031): confirmed, or proposed by the 0.18 upgrade and waiting for a person. */
+export const SUPPLIER_CONTRACT_SERVICE_STATUSES = ['confirmed', 'proposed'] as const;
+export type SupplierContractServiceStatus = (typeof SUPPLIER_CONTRACT_SERVICE_STATUSES)[number];
+/** Where a proposed covered service came from (the upgrade): plan lines, cost entries and matrix rows naming the contract. */
+export const SUPPLIER_CONTRACT_PROPOSAL_SOURCES = ['costPlanLine', 'costEntry', 'responsibility', 'paymentSchedule'] as const;
+export type SupplierContractProposalSource = (typeof SUPPLIER_CONTRACT_PROPOSAL_SOURCES)[number];
+
+const purpose = z.string().trim().max(SUPPLIER_LIMITS.purpose).default('');
+const contractServiceItem = z.object({ serviceId: z.string().trim().min(1).max(100), purpose }).strict();
+
 export const supplierContractInput = z
   .object({
     title: z.string().trim().min(1).max(SUPPLIER_LIMITS.text),
@@ -200,6 +215,15 @@ export const supplierContractInput = z
     rtoHours: hours,
     rpoHours: hours,
     note: z.string().trim().max(SUPPLIER_LIMITS.note).default(''),
+    /**
+     * Who manages the contract and gets its notice reminders (ADR 0031): users and teams. Missing: on create the creator
+     * and the creator's teams for new resources, on change the owners stay.
+     */
+    owners: z.array(ownerSubject).max(SUPPLIER_LIMITS.contractOwners).optional(),
+    /** On create: the services it covers, each with its purpose (later: the routes of the covered services) */
+    services: z.array(contractServiceItem).max(SUPPLIER_LIMITS.contractServices).optional(),
+    /** A change that leaves no team among the owners opens the contract to every reader of the supplier: say so */
+    confirmOpen: z.boolean().optional(),
   })
   .strict()
   .superRefine((x, ctx) => {
@@ -225,6 +249,12 @@ export const supplierCertificateInput = z
   })
   .strict();
 export type SupplierCertificateInput = z.input<typeof supplierCertificateInput>;
+
+/** A covered service of a contract: its purpose, and confirming a proposed one. Adds the service when it is not covered yet. */
+export const supplierContractServiceInput = z
+  .object({ purpose: z.string().trim().max(SUPPLIER_LIMITS.purpose).optional(), confirm: z.boolean().optional() })
+  .strict();
+export type SupplierContractServiceInput = z.input<typeof supplierContractServiceInput>;
 
 /** Merge a supplier into another: its links, contacts, contracts, certificates and spellings move. */
 export const supplierMergeInput = z.object({ into: z.string().trim().min(1).max(100) }).strict();
@@ -252,6 +282,22 @@ export interface SupplierContact {
   note: string;
 }
 
+/** A service a contract covers, as the reader may see it (ADR 0031). */
+export interface SupplierContractService {
+  id: string;
+  name: string;
+  archived: boolean;
+  purpose: string;
+  status: SupplierContractServiceStatus;
+  /** proposed: where it came from */
+  proposedFrom: SupplierContractProposalSource[];
+  /** The reader may change the purpose, leave the contract, confirm or dismiss it */
+  canChange: boolean;
+}
+
+/** Why the reader sees a contract (the contract page's "Owners and visibility"). */
+export type SupplierContractReadReason = 'supplierReaders' | 'admin' | 'auditor' | 'owner' | 'service';
+
 export interface SupplierContract {
   id: string;
   title: string;
@@ -276,6 +322,20 @@ export interface SupplierContract {
   note: string;
   /** Cost plan lines that pay for it (services the reader may see) */
   costPlanLines: { id: string; serviceId: string; serviceName: string; fiscalYear: number; title: string }[];
+  /** Users and teams who manage it (ADR 0031) */
+  owners: string[];
+  /** A team among the owners: seen only by its owners, the readers of the services it covers, administrators and auditors */
+  teamOwned: boolean;
+  /** The covered services the reader may see */
+  services: SupplierContractService[];
+  /** Covered services the reader may not see – counted only for its owners and who may change it, else 0 */
+  hiddenServices: number;
+  /** Why the reader sees it */
+  readReason: SupplierContractReadReason;
+  /** Change it (terms, SLA, owners, remove it) */
+  canEdit: boolean;
+  createdBy: string;
+  updatedBy: string;
 }
 
 export interface SupplierCertificate {
@@ -335,6 +395,9 @@ export interface SupplierUsage {
   /** In-app path */
   path: string;
   detail: string;
+  /** The contract it names (ADR 0031) – null with `contractHidden`: a contract the reader may not see */
+  contract?: { id: string; title: string } | null;
+  contractHidden?: boolean;
 }
 
 export interface SupplierDetail extends SupplierSummary {
@@ -349,8 +412,10 @@ export interface SupplierDetail extends SupplierSummary {
   createdAt: string;
   createdBy: string;
   updatedBy: string;
-  /** Change the supplier, its contacts, contracts and certificates */
+  /** Change the supplier (the company record), its company-wide contacts and certificates */
   canEdit: boolean;
+  /** Add a contract: designers, administrators, the supplier's owners, and editors of a service (ADR 0031) */
+  canAddContract: boolean;
   /** Confirm, merge, mark "not a supplier", archive: designers and administrators */
   canManage: boolean;
 }
@@ -377,8 +442,59 @@ export interface SupplierOption {
   name: string;
   status: SupplierStatus;
   aliases: string[];
-  contracts: { id: string; title: string; reference: string }[];
+  /** The contracts the person may see; `services` the services each covers (ADR 0031), `canEdit` whether the person may add a service to it */
+  contracts: { id: string; title: string; reference: string; services: string[]; canEdit: boolean }[];
 }
+
+/** A contract covering a service, as the service page's "Suppliers" section shows it (ADR 0031). */
+export interface ServiceContract {
+  supplier: SupplierRef;
+  contract: SupplierContract;
+  /** The covered service's purpose and status for this service */
+  purpose: string;
+  status: SupplierContractServiceStatus;
+  /** The reader may change the purpose, leave, confirm or dismiss for this service */
+  canChange: boolean;
+}
+
+export interface ServiceContracts {
+  serviceId: string;
+  contracts: ServiceContract[];
+  /** Suppliers its applications and systems link without a contract (the reader sees) covering the service */
+  uncovered: (SupplierRef & { via: { kind: 'application' | 'system'; id: string; name: string }[] })[];
+  /** Add a contract for the service / add the service to a contract: who may edit the service */
+  canEdit: boolean;
+}
+
+/** The contract page (ADR 0031): the contract with its supplier and who sees it and why. */
+export interface SupplierContractDetail {
+  supplier: SupplierRef & { owners: string[]; teams: string[] };
+  contract: SupplierContract;
+  /** Who sees it: the supplier's readers (no team owner), or the owning teams, user owners and the readers of the covered services */
+  visibility: { open: boolean; teams: string[]; users: string[]; services: { id: string; name: string }[]; hiddenServices: number };
+}
+
+/**
+ * The pure rule of who reads a contract (ADR 0031 part 2): only who may see its supplier; of them, for a contract
+ * with a team among its owners, its owners (members of the teams, the user owners), the readers of a service it covers
+ * (proposed ones count), administrators and auditors; a contract without a team owner is read by every reader of the
+ * supplier. Returns why, or null.
+ */
+export function contractReaders(
+  contract: { owners: readonly string[] },
+  reader: { seesSupplier: boolean; admin: boolean; auditor: boolean; owner: boolean; seesCoveredService: boolean },
+): SupplierContractReadReason | null {
+  if (!reader.seesSupplier) return null;
+  if (!contract.owners.some((o) => o.toLowerCase().startsWith('team:'))) return 'supplierReaders';
+  if (reader.admin) return 'admin';
+  if (reader.owner) return 'owner';
+  if (reader.seesCoveredService) return 'service';
+  if (reader.auditor) return 'auditor';
+  return null;
+}
+
+/** Whether a set of owners holds a team (a team-owned contract). */
+export const hasTeamOwner = (owners: readonly string[]): boolean => owners.some((o) => o.toLowerCase().startsWith('team:'));
 
 /** The built-in dataset of certificates and notice-by dates in the next 90 days (administrators and auditors). */
 export const SUPPLIERS_EXPIRING_DATASET = 'suppliers.expiring';

@@ -45,7 +45,8 @@ import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { costSettings, requireScope, scopeInfo, seesWholeScope, type ScopeInfo } from './access.js';
 import { forecastFromGroups } from './query.js';
 import { instanceTimeZone, localDate } from '../duties/periods.js';
-import { allContracts, resolveSupplierContract, resolveSupplierLink, supplierRefs, visibleContracts } from '../suppliers/links.js';
+import { coveredPairs } from '../suppliers/contract-scope.js';
+import { allContracts, coverChosenContract, resolveSupplierContract, resolveSupplierLink, supplierRefs, visibleContracts } from '../suppliers/links.js';
 import { insertScheduleLine, proposalLine, schedulesOfService, scheduleLineTitle, type Schedule } from './schedule-model.js';
 
 /**
@@ -817,9 +818,13 @@ const coversOf = (x: { cadence: CostPlanCadence; coversFrom: string | null; cove
 class Suppliers {
   private readonly refs: Map<string, SupplierRef>;
   private readonly contracts: ReturnType<typeof visibleContracts>;
-  constructor(rows: readonly Pick<LineRow, 'supplier_id' | 'supplier_contract_id'>[]) {
+  private readonly covered: Set<string>;
+  constructor(rows: readonly (Pick<LineRow, 'supplier_id' | 'supplier_contract_id'> & { service_id?: string })[]) {
     this.refs = supplierRefs(rows.map((r) => r.supplier_id));
     this.contracts = visibleContracts(rows.map((r) => r.supplier_contract_id));
+    this.covered = coveredPairs(
+      rows.flatMap((r) => (r.supplier_contract_id && r.service_id ? [{ contractId: r.supplier_contract_id, serviceId: r.service_id }] : [])),
+    );
   }
   /** A 0.17-style contract line (no schedule): the end of its contract when that falls in the line's fiscal year. */
   contractEnds(l: Pick<LineRow, 'supplier_contract_id' | 'schedule_id'>, bounds: { from: string; last: string }): string | null {
@@ -827,13 +832,19 @@ class Suppliers {
     if (!c || !hasFixedEnd(c) || !c.endsOn) return null;
     return c.endsOn >= bounds.from && c.endsOn <= bounds.last ? c.endsOn : null;
   }
-  line(l: Pick<LineRow, 'supplier_id' | 'supplier_contract_id'>): Pick<CostPlanLine, 'supplier' | 'supplierHidden' | 'supplierContract'> {
+  line(
+    l: Pick<LineRow, 'supplier_id' | 'supplier_contract_id'> & { service_id?: string },
+  ): Pick<CostPlanLine, 'supplier' | 'supplierHidden' | 'supplierContract' | 'supplierContractHidden' | 'supplierContractUncovered'> {
     const supplier = l.supplier_id ? (this.refs.get(l.supplier_id) ?? null) : null;
     const c = supplier && l.supplier_contract_id ? this.contracts.get(l.supplier_contract_id) : undefined;
+    const contract = c && c.supplierId === supplier!.id ? { id: c.id, title: c.title, reference: c.reference } : null;
     return {
       supplier,
       supplierHidden: !!l.supplier_id && !supplier,
-      supplierContract: c && c.supplierId === supplier!.id ? { id: c.id, title: c.title, reference: c.reference } : null,
+      supplierContract: contract,
+      // a contract the reader may not see: neutral text, no values (ADR 0031 part 4); a hidden supplier says it already
+      supplierContractHidden: !!supplier && !!l.supplier_contract_id && !contract,
+      supplierContractUncovered: !!contract && !!l.service_id && !this.covered.has(`${contract.id}|${l.service_id}`),
     };
   }
 }
@@ -901,7 +912,7 @@ export function addPlanLine(serviceId: string, body: unknown): CostPlanYear {
     target_id: x.target?.id ?? null,
     vendor: x.vendor,
     supplier_id: supplierId,
-    supplier_contract_id: resolveSupplierContract(supplierId, x.supplierContractId, null),
+    supplier_contract_id: resolveSupplierContract(supplierId, x.supplierContractId, null, serviceId),
     amount,
     currency: x.currency,
     cadence: x.cadence,
@@ -947,6 +958,8 @@ export function addPlanLine(serviceId: string, body: unknown): CostPlanYear {
       summary: `Plan line "${x.title}" added to the cost plan of "${info.name}" for ${fiscalYearLabel(x.fiscalYear, startMonth())}: ${fmt(amount, x.currency)} ${x.cadence}`,
       details: { lineId: id, fiscalYear: x.fiscalYear, after: lineSnapshot(row) },
     });
+    // a contract chosen for the service covers it from now on (ADR 0031 part 4)
+    coverChosenContract(row.supplier_contract_id, null, serviceId, currentActor());
   });
   return planYearOf(info, x.fiscalYear, Date.now(), startMonth());
 }
@@ -978,7 +991,12 @@ export function updatePlanLine(serviceId: string, lineId: string, body: unknown)
     target_id: x.target?.id ?? null,
     vendor: x.vendor,
     supplier_id: supplierId,
-    supplier_contract_id: resolveSupplierContract(supplierId, x.supplierContractId, supplierId === before.supplier_id ? before.supplier_contract_id : null),
+    supplier_contract_id: resolveSupplierContract(
+      supplierId,
+      x.supplierContractId,
+      supplierId === before.supplier_id ? before.supplier_contract_id : null,
+      serviceId,
+    ),
     amount,
     currency: x.currency,
     cadence: x.cadence,
@@ -1013,6 +1031,7 @@ export function updatePlanLine(serviceId: string, lineId: string, body: unknown)
       lineId,
     );
     if (unlink) db().run('UPDATE cost_plan_lines SET schedule_id = NULL, schedule_part = NULL, schedule_basis = NULL WHERE id = ?', lineId);
+    coverChosenContract(row.supplier_contract_id, supplierId === before.supplier_id ? before.supplier_contract_id : null, serviceId, currentActor());
     audit({
       action: 'cost.plan_line_changed',
       entityType: 'service',
@@ -1183,6 +1202,8 @@ export interface EntryValues {
   supplierContractId: string | null;
   reference: string;
   note: string;
+  /** The contract the entry had (or its line's): a contract chosen anew covers the service from now on (ADR 0031) */
+  keptContract?: string | null;
 }
 
 /**
@@ -1224,7 +1245,8 @@ function checkEntry(serviceId: string, body: unknown, before?: EntryRow): EntryV
   const current = before ? before.supplier_id : (l?.supplier_id ?? null);
   const supplierId = resolveSupplierLink(x.supplierId, current ?? null);
   const currentContract = before ? before.supplier_contract_id : (l?.supplier_contract_id ?? null);
-  const supplierContractId = resolveSupplierContract(supplierId, x.supplierContractId, supplierId === current ? (currentContract ?? null) : null);
+  const keptContract = supplierId === current ? (currentContract ?? null) : null;
+  const supplierContractId = resolveSupplierContract(supplierId, x.supplierContractId, keptContract, serviceId);
   return {
     date: x.date,
     amount: toMicros(x.amount)!,
@@ -1235,6 +1257,7 @@ function checkEntry(serviceId: string, body: unknown, before?: EntryRow): EntryV
     supplierContractId,
     reference: x.reference,
     note: x.note,
+    keptContract,
   };
 }
 
@@ -1301,6 +1324,7 @@ export function addEntry(serviceId: string, body: unknown): CostPlanYear {
   const x = checkEntry(serviceId, body);
   db().tx(() => {
     const id = insertEntry(serviceId, x);
+    coverChosenContract(x.supplierContractId, x.keptContract ?? null, serviceId, currentActor());
     audit({
       action: 'cost.entry_added',
       entityType: 'service',
@@ -1334,6 +1358,7 @@ export function updateEntry(serviceId: string, entryId: string, body: unknown): 
       currentActor(),
       entryId,
     );
+    coverChosenContract(x.supplierContractId, x.keptContract ?? null, serviceId, currentActor());
     audit({
       action: 'cost.entry_changed',
       entityType: 'service',

@@ -5,7 +5,7 @@ import { notFound } from '../api/v1/helpers.js';
 import { linkNext, pageArray } from '../api/v1/pagination.js';
 import type { Op } from '../api/v1/routes.js';
 import { SupplierListQuery } from './api-schemas.js';
-import { getSupplier, listSuppliers, toPublic } from './service.js';
+import { getSupplier, listSuppliers, serviceContracts, toPublic, toPublicContract } from './service.js';
 import { moduleEnabled } from '../modules/registry.js';
 import { commitments } from '../costs/commitments.js';
 
@@ -64,6 +64,33 @@ export function supplierApiRoutes(get: Get): void {
         return { ...d, contracts: d.contracts.map((c) => ({ ...c, paymentSchedules: rows.filter((r) => r.contract?.id === c.id) })) };
       } catch (e) {
         if (e instanceof HttpError && e.statusCode === 404) throw notFound(`Supplier ${id}`);
+        throw e;
+      }
+    },
+  );
+
+  get(
+    '/services/:serviceId/contracts',
+    {
+      operationId: 'listServiceContracts',
+      tag: 'Suppliers',
+      summary: 'List the supplier contracts covering a service',
+      description:
+        'The contracts covering the service that the token owner may see (0.18.0, docs/SUPPLIERS.md#contracts-and-the-services-they-cover): supplier, contract with term, notice-by date, SLA and contractual RTO/RPO, owners, the purpose for this service and whether it is confirmed or proposed; and the suppliers the service’s applications and systems link without a contract covering it.',
+      params: { serviceId: 'Service id' },
+      response: { $ref: 'ServiceContractsEntry#' },
+    },
+    async (req) => {
+      const id = (req.params as { serviceId: string }).serviceId;
+      try {
+        const r = serviceContracts(id);
+        return {
+          serviceId: r.serviceId,
+          contracts: r.contracts.map((x) => ({ supplier: x.supplier, contract: toPublicContract(x.contract), purpose: x.purpose, status: x.status })),
+          uncovered: r.uncovered,
+        };
+      } catch (e) {
+        if (e instanceof HttpError && e.statusCode === 404) throw notFound(`Service ${id}`);
         throw e;
       }
     },

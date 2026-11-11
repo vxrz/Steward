@@ -148,6 +148,8 @@ export const USER_REFS: UserRef[] = [
   { table: 'systems', column: 'owners', kind: 'subjects' },
   // suppliers (0.17.0, ADR 0029): owners like systems
   { table: 'suppliers', column: 'owners', kind: 'subjects' },
+  // contracts with their own scope (0.18.0, ADR 0031): who manages a contract now
+  { table: 'supplier_contracts', column: 'owners', kind: 'subjects' },
   { table: 'maintenance_windows', column: 'responsible', kind: 'subjects' },
   { table: 'record_measures', column: 'owners', kind: 'subjects' },
   // corrective actions (ADR 0029): who owns a finding and its actions now
@@ -189,6 +191,11 @@ export const HISTORY_COLUMNS: string[] = [
   'suppliers.created_by',
   'suppliers.updated_by',
   'supplier_certificates.checked_by',
+  // contracts with their own scope (0.18.0, ADR 0031): who made and changed a contract, who added and confirmed a covered service
+  'supplier_contracts.created_by',
+  'supplier_contracts.updated_by',
+  'supplier_contract_services.added_by',
+  'supplier_contract_services.confirmed_by',
   // the plant registry (#218)
   'plant_sites.created_by',
   'plant_sites.updated_by',

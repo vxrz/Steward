@@ -6,12 +6,14 @@ import {
   supplierCertificateInput,
   supplierContactInput,
   supplierContractInput,
+  supplierContractServiceInput,
   supplierInput,
   supplierMergeInput,
 } from '@sm/shared';
 import { ACCESS } from '../auth/access.js';
 import { params } from '../routes/params.js';
 import * as s from './service.js';
+import { contractScopeNotice, dismissContractScopeNotice } from './contract-scope.js';
 
 /**
  * Suppliers (0.17.0, ADR 0029), mounted under /api – the web app's API; /api/v1 and MCP only read:
@@ -21,7 +23,10 @@ import * as s from './service.js';
  *   GET    /suppliers/:id                                     read
  *   PUT    /suppliers/:id                                     change (designers, administrators, its owners)
  *   POST   /suppliers/:id/archive | confirm | merge | not-a-supplier   (designers, administrators; decisions in a session)
- *   POST|PUT|DELETE /suppliers/:id/contacts|contracts|certificates[/:itemId]   (who may change the supplier)
+ *   POST|PUT|DELETE /suppliers/:id/contacts|contracts|certificates[/:itemId]   (who may change the supplier; contracts: ADR 0031)
+ *   GET    /suppliers/:id/contracts/:contractId              the contract page (404 for who may not see it)
+ *   PUT|DELETE /suppliers/:id/contracts/:contractId/services/:serviceId   add, purpose, confirm; leave or dismiss
+ *   GET    /services/:id/contracts                            the contracts covering a service (its "Suppliers" section)
  *
  * Every change is a decision of a person in a session in the app – also marking a certificate as looked at (ADR 0029
  * decision 9): the changing routes refuse API tokens. Reading one supplier with an API token gives what /api/v1 gives –
@@ -36,6 +41,9 @@ export async function supplierRoutes(app: FastifyInstance): Promise<void> {
   app.get('/suppliers', async (req) => s.listSuppliers({ status: listQuery.parse(req.query).status }));
   app.post('/suppliers', session, async (req) => s.createSupplier(supplierInput.parse(req.body)));
   app.get('/suppliers/options', async () => s.supplierOptions());
+  // the administrators' one-time notice after the upgrade to 0.18 (ADR 0031 part 9)
+  app.get('/suppliers/scope-notice', async () => ({ notice: contractScopeNotice() }));
+  app.delete('/suppliers/scope-notice', { config: { access: ACCESS.adminSession } }, async () => dismissContractScopeNotice());
   app.get('/suppliers/:id', async (req) => {
     const d = s.getSupplier(params(req).id!);
     return viaToken(req) ? s.toPublic(d) : d;
@@ -58,6 +66,15 @@ export async function supplierRoutes(app: FastifyInstance): Promise<void> {
     s.updateContract(params(req).id!, params(req).contractId!, supplierContractInput.parse(req.body)),
   );
   app.delete('/suppliers/:id/contracts/:contractId', session, async (req) => s.removeContract(params(req).id!, params(req).contractId!));
+  // contracts with their own scope (ADR 0031): the contract page, covered services, the service's contracts
+  app.get('/suppliers/:id/contracts/:contractId', async (req) => s.getContract(params(req).id!, params(req).contractId!));
+  app.put('/suppliers/:id/contracts/:contractId/services/:serviceId', session, async (req) =>
+    s.setContractService(params(req).id!, params(req).contractId!, params(req).serviceId!, supplierContractServiceInput.parse(req.body ?? {})),
+  );
+  app.delete('/suppliers/:id/contracts/:contractId/services/:serviceId', session, async (req) =>
+    s.removeContractService(params(req).id!, params(req).contractId!, params(req).serviceId!),
+  );
+  app.get('/services/:id/contracts', async (req) => s.serviceContracts(params(req).id!));
 
   app.post('/suppliers/:id/certificates', session, async (req) => s.addCertificate(params(req).id!, supplierCertificateInput.parse(req.body)));
   app.put('/suppliers/:id/certificates/:certificateId', session, async (req) =>

@@ -150,6 +150,8 @@ export const ServiceResponsibilitiesEntry = z.object({
       party: z.enum(RESPONSIBILITY_PARTIES).nullable().describe('null: undecided'),
       supplier: SupplierRef.nullable(),
       contract: Contract.nullable().describe('The contract’s SLA and contractual RTO/RPO, read from the supplier record'),
+      contractHidden: z.boolean().describe('A contract is named that the token owner may not see (0.18.0): no title, dates, SLA or RTO/RPO'),
+      contractUncovered: z.boolean().describe('The contract no longer covers the service (0.18.0)'),
       certificates: z.array(z.object({ kind: z.enum(SUPPLIER_CERTIFICATE_KINDS), name: z.string(), validUntil: z.string().nullable() })),
       centralName: z.string(),
       note: z.string(),

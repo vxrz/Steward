@@ -48,8 +48,10 @@ import {
  * - A schedule exists for a reader only through its paying service: lists neither name nor count schedules of services
  *   the reader may not see. A reader who sees the service but not the contract (contractVisible) sees "a contract of a
  *   supplier you may not see" – amounts, no supplier, title or dates.
- * - Add, change, remove a schedule: who may change the contract (contractEditable: designers, administrators, the
- *   supplier's owners), or who may edit the paying service and see the contract. Audited on the service
+ * - Add, change, remove a schedule: who may change the contract (contractEditable, ADR 0031: its owners, designers,
+ *   administrators, the supplier's owners who see it, editors of its covered services), or who may edit the paying
+ *   service and see the contract. The paying service must be covered by the contract: a schedule for another service
+ *   adds it when the person may change the contract, else it is refused (ADR 0031 decided 16). Audited on the service
  *   (`cost.schedule_added|changed|removed`), naming supplier and contract.
  * - Proposals ("Add to plan"), "Update lines": who may change the service (requireEdit). Nothing is created without a
  *   person; years that are over are never updated. Audited as `cost.contract_lines_added|updated`.
@@ -67,6 +69,7 @@ function scheduleRow(id: string): ScheduleRow {
 interface ContractRow {
   id: string;
   supplier_id: string;
+  owners: string;
   title: string;
   s_name: string;
   s_owners: string;
@@ -76,7 +79,7 @@ interface ContractRow {
 /** The contract with its supplier (no visibility check). */
 const contractRow = (id: string): ContractRow | undefined =>
   db().get<ContractRow>(
-    `SELECT c.id, c.supplier_id, c.title, s.name AS s_name, s.owners AS s_owners, s.status AS s_status
+    `SELECT c.id, c.supplier_id, c.owners, c.title, s.name AS s_name, s.owners AS s_owners, s.status AS s_status
        FROM supplier_contracts c JOIN suppliers s ON s.id = c.supplier_id WHERE c.id = ?`,
     id,
   );
@@ -231,12 +234,48 @@ export function addSchedule(body: unknown): CostScheduleList {
   if (!svc) throw new HttpError(404, `Service ${x.serviceId} not found`, 'COST_SCOPE_NOT_FOUND', { scope: 'service', id: x.serviceId });
   if (c.s_status === 'archived') throw new HttpError(409, `Supplier "${c.s_name}" is archived`, 'SUPPLIER_ARCHIVED', { name: c.s_name });
   requireChange(c, svc);
+  // the paying service must be covered by the contract (ADR 0031 decided 16): a schedule for another service adds it
+  // when the person may change the contract; a proposed one is confirmed – the schedule says the service pays
+  const cover = db().get<{ status: string }>('SELECT status FROM supplier_contract_services WHERE contract_id = ? AND service_id = ?', c.id, x.serviceId);
+  if (!cover && !contractEditable(c, supplierOf(c)))
+    throw new HttpError(409, `The contract "${c.title}" does not cover the service "${svc.name}"`, 'COST_SCHEDULE_SERVICE_NOT_COVERED', {
+      contract: c.title,
+      service: svc.name,
+    });
   checkTarget(x.target, catalogueOf(x.serviceId));
   checkLimits(c.id, x.serviceId);
   const cols = columnsOf(x);
   const id = newId('csc_');
   const now = nowIso();
   db().tx(() => {
+    if (!cover || cover.status === 'proposed') {
+      if (!cover)
+        db().run(
+          `INSERT INTO supplier_contract_services (contract_id, service_id, purpose, status, proposed_from, added_by, added_at, confirmed_by, confirmed_at)
+           VALUES (?, ?, '', 'confirmed', '[]', ?, ?, ?, ?)`,
+          c.id,
+          x.serviceId,
+          currentActor(),
+          now,
+          currentActor(),
+          now,
+        );
+      else
+        db().run(
+          "UPDATE supplier_contract_services SET status = 'confirmed', confirmed_by = ?, confirmed_at = ? WHERE contract_id = ? AND service_id = ?",
+          currentActor(),
+          now,
+          c.id,
+          x.serviceId,
+        );
+      audit({
+        action: cover ? 'supplier.contract_service_confirmed' : 'supplier.contract_service_added',
+        entityType: 'supplier',
+        entityId: c.supplier_id,
+        summary: `Service "${svc.name}" ${cover ? 'confirmed for' : 'added to'} the contract "${c.title}" with a payment schedule`,
+        details: { contractId: c.id, serviceId: x.serviceId, service: svc.name, scheduleId: id },
+      });
+    }
     db().run(
       `INSERT INTO cost_schedules (id, contract_id, service_id, title, category, target_kind, target_id, amount, currency, billing, first_payment_on, starts_on, ends_on,
          year_amounts, payments, note, created_at, created_by, updated_at, updated_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,

@@ -50,6 +50,8 @@ beforeAll(async () => {
     reference: 'H-1',
     startsOn: `${fy}-01-01`,
     endsOn: `${fy + 2}-12-31`,
+    // the service the lines and entries name it for is covered (ADR 0031)
+    services: [{ serviceId: service }],
   });
   contract = sup.contracts[0].id;
 }, 240_000);

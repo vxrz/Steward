@@ -357,6 +357,10 @@ export interface CostPlanLine {
   supplierHidden: boolean;
   /** The supplier's contract the line pays for */
   supplierContract: { id: string; title: string; reference: string } | null;
+  /** It names a contract the reader may not see (ADR 0031): "a contract you may not see", kept on save */
+  supplierContractHidden: boolean;
+  /** The contract no longer covers the service (ADR 0031) */
+  supplierContractUncovered: boolean;
   /** As entered (null when the reader may not see amounts) */
   amount: string | null;
   currency: string;
@@ -419,6 +423,9 @@ export interface CostEntry {
   /** A supplier is linked that the reader may not see: kept on save */
   supplierHidden: boolean;
   supplierContract: { id: string; title: string; reference: string } | null;
+  /** It names a contract the reader may not see (ADR 0031), kept on save; the contract no longer covers the service */
+  supplierContractHidden: boolean;
+  supplierContractUncovered: boolean;
   /** The CSV import the entry came from (0.18.0; null: entered or booked) */
   importId: string | null;
   reference: string;

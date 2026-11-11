@@ -2,6 +2,7 @@ import { z, type ZodTypeAny } from 'zod';
 import {
   SUPPLIER_CERTIFICATE_KINDS,
   SUPPLIER_CONTACT_ROLES,
+  SUPPLIER_CONTRACT_SERVICE_STATUSES,
   SUPPLIER_DPA_STATUSES,
   SUPPLIER_LINK_KINDS,
   SUPPLIER_RENEWALS,
@@ -70,6 +71,18 @@ const SupplierContractEntry = z.object({
   rpoHours: z.number().nullable().describe('Contractual recovery point objective (hours)'),
   note: z.string(),
   costPlanLines: z.array(z.object({ id: z.string(), serviceId: z.string(), serviceName: z.string(), fiscalYear: z.number().int(), title: z.string() })),
+  owners: z.array(z.string()).describe('Who manages the contract (0.18.0, ADR 0031): user:<name>, team:<name>'),
+  teamOwned: z.boolean().describe('A team is among its owners: seen only by its owners, the readers of the services it covers, administrators and auditors'),
+  services: z
+    .array(
+      z.object({
+        id: z.string(),
+        name: z.string(),
+        purpose: z.string(),
+        status: z.enum(SUPPLIER_CONTRACT_SERVICE_STATUSES).describe('proposed: by the 0.18 upgrade, waiting for a person'),
+      }),
+    )
+    .describe('The services it covers that the token owner may see (no count of others)'),
   paymentSchedules: z
     .array(z.object({}).passthrough())
     .optional()
@@ -94,7 +107,17 @@ const SupplierEntry = SupplierSummaryEntry.extend({
   contacts: z.array(SupplierContactEntry).describe('People at the supplier: name, role and note only (no e-mail or phone)'),
   contracts: z.array(SupplierContractEntry),
   certificates: z.array(SupplierCertificateEntry),
-  usedBy: z.array(z.object({ kind: z.enum(SUPPLIER_LINK_KINDS), id: z.string(), name: z.string(), path: z.string(), detail: z.string() })),
+  usedBy: z.array(
+    z.object({
+      kind: z.enum(SUPPLIER_LINK_KINDS),
+      id: z.string(),
+      name: z.string(),
+      path: z.string(),
+      detail: z.string(),
+      contract: z.object({ id: z.string(), title: z.string() }).nullable().optional().describe('The contract the item names (0.18.0)'),
+      contractHidden: z.boolean().optional().describe('It names a contract the token owner may not see (0.18.0)'),
+    }),
+  ),
   duties: z.array(
     z.object({
       id: z.string(),
@@ -110,7 +133,30 @@ const SupplierEntry = SupplierSummaryEntry.extend({
   updatedBy: z.string(),
 });
 
-export const SUPPLIER_COMPONENTS: Record<string, ZodTypeAny> = { SupplierSummaryEntry, SupplierEntry };
+/** The contracts covering a service (0.18.0, ADR 0031): GET /api/v1/services/{serviceId}/contracts. */
+const ServiceContractEntry = z.object({
+  supplier: z.object({ id: z.string(), name: z.string(), status: z.enum(SUPPLIER_STATUSES) }),
+  contract: SupplierContractEntry.omit({ costPlanLines: true, paymentSchedules: true }),
+  purpose: z.string().describe('What the contract covers for this service'),
+  status: z.enum(SUPPLIER_CONTRACT_SERVICE_STATUSES),
+});
+
+const ServiceContractsEntry = z.object({
+  serviceId: z.string(),
+  contracts: z.array(ServiceContractEntry).describe('The contracts covering the service that the token owner may see'),
+  uncovered: z
+    .array(
+      z.object({
+        id: z.string(),
+        name: z.string(),
+        status: z.enum(SUPPLIER_STATUSES),
+        via: z.array(z.object({ kind: z.enum(['application', 'system']), id: z.string(), name: z.string() })),
+      }),
+    )
+    .describe('Suppliers its applications and systems link without a contract covering the service'),
+});
+
+export const SUPPLIER_COMPONENTS: Record<string, ZodTypeAny> = { SupplierSummaryEntry, SupplierEntry, ServiceContractsEntry };
 
 export const SupplierListQuery = z.object({
   limit: z.number().int().min(1).max(200).default(50).describe('Page size (1–200, default 50)'),

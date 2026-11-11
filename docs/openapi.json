@@ -10603,6 +10603,14 @@
                   ],
                   "description": "The contract’s SLA and contractual RTO/RPO, read from the supplier record"
                 },
+                "contractHidden": {
+                  "type": "boolean",
+                  "description": "A contract is named that the token owner may not see (0.18.0): no title, dates, SLA or RTO/RPO"
+                },
+                "contractUncovered": {
+                  "type": "boolean",
+                  "description": "The contract no longer covers the service (0.18.0)"
+                },
                 "certificates": {
                   "type": "array",
                   "items": {
@@ -10730,6 +10738,8 @@
                 "party",
                 "supplier",
                 "contract",
+                "contractHidden",
+                "contractUncovered",
                 "certificates",
                 "centralName",
                 "note",
@@ -34428,6 +34438,14 @@
                   ],
                   "description": "The supplier contract the line pays for"
                 },
+                "supplierContractHidden": {
+                  "type": "boolean",
+                  "description": "A contract is named that the token owner may not see (0.18.0, ADR 0031): no title or values"
+                },
+                "supplierContractUncovered": {
+                  "type": "boolean",
+                  "description": "The contract no longer covers the service (0.18.0)"
+                },
                 "amount": {
                   "type": [
                     "null",
@@ -34653,6 +34671,8 @@
                 "supplier",
                 "supplierHidden",
                 "supplierContract",
+                "supplierContractHidden",
+                "supplierContractUncovered",
                 "amount",
                 "currency",
                 "cadence",
@@ -34829,6 +34849,14 @@
                   ],
                   "description": "The supplier contract"
                 },
+                "supplierContractHidden": {
+                  "type": "boolean",
+                  "description": "A contract is named that the token owner may not see (0.18.0, ADR 0031)"
+                },
+                "supplierContractUncovered": {
+                  "type": "boolean",
+                  "description": "The contract no longer covers the service (0.18.0)"
+                },
                 "importId": {
                   "type": [
                     "null",
@@ -34896,6 +34924,8 @@
                 "supplier",
                 "supplierHidden",
                 "supplierContract",
+                "supplierContractHidden",
+                "supplierContractUncovered",
                 "importId",
                 "reference",
                 "note",
@@ -36328,6 +36358,50 @@
                     "additionalProperties": false
                   }
                 },
+                "owners": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Who manages the contract (0.18.0, ADR 0031): user:<name>, team:<name>"
+                },
+                "teamOwned": {
+                  "type": "boolean",
+                  "description": "A team is among its owners: seen only by its owners, the readers of the services it covers, administrators and auditors"
+                },
+                "services": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "purpose": {
+                        "type": "string"
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "confirmed",
+                          "proposed"
+                        ],
+                        "description": "proposed: by the 0.18 upgrade, waiting for a person"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name",
+                      "purpose",
+                      "status"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "description": "The services it covers that the token owner may see (no count of others)"
+                },
                 "paymentSchedules": {
                   "type": "array",
                   "items": {
@@ -36357,7 +36431,10 @@
                 "rtoHours",
                 "rpoHours",
                 "note",
-                "costPlanLines"
+                "costPlanLines",
+                "owners",
+                "teamOwned",
+                "services"
               ],
               "additionalProperties": false
             }
@@ -36496,6 +36573,34 @@
                 },
                 "detail": {
                   "type": "string"
+                },
+                "contract": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "title"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The contract the item names (0.18.0)"
+                },
+                "contractHidden": {
+                  "type": "boolean",
+                  "description": "It names a contract the token owner may not see (0.18.0)"
                 }
               },
               "required": [
@@ -36624,6 +36729,332 @@
           "createdAt",
           "createdBy",
           "updatedBy"
+        ],
+        "additionalProperties": false
+      },
+      "ServiceContractsEntry": {
+        "title": "ServiceContractsEntry",
+        "type": "object",
+        "properties": {
+          "serviceId": {
+            "type": "string"
+          },
+          "contracts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "supplier": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "unconfirmed",
+                        "active",
+                        "archived"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "status"
+                  ],
+                  "additionalProperties": false
+                },
+                "contract": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "reference": {
+                      "type": "string",
+                      "description": "The contract number"
+                    },
+                    "startsOn": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "description": "Calendar date YYYY-MM-DD (the instance time zone)"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "Calendar date YYYY-MM-DD (the instance time zone)"
+                    },
+                    "endsOn": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "description": "Calendar date YYYY-MM-DD (the instance time zone)"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "Calendar date YYYY-MM-DD (the instance time zone)"
+                    },
+                    "noticeDays": {
+                      "anyOf": [
+                        {
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "renewal": {
+                      "type": "string",
+                      "enum": [
+                        "automatic",
+                        "byAgreement",
+                        "fixedEnd"
+                      ]
+                    },
+                    "renewalMonths": {
+                      "anyOf": [
+                        {
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "termEnd": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "description": "Calendar date YYYY-MM-DD (the instance time zone)"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "The end of the current term (an automatic renewal rolls on)"
+                    },
+                    "noticeBy": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "description": "Calendar date YYYY-MM-DD (the instance time zone)"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "The last day to give notice: the term end minus the notice period"
+                    },
+                    "noticeState": {
+                      "type": "string",
+                      "enum": [
+                        "ok",
+                        "dueSoon",
+                        "past",
+                        "none"
+                      ],
+                      "description": "ok; dueSoon: within 90 days; past: the date has passed; none: no date"
+                    },
+                    "link": {
+                      "type": "string"
+                    },
+                    "slaAvailability": {
+                      "type": [
+                        "null",
+                        "number"
+                      ],
+                      "description": "Availability target in %"
+                    },
+                    "slaSupportHours": {
+                      "type": "string"
+                    },
+                    "slaResponse": {
+                      "type": "string"
+                    },
+                    "rtoHours": {
+                      "type": [
+                        "null",
+                        "number"
+                      ],
+                      "description": "Contractual recovery time objective (hours)"
+                    },
+                    "rpoHours": {
+                      "type": [
+                        "null",
+                        "number"
+                      ],
+                      "description": "Contractual recovery point objective (hours)"
+                    },
+                    "note": {
+                      "type": "string"
+                    },
+                    "owners": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Who manages the contract (0.18.0, ADR 0031): user:<name>, team:<name>"
+                    },
+                    "teamOwned": {
+                      "type": "boolean",
+                      "description": "A team is among its owners: seen only by its owners, the readers of the services it covers, administrators and auditors"
+                    },
+                    "services": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "purpose": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "confirmed",
+                              "proposed"
+                            ],
+                            "description": "proposed: by the 0.18 upgrade, waiting for a person"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "purpose",
+                          "status"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "description": "The services it covers that the token owner may see (no count of others)"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "title",
+                    "reference",
+                    "startsOn",
+                    "endsOn",
+                    "noticeDays",
+                    "renewal",
+                    "renewalMonths",
+                    "termEnd",
+                    "noticeBy",
+                    "noticeState",
+                    "link",
+                    "slaAvailability",
+                    "slaSupportHours",
+                    "slaResponse",
+                    "rtoHours",
+                    "rpoHours",
+                    "note",
+                    "owners",
+                    "teamOwned",
+                    "services"
+                  ],
+                  "additionalProperties": false
+                },
+                "purpose": {
+                  "type": "string",
+                  "description": "What the contract covers for this service"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "confirmed",
+                    "proposed"
+                  ]
+                }
+              },
+              "required": [
+                "supplier",
+                "contract",
+                "purpose",
+                "status"
+              ],
+              "additionalProperties": false
+            },
+            "description": "The contracts covering the service that the token owner may see"
+          },
+          "uncovered": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "unconfirmed",
+                    "active",
+                    "archived"
+                  ]
+                },
+                "via": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "application",
+                          "system"
+                        ]
+                      },
+                      "id": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "id",
+                      "name"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "status",
+                "via"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Suppliers its applications and systems link without a contract covering the service"
+          }
+        },
+        "required": [
+          "serviceId",
+          "contracts",
+          "uncovered"
         ],
         "additionalProperties": false
       }
@@ -42523,6 +42954,70 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SupplierEntry"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/services/{serviceId}/contracts": {
+      "get": {
+        "operationId": "listServiceContracts",
+        "summary": "List the supplier contracts covering a service",
+        "tags": [
+          "Suppliers"
+        ],
+        "description": "The contracts covering the service that the token owner may see (0.18.0, docs/SUPPLIERS.md#contracts-and-the-services-they-cover): supplier, contract with term, notice-by date, SLA and contractual RTO/RPO, owners, the purpose for this service and whether it is confirmed or proposed; and the suppliers the service’s applications and systems link without a contract covering it.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "serviceId",
+            "required": true,
+            "description": "Service id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceContractsEntry"
                 }
               }
             },

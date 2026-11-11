@@ -18,6 +18,15 @@ import type { NamedMigration } from '../db.js';
  *
  * suppliers-002-links: the five free-text vendors get a nullable `supplier_id` (the text stays as a fallback), cost
  * plan lines the contract that pays for them, service duties the supplier they review.
+ *
+ * suppliers-003-contract-scope (0.18.0, ADR 0031): contracts get a scope of their own – owners (subjects, filled from
+ * the supplier's owners), a master agreement (`parent_id`, one level), personal data and the data processing agreement
+ * per contract (null: as the master, then the supplier), who made and changed it. supplier_contract_services: the
+ * services a contract covers, each with its purpose; confirmed, or proposed by this upgrade from what already names the
+ * contract (cost plan lines, cost entries and responsibility matrix rows; the paying services of payment schedules are
+ * confirmed). supplier_contact_scopes: the contracts, applications and systems a contact is about (none: company-wide).
+ * The settings row 'catalogue.supplierContractScope' asks the server to audit the upgrade once and to show
+ * administrators the notice that contracts may now be seen by fewer people (suppliers/contract-scope.ts).
  */
 export const SUPPLIER_MIGRATIONS: NamedMigration[] = [
   {
@@ -133,6 +142,66 @@ export const SUPPLIER_MIGRATIONS: NamedMigration[] = [
       CREATE INDEX cost_plan_lines_supplier ON cost_plan_lines(supplier_id);
       CREATE INDEX cost_plan_lines_contract ON cost_plan_lines(supplier_contract_id);
       CREATE INDEX service_duties_supplier ON service_duties(supplier_id);
+    `,
+  },
+  {
+    name: 'suppliers-003-contract-scope',
+    sql: `
+      ALTER TABLE supplier_contracts ADD COLUMN owners TEXT NOT NULL DEFAULT '[]';
+      ALTER TABLE supplier_contracts ADD COLUMN parent_id TEXT;
+      ALTER TABLE supplier_contracts ADD COLUMN personal_data INTEGER;
+      ALTER TABLE supplier_contracts ADD COLUMN dpa_status TEXT;
+      ALTER TABLE supplier_contracts ADD COLUMN dpa_since TEXT;
+      ALTER TABLE supplier_contracts ADD COLUMN dpa_link TEXT;
+      ALTER TABLE supplier_contracts ADD COLUMN created_by TEXT NOT NULL DEFAULT '';
+      ALTER TABLE supplier_contracts ADD COLUMN updated_by TEXT NOT NULL DEFAULT '';
+      CREATE INDEX supplier_contracts_parent ON supplier_contracts(parent_id);
+      UPDATE supplier_contracts SET owners = COALESCE((SELECT s.owners FROM suppliers s WHERE s.id = supplier_contracts.supplier_id), '[]');
+
+      CREATE TABLE supplier_contract_services (
+        contract_id TEXT NOT NULL,
+        service_id TEXT NOT NULL,
+        purpose TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL DEFAULT 'confirmed',
+        proposed_from TEXT NOT NULL DEFAULT '[]',
+        added_by TEXT NOT NULL DEFAULT '',
+        added_at TEXT NOT NULL,
+        confirmed_by TEXT,
+        confirmed_at TEXT,
+        PRIMARY KEY (contract_id, service_id)
+      );
+      CREATE INDEX supplier_contract_services_service ON supplier_contract_services(service_id);
+
+      INSERT INTO supplier_contract_services (contract_id, service_id, purpose, status, proposed_from, added_by, added_at, confirmed_by, confirmed_at)
+        SELECT x.contract_id, x.service_id, '', 'confirmed', '["paymentSchedule"]', 'system', MAX(c.updated_at), 'system', MAX(c.updated_at)
+          FROM cost_schedules x JOIN supplier_contracts c ON c.id = x.contract_id JOIN services s ON s.id = x.service_id
+         GROUP BY x.contract_id, x.service_id;
+      INSERT INTO supplier_contract_services (contract_id, service_id, purpose, status, proposed_from, added_by, added_at, confirmed_by, confirmed_at)
+        SELECT x.contract_id, x.service_id, '', 'proposed', '', 'system', MAX(c.updated_at), NULL, NULL
+          FROM (
+            SELECT supplier_contract_id AS contract_id, service_id FROM cost_plan_lines WHERE supplier_contract_id IS NOT NULL
+            UNION SELECT supplier_contract_id AS contract_id, service_id FROM cost_entries WHERE supplier_contract_id IS NOT NULL
+            UNION SELECT contract_id, service_id FROM service_responsibilities WHERE contract_id IS NOT NULL
+          ) x JOIN supplier_contracts c ON c.id = x.contract_id JOIN services s ON s.id = x.service_id
+         WHERE NOT EXISTS (SELECT 1 FROM supplier_contract_services y WHERE y.contract_id = x.contract_id AND y.service_id = x.service_id)
+         GROUP BY x.contract_id, x.service_id;
+      UPDATE supplier_contract_services SET proposed_from = proposed_from || ',"costPlanLine"' WHERE status = 'proposed' AND EXISTS (
+        SELECT 1 FROM cost_plan_lines l WHERE l.supplier_contract_id = supplier_contract_services.contract_id AND l.service_id = supplier_contract_services.service_id);
+      UPDATE supplier_contract_services SET proposed_from = proposed_from || ',"costEntry"' WHERE status = 'proposed' AND EXISTS (
+        SELECT 1 FROM cost_entries e WHERE e.supplier_contract_id = supplier_contract_services.contract_id AND e.service_id = supplier_contract_services.service_id);
+      UPDATE supplier_contract_services SET proposed_from = proposed_from || ',"responsibility"' WHERE status = 'proposed' AND EXISTS (
+        SELECT 1 FROM service_responsibilities r WHERE r.contract_id = supplier_contract_services.contract_id AND r.service_id = supplier_contract_services.service_id);
+      UPDATE supplier_contract_services SET proposed_from = '[' || substr(proposed_from, 2) || ']' WHERE status = 'proposed';
+
+      CREATE TABLE supplier_contact_scopes (
+        contact_id TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        item_id TEXT NOT NULL,
+        PRIMARY KEY (contact_id, kind, item_id)
+      );
+      CREATE INDEX supplier_contact_scopes_item ON supplier_contact_scopes(kind, item_id);
+
+      INSERT INTO settings (key, value) SELECT 'catalogue.supplierContractScope', '{"pending":true}' WHERE EXISTS (SELECT 1 FROM supplier_contracts);
     `,
   },
 ];
