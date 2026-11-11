@@ -13,6 +13,7 @@ import {
   planMonths,
   scheduleOwed,
   toMicros,
+  volumeOwed,
   type CostCommitment,
   type CostCommitments,
   type DatasetRow,
@@ -26,7 +27,8 @@ import { publishDataset } from '../dashboards/datasets.js';
 import { supplierRefs, visibleContracts } from '../suppliers/links.js';
 import { requireScope, scopeInfo, type ScopeInfo } from './access.js';
 import { startMonth, today as todayOf } from './plans.js';
-import { allSchedules, plannedYears, schedulesWhere, type Schedule } from './schedule-model.js';
+import { allSchedules, isVolume, payerOf, plannedYears, schedulesWhere, type Schedule } from './schedule-model.js';
+import { VolumeUse } from './volumes.js';
 
 /**
  * Commitments (0.18.0, ADR 0030 part 5, docs/COSTS.md#commitments): what the payment schedules of a service still owe
@@ -41,6 +43,11 @@ import { allSchedules, plannedYears, schedulesWhere, type Schedule } from './sch
  *   next term has no plan lines of the paying service.
  * - Used by the service's "Contracts" section, Costs → Commitments, the supplier page, /api/v1/cost-commitments, MCP,
  *   the dataset `costs.commitments` (no reader: every schedule of a service that is not archived) and the export part.
+ * - 0.19.0 (ADR 0032): schedules a platform pays are rows of their own (`payer`), seen by who may see the platform; a
+ *   team's rows are those of its services and of the platforms it owns. A volume owes only what is committed: prepaid –
+ *   its payments; by use – the committed minimum not used yet; a ceiling owes nothing and is shown as "up to …"
+ *   (`upTo`, never added to what is owed). The use of a volume is read in bulk (volumes.ts); a reader who may not see
+ *   every service or platform that books to it gets no figures that depend on the use (state only).
  */
 
 /** The current fiscal year and the next four: the columns of the commitments. */
@@ -57,6 +64,9 @@ interface Ctx {
   lines: Map<string, LineRow[]>;
   booked: Map<string, Set<string>>;
   planned: Map<string, Set<number>>;
+  volumes: VolumeUse;
+  /** Whether the reader sees an owner whose entries count for a volume (cached) */
+  seen: Map<string, boolean>;
 }
 
 interface LineRow {
@@ -106,7 +116,11 @@ function context(list: Schedule[], now: number): Ctx {
       booked.set(e.plan_line_id, (booked.get(e.plan_line_id) ?? new Set()).add(e.entry_date.slice(0, 7)));
   }
   const planned = new Map<string, Set<number>>();
-  for (const sid of new Set(list.map((x) => x.row.service_id))) planned.set(sid, plannedYears(sid));
+  for (const x of list) {
+    const o = payerOf(x.row);
+    const k = `${o.kind}:${o.id}`;
+    if (!planned.has(k)) planned.set(k, plannedYears(o));
+  }
   const m = today.slice(0, 7);
   return {
     today,
@@ -119,13 +133,21 @@ function context(list: Schedule[], now: number): Ctx {
     lines,
     booked,
     planned,
+    volumes: VolumeUse.forSchedules(list, now),
+    seen: new Map(),
   };
 }
 
-/** One schedule's commitments as the reader may see them (`info`: the paying service, seen by the reader). */
+/** One schedule's commitments as the reader may see them (`info`: the payer, seen by the reader). */
 function rowOf(x: Schedule, info: ScopeInfo, ctx: Ctx): CostCommitment {
-  const owed = scheduleOwed(x.spec, x.terms, ctx.today, ctx.start);
-  const show = (n: number) => (info.amounts ? fromMicros(n) : null);
+  const payer = payerOf(x.row);
+  const volume = isVolume(x) ? ctx.volumes.status(x, info, ctx.seen) : null;
+  const owed = isVolume(x)
+    ? volumeOwed(x.spec, x.terms, ctx.today, ctx.start, (p) => ctx.volumes.usedIn(x, p))
+    : { ...scheduleOwed(x.spec, x.terms, ctx.today, ctx.start), upTo: 0 };
+  // what a volume billed by use owes depends on its use: no figures for who may not see every payer that books to it
+  const amounts = info.amounts && !(volume?.stateOnly && x.spec.volume?.billing === 'byUse');
+  const show = (n: number) => (amounts ? fromMicros(n) : null);
   const visible = ctx.visible.has(x.contract.id);
   const byFy = new Map(owed.byFiscalYear.map((y) => [y.fiscalYear, y.toContractEnd]));
   const years = Array.from({ length: COMMITMENT_YEARS }, (_, i) => byFy.get(ctx.curFy + i) ?? 0);
@@ -161,19 +183,20 @@ function rowOf(x: Schedule, info: ScopeInfo, ctx: Ctx): CostCommitment {
         if (v !== 0 && i <= ctx.cur && !b?.has(ctx.months[i]!)) notBooked.add(ctx.months[i]!);
       });
     }
-  const warning = visible ? noticeWarning(x.terms, ctx.today, ctx.start, ctx.planned.get(x.row.service_id) ?? new Set(), x.spec.endsOn) : null;
+  const warning = visible ? noticeWarning(x.terms, ctx.today, ctx.start, ctx.planned.get(`${payer.kind}:${payer.id}`) ?? new Set(), x.spec.endsOn) : null;
   return {
     scheduleId: x.row.id,
     title: x.row.title,
-    serviceId: x.row.service_id,
-    serviceName: info.name,
-    teams: owningTeams('service', x.row.service_id).map((t) => ({ id: t.id, name: t.name })),
+    serviceId: payer.kind === 'service' ? payer.id : '',
+    serviceName: payer.kind === 'service' ? info.name : '',
+    payer: { kind: payer.kind, id: payer.id, name: info.name },
+    teams: owningTeams(payer.kind, payer.id).map((t) => ({ id: t.id, name: t.name })),
     supplier: visible ? (ctx.refs.get(x.contract.supplierId) ?? null) : null,
     contract: visible ? { id: x.contract.id, title: x.contract.title, reference: x.contract.reference } : null,
     contractHidden: !visible,
     billing: x.row.billing,
     currency: x.row.currency,
-    amountsVisible: info.amounts,
+    amountsVisible: amounts,
     nextPayment: owed.nextPayment ? { date: owed.nextPayment.date, amount: show(owed.nextPayment.amount) } : null,
     owedThisYear: show(years[0]!),
     owedLaterYears: show(owed.toContractEnd - years[0]!),
@@ -187,6 +210,8 @@ function rowOf(x: Schedule, info: ScopeInfo, ctx: Ctx): CostCommitment {
     warning,
     changed,
     notBooked: [...notBooked].sort(),
+    upTo: owed.upTo ? show(owed.upTo) : null,
+    volume,
   };
 }
 
@@ -196,9 +221,10 @@ function noticeByOf(x: Schedule, today: string): string | null {
   return d.noticeBy && d.noticeBy >= today ? d.noticeBy : null;
 }
 
+const warns = (r: CostCommitment) => !!r.warning || !!r.volume?.warnings.length;
 const byOrder = (a: CostCommitment, b: CostCommitment) =>
-  Number(!!b.warning) - Number(!!a.warning) ||
-  a.serviceName.localeCompare(b.serviceName) ||
+  Number(warns(b)) - Number(warns(a)) ||
+  a.payer.name.localeCompare(b.payer.name) ||
   (a.supplier?.name ?? '').localeCompare(b.supplier?.name ?? '') ||
   a.title.localeCompare(b.title) ||
   (a.scheduleId < b.scheduleId ? -1 : 1);
@@ -213,12 +239,17 @@ export function commitments(query: unknown, now = Date.now()): CostCommitments {
   if (q.serviceId) {
     requireScope('service', q.serviceId);
     list = schedulesWhere('service_id', [q.serviceId]);
+  } else if (q.platformId) {
+    requireScope('platform', q.platformId);
+    list = schedulesWhere('platform_id', [q.platformId]);
   } else if (q.teamId) {
     requireScope('team', q.teamId);
-    const ids = db()
-      .all<{ resource_id: string }>("SELECT resource_id FROM resource_teams WHERE kind = 'service' AND team_id = ?", q.teamId)
-      .map((r) => r.resource_id);
-    list = schedulesWhere('service_id', ids);
+    const owned = (kind: 'service' | 'platform') =>
+      db()
+        .all<{ resource_id: string }>('SELECT resource_id FROM resource_teams WHERE kind = ? AND team_id = ?', kind, q.teamId)
+        .map((r) => r.resource_id);
+    // the team's services and the platforms it owns (0.19.0)
+    list = [...schedulesWhere('service_id', owned('service')), ...schedulesWhere('platform_id', owned('platform'))];
   } else list = allSchedules();
   if (q.supplierId) {
     if (!supplierRefs([q.supplierId]).has(q.supplierId))
@@ -226,19 +257,21 @@ export function commitments(query: unknown, now = Date.now()): CostCommitments {
     list = list.filter((x) => x.contract.supplierId === q.supplierId);
   }
   const infos = new Map<string, ScopeInfo | null>();
-  const info = (id: string) => {
-    if (!infos.has(id)) infos.set(id, scopeInfo('service', id));
-    return infos.get(id)!;
+  const info = (x: Schedule) => {
+    const o = payerOf(x.row);
+    const k = `${o.kind}:${o.id}`;
+    if (!infos.has(k)) infos.set(k, scopeInfo(o.kind, o.id));
+    return infos.get(k)!;
   };
-  // the paying service must be seen (and not archived, unless it was asked for by id)
+  // the payer must be seen (and a service not archived, unless it was asked for by id)
   const archived = new Set(
     db()
       .all<{ id: string }>('SELECT id FROM services WHERE archived = 1')
       .map((r) => r.id),
   );
-  list = list.filter((x) => !!info(x.row.service_id) && (q.serviceId || !archived.has(x.row.service_id)));
+  list = list.filter((x) => !!info(x) && (q.serviceId || x.row.platform_id || !archived.has(x.row.service_id)));
   const ctx = context(list, now);
-  let rows = list.map((x) => rowOf(x, info(x.row.service_id)!, ctx));
+  let rows = list.map((x) => rowOf(x, info(x)!, ctx));
   // a supplier the reader asked for: only contracts they may see
   if (q.supplierId) rows = rows.filter((r) => !r.contractHidden);
   if (q.currency) rows = rows.filter((r) => r.currency === q.currency!.toUpperCase());
@@ -253,7 +286,7 @@ export function commitments(query: unknown, now = Date.now()): CostCommitments {
     years: Array.from({ length: COMMITMENT_YEARS }, (_, i) => ({ fiscalYear: ctx.curFy + i, label: fiscalYearLabel(ctx.curFy + i, ctx.start) })),
     rows,
     totals: totalsOf(rows),
-    warnings: rows.filter((r) => r.warning).length,
+    warnings: rows.filter(warns).length,
   };
   if (q.supplierId) result.incurred = incurredWith(q.supplierId, ctx.start);
   return result;
@@ -262,7 +295,7 @@ export function commitments(query: unknown, now = Date.now()): CostCommitments {
 /** Per currency over the rows whose amounts the reader sees. */
 function totalsOf(rows: CostCommitment[]): CostCommitments['totals'] {
   const m = (v: string | null) => (v === null ? 0 : (toMicros(v) ?? 0));
-  const by = new Map<string, { years: number[]; later: number; owedThisYear: number; toContractEnd: number; toEarliestExit: number }>();
+  const by = new Map<string, { years: number[]; later: number; owedThisYear: number; toContractEnd: number; toEarliestExit: number; upTo: number }>();
   for (const r of rows) {
     if (!r.amountsVisible) continue;
     const t = by.get(r.currency) ?? {
@@ -271,7 +304,9 @@ function totalsOf(rows: CostCommitment[]): CostCommitments['totals'] {
       owedThisYear: 0,
       toContractEnd: 0,
       toEarliestExit: 0,
+      upTo: 0,
     };
+    t.upTo += m(r.upTo);
     r.years.forEach((v, i) => (t.years[i]! += m(v)));
     t.later += m(r.later);
     t.owedThisYear += m(r.owedThisYear);
@@ -288,6 +323,7 @@ function totalsOf(rows: CostCommitment[]): CostCommitments['totals'] {
       owedThisYear: fromMicros(t.owedThisYear),
       toContractEnd: fromMicros(t.toContractEnd),
       toEarliestExit: fromMicros(t.toEarliestExit),
+      upTo: fromMicros(t.upTo),
     }));
 }
 
@@ -298,12 +334,14 @@ function totalsOf(rows: CostCommitment[]): CostCommitments['totals'] {
 function incurredWith(supplierId: string, start: number): NonNullable<CostCommitments['incurred']> {
   const by = new Map<string, number>();
   const infos = new Map<string, ScopeInfo | null>();
-  for (const e of db().all<{ service_id: string; entry_date: string; amount: number; currency: string }>(
-    'SELECT service_id, entry_date, amount, currency FROM cost_entries WHERE supplier_id = ?',
+  for (const e of db().all<{ service_id: string; platform_id: string | null; entry_date: string; amount: number; currency: string }>(
+    'SELECT service_id, platform_id, entry_date, amount, currency FROM cost_entries WHERE supplier_id = ?',
     supplierId,
   )) {
-    if (!infos.has(e.service_id)) infos.set(e.service_id, scopeInfo('service', e.service_id));
-    const i = infos.get(e.service_id);
+    // entries of services and (0.19.0) platforms the reader may see
+    const who = e.platform_id ? `platform:${e.platform_id}` : `service:${e.service_id}`;
+    if (!infos.has(who)) infos.set(who, e.platform_id ? scopeInfo('platform', e.platform_id) : scopeInfo('service', e.service_id));
+    const i = infos.get(who);
     if (!i || !i.amounts) continue;
     const k = `${fiscalYearOf(e.entry_date, start)}|${e.currency}`;
     by.set(k, (by.get(k) ?? 0) + Number(e.amount));
@@ -343,6 +381,13 @@ export const COMMITMENT_CSV_HEAD = [
   'Fiscal year 4',
   'Fiscal year 5',
   'Later',
+  // 0.19.0 (ADR 0032): a platform as the payer, and volumes
+  'Platform id',
+  'Platform',
+  'Up to',
+  'Volume used',
+  'Volume left',
+  'Volume warnings',
 ] as const;
 
 /** One CSV line per row (formulas defused, amounts with the currency's minor units). */
@@ -372,6 +417,12 @@ export function commitmentCsvLines(c: CostCommitments): string[] {
       r.warning ? csvCell(`Notice by ${r.warning.noticeBy} – ${r.warning.label} not planned yet`, 'needed') : '',
       ...r.years.map((v) => num(v, r.currency)),
       num(r.later, r.currency),
+      csvCell(r.payer.kind === 'platform' ? r.payer.id : '', 'needed'),
+      csvCell(r.payer.kind === 'platform' ? r.payer.name : '', 'needed'),
+      num(r.upTo, r.currency),
+      num(r.volume?.used ?? null, r.currency),
+      num(r.volume?.left ?? null, r.currency),
+      r.volume?.warnings.join(' ') ?? '',
     ].join(','),
   );
 }
@@ -379,7 +430,9 @@ export function commitmentCsvLines(c: CostCommitments): string[] {
 /** The commitments as CSV (UTF-8 with a byte order mark): the page's export with its filters. */
 export function commitmentsCsv(query: unknown, now = Date.now()): { name: string; csv: string } {
   const c = commitments(query, now);
-  const head = [...COMMITMENT_CSV_HEAD.slice(0, 17), ...c.years.map((y) => y.label), 'Later'].map((h) => csvCell(h, 'needed')).join(',');
+  const head = [...COMMITMENT_CSV_HEAD.slice(0, 17), ...c.years.map((y) => y.label), ...COMMITMENT_CSV_HEAD.slice(22)]
+    .map((h) => csvCell(h, 'needed'))
+    .join(',');
   return { name: `commitments-${c.today}.csv`, csv: '﻿' + [head, ...commitmentCsvLines(c)].join('\r\n') + '\r\n' };
 }
 
@@ -387,6 +440,7 @@ export function commitmentsCsv(query: unknown, now = Date.now()): { name: string
 
 const DATASET_COLUMNS = [
   'Service',
+  'Platform',
   'Supplier',
   'Contract',
   'Schedule',
@@ -396,6 +450,7 @@ const DATASET_COLUMNS = [
   'To contract end',
   'To earliest exit',
   'Notice by',
+  'Up to',
 ];
 let published = 0;
 
@@ -413,6 +468,7 @@ export function publishCommitmentsDataset(force = false, now = Date.now()): bool
   const n = (v: string | null) => (v === null ? null : (toMicros(v) ?? 0) / 1_000_000);
   const rows: DatasetRow[] = c.rows.map((r) => ({
     Service: r.serviceName,
+    Platform: r.payer.kind === 'platform' ? r.payer.name : '',
     Supplier: r.supplier?.name ?? '',
     Contract: r.contract?.title ?? '',
     Schedule: r.title,
@@ -422,9 +478,14 @@ export function publishCommitmentsDataset(force = false, now = Date.now()): bool
     'To contract end': n(r.toContractEnd),
     'To earliest exit': n(r.toEarliestExit),
     'Notice by': r.noticeBy,
+    'Up to': n(r.upTo),
     _key: r.scheduleId,
-    _status: r.warning ? 'warning' : 'good',
-    _reason: r.warning ? `Notice by ${r.warning.noticeBy} – ${r.warning.label} not planned yet` : '',
+    _status: warns(r) ? 'warning' : 'good',
+    _reason: r.warning
+      ? `Notice by ${r.warning.noticeBy} – ${r.warning.label} not planned yet`
+      : r.volume?.warnings.length
+        ? `Volume: ${r.volume.warnings.join(', ')}`
+        : '',
   }));
   publishDataset({
     key: COST_COMMITMENTS_DATASET,

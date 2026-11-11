@@ -55,6 +55,18 @@ export function resolveSupplierLink(next: string | null | undefined, current: st
   return r.id;
 }
 
+/** Who a cost plan line or entry belongs to: a service (its id, as before 0.19), or a service or platform (0.19.0, ADR 0032). */
+export type ContractPayer = string | { kind: 'service' | 'platform'; id: string };
+const payerRef = (p: ContractPayer): { kind: 'service' | 'platform'; id: string } => (typeof p === 'string' ? { kind: 'service', id: p } : p);
+
+/** Whether the contract covers the service or platform. */
+export function contractCovers(contractId: string, payer: ContractPayer): boolean {
+  const p = payerRef(payer);
+  return p.kind === 'service'
+    ? !!db().get('SELECT 1 FROM supplier_contract_services WHERE contract_id = ? AND service_id = ?', contractId, p.id)
+    : !!db().get('SELECT 1 FROM supplier_contract_platforms WHERE contract_id = ? AND platform_id = ?', contractId, p.id);
+}
+
 /**
  * A contract of the linked supplier (cost plan lines and entries, matrix rows, duties, findings): missing keeps it,
  * null clears it; it must belong to the supplier. A newly chosen contract must be one the person may see (ADR 0031);
@@ -62,7 +74,12 @@ export function resolveSupplierLink(next: string | null | undefined, current: st
  * and sees the service), which coverChosenContract() then does in the caller's transaction. A contract linked already
  * is kept as it is, also one the person may not see.
  */
-export function resolveSupplierContract(supplierId: string | null, next: string | null | undefined, current: string | null, serviceId?: string): string | null {
+export function resolveSupplierContract(
+  supplierId: string | null,
+  next: string | null | undefined,
+  current: string | null,
+  serviceId?: ContractPayer,
+): string | null {
   const id = next === undefined ? current : next;
   if (!id) return null;
   if (!supplierId) {
@@ -81,9 +98,10 @@ export function resolveSupplierContract(supplierId: string | null, next: string 
     if (next === undefined) return null;
     throw new HttpError(404, `Contract ${id} not found`, 'SUPPLIER_CONTRACT_NOT_FOUND', { id });
   }
-  if (chosen && serviceId && currentUser() && !db().get('SELECT 1 FROM supplier_contract_services WHERE contract_id = ? AND service_id = ?', c.id, serviceId)) {
+  if (chosen && serviceId && currentUser() && !contractCovers(c.id, serviceId)) {
     const ctx = new ScopeCtx();
-    if (!contractEditable(c, undefined, currentUser(), ctx) || !ctx.seesService(serviceId))
+    const p = payerRef(serviceId);
+    if (!contractEditable(c, undefined, currentUser(), ctx) || !(p.kind === 'service' ? ctx.seesService(p.id) : ctx.seesPlatform(p.id)))
       throw new HttpError(409, `The contract "${c.title}" does not cover this service, and you may not add it`, 'SUPPLIER_CONTRACT_NOT_COVERING', {
         contract: c.title,
       });
@@ -105,15 +123,30 @@ export function resolveSupplierContract(supplierId: string | null, next: string 
  * covered service without a purpose, audited on the supplier. Nothing when it is covered already, or when the contract
  * was kept (`before`) – a kept link never adds coverage back.
  */
-export function coverChosenContract(contractId: string | null, before: string | null, serviceId: string, actor: string): void {
-  if (
-    !contractId ||
-    contractId === before ||
-    !currentUser() ||
-    db().get('SELECT 1 FROM supplier_contract_services WHERE contract_id = ? AND service_id = ?', contractId, serviceId)
-  )
-    return;
+export function coverChosenContract(contractId: string | null, before: string | null, payer: ContractPayer, actor: string): void {
+  if (!contractId || contractId === before || !currentUser() || contractCovers(contractId, payer)) return;
   const c = db().get<{ supplier_id: string; title: string }>('SELECT supplier_id, title FROM supplier_contracts WHERE id = ?', contractId);
+  const p = payerRef(payer);
+  if (p.kind === 'platform') {
+    const plat = db().get<{ name: string }>('SELECT name FROM platforms WHERE id = ?', p.id);
+    if (!c || !plat) return;
+    db().run(
+      `INSERT INTO supplier_contract_platforms (contract_id, platform_id, purpose, added_by, added_at) VALUES (?, ?, '', ?, ?)`,
+      contractId,
+      p.id,
+      actor,
+      nowIso(),
+    );
+    audit({
+      action: 'supplier.contract_platform_added',
+      entityType: 'supplier',
+      entityId: c.supplier_id,
+      summary: `Platform "${plat.name}" added to the contract "${c.title}"`,
+      details: { contractId, platformId: p.id, platform: plat.name, purpose: '', chosenFor: true },
+    });
+    return;
+  }
+  const serviceId = p.id;
   const svc = db().get<{ name: string }>('SELECT name FROM services WHERE id = ?', serviceId);
   if (!c || !svc) return;
   const now = nowIso();

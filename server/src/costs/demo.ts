@@ -19,7 +19,7 @@ import { nowIso } from '../util.js';
 import { readSource } from './sources.js';
 import { tagKeyOf } from './store.js';
 import { costSettings, setCostSettings } from './access.js';
-import { addEntry, addPlanLine, bookLine, planYear, today } from './plans.js';
+import { addEntry, addPlanLine, bookLine, bookLineOf, planYear, platformPlanYear, today } from './plans.js';
 import { addSchedule, confirmProposals } from './schedules.js';
 import { importEntries } from './entry-import.js';
 import { addContract, createSupplier } from '../suppliers/service.js';
@@ -310,5 +310,152 @@ export function setupContractPaymentDemo(
     }
   // read once more, so a failing step above shows in the log rather than half a plan
   planYear(services.shop, fy, now);
+  return lines;
+}
+
+/**
+ * Demo volumes (0.19.0, ADR 0032) – invented, like everything in the demo:
+ *  - _Snowflake (demo)_ gets a capacity contract of its own: a year of prepaid capacity from an invented reseller,
+ *    paid by the platform (not a service), bought about eight months ago and sized so that the read consumption uses
+ *    it up before the term ends – the platform's cost plan shows the drawdown and the warning "runs out";
+ *  - _Customer care (demo)_ holds a translation framework contract billed by use with a committed minimum of 50 %: the
+ *    monthly invoices are entries, and they run below the minimum – a shortfall is expected.
+ * Only when no volume schedule exists yet. Returns the number of plan lines it added.
+ */
+export function setupVolumeDemo(services: { care?: string }, owners: string[], now = Date.now()): number {
+  if (db().get("SELECT id FROM cost_schedules WHERE billing = 'volume' LIMIT 1")) return 0;
+  const start = costSettings().fiscalYearStartMonth;
+  const day = today(now);
+  const fy = fiscalYearOf(day, start);
+  let lines = 0;
+  const contractOf = (supplierId: string, title: string) =>
+    db().get<{ id: string }>('SELECT id FROM supplier_contracts WHERE supplier_id = ? AND title = ?', supplierId, title)?.id;
+  // ---- the platform's prepaid capacity ----
+  const snow = db().get<{ id: string }>("SELECT id FROM platforms WHERE kind = ? AND name = 'Snowflake (demo)'", SNOWFLAKE_KIND);
+  const termStart = addDays(day, -240);
+  const read = snow
+    ? db().get<{ currency: string; e: number }>(
+        `SELECT billing_currency AS currency, SUM(effective_cost) AS e FROM cost_records WHERE platform_id = ? AND charge_period_start >= ?
+          GROUP BY billing_currency ORDER BY SUM(effective_cost) DESC LIMIT 1`,
+        snow.id,
+        termStart,
+      )
+    : undefined;
+  if (snow && read && Number(read.e) > 0) {
+    const vendor = createSupplier(
+      supplierInput.parse({
+        name: 'Polarmark Data Services',
+        type: 'serviceProvider',
+        description: 'Reseller of data platform capacity (invented).',
+        website: 'https://polarmark.example',
+        owners,
+      }),
+    );
+    // the capacity of a year: what eight months used, a third more – used up before the year is over
+    const capacity = Math.max(1000, Math.round(((Number(read.e) / 1_000_000) * 1.35 * (365 / 240)) / 1000) * 1000);
+    addContract(
+      vendor.id,
+      supplierContractInput.parse({
+        title: 'Data platform capacity',
+        reference: 'PM-CAP-1Y',
+        startsOn: termStart,
+        endsOn: addDays(addMonths(termStart, 12), -1),
+        noticeDays: 60,
+        renewal: 'fixedEnd',
+        note: 'A year of capacity, paid up front and drawn down by the platform (invented)',
+        platforms: [{ platformId: snow.id, purpose: 'Capacity of the shared data platform' }],
+      }),
+    );
+    const cap = contractOf(vendor.id, 'Data platform capacity');
+    if (cap) {
+      const l = addSchedule({
+        contractId: cap,
+        platformId: snow.id,
+        title: 'Prepaid capacity',
+        category: 'cloud',
+        amount: String(capacity),
+        currency: read.currency,
+        billing: 'volume',
+        volume: { per: 'term', billing: 'prepaid', committed: 'full', consumption: 'read' },
+      });
+      const scheduleId = l.schedules[0]?.id;
+      const payYear = fiscalYearOf(termStart, start);
+      if (scheduleId) {
+        const y = confirmProposals({ kind: 'platform', id: snow.id }, { fiscalYear: payYear, scheduleIds: [scheduleId] });
+        const line = y.lines.find((x) => x.schedule?.id === scheduleId);
+        if (line) {
+          lines++;
+          try {
+            bookLineOf({ kind: 'platform', id: snow.id }, line.id, { month: line.onceMonth ?? undefined, reference: 'PM-INV-2207' }, now);
+          } catch (err) {
+            logger.warn({ err: (err as Error).message }, 'demo capacity payment not booked');
+          }
+        }
+      }
+    }
+    platformPlanYear(snow.id, fy, now);
+  }
+  // ---- the customer care's translation framework, billed by use with a committed minimum ----
+  if (services.care) {
+    const vendor = createSupplier(
+      supplierInput.parse({
+        name: 'Lingomesh Translations',
+        type: 'serviceProvider',
+        description: 'Translation of help articles and customer letters (invented).',
+        website: 'https://lingomesh.example',
+        owners,
+      }),
+    );
+    const fwStart = `${addMonths(day, -7).slice(0, 7)}-01`;
+    addContract(
+      vendor.id,
+      supplierContractInput.parse({
+        title: 'Translation framework',
+        reference: 'LM-FW-24',
+        startsOn: fwStart,
+        endsOn: addDays(addMonths(fwStart, 24), -1),
+        noticeDays: 90,
+        renewal: 'fixedEnd',
+        note: 'Up to 24,000 EUR of translations per contract year, half of it committed, invoiced monthly (invented)',
+        services: [{ serviceId: services.care, purpose: 'Help articles and customer letters' }],
+      }),
+    );
+    const fw = contractOf(vendor.id, 'Translation framework');
+    if (fw) {
+      const l = addSchedule({
+        contractId: fw,
+        serviceId: services.care,
+        title: 'Translation volume',
+        category: 'support',
+        amount: '24000',
+        currency: 'EUR',
+        billing: 'volume',
+        volume: { per: 'year', billing: 'byUse', committed: 'minimum', minimumPct: 50, consumption: 'entries' },
+      });
+      const scheduleId = l.schedules[0]?.id;
+      if (scheduleId) {
+        for (const year of [...new Set([fiscalYearOf(fwStart, start), fy])])
+          try {
+            const y = confirmProposals(services.care, { fiscalYear: year, scheduleIds: [scheduleId] });
+            lines += y.lines.filter((x) => x.schedule?.id === scheduleId).length;
+          } catch (err) {
+            logger.warn({ err: (err as Error).message }, 'demo volume lines not added');
+          }
+        // the monthly invoices of the months that are over: well below the committed half
+        const amounts = ['640', '710', '585', '690', '720', '655', '600'];
+        for (let i = 0; i < amounts.length; i++) {
+          const m = addMonths(fwStart, i).slice(0, 7);
+          if (m >= day.slice(0, 7)) break;
+          const year = fiscalYearOf(m, start);
+          const line = planYear(services.care, year, now).lines.find((x) => x.schedule?.id === scheduleId && x.bookable);
+          try {
+            if (line) bookLine(services.care, line.id, { month: m, amount: amounts[i]!, reference: `LM-${m}` }, now);
+          } catch (err) {
+            logger.warn({ err: (err as Error).message }, 'demo translation invoice not booked');
+          }
+        }
+      }
+    }
+  }
   return lines;
 }

@@ -161,7 +161,13 @@ export const LARGE_BODIES = {
   },
   /** A CSV file of cost entries (0.18.0, ADR 0030): COST_ENTRY_IMPORT_LIMITS.bytes (5 MB) as text in the web app's JSON body, with its mapping */
   costEntryImport: {
-    routes: ['POST /api/costs/plans/:serviceId/entries/import/preview', 'POST /api/costs/plans/:serviceId/entries/import'],
+    routes: [
+      'POST /api/costs/plans/:serviceId/entries/import/preview',
+      'POST /api/costs/plans/:serviceId/entries/import',
+      // a platform's own cost plan (0.19.0, ADR 0032)
+      'POST /api/costs/platform-plans/:platformId/entries/import/preview',
+      'POST /api/costs/platform-plans/:platformId/entries/import',
+    ],
     bytes: jsonText(COST_ENTRY_IMPORT_LIMITS.bytes, 16 * KIB),
   },
   /** A library release as a .zip (0.10.0, #238): LIBRARY_LIMITS.maxUploadBytes (8 MB) as base64 in a JSON body */

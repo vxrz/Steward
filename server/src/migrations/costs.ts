@@ -39,6 +39,19 @@ import type { NamedMigration } from '../db.js';
  *   cost_entry_imports: CSV imports of entries – file name, SHA-256, rows, added, skipped by reason, the mapping, who
  *     and when, and who removed its entries and when.
  *   cost_booking_reminders: the reminders "contract payments not booked" sent, once per service and month.
+ *
+ * 0.19.0 (ADR 0032, cost attribution, platform cost plans and volume contracts):
+ * costs-005-platform-plans-volumes:
+ *   cost_plan_lines, cost_entries, cost_schedules, cost_entry_imports: `platform_id` – a platform's own cost plan. A
+ *     row of a platform has `service_id` '' (the column stays NOT NULL) and its platform in `platform_id`; a service's
+ *     row keeps `platform_id` null. cost_booking_reminders keeps the plan's owner (a service or a platform) in
+ *     `service_id` – ids of both kinds never collide.
+ *   cost_schedules: the billing "volume" – `volume_per` (year: a volume per contract year; term: one for the whole
+ *     term), `volume_billing` (prepaid: paid up front and drawn down; byUse: billed from what is used),
+ *     `volume_committed` (full, minimum, none), the minimum as an amount (`volume_minimum`, micros) or a percentage
+ *     (`volume_minimum_pct`), and where the use comes from (`volume_consumption`: entries or read costs).
+ *   cost_entries: an index on (supplier_contract_id, entry_date) for the use of a volume.
+ *   cost_volume_notices: the volume warnings sent, once per schedule, period and kind.
  */
 export const COSTS_MIGRATIONS: NamedMigration[] = [
   {
@@ -268,6 +281,35 @@ export const COSTS_MIGRATIONS: NamedMigration[] = [
         month TEXT NOT NULL,
         sent_at TEXT NOT NULL,
         PRIMARY KEY (service_id, month)
+      );
+    `,
+  },
+  {
+    name: 'costs-005-platform-plans-volumes',
+    sql: `
+      ALTER TABLE cost_plan_lines ADD COLUMN platform_id TEXT;
+      ALTER TABLE cost_entries ADD COLUMN platform_id TEXT;
+      ALTER TABLE cost_schedules ADD COLUMN platform_id TEXT;
+      ALTER TABLE cost_entry_imports ADD COLUMN platform_id TEXT;
+      CREATE INDEX cost_plan_lines_platform ON cost_plan_lines(platform_id, fiscal_year);
+      CREATE INDEX cost_entries_platform ON cost_entries(platform_id, entry_date);
+      CREATE INDEX cost_schedules_platform ON cost_schedules(platform_id);
+      CREATE INDEX cost_entry_imports_platform ON cost_entry_imports(platform_id, created_at);
+      CREATE INDEX cost_entries_contract ON cost_entries(supplier_contract_id, entry_date);
+
+      ALTER TABLE cost_schedules ADD COLUMN volume_per TEXT;
+      ALTER TABLE cost_schedules ADD COLUMN volume_billing TEXT;
+      ALTER TABLE cost_schedules ADD COLUMN volume_committed TEXT;
+      ALTER TABLE cost_schedules ADD COLUMN volume_minimum INTEGER;
+      ALTER TABLE cost_schedules ADD COLUMN volume_minimum_pct INTEGER;
+      ALTER TABLE cost_schedules ADD COLUMN volume_consumption TEXT;
+
+      CREATE TABLE cost_volume_notices (
+        schedule_id TEXT NOT NULL,
+        period_from TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        sent_at TEXT NOT NULL,
+        PRIMARY KEY (schedule_id, period_from, kind)
       );
     `,
   },

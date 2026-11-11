@@ -7,8 +7,9 @@ import { linkNext, pageArray } from '../api/v1/pagination.js';
 import type { Op } from '../api/v1/routes.js';
 import { CostCommitmentsQuery, CostListQuery, CostPlanQuery } from './api-schemas.js';
 import { overview, scopeDetail } from './query.js';
-import { planYear } from './plans.js';
+import { planYear, platformPlanYear } from './plans.js';
 import { commitments } from './commitments.js';
+import { costAttribution } from './attribution.js';
 
 /**
  * Platform costs in the public, read-only API (#226): the overview of a kind and one scope, with the rights of the web
@@ -89,13 +90,60 @@ export function costApiRoutes(get: Get): void {
     },
   );
   get(
+    '/platforms/:platformId/cost-plan',
+    {
+      operationId: 'getPlatformCostPlan',
+      tag: 'Costs',
+      summary: 'Get the cost plan of a platform for a fiscal year',
+      description:
+        "A platform's own cost plan (0.19.0, docs/COSTS.md#planning-per-platform): its plan lines and cost entries of a fiscal year, set against the platform's whole bill as Steward reads it, per line and currency planned, to date, incurred, expected and the difference; use drawn from prepaid volumes (shown, not counted again); its volumes with use, what is left and a linear estimate; and the schedules it pays (commitments). The shape of the service cost plan, with `owner.kind` platform and `serviceId` empty. Not paged: at most 200 plan lines and 2,000 entries per fiscal year.",
+      params: { platformId: 'The id of the platform' },
+      query: CostPlanQuery,
+      response: { $ref: 'CostPlanYear#' },
+    },
+    async (req) => {
+      const p = req.params as { platformId: string };
+      const q = req.query as z.infer<typeof CostPlanQuery>;
+      try {
+        return { ...platformPlanYear(p.platformId, q.fiscalYear), commitments: commitments({ platformId: p.platformId }).rows };
+      } catch (e) {
+        if (e instanceof HttpError && e.statusCode === 404) throw notFound(`Platform ${p.platformId}`);
+        throw e;
+      }
+    },
+  );
+  for (const kind of ['application', 'system'] as const)
+    get(
+      kind === 'application' ? '/applications/:applicationId/cost-attribution' : '/systems/:systemId/cost-attribution',
+      {
+        operationId: kind === 'application' ? 'getApplicationCostAttribution' : 'getSystemCostAttribution',
+        tag: 'Costs',
+        summary: `Get the costs and contracts of ${kind === 'application' ? 'an application' : 'a system'}`,
+        description: `Attribution, not a plan (0.19.0, docs/COSTS.md#costs-and-contracts-of-an-application-or-system): the contracts that name the ${kind} for a covered service or that its lines, entries and payment schedules pay for, and those lines, entries and schedules in the services that use it – each counted once – with totals per fiscal year and currency. Only what the token owner may see; amounts null where they may not see a service's amounts.`,
+        params: kind === 'application' ? { applicationId: 'The id of the application' } : { systemId: 'The id of the system' },
+        query: CostPlanQuery,
+        response: { $ref: 'CostAttribution#' },
+      },
+      async (req) => {
+        const p = req.params as { applicationId?: string; systemId?: string };
+        const id = (kind === 'application' ? p.applicationId : p.systemId) ?? '';
+        const q = req.query as z.infer<typeof CostPlanQuery>;
+        try {
+          return costAttribution(kind, id, q.fiscalYear);
+        } catch (e) {
+          if (e instanceof HttpError && e.statusCode === 404) throw notFound(`${kind === 'application' ? 'Application' : 'System'} ${id}`);
+          throw e;
+        }
+      },
+    );
+  get(
     '/cost-commitments',
     {
       operationId: 'listCostCommitments',
       tag: 'Costs',
       summary: 'List the commitments of payment schedules',
       description:
-        "What the payment schedules of supplier contracts still owe (docs/COSTS.md#commitments): per schedule of a service the token owner may see, the scheduled payments dated today or later – to contract end and to the earliest exit, per fiscal year (the current one and the next four) and later – the next payment, the notice-by date and the notice warning. Scheduled payments, not liabilities: entries are not subtracted; amounts per currency, never converted, null where the token owner may not see the paying service's amounts. Notice warnings first.",
+        "What supplier contracts still owe under their payment schedules (docs/COSTS.md#commitments): per schedule of a service or platform the token owner may see, the scheduled payments dated today or later – to contract end and to the earliest exit, per fiscal year (the current one and the next four) and later – the next payment, the notice-by date and the notice warning. Scheduled payments, not liabilities: entries are not subtracted; amounts per currency, never converted, null where the token owner may not see the paying service's amounts. Notice warnings first.",
       query: CostCommitmentsQuery,
       paginated: true,
       response: {
@@ -109,14 +157,17 @@ export function costApiRoutes(get: Get): void {
       const q = req.query as z.infer<typeof CostCommitmentsQuery>;
       let rows;
       try {
-        rows = commitments({ serviceId: q.serviceId, teamId: q.teamId, supplierId: q.supplierId, currency: q.currency }).rows;
+        rows = commitments({ serviceId: q.serviceId, platformId: q.platformId, teamId: q.teamId, supplierId: q.supplierId, currency: q.currency }).rows;
       } catch (e) {
         if (e instanceof HttpError && e.statusCode === 404)
-          throw notFound(q.serviceId ? `Service ${q.serviceId}` : q.teamId ? `Team ${q.teamId}` : `Supplier ${q.supplierId}`);
+          throw notFound(
+            q.serviceId ? `Service ${q.serviceId}` : q.platformId ? `Platform ${q.platformId}` : q.teamId ? `Team ${q.teamId}` : `Supplier ${q.supplierId}`,
+          );
         throw e;
       }
-      const p = pageArray(rows, (r) => [r.warning ? 0 : 1, r.serviceName.toLowerCase(), r.title.toLowerCase(), r.scheduleId], q, {
+      const p = pageArray(rows, (r) => [r.warning ? 0 : 1, r.payer.name.toLowerCase(), r.title.toLowerCase(), r.scheduleId], q, {
         serviceId: q.serviceId,
+        platformId: q.platformId,
         teamId: q.teamId,
         supplierId: q.supplierId,
         currency: q.currency,

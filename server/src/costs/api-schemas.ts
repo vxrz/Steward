@@ -6,6 +6,12 @@ import {
   COST_PLAN_TARGET_KINDS,
   COST_SCHEDULE_BILLINGS,
   COST_SCOPES,
+  COST_PAYER_KINDS,
+  COST_VOLUME_BILLINGS,
+  COST_VOLUME_COMMITTED,
+  COST_VOLUME_CONSUMPTION,
+  COST_VOLUME_PER,
+  COST_VOLUME_WARNINGS,
   COST_SOURCES,
   FISCAL_YEAR_MAX,
   FISCAL_YEAR_MIN,
@@ -143,8 +149,33 @@ const figures = {
   difference: planAmount('Expected minus planned'),
 };
 
+const Payer = z
+  .object({ kind: z.enum(COST_PAYER_KINDS), id: z.string(), name: z.string() })
+  .describe('Whose plan, or who pays: a service, or a platform (0.19.0, ADR 0032)');
+
+const VolumeStatus = {
+  per: z.enum(COST_VOLUME_PER),
+  billing: z.enum(COST_VOLUME_BILLINGS),
+  committed: z.enum(COST_VOLUME_COMMITTED),
+  consumption: z.enum(COST_VOLUME_CONSUMPTION).describe('Where the use comes from: the entries booked to the contract, or the paying platform’s read costs'),
+  currency: z.string(),
+  period: z.object({ index: z.number().int(), from: z.string(), to: z.string() }).describe('The current period: a contract year or the whole term'),
+  amount: planAmount('The volume of the period'),
+  minimum: planAmount('What is committed of it (full: the volume; none: 0)'),
+  used: planAmount('Used from the period’s first day up to today'),
+  left: planAmount('The volume minus what is used'),
+  sharePct: z.number().nullable(),
+  expectedAtEnd: planAmount('An estimate: the use at the period’s end at the rate of the recent months (null: too early)'),
+  runsOutOn: z.string().nullable().describe('An estimate: the day the volume is used up at that rate, when inside the period'),
+  ratePerDay: planAmount('Use per day of the estimate’s window'),
+  window: z.object({ from: z.string(), to: z.string() }).nullable(),
+  warnings: z.array(z.enum(COST_VOLUME_WARNINGS)),
+  stateOnly: z.boolean().describe('The use counts entries of services or platforms the token owner may not see: warnings only, no figures'),
+};
+
 export const CostPlanYear = z.object({
-  serviceId: z.string(),
+  owner: Payer,
+  serviceId: z.string().describe("The service ('' for a platform's plan)"),
   serviceName: z.string(),
   fiscalYear: z.number().int().describe('The calendar year the fiscal year starts in'),
   label: z.string().describe('"FY 2026" (start January) or "FY 2026/27"'),
@@ -189,6 +220,14 @@ export const CostPlanYear = z.object({
       contractEnds: z.string().nullable().describe('A line naming a contract without a schedule: the end of its contract when it falls in this fiscal year'),
       twoLines: z.boolean().describe('A hand-made line for a contract that also has a payment schedule paying in this year'),
       paymentDates: z.array(z.string().nullable()).nullable().describe('A schedule line: the payment date in each month of the year (null: no payment)'),
+      volume: z
+        .object({
+          billing: z.enum(COST_VOLUME_BILLINGS),
+          consumption: z.enum(COST_VOLUME_CONSUMPTION),
+          suggested: planAmount('Book: the average use per month so far'),
+        })
+        .nullable()
+        .describe('A line of a volume schedule (0.19.0)'),
       bookable: z.boolean().describe('Monthly, quarterly and one-off lines with a payment: a person can book them'),
       notBooked: z.array(z.string()).describe('Months (YYYY-MM) up to the current one with a planned payment and no entry on the line'),
       months: z.array(z.string().nullable()).describe('Planned per month'),
@@ -225,6 +264,7 @@ export const CostPlanYear = z.object({
       reference: z.string().describe('Invoice or order number'),
       note: z.string(),
       unplanned: z.boolean().describe('No plan line of this fiscal year'),
+      drawn: planAmount('The part drawn from a prepaid volume of its contract (0.19.0): not counted as incurred again'),
       planLineYear: z
         .object({ fiscalYear: z.number().int(), label: z.string() })
         .nullable()
@@ -249,10 +289,17 @@ export const CostPlanYear = z.object({
         expected: planAmount('All unplanned entries of the year'),
         count: z.number().int(),
       }),
+      drawn: z
+        .object({ toDate: planAmount('Drawn so far'), months: z.array(z.string().nullable()) })
+        .nullable()
+        .describe('Use drawn from prepaid volumes (read costs, entries): shown, not counted as incurred (0.19.0)'),
     }),
   ),
   renewals: z.array(z.object({ lineId: z.string(), title: z.string(), fiscalYear: z.number().int(), renewalDate: z.string(), days: z.number().int() })),
   targets: z.array(z.object({ kind: z.enum(['application', 'system']), id: z.string(), name: z.string() })),
+  volumes: z
+    .array(z.object({ scheduleId: z.string(), title: z.string(), contractId: z.string(), contractHidden: z.boolean(), ...VolumeStatus }))
+    .describe('The volume schedules the plan’s owner pays, each with its current period (0.19.0)'),
   years: z.array(z.object({ fiscalYear: z.number().int(), label: z.string() })),
   limits: z.object({ linesPerYear: z.number().int(), entriesPerYear: z.number().int() }),
   prepaid: z
@@ -294,9 +341,10 @@ const owed = (d: string) =>
 export const CostCommitment = z.object({
   scheduleId: z.string(),
   title: z.string().describe('The payment schedule'),
-  serviceId: z.string(),
+  serviceId: z.string().describe("The paying service ('' when a platform pays)"),
   serviceName: z.string(),
-  teams: z.array(z.object({ id: z.string(), name: z.string() })).describe("The paying service's owning teams"),
+  payer: Payer,
+  teams: z.array(z.object({ id: z.string(), name: z.string() })).describe("The payer's owning teams"),
   supplier: SupplierRef.describe('null with contractHidden: a contract of a supplier the token owner may not see'),
   contract: ContractRef,
   contractHidden: z.boolean(),
@@ -319,18 +367,84 @@ export const CostCommitment = z.object({
     .describe('The notice-by date is ahead and the fiscal year of the next term has no plan lines of the paying service (soon: within 90 days)'),
   changed: z.boolean().describe('Lines of the current or a later fiscal year made from it show "Contract changed"'),
   notBooked: z.array(z.string()).describe('Months of the current fiscal year with a payment of its lines and no entry'),
+  upTo: owed('A volume that is not fully committed: what it may still bill at most beyond what is owed – never part of what is owed (0.19.0)'),
+  volume: z.object(VolumeStatus).nullable().describe("A volume's current period (0.19.0)"),
+});
+
+const attrAmount = (d: string) => z.string().nullable().describe(`${d} – null when the token owner may not see the service's amounts`);
+export const CostAttribution = z.object({
+  kind: z.enum(['application', 'system']),
+  id: z.string(),
+  name: z.string(),
+  fiscalYear: z.number().int(),
+  label: z.string(),
+  years: z.array(z.object({ fiscalYear: z.number().int(), label: z.string() })),
+  contracts: z.array(
+    z.object({
+      id: z.string(),
+      title: z.string(),
+      reference: z.string(),
+      supplier: SupplierRef,
+      endsOn: z.string().nullable(),
+      services: z.array(z.object({ id: z.string(), name: z.string(), purpose: z.string() })),
+      named: z.boolean().describe('Named on the contract for a covered service; else only through a line, entry or schedule'),
+    }),
+  ),
+  lines: z.array(
+    z.object({
+      id: z.string(),
+      serviceId: z.string(),
+      serviceName: z.string(),
+      title: z.string(),
+      category: z.enum(COST_PLAN_CATEGORIES),
+      cadence: z.enum(COST_PLAN_CADENCES),
+      currency: z.string(),
+      amount: attrAmount('As entered'),
+      planned: attrAmount('Planned for the fiscal year'),
+      contract: z.object({ id: z.string(), title: z.string() }).nullable(),
+      contractHidden: z.boolean(),
+    }),
+  ),
+  entries: z.array(
+    z.object({
+      id: z.string(),
+      serviceId: z.string(),
+      serviceName: z.string(),
+      date: z.string(),
+      currency: z.string(),
+      amount: attrAmount('The amount'),
+      reference: z.string(),
+      planLineTitle: z.string().nullable(),
+    }),
+  ),
+  schedules: z.array(
+    z.object({
+      id: z.string(),
+      serviceId: z.string(),
+      serviceName: z.string(),
+      title: z.string(),
+      billing: z.string(),
+      currency: z.string(),
+      amount: attrAmount('Per payment in contract year 1, or the volume'),
+      contract: z.object({ id: z.string(), title: z.string() }).nullable(),
+      contractHidden: z.boolean(),
+    }),
+  ),
+  totals: z.array(z.object({ fiscalYear: z.number().int(), label: z.string(), currency: z.string(), planned: z.string(), incurred: z.string() })),
+  amountsHidden: z.boolean(),
 });
 
 export const CostCommitmentsQuery = z.object({
   serviceId: z.string().max(100).optional().describe('Only this service'),
-  teamId: z.string().max(100).optional().describe("Only this team's services"),
+  platformId: z.string().max(100).optional().describe('Only the schedules this platform pays (0.19.0)'),
+  teamId: z.string().max(100).optional().describe("Only this team's services and platforms"),
   supplierId: z.string().max(100).optional().describe("Only this supplier's contracts"),
   currency: z.string().length(3).optional().describe('Only this currency'),
   limit,
   cursor,
 });
 
-export const COST_COMPONENTS: Record<string, ZodTypeAny> = { CostOverviewRow, CostScopeDetail, CostPlanYear, CostCommitment };
+export const COST_COMPONENTS: Record<string, ZodTypeAny> = { CostOverviewRow, CostScopeDetail, CostPlanYear, CostCommitment, CostAttribution };
 
 export const CostListQuery = z.object({
   scope: z.enum(COST_SCOPES).default('service').describe('service, application, team or platform'),

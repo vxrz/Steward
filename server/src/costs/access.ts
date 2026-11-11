@@ -77,6 +77,11 @@ export interface ScopeInfo {
   owner: boolean;
   canEditBudget: boolean;
   canManageSource: boolean;
+  /**
+   * May change the scope's cost plan (0.19.0, ADR 0032): a service – who may change it (as canEditBudget); a platform –
+   * who may manage it and the members of its owning teams (as for the platform's settings)
+   */
+  canEditPlan: boolean;
 }
 
 const privileged = (u: AuthUser) => isAdmin(u) || u.roles.includes('auditor');
@@ -91,35 +96,45 @@ interface CatRow {
 function catalogueInfo(u: AuthUser | null, scope: 'service' | 'application', id: string): ScopeInfo | null {
   const r = db().get<CatRow>(`SELECT id, name, owners, archived FROM ${scope === 'service' ? 'services' : 'applications'} WHERE id = ?`, id);
   if (!r) return null;
-  if (!u) return { scope, id, name: r.name, amounts: true, owner: true, canEditBudget: true, canManageSource: false };
+  if (!u) return { scope, id, name: r.name, amounts: true, owner: true, canEditBudget: true, canManageSource: false, canEditPlan: true };
   const owners = parseJson<string[]>(r.owners, []);
   const a = catalogueAccess(u, { kind: scope, id, owners });
   if (!a.view) return null;
   const mine = memberships(u);
   const owner = isAdmin(u) || owners.some((s) => matches(u, s)) || catalogueTeams(scope, id).some((t) => mine.has(t.id));
   const amounts = owner || privileged(u) || !costSettings().hideAmountsFromViewers;
-  return { scope, id, name: r.name, amounts, owner, canEditBudget: a.edit && !r.archived, canManageSource: false };
+  return {
+    scope,
+    id,
+    name: r.name,
+    amounts,
+    owner,
+    canEditBudget: a.edit && !r.archived,
+    canManageSource: false,
+    canEditPlan: scope === 'service' && a.edit && !r.archived,
+  };
 }
 
 function teamInfo(u: AuthUser | null, id: string): ScopeInfo | null {
   const r = db().get<{ id: string; name: string }>('SELECT id, name FROM teams WHERE id = ?', id);
   if (!r) return null;
-  if (!u) return { scope: 'team', id, name: r.name, amounts: true, owner: true, canEditBudget: true, canManageSource: false };
+  if (!u) return { scope: 'team', id, name: r.name, amounts: true, owner: true, canEditBudget: true, canManageSource: false, canEditPlan: false };
   const member = memberships(u).has(id);
   if (!member && !privileged(u)) return null;
-  return { scope: 'team', id, name: r.name, amounts: true, owner: member || isAdmin(u), canEditBudget: isAdmin(u), canManageSource: false };
+  return { scope: 'team', id, name: r.name, amounts: true, owner: member || isAdmin(u), canEditBudget: isAdmin(u), canManageSource: false, canEditPlan: false };
 }
 
 function platformInfo(u: AuthUser | null, id: string): ScopeInfo | null {
   const r = db().get<{ id: string; name: string; acl: string }>('SELECT id, name, acl FROM platforms WHERE id = ?', id);
   if (!r) return null;
-  if (!u) return { scope: 'platform', id, name: r.name, amounts: true, owner: true, canEditBudget: false, canManageSource: true };
+  if (!u) return { scope: 'platform', id, name: r.name, amounts: true, owner: true, canEditBudget: false, canManageSource: true, canEditPlan: true };
   const perms = platformPermissions(u, { id, acl: parseJson<AclEntry<PlatformPermission>[]>(r.acl, []) });
   if (!perms.length && !privileged(u)) return null;
   const mine = memberships(u);
   const owner = perms.includes('manage') || owningTeams('platform', id).some((t) => mine.has(t.id));
   const amounts = owner || privileged(u) || !costSettings().hideAmountsFromViewers;
-  return { scope: 'platform', id, name: r.name, amounts, owner, canEditBudget: false, canManageSource: perms.includes('manage') };
+  // the platform's own cost plan (ADR 0032): who may manage it and the members of its owning teams – an auditor reads only
+  return { scope: 'platform', id, name: r.name, amounts, owner, canEditBudget: false, canManageSource: perms.includes('manage'), canEditPlan: owner };
 }
 
 /** What the reader may do with a scope; null when it does not exist or they may not see it. */

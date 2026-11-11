@@ -628,5 +628,27 @@
     "body_one": "Der Kostenplan von „{{service}}“ hat {{count}} Vertragszahlung von {{month}} ohne Kostenbuchung:",
     "body_other": "Der Kostenplan von „{{service}}“ hat {{count}} Vertragszahlungen von {{month}} ohne Kostenbuchung:",
     "hint": "Buchen Sie sie im Kostenplan, sobald die Rechnungen da sind – Steward bucht nie von sich aus. Sie erhalten diese Erinnerung, weil Sie sie in Ihrem Profil eingeschaltet haben."
+  },
+  "costVolume": {
+    "title": {
+      "runsOut": "Vertragsvolumen bald aufgebraucht: {{title}}",
+      "usedUp": "Vertragsvolumen aufgebraucht: {{title}}",
+      "shortfall": "Vertragsvolumen unter seinem Minimum: {{title}}",
+      "ceiling": "Vertragsvolumen voraussichtlich über seiner Obergrenze: {{title}}",
+      "overCeiling": "Vertragsvolumen über seiner Obergrenze: {{title}}"
+    },
+    "state": {
+      "runsOut": "Das Volumen „{{title}}“ von {{payer}} ist voraussichtlich vor dem Ende seines Zeitraums aufgebraucht.",
+      "usedUp": "Das Volumen „{{title}}“ von {{payer}} ist aufgebraucht – weitere Nutzung wird zusätzlich berechnet.",
+      "shortfall": "Das Volumen „{{title}}“ von {{payer}} endet voraussichtlich deutlich unter seinem zugesagten Minimum – der Rest ist bezahlt oder geschuldet, ohne genutzt zu werden.",
+      "ceiling": "Die Nutzung von „{{title}}“ von {{payer}} überschreitet voraussichtlich die Obergrenze des Volumens vor dem Ende seines Zeitraums.",
+      "overCeiling": "Die Nutzung von „{{title}}“ von {{payer}} hat die Obergrenze des Volumens überschritten."
+    },
+    "figures": "Zeitraum {{from}} – {{to}}: {{used}} von {{amount}} genutzt ({{pct}} %).",
+    "minimum": "Zugesagtes Minimum: {{minimum}}.",
+    "estimate": "Schätzung bei der Rate der letzten Monate: {{expected}} bis {{to}}.",
+    "runsOutOn": "Voraussichtlich aufgebraucht am {{date}}.",
+    "estimateNote": "Die Schätzung ist linear aus der Nutzung der letzten Monate und ändert sich, wenn sich die Nutzung ändert.",
+    "stateOnly": "Die Zahlen werden nicht gezeigt: Das Volumen nutzen auch Services oder Plattformen, die Sie nicht sehen dürfen."
   }
 }

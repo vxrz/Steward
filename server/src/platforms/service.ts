@@ -25,6 +25,7 @@ import { parseYaml, SPEC_YAML } from '../yaml-safe.js';
 import { invalidateIdentityCaches, invalidatePlatformCaches, resolveBaseUrl } from './http.js';
 import { derivePathPrefix, literalBasePath, pathPrefixProblem, withPrefix } from './pathPrefix.js';
 import { deleteSource as deleteGatusSource } from '../gatus/metrics.js';
+import { forgetPlatformPlan } from '../costs/platform-forget.js';
 import { deleteWatchesOf } from '../changedetection/store.js';
 import { identityIntegrity, platformIntegrity, requireIdentityIntact, requireIntact, requirePlatformIntact, sealIdentity, sealPlatform } from './integrity.js';
 import {
@@ -603,7 +604,15 @@ export function deletePlatform(id: string): void {
     deleteGatusSource(id);
     // changedetection.io: its watches and their links (#242)
     deleteWatchesOf(id);
-    audit({ action: 'platform.deleted', entityType: 'platform', entityId: id, summary: `Platform "${p.name}" deleted` });
+    // its own cost plan and its place on contracts (0.19.0, ADR 0032)
+    const costPlan = forgetPlatformPlan(id);
+    audit({
+      action: 'platform.deleted',
+      entityType: 'platform',
+      entityId: id,
+      summary: `Platform "${p.name}" deleted`,
+      ...(costPlan.planLines || costPlan.entries || costPlan.schedules || costPlan.contracts ? { details: { costPlan } } : {}),
+    });
   });
   for (const d of docs) if (d.filename) fs.rmSync(docPath(d.id, d.filename), { force: true });
   invalidatePlatformCaches(id);

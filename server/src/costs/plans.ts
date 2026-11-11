@@ -35,6 +35,7 @@ import {
   type CostPlanTargetKind,
   type CostPlanTeamYear,
   type CostPlanYear,
+  type CostPayerKind,
 } from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
@@ -55,7 +56,17 @@ import {
   supplierRefs,
   visibleContracts,
 } from '../suppliers/links.js';
-import { contractLineTitle, insertScheduleLine, ownLineTitle, proposalLine, schedulesOfService, scheduleLineTitle, type Schedule } from './schedule-model.js';
+import {
+  contractLineTitle,
+  insertScheduleLine,
+  ownLineTitle,
+  proposalLine,
+  schedulesOfOwner,
+  scheduleLineTitle,
+  isVolume,
+  type Schedule,
+} from './schedule-model.js';
+import { VolumeUse, volumeView } from './volumes.js';
 
 /**
  * Service cost planning (0.16.0, ADR 0026, docs/COSTS.md#planning-per-service): plan lines per service and fiscal year,
@@ -75,11 +86,36 @@ import { contractLineTitle, insertScheduleLine, ownLineTitle, proposalLine, sche
  * - A plan line of category cloud for an application or a platform takes the costs read for it (the platform: the
  *   service's applications' share). Each cost belongs to one line at most: the first line (oldest) for its
  *   application and currency, else the first for its platform and currency; the rest is "cloud and platform (read)".
+ * - 0.19.0 (ADR 0032): a platform has a cost plan of its own – the same lines, entries, Book, copy, CSV and import,
+ *   with its whole bill as the costs read (a cloud line takes them; a line of a volume billed by use from the read
+ *   costs takes those of its months first). Its rows have `service_id` '' and `platform_id`. Who may manage the
+ *   platform and the members of its owning teams change it (ScopeInfo.canEditPlan); who may see the platform reads it.
+ *   Use drawn from a prepaid volume (read costs or entries) is not counted as incurred again (volumes.ts).
  */
+
+/** Whose plan: a service, or a platform's own (0.19.0). */
+export interface OwnerRef {
+  kind: CostPayerKind;
+  id: string;
+}
+
+/** The column that holds a plan's owner. */
+export const ownerCol = (o: Pick<OwnerRef, 'kind'>): 'service_id' | 'platform_id' => (o.kind === 'service' ? 'service_id' : 'platform_id');
+/** The owner columns of a new row: a platform's rows keep service_id '' (NOT NULL since 0.16). */
+export const ownerValues = (o: OwnerRef): { service_id: string; platform_id: string | null } => ({
+  service_id: o.kind === 'service' ? o.id : '',
+  platform_id: o.kind === 'platform' ? o.id : null,
+});
+/** The owner of a row of cost_plan_lines, cost_entries or cost_schedules. */
+export const ownerOfRow = (r: { service_id: string; platform_id?: string | null }): OwnerRef =>
+  r.platform_id ? { kind: 'platform', id: r.platform_id } : { kind: 'service', id: r.service_id };
+export const ownerRef = (info: Pick<ScopeInfo, 'scope' | 'id'>): OwnerRef => ({ kind: info.scope === 'platform' ? 'platform' : 'service', id: info.id });
 
 export interface LineRow {
   id: string;
   service_id: string;
+  /** 0.19.0: a platform's own plan (service_id '') */
+  platform_id?: string | null;
   fiscal_year: number;
   title: string;
   category: CostPlanCategory;
@@ -114,6 +150,7 @@ export interface LineRow {
 export interface EntryRow {
   id: string;
   service_id: string;
+  platform_id?: string | null;
   entry_date: string;
   amount: number;
   currency: string;
@@ -156,10 +193,15 @@ function serviceInfo(serviceId: string): ScopeInfo {
   return requireScope('service', serviceId);
 }
 
-export function requireEdit(serviceId: string): ScopeInfo {
-  const info = serviceInfo(serviceId);
-  if (!info.canEditBudget) throw new HttpError(403, `You are not allowed to change the cost plan of "${info.name}"`, 'FORBIDDEN', { context: 'costPlan' });
+/** Who may change the plan of a service or a platform (ScopeInfo.canEditPlan); 404 for one the reader may not see. */
+export function requireEditOf(o: OwnerRef): ScopeInfo {
+  const info = requireScope(o.kind, o.id);
+  if (!info.canEditPlan) throw new HttpError(403, `You are not allowed to change the cost plan of "${info.name}"`, 'FORBIDDEN', { context: 'costPlan' });
   return info;
+}
+
+export function requireEdit(serviceId: string): ScopeInfo {
+  return requireEditOf({ kind: 'service', id: serviceId });
 }
 
 // ---------- what a line or an entry is for ----------
@@ -187,6 +229,17 @@ interface Catalogue {
 export function catalogueOf(serviceId: string): Catalogue {
   const apps = serviceApps(serviceId);
   return { apps: new Set(apps), systems: new Set(serviceSystems(apps)) };
+}
+
+/** What a plan's lines may be for: a service's applications and systems; a platform's plan: none (its own bill). */
+export const ownerCatalogue = (o: OwnerRef): Catalogue => (o.kind === 'service' ? catalogueOf(o.id) : { apps: new Set(), systems: new Set() });
+
+/** checkTarget for a plan: a platform's lines and entries are for the platform itself – no target. */
+export function checkOwnerTarget(o: OwnerRef, t: { kind: CostPlanTargetKind; id: string } | null, cat?: Catalogue): void {
+  if (!t) return;
+  if (o.kind === 'platform')
+    throw new HttpError(400, `A platform's cost plan has no application, system or platform to name: ${t.kind} ${t.id}`, 'COST_PLAN_TARGET', { kind: t.kind });
+  checkTarget(t, cat ?? catalogueOf(o.id));
 }
 
 /** Rows fetched by id in chunks (one statement per 500 ids, never one per id). */
@@ -285,18 +338,18 @@ export function checkTarget(t: { kind: CostPlanTargetKind; id: string } | null, 
 
 // ---------- reading ----------
 
-export const lineRows = (serviceId: string, fiscalYear: number) =>
+export const lineRows = (o: OwnerRef, fiscalYear: number) =>
   db().all<LineRow>(
     // lines added in one step (a contract's proposal) in the order of their months
-    'SELECT * FROM cost_plan_lines WHERE service_id = ? AND fiscal_year = ? ORDER BY created_at, COALESCE(from_index, once_index, 0), id',
-    serviceId,
+    `SELECT * FROM cost_plan_lines WHERE ${ownerCol(o)} = ? AND fiscal_year = ? ORDER BY created_at, COALESCE(from_index, once_index, 0), id`,
+    o.id,
     fiscalYear,
   );
 
-const entryRows = (serviceId: string, from: string, to: string) =>
+const entryRows = (o: OwnerRef, from: string, to: string) =>
   db().all<EntryRow>(
-    'SELECT * FROM cost_entries WHERE service_id = ? AND entry_date >= ? AND entry_date < ? ORDER BY entry_date, created_at, id',
-    serviceId,
+    `SELECT * FROM cost_entries WHERE ${ownerCol(o)} = ? AND entry_date >= ? AND entry_date < ? ORDER BY entry_date, created_at, id`,
+    o.id,
     from,
     to,
   );
@@ -308,6 +361,19 @@ interface Bucket {
   currency: string;
   e: number;
   end: string | null;
+}
+
+/** A platform's whole bill in the months, per month and currency (its own plan, 0.19.0). */
+function platformBuckets(platformId: string, first: string, last: string): Bucket[] {
+  return db()
+    .all<{ plat: string; month: string; currency: string; e: number; e_end: string | null }>(
+      `SELECT platform_id AS plat, month, billing_currency AS currency, SUM(effective_cost) AS e, MAX(charge_period_end) AS e_end
+         FROM cost_records WHERE platform_id = ? AND month >= ? AND month <= ? GROUP BY platform_id, month, billing_currency`,
+      platformId,
+      first,
+      last,
+    )
+    .map((r) => ({ app: null, plat: r.plat, month: r.month, currency: r.currency, e: Number(r.e ?? 0), end: r.e_end }));
 }
 
 /** The costs read for these applications in the months, per application, platform, month and currency. */
@@ -335,7 +401,10 @@ interface Figures {
   expected: number;
 }
 
-const matchable = (l: LineRow) => l.category === 'cloud' && (l.target_kind === 'application' || l.target_kind === 'platform') && !!l.target_id;
+const matchable = (l: LineRow, o: OwnerRef) =>
+  l.category === 'cloud' && (o.kind === 'platform' ? !l.target_kind : (l.target_kind === 'application' || l.target_kind === 'platform') && !!l.target_id);
+/** The key of the costs a matchable line takes: its application or platform (a platform's plan: the platform) and currency. */
+const takerKey = (l: LineRow, o: OwnerRef) => (o.kind === 'platform' ? `platform|${o.id}|${l.currency}` : `${l.target_kind}|${l.target_id}|${l.currency}`);
 
 /**
  * The year view of a service's plan: lines, entries, the costs read, per currency – see the module comment and
@@ -345,25 +414,35 @@ export function planYear(serviceId: string, year?: number, now = Date.now()): Co
   return planYearOf(serviceInfo(serviceId), year, now, startMonth());
 }
 
-/** The year view for a service the caller may see (`info`), with the fiscal year start read once by the caller. */
+/** The year view of a platform's own cost plan (0.19.0, ADR 0032). */
+export function platformPlanYear(platformId: string, year?: number, now = Date.now()): CostPlanYear {
+  return planYearOf(requireScope('platform', platformId), year, now, startMonth());
+}
+
+/** The year view for a service or platform the caller may see (`info`), with the fiscal year start read once by the caller. */
 export function planYearOf(info: ScopeInfo, year: number | undefined, now: number, start: number): CostPlanYear {
-  const serviceId = info.id;
+  const o = ownerRef(info);
+  const serviceId = o.kind === 'service' ? o.id : '';
   const nowMonth = thisMonth(now);
   const day = today(now);
   const fy = year ?? fiscalYearOf(nowMonth, start);
   const months = fiscalYearMonths(fy, start);
   const cur = nowMonth < months[0]! ? -1 : nowMonth > months[11]! ? 12 : months.indexOf(nowMonth);
   const bounds = fiscalYearBounds(fy, start);
-  const cat = catalogueOf(serviceId);
-  const lines = lineRows(serviceId, fy);
-  const entries = entryRows(serviceId, bounds.from, bounds.to);
+  const cat = ownerCatalogue(o);
+  const lines = lineRows(o, fy);
+  const entries = entryRows(o, bounds.from, bounds.to);
   const targets = new Targets([...lines.map((l) => [l.target_kind, l.target_id] as const), ...entries.map((e) => [e.target_kind, e.target_id] as const)], cat);
   const suppliers = new Suppliers([...lines, ...entries]);
   const show = (n: number) => (info.amounts ? fromMicros(n) : null);
   // ---- payment schedules (ADR 0030): what each schedule proposes for the year, against the lines made from it ----
   const curFy = fiscalYearOf(nowMonth, start);
-  const schedules = schedulesOfService(serviceId);
+  const schedules = schedulesOfOwner(o);
   const scheduleById = new Map(schedules.map((x) => [x.row.id, x]));
+  // volumes (ADR 0032 part 3): the owner's own, and the prepaid ones whose use this plan's entries are – read in bulk
+  const vu = VolumeUse.forPlan(schedules, entries, now);
+  const drawnOf = (e: EntryRow) => vu.drawnEntry(e.id);
+  const net = (e: EntryRow) => Number(e.amount) - drawnOf(e);
   const scheduleChanges = new Map<string, CostContractChange[]>();
   // fiscal years that are over are never offered: history stays as planned
   if (fy >= curFy)
@@ -394,25 +473,50 @@ export function planYearOf(info: ScopeInfo, year: number | undefined, now: numbe
   const scheduledContracts = new Set(schedules.filter((x) => x.parts(fy, start).length).map((x) => x.contract.id));
   const monthIndex = (date: string) => months.indexOf(date.slice(0, 7));
 
-  // ---- the costs read (cloud and platform), whole service ----
+  // ---- the costs read (cloud and platform): the whole service's, or a platform's whole bill ----
   const apps = [...cat.apps];
-  const buckets = readBuckets(apps, months[0]!, months[11]!);
-  const whole = seesWholeScope('service', serviceId);
-  const cloud: CostPlanCloudState = !buckets.length ? 'none' : whole ? 'shown' : 'hidden';
+  const rawBuckets = o.kind === 'platform' ? platformBuckets(o.id, months[0]!, months[11]!) : readBuckets(apps, months[0]!, months[11]!);
+  // a platform's read costs drawn from its prepaid volumes are not counted again (the payment is the cost)
+  const drawnRead = new Map<string, number[]>();
+  const buckets = rawBuckets.map((b) => {
+    const d = o.kind === 'platform' ? vu.drawnReadMonth(o.id, b.currency, b.month) : 0;
+    if (!d) return b;
+    const i = months.indexOf(b.month);
+    if (i >= 0) {
+      const m = drawnRead.get(b.currency) ?? zeros();
+      m[i]! += d;
+      drawnRead.set(b.currency, m);
+    }
+    return { ...b, e: b.e - d };
+  });
+  const whole = seesWholeScope(o.kind, o.id);
+  const cloud: CostPlanCloudState = !rawBuckets.length ? 'none' : whole ? 'shown' : 'hidden';
   const takers = new Map<string, string>();
   for (const l of lines)
-    if (matchable(l)) {
-      const k = `${l.target_kind}|${l.target_id}|${l.currency}`;
+    if (matchable(l, o)) {
+      const k = takerKey(l, o);
       if (!takers.has(k)) takers.set(k, l.id);
     }
+  // lines of a volume billed by use from the platform's read costs take those of their months first
+  const volumeTakers = lines
+    .filter((l) => o.kind === 'platform' && vu.readByUse(l.schedule_id))
+    .map((l) => ({
+      id: l.id,
+      currency: l.currency,
+      from: l.from_index === null ? 0 : Number(l.from_index),
+      to: l.to_index === null ? 11 : Number(l.to_index),
+    }));
   const readOf = new Map<string, Bucket[]>(); // line id (or "" for the rest) → its buckets
   if (cloud === 'shown')
     for (const b of buckets) {
-      const owner = (b.app && takers.get(`application|${b.app}|${b.currency}`)) || takers.get(`platform|${b.plat}|${b.currency}`) || '';
+      const i = months.indexOf(b.month);
+      const vol = volumeTakers.find((v) => v.currency === b.currency && i >= v.from && i <= v.to);
+      const owner = vol?.id || (b.app && takers.get(`application|${b.app}|${b.currency}`)) || takers.get(`platform|${b.plat}|${b.currency}`) || '';
       const list = readOf.get(owner);
       if (list) list.push(b);
       else readOf.set(owner, [b]);
     }
+  const volumeLine = new Set(volumeTakers.map((v) => v.id));
   /** Per month what was read, and the forecast of the current month (null: none) */
   const readMonths = (bs: Bucket[], currency?: string) => {
     const m = zeros();
@@ -460,15 +564,18 @@ export function planYearOf(info: ScopeInfo, year: number | undefined, now: numbe
     for (const e of es) {
       const i = monthIndex(e.entry_date);
       if (i < 0) continue;
-      booked[i]! += Number(e.amount);
+      booked[i]! += net(e);
       has[i] = true;
-      if (e.entry_date <= day) entriesToDate += Number(e.amount);
+      if (e.entry_date <= day) entriesToDate += net(e);
     }
     let read: CostPlanReadState = 'none';
-    if (matchable(l)) {
+    if (volumeLine.has(l.id)) read = cloud === 'hidden' ? 'hidden' : cloud === 'none' ? 'none' : 'matched';
+    else if (matchable(l, o)) {
       if (cloud === 'hidden') read = 'hidden';
-      else read = takers.get(`${l.target_kind}|${l.target_id}|${l.currency}`) === l.id ? 'matched' : 'taken';
+      else read = takers.get(takerKey(l, o)) === l.id ? 'matched' : 'taken';
     }
+    const sch0 = l.schedule_id ? scheduleById.get(l.schedule_id) : undefined;
+    const byUse = !!sch0 && isVolume(sch0) && sch0.spec.volume?.billing === 'byUse';
     const r = readMonths(read === 'matched' ? (readOf.get(l.id) ?? []) : []);
     const incurred = booked.map((b, i) => b + r.m[i]!);
     const upto = Math.min(cur, 11);
@@ -476,7 +583,7 @@ export function planYearOf(info: ScopeInfo, year: number | undefined, now: numbe
     const plannedToDate = upto < 0 ? 0 : sum(plan.slice(0, upto + 1));
     const incurredToDate = entriesToDate + (upto < 0 ? 0 : sum(r.m.slice(0, upto + 1)));
     let expected: number;
-    if (read === 'matched' || l.cadence === 'monthly' || l.cadence === 'quarterly') {
+    if (read === 'matched' || byUse || l.cadence === 'monthly' || l.cadence === 'quarterly') {
       // month by month: what was incurred in the months that are over; for the current month and those to come what
       // is booked (the current month: its forecast from the costs read), else the plan
       expected = 0;
@@ -497,9 +604,10 @@ export function planYearOf(info: ScopeInfo, year: number | undefined, now: numbe
     plan.forEach((v, i) => (c.plan[i]! += v));
     incurred.forEach((v, i) => (c.incurred[i]! += v));
     r.m.forEach((v, i) => (c.read[i]! += v));
-    const bookable = isBookable(l.cadence);
+    // a line of a volume billed by use is booked with the actual amount; one whose use is read is not booked at all
+    const bookable = byUse ? sch0.spec.volume?.consumption === 'entries' : isBookable(l.cadence);
     const idx = (v: number | null) => (v === null || v === undefined ? null : (months[Number(v)] ?? null));
-    const sch = l.schedule_id ? scheduleById.get(l.schedule_id) : undefined;
+    const sch = sch0;
     const part = sch?.parts(fy, start).find((x) => x.part === l.schedule_part);
     return {
       id: l.id,
@@ -524,6 +632,14 @@ export function planYearOf(info: ScopeInfo, year: number | undefined, now: numbe
       contractEnds: suppliers.contractEnds(l, bounds),
       twoLines: !l.schedule_id && !!l.supplier_contract_id && scheduledContracts.has(l.supplier_contract_id),
       paymentDates: part?.paymentDates ?? null,
+      volume:
+        sch && isVolume(sch) && sch.spec.volume
+          ? {
+              billing: sch.spec.volume.billing,
+              consumption: sch.spec.volume.consumption,
+              suggested: byUse && sch.spec.volume.consumption === 'entries' ? show(vu.monthlyAverage(sch, day)) : null,
+            }
+          : null,
       bookable: bookable && plan.some((v) => v !== 0),
       // the payments of the months that are over and of the current month without an entry on the line
       notBooked: bookable ? months.filter((_, i) => i <= cur && plan[i] !== 0 && !has[i]) : [],
@@ -548,14 +664,25 @@ export function planYearOf(info: ScopeInfo, year: number | undefined, now: numbe
   for (const e of entries) {
     if (e.plan_line_id && lineIds.has(e.plan_line_id)) continue;
     const u = unplanned.get(e.currency) ?? { toDate: 0, all: 0, count: 0 };
-    u.all += Number(e.amount);
+    u.all += net(e);
     u.count++;
-    if (e.entry_date <= day) u.toDate += Number(e.amount);
+    if (e.entry_date <= day) u.toDate += net(e);
     unplanned.set(e.currency, u);
     const c = acc(e.currency);
     const i = monthIndex(e.entry_date);
-    if (i >= 0) c.incurred[i]! += Number(e.amount);
+    if (i >= 0) c.incurred[i]! += net(e);
   }
+  // ---- what was drawn from prepaid volumes: read costs (a platform's plan) and entries – shown, not counted ----
+  const drawnMonths = new Map<string, number[]>(drawnRead);
+  for (const e of entries) {
+    const d = drawnOf(e);
+    const i = monthIndex(e.entry_date);
+    if (!d || i < 0) continue;
+    const m = drawnMonths.get(e.currency) ?? zeros();
+    m[i]! += d;
+    drawnMonths.set(e.currency, m);
+  }
+  for (const currency of drawnMonths.keys()) acc(currency);
 
   // ---- the costs read that no line takes ----
   const rest = readOf.get('') ?? [];
@@ -581,6 +708,13 @@ export function planYearOf(info: ScopeInfo, year: number | undefined, now: numbe
   }
 
   // ---- per currency ----
+  const drawnOf2 = (currency: string): CostPlanCurrency['drawn'] => {
+    const m = drawnMonths.get(currency);
+    if (!m || !m.some((v) => v !== 0)) return null;
+    const upto = Math.min(cur, 11);
+    // read costs drawn are hidden like the costs read (cloud: hidden); entries drawn are the plan's own
+    return { toDate: show(upto < 0 ? 0 : sum(m.slice(0, upto + 1))), months: m.map((v, i) => (i > cur ? null : show(v))) };
+  };
   const currencies: CostPlanCurrency[] = [...perCurrency.keys()].sort().map((currency) => {
     const c = perCurrency.get(currency)!;
     const u = unplanned.get(currency);
@@ -599,6 +733,7 @@ export function planYearOf(info: ScopeInfo, year: number | undefined, now: numbe
       ...figures(f, show),
       read: r ? { incurredToDate: show(r.toDate), expected: show(r.expected), months: r.m.map((v, i) => (i > cur ? null : show(v))) } : null,
       unplanned: { incurredToDate: show(u?.toDate ?? 0), expected: show(u?.all ?? 0), count: u?.count ?? 0 },
+      drawn: drawnOf2(currency),
     };
   });
 
@@ -630,6 +765,7 @@ export function planYearOf(info: ScopeInfo, year: number | undefined, now: numbe
       reference: e.reference,
       note: e.note,
       unplanned: !line,
+      drawn: drawnOf(e) ? show(drawnOf(e)) : null,
       planLineYear: other ? { fiscalYear: other.fiscalYear, label: fiscalYearLabel(other.fiscalYear, start) } : null,
       createdAt: e.created_at,
       createdBy: e.created_by,
@@ -639,8 +775,9 @@ export function planYearOf(info: ScopeInfo, year: number | undefined, now: numbe
   });
 
   return {
+    owner: { kind: o.kind, id: o.id, name: info.name },
     serviceId,
-    serviceName: info.name,
+    serviceName: o.kind === 'service' ? info.name : '',
     fiscalYear: fy,
     label: fiscalYearLabel(fy, start),
     startMonth: start,
@@ -649,16 +786,17 @@ export function planYearOf(info: ScopeInfo, year: number | undefined, now: numbe
     from: bounds.from,
     to: bounds.last,
     amountsVisible: info.amounts,
-    canEdit: info.canEditBudget,
+    canEdit: info.canEditPlan,
     cloud,
     lines: outLines,
     entries: outEntries,
     currencies,
-    renewals: renewals(serviceId, now),
+    renewals: renewals(o, now),
     targets: targets.offered(),
-    years: yearsOf(serviceId, fy, fiscalYearOf(nowMonth, start), start),
+    volumes: volumeView(vu, schedules, info),
+    years: yearsOf(o, fy, fiscalYearOf(nowMonth, start), start),
     limits: { linesPerYear: COST_PLAN_LIMITS.linesPerYear, entriesPerYear: COST_PLAN_LIMITS.entriesPerYear },
-    prepaid: prepaidRows(serviceId, fy, bounds, start, show),
+    prepaid: prepaidRows(o, fy, bounds, start, show),
     proposals: schedules.filter((x) => x.parts(fy, start).length && !lines.some((l) => l.schedule_id === x.row.id)).length,
     contractChanges: [...scheduleChanges.entries()].map(([scheduleId, changes]) => ({
       scheduleId,
@@ -712,7 +850,7 @@ function lineAsProposal(l: LineRow, title: string, months: string[], show: (n: n
  * FY …", not counted – cash by the year it leaves, no amortisation.
  */
 function prepaidRows(
-  serviceId: string,
+  o: OwnerRef,
   fy: number,
   bounds: { from: string; last: string },
   start: number,
@@ -730,8 +868,8 @@ function prepaidRows(
     }
   >(
     `SELECT id, title, fiscal_year, amount, currency, covers_from, covers_to, schedule_id, supplier_contract_id FROM cost_plan_lines
-        WHERE service_id = ? AND fiscal_year < ? AND covers_from IS NOT NULL AND covers_to >= ? AND covers_from <= ? ORDER BY fiscal_year, title, id`,
-    serviceId,
+        WHERE ${ownerCol(o)} = ? AND fiscal_year < ? AND covers_from IS NOT NULL AND covers_to >= ? AND covers_from <= ? ORDER BY fiscal_year, title, id`,
+    o.id,
     fy,
     bounds.from,
     bounds.last,
@@ -759,15 +897,15 @@ function figures(f: Figures, show: (n: number) => string | null): CostPlanFigure
   };
 }
 
-function renewals(serviceId: string, now: number): CostPlanYear['renewals'] {
+function renewals(o: OwnerRef, now: number): CostPlanYear['renewals'] {
   const from = today(now);
   const to = addDays(from, COST_PLAN_LIMITS.renewalDays);
   const seen = new Set<string>();
   const out: CostPlanYear['renewals'] = [];
   for (const r of db().all<{ id: string; title: string; fiscal_year: number; renewal_date: string }>(
-    `SELECT id, title, fiscal_year, renewal_date FROM cost_plan_lines WHERE service_id = ? AND renewal_date >= ? AND renewal_date <= ?
+    `SELECT id, title, fiscal_year, renewal_date FROM cost_plan_lines WHERE ${ownerCol(o)} = ? AND renewal_date >= ? AND renewal_date <= ?
       ORDER BY renewal_date, fiscal_year DESC, title`,
-    serviceId,
+    o.id,
     from,
     to,
   )) {
@@ -786,10 +924,10 @@ function renewals(serviceId: string, now: number): CostPlanYear['renewals'] {
   return out;
 }
 
-function yearsOf(serviceId: string, shown: number, current: number, start: number): CostPlanYear['years'] {
+function yearsOf(o: OwnerRef, shown: number, current: number, start: number): CostPlanYear['years'] {
   const ys = new Set<number>([shown, current, current + 1]);
-  for (const r of db().all<{ fy: number }>('SELECT DISTINCT fiscal_year AS fy FROM cost_plan_lines WHERE service_id = ?', serviceId)) ys.add(Number(r.fy));
-  for (const r of db().all<{ m: string }>('SELECT DISTINCT substr(entry_date, 1, 7) AS m FROM cost_entries WHERE service_id = ?', serviceId))
+  for (const r of db().all<{ fy: number }>(`SELECT DISTINCT fiscal_year AS fy FROM cost_plan_lines WHERE ${ownerCol(o)} = ?`, o.id)) ys.add(Number(r.fy));
+  for (const r of db().all<{ m: string }>(`SELECT DISTINCT substr(entry_date, 1, 7) AS m FROM cost_entries WHERE ${ownerCol(o)} = ?`, o.id))
     ys.add(fiscalYearOf(r.m, start));
   return [...ys].sort((a, b) => b - a).map((fiscalYear) => ({ fiscalYear, label: fiscalYearLabel(fiscalYear, start) }));
 }
@@ -798,8 +936,8 @@ function yearsOf(serviceId: string, shown: number, current: number, start: numbe
 
 const fmt = (micros: number, currency: string) => moneyText(micros, currency);
 
-function lineRow(serviceId: string, lineId: string): LineRow {
-  const r = db().get<LineRow>('SELECT * FROM cost_plan_lines WHERE id = ? AND service_id = ?', lineId, serviceId);
+function lineRow(o: OwnerRef, lineId: string): LineRow {
+  const r = db().get<LineRow>(`SELECT * FROM cost_plan_lines WHERE id = ? AND ${ownerCol(o)} = ?`, lineId, o.id);
   if (!r) throw new HttpError(404, `Plan line ${lineId} not found`, 'COST_PLAN_LINE_NOT_FOUND');
   return r;
 }
@@ -848,11 +986,14 @@ class Suppliers {
   private readonly refs: Map<string, SupplierRef>;
   private readonly contracts: ReturnType<typeof visibleContracts>;
   private readonly covered: Set<string>;
-  constructor(rows: readonly (Pick<LineRow, 'supplier_id' | 'supplier_contract_id'> & { service_id?: string })[]) {
+  constructor(rows: readonly (Pick<LineRow, 'supplier_id' | 'supplier_contract_id'> & { service_id?: string; platform_id?: string | null })[]) {
     this.refs = supplierRefs(rows.map((r) => r.supplier_id));
     this.contracts = visibleContracts(rows.map((r) => r.supplier_contract_id));
+    // a platform's rows: the pair is the platform's (coveredPairs reads both kinds of coverage)
     this.covered = coveredPairs(
-      rows.flatMap((r) => (r.supplier_contract_id && r.service_id ? [{ contractId: r.supplier_contract_id, serviceId: r.service_id }] : [])),
+      rows.flatMap((r) =>
+        r.supplier_contract_id && (r.service_id || r.platform_id) ? [{ contractId: r.supplier_contract_id, serviceId: r.platform_id || r.service_id! }] : [],
+      ),
     );
   }
   /** The line's title as the reader reads it (lineTitle). */
@@ -866,8 +1007,9 @@ class Suppliers {
     return c.endsOn >= bounds.from && c.endsOn <= bounds.last ? c.endsOn : null;
   }
   line(
-    l: Pick<LineRow, 'supplier_id' | 'supplier_contract_id'> & { service_id?: string },
+    l: Pick<LineRow, 'supplier_id' | 'supplier_contract_id'> & { service_id?: string; platform_id?: string | null },
   ): Pick<CostPlanLine, 'supplier' | 'supplierHidden' | 'supplierContract' | 'supplierContractHidden' | 'supplierContractUncovered'> {
+    const payer = l.platform_id || l.service_id;
     const supplier = l.supplier_id ? (this.refs.get(l.supplier_id) ?? null) : null;
     const c = supplier && l.supplier_contract_id ? this.contracts.get(l.supplier_contract_id) : undefined;
     const contract = c && c.supplierId === supplier!.id ? { id: c.id, title: c.title, reference: c.reference } : null;
@@ -877,7 +1019,7 @@ class Suppliers {
       supplierContract: contract,
       // a contract the reader may not see: neutral text, no values (ADR 0031 part 4); a hidden supplier says it already
       supplierContractHidden: !!supplier && !!l.supplier_contract_id && !contract,
-      supplierContractUncovered: !!contract && !!l.service_id && !this.covered.has(`${contract.id}|${l.service_id}`),
+      supplierContractUncovered: !!contract && !!payer && !this.covered.has(`${contract.id}|${payer}`),
     };
   }
 }
@@ -920,18 +1062,20 @@ const lineSnapshot = (
   renewalDate: r.renewal_date,
 });
 
-export function addPlanLine(serviceId: string, body: unknown): CostPlanYear {
-  const info = requireEdit(serviceId);
+export const addPlanLine = (serviceId: string, body: unknown): CostPlanYear => addPlanLineOf({ kind: 'service', id: serviceId }, body);
+
+export function addPlanLineOf(o: OwnerRef, body: unknown): CostPlanYear {
+  const info = requireEditOf(o);
   const x = costPlanLineInput.parse(body);
-  checkTarget(x.target, catalogueOf(serviceId));
+  checkOwnerTarget(o, x.target);
   const onceIndex = onceIndexOf(x.cadence, x.onceMonth, x.fiscalYear);
   const span = spanIndexOf(x, x.fiscalYear);
   const covers = coversOf(x);
   const n = Number(
-    db().get<{ n: number }>('SELECT COUNT(*) AS n FROM cost_plan_lines WHERE service_id = ? AND fiscal_year = ?', serviceId, x.fiscalYear)?.n ?? 0,
+    db().get<{ n: number }>(`SELECT COUNT(*) AS n FROM cost_plan_lines WHERE ${ownerCol(o)} = ? AND fiscal_year = ?`, o.id, x.fiscalYear)?.n ?? 0,
   );
   if (n >= COST_PLAN_LIMITS.linesPerYear)
-    throw new HttpError(409, `A service has at most ${COST_PLAN_LIMITS.linesPerYear} plan lines per fiscal year`, 'COST_PLAN_LIMIT', {
+    throw new HttpError(409, `A cost plan has at most ${COST_PLAN_LIMITS.linesPerYear} plan lines per fiscal year`, 'COST_PLAN_LIMIT', {
       max: COST_PLAN_LIMITS.linesPerYear,
     });
   const id = newId('cpl_');
@@ -945,7 +1089,7 @@ export function addPlanLine(serviceId: string, body: unknown): CostPlanYear {
     target_id: x.target?.id ?? null,
     vendor: x.vendor,
     supplier_id: supplierId,
-    supplier_contract_id: resolveSupplierContract(supplierId, x.supplierContractId, null, serviceId),
+    supplier_contract_id: resolveSupplierContract(supplierId, x.supplierContractId, null, o),
     amount,
     currency: x.currency,
     cadence: x.cadence,
@@ -956,11 +1100,12 @@ export function addPlanLine(serviceId: string, body: unknown): CostPlanYear {
   };
   db().tx(() => {
     db().run(
-      `INSERT INTO cost_plan_lines (id, service_id, fiscal_year, title, category, target_kind, target_id, vendor, supplier_id, supplier_contract_id, amount, currency, cadence,
+      `INSERT INTO cost_plan_lines (id, service_id, platform_id, fiscal_year, title, category, target_kind, target_id, vendor, supplier_id, supplier_contract_id, amount, currency, cadence,
          once_index, from_index, to_index, covers_from, covers_to, renewal_date, note, created_at, created_by, updated_at, updated_by)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       id,
-      serviceId,
+      ownerValues(o).service_id,
+      ownerValues(o).platform_id,
       x.fiscalYear,
       x.title,
       x.category,
@@ -986,20 +1131,23 @@ export function addPlanLine(serviceId: string, body: unknown): CostPlanYear {
     );
     audit({
       action: 'cost.plan_line_added',
-      entityType: 'service',
-      entityId: serviceId,
+      entityType: o.kind,
+      entityId: o.id,
       summary: `Plan line "${x.title}" added to the cost plan of "${info.name}" for ${fiscalYearLabel(x.fiscalYear, startMonth())}: ${fmt(amount, x.currency)} ${x.cadence}`,
       details: { lineId: id, fiscalYear: x.fiscalYear, after: lineSnapshot(row) },
     });
     // a contract chosen for the service covers it from now on (ADR 0031 part 4)
-    coverChosenContract(row.supplier_contract_id, null, serviceId, currentActor());
+    coverChosenContract(row.supplier_contract_id, null, o, currentActor());
   });
   return planYearOf(info, x.fiscalYear, Date.now(), startMonth());
 }
 
-export function updatePlanLine(serviceId: string, lineId: string, body: unknown): CostPlanYear {
-  const info = requireEdit(serviceId);
-  const before = lineRow(serviceId, lineId);
+export const updatePlanLine = (serviceId: string, lineId: string, body: unknown): CostPlanYear =>
+  updatePlanLineOf({ kind: 'service', id: serviceId }, lineId, body);
+
+export function updatePlanLineOf(o: OwnerRef, lineId: string, body: unknown): CostPlanYear {
+  const info = requireEditOf(o);
+  const before = lineRow(o, lineId);
   const parsed = costPlanLineUpdate.parse(body);
   // a line made from a schedule keeps its own title: the contract's title a form showed in front is not stored (M6)
   const contractTitle =
@@ -1008,7 +1156,7 @@ export function updatePlanLine(serviceId: string, lineId: string, body: unknown)
   const fy = Number(before.fiscal_year);
   // a target already on the line may stay as it is (also one removed from the service since)
   const sameTarget = x.target && x.target.kind === before.target_kind && x.target.id === before.target_id;
-  if (!sameTarget) checkTarget(x.target, catalogueOf(serviceId));
+  if (!sameTarget) checkOwnerTarget(o, x.target);
   const onceIndex = onceIndexOf(x.cadence, x.onceMonth, fy);
   const span = spanIndexOf(x, fy);
   const covers = coversOf(x);
@@ -1028,12 +1176,7 @@ export function updatePlanLine(serviceId: string, lineId: string, body: unknown)
     target_id: x.target?.id ?? null,
     vendor: x.vendor,
     supplier_id: supplierId,
-    supplier_contract_id: resolveSupplierContract(
-      supplierId,
-      x.supplierContractId,
-      supplierId === before.supplier_id ? before.supplier_contract_id : null,
-      serviceId,
-    ),
+    supplier_contract_id: resolveSupplierContract(supplierId, x.supplierContractId, supplierId === before.supplier_id ? before.supplier_contract_id : null, o),
     amount,
     currency: x.currency,
     cadence: x.cadence,
@@ -1068,11 +1211,11 @@ export function updatePlanLine(serviceId: string, lineId: string, body: unknown)
       lineId,
     );
     if (unlink) db().run('UPDATE cost_plan_lines SET schedule_id = NULL, schedule_part = NULL, schedule_basis = NULL WHERE id = ?', lineId);
-    coverChosenContract(row.supplier_contract_id, supplierId === before.supplier_id ? before.supplier_contract_id : null, serviceId, currentActor());
+    coverChosenContract(row.supplier_contract_id, supplierId === before.supplier_id ? before.supplier_contract_id : null, o, currentActor());
     audit({
       action: 'cost.plan_line_changed',
-      entityType: 'service',
-      entityId: serviceId,
+      entityType: o.kind,
+      entityId: o.id,
       summary: `Plan line "${x.title}" of "${info.name}" (${fiscalYearLabel(fy, startMonth())}) changed: ${fmt(amount, x.currency)} ${x.cadence} (was ${fmt(Number(before.amount), before.currency)} ${before.cadence})`,
       details: {
         lineId,
@@ -1087,17 +1230,19 @@ export function updatePlanLine(serviceId: string, lineId: string, body: unknown)
 }
 
 /** Removes a plan line; its entries stay and become unplanned. */
-export function removePlanLine(serviceId: string, lineId: string): CostPlanYear {
-  const info = requireEdit(serviceId);
-  const before = lineRow(serviceId, lineId);
+export const removePlanLine = (serviceId: string, lineId: string): CostPlanYear => removePlanLineOf({ kind: 'service', id: serviceId }, lineId);
+
+export function removePlanLineOf(o: OwnerRef, lineId: string): CostPlanYear {
+  const info = requireEditOf(o);
+  const before = lineRow(o, lineId);
   const fy = Number(before.fiscal_year);
   db().tx(() => {
     const unlinked = db().run('UPDATE cost_entries SET plan_line_id = NULL WHERE plan_line_id = ?', lineId).changes;
     db().run('DELETE FROM cost_plan_lines WHERE id = ?', lineId);
     audit({
       action: 'cost.plan_line_removed',
-      entityType: 'service',
-      entityId: serviceId,
+      entityType: o.kind,
+      entityId: o.id,
       summary: `Plan line "${before.title}" removed from the cost plan of "${info.name}" (${fiscalYearLabel(fy, startMonth())})${unlinked ? `; ${unlinked} entr${unlinked === 1 ? 'y is' : 'ies are'} unplanned now` : ''}`,
       details: { lineId, fiscalYear: fy, before: lineSnapshot(before), entriesUnplanned: unlinked },
     });
@@ -1114,14 +1259,16 @@ export function removePlanLine(serviceId: string, lineId: string): CostPlanYear 
  * "Contract ends …" (yearly and one-off lines) when it ends in it. Refused only when the new year has lines that were
  * not made from a schedule – confirming a contract's next year early does not block it.
  */
-export function copyPlanYear(serviceId: string, body: unknown): CostPlanYear {
-  const info = requireEdit(serviceId);
+export const copyPlanYear = (serviceId: string, body: unknown): CostPlanYear => copyPlanYearOf({ kind: 'service', id: serviceId }, body);
+
+export function copyPlanYearOf(o: OwnerRef, body: unknown): CostPlanYear {
+  const info = requireEditOf(o);
   const { fiscalYear: fromYear } = costPlanCopyInput.parse(body);
   const toYear = fromYear + 1;
   const start = startMonth();
-  const src = lineRows(serviceId, fromYear);
+  const src = lineRows(o, fromYear);
   if (!src.length) throw new HttpError(400, `${fiscalYearLabel(fromYear, start)} has no plan lines to copy`, 'COST_PLAN_NOTHING_TO_COPY');
-  const there = lineRows(serviceId, toYear);
+  const there = lineRows(o, toYear);
   if (there.some((l) => !l.schedule_id))
     throw new HttpError(409, `${fiscalYearLabel(toYear, start)} has plan lines already`, 'COST_PLAN_YEAR_NOT_EMPTY', {
       year: fiscalYearLabel(toYear, start),
@@ -1156,12 +1303,12 @@ export function copyPlanYear(serviceId: string, body: unknown): CostPlanYear {
     result.copied.push(l.title);
   }
   // the schedules whose lines are not copied: their proposals for the new year, when not planned there yet
-  const schedules = schedulesOfService(serviceId).filter(
+  const schedules = schedulesOfOwner(o).filter(
     (x) => src.some((l) => l.schedule_id === x.row.id) && !there.some((l) => l.schedule_id === x.row.id) && x.parts(toYear, start).length,
   );
   const adding = copies.length + schedules.reduce((n, x) => n + x.parts(toYear, start).length, 0);
   if (there.length + adding > COST_PLAN_LIMITS.linesPerYear)
-    throw new HttpError(409, `A service has at most ${COST_PLAN_LIMITS.linesPerYear} plan lines per fiscal year`, 'COST_PLAN_LIMIT', {
+    throw new HttpError(409, `A cost plan has at most ${COST_PLAN_LIMITS.linesPerYear} plan lines per fiscal year`, 'COST_PLAN_LIMIT', {
       max: COST_PLAN_LIMITS.linesPerYear,
     });
   if (!adding) throw new HttpError(400, `${fiscalYearLabel(fromYear, start)} has no plan lines to copy`, 'COST_PLAN_NOTHING_TO_COPY');
@@ -1171,11 +1318,12 @@ export function copyPlanYear(serviceId: string, body: unknown): CostPlanYear {
       const renewal = l.renewal_date && l.renewal_date < nb.from ? nextYearDate(l.renewal_date) : l.renewal_date;
       const whole = (fromIndex === null || fromIndex === 0) && (toIndex === null || toIndex === 11);
       db().run(
-        `INSERT INTO cost_plan_lines (id, service_id, fiscal_year, title, category, target_kind, target_id, vendor, supplier_id, supplier_contract_id, amount, currency,
+        `INSERT INTO cost_plan_lines (id, service_id, platform_id, fiscal_year, title, category, target_kind, target_id, vendor, supplier_id, supplier_contract_id, amount, currency,
            cadence, once_index, from_index, to_index, renewal_date, note, created_at, created_by, updated_at, updated_by)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         newId('cpl_'),
-        serviceId,
+        ownerValues(o).service_id,
+        ownerValues(o).platform_id,
         toYear,
         l.title,
         l.category,
@@ -1199,13 +1347,13 @@ export function copyPlanYear(serviceId: string, body: unknown): CostPlanYear {
       );
     }
     for (const x of schedules) {
-      for (const p of x.parts(toYear, start)) insertScheduleLine(serviceId, toYear, x, p);
+      for (const p of x.parts(toYear, start)) insertScheduleLine(o, toYear, x, p);
       result.proposed.push(scheduleLineTitle(x));
     }
     audit({
       action: 'cost.plan_copied',
-      entityType: 'service',
-      entityId: serviceId,
+      entityType: o.kind,
+      entityId: o.id,
       summary: `Cost plan of "${info.name}" copied from ${fiscalYearLabel(fromYear, start)} to ${fiscalYearLabel(toYear, start)}: ${result.copied.length + result.shortened.length} line(s) copied${result.shortened.length ? ` (${result.shortened.length} up to their contract's end)` : ''}${result.proposed.length ? `, ${result.proposed.length} payment schedule(s) proposed` : ''}${result.leftOut.length ? `, ${result.leftOut.length} left out (contract ended)` : ''}`,
       details: { fromYear, toYear, lines: copies.length, ...result },
     });
@@ -1223,8 +1371,8 @@ export function nextYearDate(date: string): string {
 
 // ---------- entries ----------
 
-function entryRow(serviceId: string, entryId: string): EntryRow {
-  const r = db().get<EntryRow>('SELECT * FROM cost_entries WHERE id = ? AND service_id = ?', entryId, serviceId);
+function entryRow(o: OwnerRef, entryId: string): EntryRow {
+  const r = db().get<EntryRow>(`SELECT * FROM cost_entries WHERE id = ? AND ${ownerCol(o)} = ?`, entryId, o.id);
   if (!r) throw new HttpError(404, `Cost entry ${entryId} not found`, 'COST_ENTRY_NOT_FOUND');
   return r;
 }
@@ -1248,26 +1396,26 @@ export interface EntryValues {
  * year by its date, it counts there); its target may stay as it is, and so may its plan line: a line of another fiscal
  * year than the entry's (the fiscal year start changed since it was linked) stays linked while it is kept.
  */
-function checkEntry(serviceId: string, body: unknown, before?: EntryRow): EntryValues {
+function checkEntry(o: OwnerRef, body: unknown, before?: EntryRow): EntryValues {
   const x = costEntryInput.parse(body);
   const fy = fiscalYearOf(x.date, startMonth());
   let l: LineRow | undefined;
   if (x.planLineId) {
     const kept = !!before && before.plan_line_id === x.planLineId;
-    l = db().get<LineRow>('SELECT * FROM cost_plan_lines WHERE id = ? AND service_id = ?', x.planLineId, serviceId);
+    l = db().get<LineRow>(`SELECT * FROM cost_plan_lines WHERE id = ? AND ${ownerCol(o)} = ?`, x.planLineId, o.id);
     if (!l || (!kept && Number(l.fiscal_year) !== fy) || l.currency !== x.currency)
-      throw new HttpError(400, `Not a plan line of this service in ${fiscalYearLabel(fy, startMonth())} and ${x.currency}`, 'COST_ENTRY_PLAN_LINE', {
+      throw new HttpError(400, `Not a plan line of this cost plan in ${fiscalYearLabel(fy, startMonth())} and ${x.currency}`, 'COST_ENTRY_PLAN_LINE', {
         year: fiscalYearLabel(fy, startMonth()),
         currency: x.currency,
       });
   }
   const same = x.target && before && x.target.kind === before.target_kind && x.target.id === before.target_id;
-  if (!same) checkTarget(x.target, catalogueOf(serviceId));
+  if (!same) checkOwnerTarget(o, x.target);
   const bounds = fiscalYearBounds(fy, startMonth());
   const n = Number(
     db().get<{ n: number }>(
-      'SELECT COUNT(*) AS n FROM cost_entries WHERE service_id = ? AND entry_date >= ? AND entry_date < ?',
-      serviceId,
+      `SELECT COUNT(*) AS n FROM cost_entries WHERE ${ownerCol(o)} = ? AND entry_date >= ? AND entry_date < ?`,
+      o.id,
       bounds.from,
       bounds.to,
     )?.n ?? 0,
@@ -1275,7 +1423,7 @@ function checkEntry(serviceId: string, body: unknown, before?: EntryRow): EntryV
   // a new entry, or one moved into this fiscal year by its date (one that stays counts already)
   const joins = !before || fiscalYearOf(before.entry_date, startMonth()) !== fy;
   if (joins && n >= COST_PLAN_LIMITS.entriesPerYear)
-    throw new HttpError(409, `A service has at most ${COST_PLAN_LIMITS.entriesPerYear} cost entries per fiscal year`, 'COST_ENTRY_LIMIT', {
+    throw new HttpError(409, `A cost plan has at most ${COST_PLAN_LIMITS.entriesPerYear} cost entries per fiscal year`, 'COST_ENTRY_LIMIT', {
       max: COST_PLAN_LIMITS.entriesPerYear,
     });
   // the supplier and contract (0.18.0): missing keeps them – on a new entry with a plan line, the line's
@@ -1283,7 +1431,7 @@ function checkEntry(serviceId: string, body: unknown, before?: EntryRow): EntryV
   const supplierId = resolveSupplierLink(x.supplierId, current ?? null);
   const currentContract = before ? before.supplier_contract_id : (l?.supplier_contract_id ?? null);
   const keptContract = supplierId === current ? (currentContract ?? null) : null;
-  const supplierContractId = resolveSupplierContract(supplierId, x.supplierContractId, keptContract, serviceId);
+  const supplierContractId = resolveSupplierContract(supplierId, x.supplierContractId, keptContract, o);
   return {
     date: x.date,
     amount: toMicros(x.amount)!,
@@ -1329,14 +1477,15 @@ const entryOfRow = (r: EntryRow) => ({
 });
 
 /** Inserts an entry (no audit, no checks): the entry routes, Book and the CSV import. */
-export function insertEntry(serviceId: string, x: EntryValues, importId: string | null = null): string {
+export function insertEntry(o: OwnerRef, x: EntryValues, importId: string | null = null): string {
   const id = newId('cen_');
   const now = nowIso();
   db().run(
-    `INSERT INTO cost_entries (id, service_id, entry_date, amount, currency, plan_line_id, target_kind, target_id, supplier_id, supplier_contract_id, import_id,
-       reference, note, created_at, created_by, updated_at, updated_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO cost_entries (id, service_id, platform_id, entry_date, amount, currency, plan_line_id, target_kind, target_id, supplier_id, supplier_contract_id, import_id,
+       reference, note, created_at, created_by, updated_at, updated_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id,
-    serviceId,
+    ownerValues(o).service_id,
+    ownerValues(o).platform_id,
     x.date,
     x.amount,
     x.currency,
@@ -1356,16 +1505,18 @@ export function insertEntry(serviceId: string, x: EntryValues, importId: string 
   return id;
 }
 
-export function addEntry(serviceId: string, body: unknown): CostPlanYear {
-  const info = requireEdit(serviceId);
-  const x = checkEntry(serviceId, body);
+export const addEntry = (serviceId: string, body: unknown): CostPlanYear => addEntryOf({ kind: 'service', id: serviceId }, body);
+
+export function addEntryOf(o: OwnerRef, body: unknown): CostPlanYear {
+  const info = requireEditOf(o);
+  const x = checkEntry(o, body);
   db().tx(() => {
-    const id = insertEntry(serviceId, x);
-    coverChosenContract(x.supplierContractId, x.keptContract ?? null, serviceId, currentActor());
+    const id = insertEntry(o, x);
+    coverChosenContract(x.supplierContractId, x.keptContract ?? null, o, currentActor());
     audit({
       action: 'cost.entry_added',
-      entityType: 'service',
-      entityId: serviceId,
+      entityType: o.kind,
+      entityId: o.id,
       summary: `Cost entry of ${fmt(x.amount, x.currency)} on ${x.date} added to "${info.name}"${x.planLineId ? '' : ' (unplanned)'}${x.reference ? `, reference ${x.reference}` : ''}`,
       details: { entryId: id, after: entrySnapshot(x) },
     });
@@ -1373,10 +1524,13 @@ export function addEntry(serviceId: string, body: unknown): CostPlanYear {
   return planYearOf(info, fiscalYearOf(x.date, startMonth()), Date.now(), startMonth());
 }
 
-export function updateEntry(serviceId: string, entryId: string, body: unknown): CostPlanYear {
-  const info = requireEdit(serviceId);
-  const before = entryRow(serviceId, entryId);
-  const x = checkEntry(serviceId, body, before);
+export const updateEntry = (serviceId: string, entryId: string, body: unknown): CostPlanYear =>
+  updateEntryOf({ kind: 'service', id: serviceId }, entryId, body);
+
+export function updateEntryOf(o: OwnerRef, entryId: string, body: unknown): CostPlanYear {
+  const info = requireEditOf(o);
+  const before = entryRow(o, entryId);
+  const x = checkEntry(o, body, before);
   db().tx(() => {
     db().run(
       `UPDATE cost_entries SET entry_date = ?, amount = ?, currency = ?, plan_line_id = ?, target_kind = ?, target_id = ?, supplier_id = ?, supplier_contract_id = ?,
@@ -1395,11 +1549,11 @@ export function updateEntry(serviceId: string, entryId: string, body: unknown): 
       currentActor(),
       entryId,
     );
-    coverChosenContract(x.supplierContractId, x.keptContract ?? null, serviceId, currentActor());
+    coverChosenContract(x.supplierContractId, x.keptContract ?? null, o, currentActor());
     audit({
       action: 'cost.entry_changed',
-      entityType: 'service',
-      entityId: serviceId,
+      entityType: o.kind,
+      entityId: o.id,
       summary: `Cost entry of "${info.name}" changed: ${fmt(x.amount, x.currency)} on ${x.date} (was ${fmt(Number(before.amount), before.currency)} on ${before.entry_date})`,
       details: { entryId, before: entrySnapshot(entryOfRow(before)), after: entrySnapshot(x) },
     });
@@ -1407,15 +1561,17 @@ export function updateEntry(serviceId: string, entryId: string, body: unknown): 
   return planYearOf(info, fiscalYearOf(x.date, startMonth()), Date.now(), startMonth());
 }
 
-export function removeEntry(serviceId: string, entryId: string): CostPlanYear {
-  const info = requireEdit(serviceId);
-  const before = entryRow(serviceId, entryId);
+export const removeEntry = (serviceId: string, entryId: string): CostPlanYear => removeEntryOf({ kind: 'service', id: serviceId }, entryId);
+
+export function removeEntryOf(o: OwnerRef, entryId: string): CostPlanYear {
+  const info = requireEditOf(o);
+  const before = entryRow(o, entryId);
   db().tx(() => {
     db().run('DELETE FROM cost_entries WHERE id = ?', entryId);
     audit({
       action: 'cost.entry_removed',
-      entityType: 'service',
-      entityId: serviceId,
+      entityType: o.kind,
+      entityId: o.id,
       summary: `Cost entry of ${fmt(Number(before.amount), before.currency)} on ${before.entry_date} removed from "${info.name}"`,
       details: { entryId, before: entrySnapshot(entryOfRow(before)) },
     });
@@ -1428,7 +1584,7 @@ export function removeEntry(serviceId: string, entryId: string): CostPlanYear {
 /** The payment date of a schedule line in a month (Book's default date); null for other lines. */
 function paymentDateOf(l: LineRow, month: string): string | null {
   if (!l.schedule_id) return null;
-  const sch = schedulesOfService(l.service_id).find((x) => x.row.id === l.schedule_id);
+  const sch = schedulesOfOwner(ownerOfRow(l)).find((x) => x.row.id === l.schedule_id);
   const fy = Number(l.fiscal_year);
   const start = startMonth();
   const part = sch?.parts(fy, start).find((x) => x.part === l.schedule_part);
@@ -1442,11 +1598,21 @@ function paymentDateOf(l: LineRow, month: string): string | null {
  * the current one. A month with an entry on the line already is refused unless `again` (the dialog asks first). A
  * person's statement, as any entry: audited as `cost.entry_added` with `via: "book"`.
  */
-export function bookLine(serviceId: string, lineId: string, body: unknown, now = Date.now()): CostPlanYear {
-  const info = requireEdit(serviceId);
-  const l = lineRow(serviceId, lineId);
+export const bookLine = (serviceId: string, lineId: string, body: unknown, now = Date.now()): CostPlanYear =>
+  bookLineOf({ kind: 'service', id: serviceId }, lineId, body, now);
+
+export function bookLineOf(o: OwnerRef, lineId: string, body: unknown, now = Date.now()): CostPlanYear {
+  const info = requireEditOf(o);
+  const l = lineRow(o, lineId);
   const x = costBookInput.parse(body ?? {});
-  if (!isBookable(l.cadence))
+  // a line of a volume billed by use (ADR 0032): booked with the actual amount; one whose use is read is not booked
+  const vol = l.schedule_id ? schedulesOfOwner(o).find((y) => y.row.id === l.schedule_id) : undefined;
+  const byUse = !!vol && isVolume(vol) && vol.spec.volume?.billing === 'byUse';
+  if (byUse && vol.spec.volume?.consumption === 'read')
+    throw new HttpError(400, 'The use of this volume is read from the platform – there is nothing to book', 'COST_BOOK_READ', { title: l.title });
+  if (byUse && !x.amount)
+    throw new HttpError(400, 'A volume billed by use is booked with the amount of the invoice', 'COST_BOOK_AMOUNT_REQUIRED', { title: l.title });
+  if (!byUse && !isBookable(l.cadence))
     throw new HttpError(400, 'A yearly line is spread over its months – enter an entry instead of booking it', 'COST_BOOK_YEARLY', { title: l.title });
   const start = startMonth();
   const fy = Number(l.fiscal_year);
@@ -1488,14 +1654,14 @@ export function bookLine(serviceId: string, lineId: string, body: unknown, now =
   const bounds = fiscalYearBounds(fy, start);
   const n = Number(
     db().get<{ n: number }>(
-      'SELECT COUNT(*) AS n FROM cost_entries WHERE service_id = ? AND entry_date >= ? AND entry_date < ?',
-      serviceId,
+      `SELECT COUNT(*) AS n FROM cost_entries WHERE ${ownerCol(o)} = ? AND entry_date >= ? AND entry_date < ?`,
+      o.id,
       bounds.from,
       bounds.to,
     )?.n ?? 0,
   );
   if (n >= COST_PLAN_LIMITS.entriesPerYear)
-    throw new HttpError(409, `A service has at most ${COST_PLAN_LIMITS.entriesPerYear} cost entries per fiscal year`, 'COST_ENTRY_LIMIT', {
+    throw new HttpError(409, `A cost plan has at most ${COST_PLAN_LIMITS.entriesPerYear} cost entries per fiscal year`, 'COST_ENTRY_LIMIT', {
       max: COST_PLAN_LIMITS.entriesPerYear,
     });
   const v: EntryValues = {
@@ -1510,11 +1676,11 @@ export function bookLine(serviceId: string, lineId: string, body: unknown, now =
     note: x.note,
   };
   db().tx(() => {
-    const id = insertEntry(serviceId, v);
+    const id = insertEntry(o, v);
     audit({
       action: 'cost.entry_added',
-      entityType: 'service',
-      entityId: serviceId,
+      entityType: o.kind,
+      entityId: o.id,
       summary: `Payment of "${l.title}" for ${month} booked on "${info.name}": ${fmt(amount, l.currency)} on ${date}${booked[i] ? ' (booked again)' : ''}${x.reference ? `, reference ${x.reference}` : ''}`,
       details: { entryId: id, via: 'book', lineId: l.id, month, again: booked[i], after: entrySnapshot(v) },
     });
@@ -1600,7 +1766,15 @@ export function planCsvRows(y: CostPlanYear, what: 'plan' | 'entries'): { head: 
 
 /** The plan lines or the entries of a fiscal year as CSV (UTF-8 with a byte order mark, comma separated). */
 export function planCsv(serviceId: string, year: number | undefined, what: 'plan' | 'entries'): { name: string; csv: string } {
-  const y = planYear(serviceId, year);
+  return planCsvOf(planYear(serviceId, year), what);
+}
+
+/** The same for a platform's own plan (0.19.0). */
+export function platformPlanCsv(platformId: string, year: number | undefined, what: 'plan' | 'entries'): { name: string; csv: string } {
+  return planCsvOf(platformPlanYear(platformId, year), what);
+}
+
+function planCsvOf(y: CostPlanYear, what: 'plan' | 'entries'): { name: string; csv: string } {
   const { head, rows } = planCsvRows(y, what);
   const fyText = y.label.replace(/[^0-9A-Za-z]+/g, '-');
   return { name: `cost-${what}-${fyText}.csv`, csv: '﻿' + [head, ...rows].join('\r\n') + '\r\n' };
@@ -1665,7 +1839,34 @@ export async function* planExportRows(fiscalYear: number, now = Date.now()): Asy
   }
 }
 
-/** The year views of every service of the current fiscal year (planServices) – for the dataset; yields between services. */
+/**
+ * The platforms with a cost plan of their own in a fiscal year (0.19.0): plan lines or entries in it, by name. With
+ * `teamId`: those the team owns, with how many teams own each.
+ */
+export function planPlatforms(fiscalYear: number, start: number, teamId?: string): { id: string; name: string; teams: number }[] {
+  const b = fiscalYearBounds(fiscalYear, start);
+  const has = `(EXISTS (SELECT 1 FROM cost_plan_lines l WHERE l.platform_id = p.id AND l.fiscal_year = ?)
+      OR EXISTS (SELECT 1 FROM cost_entries e WHERE e.platform_id = p.id AND e.entry_date >= ? AND e.entry_date < ?))`;
+  const teams = `(SELECT COUNT(*) FROM resource_teams r2 JOIN teams t2 ON t2.id = r2.team_id WHERE r2.kind = 'platform' AND r2.resource_id = p.id)`;
+  const rows = teamId
+    ? db().all<{ id: string; name: string; teams: number }>(
+        `SELECT p.id, p.name, ${teams} AS teams FROM platforms p JOIN resource_teams r ON r.kind = 'platform' AND r.resource_id = p.id AND r.team_id = ?
+          WHERE ${has} ORDER BY p.name, p.id`,
+        teamId,
+        fiscalYear,
+        b.from,
+        b.to,
+      )
+    : db().all<{ id: string; name: string; teams: number }>(
+        `SELECT p.id, p.name, ${teams} AS teams FROM platforms p WHERE ${has} ORDER BY p.name, p.id`,
+        fiscalYear,
+        b.from,
+        b.to,
+      );
+  return rows.map((r) => ({ id: r.id, name: r.name, teams: Number(r.teams) }));
+}
+
+/** The year views of every service (and platform, 0.19.0) of the current fiscal year – for the dataset; yields between plans. */
 export async function* planYearsOfAll(now = Date.now()): AsyncGenerator<CostPlanYear> {
   const start = startMonth();
   const fy = fiscalYearOf(thisMonth(now), start);
@@ -1675,15 +1876,32 @@ export async function* planYearsOfAll(now = Date.now()): AsyncGenerator<CostPlan
     yield planYearOf(info, fy, now, start);
     await breathe();
   }
+  for (const p of planPlatforms(fy, start)) {
+    const info = scopeInfo('platform', p.id);
+    if (!info) continue;
+    yield planYearOf(info, fy, now, start);
+    await breathe();
+  }
 }
 
-/** The plans of the team's services in a fiscal year, per currency; a service of two teams counts for both. */
+/** The plans of the team's services and platforms in a fiscal year, per currency; one of two teams counts for both. */
 export async function teamPlanYear(teamId: string, year?: number, now = Date.now()): Promise<CostPlanTeamYear> {
   const team = requireScope('team', teamId);
   const start = startMonth();
   const cur = fiscalYearOf(thisMonth(now), start);
   const fy = year ?? cur;
   const totals = new Map<string, Figures>();
+  const addTotals = (y: CostPlanYear) => {
+    if (!y.amountsVisible) return;
+    for (const c of y.currencies) {
+      const t = totals.get(c.currency) ?? { planned: 0, plannedToDate: 0, incurredToDate: 0, expected: 0 };
+      t.planned += toMicros(c.planned) ?? 0;
+      t.plannedToDate += toMicros(c.plannedToDate) ?? 0;
+      t.incurredToDate += toMicros(c.incurredToDate) ?? 0;
+      t.expected += toMicros(c.expected) ?? 0;
+      totals.set(c.currency, t);
+    }
+  };
   const services: CostPlanTeamYear['services'] = [];
   for (const s of planServices(fy, start, teamId)) {
     const info = scopeInfo('service', s.id);
@@ -1704,15 +1922,30 @@ export async function teamPlanYear(teamId: string, year?: number, now = Date.now
         difference: c.difference,
       })),
     });
-    if (y.amountsVisible)
-      for (const c of y.currencies) {
-        const t = totals.get(c.currency) ?? { planned: 0, plannedToDate: 0, incurredToDate: 0, expected: 0 };
-        t.planned += toMicros(c.planned) ?? 0;
-        t.plannedToDate += toMicros(c.plannedToDate) ?? 0;
-        t.incurredToDate += toMicros(c.incurredToDate) ?? 0;
-        t.expected += toMicros(c.expected) ?? 0;
-        totals.set(c.currency, t);
-      }
+    addTotals(y);
+    await breathe();
+  }
+  // the team's platforms with a cost plan of their own (0.19.0, ADR 0032) – the platform team's money too
+  const platforms: CostPlanTeamYear['platforms'] = [];
+  for (const p of planPlatforms(fy, start, teamId)) {
+    const info = scopeInfo('platform', p.id);
+    if (!info) continue;
+    const y = planYearOf(info, fy, now, start);
+    platforms.push({
+      id: p.id,
+      name: info.name,
+      amountsVisible: y.amountsVisible,
+      shared: p.teams > 1,
+      currencies: y.currencies.map((c) => ({
+        currency: c.currency,
+        planned: c.planned,
+        plannedToDate: c.plannedToDate,
+        incurredToDate: c.incurredToDate,
+        expected: c.expected,
+        difference: c.difference,
+      })),
+    });
+    addTotals(y);
     await breathe();
   }
   return {
@@ -1721,6 +1954,7 @@ export async function teamPlanYear(teamId: string, year?: number, now = Date.now
     fiscalYear: fy,
     label: fiscalYearLabel(fy, start),
     services,
+    platforms,
     totals: [...totals.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([currency, f]) => ({ currency, ...figures(f, fromMicros) })),
     years: [...new Set([fy, cur, cur + 1, cur - 1])].sort((a, b) => b - a).map((fiscalYear) => ({ fiscalYear, label: fiscalYearLabel(fiscalYear, start) })),
   };

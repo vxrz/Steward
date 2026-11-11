@@ -312,6 +312,7 @@ const WARN_EVENTS = new Set([
   'ai.budget',
   'cost.budget',
   'cost.booking_due',
+  'cost.volume',
 ]);
 
 /** How a message reads at a glance: red for failures, orange for something to do, green when a monitor is up again. */

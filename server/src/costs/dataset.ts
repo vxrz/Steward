@@ -1,4 +1,4 @@
-import { COST_PLANS_DATASET, COSTS_DATASET, COST_SCOPES, toMicros, type DatasetRow, type DatasetStatus } from '@sm/shared';
+import { COST_PLANS_DATASET, COSTS_DATASET, COST_SCOPES, currencyMinorUnits, toMicros, type DatasetRow, type DatasetStatus } from '@sm/shared';
 import { db } from '../db.js';
 import { publishDataset } from '../dashboards/datasets.js';
 import { overview } from './query.js';
@@ -54,7 +54,9 @@ export function publishCostsDataset(force = false, now = Date.now()): boolean {
     }
   }
   const main = [...totals.entries()].sort((a, b) => b[1].l + b[1].t - (a[1].l + a[1].t))[0];
-  const round = (n: number) => Math.round(n * 100) / 100;
+  // the metrics with the decimals of their currency (none for JPY, three for KWD)
+  const digits = main ? 10 ** currencyMinorUnits(main[0]) : 100;
+  const round = (n: number) => Math.round(n * digits) / digits;
   publishDataset({
     key: COSTS_DATASET,
     title: 'Costs',
@@ -74,14 +76,26 @@ export function publishCostsDataset(force = false, now = Date.now()): boolean {
 
 // ---------- the cost plans (ADR 0026) ----------
 
-const PLAN_COLUMNS = ['Service', 'Fiscal year', 'Currency', 'Planned', 'Planned to date', 'Incurred to date', 'Expected', 'Difference', 'Unplanned'];
+const PLAN_COLUMNS = [
+  'Service',
+  'Platform',
+  'Fiscal year',
+  'Currency',
+  'Planned',
+  'Planned to date',
+  'Incurred to date',
+  'Expected',
+  'Difference',
+  'Unplanned',
+];
 let plansPublished = 0;
 
 /**
  * The built-in dataset "Cost plans" (`costs.plans`): one row per service and currency of the current fiscal year with
  * planned, to date, incurred, expected and the difference (status warning when more is expected than planned) – the
  * services of the whole instance with plan lines or entries in that year (planServices: the same as the team rollup and
- * the export), so administrators and auditors see it, like "Costs". At most hourly; yields between services.
+ * the export), so administrators and auditors see it, like "Costs". At most hourly; yields between services. Since
+ * 0.19.0 (ADR 0032) also one row per platform with a cost plan of its own (column Platform; Service empty).
  */
 export async function publishCostPlansDataset(force = false, now = Date.now()): Promise<boolean> {
   if (!force && now - plansPublished < 3600_000) return false;
@@ -97,11 +111,12 @@ export async function publishCostPlansDataset(force = false, now = Date.now()): 
   // the services of the team rollup and the export (planServices), one after the other with a pause between them
   for await (const y of planYearsOfAll(now)) {
     services++;
-    const s = { id: y.serviceId };
+    const s = { id: y.owner.id };
     for (const c of y.currencies) {
       const diff = num(c.difference) ?? 0;
       rows.push({
         Service: y.serviceName,
+        Platform: y.owner.kind === 'platform' ? y.owner.name : '',
         'Fiscal year': y.label,
         Currency: c.currency,
         Planned: num(c.planned),

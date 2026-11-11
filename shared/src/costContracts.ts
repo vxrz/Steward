@@ -9,6 +9,8 @@ import {
   fiscalYearOf,
   isCalendarDate,
   planMonths,
+  shiftMonth,
+  spreadAmount,
   type CostPlanCadence,
   type CostPlanCategory,
   type CostPlanTarget,
@@ -30,11 +32,34 @@ import { addDays, addMonths, contractDates, daysBetween, type SupplierRef, type 
  *   passed. A schedule spans at most ten years: proposals and commitments look no further.
  */
 
-export const COST_SCHEDULE_BILLINGS = ['monthly', 'quarterly', 'yearly', 'once', 'dates'] as const;
+export const COST_SCHEDULE_BILLINGS = ['monthly', 'quarterly', 'yearly', 'once', 'dates', 'volume'] as const;
 export type CostScheduleBilling = (typeof COST_SCHEDULE_BILLINGS)[number];
 
+/**
+ * A volume (0.19.0, ADR 0032 part 3): the contract names an amount – a budget or a volume – per contract year or for
+ * the whole term, which may or may not be used in full.
+ * - `per`: year (a volume per contract year; years 2–10 may have amounts of their own) or term (one for the whole term)
+ * - `billing`: prepaid (paid up front – one payment per period, then drawn down) or byUse (billed from what is used)
+ * - `committed`: full (use it or lose it), minimum (an amount or a percentage of the volume; the rest is an upper
+ *   limit), none (a framework budget, a not-to-exceed ceiling only). Prepaid is always full: it is paid.
+ * - `consumption`: where the use comes from – the cost entries booked to the contract (any service or platform), or a
+ *   paying platform's read costs. Never both: one source per volume, so nothing is counted twice.
+ */
+export const COST_VOLUME_PER = ['year', 'term'] as const;
+export type CostVolumePer = (typeof COST_VOLUME_PER)[number];
+export const COST_VOLUME_BILLINGS = ['prepaid', 'byUse'] as const;
+export type CostVolumeBilling = (typeof COST_VOLUME_BILLINGS)[number];
+export const COST_VOLUME_COMMITTED = ['full', 'minimum', 'none'] as const;
+export type CostVolumeCommitted = (typeof COST_VOLUME_COMMITTED)[number];
+export const COST_VOLUME_CONSUMPTION = ['entries', 'read'] as const;
+export type CostVolumeConsumption = (typeof COST_VOLUME_CONSUMPTION)[number];
+
+/** Who pays a schedule (0.19.0, ADR 0032): a service, or a platform – its own cost plan gets the lines. */
+export const COST_PAYER_KINDS = ['service', 'platform'] as const;
+export type CostPayerKind = (typeof COST_PAYER_KINDS)[number];
+
 export const COST_SCHEDULE_LIMITS = {
-  /** Payment schedules per contract and per paying service */
+  /** Payment schedules per contract and per paying service (or platform) */
   perContract: 20,
   perService: 200,
   /** Contract years with amounts of their own: years 2–10 */
@@ -90,6 +115,22 @@ const scheduleFields = {
     .max(COST_SCHEDULE_LIMITS.payments)
     .default([]),
   note: z.string().trim().max(COST_SCHEDULE_LIMITS.noteChars).default(''),
+  /** Billing "volume" (0.19.0, ADR 0032): how the volume (`amount`, per contract year or for the term) is billed and committed */
+  volume: z
+    .object({
+      per: z.enum(COST_VOLUME_PER).default('year'),
+      billing: z.enum(COST_VOLUME_BILLINGS),
+      committed: z.enum(COST_VOLUME_COMMITTED).default('full'),
+      /** committed "minimum": an amount per period … */
+      minimumAmount: amountText.nullable().default(null),
+      /** … or a percentage of the period's volume (1–100) */
+      minimumPct: z.number().int().min(1).max(100).nullable().default(null),
+      /** null: entries for a paying service, read costs for a paying platform */
+      consumption: z.enum(COST_VOLUME_CONSUMPTION).nullable().default(null),
+    })
+    .strict()
+    .nullable()
+    .default(null),
 };
 
 type ScheduleFieldsOut = {
@@ -100,9 +141,31 @@ type ScheduleFieldsOut = {
   endsOn: string | null;
   yearAmounts: (string | null)[];
   payments: { date: string; amount: string; coversUntil: string | null }[];
+  volume: {
+    per: CostVolumePer;
+    billing: CostVolumeBilling;
+    committed: CostVolumeCommitted;
+    minimumAmount: string | null;
+    minimumPct: number | null;
+    consumption: CostVolumeConsumption | null;
+  } | null;
 };
 
 function checkSchedule(x: ScheduleFieldsOut, ctx: z.RefinementCtx): void {
+  if (x.billing === 'volume') {
+    const v = x.volume;
+    if (!v) ctx.addIssue({ code: 'custom', path: ['volume'], message: 'how the volume is billed and committed' });
+    else {
+      if (v.billing === 'prepaid' && v.committed !== 'full')
+        ctx.addIssue({ code: 'custom', path: ['volume', 'committed'], message: 'a prepaid volume is paid in full: committed "full"' });
+      if (v.committed === 'minimum' && !v.minimumAmount === (v.minimumPct === null))
+        ctx.addIssue({ code: 'custom', path: ['volume', 'minimumAmount'], message: 'the minimum as an amount or as a percentage' });
+      if (v.minimumAmount !== null && !fitsCurrency(toMicros(v.minimumAmount) ?? 0, x.currency))
+        ctx.addIssue({ code: 'custom', path: ['volume', 'minimumAmount'], message: `no more decimals than ${x.currency} has` });
+      if (v.minimumAmount !== null && (toMicros(v.minimumAmount) ?? 0) > (toMicros(x.amount) ?? 0))
+        ctx.addIssue({ code: 'custom', path: ['volume', 'minimumAmount'], message: 'the minimum is above the volume' });
+    }
+  } else if (x.volume) ctx.addIssue({ code: 'custom', path: ['volume'], message: 'only for the billing "volume"' });
   if (x.billing === 'dates') {
     if (!x.payments.length) ctx.addIssue({ code: 'custom', path: ['payments'], message: 'at least one dated payment' });
   } else if (!((toMicros(x.amount) ?? 0) > 0)) ctx.addIssue({ code: 'custom', path: ['amount'], message: 'an amount above 0' });
@@ -119,14 +182,22 @@ function checkSchedule(x: ScheduleFieldsOut, ctx: z.RefinementCtx): void {
   if (x.startsOn && x.endsOn && x.endsOn < x.startsOn) ctx.addIssue({ code: 'custom', path: ['endsOn'], message: 'the end is before the start' });
 }
 
-/** A new payment schedule: the contract and the paying service, then the payments. */
+/** A new payment schedule: the contract and who pays it – a service or (0.19.0) a platform – then the payments. */
 export const costScheduleInput = z
-  .object({ contractId: z.string().trim().min(1).max(100), serviceId: z.string().trim().min(1).max(100), ...scheduleFields })
+  .object({
+    contractId: z.string().trim().min(1).max(100),
+    serviceId: z.string().trim().min(1).max(100).optional(),
+    platformId: z.string().trim().min(1).max(100).optional(),
+    ...scheduleFields,
+  })
   .strict()
-  .superRefine(checkSchedule);
+  .superRefine((x, ctx) => {
+    if (!x.serviceId === !x.platformId) ctx.addIssue({ code: 'custom', path: ['serviceId'], message: 'the paying service or the paying platform' });
+    checkSchedule(x, ctx);
+  });
 export type CostScheduleInput = z.input<typeof costScheduleInput>;
 
-/** A change keeps the contract and the paying service. */
+/** A change keeps the contract and who pays it. */
 export const costScheduleUpdate = z
   .object({ ...scheduleFields })
   .strict()
@@ -168,6 +239,18 @@ export interface ScheduleSpec {
   /** Contract years 2–10 (index 0 is year 2); null: the year before */
   yearAmounts: (number | null)[];
   payments: { date: string; amount: number; coversUntil: string | null }[];
+  /** Billing "volume" (0.19.0): the amount is the volume of contract year 1 (per year) or of the term */
+  volume?: VolumeSpec | null;
+}
+
+/** A volume as the arithmetic reads it (micros). */
+export interface VolumeSpec {
+  per: CostVolumePer;
+  billing: CostVolumeBilling;
+  committed: CostVolumeCommitted;
+  minimum: number | null;
+  minimumPct: number | null;
+  consumption: CostVolumeConsumption;
 }
 
 /** What the arithmetic reads of a contract. */
@@ -189,7 +272,7 @@ export interface SchedulePayment {
   coversTo: string | null;
 }
 
-const MONTHS: Record<CostScheduleBilling, number> = { monthly: 1, quarterly: 3, yearly: 12, once: 0, dates: 0 };
+const MONTHS: Record<CostScheduleBilling, number> = { monthly: 1, quarterly: 3, yearly: 12, once: 0, dates: 0, volume: 0 };
 const minDate = (...ds: (string | null | undefined)[]): string | null => ds.filter((d): d is string => !!d).sort()[0] ?? null;
 const lastOfMonth = (date: string) => addDays(addMonths(`${date.slice(0, 7)}-01`, 1), -1);
 
@@ -242,11 +325,67 @@ export function yearAmountsFromPercent(amount: number, pct: number, currency: st
   return out;
 }
 
+/** One period of a volume: a contract year (per year) or the whole term, with its volume and committed minimum (micros). */
+export interface VolumePeriod {
+  /** 1, 2, … */
+  index: number;
+  from: string;
+  to: string;
+  amount: number;
+  /** What is committed: the volume (full), the minimum, or 0 (a ceiling only) – in the currency's minor units */
+  minimum: number;
+}
+
+/** The committed minimum of a period's volume: full → the volume; minimum → the amount (capped) or the percentage, rounded to minor units. */
+export function volumeMinimum(v: VolumeSpec, amount: number, currency: string): number {
+  if (v.billing === 'prepaid' || v.committed === 'full') return amount;
+  if (v.committed === 'none') return 0;
+  if (v.minimum !== null) return Math.min(v.minimum, amount);
+  return roundToCurrency(Math.round((amount * (v.minimumPct ?? 0)) / 100), currency);
+}
+
+/**
+ * The periods of a volume, from the schedule's start to its end (scheduleEnd): per contract year – twelve-month steps
+ * from the start, the last one cut at the end – or one for the whole term.
+ */
+export function volumePeriods(s: ScheduleSpec, c: ContractTerms): VolumePeriod[] {
+  const v = s.volume;
+  const start = scheduleStart(s, c);
+  const end = scheduleEnd(s, c);
+  if (!v || !start || !end || end < start) return [];
+  if (v.per === 'term') return [{ index: 1, from: start, to: end, amount: s.amount, minimum: volumeMinimum(v, s.amount, s.currency) }];
+  const out: VolumePeriod[] = [];
+  for (let k = 0; k < COST_SCHEDULE_LIMITS.years; k++) {
+    const from = addMonths(start, 12 * k);
+    if (from > end) break;
+    const to = minDate(addDays(addMonths(start, 12 * (k + 1)), -1), end)!;
+    const amount = yearAmount(s, k + 1);
+    out.push({ index: k + 1, from, to, amount, minimum: volumeMinimum(v, amount, s.currency) });
+  }
+  return out;
+}
+
+/** The calendar months (YYYY-MM) a period touches, first to last. */
+export function periodMonths(from: string, to: string): string[] {
+  const out: string[] = [];
+  for (let m = from.slice(0, 7); m <= to.slice(0, 7) && out.length < 12 * COST_SCHEDULE_LIMITS.years + 1; m = shiftMonth(m, 1)) out.push(m);
+  return out;
+}
+
 /** Every payment of a schedule, first to last, up to its end (scheduleEnd), the dated ones as they are. */
 export function schedulePayments(s: ScheduleSpec, c: ContractTerms): SchedulePayment[] {
   const start = scheduleStart(s, c);
   const end = scheduleEnd(s, c);
   if (!start || !end) return [];
+  if (s.billing === 'volume') {
+    // a prepaid volume is paid at the start of each period (the first one: the first payment date); by use: no fixed payments
+    if (s.volume?.billing !== 'prepaid') return [];
+    return volumePeriods(s, c).map((p, i) => {
+      const date = i === 0 && s.firstPaymentOn && s.firstPaymentOn <= p.to ? s.firstPaymentOn : p.from;
+      const covers = p.to > lastOfMonth(date);
+      return { date, amount: p.amount, contractYear: contractYearOf(date, start), coversFrom: covers ? p.from : null, coversTo: covers ? p.to : null };
+    });
+  }
   if (s.billing === 'dates')
     return [...s.payments]
       .filter((p) => p.date <= end)
@@ -319,6 +458,7 @@ export interface ProposalPart {
 export function proposalParts(s: ScheduleSpec, c: ContractTerms, fiscalYear: number, startMonth: number): ProposalPart[] {
   const months = fiscalYearMonths(fiscalYear, startMonth);
   const b = fiscalYearBounds(fiscalYear, startMonth);
+  if (s.billing === 'volume' && s.volume?.billing === 'byUse') return volumeParts(s, c, months);
   const pays = schedulePayments(s, c).filter((p) => p.date >= b.from && p.date <= b.last);
   if (!pays.length) return [];
   const idx = (date: string) => months.indexOf(date.slice(0, 7));
@@ -364,6 +504,42 @@ export function proposalParts(s: ScheduleSpec, c: ContractTerms, fiscalYear: num
       coversTo: p.coversTo,
     };
   });
+}
+
+/**
+ * A volume billed by use (0.19.0, ADR 0032): per period that touches the fiscal year, a yearly line over the months of
+ * the period in the year, its amount the period's volume spread evenly over all the period's months (in the currency's
+ * minor units) and summed over those in this year – so the lines of all fiscal years add up to the volume exactly.
+ */
+function volumeParts(s: ScheduleSpec, c: ContractTerms, months: string[]): ProposalPart[] {
+  const out: ProposalPart[] = [];
+  for (const p of volumePeriods(s, c)) {
+    const pm = periodMonths(p.from, p.to);
+    const spread = spreadAmount(p.amount, pm.length, s.currency);
+    const plan = months.map((m) => {
+      const i = pm.indexOf(m);
+      return i < 0 ? 0 : spread[i]!;
+    });
+    const inYear = months.map((m, i) => (pm.includes(m) ? i : -1)).filter((i) => i >= 0);
+    if (!inYear.length) continue;
+    const from = inYear[0]!;
+    const to = inYear[inYear.length - 1]!;
+    const whole = from === 0 && to === 11;
+    const amount = plan.reduce((a, v) => a + v, 0);
+    out.push({
+      part: `v${p.index}`,
+      cadence: 'yearly',
+      fromIndex: whole ? null : from,
+      toIndex: whole ? null : to,
+      onceIndex: null,
+      amount,
+      months: plan,
+      paymentDates: months.map(() => null),
+      coversFrom: null,
+      coversTo: null,
+    });
+  }
+  return out;
 }
 
 /** Whether a line's basis (the twelve month amounts it was made from) differs from a part's months now. */
@@ -454,8 +630,11 @@ export function noticeWarning(
 export interface CostSchedule {
   id: string;
   contractId: string;
+  /** The paying service ('' when a platform pays, 0.19.0) */
   serviceId: string;
   serviceName: string;
+  /** Who pays it (0.19.0, ADR 0032): a service, or a platform whose own cost plan gets the lines */
+  payer: CostPayer;
   /** null with `contractHidden`: a contract of a supplier the reader may not see – amounts, no supplier, title or dates */
   supplier: SupplierRef | null;
   contract: { id: string; title: string; reference: string } | null;
@@ -476,6 +655,15 @@ export interface CostSchedule {
   yearAmounts: (string | null)[];
   payments: { date: string; amount: string | null; coversUntil: string | null }[];
   note: string;
+  /** Billing "volume" (0.19.0): how it is billed and committed, the minimum and where the use comes from */
+  volume: {
+    per: CostVolumePer;
+    billing: CostVolumeBilling;
+    committed: CostVolumeCommitted;
+    minimumAmount: string | null;
+    minimumPct: number | null;
+    consumption: CostVolumeConsumption;
+  } | null;
   nextPayment: { date: string; amount: string | null } | null;
   canEdit: boolean;
   createdAt: string;
@@ -484,10 +672,17 @@ export interface CostSchedule {
   updatedBy: string;
 }
 
+/** Who pays a schedule: a service or a platform, by id and name. */
+export interface CostPayer {
+  kind: CostPayerKind;
+  id: string;
+  name: string;
+}
+
 /** The schedules of a contract or a service, and whether the reader may add one (GET /api/costs/schedules). */
 export interface CostScheduleList {
   schedules: CostSchedule[];
-  /** Add a schedule: who may change the contract, or edit a service and see the contract */
+  /** Add a schedule: who may change the contract, or edit a service (or a platform's plan) and see the contract */
   canAdd: boolean;
   limits: { perContract: number; perService: number };
 }
@@ -542,9 +737,12 @@ export interface CostContractChange {
 export interface CostCommitment {
   scheduleId: string;
   title: string;
+  /** The paying service ('' when a platform pays, 0.19.0) */
   serviceId: string;
   serviceName: string;
-  /** The service's owning teams the reader may see (grouping by team) */
+  /** Who pays it: a service or a platform (0.19.0, ADR 0032) */
+  payer: CostPayer;
+  /** The payer's owning teams the reader may see (grouping by team) */
   teams: { id: string; name: string }[];
   /** null with `contractHidden`: a contract of a supplier the reader may not see – amounts only */
   supplier: SupplierRef | null;
@@ -574,17 +772,24 @@ export interface CostCommitment {
   changed: boolean;
   /** Months (YYYY-MM) of the current fiscal year with a payment of its lines and no entry */
   notBooked: string[];
+  /**
+   * A volume that is not fully committed (0.19.0): what may still be billed at most up to contract end beyond what is
+   * owed – "up to …", never added to what is owed (null: none, or amounts not visible)
+   */
+  upTo: string | null;
+  /** A volume's current period: used, left, the estimate and the warnings (null: not a volume) */
+  volume: CostVolumeStatus | null;
 }
 
-/** GET /api/costs/commitments: the schedules of the services the reader may see. */
+/** GET /api/costs/commitments: the schedules of the services and platforms the reader may see. */
 export interface CostCommitments {
   today: string;
   fiscalYear: number;
   /** The current fiscal year and the next four */
   years: { fiscalYear: number; label: string }[];
   rows: CostCommitment[];
-  /** Per currency over the rows whose amounts the reader sees */
-  totals: { currency: string; years: string[]; later: string; owedThisYear: string; toContractEnd: string; toEarliestExit: string }[];
+  /** Per currency over the rows whose amounts the reader sees; `upTo`: what volumes may still bill beyond what is owed (never added to it) */
+  totals: { currency: string; years: string[]; later: string; owedThisYear: string; toContractEnd: string; toEarliestExit: string; upTo: string }[];
   /** Rows with the notice warning */
   warnings: number;
   /** With a supplier: what was incurred per fiscal year from entries naming it (services the reader may see, amounts visible) */
@@ -595,12 +800,50 @@ export interface CostCommitments {
 export const costCommitmentsQuery = z.object({
   teamId: z.string().trim().min(1).max(100).optional(),
   serviceId: z.string().trim().min(1).max(100).optional(),
+  /** Only the schedules this platform pays (0.19.0) */
+  platformId: z.string().trim().min(1).max(100).optional(),
   supplierId: z.string().trim().min(1).max(100).optional(),
   currency: z.string().trim().length(3).optional(),
   /** Only schedules whose contract end or earliest exit is within this many days */
   endingWithinDays: z.coerce.number().int().min(1).max(3650).optional(),
 });
 export type CostCommitmentsQuery = z.infer<typeof costCommitmentsQuery>;
+
+// ---------- volumes (0.19.0, ADR 0032 part 3) ----------
+
+/** A warning of a volume's current period. */
+export const COST_VOLUME_WARNINGS = ['runsOut', 'usedUp', 'shortfall', 'ceiling', 'overCeiling'] as const;
+export type CostVolumeWarning = (typeof COST_VOLUME_WARNINGS)[number];
+
+/** A volume's period as the reader sees it (amounts null without the right, or `stateOnly`). */
+export interface CostVolumeStatus {
+  per: CostVolumePer;
+  billing: CostVolumeBilling;
+  committed: CostVolumeCommitted;
+  consumption: CostVolumeConsumption;
+  currency: string;
+  period: { index: number; from: string; to: string };
+  /** The period's volume and committed minimum */
+  amount: string | null;
+  minimum: string | null;
+  used: string | null;
+  left: string | null;
+  /** used ÷ volume in percent (one decimal) */
+  sharePct: number | null;
+  /** An estimate: the use at the period's end at the rate of the recent months (null: too early – less than 28 days of use) */
+  expectedAtEnd: string | null;
+  /** An estimate: the day the volume is used up at that rate (null: not before the period ends, or no estimate) */
+  runsOutOn: string | null;
+  /** Use per day of the window the estimate is made from, and that window */
+  ratePerDay: string | null;
+  window: { from: string; to: string } | null;
+  warnings: CostVolumeWarning[];
+  /**
+   * The use counts entries of services or platforms the reader may not see (a contract shared by several): only the
+   * warnings are given, no figures – they would give away the others' costs by subtraction
+   */
+  stateOnly: boolean;
+}
 
 /** The built-in dataset of commitments (administrators and auditors, published at most hourly). */
 export const COST_COMMITMENTS_DATASET = 'costs.commitments';

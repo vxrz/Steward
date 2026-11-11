@@ -1,6 +1,10 @@
 import {
   contractReaders,
   hasTeamOwner,
+  type AclEntry,
+  type PlatformPermission,
+  type SupplierContractItemKind,
+  type SupplierContractPlatform,
   type SupplierContractProposalSource,
   type SupplierContractReadReason,
   type SupplierContractService,
@@ -9,8 +13,8 @@ import {
 } from '@sm/shared';
 import { db } from '../db.js';
 import { currentUser, type AuthUser } from '../auth/context.js';
-import { isAdmin, matches } from '../auth/permissions.js';
-import { catalogueAccess } from '../auth/policy.js';
+import { isAdmin, matches, platformPermissions } from '../auth/permissions.js';
+import { catalogueAccess, memberships, owningTeams } from '../auth/policy.js';
 import { parseJson } from '../util.js';
 import { audit } from '../audit.js';
 import { readSetting, writeSetting } from '../settings.js';
@@ -32,6 +36,31 @@ export interface CoverRow {
   added_at: string;
   confirmed_by: string | null;
   confirmed_at: string | null;
+}
+
+/** A platform a contract covers (0.19.0, ADR 0032). */
+export interface PlatformCoverRow {
+  contract_id: string;
+  platform_id: string;
+  purpose: string;
+  added_by: string;
+  added_at: string;
+}
+
+/** An application or system of a covered service the contract is for (0.19.0, ADR 0032), with its name and owners. */
+export interface ItemRow {
+  contract_id: string;
+  service_id: string;
+  kind: SupplierContractItemKind;
+  item_id: string;
+  name: string | null;
+  owners: string | null;
+}
+
+interface PlatformRow {
+  id: string;
+  name: string;
+  acl: string;
 }
 
 /** What the rules need of a contract (a row of supplier_contracts). */
@@ -64,7 +93,13 @@ export const contractOwnersOf = (c: Pick<ScopeContract, 'owners'>): string[] => 
  */
 export class ScopeCtx {
   private services: Map<string, ServiceRow> | null = null;
+  private platforms: Map<string, PlatformRow> | null = null;
   private readonly cover = new Map<string, CoverRow[]>();
+  private readonly platformCover = new Map<string, PlatformCoverRow[]>();
+  private readonly itemRows = new Map<string, ItemRow[]>();
+  private readonly platformView = new Map<string, boolean>();
+  private readonly platformManage = new Map<string, boolean>();
+  private readonly itemView = new Map<string, boolean>();
   private readonly supplierSeen = new Map<string, boolean>();
   private readonly supplierEdit = new Map<string, boolean>();
   private readonly serviceView = new Map<string, boolean>();
@@ -72,19 +107,97 @@ export class ScopeCtx {
 
   constructor(readonly u: AuthUser | null = currentUser()) {}
 
-  /** The covered services of these contracts, read in one statement per 500 ids. */
+  /** The covered services and platforms (0.19.0) of these contracts, read in one statement per table and 500 ids. */
   load(contractIds: readonly string[]): this {
     const want = [...new Set(contractIds)].filter((id) => !this.cover.has(id));
-    for (const id of want) this.cover.set(id, []);
+    for (const id of want) {
+      this.cover.set(id, []);
+      this.platformCover.set(id, []);
+      this.itemRows.set(id, []);
+    }
     for (let i = 0; i < want.length; i += 500) {
       const part = want.slice(i, i + 500);
-      for (const r of db().all<CoverRow>(
-        `SELECT * FROM supplier_contract_services WHERE contract_id IN (${part.map(() => '?').join(', ')}) ORDER BY added_at, service_id`,
+      const marks = part.map(() => '?').join(', ');
+      for (const r of db().all<CoverRow>(`SELECT * FROM supplier_contract_services WHERE contract_id IN (${marks}) ORDER BY added_at, service_id`, ...part))
+        this.cover.get(r.contract_id)!.push(r);
+      for (const r of db().all<PlatformCoverRow>(
+        `SELECT * FROM supplier_contract_platforms WHERE contract_id IN (${marks}) ORDER BY added_at, platform_id`,
         ...part,
       ))
-        this.cover.get(r.contract_id)!.push(r);
+        this.platformCover.get(r.contract_id)!.push(r);
+      for (const r of db().all<ItemRow>(
+        `SELECT i.contract_id, i.service_id, i.kind, i.item_id, COALESCE(a.name, y.name) AS name, COALESCE(a.owners, y.owners) AS owners
+           FROM supplier_contract_items i
+           LEFT JOIN applications a ON i.kind = 'application' AND a.id = i.item_id
+           LEFT JOIN systems y ON i.kind = 'system' AND y.id = i.item_id
+          WHERE i.contract_id IN (${marks}) ORDER BY i.added_at, i.item_id`,
+        ...part,
+      ))
+        this.itemRows.get(r.contract_id)!.push(r);
     }
     return this;
+  }
+
+  /** The platforms a contract covers (0.19.0). */
+  platformCoverOf(contractId: string): PlatformCoverRow[] {
+    if (!this.platformCover.has(contractId)) this.load([contractId]);
+    return this.platformCover.get(contractId) ?? [];
+  }
+
+  /** The applications and systems of a covered service the contract is for (0.19.0). */
+  itemsOf(contractId: string, serviceId: string): ItemRow[] {
+    if (!this.itemRows.has(contractId)) this.load([contractId]);
+    return (this.itemRows.get(contractId) ?? []).filter((r) => r.service_id === serviceId);
+  }
+
+  platform(id: string): PlatformRow | undefined {
+    if (!this.platforms)
+      this.platforms = new Map(
+        db()
+          .all<PlatformRow>('SELECT id, name, acl FROM platforms')
+          .map((p) => [p.id, p]),
+      );
+    return this.platforms.get(id);
+  }
+
+  /** The reader may see the platform (viewers see none; auditors see every one). */
+  seesPlatform(id: string): boolean {
+    const p = this.platform(id);
+    if (!p) return false;
+    if (!this.u) return true;
+    if (!this.platformView.has(id))
+      this.platformView.set(
+        id,
+        isAdmin(this.u) ||
+          this.u.roles.includes('auditor') ||
+          platformPermissions(this.u, { id, acl: parseJson<AclEntry<PlatformPermission>[]>(p.acl, []) }).length > 0,
+      );
+    return this.platformView.get(id)!;
+  }
+
+  /**
+   * The reader manages the platform or is a member of its owning teams (0.19.0, ADR 0032) – who changes its cost plan
+   * and sees a team-owned contract covering it; not every reader of the platform.
+   */
+  managesPlatform(id: string): boolean {
+    const p = this.platform(id);
+    if (!p) return false;
+    if (!this.u) return true;
+    if (!this.platformManage.has(id)) {
+      const perms = platformPermissions(this.u, { id, acl: parseJson<AclEntry<PlatformPermission>[]>(p.acl, []) });
+      const mine = memberships(this.u);
+      this.platformManage.set(id, perms.includes('manage') || owningTeams('platform', id).some((t) => mine.has(t.id)));
+    }
+    return this.platformManage.get(id)!;
+  }
+
+  /** The reader may see an application or system named on a contract. */
+  seesItem(r: Pick<ItemRow, 'kind' | 'item_id' | 'owners' | 'name'>): boolean {
+    if (r.name === null) return false;
+    if (!this.u) return true;
+    const k = `${r.kind}|${r.item_id}`;
+    if (!this.itemView.has(k)) this.itemView.set(k, catalogueAccess(this.u, { kind: r.kind, id: r.item_id, owners: listOf(r.owners ?? '[]') }).view);
+    return this.itemView.get(k)!;
   }
 
   coverOf(contractId: string): CoverRow[] {
@@ -154,6 +267,8 @@ export class ScopeCtx {
         owner: this.ownsContract(c),
         // proposed covered services count for reading (the upgrade), archived ones give no rights
         seesCoveredService: this.coverOf(c.id).some((x) => this.seesService(x.service_id)),
+        // a covered platform (ADR 0032): its managers and the members of its owning teams – not every reader of it
+        managesCoveredPlatform: this.platformCoverOf(c.id).some((x) => this.managesPlatform(x.platform_id)),
       },
     );
   }
@@ -164,8 +279,8 @@ export class ScopeCtx {
 
   /**
    * Whether the reader may change the contract (ADR 0031 part 2): administrators, its owners, designers and the
-   * supplier's owners who may see it, and editors of a confirmed covered service who see every service it covers.
-   * Not while the supplier is archived.
+   * supplier's owners who may see it, and editors of a confirmed covered service – or (0.19.0, ADR 0032) who manage a
+   * covered platform – who see every service and every platform it covers. Not while the supplier is archived.
    */
   edits(c: ScopeContract, s: ScopeSupplier): boolean {
     if (s.status === 'archived') return false;
@@ -173,7 +288,37 @@ export class ScopeCtx {
     if (!this.reads(c, s)) return false;
     if (isAdmin(this.u) || this.ownsContract(c) || this.editsSupplier(s)) return true;
     const cover = this.coverOf(c.id).filter((x) => !Number(this.service(x.service_id)?.archived ?? 1));
-    return cover.some((x) => x.status === 'confirmed' && this.editsService(x.service_id)) && cover.every((x) => this.seesService(x.service_id));
+    const platforms = this.platformCoverOf(c.id).filter((x) => !!this.platform(x.platform_id));
+    const holds = cover.some((x) => x.status === 'confirmed' && this.editsService(x.service_id)) || platforms.some((x) => this.managesPlatform(x.platform_id));
+    return holds && cover.every((x) => this.seesService(x.service_id)) && platforms.every((x) => this.seesPlatform(x.platform_id));
+  }
+
+  /** May change one covered platform of the contract (purpose, take it off): who changes the contract, or manages that platform (0.19.0). */
+  editsPlatformCover(c: ScopeContract, s: ScopeSupplier, platformId: string): boolean {
+    if (s.status === 'archived') return false;
+    return this.edits(c, s) || (this.reads(c, s) && this.managesPlatform(platformId));
+  }
+
+  /** The covered platforms as the reader sees them, and how many they may not see (0.19.0). */
+  platformsOf(c: ScopeContract, s: ScopeSupplier): { platforms: SupplierContractPlatform[]; hidden: number } {
+    const platforms: SupplierContractPlatform[] = [];
+    let hidden = 0;
+    for (const x of this.platformCoverOf(c.id)) {
+      const p = this.platform(x.platform_id);
+      if (!p) continue;
+      if (!this.seesPlatform(p.id)) {
+        hidden++;
+        continue;
+      }
+      platforms.push({
+        id: p.id,
+        name: p.name,
+        purpose: x.purpose,
+        canChange: this.editsPlatformCover(c, s, p.id),
+        managesPlatform: !!this.u && this.managesPlatform(p.id),
+      });
+    }
+    return { platforms: platforms.sort((a, b) => a.name.localeCompare(b.name)), hidden };
   }
 
   /** May change one covered service of the contract (purpose, leave, confirm, dismiss): who changes the contract, or edits that service. */
@@ -202,6 +347,9 @@ export class ScopeCtx {
         proposedFrom: parseJson<SupplierContractProposalSource[]>(x.proposed_from, []),
         canChange: this.editsCover(c, s, svc.id),
         editsService: !!this.u && this.editsService(svc.id),
+        items: this.itemsOf(c.id, svc.id)
+          .filter((r) => this.seesItem(r))
+          .map((r) => ({ kind: r.kind, id: r.item_id, name: r.name! })),
       });
     }
     return { services: services.sort((a, b) => a.name.localeCompare(b.name)), hidden };
@@ -226,14 +374,19 @@ export function scopeRowsOf(
   return out;
 }
 
-/** Whether the contract covers the service (confirmed or proposed): the hint "This contract no longer covers the service". */
+/**
+ * Whether the contract covers the service (confirmed or proposed) – or, since 0.19.0, the platform (`serviceId` may
+ * name either: their ids never collide): the hint "This contract no longer covers the service".
+ */
 export function coveredPairs(pairs: readonly { contractId: string; serviceId: string }[]): Set<string> {
   const ids = [...new Set(pairs.map((p) => p.contractId))];
   const out = new Set<string>();
   for (let i = 0; i < ids.length; i += 500) {
     const part = ids.slice(i, i + 500);
     for (const r of db().all<{ contract_id: string; service_id: string }>(
-      `SELECT contract_id, service_id FROM supplier_contract_services WHERE contract_id IN (${part.map(() => '?').join(', ')})`,
+      `SELECT contract_id, service_id FROM supplier_contract_services WHERE contract_id IN (${part.map(() => '?').join(', ')})
+       UNION SELECT contract_id, platform_id AS service_id FROM supplier_contract_platforms WHERE contract_id IN (${part.map(() => '?').join(', ')})`,
+      ...part,
       ...part,
     ))
       out.add(`${r.contract_id}|${r.service_id}`);

@@ -32,7 +32,20 @@ import { contractEditable, coverChosenContract, supplierVisible, visibleContract
 import { ScopeCtx } from '../suppliers/contract-scope.js';
 import { csvRows } from './csv.js';
 import { requireScope } from './access.js';
-import { catalogueOf, insertEntry, lineTitle, planYearOf, requireEdit, startMonth, targetOf, type EntryValues, type LineRow } from './plans.js';
+import {
+  insertEntry,
+  lineTitle,
+  ownerCatalogue,
+  ownerCol,
+  ownerValues,
+  planYearOf,
+  requireEditOf,
+  startMonth,
+  targetOf,
+  type EntryValues,
+  type LineRow,
+  type OwnerRef,
+} from './plans.js';
 
 /**
  * CSV import of cost entries (0.18.0, ADR 0030 part 6, docs/COSTS.md#importing-entries-csv) on the reader of csv.ts:
@@ -43,7 +56,12 @@ import { catalogueOf, insertEntry, lineTitle, planYearOf, requireEdit, startMont
  * Duplicate rule: the service has an entry – or an earlier row of the file has one – with the same reference (letter
  * case and surrounding spaces aside, not empty), date, amount and currency. A row without a reference cannot be
  * checked and is marked "No reference", not left out.
+ *
+ * 0.19.0 (ADR 0032): the same for a platform's own cost plan (`OwnerRef`); its rows name no application or system, and a
+ * contract must cover the platform – or the person may add the platform to it.
  */
+
+const asOwner = (x: string | OwnerRef): OwnerRef => (typeof x === 'string' ? { kind: 'service', id: x } : x);
 
 const LIMITS = { rows: COST_ENTRY_IMPORT_LIMITS.rows, columns: COST_ENTRY_IMPORT_LIMITS.columns, cellChars: COST_ENTRY_IMPORT_LIMITS.cellChars };
 
@@ -70,10 +88,10 @@ function parse(csv: string): Parsed {
 const sha = (csv: string) => crypto.createHash('sha256').update(csv, 'utf8').digest('hex');
 const norm = (s: string) => s.trim().toLowerCase();
 
-function sameFile(serviceId: string, sha256: string): CostEntryImportPreview['sameFile'] {
+function sameFile(o: OwnerRef, sha256: string): CostEntryImportPreview['sameFile'] {
   const r = db().get<{ id: string; file_name: string; created_at: string }>(
-    'SELECT id, file_name, created_at FROM cost_entry_imports WHERE service_id = ? AND sha256 = ? ORDER BY created_at DESC LIMIT 1',
-    serviceId,
+    `SELECT id, file_name, created_at FROM cost_entry_imports WHERE ${ownerCol(o)} = ? AND sha256 = ? ORDER BY created_at DESC LIMIT 1`,
+    o.id,
     sha256,
   );
   return r ? { id: r.id, fileName: r.file_name, createdAt: r.created_at } : null;
@@ -88,8 +106,8 @@ interface SupplierRow {
 }
 
 /** What the rows are read against: the service's lines, the suppliers and contracts the person may see, its targets, its entries. */
-function lookups(serviceId: string) {
-  const lines = db().all<LineRow>('SELECT * FROM cost_plan_lines WHERE service_id = ?', serviceId);
+function lookups(o: OwnerRef) {
+  const lines = db().all<LineRow>(`SELECT * FROM cost_plan_lines WHERE ${ownerCol(o)} = ?`, o.id);
   const suppliers = db()
     .all<SupplierRow>('SELECT id, name, status, owners, aliases FROM suppliers')
     .filter((r) => supplierVisible(r));
@@ -99,7 +117,7 @@ function lookups(serviceId: string) {
   // the contracts the person may see (ADR 0031), read in bulk
   const seen = visibleContracts(all.map((c) => c.id));
   const contracts = all.filter((c) => seen.has(c.id));
-  const cat = catalogueOf(serviceId);
+  const cat = ownerCatalogue(o);
   const names = new Map<string, CostPlanTarget>();
   for (const [kind, ids] of [
     ['application', cat.apps],
@@ -110,8 +128,8 @@ function lookups(serviceId: string) {
       if (t && t.visible && !t.gone) names.set(`${kind}|${norm(t.name)}`, t);
     }
   const existing = db().all<{ entry_date: string; amount: number; currency: string; reference: string }>(
-    "SELECT entry_date, amount, currency, reference FROM cost_entries WHERE service_id = ? AND reference <> ''",
-    serviceId,
+    `SELECT entry_date, amount, currency, reference FROM cost_entries WHERE ${ownerCol(o)} = ? AND reference <> ''`,
+    o.id,
   );
   // a contract line's title as the person reads it ("contract – schedule" when they may see the contract, plans.ts)
   const lineContracts = visibleContracts(lines.map((l) => l.supplier_contract_id));
@@ -129,7 +147,7 @@ interface Resolved {
 }
 
 /** Every row with what it becomes and its problems (nothing stored). */
-function resolve(serviceId: string, p: Parsed, m: CostEntryImportMapping): Resolved[] {
+function resolve(o: OwnerRef, p: Parsed, m: CostEntryImportMapping): Resolved[] {
   const start = startMonth();
   const col = (name: string | null) => {
     if (!name) return -1;
@@ -148,12 +166,17 @@ function resolve(serviceId: string, p: Parsed, m: CostEntryImportMapping): Resol
     contract: col(m.contract),
     target: col(m.target),
   };
-  const L = lookups(serviceId);
-  // a named contract must cover the service – or the person may add the service to it (who may change the contract and
-  // sees the service), as in the entry form (suppliers/links.ts resolveSupplierContract)
+  const L = lookups(o);
+  // a named contract must cover the service (or platform) – or the person may add it (who may change the contract and
+  // sees the service or platform), as in the entry form (suppliers/links.ts resolveSupplierContract)
   const covering = new Set(
     db()
-      .all<{ contract_id: string }>('SELECT contract_id FROM supplier_contract_services WHERE service_id = ?', serviceId)
+      .all<{ contract_id: string }>(
+        o.kind === 'service'
+          ? 'SELECT contract_id FROM supplier_contract_services WHERE service_id = ?'
+          : 'SELECT contract_id FROM supplier_contract_platforms WHERE platform_id = ?',
+        o.id,
+      )
       .map((r) => r.contract_id),
   );
   const ctx = new ScopeCtx();
@@ -162,7 +185,7 @@ function resolve(serviceId: string, p: Parsed, m: CostEntryImportMapping): Resol
     if (!mayCover.has(id))
       mayCover.set(
         id,
-        ctx.seesService(serviceId) &&
+        (o.kind === 'service' ? ctx.seesService(o.id) : ctx.seesPlatform(o.id)) &&
           contractEditable(
             L.contracts.find((k) => k.id === id)!,
             undefined,
@@ -181,7 +204,7 @@ function resolve(serviceId: string, p: Parsed, m: CostEntryImportMapping): Resol
       inYear.set(
         fy,
         Number(
-          db().get<{ n: number }>('SELECT COUNT(*) AS n FROM cost_entries WHERE service_id = ? AND entry_date >= ? AND entry_date < ?', serviceId, b.from, b.to)
+          db().get<{ n: number }>(`SELECT COUNT(*) AS n FROM cost_entries WHERE ${ownerCol(o)} = ? AND entry_date >= ? AND entry_date < ?`, o.id, b.from, b.to)
             ?.n ?? 0,
         ),
       );
@@ -308,11 +331,12 @@ function resolve(serviceId: string, p: Parsed, m: CostEntryImportMapping): Resol
 }
 
 /** POST /api/costs/plans/:serviceId/entries/import/preview – every row with what it becomes; nothing is stored. */
-export function previewEntryImport(serviceId: string, body: unknown): CostEntryImportPreview {
-  requireEdit(serviceId);
+export function previewEntryImport(owner: string | OwnerRef, body: unknown): CostEntryImportPreview {
+  const o = asOwner(owner);
+  requireEditOf(o);
   const x = costEntryImportInput.parse(body);
   const p = parse(x.csv);
-  const rows = resolve(serviceId, p, x.mapping).map((r) => r.row);
+  const rows = resolve(o, p, x.mapping).map((r) => r.row);
   const s = sha(x.csv);
   return {
     fileName: x.fileName,
@@ -326,7 +350,7 @@ export function previewEntryImport(serviceId: string, body: unknown): CostEntryI
       problems: rows.filter((r) => r.problems.length).length,
       duplicates: rows.filter((r) => r.duplicate).length,
     },
-    sameFile: sameFile(serviceId, s),
+    sameFile: sameFile(o, s),
   };
 }
 
@@ -334,12 +358,13 @@ export function previewEntryImport(serviceId: string, body: unknown): CostEntryI
  * POST /api/costs/plans/:serviceId/entries/import – the rows without problems (duplicates only when ticked), in one
  * transaction, as one import record; the file is read again, never taken from the preview.
  */
-export function importEntries(serviceId: string, body: unknown): CostPlanYear & { importId: string; added: number; skipped: Record<string, number> } {
-  const info = requireEdit(serviceId);
+export function importEntries(owner: string | OwnerRef, body: unknown): CostPlanYear & { importId: string; added: number; skipped: Record<string, number> } {
+  const o = asOwner(owner);
+  const info = requireEditOf(o);
   const x = costEntryImportInput.parse(body);
   const p = parse(x.csv);
   const include = new Set(x.include);
-  const resolved = resolve(serviceId, p, x.mapping);
+  const resolved = resolve(o, p, x.mapping);
   const take = resolved.filter((r) => r.values && (!r.row.duplicate || include.has(r.row.index)));
   const skipped: Record<string, number> = {};
   for (const r of resolved) {
@@ -356,10 +381,11 @@ export function importEntries(serviceId: string, body: unknown): CostPlanYear & 
   const start = startMonth();
   db().tx(() => {
     db().run(
-      `INSERT INTO cost_entry_imports (id, service_id, file_name, sha256, rows, added, skipped, mapping, created_at, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO cost_entry_imports (id, service_id, platform_id, file_name, sha256, rows, added, skipped, mapping, created_at, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       id,
-      serviceId,
+      ownerValues(o).service_id,
+      ownerValues(o).platform_id,
       x.fileName,
       s,
       p.rows.length,
@@ -370,19 +396,19 @@ export function importEntries(serviceId: string, body: unknown): CostPlanYear & 
       currentActor(),
     );
     for (const r of take) {
-      insertEntry(serviceId, r.values!, id);
+      insertEntry(o, r.values!, id);
       // a named contract that did not cover the service covers it now (audited on the supplier, once)
-      coverChosenContract(r.cover, null, serviceId, currentActor());
+      coverChosenContract(r.cover, null, o, currentActor());
     }
     // 100 import records per service: older ones keep their entries and lose "Remove import"
     const old = db()
-      .all<{ id: string }>('SELECT id FROM cost_entry_imports WHERE service_id = ? ORDER BY created_at DESC, id DESC', serviceId)
+      .all<{ id: string }>(`SELECT id FROM cost_entry_imports WHERE ${ownerCol(o)} = ? ORDER BY created_at DESC, id DESC`, o.id)
       .slice(COST_ENTRY_IMPORT_LIMITS.importsKept);
     for (const o of old) db().run('DELETE FROM cost_entry_imports WHERE id = ?', o.id);
     audit({
       action: 'cost.entries_imported',
-      entityType: 'service',
-      entityId: serviceId,
+      entityType: o.kind,
+      entityId: o.id,
       summary: `${take.length} cost entr${take.length === 1 ? 'y' : 'ies'} imported into "${info.name}" from ${x.fileName || 'a CSV file'} (${p.rows.length} row(s), ${p.rows.length - take.length} left out): ${[...sums.entries()].map(([c, v]) => moneyText(v, c)).join(', ')}`,
       details: {
         importId: id,
@@ -417,14 +443,15 @@ interface ImportRow {
 }
 
 /** GET /api/costs/plans/:serviceId/imports – the import records (newest first) and the last mapping. */
-export function listEntryImports(serviceId: string): CostEntryImports {
-  const info = requireScope('service', serviceId);
-  const rows = db().all<ImportRow>('SELECT * FROM cost_entry_imports WHERE service_id = ? ORDER BY created_at DESC, id DESC', serviceId);
+export function listEntryImports(owner: string | OwnerRef): CostEntryImports {
+  const o = asOwner(owner);
+  const info = requireScope(o.kind, o.id);
+  const rows = db().all<ImportRow>(`SELECT * FROM cost_entry_imports WHERE ${ownerCol(o)} = ? ORDER BY created_at DESC, id DESC`, o.id);
   const counts = new Map(
     db()
       .all<{ import_id: string; n: number }>(
-        'SELECT import_id, COUNT(*) AS n FROM cost_entries WHERE service_id = ? AND import_id IS NOT NULL GROUP BY import_id',
-        serviceId,
+        `SELECT import_id, COUNT(*) AS n FROM cost_entries WHERE ${ownerCol(o)} = ? AND import_id IS NOT NULL GROUP BY import_id`,
+        o.id,
       )
       .map((r) => [r.import_id, Number(r.n)]),
   );
@@ -442,25 +469,26 @@ export function listEntryImports(serviceId: string): CostEntryImports {
     removedBy: r.removed_by,
     entries: counts.get(r.id) ?? 0,
   }));
-  return { imports, lastMapping: imports[0]?.mapping ?? null, canEdit: info.canEditBudget };
+  return { imports, lastMapping: imports[0]?.mapping ?? null, canEdit: info.canEditPlan };
 }
 
 /** DELETE /api/costs/plans/:serviceId/imports/:importId – "Remove import": its entries that are still there, in one step. */
-export function removeEntryImport(serviceId: string, importId: string): CostEntryImports {
-  const info = requireEdit(serviceId);
-  const r = db().get<ImportRow>('SELECT * FROM cost_entry_imports WHERE id = ? AND service_id = ?', importId, serviceId);
+export function removeEntryImport(owner: string | OwnerRef, importId: string): CostEntryImports {
+  const o = asOwner(owner);
+  const info = requireEditOf(o);
+  const r = db().get<ImportRow>(`SELECT * FROM cost_entry_imports WHERE id = ? AND ${ownerCol(o)} = ?`, importId, o.id);
   if (!r) throw new HttpError(404, `Import ${importId} not found`, 'COST_ENTRY_IMPORT_NOT_FOUND', { id: importId });
   if (r.removed_at) throw new HttpError(409, 'This import was removed already', 'COST_ENTRY_IMPORT_REMOVED');
   db().tx(() => {
-    const removed = db().run('DELETE FROM cost_entries WHERE import_id = ? AND service_id = ?', importId, serviceId).changes;
+    const removed = db().run(`DELETE FROM cost_entries WHERE import_id = ? AND ${ownerCol(o)} = ?`, importId, o.id).changes;
     db().run('UPDATE cost_entry_imports SET removed_at = ?, removed_by = ? WHERE id = ?', nowIso(), currentActor(), importId);
     audit({
       action: 'cost.import_removed',
-      entityType: 'service',
-      entityId: serviceId,
+      entityType: o.kind,
+      entityId: o.id,
       summary: `Import of ${r.file_name || 'a CSV file'} removed from "${info.name}": ${removed} cost entr${removed === 1 ? 'y' : 'ies'} removed`,
       details: { importId, fileName: r.file_name, sha256: r.sha256, entriesRemoved: removed, added: Number(r.added) },
     });
   });
-  return listEntryImports(serviceId);
+  return listEntryImports(o);
 }

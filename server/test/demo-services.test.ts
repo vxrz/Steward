@@ -138,6 +138,20 @@ describe('demo services', () => {
     expect(plantPlan.renewals.map((r: { title: string }) => r.title)).toContain('Historian licences');
     // the add-on prepaid in the last fiscal year: a quiet row in this one
     expect(plantPlan.prepaid.map((p: { title: string }) => p.title)).toContain('Historian analytics add-on – Three years prepaid');
+    // volumes (ADR 0032): the data platform's prepaid capacity drawn down by its read costs, and a translation
+    // framework billed by use with a committed minimum
+    const all = await s.api('GET', '/costs/commitments');
+    type Row = {
+      title: string;
+      payer: { kind: string; name: string };
+      volume: { billing: string; committed: string; consumption: string; used: string | null } | null;
+    };
+    const cap = (all.rows as Row[]).find((r) => r.title === 'Prepaid capacity');
+    expect(cap).toMatchObject({ payer: { kind: 'platform', name: 'Snowflake (demo)' }, volume: { billing: 'prepaid', consumption: 'read' } });
+    expect(Number(cap!.volume!.used)).toBeGreaterThan(0);
+    const fw = (all.rows as Row[]).find((r) => r.title === 'Translation volume');
+    expect(fw).toMatchObject({ payer: { kind: 'service', name: 'Customer care (demo)' }, volume: { billing: 'byUse', committed: 'minimum' } });
+    expect(Number(fw!.volume!.used)).toBeGreaterThan(0);
 
     // the Home tiles have figures instead of "not set up yet"
     const home = await s.api('GET', '/dashboard');
