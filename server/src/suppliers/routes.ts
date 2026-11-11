@@ -7,6 +7,7 @@ import {
   supplierContactInput,
   supplierContractInput,
   supplierContractServiceInput,
+  supplierContractPlatformInput,
   supplierInput,
   supplierMergeInput,
   supplierOpenInput,
@@ -33,6 +34,9 @@ import { contractScopeNotice, dismissContractScopeNotice } from './contract-scop
  *   GET    /suppliers/:id/contracts/:contractId              the contract page (404 for who may not see it)
  *   PUT|DELETE /suppliers/:id/contracts/:contractId/services/:serviceId   add, purpose, confirm; leave or dismiss
  *   GET    /services/:id/contracts                            the contracts covering a service (its "Suppliers" section)
+ *   PUT|DELETE /suppliers/:id/contracts/:contractId/platforms/:platformId   add, purpose; take off (0.19.0, ADR 0032)
+ *   GET    /platforms/:id/contracts                           the contracts covering a platform (its cost plan, 0.19.0)
+ *   GET    /services/:id/contract-items                       its applications and systems a contract can name (0.19.0)
  *   GET    /suppliers/shared-suggestions, POST …/:key/keep-separate   "Same supplier in several teams" (administrators)
  *   POST   /suppliers/merge/preview | merge                    a merge of up to ten suppliers (widening: administrators)
  *   POST   /suppliers/:id/open/preview | open                  new owning teams with the protections (administrators)
@@ -174,6 +178,15 @@ export async function supplierRoutes(app: FastifyInstance): Promise<void> {
     s.removeContractService(params(req).id!, params(req).contractId!, params(req).serviceId!),
   );
   app.get('/services/:id/contracts', async (req) => s.serviceContracts(params(req).id!));
+  // platforms covered by a contract (0.19.0, ADR 0032): covering one lets its managers see a team-owned contract
+  app.put('/suppliers/:id/contracts/:contractId/platforms/:platformId', session, async (req) =>
+    s.setContractPlatform(params(req).id!, params(req).contractId!, params(req).platformId!, supplierContractPlatformInput.parse(req.body ?? {})),
+  );
+  app.delete('/suppliers/:id/contracts/:contractId/platforms/:platformId', session, async (req) =>
+    s.removeContractPlatform(params(req).id!, params(req).contractId!, params(req).platformId!),
+  );
+  app.get('/platforms/:id/contracts', async (req) => s.platformContracts(params(req).id!));
+  app.get('/services/:id/contract-items', async (req) => ({ items: s.serviceContractItems(params(req).id!) }));
 
   app.post('/suppliers/:id/certificates', session, async (req) => s.addCertificate(params(req).id!, supplierCertificateInput.parse(req.body)));
   app.put('/suppliers/:id/certificates/:certificateId', session, async (req) =>

@@ -46,6 +46,10 @@ Two presets of the kind `influxdb` (0.18.0) – _InfluxDB 1.x_ and _2.x_ – dif
 
 Credentials are kept in the vault like every other platform's and read with the platform's identity; requests go to the base URL only and through the outbound policy. The `Token` scheme is the platform client's own rule for this kind and version, as `PRIVATE-TOKEN` is for GitLab. The demo has _InfluxDB (demo)_, a 2.x mock; the mock also answers as 1.x below `/mock/influxdb1`.
 
+## Cost plan
+
+With the Costs module on, a platform has a tab **Cost plan** (0.19.0, [COSTS.md](COSTS.md#planning-per-platform), [ADR 0032](adr/0032-cost-attribution-platform-plans.md)): the platform team's own contracts – a data platform's capacity, a cloud spend commitment, a streaming subscription – planned per fiscal year and set against the platform's bill as Steward reads it, with entries, _Book_, the CSV import, the contracts covering the platform and what they owe, and prepaid capacity drawn down by the read costs. Who may manage the platform and the members of its owning teams change it; who may see the platform reads it. The platform's costs are not allocated to the services that use it.
+
 ## Supported authentication
 
 `none`, `basic`, `bearer`, `apiKey` (header or query), `oauth2_client_credentials` (e.g. Insights Hub service credentials), and `token_request`. `token_request` is a configurable login call whose response contains a token, e.g. the IEM `/portal/api/v1/login/direct` or the Insights Hub Technical Token Manager. Per platform you can also set a proxy, a custom CA, _accept self-signed certificates_ (common for on-prem IEM), a timeout and default headers.

@@ -62,22 +62,40 @@ import { confirmDanger, confirmDialog } from '../confirm';
 import { compact, niceTicks } from '../dashboard/format';
 import { costKeys, platformKeys } from '../../queryKeys';
 import { fmtDay, listFormat } from '../../format';
-import { fmtMonth, fmtMonthOnly, fmtMoney, SCOPE_PATH, tooManyDecimals } from './common';
+import { fmtMonth, fmtMonthOnly, fmtMoney, ownerKey, SCOPE_PATH, tooManyDecimals, type PlanOwner } from './common';
 import '../dashboard/viz.css';
 import { SupplierPicker, SupplierText, useSupplierChoice, useSupplierOptions } from '../suppliers/SupplierPicker';
 import { ScheduleBadge } from './ContractPayments';
 import { ChangesPanel, PrepaidRows, ProposalsPanel } from './ContractLines';
 import { ServiceContracts } from './Commitments';
+import { VolumesSection } from './Volumes';
 import { EntryImportDialog, EntryImports } from './EntryImport';
 
-/**
- * The cost plan of a service (0.16.0, ADR 0026, docs/COSTS.md#planning-per-service): per fiscal year the plan lines,
- * the cost entries and what was read from the cloud and platform costs; planned, to date, incurred, expected and the
- * difference per currency, a month chart with its table twin, the lines by category or by application and system,
- * renewals in the next 90 days and unplanned entries. Who may change the service changes the plan.
- */
+/** The API path of a cost plan (a service's or a platform's) – spelled out in this file so the route contract test follows it. */
+const planBase = (o: PlanOwner): string =>
+  o.kind === 'service' ? `/costs/plans/${encodeURIComponent(o.id)}` : `/costs/platform-plans/${encodeURIComponent(o.id)}`;
+
+/** The cost plan of a service (0.16.0, ADR 0026). */
 export function ServiceCostPlan({ serviceId }: { serviceId: string }) {
+  return <CostPlan owner={{ kind: 'service', id: serviceId }} />;
+}
+
+/** A platform's own cost plan (0.19.0, ADR 0032): the same view, set against the platform's whole bill. */
+export function PlatformCostPlan({ platformId }: { platformId: string }) {
+  return <CostPlan owner={{ kind: 'platform', id: platformId }} />;
+}
+
+/**
+ * The cost plan of a service or (0.19.0) a platform (docs/COSTS.md#planning-per-service): per fiscal year the plan
+ * lines, the cost entries and what was read from the cloud and platform costs; planned, to date, incurred, expected and
+ * the difference per currency, a month chart with its table twin, the lines by category or by application and system,
+ * renewals in the next 90 days, unplanned entries and the volumes it pays. Who may change the service (a platform: who
+ * manages it and its owning teams' members) changes the plan.
+ */
+function CostPlan({ owner }: { owner: PlanOwner }) {
   const { t } = useTranslation(['costs', 'common']);
+  const serviceId = ownerKey(owner);
+  const base = planBase(owner);
   const qc = useQueryClient();
   const [year, setYear] = useState<number | null>(null);
   const [group, setGroup] = useState<'category' | 'target'>('category');
@@ -87,7 +105,7 @@ export function ServiceCostPlan({ serviceId }: { serviceId: string }) {
   const [importing, setImporting] = useState(false);
   const q = useQuery({
     queryKey: costKeys.plan(serviceId, year),
-    queryFn: () => get<CostPlanYear>(`/costs/plans/${encodeURIComponent(serviceId)}${year ? `?fiscalYear=${year}` : ''}`),
+    queryFn: () => get<CostPlanYear>(`${base}${year ? `?fiscalYear=${year}` : ''}`),
   });
   const d = q.data;
   /** Shows the year an answer is about (a change answers with the year view of its year). */
@@ -111,7 +129,7 @@ export function ServiceCostPlan({ serviceId }: { serviceId: string }) {
     )
       return;
     try {
-      const y = await post<CostPlanYear>(`/costs/plans/${encodeURIComponent(serviceId)}/copy`, { fiscalYear: d.fiscalYear });
+      const y = await post<CostPlanYear>(`${base}/copy`, { fiscalYear: d.fiscalYear });
       show(y);
       const r = y.copyResult;
       notifyOk(
@@ -133,7 +151,7 @@ export function ServiceCostPlan({ serviceId }: { serviceId: string }) {
     const message = l.entries ? t('plan.line.removeWithEntries', { title: l.title, count: l.entries }) : t('plan.line.removeConfirm', { title: l.title });
     if (!(await confirmDanger({ action: 'remove', message }))) return;
     try {
-      show(await del<CostPlanYear>(`/costs/plans/${encodeURIComponent(serviceId)}/lines/${encodeURIComponent(l.id)}`));
+      show(await del<CostPlanYear>(`${base}/lines/${encodeURIComponent(l.id)}`));
       notifyOk(t('plan.line.removed'));
     } catch (e) {
       notifyError(e);
@@ -142,23 +160,23 @@ export function ServiceCostPlan({ serviceId }: { serviceId: string }) {
   const removeEntry = async (e: CostEntry) => {
     if (!(await confirmDanger({ action: 'remove', message: t('plan.entry.removeConfirm', { date: fmtDay(e.date) }) }))) return;
     try {
-      show(await del<CostPlanYear>(`/costs/plans/${encodeURIComponent(serviceId)}/entries/${encodeURIComponent(e.id)}`));
+      show(await del<CostPlanYear>(`${base}/entries/${encodeURIComponent(e.id)}`));
       notifyOk(t('plan.entry.removed'));
     } catch (err) {
       notifyError(err);
     }
   };
-  const exportUrl = (what: 'plan' | 'entries') => apiUrl(`/costs/plans/${encodeURIComponent(serviceId)}/export?fiscalYear=${d.fiscalYear}&what=${what}`);
+  const exportUrl = (what: 'plan' | 'entries') => apiUrl(`${base}/export?fiscalYear=${d.fiscalYear}&what=${what}`);
   const unplanned = d.entries.filter((e) => e.unplanned);
   return (
-    <Stack gap="lg" data-testid="service-cost-plan">
+    <Stack gap="lg" data-testid={owner.kind === 'service' ? 'service-cost-plan' : 'platform-cost-plan'}>
       <Group justify="space-between" align="flex-end" wrap="wrap" gap="sm">
         <div style={{ minWidth: 0 }}>
           <Title order={2} size="h4">
             {t('plan.title')}
           </Title>
           <Text size="xs" c="dimmed" maw={720}>
-            {t('plan.help')}
+            {owner.kind === 'service' ? t('plan.help') : t('platformPlan.help')}
           </Text>
         </div>
         <Select
@@ -210,7 +228,7 @@ export function ServiceCostPlan({ serviceId }: { serviceId: string }) {
             size="xs"
             variant="subtle"
             component={Link}
-            to={SCOPE_PATH('service', serviceId)}
+            to={SCOPE_PATH(owner.kind, owner.id)}
             leftSection={<IconCoin size={14} />}
             data-testid="plan-costs-read"
           >
@@ -245,6 +263,7 @@ export function ServiceCostPlan({ serviceId }: { serviceId: string }) {
       {d.canEdit && d.proposals > 0 && <ProposalsPanel d={d} onSaved={show} />}
       <ChangesPanel d={d} onSaved={show} />
       <PrepaidRows d={d} />
+      <VolumesSection d={d} />
       {!d.lines.length && !d.entries.length && !d.currencies.length ? (
         <EmptyState icon={IconReceipt} title={t('plan.empty.title', { label: d.label })} whoCanAct={t('plan.empty.who')}>
           {t('plan.empty.body')}
@@ -258,29 +277,31 @@ export function ServiceCostPlan({ serviceId }: { serviceId: string }) {
             <Title order={3} size="h5">
               {t('plan.lines.title')}
             </Title>
-            <SegmentedControl
-              size="xs"
-              aria-label={t('plan.groupBy')}
-              value={group}
-              onChange={(v) => setGroup(v as 'category' | 'target')}
-              data={[
-                { value: 'category', label: t('plan.groups.category') },
-                { value: 'target', label: t('plan.groups.target') },
-              ]}
-              data-testid="plan-group"
-            />
+            {d.owner.kind === 'service' && (
+              <SegmentedControl
+                size="xs"
+                aria-label={t('plan.groupBy')}
+                value={group}
+                onChange={(v) => setGroup(v as 'category' | 'target')}
+                data={[
+                  { value: 'category', label: t('plan.groups.category') },
+                  { value: 'target', label: t('plan.groups.target') },
+                ]}
+                data-testid="plan-group"
+              />
+            )}
           </Group>
           <LineGroups d={d} group={group} onEdit={(l) => setLineDialog(l)} onRemove={removeLine} onBook={(l) => setBookDialog(l)} />
         </Stack>
       )}
-      <ServiceContracts serviceId={d.serviceId} canEdit={d.canEdit} />
+      <ServiceContracts owner={owner} canEdit={d.canEdit} />
       {(d.lines.length > 0 || d.entries.length > 0) && (
         <EntriesSection d={d} onEdit={(e) => setEntryDialog(e)} onRemove={removeEntry} unplanned={unplanned.length} />
       )}
       {lineDialog && <LineDialog d={d} line={lineDialog === 'new' ? null : lineDialog} onClose={() => setLineDialog(null)} onSaved={show} />}
       {entryDialog && <EntryDialog d={d} entry={entryDialog === 'new' ? null : entryDialog} onClose={() => setEntryDialog(null)} onSaved={show} />}
       {bookDialog && <BookDialog d={d} line={bookDialog} onClose={() => setBookDialog(null)} onSaved={show} />}
-      <EntryImports serviceId={serviceId} onChanged={() => void qc.invalidateQueries({ queryKey: costKeys.planOf(serviceId) })} />
+      <EntryImports owner={owner} onChanged={() => void qc.invalidateQueries({ queryKey: costKeys.planOf(serviceId) })} />
       {importing && <EntryImportDialog d={d} onClose={() => setImporting(false)} onSaved={show} />}
     </Stack>
   );
@@ -346,14 +367,22 @@ function PlanCurrency({ c, d }: { c: CostPlanCurrency; d: CostPlanYear }) {
         <Stat label={t('plan.columns.difference')} value={<Difference v={c.difference} currency={c.currency} />} />
       </SimpleGrid>
       {table ? <PlanMonthsTable c={c} d={d} /> : <PlanChart c={c} d={d} />}
-      {(c.read || c.unplanned.count > 0) && (
+      {(c.read || c.unplanned.count > 0 || c.drawn) && (
         <Stack gap={4} mt="sm">
           {c.read && (
             <Text size="sm" data-testid="plan-read">
-              {t('plan.readLine', { soFar: fmtMoney(c.read.incurredToDate, c.currency), expected: fmtMoney(c.read.expected, c.currency) })}{' '}
-              <Anchor component={Link} to={SCOPE_PATH('service', d.serviceId)} size="sm" data-testid="plan-read-link">
+              {t(d.owner.kind === 'platform' ? 'platformPlan.readLine' : 'plan.readLine', {
+                soFar: fmtMoney(c.read.incurredToDate, c.currency),
+                expected: fmtMoney(c.read.expected, c.currency),
+              })}{' '}
+              <Anchor component={Link} to={SCOPE_PATH(d.owner.kind, d.owner.id)} size="sm" data-testid="plan-read-link">
                 {t('plan.costsRead')}
               </Anchor>
+            </Text>
+          )}
+          {c.drawn && (
+            <Text size="sm" data-testid="plan-drawn">
+              {t('volumes.drawnLine', { soFar: fmtMoney(c.drawn.toDate, c.currency) })}
             </Text>
           )}
           {c.unplanned.count > 0 && (
@@ -595,6 +624,11 @@ function ContractHints({ l }: { l: CostPlanLine }) {
   return (
     <>
       {l.schedule && <ScheduleBadge changed={l.schedule.changed} title={l.schedule.title} />}
+      {l.volume && (
+        <Badge size="xs" variant="light" color="grape" data-testid="plan-volume-badge">
+          {t(`volumes.billing.${l.volume.billing}`)}
+        </Badge>
+      )}
       {l.twoLines && (
         <Badge size="xs" variant="light" color="yellow" data-testid="plan-two-lines">
           {t('contractLines.twoLines')}
@@ -675,9 +709,18 @@ function LineGroups({
         </div>
       ),
     },
-    group === 'category'
-      ? { key: 'for', header: t('plan.columns.for'), cell: (l) => <TargetText target={l.target} /> }
-      : { key: 'category', header: t('plan.columns.category'), cell: (l) => t(`plan.categories.${l.category}`), sortValue: (l) => l.category },
+    ...(d.owner.kind === 'platform'
+      ? []
+      : [
+          group === 'category'
+            ? { key: 'for', header: t('plan.columns.for'), cell: (l: CostPlanLine) => <TargetText target={l.target} /> }
+            : {
+                key: 'category',
+                header: t('plan.columns.category'),
+                cell: (l: CostPlanLine) => t(`plan.categories.${l.category}`),
+                sortValue: (l: CostPlanLine) => l.category,
+              },
+        ]),
     { key: 'cadence', header: t('plan.columns.cadence'), cell: (l) => cadenceText(tt, l), nowrap: true },
     { key: 'planned', header: t('plan.columns.planned'), cell: (l) => money(l, l.planned), sortValue: (l) => Number(l.planned ?? ''), nowrap: true },
     { key: 'toDate', header: t('plan.columns.plannedToDate'), cell: (l) => money(l, l.plannedToDate), nowrap: true },
@@ -823,6 +866,13 @@ function EntriesSection({
   const { t } = useTranslation(['costs', 'common']);
   const [only, setOnly] = useState(false);
   const rows = only ? d.entries.filter((e) => e.unplanned) : d.entries;
+  // the part of an entry a prepaid volume covers (0.19.0): use of what was paid up front, not counted again
+  const drawn = (e: CostEntry) =>
+    e.drawn ? (
+      <Badge size="xs" variant="light" color="gray" data-testid="entry-drawn">
+        {t('volumes.entryDrawn', { amount: fmtMoney(e.drawn, e.currency) })}
+      </Badge>
+    ) : null;
   const lineCell = (e: CostEntry) =>
     e.unplanned ? (
       <Stack gap={2} align="flex-start">
@@ -834,11 +884,15 @@ function EntriesSection({
             {t('plan.entry.otherYear', { label: e.planLineYear.label, title: e.planLineTitle ?? '' })}
           </Text>
         )}
+        {drawn(e)}
       </Stack>
     ) : (
-      <Text span size="sm">
-        {e.planLineTitle}
-      </Text>
+      <Stack gap={2} align="flex-start">
+        <Text span size="sm">
+          {e.planLineTitle}
+        </Text>
+        {drawn(e)}
+      </Stack>
     );
   const columns: DataColumn<CostEntry>[] = [
     { key: 'date', header: t('plan.entry.date'), cell: (e) => fmtDay(e.date), sortValue: (e) => e.date, nowrap: true },
@@ -850,7 +904,7 @@ function EntriesSection({
       nowrap: true,
     },
     { key: 'line', header: t('plan.entry.line'), cell: lineCell, sortValue: (e) => e.planLineTitle ?? '' },
-    { key: 'for', header: t('plan.columns.for'), cell: (e) => <TargetText target={e.target} /> },
+    ...(d.owner.kind === 'service' ? [{ key: 'for', header: t('plan.columns.for'), cell: (e: CostEntry) => <TargetText target={e.target} /> }] : []),
     { key: 'supplier', header: t('plan.entry.supplier'), cell: (e) => <EntrySupplier e={e} /> },
     { key: 'reference', header: t('plan.entry.reference'), cell: (e) => e.reference || '–', sortValue: (e) => e.reference },
     { key: 'note', header: t('plan.entry.note'), cell: (e) => e.note || '–' },
@@ -1047,7 +1101,7 @@ function LineDialog({ d, line, onClose, onSaved }: { d: CostPlanYear; line: Cost
   const [unlink, setUnlink] = useState(false);
   const [note, setNote] = useState(line?.note ?? '');
   const [busy, setBusy] = useState(false);
-  const options = useTargetOptions(d, line?.target ?? null, category === 'cloud');
+  const options = useTargetOptions(d, line?.target ?? null, category === 'cloud' && d.owner.kind === 'service');
   const decimals = useDecimalsError();
   const check = useFieldErrors({
     title: !title.trim() && t('common:validation.required'),
@@ -1084,7 +1138,7 @@ function LineDialog({ d, line, onClose, onSaved }: { d: CostPlanYear; line: Cost
       ...(unlink ? { scheduleId: null } : {}),
     };
     try {
-      const base = `/costs/plans/${encodeURIComponent(d.serviceId)}/lines`;
+      const base = `${planBase(d.owner)}/lines`;
       onSaved(
         line ? await put<CostPlanYear>(`${base}/${encodeURIComponent(line.id)}`, body) : await post<CostPlanYear>(base, { ...body, fiscalYear: d.fiscalYear }),
       );
@@ -1119,19 +1173,21 @@ function LineDialog({ d, line, onClose, onSaved }: { d: CostPlanYear; line: Cost
               onChange={(v) => v && setCategory(v as CostPlanCategory)}
               data-testid="plan-line-category"
             />
-            <Select
-              label={t('plan.form.for')}
-              description={t('plan.form.forHint')}
-              data={options}
-              value={target}
-              onChange={(v) => setTarget(v ?? NONE)}
-              searchable
-              data-testid="plan-line-target"
-            />
+            {d.owner.kind === 'service' && (
+              <Select
+                label={t('plan.form.for')}
+                description={t('plan.form.forHint')}
+                data={options}
+                value={target}
+                onChange={(v) => setTarget(v ?? NONE)}
+                searchable
+                data-testid="plan-line-target"
+              />
+            )}
           </SimpleGrid>
           {category === 'cloud' && (
             <Text size="xs" c="dimmed">
-              {t('plan.form.cloudHint')}
+              {d.owner.kind === 'platform' ? t('platformPlan.cloudHint') : t('plan.form.cloudHint')}
             </Text>
           )}
           <SimpleGrid cols={{ base: 1, xs: 2 }}>
@@ -1378,7 +1434,7 @@ function EntryDialog({ d, entry, onClose, onSaved }: { d: CostPlanYear; entry: C
       note: note.trim(),
     };
     try {
-      const base = `/costs/plans/${encodeURIComponent(d.serviceId)}/entries`;
+      const base = `${planBase(d.owner)}/entries`;
       onSaved(entry ? await put<CostPlanYear>(`${base}/${encodeURIComponent(entry.id)}`, body) : await post<CostPlanYear>(base, body));
       notifyOk(t('plan.entry.saved'));
       onClose();
@@ -1441,7 +1497,16 @@ function EntryDialog({ d, entry, onClose, onSaved }: { d: CostPlanYear; entry: C
             searchable
             data-testid="plan-entry-line"
           />
-          <Select label={t('plan.form.for')} data={options} value={target} onChange={(v) => setTarget(v ?? NONE)} searchable data-testid="plan-entry-target" />
+          {d.owner.kind === 'service' && (
+            <Select
+              label={t('plan.form.for')}
+              data={options}
+              value={target}
+              onChange={(v) => setTarget(v ?? NONE)}
+              searchable
+              data-testid="plan-entry-target"
+            />
+          )}
           <SimpleGrid cols={{ base: 1, xs: 2 }}>
             <SupplierPicker
               value={shownSupplier}
@@ -1520,7 +1585,10 @@ function BookDialog({ d, line, onClose, onSaved }: { d: CostPlanYear; line: Cost
   const today = localToday();
   const dateFor = (mo: string) => line.paymentDates?.[d.months.indexOf(mo)] ?? (today.startsWith(mo) ? today : lastDayOf(mo));
   const [date, setDate] = useState(month ? dateFor(month) : today);
-  const [amount, setAmount] = useState(month ? (line.months[d.months.indexOf(month)] ?? '') : '');
+  // a volume billed by use (0.19.0): booked with the invoice's amount – the average use so far is offered as a start
+  const byUse = line.volume?.billing === 'byUse';
+  const planned = (mo: string) => (byUse ? (line.volume?.suggested ?? '') : (line.months[d.months.indexOf(mo)] ?? ''));
+  const [amount, setAmount] = useState(month ? planned(month) : '');
   const [reference, setReference] = useState('');
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
@@ -1537,7 +1605,7 @@ function BookDialog({ d, line, onClose, onSaved }: { d: CostPlanYear; line: Cost
     setMonth(mo);
     if (!mo) return;
     setDate(dateFor(mo));
-    setAmount(line.months[d.months.indexOf(mo)] ?? '');
+    setAmount(planned(mo));
   };
   const save = async () => {
     if (!check.validate() || !month) return;
@@ -1560,7 +1628,7 @@ function BookDialog({ d, line, onClose, onSaved }: { d: CostPlanYear; line: Cost
     setBusy(true);
     try {
       onSaved(
-        await post<CostPlanYear>(`/costs/plans/${encodeURIComponent(d.serviceId)}/lines/${encodeURIComponent(line.id)}/book`, {
+        await post<CostPlanYear>(`${planBase(d.owner)}/lines/${encodeURIComponent(line.id)}/book`, {
           month,
           date,
           amount: amountText(amount ?? ''),
@@ -1582,7 +1650,7 @@ function BookDialog({ d, line, onClose, onSaved }: { d: CostPlanYear; line: Cost
       <form onSubmit={submit(save)} noValidate>
         <Stack>
           <Text size="xs" c="dimmed">
-            {t('plan.book.help')}
+            {byUse ? t('volumes.bookHelp') : t('plan.book.help')}
           </Text>
           <SimpleGrid cols={{ base: 1, xs: 2 }}>
             <Select

@@ -337,6 +337,26 @@ const EXPECT: Record<string, Access> = {
   'PUT /api/costs/plans/:serviceId/entries/:entryId': DESIGN,
   'DELETE /api/costs/plans/:serviceId/entries/:entryId': DESIGN,
   'GET /api/costs/team-plans/:teamId': ADMIN_AUDITOR,
+  // a platform's own cost plan (0.19.0, ADR 0032): who may see the platform reads it; its managers and owning teams change it
+  'GET /api/costs/platform-plans/:platformId': RECON_READ,
+  'GET /api/costs/platform-plans/:platformId/export': RECON_READ,
+  'POST /api/costs/platform-plans/:platformId/lines': DESIGN,
+  'PUT /api/costs/platform-plans/:platformId/lines/:lineId': DESIGN,
+  'DELETE /api/costs/platform-plans/:platformId/lines/:lineId': DESIGN,
+  'POST /api/costs/platform-plans/:platformId/copy': DESIGN,
+  'POST /api/costs/platform-plans/:platformId/lines/:lineId/book': DESIGN,
+  'POST /api/costs/platform-plans/:platformId/entries': DESIGN,
+  'PUT /api/costs/platform-plans/:platformId/entries/:entryId': DESIGN,
+  'DELETE /api/costs/platform-plans/:platformId/entries/:entryId': DESIGN,
+  'GET /api/costs/platform-plans/:platformId/proposals': RECON_READ,
+  'POST /api/costs/platform-plans/:platformId/proposals': DESIGN,
+  'POST /api/costs/platform-plans/:platformId/contract-updates': DESIGN,
+  'POST /api/costs/platform-plans/:platformId/entries/import/preview': DESIGN,
+  'POST /api/costs/platform-plans/:platformId/entries/import': DESIGN,
+  'GET /api/costs/platform-plans/:platformId/imports': RECON_READ,
+  'DELETE /api/costs/platform-plans/:platformId/imports/:importId': DESIGN,
+  // an application's or system's "Costs and contracts" (0.19.0): who may see it
+  'GET /api/costs/attribution/:kind/:id': ALL,
   // data contracts (#221), here the demo's "Shop orders" (no owning team): everyone who works in Steward sees and checks
   // them, operators test them, designers create and change them
   'GET /api/data-contracts': ALL,
@@ -791,6 +811,11 @@ const EXPECT: Record<string, Access> = {
   'PUT /api/suppliers/:id/contracts/:contractId/services/:serviceId': DESIGN,
   'DELETE /api/suppliers/:id/contracts/:contractId/services/:serviceId': DESIGN,
   'GET /api/services/:id/contracts': ALL,
+  // 0.19.0 (ADR 0032): platforms covered by a contract, a platform's contracts, a service's applications and systems
+  'PUT /api/suppliers/:id/contracts/:contractId/platforms/:platformId': DESIGN,
+  'DELETE /api/suppliers/:id/contracts/:contractId/platforms/:platformId': DESIGN,
+  'GET /api/platforms/:id/contracts': RECON_READ,
+  'GET /api/services/:id/contract-items': ALL,
   'POST /api/suppliers/:id/certificates': DESIGN,
   'PUT /api/suppliers/:id/certificates/:certificateId': DESIGN,
   'DELETE /api/suppliers/:id/certificates/:certificateId': DESIGN,
@@ -950,6 +975,10 @@ const EXPECT: Record<string, Access> = {
   'GET /api/v1/services/:serviceId/documents': ALL,
   'GET /api/v1/applications': ALL,
   'GET /api/v1/applications/:applicationId': ALL,
+  // cost attribution and a platform's cost plan (0.19.0, ADR 0032)
+  'GET /api/v1/applications/:applicationId/cost-attribution': ALL,
+  'GET /api/v1/systems/:systemId/cost-attribution': ALL,
+  'GET /api/v1/platforms/:platformId/cost-plan': RECON_READ,
   'GET /api/v1/suppliers': ALL,
   'GET /api/v1/suppliers/:supplierId': ALL,
   'GET /api/v1/systems': ALL,
@@ -1372,6 +1401,8 @@ const SESSION_ONLY = [
   'DELETE /api/suppliers/:id/contracts/:contractId',
   'PUT /api/suppliers/:id/contracts/:contractId/services/:serviceId',
   'DELETE /api/suppliers/:id/contracts/:contractId/services/:serviceId',
+  'PUT /api/suppliers/:id/contracts/:contractId/platforms/:platformId',
+  'DELETE /api/suppliers/:id/contracts/:contractId/platforms/:platformId',
   'DELETE /api/suppliers/scope-notice',
   'POST /api/suppliers/shared-suggestions/:key/keep-separate',
   'POST /api/suppliers/merge/preview',
@@ -1390,6 +1421,12 @@ const SESSION_ONLY = [
   'POST /api/costs/plans/:serviceId/entries/import/preview',
   'POST /api/costs/plans/:serviceId/entries/import',
   'DELETE /api/costs/plans/:serviceId/imports/:importId',
+  'POST /api/costs/platform-plans/:platformId/lines/:lineId/book',
+  'POST /api/costs/platform-plans/:platformId/proposals',
+  'POST /api/costs/platform-plans/:platformId/contract-updates',
+  'POST /api/costs/platform-plans/:platformId/entries/import/preview',
+  'POST /api/costs/platform-plans/:platformId/entries/import',
+  'DELETE /api/costs/platform-plans/:platformId/imports/:importId',
   'PUT /api/settings/modules/:id',
   'GET /api/settings/plant/map',
   'PUT /api/settings/plant/map',
@@ -1956,6 +1993,7 @@ function fill(url: string): string {
       .replace(/\/api\/settings\/modules\/:id/, '/api/settings/modules/statusPages')
       .replace(/\/api\/owning-teams\/:kind\/:id/, `/api/owning-teams/process/${fx.process}`)
       .replace(/\/api\/duplicates\/:kind\/:id/, `/api/duplicates/process/${fx.process}`)
+      .replace(/\/api\/costs\/attribution\/:kind\/:id/, `/api/costs/attribution/application/${fx.application}`)
       // database schemas (#222): the demo database platform, the newest snapshot
       .replace(/\/api\/db-schemas\/:kind\/:id/, `/api/db-schemas/platform/${fx.dbPlatform}`)
       .replace(/\/schema\/snapshots\/:snapshotId/, '/schema/snapshots/latest')

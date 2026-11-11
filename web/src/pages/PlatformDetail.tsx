@@ -17,6 +17,7 @@ import {
   IconRobot,
   IconRocket,
   IconTicket,
+  IconReceipt,
   IconSettings,
   IconSparkles,
   IconTerminal2,
@@ -60,6 +61,8 @@ import { TicketsPanel } from '../components/tickets/TicketsPanel';
 import { MaintenancePanel } from '../components/catalogue/maintenance';
 import { DetailHeader } from '../components/page/DetailPage';
 import { CostsButton } from '../components/costs/CostsButton';
+import { PlatformCostPlan } from '../components/costs/ServicePlan';
+import { PlatformContracts } from '../components/costs/PlatformContracts';
 import { platformKeys } from '../queryKeys';
 import { GetStartedPanel, PlatformHealthPanel, TestHints } from '../components/platform/onboarding';
 import { moduleOn } from '../modules';
@@ -430,6 +433,11 @@ export function PlatformDetailPage() {
           <Tabs.Tab value="mcp" leftSection={<IconRobot size={16} />}>
             {t('detail.tabs.mcp')}
           </Tabs.Tab>
+          {moduleOn(caps, 'costs') && (
+            <Tabs.Tab value="costPlan" leftSection={<IconReceipt size={16} />} data-testid="platform-tab-cost-plan">
+              {t('detail.tabs.costPlan')}
+            </Tabs.Tab>
+          )}
           <Tabs.Tab value="tickets" leftSection={<IconTicket size={16} />}>
             {t('tickets:panel.title')}
           </Tabs.Tab>
@@ -524,6 +532,14 @@ export function PlatformDetailPage() {
         <Tabs.Panel value="mcp">
           <McpGatewayTab platform={p} readOnly={!canManage} />
         </Tabs.Panel>
+        {moduleOn(caps, 'costs') && (
+          <Tabs.Panel value="costPlan">
+            <Stack gap="lg">
+              <PlatformCostPlan platformId={p.id} />
+              <PlatformContracts platformId={p.id} />
+            </Stack>
+          </Tabs.Panel>
+        )}
         <Tabs.Panel value="tickets">
           <TicketsPanel kind="platform" id={p.id} label={p.name} />
         </Tabs.Panel>

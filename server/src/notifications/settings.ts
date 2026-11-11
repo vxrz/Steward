@@ -64,6 +64,8 @@ export function defaultRoutes(): Record<NotificationEvent, NotificationChannel[]
     'soa.approval_waiting',
     // opt-in (ADR 0030): only who turned it on gets it
     'cost.booking_due',
+    // contract volumes (ADR 0032): to the payer's owners, like the cost budget
+    'cost.volume',
   ];
   // emergency access: every channel that is set up, so nobody can use it unnoticed
   return Object.fromEntries(

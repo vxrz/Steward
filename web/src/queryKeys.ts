@@ -200,6 +200,8 @@ export const costKeys = {
   supplierCosts: (supplierId: string) => ['costs', 'supplier', supplierId] as const,
   /** CSV imports of a service's entries */
   entryImports: (serviceId: string) => ['costs', 'entry-imports', serviceId] as const,
+  /** An application's or system's "Costs and contracts" of a fiscal year (0.19.0, ADR 0032) */
+  attribution: (kind: string, id: string, year: number | null) => ['costs', 'attribution', kind, id, year ?? 'current'] as const,
 };
 
 /** Data contracts (#221): the list, one contract, its versions, comparisons and test runs. */

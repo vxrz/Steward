@@ -84,6 +84,7 @@ export * from './changedetection.js';
 export * from './costs.js';
 export * from './costPlans.js';
 export * from './costContracts.js';
+export * from './costVolumes.js';
 export * from './costEntryImport.js';
 export * from './datacontracts.js';
 export * from './libraries.js';

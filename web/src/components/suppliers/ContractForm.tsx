@@ -6,6 +6,7 @@ import {
   SUPPLIER_LIMITS,
   SUPPLIER_RENEWALS,
   hasTeamOwner,
+  type Platform,
   type ServiceSummary,
   type SupplierContract,
   type SupplierDetail,
@@ -14,6 +15,7 @@ import {
 } from '@sm/shared';
 import { ApiError, get, notifyError, post, put } from '../../api';
 import { useFieldErrors } from '../common';
+import { platformKeys } from '../../queryKeys';
 import { SubjectsInput } from '../SubjectsInput';
 import { confirmDialog } from '../confirm';
 
@@ -34,6 +36,7 @@ export function ContractModal({
   supplier,
   contract,
   serviceId,
+  platformId,
   onClose,
   onSaved,
 }: {
@@ -41,6 +44,8 @@ export function ContractModal({
   contract?: SupplierContract;
   /** A new contract from a service page: it covers this service */
   serviceId?: string;
+  /** A new contract from a platform's cost plan (0.19.0): it covers this platform */
+  platformId?: string;
   onClose: () => void;
   onSaved: (s: SupplierDetail) => void;
 }) {
@@ -67,6 +72,9 @@ export function ContractModal({
   const [dpaSince, setDpaSince] = useState(c?.dpaSince ?? '');
   const [dpaLink, setDpaLink] = useState(c?.dpaLink ?? '');
   const [services, setServices] = useState<string[]>(serviceId ? [serviceId] : []);
+  // the platforms a new contract covers (0.19.0, ADR 0032): a platform team's own contract
+  const [platforms, setPlatforms] = useState<string[]>(platformId ? [platformId] : []);
+  const plats = useQuery({ queryKey: platformKeys.all, queryFn: () => get<Platform[]>('/platforms'), enabled: !c });
   const svc = useQuery({ queryKey: ['services', false], queryFn: () => get<ServiceSummary[]>('/services'), enabled: !c });
   // a master: a contract of the supplier that is no order form itself (one level), not this one, and this one has no order forms
   const masters = supplier.contracts.filter((x) => !x.parentId && !x.parentHidden && x.id !== c?.id);
@@ -106,6 +114,7 @@ export function ContractModal({
     dpaSince: dpaStatus === 'inPlace' && dpaSince ? dpaSince : null,
     dpaLink: dpaStatus === 'inPlace' ? dpaLink.trim() : null,
     ...(!c && services.length ? { services: services.map((id) => ({ serviceId: id, purpose: '' })) } : {}),
+    ...(!c && platforms.length ? { platforms: platforms.map((id) => ({ platformId: id, purpose: '' })) } : {}),
     ...(confirmOpen ? { confirmOpen } : {}),
   });
   const save = async (confirmOpen?: boolean) => {
@@ -173,6 +182,18 @@ export function ContractModal({
               searchable
               maxValues={SUPPLIER_LIMITS.contractServices}
               data-testid="contract-services"
+            />
+          )}
+          {!c && (
+            <MultiSelect
+              label={t('contractForm.platforms')}
+              description={t('contractForm.platformsHint')}
+              data={(plats.data ?? []).map((p) => ({ value: p.id, label: p.name }))}
+              value={platforms}
+              onChange={setPlatforms}
+              searchable
+              maxValues={SUPPLIER_LIMITS.contractPlatforms}
+              data-testid="contract-platforms"
             />
           )}
           {canHaveMaster && (

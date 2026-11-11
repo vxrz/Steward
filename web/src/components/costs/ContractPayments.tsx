@@ -1,5 +1,21 @@
 import { useState } from 'react';
-import { ActionIcon, Badge, Button, Group, Modal, NumberInput, Paper, Select, SimpleGrid, Stack, Text, Textarea, TextInput, Tooltip } from '@mantine/core';
+import {
+  ActionIcon,
+  Badge,
+  Button,
+  Group,
+  Modal,
+  NumberInput,
+  Paper,
+  SegmentedControl,
+  Select,
+  SimpleGrid,
+  Stack,
+  Text,
+  Textarea,
+  TextInput,
+  Tooltip,
+} from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { IconCalendarDollar, IconPencil, IconPlus, IconTrash } from '@tabler/icons-react';
@@ -7,6 +23,8 @@ import {
   COST_PLAN_CATEGORIES,
   COST_SCHEDULE_BILLINGS,
   COST_SCHEDULE_LIMITS,
+  COST_VOLUME_BILLINGS,
+  COST_VOLUME_COMMITTED,
   ISO_4217_CODES,
   fromMicros,
   toMicros,
@@ -15,14 +33,19 @@ import {
   type CostSchedule,
   type CostScheduleBilling,
   type CostScheduleList,
+  type CostVolumeBilling,
+  type CostVolumeCommitted,
+  type CostVolumeConsumption,
+  type CostVolumePer,
+  type Platform,
   type ServiceSummary,
 } from '@sm/shared';
 import { del, get, notifyError, notifyOk, post, put } from '../../api';
 import { useFieldErrors } from '../common';
 import { confirmDanger } from '../confirm';
-import { costKeys } from '../../queryKeys';
+import { costKeys, platformKeys } from '../../queryKeys';
 import { fmtDay } from '../../format';
-import { fmtMoney, tooManyDecimals } from './common';
+import { fmtMoney, tooManyDecimals, type PlanOwner } from './common';
 import { useSupplierOptions } from '../suppliers/SupplierPicker';
 
 /**
@@ -42,7 +65,7 @@ export function ContractPayments({ contractId, contractTitle }: { contractId: st
   const list = q.data;
   if (!list) return null;
   const remove = async (x: CostSchedule) => {
-    if (!(await confirmDanger({ action: 'remove', message: t('schedules.removeConfirm', { title: x.title, service: x.serviceName }) }))) return;
+    if (!(await confirmDanger({ action: 'remove', message: t('schedules.removeConfirm', { title: x.title, service: x.payer.name }) }))) return;
     try {
       qc.setQueryData(costKeys.schedules('contract', contractId), await del<CostScheduleList>(`/costs/schedules/${encodeURIComponent(x.id)}`));
       void qc.invalidateQueries({ queryKey: costKeys.all });
@@ -72,7 +95,7 @@ export function ContractPayments({ contractId, contractTitle }: { contractId: st
           <Group key={x.id} justify="space-between" wrap="nowrap" gap="xs" data-testid="contract-schedule">
             <div style={{ minWidth: 0 }}>
               <Text size="sm">
-                {x.title} · {x.serviceName}
+                {x.title} · {x.payer.kind === 'platform' ? t('schedules.paidByPlatform', { name: x.payer.name }) : x.payer.name}
               </Text>
               <Text size="xs" c="dimmed">
                 {scheduleSummary(t as unknown as Tt, x)}
@@ -110,6 +133,20 @@ type Tt = (k: string, o?: Record<string, unknown>) => string;
 
 /** "1,000.00 EUR monthly from 1 Feb 2026 to 31 Jan 2029 · next 1 Dec 2026" */
 export function scheduleSummary(t: Tt, x: CostSchedule): string {
+  if (x.volume) {
+    const term =
+      x.effectiveStart || x.effectiveEnd
+        ? t('schedules.term', { from: x.effectiveStart ? fmtDay(x.effectiveStart) : '…', to: x.effectiveEnd ? fmtDay(x.effectiveEnd) : '…' })
+        : '';
+    return [
+      t(`volumes.summary.${x.volume.per}`, { amount: fmtMoney(x.amount, x.currency) }),
+      t(`volumes.billing.${x.volume.billing}`),
+      t(`volumes.committed.${x.volume.committed}`),
+      term,
+    ]
+      .filter(Boolean)
+      .join(' · ');
+  }
   const amount = x.billing === 'dates' ? t('schedules.datedCount', { count: x.payments.length }) : fmtMoney(x.amount, x.currency);
   const term =
     x.effectiveStart || x.effectiveEnd
@@ -128,28 +165,38 @@ const amountOk = (v: string) => /^\d{1,12}([.,]\d{1,6})?$/.test(v.trim());
 const amountText = (v: string) => v.trim().replace(',', '.');
 
 /**
- * Adds or changes a payment schedule. `contract` fixed (the supplier page) or chosen here (a service's cost plan:
- * supplier, then contract); `serviceId` fills in the paying service.
+ * Adds or changes a payment schedule. `contract` fixed (the supplier page) or chosen here (a cost plan: supplier, then
+ * contract); `payer` fills in who pays – a service, or (0.19.0) a platform. The billing "volume" (ADR 0032) asks how
+ * the volume is billed and committed and where its use comes from.
  */
 export function ScheduleDialog({
   contract,
-  serviceId,
+  payer,
   schedule,
   onClose,
   onSaved,
 }: {
   contract?: { id: string; title: string };
-  serviceId?: string;
+  payer?: PlanOwner;
   schedule: CostSchedule | null;
   onClose: () => void;
   onSaved: (l: CostScheduleList) => void;
 }) {
   const { t } = useTranslation(['costs', 'common', 'suppliers']);
   const services = useQuery({ queryKey: ['services', false], queryFn: () => get<ServiceSummary[]>('/services') });
+  const platforms = useQuery({ queryKey: platformKeys.all, queryFn: () => get<Platform[]>('/platforms') });
   const supplierOptions = useSupplierOptions();
   const [supplierId, setSupplierId] = useState<string | null>(null);
   const [contractId, setContractId] = useState<string | null>(contract?.id ?? schedule?.contractId ?? null);
-  const [service, setService] = useState<string | null>(schedule?.serviceId ?? serviceId ?? null);
+  const [payerKind, setPayerKind] = useState<'service' | 'platform'>(schedule?.payer.kind ?? payer?.kind ?? 'service');
+  const [service, setService] = useState<string | null>(schedule?.payer.id ?? payer?.id ?? null);
+  const [volPer, setVolPer] = useState<CostVolumePer>(schedule?.volume?.per ?? 'year');
+  const [volBilling, setVolBilling] = useState<CostVolumeBilling>(schedule?.volume?.billing ?? 'byUse');
+  const [volCommitted, setVolCommitted] = useState<CostVolumeCommitted>(schedule?.volume?.committed ?? 'full');
+  const [minKind, setMinKind] = useState<'amount' | 'pct'>(schedule?.volume?.minimumAmount ? 'amount' : 'pct');
+  const [minAmount, setMinAmount] = useState(schedule?.volume?.minimumAmount ?? '');
+  const [minPct, setMinPct] = useState<string | number>(schedule?.volume?.minimumPct ?? 50);
+  const [consumption, setConsumption] = useState<CostVolumeConsumption | null>(schedule?.volume?.consumption ?? null);
   const [title, setTitle] = useState(schedule?.title ?? '');
   const [category, setCategory] = useState<CostPlanCategory>(schedule?.category ?? 'support');
   const [amount, setAmount] = useState(schedule?.amount ?? '');
@@ -165,7 +212,9 @@ export function ScheduleDialog({
   );
   const [note, setNote] = useState(schedule?.note ?? '');
   const [busy, setBusy] = useState(false);
-  const periodic = billing === 'monthly' || billing === 'quarterly' || billing === 'yearly';
+  const periodic = billing === 'monthly' || billing === 'quarterly' || billing === 'yearly' || (billing === 'volume' && volPer === 'year');
+  const volume = billing === 'volume';
+  const minimum = volume && volBilling === 'byUse' && volCommitted === 'minimum';
   const code = currency.trim().toUpperCase();
   const decimals = (v: string) => {
     const x = tooManyDecimals(v, code);
@@ -178,6 +227,11 @@ export function ScheduleDialog({
     amount:
       billing !== 'dates' && ((!amount.trim() && t('common:validation.required')) || (!amountOk(amount) && t('common:validation.invalid')) || decimals(amount)),
     currency: !ISO_4217_CODES.has(code) && t('common:validation.currency'),
+    minimum:
+      minimum &&
+      (minKind === 'amount'
+        ? (!amountOk(minAmount) && t('common:validation.invalid')) || decimals(minAmount)
+        : !(Number(minPct) >= 1 && Number(minPct) <= 100) && t('common:validation.invalid')),
     payments:
       billing === 'dates' &&
       (payments.some((p) => !p.date || !amountOk(p.amount) || !!decimals(p.amount)) || !payments.length) &&
@@ -205,12 +259,26 @@ export function ScheduleDialog({
       yearAmounts: periodic ? years.slice(0, lastYear).map((v) => (v.trim() ? amountText(v) : null)) : [],
       payments: billing === 'dates' ? payments.map((p) => ({ date: p.date, amount: amountText(p.amount), coversUntil: p.coversUntil || null })) : [],
       note: note.trim(),
+      volume: volume
+        ? {
+            per: volPer,
+            billing: volBilling,
+            committed: volBilling === 'prepaid' ? 'full' : volCommitted,
+            minimumAmount: minimum && minKind === 'amount' ? amountText(minAmount) : null,
+            minimumPct: minimum && minKind === 'pct' ? Number(minPct) : null,
+            consumption: payerKind === 'platform' ? consumption : 'entries',
+          }
+        : null,
     };
     try {
       onSaved(
         schedule
           ? await put<CostScheduleList>(`/costs/schedules/${encodeURIComponent(schedule.id)}`, body)
-          : await post<CostScheduleList>('/costs/schedules', { ...body, contractId, serviceId: service }),
+          : await post<CostScheduleList>('/costs/schedules', {
+              ...body,
+              contractId,
+              ...(payerKind === 'service' ? { serviceId: service } : { platformId: service }),
+            }),
       );
       notifyOk(t('schedules.saved'));
       onClose();
@@ -267,17 +335,38 @@ export function ScheduleDialog({
               error={check.error('title')}
               data-testid="schedule-title"
             />
-            <Select
-              label={t('schedules.form.service')}
-              description={t('schedules.form.serviceHint')}
-              data={(services.data ?? []).filter((x) => !x.archived || x.id === service).map((x) => ({ value: x.id, label: x.name }))}
-              value={service}
-              onChange={setService}
-              disabled={!!schedule || !!serviceId}
-              searchable
-              error={check.error('service')}
-              data-testid="schedule-service"
-            />
+            <Stack gap={4}>
+              <SegmentedControl
+                size="xs"
+                aria-label={t('schedules.form.payer')}
+                value={payerKind}
+                onChange={(v) => {
+                  setPayerKind(v as 'service' | 'platform');
+                  setService(null);
+                }}
+                disabled={!!schedule || !!payer}
+                data={[
+                  { value: 'service', label: t('schedules.form.payerService') },
+                  { value: 'platform', label: t('schedules.form.payerPlatform') },
+                ]}
+                data-testid="schedule-payer-kind"
+              />
+              <Select
+                label={payerKind === 'service' ? t('schedules.form.service') : t('schedules.form.platform')}
+                description={payerKind === 'service' ? t('schedules.form.serviceHint') : t('schedules.form.platformHint')}
+                data={
+                  payerKind === 'service'
+                    ? (services.data ?? []).filter((x) => !x.archived || x.id === service).map((x) => ({ value: x.id, label: x.name }))
+                    : (platforms.data ?? []).map((x) => ({ value: x.id, label: x.name }))
+                }
+                value={service}
+                onChange={setService}
+                disabled={!!schedule || !!payer}
+                searchable
+                error={check.error('service')}
+                data-testid="schedule-service"
+              />
+            </Stack>
           </SimpleGrid>
           <SimpleGrid cols={{ base: 1, xs: 3 }}>
             <Select
@@ -290,8 +379,8 @@ export function ScheduleDialog({
             />
             {billing !== 'dates' && (
               <TextInput
-                label={t('schedules.form.amount')}
-                description={periodic ? t('schedules.form.amountHint') : undefined}
+                label={volume ? t('volumes.form.amount') : t('schedules.form.amount')}
+                description={volume ? t('volumes.form.amountHint') : periodic ? t('schedules.form.amountHint') : undefined}
                 inputMode="decimal"
                 required
                 value={amount}
@@ -310,8 +399,92 @@ export function ScheduleDialog({
               data-testid="schedule-currency"
             />
           </SimpleGrid>
+          {volume && (
+            <Paper withBorder p="sm" data-testid="schedule-volume">
+              <Stack gap="xs">
+                <Text size="xs" c="dimmed">
+                  {t('volumes.form.help')}
+                </Text>
+                <SimpleGrid cols={{ base: 1, xs: 2 }}>
+                  <Select
+                    label={t('volumes.form.per')}
+                    allowDeselect={false}
+                    data={(['year', 'term'] as const).map((v) => ({ value: v, label: t(`volumes.form.perOptions.${v}`) }))}
+                    value={volPer}
+                    onChange={(v) => v && setVolPer(v as CostVolumePer)}
+                    data-testid="schedule-volume-per"
+                  />
+                  <Select
+                    label={t('volumes.form.billing')}
+                    allowDeselect={false}
+                    data={COST_VOLUME_BILLINGS.map((v) => ({ value: v, label: t(`volumes.form.billingOptions.${v}`) }))}
+                    value={volBilling}
+                    onChange={(v) => v && setVolBilling(v as CostVolumeBilling)}
+                    data-testid="schedule-volume-billing"
+                  />
+                </SimpleGrid>
+                {volBilling === 'byUse' && (
+                  <Select
+                    label={t('volumes.form.committed')}
+                    allowDeselect={false}
+                    data={COST_VOLUME_COMMITTED.map((v) => ({ value: v, label: t(`volumes.form.committedOptions.${v}`) }))}
+                    value={volCommitted}
+                    onChange={(v) => v && setVolCommitted(v as CostVolumeCommitted)}
+                    data-testid="schedule-volume-committed"
+                  />
+                )}
+                {minimum && (
+                  <Group gap="xs" align="flex-end" wrap="wrap">
+                    <SegmentedControl
+                      size="xs"
+                      aria-label={t('volumes.form.minimumAs')}
+                      value={minKind}
+                      onChange={(v) => setMinKind(v as 'amount' | 'pct')}
+                      data={[
+                        { value: 'pct', label: t('volumes.form.minimumPct') },
+                        { value: 'amount', label: t('volumes.form.minimumAmount') },
+                      ]}
+                    />
+                    {minKind === 'pct' ? (
+                      <NumberInput
+                        label={t('volumes.form.minimumPct')}
+                        w={140}
+                        min={1}
+                        max={100}
+                        value={minPct}
+                        onChange={setMinPct}
+                        error={check.error('minimum')}
+                        data-testid="schedule-volume-pct"
+                      />
+                    ) : (
+                      <TextInput
+                        label={t('volumes.form.minimumAmount')}
+                        w={160}
+                        inputMode="decimal"
+                        value={minAmount}
+                        onChange={(e) => setMinAmount(e.currentTarget.value)}
+                        error={check.error('minimum')}
+                        data-testid="schedule-volume-minimum"
+                      />
+                    )}
+                  </Group>
+                )}
+                {payerKind === 'platform' && (
+                  <Select
+                    label={t('volumes.form.consumption')}
+                    description={t('volumes.form.consumptionHint')}
+                    allowDeselect={false}
+                    data={(['read', 'entries'] as const).map((v) => ({ value: v, label: t(`volumes.consumption.${v}`) }))}
+                    value={consumption ?? 'read'}
+                    onChange={(v) => v && setConsumption(v as CostVolumeConsumption)}
+                    data-testid="schedule-volume-consumption"
+                  />
+                )}
+              </Stack>
+            </Paper>
+          )}
           <SimpleGrid cols={{ base: 1, xs: 3 }}>
-            {billing !== 'dates' && (
+            {billing !== 'dates' && (volume ? volBilling === 'prepaid' : true) && (
               <TextInput
                 type="date"
                 label={t('schedules.form.firstPayment')}

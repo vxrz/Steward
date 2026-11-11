@@ -423,8 +423,9 @@ describe('the public API, MCP and the dataset', () => {
     expect(lic.services.map((x: any) => x.id)).toEqual([svcOps]);
     for (const c of body.contracts) {
       expect(c).not.toHaveProperty('hiddenServices');
+      expect(c).not.toHaveProperty('hiddenPlatforms');
       expect(c).not.toHaveProperty('canEdit');
-      for (const x of c.services) expect(Object.keys(x).sort()).toEqual(['id', 'name', 'purpose', 'status']);
+      for (const x of c.services) expect(Object.keys(x).sort()).toEqual(['id', 'items', 'name', 'purpose', 'status']);
     }
     const sc = await fetch(`${s.base}/api/v1/services/${svcOps}/contracts`, { headers: { authorization: `Bearer ${token}` } });
     expect(sc.status).toBe(200);

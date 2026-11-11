@@ -1345,7 +1345,16 @@
     "COST_ENTRY_IMPORT_COLUMN": "Die Datei hat keine Spalte „{{column}}“.",
     "COST_ENTRY_IMPORT_NOTHING": "Keine Zeile der Datei kann importiert werden ({{skipped}} ausgelassen).",
     "COST_ENTRY_IMPORT_NOT_FOUND": "Diesen Import gibt es nicht (mehr).",
-    "COST_ENTRY_IMPORT_REMOVED": "Dieser Import wurde bereits entfernt."
+    "COST_ENTRY_IMPORT_REMOVED": "Dieser Import wurde bereits entfernt.",
+    "COST_SCHEDULE_PLATFORM_NOT_COVERED": "Der Vertrag „{{contract}}“ deckt die Plattform „{{platform}}“ nicht ab. Wer den Vertrag ändern darf, fügt die Plattform mit dem Zahlungsplan hinzu.",
+    "COST_VOLUME_READ_PLATFORM": "Nur ein Volumen, das eine Plattform bezahlt, kann durch die gelesenen Kosten der Plattform aufgebraucht werden. Wählen Sie die Kostenbuchungen als seine Nutzung.",
+    "COST_VOLUME_ONE_PER_CURRENCY": "Der Vertrag hat bereits ein Volumen in {{currency}} („{{title}}“). Ein Vertrag hat ein Volumen je Währung.",
+    "COST_BOOK_READ": "Die Nutzung von „{{title}}“ wird von der Plattform gelesen – es gibt nichts zu buchen.",
+    "COST_BOOK_AMOUNT_REQUIRED": "„{{title}}“ wird nach Nutzung abgerechnet: Geben Sie den Betrag der Rechnung ein, um sie zu buchen.",
+    "SUPPLIER_CONTRACT_ITEM": "Keine Anwendung und kein System des Service, oder eines, das Sie nicht sehen dürfen.",
+    "SUPPLIER_CONTRACT_PLATFORM_LIMIT": "Ein Vertrag deckt höchstens {{max}} Plattformen ab.",
+    "SUPPLIER_CONTRACT_PLATFORM_NOT_FOUND": "Der Vertrag deckt diese Plattform nicht (mehr) ab.",
+    "SUPPLIER_CONTRACT_PLATFORM_HAS_SCHEDULES": "Die Plattform zahlt {{count}} Zahlungspläne dieses Vertrags ({{schedules}}). Verschieben oder entfernen Sie diese zuerst."
   },
   "boundary": {
     "title": "Auf dieser Seite ist ein Fehler aufgetreten",

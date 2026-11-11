@@ -104,7 +104,7 @@
     "service": "Wer den Service bearbeiten darf, darf den Befund ändern",
     "supplier": "Der Lieferant, um den es im Befund geht, zum Beispiel aus einer Lieferantenbewertung",
     "owner": "Wer den Befund verfolgt und erinnert wird",
-    "contract": "Optional: einer der Verträge des Lieferanten – seine Eigentümer lesen die Feststellung."
+    "contract": "Optional: einer der Verträge des Lieferanten – seine Eigentümer lesen den Befund."
   },
   "form": {
     "newTitle": "Befund erfassen",

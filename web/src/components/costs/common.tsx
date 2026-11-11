@@ -56,6 +56,19 @@ export const fmtMonthOnly = (month: string): string => dateTimeFormat({ month: '
 
 export const SCOPE_PATH = (scope: CostScope, id: string): string => `/costs/${scope}/${encodeURIComponent(id)}`;
 
+/** Whose cost plan: a service, or (0.19.0, ADR 0032) a platform's own. */
+export interface PlanOwner {
+  kind: 'service' | 'platform';
+  id: string;
+}
+
+/** The key of a plan in the query cache (a service's id, as before 0.19; a platform's with its kind). */
+export const ownerKey = (o: PlanOwner): string => (o.kind === 'service' ? o.id : `platform:${o.id}`);
+
+/** Where a plan lives in the app: the service's Cost plan tab, the platform's Cost plan tab. */
+export const planPath = (o: PlanOwner): string =>
+  o.kind === 'service' ? `/services/${encodeURIComponent(o.id)}/costs` : `/platforms/${encodeURIComponent(o.id)}?tab=costPlan`;
+
 /** A change in percent with its sign; a rise of more than 10 % in red (the sign says it as well). */
 export function ChangeText({ pct }: { pct: number | null }) {
   if (pct === null)

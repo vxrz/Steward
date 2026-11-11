@@ -35154,8 +35154,34 @@
         "title": "CostPlanYear",
         "type": "object",
         "properties": {
+          "owner": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "service",
+                  "platform"
+                ]
+              },
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "id",
+              "name"
+            ],
+            "additionalProperties": false,
+            "description": "Whose plan, or who pays: a service, or a platform (0.19.0, ADR 0032)"
+          },
           "serviceId": {
-            "type": "string"
+            "type": "string",
+            "description": "The service ('' for a platform's plan)"
           },
           "serviceName": {
             "type": "string"
@@ -35474,6 +35500,46 @@
                   ],
                   "description": "A schedule line: the payment date in each month of the year (null: no payment)"
                 },
+                "volume": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "billing": {
+                          "type": "string",
+                          "enum": [
+                            "prepaid",
+                            "byUse"
+                          ]
+                        },
+                        "consumption": {
+                          "type": "string",
+                          "enum": [
+                            "entries",
+                            "read"
+                          ]
+                        },
+                        "suggested": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "Book: the average use per month so far – a decimal in the currency; null when the token owner may not see amounts"
+                        }
+                      },
+                      "required": [
+                        "billing",
+                        "consumption",
+                        "suggested"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "A line of a volume schedule (0.19.0)"
+                },
                 "bookable": {
                   "type": "boolean",
                   "description": "Monthly, quarterly and one-off lines with a payment: a person can book them"
@@ -35593,6 +35659,7 @@
                 "contractEnds",
                 "twoLines",
                 "paymentDates",
+                "volume",
                 "bookable",
                 "notBooked",
                 "months",
@@ -35781,6 +35848,13 @@
                   "type": "boolean",
                   "description": "No plan line of this fiscal year"
                 },
+                "drawn": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "The part drawn from a prepaid volume of its contract (0.19.0): not counted as incurred again – a decimal in the currency; null when the token owner may not see amounts"
+                },
                 "planLineYear": {
                   "anyOf": [
                     {
@@ -35836,6 +35910,7 @@
                 "reference",
                 "note",
                 "unplanned",
+                "drawn",
                 "planLineYear",
                 "createdAt",
                 "createdBy",
@@ -35997,6 +36072,40 @@
                     "count"
                   ],
                   "additionalProperties": false
+                },
+                "drawn": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "toDate": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "Drawn so far – a decimal in the currency; null when the token owner may not see amounts"
+                        },
+                        "months": {
+                          "type": "array",
+                          "items": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "toDate",
+                        "months"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Use drawn from prepaid volumes (read costs, entries): shown, not counted as incurred (0.19.0)"
                 }
               },
               "required": [
@@ -36008,7 +36117,8 @@
                 "expected",
                 "difference",
                 "read",
-                "unplanned"
+                "unplanned",
+                "drawn"
               ],
               "additionalProperties": false
             }
@@ -36070,6 +36180,200 @@
               ],
               "additionalProperties": false
             }
+          },
+          "volumes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "scheduleId": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "contractId": {
+                  "type": "string"
+                },
+                "contractHidden": {
+                  "type": "boolean"
+                },
+                "per": {
+                  "type": "string",
+                  "enum": [
+                    "year",
+                    "term"
+                  ]
+                },
+                "billing": {
+                  "type": "string",
+                  "enum": [
+                    "prepaid",
+                    "byUse"
+                  ]
+                },
+                "committed": {
+                  "type": "string",
+                  "enum": [
+                    "full",
+                    "minimum",
+                    "none"
+                  ]
+                },
+                "consumption": {
+                  "type": "string",
+                  "enum": [
+                    "entries",
+                    "read"
+                  ],
+                  "description": "Where the use comes from: the entries booked to the contract, or the paying platform’s read costs"
+                },
+                "currency": {
+                  "type": "string"
+                },
+                "period": {
+                  "type": "object",
+                  "properties": {
+                    "index": {
+                      "type": "integer"
+                    },
+                    "from": {
+                      "type": "string"
+                    },
+                    "to": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "index",
+                    "from",
+                    "to"
+                  ],
+                  "additionalProperties": false,
+                  "description": "The current period: a contract year or the whole term"
+                },
+                "amount": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "The volume of the period – a decimal in the currency; null when the token owner may not see amounts"
+                },
+                "minimum": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "What is committed of it (full: the volume; none: 0) – a decimal in the currency; null when the token owner may not see amounts"
+                },
+                "used": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "Used from the period’s first day up to today – a decimal in the currency; null when the token owner may not see amounts"
+                },
+                "left": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "The volume minus what is used – a decimal in the currency; null when the token owner may not see amounts"
+                },
+                "sharePct": {
+                  "type": [
+                    "null",
+                    "number"
+                  ]
+                },
+                "expectedAtEnd": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "An estimate: the use at the period’s end at the rate of the recent months (null: too early) – a decimal in the currency; null when the token owner may not see amounts"
+                },
+                "runsOutOn": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "An estimate: the day the volume is used up at that rate, when inside the period"
+                },
+                "ratePerDay": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "Use per day of the estimate’s window – a decimal in the currency; null when the token owner may not see amounts"
+                },
+                "window": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "from": {
+                          "type": "string"
+                        },
+                        "to": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "from",
+                        "to"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "warnings": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "runsOut",
+                      "usedUp",
+                      "shortfall",
+                      "ceiling",
+                      "overCeiling"
+                    ]
+                  }
+                },
+                "stateOnly": {
+                  "type": "boolean",
+                  "description": "The use counts entries of services or platforms the token owner may not see: warnings only, no figures"
+                }
+              },
+              "required": [
+                "scheduleId",
+                "title",
+                "contractId",
+                "contractHidden",
+                "per",
+                "billing",
+                "committed",
+                "consumption",
+                "currency",
+                "period",
+                "amount",
+                "minimum",
+                "used",
+                "left",
+                "sharePct",
+                "expectedAtEnd",
+                "runsOutOn",
+                "ratePerDay",
+                "window",
+                "warnings",
+                "stateOnly"
+              ],
+              "additionalProperties": false
+            },
+            "description": "The volume schedules the plan’s owner pays, each with its current period (0.19.0)"
           },
           "years": {
             "type": "array",
@@ -36198,6 +36502,7 @@
           }
         },
         "required": [
+          "owner",
           "serviceId",
           "serviceName",
           "fiscalYear",
@@ -36215,6 +36520,7 @@
           "currencies",
           "renewals",
           "targets",
+          "volumes",
           "years",
           "limits",
           "prepaid",
@@ -36235,10 +36541,36 @@
             "description": "The payment schedule"
           },
           "serviceId": {
-            "type": "string"
+            "type": "string",
+            "description": "The paying service ('' when a platform pays)"
           },
           "serviceName": {
             "type": "string"
+          },
+          "payer": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "service",
+                  "platform"
+                ]
+              },
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "id",
+              "name"
+            ],
+            "additionalProperties": false,
+            "description": "Whose plan, or who pays: a service, or a platform (0.19.0, ADR 0032)"
           },
           "teams": {
             "type": "array",
@@ -36258,7 +36590,7 @@
               ],
               "additionalProperties": false
             },
-            "description": "The paying service's owning teams"
+            "description": "The payer's owning teams"
           },
           "supplier": {
             "anyOf": [
@@ -36330,7 +36662,8 @@
               "quarterly",
               "yearly",
               "once",
-              "dates"
+              "dates",
+              "volume"
             ]
           },
           "currency": {
@@ -36478,6 +36811,195 @@
               "type": "string"
             },
             "description": "Months of the current fiscal year with a payment of its lines and no entry"
+          },
+          "upTo": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "A volume that is not fully committed: what it may still bill at most beyond what is owed – never part of what is owed (0.19.0) – a decimal in the schedule's currency; null when the token owner may not see the paying service's amounts"
+          },
+          "volume": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "per": {
+                    "type": "string",
+                    "enum": [
+                      "year",
+                      "term"
+                    ]
+                  },
+                  "billing": {
+                    "type": "string",
+                    "enum": [
+                      "prepaid",
+                      "byUse"
+                    ]
+                  },
+                  "committed": {
+                    "type": "string",
+                    "enum": [
+                      "full",
+                      "minimum",
+                      "none"
+                    ]
+                  },
+                  "consumption": {
+                    "type": "string",
+                    "enum": [
+                      "entries",
+                      "read"
+                    ],
+                    "description": "Where the use comes from: the entries booked to the contract, or the paying platform’s read costs"
+                  },
+                  "currency": {
+                    "type": "string"
+                  },
+                  "period": {
+                    "type": "object",
+                    "properties": {
+                      "index": {
+                        "type": "integer"
+                      },
+                      "from": {
+                        "type": "string"
+                      },
+                      "to": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "index",
+                      "from",
+                      "to"
+                    ],
+                    "additionalProperties": false,
+                    "description": "The current period: a contract year or the whole term"
+                  },
+                  "amount": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "The volume of the period – a decimal in the currency; null when the token owner may not see amounts"
+                  },
+                  "minimum": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "What is committed of it (full: the volume; none: 0) – a decimal in the currency; null when the token owner may not see amounts"
+                  },
+                  "used": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Used from the period’s first day up to today – a decimal in the currency; null when the token owner may not see amounts"
+                  },
+                  "left": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "The volume minus what is used – a decimal in the currency; null when the token owner may not see amounts"
+                  },
+                  "sharePct": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "expectedAtEnd": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "An estimate: the use at the period’s end at the rate of the recent months (null: too early) – a decimal in the currency; null when the token owner may not see amounts"
+                  },
+                  "runsOutOn": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "An estimate: the day the volume is used up at that rate, when inside the period"
+                  },
+                  "ratePerDay": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Use per day of the estimate’s window – a decimal in the currency; null when the token owner may not see amounts"
+                  },
+                  "window": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "from": {
+                            "type": "string"
+                          },
+                          "to": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "from",
+                          "to"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "warnings": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "runsOut",
+                        "usedUp",
+                        "shortfall",
+                        "ceiling",
+                        "overCeiling"
+                      ]
+                    }
+                  },
+                  "stateOnly": {
+                    "type": "boolean",
+                    "description": "The use counts entries of services or platforms the token owner may not see: warnings only, no figures"
+                  }
+                },
+                "required": [
+                  "per",
+                  "billing",
+                  "committed",
+                  "consumption",
+                  "currency",
+                  "period",
+                  "amount",
+                  "minimum",
+                  "used",
+                  "left",
+                  "sharePct",
+                  "expectedAtEnd",
+                  "runsOutOn",
+                  "ratePerDay",
+                  "window",
+                  "warnings",
+                  "stateOnly"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A volume's current period (0.19.0)"
           }
         },
         "required": [
@@ -36485,6 +37007,7 @@
           "title",
           "serviceId",
           "serviceName",
+          "payer",
           "teams",
           "supplier",
           "contract",
@@ -36504,7 +37027,411 @@
           "noticeBy",
           "warning",
           "changed",
-          "notBooked"
+          "notBooked",
+          "upTo",
+          "volume"
+        ],
+        "additionalProperties": false
+      },
+      "CostAttribution": {
+        "title": "CostAttribution",
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "application",
+              "system"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "fiscalYear": {
+            "type": "integer"
+          },
+          "label": {
+            "type": "string"
+          },
+          "years": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "fiscalYear": {
+                  "type": "integer"
+                },
+                "label": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "fiscalYear",
+                "label"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "contracts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "reference": {
+                  "type": "string"
+                },
+                "supplier": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "unconfirmed",
+                            "active",
+                            "archived"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "status"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "endsOn": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "services": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "purpose": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name",
+                      "purpose"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "named": {
+                  "type": "boolean",
+                  "description": "Named on the contract for a covered service; else only through a line, entry or schedule"
+                }
+              },
+              "required": [
+                "id",
+                "title",
+                "reference",
+                "supplier",
+                "endsOn",
+                "services",
+                "named"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "serviceId": {
+                  "type": "string"
+                },
+                "serviceName": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "category": {
+                  "type": "string",
+                  "enum": [
+                    "licence",
+                    "cloud",
+                    "support",
+                    "hardware",
+                    "other"
+                  ]
+                },
+                "cadence": {
+                  "type": "string",
+                  "enum": [
+                    "yearly",
+                    "monthly",
+                    "quarterly",
+                    "once"
+                  ]
+                },
+                "currency": {
+                  "type": "string"
+                },
+                "amount": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "As entered – null when the token owner may not see the service's amounts"
+                },
+                "planned": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "Planned for the fiscal year – null when the token owner may not see the service's amounts"
+                },
+                "contract": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "title"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "contractHidden": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "id",
+                "serviceId",
+                "serviceName",
+                "title",
+                "category",
+                "cadence",
+                "currency",
+                "amount",
+                "planned",
+                "contract",
+                "contractHidden"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "serviceId": {
+                  "type": "string"
+                },
+                "serviceName": {
+                  "type": "string"
+                },
+                "date": {
+                  "type": "string"
+                },
+                "currency": {
+                  "type": "string"
+                },
+                "amount": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "The amount – null when the token owner may not see the service's amounts"
+                },
+                "reference": {
+                  "type": "string"
+                },
+                "planLineTitle": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "serviceId",
+                "serviceName",
+                "date",
+                "currency",
+                "amount",
+                "reference",
+                "planLineTitle"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "schedules": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "serviceId": {
+                  "type": "string"
+                },
+                "serviceName": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "billing": {
+                  "type": "string"
+                },
+                "currency": {
+                  "type": "string"
+                },
+                "amount": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "Per payment in contract year 1, or the volume – null when the token owner may not see the service's amounts"
+                },
+                "contract": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "title"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "contractHidden": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "id",
+                "serviceId",
+                "serviceName",
+                "title",
+                "billing",
+                "currency",
+                "amount",
+                "contract",
+                "contractHidden"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "totals": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "fiscalYear": {
+                  "type": "integer"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "currency": {
+                  "type": "string"
+                },
+                "planned": {
+                  "type": "string"
+                },
+                "incurred": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "fiscalYear",
+                "label",
+                "currency",
+                "planned",
+                "incurred"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "amountsHidden": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "name",
+          "fiscalYear",
+          "label",
+          "years",
+          "contracts",
+          "lines",
+          "entries",
+          "schedules",
+          "totals",
+          "amountsHidden"
         ],
         "additionalProperties": false
       },
@@ -37344,17 +38271,70 @@
                           "proposed"
                         ],
                         "description": "proposed: by the 0.18 upgrade, waiting for a person"
+                      },
+                      "items": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "application",
+                                "system"
+                              ]
+                            },
+                            "id": {
+                              "type": "string"
+                            },
+                            "name": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "id",
+                            "name"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "description": "The applications and systems of the service the contract is for (0.19.0; those the token owner may see; empty: the service as a whole)"
                       }
                     },
                     "required": [
                       "id",
                       "name",
                       "purpose",
-                      "status"
+                      "status",
+                      "items"
                     ],
                     "additionalProperties": false
                   },
                   "description": "The services it covers that the token owner may see (no count of others)"
+                },
+                "platforms": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "purpose": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name",
+                      "purpose"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "description": "The platforms it covers that the token owner may see (0.19.0, ADR 0032; no count of others)"
                 },
                 "parentId": {
                   "type": [
@@ -37495,6 +38475,7 @@
                 "owners",
                 "teamOwned",
                 "services",
+                "platforms",
                 "parentId",
                 "parentHidden",
                 "endsAfterMaster",
@@ -38001,17 +38982,70 @@
                               "proposed"
                             ],
                             "description": "proposed: by the 0.18 upgrade, waiting for a person"
+                          },
+                          "items": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "kind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "application",
+                                    "system"
+                                  ]
+                                },
+                                "id": {
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "kind",
+                                "id",
+                                "name"
+                              ],
+                              "additionalProperties": false
+                            },
+                            "description": "The applications and systems of the service the contract is for (0.19.0; those the token owner may see; empty: the service as a whole)"
                           }
                         },
                         "required": [
                           "id",
                           "name",
                           "purpose",
-                          "status"
+                          "status",
+                          "items"
                         ],
                         "additionalProperties": false
                       },
                       "description": "The services it covers that the token owner may see (no count of others)"
+                    },
+                    "platforms": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "purpose": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "purpose"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "description": "The platforms it covers that the token owner may see (0.19.0, ADR 0032; no count of others)"
                     },
                     "parentId": {
                       "type": [
@@ -38142,6 +39176,7 @@
                     "owners",
                     "teamOwned",
                     "services",
+                    "platforms",
                     "parentId",
                     "parentHidden",
                     "endsAfterMaster",
@@ -49858,6 +50893,240 @@
         }
       }
     },
+    "/platforms/{platformId}/cost-plan": {
+      "get": {
+        "operationId": "getPlatformCostPlan",
+        "summary": "Get the cost plan of a platform for a fiscal year",
+        "tags": [
+          "Costs"
+        ],
+        "description": "A platform's own cost plan (0.19.0, docs/COSTS.md#planning-per-platform): its plan lines and cost entries of a fiscal year, set against the platform's whole bill as Steward reads it, per line and currency planned, to date, incurred, expected and the difference; use drawn from prepaid volumes (shown, not counted again); its volumes with use, what is left and a linear estimate; and the schedules it pays (commitments). The shape of the service cost plan, with `owner.kind` platform and `serviceId` empty. Not paged: at most 200 plan lines and 2,000 entries per fiscal year.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 2000,
+              "maximum": 2100
+            },
+            "in": "query",
+            "name": "fiscalYear",
+            "required": false,
+            "description": "The fiscal year (the calendar year it starts in); default: the current one"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "platformId",
+            "required": true,
+            "description": "The id of the platform"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CostPlanYear"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/applications/{applicationId}/cost-attribution": {
+      "get": {
+        "operationId": "getApplicationCostAttribution",
+        "summary": "Get the costs and contracts of an application",
+        "tags": [
+          "Costs"
+        ],
+        "description": "Attribution, not a plan (0.19.0, docs/COSTS.md#costs-and-contracts-of-an-application-or-system): the contracts that name the application for a covered service or that its lines, entries and payment schedules pay for, and those lines, entries and schedules in the services that use it – each counted once – with totals per fiscal year and currency. Only what the token owner may see; amounts null where they may not see a service's amounts.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 2000,
+              "maximum": 2100
+            },
+            "in": "query",
+            "name": "fiscalYear",
+            "required": false,
+            "description": "The fiscal year (the calendar year it starts in); default: the current one"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "applicationId",
+            "required": true,
+            "description": "The id of the application"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CostAttribution"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/systems/{systemId}/cost-attribution": {
+      "get": {
+        "operationId": "getSystemCostAttribution",
+        "summary": "Get the costs and contracts of a system",
+        "tags": [
+          "Costs"
+        ],
+        "description": "Attribution, not a plan (0.19.0, docs/COSTS.md#costs-and-contracts-of-an-application-or-system): the contracts that name the system for a covered service or that its lines, entries and payment schedules pay for, and those lines, entries and schedules in the services that use it – each counted once – with totals per fiscal year and currency. Only what the token owner may see; amounts null where they may not see a service's amounts.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 2000,
+              "maximum": 2100
+            },
+            "in": "query",
+            "name": "fiscalYear",
+            "required": false,
+            "description": "The fiscal year (the calendar year it starts in); default: the current one"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "systemId",
+            "required": true,
+            "description": "The id of the system"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CostAttribution"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
     "/cost-commitments": {
       "get": {
         "operationId": "listCostCommitments",
@@ -49865,7 +51134,7 @@
         "tags": [
           "Costs"
         ],
-        "description": "What the payment schedules of supplier contracts still owe (docs/COSTS.md#commitments): per schedule of a service the token owner may see, the scheduled payments dated today or later – to contract end and to the earliest exit, per fiscal year (the current one and the next four) and later – the next payment, the notice-by date and the notice warning. Scheduled payments, not liabilities: entries are not subtracted; amounts per currency, never converted, null where the token owner may not see the paying service's amounts. Notice warnings first.",
+        "description": "What supplier contracts still owe under their payment schedules (docs/COSTS.md#commitments): per schedule of a service or platform the token owner may see, the scheduled payments dated today or later – to contract end and to the earliest exit, per fiscal year (the current one and the next four) and later – the next payment, the notice-by date and the notice warning. Scheduled payments, not liabilities: entries are not subtracted; amounts per currency, never converted, null where the token owner may not see the paying service's amounts. Notice warnings first.",
         "parameters": [
           {
             "schema": {
@@ -49883,9 +51152,19 @@
               "maxLength": 100
             },
             "in": "query",
+            "name": "platformId",
+            "required": false,
+            "description": "Only the schedules this platform pays (0.19.0)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "in": "query",
             "name": "teamId",
             "required": false,
-            "description": "Only this team's services"
+            "description": "Only this team's services and platforms"
           },
           {
             "schema": {

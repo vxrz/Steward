@@ -88,6 +88,7 @@ export const NOT_MOVED: Record<string, string> = {
   cost_budget_notices: 'send bookkeeping of the source (a cost budget notice of the current month may be sent again on the target)',
   supplier_reminders: 'send bookkeeping of the source (a supplier reminder of a date ahead may be sent again on the target)',
   cost_booking_reminders: 'send bookkeeping of the source (a reminder of contract payments not booked may be sent again on the target)',
+  cost_volume_notices: 'send bookkeeping of the source (a warning of a contract volume may be sent again on the target)',
 };
 
 /** Rows keyed by user id: moved for mapped users only, with the target user's id. */
@@ -202,6 +203,9 @@ export const HISTORY_COLUMNS: string[] = [
   'supplier_contracts.updated_by',
   'supplier_contract_services.added_by',
   'supplier_contract_services.confirmed_by',
+  // platforms covered by a contract and the applications and systems it is for (0.19.0, ADR 0032): who added them
+  'supplier_contract_platforms.added_by',
+  'supplier_contract_items.added_by',
   // who kept a group of "Same supplier in several teams" separate (ADR 0031)
   'supplier_merge_dismissals.dismissed_by',
   // the plant registry (#218)

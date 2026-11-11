@@ -10,7 +10,7 @@ import { EmptyState, QueryState } from '../components/common';
 import { confirmDialog } from '../components/confirm';
 import { ListPage } from '../components/page/ListPage';
 import { DataTable, type DataColumn } from '../components/DataTable';
-import { BudgetBar, ChangeText, fmtMoney, SCOPE_PATH } from '../components/costs/common';
+import { BudgetBar, ChangeText, fmtMoney, planPath, SCOPE_PATH } from '../components/costs/common';
 import { costKeys } from '../queryKeys';
 import { dateTimeFormat } from '../format';
 import '../components/dashboard/viz.css';
@@ -87,6 +87,16 @@ export function CostsPage() {
             sortValue: (r: CostOverviewRow) => r.budgetPct,
           },
         ]),
+    // planned against actual (0.19 review L17): the cost plan of a service or platform, a team's plans
+    ...(scope === 'application'
+      ? []
+      : [
+          {
+            key: 'plan',
+            header: t('columns.plan'),
+            cell: (r: CostOverviewRow) => <PlanLink r={r} />,
+          },
+        ]),
   ];
   const card = (r: CostOverviewRow) => (
     <Stack gap={4}>
@@ -117,6 +127,7 @@ export function CostsPage() {
         </Text>
       </SimpleGrid>
       {scope !== 'platform' && r.budgetState !== null && <BudgetBar pct={r.budgetPct} state={r.budgetState} />}
+      {scope !== 'application' && <PlanLink r={r} />}
     </Stack>
   );
   return (
@@ -298,5 +309,16 @@ function SettingsDialog({ onClose }: { onClose: () => void }) {
         </Stack>
       )}
     </Modal>
+  );
+}
+
+/** The way from what was read to what was planned (0.19 review L17): a service's or platform's cost plan, a team's plans. */
+function PlanLink({ r }: { r: CostOverviewRow }) {
+  const { t } = useTranslation('costs');
+  const to = r.scope === 'service' || r.scope === 'platform' ? planPath({ kind: r.scope, id: r.id }) : SCOPE_PATH(r.scope, r.id);
+  return (
+    <Anchor component={Link} to={to} size="xs" data-testid="costs-plan-link">
+      {r.scope === 'team' ? t('plan.team.title') : t('plan.title')}
+    </Anchor>
   );
 }

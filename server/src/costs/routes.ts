@@ -14,17 +14,29 @@ import { importEntries, listEntryImports, previewEntryImport, removeEntryImport 
 import { addSchedule, applyContractUpdates, confirmProposals, listSchedules, proposals, removeSchedule, updateSchedule } from './schedules.js';
 import {
   addEntry,
+  addEntryOf,
   addPlanLine,
+  addPlanLineOf,
   bookLine,
+  bookLineOf,
   copyPlanYear,
+  copyPlanYearOf,
   planCsv,
   planYear,
+  platformPlanCsv,
+  platformPlanYear,
   removeEntry,
+  removeEntryOf,
   removePlanLine,
+  removePlanLineOf,
   teamPlanYear,
   updateEntry,
+  updateEntryOf,
   updatePlanLine,
+  updatePlanLineOf,
+  type OwnerRef,
 } from './plans.js';
+import { costAttribution } from './attribution.js';
 import {
   authorizePush,
   createPushToken,
@@ -73,6 +85,14 @@ import {
  *   POST /api/costs/plans/:serviceId/entries/import/preview            a CSV file of entries: every row with what it becomes (nothing stored)
  *   POST /api/costs/plans/:serviceId/entries/import                    import the rows without problems, all or nothing
  *   GET  /api/costs/plans/:serviceId/imports, DELETE …/imports/:importId   the import records; "Remove import"
+ *
+ * Cost attribution and platform cost plans (0.19.0, ADR 0032):
+ *   GET  /api/costs/platform-plans/:platformId[/…]                     a platform's own cost plan – the same routes as a
+ *                                                                     service's (lines, entries, copy, export, Book,
+ *                                                                     proposals, contract updates, the CSV import);
+ *                                                                     who manages the platform and its owning teams' members
+ *   GET  /api/costs/schedules?platformId=, /api/costs/commitments?platformId=   what a platform pays
+ *   GET  /api/costs/attribution/:kind/:id?fiscalYear=                 an application's or system's "Costs and contracts"
  */
 
 const scopeParams = (req: FastifyRequest) => z.object({ scope: z.enum(COST_SCOPES), id: z.string().min(1).max(100) }).parse(req.params);
@@ -84,6 +104,11 @@ const budgetBody = (req: FastifyRequest) => {
   return b.success ? b.data : null;
 };
 const serviceParam = (req: FastifyRequest) => z.object({ serviceId: z.string().min(1).max(100) }).parse(req.params).serviceId;
+/** A platform's own cost plan (0.19.0) */
+const platformPlan = (req: FastifyRequest): OwnerRef => ({
+  kind: 'platform',
+  id: z.object({ platformId: z.string().min(1).max(100) }).parse(req.params).platformId,
+});
 const scheduleParam = (req: FastifyRequest) => z.object({ costScheduleId: z.string().min(1).max(100) }).parse(req.params).costScheduleId;
 const itemParam = (req: FastifyRequest, key: 'lineId' | 'entryId') => z.object({ [key]: z.string().min(1).max(100) }).parse(req.params)[key]!;
 /** One name for the fiscal year everywhere (query, bodies, responses, /api/v1, MCP): the calendar year it starts in. */
@@ -145,7 +170,15 @@ export async function costRoutes(app: FastifyInstance): Promise<void> {
   app.delete('/costs/plans/:serviceId/entries/:entryId', async (req) => removeEntry(serviceParam(req), itemParam(req, 'entryId')));
   // contract payments (ADR 0030)
   app.get('/costs/schedules', async (req) =>
-    listSchedules(z.object({ contractId: z.string().min(1).max(100).optional(), serviceId: z.string().min(1).max(100).optional() }).parse(req.query ?? {})),
+    listSchedules(
+      z
+        .object({
+          contractId: z.string().min(1).max(100).optional(),
+          serviceId: z.string().min(1).max(100).optional(),
+          platformId: z.string().min(1).max(100).optional(),
+        })
+        .parse(req.query ?? {}),
+    ),
   );
   app.post('/costs/schedules', session, async (req) => addSchedule(req.body));
   app.put('/costs/schedules/:costScheduleId', session, async (req) => updateSchedule(scheduleParam(req), req.body));
@@ -166,6 +199,37 @@ export async function costRoutes(app: FastifyInstance): Promise<void> {
     reply.header('content-disposition', `attachment; filename="${out.name}"`);
     reply.header('cache-control', 'no-store');
     return reply.type('text/csv; charset=utf-8').send(out.csv);
+  });
+  // ---------- a platform's own cost plan (0.19.0, ADR 0032): the routes of a service's plan ----------
+  app.get('/costs/platform-plans/:platformId', async (req) => platformPlanYear(platformPlan(req).id, yearQuery.parse(req.query ?? {}).fiscalYear));
+  app.get('/costs/platform-plans/:platformId/export', async (req, reply) => {
+    const q = yearQuery.extend({ what: z.enum(['plan', 'entries']).default('plan') }).parse(req.query ?? {});
+    const out = platformPlanCsv(platformPlan(req).id, q.fiscalYear, q.what);
+    reply.header('content-disposition', `attachment; filename="${out.name}"`);
+    reply.header('cache-control', 'no-store');
+    return reply.type('text/csv; charset=utf-8').send(out.csv);
+  });
+  app.post('/costs/platform-plans/:platformId/lines', async (req) => addPlanLineOf(platformPlan(req), req.body));
+  app.put('/costs/platform-plans/:platformId/lines/:lineId', async (req) => updatePlanLineOf(platformPlan(req), itemParam(req, 'lineId'), req.body));
+  app.delete('/costs/platform-plans/:platformId/lines/:lineId', async (req) => removePlanLineOf(platformPlan(req), itemParam(req, 'lineId')));
+  app.post('/costs/platform-plans/:platformId/copy', async (req) => copyPlanYearOf(platformPlan(req), req.body));
+  app.post('/costs/platform-plans/:platformId/lines/:lineId/book', session, async (req) => bookLineOf(platformPlan(req), itemParam(req, 'lineId'), req.body));
+  app.post('/costs/platform-plans/:platformId/entries', async (req) => addEntryOf(platformPlan(req), req.body));
+  app.put('/costs/platform-plans/:platformId/entries/:entryId', async (req) => updateEntryOf(platformPlan(req), itemParam(req, 'entryId'), req.body));
+  app.delete('/costs/platform-plans/:platformId/entries/:entryId', async (req) => removeEntryOf(platformPlan(req), itemParam(req, 'entryId')));
+  app.get('/costs/platform-plans/:platformId/proposals', async (req) => proposals(platformPlan(req), yearQuery.parse(req.query ?? {}).fiscalYear));
+  app.post('/costs/platform-plans/:platformId/proposals', session, async (req) => confirmProposals(platformPlan(req), req.body));
+  app.post('/costs/platform-plans/:platformId/contract-updates', session, async (req) => applyContractUpdates(platformPlan(req), req.body));
+  app.post('/costs/platform-plans/:platformId/entries/import/preview', entryImport, async (req) => previewEntryImport(platformPlan(req), req.body));
+  app.post('/costs/platform-plans/:platformId/entries/import', entryImport, async (req) => importEntries(platformPlan(req), req.body));
+  app.get('/costs/platform-plans/:platformId/imports', async (req) => listEntryImports(platformPlan(req)));
+  app.delete('/costs/platform-plans/:platformId/imports/:importId', session, async (req) =>
+    removeEntryImport(platformPlan(req), z.object({ importId: z.string().min(1).max(100) }).parse(req.params).importId),
+  );
+  // an application's or system's "Costs and contracts" (0.19.0, ADR 0032): read-only, what the reader may see
+  app.get('/costs/attribution/:kind/:id', async (req) => {
+    const p = z.object({ kind: z.enum(['application', 'system']), id: z.string().min(1).max(100) }).parse(req.params);
+    return costAttribution(p.kind, p.id, yearQuery.parse(req.query ?? {}).fiscalYear);
   });
   app.get('/costs/team-plans/:teamId', async (req) =>
     teamPlanYear(z.object({ teamId: z.string().min(1).max(100) }).parse(req.params).teamId, yearQuery.parse(req.query ?? {}).fiscalYear),

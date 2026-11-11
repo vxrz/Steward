@@ -11,6 +11,7 @@ import { optedIn } from '../notifications/opt-ins.js';
 import { t } from '../i18n/index.js';
 import { usersOfSubjects } from '../tickets/reminders.js';
 import { lineMonths, lineTitle, startMonth, today, type LineRow } from './plans.js';
+import { scopeInfo } from './access.js';
 
 /**
  * The reminder "contract payments not booked" (0.18.0, ADR 0030, event `cost.booking_due`): off by default, opted in
@@ -18,6 +19,9 @@ import { lineMonths, lineTitle, startMonth, today, type LineRow } from './plans.
  * payments of the previous month of its contract lines (lines made from a payment schedule) that have no entry on
  * their line yet – one message per service, at most once a month (claimed in cost_booking_reminders). Steward never
  * books on its own: the reminder points at what a person may want to book.
+ *
+ * 0.19.0 (ADR 0032): the same for a platform's own cost plan – to who manages the platform or is a member of its owning
+ * teams and opted in; claimed with the platform's id in cost_booking_reminders.service_id.
  */
 
 interface Missing {
@@ -87,7 +91,16 @@ export function checkBookingReminders(now = Date.now()): number {
     fy,
     month,
   );
-  if (!lines.length) return 0;
+  // a platform's own plan (0.19.0): its owners are its managers and the members of its owning teams
+  const platformLines = db().all<LineRow & { service_name: string }>(
+    `SELECT l.*, p.name AS service_name FROM cost_plan_lines l JOIN platforms p ON p.id = l.platform_id
+      WHERE l.fiscal_year = ? AND l.schedule_id IS NOT NULL
+        AND NOT EXISTS (SELECT 1 FROM cost_booking_reminders r WHERE r.service_id = l.platform_id AND r.month = ?)
+      ORDER BY l.platform_id, l.title`,
+    fy,
+    month,
+  );
+  if (!lines.length && !platformLines.length) return 0;
   const booked = new Set(
     db()
       .all<{ plan_line_id: string }>(
@@ -97,18 +110,20 @@ export function checkBookingReminders(now = Date.now()): number {
       )
       .map((r) => r.plan_line_id),
   );
-  const byService = new Map<string, { name: string; owners: string; missing: Missing[] }>();
-  for (const l of lines) {
+  const byService = new Map<string, { name: string; owners: string; platform: boolean; missing: Missing[] }>();
+  for (const l of [...lines, ...platformLines.map((x) => ({ ...x, owners: '[]' }))]) {
     const amount = lineMonths(l)[index] ?? 0;
     if (!amount || booked.has(l.id)) continue;
-    const s = byService.get(l.service_id) ?? { name: l.service_name, owners: l.owners, missing: [] };
+    const ownerId = l.platform_id || l.service_id;
+    const s = byService.get(ownerId) ?? { name: l.service_name, owners: l.owners, platform: !!l.platform_id, missing: [] };
     s.missing.push({ title: l.title, scheduleId: l.schedule_id, contractId: l.supplier_contract_id, amount, currency: l.currency });
-    byService.set(l.service_id, s);
+    byService.set(ownerId, s);
   }
   const all = listUsers().filter((u) => u.active);
   let sent = 0;
   for (const [serviceId, s] of byService) {
-    const recipients = ownersOf(serviceId, s.owners, all).filter((u) => opted.has(u.id));
+    const owners = s.platform ? all.filter((u) => !!scopeInfo('platform', serviceId, toAuthUser(u))?.owner) : ownersOf(serviceId, s.owners, all);
+    const recipients = owners.filter((u) => opted.has(u.id));
     // nobody of the owners opted in (yet): nothing is claimed, so one who opts in later this month still gets it
     if (!recipients.length || !claim(serviceId, month)) continue;
     try {
@@ -116,9 +131,9 @@ export function checkBookingReminders(now = Date.now()): number {
         event: 'cost.booking_due',
         text: (l, recipient) => text(l, s.name, month, s.missing, recipient),
         personal: true,
-        link: `/services/${encodeURIComponent(serviceId)}/costs`,
+        link: s.platform ? `/platforms/${encodeURIComponent(serviceId)}?tab=costPlan` : `/services/${encodeURIComponent(serviceId)}/costs`,
         recipients,
-        about: { kind: 'service', id: serviceId },
+        about: { kind: s.platform ? 'platform' : 'service', id: serviceId },
         inAppKey: `cost.booking_due:${serviceId}:${month}`,
         externalKey: `cost.booking_due:${serviceId}:${month}`,
         data: { serviceId, service: s.name, month, payments: s.missing.length },

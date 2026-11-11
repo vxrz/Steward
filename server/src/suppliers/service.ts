@@ -16,6 +16,8 @@ import {
   type SupplierProposedServices,
   type SupplierContractDetail,
   type SupplierContractServiceInput,
+  type SupplierContractPlatformInput,
+  type PlatformContracts,
   type SupplierContractOwnTerms,
   type SupplierInheritedField,
   SUPPLIER_INHERITED_FIELDS,
@@ -252,6 +254,7 @@ function toContract(
   const owners = contractOwnersOf(c);
   const canEdit = ctx.edits(c, supplier);
   const cover = ctx.servicesOf(c, supplier);
+  const platformCover = ctx.platformsOf(c, supplier);
   const parent = c.parent_id ? rel.parent : undefined;
   const terms = termsOf(c, parent, supplier);
   // a master the reader may not see: its values apply (they are the order form's terms), its title does not show
@@ -292,6 +295,8 @@ function toContract(
     teamOwned: hasTeamOwner(owners),
     services: cover.services,
     hiddenServices: canEdit || ctx.ownsContract(c) ? cover.hidden : 0,
+    platforms: platformCover.platforms,
+    hiddenPlatforms: canEdit || ctx.ownsContract(c) ? platformCover.hidden : 0,
     readReason: ctx.readReason(c, supplier) ?? 'supplierReaders',
     mine: ctx.ownsContract(c),
     canEdit,
@@ -835,9 +840,16 @@ export type PublicSupplierContact = Pick<SupplierContact, 'id' | 'name' | 'role'
 };
 export type PublicSupplierContract = Omit<
   SupplierContract,
-  'record' | 'services' | 'hiddenServices' | 'readReason' | 'canEdit' | 'parent' | 'orderForms' | 'mine'
+  'record' | 'services' | 'hiddenServices' | 'platforms' | 'hiddenPlatforms' | 'readReason' | 'canEdit' | 'parent' | 'orderForms' | 'mine'
 > & {
-  services: { id: string; name: string; purpose: string; status: SupplierContract['services'][number]['status'] }[];
+  services: {
+    id: string;
+    name: string;
+    purpose: string;
+    status: SupplierContract['services'][number]['status'];
+    items: SupplierContract['services'][number]['items'];
+  }[];
+  platforms: { id: string; name: string; purpose: string }[];
 };
 export type PublicSupplier = Omit<SupplierDetail, 'contacts' | 'canEdit' | 'canManage' | 'canAddContract' | 'contracts' | 'certificates'> & {
   contacts: PublicSupplierContact[];
@@ -850,8 +862,24 @@ export type PublicSupplier = Omit<SupplierDetail, 'contacts' | 'canEdit' | 'canM
  * and status – no count of the others, no rights.
  */
 export function toPublicContract(c: SupplierContract): PublicSupplierContract {
-  const { record: _r, services, hiddenServices: _h, readReason: _w, canEdit: _e, parent: _p, orderForms: _o, mine: _m, ...rest } = c;
-  return { ...rest, services: services.map((x) => ({ id: x.id, name: x.name, purpose: x.purpose, status: x.status })) };
+  const {
+    record: _r,
+    services,
+    hiddenServices: _h,
+    platforms,
+    hiddenPlatforms: _hp,
+    readReason: _w,
+    canEdit: _e,
+    parent: _p,
+    orderForms: _o,
+    mine: _m,
+    ...rest
+  } = c;
+  return {
+    ...rest,
+    services: services.map((x) => ({ id: x.id, name: x.name, purpose: x.purpose, status: x.status, items: x.items })),
+    platforms: platforms.map((x) => ({ id: x.id, name: x.name, purpose: x.purpose })),
+  };
 }
 
 /**
@@ -1523,11 +1551,85 @@ function editableContractRow(s: SupplierRow, contractId: string, ctx: ScopeCtx):
  * Add a contract (ADR 0031 decided 4): designers, administrators and the supplier's owners; whoever may edit a service
  * the new contract covers and may see the supplier. Not while the supplier is archived.
  */
-export function mayAddContract(s: Pick<SupplierRow, 'id' | 'owners' | 'status'>, ctx: ScopeCtx, serviceIds?: readonly string[]): boolean {
+export function mayAddContract(
+  s: Pick<SupplierRow, 'id' | 'owners' | 'status'>,
+  ctx: ScopeCtx,
+  serviceIds?: readonly string[],
+  platformIds?: readonly string[],
+): boolean {
   if (s.status === 'archived' || !ctx.u || !ctx.seesSupplier(s)) return false;
   if (ctx.editsSupplier(s)) return true;
-  if (serviceIds) return serviceIds.some((id) => ctx.editsService(id));
-  return visibleServiceIds(ctx).some((id) => ctx.editsService(id));
+  // 0.19.0 (ADR 0032): who manages a platform the new contract covers holds it like a service's editors
+  if (serviceIds || platformIds) return (serviceIds ?? []).some((id) => ctx.editsService(id)) || (platformIds ?? []).some((id) => ctx.managesPlatform(id));
+  return visibleServiceIds(ctx).some((id) => ctx.editsService(id)) || managedPlatformIds(ctx).length > 0;
+}
+
+/** The platforms the reader manages or whose owning teams they belong to (0.19.0). */
+const managedPlatformIds = (ctx: ScopeCtx): string[] =>
+  db()
+    .all<{ id: string }>('SELECT id FROM platforms')
+    .map((r) => r.id)
+    .filter((id) => ctx.managesPlatform(id));
+
+/**
+ * The applications and systems of a covered service a contract is for (0.19.0, ADR 0032): an application of the
+ * service or a system one of its applications runs on, that the person may see. Refused otherwise.
+ */
+function checkContractItems(
+  serviceId: string,
+  items: readonly { kind: 'application' | 'system'; id: string }[],
+  ctx: ScopeCtx,
+): { kind: 'application' | 'system'; id: string }[] {
+  const want = [...new Map(items.map((x) => [`${x.kind}|${x.id}`, x])).values()];
+  if (!want.length) return [];
+  const apps = new Set(
+    db()
+      .all<{ application_id: string }>('SELECT application_id FROM service_applications WHERE service_id = ?', serviceId)
+      .map((r) => r.application_id),
+  );
+  const systems = new Set(
+    apps.size
+      ? db()
+          .all<{ system_id: string }>(
+            `SELECT DISTINCT system_id FROM application_systems WHERE application_id IN (${[...apps].map(() => '?').join(', ')})`,
+            ...apps,
+          )
+          .map((r) => r.system_id)
+      : [],
+  );
+  for (const x of want) {
+    const r = db().get<{ name: string; owners: string }>(
+      `SELECT name, owners FROM ${x.kind === 'application' ? 'applications' : 'systems'} WHERE id = ?`,
+      x.id,
+    );
+    const of = x.kind === 'application' ? apps.has(x.id) : systems.has(x.id);
+    if (!r || !of || !ctx.seesItem({ kind: x.kind, item_id: x.id, owners: r.owners, name: r.name }))
+      throw new HttpError(400, `Not an application or system of the service: ${x.kind} ${x.id}`, 'SUPPLIER_CONTRACT_ITEM', { kind: x.kind, id: x.id });
+  }
+  return want;
+}
+
+/** Replaces the items of a covered service (items the person may not see are kept – saving never drops what one cannot see). */
+function writeContractItems(
+  contractId: string,
+  serviceId: string,
+  items: readonly { kind: string; id: string }[],
+  ctx: ScopeCtx,
+  by: string,
+  now: string,
+): void {
+  const kept = ctx.itemsOf(contractId, serviceId).filter((r) => !ctx.seesItem(r));
+  db().run('DELETE FROM supplier_contract_items WHERE contract_id = ? AND service_id = ?', contractId, serviceId);
+  for (const x of [...kept.map((r) => ({ kind: r.kind, id: r.item_id })), ...items])
+    db().run(
+      'INSERT INTO supplier_contract_items (contract_id, service_id, kind, item_id, added_by, added_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING',
+      contractId,
+      serviceId,
+      x.kind,
+      x.id,
+      by,
+      now,
+    );
 }
 
 const visibleServiceIds = (ctx: ScopeCtx): string[] =>
@@ -1681,11 +1783,16 @@ export function addContract(supplierId: string, input: ContractInput): SupplierD
   const services = [...new Map((input.services ?? []).map((x) => [x.serviceId, x])).values()];
   for (const x of services)
     if (!ctx.seesService(x.serviceId)) throw new HttpError(404, `Service ${x.serviceId} not found`, 'SERVICE_NOT_FOUND', { id: x.serviceId });
+  const platforms = [...new Map((input.platforms ?? []).map((x) => [x.platformId, x])).values()];
+  for (const x of platforms)
+    if (!ctx.seesPlatform(x.platformId)) throw new HttpError(404, `Platform ${x.platformId} not found`, 'PLATFORM_NOT_FOUND', { id: x.platformId });
+  const items = new Map(services.map((x) => [x.serviceId, checkContractItems(x.serviceId, x.items ?? [], ctx)]));
   if (
     !mayAddContract(
       s,
       ctx,
       services.map((x) => x.serviceId),
+      platforms.map((x) => x.platformId),
     )
   )
     forbid('add a contract to this supplier (designers, administrators, the supplier’s owners, editors of a service it covers)', 'addContract');
@@ -1747,6 +1854,16 @@ export function addContract(supplierId: string, input: ContractInput): SupplierD
         u.username,
         now,
       );
+    for (const x of services) writeContractItems(id, x.serviceId, items.get(x.serviceId) ?? [], ctx, u.username, now);
+    for (const x of platforms)
+      db().run(
+        'INSERT INTO supplier_contract_platforms (contract_id, platform_id, purpose, added_by, added_at) VALUES (?, ?, ?, ?, ?)',
+        id,
+        x.platformId,
+        x.purpose,
+        u.username,
+        now,
+      );
     touch(supplierId, u);
     audit({
       action: 'supplier.contract_added',
@@ -1760,7 +1877,8 @@ export function addContract(supplierId: string, input: ContractInput): SupplierD
         master: sc.parent_id,
         personalData: sc.personal_data,
         dpaStatus: sc.dpa_status,
-        services: services.map((x) => ({ serviceId: x.serviceId, purpose: x.purpose })),
+        services: services.map((x) => ({ serviceId: x.serviceId, purpose: x.purpose, items: items.get(x.serviceId) ?? [] })),
+        platforms: platforms.map((x) => ({ platformId: x.platformId, purpose: x.purpose })),
       },
     });
     auditNamedGrant({ ...grant, entityId: supplierId, details: { contractId: id } }, named);
@@ -1874,6 +1992,11 @@ export function removeContract(supplierId: string, contractId: string, opts: { o
       .all<{ service_id: string }>('SELECT service_id FROM supplier_contract_services WHERE contract_id = ?', contractId)
       .map((r) => r.service_id);
     db().run('DELETE FROM supplier_contract_services WHERE contract_id = ?', contractId);
+    const platforms = db()
+      .all<{ platform_id: string }>('SELECT platform_id FROM supplier_contract_platforms WHERE contract_id = ?', contractId)
+      .map((r) => r.platform_id);
+    db().run('DELETE FROM supplier_contract_platforms WHERE contract_id = ?', contractId);
+    db().run('DELETE FROM supplier_contract_items WHERE contract_id = ?', contractId);
     // contacts scoped to it keep the mark: one whose items are all gone is "No longer in use", never company-wide
     db().run('DELETE FROM supplier_contracts WHERE id = ?', contractId);
     db().run('DELETE FROM supplier_reminders WHERE item_id = ?', contractId);
@@ -1889,6 +2012,7 @@ export function removeContract(supplierId: string, contractId: string, opts: { o
         reference: cur.reference,
         owners: contractOwnersOf(cur),
         services,
+        platforms,
         master: cur.parent_id,
         personalData: cur.personal_data === null ? null : Number(cur.personal_data),
         dpaStatus: cur.dpa_status ?? null,
@@ -1903,7 +2027,12 @@ export function removeContract(supplierId: string, contractId: string, opts: { o
 }
 
 /** The replacement of a contract: another contract of the same supplier the person may change. */
-function replacementOf(s: SupplierRow, cur: ContractRow, id: string, ctx: ScopeCtx): { row: ContractRow; joining: string[]; leftOut: string[] } {
+function replacementOf(
+  s: SupplierRow,
+  cur: ContractRow,
+  id: string,
+  ctx: ScopeCtx,
+): { row: ContractRow; joining: string[]; leftOut: string[]; joiningPlatforms: string[] } {
   if (id === cur.id) throw new HttpError(400, 'A contract cannot replace itself', 'SUPPLIER_CONTRACT_REPLACE_SELF');
   const row = editableContractRow(s, id, ctx);
   const have = new Set(ctx.coverOf(row.id).map((x) => x.service_id));
@@ -1916,9 +2045,20 @@ function replacementOf(s: SupplierRow, cur: ContractRow, id: string, ctx: ScopeC
     .coverOf(cur.id)
     .filter((x) => !have.has(x.service_id) && !ctx.seesService(x.service_id))
     .map((x) => x.service_id);
-  // a payment schedule moves with its paying service only: one whose service cannot join is refused
-  const paying = db().all<{ service_id: string; title: string }>('SELECT service_id, title FROM cost_schedules WHERE contract_id = ?', cur.id);
-  const stuck = paying.find((x) => !have.has(x.service_id) && !joining.includes(x.service_id));
+  // covered platforms join where the person may see them (0.19.0)
+  const havePlatforms = new Set(ctx.platformCoverOf(row.id).map((x) => x.platform_id));
+  const joiningPlatforms = ctx
+    .platformCoverOf(cur.id)
+    .filter((x) => !havePlatforms.has(x.platform_id) && ctx.seesPlatform(x.platform_id))
+    .map((x) => x.platform_id);
+  // a payment schedule moves with its payer only: one whose service or platform cannot join is refused
+  const paying = db().all<{ service_id: string; platform_id: string | null; title: string }>(
+    'SELECT service_id, platform_id, title FROM cost_schedules WHERE contract_id = ?',
+    cur.id,
+  );
+  const stuck = paying.find((x) =>
+    x.platform_id ? !havePlatforms.has(x.platform_id) && !joiningPlatforms.includes(x.platform_id) : !have.has(x.service_id) && !joining.includes(x.service_id),
+  );
   if (stuck)
     throw new HttpError(
       409,
@@ -1926,13 +2066,38 @@ function replacementOf(s: SupplierRow, cur: ContractRow, id: string, ctx: ScopeC
       'SUPPLIER_CONTRACT_REPLACE_SCHEDULE',
       { schedule: stuck.title, contract: row.title },
     );
-  return { row, joining, leftOut };
+  return { row, joining, leftOut, joiningPlatforms };
 }
 
 /** Moves what names a contract to its replacement (in the caller's transaction); returns what moved. */
-function moveToReplacement(cur: ContractRow, r: { row: ContractRow; joining: string[]; leftOut: string[] }, ctx: ScopeCtx, by: string) {
+function moveToReplacement(
+  cur: ContractRow,
+  r: { row: ContractRow; joining: string[]; leftOut: string[]; joiningPlatforms: string[] },
+  ctx: ScopeCtx,
+  by: string,
+) {
   const to = r.row.id;
   const now = nowIso();
+  for (const x of ctx.platformCoverOf(cur.id).filter((c) => r.joiningPlatforms.includes(c.platform_id)))
+    db().run(
+      'INSERT INTO supplier_contract_platforms (contract_id, platform_id, purpose, added_by, added_at) VALUES (?, ?, ?, ?, ?)',
+      to,
+      x.platform_id,
+      x.purpose,
+      by,
+      now,
+    );
+  // the applications and systems of the services that join go with them
+  for (const sid of r.joining)
+    db().run(
+      `INSERT INTO supplier_contract_items (contract_id, service_id, kind, item_id, added_by, added_at)
+       SELECT ?, service_id, kind, item_id, ?, ? FROM supplier_contract_items WHERE contract_id = ? AND service_id = ?`,
+      to,
+      by,
+      now,
+      cur.id,
+      sid,
+    );
   for (const x of ctx.coverOf(cur.id).filter((c) => r.joining.includes(c.service_id)))
     db().run(
       `INSERT INTO supplier_contract_services (contract_id, service_id, purpose, status, proposed_from, added_by, added_at, confirmed_by, confirmed_at)
@@ -1950,6 +2115,7 @@ function moveToReplacement(cur: ContractRow, r: { row: ContractRow; joining: str
   const run = (sql: string) => db().run(sql, to, cur.id).changes;
   const moved = {
     services: r.joining,
+    platforms: r.joiningPlatforms,
     servicesLeftOut: r.leftOut.length,
     schedules: run('UPDATE cost_schedules SET contract_id = ? WHERE contract_id = ?'),
     costPlanLines: run('UPDATE cost_plan_lines SET supplier_contract_id = ? WHERE supplier_contract_id = ?'),
@@ -2031,6 +2197,7 @@ export function setContractService(supplierId: string, contractId: string, servi
         max: SUPPLIER_LIMITS.contractServices,
       });
     const purpose = input.purpose ?? '';
+    const items = checkContractItems(serviceId, input.items ?? [], ctx);
     db().tx(() => {
       db().run(
         `INSERT INTO supplier_contract_services (contract_id, service_id, purpose, status, proposed_from, added_by, added_at, confirmed_by, confirmed_at)
@@ -2043,13 +2210,14 @@ export function setContractService(supplierId: string, contractId: string, servi
         u.username,
         now,
       );
+      writeContractItems(c.id, serviceId, items, ctx, u.username, now);
       touch(supplierId, u);
       audit({
         action: 'supplier.contract_service_added',
         entityType: 'supplier',
         entityId: supplierId,
         summary: `Service "${name}" added to the contract "${c.title}" of supplier "${s.name}"`,
-        details: { contractId: c.id, serviceId, service: name, purpose },
+        details: { contractId: c.id, serviceId, service: name, purpose, items },
       });
     });
     return getContract(supplierId, contractId);
@@ -2057,8 +2225,30 @@ export function setContractService(supplierId: string, contractId: string, servi
   if (!ctx.editsCover(c, s, serviceId)) forbid('change this covered service (who may change the contract, or edit the service)', 'changeContract');
   const purposeChanged = input.purpose !== undefined && input.purpose !== cur.purpose;
   const confirming = !!input.confirm && cur.status === 'proposed';
-  if (!purposeChanged && !confirming) return getContract(supplierId, contractId);
+  // the applications and systems it is for (0.19.0): the list replaces what the person sees
+  const itemsBefore = ctx
+    .itemsOf(c.id, serviceId)
+    .filter((r) => ctx.seesItem(r))
+    .map((r) => ({ kind: r.kind, id: r.item_id }));
+  const items = input.items === undefined ? null : checkContractItems(serviceId, input.items, ctx);
+  const key = (xs: { kind: string; id: string }[]) =>
+    xs
+      .map((x) => `${x.kind}|${x.id}`)
+      .sort()
+      .join(',');
+  const itemsChanged = items !== null && key(items) !== key(itemsBefore);
+  if (!purposeChanged && !confirming && !itemsChanged) return getContract(supplierId, contractId);
   db().tx(() => {
+    if (itemsChanged) {
+      writeContractItems(c.id, serviceId, items!, ctx, u.username, now);
+      audit({
+        action: 'supplier.contract_service_changed',
+        entityType: 'supplier',
+        entityId: supplierId,
+        summary: `Applications and systems of service "${name}" in the contract "${c.title}" changed`,
+        details: { contractId: c.id, serviceId, service: name, items: { old: itemsBefore, new: items } },
+      });
+    }
     if (purposeChanged) {
       db().run('UPDATE supplier_contract_services SET purpose = ? WHERE contract_id = ? AND service_id = ?', input.purpose, c.id, serviceId);
       audit({
@@ -2118,6 +2308,7 @@ export function removeContractService(supplierId: string, contractId: string, se
   const proposed = cur.status === 'proposed';
   db().tx(() => {
     db().run('DELETE FROM supplier_contract_services WHERE contract_id = ? AND service_id = ?', c.id, serviceId);
+    db().run('DELETE FROM supplier_contract_items WHERE contract_id = ? AND service_id = ?', c.id, serviceId);
     touch(supplierId, u);
     audit({
       action: proposed ? 'supplier.contract_service_dismissed' : 'supplier.contract_service_removed',
@@ -2136,6 +2327,102 @@ export function removeContractService(supplierId: string, contractId: string, se
     });
   });
   // who could see the contract only through the service no longer does
+  return new ScopeCtx(u).reads(c, s) ? getContract(supplierId, contractId) : { ok: true };
+}
+
+/**
+ * Adds a platform to a contract (0.19.0, ADR 0032: who may change the contract and may see the platform) or changes its
+ * purpose (who may change the contract, or manages the platform). Covering a platform lets its managers and the members
+ * of its owning teams see a team-owned contract – a decision of a person in a session, audited on the supplier.
+ */
+export function setContractPlatform(supplierId: string, contractId: string, platformId: string, input: SupplierContractPlatformInput): SupplierContractDetail {
+  const u = me();
+  const s = supplierRow(supplierId);
+  const ctx = new ScopeCtx(u);
+  const c = visibleContractRow(s, contractId, ctx);
+  if (s.status === 'archived') throw new HttpError(409, `Supplier "${s.name}" is archived`, 'SUPPLIER_ARCHIVED', { name: s.name });
+  if (!ctx.seesPlatform(platformId)) throw new HttpError(404, `Platform ${platformId} not found`, 'PLATFORM_NOT_FOUND', { id: platformId });
+  const name = ctx.platform(platformId)!.name;
+  const cur = ctx.platformCoverOf(c.id).find((x) => x.platform_id === platformId);
+  const now = nowIso();
+  if (!cur) {
+    if (!ctx.edits(c, s)) forbid('add a platform to this contract (who may change the contract)', 'changeContract');
+    if (ctx.platformCoverOf(c.id).length >= SUPPLIER_LIMITS.contractPlatforms)
+      throw new HttpError(409, `A contract covers at most ${SUPPLIER_LIMITS.contractPlatforms} platforms`, 'SUPPLIER_CONTRACT_PLATFORM_LIMIT', {
+        max: SUPPLIER_LIMITS.contractPlatforms,
+      });
+    const purpose = input.purpose ?? '';
+    db().tx(() => {
+      db().run(
+        'INSERT INTO supplier_contract_platforms (contract_id, platform_id, purpose, added_by, added_at) VALUES (?, ?, ?, ?, ?)',
+        c.id,
+        platformId,
+        purpose,
+        u.username,
+        now,
+      );
+      touch(supplierId, u);
+      audit({
+        action: 'supplier.contract_platform_added',
+        entityType: 'supplier',
+        entityId: supplierId,
+        summary: `Platform "${name}" added to the contract "${c.title}" of supplier "${s.name}"`,
+        details: { contractId: c.id, platformId, platform: name, purpose, teamOwned: hasTeamOwner(contractOwnersOf(c)) },
+      });
+    });
+    return getContract(supplierId, contractId);
+  }
+  if (!ctx.editsPlatformCover(c, s, platformId)) forbid('change this covered platform (who may change the contract, or manage the platform)', 'changeContract');
+  if (input.purpose === undefined || input.purpose === cur.purpose) return getContract(supplierId, contractId);
+  db().tx(() => {
+    db().run('UPDATE supplier_contract_platforms SET purpose = ? WHERE contract_id = ? AND platform_id = ?', input.purpose, c.id, platformId);
+    touch(supplierId, u);
+    audit({
+      action: 'supplier.contract_platform_changed',
+      entityType: 'supplier',
+      entityId: supplierId,
+      summary: `Purpose of platform "${name}" in the contract "${c.title}" changed`,
+      details: { contractId: c.id, platformId, platform: name, purpose: { old: cur.purpose, new: input.purpose } },
+    });
+  });
+  return getContract(supplierId, contractId);
+}
+
+/**
+ * Takes a platform off a contract (0.19.0): who may change the contract, or manages the platform. Refused while the
+ * platform pays a payment schedule of the contract. Its plan lines and entries naming the contract keep it.
+ */
+export function removeContractPlatform(supplierId: string, contractId: string, platformId: string): SupplierContractDetail | { ok: true } {
+  const u = me();
+  const s = supplierRow(supplierId);
+  const ctx = new ScopeCtx(u);
+  const c = visibleContractRow(s, contractId, ctx);
+  if (s.status === 'archived') throw new HttpError(409, `Supplier "${s.name}" is archived`, 'SUPPLIER_ARCHIVED', { name: s.name });
+  if (!ctx.seesPlatform(platformId)) throw new HttpError(404, `Platform ${platformId} not found`, 'PLATFORM_NOT_FOUND', { id: platformId });
+  const cur = ctx.platformCoverOf(c.id).find((x) => x.platform_id === platformId);
+  if (!cur) throw new HttpError(404, `The contract does not cover platform ${platformId}`, 'SUPPLIER_CONTRACT_PLATFORM_NOT_FOUND', { id: platformId });
+  if (!ctx.editsPlatformCover(c, s, platformId))
+    forbid('take this platform off the contract (who may change the contract, or manage the platform)', 'changeContract');
+  const schedules = db().all<{ title: string }>('SELECT title FROM cost_schedules WHERE contract_id = ? AND platform_id = ?', c.id, platformId);
+  if (schedules.length)
+    throw new HttpError(
+      409,
+      `The platform pays ${schedules.length} payment schedule(s) of this contract – move or remove them first`,
+      'SUPPLIER_CONTRACT_PLATFORM_HAS_SCHEDULES',
+      { count: schedules.length, schedules: schedules.map((x) => x.title).join(', ') },
+    );
+  const name = ctx.platform(platformId)!.name;
+  db().tx(() => {
+    db().run('DELETE FROM supplier_contract_platforms WHERE contract_id = ? AND platform_id = ?', c.id, platformId);
+    touch(supplierId, u);
+    audit({
+      action: 'supplier.contract_platform_removed',
+      entityType: 'supplier',
+      entityId: supplierId,
+      summary: `Platform "${name}" left the contract "${c.title}" of supplier "${s.name}"`,
+      details: { contractId: c.id, platformId, platform: name, purpose: cur.purpose },
+    });
+  });
   return new ScopeCtx(u).reads(c, s) ? getContract(supplierId, contractId) : { ok: true };
 }
 
@@ -2211,8 +2498,67 @@ export function getContract(supplierId: string, contractId: string, now = Date.n
       users: owners.filter((o) => o.startsWith('user:')).map((o) => o.slice(5)),
       services: contract.services.filter((x) => !x.archived).map((x) => ({ id: x.id, name: x.name })),
       hiddenServices: contract.hiddenServices,
+      platforms: contract.platforms.map((x) => ({ id: x.id, name: x.name })),
     },
   };
+}
+
+/**
+ * The applications of a service and the systems they run on that the reader may see (0.19.0, ADR 0032): what a
+ * contract covering the service can name it is for.
+ */
+export function serviceContractItems(serviceId: string): { kind: 'application' | 'system'; id: string; name: string }[] {
+  const ctx = new ScopeCtx(me());
+  if (!ctx.seesService(serviceId, true)) throw new HttpError(404, `Service ${serviceId} not found`, 'SERVICE_NOT_FOUND', { id: serviceId });
+  const apps = db().all<{ id: string; name: string; owners: string }>(
+    `SELECT a.id, a.name, a.owners FROM applications a JOIN service_applications sa ON sa.application_id = a.id WHERE sa.service_id = ? ORDER BY lower(a.name), a.id`,
+    serviceId,
+  );
+  const systems = db().all<{ id: string; name: string; owners: string }>(
+    `SELECT DISTINCT y.id, y.name, y.owners FROM systems y JOIN application_systems ay ON ay.system_id = y.id
+       JOIN service_applications sa ON sa.application_id = ay.application_id WHERE sa.service_id = ? ORDER BY lower(y.name), y.id`,
+    serviceId,
+  );
+  return [
+    ...apps
+      .filter((a) => ctx.seesItem({ kind: 'application', item_id: a.id, owners: a.owners, name: a.name }))
+      .map((a) => ({ kind: 'application' as const, id: a.id, name: a.name })),
+    ...systems
+      .filter((y) => ctx.seesItem({ kind: 'system', item_id: y.id, owners: y.owners, name: y.name }))
+      .map((y) => ({ kind: 'system' as const, id: y.id, name: y.name })),
+  ];
+}
+
+/**
+ * The contracts covering a platform that the reader may see (0.19.0, ADR 0032): the platform's cost plan shows them,
+ * with their purposes; who manages the platform may add one or add the platform to one.
+ */
+export function platformContracts(platformId: string, now = Date.now()): PlatformContracts {
+  const u = me();
+  const ctx = new ScopeCtx(u);
+  if (!ctx.seesPlatform(platformId)) throw new HttpError(404, `Platform ${platformId} not found`, 'PLATFORM_NOT_FOUND', { id: platformId });
+  const today = supplierToday(now);
+  const ids = db()
+    .all<{ contract_id: string }>('SELECT contract_id FROM supplier_contract_platforms WHERE platform_id = ?', platformId)
+    .map((r) => r.contract_id);
+  const rows = [...contractRowsById(ids).values()].sort((a, b) => a.title.toLowerCase().localeCompare(b.title.toLowerCase()) || (a.id < b.id ? -1 : 1));
+  const suppliers = new Map(visibleSupplierRows().map((r) => [r.id, r]));
+  const parents = contractRowsById(rows.map((c) => c.parent_id));
+  ctx.load([...rows.map((c) => c.id), ...parents.keys()]);
+  const contracts: PlatformContracts['contracts'] = [];
+  for (const c of rows) {
+    const s = suppliers.get(c.supplier_id);
+    if (!s || !ctx.reads(c, s)) continue;
+    const cover = ctx.platformCoverOf(c.id).find((x) => x.platform_id === platformId)!;
+    contracts.push({
+      supplier: { id: s.id, name: s.name, status: s.status },
+      contract: toContract(c, today, u, [], ctx, s, { parent: c.parent_id ? parents.get(c.parent_id) : undefined }),
+      purpose: cover.purpose,
+      canChange: ctx.editsPlatformCover(c, s, platformId),
+    });
+  }
+  contracts.sort((a, b) => a.supplier.name.localeCompare(b.supplier.name) || a.contract.title.localeCompare(b.contract.title));
+  return { platformId, contracts, canEdit: ctx.managesPlatform(platformId) };
 }
 
 /**

@@ -1,6 +1,10 @@
 import {
   fromMicros,
   proposalParts,
+  type CostVolumeBilling,
+  type CostVolumeCommitted,
+  type CostVolumeConsumption,
+  type CostVolumePer,
   type ContractTerms,
   type CostPlanCategory,
   type CostPlanTargetKind,
@@ -27,7 +31,10 @@ import { allContracts, type ContractInfo } from '../suppliers/links.js';
 export interface ScheduleRow {
   id: string;
   contract_id: string;
+  /** The paying service ('' when a platform pays, 0.19.0) */
   service_id: string;
+  /** The paying platform (0.19.0, ADR 0032) */
+  platform_id?: string | null;
   title: string;
   category: CostPlanCategory;
   target_kind: CostPlanTargetKind | null;
@@ -41,6 +48,13 @@ export interface ScheduleRow {
   year_amounts: string;
   payments: string;
   note: string;
+  /** Billing "volume" (0.19.0, ADR 0032 part 3) */
+  volume_per?: CostVolumePer | null;
+  volume_billing?: CostVolumeBilling | null;
+  volume_committed?: CostVolumeCommitted | null;
+  volume_minimum?: number | null;
+  volume_minimum_pct?: number | null;
+  volume_consumption?: CostVolumeConsumption | null;
   created_at: string;
   created_by: string;
   updated_at: string;
@@ -60,7 +74,22 @@ export const specOf = (r: ScheduleRow): ScheduleSpec => ({
     amount: Number(p.amount),
     coversUntil: p.coversUntil ?? null,
   })),
+  volume:
+    r.billing === 'volume' && r.volume_billing
+      ? {
+          per: r.volume_per ?? 'year',
+          billing: r.volume_billing,
+          committed: r.volume_billing === 'prepaid' ? 'full' : (r.volume_committed ?? 'full'),
+          minimum: r.volume_minimum === null || r.volume_minimum === undefined ? null : Number(r.volume_minimum),
+          minimumPct: r.volume_minimum_pct === null || r.volume_minimum_pct === undefined ? null : Number(r.volume_minimum_pct),
+          consumption: r.volume_consumption ?? (r.platform_id ? 'read' : 'entries'),
+        }
+      : null,
 });
+
+/** Who pays a schedule: a service, or (0.19.0) a platform. */
+export const payerOf = (r: Pick<ScheduleRow, 'service_id' | 'platform_id'>): { kind: 'service' | 'platform'; id: string } =>
+  r.platform_id ? { kind: 'platform', id: r.platform_id } : { kind: 'service', id: r.service_id };
 
 export const termsOf = (c: ContractInfo): ContractTerms => ({
   startsOn: c.startsOn,
@@ -112,12 +141,21 @@ function withTerms(rows: ScheduleRow[]): Schedule[] {
 export const schedulesOfService = (serviceId: string): Schedule[] =>
   withTerms(db().all<ScheduleRow>('SELECT * FROM cost_schedules WHERE service_id = ? ORDER BY created_at, id', serviceId));
 
+/** The schedules a service or (0.19.0) a platform pays. */
+export const schedulesOfOwner = (o: { kind: 'service' | 'platform'; id: string }): Schedule[] =>
+  withTerms(
+    db().all<ScheduleRow>(`SELECT * FROM cost_schedules WHERE ${o.kind === 'service' ? 'service_id' : 'platform_id'} = ? ORDER BY created_at, id`, o.id),
+  );
+
+/** A schedule of billing "volume" (0.19.0). */
+export const isVolume = (s: Schedule): boolean => s.row.billing === 'volume' && !!s.spec.volume;
+
 /** The schedules of a contract. */
 export const schedulesOfContract = (contractId: string): Schedule[] =>
   withTerms(db().all<ScheduleRow>('SELECT * FROM cost_schedules WHERE contract_id = ? ORDER BY created_at, id', contractId));
 
 /** The schedules of several contracts or services (in chunks of 500 ids). */
-export function schedulesWhere(column: 'contract_id' | 'service_id' | 'id', ids: readonly string[]): Schedule[] {
+export function schedulesWhere(column: 'contract_id' | 'service_id' | 'platform_id' | 'id', ids: readonly string[]): Schedule[] {
   const want = [...new Set(ids)];
   const rows: ScheduleRow[] = [];
   for (let i = 0; i < want.length; i += 500) {
@@ -160,16 +198,17 @@ export function proposalLine(p: ProposalPart, title: string, months: string[], s
 }
 
 /** Inserts the plan line of a proposed part (no audit): "Add to plan", "Update lines" and the copy into the next year. */
-export function insertScheduleLine(serviceId: string, fiscalYear: number, s: Schedule, p: ProposalPart): string {
+export function insertScheduleLine(o: { kind: 'service' | 'platform'; id: string }, fiscalYear: number, s: Schedule, p: ProposalPart): string {
   const id = newId('cpl_');
   const now = nowIso();
   db().run(
-    `INSERT INTO cost_plan_lines (id, service_id, fiscal_year, title, category, target_kind, target_id, vendor, supplier_id, supplier_contract_id, amount, currency,
+    `INSERT INTO cost_plan_lines (id, service_id, platform_id, fiscal_year, title, category, target_kind, target_id, vendor, supplier_id, supplier_contract_id, amount, currency,
        cadence, once_index, from_index, to_index, schedule_id, schedule_part, schedule_basis, covers_from, covers_to, renewal_date, note,
        created_at, created_by, updated_at, updated_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, '', ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, '', ?, ?, ?, ?)`,
     id,
-    serviceId,
+    o.kind === 'service' ? o.id : '',
+    o.kind === 'platform' ? o.id : null,
     fiscalYear,
     // the schedule's title only: the contract's title is added when the line is read, for who may see the contract
     s.row.title.slice(0, 200),
@@ -197,11 +236,11 @@ export function insertScheduleLine(serviceId: string, fiscalYear: number, s: Sch
   return id;
 }
 
-/** The fiscal years in which a service has plan lines (the notice warning). */
-export function plannedYears(serviceId: string): Set<number> {
+/** The fiscal years in which a service or platform has plan lines (the notice warning). */
+export function plannedYears(o: { kind: 'service' | 'platform'; id: string }): Set<number> {
   return new Set(
     db()
-      .all<{ fy: number }>('SELECT DISTINCT fiscal_year AS fy FROM cost_plan_lines WHERE service_id = ?', serviceId)
+      .all<{ fy: number }>(`SELECT DISTINCT fiscal_year AS fy FROM cost_plan_lines WHERE ${o.kind === 'service' ? 'service_id' : 'platform_id'} = ?`, o.id)
       .map((r) => Number(r.fy)),
   );
 }
@@ -222,7 +261,10 @@ export const scheduleSnapshot = (
     | 'ends_on'
     | 'year_amounts'
     | 'payments'
-  >,
+  > &
+    Partial<
+      Pick<ScheduleRow, 'platform_id' | 'volume_per' | 'volume_billing' | 'volume_committed' | 'volume_minimum' | 'volume_minimum_pct' | 'volume_consumption'>
+    >,
 ) => ({
   title: r.title,
   category: r.category,
@@ -239,6 +281,18 @@ export const scheduleSnapshot = (
     amount: fromMicros(Number(p.amount)),
     coversUntil: p.coversUntil,
   })),
+  ...(r.billing === 'volume'
+    ? {
+        volume: {
+          per: r.volume_per ?? 'year',
+          billing: r.volume_billing ?? null,
+          committed: r.volume_committed ?? null,
+          minimum: r.volume_minimum === null || r.volume_minimum === undefined ? null : fromMicros(Number(r.volume_minimum)),
+          minimumPct: r.volume_minimum_pct ?? null,
+          consumption: r.volume_consumption ?? null,
+        },
+      }
+    : {}),
 });
 
 /**
@@ -249,11 +303,12 @@ export function dropSchedules(rows: ScheduleRow[], why: 'removed' | 'contractRem
   for (const r of rows) {
     const lines = db().run('UPDATE cost_plan_lines SET schedule_id = NULL, schedule_part = NULL, schedule_basis = NULL WHERE schedule_id = ?', r.id).changes;
     db().run('DELETE FROM cost_schedules WHERE id = ?', r.id);
-    const name = db().get<{ name: string }>('SELECT name FROM services WHERE id = ?', r.service_id)?.name ?? r.service_id;
+    const payer = payerOf(r);
+    const name = db().get<{ name: string }>(`SELECT name FROM ${payer.kind === 'service' ? 'services' : 'platforms'} WHERE id = ?`, payer.id)?.name ?? payer.id;
     audit({
       action: 'cost.schedule_removed',
-      entityType: 'service',
-      entityId: r.service_id,
+      entityType: payer.kind,
+      entityId: payer.id,
       summary: `Payment schedule "${r.title}" of the contract "${contractTitle}" (${supplierName}) removed from "${name}"${why === 'contractRemoved' ? ' with its contract' : ''}${lines ? `; ${lines} plan line(s) are ordinary lines now` : ''}`,
       details: {
         scheduleId: r.id,

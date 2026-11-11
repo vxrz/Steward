@@ -35,5 +35,6 @@ Short records of decisions that shape Steward's design: the context, what was de
 | [0029](0029-iso-27001-support.md)                      | ISO/IEC 27001: suppliers, SoA, corrective actions       | Accepted                                                               |
 | [0030](0030-contract-payments-and-recorded-costs.md)   | Contract payments, commitments and recorded costs       | Accepted                                                               |
 | [0031](0031-supplier-contracts-and-contacts-scope.md)  | Shared suppliers: contracts and contacts with own scope | Accepted, built in 0.18.0                                              |
+| [0032](0032-cost-attribution-platform-plans.md)        | Cost attribution, platform cost plans and volumes       | Accepted, built in 0.19.0                                              |
 
 New record: copy [template.md](template.md) to `NNNN-short-title.md`, fill it in, add it to the table, and link it from [ARCHITECTURE.md](../ARCHITECTURE.md) where it applies.
