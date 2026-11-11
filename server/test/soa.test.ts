@@ -448,6 +448,52 @@ describe('versions, approval and the signed export', () => {
     expect((await auditOf(soaId)).filter((a) => a.action === 'soa.exported').length).toBe(3);
   });
 
+  it('checks the stored content against its SHA-256 before exporting it, and the verifier checks soa.json against the approval', async () => {
+    const { db } = await import('../src/db.js');
+    const row = db().get<{ id: string; content: string }>('SELECT id, content FROM soa_versions WHERE soa_id = ? AND number = 2', soaId)!;
+    // changed in the database: never signed, exported or put into a pack under the original approval
+    db().run('UPDATE soa_versions SET content = ? WHERE id = ?', row.content.replace('Hostwell (soa)', 'Someone else'), row.id);
+    try {
+      for (const format of ['zip', 'pdf', 'csv'])
+        expect(await code(s.api('GET', `/compliance/soa/ISO27001/versions/2/export?format=${format}`)), format).toBe('SOA_CONTENT_CHANGED');
+      const { latestApprovedFiles } = await import('../src/compliance/soa.js');
+      expect(() => latestApprovedFiles()).toThrow(/does not match its recorded SHA-256/);
+    } finally {
+      db().run('UPDATE soa_versions SET content = ? WHERE id = ?', row.content, row.id);
+    }
+    // a signed file whose soa.json is not the content the approval names fails the offline check
+    const { ZipWriter } = await import('../src/compliance/zip.js');
+    const { verifyPack, SOA_SIGNATURE_DOMAIN } = await import('../src/compliance/evidence-verify.js');
+    const { vault, publicKeyFingerprint, publicKeyPem } = await import('../src/vault.js');
+    const { sha256 } = await import('../src/util.js');
+    const pub = vault().signingPublicKey()!;
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'soa-l3-'));
+    try {
+      const file = path.join(dir, 'changed.zip');
+      const w = await ZipWriter.create(file);
+      const changed = Buffer.from(row.content.replace('Hostwell (soa)', 'Someone else'), 'utf8');
+      const listed = [await w.add('soa.json', changed)];
+      const manifest = {
+        format: 'steward-evidence-pack',
+        version: 2,
+        kind: 'soa',
+        pack: { id: row.id, title: 'x', from: '', to: '', createdAt: '', createdBy: 'admin', contentSha256: sha256(row.content) },
+        keyFingerprint: publicKeyFingerprint(pub),
+        files: listed.map((f) => ({ path: f.path, size: f.size, sha256: f.sha256 })),
+      };
+      const bytes = Buffer.from(JSON.stringify(manifest, null, 2) + '\n', 'utf8');
+      await w.add('manifest.json', bytes);
+      await w.add('manifest.sig', Buffer.from(vault().sign(Buffer.concat([Buffer.from(SOA_SIGNATURE_DOMAIN, 'utf8'), bytes])) + '\n'));
+      await w.add('public-key.pem', Buffer.from(publicKeyPem(pub)));
+      await w.finish();
+      const r = await verifyPack(file, { fingerprint: publicKeyFingerprint(pub) });
+      expect(r).toMatchObject({ ok: false, signatureOk: true, kind: 'soa' });
+      expect(r.problems.join(' ')).toContain('soa.json does not match the content SHA-256 the approval names');
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('fixes the second person when a version is submitted; only administrators switch it off, after a confirmation', async () => {
     // the administrator submits with the switch on
     const submitted = await s.api('POST', '/compliance/soa/ISO27001/versions');

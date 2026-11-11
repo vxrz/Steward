@@ -1292,6 +1292,7 @@
     "SOA_PDF_CHANGED": "The archived PDF of version {{number}} does not match its recorded SHA-256: it was changed outside Steward.",
     "SOA_FOUR_EYES_POLICY": "The assurance policy requires a second person for every statement of applicability: the switch stays on.",
     "SOA_EXPORT_HIDDEN": "Version {{number}} names suppliers or services you may not see. The signed file cannot leave them out: an auditor or administrator exports it.",
+    "SOA_CONTENT_CHANGED": "The stored content of version {{number}} does not match its recorded SHA-256: it was changed outside Steward and is not signed, exported or put into an evidence pack.",
     "RESPONSIBILITY_CENTRAL_NAME": "Name the central IT or group that does it.",
     "RESPONSIBILITY_NOTE_REQUIRED": "Shared: say in the note who does what.",
     "RESPONSIBILITY_DUTY_UNKNOWN": "The recovery-test duty must be an active duty of this service.",

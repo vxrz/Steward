@@ -979,6 +979,19 @@ function assertFourEyesOff(u: AuthUser): void {
   if (!isAdmin(u)) forbid('switch off the approval by a second person (administrators)', 'changeSoaApproval');
 }
 
+/**
+ * The frozen content of a version, checked against its recorded SHA-256 before it is approved, signed, exported or put
+ * into an evidence pack (security review 0.17.0, L3): content changed in the database or brought by a migration package
+ * is never signed under the original approval. 409 SOA_CONTENT_CHANGED otherwise (fail closed).
+ */
+function checkedContent(v: Pick<VersionRow, 'content' | 'content_sha256' | 'number'>): SoaVersionContent {
+  if (sha256(v.content) !== v.content_sha256)
+    throw new HttpError(409, 'The stored content of this version does not match its recorded SHA-256 – it was changed outside Steward', 'SOA_CONTENT_CHANGED', {
+      number: Number(v.number),
+    });
+  return JSON.parse(v.content) as SoaVersionContent;
+}
+
 function versionRow(soa: SoaRow, n: number): VersionRow {
   const v = db().get<VersionRow>('SELECT * FROM soa_versions WHERE soa_id = ? AND number = ?', soa.id, n);
   if (!v) throw new HttpError(404, `Version ${n} not found`, 'SOA_VERSION_NOT_FOUND', { number: n });
@@ -1050,7 +1063,7 @@ const pdfLang = (): ReportLang => (defaultLocale() === 'de' ? 'de' : 'en');
 
 /** The archived PDF of an approved version (drawn in the PDF worker, PDF/A). */
 async function renderVersionPdf(cat: Catalogue, v: VersionRow, decidedBy: string, decidedAt: string, comment: string): Promise<Buffer> {
-  const content = JSON.parse(v.content) as SoaVersionContent;
+  const content = checkedContent(v);
   const model: SoaPdfModel = {
     lang: pdfLang(),
     catalogue: content.catalogue,
@@ -1227,7 +1240,7 @@ export async function exportVersion(catalogueIdOrKey: string, n: number, format:
   const v = versionRow(soa, n);
   if (v.status !== 'approved' && v.status !== 'superseded')
     throw new HttpError(409, `Version ${n} is not approved`, 'SOA_VERSION_NOT_APPROVED', { number: n, status: v.status });
-  const content = JSON.parse(v.content) as SoaVersionContent;
+  const content = checkedContent(v);
   assertSeesAll(content, u, n);
   const base = `soa-${cat.key.replace(/[^A-Za-z0-9._-]+/g, '_')}-v${n}`;
   let out: SoaExport;
@@ -1333,7 +1346,7 @@ export function latestApprovedFiles(catalogueIds?: readonly string[], reader?: A
     const files = parseJson<{ pdf?: { path: string; sha256: string } }>(r.files, {});
     const file = files.pdf ? path.join(reportsDir(), files.pdf.path) : null;
     const inside = !!file && path.resolve(file).startsWith(path.resolve(reportsDir()) + path.sep);
-    const content = JSON.parse(r.content) as SoaVersionContent;
+    const content = checkedContent(r);
     out.push({
       catalogueId: r.catalogue_id,
       catalogueKey: r.key,

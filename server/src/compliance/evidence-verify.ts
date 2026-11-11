@@ -286,6 +286,18 @@ export async function verifyPack(file: string, o: VerifyOptions = {}): Promise<P
     }
   }
 
+  // a signed statement of applicability: soa.json is the frozen content whose SHA-256 the approval names
+  // (security review 0.17.0, L3) – content changed before it was signed does not pass under the original approval
+  if (manifest.kind === 'soa') {
+    const want = typeof manifest.pack.contentSha256 === 'string' ? manifest.pack.contentSha256 : '';
+    const json = listed.get('soa.json');
+    if (!json) problems.push('soa.json is not listed in the signed manifest');
+    else if (!want || json.sha256 !== want)
+      problems.push(
+        `soa.json does not match the content SHA-256 the approval names (${want ? `${want.slice(0, 16)}…` : 'none'}): it was changed before it was signed`,
+      );
+  }
+
   const excerptEntry = get(AUDIT_EXCERPT_FILE);
   if (excerptEntry) {
     try {

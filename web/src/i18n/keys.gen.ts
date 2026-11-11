@@ -5880,6 +5880,7 @@ export interface Resources {
     'codes.SOA_PDF_CHANGED': string;
     'codes.SOA_FOUR_EYES_POLICY': string;
     'codes.SOA_EXPORT_HIDDEN': string;
+    'codes.SOA_CONTENT_CHANGED': string;
     'codes.RESPONSIBILITY_CENTRAL_NAME': string;
     'codes.RESPONSIBILITY_NOTE_REQUIRED': string;
     'codes.RESPONSIBILITY_DUTY_UNKNOWN': string;

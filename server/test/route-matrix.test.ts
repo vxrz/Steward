@@ -2543,8 +2543,10 @@ beforeAll(async () => {
     const { db } = await import('../src/db.js');
     db().run(
       `INSERT INTO soa_versions (id, soa_id, number, status, content, content_sha256, submitted_at, submitted_by, decided_at, decided_by)
-       VALUES ('soav_matrix', ?, 1, 'approved', '{"entries":[]}', 'x', ?, 'admin', ?, 'adam')`,
+       VALUES ('soav_matrix', ?, 1, 'approved', '{"entries":[]}', ?, ?, 'admin', ?, 'adam')`,
       soa.id,
+      // the SHA-256 of the content: it is checked before an export (security review 0.17.0)
+      (await import('../src/util.js')).sha256('{"entries":[]}'),
       new Date().toISOString(),
       new Date().toISOString(),
     );
