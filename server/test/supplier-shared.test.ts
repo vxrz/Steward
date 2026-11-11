@@ -263,6 +263,38 @@ describe('the preview as the reader may see it', () => {
   });
 });
 
+describe('the same contact on both suppliers', () => {
+  it('never makes a scoped contact company-wide', async () => {
+    const t = (await dana('POST', '/suppliers', { name: 'Invented Contact Target' })).id;
+    const src = (await dana('POST', '/suppliers', { name: 'Invented Contact Source' })).id;
+    await s.api('POST', `/suppliers/${t}/contracts`, { title: 'Scoped contact contract', owners: ['team:shared shop team'] });
+    const contract = (await s.api('GET', `/suppliers/${t}`)).contracts[0].id;
+    await s.api('POST', `/suppliers/${t}/contacts`, {
+      name: 'J. Doe',
+      email: 'j@doe.example',
+      phone: '+49 1 111',
+      scope: [{ kind: 'contract', id: contract }],
+    });
+    // a designer adds the same person company-wide on another supplier of the whole instance and merges it in
+    await dana('POST', `/suppliers/${src}/contacts`, { name: 'j. doe', email: 'J@doe.example', phone: '+49 1 222' });
+    const p = await s.api('POST', '/suppliers/merge/preview', { intoId: t, ids: [src] });
+    expect(p.contacts.find((c: any) => c.supplierId === src)).toMatchObject({ action: 'keep', into: null });
+    await dana('POST', '/suppliers/merge', { intoId: t, ids: [src] });
+    // vera sees the company-wide one – not the scoped contact's phone
+    const v = JSON.stringify((await vera('GET', `/suppliers/${t}`)).contacts);
+    expect(v).toContain('+49 1 222');
+    expect(v).not.toContain('+49 1 111');
+    const all = (await s.api('GET', `/suppliers/${t}`)).contacts;
+    expect(all.find((c: any) => c.phone === '+49 1 111')).toMatchObject({ companyWide: false });
+    // two company-wide contacts of the same person still become one
+    const a = (await dana('POST', '/suppliers', { name: 'Invented Contact Twin A' })).id;
+    const b = (await dana('POST', '/suppliers', { name: 'Invented Contact Twin B' })).id;
+    await dana('POST', `/suppliers/${a}/contacts`, { name: 'Twin', email: 'twin@doe.example' });
+    await dana('POST', `/suppliers/${b}/contacts`, { name: 'Twin', email: 'twin@doe.example' });
+    expect((await dana('POST', '/suppliers/merge', { intoId: a, ids: [b] })).contacts.filter((c: any) => c.name === 'Twin')).toHaveLength(1);
+  });
+});
+
 describe('opening a team-scoped supplier', () => {
   it('previews and protects, through the owning-teams panel too', async () => {
     const id = await teamSupplier('Invented Team Hosting', shopTeam);

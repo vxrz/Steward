@@ -221,9 +221,13 @@ function plan(target: SupplierRow, sources: SupplierRow[], choices: Record<strin
     // contacts: the same person (name and e-mail, letter case aside) becomes one with the wider scope
     for (const k of db().all<ContactRow>('SELECT * FROM supplier_contacts WHERE supplier_id = ? ORDER BY lower(name), id', src.id)) {
       const scoped = scopeRows(k.id).length > 0;
+      // a scoped contact of the target never becomes company-wide by a merge (security review 0.18.0, L1; ADR 0031
+      // part 6): a company-wide source contact stays a contact of its own beside it
       const twin = opening
         ? undefined
-        : targetContacts.find((t) => t.name.toLowerCase() === k.name.toLowerCase() && t.email.toLowerCase() === k.email.toLowerCase());
+        : targetContacts.find(
+            (t) => t.name.toLowerCase() === k.name.toLowerCase() && t.email.toLowerCase() === k.email.toLowerCase() && (scoped || !scopeRows(t.id).length),
+          );
       let action: SupplierMergePreview['contacts'][number]['action'] = 'keep';
       let scope: ScopeItem[] = [];
       if (twin) action = 'combined';
@@ -357,11 +361,11 @@ function protect(p: Plan, supplierId: string): void {
       db().run('DELETE FROM supplier_contact_scopes WHERE contact_id = ?', k.id);
       db().run('DELETE FROM supplier_contacts WHERE id = ?', k.id);
     } else if (x.action === 'combined' && x.into) {
-      // the wider of the two scopes: company-wide if either is, else both scopes together
+      // a company-wide target stays company-wide; two scoped contacts get both scopes together. A company-wide source
+      // is never combined into a scoped target (plan): that would show the target's e-mail and phone to everyone
       const mine = scopeRows(k.id);
       const theirs = scopeRows(x.into);
-      if (!mine.length) db().run('DELETE FROM supplier_contact_scopes WHERE contact_id = ?', x.into);
-      else if (theirs.length)
+      if (mine.length && theirs.length)
         for (const i of mine)
           db().run('INSERT INTO supplier_contact_scopes (contact_id, kind, item_id) VALUES (?, ?, ?) ON CONFLICT DO NOTHING', x.into, i.kind, i.item_id);
       db().run('DELETE FROM supplier_contact_scopes WHERE contact_id = ?', k.id);
