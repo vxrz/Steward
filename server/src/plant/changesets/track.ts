@@ -161,12 +161,21 @@ function rawSnapshot(region: Region): Map<string, RawEntry> {
   return out;
 }
 
-/** The values of raw entries (one read per kind). */
+/**
+ * The values of raw entries (one read per kind). A site's or asset's external references are those of the snapshot:
+ * read again after the change, a removed entry's (or a changed list's) would be what is stored now.
+ */
 function snapsOf(list: RawEntry[]): Map<string, EntrySnap> {
   const out = new Map<string, EntrySnap>();
   const byKind = new Map<PlantEntryKind, Row[]>();
   for (const e of list) byKind.set(e.kind, [...(byKind.get(e.kind) ?? []), e.row]);
-  for (const [kind, rows] of byKind) for (const e of KINDS[kind].read(rows)) out.set(entryKey(e), e);
+  const refs = new Map(list.filter((e) => e.refs !== null).map((e) => [entryKey(e), e.refs!]));
+  for (const [kind, rows] of byKind)
+    for (const e of KINDS[kind].read(rows)) {
+      const k = entryKey(e);
+      const r = refs.get(k);
+      out.set(k, r === undefined ? e : { ...e, values: { ...e.values, refs: JSON.parse(r) as unknown } });
+    }
   return out;
 }
 
