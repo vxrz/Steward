@@ -468,7 +468,10 @@ async function crawl(token: string): Promise<{ template: string; url: string; re
   for (const x of await listAll('/schedules', '/schedules')) await get('/schedules/{scheduleId}', `/schedules/${x.id}`);
   for (const x of await listAll('/triggers', '/triggers')) await get('/triggers/{triggerId}', `/triggers/${x.id}`);
   await get('/semantic-model', '/semantic-model');
-  for (const x of await listAll('/platforms', '/platforms')) await get('/platforms/{platformId}', `/platforms/${x.id}`);
+  const platformList = await listAll('/platforms', '/platforms');
+  for (const x of platformList) await get('/platforms/{platformId}', `/platforms/${x.id}`);
+  // a platform's own cost plan (0.19.0, ADR 0032)
+  for (const x of platformList.slice(0, 2)) await get('/platforms/{platformId}/cost-plan', `/platforms/${x.id}/cost-plan`);
   for (const x of await listAll('/datasets', '/datasets')) {
     await get('/datasets/{datasetKey}', `/datasets/${encodeURIComponent(x.key)}`);
     await listAll('/datasets/{datasetKey}/rows', `/datasets/${encodeURIComponent(x.key)}/rows`);
@@ -503,10 +506,14 @@ async function crawl(token: string): Promise<{ template: string; url: string; re
   if (apiService) await listAll('/services/{serviceId}/documents', `/services/${apiService}/documents`);
   for (const x of (await listAll('/applications', '/applications?archived=include')).slice(0, 5)) {
     await get('/applications/{applicationId}', `/applications/${x.id}`);
+    await get('/applications/{applicationId}/cost-attribution', `/applications/${x.id}/cost-attribution`);
     await listAll('/applications/{applicationId}/documents', `/applications/${x.id}/documents`);
   }
   await get('/cia-scale', '/cia-scale');
-  for (const x of (await listAll('/systems', '/systems')).slice(0, 5)) await get('/systems/{systemId}', `/systems/${x.id}`);
+  for (const x of (await listAll('/systems', '/systems')).slice(0, 5)) {
+    await get('/systems/{systemId}', `/systems/${x.id}`);
+    await get('/systems/{systemId}/cost-attribution', `/systems/${x.id}/cost-attribution`);
+  }
   // suppliers (0.17, ADR 0029)
   for (const x of (await listAll('/suppliers', '/suppliers')).slice(0, 5)) await get('/suppliers/{supplierId}', `/suppliers/${x.id}`);
   // the statement of applicability, the responsibility matrix and corrective actions (0.17, ADR 0029)
