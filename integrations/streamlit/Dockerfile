@@ -1,7 +1,7 @@
 # Streamlit example app on Steward's read-only API.
 #   docker build -t steward-streamlit .
 # No secrets in the image: mount secrets.toml at run time (compose.snippet.yml).
-FROM python:3.13.15-slim-trixie
+FROM python:3.13.17-slim-trixie
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \

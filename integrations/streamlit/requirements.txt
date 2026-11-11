@@ -1,8 +1,9 @@
 # Generated from requirements.in with
 #   uv pip compile requirements.in --universal --python-version 3.11 --exclude-newer 2026-10-14T00:00:00Z \
 #     --exclude-newer-package streamlit=2026-10-22T00:00:00Z --exclude-newer-package pillow=2026-10-22T00:00:00Z \
-#     --exclude-newer-package authlib=2026-10-15T00:00:00Z --exclude-newer-package certifi=2026-10-19T00:00:00Z -o requirements.txt
-# (Streamlit, Pillow, Authlib and certifi newer for security fixes.) Every version is pinned; update them together (see README.md).
+#     --exclude-newer-package authlib=2026-10-15T00:00:00Z --exclude-newer-package certifi=2026-10-19T00:00:00Z \
+#     --exclude-newer-package joserfc=2026-10-20T00:00:00Z -o requirements.txt
+# (Streamlit, Pillow, Authlib, certifi and joserfc newer for security fixes.) Every version is pinned; update them together (see README.md).
 altair==6.3.0
     # via streamlit
 anyio==4.15.1
@@ -55,8 +56,10 @@ jinja2==3.1.6
     # via
     #   altair
     #   pydeck
-joserfc==1.7.5
-    # via authlib
+joserfc==1.7.7
+    # via
+    #   -r requirements.in
+    #   authlib
 jsonschema==4.26.0
     # via altair
 jsonschema-specifications==2025.9.1

@@ -1,14 +1,2 @@
 # Grype configuration (see docs/ci/SECURITY-PIPELINE.md). Every ignore needs a reason; remove it when the fix lands.
-ignore:
-  # @azure/msal-node 6.0.1, only via tedious → @azure/identity 4.14.0 (SQL Server driver of database platforms): Steward
-  # signs in to SQL Server with a SQL login only, so MSAL is loaded but never asked for a token. Fixed by
-  # @azure/identity 4.14.1 (published 2026-10-29), bumped once it is two weeks old (2026-11-12); remove then.
-  # Same acceptance as osv-scanner.toml (until 2026-11-30) and .trivyignore.
-  - vulnerability: GHSA-xcx6-jx8p-x3h5
-    package:
-      name: '@azure/msal-node'
-      version: 6.0.1
-  - vulnerability: CVE-2026-109461
-    package:
-      name: '@azure/msal-node'
-      version: 6.0.1
+ignore: []
