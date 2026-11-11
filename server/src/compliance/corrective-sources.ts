@@ -26,6 +26,7 @@ import { isoWeek } from '../backup/retention.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { forbid, me } from './access.js';
 import { CaContext, caToday, getFinding, insertFinding, listFindings, sourceName, sourceRef, type FindingFilter } from './corrective.js';
+import { visibleContracts } from '../suppliers/links.js';
 
 /**
  * Suggestions of the register of corrective actions (ADR 0029 part 3): Steward notices events that may be
@@ -108,6 +109,8 @@ export interface SuggestionCandidate {
   serviceId: string | null;
   /** The supplier it is about (a supplier review): the confirmed finding takes it (kept with the details) */
   supplierId?: string | null;
+  /** The contract of a duty that reviews one (ADR 0031): the confirmed finding takes it (kept with the details) */
+  supplierContractId?: string | null;
   controlIds: string[];
   recordId: string | null;
   /** What names nothing: ids and figures (period, severity, counts, dates); the names are read with the reader's rights */
@@ -359,8 +362,9 @@ registerSuggestionSource({
       process_id: string;
       grace_end: string;
       supplier_id: string;
+      supplier_contract_id: string | null;
     }>(
-      `SELECT p.duty_id, p.period_key, p.status, p.level, p.service_id, p.process_id, p.grace_end, d.supplier_id
+      `SELECT p.duty_id, p.period_key, p.status, p.level, p.service_id, p.process_id, p.grace_end, d.supplier_id, d.supplier_contract_id
        FROM duty_periods p JOIN service_duties d ON d.id = p.duty_id JOIN suppliers s ON s.id = d.supplier_id
        WHERE p.closed_at IS NOT NULL AND p.status IN ('missed', 'failed') AND p.level IN ('mandatory', 'recommended') AND p.grace_end >= ?
          AND s.status = 'active'
@@ -376,6 +380,8 @@ registerSuggestionSource({
         sourceLabel: p.period_key,
         serviceId: p.service_id,
         supplierId: p.supplier_id,
+        // a duty that reviews a contract: the finding names it, so its owners read it (ADR 0031)
+        supplierContractId: p.supplier_contract_id,
         controlIds: [...new Set([...controlsOf('process', p.process_id), ...supplierControls])].slice(0, CA_LIMITS.controls),
         recordId: null,
         details: { kind: p.status === 'failed' ? 'supplierReviewFailed' : 'supplierReviewMissed', period: p.period_key, level: p.level },
@@ -451,7 +457,11 @@ export function scanSuggestions(now = Date.now(), force = false): { added: numbe
         JSON.stringify(c.controlIds),
         c.recordId,
         suggestionTitle(c.details, '').slice(0, CA_LIMITS.title),
-        JSON.stringify(c.supplierId ? { ...c.details, supplierId: c.supplierId } : c.details),
+        JSON.stringify({
+          ...c.details,
+          ...(c.supplierId ? { supplierId: c.supplierId } : {}),
+          ...(c.supplierContractId ? { supplierContractId: c.supplierContractId } : {}),
+        }),
         c.severity,
         c.occurredAt,
         nowIso(),
@@ -507,6 +517,12 @@ function canDecide(u: AuthUser, s: Pick<SuggestionRow, 'service_id'>, ctx: CaCon
 const supplierOfSuggestion = (r: Pick<SuggestionRow, 'details'>): string | null => {
   const id = parseJson<Record<string, unknown>>(r.details, {}).supplierId;
   return typeof id === 'string' && id ? id : null;
+};
+
+/** The contract of a duty-period suggestion (kept with its details), when the reader may see it. */
+const contractOfSuggestion = (r: Pick<SuggestionRow, 'details'>): string | null => {
+  const id = parseJson<Record<string, unknown>>(r.details, {}).supplierContractId;
+  return typeof id === 'string' && id && visibleContracts([id]).has(id) ? id : null;
 };
 
 type Details = Record<string, string | number> & { kind: string };
@@ -672,6 +688,13 @@ export function confirmSuggestion(id: string, input: z.input<typeof caConfirmInp
         serviceId: v.serviceId !== undefined ? v.serviceId : r.service_id,
         // the supplier of a supplier review; one the person may not see is left out rather than refused
         supplierId: v.supplierId !== undefined ? v.supplierId : ctx.supplierName(supplierOfSuggestion(r)) === null ? null : supplierOfSuggestion(r),
+        // the contract of a duty that reviews one, when the person may see it (ADR 0031)
+        supplierContractId:
+          v.supplierContractId !== undefined
+            ? v.supplierContractId
+            : v.supplierId !== undefined && v.supplierId !== supplierOfSuggestion(r)
+              ? null
+              : contractOfSuggestion(r),
         controlIds: v.controlIds ?? parseJson<string[]>(r.control_ids, []),
         owner: v.owner ?? null,
         dueDate: v.dueDate ?? null,

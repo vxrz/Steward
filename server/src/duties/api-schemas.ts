@@ -80,6 +80,11 @@ export const DutyEntry = z.object({
     .object({ id: z.string(), name: z.string(), status: z.enum(SUPPLIER_STATUSES) })
     .nullable()
     .describe('The supplier the duty reviews (a supplier review; 0.17.0), null: none or one the token owner may not see'),
+  supplierContract: z
+    .object({ id: z.string(), title: z.string() })
+    .nullable()
+    .describe('The contract of the supplier the duty reviews (0.18.0); null: none, or one the token owner may not see (supplierContractHidden)'),
+  supplierContractHidden: z.boolean().describe('It names a contract the token owner may not see (0.18.0)'),
   name: z.string(),
   description: z.string(),
   processId: z.string().nullable().describe('The process whose real runs count; null when the token owner may not view it'),

@@ -123,6 +123,9 @@ export interface DutySummary {
   applicationName: string | null;
   /** The supplier the duty reviews (0.17.0, ADR 0029; null: none, or one the reader may not see) */
   supplier: SupplierRef | null;
+  /** The contract of the supplier it reviews (0.18.0, ADR 0031); null with `supplierContractHidden`: one the reader may not see */
+  supplierContract: { id: string; title: string } | null;
+  supplierContractHidden: boolean;
   name: string;
   description: string;
   /** null when the reader may not see the process */
@@ -162,6 +165,7 @@ export interface DutyInput {
   applicationId?: string | null;
   /** The supplier the duty reviews: missing keeps it, null clears it */
   supplierId?: string | null;
+  supplierContractId?: string | null;
   name: string;
   description?: string;
   processId: string;

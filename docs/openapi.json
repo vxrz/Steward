@@ -9126,6 +9126,34 @@
               "string"
             ]
           },
+          "supplierContract": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "title"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The contract of the supplier it names (0.18.0); null: none, or one the token owner may not see (supplierContractHidden)"
+          },
+          "supplierContractHidden": {
+            "type": "boolean",
+            "description": "It names a contract the token owner may not see (0.18.0)"
+          },
           "owner": {
             "type": [
               "null",
@@ -9219,6 +9247,8 @@
           "serviceName",
           "supplierId",
           "supplierName",
+          "supplierContract",
+          "supplierContractHidden",
           "owner",
           "dueDate",
           "overdue",
@@ -9303,6 +9333,34 @@
               "null",
               "string"
             ]
+          },
+          "supplierContract": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "title"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The contract of the supplier it names (0.18.0); null: none, or one the token owner may not see (supplierContractHidden)"
+          },
+          "supplierContractHidden": {
+            "type": "boolean",
+            "description": "It names a contract the token owner may not see (0.18.0)"
           },
           "owner": {
             "type": [
@@ -9575,6 +9633,8 @@
           "serviceName",
           "supplierId",
           "supplierName",
+          "supplierContract",
+          "supplierContractHidden",
           "owner",
           "dueDate",
           "overdue",
@@ -15356,6 +15416,34 @@
             ],
             "description": "The supplier the duty reviews (a supplier review; 0.17.0), null: none or one the token owner may not see"
           },
+          "supplierContract": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "title"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The contract of the supplier the duty reviews (0.18.0); null: none, or one the token owner may not see (supplierContractHidden)"
+          },
+          "supplierContractHidden": {
+            "type": "boolean",
+            "description": "It names a contract the token owner may not see (0.18.0)"
+          },
           "name": {
             "type": "string"
           },
@@ -15997,6 +16085,8 @@
           "applicationId",
           "applicationName",
           "supplier",
+          "supplierContract",
+          "supplierContractHidden",
           "name",
           "description",
           "processId",

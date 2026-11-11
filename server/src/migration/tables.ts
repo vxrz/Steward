@@ -196,6 +196,8 @@ export const HISTORY_COLUMNS: string[] = [
   'supplier_contracts.updated_by',
   'supplier_contract_services.added_by',
   'supplier_contract_services.confirmed_by',
+  // who kept a group of "Same supplier in several teams" separate (ADR 0031)
+  'supplier_merge_dismissals.dismissed_by',
   // the plant registry (#218)
   'plant_sites.created_by',
   'plant_sites.updated_by',

@@ -579,8 +579,11 @@ export interface SupplierOption {
   name: string;
   status: SupplierStatus;
   aliases: string[];
-  /** The contracts the person may see; `services` the services each covers (ADR 0031), `canEdit` whether the person may add a service to it */
-  contracts: { id: string; title: string; reference: string; services: string[]; canEdit: boolean }[];
+  /**
+   * The contracts the person may see; `services` the services each covers (ADR 0031), `canEdit` whether the person may
+   * add a service to it, `owners` who holds it (a finding about it proposes them for its first action)
+   */
+  contracts: { id: string; title: string; reference: string; services: string[]; canEdit: boolean; owners: string[] }[];
 }
 
 /** A contract covering a service, as the service page's "Suppliers" section shows it (ADR 0031). */
@@ -611,6 +614,8 @@ export interface SupplierContractDetail {
   visibility: { open: boolean; teams: string[]; users: string[]; services: { id: string; name: string }[]; hiddenServices: number };
   /** The contacts scoped to the contract that the reader may see */
   contacts: SupplierContact[];
+  /** Supplier review duties and corrective action findings that name the contract (those the reader may see) */
+  reviews: { kind: 'duty' | 'finding'; id: string; name: string; path: string; detail: string }[];
 }
 
 /** The contacts scoped to an application or system, per supplier (the item's "Suppliers" panel, ADR 0031). */

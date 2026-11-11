@@ -27,7 +27,7 @@ import { checkFourEyes, fourEyesRequired } from '../auth/assurance.js';
 import { canEditService, canReadRecordRow, canViewCatalogue } from '../records/access.js';
 import { instanceTimeZone, localDate } from '../duties/periods.js';
 import { likeEscape } from '../database/sql.js';
-import { resolveSupplierLink, supplierVisible } from '../suppliers/links.js';
+import { resolveSupplierContract, resolveSupplierLink, supplierVisible, visibleContracts } from '../suppliers/links.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { forbid, me, readsEverything, same } from './access.js';
 import { backToInProgress, noteParticipants, participantNames, participantsOf, takesPart } from './corrective-participants.js';
@@ -63,6 +63,8 @@ export interface FindingRow {
   source_label: string;
   service_id: string | null;
   supplier_id: string | null;
+  /** A contract of the supplier (0.18.0, ADR 0031): its owners read the finding */
+  supplier_contract_id?: string | null;
   control_ids: string;
   record_id: string | null;
   severity: CaSeverity;
@@ -160,6 +162,24 @@ export class CaContext {
     return s && supplierVisible(s) ? s.name : null;
   }
 
+  private contracts?: Map<string, string[]>;
+  /** The owners of a supplier contract (subjects), read once for all contracts. */
+  contractOwners(id: string): string[] {
+    this.contracts ??= new Map(
+      db()
+        .all<{ id: string; owners: string }>('SELECT id, owners FROM supplier_contracts')
+        .map((c) => [c.id, parseJson<string[]>(c.owners, [])]),
+    );
+    return this.contracts.get(id) ?? [];
+  }
+
+  /** The contract a finding names as the reader may see it (ADR 0031): a hidden one is named as such. */
+  contractOf(id: string | null | undefined): { supplierContract: { id: string; title: string } | null; supplierContractHidden: boolean } {
+    if (!id) return { supplierContract: null, supplierContractHidden: false };
+    const c = visibleContracts([id]).get(id);
+    return c ? { supplierContract: { id: c.id, title: c.title }, supplierContractHidden: false } : { supplierContract: null, supplierContractHidden: true };
+  }
+
   /** The actions of a finding as the register counts them (own actions, or the measures of its incident review). */
   workOf(f: Pick<FindingRow, 'id' | 'record_id'>): Work[] {
     if (!this.work) {
@@ -211,6 +231,8 @@ export function canRecordFindings(u: AuthUser): boolean {
 export function canReadFinding(u: AuthUser, f: FindingRow, ctx: CaContext): boolean {
   if (hasRole(u, READS_ALL) || same(f.owner, u.username)) return true;
   if (ctx.workOf(f).some((w) => w.owners.some((s) => matches(u, s)))) return true;
+  // the owners of the contract it names (ADR 0031): a team reviews what it holds
+  if (f.supplier_contract_id && ctx.contractOwners(f.supplier_contract_id).some((s) => matches(u, s))) return true;
   return editsService(u, ctx.service(f.service_id));
 }
 
@@ -262,6 +284,7 @@ function toSummary(f: FindingRow, ctx: CaContext, u: AuthUser): CaFindingSummary
     serviceName: s && canViewCatalogue(u, { kind: 'service', id: s.id, owners: s.owners }) ? s.name : null,
     supplierId: f.supplier_id,
     supplierName: ctx.supplierName(f.supplier_id),
+    ...ctx.contractOf(f.supplier_contract_id),
     owner: f.owner,
     dueDate: f.due_date,
     overdue: active && ((!!f.due_date && f.due_date < ctx.day) || open.some((w) => w.dueDate < ctx.day)),
@@ -561,6 +584,8 @@ export interface NewFinding {
   serviceId: string | null;
   /** A supplier the person may see (checked here); null: none */
   supplierId: string | null;
+  /** A contract of that supplier the person may see (checked here; ADR 0031); null: none */
+  supplierContractId?: string | null;
   controlIds: string[];
   owner: string | null;
   dueDate: string | null;
@@ -581,6 +606,7 @@ export function insertFinding(n: NewFinding, ctx = new CaContext(), u = me()): F
     forbid('record findings of corrective actions (designers, administrators and the editors of the service)', 'recordCorrective');
   checkService(u, n.serviceId, ctx);
   const supplierId = resolveSupplierLink(n.supplierId, null);
+  const supplierContractId = resolveSupplierContract(supplierId, n.supplierContractId ?? null, null);
   checkControls(n.controlIds, ctx);
   const owner = checkOwner(n.owner);
   if (Number(db().get<{ n: number }>('SELECT COUNT(*) AS n FROM ca_findings')!.n) >= CA_LIMITS.findings)
@@ -594,9 +620,9 @@ export function insertFinding(n: NewFinding, ctx = new CaContext(), u = me()): F
   db().tx(() => {
     const number = nextNumber(ctx.day);
     db().run(
-      `INSERT INTO ca_findings (id, number, title, description, source, source_kind, source_id, source_label, service_id, supplier_id, control_ids, record_id,
-         severity, owner, due_date, cause, status, grc_ref, grc_url, suggestion_id, created_at, created_by, updated_at, updated_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO ca_findings (id, number, title, description, source, source_kind, source_id, source_label, service_id, supplier_id, supplier_contract_id,
+         control_ids, record_id, severity, owner, due_date, cause, status, grc_ref, grc_url, suggestion_id, created_at, created_by, updated_at, updated_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?)`,
       id,
       number,
       n.title,
@@ -607,6 +633,7 @@ export function insertFinding(n: NewFinding, ctx = new CaContext(), u = me()): F
       n.sourceLabel,
       n.serviceId,
       supplierId,
+      supplierContractId,
       JSON.stringify(n.controlIds),
       n.recordId,
       n.severity,
@@ -633,6 +660,7 @@ export function insertFinding(n: NewFinding, ctx = new CaContext(), u = me()): F
         severity: n.severity,
         serviceId: n.serviceId,
         supplierId,
+        supplierContractId,
         controlIds: n.controlIds,
         owner,
         dueDate: n.dueDate,
@@ -667,6 +695,7 @@ const FIELD_COLUMNS = {
   severity: 'severity',
   serviceId: 'service_id',
   supplierId: 'supplier_id',
+  supplierContractId: 'supplier_contract_id',
   owner: 'owner',
   dueDate: 'due_date',
   cause: 'cause',
@@ -688,6 +717,13 @@ export function updateFinding(id: string, input: z.input<typeof caFindingUpdate>
   }
   // a supplier the person may see (a linked one they may not see stays while the field is not sent)
   if (v.supplierId !== undefined && v.supplierId !== f.supplier_id) v.supplierId = resolveSupplierLink(v.supplierId, f.supplier_id);
+  // a contract of its supplier (ADR 0031): one kept stays (also one the person may not see), a new one must be visible
+  {
+    const supplierAfter = v.supplierId !== undefined ? v.supplierId : f.supplier_id;
+    const kept = supplierAfter === f.supplier_id ? (f.supplier_contract_id ?? null) : null;
+    const next = resolveSupplierContract(supplierAfter, v.supplierContractId, kept);
+    v.supplierContractId = next === (f.supplier_contract_id ?? null) ? undefined : next;
+  }
   if (v.controlIds) checkControls(v.controlIds, ctx);
   if (v.owner !== undefined) v.owner = checkOwner(v.owner);
   if (v.status && v.status !== f.status && v.status === 'implemented') {

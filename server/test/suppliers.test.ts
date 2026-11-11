@@ -323,7 +323,8 @@ describe('reminders', () => {
     const today = supplierToday();
     const sup = await dana('POST', '/suppliers', { name: 'Reminder Supplier', owners: ['user:olivia'] });
     await dana('POST', `/suppliers/${sup.id}/certificates`, { kind: 'iso27001', validUntil: addDays(today, 20) });
-    await dana('POST', `/suppliers/${sup.id}/contracts`, { title: 'Reminder contract', endsOn: addDays(today, 120), noticeDays: 60 });
+    // a contract without owners: its notice-by date reminds the supplier's owners (since 0.18 the contract's owners first)
+    await dana('POST', `/suppliers/${sup.id}/contracts`, { title: 'Reminder contract', endsOn: addDays(today, 120), noticeDays: 60, owners: [] });
     const first = checkSupplierReminders();
     expect(first).toBeGreaterThanOrEqual(2);
     expect(checkSupplierReminders()).toBe(0);

@@ -5,7 +5,7 @@ import { currentUser } from '../auth/context.js';
 import { canViewCatalogue } from '../records/access.js';
 import { moduleEnabled } from '../modules/registry.js';
 import { collectDutyPeriods } from '../duties/report-section.js';
-import { expiringItems, visibleSupplierRows } from '../suppliers/service.js';
+import { expiringItems, listSuppliers, visibleSupplierRows } from '../suppliers/service.js';
 import { supplierVisible } from '../suppliers/links.js';
 import { parseJson } from '../util.js';
 import { defineReportSection } from '../reports/sections.js';
@@ -210,6 +210,8 @@ function build(c: IsmsConfig, ctx: { from: number; to: number; now: number }): I
     .map((x) => ({ supplier: x.supplierName, kind: x.kind, title: x.title, date: x.date, days: x.days, state: x.state }));
   out.suppliers.itemCount = dates.length;
   out.suppliers.unconfirmed = visibleSupplierRows({ status: 'unconfirmed' }).length;
+  // contracts processing personal data without a data processing agreement, of the contracts the owner may see (ADR 0031)
+  out.suppliers.dpaMissing = listSuppliers({ status: 'active' }, ctx.now).reduce((n, x) => n + x.dpaMissingContracts, 0);
   return out;
 }
 

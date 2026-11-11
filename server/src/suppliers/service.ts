@@ -400,7 +400,18 @@ export function usageOf(ids?: string[]): Map<string, SupplierUsage[]> {
         'SELECT service_id, area, supplier_id, contract_id FROM service_responsibilities WHERE supplier_id IS NOT NULL ORDER BY service_id, area',
       )
     : [];
-  const named = [...lineRows.map((l) => l.supplier_contract_id), ...respRows.map((r) => r.contract_id)].filter((x): x is string => !!x);
+  const dutyRows = db().all<{ id: string; name: string; service_id: string; supplier_id: string; supplier_contract_id: string | null }>(
+    'SELECT id, name, service_id, supplier_id, supplier_contract_id FROM service_duties WHERE supplier_id IS NOT NULL AND archived = 0 ORDER BY name',
+  );
+  const findingRows = moduleEnabled('compliance')
+    ? db().all<FindingRow>('SELECT * FROM ca_findings WHERE supplier_id IS NOT NULL ORDER BY created_at DESC, number DESC')
+    : [];
+  const named = [
+    ...lineRows.map((l) => l.supplier_contract_id),
+    ...respRows.map((r) => r.contract_id),
+    ...dutyRows.map((d) => d.supplier_contract_id),
+    ...findingRows.map((f) => f.supplier_contract_id),
+  ].filter((x): x is string => !!x);
   const seenContracts = visibleContracts(named, u);
   const contractOf = (id: string | null) =>
     !id
@@ -418,11 +429,16 @@ export function usageOf(ids?: string[]): Map<string, SupplierUsage[]> {
         detail: `${services.get(l.service_id)!.name} · ${Number(l.fiscal_year)}`,
         ...contractOf(l.supplier_contract_id),
       });
-  for (const d of db().all<{ id: string; name: string; service_id: string; supplier_id: string }>(
-    'SELECT id, name, service_id, supplier_id FROM service_duties WHERE supplier_id IS NOT NULL AND archived = 0 ORDER BY name',
-  ))
+  for (const d of dutyRows)
     if (want(d.supplier_id) && serviceSeen(d.service_id))
-      add(d.supplier_id, { kind: 'duty', id: d.id, name: d.name, path: `/duties/${d.id}`, detail: services.get(d.service_id)!.name });
+      add(d.supplier_id, {
+        kind: 'duty',
+        id: d.id,
+        name: d.name,
+        path: `/duties/${d.id}`,
+        detail: services.get(d.service_id)!.name,
+        ...contractOf(d.supplier_contract_id),
+      });
   // the responsibility matrix of services and the rows of statements of applicability (ADR 0029 part 2, Compliance module)
   if (moduleEnabled('compliance')) {
     for (const r of respRows)
@@ -450,7 +466,7 @@ export function usageOf(ids?: string[]): Map<string, SupplierUsage[]> {
         });
     // corrective action findings about the supplier (ADR 0029 part 3), those the reader may read
     const ctx = new CaContext();
-    for (const f of db().all<FindingRow>('SELECT * FROM ca_findings WHERE supplier_id IS NOT NULL ORDER BY created_at DESC, number DESC'))
+    for (const f of findingRows)
       if (want(f.supplier_id) && (!u || canReadFinding(u, f, ctx)))
         add(f.supplier_id!, {
           kind: 'finding',
@@ -458,6 +474,7 @@ export function usageOf(ids?: string[]): Map<string, SupplierUsage[]> {
           name: `${f.number} ${f.title}`,
           path: `/compliance/corrective-actions/${f.id}`,
           detail: f.status,
+          ...contractOf(f.supplier_contract_id ?? null),
         });
   }
   return out;
@@ -715,6 +732,7 @@ export function supplierOptions(): SupplierOption[] {
       // the pickers offer the contracts covering a service first (ADR 0031 part 4), and those the person may add it to
       services: ctx.coverOf(c.id).map((x) => x.service_id),
       canEdit: ctx.edits(c, byId.get(r.id)!),
+      owners: contractOwnersOf(c),
     })),
   }));
 }
@@ -2000,7 +2018,10 @@ export function getContract(supplierId: string, contractId: string, now = Date.n
     `SELECT c.* FROM supplier_contacts c JOIN supplier_contact_scopes x ON x.contact_id = c.id WHERE x.kind = 'contract' AND x.item_id = ? ORDER BY lower(c.name), c.id`,
     c.id,
   );
+  // the reviews and findings that name the contract (ADR 0031 part 7), as the reader may see them
+  const reviews = (usageOf([s.id]).get(s.id) ?? []).filter((x) => (x.kind === 'duty' || x.kind === 'finding') && x.contract?.id === c.id);
   return {
+    reviews: reviews.map((x) => ({ kind: x.kind as 'duty' | 'finding', id: x.id, name: x.name, path: x.path, detail: x.detail })),
     contacts: contactViews(s, scoped, ctx).filter((x) => x.scope.some((i) => i.kind === 'contract' && i.id === c.id)),
     supplier: { id: s.id, name: s.name, status: s.status, owners: ownersOf(s), teams: catalogueTeams('supplier', s.id).map((t) => t.name) },
     contract,
@@ -2211,6 +2232,8 @@ export interface ExpiringItem {
   /** A notice-by date: the contract's owners and the services it covers by name and purpose (ADR 0031) */
   contractOwners: string[];
   services: { id: string; name: string; purpose: string }[];
+  /** A certificate: the owners of the supplier's active contracts (term not ended, renewing automatically or open-ended) */
+  activeContractOwners: string[];
 }
 
 /**
@@ -2232,6 +2255,7 @@ export function expiringItems(o: { days?: number; pastDays?: number; includeUnco
     title: string,
     date: string | null,
     contract?: { owners: string[]; services: ExpiringItem['services'] },
+    activeContractOwners: string[] = [],
   ) => {
     const s = byId.get(sid);
     if (!s || !date) return;
@@ -2250,10 +2274,22 @@ export function expiringItems(o: { days?: number; pastDays?: number; includeUnco
       state: dateState(date, today),
       contractOwners: contract?.owners ?? [],
       services: contract?.services ?? [],
+      activeContractOwners,
     });
   };
+  // the owners of each supplier's active contracts: a certificate reminds them too (ADR 0031 part 7)
+  const active = new Map<string, string[]>();
+  for (const c of db().all<ContractRow>('SELECT * FROM supplier_contracts'))
+    if (
+      byId.has(c.supplier_id) &&
+      (!c.ends_on ||
+        c.renewal === 'automatic' ||
+        (contractDates({ endsOn: c.ends_on, noticeDays: num(c.notice_days), renewal: c.renewal, renewalMonths: num(c.renewal_months) }, today).termEnd ?? '') >=
+          today)
+    )
+      active.set(c.supplier_id, [...new Set([...(active.get(c.supplier_id) ?? []), ...contractOwnersOf(c)])]);
   for (const c of db().all<CertificateRow>('SELECT * FROM supplier_certificates WHERE valid_until IS NOT NULL'))
-    push('certificate', c.id, c.supplier_id, c.name ? `${c.kind} ${c.name}` : c.kind, c.valid_until);
+    push('certificate', c.id, c.supplier_id, c.name ? `${c.kind} ${c.name}` : c.kind, c.valid_until, undefined, active.get(c.supplier_id) ?? []);
   const contracts = db()
     .all<ContractRow>('SELECT * FROM supplier_contracts WHERE ends_on IS NOT NULL')
     .filter((c) => byId.has(c.supplier_id));

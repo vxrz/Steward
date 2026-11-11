@@ -13,7 +13,7 @@ import {
   type UserInfo,
 } from '@sm/shared';
 import { db } from '../db.js';
-import { resolveSupplierLink, supplierRefOf } from '../suppliers/links.js';
+import { coverChosenContract, resolveSupplierContract, resolveSupplierLink, supplierRefOf, visibleContracts } from '../suppliers/links.js';
 import { audit } from '../audit.js';
 import { currentUser, type AuthUser } from '../auth/context.js';
 import { matches, processPermissions } from '../auth/permissions.js';
@@ -42,6 +42,16 @@ import { assertKnownSubjects } from '../auth/subjects.js';
  * left out (the status stays visible: it belongs to the service).
  */
 
+/** The contract a duty reviews as the reader may see it (ADR 0031): a hidden one is named as such, never by its title. */
+function dutyContractOf(d: { supplier_contract_id?: string | null }): {
+  supplierContract: { id: string; title: string } | null;
+  supplierContractHidden: boolean;
+} {
+  if (!d.supplier_contract_id) return { supplierContract: null, supplierContractHidden: false };
+  const c = visibleContracts([d.supplier_contract_id]).get(d.supplier_contract_id);
+  return c ? { supplierContract: { id: c.id, title: c.title }, supplierContractHidden: false } : { supplierContract: null, supplierContractHidden: true };
+}
+
 const subject = z
   .string()
   .trim()
@@ -53,6 +63,8 @@ const fields = {
   applicationId: id.nullable().default(null),
   /** The supplier the duty reviews (0.17.0, ADR 0029): missing keeps it, null clears it */
   supplierId: id.nullable().optional(),
+  /** One of its contracts that covers the duty's service (0.18.0, ADR 0031): missing keeps it, null clears it */
+  supplierContractId: id.nullable().optional(),
   name: z.string().trim().min(1).max(DUTY_LIMITS.name),
   description: z.string().max(DUTY_LIMITS.description).default(''),
   processId: id,
@@ -280,6 +292,7 @@ function build(d: DutyRow, s: ServiceRef, c: ViewCtx, appName: string | null): B
       applicationId: d.application_id,
       applicationName: d.application_id ? appName : null,
       supplier: supplierRefOf(d.supplier_id),
+      ...dutyContractOf(d),
       name: d.name,
       description: d.description,
       processId: visible ? d.process_id : null,
@@ -401,16 +414,19 @@ export function createDuty(input: DutyInputData): DutyDetail {
   checkName(s.id, input.name);
   assertKnownSubjects(input.owners ?? []);
   const supplierId = resolveSupplierLink(input.supplierId, null);
+  // a contract of the supplier that covers the duty's service (choosing another adds the service when the person may)
+  const contractId = resolveSupplierContract(supplierId, input.supplierContractId, null, s.id);
   const dutyId = newId('dty_');
   const now = nowIso();
   db().tx(() => {
     db().run(
-      `INSERT INTO service_duties (id, service_id, application_id, supplier_id, name, description, process_id, schedule_id, interval_kind, level, grace_days, remind_days, owners, archived, active_from, created_at, created_by, updated_at, updated_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)`,
+      `INSERT INTO service_duties (id, service_id, application_id, supplier_id, supplier_contract_id, name, description, process_id, schedule_id, interval_kind, level, grace_days, remind_days, owners, archived, active_from, created_at, created_by, updated_at, updated_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)`,
       dutyId,
       s.id,
       input.applicationId,
       supplierId,
+      contractId,
       input.name,
       input.description,
       input.processId,
@@ -426,6 +442,7 @@ export function createDuty(input: DutyInputData): DutyDetail {
       now,
       u.username,
     );
+    coverChosenContract(contractId, null, s.id, u.username);
     audit({
       action: 'duty.created',
       entityType: 'duty',
@@ -435,6 +452,7 @@ export function createDuty(input: DutyInputData): DutyDetail {
         serviceId: s.id,
         applicationId: input.applicationId,
         supplierId,
+        supplierContractId: contractId,
         processId: input.processId,
         scheduleId: input.scheduleId,
         interval: input.interval,
@@ -474,6 +492,7 @@ export function updateDuty(dutyId: string, input: DutyUpdateData): DutyDetail {
   const next = {
     application_id: input.applicationId,
     supplier_id: resolveSupplierLink(input.supplierId, cur.supplier_id ?? null),
+    supplier_contract_id: null as string | null,
     name: input.name,
     description: input.description,
     process_id: input.processId,
@@ -484,6 +503,8 @@ export function updateDuty(dutyId: string, input: DutyUpdateData): DutyDetail {
     remind_days: input.remindDays,
     owners: JSON.stringify([...new Set(input.owners)]),
   };
+  const keptContract = next.supplier_id === cur.supplier_id ? (cur.supplier_contract_id ?? null) : null;
+  next.supplier_contract_id = resolveSupplierContract(next.supplier_id, input.supplierContractId, keptContract, s.id);
   const changes = (Object.keys(next) as (keyof typeof next)[]).filter((k) => (next[k] ?? null) !== (cur[k] ?? null));
   if (!changes.length) return getDuty(dutyId);
   const rules = changes.some((k) => (JUDGED_BY as readonly string[]).includes(k));
@@ -497,10 +518,11 @@ export function updateDuty(dutyId: string, input: DutyUpdateData): DutyDetail {
     const change = rules && !stricter ? closeForChange(cur, s, Date.now(), 'duty changed') : null;
     endedNow = change?.closed ?? [];
     db().run(
-      `UPDATE service_duties SET application_id = ?, supplier_id = ?, name = ?, description = ?, process_id = ?, schedule_id = ?, interval_kind = ?, level = ?, grace_days = ?,
+      `UPDATE service_duties SET application_id = ?, supplier_id = ?, supplier_contract_id = ?, name = ?, description = ?, process_id = ?, schedule_id = ?, interval_kind = ?, level = ?, grace_days = ?,
        remind_days = ?, owners = ?, updated_at = ?, updated_by = ?${change ? ', rules_from = ?' : ''} WHERE id = ?`,
       next.application_id,
       next.supplier_id,
+      next.supplier_contract_id,
       next.name,
       next.description,
       next.process_id,
@@ -515,6 +537,7 @@ export function updateDuty(dutyId: string, input: DutyUpdateData): DutyDetail {
       ...(change ? [new Date(change.rulesFrom).toISOString()] : []),
       dutyId,
     );
+    coverChosenContract(next.supplier_contract_id, keptContract, s.id, u.username);
     audit({
       action: 'duty.updated',
       entityType: 'duty',

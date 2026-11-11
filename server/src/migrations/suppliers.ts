@@ -27,6 +27,10 @@ import type { NamedMigration } from '../db.js';
  * confirmed). supplier_contact_scopes: the contracts, applications and systems a contact is about (none: company-wide).
  * The settings row 'catalogue.supplierContractScope' asks the server to audit the upgrade once and to show
  * administrators the notice that contracts may now be seen by fewer people (suppliers/contract-scope.ts).
+ *
+ * suppliers-004-contract-links (0.18.0, ADR 0031): a service duty and a corrective action finding can name a contract
+ * of their supplier; supplier_merge_dismissals remembers the groups of "Same supplier in several teams" an
+ * administrator kept separate (the group key: the normalised name and the suppliers' ids).
  */
 export const SUPPLIER_MIGRATIONS: NamedMigration[] = [
   {
@@ -202,6 +206,21 @@ export const SUPPLIER_MIGRATIONS: NamedMigration[] = [
       CREATE INDEX supplier_contact_scopes_item ON supplier_contact_scopes(kind, item_id);
 
       INSERT INTO settings (key, value) SELECT 'catalogue.supplierContractScope', '{"pending":true}' WHERE EXISTS (SELECT 1 FROM supplier_contracts);
+    `,
+  },
+  {
+    name: 'suppliers-004-contract-links',
+    sql: `
+      ALTER TABLE service_duties ADD COLUMN supplier_contract_id TEXT;
+      ALTER TABLE ca_findings ADD COLUMN supplier_contract_id TEXT;
+      CREATE INDEX service_duties_supplier_contract ON service_duties(supplier_contract_id);
+      CREATE INDEX ca_findings_supplier_contract ON ca_findings(supplier_contract_id);
+
+      CREATE TABLE supplier_merge_dismissals (
+        group_key TEXT PRIMARY KEY,
+        dismissed_by TEXT NOT NULL,
+        dismissed_at TEXT NOT NULL
+      );
     `,
   },
 ];

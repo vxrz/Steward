@@ -585,3 +585,116 @@ describe('master agreements and data protection per contract', () => {
     expect(body.dpaMissingContracts).toBe(2);
   });
 });
+
+describe('reviews, findings and reminders', () => {
+  let sup: string, reviewed: string, svcReview: string;
+  const soon = (days: number) => new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
+
+  beforeAll(async () => {
+    svcReview = (await s.api('POST', '/services', { name: 'Scope review service', owners: ['user:bert'] })).id;
+    await s.api('PUT', `/owning-teams/service/${svcReview}`, { teamIds: [careTeam] });
+    sup = (await dana('POST', '/suppliers', { name: 'Invented Review Hosting AG', owners: ['user:dana'] })).id;
+    // a contract of the Care team whose notice-by date is in 50 days
+    await bert('POST', `/suppliers/${sup}/contracts`, { title: 'Reviewed hosting', endsOn: soon(80), noticeDays: 30, services: [{ serviceId: svcReview }] });
+    reviewed = (await bert('GET', `/suppliers/${sup}`)).contracts.find((x: any) => x.title === 'Reviewed hosting').id;
+  });
+
+  it('lets a duty name a contract of its supplier covering the service, hidden from who may not see it', async () => {
+    const processId = (await s.api('GET', '/processes'))[0].id;
+    const d = await s.api('POST', '/duties', {
+      serviceId: svcReview,
+      name: 'Yearly review of the hosting contract',
+      processId,
+      interval: 'yearly',
+      level: 'mandatory',
+      supplierId: sup,
+      supplierContractId: reviewed,
+    });
+    expect(d.supplierContract).toEqual({ id: reviewed, title: 'Reviewed hosting' });
+    const page = await bert('GET', `/suppliers/${sup}/contracts/${reviewed}`);
+    expect(page.reviews.map((x: any) => x.kind)).toContain('duty');
+    // Used by: a designer sees the supplier and the duty? the service is the Care team's – the auditor does
+    const used = (await audrey('GET', `/suppliers/${sup}`)).usedBy.find((u: any) => u.kind === 'duty');
+    expect(used).toMatchObject({ contract: { id: reviewed }, contractHidden: false });
+  });
+
+  it('lets the contract’s owners read the findings that name it', async () => {
+    const svcOther = (await s.api('POST', '/services', { name: 'Scope finding service' })).id;
+    const team = (await s.api('POST', '/teams', { name: 'Finding team', members: [] })).id;
+    await s.api('PUT', `/owning-teams/service/${svcOther}`, { teamIds: [team] });
+    const f = await s.api('POST', '/compliance/corrective-actions', {
+      title: 'Hosting provider missed its SLA report',
+      source: 'supplierReview',
+      serviceId: svcOther,
+      supplierId: sup,
+      supplierContractId: reviewed,
+    });
+    expect(f.supplierContract).toEqual({ id: reviewed, title: 'Reviewed hosting' });
+    // bert owns the contract (not the service): he reads it
+    expect((await bert('GET', `/compliance/corrective-actions/${f.id}`)).number).toBe(f.number);
+    expect(await refused(olivia('GET', `/compliance/corrective-actions/${f.id}`))).toMatchObject({ status: 404 });
+    // a contract of another supplier is refused
+    expect(
+      await refused(
+        s.api('POST', '/compliance/corrective-actions', { title: 'x', source: 'supplierReview', supplierId: supplier, supplierContractId: reviewed }),
+      ),
+    ).toEqual({ status: 404, code: 'SUPPLIER_CONTRACT_NOT_FOUND' });
+  });
+
+  it('reminds the contract’s owners of its notice-by date, with fallbacks; certificates also the owners of active contracts', async () => {
+    const { expiringItems } = await import('../src/suppliers/service.js');
+    const { recipientsOf } = await import('../src/suppliers/jobs.js');
+    const { runAs } = await import('../src/auth/context.js');
+    const { listUsers } = await import('../src/auth/users.js');
+    await dana('POST', `/suppliers/${sup}/certificates`, { kind: 'iso27001', validUntil: soon(20) });
+    // a contract without owners: its notice reminder falls back to the supplier's owners
+    await dana('POST', `/suppliers/${sup}/contracts`, { title: 'Ownerless', owners: [], endsOn: soon(80), noticeDays: 30 });
+    const all = listUsers().filter((u) => u.active);
+    const items = runAs(null, () => expiringItems({ days: 90, pastDays: 0 })).filter((x) => x.supplierId === sup);
+    const to = (title: string) =>
+      recipientsOf(
+        items.find((x) => x.title === title)!,
+        all,
+      )
+        .map((u) => u.username)
+        .sort();
+    // the notice: bert (user owner) and the Care team's members – once each, only who may see it
+    expect(to('Reviewed hosting')).toEqual(['bert']);
+    expect(to('Ownerless')).toEqual(['dana']);
+    // the certificate: the supplier's owner and the owners of active contracts
+    expect(to('iso27001')).toEqual(['bert', 'dana']);
+    // without any owners: the administrators
+    const bare = (await s.api('POST', '/suppliers', { name: 'Invented Ownerless Ltd' })).id;
+    await s.api('POST', `/suppliers/${bare}/contracts`, { title: 'Bare contract', owners: [], endsOn: soon(80), noticeDays: 30 });
+    const bareItems = runAs(null, () => expiringItems({ days: 90, pastDays: 0 })).filter((x) => x.supplierId === bare);
+    expect(recipientsOf(bareItems[0]!, all).map((u) => u.username)).toEqual(['admin']);
+  });
+
+  it('lists notice-by dates of contracts the recipient owns in the daily summary, certificates of suppliers they hold a contract with', async () => {
+    const sum = await import('../src/notifications/summary.js');
+    const { listUsers } = await import('../src/auth/users.js');
+    const prefs = {
+      enabled: true,
+      time: '08:00',
+      timeZone: 'Europe/Berlin',
+      days: 'weekdays',
+      channel: 'inApp',
+      sections: ['suppliers'],
+      skipEmpty: true,
+    } as any;
+    const build = (name: string) =>
+      JSON.stringify(
+        sum.buildSummary(
+          listUsers().find((u) => u.username === name)!,
+          prefs,
+          Date.now() - 3600000,
+          Date.now() + 1000,
+        ),
+      );
+    expect(build('bert')).toContain('Reviewed hosting');
+    expect(build('bert')).toContain('iso27001');
+    expect(build('olivia')).not.toContain('Reviewed hosting');
+    expect(build('dana')).toContain('Ownerless');
+    expect(build('dana')).not.toContain('Reviewed hosting');
+  });
+});

@@ -108,6 +108,7 @@ const en = {
   daysAgo: '{n} days ago',
   today: 'today',
   unconfirmed: '{n} supplier(s) still to confirm (Suppliers → To confirm) are not counted.',
+  dpaMissing: 'Contracts processing personal data without a DPA: {n}.',
   more: '{n} more not shown.',
   glanceOpen: 'Open findings',
   glanceOverdue: 'Overdue findings',
@@ -215,6 +216,7 @@ const de: Texts = {
   daysAgo: 'vor {n} Tagen',
   today: 'heute',
   unconfirmed: '{n} noch zu bestätigende Lieferanten (Lieferanten → Zu bestätigen) werden nicht gezählt.',
+  dpaMissing: 'Verträge, die personenbezogene Daten verarbeiten, ohne Auftragsverarbeitungsvertrag: {n}.',
   more: '{n} weitere nicht angezeigt.',
   glanceOpen: 'Offene Befunde',
   glanceOverdue: 'Überfällige Befunde',
@@ -285,6 +287,8 @@ export interface IsmsSectionData {
     /** All items in the window (the list holds at most ISMS_MAX_ROWS) */
     itemCount?: number;
     unconfirmed: number;
+    /** Contracts processing personal data without a DPA (0.18.0, ADR 0031) */
+    dpaMissing?: number;
   };
 }
 
@@ -519,6 +523,7 @@ export const ismsSectionDraw: ReportSectionDraw<IsmsSectionData> = {
       { size: 7.4, empty: x.noSupplierDates },
     );
     more(d.suppliers.items.length, d.suppliers.itemCount ?? d.suppliers.items.length);
+    if (d.suppliers.dpaMissing !== undefined) w.paragraph(fill(x.dpaMissing, { n: d.suppliers.dpaMissing }), { size: 8 });
     if (d.suppliers.unconfirmed) w.paragraph(fill(x.unconfirmed, { n: d.suppliers.unconfirmed }), { tone: 'muted', size: 7.4 });
   },
 };

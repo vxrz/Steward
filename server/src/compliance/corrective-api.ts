@@ -42,6 +42,11 @@ export const CorrectiveFinding = z.object({
   serviceName: z.string().nullable().describe('null when the token owner may not see the service'),
   supplierId: z.string().nullable().describe('The supplier the finding is about; null when there is none or the token owner may not see it'),
   supplierName: z.string().nullable(),
+  supplierContract: z
+    .object({ id: z.string(), title: z.string() })
+    .nullable()
+    .describe('The contract of the supplier it names (0.18.0); null: none, or one the token owner may not see (supplierContractHidden)'),
+  supplierContractHidden: z.boolean().describe('It names a contract the token owner may not see (0.18.0)'),
   owner: z.string().nullable().describe('User name of the finding’s owner'),
   dueDate: day().nullable(),
   overdue: z.boolean().describe('Open or in progress, and past its due date or with an action past its due date'),
@@ -110,6 +115,8 @@ const summary = (f: CaFindingSummary) => ({
   serviceName: f.serviceName,
   supplierId: f.supplierName === null ? null : f.supplierId,
   supplierName: f.supplierName,
+  supplierContract: f.supplierContract,
+  supplierContractHidden: f.supplierContractHidden,
   owner: f.owner,
   dueDate: f.dueDate,
   overdue: f.overdue,
