@@ -141,9 +141,12 @@ async function openNative(platform: Platform, secrets: Record<string, string>): 
   for (const b of brokers) await assertBrokerAllowed(platform, b.host, b.port);
   const k = await import('@platformatic/kafka');
   const tls = String(platform.config.variables?.tls ?? 'true') !== 'false';
-  // the checked address is the one connected to (security review 0.19.0 L3): over TLS every connection – to the
-  // bootstrap servers and the brokers the cluster advertises, also reconnects – resolves through the pinning lookup;
-  // without TLS the client takes no lookup, so the bootstrap servers are connected by the address checked here
+  // the checked address is the one connected to (security review 0.19.0 L3): over TLS every connection to a broker
+  // named by a host name – the bootstrap servers and the brokers the cluster advertises, also reconnects – resolves
+  // through the pinning lookup; without TLS the client takes no lookup, so the bootstrap servers are connected by the
+  // address checked here. Known limitation (security review 0.19.0 L4, docs/SECURITY-HARDENING.md): the client has no
+  // hook per connection, so advertised brokers without TLS (resolved again by the client) and those named by an IP
+  // address (no lookup) are checked only with the metadata read below, not on each connection
   const bootstrap = tls ? brokers : await Promise.all(brokers.map(async (b) => ({ host: await checkedAddress(b.host), port: b.port })));
   const base = {
     clientId: `${BRAND.slug}-reader`,
