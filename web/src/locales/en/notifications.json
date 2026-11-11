@@ -206,6 +206,10 @@
       "budget": {
         "label": "Cost budget",
         "info": "The monthly cost budget of a service, application or team you own reached 80 % or 100 %"
+      },
+      "booking_due": {
+        "label": "Contract payments not booked",
+        "info": "Contract payments of last month of a service you own have no cost entry yet (off by default: turn it on in your profile)"
       }
     },
     "contract": {

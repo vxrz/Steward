@@ -62,6 +62,7 @@ const EVENT_COLORS: Record<string, string> = {
   'platform.failing': 'red',
   'ai.budget': 'orange',
   'cost.budget': 'orange',
+  'cost.booking_due': 'orange',
   'contract.failed': 'red',
   'plant.advisory_matched': 'red',
   'monitor.state': 'gray',

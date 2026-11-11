@@ -14,7 +14,7 @@ import { createTicket, ticketInputSchema } from '../tickets/service.js';
 import { createDuty, dutyInput } from '../duties/service.js';
 import { createObjective, objectiveInput, readPromObjectives } from '../scorecard/objectives.js';
 import { createReportSchedule, scheduleInputSchema } from '../reports/schedules.js';
-import { setupCostPlanDemo } from '../costs/demo.js';
+import { setupContractPaymentDemo, setupCostPlanDemo } from '../costs/demo.js';
 import { moduleEnabled } from '../modules/registry.js';
 import { setupSupplierDemo } from '../suppliers/demo.js';
 import { migrateVendorTexts } from '../suppliers/migrate.js';
@@ -362,6 +362,8 @@ export async function setupServiceDemo(now = Date.now()): Promise<number> {
   );
   // ---- cost plans of the shop and the plant service (ADR 0026; the demo's fiscal year starts in October) ----
   if (moduleEnabled('costs')) step('cost plans', () => setupCostPlanDemo({ shop: shop.id, plant: plant.id }, now));
+  // ---- contract payments (ADR 0030): a three-year licence billed monthly, a prepaid add-on, an imported ERP export ----
+  if (moduleEnabled('costs')) step('contract payments', () => setupContractPaymentDemo({ shop: shop.id, plant: plant.id }, suppliers, [...desk, ...dana], now));
   // the free-text vendors left (page watches, cost plan lines) become suppliers to confirm, as after an upgrade
   step('vendor texts', () => migrateVendorTexts());
   // ---- corrective actions (ADR 0029): two findings and a suggestion of a missed duty period ----

@@ -8133,6 +8133,8 @@ export interface Resources {
     'events.ai.budget.info': string;
     'events.cost.budget.label': string;
     'events.cost.budget.info': string;
+    'events.cost.booking_due.label': string;
+    'events.cost.booking_due.info': string;
     'events.contract.failed.label': string;
     'events.contract.failed.info': string;
     'events.plant.change_proposed.label': string;
@@ -12498,6 +12500,9 @@ export interface Resources {
     'notifications.testTitle': string;
     'notifications.testBody': string;
     'notifications.test': string;
+    'notifications.optional': string;
+    'notifications.optionalHint': string;
+    'notifications.optInSaved': string;
     'password.title': string;
     'password.hint': string;
     'password.change': string;

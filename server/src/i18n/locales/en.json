@@ -621,5 +621,12 @@
     "noticeTitle_other": "Supplier {{supplier}}: notice on “{{title}}” due in {{count}} days",
     "noticeBody": "The last day to give notice on the contract “{{title}}” of the supplier “{{supplier}}” is {{date}}. Decide whether it should renew.",
     "hint": "You get this because you own the supplier in Steward."
+  },
+  "costBooking": {
+    "title_one": "{{service}}: {{count}} contract payment of {{month}} not booked",
+    "title_other": "{{service}}: {{count}} contract payments of {{month}} not booked",
+    "body_one": "The cost plan of “{{service}}” has {{count}} contract payment of {{month}} without a cost entry:",
+    "body_other": "The cost plan of “{{service}}” has {{count}} contract payments of {{month}} without a cost entry:",
+    "hint": "Book them on the cost plan once the invoices are in – Steward never books on its own. You get this reminder because you turned it on in your profile."
   }
 }

@@ -6,6 +6,13 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Payment schedules on supplier contracts** (Costs module, [docs/COSTS.md](docs/COSTS.md#contract-payments-and-commitments), [ADR 0030](docs/adr/0030-contract-payments-and-recorded-costs.md)): monthly, quarterly, yearly, one-off or dated payments per paying service, with amounts per contract year (_+ x % per year_ fills them in). Steward proposes each fiscal year's plan lines, a person confirms them (_Add to plan_), and a changed contract shows _Contract changed_ with _Update lines_ – never a silent rewrite, years that are over stay as planned. Prepaid payments count in the year paid and show as _Prepaid in FY …_ in the years they cover.
+- **Commitments** ([docs/COSTS.md](docs/COSTS.md#commitments)): what the payment schedules still owe, to contract end and to the earliest exit, per fiscal year and currency – in a service's cost plan (_Contracts_), under _Costs → Commitments_ (grouped, filtered, CSV) and on the supplier page, with a warning when a notice-by date comes before the next term's year is planned. Also `GET /api/v1/cost-commitments`, the MCP tool `list_cost_commitments`, the dataset `costs.commitments` and `commitments.csv` in the export part _Cost plans_.
+- **Book and import cost entries** ([docs/COSTS.md](docs/COSTS.md#importing-entries-csv)): _Book_ turns a planned payment into an entry in one step (asking before booking a month twice), months without one show _Not booked_, and _Import entries (CSV)_ takes invoice lists and ERP exports with an explicit date format and decimal separator, a preview with problems and duplicates, all or nothing, and _Remove import_. Entries name a supplier and contract.
+- **An optional reminder for contract payments not booked** (`cost.booking_due`, [docs/NOTIFICATIONS.md](docs/NOTIFICATIONS.md#events)): off by default, turned on per person under _Profile → Notifications → Optional notifications_.
+
 ### Fixed
 
 - **Amounts in currencies without cents** ([docs/COSTS.md](docs/COSTS.md#the-cost-model-focus)): cost pages, CSV files, report sections, notifications and monitor messages show amounts with the decimals of their currency – none for JPY, KRW, ISK, CLP or VND, three for BHD, KWD, OMR, JOD, TND, LYD and IQD – instead of always two, and a plan line, cost entry or budget with more decimals than its currency has (`1500.50 JPY`) is refused. The API keeps every decimal.
@@ -16,6 +23,7 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- **Plan lines can cover part of a fiscal year** and be **quarterly** ([docs/COSTS.md](docs/COSTS.md#planning-per-service)): monthly, quarterly and yearly lines take a first and a last month; a yearly amount is spread in the currency's minor units (83.33 or 83.34 EUR a month, whole yen). _Copy to the next fiscal year_ proposes contract lines instead of copying them and no longer continues lines past their contract's end; the CSV of plan lines and entries and the export part gain the new columns. **Check before updating:** migrations `costs-003-contract-payments`, `costs-004-entry-imports` and `notifications-005-opt-ins` are additive; existing lines stay whole-year lines.
 - **The ISMS summary counts document reviews** ([docs/COMPLIANCE.md](docs/COMPLIANCE.md#isms-summary)): under _Reviews done_ the section shows the living documents with a review cycle that are within their review interval and those overdue at the end of the period (listed with their review owner and due date), and the reviews recorded in the period – only documents the schedule's owner may read.
 - **Backups are pinned to their S3 target** like exports ([docs/BACKUPS.md](docs/BACKUPS.md#2-the-storage-platform), [ADR 0027](docs/adr/0027-backup-contents-and-exports.md#changed-in-0171)): when whoever manages the backup platform changes its address, region, connection or access key id, backups, restore tests and uploads of audit archives fail before writing anything (`BACKUP_TARGET_CHANGED`, notification _Backup failed_) until an administrator presses _Confirm target_ under _Settings → Backups_ (step-up). The first start after the update records the current target.
 

@@ -80,7 +80,10 @@
     "browserHint": "Zeigt eine Systembenachrichtigung auf diesem Gerät, solange die App in einem Tab geöffnet ist.",
     "testTitle": "Testbenachrichtigung",
     "testBody": "Browser-Benachrichtigungen funktionieren.",
-    "test": "Testbenachrichtigung anzeigen"
+    "test": "Testbenachrichtigung anzeigen",
+    "optional": "Optionale Benachrichtigungen",
+    "optionalHint": "Aus, solange Sie sie nicht einschalten. Wo sie ankommen (in der App, per E-Mail), folgt den Einstellungen der Instanz.",
+    "optInSaved": "Gespeichert"
   },
   "password": {
     "title": "Passwort",

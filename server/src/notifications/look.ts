@@ -311,6 +311,7 @@ const WARN_EVENTS = new Set([
   'corrective.action_due',
   'ai.budget',
   'cost.budget',
+  'cost.booking_due',
 ]);
 
 /** How a message reads at a glance: red for failures, orange for something to do, green when a monitor is up again. */

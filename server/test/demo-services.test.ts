@@ -93,8 +93,15 @@ describe('demo services', () => {
     const shopPlan = await s.api('GET', `/costs/plans/${shop.id}`);
     expect(shopPlan.label).toMatch(/^FY \d{4}\/\d{2}$/);
     expect(shopPlan.lines.map((l: { title: string }) => l.title)).toEqual(
-      expect.arrayContaining(['Cloud hosting of the webshop', 'Payment gateway licence', 'Cluster support subscription']),
+      expect.arrayContaining(['Cloud hosting of the webshop', 'Payment gateway licence – Licence fee', 'Cluster support subscription']),
     );
+    // contract payments (ADR 0030): the licence's lines made from its schedule, an imported ERP export with a duplicate
+    expect(shopPlan.lines.filter((l: { schedule: unknown }) => l.schedule).length).toBeGreaterThan(0);
+    const imports = await s.api('GET', `/costs/plans/${shop.id}/imports`);
+    expect(imports.imports[0]).toMatchObject({ fileName: 'erp-export-demo.csv' });
+    expect(imports.imports[0].skipped).toMatchObject({ duplicate: 1 });
+    const owed = await s.api('GET', `/costs/commitments?serviceId=${shop.id}`);
+    expect(owed.rows.map((r: { title: string }) => r.title)).toContain('Licence fee');
     expect(shopPlan.lines.find((l: { title: string }) => l.title === 'Cluster support subscription').target).toMatchObject({
       kind: 'system',
       name: 'k8s-shop-01 (demo)',
@@ -104,6 +111,8 @@ describe('demo services', () => {
     const plantPlan = await s.api('GET', `/costs/plans/${plantId}`);
     expect(plantPlan.lines.map((l: { title: string }) => l.title)).toContain('Historian licences');
     expect(plantPlan.renewals.map((r: { title: string }) => r.title)).toContain('Historian licences');
+    // the add-on prepaid in the last fiscal year: a quiet row in this one
+    expect(plantPlan.prepaid.map((p: { title: string }) => p.title)).toContain('Historian analytics add-on – Three years prepaid');
 
     // the Home tiles have figures instead of "not set up yet"
     const home = await s.api('GET', '/dashboard');

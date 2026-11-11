@@ -386,3 +386,38 @@ describe('CSV import of entries', () => {
     });
   });
 });
+
+describe('the reminder "contract payments not booked"', () => {
+  it('goes, off by default, to owners who opted in – once per service and month', async () => {
+    const svc = (await s.api('POST', '/services', { name: 'Reminded service', owners: ['user:olivia', 'user:vera'] })).id;
+    const sup = await s.api('POST', `/suppliers/${supplier}/contracts`, { title: 'Reminder contract', startsOn: '2020-01-01', endsOn: '2035-12-31' });
+    const cid = sup.contracts.find((c: { title: string }) => c.title === 'Reminder contract').id;
+    const sch = await s.api('POST', '/costs/schedules', {
+      title: 'Monthly fee',
+      amount: '250',
+      currency: 'EUR',
+      billing: 'monthly',
+      firstPaymentOn: '2020-01-05',
+      contractId: cid,
+      serviceId: svc,
+    });
+    const prev = month === `${fy}-01` ? `${fy - 1}-12` : `${fy}-${String(Number(month.slice(5, 7)) - 1).padStart(2, '0')}`;
+    await s.api('POST', `/costs/plans/${svc}/proposals`, { fiscalYear: fiscalYearOf(prev, 1), scheduleIds: [sch.schedules[0].id] });
+    const { checkBookingReminders } = await import('../src/costs/booking-reminders.js');
+    const third = Date.parse(`${month}-03T12:00:00Z`);
+    // off by default: nobody opted in, nothing is sent (and nothing claimed)
+    expect(checkBookingReminders(third)).toBe(0);
+    expect((await olivia('GET', '/me/notification-opt-ins')).events).toEqual([]);
+    await olivia('PUT', '/me/notification-opt-ins', { events: ['cost.booking_due'] });
+    // before the third day: not yet
+    expect(checkBookingReminders(Date.parse(`${month}-02T12:00:00Z`))).toBe(0);
+    expect(checkBookingReminders(third)).toBe(1);
+    expect(checkBookingReminders(third + 3_600_000)).toBe(0);
+    const mine = ((await olivia('GET', '/notifications')) as { items: { event: string; title: string }[] }).items;
+    expect(mine.find((n) => n.event === 'cost.booking_due')?.title).toContain('Reminded service');
+    const veras = ((await vera('GET', '/notifications')) as { items: { event: string }[] }).items;
+    expect(veras.some((n) => n.event === 'cost.booking_due')).toBe(false);
+    const audit = (await s.api('GET', '/audit?action=notification.opt_ins_changed&limit=1'))[0];
+    expect(audit.details).toMatchObject({ from: [], to: ['cost.booking_due'] });
+  });
+});

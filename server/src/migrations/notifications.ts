@@ -98,4 +98,17 @@ export const NOTIFICATION_MIGRATIONS: NamedMigration[] = [
       ALTER TABLE teams_conversations ADD COLUMN aad_object_id TEXT;
     `,
   },
+  {
+    // notifications a person turns on for themselves (0.18.0, ADR 0030): events that are off by default
+    // (NOTIFICATION_OPT_IN_EVENTS, e.g. cost.booking_due); a row: the person opted in
+    name: 'notifications-005-opt-ins',
+    sql: `
+      CREATE TABLE notification_opt_ins (
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        event TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        PRIMARY KEY (user_id, event)
+      );
+    `,
+  },
 ];

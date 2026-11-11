@@ -530,6 +530,8 @@ async function crawl(token: string): Promise<{ template: string; url: string; re
   if (apiService) await get('/services/{serviceId}/scorecard', `/services/${apiService}/scorecard`);
   // the service's cost plan of the current fiscal year (ADR 0026)
   if (apiService) await get('/services/{serviceId}/cost-plan', `/services/${apiService}/cost-plan`);
+  // what the payment schedules of contracts still owe (ADR 0030)
+  await listAll('/cost-commitments', '/cost-commitments');
   for (const x of (await listAll('/objectives', '/objectives')).slice(0, 5)) await listAll('/objectives/{objectiveId}/samples', `/objectives/${x.id}/samples`);
   await listAll('/access-changes', '/access-changes');
   await listAll('/access-findings', '/access-findings');

@@ -1,6 +1,6 @@
 # 0030. Contract payments, commitments and recorded costs
 
-- **Status:** Accepted (owner decision 2026-11-11) – the scope was set by the owner and every open question was taken as recommended (see _Decided (November 2026)_). To be built in 0.18.0
+- **Status:** Accepted (owner decision 2026-11-11) and built in 0.18.0 – the scope was set by the owner and every open question was taken as recommended (see _Decided (November 2026)_)
 - **Date:** 2026-11-11
 - **Since:** 0.18.0 ([ROADMAP.md](../ROADMAP.md#next))
 

@@ -232,7 +232,7 @@ export function yearAmount(s: ScheduleSpec, year: number): number {
  * The amounts of contract years 2–10 from "+ x % per year", each rounded half away from zero to the currency's minor
  * units from the year before's rounded amount – what the form fills in (and what is stored is what is shown).
  */
-export function yearAmountsFromPercent(amount: number, pct: number, currency: string, years = COST_SCHEDULE_LIMITS.yearAmounts): number[] {
+export function yearAmountsFromPercent(amount: number, pct: number, currency: string, years: number = COST_SCHEDULE_LIMITS.yearAmounts): number[] {
   const out: number[] = [];
   let a = amount;
   for (let i = 0; i < years; i++) {

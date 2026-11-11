@@ -118,7 +118,7 @@ export interface PersonalDataExport {
   sessions: { createdAt: string; lastSeenAt: string; expiresAt: string; ip: string | null; userAgent: string | null; method: string | null }[];
   mcpClients: { client: string; createdAt: string; lastUsedAt: string | null; revokedAt: string | null }[];
   emergencyAccess: { issuedBy: string; createdAt: string; expiresAt: string; usedAt: string | null; usedIp: string | null; revokedAt: string | null }[];
-  settings: { notificationPrefs: unknown; dailySummary: unknown; personalChannels?: unknown };
+  settings: { notificationPrefs: unknown; dailySummary: unknown; personalChannels?: unknown; optIns?: unknown };
   notifications: { total: number; items: { ts: string; event: string; title: string; read: boolean }[] };
   teamsChats: { installedAt: string; removedAt: string | null }[];
   /** Where the person is named: as the one who did something (history) and as owner or responsible (now) */

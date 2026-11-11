@@ -21,8 +21,9 @@ import { useMediaQuery } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { IconAlertTriangle, IconCheck, IconCopy, IconDownload, IconKey, IconPlus } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import type { ApiToken, ApiTokenCreated, ApiTokenScope, UserInfo } from '@sm/shared';
-import { apiUrl, del, getOptional, notifyError, notifyOk, patch, post } from '../api';
+import type { ApiToken, ApiTokenCreated, ApiTokenScope, NotificationEvent, UserInfo } from '@sm/shared';
+import { apiUrl, del, get, getOptional, notifyError, notifyOk, patch, post, put } from '../api';
+import { useModuleOn } from '../modules';
 import { useMe } from '../auth';
 import { Hint, PageHeader, useFieldErrors } from '../components/common';
 import { ApiTokenTable } from '../components/ApiTokenTable';
@@ -233,8 +234,54 @@ function NotificationsCard({ user }: { user: UserInfo }) {
             </Button>
           </Group>
         )}
+        <OptInSwitches />
       </Stack>
     </Card>
+  );
+}
+
+/**
+ * Notifications that are off by default and that a person turns on for themselves (0.18.0, ADR 0030): the reminder
+ * "contract payments not booked" (Costs module).
+ */
+function OptInSwitches() {
+  const { t } = useTranslation(['profile', 'notifications']);
+  const costsOn = useModuleOn('costs');
+  const qc = useQueryClient();
+  const q = useQuery({
+    queryKey: ['me', 'notification-opt-ins'],
+    queryFn: () => get<{ offered: NotificationEvent[]; events: NotificationEvent[] }>('/me/notification-opt-ins'),
+  });
+  const offered = (q.data?.offered ?? []).filter((e) => costsOn || !e.startsWith('cost.'));
+  if (!q.data || !offered.length) return null;
+  const set = async (e: NotificationEvent, on: boolean) => {
+    const events = on ? [...q.data!.events, e] : q.data!.events.filter((x) => x !== e);
+    try {
+      qc.setQueryData(['me', 'notification-opt-ins'], await put('/me/notification-opt-ins', { events }));
+      notifyOk(t('notifications.optInSaved'));
+    } catch (err) {
+      notifyError(err, t('notSaved'));
+    }
+  };
+  return (
+    <Stack gap="xs" data-testid="notification-opt-ins">
+      <Text size="sm" fw={500}>
+        {t('notifications.optional')}
+      </Text>
+      <Text size="xs" c="dimmed">
+        {t('notifications.optionalHint')}
+      </Text>
+      {offered.map((e) => (
+        <Switch
+          key={e}
+          label={t(`notifications:events.${e}.label` as 'notifications:events.run.failed.label', { defaultValue: e })}
+          description={t(`notifications:events.${e}.info` as 'notifications:events.run.failed.info', { defaultValue: e })}
+          checked={q.data!.events.includes(e)}
+          onChange={(x) => void set(e, x.currentTarget.checked)}
+          data-testid={`opt-in-${e}`}
+        />
+      ))}
+    </Stack>
   );
 }
 

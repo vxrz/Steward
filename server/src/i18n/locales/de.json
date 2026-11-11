@@ -621,5 +621,12 @@
     "noticeTitle_other": "Lieferant {{supplier}}: Kündigung von „{{title}}“ in {{count}} Tagen fällig",
     "noticeBody": "Der letzte Tag, um den Vertrag „{{title}}“ des Lieferanten „{{supplier}}“ zu kündigen, ist der {{date}}. Bitte entscheiden Sie, ob er sich verlängern soll.",
     "hint": "Sie erhalten diese Nachricht, weil Sie in Steward für den Lieferanten verantwortlich sind."
+  },
+  "costBooking": {
+    "title_one": "{{service}}: {{count}} Vertragszahlung von {{month}} nicht gebucht",
+    "title_other": "{{service}}: {{count}} Vertragszahlungen von {{month}} nicht gebucht",
+    "body_one": "Der Kostenplan von „{{service}}“ hat {{count}} Vertragszahlung von {{month}} ohne Kostenbuchung:",
+    "body_other": "Der Kostenplan von „{{service}}“ hat {{count}} Vertragszahlungen von {{month}} ohne Kostenbuchung:",
+    "hint": "Buchen Sie sie im Kostenplan, sobald die Rechnungen da sind – Steward bucht nie von sich aus. Sie erhalten diese Erinnerung, weil Sie sie in Ihrem Profil eingeschaltet haben."
   }
 }
