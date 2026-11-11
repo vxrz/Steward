@@ -62,6 +62,16 @@ const FORM_FIELDS = [
   'tlsExpiryWarnDays',
   'url',
   'variables',
+  'bucket',
+  'database',
+  'retentionPolicy',
+  'measurement',
+  'fields',
+  'tags',
+  'groupBy',
+  'expectedSeries',
+  'language',
+  'lookbackHours',
 ] as const;
 
 export interface CheckFormProps {

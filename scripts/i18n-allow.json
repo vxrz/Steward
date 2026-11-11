@@ -208,7 +208,9 @@
       "Aggregator",
       "Variable",
       "Insights Hub: {{target}}",
-      "Insights Hub"
+      "Insights Hub",
+      "Bucket",
+      "Measurement"
     ]
   }
 }
