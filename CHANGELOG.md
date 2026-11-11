@@ -6,6 +6,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- **Scheduled exports redact the request body of a monitor's check** ([docs/EXPORTS.md](docs/EXPORTS.md#security)): `monitors.yaml` writes the body of an HTTP, platform or freshness check as `<redacted>` unless it is empty, and the manifest lists it with the other redactions – a body can hold a password typed into it.
+
 ### Changed
 
 - **Backups are pinned to their S3 target** like exports ([docs/BACKUPS.md](docs/BACKUPS.md#2-the-storage-platform), [ADR 0027](docs/adr/0027-backup-contents-and-exports.md#changed-in-0171)): when whoever manages the backup platform changes its address, region, connection or access key id, backups, restore tests and uploads of audit archives fail before writing anything (`BACKUP_TARGET_CHANGED`, notification _Backup failed_) until an administrator presses _Confirm target_ under _Settings → Backups_ (step-up). The first start after the update records the current target.

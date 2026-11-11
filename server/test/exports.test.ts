@@ -124,6 +124,9 @@ beforeAll(async () => {
           type: 'http',
           url: 'https://invented-user:invented-url-password@historian.example.invalid/health?site=north&access_token=invented-query-token-4711',
           headers: { Authorization: 'Basic aW52ZW50ZWQtYmFzaWMtY3JlZA==', 'X-Plant-Token': 'invented-header-token-0815', Accept: 'application/json' },
+          // a request body with a credential in it (0.17.1: bodies are redacted as a whole)
+          method: 'POST',
+          body: '{"user":"monitor","password":"invented-body-password-1312"}',
         },
       ],
       outputs: [
@@ -139,6 +142,7 @@ beforeAll(async () => {
     'invented-header-token-0815',
     'invented-function-key-2342',
     'invented-slack-path-secret',
+    'invented-body-password-1312',
   );
   // an API token and a credential with a secret value
   secrets.push((await s.api('POST', '/me/tokens', { name: 'export-test', scope: 'read' })).token);
@@ -228,6 +232,31 @@ describe('redacting credentials typed into monitors', () => {
       'checks[0].headers["X-Auth-Password"]',
       'outputs[0].path',
     ]);
+  });
+
+  it('redacts the request body of a check as a whole, unless it is empty (0.17.1)', async () => {
+    const { redactCredentials } = await import('../src/export/redact.js');
+    const r = redactCredentials({
+      checks: [
+        { type: 'http', method: 'POST', body: 'user=invented&password=not-a-real-one', condition: 'body.status = "ok"' },
+        { type: 'platform', method: 'POST', body: { query: '{ me { id } }', variables: { token: 'invented' } } },
+        { type: 'freshness', method: 'POST', body: ['invented'] },
+        { type: 'http', method: 'POST', body: '  ' },
+        { type: 'platform', method: 'POST', body: {} },
+        { type: 'freshness', method: 'POST', body: [] },
+        { type: 'http', method: 'GET' },
+      ],
+    });
+    expect(r.value.checks).toEqual([
+      { type: 'http', method: 'POST', body: '<redacted>', condition: 'body.status = "ok"' },
+      { type: 'platform', method: 'POST', body: '<redacted>' },
+      { type: 'freshness', method: 'POST', body: '<redacted>' },
+      { type: 'http', method: 'POST', body: '  ' },
+      { type: 'platform', method: 'POST', body: {} },
+      { type: 'freshness', method: 'POST', body: [] },
+      { type: 'http', method: 'GET' },
+    ]);
+    expect(r.paths).toEqual(['checks[0].body', 'checks[1].body', 'checks[2].body']);
   });
 });
 
@@ -443,9 +472,14 @@ describe('an export run', () => {
     expect(monitors).toContain('https://invented-functions.example.invalid/api/notify?code=<redacted>&team=ops');
     expect(monitors).toContain('https://hooks.slack.com/<redacted>');
     const monitorsPart = manifest.parts.find((p: any) => p.id === 'monitors');
-    expect(monitorsPart.notes.redactedCount).toBe(5);
+    expect(monitors).toContain('body: <redacted>');
+    expect(monitorsPart.notes.redactedCount).toBe(6);
     expect(monitorsPart.notes.redacted).toEqual(
-      expect.arrayContaining([expect.stringMatching(/: checks\[0\]\.headers\.Authorization$/), expect.stringMatching(/: outputs\[1\]\.url$/)]),
+      expect.arrayContaining([
+        expect.stringMatching(/: checks\[0\]\.headers\.Authorization$/),
+        expect.stringMatching(/: checks\[0\]\.body$/),
+        expect.stringMatching(/: outputs\[1\]\.url$/),
+      ]),
     );
     expect(text('audit-log.csv')).toContain('export.job_created');
     // suppliers (toPublic): the contact by name and role, never its e-mail or phone
