@@ -433,6 +433,53 @@ describe('contracts covering a platform', () => {
   });
 });
 
+describe('a prepaid volume another payer pays (security review 0.19.0 M2)', () => {
+  it('draws an entry down only for who sees the payer with its amounts and every service using it', async () => {
+    const { db } = await import('../src/db.js');
+    const svcA = (await s.api('POST', '/services', { name: 'Prepaid service A', owners: ['user:olivia'] })).id;
+    const svcB = (await s.api('POST', '/services', { name: 'Prepaid service B' })).id;
+    const hidden = (await s.api('POST', '/teams', { name: 'Prepaid hidden team', members: [] })).id;
+    db().run("INSERT INTO resource_teams (kind, resource_id, team_id, created_at) VALUES ('service', ?, ?, ?)", svcB, hidden, new Date().toISOString());
+    const d: SupplierDetail = await s.api('POST', `/suppliers/${supplier}/contracts`, {
+      title: 'Shared prepaid',
+      startsOn: day(-30),
+      endsOn: day(335),
+      renewal: 'fixedEnd',
+      owners: ['user:admin'],
+      services: [
+        { serviceId: svcA, purpose: 'A' },
+        { serviceId: svcB, purpose: 'B' },
+      ],
+    });
+    const contract = d.contracts.find((c) => c.title === 'Shared prepaid')!.id;
+    // B pays a prepaid volume of 1,000 and uses 900 of it; A books 300 on the same contract
+    await s.api('POST', '/costs/schedules', {
+      contractId: contract,
+      serviceId: svcB,
+      title: 'B secret prepaid',
+      category: 'support',
+      amount: '1000',
+      currency: 'USD',
+      billing: 'volume',
+      volume: { per: 'term', billing: 'prepaid', committed: 'full' },
+    });
+    const entry = (date: string, amount: string) => ({ date, amount, currency: 'USD', supplierId: supplier, supplierContractId: contract });
+    await s.api('POST', `/costs/plans/${svcB}/entries`, entry(day(-2), '900'));
+    await s.api('POST', `/costs/plans/${svcA}/entries`, entry(day(-1), '300'));
+    const fy = Number(day(-1).slice(0, 4));
+    // olivia sees A only: the entry counts in full, nothing drawn – else 100 would show what is left of B's volume
+    const a: CostPlanYear = await olivia('GET', `/costs/plans/${svcA}?fiscalYear=${fy}`);
+    expect(a.entries.find((e) => e.amount === '300.00')).toMatchObject({ drawn: null, drawnHidden: true });
+    const usd = a.currencies.find((c) => c.currency === 'USD')!;
+    expect(usd.drawn).toBeNull();
+    expect(m(usd.unplanned.incurredToDate)).toBe(300);
+    // who sees B with its amounts sees the drawdown
+    const all: CostPlanYear = await s.api('GET', `/costs/plans/${svcA}?fiscalYear=${fy}`);
+    expect(all.entries.find((e) => e.amount === '300.00')).toMatchObject({ drawn: '100.00', drawnHidden: false });
+    expect(m(all.currencies.find((c) => c.currency === 'USD')!.unplanned.incurredToDate)).toBe(200);
+  });
+});
+
 describe('the limit of platforms per contract (security review 0.19.0 L7)', () => {
   it('holds on the paths that add a covered platform on the side', async () => {
     const ids: string[] = [];

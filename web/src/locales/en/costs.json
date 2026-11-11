@@ -711,6 +711,7 @@
     "drawnLine": "Drawn from prepaid volumes: {{soFar}} so far – shown, not counted again (the payment is the cost).",
     "bookHelp": "A volume billed by use is booked with the amount of the invoice. The average use per month so far in the period is filled in as a start.",
     "entryDrawn": "{{amount}} from a prepaid volume",
+    "entryDrawnHidden": "Possibly covered by a prepaid volume you may not see – counted in full",
     "billing": {
       "prepaid": "Prepaid",
       "byUse": "Billed by use"

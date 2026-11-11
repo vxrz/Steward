@@ -126,6 +126,7 @@ function planForTool(y: CostPlanYear) {
       supplier: e.supplier ? { id: e.supplier.id, name: e.supplier.name, contract: e.supplierContract?.title ?? null } : null,
       importId: e.importId,
       drawn: e.drawn,
+      drawnHidden: e.drawnHidden,
       reference: e.reference,
       note: short(e.note, 200),
     })),

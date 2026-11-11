@@ -265,6 +265,11 @@ export const CostPlanYear = z.object({
       note: z.string(),
       unplanned: z.boolean().describe('No plan line of this fiscal year'),
       drawn: planAmount('The part drawn from a prepaid volume of its contract (0.19.0): not counted as incurred again'),
+      drawnHidden: z
+        .boolean()
+        .describe(
+          'It counts for a prepaid volume the token owner may not see in full (its payer, amounts or other users): counted in full, nothing drawn shown',
+        ),
       planLineYear: z
         .object({ fiscalYear: z.number().int(), label: z.string() })
         .nullable()

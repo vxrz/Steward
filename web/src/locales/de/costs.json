@@ -711,6 +711,7 @@
     "drawnLine": "Aus vorausbezahlten Volumen genutzt: bisher {{soFar}} – gezeigt, nicht noch einmal gezählt (die Zahlung sind die Kosten).",
     "bookHelp": "Ein nach Nutzung abgerechnetes Volumen wird mit dem Betrag der Rechnung gebucht. Die durchschnittliche Nutzung je Monat im Zeitraum ist als Vorschlag eingetragen.",
     "entryDrawn": "{{amount}} aus einem vorausbezahlten Volumen",
+    "entryDrawnHidden": "Möglicherweise von einem vorausbezahlten Volumen gedeckt, das Sie nicht sehen dürfen – voll gezählt",
     "billing": {
       "prepaid": "Vorausbezahlt",
       "byUse": "Nach Nutzung"

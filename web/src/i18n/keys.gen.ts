@@ -3124,6 +3124,7 @@ export interface Resources {
     'volumes.drawnLine': string;
     'volumes.bookHelp': string;
     'volumes.entryDrawn': string;
+    'volumes.entryDrawnHidden': string;
     'volumes.billing.prepaid': string;
     'volumes.billing.byUse': string;
     'volumes.committed.full': string;

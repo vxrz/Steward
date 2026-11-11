@@ -867,12 +867,21 @@ function EntriesSection({
   const [only, setOnly] = useState(false);
   const rows = only ? d.entries.filter((e) => e.unplanned) : d.entries;
   // the part of an entry a prepaid volume covers (0.19.0): use of what was paid up front, not counted again
-  const drawn = (e: CostEntry) =>
-    e.drawn ? (
-      <Badge size="xs" variant="light" color="gray" data-testid="entry-drawn">
-        {t('volumes.entryDrawn', { amount: fmtMoney(e.drawn, e.currency) })}
-      </Badge>
-    ) : null;
+  const drawn = (e: CostEntry) => (
+    <>
+      {e.drawn ? (
+        <Badge size="xs" variant="light" color="gray" data-testid="entry-drawn">
+          {t('volumes.entryDrawn', { amount: fmtMoney(e.drawn, e.currency) })}
+        </Badge>
+      ) : null}
+      {/* a prepaid volume the reader may not see in full (security review 0.19.0 M2): the entry counts in full */}
+      {e.drawnHidden ? (
+        <Badge size="xs" variant="light" color="gray" data-testid="entry-drawn-hidden">
+          {t('volumes.entryDrawnHidden')}
+        </Badge>
+      ) : null}
+    </>
+  );
   const lineCell = (e: CostEntry) =>
     e.unplanned ? (
       <Stack gap={2} align="flex-start">
