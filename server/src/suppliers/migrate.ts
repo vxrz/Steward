@@ -3,6 +3,7 @@ import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { logger } from '../log.js';
 import { normVendor } from '../plant/advisories/match.js';
+import { catalogueTeams, owningTeams } from '../auth/policy.js';
 import { nowIso, parseJson } from '../util.js';
 import { insertSupplier } from './service.js';
 
@@ -13,6 +14,13 @@ import { insertSupplier } from './service.js';
  * text is recorded per table with its outcome in supplier_text_migrations – so a text is handled once. A text that
  * normalises to an existing supplier (its name or a spelling) links to that supplier. People then confirm, merge or
  * mark "not a supplier" under Suppliers → To confirm; the free text stays as a fallback either way.
+ *
+ * Team scope (security review 0.17.0, L6): a supplier is never seen by more people than the rows it is made from. Rows
+ * are grouped by their text and by the teams that own the item they belong to (an application or system, the service
+ * of a cost plan line, the platform of a page watch, a ticket reference); a new supplier gets exactly those owning
+ * teams – none for items of the whole instance. The same text in items of different teams makes one supplier per team
+ * set, which people merge under To confirm. A text that matches an existing supplier links to it as before (the
+ * supplier is there already); its spellings join the supplier's only from items of the whole instance.
  *
  * Runs once the vault is open (the audit log needs its key) and after a migration package is imported, like
  * migrateMonitorWindows (ADR 0018). Returns the number of suppliers made.
@@ -28,6 +36,27 @@ export const VENDOR_TEXT_TABLES = [
 ] as const;
 
 type TextRow = Record<string, string> & { vendor: string };
+
+/** The owning teams of the item a row belongs to (ids, sorted); empty: the whole instance's. */
+function rowTeams(table: string, r: TextRow): string[] {
+  const ids = (l: { id: string }[]) => [...new Set(l.map((t) => t.id))].sort();
+  switch (table) {
+    case 'applications':
+      return ids(catalogueTeams('application', r.id!));
+    case 'systems':
+      return ids(catalogueTeams('system', r.id!));
+    case 'ticket_refs':
+      return ids(owningTeams('ticket', r.id!));
+    case 'cd_watches':
+      return ids(owningTeams('platform', r.platform_id!));
+    case 'cost_plan_lines': {
+      const l = db().get<{ service_id: string }>('SELECT service_id FROM cost_plan_lines WHERE id = ?', r.id!);
+      return l ? ids(owningTeams('service', l.service_id)) : [];
+    }
+    default:
+      return [];
+  }
+}
 
 /** The most frequent spelling (ties: the first in alphabetical order), trimmed – the name of a new supplier. */
 function nameOf(spellings: Map<string, number>): string {
@@ -46,20 +75,23 @@ export function migrateVendorTexts(): number {
   // a text someone marked "not a supplier" is not made a supplier again from another table
   const notSupplier = new Set(done.filter((r) => r.outcome === 'notSupplier').map((r) => r.norm_text));
   // per table, the texts not handled yet: normalised text → spellings (with counts) and rows
-  const work: { table: string; key: readonly string[]; norm: string; spellings: Map<string, number>; rows: TextRow[] }[] = [];
+  // … and by the owning teams of their items (a supplier is seen by no more people than its rows)
+  const work: { table: string; key: readonly string[]; norm: string; teams: string[]; spellings: Map<string, number>; rows: TextRow[] }[] = [];
   for (const t of pending) {
-    const groups = new Map<string, { spellings: Map<string, number>; rows: TextRow[] }>();
+    const groups = new Map<string, { norm: string; teams: string[]; spellings: Map<string, number>; rows: TextRow[] }>();
     for (const r of t.rows) {
       const text = r.vendor.trim().replace(/\s+/g, ' ');
       if (!text) continue;
       const norm = normVendor(text);
       if (handled.has(`${t.table}\u0000${norm}`)) continue;
-      const g = groups.get(norm) ?? { spellings: new Map<string, number>(), rows: [] };
+      const teams = rowTeams(t.table, r);
+      const k = `${norm}\u0000${teams.join(',')}`;
+      const g = groups.get(k) ?? { norm, teams, spellings: new Map<string, number>(), rows: [] };
       g.spellings.set(text, (g.spellings.get(text) ?? 0) + 1);
       g.rows.push(r);
-      groups.set(norm, g);
+      groups.set(k, g);
     }
-    for (const [norm, g] of groups) work.push({ table: t.table, key: t.key, norm, ...g });
+    for (const g of groups.values()) work.push({ table: t.table, key: t.key, ...g });
   }
   if (!work.length) return 0;
   let made = 0;
@@ -71,12 +103,13 @@ export function migrateVendorTexts(): number {
     )) {
       for (const n of [s.norm_name, ...parseJson<string[]>(s.aliases, []).map(normVendor)]) if (n && !known.has(n)) known.set(n, s.id);
     }
-    // the same normalised text in several tables becomes one supplier: all spellings of all tables
+    // the same normalised text in several tables (of items of the same teams) becomes one supplier: all their spellings
+    const scopeOf = (w: { norm: string; teams: string[] }) => `${w.norm}\u0000${w.teams.join(',')}`;
     const allSpellings = new Map<string, Map<string, number>>();
     for (const w of work) {
-      const m = allSpellings.get(w.norm) ?? new Map<string, number>();
+      const m = allSpellings.get(scopeOf(w)) ?? new Map<string, number>();
       for (const [k, v] of w.spellings) m.set(k, (m.get(k) ?? 0) + v);
-      allSpellings.set(w.norm, m);
+      allSpellings.set(scopeOf(w), m);
     }
     const created = new Map<string, string>();
     const at = nowIso();
@@ -97,15 +130,17 @@ export function migrateVendorTexts(): number {
         unlinkable += w.rows.length;
         continue;
       }
-      let id = known.get(w.norm) ?? created.get(w.norm);
+      let id = known.get(w.norm) ?? created.get(scopeOf(w));
       const isNew = !id;
       if (!id) {
-        const all = allSpellings.get(w.norm)!;
+        const all = allSpellings.get(scopeOf(w))!;
         const name = nameOf(all).slice(0, SUPPLIER_LIMITS.name);
         id = insertSupplier({ name, status: 'unconfirmed', aliases: [...all.keys()].filter((x) => x !== name).sort() }, 'system', at);
-        created.set(w.norm, id);
+        // owned by the teams that own the rows' items: seen by no more people than the texts were
+        for (const team of w.teams) db().run("INSERT INTO resource_teams (kind, resource_id, team_id, created_at) VALUES ('supplier', ?, ?, ?)", id, team, at);
+        created.set(scopeOf(w), id);
         made++;
-      } else if (known.get(w.norm) === id) {
+      } else if (known.get(w.norm) === id && !w.teams.length) {
         // a known supplier: the new spellings join its aliases
         const s = db().get<{ name: string; aliases: string }>('SELECT name, aliases FROM suppliers WHERE id = ?', id)!;
         const aliases = parseJson<string[]>(s.aliases, []);
@@ -133,7 +168,15 @@ export function migrateVendorTexts(): number {
         entityType: 'supplier',
         entityId: id,
         summary: `${isNew ? `Supplier "${name}" made from` : `Supplier "${name}" linked to`} the free-text vendor ${spellings.map((x) => `"${x}"`).join(', ')} of ${linked} ${w.table} row${linked === 1 ? '' : 's'}${isNew ? ' – waiting for confirmation' : ''} (0.17: suppliers)`,
-        details: { table: w.table, normalised: w.norm, spellings, rows: linked, created: isNew, status: isNew ? 'unconfirmed' : undefined },
+        details: {
+          table: w.table,
+          normalised: w.norm,
+          spellings,
+          rows: linked,
+          created: isNew,
+          status: isNew ? 'unconfirmed' : undefined,
+          owningTeams: isNew && w.teams.length ? w.teams : undefined,
+        },
       });
     }
     if (unlinkable) logger.info({ rows: unlinkable }, 'free-text vendors without letters or digits left as text (not a supplier)');

@@ -71,6 +71,7 @@ On the update to 0.17, Steward turns the free-text vendors into suppliers, once,
 
 1. Each distinct text is normalised – letters and digits, legal forms left out (`Zentrova Cloud GmbH`, `zentrova cloud` and `Zentrova-Cloud` are the same) – as the security advisories compare vendors ([ADVISORIES.md](ADVISORIES.md)).
 2. Each normalised text becomes one supplier with status _to confirm_; the most frequent spelling is its name, the others are its spellings. A text that matches an existing supplier links to it.
+   - **Team scope:** a supplier is seen by no more people than the texts it is made from. A text of items owned by teams (an application or system, the service of a cost plan line, the platform of a page watch, a ticket reference – [TEAMS.md](TEAMS.md)) becomes a supplier owned by the same teams, seen by their members, administrators and auditors; texts of items of the whole instance become suppliers without owning teams. The same text in items of different teams becomes one supplier per set of teams – an administrator merges them. A text that matches an existing supplier takes its spellings there only from items of the whole instance.
 3. The rows are linked; their text stays.
 4. Each text is recorded per table with its outcome, so it is handled once. A text without letters or digits besides legal forms (`GmbH`) stays text. A text written after the update becomes a supplier to confirm the next time Steward starts.
 

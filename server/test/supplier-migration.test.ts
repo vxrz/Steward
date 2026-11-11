@@ -192,4 +192,29 @@ describe('migrateVendorTexts', () => {
     expect(migrate()).toBe(1);
     expect((await dana('GET', '/suppliers?status=unconfirmed')).map((x: any) => x.name)).toContain('Brightfield Industrial Software');
   });
+
+  it('gives a supplier made from texts of a team’s items that team: it is seen by no more people than the texts', async () => {
+    const team = await s.api('POST', '/teams', { name: 'Mig team', members: ['olivia'] });
+    const owned = (await s.api('POST', '/applications', { name: 'Mig app 6', vendor: 'Quietline Payroll GmbH' })).id;
+    await s.api('PUT', `/owning-teams/application/${owned}`, { teamIds: [team.id] });
+    // the same text in an item of the whole instance and in the team's item: a supplier each
+    const shared = (await s.api('POST', '/applications', { name: 'Mig app 7', vendor: 'Splitwave' })).id;
+    const ownedToo = (await s.api('POST', '/systems', { name: 'mig-host-3', kind: 'vm', vendor: 'Splitwave Ltd' })).id;
+    await s.api('PUT', `/owning-teams/system/${ownedToo}`, { teamIds: [team.id] });
+    expect(migrate()).toBe(3);
+    const quiet = supplierOf('applications', 'id = ?', owned).supplier_id!;
+    expect(db().all<{ team_id: string }>("SELECT team_id FROM resource_teams WHERE kind = 'supplier' AND resource_id = ?", quiet)).toEqual([
+      { team_id: team.id },
+    ]);
+    // dana (designer, not in the team) neither sees nor lists it; olivia (in the team) does
+    expect((await refused(dana('GET', `/suppliers/${quiet}`)))?.status).toBe(404);
+    expect((await dana('GET', '/suppliers?status=unconfirmed')).map((x: any) => x.name)).not.toContain('Quietline Payroll GmbH');
+    expect((await olivia('GET', `/suppliers/${quiet}`)).name).toBe('Quietline Payroll GmbH');
+    const open = supplierOf('applications', 'id = ?', shared).supplier_id!;
+    const scoped = supplierOf('systems', 'id = ?', ownedToo).supplier_id!;
+    expect(open).not.toBe(scoped);
+    expect((await dana('GET', `/suppliers/${open}`)).aliases ?? []).not.toContain('Splitwave Ltd');
+    expect((await refused(dana('GET', `/suppliers/${scoped}`)))?.status).toBe(404);
+    expect((await olivia('GET', `/suppliers/${scoped}`)).name).toBe('Splitwave Ltd');
+  });
 });
