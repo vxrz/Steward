@@ -448,7 +448,7 @@
     "none": "No platforms",
     "hidden_one": "and {{count}} platform you may not see",
     "hidden_other": "and {{count}} platforms you may not see",
-    "add": "Add a platform",
+    "add": "Add platform",
     "added": "Platform added",
     "platform": "Platform",
     "addHint": "A platform team's own contract. Its managers and the members of its owning teams then see a team-owned contract."
