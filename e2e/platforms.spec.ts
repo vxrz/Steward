@@ -203,3 +203,43 @@ test('credentials that authentication "none" does not send: the new dialog picks
   await expect(page.getByRole('combobox', { name: 'Type' })).toHaveValue('Basic auth (user name / password)');
   await api.delete(`/api/platforms/${p.id}`);
 });
+
+test('a new address of a platform asks what happens to its stored credentials (security review 0.19.0 H1)', async ({ page, apiAs }) => {
+  const api = await apiAs('admin');
+  const p = await json<{ id: string; name: string }>(
+    await api.post('/api/platforms', {
+      data: {
+        name: uniq('Invented address platform'),
+        kind: 'generic',
+        baseUrl: 'https://api.invented.example',
+        config: { auth: { type: 'bearer' }, variables: {}, http: {} },
+        secrets: { token: 'invented-token-value' },
+      },
+    }),
+  );
+  const secretKeys = async () => (await json<{ secretKeys: string[]; baseUrl: string }>(await api.get(`/api/platforms/${p.id}`))).secretKeys;
+  await page.goto(`/platforms/${p.id}`);
+  await page.getByRole('tab', { name: 'Settings' }).click();
+  const baseUrl = page.getByRole('textbox', { name: 'Base URL' });
+
+  // an administrator may send them to the new address …
+  await baseUrl.fill('https://other.invented.example');
+  await page.getByRole('button', { name: 'Save settings' }).click();
+  const ask = page.getByRole('dialog', { name: 'Send the stored credentials to the new address?' });
+  await expect(ask).toContainText(p.name);
+  await ask.getByRole('button', { name: 'Send them' }).click();
+  await expect(page.getByText('Platform saved')).toBeVisible();
+  expect(await secretKeys()).toEqual(['token']);
+
+  // … or remove them; cancelling saves nothing
+  await baseUrl.fill('https://third.invented.example');
+  await page.getByRole('button', { name: 'Save settings' }).click();
+  await ask.getByRole('button', { name: 'Cancel' }).click();
+  await expect(ask).toBeHidden();
+  expect((await json(await api.get(`/api/platforms/${p.id}`))).baseUrl).toBe('https://other.invented.example');
+  await page.getByRole('button', { name: 'Save settings' }).click();
+  await ask.getByRole('button', { name: 'Remove them' }).click();
+  await expect(page.getByText('Platform saved').first()).toBeVisible();
+  await expect.poll(secretKeys).toEqual([]);
+  await api.delete(`/api/platforms/${p.id}`);
+});

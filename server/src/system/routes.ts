@@ -18,6 +18,7 @@ import { publicApiStatus } from '../api/v1/config.js';
 import { HttpError, nowIso } from '../util.js';
 import { buildInfo, deploymentKind } from '../buildinfo.js';
 import { readinessChecks } from './readiness.js';
+import { clockStatus } from './clock.js';
 import { dismissUpdateNotice, updateNoticeFor } from './update-notice.js';
 import { z } from 'zod';
 import { ACCESS } from '../auth/access.js';
@@ -133,6 +134,7 @@ export function systemStatus(full: boolean): SystemStatus {
           }
         : {}),
     },
+    clock: clockStatus(),
     runtime: {
       node: process.version,
       platform: process.platform,

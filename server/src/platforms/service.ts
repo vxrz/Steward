@@ -41,6 +41,7 @@ import {
   mcpFromSetting,
   mergedAuthAndVariables,
   parseMcp,
+  allRegisterCounts,
   registerCounts,
   toIdentity,
   type IdentityRow,
@@ -89,7 +90,7 @@ function worst(states: Platform['integrity'][]): Platform['integrity'] {
   return 'ok';
 }
 
-function toPlatform(r: PlatformRow, idents: IdentityRow[]): Platform {
+function toPlatform(r: PlatformRow, idents: IdentityRow[], registerOf?: Map<string, number>): Platform {
   const stored = { ...defaultConfig(), ...parseJson<Partial<PlatformConfig>>(r.config, {}) };
   const acl = parseJson<AclEntry<PlatformPermission>[]>(r.acl, []);
   const permissions = platformPermissions(currentUser(), { id: r.id, acl });
@@ -108,7 +109,7 @@ function toPlatform(r: PlatformRow, idents: IdentityRow[]): Platform {
   };
   const user = currentUser();
   // entries of the credentials register that document each identity (0.14.0): their number only
-  const register = registerCounts(r.id);
+  const register = registerOf ?? registerCounts(r.id);
   const identities: PlatformIdentity[] = idents.map((i) =>
     toIdentity(i, {
       secretKeys: secretNames(i.secrets),
@@ -145,21 +146,27 @@ function toPlatform(r: PlatformRow, idents: IdentityRow[]): Platform {
 
 export function listPlatforms(): Platform[] {
   const idents = allIdentityRows();
+  // the register's counts of all platforms at once (not one statement per platform: security review 0.19.0 H2)
+  const register = allRegisterCounts();
   return db()
     .all<PlatformRow>('SELECT * FROM platforms ORDER BY name')
-    .map((r) => toPlatform(r, idents.get(r.id) ?? []));
+    .map((r) => toPlatform(r, idents.get(r.id) ?? [], register.get(r.id) ?? new Map()));
 }
 
 /**
  * The latest connection test of every platform, from the audit log (POST /platforms/:id/test writes `platform.tested`).
- * Entries from before 0.3.1 have no `details.ok`: their summary tells.
+ * Entries from before 0.3.1 have no `details.ok`: their summary tells. One statement with an indexed lookup per
+ * platform (audit_target, newest first: platforms/health.ts lastTestOf does the same) – grouping all `platform.tested`
+ * entries read every one ever written (security review 0.19.0 M3). The action is compared as an expression on purpose:
+ * through the index audit_action the database would walk every test of every platform to find one platform's.
  */
+export const LAST_TESTS_SQL = `SELECT a.entity_id, a.ts, a.summary, a.details FROM platforms p
+  JOIN audit_log a ON a.seq = (
+    SELECT t.seq FROM audit_log t
+     WHERE t.entity_type = 'platform' AND COALESCE(t.entity_id, '') = p.id AND (t.action || '') = 'platform.tested'
+     ORDER BY t.seq DESC LIMIT 1)`;
 export function lastConnectionTests(): Map<string, { at: string; ok: boolean }> {
-  const rows = db().all<{ entity_id: string; ts: string; summary: string; details: string | null }>(
-    `SELECT a.entity_id, a.ts, a.summary, a.details FROM audit_log a
-       JOIN (SELECT entity_id, MAX(seq) AS seq FROM audit_log WHERE entity_type = 'platform' AND action = 'platform.tested' GROUP BY entity_id) l
-         ON a.seq = l.seq`,
-  );
+  const rows = db().all<{ entity_id: string; ts: string; summary: string; details: string | null }>(LAST_TESTS_SQL);
   const out = new Map<string, { at: string; ok: boolean }>();
   for (const r of rows) {
     const d = parseJson<{ ok?: unknown }>(r.details, {});
@@ -227,7 +234,7 @@ export function getConnection(platformId: string, identityId?: string): Connecti
   const p = toPlatform(r, identityRows(platformId));
   const identity = p.identities!.find((x) => x.id === i.id)!;
   // the variables used where requests go (base URL, token URLs, trusted origins) stay the platform's (IDENTITY_VARIABLE_FIXED)
-  const merged = mergedAuthAndVariables({ ...p.config, baseUrl: p.baseUrl }, i);
+  const merged = mergedAuthAndVariables({ ...p.config, kind: p.kind, baseUrl: p.baseUrl }, i);
   return {
     platform: { ...p, config: { ...p.config, auth: merged.auth, variables: merged.variables }, identityId: i.id, identityName: i.name },
     identity,

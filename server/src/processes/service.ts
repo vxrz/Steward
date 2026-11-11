@@ -38,18 +38,24 @@ interface ProcessRow {
 
 export const definitionHash = (d: ProcessDefinition): string => sha256(canonicalJson(d));
 
-function lastRun(processId: string): ProcessSummary['lastRun'] {
-  const r = db().get<{ id: string; status: RunStatus; started_at: string; stats: string }>(
-    'SELECT id, status, started_at, stats FROM runs WHERE process_id = ? AND debug IS NULL ORDER BY started_at DESC LIMIT 1',
-    processId,
-  );
-  if (!r) return null;
+type LastRunRow = { lr_id: string | null; lr_status: RunStatus | null; lr_started_at: string | null; lr_stats: string | null };
+
+/**
+ * The process row with its latest run (debug runs left out) in the same statement: an indexed lookup per process inside
+ * the database (runs_process), not a statement each (security review 0.19.0 H2).
+ */
+const WITH_LAST_RUN = `SELECT p.*, lr.id AS lr_id, lr.status AS lr_status, lr.started_at AS lr_started_at, lr.stats AS lr_stats
+  FROM processes p
+  LEFT JOIN runs lr ON lr.id = (SELECT x.id FROM runs x WHERE x.process_id = p.id AND x.debug IS NULL ORDER BY x.started_at DESC LIMIT 1)`;
+
+function lastRunOf(r: LastRunRow): ProcessSummary['lastRun'] {
+  if (!r.lr_id) return null;
   // outcome: "findings" when it succeeded with failed checks (the status stays)
-  const outcome = runOutcome(r.status, parseJson<{ checksFailed?: number }>(r.stats, {}).checksFailed ?? 0);
-  return { id: r.id, status: r.status, outcome, startedAt: r.started_at };
+  const outcome = runOutcome(r.lr_status!, parseJson<{ checksFailed?: number }>(r.lr_stats ?? '{}', {}).checksFailed ?? 0);
+  return { id: r.lr_id, status: r.lr_status!, outcome, startedAt: r.lr_started_at! };
 }
 
-function toSummary(r: ProcessRow): ProcessSummary {
+function toSummary(r: ProcessRow & LastRunRow): ProcessSummary {
   const acl = parseJson<AclEntry<ProcessPermission>[]>(r.acl, []);
   return {
     id: r.id,
@@ -58,7 +64,7 @@ function toSummary(r: ProcessRow): ProcessSummary {
     tags: parseJson<string[]>(r.tags, []),
     currentVersion: r.current_version,
     updatedAt: r.updated_at,
-    lastRun: lastRun(r.id),
+    lastRun: lastRunOf(r),
     owner: r.owner,
     acl,
     permissions: processPermissions(currentUser(), { id: r.id, owner: r.owner, acl }),
@@ -68,7 +74,7 @@ function toSummary(r: ProcessRow): ProcessSummary {
 /** Processes the current user may see. */
 export function listProcesses(): ProcessSummary[] {
   return db()
-    .all<ProcessRow>('SELECT * FROM processes WHERE archived = 0 ORDER BY name')
+    .all<ProcessRow & LastRunRow>(`${WITH_LAST_RUN} WHERE p.archived = 0 ORDER BY p.name`)
     .map(toSummary)
     .filter((p) => p.permissions.includes('view'));
 }
@@ -78,6 +84,16 @@ export function permissionsFor(processId: string): ProcessPermission[] {
   const r = db().get<ProcessRow>('SELECT * FROM processes WHERE id = ?', processId);
   if (!r) return [];
   return processPermissions(currentUser(), { id: r.id, owner: r.owner, acl: parseJson(r.acl, []) });
+}
+
+/** The current user's permissions on every process (also archived ones), in one statement – for lists of schedules, triggers … */
+export function processPermissionMap(): Map<string, ProcessPermission[]> {
+  const u = currentUser();
+  return new Map(
+    db()
+      .all<{ id: string; owner: string | null; acl: string }>('SELECT id, owner, acl FROM processes')
+      .map((r) => [r.id, processPermissions(u, { id: r.id, owner: r.owner, acl: parseJson(r.acl, []) })]),
+  );
 }
 
 export function setProcessAccess(id: string, input: { acl: unknown; owner?: string | null }): ProcessDetail {
@@ -98,7 +114,7 @@ export function setProcessAccess(id: string, input: { acl: unknown; owner?: stri
 }
 
 export function getProcess(id: string, version?: number): ProcessDetail {
-  const r = db().get<ProcessRow>('SELECT * FROM processes WHERE id = ?', id);
+  const r = db().get<ProcessRow & LastRunRow>(`${WITH_LAST_RUN} WHERE p.id = ?`, id);
   if (!r) throw new HttpError(404, `Process ${id} not found`);
   const v = db().get<{ definition: string; hash: string }>(
     'SELECT definition, hash FROM process_versions WHERE process_id = ? AND version = ?',

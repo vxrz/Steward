@@ -33,6 +33,7 @@ import {
 } from '@sm/shared';
 import { notifyError, notifyOk, put } from '../../api';
 import { platformKeys } from '../../queryKeys';
+import { withCredentialChoice } from './destination';
 import { fmtNumber } from '../../format';
 
 /**
@@ -87,7 +88,10 @@ export function DatabaseTab({ platform, readOnly }: { platform: Platform; readOn
     setErrors({});
     setBusy(true);
     try {
-      await put(`/platforms/${platform.id}/database`, parsed.data);
+      const saved = await withCredentialChoice((credentials) =>
+        put(`/platforms/${platform.id}/database`, { ...parsed.data, ...(credentials ? { credentials } : {}) }),
+      );
+      if (saved === null) return;
       await Promise.all([qc.invalidateQueries({ queryKey: platformKeys.detail(platform.id) }), qc.invalidateQueries({ queryKey: platformKeys.all })]);
       notifyOk(t('database.saved'));
     } catch (e) {

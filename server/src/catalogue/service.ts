@@ -275,12 +275,28 @@ export function serviceNamesOutsiders(id: string | null, body: unknown): string[
   return outsidersOf(catalogueGrant('service', cur, input.name, input.owners));
 }
 
+/**
+ * 409 when another active service has the name (names are unique). A service the person may not see (another team's)
+ * is not confirmed by name: SERVICE_NAME_TAKEN says only that the name cannot be used – as for suppliers (security
+ * review 0.19.0 L4).
+ */
+function refuseTakenName(name: string, except = '', restoring = false): void {
+  const clash = db().get<{ id: string; owners: string }>(
+    'SELECT id, owners FROM services WHERE lower(name) = lower(?) AND archived = 0 AND id <> ?',
+    name,
+    except,
+  );
+  if (!clash) return;
+  if (!canViewCatalogue(me(), { kind: 'service', id: clash.id, owners: parseJson<string[]>(clash.owners, []) }))
+    throw new HttpError(409, 'This name cannot be used for a service – choose another one', 'SERVICE_NAME_TAKEN');
+  throw new HttpError(409, `A service named "${name}" exists already${restoring ? ' – rename one of them first' : ''}`, 'SERVICE_EXISTS', { name });
+}
+
 export function createService(input: ServiceInput): ServiceDetail {
   const u = me();
   if (!canCreateServices(u)) forbid('create services', 'createServices');
   assertKnownSubjects(input.owners);
-  if (db().get('SELECT 1 FROM services WHERE lower(name) = lower(?) AND archived = 0', input.name))
-    throw new HttpError(409, `A service named "${input.name}" exists already`, 'SERVICE_EXISTS', { name: input.name });
+  refuseTakenName(input.name);
   // owners from outside the owning teams it gets: confirmed like an access list (#195)
   const grant = catalogueGrant('service', undefined, input.name, input.owners);
   const named = requireNamedGrant(grant);
@@ -323,8 +339,7 @@ export function updateService(id: string, input: ServiceInput): ServiceDetail {
   const cur = row(id);
   if (!canEditService(u, { kind: 'service', id: cur.id, owners: parseJson(cur.owners, []) })) forbid('change this service', 'changeService');
   assertKnownSubjects(input.owners, parseJson<string[]>(cur.owners, []));
-  if (db().get('SELECT 1 FROM services WHERE lower(name) = lower(?) AND archived = 0 AND id <> ?', input.name, id))
-    throw new HttpError(409, `A service named "${input.name}" exists already`, 'SERVICE_EXISTS', { name: input.name });
+  refuseTakenName(input.name, id);
   const next = {
     name: input.name,
     description: input.description,
@@ -374,9 +389,7 @@ export function setArchived(id: string, archived: boolean): ServiceDetail {
   const cur = row(id);
   if (!canEditService(u, { kind: 'service', id: cur.id, owners: parseJson(cur.owners, []) })) forbid('archive this service', 'changeService');
   if (!!cur.archived === archived) return getService(id);
-  if (!archived && db().get('SELECT 1 FROM services WHERE lower(name) = lower(?) AND archived = 0 AND id <> ?', cur.name, id)) {
-    throw new HttpError(409, `A service named "${cur.name}" exists already – rename one of them first`, 'SERVICE_EXISTS', { name: cur.name });
-  }
+  if (!archived) refuseTakenName(cur.name, id, true);
   db().tx(() => {
     db().run('UPDATE services SET archived = ?, updated_at = ?, updated_by = ? WHERE id = ?', archived ? 1 : 0, nowIso(), u.username, id);
     audit({

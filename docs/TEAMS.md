@@ -10,7 +10,7 @@ One Steward can serve several teams: members of a team see and change their team
 - **Allowed** means one of these grants it: an instance role on a resource without owning teams, a role in one of the resource's owning teams, or an access list entry. Rights only add up, and there are no deny rules.
 - Administrators may do everything. Auditors may view everything. A resource's own owner (the owner of a process, monitor or dashboard, a document's owner, the named owners of a service or credential, a ticket's responsibles) keeps their rights on it. Naming an owner or responsible from outside the owning teams is a grant across teams: it asks for the step-up ([below](#named-owners-and-responsibles)).
 
-Everyone else does not see a team-owned resource. It answers like one that does not exist (404), and it is left out of lists, search, link pickers, backlinks, start page tiles, the daily summary, reports, evidence packs, the scorecard, the public API and MCP tools.
+Everyone else does not see a team-owned resource. It answers like one that does not exist (404), and it is left out of lists, search, link pickers, backlinks, start page tiles, the daily summary, reports, evidence packs, the scorecard, the public API and MCP tools. Names are unique, so a new or renamed service, application or supplier cannot take the name of one you may not see: Steward then says only that the name cannot be used (`SERVICE_NAME_TAKEN`, `APPLICATION_NAME_TAKEN`, `SUPPLIER_NAME_TAKEN`), without naming or linking it.
 
 ## What can have owning teams
 

@@ -24,6 +24,8 @@ import { moduleEnabled } from '../modules/registry.js';
 import { params } from './params.js';
 import { platformIdentityRoutes } from './platform-identities.js';
 import { isPrivileged, privilegedRefusal } from '../platforms/privileged.js';
+import { afterPlatformUpdate, credentialChoice, destinationRules, planDestinationChange, recordDestinationChange } from '../platforms/destinationChange.js';
+import { db } from '../db.js';
 
 const platformBody = z.object({
   name: z.string().min(1).max(200),
@@ -112,10 +114,25 @@ export async function platformRoutes(app: FastifyInstance): Promise<void> {
     return connectors.createPlatformFromType(platformBody.extend({ typeKind: z.string().optional() }).parse(req.body));
   });
   app.get('/platforms/:id', async (req) => visiblePlatform(params(req).id!));
-  app.put('/platforms/:id', async (req) => {
-    requirePlatform(params(req).id!, 'manage', 'change this platform');
-    return platforms.updatePlatform(params(req).id!, platformBody.partial().parse(req.body));
-  });
+  // a new address of the platform's stored credentials (security review 0.19.0 H1): a signed-in session with a step-up,
+  // and the credentials are removed unless an administrator keeps them (platforms/destinationChange.ts)
+  app.put(
+    '/platforms/:id',
+    {
+      config: { stepUp: { action: 'changePlatformDestination', who: platformAccess.who, when: (req) => destinationRules.platform(params(req).id!, req.body) } },
+    },
+    async (req) => {
+      const id = params(req).id!;
+      requirePlatform(id, 'manage', 'change this platform');
+      const { credentials, ...patch } = platformBody.partial().extend({ credentials: credentialChoice }).parse(req.body);
+      const change = planDestinationChange(id, afterPlatformUpdate(id, patch), credentials);
+      db().tx(() => {
+        platforms.updatePlatform(id, patch);
+        recordDestinationChange(id, change);
+      });
+      return platforms.getPlatform(id);
+    },
+  );
   app.put('/platforms/:id/access', { config: { stepUp: { action: 'grantAccess', ...platformAccess } } }, async (req) => {
     requirePlatform(params(req).id!, 'manage', 'change access to this platform');
     return platforms.setPlatformAccess(params(req).id!, z.object({ acl: z.array(z.any()).max(500) }).parse(req.body).acl);

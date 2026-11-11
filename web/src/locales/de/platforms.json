@@ -451,6 +451,13 @@
       "jwt": "Schlüsselpaar-JWT (Snowflake, Dienstkonten)",
       "aws_sigv4": "AWS-Anfragesignatur (SigV4)"
     },
+    "destinationKeepTitle": "Die gespeicherten Zugangsdaten an die neue Adresse senden?",
+    "destinationKeepText": "Die geänderten Einstellungen senden die Zugangsdaten von „{{name}}“ an eine andere Stelle. Behalten Sie sie nur, wenn Sie der neuen Adresse vertrauen; sonst entfernen Sie sie und geben Sie sie für die neue Adresse erneut ein.",
+    "destinationKeep": "Senden",
+    "destinationClear": "Entfernen",
+    "destinationClearTitle": "Die gespeicherten Zugangsdaten werden entfernt",
+    "destinationClearText": "Die geänderten Einstellungen senden die Zugangsdaten von „{{name}}“ an eine andere Stelle, deshalb werden sie beim Speichern entfernt. Geben Sie sie danach unter Zugangsdaten erneut ein.",
+    "destinationSave": "Speichern und entfernen",
     "saved": "Plattform gespeichert",
     "notSaved": "Nicht gespeichert",
     "general": "Allgemein",

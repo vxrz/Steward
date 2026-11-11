@@ -192,6 +192,9 @@ export const CONTROL_POINTS: readonly ControlPoint[] = [
   },
   // shared procedure libraries (0.10.0, #238): trusting publishers and their keys; installing a release
   sp('library.publishers', 'processes', ['changeTrustedPublishers'], true),
+  // 0.19.0 (security review L1): Git sync sources – a new source, another repository or API URL (where its token goes),
+  // signed commits no longer required, a new allowed signer, auto-accept turned on
+  sp('sync.sources', 'processes', ['changeSyncSources']),
   {
     key: 'library.install',
     group: 'processes',
@@ -258,6 +261,8 @@ export const CONTROL_POINTS: readonly ControlPoint[] = [
   sp('backup.settings', 'system', ['changeBackups']),
   // 0.16.0 (ADR 0027): a scheduled export sends readable data out of Steward to S3
   sp('export.settings', 'system', ['changeExports']),
+  // 0.19.0 (security review H1): a platform's stored credentials would go to a new address – always asks
+  sp('platform.destination', 'system', ['changePlatformDestination'], true),
   sp('migration.export', 'system', ['exportMigration']),
   sp('migration.apply', 'system', ['applyMigration']),
   // where the map of sites fetches its tiles from (0.10.0, #234): a new style, URL, key or file; turning it off never asks

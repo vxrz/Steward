@@ -38,6 +38,7 @@ import { MCP_PATH } from './mcp/config.js';
 import { countRefused, rateLimitOptions, setRateLimitUser, wasRateLimited } from './rateLimits.js';
 import { checkBodyShape } from './bodyShape.js';
 import { bodyTooLarge, DEFAULT_BODY_LIMIT } from './bodyLimits.js';
+import { extendForSignedInUploads, installRequestTimeout, serverTimeouts } from './requestTimeout.js';
 import { BARE_BASE, injectBaseHref, OUTSIDE_BASE, stripBasePath, withBasePath } from './basePath.js';
 
 /** Inbound webhooks: machine-to-machine, authenticated by the trigger's secret (no session, no CSRF header). */
@@ -234,7 +235,10 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
     // Behind a reverse proxy: believe X-Forwarded-For/-Proto/-Host only from the configured proxies (SM_TRUST_PROXY)
     ...(config.trustProxy !== undefined ? { trustProxy: trustProxyFn(config.trustProxy) } : {}),
     ...(config.tls ? { https: tlsServerOptions()! } : {}),
+    // a slow body cannot hold a connection open (security review 0.19.0 M1, requestTimeout.ts)
+    ...serverTimeouts(),
   }) as unknown as FastifyInstance;
+  installRequestTimeout(app);
   // every answer names its request id (errors, rate limits and 404s included), so it can be quoted and looked up
   app.addHook('onSend', async (req, reply, payload) => {
     reply.header(REQUEST_ID_HEADER, req.id);
@@ -386,6 +390,8 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
     (req as unknown as { smAuthUser?: AuthUser | null }).smAuthUser = user;
     done();
   });
+  // signed-in uploads (files, migration packages) get SM_UPLOAD_TIMEOUT_SECONDS for their body instead
+  extendForSignedInUploads(app, (req) => !!(req as unknown as { smAuthUser?: AuthUser | null }).smAuthUser);
   // Run the rest of the request "as" the user found above (a synchronous hook + AsyncLocalStorage.run keeps them
   // available to all services; set here, after the body was read, so the context reaches the handler).
   app.addHook('preHandler', (req, _reply, done) => {

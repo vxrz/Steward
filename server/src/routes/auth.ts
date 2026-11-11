@@ -117,17 +117,22 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
   // ---------- health, auth & vault ----------
   app.get('/health', { config: { access: ACCESS.public } }, async () => ({ ok: true, version: config.version }));
 
-  const status = async (): Promise<AuthStatus> => ({
-    initialized: vault().initialized,
-    setupRequired: users.countUsers() === 0,
-    unlocked: vault().unlocked,
-    me: meInfo(),
-    ssoProviders: sso.publicProviders(),
-    passwordLogin: passwordLoginMode(),
-    demo: config.demo,
-    version: config.version,
-    browserAvailable: await browserAvailable(),
-  });
+  const status = async (): Promise<AuthStatus> => {
+    const me = meInfo();
+    return {
+      initialized: vault().initialized,
+      setupRequired: users.countUsers() === 0,
+      unlocked: vault().unlocked,
+      me,
+      ssoProviders: sso.publicProviders(),
+      passwordLogin: passwordLoginMode(),
+      demo: config.demo,
+      // the exact version only for the signed in (security review 0.19.0 L6, ASVS V14.3.3); /api/health keeps it for
+      // health checks and scripts
+      ...(me ? { version: config.version } : {}),
+      browserAvailable: await browserAvailable(),
+    };
+  };
   app.get('/auth/status', { config: { access: ACCESS.public } }, status);
   app.get('/vault/status', { config: { access: ACCESS.public } }, async () => {
     const s = await status();

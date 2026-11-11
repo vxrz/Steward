@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import { withServiceLinks } from '../auth/policy.js';
 import { z } from 'zod';
 import { COST_SCOPES, costBudgetInput, FISCAL_YEAR_MAX, FISCAL_YEAR_MIN } from '@sm/shared';
 import { ACCESS } from '../auth/access.js';
@@ -120,7 +121,7 @@ const session = { config: { access: ACCESS.session } };
 export async function costRoutes(app: FastifyInstance): Promise<void> {
   app.get('/costs', async (req) => {
     const q = z.object({ scope: z.enum(COST_SCOPES).default('service') }).parse(req.query ?? {});
-    return overview(q.scope);
+    return withServiceLinks(() => overview(q.scope));
   });
   app.get('/costs/settings', async () => costSettings());
   app.put('/costs/settings', { config: { access: ACCESS.admin } }, async (req) => setCostSettings(req.body));

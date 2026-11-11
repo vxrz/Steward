@@ -22,8 +22,20 @@ import { HttpError, parseJson } from '../util.js';
 const KEY = 'costs.settings';
 const DEFAULTS: CostSettings = { hideAmountsFromViewers: false, defaultCurrency: 'USD', fiscalYearStartMonth: 1 };
 
+/**
+ * The settings are read for every scope of a list (security review 0.19.0 H2): kept for a while, read again after a
+ * change here, on another database (restore, tests) and after CACHE_MS (a change written by other means, e.g. a
+ * migration package).
+ */
+const CACHE_MS = 30_000;
+let cached: { db: object; at: number; value: CostSettings } | null = null;
+
 export function costSettings(): CostSettings {
-  return { ...DEFAULTS, ...readSetting<Partial<CostSettings>>(KEY, {}) };
+  const d = db();
+  if (cached && cached.db === d && Date.now() - cached.at < CACHE_MS) return { ...cached.value };
+  const value = { ...DEFAULTS, ...readSetting<Partial<CostSettings>>(KEY, {}) };
+  cached = { db: d, at: Date.now(), value };
+  return { ...value };
 }
 
 export function setCostSettings(body: unknown): CostSettings {
@@ -35,6 +47,7 @@ export function setCostSettings(body: unknown): CostSettings {
   const next: CostSettings = { ...x, fiscalYearStartMonth: x.fiscalYearStartMonth ?? before.fiscalYearStartMonth };
   const moved = next.fiscalYearStartMonth !== before.fiscalYearStartMonth ? fiscalYearChange(next.fiscalYearStartMonth) : null;
   writeSetting(KEY, next);
+  cached = null;
   audit({
     action: 'cost.settings_changed',
     entityType: 'settings',
@@ -86,15 +99,15 @@ export interface ScopeInfo {
 
 const privileged = (u: AuthUser) => isAdmin(u) || u.roles.includes('auditor');
 
-interface CatRow {
+export interface CatRow {
   id: string;
   name: string;
   owners: string;
   archived: number;
 }
 
-function catalogueInfo(u: AuthUser | null, scope: 'service' | 'application', id: string): ScopeInfo | null {
-  const r = db().get<CatRow>(`SELECT id, name, owners, archived FROM ${scope === 'service' ? 'services' : 'applications'} WHERE id = ?`, id);
+function catalogueInfo(u: AuthUser | null, scope: 'service' | 'application', id: string, row?: CatRow): ScopeInfo | null {
+  const r = row ?? db().get<CatRow>(`SELECT id, name, owners, archived FROM ${scope === 'service' ? 'services' : 'applications'} WHERE id = ?`, id);
   if (!r) return null;
   if (!u) return { scope, id, name: r.name, amounts: true, owner: true, canEditBudget: true, canManageSource: false, canEditPlan: true };
   const owners = parseJson<string[]>(r.owners, []);
@@ -137,9 +150,12 @@ function platformInfo(u: AuthUser | null, id: string): ScopeInfo | null {
   return { scope: 'platform', id, name: r.name, amounts, owner, canEditBudget: false, canManageSource: perms.includes('manage'), canEditPlan: owner };
 }
 
-/** What the reader may do with a scope; null when it does not exist or they may not see it. */
-export function scopeInfo(scope: CostScope, id: string, u: AuthUser | null = currentUser()): ScopeInfo | null {
-  if (scope === 'service' || scope === 'application') return catalogueInfo(u, scope, id);
+/**
+ * What the reader may do with a scope; null when it does not exist or they may not see it. `row`: the service's or
+ * application's row when the caller read it already (lists).
+ */
+export function scopeInfo(scope: CostScope, id: string, u: AuthUser | null = currentUser(), row?: CatRow): ScopeInfo | null {
+  if (scope === 'service' || scope === 'application') return catalogueInfo(u, scope, id, row);
   if (scope === 'team') return teamInfo(u, id);
   return platformInfo(u, id);
 }
@@ -155,14 +171,14 @@ export function requireScope(scope: CostScope, id: string): ScopeInfo {
 
 /** Every scope of a kind the reader may see (not archived). */
 export function visibleScopes(scope: CostScope, u: AuthUser | null = currentUser()): ScopeInfo[] {
+  // services and applications with their rows in one statement (not one per item: security review 0.19.0 H2)
+  if (scope === 'service' || scope === 'application')
+    return db()
+      .all<CatRow>(`SELECT id, name, owners, archived FROM ${scope === 'service' ? 'services' : 'applications'} WHERE archived = 0 ORDER BY name`)
+      .map((r) => catalogueInfo(u, scope, r.id, r))
+      .filter((x): x is ScopeInfo => !!x);
   const ids =
-    scope === 'service'
-      ? db().all<{ id: string }>('SELECT id FROM services WHERE archived = 0 ORDER BY name')
-      : scope === 'application'
-        ? db().all<{ id: string }>('SELECT id FROM applications WHERE archived = 0 ORDER BY name')
-        : scope === 'team'
-          ? db().all<{ id: string }>('SELECT id FROM teams ORDER BY name')
-          : db().all<{ id: string }>('SELECT id FROM platforms ORDER BY name');
+    scope === 'team' ? db().all<{ id: string }>('SELECT id FROM teams ORDER BY name') : db().all<{ id: string }>('SELECT id FROM platforms ORDER BY name');
   return ids.map((r) => scopeInfo(scope, r.id, u)).filter((x): x is ScopeInfo => !!x);
 }
 
@@ -211,6 +227,28 @@ export function coverOf(scope: CostScope, id: string, visibleOnly = true, reader
       .map((r) => r.resource_id),
     platform: null,
   };
+}
+
+/** coverOf of every service (visibleOnly, the reader) from two statements – for lists (security review 0.19.0 H2). */
+export function serviceCovers(reader: AuthUser | null = currentUser()): (serviceId: string) => ScopeCover {
+  const apps = new Map(
+    db()
+      .all<CatRow>('SELECT id, name, owners, archived FROM applications')
+      .map((r) => [r.id, r]),
+  );
+  const seen = new Map<string, boolean>();
+  const visible = (appId: string) => {
+    if (!reader) return true;
+    let v = seen.get(appId);
+    if (v === undefined) seen.set(appId, (v = !!apps.get(appId) && !!scopeInfo('application', appId, reader, apps.get(appId))));
+    return v;
+  };
+  const linked = new Map<string, string[]>();
+  for (const r of db().all<{ service_id: string; application_id: string }>(
+    'SELECT service_id, application_id FROM service_applications ORDER BY application_id',
+  ))
+    if (visible(r.application_id)) linked.set(r.service_id, [...(linked.get(r.service_id) ?? []), r.application_id]);
+  return (serviceId) => ({ applications: linked.get(serviceId) ?? [], unassignedPlatforms: [], platform: null });
 }
 
 /**

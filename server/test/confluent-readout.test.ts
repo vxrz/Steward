@@ -283,10 +283,14 @@ describe('rights, writes and the outbound policy', () => {
       await s.api('PUT', '/settings', { outboundPolicy: 'platforms', outboundAllowList: [] });
       const p = await s.api('GET', `/platforms/${ccId}`);
       const other = `http://localhost:${new URL(s.base).port}/mock/schema-registry`;
-      await s.api('PUT', `/platforms/${ccId}`, { ...p, config: { ...p.config, variables: { ...p.config.variables, schemaRegistryUrl: other } } });
+      await s.api('PUT', `/platforms/${ccId}`, {
+        ...p,
+        config: { ...p.config, variables: { ...p.config.variables, schemaRegistryUrl: other } },
+        credentials: 'keep',
+      });
       const v = await s.api('POST', `/platforms/${ccId}/confluent/read`, {});
       expect(v.partErrors).toEqual([{ part: 'subjects', message: expect.stringMatching(/Blocked by the outbound policy: http:\/\/localhost/) }]);
-      await s.api('PUT', `/platforms/${ccId}`, p);
+      await s.api('PUT', `/platforms/${ccId}`, { ...p, credentials: 'keep' });
     } finally {
       await s.api('PUT', '/settings', { outboundPolicy: settings.outboundPolicy, outboundAllowList: settings.outboundAllowList });
     }

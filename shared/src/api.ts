@@ -471,7 +471,8 @@ export interface AuthStatus {
   /** 'adminsOnly': password sign-in is limited to administrators (break-glass); 'none': single sign-on only */
   passwordLogin: PasswordLogin;
   demo: boolean;
-  version: string;
+  /** The server's version – only for a signed-in caller (0.19.0) */
+  version?: string;
   browserAvailable: boolean;
 }
 
@@ -550,6 +551,11 @@ export const STEP_UP_ACTIONS = [
   'changeSoaApproval',
   // 0.19.0 (#195): naming an owner or responsible from outside the owning teams of an item (control point access.grant)
   'grantNamedAccess',
+  // 0.19.0 (security review H1): a new address of a platform's stored credentials (base URL, trusted origins, sign-in,
+  // proxy, broker or database host)
+  'changePlatformDestination',
+  // 0.19.0 (security review L1): a Git sync source – a new one, another repository or API URL, signing loosened, auto-accept on
+  'changeSyncSources',
 ] as const;
 export type StepUpAction = (typeof STEP_UP_ACTIONS)[number];
 

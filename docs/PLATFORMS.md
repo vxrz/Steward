@@ -11,6 +11,24 @@ Processes refer to _connection slots_ (e.g. `hub`, kind `insights-hub`), not to 
 
 A platform has one or more **identities** – sets of credentials with their own access list, MCP mode, read-only flag and operation filter, for example _Snowflake · Read only_ as the default and _Snowflake · Admin_ for the few who may change things. One platform per system keeps the settings, health, monitors and catalogue in one place; runs, schedules, triggers, monitors and MCP name the identity they use. See [PLATFORM-SIGN-IN.md](PLATFORM-SIGN-IN.md#identities). Connector types carry identity templates (names, flags, operation filters – never credentials or access lists).
 
+## Changing the address
+
+Stored credentials go only to the platform's own addresses. Changing one of them moves where they go (0.19.0, security review H1):
+
+- the base URL (with its `{{ vars.x }}` filled in – a variable that changes the host counts),
+- a trusted origin, a sign-in address (token URL, login and refresh request, STS endpoint), the portal of browser steps, the proxy,
+- the connection of kinds that do not talk HTTP to their base URL: the MQTT broker (variable `url`), the Kafka bootstrap servers, the Kafka OAuth `tokenUrl`, Schema Registry (`schemaRegistryUrl`) and REST endpoint (`kafkaRestUrl`), the host and port of a database platform (_Platform → Database_).
+
+A new path on the same host, a new name, description or variable that is not part of an address are ordinary changes.
+
+While the platform has stored credentials (in any identity), such a change
+
+- needs a signed-in session – API tokens get `403 SESSION_REQUIRED` – and a [step-up](SECURITY-HARDENING.md#step-up-re-authentication) (control point `platform.destination`, part of the baseline);
+- says what happens to the credentials. Steward asks: an **administrator** chooses _Send them_ (_Send the stored credentials to the new address?_) or _Remove them_; **anyone else** who manages the platform saves only with _Save and remove them_ and enters the credentials again for the new address. Through the API the body names it: `"credentials": "keep"` (administrators only, otherwise `403 PLATFORM_CREDENTIALS_KEEP_ADMIN`) or `"clear"`; without it the answer is `409 PLATFORM_DESTINATION_CREDENTIALS`;
+- is audited as `platform.destination_changed` with the old and the new addresses and whether the credentials were kept or removed – alert on it.
+
+An identity cannot move the platform either: the variables of an address – those in the base URL, token URLs, trusted origins or portal, and the connection variables above – cannot be set per identity (`IDENTITY_VARIABLE_FIXED`). A platform without stored credentials changes its address like any other setting (audited the same way).
+
 ## API specifications and path prefixes
 
 Import OpenAPI 3.x or Swagger 2.0 specifications under _Platforms → (platform) → API specs_, by file, paste or URL. Their operations appear in the editor's _Pick from API spec_, the API explorer, the contract check and the MCP gateway.

@@ -260,6 +260,28 @@ export const VARS = {
     description:
       'On SIGTERM/SIGINT: how long running steps may still finish before their runs are marked interrupted. Give the container a little more (Docker `stop_grace_period`, Kubernetes `terminationGracePeriodSeconds`), see [docs/INSTALL.md](docs/INSTALL.md)',
   }),
+  SM_REQUEST_TIMEOUT_SECONDS: v(int(120, 0, 3600), {
+    group: 'Server and network',
+    default: '120',
+    description:
+      'How long a client may take to send a request (its body) before the connection is closed with 408 – a slow body cannot hold a connection open (0 = no limit). Downloads are not limited by it; signed-in uploads get `SM_UPLOAD_TIMEOUT_SECONDS`',
+  }),
+  SM_UPLOAD_TIMEOUT_SECONDS: v(int(3600, 0, 86400), {
+    group: 'Server and network',
+    default: '3600',
+    description:
+      'The same for uploads of signed-in users (files, migration packages, routes that accept more than 1 MB) – raise it for very large migration packages over slow links (0 = no limit)',
+  }),
+  SM_CONNECTION_TIMEOUT_SECONDS: v(int(600, 0, 86400), {
+    group: 'Server and network',
+    default: '600',
+    description: 'A connection on which nothing is sent or received for this long is closed (0 = never); a running download keeps it busy',
+  }),
+  SM_KEEP_ALIVE_TIMEOUT_SECONDS: v(int(72, 1, 3600), {
+    group: 'Server and network',
+    default: '72',
+    description: 'How long an idle keep-alive connection stays open after a response. Behind a load balancer keep it above the balancer’s idle timeout',
+  }),
   SM_TRUST_PROXY: v(parsedBy('SM_TRUST_PROXY', parseTrustProxy), {
     group: 'Server and network',
     default: '– (off)',

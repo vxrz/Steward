@@ -106,6 +106,7 @@ describe('Confluent access checks', () => {
     const p = await s.api('GET', `/platforms/${platformId}`);
     await s.api('PUT', `/platforms/${platformId}`, {
       config: { ...p.config, variables: { kafkaRestUrl: `${s.base}/mock/confluent/kafka-rest`, clusterId: mock.DEMO_CONFLUENT.cluster } },
+      credentials: 'keep',
     });
     await s.api('PUT', `/platforms/${platformId}/secrets`, {
       clusterApiKey: mock.DEMO_CONFLUENT.clusterKey,

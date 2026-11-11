@@ -366,7 +366,7 @@ describe('backups to S3', () => {
     expect((await s.api('GET', '/backups')).targetChanged).toBe(false);
 
     // the platform now names another bucket: the backup fails before it makes or uploads anything …
-    await s.api('PUT', `/platforms/${storageId}`, { baseUrl: `${mockBase}/s3/invented-other-backups` });
+    await s.api('PUT', `/platforms/${storageId}`, { baseUrl: `${mockBase}/s3/invented-other-backups`, credentials: 'keep' });
     expect((await s.api('GET', '/backups')).targetChanged).toBe(true);
     await s.api('POST', '/backups/run', {});
     const run = (await waitIdle()).lastBackup;
@@ -405,7 +405,7 @@ describe('backups to S3', () => {
     });
 
     // back to the real bucket; saving the settings confirms the target too
-    await s.api('PUT', `/platforms/${storageId}`, { baseUrl: platform.baseUrl });
+    await s.api('PUT', `/platforms/${storageId}`, { baseUrl: platform.baseUrl, credentials: 'keep' });
     expect((await s.api('GET', '/backups')).targetChanged).toBe(true);
     const st = await s.api('PUT', '/backups/settings', (await s.api('GET', '/backups')).settings);
     expect(st.targetChanged).toBe(false);

@@ -1,11 +1,12 @@
 import crypto from 'node:crypto';
 import net from 'node:net';
+import tls from 'node:tls';
 import { BRAND, MQTT_LIMITS, mqttMatches, mqttUrl, type Platform } from '@sm/shared';
 import { db } from '../db.js';
 import { logger } from '../log.js';
 import { vault } from '../vault.js';
 import { HttpError, nowIso } from '../util.js';
-import { assertAddressSafe, assertNetAllowed } from '../platforms/outbound.js';
+import { assertAddressSafe, assertNetAllowed, guardedLookup } from '../platforms/outbound.js';
 import { outboundContext } from '../platforms/policyContext.js';
 import { getSettings } from '../settings.js';
 import { getPlatform, getSecrets } from '../platforms/service.js';
@@ -68,12 +69,46 @@ function options(platform: Platform, secrets: Record<string, string>) {
   };
 }
 
+/**
+ * A client whose every connection – the first and each automatic reconnect – resolves the broker's name again through
+ * the pinning lookup (security review 0.19.0 L3): a name rebound to a cloud-metadata or link-local address after the
+ * check is refused when it connects, and the socket connects to exactly the address that was checked. mqtt.js does not
+ * pass a lookup to plain TCP connections, so mqtt:// and mqtts:// streams are built here; WebSockets take it as an option.
+ */
+async function openClient(u: URL, opts: Omit<ReturnType<typeof options>, 'reconnectPeriod'> & { reconnectPeriod: number }): Promise<import('mqtt').MqttClient> {
+  const mqtt = await import('mqtt');
+  const host = u.hostname.replace(/^\[|\]$/g, '');
+  const t = opts as { ca?: string; cert?: string; key?: string; rejectUnauthorized: boolean };
+  const tlsOpts = { ...(t.ca ? { ca: t.ca } : {}), ...(t.cert && t.key ? { cert: t.cert, key: t.key } : {}), rejectUnauthorized: t.rejectUnauthorized };
+  if (u.protocol === 'ws:' || u.protocol === 'wss:') {
+    return mqtt.connect(u.toString(), { ...opts, wsOptions: { ...tlsOpts, lookup: guardedLookup } });
+  }
+  const tlsSocket = u.protocol === 'mqtts:';
+  const port = Number(u.port || (tlsSocket ? 8883 : 1883));
+  const stream = () =>
+    tlsSocket
+      ? tls.connect({
+          host,
+          port,
+          lookup: guardedLookup,
+          ...(net.isIP(host) ? {} : { servername: host }),
+          ...tlsOpts,
+        })
+      : net.connect({ host, port, lookup: guardedLookup });
+  return new mqtt.MqttClient(stream, { ...opts, protocol: tlsSocket ? 'mqtts' : 'mqtt', host, port });
+}
+
 /** Connection test: connects, subscribes to nothing, disconnects. */
 export async function testMqtt(platform: Platform, secrets: Record<string, string>): Promise<string> {
   const u = await assertBrokerAllowed(platform);
-  const mqtt = await import('mqtt');
-  const client = await mqtt.connectAsync(u.toString(), { ...options(platform, secrets), reconnectPeriod: 0 }).catch((e: Error) => {
-    throw new Error(`the broker could not be reached: ${e.message}`);
+  const client = await openClient(u, { ...options(platform, secrets), reconnectPeriod: 0 });
+  await new Promise<void>((resolve, reject) => {
+    client.once('connect', () => resolve());
+    client.once('error', (e: Error) => reject(new Error(`the broker could not be reached: ${e.message}`)));
+    client.once('close', () => reject(new Error('the broker could not be reached: the connection was closed')));
+  }).catch((e: Error) => {
+    client.end(true);
+    throw e;
   });
   await client.endAsync(true).catch(() => undefined); // the test connection worked: closing it is best effort
   return `Connection works – ${u.protocol.replace(':', '')}://${u.host} accepted the connection`;
@@ -110,8 +145,7 @@ async function connect(l: Listener): Promise<void> {
   const platform = getPlatform(l.platformId);
   if (platform.kind !== 'mqtt') throw new HttpError(400, `"${platform.name}" is not an MQTT platform`, 'MQTT_PLATFORM');
   const u = await assertBrokerAllowed(platform);
-  const mqtt = await import('mqtt');
-  const client = mqtt.connect(u.toString(), options(platform, getSecrets(l.platformId)));
+  const client = await openClient(u, options(platform, getSecrets(l.platformId)));
   l.client = client;
   client.on('connect', () => {
     l.error = null;

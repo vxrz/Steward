@@ -4,6 +4,7 @@ import { openInputs, sealInputs } from './engine/secret-inputs.js';
 import {
   DEFAULT_SCHEDULE_NOTIFY,
   type NotifyPause,
+  type ProcessPermission,
   type RunStatus,
   type Schedule,
   type ScheduleCatchUp,
@@ -18,7 +19,7 @@ import { audit } from './audit.js';
 import { engine } from './engine/index.js';
 import { startProblem } from './engine/commands.js';
 import { HttpError, newId, nowIso, parseJson } from './util.js';
-import { getProcess, permissionsFor } from './processes/service.js';
+import { getProcess, permissionsFor, processPermissionMap } from './processes/service.js';
 import { currentUser, runAs } from './auth/context.js';
 import { findUserByName, toAuthUser } from './auth/users.js';
 import { isAdmin } from './auth/permissions.js';
@@ -63,7 +64,7 @@ const notifyOf = (r: ScheduleRow): ScheduleNotify => policyOfColumns(r, DEFAULT_
 
 const jobs = new Map<string, Cron>();
 
-function toSchedule(r: ScheduleRow): Schedule {
+function toSchedule(r: ScheduleRow, perms?: Map<string, ProcessPermission[]>): Schedule {
   const job = jobs.get(r.id);
   return {
     id: r.id,
@@ -84,7 +85,7 @@ function toSchedule(r: ScheduleRow): Schedule {
     nextRunAt: job?.nextRun()?.toISOString() ?? null,
     createdAt: r.created_at,
     owner: r.owner,
-    canEdit: canEditSchedule(r),
+    canEdit: canEditSchedule(r, perms),
     notify: notifyOf(r),
     catchUp: r.catch_up === 'once' ? 'once' : 'none',
     missed: parseJson<ScheduleMissedFires | null>(r.missed ?? null, null),
@@ -95,19 +96,20 @@ function toSchedule(r: ScheduleRow): Schedule {
 const SELECT = `SELECT s.*, p.name AS process_name, (SELECT status FROM runs WHERE id = s.last_run_id) AS last_status
   FROM schedules s JOIN processes p ON p.id = s.process_id`;
 
-function canEditSchedule(r: { owner: string | null; process_id: string }): boolean {
+function canEditSchedule(r: { owner: string | null; process_id: string }, perms?: Map<string, ProcessPermission[]>): boolean {
   const u = currentUser();
   if (!u) return false;
   if (isAdmin(u) || (r.owner && r.owner.toLowerCase() === u.username.toLowerCase())) return true;
-  return permissionsFor(r.process_id).includes('manage');
+  return (perms ? (perms.get(r.process_id) ?? []) : permissionsFor(r.process_id)).includes('manage');
 }
 
-/** Schedules of processes the current user can see. */
+/** Schedules of processes the current user can see (the processes' rights read in one statement, not one per schedule). */
 export function listSchedules(): Schedule[] {
+  const perms = processPermissionMap();
   return db()
     .all<ScheduleRow>(`${SELECT} ORDER BY s.name`)
-    .filter((r) => permissionsFor(r.process_id).includes('view'))
-    .map(toSchedule);
+    .filter((r) => (perms.get(r.process_id) ?? []).includes('view'))
+    .map((r) => toSchedule(r, perms));
 }
 
 export function requireScheduleEdit(id: string): void {

@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import net from 'node:net';
 import { BRAND, bootstrapList, KAFKA_LIMITS, KAFKA_TOPIC_CONFIGS, type KafkaSasl, type Platform } from '@sm/shared';
 import { config } from '../config.js';
-import { assertAddressSafe, assertNetAllowed } from '../platforms/outbound.js';
+import { assertAddressSafe, assertNetAllowed, checkedAddress, guardedLookup } from '../platforms/outbound.js';
 import { outboundContext } from '../platforms/policyContext.js';
 import { getSettings } from '../settings.js';
 import { HttpError } from '../util.js';
@@ -141,14 +141,24 @@ async function openNative(platform: Platform, secrets: Record<string, string>): 
   for (const b of brokers) await assertBrokerAllowed(platform, b.host, b.port);
   const k = await import('@platformatic/kafka');
   const tls = String(platform.config.variables?.tls ?? 'true') !== 'false';
+  // the checked address is the one connected to (security review 0.19.0 L3): over TLS every connection – to the
+  // bootstrap servers and the brokers the cluster advertises, also reconnects – resolves through the pinning lookup;
+  // without TLS the client takes no lookup, so the bootstrap servers are connected by the address checked here
+  const bootstrap = tls ? brokers : await Promise.all(brokers.map(async (b) => ({ host: await checkedAddress(b.host), port: b.port })));
   const base = {
     clientId: `${BRAND.slug}-reader`,
-    bootstrapBrokers: brokers.map((b) => `${b.host}:${b.port}`),
+    bootstrapBrokers: bootstrap.map((b) => `${b.host}:${b.port}`),
     connectTimeout: KAFKA_LIMITS.timeoutMs,
     requestTimeout: KAFKA_LIMITS.timeoutMs,
     retries: 1,
     ...(tls
-      ? { tls: { ...(platform.config.http?.caPem ? { ca: platform.config.http.caPem } : {}), rejectUnauthorized: !platform.config.http?.insecureTls } }
+      ? {
+          tls: {
+            ...(platform.config.http?.caPem ? { ca: platform.config.http.caPem } : {}),
+            rejectUnauthorized: !platform.config.http?.insecureTls,
+            lookup: guardedLookup,
+          },
+        }
       : {}),
     ...(sasl(platform, secrets) ? { sasl: sasl(platform, secrets) } : {}),
   };

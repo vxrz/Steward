@@ -347,12 +347,41 @@ const CATALOGUE_EDITORS: readonly Role[] = ['admin', 'designer'];
  * it is part of (an application in services of two teams belongs to both; one that is also part of a service of the
  * whole instance belongs to the whole instance).
  */
+/** The services of each application while withServiceLinks runs (null: read per application). */
+let serviceLinks: Map<string, string[]> | null = null;
+
+/**
+ * Runs `fn` (synchronous) with every link between services and applications read once: lists that decide the access
+ * to many applications (costs, scorecards) would otherwise read the links of each one (security review 0.19.0 H2).
+ */
+export function withServiceLinks<T>(fn: () => T): T {
+  if (serviceLinks) return fn();
+  const links = new Map<string, string[]>();
+  for (const r of db().all<{ service_id: string; application_id: string }>('SELECT service_id, application_id FROM service_applications'))
+    links.set(r.application_id, [...(links.get(r.application_id) ?? []), r.service_id]);
+  serviceLinks = links;
+  try {
+    const out = fn();
+    if (out instanceof Promise) throw new Error('withServiceLinks needs a synchronous function');
+    return out;
+  } finally {
+    serviceLinks = null;
+  }
+}
+
 export function catalogueTeams(kind: CatalogueKind, id: string): OwningTeam[] {
   const own = owningTeams(kind, id);
   if (own.length || kind !== 'application') return own;
   const byId = new Map<string, OwningTeam>();
-  for (const r of db().all<{ service_id: string }>('SELECT service_id FROM service_applications WHERE application_id = ?', id)) {
-    const teams = owningTeams('service', r.service_id);
+  const services =
+    serviceLinks?.get(id) ??
+    (serviceLinks
+      ? []
+      : db()
+          .all<{ service_id: string }>('SELECT service_id FROM service_applications WHERE application_id = ?', id)
+          .map((r) => r.service_id));
+  for (const serviceId of services) {
+    const teams = owningTeams('service', serviceId);
     // also part of a service of the whole instance: the application is the whole instance's as well
     if (!teams.length) return [];
     for (const t of teams) byId.set(t.id, t);

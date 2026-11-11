@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { boundedRecord, SYNC_KINDS, SYNC_UPDATE_STATUSES, SYNC_WEBHOOK_MAX_BODY_BYTES } from '@sm/shared';
 import { currentActor } from '../auth/context.js';
@@ -55,11 +55,18 @@ export async function syncRoutes(app: FastifyInstance): Promise<void> {
     sources.requireAdmin();
     return sources.getSource(params(req).id!);
   });
-  app.post('/sync-sources', { config: { access: ACCESS.session } }, async (req) => {
+  // a new source, another repository or API URL (where the token goes), signing loosened or auto-accept on: a step-up
+  // (security review 0.19.0 L1, control point sync.sources)
+  const stepUp = (forId: boolean) => ({
+    action: 'changeSyncSources' as const,
+    who: 'manageSettings' as const,
+    when: (req: FastifyRequest) => sources.sourceChangeNeedsStepUp(forId ? params(req).id! : undefined, req.body),
+  });
+  app.post('/sync-sources', { config: { access: ACCESS.session, stepUp: stepUp(false) } }, async (req) => {
     sources.requireAdmin();
     return sources.createSource(sources.sourceSchema.parse(req.body));
   });
-  app.put('/sync-sources/:id', { config: { access: ACCESS.session } }, async (req) => {
+  app.put('/sync-sources/:id', { config: { access: ACCESS.session, stepUp: stepUp(true) } }, async (req) => {
     sources.requireAdmin();
     sources.requireSource(params(req).id!);
     return sources.updateSource(params(req).id!, sources.sourceSchema.parse(req.body));

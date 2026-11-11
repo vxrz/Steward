@@ -66,7 +66,8 @@ import { requireVisibleSystem } from '../dbschema/check.js';
 import { requireVisibleApplication } from '../versions/check.js';
 import { requireVisibleCostScope } from '../costs/check.js';
 import { requireVisibleContract } from '../datacontracts/check.js';
-import { checkUptimes, monitorOffHours, monitorUptime } from './stats.js';
+import { checkUptimes, monitorOffHours, monitorUptime, statusPointsOf, uptimeRange, type StatusPoint } from './stats.js';
+import type { ActiveMaintenance } from './maintenance-hook.js';
 import { coerceParams, renderTemplate } from './templates.js';
 import { checkExpressions, parseDefinitionInput, validateTemplate } from './validation.js';
 import * as engine from './engine.js';
@@ -126,8 +127,12 @@ const SELECT = `SELECT m.*, s.status, s.since, s.root_causes, s.last_evaluated_a
   FROM monitors m LEFT JOIN monitor_state s ON s.monitor_id = m.id`;
 
 /** The maintenance window the monitor is in now (a catalogue window that lists it or reaches a platform it checks). */
-function maintenanceOf(mid: string, now = engine.monitorNow()): MaintenanceWindow | null {
-  const w = engine.activeMaintenance(mid, now);
+function maintenanceOf(
+  mid: string,
+  now = engine.monitorNow(),
+  active: (mid: string) => ActiveMaintenance | undefined = (m) => engine.activeMaintenance(m, now),
+): MaintenanceWindow | null {
+  const w = active(mid);
   if (!w) return null;
   return {
     id: w.id,
@@ -141,9 +146,38 @@ function maintenanceOf(mid: string, now = engine.monitorNow()): MaintenanceWindo
   };
 }
 
-function summary(r: Joined, counts: Partial<Record<MonitorStatus, number>> | undefined, canView: MonitorVisibility): MonitorSummary {
+/** What a list reads once for all its monitors (security review 0.19.0 H2); a single monitor reads its own. */
+interface ListContext {
+  now: number;
+  points: Map<string, StatusPoint[]>;
+  templateVersions: Map<string, number>;
+  maintenance: (mid: string) => ActiveMaintenance | undefined;
+}
+
+function listContext(rows: Joined[]): ListContext {
+  const now = engine.monitorNow();
+  const live = rows.filter((r) => !r.is_template).map((r) => r.id);
+  return {
+    now,
+    points: statusPointsOf(live, ...uptimeRange(now)),
+    templateVersions: new Map(
+      db()
+        .all<{ id: string; version: number }>('SELECT id, version FROM monitors WHERE is_template = 1')
+        .map((t) => [t.id, t.version]),
+    ),
+    maintenance: engine.activeMaintenanceOf(now),
+  };
+}
+
+function summary(r: Joined, counts: Partial<Record<MonitorStatus, number>> | undefined, canView: MonitorVisibility, ctx?: ListContext): MonitorSummary {
   const def = parseJson<Partial<MonitorDefinition>>(r.definition, {});
-  const tVersion = r.template_id ? db().get<{ version: number }>('SELECT version FROM monitors WHERE id = ?', r.template_id)?.version : undefined;
+  const tVersion = !r.template_id
+    ? undefined
+    : ctx
+      ? ctx.templateVersions.get(r.template_id)
+      : db().get<{ version: number }>('SELECT version FROM monitors WHERE id = ?', r.template_id)?.version;
+  const now = ctx?.now ?? engine.monitorNow();
+  const points = ctx?.points.get(r.id);
   const status: MonitorStatus = r.is_template ? 'unknown' : !r.enabled ? 'unknown' : (r.status ?? 'unknown');
   return {
     id: r.id,
@@ -163,14 +197,14 @@ function summary(r: Joined, counts: Partial<Record<MonitorStatus, number>> | und
     rootCauses: r.enabled ? redactCauses(parseCauses(r.root_causes), canView) : [],
     counts: counts ?? {},
     checkCount: def.checks?.length ?? 0,
-    uptime: r.is_template ? { h24: null, d7: null, d30: null } : monitorUptime(r.id, engine.monitorNow()),
-    maintenance: r.is_template ? null : maintenanceOf(r.id),
+    uptime: r.is_template ? { h24: null, d7: null, d30: null } : monitorUptime(r.id, now, points),
+    maintenance: r.is_template ? null : maintenanceOf(r.id, now, ctx?.maintenance),
     acknowledged: r.ack_by ? { by: r.ack_by, at: r.ack_at!, comment: r.ack_comment ?? '' } : null,
     permissions: permissionsOfRow(r),
     updatedAt: r.updated_at,
     lastEvaluatedAt: r.last_evaluated_at,
     state: !r.is_template && r.enabled && hasStates(def as MonitorDefinition) ? stateInfoOf(r, def as MonitorDefinition) : null,
-    offHours: r.is_template ? null : monitorOffHours(r.id, engine.monitorNow()),
+    offHours: r.is_template ? null : monitorOffHours(r.id, now, points),
   };
 }
 
@@ -198,7 +232,8 @@ export function listMonitors(opts: { templates?: boolean } = {}): MonitorSummary
     counts.set(c.monitor_id, x);
   }
   const canView = monitorVisibility();
-  return rows.map((r) => summary(r, counts.get(r.id), canView));
+  const ctx = listContext(rows);
+  return rows.map((r) => summary(r, counts.get(r.id), canView, ctx));
 }
 
 /**

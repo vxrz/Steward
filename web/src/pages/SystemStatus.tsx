@@ -224,6 +224,22 @@ export function SystemStatusPage() {
                 {s.pdf.waiting > 0 ? ` · ${t('status.runtime.pdfWaiting', { count: s.pdf.waiting })}` : ''}
               </Row>
               <Row label={t('status.runtime.timeZone')}>{s.runtime.timeZone}</Row>
+              <Row label={t('status.runtime.clock')}>
+                <span data-testid="clock-skew">
+                  {s.clock.skewSeconds === null ? (
+                    t('status.runtime.clockNoReference')
+                  ) : (
+                    <>
+                      <Badge variant="light" color={s.clock.warning ? 'red' : 'green'} size="sm">
+                        {s.clock.warning ? t('status.runtime.clockOff') : t('status.runtime.clockOk')}
+                      </Badge>{' '}
+                      {t(s.clock.source === 'database' ? 'status.runtime.clockDatabase' : 'status.runtime.clockHttp', {
+                        seconds: fmtNumber(s.clock.skewSeconds),
+                      })}
+                    </>
+                  )}
+                </span>
+              </Row>
               {s.runtime.hostname && <Row label={t('status.runtime.hostname')}>{s.runtime.hostname}</Row>}
               {s.runtime.pid !== undefined && <Row label={t('status.runtime.pid')}>{s.runtime.pid}</Row>}
               {s.runtime.dataDir && (

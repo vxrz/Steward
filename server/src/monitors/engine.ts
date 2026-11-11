@@ -604,6 +604,26 @@ export function activeMaintenance(mid: string, now = clock()): ActiveMaintenance
   );
 }
 
+/**
+ * activeMaintenance of many monitors (the list, security review 0.19.0 H2): the monitors' own windows of earlier
+ * versions read in one statement, the catalogue's as before (cached there).
+ */
+export function activeMaintenanceOf(now = clock()): (mid: string) => ActiveMaintenance | undefined {
+  const ts = iso(now);
+  const own = new Map<string, ActiveMaintenance>();
+  for (const w of db().all<ActiveMaintenance & { monitor_id: string }>(
+    `SELECT monitor_id, id, starts_at, ends_at, reason, created_by, created_at FROM monitor_maintenance
+     WHERE migrated_at IS NULL AND starts_at <= ? AND ends_at > ? ORDER BY ends_at DESC`,
+    ts,
+    ts,
+  )) {
+    if (own.has(w.monitor_id)) continue;
+    const { monitor_id: _m, ...rest } = w;
+    own.set(w.monitor_id, rest);
+  }
+  return (mid) => catalogueMaintenance(mid, now) ?? own.get(mid);
+}
+
 // ---------- graph evaluation ----------
 
 export function scheduleRecompute(mid: string): void {

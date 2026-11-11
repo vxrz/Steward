@@ -40,7 +40,7 @@ export function checkUptimes(monitorIds: string[], now = Date.now()): Map<string
   return out;
 }
 
-type StatusPoint = { t: number; status: MonitorStatus };
+export type StatusPoint = { t: number; status: MonitorStatus };
 
 /**
  * A monitor's status changes from `from` on (the status in effect at `from` first, dated `from`), up to `to`. The one
@@ -60,6 +60,31 @@ export function statusPoints(monitorId: string, from: number, to: number): Statu
     new Date(to).toISOString(),
   );
   return [...(before ? [{ t: from, status: before.status }] : []), ...changes.map((c) => ({ t: Date.parse(c.ts), status: c.status }))];
+}
+
+/**
+ * statusPoints of many monitors (the list, security review 0.19.0 H2): two statements, whatever their number – the
+ * status in effect at `from` of each, and every change in the window.
+ */
+export function statusPointsOf(monitorIds: string[], from: number, to: number): Map<string, StatusPoint[]> {
+  const out = new Map<string, StatusPoint[]>(monitorIds.map((id) => [id, []]));
+  if (!monitorIds.length) return out;
+  const marks = monitorIds.map(() => '?').join(', ');
+  for (const b of db().all<{ id: string; status: MonitorStatus | null }>(
+    `SELECT m.id, (SELECT h.status FROM monitor_history h WHERE h.monitor_id = m.id AND h.check_id = '' AND h.ts < ? ORDER BY h.ts DESC, h.id DESC LIMIT 1) AS status
+       FROM monitors m WHERE m.id IN (${marks})`,
+    new Date(from).toISOString(),
+    ...monitorIds,
+  ))
+    if (b.status) out.get(b.id)?.push({ t: from, status: b.status });
+  for (const c of db().all<{ monitor_id: string; ts: string; status: MonitorStatus }>(
+    `SELECT monitor_id, ts, status FROM monitor_history WHERE monitor_id IN (${marks}) AND check_id = '' AND ts >= ? AND ts < ? ORDER BY monitor_id, ts, id`,
+    ...monitorIds,
+    new Date(from).toISOString(),
+    new Date(to).toISOString(),
+  ))
+    out.get(c.monitor_id)?.push({ t: Date.parse(c.ts), status: c.status });
+  return out;
 }
 
 /**
@@ -101,21 +126,27 @@ export function monitorOffMinutes<K extends string>(monitorId: string, windowsMs
   return Object.fromEntries(keys.map((k) => [k, Math.round(upAndDown(points, now - windowsMs[k], now).off / 60000)])) as Record<K, number>;
 }
 
-/** Off time (ADR 0021) of one monitor in the uptime windows ending now, in hours (one decimal); null when never off. */
-export function monitorOffHours(monitorId: string, now = Date.now()): UptimeSet | null {
-  const longest = 24 * 30 * 3600000;
-  const points = statusPoints(monitorId, now - longest, now + 1);
+/** The window of monitorUptime and monitorOffHours: the last 30 days (and the next millisecond). */
+export const uptimeRange = (now: number): [number, number] => [now - 24 * 30 * 3600000, now + 1];
+
+/**
+ * Off time (ADR 0021) of one monitor in the uptime windows ending now, in hours (one decimal); null when never off.
+ * `points`: its status points of uptimeRange when read already (the list).
+ */
+export function monitorOffHours(monitorId: string, now = Date.now(), points = statusPoints(monitorId, ...uptimeRange(now))): UptimeSet | null {
   if (!points.some((p) => p.status === 'off')) return null;
   const hours = (h: number) => Math.round(upAndDown(points, now - h * 3600000, now).off / 360000) / 10;
   return { h24: hours(24), d7: hours(24 * 7), d30: hours(24 * 30) };
 }
 
-/** Time-weighted uptime of one monitor from its status changes. */
-export function monitorUptime(monitorId: string, now = Date.now()): UptimeSet {
-  const h = monitorUptimeHundredths(
-    monitorId,
-    Object.fromEntries(WINDOWS.map(([name, hours]) => [name, hours * 3600000])) as Record<keyof UptimeSet, number>,
-    now,
-  );
+/** Time-weighted uptime of one monitor from its status changes (`points`: of uptimeRange, when read already). */
+export function monitorUptime(monitorId: string, now = Date.now(), points?: StatusPoint[]): UptimeSet {
+  const windows = Object.fromEntries(WINDOWS.map(([name, hours]) => [name, hours * 3600000])) as Record<keyof UptimeSet, number>;
+  const h = points
+    ? (Object.fromEntries(WINDOWS.map(([name]) => [name, uptimeHundredths(upAndDown(points, now - windows[name], now))])) as Record<
+        keyof UptimeSet,
+        number | null
+      >)
+    : monitorUptimeHundredths(monitorId, windows, now);
   return { h24: h.h24 === null ? null : h.h24 / 100, d7: h.d7 === null ? null : h.d7 / 100, d30: h.d30 === null ? null : h.d30 / 100 };
 }

@@ -1167,6 +1167,8 @@ export interface Resources {
     'points.plant.bulkChange.description': string;
     'points.plant.changeSet.label': string;
     'points.plant.changeSet.description': string;
+    'points.sync.sources.label': string;
+    'points.sync.sources.description': string;
     'points.library.publishers.label': string;
     'points.library.publishers.description': string;
     'points.library.install.label': string;
@@ -1179,6 +1181,8 @@ export interface Resources {
     'points.modules.switch.description': string;
     'points.platform.privilegedIdentity.label': string;
     'points.platform.privilegedIdentity.description': string;
+    'points.platform.destination.label': string;
+    'points.platform.destination.description': string;
     'points.correctiveAction.verify.label': string;
     'points.correctiveAction.verify.description': string;
     'points.soa.approve.label': string;
@@ -1398,6 +1402,8 @@ export interface Resources {
     'stepUp.actions.changeCiaScale': string;
     'stepUp.actions.changeBackups': string;
     'stepUp.actions.changeExports': string;
+    'stepUp.actions.changePlatformDestination': string;
+    'stepUp.actions.changeSyncSources': string;
     'stepUp.actions.allowMcpWrites': string;
     'stepUp.actions.other': string;
     'stepUp.actions.allowMcpClient': string;
@@ -4928,6 +4934,8 @@ export interface Resources {
     'codes.VAULT_MISMATCH': string;
     'codes.VAULT_CHANGE_INTERRUPTED': string;
     'codes.PLATFORM_CONFIG_UNVERIFIED': string;
+    'codes.PLATFORM_DESTINATION_CREDENTIALS': string;
+    'codes.PLATFORM_CREDENTIALS_KEEP_ADMIN': string;
     'codes.SSO_CONFIG_UNVERIFIED': string;
     'codes.ANCHOR_INVALID': string;
     'codes.ANCHOR_SIGNATURE_INVALID': string;
@@ -5118,8 +5126,10 @@ export interface Resources {
     'codes.AUDIT_CURSOR_SORT': string;
     'codes.AUDIT_CURSOR_UNKNOWN': string;
     'codes.SERVICE_EXISTS': string;
+    'codes.SERVICE_NAME_TAKEN': string;
     'codes.APPLICATION_NOT_FOUND': string;
     'codes.APPLICATION_EXISTS': string;
+    'codes.APPLICATION_NAME_TAKEN': string;
     'codes.APPLICATION_ARCHIVED': string;
     'codes.APPLICATION_PLATFORM_NOT_FOUND': string;
     'codes.APPLICATION_ROLE_TEXT': string;
@@ -11602,6 +11612,13 @@ export interface Resources {
     'settings.authOptions.token_request': string;
     'settings.authOptions.jwt': string;
     'settings.authOptions.aws_sigv4': string;
+    'settings.destinationKeepTitle': string;
+    'settings.destinationKeepText': string;
+    'settings.destinationKeep': string;
+    'settings.destinationClear': string;
+    'settings.destinationClearTitle': string;
+    'settings.destinationClearText': string;
+    'settings.destinationSave': string;
     'settings.saved': string;
     'settings.notSaved': string;
     'settings.general': string;
@@ -15558,6 +15575,12 @@ export interface Resources {
     'status.runtime.memory': string;
     'status.runtime.memoryValue': string;
     'status.runtime.timeZone': string;
+    'status.runtime.clock': string;
+    'status.runtime.clockNoReference': string;
+    'status.runtime.clockOk': string;
+    'status.runtime.clockOff': string;
+    'status.runtime.clockDatabase': string;
+    'status.runtime.clockHttp': string;
     'status.runtime.hostname': string;
     'status.runtime.pid': string;
     'status.runtime.dataDir': string;
