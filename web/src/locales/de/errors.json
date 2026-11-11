@@ -1248,6 +1248,7 @@
     "PLATFORM_EXPORT_FILES": "Ausführungen des Exports „{{name}}“ haben Dateien in diesem Bucket, die seine Aufbewahrungsregel noch nicht entfernt hat – warten Sie seine nächsten Ausführungen ab, oder entfernen Sie zuerst den Export (seine Dateien bleiben dann im Bucket).",
     "BACKUP_PART_REQUIRED": "„{{part}}“ ist immer in einer Sicherung – eine Wiederherstellung braucht es.",
     "BACKUP_PART_UNKNOWN": "„{{part}}“ ist kein Teil einer Sicherung, der weggelassen werden kann.",
+    "BACKUP_TARGET_CHANGED": "Das S3-Ziel der Sicherungen hat sich geändert, seit ein Administrator es bestätigt hat – es wurde nichts geschrieben. Prüfen Sie die Plattform und bestätigen Sie dann das Ziel unter Einstellungen → Sicherungen.",
     "EXPORT_BUSY": "Der Export läuft – warten Sie, bis die Ausführung beendet ist.",
     "EXPORT_FORMAT_UNSUPPORTED": "Der Teil {{part}} kann nicht als {{format}} exportiert werden.",
     "EXPORT_LIMIT": "Höchstens {{max}} Exporte.",

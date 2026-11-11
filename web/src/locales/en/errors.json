@@ -1248,6 +1248,7 @@
     "PLATFORM_EXPORT_FILES": "Runs of the export \"{{name}}\" have files in this bucket that its retention rule has not removed yet – wait for its next runs, or remove the export (its files then stay in the bucket), first.",
     "BACKUP_PART_REQUIRED": "\"{{part}}\" is always in a backup – a restore needs it.",
     "BACKUP_PART_UNKNOWN": "\"{{part}}\" is not a part of a backup that can be left out.",
+    "BACKUP_TARGET_CHANGED": "The S3 target of the backups changed since an administrator confirmed it – nothing was written. Check the platform, then confirm the target under Settings → Backups.",
     "EXPORT_BUSY": "The export is running – wait until the run has ended.",
     "EXPORT_FORMAT_UNSUPPORTED": "The part {{part}} cannot be exported as {{format}}.",
     "EXPORT_LIMIT": "At most {{max}} exports.",

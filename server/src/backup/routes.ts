@@ -3,10 +3,13 @@ import { z } from 'zod';
 import { currentUser } from '../auth/context.js';
 import { requireCapability } from '../auth/permissions.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
-import { backupContents, backupStatus, listStoredBackups, saveBackupSettings, setBackupPassphrase, startBackupRun } from './service.js';
+import { backupContents, backupStatus, confirmBackupTarget, listStoredBackups, saveBackupSettings, setBackupPassphrase, startBackupRun } from './service.js';
 import { ACCESS } from '../auth/access.js';
 
-/** Backups to S3 (#117): administrators only (manageSettings); changes need a fresh confirmation (step-up). */
+/**
+ * Backups to S3 (#117): administrators only (manageSettings); changes need a fresh confirmation (step-up). A run whose
+ * S3 target is not the one an administrator confirmed fails (BACKUP_TARGET_CHANGED) until it is confirmed again.
+ */
 export async function backupRoutes(app: FastifyInstance): Promise<void> {
   const admin = (what: string) => requireCapability(currentUser(), 'manageSettings', what);
   app.get('/backups', { config: { access: ACCESS.admin } }, async () => {
@@ -37,6 +40,12 @@ export async function backupRoutes(app: FastifyInstance): Promise<void> {
       return backupStatus();
     },
   );
+  // the platform of the backups changed (whoever manages it may change it without the step-up of the backup settings):
+  // an administrator checks it and confirms the target again (0.17.1, BACKUP_TARGET_CHANGED)
+  app.post('/backups/confirm-target', { config: { access: ACCESS.admin, stepUp: { action: 'changeBackups', who: 'manageSettings' } } }, async () => {
+    admin('confirm the target of the backups');
+    return confirmBackupTarget();
+  });
   app.post('/backups/run', { config: { access: ACCESS.admin, rateLimit: ROUTE_LIMITS.heavy } }, async (_req, reply) => {
     admin('start a backup');
     return reply.code(202).send(startBackupRun('backup', 'manual'));

@@ -232,6 +232,7 @@ const EXPECT: Record<string, Access> = {
   'PUT /api/backups/passphrase': ADMIN,
   'POST /api/backups/run': ADMIN,
   'POST /api/backups/restore-test': ADMIN,
+  'POST /api/backups/confirm-target': ADMIN,
   'GET /api/backups/contents': ADMIN,
   // scheduled exports to S3 (0.16.0, ADR 0027)
   'GET /api/exports': ADMIN,
@@ -1538,6 +1539,8 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
   'POST /api/migration/imports/staged/:id/apply': 'always',
   'PUT /api/catalogue/cia-scale': 'always',
   'PUT /api/backups/settings': 'always',
+  // the platform of the backups changed: confirming its target again (0.17.1, like an export's)
+  'POST /api/backups/confirm-target': 'always',
   // a scheduled export sends data out of Steward (0.16.0, control point export.settings)
   'POST /api/exports': 'always',
   'PUT /api/exports/:id': 'always',

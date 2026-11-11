@@ -5836,6 +5836,7 @@ export interface Resources {
     'codes.PLATFORM_EXPORT_FILES': string;
     'codes.BACKUP_PART_REQUIRED': string;
     'codes.BACKUP_PART_UNKNOWN': string;
+    'codes.BACKUP_TARGET_CHANGED': string;
     'codes.EXPORT_BUSY': string;
     'codes.EXPORT_FORMAT_UNSUPPORTED': string;
     'codes.EXPORT_LIMIT': string;
@@ -14163,6 +14164,10 @@ export interface Resources {
     'backups.started': string;
     'backups.testStarted': string;
     'backups.saved': string;
+    'backups.targetChangedTitle': string;
+    'backups.targetChanged': string;
+    'backups.confirmTarget': string;
+    'backups.targetConfirmed': string;
     'backups.status.running': string;
     'backups.status.succeeded': string;
     'backups.status.failed': string;

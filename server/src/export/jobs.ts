@@ -22,13 +22,13 @@ import { config } from '../config.js';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { logger } from '../log.js';
-import { HttpError, newId, nowIso, parseJson, sha256 } from '../util.js';
+import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { currentActor, runAs, type AuthUser } from '../auth/context.js';
 import { listUsers } from '../auth/users.js';
 import { readSetting } from '../settings.js';
 import { ALIVE_KEY, firesBetween } from '../scheduler.js';
-import { getConnection, getPlatform } from '../platforms/service.js';
-import { backupKey, backupKeySet, backupSettings, s3Client, storagePlatform } from '../backup/service.js';
+import { getPlatform } from '../platforms/service.js';
+import { backupKey, backupKeySet, backupSettings, s3Client, storagePlatform, storageTargetFingerprint } from '../backup/service.js';
 import { encryptFile } from '../backup/crypto.js';
 import type { S3Client } from '../backup/s3.js';
 import { exportPart, exportPartInfos, EXPORT_PARTS, partLimits, type ExportContext, type ExportWriter } from './parts.js';
@@ -145,36 +145,11 @@ function nextRun(cron: string, tz: string, on: boolean): string | null {
 // ---------- the confirmed target ----------
 
 /**
- * What identifies where an export's files go: the platform, its address (the bucket), region and service, how it
- * connects (proxy, TLS, extra origins, the role it assumes, its variables), the access key id (hashed – never a
- * secret) and the folder. The platform can be changed by whoever manages it, without the export's step-up; a run
- * compares this with the fingerprint an administrator confirmed (ADR 0027).
+ * The fingerprint of an export's S3 target (shared with the backups since 0.17.1): the platform, its address, region,
+ * connection, the access key id (hashed) and the folder. Whoever manages the platform can change it without the
+ * export's step-up; a run compares it with the fingerprint an administrator confirmed (ADR 0027).
  */
-export function targetFingerprint(platformId: string | null, prefix: string): string {
-  const p = storagePlatform(platformId);
-  const aws = p.config.auth?.aws;
-  const http = p.config.http ?? {};
-  const secrets = getConnection(p.id).secrets;
-  return sha256(
-    JSON.stringify({
-      v: 1,
-      platform: p.id,
-      baseUrl: (p.baseUrl ?? '').trim().replace(/\/+$/, ''),
-      variables: p.config.variables ?? {},
-      region: aws?.region ?? null,
-      service: aws?.service ?? null,
-      roleArn: aws?.roleArn ?? null,
-      externalId: aws?.externalId ?? null,
-      stsEndpoint: aws?.stsEndpoint ?? null,
-      proxy: http.proxy ?? null,
-      insecureTls: !!http.insecureTls,
-      caPem: http.caPem ? sha256(http.caPem) : null,
-      trustedOrigins: http.trustedOrigins ?? [],
-      accessKey: sha256(`access-key-id:${secrets.accessKeyId ?? ''}`),
-      prefix,
-    }),
-  );
-}
+export const targetFingerprint = (platformId: string | null, prefix: string): string => storageTargetFingerprint(platformId, prefix);
 
 /** Whether the target differs from the confirmed one (a target that cannot be read is reported by the run). */
 function targetChanged(r: JobRow): boolean {

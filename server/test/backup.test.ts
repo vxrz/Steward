@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { setup, startTestServer, type TestServer } from './helpers.js';
+import { ADMIN, setup, startTestServer, type TestServer } from './helpers.js';
 
 /**
  * Backups to S3 (#117): the encrypted file format, the retention rule, and end to end against the mock S3 – a backup
@@ -349,6 +349,76 @@ describe('backups to S3', () => {
     expect(objects.has('prod/steward/sub/steward-20200101T000000Z.smbackup')).toBe(true);
     const stored = await s.api('GET', '/backups/stored');
     expect(stored.every((b: any) => b.keptAs.length > 0)).toBe(true);
+  });
+
+  it('fails when the platform was redirected, until an administrator confirms the target again (0.17.1)', async () => {
+    const { mockS3Objects } = await import('../src/mock/mockS3.js');
+    const { readSetting, writeSetting } = await import('../src/settings.js');
+    const platform = await s.api('GET', `/platforms/${storageId}`);
+    expect((await s.api('GET', '/backups')).targetChanged).toBe(false);
+    expect((await s.api('GET', '/backups')).targetConfirmed).toMatchObject({ by: 'admin' });
+
+    // a new access key id alone counts (the secret itself is never part of the fingerprint) …
+    await s.api('PUT', `/platforms/${storageId}/secrets`, { accessKeyId: 'AKIAINVENTEDOTHER', secretAccessKey: 'another-secret-value' });
+    expect((await s.api('GET', '/backups')).targetChanged).toBe(true);
+    // … and setting the confirmed key again restores the target
+    await s.api('PUT', `/platforms/${storageId}/secrets`, { accessKeyId: 'AKIADEMOEXAMPLE', secretAccessKey: 'demoSecretKey' });
+    expect((await s.api('GET', '/backups')).targetChanged).toBe(false);
+
+    // the platform now names another bucket: the backup fails before it makes or uploads anything …
+    await s.api('PUT', `/platforms/${storageId}`, { baseUrl: `${mockBase}/s3/invented-other-backups` });
+    expect((await s.api('GET', '/backups')).targetChanged).toBe(true);
+    await s.api('POST', '/backups/run', {});
+    const run = (await waitIdle()).lastBackup;
+    expect(run).toMatchObject({ status: 'failed', objectKey: null, steps: [] });
+    expect(run.message).toMatch(/S3 target of the backups changed/);
+    // … as does the restore test (it would test copies that are not the backups) and an upload of an audit archive
+    await s.api('POST', '/backups/restore-test', {});
+    expect((await waitIdle()).lastRestoreTest.message).toMatch(/S3 target of the backups changed/);
+    const { uploadToBackupTarget } = await import('../src/backup/service.js');
+    const file = path.join(tmp, 'archive.jsonl');
+    fs.writeFileSync(file, '{}\n');
+    await expect(uploadToBackupTarget(file, 'audit-archives', 'invented')).rejects.toMatchObject({ code: 'BACKUP_TARGET_CHANGED' });
+    expect(mockS3Objects('invented-other-backups').size).toBe(0);
+    const [failed] = await s.api('GET', '/audit?action=backup.failed&limit=1');
+    expect(failed.details).toMatchObject({ kind: 'backup', code: 'BACKUP_TARGET_CHANGED' });
+    let notes: any[] = [];
+    for (let i = 0; i < 50 && !notes.some((n) => n.event === 'backup.failed' && n.body.includes('S3 target')); i++) {
+      notes = (await s.api('GET', '/notifications')).items;
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    expect(notes.some((n) => n.event === 'backup.failed' && n.body.includes('S3 target'))).toBe(true);
+
+    // confirming it again: with a step-up
+    const fresh = await s.as(ADMIN.username, ADMIN.password, { autoStepUp: false });
+    await fresh('DELETE', '/auth/step-up');
+    const noStepUp = await fresh('POST', '/backups/confirm-target', {}).then(
+      () => null,
+      (e: { status: number; body: any }) => e,
+    );
+    expect(noStepUp).toMatchObject({ status: 403, body: { code: 'STEP_UP_REQUIRED' } });
+    expect(await s.api('POST', '/backups/confirm-target', {})).toMatchObject({ targetChanged: false });
+    const [confirmed] = await s.api('GET', '/audit?action=backup.target_confirmed&limit=1');
+    expect(confirmed).toMatchObject({
+      actor: 'admin',
+      details: { platformId: storageId, baseUrl: `${mockBase}/s3/invented-other-backups`, prefix: 'prod/steward/', changed: true },
+    });
+
+    // back to the real bucket; saving the settings confirms the target too
+    await s.api('PUT', `/platforms/${storageId}`, { baseUrl: platform.baseUrl });
+    expect((await s.api('GET', '/backups')).targetChanged).toBe(true);
+    const st = await s.api('PUT', '/backups/settings', (await s.api('GET', '/backups')).settings);
+    expect(st.targetChanged).toBe(false);
+
+    // an installation updated from before 0.17.1 has no confirmed target: the first run records the target as it is
+    const stored = readSetting<unknown>('backup.target', null);
+    writeSetting('backup.target', null);
+    expect((await s.api('GET', '/backups')).targetChanged).toBe(false);
+    await s.api('POST', '/backups/run', {});
+    expect((await waitIdle()).lastBackup.status).toBe('succeeded');
+    const [adopted] = await s.api('GET', '/audit?action=backup.target_confirmed&limit=1');
+    expect(adopted.details).toMatchObject({ platformId: storageId, adopted: true });
+    expect(readSetting<{ fingerprint: string } | null>('backup.target', null)?.fingerprint).toBe((stored as { fingerprint: string }).fingerprint);
   });
 
   it('records runs in the audit log', async () => {

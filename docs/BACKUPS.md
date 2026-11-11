@@ -79,6 +79,8 @@ Under _Platforms_, add a platform of type _Generic REST API_:
 
 Backups only go over https and only to a platform with this sign-in.
 
+**The target is pinned** (0.17.1). When an administrator saves the backup settings, Steward keeps a fingerprint of the S3 target: the platform, its base URL (the bucket) and variables, region and service, assumed role, proxy and TLS settings, trusted origins, the access key id (as a hash – never a secret) and the folder. Whoever manages the platform can change those without the step-up of the backup settings, so every backup, restore test and upload of an audit archive compares them first: when they differ, it **fails before it writes or reads anything** (`BACKUP_TARGET_CHANGED`, audited as `backup.failed` with that code, notification _Backup failed_), and _Settings → Backups_ says _The S3 target changed – confirm it again_. Check the platform, then press **Confirm target** (administrators, step-up; audited as `backup.target_confirmed` with the platform, base URL, region and folder). Saving the backup settings confirms the target too. Rotating only the secret access key keeps the target; a new access key id needs a confirmation. An installation updated from 0.17.0 or older has no confirmed target yet: the first start (or run) after the update records the target as it is then, audited as `backup.target_confirmed` with `adopted: true`.
+
 ### 3. Passphrase, schedule, retention
 
 - **Backup passphrase**: at least 16 characters. Write it down and keep it offline.
@@ -155,6 +157,6 @@ Start Steward and unlock the vault with the **master passphrase**. Verify the au
 - `pg_restore` of PostgreSQL 17 or newer starts with `SET transaction_timeout = 0`, which PostgreSQL 16 and older do not know: restoring into such a server reports `unrecognized configuration parameter "transaction_timeout"` and restores everything else. The restore test accepts this one error and fails on any other; by hand, restore without `--exit-on-error`.
 - During a backup the work folder `<data folder>/.backup-work` (0700) briefly holds the snapshot and the encrypted file; it is emptied after every run and at start.
 - One backup or restore test runs at a time. A backup in progress when Steward stops is marked _Interrupted_ at the next start.
-- Whoever may change the storage platform (its managers) can point backups at another bucket. The copies stay encrypted, but give that platform only administrators as managers.
+- Whoever may change the storage platform (its managers) can point backups at another bucket – since 0.17.1 runs then fail until an administrator confirms the target ([The storage platform](#2-the-storage-platform)). Still, give that platform only administrators as managers.
 - Backups are per installation: a migration package (_Settings → Migration_) does not carry backup settings, the passphrase or the history.
 - Readable copies of chosen data for people outside Steward – cost plans, the plant registry, the catalogue – are [exports](EXPORTS.md), not backups: they go to S3 on a schedule of their own and cannot restore Steward.

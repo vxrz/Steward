@@ -6,6 +6,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- **Backups are pinned to their S3 target** like exports ([docs/BACKUPS.md](docs/BACKUPS.md#2-the-storage-platform), [ADR 0027](docs/adr/0027-backup-contents-and-exports.md#changed-in-0171)): when whoever manages the backup platform changes its address, region, connection or access key id, backups, restore tests and uploads of audit archives fail before writing anything (`BACKUP_TARGET_CHANGED`, notification _Backup failed_) until an administrator presses _Confirm target_ under _Settings → Backups_ (step-up). The first start after the update records the current target.
+
 ## [0.17.0] - 2026-11-11
 
 Steward 0.17.0 supports an ISO/IEC 27001 audit of IT service management – as evidence, not as compliance by itself. Suppliers become records with contracts, SLAs, certificates and reminders instead of free-text vendor fields; each service gets a responsibility matrix that says who does backup, recovery, patching, access, logging and incident handling – the team, a supplier or central IT. A statement of applicability per control catalogue records applicability, status, how a control is met and the evidence Steward already has, approved by a second person and exported signed. One register of corrective actions takes findings from audits and from Steward's own events, with actions and an effectiveness check by someone who took no part in the fix, and an ISMS summary section gives the figures of a management review. AI assistants send plant proposals in parts, so a whole manual becomes one reviewable proposal, with a source per data point. A security review of these changes found nothing critical or high; its findings are fixed. Migrations are additive (`suppliers-001-suppliers`, `suppliers-002-links`, `compliance-004-soa` to `compliance-007-corrective-participants`); on the update every free-text vendor becomes a supplier to confirm.
