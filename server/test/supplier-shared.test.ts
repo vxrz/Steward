@@ -181,6 +181,32 @@ describe('same supplier in several teams', () => {
   });
 });
 
+describe('the preview as the reader may see it', () => {
+  it('lists only the contracts and contacts the person may see, without counting the others', async () => {
+    const x = (await dana('POST', '/suppliers', { name: 'Invented Preview Source' })).id;
+    const y = (await dana('POST', '/suppliers', { name: 'Invented Preview Target' })).id;
+    // another team's contract and a contact scoped to it on the instance-wide source; one open contract
+    await s.api('POST', `/suppliers/${x}/contracts`, { title: 'Hidden team contract', reference: 'HT-1', owners: ['team:shared shop team'] });
+    await s.api('POST', `/suppliers/${x}/contracts`, { title: 'Open preview contract', owners: [] });
+    const hidden = (await s.api('GET', `/suppliers/${x}`)).contracts.find((c: any) => c.title === 'Hidden team contract').id;
+    await s.api('POST', `/suppliers/${x}/contacts`, { name: 'Hidden scoped person', scope: [{ kind: 'contract', id: hidden }] });
+    await s.api('POST', `/suppliers/${x}/contacts`, { name: 'Shared desk', scope: [{ kind: 'contract', id: hidden }], email: 'desk@preview.example' });
+    // the target has a contract with the same number, which the designer may not see either
+    await s.api('POST', `/suppliers/${y}/contracts`, { title: 'Target team contract', reference: 'ht-1', owners: ['team:shared care team'] });
+    const p = await dana('POST', '/suppliers/merge/preview', { intoId: y, ids: [x] });
+    expect(p.contracts.map((c: any) => c.title)).toEqual(['Open preview contract']);
+    expect(p.contacts).toEqual([]);
+    expect(p.dpa.every((d: any) => d.title !== 'Hidden team contract')).toBe(true);
+    const text = JSON.stringify(p);
+    for (const word of ['Hidden team contract', 'HT-1', 'Hidden scoped person', 'Shared desk', 'shared shop team']) expect(text).not.toContain(word);
+    // an administrator sees everything the merge does
+    const a = await s.api('POST', '/suppliers/merge/preview', { intoId: y, ids: [x] });
+    expect(a.contracts.map((c: any) => c.title).sort()).toEqual(['Hidden team contract', 'Open preview contract']);
+    expect(a.contracts.find((c: any) => c.title === 'Hidden team contract').sameReference).toBe(true);
+    expect(a.contacts.map((c: any) => c.name).sort()).toEqual(['Hidden scoped person', 'Shared desk']);
+  });
+});
+
 describe('opening a team-scoped supplier', () => {
   it('previews and protects, through the owning-teams panel too', async () => {
     const id = await teamSupplier('Invented Team Hosting', shopTeam);

@@ -15,14 +15,15 @@ import { isAdmin } from '../auth/permissions.js';
 import { catalogueAccess, forgetOwningTeams, owningTeams, setOwningTeams, type OwningTeam } from '../auth/policy.js';
 import { listUsers, toAuthUser } from '../auth/users.js';
 import { assertKnownSubjects } from '../auth/subjects.js';
-import { forbid, me } from '../records/access.js';
+import { canViewCatalogue, forbid, me } from '../records/access.js';
 import { normVendor } from '../plant/advisories/match.js';
-import { HttpError, nowIso } from '../util.js';
-import { contractOwnersOf } from './contract-scope.js';
+import { HttpError, nowIso, parseJson } from '../util.js';
+import { ScopeCtx, contractOwnersOf, scopeRowsOf } from './contract-scope.js';
 import {
   LINKING_TABLES,
   aliasesOf,
   canManageSuppliers,
+  contactViews,
   getSupplier,
   ownersOf,
   supplierRow,
@@ -256,9 +257,57 @@ function loadMerge(intoId: string, ids: string[]): { target: SupplierRow; source
 
 /** POST /api/suppliers/merge/preview: what a merge would change (designers and administrators). */
 export function mergePreview(input: SupplierSharedMergeInput): SupplierMergePreview {
-  requireManager();
+  const u = requireManager();
   const { target, sources } = loadMerge(input.intoId, input.ids);
-  return plan(target, sources, (input.contacts ?? {}) as Record<string, SupplierContactChoice>).preview;
+  return forReader(plan(target, sources, (input.contacts ?? {}) as Record<string, SupplierContactChoice>).preview, u, target, sources);
+}
+
+/**
+ * The preview as the reader may see it (security review 0.18.0, M1): only the contracts they may read (with their DPA
+ * rows and the "same contract number" flag counted over the target's contracts they may read), the contacts they may
+ * see, and of a contact's scope the items they may see – the others are neither named nor counted, as on the supplier
+ * page (ADR 0031 part 2: others do not know a contract exists). The plan itself, and so the merge and its audit entry,
+ * keep everything. Administrators read every contract and contact, so their preview is whole.
+ */
+function forReader(p: SupplierMergePreview, u: AuthUser, target: SupplierRow, sources: SupplierRow[]): SupplierMergePreview {
+  const ctx = new ScopeCtx(u);
+  const all = [target, ...sources];
+  const rows = scopeRowsOf(
+    db()
+      .all<{ id: string }>(`SELECT id FROM supplier_contracts WHERE supplier_id IN (${all.map(() => '?').join(', ')})`, ...all.map((x) => x.id))
+      .map((r) => r.id),
+  );
+  ctx.load([...rows.keys()]);
+  const readable = new Set([...rows.values()].filter((r) => ctx.reads(r, { id: r.supplier_id, owners: r.s_owners, status: r.s_status })).map((r) => r.id));
+  const refs = new Set(
+    db()
+      .all<{ id: string; reference: string }>("SELECT id, reference FROM supplier_contracts WHERE supplier_id = ? AND reference <> ''", target.id)
+      .filter((r) => readable.has(r.id))
+      .map((r) => r.reference.toLowerCase()),
+  );
+  const seenContacts = new Set(
+    all.flatMap((x) => contactViews(x, db().all<ContactRow>('SELECT * FROM supplier_contacts WHERE supplier_id = ?', x.id), ctx).map((c) => c.id)),
+  );
+  const items = new Map<string, boolean>();
+  const seesItem = (i: ScopeItem): boolean => {
+    if (i.kind === 'contract') return readable.has(i.id);
+    const k = `${i.kind}:${i.id}`;
+    if (!items.has(k)) {
+      const r = db().get<{ owners: string }>(`SELECT owners FROM ${i.kind === 'application' ? 'applications' : 'systems'} WHERE id = ?`, i.id);
+      items.set(k, !!r && canViewCatalogue(u, { kind: i.kind, id: i.id, owners: parseJson<string[]>(r.owners, []) }));
+    }
+    return items.get(k)!;
+  };
+  return {
+    ...p,
+    contracts: p.contracts
+      .filter((c) => readable.has(c.id))
+      .map((c) => ({ ...c, sameReference: c.sameReference && !!c.reference && refs.has(c.reference.toLowerCase()) })),
+    contacts: p.contacts
+      .filter((c) => seenContacts.has(c.id))
+      .map((c) => ({ ...c, scope: c.scope.filter(seesItem), into: c.into && seenContacts.has(c.into) ? c.into : null })),
+    dpa: p.dpa.filter((x) => readable.has(x.contractId)),
+  };
 }
 
 function requireManager(): AuthUser {

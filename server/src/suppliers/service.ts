@@ -1235,7 +1235,7 @@ class ContactScopes {
  * items, administrators and auditors; one whose items are all gone – the supplier's owners, administrators and
  * auditors. Who may change it: who may change the supplier, or every item it is scoped to.
  */
-function contactViews(
+export function contactViews(
   s: SupplierRow,
   rows: ContactRow[],
   ctx: ScopeCtx,
