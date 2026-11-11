@@ -35,6 +35,18 @@ While you model a process, the platform is often not reachable yet, or you do no
 - **Never** used by real runs, dry runs or monitors that run on their schedule.
 - Recordings can hold **personal data**: everyone who may use the platform reads them (a run would fetch the same data); changing them needs `manage`. When a recording is saved, the platform's credentials and cached tokens are replaced by `***`, and headers with credentials or cookies (`Authorization`, `Cookie`, `Set-Cookie`, `X-API-Key` …) are dropped. At most 500 per platform, 1 MB body each. Audited as `platform.recording_added` / `_changed` / `_removed`; they move with migration packages and are removed with their platform.
 
+## InfluxDB
+
+Three presets of the kind `influxdb` (0.18.0) – _InfluxDB 1.x_, _2.x_ and _3.x_ – differ in the variable `version`, which tells Steward how to ask; all three are read-only and serve the freshness check's [InfluxDB source](MONITORS.md#freshness-in-influxdb). The base URL is the server root (`https://HOST:8086` for 1.x and 2.x, `https://HOST:8181` for 3.x).
+
+| Version | Sign-in                                                                                        | Variables           | Connection test                                                  |
+| ------- | ---------------------------------------------------------------------------------------------- | ------------------- | ---------------------------------------------------------------- |
+| 1.x     | none, basic (a user with READ on the database) or bearer (a JWT signed with the shared secret) | `version: 1`        | `GET /ping` (204), then `SHOW DATABASES` with the credentials    |
+| 2.x     | bearer: an API token with read access to the buckets, sent as `Authorization: Token <token>`   | `version: 2`, `org` | `GET /health`, then `GET /api/v2/buckets?limit=1` with the token |
+| 3.x     | bearer: a database token with read permission, sent as `Authorization: Bearer <token>`         | `version: 3`        | `GET /ping` (it asks for the token by default)                   |
+
+Credentials are kept in the vault like every other platform's and read with the platform's identity; requests go to the base URL only and through the outbound policy. The `Token` scheme is the platform client's own rule for this kind and version, as `PRIVATE-TOKEN` is for GitLab. The demo has _InfluxDB (demo)_, a 2.x mock; the mock also answers as 1.x and 3.x below `/mock/influxdb1` and `/mock/influxdb3`.
+
 ## Supported authentication
 
 `none`, `basic`, `bearer`, `apiKey` (header or query), `oauth2_client_credentials` (e.g. Insights Hub service credentials), and `token_request`. `token_request` is a configurable login call whose response contains a token, e.g. the IEM `/portal/api/v1/login/direct` or the Insights Hub Technical Token Manager. Per platform you can also set a proxy, a custom CA, _accept self-signed certificates_ (common for on-prem IEM), a timeout and default headers.
