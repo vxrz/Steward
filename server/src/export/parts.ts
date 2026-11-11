@@ -270,6 +270,11 @@ const CONTRACT_HEAD = [
   // contracts with their own scope (0.18.0, ADR 0031): every contract – exports are instance-wide
   'Owners',
   'Services',
+  'Master agreement',
+  'Personal data',
+  'Personal data from',
+  'DPA',
+  'DPA from',
 ] as const;
 const CERTIFICATE_HEAD = [
   'Supplier id',
@@ -355,6 +360,11 @@ const suppliers: ExportPartDef = {
             c.costPlanLines.map((l) => `${l.serviceName} ${l.fiscalYear}: ${l.title}`),
             c.owners,
             c.services.map((x) => `${x.name}${x.purpose ? `: ${x.purpose}` : ''}${x.status === 'proposed' ? ' (proposed)' : ''}`),
+            c.parentId ?? '',
+            c.dpa.personalData,
+            c.dpa.personalDataFrom,
+            c.dpa.status ?? '',
+            c.dpa.inheritedFrom,
           ]),
         ),
       );

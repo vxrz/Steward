@@ -35653,7 +35653,7 @@
           },
           "personalData": {
             "type": "boolean",
-            "description": "Whether the supplier processes personal data for the service"
+            "description": "Whether the supplier processes personal data for the service – since 0.18.0 the default for its contracts"
           },
           "dpaStatus": {
             "anyOf": [
@@ -35668,7 +35668,7 @@
                 "type": "null"
               }
             ],
-            "description": "The data processing agreement: inPlace or missing (null: no personal data)"
+            "description": "The data processing agreement: inPlace or missing (null: no personal data) – since 0.18.0 the default for its contracts"
           },
           "dpaSince": {
             "anyOf": [
@@ -35816,6 +35816,14 @@
               "none"
             ],
             "description": "ok; dueSoon: within 90 days; past: the date has passed; none: no date"
+          },
+          "dpaMissingContracts": {
+            "type": "integer",
+            "description": "Contracts the token owner may see that process personal data without an agreement (0.18.0)"
+          },
+          "dpaMissing": {
+            "type": "boolean",
+            "description": "Such contracts, or – for a supplier without contracts – its own fields"
           },
           "usage": {
             "type": "object",
@@ -35888,6 +35896,8 @@
           "noticeState",
           "nextCertificateExpiry",
           "certificateState",
+          "dpaMissingContracts",
+          "dpaMissing",
           "usage",
           "updatedAt"
         ],
@@ -35944,7 +35954,7 @@
           },
           "personalData": {
             "type": "boolean",
-            "description": "Whether the supplier processes personal data for the service"
+            "description": "Whether the supplier processes personal data for the service – since 0.18.0 the default for its contracts"
           },
           "dpaStatus": {
             "anyOf": [
@@ -35959,7 +35969,7 @@
                 "type": "null"
               }
             ],
-            "description": "The data processing agreement: inPlace or missing (null: no personal data)"
+            "description": "The data processing agreement: inPlace or missing (null: no personal data) – since 0.18.0 the default for its contracts"
           },
           "dpaSince": {
             "anyOf": [
@@ -36107,6 +36117,14 @@
               "none"
             ],
             "description": "ok; dueSoon: within 90 days; past: the date has passed; none: no date"
+          },
+          "dpaMissingContracts": {
+            "type": "integer",
+            "description": "Contracts the token owner may see that process personal data without an agreement (0.18.0)"
+          },
+          "dpaMissing": {
+            "type": "boolean",
+            "description": "Such contracts, or – for a supplier without contracts – its own fields"
           },
           "usage": {
             "type": "object",
@@ -36402,6 +36420,112 @@
                   },
                   "description": "The services it covers that the token owner may see (no count of others)"
                 },
+                "parentId": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "The master agreement it belongs to (0.18.0, one level; null: none, or one the token owner may not see)"
+                },
+                "parentHidden": {
+                  "type": "boolean",
+                  "description": "Part of a master agreement the token owner may not see: its values apply, its title does not show"
+                },
+                "endsAfterMaster": {
+                  "type": "boolean",
+                  "description": "An order form that ends after its master agreement (a hint)"
+                },
+                "inherited": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "slaAvailability",
+                      "slaSupportHours",
+                      "slaResponse",
+                      "rtoHours",
+                      "rpoHours"
+                    ]
+                  },
+                  "description": "The SLA and RTO/RPO values above that come from the master agreement; the values are the ones that apply"
+                },
+                "personalData": {
+                  "type": [
+                    "null",
+                    "boolean"
+                  ],
+                  "description": "Its own answer: processes personal data for the services it covers (null: as the master and the supplier)"
+                },
+                "dpa": {
+                  "type": "object",
+                  "properties": {
+                    "personalData": {
+                      "type": "boolean",
+                      "description": "The answer that applies"
+                    },
+                    "personalDataFrom": {
+                      "type": "string",
+                      "enum": [
+                        "contract",
+                        "master",
+                        "supplier"
+                      ]
+                    },
+                    "status": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "inPlace",
+                            "missing"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "since": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "description": "Calendar date YYYY-MM-DD (the instance time zone)"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "Calendar date YYYY-MM-DD (the instance time zone)"
+                    },
+                    "link": {
+                      "type": "string"
+                    },
+                    "inheritedFrom": {
+                      "type": "string",
+                      "enum": [
+                        "contract",
+                        "master",
+                        "supplier"
+                      ],
+                      "description": "Where the agreement comes from: the contract, its master, the supplier"
+                    },
+                    "missing": {
+                      "type": "boolean",
+                      "description": "Processes personal data without an agreement in place"
+                    }
+                  },
+                  "required": [
+                    "personalData",
+                    "personalDataFrom",
+                    "status",
+                    "since",
+                    "link",
+                    "inheritedFrom",
+                    "missing"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Personal data and the data processing agreement as they apply (0.18.0)"
+                },
                 "paymentSchedules": {
                   "type": "array",
                   "items": {
@@ -36434,7 +36558,13 @@
                 "costPlanLines",
                 "owners",
                 "teamOwned",
-                "services"
+                "services",
+                "parentId",
+                "parentHidden",
+                "endsAfterMaster",
+                "inherited",
+                "personalData",
+                "dpa"
               ],
               "additionalProperties": false
             }
@@ -36718,6 +36848,8 @@
           "noticeState",
           "nextCertificateExpiry",
           "certificateState",
+          "dpaMissingContracts",
+          "dpaMissing",
           "usage",
           "updatedAt",
           "contacts",
@@ -36944,6 +37076,112 @@
                         "additionalProperties": false
                       },
                       "description": "The services it covers that the token owner may see (no count of others)"
+                    },
+                    "parentId": {
+                      "type": [
+                        "null",
+                        "string"
+                      ],
+                      "description": "The master agreement it belongs to (0.18.0, one level; null: none, or one the token owner may not see)"
+                    },
+                    "parentHidden": {
+                      "type": "boolean",
+                      "description": "Part of a master agreement the token owner may not see: its values apply, its title does not show"
+                    },
+                    "endsAfterMaster": {
+                      "type": "boolean",
+                      "description": "An order form that ends after its master agreement (a hint)"
+                    },
+                    "inherited": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "slaAvailability",
+                          "slaSupportHours",
+                          "slaResponse",
+                          "rtoHours",
+                          "rpoHours"
+                        ]
+                      },
+                      "description": "The SLA and RTO/RPO values above that come from the master agreement; the values are the ones that apply"
+                    },
+                    "personalData": {
+                      "type": [
+                        "null",
+                        "boolean"
+                      ],
+                      "description": "Its own answer: processes personal data for the services it covers (null: as the master and the supplier)"
+                    },
+                    "dpa": {
+                      "type": "object",
+                      "properties": {
+                        "personalData": {
+                          "type": "boolean",
+                          "description": "The answer that applies"
+                        },
+                        "personalDataFrom": {
+                          "type": "string",
+                          "enum": [
+                            "contract",
+                            "master",
+                            "supplier"
+                          ]
+                        },
+                        "status": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "inPlace",
+                                "missing"
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "since": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "description": "Calendar date YYYY-MM-DD (the instance time zone)"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "Calendar date YYYY-MM-DD (the instance time zone)"
+                        },
+                        "link": {
+                          "type": "string"
+                        },
+                        "inheritedFrom": {
+                          "type": "string",
+                          "enum": [
+                            "contract",
+                            "master",
+                            "supplier"
+                          ],
+                          "description": "Where the agreement comes from: the contract, its master, the supplier"
+                        },
+                        "missing": {
+                          "type": "boolean",
+                          "description": "Processes personal data without an agreement in place"
+                        }
+                      },
+                      "required": [
+                        "personalData",
+                        "personalDataFrom",
+                        "status",
+                        "since",
+                        "link",
+                        "inheritedFrom",
+                        "missing"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Personal data and the data processing agreement as they apply (0.18.0)"
                     }
                   },
                   "required": [
@@ -36967,7 +37205,13 @@
                     "note",
                     "owners",
                     "teamOwned",
-                    "services"
+                    "services",
+                    "parentId",
+                    "parentHidden",
+                    "endsAfterMaster",
+                    "inherited",
+                    "personalData",
+                    "dpa"
                   ],
                   "additionalProperties": false
                 },

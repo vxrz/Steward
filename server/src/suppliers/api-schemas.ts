@@ -4,6 +4,7 @@ import {
   SUPPLIER_CONTACT_ROLES,
   SUPPLIER_CONTRACT_SERVICE_STATUSES,
   SUPPLIER_DPA_STATUSES,
+  SUPPLIER_INHERITED_FIELDS,
   SUPPLIER_LINK_KINDS,
   SUPPLIER_RENEWALS,
   SUPPLIER_STATUSES,
@@ -30,8 +31,11 @@ const SupplierSummaryEntry = z.object({
   website: z.string(),
   owners: z.array(z.string()).describe('Steward users and teams responsible: user:<name>, team:<name>'),
   aliases: z.array(z.string()).describe('Other spellings (free-text vendors it was made from or merged with, former names)'),
-  personalData: z.boolean().describe('Whether the supplier processes personal data for the service'),
-  dpaStatus: z.enum(SUPPLIER_DPA_STATUSES).nullable().describe('The data processing agreement: inPlace or missing (null: no personal data)'),
+  personalData: z.boolean().describe('Whether the supplier processes personal data for the service – since 0.18.0 the default for its contracts'),
+  dpaStatus: z
+    .enum(SUPPLIER_DPA_STATUSES)
+    .nullable()
+    .describe('The data processing agreement: inPlace or missing (null: no personal data) – since 0.18.0 the default for its contracts'),
   dpaSince: date().nullable(),
   dpaLink: z.string().describe('The agreement: an http(s) URL or a record (id or number)'),
   criticality: z
@@ -43,6 +47,8 @@ const SupplierSummaryEntry = z.object({
   noticeState: dateState,
   nextCertificateExpiry: date().nullable(),
   certificateState: dateState,
+  dpaMissingContracts: z.number().int().describe('Contracts the token owner may see that process personal data without an agreement (0.18.0)'),
+  dpaMissing: z.boolean().describe('Such contracts, or – for a supplier without contracts – its own fields'),
   usage: z
     .object(Object.fromEntries(SUPPLIER_LINK_KINDS.map((k) => [k, z.number().int()])) as Record<string, z.ZodNumber>)
     .describe('Linked items the token owner may see, per kind'),
@@ -83,6 +89,24 @@ const SupplierContractEntry = z.object({
       }),
     )
     .describe('The services it covers that the token owner may see (no count of others)'),
+  parentId: z.string().nullable().describe('The master agreement it belongs to (0.18.0, one level; null: none, or one the token owner may not see)'),
+  parentHidden: z.boolean().describe('Part of a master agreement the token owner may not see: its values apply, its title does not show'),
+  endsAfterMaster: z.boolean().describe('An order form that ends after its master agreement (a hint)'),
+  inherited: z
+    .array(z.enum(SUPPLIER_INHERITED_FIELDS))
+    .describe('The SLA and RTO/RPO values above that come from the master agreement; the values are the ones that apply'),
+  personalData: z.boolean().nullable().describe('Its own answer: processes personal data for the services it covers (null: as the master and the supplier)'),
+  dpa: z
+    .object({
+      personalData: z.boolean().describe('The answer that applies'),
+      personalDataFrom: z.enum(['contract', 'master', 'supplier']),
+      status: z.enum(SUPPLIER_DPA_STATUSES).nullable(),
+      since: date().nullable(),
+      link: z.string(),
+      inheritedFrom: z.enum(['contract', 'master', 'supplier']).describe('Where the agreement comes from: the contract, its master, the supplier'),
+      missing: z.boolean().describe('Processes personal data without an agreement in place'),
+    })
+    .describe('Personal data and the data processing agreement as they apply (0.18.0)'),
   paymentSchedules: z
     .array(z.object({}).passthrough())
     .optional()

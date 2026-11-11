@@ -5486,6 +5486,9 @@ export interface Resources {
     'codes.SUPPLIER_CONTRACT_SERVICE_ARCHIVED': string;
     'codes.SUPPLIER_CONTRACT_SERVICE_NOT_FOUND': string;
     'codes.SUPPLIER_CONTRACT_SERVICE_HAS_SCHEDULES': string;
+    'codes.SUPPLIER_CONTRACT_MASTER_SELF': string;
+    'codes.SUPPLIER_CONTRACT_MASTER_LEVEL': string;
+    'codes.SUPPLIER_CONTRACT_HAS_ORDER_FORMS': string;
     'codes.SUPPLIER_CERTIFICATE_NOT_FOUND': string;
     'codes.SUPPLIER_CONTRACT_WITHOUT_SUPPLIER': string;
     'codes.ENVIRONMENT_TWICE': string;

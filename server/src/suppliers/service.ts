@@ -15,6 +15,10 @@ import {
   type ServiceContracts,
   type SupplierContractDetail,
   type SupplierContractServiceInput,
+  type SupplierContractOwnTerms,
+  type SupplierInheritedField,
+  SUPPLIER_INHERITED_FIELDS,
+  effectiveTerms,
   type AclEntry,
   type PlatformPermission,
   type SupplierCertificate,
@@ -198,18 +202,56 @@ function recordOfLink(link: string, u: AuthUser | null): RecordRef | null {
  * A contract as the reader sees it (the caller checked that they may: ctx.reads). The covered services the reader may
  * not see are counted only for who owns or may change the contract (ADR 0031 part 2).
  */
+/** What a contract says itself (empty: inherited from its master, ADR 0031). */
+const ownTerms = (c: ContractRow): SupplierContractOwnTerms => ({
+  slaAvailability: num(c.sla_availability),
+  slaSupportHours: c.sla_support_hours,
+  slaResponse: c.sla_response,
+  rtoHours: num(c.rto_hours),
+  rpoHours: num(c.rpo_hours),
+  personalData: c.personal_data === null || c.personal_data === undefined ? null : !!Number(c.personal_data),
+  dpaStatus: c.dpa_status ?? null,
+  dpaSince: c.dpa_since ?? null,
+  dpaLink: c.dpa_link ?? null,
+});
+
+/** The terms that apply to a contract: its own, its master's, the supplier's default (effectiveTerms). */
+const termsOf = (c: ContractRow, parent: ContractRow | undefined, supplier: SupplierRow) =>
+  effectiveTerms(ownTerms(c), parent ? ownTerms(parent) : null, {
+    personalData: !!Number(supplier.personal_data),
+    dpaStatus: supplier.dpa_status,
+    dpaSince: supplier.dpa_since,
+    dpaLink: supplier.dpa_link,
+  });
+
+/** Contract rows by id (the masters of a page of contracts), read in bulk. */
+function contractRowsById(ids: readonly (string | null | undefined)[]): Map<string, ContractRow> {
+  const want = [...new Set(ids.filter((x): x is string => !!x))];
+  const out = new Map<string, ContractRow>();
+  for (let i = 0; i < want.length; i += 500) {
+    const part = want.slice(i, i + 500);
+    for (const r of db().all<ContractRow>(`SELECT * FROM supplier_contracts WHERE id IN (${part.map(() => '?').join(', ')})`, ...part)) out.set(r.id, r);
+  }
+  return out;
+}
+
 function toContract(
   c: ContractRow,
   today: string,
   u: AuthUser | null,
   lines: SupplierContract['costPlanLines'],
   ctx: ScopeCtx,
-  supplier: Pick<SupplierRow, 'id' | 'owners' | 'status'>,
+  supplier: SupplierRow,
+  rel: { parent?: ContractRow; orderForms?: string[] } = {},
 ): SupplierContract {
   const dates = contractDates({ endsOn: c.ends_on, noticeDays: num(c.notice_days), renewal: c.renewal, renewalMonths: num(c.renewal_months) }, today);
   const owners = contractOwnersOf(c);
   const canEdit = ctx.edits(c, supplier);
   const cover = ctx.servicesOf(c, supplier);
+  const parent = c.parent_id ? rel.parent : undefined;
+  const terms = termsOf(c, parent, supplier);
+  // a master the reader may not see: its values apply (they are the order form's terms), its title does not show
+  const parentSeen = !!parent && ctx.reads(parent, supplier);
   return {
     id: c.id,
     title: c.title,
@@ -224,14 +266,25 @@ function toContract(
     noticeState: dateState(dates.noticeBy, today),
     link: c.link,
     record: recordOfLink(c.link, u),
-    slaAvailability: num(c.sla_availability),
-    slaSupportHours: c.sla_support_hours,
-    slaResponse: c.sla_response,
-    rtoHours: num(c.rto_hours),
-    rpoHours: num(c.rpo_hours),
+    slaAvailability: terms.values.slaAvailability,
+    slaSupportHours: terms.values.slaSupportHours,
+    slaResponse: terms.values.slaResponse,
+    rtoHours: terms.values.rtoHours,
+    rpoHours: terms.values.rpoHours,
     note: c.note,
     costPlanLines: lines,
     owners,
+    parentId: parentSeen ? parent!.id : null,
+    parent: parentSeen ? { id: parent!.id, title: parent!.title, reference: parent!.reference } : null,
+    parentHidden: !!c.parent_id && !parentSeen,
+    orderForms: rel.orderForms ?? [],
+    endsAfterMaster: !!parent && !!c.ends_on && !!parent.ends_on && c.ends_on > parent.ends_on,
+    inherited: terms.inherited,
+    personalData: ownTerms(c).personalData,
+    dpaStatus: c.dpa_status ?? null,
+    dpaSince: c.dpa_since ?? null,
+    dpaLink: c.dpa_link ?? null,
+    dpa: terms.dpa,
     teamOwned: hasTeamOwner(owners),
     services: cover.services,
     hiddenServices: canEdit || ctx.ownsContract(c) ? cover.hidden : 0,
@@ -444,9 +497,19 @@ function nextDate(dates: (string | null)[], today: string): string | null {
 
 function toSummary(
   r: SupplierRow,
-  x: { contracts: ContractRow[]; certificates: CertificateRow[]; usage: SupplierUsage[]; criticality: SupplierCriticality | undefined; today: string },
+  x: {
+    contracts: ContractRow[];
+    certificates: CertificateRow[];
+    usage: SupplierUsage[];
+    criticality: SupplierCriticality | undefined;
+    today: string;
+    /** Every contract by id (the masters of order forms) */
+    byId: Map<string, ContractRow>;
+  },
 ): SupplierSummary {
   const usage = emptyUsage();
+  // DPA missing over the contracts the reader may see (ADR 0031 part 5); without contracts the supplier's own fields
+  const dpaMissingContracts = x.contracts.filter((c) => termsOf(c, c.parent_id ? x.byId.get(c.parent_id) : undefined, r).dpa.missing).length;
   for (const u of x.usage) usage[u.kind]++;
   const notice = nextDate(
     x.contracts.map(
@@ -473,6 +536,8 @@ function toSummary(
     dpaLink: r.dpa_link,
     criticality: x.criticality ?? { confidentiality: null, integrity: null, availability: null },
     contractCount: x.contracts.length,
+    dpaMissingContracts,
+    dpaMissing: x.contracts.length ? dpaMissingContracts > 0 : !!Number(r.personal_data) && r.dpa_status !== 'inPlace',
     certificateCount: x.certificates.length,
     nextNoticeBy: notice,
     noticeState: dateState(notice, x.today),
@@ -494,6 +559,17 @@ function visibleContractsOf(suppliers: SupplierRow[], all: ContractRow[], ctx: S
   return groupBy(mine.filter((c) => ctx.reads(c, byId.get(c.supplier_id)!)));
 }
 
+/** Contracts in the order the page shows them: each master (or standalone contract) followed by its order forms. */
+function withOrderForms(list: ContractRow[]): ContractRow[] {
+  const ids = new Set(list.map((c) => c.id));
+  const out: ContractRow[] = [];
+  for (const c of list) {
+    if (c.parent_id && ids.has(c.parent_id)) continue;
+    out.push(c, ...list.filter((x) => x.parent_id === c.id));
+  }
+  return out;
+}
+
 /** The suppliers the reader may see (all statuses unless one is asked for), ordered by name. */
 export function visibleSupplierRows(o: { status?: SupplierStatus | SupplierStatus[] } = {}): SupplierRow[] {
   const want = o.status ? (Array.isArray(o.status) ? o.status : [o.status]) : null;
@@ -513,12 +589,15 @@ export function listSuppliers(o: { status?: SupplierStatus | SupplierStatus[] } 
   if (!rows.length) return [];
   const today = supplierToday(now);
   const ctx = new ScopeCtx();
-  const contracts = visibleContractsOf(rows, db().all<ContractRow>('SELECT * FROM supplier_contracts'), ctx);
+  const all = db().all<ContractRow>('SELECT * FROM supplier_contracts');
+  const byId = new Map(all.map((c) => [c.id, c]));
+  const contracts = visibleContractsOf(rows, all, ctx);
   const certificates = groupBy(db().all<CertificateRow>('SELECT * FROM supplier_certificates'));
   const usage = usageOf(rows.map((r) => r.id));
   const crit = criticalityOf(usage, contracts, ctx);
   return rows.map((r) =>
     toSummary(r, {
+      byId,
       contracts: contracts.get(r.id) ?? [],
       certificates: certificates.get(r.id) ?? [],
       usage: usage.get(r.id) ?? [],
@@ -546,7 +625,9 @@ function detailsOf(rows: SupplierRow[], u: AuthUser, now: number): SupplierDetai
   const args = one ? [one] : [];
   const today = supplierToday(now);
   const ctx = new ScopeCtx(u);
-  const contracts = visibleContractsOf(rows, db().all<ContractRow>(`SELECT * FROM supplier_contracts ${where} ORDER BY lower(title), id`, ...args), ctx);
+  const all = db().all<ContractRow>(`SELECT * FROM supplier_contracts ${where} ORDER BY lower(title), id`, ...args);
+  const byId = new Map(all.map((c) => [c.id, c]));
+  const contracts = visibleContractsOf(rows, all, ctx);
   const certificates = groupBy(db().all<CertificateRow>(`SELECT * FROM supplier_certificates ${where} ORDER BY kind, valid_until, id`, ...args));
   const contacts = groupBy(db().all<ContactRow>(`SELECT * FROM supplier_contacts ${where} ORDER BY lower(name), id`, ...args));
   const usage = usageOf(ids);
@@ -583,9 +664,15 @@ function detailsOf(rows: SupplierRow[], u: AuthUser, now: number): SupplierDetai
     const mine = contracts.get(r.id) ?? [];
     const certs = certificates.get(r.id) ?? [];
     return {
-      ...toSummary(r, { contracts: mine, certificates: certs, usage: used, criticality: crit.get(r.id), today }),
+      ...toSummary(r, { contracts: mine, certificates: certs, usage: used, criticality: crit.get(r.id), today, byId }),
       contacts: (contacts.get(r.id) ?? []).map(toContact),
-      contracts: mine.map((c) => toContract(c, today, u, linesOf(c.id), ctx, r)),
+      // masters first, each followed by its order forms (one level)
+      contracts: withOrderForms(mine).map((c) =>
+        toContract(c, today, u, linesOf(c.id), ctx, r, {
+          parent: c.parent_id ? byId.get(c.parent_id) : undefined,
+          orderForms: mine.filter((x) => x.parent_id === c.id).map((x) => x.id),
+        }),
+      ),
       certificates: certs.map((c) => toCertificate(c, today, u)),
       usedBy: used,
       duties,
@@ -634,7 +721,9 @@ export function supplierFacts(ids?: readonly string[], now = Date.now()): Map<st
   const rows = visibleSupplierRows().filter((r) => !want || want.has(r.id));
   const ctx = new ScopeCtx();
   // only the contracts the reader may see: a matrix row naming another shows "a contract you may not see" (ADR 0031)
-  const contracts = visibleContractsOf(rows, db().all<ContractRow>('SELECT * FROM supplier_contracts ORDER BY lower(title), id'), ctx);
+  const all = db().all<ContractRow>('SELECT * FROM supplier_contracts ORDER BY lower(title), id');
+  const byId = new Map(all.map((c) => [c.id, c]));
+  const contracts = visibleContractsOf(rows, all, ctx);
   const certificates = groupBy(db().all<CertificateRow>('SELECT * FROM supplier_certificates ORDER BY kind, valid_until, id'));
   const out = new Map<string, SupplierFacts>();
   for (const r of rows) {
@@ -644,7 +733,8 @@ export function supplierFacts(ids?: readonly string[], now = Date.now()): Map<st
       type: r.type,
       status: r.status,
       contracts: (contracts.get(r.id) ?? []).map((c) => {
-        const x = toContract(c, today, null, [], ctx, r);
+        // the values that apply: an order form's own, else its master's (ADR 0031)
+        const x = toContract(c, today, null, [], ctx, r, { parent: c.parent_id ? byId.get(c.parent_id) : undefined });
         return {
           id: x.id,
           title: x.title,
@@ -669,7 +759,7 @@ export function supplierFacts(ids?: readonly string[], now = Date.now()): Map<st
 // ---------- the public view (no contact e-mail or phone) ----------
 
 export type PublicSupplierContact = Omit<SupplierContact, 'email' | 'phone'>;
-export type PublicSupplierContract = Omit<SupplierContract, 'record' | 'services' | 'hiddenServices' | 'readReason' | 'canEdit'> & {
+export type PublicSupplierContract = Omit<SupplierContract, 'record' | 'services' | 'hiddenServices' | 'readReason' | 'canEdit' | 'parent' | 'orderForms'> & {
   services: { id: string; name: string; purpose: string; status: SupplierContract['services'][number]['status'] }[];
 };
 export type PublicSupplier = Omit<SupplierDetail, 'contacts' | 'canEdit' | 'canManage' | 'canAddContract' | 'contracts' | 'certificates'> & {
@@ -683,7 +773,7 @@ export type PublicSupplier = Omit<SupplierDetail, 'contacts' | 'canEdit' | 'canM
  * and status – no count of the others, no rights.
  */
 export function toPublicContract(c: SupplierContract): PublicSupplierContract {
-  const { record: _r, services, hiddenServices: _h, readReason: _w, canEdit: _e, ...rest } = c;
+  const { record: _r, services, hiddenServices: _h, readReason: _w, canEdit: _e, parent: _p, orderForms: _o, ...rest } = c;
   return { ...rest, services: services.map((x) => ({ id: x.id, name: x.name, purpose: x.purpose, status: x.status })) };
 }
 
@@ -1134,6 +1224,46 @@ const visibleServiceIds = (ctx: ScopeCtx): string[] =>
     .map((r) => r.id)
     .filter((id) => ctx.seesService(id));
 
+/**
+ * The master agreement and the data protection answers of a contract (ADR 0031 parts 3 and 5): missing input keeps
+ * what the contract has (`cur`); a DPA date and document only with an agreement in place.
+ */
+function scopeColumns(x: ContractInput, cur: ContractRow | null) {
+  const status = x.dpaStatus === undefined ? (cur?.dpa_status ?? null) : x.dpaStatus;
+  return {
+    parent_id: x.parentId === undefined ? (cur?.parent_id ?? null) : x.parentId,
+    personal_data:
+      x.personalData === undefined
+        ? cur?.personal_data === null || cur?.personal_data === undefined
+          ? null
+          : Number(cur.personal_data)
+        : x.personalData === null
+          ? null
+          : x.personalData
+            ? 1
+            : 0,
+    dpa_status: status,
+    dpa_since: status === 'inPlace' ? (x.dpaSince === undefined ? (cur?.dpa_since ?? null) : x.dpaSince) : null,
+    dpa_link: status === 'inPlace' ? (x.dpaLink === undefined ? (cur?.dpa_link ?? '') : (x.dpaLink ?? '')) : null,
+  };
+}
+
+/**
+ * A master agreement chosen for a contract: a contract of the same supplier the person may see, itself without a master,
+ * and the contract has no order forms – one level only. A master kept as it is needs no check (also one the person may
+ * not see).
+ */
+function checkMaster(s: SupplierRow, c: ContractRow | null, parentId: string | null, ctx: ScopeCtx): void {
+  if (!parentId || parentId === (c?.parent_id ?? null)) return;
+  if (c && parentId === c.id) throw new HttpError(400, 'A contract cannot be its own master agreement', 'SUPPLIER_CONTRACT_MASTER_SELF');
+  const p = db().get<ContractRow>('SELECT * FROM supplier_contracts WHERE id = ? AND supplier_id = ?', parentId, s.id);
+  if (!p || !ctx.reads(p, s)) throw new HttpError(404, `Contract ${parentId} not found`, 'SUPPLIER_CONTRACT_NOT_FOUND', { id: parentId });
+  if (p.parent_id)
+    throw new HttpError(409, `"${p.title}" is an order form itself: a master agreement has no master`, 'SUPPLIER_CONTRACT_MASTER_LEVEL', { title: p.title });
+  if (c && db().get('SELECT 1 FROM supplier_contracts WHERE parent_id = ?', c.id))
+    throw new HttpError(409, `"${c.title}" has order forms: an order form has no order forms`, 'SUPPLIER_CONTRACT_MASTER_LEVEL', { title: c.title });
+}
+
 const contractColumns = (x: ContractInput) => ({
   title: x.title,
   reference: x.reference,
@@ -1151,7 +1281,7 @@ const contractColumns = (x: ContractInput) => ({
   note: x.note,
 });
 
-const NUMERIC_CONTRACT_COLUMNS = new Set<string>(['notice_days', 'renewal_months', 'sla_availability', 'rto_hours', 'rpo_hours']);
+const NUMERIC_CONTRACT_COLUMNS = new Set<string>(['notice_days', 'renewal_months', 'sla_availability', 'rto_hours', 'rpo_hours', 'personal_data']);
 
 const contractAudit = (c: ReturnType<typeof contractColumns>) => ({
   title: c.title,
@@ -1201,13 +1331,16 @@ export function addContract(supplierId: string, input: ContractInput): SupplierD
   const owners = [...new Set(input.owners ?? defaultContractOwners(u))].slice(0, SUPPLIER_LIMITS.contractOwners);
   assertKnownSubjects(owners);
   const c = contractColumns(input);
+  const sc = scopeColumns(input, null);
+  checkMaster(s, null, sc.parent_id, ctx);
   const id = newId('sct_');
   const now = nowIso();
   db().tx(() => {
     db().run(
       `INSERT INTO supplier_contracts (id, supplier_id, title, reference, starts_on, ends_on, notice_days, renewal, renewal_months, sla_availability,
-         sla_support_hours, sla_response, rto_hours, rpo_hours, link, note, created_at, updated_at, owners, created_by, updated_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         sla_support_hours, sla_response, rto_hours, rpo_hours, link, note, created_at, updated_at, owners, created_by, updated_by, parent_id, personal_data,
+         dpa_status, dpa_since, dpa_link)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       id,
       supplierId,
       c.title,
@@ -1229,6 +1362,11 @@ export function addContract(supplierId: string, input: ContractInput): SupplierD
       JSON.stringify(owners),
       u.username,
       u.username,
+      sc.parent_id,
+      sc.personal_data,
+      sc.dpa_status,
+      sc.dpa_since,
+      sc.dpa_link,
     );
     for (const x of services)
       db().run(
@@ -1248,7 +1386,15 @@ export function addContract(supplierId: string, input: ContractInput): SupplierD
       entityType: 'supplier',
       entityId: supplierId,
       summary: `Contract "${c.title}" added to supplier "${s.name}"`,
-      details: { contractId: id, ...contractAudit(c), owners, services: services.map((x) => ({ serviceId: x.serviceId, purpose: x.purpose })) },
+      details: {
+        contractId: id,
+        ...contractAudit(c),
+        owners,
+        master: sc.parent_id,
+        personalData: sc.personal_data,
+        dpaStatus: sc.dpa_status,
+        services: services.map((x) => ({ serviceId: x.serviceId, purpose: x.purpose })),
+      },
     });
   });
   return getSupplier(supplierId);
@@ -1259,7 +1405,8 @@ export function updateContract(supplierId: string, contractId: string, input: Co
   const s = supplierRow(supplierId);
   const ctx = new ScopeCtx(u);
   const cur = editableContractRow(s, contractId, ctx);
-  const next = contractColumns(input);
+  const next = { ...contractColumns(input), ...scopeColumns(input, cur) };
+  checkMaster(s, cur, next.parent_id, ctx);
   const ownersBefore = contractOwnersOf(cur);
   const owners = input.owners ? [...new Set(input.owners)].slice(0, SUPPLIER_LIMITS.contractOwners) : ownersBefore;
   const ownersChanged = JSON.stringify([...owners].sort()) !== JSON.stringify([...ownersBefore].sort());
@@ -1276,7 +1423,8 @@ export function updateContract(supplierId: string, contractId: string, input: Co
   db().tx(() => {
     db().run(
       `UPDATE supplier_contracts SET title = ?, reference = ?, starts_on = ?, ends_on = ?, notice_days = ?, renewal = ?, renewal_months = ?, sla_availability = ?,
-         sla_support_hours = ?, sla_response = ?, rto_hours = ?, rpo_hours = ?, link = ?, note = ?, owners = ?, updated_at = ?, updated_by = ? WHERE id = ?`,
+         sla_support_hours = ?, sla_response = ?, rto_hours = ?, rpo_hours = ?, link = ?, note = ?, owners = ?, parent_id = ?, personal_data = ?, dpa_status = ?,
+         dpa_since = ?, dpa_link = ?, updated_at = ?, updated_by = ? WHERE id = ?`,
       next.title,
       next.reference,
       next.starts_on,
@@ -1292,6 +1440,11 @@ export function updateContract(supplierId: string, contractId: string, input: Co
       next.link,
       next.note,
       JSON.stringify(owners),
+      next.parent_id,
+      next.personal_data,
+      next.dpa_status,
+      next.dpa_since,
+      next.dpa_link,
       nowIso(),
       u.username,
       contractId,
@@ -1318,12 +1471,20 @@ export function updateContract(supplierId: string, contractId: string, input: Co
  * payment schedules go (audited on their services) and the lines made from them become ordinary lines (ADR 0030); its
  * covered services go, contacts scoped to it lose the item (ADR 0031).
  */
-export function removeContract(supplierId: string, contractId: string): SupplierDetail {
+export function removeContract(supplierId: string, contractId: string, opts: { orderForms?: 'standalone' } = {}): SupplierDetail {
   const u = me();
   const s = supplierRow(supplierId);
   const ctx = new ScopeCtx(u);
   const cur = editableContractRow(s, contractId, ctx);
+  // a master agreement asks first: its order forms become standalone, with the values they inherited copied into them
+  const orderForms = db().all<ContractRow>('SELECT * FROM supplier_contracts WHERE parent_id = ? ORDER BY id', contractId);
+  if (orderForms.length && opts.orderForms !== 'standalone')
+    throw new HttpError(409, `"${cur.title}" is the master agreement of ${orderForms.length} order form(s)`, 'SUPPLIER_CONTRACT_HAS_ORDER_FORMS', {
+      title: cur.title,
+      count: orderForms.length,
+    });
   db().tx(() => {
+    const standalone = orderForms.map((f) => makeStandalone(f, cur, u.username));
     const lines = db().run('UPDATE cost_plan_lines SET supplier_contract_id = NULL WHERE supplier_contract_id = ?', contractId).changes;
     // cost entries keep their supplier, without the contract; its payment schedules go, the lines made from them
     // become ordinary lines (ADR 0030)
@@ -1350,12 +1511,46 @@ export function removeContract(supplierId: string, contractId: string): Supplier
         reference: cur.reference,
         owners: contractOwnersOf(cur),
         services,
+        master: cur.parent_id,
+        personalData: cur.personal_data === null ? null : Number(cur.personal_data),
+        dpaStatus: cur.dpa_status ?? null,
         costPlanLinesUnlinked: lines,
         responsibilitiesUnlinked: responsibilities,
+        ...(standalone.length ? { orderFormsStandalone: standalone } : {}),
       },
     });
   });
   return getSupplier(supplierId);
+}
+
+/**
+ * An order form of a master that goes: the values it inherited (SLA, RTO/RPO, personal data, the agreement) are
+ * copied into it, so its terms do not change, and it becomes standalone. Returns what was copied.
+ */
+function makeStandalone(f: ContractRow, master: ContractRow, by: string): { id: string; title: string; copied: string[] } {
+  const own = ownTerms(f);
+  const m = ownTerms(master);
+  const set: Record<string, unknown> = {};
+  const empty = (v: unknown) => v === null || v === undefined || v === '';
+  const column: Record<SupplierInheritedField, string> = {
+    slaAvailability: 'sla_availability',
+    slaSupportHours: 'sla_support_hours',
+    slaResponse: 'sla_response',
+    rtoHours: 'rto_hours',
+    rpoHours: 'rpo_hours',
+  };
+  for (const k of SUPPLIER_INHERITED_FIELDS) if (empty(own[k]) && !empty(m[k])) set[column[k]] = m[k];
+  if (own.personalData === null && m.personalData !== null) set.personal_data = m.personalData ? 1 : 0;
+  if (!own.dpaStatus && m.dpaStatus) Object.assign(set, { dpa_status: m.dpaStatus, dpa_since: m.dpaSince, dpa_link: m.dpaLink });
+  const cols = Object.keys(set);
+  db().run(
+    `UPDATE supplier_contracts SET ${[...cols.map((k) => `${k} = ?`), 'parent_id = NULL', 'updated_at = ?', 'updated_by = ?'].join(', ')} WHERE id = ?`,
+    ...cols.map((k) => set[k]),
+    nowIso(),
+    by,
+    f.id,
+  );
+  return { id: f.id, title: f.title, copied: cols };
 }
 
 // ---------- covered services (ADR 0031) ----------
@@ -1512,7 +1707,12 @@ export function getContract(supplierId: string, contractId: string, now = Date.n
     )
     .filter((l) => ctx.seesService(l.service_id, true))
     .map((l) => ({ id: l.id, serviceId: l.service_id, serviceName: l.name, fiscalYear: Number(l.fiscal_year), title: l.title }));
-  const contract = toContract(c, today, u, lines, ctx, s);
+  const children = db().all<ContractRow>('SELECT * FROM supplier_contracts WHERE parent_id = ? ORDER BY lower(title), id', c.id);
+  ctx.load(children.map((x) => x.id));
+  const contract = toContract(c, today, u, lines, ctx, s, {
+    parent: c.parent_id ? contractRowsById([c.parent_id]).get(c.parent_id) : undefined,
+    orderForms: children.filter((x) => ctx.reads(x, s)).map((x) => x.id),
+  });
   const owners = contract.owners;
   return {
     supplier: { id: s.id, name: s.name, status: s.status, owners: ownersOf(s), teams: catalogueTeams('supplier', s.id).map((t) => t.name) },
@@ -1545,7 +1745,8 @@ export function serviceContracts(serviceId: string, now = Date.now()): ServiceCo
     rows.push(...db().all<ContractRow>(`SELECT * FROM supplier_contracts WHERE id IN (${part.map(() => '?').join(', ')}) ORDER BY lower(title), id`, ...part));
   }
   const suppliers = new Map(visibleSupplierRows().map((r) => [r.id, r]));
-  ctx.load(rows.map((c) => c.id));
+  const parents = contractRowsById(rows.map((c) => c.parent_id));
+  ctx.load([...rows.map((c) => c.id), ...parents.keys()]);
   const contracts: ServiceContract[] = [];
   for (const c of rows) {
     const s = suppliers.get(c.supplier_id);
@@ -1553,7 +1754,7 @@ export function serviceContracts(serviceId: string, now = Date.now()): ServiceCo
     const cover = ctx.coverOf(c.id).find((x) => x.service_id === serviceId)!;
     contracts.push({
       supplier: { id: s.id, name: s.name, status: s.status },
-      contract: toContract(c, today, u, [], ctx, s),
+      contract: toContract(c, today, u, [], ctx, s, { parent: c.parent_id ? parents.get(c.parent_id) : undefined }),
       purpose: cover.purpose,
       status: cover.status,
       canChange: ctx.editsCover(c, s, serviceId),

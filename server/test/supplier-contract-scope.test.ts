@@ -441,3 +441,147 @@ describe('writes', () => {
     });
   });
 });
+
+describe('master agreements and data protection per contract', () => {
+  let sup: string;
+  let master: string, orderForm: string;
+  const ids = async (title: string) => (await s.api('GET', `/suppliers/${sup}`)).contracts.find((x: any) => x.title === title).id as string;
+  const masterTerms = {
+    title: 'Framework agreement',
+    endsOn: '2030-12-31',
+    slaAvailability: 99.9,
+    slaSupportHours: '24/7',
+    rtoHours: 4,
+    rpoHours: 1,
+    link: 'https://contracts.example/framework',
+  };
+
+  it('lets an order form inherit SLA, RTO/RPO, personal data and the agreement – not dates or the document', async () => {
+    sup = (await dana('POST', '/suppliers', { name: 'Invented Framework GmbH', personalData: true, dpaStatus: 'missing' })).id;
+    await s.api('POST', `/suppliers/${sup}/contracts`, {
+      title: 'Framework agreement',
+      endsOn: '2030-12-31',
+      slaAvailability: 99.9,
+      slaSupportHours: '24/7',
+      rtoHours: 4,
+      rpoHours: 1,
+      personalData: true,
+      dpaStatus: 'inPlace',
+      dpaSince: '2025-01-01',
+      dpaLink: 'https://contracts.example/dpa-framework',
+      link: 'https://contracts.example/framework',
+    });
+    master = await ids('Framework agreement');
+    await s.api('POST', `/suppliers/${sup}/contracts`, { title: 'Order form 1', parentId: master, endsOn: '2031-06-30', rtoHours: 8 });
+    orderForm = await ids('Order form 1');
+    const c = (await s.api('GET', `/suppliers/${sup}/contracts/${orderForm}`)).contract;
+    expect(c).toMatchObject({
+      parentId: master,
+      parent: { id: master, title: 'Framework agreement' },
+      slaAvailability: 99.9,
+      slaSupportHours: '24/7',
+      rtoHours: 8,
+      rpoHours: 1,
+      link: '',
+      endsOn: '2031-06-30',
+      endsAfterMaster: true,
+      personalData: null,
+      dpa: { personalData: true, personalDataFrom: 'master', status: 'inPlace', since: '2025-01-01', inheritedFrom: 'master', missing: false },
+    });
+    expect(c.inherited.sort()).toEqual(['rpoHours', 'slaAvailability', 'slaSupportHours']);
+    // the supplier page lists masters with their order forms
+    const page = await s.api('GET', `/suppliers/${sup}`);
+    expect(page.contracts.map((x: any) => x.title)).toEqual(['Framework agreement', 'Order form 1']);
+    expect(page.contracts[0].orderForms).toEqual([orderForm]);
+  });
+
+  it('keeps one level and the same supplier', async () => {
+    expect(await refused(s.api('POST', `/suppliers/${sup}/contracts`, { title: 'Deeper', parentId: orderForm }))).toEqual({
+      status: 409,
+      code: 'SUPPLIER_CONTRACT_MASTER_LEVEL',
+    });
+    expect(await refused(s.api('PUT', `/suppliers/${sup}/contracts/${master}`, { title: 'Framework agreement', parentId: master }))).toEqual({
+      status: 400,
+      code: 'SUPPLIER_CONTRACT_MASTER_SELF',
+    });
+    // a master with order forms cannot become an order form itself
+    await s.api('POST', `/suppliers/${sup}/contracts`, { title: 'Another master' });
+    const other = await ids('Another master');
+    expect(await refused(s.api('PUT', `/suppliers/${sup}/contracts/${master}`, { title: 'Framework agreement', parentId: other }))).toEqual({
+      status: 409,
+      code: 'SUPPLIER_CONTRACT_MASTER_LEVEL',
+    });
+    // a contract of another supplier reads as missing
+    expect(await refused(s.api('POST', `/suppliers/${supplier}/contracts`, { title: 'x', parentId: master }))).toEqual({
+      status: 404,
+      code: 'SUPPLIER_CONTRACT_NOT_FOUND',
+    });
+  });
+
+  it('shows the inherited values of a master the reader may not see, without its title', async () => {
+    await s.api('PUT', `/suppliers/${sup}/contracts/${master}`, { ...masterTerms, owners: ['team:care team'] });
+    await s.api('PUT', `/suppliers/${sup}/contracts/${orderForm}`, { title: 'Order form 1', parentId: master, endsOn: '2031-06-30', rtoHours: 8 });
+    const c = (await vera('GET', `/suppliers/${sup}/contracts/${orderForm}`)).contract;
+    expect(c).toMatchObject({ parentId: null, parent: null, parentHidden: true, slaAvailability: 99.9, dpa: { status: 'inPlace' } });
+    expect(JSON.stringify(c)).not.toContain('Framework agreement');
+    // saving the order form keeps the master she may not see
+    expect((await vera('GET', `/suppliers/${sup}`)).canAddContract).toBe(false);
+    await s.api('PUT', `/suppliers/${sup}/contracts/${master}`, { ...masterTerms, owners: [], confirmOpen: true });
+  });
+
+  it('flags DPA missing only where the contract processes personal data without an agreement', async () => {
+    await s.api('POST', `/suppliers/${sup}/contracts`, { title: 'No personal data', personalData: false });
+    await s.api('POST', `/suppliers/${sup}/contracts`, { title: 'As the supplier' });
+    const page = await s.api('GET', `/suppliers/${sup}`);
+    const by = (t: string) => page.contracts.find((x: any) => x.title === t);
+    expect(by('No personal data').dpa).toMatchObject({ personalData: false, personalDataFrom: 'contract', missing: false });
+    // the supplier's company-wide default: personal data, agreement missing
+    expect(by('As the supplier').dpa).toMatchObject({
+      personalData: true,
+      personalDataFrom: 'supplier',
+      status: 'missing',
+      inheritedFrom: 'supplier',
+      missing: true,
+    });
+    expect(by('Another master').dpa.missing).toBe(true);
+    expect(page).toMatchObject({ dpaMissingContracts: 2, dpaMissing: true });
+    // a supplier without contracts keeps the 0.17 flag of its own fields
+    const bare = await dana('POST', '/suppliers', { name: 'Invented Bare Processor', personalData: true });
+    expect((await dana('GET', `/suppliers/${bare.id}`)).dpaMissing).toBe(true);
+    const list = (await s.api('GET', '/suppliers')).find((x: any) => x.id === sup);
+    expect(list.dpaMissingContracts).toBe(2);
+  });
+
+  it('asks before removing a master, then copies the inherited values into its order forms', async () => {
+    expect(await refused(s.api('DELETE', `/suppliers/${sup}/contracts/${master}`))).toEqual({ status: 409, code: 'SUPPLIER_CONTRACT_HAS_ORDER_FORMS' });
+    await s.api('DELETE', `/suppliers/${sup}/contracts/${master}?orderForms=standalone`);
+    const c = (await s.api('GET', `/suppliers/${sup}/contracts/${orderForm}`)).contract;
+    expect(c).toMatchObject({
+      parentId: null,
+      parentHidden: false,
+      inherited: [],
+      slaAvailability: 99.9,
+      slaSupportHours: '24/7',
+      rtoHours: 8,
+      rpoHours: 1,
+      personalData: true,
+      dpaStatus: 'inPlace',
+      dpa: { inheritedFrom: 'contract', since: '2025-01-01', link: 'https://contracts.example/dpa-framework' },
+    });
+    const removed = (await auditOf(sup)).find((a: any) => a.action === 'supplier.contract_removed');
+    expect(removed.details.orderFormsStandalone[0]).toMatchObject({ id: orderForm });
+    expect(removed.details.orderFormsStandalone[0].copied).toEqual(
+      expect.arrayContaining(['sla_availability', 'sla_support_hours', 'rpo_hours', 'personal_data', 'dpa_status']),
+    );
+  });
+
+  it('gives the public API the effective values and where they come from', async () => {
+    const { token } = await audrey('POST', '/me/tokens', { name: 'dpa read', scope: 'read' });
+    const res = await fetch(`${s.base}/api/v1/suppliers/${sup}`, { headers: { authorization: `Bearer ${token}` } });
+    const body = (await res.json()) as any;
+    const c = body.contracts.find((x: any) => x.title === 'As the supplier');
+    expect(c).toMatchObject({ parentId: null, inherited: [], personalData: null, dpa: { personalData: true, inheritedFrom: 'supplier', missing: true } });
+    expect(c).not.toHaveProperty('parent');
+    expect(body.dpaMissingContracts).toBe(2);
+  });
+});

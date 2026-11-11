@@ -224,6 +224,20 @@ export const supplierContractInput = z
     services: z.array(contractServiceItem).max(SUPPLIER_LIMITS.contractServices).optional(),
     /** A change that leaves no team among the owners opens the contract to every reader of the supplier: say so */
     confirmOpen: z.boolean().optional(),
+    /** The master agreement it belongs to (one level, the same supplier); null: none. Missing: on change it stays */
+    parentId: z.string().trim().min(1).max(100).nullable().optional(),
+    /** Processes personal data for the services it covers: true, false, null as the master and the supplier (default) */
+    personalData: z.boolean().nullable().optional(),
+    /** Its own data processing agreement; null: as the master and the supplier (default) */
+    dpaStatus: z.enum(SUPPLIER_DPA_STATUSES).nullable().optional(),
+    dpaSince: dateText.nullable().optional(),
+    dpaLink: z
+      .string()
+      .trim()
+      .max(SUPPLIER_LIMITS.url)
+      .refine((s) => s === '' || SUPPLIER_DOC_LINK_RE.test(s), 'an http(s) URL or a record (id or number)')
+      .nullable()
+      .optional(),
   })
   .strict()
   .superRefine((x, ctx) => {
@@ -295,6 +309,84 @@ export interface SupplierContractService {
   canChange: boolean;
 }
 
+/** The SLA values an order form takes from its master agreement while its own are empty (ADR 0031 part 3). */
+export const SUPPLIER_INHERITED_FIELDS = ['slaAvailability', 'slaSupportHours', 'slaResponse', 'rtoHours', 'rpoHours'] as const;
+export type SupplierInheritedField = (typeof SUPPLIER_INHERITED_FIELDS)[number];
+/** Where an effective value comes from: the contract itself, its master agreement, or the supplier (the company-wide default). */
+export type SupplierValueSource = 'contract' | 'master' | 'supplier';
+
+/** Personal data and the data processing agreement of a contract as they apply (ADR 0031 part 5). */
+export interface SupplierContractDpa {
+  personalData: boolean;
+  personalDataFrom: SupplierValueSource;
+  status: SupplierDpaStatus | null;
+  since: string | null;
+  link: string;
+  /** Where the agreement comes from */
+  inheritedFrom: SupplierValueSource;
+  /** Processes personal data, and the agreement is missing */
+  missing: boolean;
+}
+
+/** What a contract says itself (null or '': empty, inherited). */
+export interface SupplierContractOwnTerms {
+  slaAvailability: number | null;
+  slaSupportHours: string;
+  slaResponse: string;
+  rtoHours: number | null;
+  rpoHours: number | null;
+  personalData: boolean | null;
+  dpaStatus: SupplierDpaStatus | null;
+  dpaSince: string | null;
+  dpaLink: string | null;
+}
+
+/**
+ * The terms that apply to a contract (ADR 0031 parts 3 and 5): an order form takes the SLA, the contractual RTO/RPO,
+ * personal data and the agreement from its master while its own are empty; personal data and the agreement then fall
+ * back to the supplier's company-wide default (order form → master → supplier). Dates and the document are never
+ * inherited. "DPA missing" only where the effective answer is "processes personal data".
+ */
+export function effectiveTerms(
+  own: SupplierContractOwnTerms,
+  master: SupplierContractOwnTerms | null,
+  supplier: { personalData: boolean; dpaStatus: SupplierDpaStatus | null; dpaSince: string | null; dpaLink: string },
+): { values: Pick<SupplierContractOwnTerms, SupplierInheritedField>; inherited: SupplierInheritedField[]; dpa: SupplierContractDpa } {
+  const empty = (v: unknown) => v === null || v === undefined || v === '';
+  const values = { ...own } as Pick<SupplierContractOwnTerms, SupplierInheritedField>;
+  const inherited: SupplierInheritedField[] = [];
+  for (const f of SUPPLIER_INHERITED_FIELDS)
+    if (empty(own[f]) && master && !empty(master[f])) {
+      (values as Record<string, unknown>)[f] = master[f];
+      inherited.push(f);
+    }
+  const pd: [boolean, SupplierValueSource] =
+    own.personalData !== null && own.personalData !== undefined
+      ? [own.personalData, 'contract']
+      : master && master.personalData !== null && master.personalData !== undefined
+        ? [master.personalData, 'master']
+        : [supplier.personalData, 'supplier'];
+  const agreement: { status: SupplierDpaStatus | null; since: string | null; link: string; from: SupplierValueSource } = own.dpaStatus
+    ? { status: own.dpaStatus, since: own.dpaSince, link: own.dpaLink ?? '', from: 'contract' }
+    : master?.dpaStatus
+      ? { status: master.dpaStatus, since: master.dpaSince, link: master.dpaLink ?? '', from: 'master' }
+      : { status: supplier.dpaStatus, since: supplier.dpaSince, link: supplier.dpaLink, from: 'supplier' };
+  const status = pd[0] ? (agreement.status ?? 'missing') : agreement.status;
+  return {
+    values,
+    inherited,
+    dpa: {
+      personalData: pd[0],
+      personalDataFrom: pd[1],
+      status,
+      since: status === 'inPlace' ? agreement.since : null,
+      link: status === 'inPlace' ? agreement.link : '',
+      inheritedFrom: agreement.from,
+      missing: pd[0] && status !== 'inPlace',
+    },
+  };
+}
+
 /** Why the reader sees a contract (the contract page's "Owners and visibility"). */
 export type SupplierContractReadReason = 'supplierReaders' | 'admin' | 'auditor' | 'owner' | 'service';
 
@@ -324,6 +416,25 @@ export interface SupplierContract {
   costPlanLines: { id: string; serviceId: string; serviceName: string; fiscalYear: number; title: string }[];
   /** Users and teams who manage it (ADR 0031) */
   owners: string[];
+  /**
+   * The master agreement (one level). `parent` null with `parentHidden`: a master the reader may not see – its values
+   * still apply. `orderForms`: the order forms the reader may see.
+   */
+  parentId: string | null;
+  parent: { id: string; title: string; reference: string } | null;
+  parentHidden: boolean;
+  orderForms: string[];
+  /** An order form that ends after its master: a hint, not a block */
+  endsAfterMaster: boolean;
+  /** The SLA and RTO/RPO values above that come from the master agreement (the values are the effective ones) */
+  inherited: SupplierInheritedField[];
+  /** Its own answers (null: as the master and the supplier) */
+  personalData: boolean | null;
+  dpaStatus: SupplierDpaStatus | null;
+  dpaSince: string | null;
+  dpaLink: string | null;
+  /** Personal data and the agreement as they apply */
+  dpa: SupplierContractDpa;
   /** A team among the owners: seen only by its owners, the readers of the services it covers, administrators and auditors */
   teamOwned: boolean;
   /** The covered services the reader may see */
@@ -382,6 +493,10 @@ export interface SupplierSummary {
   /** The earliest valid-until of its certificates */
   nextCertificateExpiry: string | null;
   certificateState: SupplierDateState;
+  /** Contracts the reader may see that process personal data without an agreement (ADR 0031 part 5) */
+  dpaMissingContracts: number;
+  /** DPA missing: such contracts, or – without contracts – the supplier's own fields (as in 0.17) */
+  dpaMissing: boolean;
   /** Visible items that link it */
   usage: Record<SupplierLinkKind, number>;
   updatedAt: string;

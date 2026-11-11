@@ -33,6 +33,8 @@ import { contractScopeNotice, dismissContractScopeNotice } from './contract-scop
  * contacts without e-mail and phone (decision 8).
  */
 const listQuery = z.object({ status: z.enum(SUPPLIER_STATUSES).optional() });
+/** Removing a master agreement: `orderForms=standalone` says the order forms become standalone (ADR 0031) */
+const removeContractQuery = z.object({ orderForms: z.enum(['standalone']).optional() });
 const session = { config: { access: ACCESS.session } };
 /** The request comes with an API token (no session in the app). */
 const viaToken = (req: FastifyRequest) => !!(req as unknown as { smToken?: string }).smToken;
@@ -65,7 +67,9 @@ export async function supplierRoutes(app: FastifyInstance): Promise<void> {
   app.put('/suppliers/:id/contracts/:contractId', session, async (req) =>
     s.updateContract(params(req).id!, params(req).contractId!, supplierContractInput.parse(req.body)),
   );
-  app.delete('/suppliers/:id/contracts/:contractId', session, async (req) => s.removeContract(params(req).id!, params(req).contractId!));
+  app.delete('/suppliers/:id/contracts/:contractId', session, async (req) =>
+    s.removeContract(params(req).id!, params(req).contractId!, removeContractQuery.parse(req.query ?? {})),
+  );
   // contracts with their own scope (ADR 0031): the contract page, covered services, the service's contracts
   app.get('/suppliers/:id/contracts/:contractId', async (req) => s.getContract(params(req).id!, params(req).contractId!));
   app.put('/suppliers/:id/contracts/:contractId/services/:serviceId', session, async (req) =>

@@ -7,6 +7,8 @@ Steward keeps the records and reminds you of dates. It is not a GRC tool: no sup
 - [What a supplier holds](#what-a-supplier-holds)
 - [Contracts and the notice-by date](#contracts-and-the-notice-by-date)
 - [Contracts and the services they cover](#contracts-and-the-services-they-cover)
+- [Master agreements and order forms](#master-agreements-and-order-forms)
+- [Data protection per contract](#data-protection-per-contract)
 - [Certificates and reports](#certificates-and-reports)
 - [Contacts and data protection](#contacts-and-data-protection)
 - [Linking a supplier](#linking-a-supplier)
@@ -22,7 +24,7 @@ Steward keeps the records and reminds you of dates. It is not a GRC tool: no sup
 - **Name** and **type**: SaaS, managed platform, software vendor, support or service provider, other. Names are unique (letter case aside, archived suppliers left out); when a supplier you may not see has the name, Steward says only that the name cannot be used, without naming or linking that supplier.
 - **Description** and **website**.
 - **Owners**: Steward users and teams (`user:dana`, `team:service desk`), like systems. They maintain the company record – the supplier, its certificates and company-wide contacts – may add contracts and get the certificate reminders. Since 0.18.0 owning a supplier does **not** show its contracts: those belong to the teams that hold them ([below](#contracts-and-the-services-they-cover)).
-- **Data processing**: whether the supplier processes personal data for your services and, if so, the **data processing agreement** – _in place_ (since when, and the document) or _missing_.
+- **Data processing**: whether the supplier processes personal data for your services and, if so, the **data processing agreement** – _in place_ (since when, and the document) or _missing_. Since 0.18.0 these are the **default for contracts** (_Default for contracts_ in the form): a DPA signed for the whole company is entered once, and each contract can answer for itself ([below](#data-protection-per-contract)).
 - **Criticality** (shown, not stored): the highest protection need per dimension of the applications that link the supplier ([APPLICATIONS.md](APPLICATIONS.md#rate-an-application-cia)) and – since 0.18.0 – of the services covered by the contracts you may see ([APPLICATIONS.md](APPLICATIONS.md#the-protection-need-of-a-service)).
 - **Other spellings**: the free-text vendors it was made from or merged with, and its former names. The supplier picker of the forms finds a supplier by them.
 - **Status**: _active_; _to confirm_ (made from free text on the update, see [below](#after-the-update-suppliers-to-confirm)); _archived_ (kept for its history and the items that still link it, no longer offered in forms).
@@ -76,6 +78,21 @@ The contract's page (_Suppliers → the supplier → a contract_, `/suppliers/:i
 - **Proposed services** (the update to 0.18, [below](#after-the-update-to-018-contracts-with-owners)) count for reading, not for changing, until a person confirms them or chooses _Not this service_.
 
 **A contract you may not see**, named on a plan line, a cost entry or a responsibility matrix row you may see, shows as _a contract you may not see_ – no title, number, dates, SLA, RTO/RPO or amounts; the supplier as its own rule allows. Saving such a form keeps the link. The contract pickers offer the contracts covering the service first; choosing another contract of the supplier adds the service to it when you may change that contract, and is refused otherwise. _Used by_ lists such an item by its own rule, with the same neutral text.
+
+## Master agreements and order forms
+
+A contract can name one contract of the same supplier as its **master agreement** (German _Rahmenvertrag_; the contract is then an _order form_, _Einzelvertrag_) – **one level only**: a master has no master, an order form has no order forms. The supplier page lists each master with its order forms indented.
+
+- An order form **inherits** the SLA (availability, support hours, response times), the contractual RTO and RPO, personal data and the data processing agreement while its own are empty; it does not inherit the term, notice period, renewal or document – order forms have their own. The contract shows inherited values in grey with _from the master agreement_; the matrix and the API read the values that apply (`inherited` names them).
+- The order form's visibility is its own. Who sees the order form but not the master sees the inherited values (they are the order form's terms) and _part of a master agreement you may not see_ – not the master's title, number, services or amounts.
+- **Removing a master** asks first: its order forms become standalone, with the values they inherited copied into them, so their terms do not change (`DELETE …/contracts/:contractId?orderForms=standalone`; audited with what was copied).
+- An order form that ends after its master shows _Ends after the master agreement_ – a hint, not a block.
+
+## Data protection per contract
+
+Steward marks personal data on suppliers only – services and applications have no such mark (the CIA rating is a protection need, not a data category). Since 0.18.0 each contract says whether it **processes personal data for the services it covers** (_yes_, _no_, or _as the supplier_ – the default) and has its own **data processing agreement** (_in place_ since a date with the document, or _missing_), defaulting to its master's for an order form and then to the supplier's (order form → master → supplier).
+
+**_DPA missing_** is flagged only for contracts whose answer that applies is _processes personal data_ and whose agreement that applies is _missing_ – on the contract, in the supplier list (_1 contract without a DPA_, over the contracts you may see) and on the service page. A supplier without contracts keeps the flag of its own fields, as in 0.17. Contracts of 0.17 start with _as the supplier_, so nothing changes meaning on the update.
 
 ## Certificates and reports
 
@@ -157,15 +174,15 @@ The owners of an active supplier (without owners: the administrators) are remind
 
 ## Audit, API, MCP and the dataset
 
-**Audit actions:** `supplier.created`, `.changed`, `.archived`, `.unarchived`, `.confirmed`, `.merged`, `.dismissed` (not a supplier), `.migrated` (system, the update), `.contact_added|changed|removed` (without e-mail or phone values), `.contract_added|changed|removed` (since 0.18 with the owners before and after), `.contract_service_added|changed|removed|confirmed|dismissed` (on the supplier, naming the contract and the service; _removed_ is also _Leave contract_), `.contracts_scoped` (system, once, the update to 0.18), `.certificate_added|changed|removed`.
+**Audit actions:** `supplier.created`, `.changed`, `.archived`, `.unarchived`, `.confirmed`, `.merged`, `.dismissed` (not a supplier), `.migrated` (system, the update), `.contact_added|changed|removed` (without e-mail or phone values), `.contract_added|changed|removed` (since 0.18 with the owners, the master, personal data and the DPA before and after, and the order forms made standalone), `.contract_service_added|changed|removed|confirmed|dismissed` (on the supplier, naming the contract and the service; _removed_ is also _Leave contract_), `.contracts_scoped` (system, once, the update to 0.18), `.certificate_added|changed|removed`.
 
-**Public API** (read-only, [API.md](API.md)): `GET /api/v1/suppliers` (paged; default unconfirmed and active, `?status=`) and `GET /api/v1/suppliers/{supplierId}` – the contracts the token owner may see with notice-by date, SLA and RTO/RPO, `owners` and `services` (id, name, purpose, status – the services the token owner may see, no count of others), certificates, contacts without e-mail or phone, what links the supplier and its review duties. `GET /api/v1/services/{serviceId}/contracts` lists the contracts covering a service (0.18).
+**Public API** (read-only, [API.md](API.md)): `GET /api/v1/suppliers` (paged; default unconfirmed and active, `?status=`) and `GET /api/v1/suppliers/{supplierId}` – the contracts the token owner may see with notice-by date, SLA and RTO/RPO (the values that apply, `inherited` naming those of the master), `owners`, `services` (id, name, purpose, status – the services the token owner may see, no count of others), `parentId`, `personalData` and `dpa` (as it applies, with `inheritedFrom`: `contract`, `master`, `supplier`), certificates, contacts without e-mail or phone, what links the supplier and its review duties. `GET /api/v1/services/{serviceId}/contracts` lists the contracts covering a service (0.18).
 
 **MCP** ([MCP.md](MCP.md)): `list_suppliers`, `get_supplier` and `list_service_contracts` (0.18), read-only, with your rights.
 
 **Dataset** _Suppliers: expiring_ (`suppliers.expiring`): one row per certificate and notice-by date of an active supplier in the next 90 days or passed in the last 30, with status _warning_ within 30 days and _serious_ once passed; a notice-by date also names the contract's owners and the services it covers (0.18). Administrators and auditors, published at most hourly ([DASHBOARDS.md](DASHBOARDS.md)).
 
-Writes are only in the app: every changing route – also marking a certificate as looked at – needs a signed-in session and refuses API tokens (ADR 0029 decision 9). Reading one supplier through the internal route with an API token gives what the public API gives: contacts without e-mail or phone. Internal routes: `GET|POST /api/suppliers[?status=]`, `GET /api/suppliers/options`, `GET|PUT /api/suppliers/:id`, `POST /api/suppliers/:id/archive|confirm|merge|not-a-supplier`, `POST /api/suppliers/:id/contacts|contracts|certificates`, `PUT|DELETE …/:itemId`; since 0.18 `GET /api/suppliers/:id/contracts/:contractId` (the contract page), contracts take `owners`, `services` (`[{ serviceId, purpose }]`, on create) and `confirmOpen`, `PUT|DELETE /api/suppliers/:id/contracts/:contractId/services/:serviceId` (`purpose`, `confirm: true`; leave or dismiss), `GET /api/services/:id/contracts` and `GET|DELETE /api/suppliers/scope-notice` (the administrators' notice after the update).
+Writes are only in the app: every changing route – also marking a certificate as looked at – needs a signed-in session and refuses API tokens (ADR 0029 decision 9). Reading one supplier through the internal route with an API token gives what the public API gives: contacts without e-mail or phone. Internal routes: `GET|POST /api/suppliers[?status=]`, `GET /api/suppliers/options`, `GET|PUT /api/suppliers/:id`, `POST /api/suppliers/:id/archive|confirm|merge|not-a-supplier`, `POST /api/suppliers/:id/contacts|contracts|certificates`, `PUT|DELETE …/:itemId`; since 0.18 `GET /api/suppliers/:id/contracts/:contractId` (the contract page), contracts take `owners`, `services` (`[{ serviceId, purpose }]`, on create), `confirmOpen`, `parentId`, `personalData`, `dpaStatus`, `dpaSince` and `dpaLink` (null: inherited), `DELETE …/contracts/:contractId?orderForms=standalone` removes a master, `PUT|DELETE /api/suppliers/:id/contracts/:contractId/services/:serviceId` (`purpose`, `confirm: true`; leave or dismiss), `GET /api/services/:id/contracts` and `GET|DELETE /api/suppliers/scope-notice` (the administrators' notice after the update).
 
 Suppliers and their contracts, certificates and contacts move with migration packages ([MIGRATION.md](MIGRATION.md)); the reminders sent do not.
 
