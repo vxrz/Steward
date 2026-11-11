@@ -6,6 +6,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-11-11
+
+Steward 0.18.0 plans contracts that run for several years and are paid monthly, quarterly or yearly: payment schedules on supplier contracts propose each fiscal year's plan lines, part years included, and show what a service is still committed to – to the end and to the earliest exit. Costs no platform reports are booked from a plan line in one step or imported from CSV. A supplier shared by several services gets contracts that name the services they cover, with owners and visibility of their own, data protection per contract, master agreements with order forms and contacts scoped to contracts, applications or systems; the suppliers the 0.17 update split by team can be merged without showing one team's contracts to another. The freshness check reads InfluxDB 1.x and 2.x (preview). The follow-ups of the 0.17 review – backups pinned to their S3 target, amounts in currencies without cents, redacted request bodies in exports – and dependency updates with three advisories fixed are included. A security review of these changes found nothing critical or high; its findings are fixed. Migrations are additive (`costs-003-contract-payments`, `costs-004-entry-imports`, `notifications-005-opt-ins`, `suppliers-003-contract-scope`, `suppliers-004-contract-links`).
+
 ### Added
 
 - **Payment schedules on supplier contracts** (Costs module, [docs/COSTS.md](docs/COSTS.md#contract-payments-and-commitments), [ADR 0030](docs/adr/0030-contract-payments-and-recorded-costs.md)): monthly, quarterly, yearly, one-off or dated payments per paying service, with amounts per contract year (_+ x % per year_ fills them in). Steward proposes each fiscal year's plan lines, a person confirms them (_Add to plan_), and a changed contract shows _Contract changed_ with _Update lines_ – never a silent rewrite, years that are over stay as planned. Prepaid payments count in the year paid and show as _Prepaid in FY …_ in the years they cover. A contract line names its contract only for who may see the contract.
@@ -1348,7 +1352,8 @@ The first public version.
 - Monitors adopt the same policies: http/tcp/ping checks and webhook/Zabbix outputs are subject to the outbound policy (DNS-pinned; raw `host:port` checks need an explicit allow-list entry such as an IP/CIDR and are not inferred from platform origins); monitor http checks follow redirects manually and drop custom headers cross-origin; check error messages no longer echo the upstream response body; the guarded expression evaluation bounds condition/heartbeat/freshness expressions (CPU, memory via a `$pad` cap, and regex time); and gateway heartbeat batches share a global evaluation-concurrency cap (`SM_MONITOR_EVAL_CONCURRENCY`).
 - Semgrep findings triaged (all rule sets of the CI job, see [docs/ci/SECURITY-PIPELINE.md](docs/ci/SECURITY-PIPELINE.md#semgrep-triage)): the dev, PostgreSQL-test and install-script helpers start npm without a shell, also on Windows (`scripts/npm-command.mjs`); monitor-gateway key patterns (glob) and the API path editor match without regular expressions built from configured data; translation lookups ignore inherited properties; the CI gate also blocks HIGH/CRITICAL findings; SARIF uploads get the `actions: read` permission they need.
 
-[Unreleased]: https://github.com/vxrz/steward/compare/v0.17.0...HEAD
+[Unreleased]: https://github.com/vxrz/steward/compare/v0.18.0...HEAD
+[0.18.0]: https://github.com/vxrz/steward/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/vxrz/steward/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/vxrz/steward/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/vxrz/steward/compare/v0.14.0...v0.15.0

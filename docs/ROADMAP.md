@@ -2,7 +2,7 @@
 
 Where Steward stands, what it deliberately does not do, and what comes next. Shipped changes are in the [CHANGELOG](../CHANGELOG.md); how it is built is in [ARCHITECTURE.md](ARCHITECTURE.md). Ideas and requests are collected as GitHub issues.
 
-_Last reviewed for 0.17.0 (November 2026)._
+_Last reviewed for 0.18.0 (November 2026)._
 
 ## What Steward is for
 
@@ -76,10 +76,11 @@ Themes of this release (details in the CHANGELOG once released):
 - **0.15.0:** consolidation: the plant change-set history in a fraction of the space with retention as a setting, fixes in the OT network diagram, sturdier UI tests; personal Microsoft Teams notifications through the bot (preview); a first-week guide.
 - **0.16.0:** lightweight cost planning per service and fiscal year; scheduled readable exports to S3 and a choice of what backups contain; moving devices and data collections between assets; clearer monitor states; a review of architecture, security, performance, UI and wording with its fixes.
 - **0.17.0:** ISO/IEC 27001 support for service management – suppliers instead of free-text vendors, a statement of applicability with a responsibility matrix per service, one register of corrective actions with an effectiveness check, an ISMS summary for the management review; device profiles from manuals – plant proposals from assistants in parts, with a source per data point.
+- **0.18.0:** multi-year supplier contracts with payment schedules that propose the plan lines of each fiscal year, commitments to contract end and earliest exit, costs booked by hand or imported from CSV; suppliers shared by services with contracts, owners and contacts of their own; InfluxDB 1.x and 2.x as a source of the freshness check; dependency updates and the follow-ups of the 0.17 review.
 
 ## Next
 
-**0.18.0 – upgrades, review follow-ups, contracts in the cost plan and suppliers shared by services.** Dependency upgrades and security fixes; review follow-ups – backups pinned to their S3 target, monitor request bodies redacted in exports, currencies without cents, the statement of applicability as of the period end in evidence packs, document reviews in the ISMS summary; and multi-year contracts and recorded costs ([ADR 0030](adr/0030-contract-payments-and-recorded-costs.md)): payment schedules on supplier contracts that propose the plan lines of each fiscal year (part years and price changes included), plan lines for part of a year, what the contracts still commit a service to – to their end and to the earliest exit – per service and supplier, and cost entries imported from CSV or booked from a plan line in one step; suppliers shared by services ([ADR 0031](adr/0031-supplier-contracts-and-contacts-scope.md)) – contracts that name the services they cover with a purpose each, their own owners and visibility, data protection per contract and master agreements with order forms, contacts scoped to contracts, applications or systems, and the 0.17 duplicates merged into one shared supplier without showing one team's contracts to another; and a `source: influxdb` for the data freshness check of monitors. The candidates for later releases are under _Later_.
+The next release is not planned yet; the candidates are under _Later_.
 
 ## Later
 
