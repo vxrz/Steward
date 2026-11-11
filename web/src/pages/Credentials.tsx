@@ -57,6 +57,7 @@ import { CopiedFromNote, DuplicateButton } from '../components/duplicate/Duplica
 import { EntraImportButton } from '../components/credentials/EntraImport';
 import { ShowAll, useShowMore } from '../components/page/ShowAll';
 import { PrivilegedBadge } from '../components/platform/PrivilegedBadge';
+import { TableScroll } from '../components/TableScroll';
 
 /** "Used by" entries listed before "Show all" */
 const USED_BY_FIRST = 5;
@@ -680,7 +681,7 @@ function CredentialDrawer({
           </Field>
           <Field label={t('fields.roles')}>
             {c.roles.length ? (
-              <div className="table-scroll">
+              <TableScroll>
                 <Table fz="sm" data-testid="credential-roles">
                   <Table.Thead>
                     <Table.Tr>
@@ -703,7 +704,7 @@ function CredentialDrawer({
                     ))}
                   </Table.Tbody>
                 </Table>
-              </div>
+              </TableScroll>
             ) : (
               <Text size="sm" c="dimmed">
                 {t('roles.none')}

@@ -14,6 +14,7 @@ import { DutyFormModal, DutyLevelBadge, DutyStatusBadge, lastDay, periodLabel, S
 import { fmtDate } from '../format';
 import { DetailHeader } from '../components/page/DetailPage';
 import { SupplierText } from '../components/suppliers/SupplierPicker';
+import { TableScroll } from '../components/TableScroll';
 
 export function DutyDetailPage() {
   const { t } = useTranslation(['duties', 'common']);
@@ -174,7 +175,7 @@ export function DutyDetailPage() {
               <Text size="xs" c="dimmed">
                 {t('historyHint')}
               </Text>
-              <div className="table-scroll">
+              <TableScroll>
                 <Table fz="sm" aria-labelledby="duty-periods-title">
                   <Table.Thead>
                     <Table.Tr>
@@ -231,7 +232,7 @@ export function DutyDetailPage() {
                     ))}
                   </Table.Tbody>
                 </Table>
-              </div>
+              </TableScroll>
             </Stack>
           </Stack>
         </Grid.Col>

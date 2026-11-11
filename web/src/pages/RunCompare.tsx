@@ -12,6 +12,7 @@ import { DetailState, EmptyState, StatusBadge, statusLabel } from '../components
 import { DetailHeader } from '../components/page/DetailPage';
 import { fmtDate, fmtDuration, fmtRelative } from '../format';
 import { runKeys } from '../queryKeys';
+import { TableScroll } from '../components/TableScroll';
 
 /** One value of the comparison: masked, secret (not compared), or the value. */
 function Value({ v }: { v: CompareValue | undefined }) {
@@ -143,7 +144,7 @@ function Differs({ row }: { row: CompareRow }) {
 function VarsTable({ vars }: { vars: NonNullable<CompareRow['vars']> }) {
   const { t } = useTranslation('debug');
   return (
-    <div className="table-scroll">
+    <TableScroll>
       <Table fz="xs" withTableBorder verticalSpacing={4}>
         <Table.Thead>
           <Table.Tr>
@@ -166,7 +167,7 @@ function VarsTable({ vars }: { vars: NonNullable<CompareRow['vars']> }) {
           ))}
         </Table.Tbody>
       </Table>
-    </div>
+    </TableScroll>
   );
 }
 
@@ -360,7 +361,7 @@ export function RunComparePage() {
             <Text fw={600} size="sm" mb="xs">
               {t('compare.inputs')}
             </Text>
-            <div className="table-scroll">
+            <TableScroll>
               <Table fz="xs" verticalSpacing={4}>
                 <Table.Thead>
                   <Table.Tr>
@@ -383,7 +384,7 @@ export function RunComparePage() {
                   ))}
                 </Table.Tbody>
               </Table>
-            </div>
+            </TableScroll>
           </Paper>
         )}
 
@@ -424,7 +425,7 @@ export function RunComparePage() {
           </Stack>
         )}
         {rows.length > 0 && !phone && (
-          <div className="table-scroll">
+          <TableScroll>
             <Table withTableBorder fz="sm" verticalSpacing={6} data-testid="compare-table">
               <Table.Thead>
                 <Table.Tr>
@@ -463,7 +464,7 @@ export function RunComparePage() {
                 ))}
               </Table.Tbody>
             </Table>
-          </div>
+          </TableScroll>
         )}
       </Stack>
     </>

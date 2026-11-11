@@ -31,6 +31,7 @@ import { ContractModal } from '../components/suppliers/ContractForm';
 import { SupplierContacts } from '../components/suppliers/ScopedContacts';
 import { DocLink, DpaState, RemoveContractModal } from '../components/suppliers/contractParts';
 import { FormModal, FormModalCancel } from '../components/FormModal';
+import { TableScroll } from '../components/TableScroll';
 
 const DOC_LINK = /^(https?:\/\/\S+|rec_[A-Za-z0-9_-]{4,40}|[A-Z][A-Z0-9]{0,9}-\d{4}-\d{4,6})$/i;
 const TABS = ['overview', 'contracts', 'services', 'contacts', 'certificates', 'usedBy'] as const;
@@ -543,7 +544,7 @@ function CertificatesTab({ s, onSaved }: { s: SupplierDetail; onSaved: (x?: Supp
           {t('certificates.empty')}
         </Text>
       ) : (
-        <div className="table-scroll">
+        <TableScroll>
           <Table fz="sm" aria-label={t('certificates.title')}>
             <Table.Thead>
               <Table.Tr>
@@ -593,7 +594,7 @@ function CertificatesTab({ s, onSaved }: { s: SupplierDetail; onSaved: (x?: Supp
               ))}
             </Table.Tbody>
           </Table>
-        </div>
+        </TableScroll>
       )}
       {certificate && (
         <CertificateModal

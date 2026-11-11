@@ -69,6 +69,7 @@ import { useFieldErrors } from '../common';
 import { TranslationsInput } from './common';
 import { FormButtons, IdInput, useIdField } from './forms';
 import { RowsEditor } from './data';
+import { TableScroll } from '../TableScroll';
 
 /**
  * The forms of part 2 of the plant registry (#219). Each form edits one part – a profile's own fields, an interface,
@@ -940,7 +941,7 @@ export function KpiInputModal({
               <Text size="xs" c="dimmed">
                 {t('plantModel:anyOf.mappingHelp')}
               </Text>
-              <div className="table-scroll">
+              <TableScroll>
                 <Table fz="xs" withTableBorder aria-label={t('plantModel:anyOf.mapping')}>
                   <Table.Thead>
                     <Table.Tr>
@@ -990,7 +991,7 @@ export function KpiInputModal({
                     ))}
                   </Table.Tbody>
                 </Table>
-              </div>
+              </TableScroll>
             </Stack>
           )}
           {points.length > 0 && points.length <= 30 && (

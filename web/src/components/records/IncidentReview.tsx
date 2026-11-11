@@ -18,6 +18,7 @@ import { useFieldErrors } from '../common';
 import { SubjectsInput } from '../SubjectsInput';
 import { confirmDanger } from '../confirm';
 import { fmtDate, fmtDay, localToday } from '../../format';
+import { TableScroll } from '../TableScroll';
 
 /** Incident reviews (#109): measures with owners and due dates, the timeline from what Steward saw, starting a review. */
 
@@ -171,7 +172,7 @@ export function MeasuresPanel({ recordId }: { recordId: string }) {
         </Text>
       )}
       {items.length > 0 && (
-        <div className="table-scroll">
+        <TableScroll>
           <Table fz="sm" aria-labelledby="review-measures-title">
             <Table.Thead>
               <Table.Tr>
@@ -244,7 +245,7 @@ export function MeasuresPanel({ recordId }: { recordId: string }) {
               ))}
             </Table.Tbody>
           </Table>
-        </div>
+        </TableScroll>
       )}
       {editing && <MeasureModal recordId={recordId} measure={editing === 'new' ? undefined : editing} onClose={() => setEditing(null)} onSaved={set} />}
     </Stack>

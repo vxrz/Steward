@@ -5,6 +5,7 @@ import { IconPencil } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { McpCatalogueProposal, McpMappingsProposal, McpProposalSelection } from '@sm/shared';
 import { TONE } from '../common';
+import { TableScroll } from '../TableScroll';
 
 const CHANGE_COLOR = { new: TONE.ok, changed: TONE.attention, same: TONE.neutral } as const;
 
@@ -105,7 +106,7 @@ export function CatalogueProposalReview({
           </Group>
         )}
       </Group>
-      <div className="table-scroll">
+      <TableScroll>
         <Table fz="sm" aria-label={t('proposals.controls')} verticalSpacing={4}>
           <Table.Thead>
             <Table.Tr>
@@ -211,7 +212,7 @@ export function CatalogueProposalReview({
             })}
           </Table.Tbody>
         </Table>
-      </div>
+      </TableScroll>
       {p.missing.length > 0 && !p.existing?.builtin && (
         <Paper withBorder p="sm">
           <Text size="sm" fw={600}>
@@ -273,7 +274,7 @@ export function MappingsProposalReview({
           {t('proposals.incomplete')}
         </Alert>
       )}
-      <div className="table-scroll">
+      <TableScroll>
         <Table fz="sm" aria-label={t('proposals.mappings')} verticalSpacing={4}>
           <Table.Thead>
             <Table.Tr>
@@ -338,7 +339,7 @@ export function MappingsProposalReview({
             ))}
           </Table.Tbody>
         </Table>
-      </div>
+      </TableScroll>
     </Stack>
   );
 }

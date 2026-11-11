@@ -56,6 +56,7 @@ import { CredentialEditor, type CredentialDraft } from '../credentials/Credentia
 import { platformKeys } from '../../queryKeys';
 import { TopicOffers, TopicPrefixModal } from './TopicPrefix';
 import { CollapsibleSection } from '../page/CollapsibleSection';
+import { TableScroll } from '../TableScroll';
 
 export const formatLabel = (f: string) => (f === 'cyclonedx' ? 'CycloneDX' : 'SPDX');
 
@@ -183,7 +184,7 @@ export function ComponentsPanel({ app, onSaved }: { app: ApplicationDetail; onSa
             {t('components.empty')}
           </Text>
         ) : (
-          <div className="table-scroll">
+          <TableScroll>
             <Table fz="sm" aria-labelledby="components-title">
               <Table.Thead>
                 <Table.Tr>
@@ -288,7 +289,7 @@ export function ComponentsPanel({ app, onSaved }: { app: ApplicationDetail; onSa
                 ))}
               </Table.Tbody>
             </Table>
-          </div>
+          </TableScroll>
         )}
         {app.stack.length > 0 && <StackRollup app={app} />}
         {editing && <ComponentFormModal app={app} component={editing === 'new' ? null : editing} onClose={() => setEditing(null)} onSaved={onSaved} />}
@@ -1264,7 +1265,7 @@ export function SbomImportModal<R extends { preview: SbomPreview }>({
             {changing.length === 0 ? (
               <Alert color="gray">{t('components.sbom.nothing')}</Alert>
             ) : (
-              <div className="table-scroll">
+              <TableScroll>
                 <Table fz="sm">
                   <Table.Thead>
                     <Table.Tr>
@@ -1297,7 +1298,7 @@ export function SbomImportModal<R extends { preview: SbomPreview }>({
                     ))}
                   </Table.Tbody>
                 </Table>
-              </div>
+              </TableScroll>
             )}
           </Stack>
         )}

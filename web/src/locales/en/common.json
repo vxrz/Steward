@@ -151,6 +151,7 @@
     "discardTitle": "Discard your changes?",
     "discardMessage": "What you entered in this dialog is not saved."
   },
+  "tableScroll": "Table (scrolls sideways)",
   "table": {
     "sortBy": "Sort by",
     "sortedAsc": "Ascending – switch to descending",

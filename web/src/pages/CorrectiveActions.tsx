@@ -58,6 +58,7 @@ import {
 } from '../components/compliance/corrective';
 import { fmtDate, fmtDay, fmtRelative } from '../format';
 import { correctiveKeys } from '../queryKeys';
+import { TableScroll } from '../components/TableScroll';
 
 /**
  * Corrective actions (ISO/IEC 27001 clause 10.2, ADR 0029 part 3; Compliance module, preview): the register of findings,
@@ -681,7 +682,7 @@ export function CorrectiveActionDetailPage() {
                   {t('noActions')}
                 </Text>
               ) : (
-                <div className="table-scroll">
+                <TableScroll>
                   <Table fz="sm" aria-labelledby="ca-actions-title">
                     <Table.Thead>
                       <Table.Tr>
@@ -751,7 +752,7 @@ export function CorrectiveActionDetailPage() {
                       ))}
                     </Table.Tbody>
                   </Table>
-                </div>
+                </TableScroll>
               )}
             </div>
             <Paper withBorder p="sm" data-testid="ca-effectiveness">

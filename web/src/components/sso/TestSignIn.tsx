@@ -8,6 +8,7 @@ import type { ErrorParams, SsoClaimEntry, SsoProviderInput, SsoSignInPreview, Ss
 import { notifyError, post } from '../../api';
 import { codeText, errorText } from '../../i18n/errors';
 import { listFormat } from '../../format';
+import { TableScroll } from '../TableScroll';
 
 const OUTCOME_COLOR: Record<SsoSignInPreview['outcome'], string> = { signIn: 'blue', relink: 'blue', link: 'teal', create: 'green', refuse: 'red' };
 
@@ -124,7 +125,7 @@ function Claims({ claims }: { claims: SsoClaimEntry[] }) {
     );
   }
   return (
-    <div className="table-scroll">
+    <TableScroll>
       <Table fz="xs" verticalSpacing={2} withTableBorder data-testid="sso-test-claims">
         <Table.Thead>
           <Table.Tr>
@@ -151,7 +152,7 @@ function Claims({ claims }: { claims: SsoClaimEntry[] }) {
           ))}
         </Table.Tbody>
       </Table>
-    </div>
+    </TableScroll>
   );
 }
 
@@ -251,7 +252,7 @@ function Preview({ preview: p }: { preview: SsoSignInPreview }) {
       <Text size="xs" c="dimmed">
         {t('provider.test.previewHint')}
       </Text>
-      <div className="table-scroll">
+      <TableScroll>
         <Table fz="sm" verticalSpacing={2} withTableBorder>
           <Table.Tbody>
             {rows.map(([label, value]) => (
@@ -264,7 +265,7 @@ function Preview({ preview: p }: { preview: SsoSignInPreview }) {
             ))}
           </Table.Tbody>
         </Table>
-      </div>
+      </TableScroll>
     </Stack>
   );
 }

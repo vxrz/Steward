@@ -35,6 +35,7 @@ import { EmptyState, PageHeader, QueryState, TONE } from '../components/common';
 import { CoverageBadge, PeriodPicker, periodRange, presetPeriod, validPeriod, type Period } from '../components/compliance/common';
 import { fmtDate } from '../format';
 import { ControlFindings } from '../components/compliance/corrective';
+import { TableScroll } from '../components/TableScroll';
 
 /** Compliance → Controls: the control catalogues, what is mapped to each control and the evidence in a period (gaps highlighted). */
 export function ComplianceControlsPage() {
@@ -338,7 +339,7 @@ function CoverageTable({
   }
   const cols = onSelect ? 5 : 4;
   return (
-    <div className="table-scroll">
+    <TableScroll>
       <Table highlightOnHover fz="sm" aria-label={t('controls.title')}>
         <Table.Thead>
           <Table.Tr>
@@ -408,7 +409,7 @@ function CoverageTable({
           </Table.Tbody>
         ))}
       </Table>
-    </div>
+    </TableScroll>
   );
 }
 
@@ -611,7 +612,7 @@ function ControlDrawer({ cov, meta, onClose }: { cov: ControlCoverage; meta?: Co
 function EvidenceList({ items }: { items: EvidenceItem[] }) {
   const { t } = useTranslation('compliance');
   return (
-    <div className="table-scroll">
+    <TableScroll>
       <Table fz="xs" aria-label={t('controls.evidenceInPeriod')}>
         <Table.Thead>
           <Table.Tr>
@@ -655,7 +656,7 @@ function EvidenceList({ items }: { items: EvidenceItem[] }) {
           ))}
         </Table.Tbody>
       </Table>
-    </div>
+    </TableScroll>
   );
 }
 

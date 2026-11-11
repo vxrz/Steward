@@ -1,6 +1,7 @@
 import { Fragment, useMemo, type ReactNode } from 'react';
 import { Anchor, Blockquote, Box, Checkbox, Code, Divider, List, Table, Text, Title } from '@mantine/core';
 import { parseMarkdown, type MdBlock, type MdInline } from '@sm/shared';
+import { TableScroll } from '../TableScroll';
 
 /**
  * Renders Markdown safely: the shared parser builds a syntax tree and this
@@ -100,7 +101,7 @@ function renderBlocks(blocks: MdBlock[], key: string): ReactNode[] {
       }
       case 'table':
         return (
-          <Box key={k} className="table-scroll" mb="xs">
+          <TableScroll key={k} style={{ marginBottom: 'var(--mantine-spacing-xs)' }}>
             <Table withTableBorder withColumnBorders fz="sm">
               <Table.Thead>
                 <Table.Tr>
@@ -123,7 +124,7 @@ function renderBlocks(blocks: MdBlock[], key: string): ReactNode[] {
                 ))}
               </Table.Tbody>
             </Table>
-          </Box>
+          </TableScroll>
         );
       case 'hr':
         return <Divider key={k} my="sm" />;

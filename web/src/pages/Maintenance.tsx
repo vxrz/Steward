@@ -10,6 +10,7 @@ import { EmptyState, PageHeader, QueryState, useCreateParam } from '../component
 import { MaintenanceDetailModal, MaintenanceFormModal, TargetBadges, WhenLine, useRepeatLabel } from '../components/catalogue/maintenance';
 import { dateTimeFormat, fmtTime } from '../format';
 import { DataTable, type DataColumn } from '../components/DataTable';
+import { TableScroll } from '../components/TableScroll';
 
 /** Maintenance windows (#108): what is planned, as a list or a month calendar; plan, change and cancel windows. */
 export function MaintenancePage() {
@@ -248,7 +249,7 @@ function MonthGrid({
           {dateTimeFormat({ month: 'long', year: 'numeric' }).format(month)}
         </Text>
       </Group>
-      <div className="table-scroll">
+      <TableScroll>
         <SimpleGrid cols={7} spacing={2} verticalSpacing={2} miw={560}>
           {days.slice(0, 7).map((d) => (
             <Text key={`h${d.getDay()}`} size="xs" c="dimmed" ta="center">
@@ -291,7 +292,7 @@ function MonthGrid({
             );
           })}
         </SimpleGrid>
-      </div>
+      </TableScroll>
       {!inMonth && (
         <Text size="sm" c="dimmed" mt="sm">
           {t('maintenance.noneInRange')}

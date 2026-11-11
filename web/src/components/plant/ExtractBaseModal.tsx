@@ -17,6 +17,7 @@ import {
 import { notifyError, post } from '../../api';
 import { plantKeys } from '../../queryKeys';
 import { IdInput, useIdField } from './forms';
+import { TableScroll } from '../TableScroll';
 
 /**
  * Extract a base profile (0.12.0, docs/PLANT.md "Extracting a base profile"): choose two or more profiles without a
@@ -187,7 +188,7 @@ export function ExtractBaseModal({ profiles, preselect, onClose }: { profiles: P
             <Text size="xs" c="dimmed">
               {t('extract.pointsHelp')}
             </Text>
-            <div className="table-scroll">
+            <TableScroll>
               <Table fz="xs" withTableBorder data-testid="extract-points" aria-label={t('extract.points')}>
                 <Table.Thead>
                   <Table.Tr>
@@ -275,7 +276,7 @@ export function ExtractBaseModal({ profiles, preselect, onClose }: { profiles: P
                   })}
                 </Table.Tbody>
               </Table>
-            </div>
+            </TableScroll>
             {sharedIfaces.length > 0 && (
               <Stack gap={4} data-testid="extract-interfaces">
                 <Text size="sm" fw={600}>

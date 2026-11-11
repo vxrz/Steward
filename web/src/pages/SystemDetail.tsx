@@ -24,6 +24,7 @@ import { useMe } from '../auth';
 import { SystemSchemaField } from '../components/dbschema/SystemSchemaField';
 import { SupplierText } from '../components/suppliers/SupplierPicker';
 import { ItemContacts } from '../components/suppliers/ScopedContacts';
+import { TableScroll } from '../components/TableScroll';
 
 /** A system (#129): what it is, its tech stack, the platform it is, and the applications that run on it per environment. */
 export function SystemDetailPage() {
@@ -128,7 +129,7 @@ export function SystemDetailPage() {
                   {t('systems.noApplications')}
                 </Text>
               ) : (
-                <div className="table-scroll">
+                <TableScroll>
                   <Table fz="sm" aria-labelledby="system-apps-title">
                     <Table.Thead>
                       <Table.Tr>
@@ -158,7 +159,7 @@ export function SystemDetailPage() {
                       ))}
                     </Table.Tbody>
                   </Table>
-                </div>
+                </TableScroll>
               )}
             </Stack>
           </Stack>

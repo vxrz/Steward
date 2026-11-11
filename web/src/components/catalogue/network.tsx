@@ -29,6 +29,7 @@ import { TicketsPanel } from '../tickets/TicketsPanel';
 import { fmtDay, fmtRelative } from '../../format';
 import { CollapsibleSection } from '../page/CollapsibleSection';
 import { ShowAll, useShowMore } from '../page/ShowAll';
+import { TableScroll } from '../TableScroll';
 
 /**
  * Network segments and firewall changes (#208), opt-in: the attributes of a segment (a system of kind "network"), the
@@ -358,7 +359,7 @@ export function FirewallNetworkPanel({ system }: { system: SystemDetail }) {
               {t('firewall.noSegments')}
             </Text>
           ) : (
-            <div className="table-scroll">
+            <TableScroll>
               <Table fz="sm" aria-label={t('firewall.segments')}>
                 <Table.Thead>
                   <Table.Tr>
@@ -404,7 +405,7 @@ export function FirewallNetworkPanel({ system }: { system: SystemDetail }) {
                   ))}
                 </Table.Tbody>
               </Table>
-            </div>
+            </TableScroll>
           )}
         </CollapsibleSection>
 
@@ -415,7 +416,7 @@ export function FirewallNetworkPanel({ system }: { system: SystemDetail }) {
                 {t('firewall.noMembers')}
               </Text>
             ) : (
-              <div className="table-scroll">
+              <TableScroll>
                 <Table fz="sm" aria-label={t('firewall.members')}>
                   <Table.Thead>
                     <Table.Tr>
@@ -440,7 +441,7 @@ export function FirewallNetworkPanel({ system }: { system: SystemDetail }) {
                     ))}
                   </Table.Tbody>
                 </Table>
-              </div>
+              </TableScroll>
             )}
             <ShowAll state={members} id="segment-members" />
           </CollapsibleSection>

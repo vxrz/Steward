@@ -42,6 +42,7 @@ import { dbSchemaKeys } from '../../queryKeys';
 import { useRecordTypes } from '../records/common';
 import { typeTemplate } from '../records/builtin';
 import type { SchemaSubject } from './SchemaView';
+import { TableScroll } from '../TableScroll';
 
 /** The panels of the schema view (#222): tables with their detail, changes, history, lint findings. */
 
@@ -151,7 +152,7 @@ export function TablesPanel({ snapshot, schemas }: { snapshot: DbSchemaSnapshot;
         </Stack>
       )}
       {found.length > 0 && !phone && (
-        <div className="table-scroll">
+        <TableScroll>
           <Table fz="sm" highlightOnHover aria-label={t('schema.tabs.tables')}>
             <Table.Thead>
               <Table.Tr>
@@ -176,7 +177,7 @@ export function TablesPanel({ snapshot, schemas }: { snapshot: DbSchemaSnapshot;
               ))}
             </Table.Tbody>
           </Table>
-        </div>
+        </TableScroll>
       )}
       {found.length > shown.length && (
         <Group justify="center">
@@ -251,7 +252,7 @@ function TableDrawer({
             <Text fw={600} size="sm" mb={4} id="schema-columns-title">
               {t('schema.columns')}
             </Text>
-            <div className="table-scroll">
+            <TableScroll>
               <Table fz="sm" aria-labelledby="schema-columns-title">
                 <Table.Thead>
                   <Table.Tr>
@@ -299,7 +300,7 @@ function TableDrawer({
                   ))}
                 </Table.Tbody>
               </Table>
-            </div>
+            </TableScroll>
           </div>
           <div>
             <Text fw={600} size="sm" mb={4}>
@@ -535,7 +536,7 @@ export function ChangesPanel({ subject, snapshot, snapshots }: { subject: Schema
             </Stack>
           )}
           {list.length > 0 && !phone && (
-            <div className="table-scroll">
+            <TableScroll>
               <Table fz="sm" aria-label={t('schema.tabs.changes')}>
                 <Table.Thead>
                   <Table.Tr>
@@ -575,7 +576,7 @@ export function ChangesPanel({ subject, snapshot, snapshots }: { subject: Schema
                   ))}
                 </Table.Tbody>
               </Table>
-            </div>
+            </TableScroll>
           )}
           {diff.total > diff.changes.length && (
             <Text size="xs" c="dimmed">
@@ -649,7 +650,7 @@ export function HistoryPanel({ snapshots, current, onShow }: { snapshots: DbSche
       </Stack>
     );
   return (
-    <div className="table-scroll" data-testid="schema-history">
+    <TableScroll testId="schema-history">
       <Table fz="sm" highlightOnHover aria-label={t('schema.tabs.history')}>
         <Table.Thead>
           <Table.Tr>
@@ -684,7 +685,7 @@ export function HistoryPanel({ snapshots, current, onShow }: { snapshots: DbSche
           ))}
         </Table.Tbody>
       </Table>
-    </div>
+    </TableScroll>
   );
 }
 
@@ -697,7 +698,7 @@ export function ChecksPanel({ checks }: { checks: DbSchemaCheck[] }) {
       <Text size="sm" c="dimmed">
         {t('schema.checksHint')}
       </Text>
-      <div className="table-scroll">
+      <TableScroll>
         <Table fz="sm" aria-label={t('schema.tabs.checks')}>
           <Table.Thead>
             <Table.Tr>
@@ -720,7 +721,7 @@ export function ChecksPanel({ checks }: { checks: DbSchemaCheck[] }) {
             ))}
           </Table.Tbody>
         </Table>
-      </div>
+      </TableScroll>
     </Stack>
   );
 }

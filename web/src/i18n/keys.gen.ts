@@ -1525,6 +1525,7 @@ export interface Resources {
     'confirm.confirm.button': string;
     'formModal.discardTitle': string;
     'formModal.discardMessage': string;
+    tableScroll: string;
     'table.sortBy': string;
     'table.sortedAsc': string;
     'table.sortedDesc': string;

@@ -26,6 +26,7 @@ import {
 } from '../components/compliance/soa';
 import { fmtDate, fmtDay } from '../format';
 import { soaKeys } from '../queryKeys';
+import { TableScroll } from '../components/TableScroll';
 
 /**
  * The statement of applicability (ISO/IEC 27001 clause 6.1.3 d, ADR 0029 part 2; Compliance module, preview): the
@@ -510,7 +511,7 @@ export function SoaDetailPage() {
             {t('versions.none')}
           </Text>
         ) : (
-          <div className="table-scroll">
+          <TableScroll>
             <Table fz="sm" data-testid="soa-versions" aria-label={t('versions.title')}>
               <Table.Thead>
                 <Table.Tr>
@@ -597,7 +598,7 @@ export function SoaDetailPage() {
                 })}
               </Table.Tbody>
             </Table>
-          </div>
+          </TableScroll>
         )}
         <Text size="xs" c="dimmed" mt="xs">
           {soa.permissions.fourEyes ? t('versions.fourEyesOn') : t('versions.fourEyesOff')} {t('versions.verifyHint')}

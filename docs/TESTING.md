@@ -90,7 +90,6 @@ How it works:
 
 - Process cards, platform cards and dashboard cards are clickable areas, not links. With the keyboard, use the command palette (Ctrl+K) or the card's buttons instead.
 - The flow canvas (React Flow) can only be edited with a mouse. The _Source_ tab (YAML) is the keyboard alternative.
-- Plain scrolling tables (`.table-scroll`) are only made focusable on dashboards. On narrow screens other wide tables scroll but cannot be focused.
 
 ### Adding a UI test
 

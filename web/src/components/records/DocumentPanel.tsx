@@ -11,6 +11,7 @@ import { Field } from './common';
 import { fieldLabel } from './builtin';
 import { fmtDate, fmtDay, localToday } from '../../format';
 import { currentLanguage } from '../../i18n';
+import { TableScroll } from '../TableScroll';
 
 /**
  * Living documents (workflow "document"): the review status, the document changelog (editions and
@@ -190,7 +191,7 @@ export function DocumentChangelog({ rec, onChange }: { rec: RecordDetail; onChan
             {t('document.noEditions')}
           </Text>
         ) : (
-          <div className="table-scroll">
+          <TableScroll>
             <Table fz="sm" aria-label={t('document.changelog')} data-testid="document-changelog" style={{ minWidth: 760 }}>
               <Table.Thead>
                 <Table.Tr>
@@ -274,7 +275,7 @@ export function DocumentChangelog({ rec, onChange }: { rec: RecordDetail; onChan
                 ))}
               </Table.Tbody>
             </Table>
-          </div>
+          </TableScroll>
         )}
       </Stack>
       {viewing && <EditionModal rec={rec} edition={viewing} onClose={() => setViewing(null)} />}

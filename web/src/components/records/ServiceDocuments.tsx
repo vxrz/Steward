@@ -11,6 +11,7 @@ import { fmtDay } from '../../format';
 import { RecordStatusBadge, useRecordTypes, useTypeName } from './common';
 import { typeTemplate } from './builtin';
 import { EditionBadge, ReviewStatusBadge } from './DocumentPanel';
+import { TableScroll } from '../TableScroll';
 
 /**
  * The documentation of a service: the living documents linked to it either way (only those the reader may
@@ -65,7 +66,7 @@ export function ServiceDocumentsPanel({ service, documents }: { service: Service
 function DocumentsTable({ documents, labelledBy }: { documents: ServiceDocument[]; labelledBy: string }) {
   const { t } = useTranslation(['services', 'records']);
   return (
-    <div className="table-scroll">
+    <TableScroll>
       <Table fz="sm" aria-labelledby={labelledBy}>
         <Table.Thead>
           <Table.Tr>
@@ -113,7 +114,7 @@ function DocumentsTable({ documents, labelledBy }: { documents: ServiceDocument[
           ))}
         </Table.Tbody>
       </Table>
-    </div>
+    </TableScroll>
   );
 }
 

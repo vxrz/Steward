@@ -8,6 +8,7 @@ import { del, get, getOptional, notifyError, notifyOk, put } from '../../api';
 import { useSaveSection } from '../settings/SaveBar';
 import { browserZone, zones } from './DailySummaryCard';
 import { DigestFields, QuietHoursFields } from './QuietHoursFields';
+import { TableScroll } from '../TableScroll';
 
 const KEY = ['notification-prefs'];
 const ADMIN_KEY = ['quiet-hours-admin'];
@@ -154,7 +155,7 @@ export function QuietHoursAdminCard() {
           {t('quiet.admin.none')}
         </Text>
       ) : (
-        <div className="table-scroll">
+        <TableScroll>
           <Table fz="sm" aria-label={t('quiet.admin.title')}>
             <Table.Thead>
               <Table.Tr>
@@ -185,7 +186,7 @@ export function QuietHoursAdminCard() {
               ))}
             </Table.Tbody>
           </Table>
-        </div>
+        </TableScroll>
       )}
       {d.channels.length > 0 && (
         <Text size="xs" c="dimmed" mt="sm">

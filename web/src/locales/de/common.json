@@ -151,6 +151,7 @@
     "discardTitle": "Änderungen verwerfen?",
     "discardMessage": "Ihre Eingaben in diesem Dialog werden nicht gespeichert."
   },
+  "tableScroll": "Tabelle (seitlich scrollbar)",
   "table": {
     "sortBy": "Sortieren nach",
     "sortedAsc": "Aufsteigend – auf absteigend umstellen",

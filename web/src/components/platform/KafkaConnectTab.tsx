@@ -18,6 +18,7 @@ import { get, notifyError, post } from '../../api';
 import { EmptyState, Hint, QueryState } from '../common';
 import { fmtDate, fmtRelative } from '../../format';
 import { platformKeys } from '../../queryKeys';
+import { TableScroll } from '../TableScroll';
 
 /**
  * Platform → Connectors (0.9.0, #223, docs/KAFKA.md#kafka-connect-and-debezium): what Steward last read from a Kafka
@@ -149,7 +150,7 @@ export function KafkaConnectTab({ platform }: { platform: Platform }) {
             </Group>
           </UnstyledButton>
           <Collapse expanded={showPlugins}>
-            <div className="table-scroll" style={{ marginTop: 'var(--mantine-spacing-xs)' }}>
+            <TableScroll style={{ marginTop: 'var(--mantine-spacing-xs)' }}>
               <Table fz="sm" data-testid="connect-plugins">
                 <Table.Thead>
                   <Table.Tr>
@@ -170,7 +171,7 @@ export function KafkaConnectTab({ platform }: { platform: Platform }) {
                   ))}
                 </Table.Tbody>
               </Table>
-            </div>
+            </TableScroll>
           </Collapse>
         </Paper>
       )}
@@ -337,7 +338,7 @@ function ConfigModal({ platformId, name, onClose }: { platformId: string; name: 
         <Hint>{t('connect.configHint')}</Hint>
         <QueryState query={q} rows={4} />
         {q.data && (
-          <div className="table-scroll">
+          <TableScroll>
             <Table fz="xs">
               <Table.Thead>
                 <Table.Tr>
@@ -364,7 +365,7 @@ function ConfigModal({ platformId, name, onClose }: { platformId: string; name: 
                 ))}
               </Table.Tbody>
             </Table>
-          </div>
+          </TableScroll>
         )}
         <Group justify="flex-end">
           <Button variant="default" onClick={onClose}>

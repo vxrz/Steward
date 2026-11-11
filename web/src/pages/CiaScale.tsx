@@ -20,6 +20,7 @@ import { notifyError, notifyOk, put } from '../api';
 import { DetailState, PageHeader } from '../components/common';
 import { fmtDate } from '../format';
 import { levelText, useCiaScale } from '../components/catalogue/cia';
+import { TableScroll } from '../components/TableScroll';
 
 type Levels = Record<CiaDimension, CiaLevel[]>;
 const FLAG = '__flag';
@@ -75,7 +76,7 @@ export function CiaScalePage({ embedded = false }: { embedded?: boolean }) {
           {(s.mode === 'perDimension' ? CIA_DIMENSIONS : (['confidentiality'] as const)).map((d) => (
             <Stack key={d} gap="xs">
               {s.mode === 'perDimension' && <Text fw={600}>{t(`cia.dimensions.${d}`)}</Text>}
-              <div className="table-scroll">
+              <TableScroll>
                 <Table fz="sm" aria-label={s.mode === 'perDimension' ? t(`cia.dimensions.${d}`) : t('scale.levels')}>
                   <Table.Thead>
                     <Table.Tr>
@@ -101,7 +102,7 @@ export function CiaScalePage({ embedded = false }: { embedded?: boolean }) {
                     })}
                   </Table.Tbody>
                 </Table>
-              </div>
+              </TableScroll>
             </Stack>
           ))}
           <Text size="xs" c="dimmed">

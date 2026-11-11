@@ -51,6 +51,7 @@ import { monitorKeys } from '../queryKeys';
 import { CopiedFromNote, DuplicateButton } from '../components/duplicate/DuplicateButton';
 import { useMe } from '../auth';
 import { MonitorIhCoverage } from '../components/plant/InsightsHubMapping';
+import { TableScroll } from '../components/TableScroll';
 
 export function MonitorDetailPage() {
   const { t } = useTranslation(['monitors', 'common']);
@@ -445,7 +446,7 @@ function ChecksTable({ monitor, onSelect }: { monitor: MonitorDetail; onSelect: 
   const { t } = useTranslation('monitors');
   const settling = new Set(settlingCheckIds(monitor.state));
   return (
-    <div className="table-scroll" style={{ marginTop: 12 }}>
+    <TableScroll style={{ marginTop: 12 }}>
       <Table fz="sm" highlightOnHover aria-label={t('list.checks')}>
         <Table.Thead>
           <Table.Tr>
@@ -489,7 +490,7 @@ function ChecksTable({ monitor, onSelect }: { monitor: MonitorDetail; onSelect: 
           ))}
         </Table.Tbody>
       </Table>
-    </div>
+    </TableScroll>
   );
 }
 
@@ -732,7 +733,7 @@ function HistoryList({ monitor }: { monitor: MonitorDetail }) {
   const name = new Map(monitor.checks.map((c) => [c.checkId, c.name]));
   const { t } = useTranslation('monitors');
   return (
-    <div className="table-scroll">
+    <TableScroll>
       <Table fz="sm" aria-label={t('detail.statusChanges')}>
         <Table.Thead>
           <Table.Tr>
@@ -769,7 +770,7 @@ function HistoryList({ monitor }: { monitor: MonitorDetail }) {
           ))}
         </Table.Tbody>
       </Table>
-    </div>
+    </TableScroll>
   );
 }
 

@@ -44,6 +44,7 @@ import { SubjectsInput } from '../SubjectsInput';
 import { SupplierPicker } from '../suppliers/SupplierPicker';
 import { fmtDate, fmtRelative } from '../../format';
 import { FormModal, FormModalCancel } from '../FormModal';
+import { TableScroll } from '../TableScroll';
 
 /**
  * The parts of the statement of applicability (ADR 0029 part 2): badges, the row form (a drawer), the settings, a new
@@ -777,7 +778,7 @@ export function SoaVersionModal({ catalogueKey, number, onClose }: { catalogueKe
               {t('versionView.hidden')}
             </Text>
           )}
-          <div className="table-scroll">
+          <TableScroll>
             <Table fz="xs" aria-label={t('versionView.title', { number })}>
               <Table.Thead>
                 <Table.Tr>
@@ -804,7 +805,7 @@ export function SoaVersionModal({ catalogueKey, number, onClose }: { catalogueKe
                 ))}
               </Table.Tbody>
             </Table>
-          </div>
+          </TableScroll>
         </Stack>
       )}
     </FormModal>

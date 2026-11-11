@@ -47,6 +47,7 @@ import { appUrl } from '../basePath';
 import { ListPage } from '../components/page/ListPage';
 import { monitorKeys } from '../queryKeys';
 import { RestrictedEmpty, useHiddenByPermissions } from '../components/modules/RestrictedEmpty';
+import { TableScroll } from '../components/TableScroll';
 
 export function MonitorsPage() {
   const { t } = useTranslation(['monitors', 'common']);
@@ -314,7 +315,7 @@ function TemplatesTab({ canCreate, onCreated }: { canCreate: boolean; onCreated:
       </Text>
       {templates.data?.length === 0 && <Text size="sm">{t('templates.none', { example: 'PowerMeter with machine data' })}</Text>}
       {!!templates.data?.length && (
-        <div className="table-scroll">
+        <TableScroll>
           <Table fz="sm" aria-label={t('tabs.templates')}>
             <Table.Thead>
               <Table.Tr>
@@ -353,7 +354,7 @@ function TemplatesTab({ canCreate, onCreated }: { canCreate: boolean; onCreated:
               ))}
             </Table.Tbody>
           </Table>
-        </div>
+        </TableScroll>
       )}
       {using && <InstantiateModal template={using} onClose={() => setUsing(null)} onCreated={onCreated} />}
     </>
@@ -406,7 +407,7 @@ function GatewaysTab() {
         </Button>
       </Group>
       {!!gateways.data?.length && (
-        <div className="table-scroll">
+        <TableScroll>
           <Table fz="sm" aria-label={t('tabs.gateways')}>
             <Table.Thead>
               <Table.Tr>
@@ -477,7 +478,7 @@ function GatewaysTab() {
               ))}
             </Table.Tbody>
           </Table>
-        </div>
+        </TableScroll>
       )}
       {draft && <GatewayModal draft={draft} onClose={() => setDraft(null)} onSave={save} />}
       {secret && (

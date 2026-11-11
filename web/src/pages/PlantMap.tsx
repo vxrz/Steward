@@ -12,6 +12,7 @@ import { MapLegend, MapPanel, useMapUnavailable } from '../components/plant/map/
 import { MapStateLabel, useMapSites } from '../components/plant/map/mapShared';
 import { StatusBar, ViewToolbar } from './plant/views/common';
 import { useViewMode } from './plant/views/prefs';
+import { TableScroll } from '../components/TableScroll';
 
 type StateFilter = 'all' | 'problems' | PlantMapState;
 
@@ -67,7 +68,7 @@ export function PlantMapPage() {
   };
 
   const table = (
-    <div className="table-scroll">
+    <TableScroll>
       <Table highlightOnHover fz="sm" aria-label={t('listLabel', { type: plural })} data-testid="map-site-list">
         <Table.Thead>
           <Table.Tr>
@@ -136,7 +137,7 @@ export function PlantMapPage() {
           ))}
         </Table.Tbody>
       </Table>
-    </div>
+    </TableScroll>
   );
 
   return (

@@ -60,6 +60,9 @@ body {
 }
 .table-scroll {
   overflow-x: auto;
+  /* the containing block of what is positioned inside (a visually hidden column header): otherwise it sits at the
+     table's right edge outside the box and widens the page on phones */
+  position: relative;
 }
 /*
  * Identifiers, paths and addresses (plant registry): broken after / . _ : ; , (the Breakable component marks those

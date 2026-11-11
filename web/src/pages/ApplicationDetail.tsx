@@ -35,6 +35,7 @@ import { CollectorCollections } from '../components/plant/CollectorCollections';
 import { CollapsibleSection, SectionGroup } from '../components/page/CollapsibleSection';
 import { SupplierText } from '../components/suppliers/SupplierPicker';
 import { ItemContacts } from '../components/suppliers/ScopedContacts';
+import { TableScroll } from '../components/TableScroll';
 
 export function ApplicationDetailPage() {
   const { t } = useTranslation(['applications', 'common']);
@@ -401,7 +402,7 @@ function ApplicationDocuments({ documents }: { documents: ApplicationDocument[] 
             {t('documents.empty')}
           </Text>
         ) : (
-          <div className="table-scroll">
+          <TableScroll>
             <Table fz="sm" aria-labelledby="application-documents-title">
               <Table.Thead>
                 <Table.Tr>
@@ -449,7 +450,7 @@ function ApplicationDocuments({ documents }: { documents: ApplicationDocument[] 
                 ))}
               </Table.Tbody>
             </Table>
-          </div>
+          </TableScroll>
         )}
       </Stack>
     </CollapsibleSection>

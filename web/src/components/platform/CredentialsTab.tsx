@@ -8,6 +8,7 @@ import { notifyError, notifyOk, put } from '../../api';
 import { Hint } from '../common';
 import { requiredSecrets } from './SettingsTab';
 import { platformKeys } from '../../queryKeys';
+import { TableScroll } from '../TableScroll';
 
 const COMMON_KEYS = ['clientId', 'clientSecret', 'username', 'password', 'token', 'apiKey'];
 
@@ -70,7 +71,7 @@ export function CredentialsTab({ platform, readOnly = false }: { platform: Platf
             {t('credentials.none')}
           </Text>
         ) : (
-          <div className="table-scroll">
+          <TableScroll>
             <Table>
               <Table.Tbody>
                 {platform.secretKeys.map((k) => (
@@ -113,7 +114,7 @@ export function CredentialsTab({ platform, readOnly = false }: { platform: Platf
                 ))}
               </Table.Tbody>
             </Table>
-          </div>
+          </TableScroll>
         )}
       </Paper>
       {readOnly ? (

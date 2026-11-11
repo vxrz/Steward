@@ -10,6 +10,7 @@ import { currentLanguage } from '../../i18n';
 import { LANGUAGES } from '../../i18n/languages';
 import { fmtBytes, fmtDate } from '../../format';
 import { runKeys } from '../../queryKeys';
+import { TableScroll } from '../TableScroll';
 
 export const FINISHED_STATUSES: RunStatus[] = ['succeeded', 'failed', 'cancelled'];
 const INTERIM_STATUSES: RunStatus[] = ['waiting', 'interrupted'];
@@ -182,7 +183,7 @@ export function RunReportsPanel({ runId, status }: { runId: string; status: RunS
           {t('panel.none')}
         </Text>
       ) : (
-        <div className="table-scroll">
+        <TableScroll>
           <Table fz="sm" striped withTableBorder>
             <Table.Thead>
               <Table.Tr>
@@ -242,7 +243,7 @@ export function RunReportsPanel({ runId, status }: { runId: string; status: RunS
               ))}
             </Table.Tbody>
           </Table>
-        </div>
+        </TableScroll>
       )}
       <GenerateReportDialog runId={runId} status={status} opened={open} onClose={() => setOpen(false)} />
     </Stack>
