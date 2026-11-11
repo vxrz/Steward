@@ -58,3 +58,20 @@ describe('L4: name clashes do not confirm what the caller may not see', () => {
     expect((await refused(s.api('POST', '/services', { name: 'SECRETBLUE Service' }))).body.code).toBe('SERVICE_EXISTS');
   });
 });
+
+describe('L2: single sign-on calls go through address safety', () => {
+  it('refuses cloud-metadata and link-local identity providers, and Steward’s own API', async () => {
+    for (const issuer of ['https://169.254.169.254/realms/x', 'https://[fd00:ec2::254]/', 'https://[::ffff:a9fe:a9fe]/']) {
+      const r = await s.api('POST', '/sso/discover', { issuer });
+      expect(r, issuer).toMatchObject({ ok: false, message: expect.stringMatching(/^Blocked/) });
+    }
+    const port = new URL(s.base).port;
+    const own = await s.api('POST', '/sso/discover', { issuer: `http://127.0.0.1:${port}/api/users` });
+    expect(own).toMatchObject({ ok: false, message: expect.stringMatching(/^Blocked/) });
+  });
+
+  it('still reaches an identity provider on this machine (the mock: a private address)', async () => {
+    const r = await s.api('POST', '/sso/discover', { issuer: `${s.base}/mock/oidc` });
+    expect(r.ok).toBe(true);
+  });
+});

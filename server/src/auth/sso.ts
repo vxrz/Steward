@@ -40,6 +40,7 @@ import type { StepUpDetail } from './context.js';
 import { invalidateAliases } from './aliases.js';
 import { BRAND, TEAM_ROLES } from '@sm/shared';
 import { config as appConfig } from '../config.js';
+import { assertAddressSafe, guardedLookup } from '../platforms/outbound.js';
 import { readCookie, ssoBindingCookie, ssoBindingCookieName } from './cookies.js';
 import { aliasTarget } from './aliases.js';
 import {
@@ -485,9 +486,19 @@ export function deleteProvider(id: string): void {
 
 // ---------- OIDC client configuration ----------
 
-const proxyAgent = new EnvHttpProxyAgent();
-const proxiedFetch = ((url: string, options: Record<string, unknown>) =>
-  undiciFetch(url, { ...(options as object), dispatcher: proxyAgent } as never)) as unknown as oidc.CustomFetch;
+/**
+ * Every call to an identity provider – discovery, token, JWKS, userinfo, also the addresses a discovery document names
+ * – goes through address safety (security review 0.19.0 L2): no cloud-metadata or link-local address, not Steward's own
+ * API, and the address checked is the one connected to (guardedLookup pins it; a proxy resolves names itself). Private
+ * addresses stay reachable (identity providers on the company network), and the outbound policy does not apply: like the
+ * notification channels an administrator configures, and so that sign-in never depends on an allow-list entry.
+ */
+const connect = { lookup: guardedLookup };
+const proxyAgent = new EnvHttpProxyAgent({ connect, requestTls: connect } as never);
+const proxiedFetch = (async (url: string, options: Record<string, unknown>) => {
+  await assertAddressSafe(String(url));
+  return undiciFetch(url, { ...(options as object), dispatcher: proxyAgent } as never);
+}) as unknown as oidc.CustomFetch;
 
 const isLocalHttp = (issuer: string) => /^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?\//i.test(issuer + '/');
 
@@ -542,7 +553,9 @@ export async function discover(issuer: string): Promise<SsoDiscoveryResult> {
       claimsSupported: m.claims_supported,
     };
   } catch (e) {
-    return { ok: false, message: (e as Error).message };
+    // a refused address (address safety) is said as it is, not as the client library's "something went wrong"
+    const cause = (e as { cause?: unknown }).cause;
+    return { ok: false, message: (cause instanceof HttpError ? cause : (e as Error)).message };
   }
 }
 
