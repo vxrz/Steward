@@ -22,6 +22,8 @@
   "application": "Application",
   "process": "Process",
   "processHidden": "a process you cannot view",
+  "contractHint": "Optional: the contract of the supplier this duty reviews – the contracts covering this service first. Choosing another adds the service to it.",
+  "contractHidden": "A contract you may not see",
   "schedule": "Schedule",
   "noSchedule": "Started by people (no schedule)",
   "scheduleDisabled": "disabled",

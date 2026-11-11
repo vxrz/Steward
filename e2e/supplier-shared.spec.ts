@@ -2,7 +2,7 @@ import type { APIRequestContext } from '@playwright/test';
 import { test, expect } from './support/fixtures';
 import { authFile } from './support/env';
 import { expectAccessible } from './support/axe';
-import { expectNoHorizontalScroll, json, uniq } from './support/helpers';
+import { chooseOption, expectNoHorizontalScroll, json, uniq } from './support/helpers';
 
 test.use({ storageState: authFile('admin') });
 
@@ -158,6 +158,32 @@ test('an administrator merges a pair split by team, with the preview', async ({ 
   } finally {
     await api.post(`/api/suppliers/${open.id}/archive`, { data: { archived: true } });
     await api.delete(`/api/teams/${team}`);
+  }
+});
+
+test('the duty form offers the contracts covering the service', async ({ page, apiAs }) => {
+  const api = await apiAs('admin');
+  const f = await fixture(api);
+  const processName = uniq('E2E supplier review');
+  await json(await api.post('/api/processes', { data: { definition: { name: processName, nodes: [{ id: 'start', type: 'start', x: 0, y: 0 }] } } }));
+  const dutyName = uniq('Review of the hosting contract');
+  try {
+    await page.goto(`/services/${f.shop.id}/duties`);
+    await page.getByTestId('duties-panel').getByRole('button', { name: 'Add duty' }).click();
+    const form = page.getByRole('dialog', { name: 'Add duty' });
+    await form.getByRole('textbox', { name: 'Name' }).fill(dutyName);
+    await chooseOption(page, /^Process/, processName);
+    await chooseOption(page, /^Supplier/, f.supplier.name);
+    await chooseOption(page, /^Contract/, 'Shop hosting');
+    await expectAccessible(page, 'duty form with a contract');
+    await form.getByRole('button', { name: 'Save' }).click();
+    await expect(form).toBeHidden();
+    const list = await json<{ name: string; supplierContract: { id: string } | null }[]>(await api.get(`/api/duties?serviceId=${f.shop.id}`));
+    expect(list.find((d) => d.name === dutyName)?.supplierContract?.id).toBe(f.hosting);
+  } finally {
+    const list = await json<{ id: string; name: string }[]>(await api.get(`/api/duties?serviceId=${f.shop.id}`));
+    for (const d of list.filter((x) => x.name === dutyName)) await api.delete(`/api/duties/${d.id}`);
+    await cleanup(api, f);
   }
 });
 

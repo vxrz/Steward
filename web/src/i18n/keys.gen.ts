@@ -3910,6 +3910,8 @@ export interface Resources {
     application: string;
     process: string;
     processHidden: string;
+    contractHint: string;
+    contractHidden: string;
     schedule: string;
     noSchedule: string;
     scheduleDisabled: string;
