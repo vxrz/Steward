@@ -14,18 +14,15 @@ import {
   parseFlux,
   parseInfluxQl,
   parseInfluxTime,
-  parseSql,
-  sqlIdent,
-  sqlQuery,
-  sqlString,
   type InfluxReadSpec,
 } from '../src/influx/query.js';
 
 /**
- * InfluxDB as a source of the freshness check (0.18.0): the queries Steward writes per dialect (InfluxQL, Flux, SQL)
- * with every name and value quoted – injection attempts stay names and values –, the parsers of the answers (annotated
- * CSV, JSON, timestamps), the cap and the expected series; then against the mock in its three API styles: the worst
- * series counts, the authentication per version, the connection test, the outbound policy, Check now, YAML, the API.
+ * InfluxDB as a source of the freshness check (0.18.0): the queries Steward writes per dialect (InfluxQL for 1.x, Flux
+ * for 2.x) with every name and value quoted – injection attempts stay names and values –, the parsers of the answers
+ * (annotated CSV, JSON, timestamps), the cap and the expected series; then against the mock as 1.x and 2.x: the worst
+ * series counts, the authentication per version, the connection test, the outbound policy, Check now, YAML, the API;
+ * any other version (3.x as well) is refused when the platform is saved.
  */
 
 process.env.SM_GATUS_AUTOSTART = '0';
@@ -33,8 +30,6 @@ process.env.SM_MONITOR_AUTOSTART = '0';
 process.env.SM_MONITOR_DEMO_SIMULATOR = '0';
 
 const spec = (extra: Partial<InfluxReadSpec> = {}): InfluxReadSpec => ({
-  version: '2',
-  dialect: 'flux',
   database: 'plant',
   measurement: 'machine_data',
   fields: [],
@@ -56,39 +51,21 @@ describe('quoting per dialect', () => {
     expect(fluxString('${secrets.get(key: "x")}')).toBe('"\\${secrets.get(key: \\"x\\")}"');
     expect(fluxString('$ alone')).toBe('"$ alone"');
   });
-  it('SQL: quotes doubled, a backslash is an ordinary character', () => {
-    expect(sqlIdent('Machine "A"')).toBe('"Machine ""A"""');
-    expect(sqlString("o'clock")).toBe("'o''clock'");
-    expect(sqlString('a\\b')).toBe("'a\\b'");
-  });
   it('control characters and line breaks are refused, never passed on', () => {
     for (const bad of ['a\nb', 'a\rb', 'a\u0000b', 'a\tb', 'a b', 'a\u007fb'])
-      for (const f of [influxQlIdent, influxQlString, fluxString, sqlIdent, sqlString]) expect(() => f(bad), JSON.stringify(bad)).toThrow(InfluxQueryError);
+      for (const f of [influxQlIdent, influxQlString, fluxString]) expect(() => f(bad), JSON.stringify(bad)).toThrow(InfluxQueryError);
   });
 });
 
 describe('the queries', () => {
   it('InfluxQL 1.x: one statement per field with last(), GROUP BY the tag and SLIMIT; the retention policy qualifies the measurement', () => {
-    const s = spec({
-      version: '1',
-      dialect: 'influxql',
-      fields: ['temperature', 'pressure'],
-      tags: { site: 'hall-2' },
-      groupBy: 'device',
-      retentionPolicy: 'autogen',
-    });
+    const s = spec({ fields: ['temperature', 'pressure'], tags: { site: 'hall-2' }, groupBy: 'device', retentionPolicy: 'autogen' });
     expect(influxQlStatements(s)).toEqual([
       `SELECT last("temperature") FROM "plant"."autogen"."machine_data" WHERE time > now() - 86400s AND "site" = 'hall-2' GROUP BY "device" SLIMIT 201`,
       `SELECT last("pressure") FROM "plant"."autogen"."machine_data" WHERE time > now() - 86400s AND "site" = 'hall-2' GROUP BY "device" SLIMIT 201`,
     ]);
     // no field: the newest point of any field, newest first
-    expect(influxQlStatements(spec({ version: '1', dialect: 'influxql' }))).toEqual([
-      'SELECT * FROM "machine_data" WHERE time > now() - 86400s ORDER BY time DESC LIMIT 1',
-    ]);
-    // InfluxDB 3 has no SLIMIT and no retention policy in the name
-    expect(influxQlStatements(spec({ version: '3', dialect: 'influxql', groupBy: 'device', retentionPolicy: 'autogen' }))).toEqual([
-      'SELECT * FROM "machine_data" WHERE time > now() - 86400s GROUP BY "device" ORDER BY time DESC LIMIT 1',
-    ]);
+    expect(influxQlStatements(spec())).toEqual(['SELECT * FROM "machine_data" WHERE time > now() - 86400s ORDER BY time DESC LIMIT 1']);
   });
 
   it('Flux 2.x: filters, last() per series, the newest per group, one table capped', () => {
@@ -111,17 +88,6 @@ describe('the queries', () => {
     expect(fluxQuery(spec())).toContain('|> group(columns: [])');
   });
 
-  it('SQL 3.x: max(time) per group, per field the newest time it has a value', () => {
-    expect(sqlQuery(spec({ version: '3', dialect: 'sql', fields: ['temperature', 'pressure'], tags: { site: 'hall-2' }, groupBy: 'device' }))).toBe(
-      'SELECT "device" AS "steward_series", max(CASE WHEN "temperature" IS NOT NULL THEN time END) AS "steward_newest_0", ' +
-        `max(CASE WHEN "pressure" IS NOT NULL THEN time END) AS "steward_newest_1" FROM "machine_data" WHERE time >= now() - INTERVAL '86400 seconds' ` +
-        `AND "site" = 'hall-2' GROUP BY "device" ORDER BY "device" LIMIT 201`,
-    );
-    expect(sqlQuery(spec({ version: '3', dialect: 'sql' }))).toBe(
-      `SELECT max(time) AS "steward_newest_0" FROM "machine_data" WHERE time >= now() - INTERVAL '86400 seconds'`,
-    );
-  });
-
   it('injection attempts stay names and values in every dialect', () => {
     const evil = {
       measurement: `m" OR 1=1; DROP MEASUREMENT "x`,
@@ -129,18 +95,15 @@ describe('the queries', () => {
       fields: [`f") |> yield() //`],
       groupBy: 'device',
     };
-    const ql = influxQlStatements(spec({ version: '1', dialect: 'influxql', ...evil }))[0]!;
+    const ql = influxQlStatements(spec(evil))[0]!;
     expect(ql).toContain(`FROM "m\\" OR 1=1; DROP MEASUREMENT \\"x"`);
     expect(ql).toContain(`"site\\" = 'a' OR \\"x" = 'hall\\' OR \\'1\\'=\\'1'`);
     const flux = fluxQuery(spec(evil));
     expect(flux).toContain('r._measurement == "m\\" OR 1=1; DROP MEASUREMENT \\"x"');
     expect(flux).toContain('r._field == "f\\") |> yield() //"');
-    const sql = sqlQuery(spec({ version: '3', dialect: 'sql', ...evil }));
-    expect(sql).toContain(`FROM "m"" OR 1=1; DROP MEASUREMENT ""x"`);
-    expect(sql).toContain(`"site"" = 'a' OR ""x" = 'hall'' OR ''1''=''1'`);
     // the look-back is an integer Steward computed, within 30 days
     expect(() => influxQlStatements(spec({ lookbackSeconds: 1.5 }))).toThrow(InfluxQueryError);
-    expect(() => sqlQuery(spec({ lookbackSeconds: 31 * 86400 }))).toThrow(InfluxQueryError);
+    expect(() => fluxQuery(spec({ lookbackSeconds: 31 * 86400 }))).toThrow(InfluxQueryError);
   });
 
   it('the look-back: 24 h by default, the freshness window and a half when longer, at most 30 days', () => {
@@ -240,26 +203,6 @@ describe('JSON answers', () => {
     expect(() => parseInfluxQl({ nothing: 1 }, { fields: [] })).toThrow('not an InfluxQL result');
   });
 
-  it('InfluxDB 3: rows as a list, as JSON lines or in the results envelope', () => {
-    const s = { fields: [], groupBy: 'device' };
-    expect(parseSql([{ steward_series: 'a', steward_newest_0: '2026-11-11T08:00:00.123456' }], s)).toEqual([
-      { name: 'a', newest: Date.UTC(2026, 10, 11, 8, 0, 0, 123) },
-    ]);
-    expect(parseSql('{"steward_series":"a","steward_newest_0":"2026-11-11T08:00:00"}\n{"steward_series":"b","steward_newest_0":null}\n', s)).toEqual([
-      { name: 'a', newest: Date.UTC(2026, 10, 11, 8) },
-      { name: 'b', newest: null },
-    ]);
-    expect(parseSql({ results: [{ series: [{ columns: ['steward_series', 'steward_newest_0'], values: [['a', '2026-11-11T08:00:00Z']] }] }] }, s)).toEqual([
-      { name: 'a', newest: Date.UTC(2026, 10, 11, 8) },
-    ]);
-    expect(parseSql([], s)).toEqual([]);
-    expect(() => parseSql({ error: 'table not found' }, s)).toThrow('table not found');
-    // InfluxQL on InfluxDB 3: rows with the tag as a column
-    expect(parseInfluxQl([{ 'iox::measurement': 'm', time: '2026-11-11T08:00:00', device: 'a', last: 1 }], { fields: ['t'], groupBy: 'device' })).toEqual([
-      { name: 'a/t', newest: Date.UTC(2026, 10, 11, 8) },
-    ]);
-  });
-
   it('the cap: at most 200 series by name, the total told; expected values that are missing are series without data', () => {
     const many = Array.from({ length: 250 }, (_, i) => ({ name: `d${String(i).padStart(3, '0')}`, newest: 1 }));
     const c = capSeries(many, { fields: [], groupBy: 'device' });
@@ -286,7 +229,7 @@ describe('the check definition', () => {
   it('needs a measurement and a database or bucket; its fields only with the InfluxDB source', () => {
     expect(issues({ source: 'influxdb', bucket: 'plant', measurement: 'm', groupBy: 'device', expectedSeries: ['a'] })).toEqual([]);
     expect(issues({ source: 'influxdb' })).toEqual([
-      'database: InfluxDB freshness needs the database (1.x, 3.x) or the bucket (2.x)',
+      'database: InfluxDB freshness needs the database (1.x) or the bucket (2.x)',
       'measurement: InfluxDB freshness needs the measurement',
     ]);
     expect(issues({ source: 'influxdb', database: 'd', measurement: 'm', fields: ['a', 'a'], expectedSeries: ['x'] })).toEqual([
@@ -312,7 +255,6 @@ describe('the check definition', () => {
     expect(parse({ expectedSeries: Array.from({ length: 201 }, (_, i) => `d${i}`) })[0]).toMatch(/^expectedSeries: Too big/);
     expect(parse({ tags: Object.fromEntries(Array.from({ length: 21 }, (_, i) => [`t${i}`, 'v'])) })[0]).toMatch(/^tags: Too big/);
     expect(parse({ lookbackHours: 721 })[0]).toMatch(/^lookbackHours/);
-    expect(parse({ language: 'flux' })[0]).toMatch(/^language/);
   });
 
   it('reads an InfluxDB platform; the version comes from the platform variable', () => {
@@ -320,11 +262,14 @@ describe('the check definition', () => {
     expect(checkPlatformKinds({ type: 'freshness', source: 'insightsHub' })).toEqual(['insights-hub']);
     expect(checkPlatformKinds({ type: 'freshness' })).toEqual(['insights-hub']);
     expect(checkPlatformKinds({ type: 'freshness', source: 'platform' })).toEqual([]);
-    expect(['1', '2.7', 'v3', '3.8.0', 'x', '', undefined].map((v) => influxVersionOf({ version: v }))).toEqual([
+    // 1.x and 2.x only: 3.x and anything else name no version Steward reads
+    expect(['1', 'v1', '2.7', '3', 'v3', '3.8.0', 'x', '', undefined].map((v) => influxVersionOf({ version: v }))).toEqual([
+      '1',
       '1',
       '2',
-      '3',
-      '3',
+      undefined,
+      undefined,
+      undefined,
       undefined,
       undefined,
       undefined,
@@ -336,7 +281,7 @@ describe('against the mock', () => {
   let s: TestServer;
   let mock: typeof import('../src/mock/mockInflux.js');
   let eng: typeof import('../src/monitors/engine.js');
-  const ids: Record<'v1' | 'v2' | 'v3', string> = { v1: '', v2: '', v3: '' };
+  const ids: Record<'v1' | 'v2', string> = { v1: '', v2: '' };
 
   const influxCheck = (id: string, platform: string, extra: Record<string, unknown> = {}) => ({
     id,
@@ -371,23 +316,12 @@ describe('against the mock', () => {
         secrets: { ...mock.DEMO_INFLUX.v1 },
       })
     ).id;
-    ids.v3 = (
-      await s.api('POST', '/platforms', {
-        name: 'InfluxDB 3 (test)',
-        kind: 'influxdb',
-        baseUrl: `${base}/influxdb3`,
-        config: { auth: { type: 'bearer' }, variables: { version: '3' }, http: { proxy: 'none', retry: { maxRetries: 0 } } },
-        secrets: { token: mock.DEMO_INFLUX.v3.token },
-      })
-    ).id;
   });
 
   it('every version: one series per device, the stale press counts, with the right authentication', async () => {
     for (const [v, extra] of [
       ['v1', {}],
       ['v2', { database: undefined, bucket: 'plant' }],
-      ['v3', {}],
-      ['v3', { language: 'influxql' }],
     ] as const) {
       mock.resetInflux();
       const r = await preview(influxCheck('presses', ids[v], extra));
@@ -406,15 +340,13 @@ describe('against the mock', () => {
       const auth = sent[0]!.authorization;
       if (v === 'v1') expect(auth).toBe(`Basic ${Buffer.from(`${mock.DEMO_INFLUX.v1.username}:${mock.DEMO_INFLUX.v1.password}`).toString('base64')}`);
       if (v === 'v2') expect(auth).toBe(`Token ${mock.DEMO_INFLUX.v2.token}`);
-      if (v === 'v3') expect(auth).toBe(`Bearer ${mock.DEMO_INFLUX.v3.token}`);
       if (v === 'v1') expect(sent[0]).toMatchObject({ method: 'GET', path: '/influxdb1/query', query: { db: 'plant', epoch: 'ms' } });
       if (v === 'v2') expect(sent[0]).toMatchObject({ method: 'POST', path: '/influxdb2/api/v2/query', query: { org: 'acme' }, body: { type: 'flux' } });
-      if (v === 'v3') expect(sent[0]!.path).toBe(`/influxdb3/api/v3/query_${'language' in extra ? 'influxql' : 'sql'}`);
     }
   });
 
   it('fields and tag filters: a series per device and field; expected devices that are missing are down', async () => {
-    for (const v of ['v1', 'v2', 'v3'] as const) {
+    for (const v of ['v1', 'v2'] as const) {
       const r = await preview(
         influxCheck('temp', ids[v], {
           fields: ['temperature', 'pressure'],
@@ -446,7 +378,7 @@ describe('against the mock', () => {
     expect(fresh).toMatchObject({ status: 'up', message: expect.stringMatching(/^All 3 series are fresh \(oldest \d+ s\)$/) });
     const one = await preview(influxCheck('one', ids.v1, { groupBy: undefined }));
     expect(one).toMatchObject({ status: 'up', message: expect.stringMatching(/^Newest data is \d+ s old, expected every 60 s$/) });
-    const none = await preview(influxCheck('none', ids.v3, { measurement: 'no_such_measurement' }));
+    const none = await preview(influxCheck('none', ids.v1, { measurement: 'no_such_measurement' }));
     expect(none).toMatchObject({ status: 'down', message: 'No data within the last 4 min in no_such_measurement', series: [] });
   });
 
@@ -466,7 +398,7 @@ describe('against the mock', () => {
   });
 
   it('a name with quotes reaches InfluxDB as one name: nothing is found, nothing is injected', async () => {
-    for (const v of ['v1', 'v2', 'v3'] as const) {
+    for (const v of ['v1', 'v2'] as const) {
       const r = await preview(influxCheck('evil', ids[v], { measurement: `machine_data" OR "1"="1`, tags: { site: `x' OR '1'='1` } }));
       expect(r.status, v).toBe('down');
       expect(r.message, v).toMatch(/^No data within/);
@@ -475,7 +407,7 @@ describe('against the mock', () => {
     await expect(preview(influxCheck('ctl', ids.v2, { measurement: 'machine_data\n|> drop()' }))).rejects.toMatchObject({ status: 400 });
   });
 
-  it('wrong credentials, a missing bucket and a setting for another version: unknown with the reason, never down', async () => {
+  it('wrong credentials, a missing bucket and a retention policy on 2.x: unknown with the reason, never down', async () => {
     const bad = await s.api('POST', '/platforms', {
       name: 'InfluxDB 2 (wrong token)',
       kind: 'influxdb',
@@ -493,17 +425,13 @@ describe('against the mock', () => {
       status: 'unknown',
       message: expect.stringContaining('A retention policy is only for InfluxDB 1.x'),
     });
-    expect(await preview(influxCheck('lang', ids.v1, { language: 'sql' }))).toMatchObject({
-      status: 'unknown',
-      message: expect.stringContaining('The query language is only for InfluxDB 3.x – 1.x reads InfluxQL'),
-    });
     const noVersion = await s.api('POST', '/platforms', {
       name: 'InfluxDB (no version)',
       kind: 'influxdb',
       baseUrl: 'http://127.0.0.1:9/influx',
       config: { auth: { type: 'none' }, variables: {}, http: { proxy: 'none' } },
     });
-    expect((await preview(influxCheck('nov', noVersion.id))).message).toContain('set its variable version to 1, 2 or 3');
+    expect((await preview(influxCheck('nov', noVersion.id))).message).toContain('names no InfluxDB version – set its variable version to 1 or 2');
   });
 
   it('saving refuses a platform of another kind; the check reads InfluxDB platforms only', async () => {
@@ -514,33 +442,56 @@ describe('against the mock', () => {
     });
   });
 
+  it('saving refuses an InfluxDB platform whose version is neither 1.x nor 2.x – 3.x included', async () => {
+    const body = (version: string) => ({
+      name: `InfluxDB ${version} (refused)`,
+      kind: 'influxdb',
+      baseUrl: 'http://127.0.0.1:9/influx',
+      config: { auth: { type: 'bearer' }, variables: { version }, http: { proxy: 'none' } },
+    });
+    for (const version of ['3', 'v3', '3.8.0', '4', 'latest'])
+      await expect(s.api('POST', '/platforms', body(version)), version).rejects.toMatchObject({
+        status: 400,
+        body: {
+          code: 'PLATFORM_INFLUX_VERSION',
+          params: { version },
+          error: expect.stringContaining('set the variable version to 1 (InfluxDB 1.x) or 2 (InfluxDB 2.x)'),
+        },
+      });
+    expect((await s.api('GET', '/platforms')).some((p: any) => p.name.endsWith('(refused)'))).toBe(false);
+    // a change to version 3 is refused as well, and the platform keeps its version
+    const v2 = await s.api('GET', `/platforms/${ids.v2}`);
+    await expect(s.api('PUT', `/platforms/${ids.v2}`, { config: { ...v2.config, variables: { ...v2.config.variables, version: '3' } } })).rejects.toMatchObject(
+      { status: 400, body: { code: 'PLATFORM_INFLUX_VERSION', params: { version: '3' } } },
+    );
+    expect((await s.api('GET', `/platforms/${ids.v2}`)).config.variables.version).toBe('2');
+    // 1.x and 2.x as written in the platform's settings are accepted
+    const ok = await s.api('POST', '/platforms', body('2.7'));
+    expect(ok.config.variables.version).toBe('2.7');
+  });
+
   it('the connection test of each version: ping or health, then a request with the credentials', async () => {
-    for (const v of ['v1', 'v2', 'v3'] as const) {
+    for (const v of ['v1', 'v2'] as const) {
       mock.resetInflux();
       const t = await s.api('POST', `/platforms/${ids[v]}/test`);
       expect(t.ok, `${v}: ${t.message}`).toBe(true);
       expect(mock.influxRequests.map((x) => `${x.method} ${x.path}`)).toEqual(
-        v === 'v1'
-          ? ['GET /influxdb1/ping', 'GET /influxdb1/query']
-          : v === 'v2'
-            ? ['GET /influxdb2/health', 'GET /influxdb2/api/v2/buckets']
-            : ['GET /influxdb3/ping'],
+        v === 'v1' ? ['GET /influxdb1/ping', 'GET /influxdb1/query'] : ['GET /influxdb2/health', 'GET /influxdb2/api/v2/buckets'],
       );
     }
     expect((await s.api('POST', `/platforms/${ids.v1}/test`)).message).toBe('GET /ping → HTTP 204, InfluxDB 1.11.8; the credentials work');
     expect((await s.api('POST', `/platforms/${ids.v2}/test`)).message).toBe('GET /health → pass, InfluxDB v2.7.12; the token works');
-    expect((await s.api('POST', `/platforms/${ids.v3}/test`)).message).toBe('GET /ping → HTTP 200, InfluxDB 3.8.0 Core');
     const wrong = await s.api('POST', '/platforms', {
-      name: 'InfluxDB 3 (wrong token)',
+      name: 'InfluxDB 2 (wrong token, test)',
       kind: 'influxdb',
-      baseUrl: (await s.api('GET', `/platforms/${ids.v3}`)).baseUrl,
-      config: { auth: { type: 'bearer' }, variables: { version: '3' }, http: { proxy: 'none', retry: { maxRetries: 0 } } },
-      secrets: { token: 'apiv3_wrong-token' },
+      baseUrl: (await s.api('GET', `/platforms/${ids.v2}`)).baseUrl,
+      config: { auth: { type: 'bearer' }, variables: { version: '2', org: 'acme' }, http: { proxy: 'none', retry: { maxRetries: 0 } } },
+      secrets: { token: 'influx2_wrong-token' },
     });
     const t = await s.api('POST', `/platforms/${wrong.id}/test`);
     expect(t.ok).toBe(false);
-    expect(t.message).toMatch(/^InfluxDB answered HTTP 401 to GET \/ping/);
-    expect(t.message).not.toContain('apiv3_wrong-token');
+    expect(t.message).toMatch(/^InfluxDB answered HTTP 401 to GET \/api\/v2\/buckets – .* \(1 earlier step\(s\) passed\)$/);
+    expect(t.message).not.toContain('influx2_wrong-token');
   });
 
   it('the outbound policy applies: a base URL outside the allow-list is not called', async () => {

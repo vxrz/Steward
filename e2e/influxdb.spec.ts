@@ -18,10 +18,9 @@ async function influxCheck(page: Page) {
   await palette.getByRole('button', { name: 'Data freshness', exact: true }).click();
   await form.getByText('InfluxDB series', { exact: true }).click();
   await chooseOption(page, /^Platform/, /^InfluxDB \(demo\)/);
-  // 2.x reads a bucket; the retention policy (1.x) and the query language (3.x) are not offered
+  // 2.x reads a bucket; the retention policy (1.x) is not offered
   await form.getByRole('textbox', { name: /^Bucket/ }).fill('plant');
   await expect(form.getByRole('textbox', { name: /^Retention policy/ })).toHaveCount(0);
-  await expect(form.getByText('Query language')).toHaveCount(0);
   await form.getByRole('textbox', { name: /^Measurement/ }).fill('machine_data');
   await form.getByRole('textbox', { name: /^One series per tag/ }).fill('device');
   await expect(form.getByRole('combobox', { name: /^Expected series/ })).toBeVisible();
@@ -43,7 +42,9 @@ test('an InfluxDB freshness check in the editor: the fields of 2.x, Check now li
   await settle(page);
   await influxCheck(page);
   await page.getByRole('tab', { name: 'YAML' }).click();
-  await expect(page.getByRole('textbox', { name: 'YAML source' })).toHaveValue(/source: influxdb[\s\S]*bucket: plant[\s\S]*measurement: machine_data[\s\S]*groupBy: device/);
+  await expect(page.getByRole('textbox', { name: 'YAML source' })).toHaveValue(
+    /source: influxdb[\s\S]*bucket: plant[\s\S]*measurement: machine_data[\s\S]*groupBy: device/,
+  );
 });
 
 test('switching the source clears the InfluxDB fields and the platform of another kind', async ({ page }) => {

@@ -4,7 +4,6 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
  * Simulated InfluxDB for demo mode and tests (0.18.0), one base URL per API generation, mounted at /mock:
  *   /influxdb1  GET /ping (204, X-Influxdb-Version), GET /query?db&q&epoch – InfluxQL, JSON results[].series[]; basic auth
  *   /influxdb2  GET /health, GET /api/v2/buckets, POST /api/v2/query?org – Flux (JSON body), annotated CSV; Authorization: Token
- *   /influxdb3  GET /ping (JSON), POST /api/v3/query_sql and /api/v3/query_influxql – JSON rows; Authorization: Bearer
  * The data are fixed and relative to now: database or bucket "plant", measurement "machine_data", tags site and device,
  * fields temperature and pressure – press-01, press-02 and press-04 report every few seconds, press-03 stopped three
  * hours ago (the stale series of the demo). The mock reads exactly the queries Steward writes: it tokenises them as the
@@ -14,7 +13,6 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 export const DEMO_INFLUX = {
   v1: { username: 'steward-reader', password: 'demo-influx-password' },
   v2: { token: 'demo-influx2-token', org: 'acme' },
-  v3: { token: 'apiv3_demo-influx3-token' },
   database: 'plant',
   measurement: 'machine_data',
 } as const;
@@ -34,7 +32,7 @@ const SERIES: Point[] = [
 ];
 
 /** For tests: what was asked (version, method, path, the Authorization header, query string and body). */
-export const influxRequests: { version: 1 | 2 | 3; method: string; path: string; authorization?: string; query: Record<string, unknown>; body: unknown }[] = [];
+export const influxRequests: { version: 1 | 2; method: string; path: string; authorization?: string; query: Record<string, unknown>; body: unknown }[] = [];
 let extra: Point[] = [];
 /** For tests: more series (e.g. more than the cap), or [] for the fixed ones only. */
 export function setInfluxExtraSeries(points: Point[]): void {
@@ -50,10 +48,10 @@ export function resetInflux(): void {
 type Tok = { t: 'ident' | 'string' | 'word' | 'num' | 'punct'; v: string };
 
 /**
- * Tokens of InfluxQL, Flux or SQL: double-quoted names (InfluxQL and Flux: backslash escapes; SQL: "" doubled),
- * single-quoted strings (InfluxQL: backslash escapes; SQL: '' doubled), words, numbers and single characters.
+ * Tokens of InfluxQL or Flux: double-quoted names or Flux strings and single-quoted InfluxQL strings, all with backslash
+ * escapes; words, numbers and single characters.
  */
-function tokens(text: string, dialect: 'influxql' | 'flux' | 'sql'): Tok[] {
+function tokens(text: string, dialect: 'influxql' | 'flux'): Tok[] {
   const out: Tok[] = [];
   let i = 0;
   const quoted = (q: string): string => {
@@ -61,7 +59,7 @@ function tokens(text: string, dialect: 'influxql' | 'flux' | 'sql'): Tok[] {
     i++;
     while (i < text.length) {
       const ch = text[i]!;
-      if (ch === '\\' && dialect !== 'sql') {
+      if (ch === '\\') {
         const next = text[i + 1];
         if (next === undefined) throw new Error('unterminated escape');
         v += next;
@@ -69,11 +67,6 @@ function tokens(text: string, dialect: 'influxql' | 'flux' | 'sql'): Tok[] {
         continue;
       }
       if (ch === q) {
-        if (dialect === 'sql' && text[i + 1] === q) {
-          v += q;
-          i += 2;
-          continue;
-        }
         i++;
         return v;
       }
@@ -115,7 +108,7 @@ interface Query {
   tags: Record<string, string>;
   groupBy?: string;
   lookbackMs: number;
-  /** SLIMIT, Flux's last limit(n:), SQL's LIMIT: series (rows) at most */
+  /** SLIMIT, Flux's last limit(n:): series (rows) at most */
   limit?: number;
 }
 
@@ -261,55 +254,15 @@ function fluxCsv(q: Query, now: number): string {
   return `${lines.join('\r\n')}\r\n\r\n`;
 }
 
-// ---------- SQL ----------
-
-function parseSql(text: string): Query {
-  const t = tokens(text, 'sql');
-  let groupBy: string | undefined;
-  const fields: string[] = [];
-  let measurement = '';
-  const tags: Record<string, string> = {};
-  let lookbackMs = 3600_000;
-  let inWhere = false;
-  let limit: number | undefined;
-  for (let i = 0; i < t.length; i++) {
-    if (t[i]?.t === 'ident' && word(t[i + 1], 'AS') && t[i + 2]?.v === 'steward_series') groupBy = t[i]!.v;
-    else if (word(t[i], 'WHEN') && t[i + 1]?.t === 'ident' && word(t[i + 2], 'IS')) fields.push(t[i + 1]!.v);
-    else if (word(t[i], 'FROM') && t[i + 1]?.t === 'ident') measurement = t[i + 1]!.v;
-    else if (word(t[i], 'WHERE')) inWhere = true;
-    else if (word(t[i], 'GROUP')) inWhere = false;
-    else if (word(t[i], 'INTERVAL') && t[i + 1]?.t === 'string') lookbackMs = Number(t[i + 1]!.v.split(' ')[0]) * 1000;
-    else if (inWhere && t[i]?.t === 'ident' && t[i + 1]?.v === '=' && t[i + 2]?.t === 'string') tags[t[i]!.v] = t[i + 2]!.v;
-    else if (word(t[i], 'LIMIT') && t[i + 1]?.t === 'num') limit = Number(t[i + 1]!.v);
-  }
-  return { measurement, fields, tags, groupBy, lookbackMs, limit };
-}
-
-/** InfluxDB 3's JSON time: no zone, microseconds */
-const v3Time = (ms: number) => new Date(ms).toISOString().replace(/\.(\d{3})Z$/, '.$1000');
-
-function sqlRows(q: Query, now: number): Record<string, unknown>[] {
-  const rows = answer(q, now);
-  const byGroup = new Map<string, Record<string, unknown>>();
-  for (const r of rows) {
-    const key = String(r.group);
-    const row = byGroup.get(key) ?? (q.groupBy ? { steward_series: r.group } : {});
-    const i = q.fields.length ? q.fields.indexOf(r.field!) : 0;
-    row[`steward_newest_${i}`] = v3Time(r.time);
-    byGroup.set(key, row);
-  }
-  return [...byGroup.values()];
-}
-
 // ---------- routes ----------
 
 const basicOk = (h: string | undefined) => h === `Basic ${Buffer.from(`${DEMO_INFLUX.v1.username}:${DEMO_INFLUX.v1.password}`).toString('base64')}`;
 
-function log(version: 1 | 2 | 3, req: FastifyRequest): void {
+function log(version: 1 | 2, req: FastifyRequest): void {
   influxRequests.push({
     version,
     method: req.method,
-    path: req.url.split('?')[0]!.replace(/^.*?\/(influxdb[123])\//, '/$1/'),
+    path: req.url.split('?')[0]!.replace(/^.*?\/(influxdb[12])\//, '/$1/'),
     authorization: req.headers.authorization,
     query: { ...(req.query as Record<string, unknown>) },
     body: req.body ?? null,
@@ -378,40 +331,4 @@ export async function mockInflux(app: FastifyInstance): Promise<void> {
       return reply.code(404).send({ code: 'not found', message: `failed to initialize execute state: could not find bucket "${q.bucket}"` });
     return reply.type('text/csv; charset=utf-8').send(fluxCsv(q, Date.now()));
   });
-
-  // ---- 3.x ----
-  const v3Auth = (req: FastifyRequest, reply: FastifyReply): boolean => {
-    if (req.headers.authorization === `Bearer ${DEMO_INFLUX.v3.token}`) return true;
-    void reply.code(401).send({ error: 'the request was not authenticated' });
-    return false;
-  };
-  app.get('/influxdb3/ping', async (req, reply) => {
-    log(3, req);
-    if (!v3Auth(req, reply)) return reply;
-    return reply.header('x-influxdb-version', '3.8.0').header('x-influxdb-build', 'Core').send({ version: '3.8.0', revision: 'demo', process_id: 'demo' });
-  });
-  const v3Query = (language: 'sql' | 'influxql') => async (req: FastifyRequest, reply: FastifyReply) => {
-    log(3, req);
-    if (!v3Auth(req, reply)) return reply;
-    const { db: dbName, q } = (req.body ?? {}) as { db?: string; q?: string };
-    if (dbName !== DEMO_INFLUX.database) return reply.code(404).send({ error: `database not found: ${String(dbName ?? '')}` });
-    const now = Date.now();
-    try {
-      if (language === 'sql') return sqlRows(parseSql(String(q ?? '')), now);
-      const st = statementsOf(String(q ?? ''));
-      if (st.length !== 1) return reply.code(400).send({ error: 'one statement per request' });
-      const parsed = parseInfluxQl(st[0]!);
-      if (parsed === 'show-databases') return [{ 'iox::database': DEMO_INFLUX.database }];
-      return answer(parsed, now).map((r) => ({
-        'iox::measurement': parsed.measurement,
-        time: v3Time(r.time),
-        ...(parsed.groupBy ? { [parsed.groupBy]: r.group } : {}),
-        [parsed.field ? 'last' : 'temperature']: 21.5,
-      }));
-    } catch (e) {
-      return reply.code(400).send({ error: `query error: ${(e as Error).message}` });
-    }
-  };
-  app.post('/influxdb3/api/v3/query_sql', v3Query('sql'));
-  app.post('/influxdb3/api/v3/query_influxql', v3Query('influxql'));
 }

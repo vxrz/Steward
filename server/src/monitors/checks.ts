@@ -511,10 +511,7 @@ async function checkInfluxFreshness(c: CheckOf<'freshness'>, ctx: ExecContext): 
   let read;
   try {
     const version = influx.platformVersion(platform);
-    if (c.retentionPolicy && version !== '1')
-      throw new influx.InfluxError('A retention policy is only for InfluxDB 1.x – remove it, or name the bucket (2.x) or database (3.x)');
-    if (c.language && version !== '3')
-      throw new influx.InfluxError(`The query language is only for InfluxDB 3.x – ${version === '1' ? '1.x reads InfluxQL' : '2.x reads Flux'}`);
+    if (c.retentionPolicy && version !== '1') throw new influx.InfluxError('A retention policy is only for InfluxDB 1.x – remove it and name the bucket (2.x)');
     read = await influx.readInfluxSeries(
       platform,
       secrets,
@@ -529,7 +526,6 @@ async function checkInfluxFreshness(c: CheckOf<'freshness'>, ctx: ExecContext): 
       },
       {
         version,
-        language: c.language,
         org: String(platform.config.variables?.org ?? ''),
         expectedSeries: c.groupBy ? c.expectedSeries : undefined,
         signal: AbortSignal.any([ctx.signal, AbortSignal.timeout(ctx.timeoutMs)]),

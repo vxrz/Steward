@@ -778,22 +778,6 @@ export const PRESETS: PlatformPreset[] = [
       { title: 'InfluxDB 2.x: API tokens', url: 'https://docs.influxdata.com/influxdb/v2/admin/tokens/' },
     ],
   },
-  {
-    kind: 'influxdb',
-    label: 'InfluxDB 3.x (SQL and InfluxQL, read-only)',
-    description:
-      'An InfluxDB 3 server (Core or Enterprise) read over POST /api/v3/query_sql (SQL, the default) or /api/v3/query_influxql (InfluxQL, per check) with JSON answers: the freshness check (source InfluxDB) reads the newest timestamp of each series of a database – max(time) per value of a tag, per field – and the worst series counts. Base URL: the server root (https://HOST:8181). Sign-in: a database token with read permission, sent as Authorization: Bearer. Connection test: GET /ping (it needs the token unless authorisation is turned off for it). Keep the variable version at 3. See docs/MONITORS.md#freshness-in-influxdb.',
-    baseUrl: 'https://influxdb.example.com:8181',
-    config: { auth: { type: 'bearer' }, variables: { version: '3' }, http: {}, testPath: '/ping' },
-    secretFields: [
-      { key: 'token', label: 'Database token (read)', help: 'A token with read permission on the databases the checks read; sent as Authorization: Bearer' },
-    ],
-    docs: [
-      { title: 'InfluxDB 3 Core: query with the HTTP API', url: 'https://docs.influxdata.com/influxdb3/core/query-data/execute-queries/influxdb3-api/' },
-      { title: 'InfluxDB 3 Core: HTTP API reference', url: 'https://docs.influxdata.com/influxdb3/core/api/' },
-      { title: 'InfluxDB 3 Core: tokens', url: 'https://docs.influxdata.com/influxdb3/core/admin/tokens/' },
-    ],
-  },
   // Data contracts (0.9.0, #221, docs/DATA-CONTRACTS.md): the datacontract CLI's API as its own container
   {
     kind: 'datacontract',

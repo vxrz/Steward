@@ -9,7 +9,7 @@ import { PlatformSelect, FreshnessFields, BodyInput, num, type CheckFieldsProps,
 const SOURCE_FIELDS: Record<FreshnessSource, string[]> = {
   insightsHub: [],
   platform: ['method', 'headers', 'body'],
-  influxdb: ['database', 'bucket', 'retentionPolicy', 'measurement', 'fields', 'tags', 'groupBy', 'expectedSeries', 'language', 'lookbackHours'],
+  influxdb: ['database', 'bucket', 'retentionPolicy', 'measurement', 'fields', 'tags', 'groupBy', 'expectedSeries', 'lookbackHours'],
 };
 
 /** The newest timestamp of an Insights Hub time series, of the series of an InfluxDB measurement or of an API answer. */
@@ -144,7 +144,7 @@ export function FreshnessCheckFields({ c, set, platforms, disabled, err, observe
 
 /**
  * The InfluxDB source (0.18.0): what to read – the platform's variable version decides the dialect (1.x InfluxQL, 2.x
- * Flux, 3.x SQL or InfluxQL) and whether it is a database or a bucket. Steward writes the query from these fields.
+ * Flux) and whether it is a database or a bucket. Steward writes the query from these fields.
  */
 function InfluxFields({
   c,
@@ -161,7 +161,7 @@ function InfluxFields({
 }) {
   const { t } = useTranslation('monitors');
   const version = influxVersionOf(platforms.find((p) => p.id === c.platform)?.config?.variables);
-  // 2.x reads a bucket, 1.x and 3.x a database; the other name is kept as it is when the platform changes
+  // 2.x reads a bucket, 1.x a database; the other name is kept as it is when the platform changes
   const container = version === '2' ? 'bucket' : 'database';
   const containerValue = (version === '2' ? (c.bucket ?? c.database) : (c.database ?? c.bucket)) ?? '';
   const setContainer = (v: string) => set({ database: undefined, bucket: undefined, [container]: v || undefined });
@@ -194,7 +194,7 @@ function InfluxFields({
         <TextInput
           error={err('measurement')}
           data-field="measurement"
-          label={t(version === '3' ? 'form.influxTable' : 'form.influxMeasurement')}
+          label={t('form.influxMeasurement')}
           required
           disabled={disabled}
           value={c.measurement ?? ''}
@@ -202,24 +202,6 @@ function InfluxFields({
           classNames={{ input: 'mono' }}
         />
       </Group>
-      {version === '3' && (
-        <div>
-          <Text size="sm" fw={500} mb={4}>
-            {t('form.influxLanguage')}
-          </Text>
-          <SegmentedControl
-            size="xs"
-            disabled={disabled}
-            data-field="language"
-            value={c.language ?? 'sql'}
-            onChange={(v) => set({ language: v === 'influxql' ? 'influxql' : undefined })}
-            data={[
-              { value: 'sql', label: 'SQL' },
-              { value: 'influxql', label: 'InfluxQL' },
-            ]}
-          />
-        </div>
-      )}
       <TagsInput
         error={err('fields')}
         data-field="fields"

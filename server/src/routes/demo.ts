@@ -326,7 +326,7 @@ export async function setupDemo(opts: { applications?: boolean; services?: boole
       kind: INFLUX_KIND,
       environment: 'demo',
       description:
-        'Simulated InfluxDB 2.x (Flux over /api/v2/query, annotated CSV) served by the built-in mock: bucket plant, measurement machine_data, one series per device – press-03 is stale. The mock also answers as 1.x (/mock/influxdb1) and 3.x (/mock/influxdb3). See docs/MONITORS.md#freshness-in-influxdb.',
+        'Simulated InfluxDB 2.x (Flux over /api/v2/query, annotated CSV) served by the built-in mock: bucket plant, measurement machine_data, one series per device – press-03 is stale. The mock also answers as 1.x (/mock/influxdb1). See docs/MONITORS.md#freshness-in-influxdb.',
       baseUrl: `${base}/influxdb2`,
       config: { auth: { type: 'bearer' }, variables: { version: '2', org: DEMO_INFLUX.v2.org }, http: { proxy: 'none' }, testPath: '/health' },
       secrets: { token: DEMO_INFLUX.v2.token },

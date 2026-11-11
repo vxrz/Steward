@@ -170,11 +170,11 @@ const KINDS = {
     maturity: preview,
   },
   datacontract: { label: 'Data contract service', group: 'databases', maturity: preview },
-  // 0.18.0: InfluxDB 1.x (InfluxQL), 2.x (Flux) and 3.x (SQL, InfluxQL) – the freshness check reads its series
+  // 0.18.0: InfluxDB 1.x (InfluxQL) and 2.x (Flux) – the freshness check reads its series
   influxdb: {
     label: 'InfluxDB',
     group: 'databases',
-    apiExample: 'https://HOST:8086 (1.x, 2.x) or https://HOST:8181 (3.x)',
+    apiExample: 'https://HOST:8086',
     connectionTest: 'own',
     checkTypes: ['freshness'],
     maturity: preview,

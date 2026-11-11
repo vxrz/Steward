@@ -1,7 +1,7 @@
 # Machine data in InfluxDB (0.18.0): the newest point of every press, read from InfluxDB – one series per value of the
-# tag "device", the worst press counts. Steward writes the query itself (Flux for 2.x, InfluxQL for 1.x, SQL for 3.x)
-# and quotes every name and value. "platform: InfluxDB" finds your InfluxDB platform when it is the only one; on import
-# you choose it otherwise. The bucket (2.x) is "database" on 1.x and 3.x. See docs/MONITORS.md#freshness-in-influxdb.
+# tag "device", the worst press counts. Steward writes the query itself (Flux for 2.x, InfluxQL for 1.x) and quotes
+# every name and value. "platform: InfluxDB" finds your InfluxDB platform when it is the only one; on import you choose
+# it otherwise. The bucket (2.x) is "database" on 1.x. See docs/MONITORS.md#freshness-in-influxdb.
 kind: monitor
 key: influxdb-machine-data
 name: Presses – machine data in InfluxDB

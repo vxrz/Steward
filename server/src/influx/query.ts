@@ -1,22 +1,19 @@
-import { INFLUX_CONTROL_RE, INFLUX_LIMITS, influxSeriesName, type InfluxVersion } from '@sm/shared';
+import { INFLUX_CONTROL_RE, INFLUX_LIMITS, influxSeriesName } from '@sm/shared';
 
 /**
  * The queries of the freshness check's InfluxDB source (0.18.0, docs/MONITORS.md#freshness-in-influxdb) and the parsers
  * of their answers – pure, no I/O. Steward writes every query itself: names are quoted identifiers, values are string
- * literals, both escaped for the dialect (InfluxQL, Flux, SQL); a control character in either is refused, never
+ * literals, both escaped for the dialect (InfluxQL, Flux); a control character in either is refused, never
  * passed on. Durations and limits are integers Steward computed.
  */
 
 export class InfluxQueryError extends Error {}
 
-export type InfluxDialect = 'influxql' | 'flux' | 'sql';
-
 /** What the check reads: one series per value of `groupBy` (and per field, with fields). */
 export interface InfluxReadSpec {
-  version: InfluxVersion;
-  dialect: InfluxDialect;
-  /** 1.x and 3.x: the database; 2.x: the bucket */
+  /** 1.x: the database; 2.x: the bucket */
   database: string;
+  /** 1.x only */
   retentionPolicy?: string;
   measurement: string;
   fields: string[];
@@ -45,10 +42,6 @@ export const influxQlIdent = (name: string): string => `"${clean(name, 'A name')
 export const influxQlString = (value: string): string => `'${clean(value, 'A value').replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
 /** Flux string literal: double quotes; \, " and the start of an interpolation ${ escaped with a backslash. */
 export const fluxString = (value: string): string => `"${clean(value, 'A value').replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\$\{/g, '\\${')}"`;
-/** SQL identifier (DataFusion): double quotes, " doubled – the name keeps its case. */
-export const sqlIdent = (name: string): string => `"${clean(name, 'A name').replace(/"/g, '""')}"`;
-/** SQL string literal (DataFusion): single quotes, ' doubled (a backslash is an ordinary character). */
-export const sqlString = (value: string): string => `'${clean(value, 'A value').replace(/'/g, "''")}'`;
 
 /** The look-back of a check's query in seconds: lookbackHours, else 24 h or the freshness window and a half when longer. */
 export function lookbackSeconds(lookbackHours: number | undefined, freshnessLookback: number): number {
@@ -64,24 +57,22 @@ const seconds = (s: number): number => {
 /** Rows read per query: one more than the cap, to tell "more than the cap" */
 const ROWS = INFLUX_LIMITS.series + 1;
 
-// ---------- InfluxQL (1.x /query, 3.x /api/v3/query_influxql) ----------
+// ---------- InfluxQL (1.x /query) ----------
 
 /**
  * One statement per field (`last()` gives the time of the newest point of that field), or with no field the newest
- * point of any field (`SELECT *`, newest first, one row per series). 1.x caps the series with SLIMIT; InfluxDB 3 has
- * no SLIMIT, the answer is capped when read.
+ * point of any field (`SELECT *`, newest first, one row per series); SLIMIT caps the series.
  */
 export function influxQlStatements(spec: InfluxReadSpec): string[] {
-  const from =
-    spec.version === '1' && spec.retentionPolicy
-      ? `${influxQlIdent(spec.database)}.${influxQlIdent(spec.retentionPolicy)}.${influxQlIdent(spec.measurement)}`
-      : influxQlIdent(spec.measurement);
+  const from = spec.retentionPolicy
+    ? `${influxQlIdent(spec.database)}.${influxQlIdent(spec.retentionPolicy)}.${influxQlIdent(spec.measurement)}`
+    : influxQlIdent(spec.measurement);
   const where = [
     `time > now() - ${seconds(spec.lookbackSeconds)}s`,
     ...Object.entries(spec.tags).map(([k, v]) => `${influxQlIdent(k)} = ${influxQlString(v)}`),
   ].join(' AND ');
   const group = spec.groupBy ? ` GROUP BY ${influxQlIdent(spec.groupBy)}` : '';
-  const slimit = spec.groupBy && spec.version === '1' ? ` SLIMIT ${ROWS}` : '';
+  const slimit = spec.groupBy ? ` SLIMIT ${ROWS}` : '';
   if (!spec.fields.length) return [`SELECT * FROM ${from} WHERE ${where}${group} ORDER BY time DESC LIMIT 1${slimit}`];
   return spec.fields.map((f) => `SELECT last(${influxQlIdent(f)}) FROM ${from} WHERE ${where}${group}${slimit}`);
 }
@@ -110,33 +101,13 @@ export function fluxQuery(spec: InfluxReadSpec): string {
   return lines.join('\n');
 }
 
-// ---------- SQL (3.x /api/v3/query_sql) ----------
-
-/** Column names of the SQL answer (aliases Steward chose, never a name from the check). */
-export const SQL_SERIES = 'steward_series';
-export const sqlNewest = (i: number): string => `steward_newest_${i}`;
-
-/** `max(time)` per value of the grouping tag – per field, the newest time the field has a value. */
-export function sqlQuery(spec: InfluxReadSpec): string {
-  const newest = spec.fields.length
-    ? spec.fields.map((f, i) => `max(CASE WHEN ${sqlIdent(f)} IS NOT NULL THEN time END) AS ${sqlIdent(sqlNewest(i))}`)
-    : [`max(time) AS ${sqlIdent(sqlNewest(0))}`];
-  const select = [...(spec.groupBy ? [`${sqlIdent(spec.groupBy)} AS ${sqlIdent(SQL_SERIES)}`] : []), ...newest].join(', ');
-  const where = [
-    `time >= now() - INTERVAL '${seconds(spec.lookbackSeconds)} seconds'`,
-    ...Object.entries(spec.tags).map(([k, v]) => `${sqlIdent(k)} = ${sqlString(v)}`),
-  ].join(' AND ');
-  const group = spec.groupBy ? ` GROUP BY ${sqlIdent(spec.groupBy)} ORDER BY ${sqlIdent(spec.groupBy)} LIMIT ${ROWS}` : '';
-  return `SELECT ${select} FROM ${sqlIdent(spec.measurement)} WHERE ${where}${group}`;
-}
-
 // ---------- timestamps ----------
 
 const ISO_RE = /^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}:\d{2})(?:\.(\d{1,9}))?(Z|[+-]\d{2}:?\d{2})?$/i;
 
 /**
- * A timestamp of an answer in ms: RFC 3339 with up to nanoseconds (a time without a zone is UTC – InfluxDB 3's JSON
- * writes them so), or a Unix epoch number – nanoseconds, microseconds, milliseconds or seconds by its size. null: none.
+ * A timestamp of an answer in ms: RFC 3339 with up to nanoseconds (a time without a zone is taken as UTC), or a Unix
+ * epoch number – nanoseconds, microseconds, milliseconds or seconds by its size. null: none.
  */
 export function parseInfluxTime(v: unknown): number | null {
   if (v === null || v === undefined || v === '') return null;
@@ -193,21 +164,15 @@ export function influxQlError(body: unknown): string | null {
 
 /**
  * The answer of InfluxQL statements: the 1.x JSON (`results[i].series[]` with `tags`, `columns`, `values`) – result i
- * belongs to statement i, so to field i – or rows as InfluxDB 3 writes them (objects, the tag as a column).
+ * belongs to statement i, so to field i.
  */
-export function parseInfluxQl(body: unknown, spec: Pick<InfluxReadSpec, 'fields' | 'groupBy'>, statement = 0): InfluxSeries[] {
+export function parseInfluxQl(body: unknown, spec: Pick<InfluxReadSpec, 'fields' | 'groupBy'>): InfluxSeries[] {
   const err = influxQlError(body);
   if (err) throw new InfluxQueryError(err.slice(0, 300));
   const out = new Collector(!!spec.groupBy);
-  const fieldOf = (i: number) => spec.fields[i];
-  const rows = rowsOf(body);
-  if (rows) {
-    for (const r of rows) out.add(spec.groupBy ? r[spec.groupBy] : null, fieldOf(statement), r.time);
-    return out.list();
-  }
   if (!isRecord(body) || !Array.isArray(body.results)) throw new InfluxQueryError('The answer is not an InfluxQL result (no "results")');
   (body.results as V1Result[]).forEach((res, i) => {
-    const field = fieldOf(typeof res?.statement_id === 'number' ? res.statement_id : i) ?? fieldOf(statement);
+    const field = spec.fields[typeof res?.statement_id === 'number' ? res.statement_id : i];
     for (const s of Array.isArray(res?.series) ? res.series : []) {
       const cols = Array.isArray(s.columns) ? s.columns : [];
       const ti = cols.indexOf('time');
@@ -220,44 +185,6 @@ export function parseInfluxQl(body: unknown, spec: Pick<InfluxReadSpec, 'fields'
       }
     }
   });
-  return out.list();
-}
-
-/**
- * Rows of a JSON answer of InfluxDB 3 (`format=json`: a list of objects; `jsonl`: one object per line; or a
- * `results[].series[]` envelope with columns and values) – null when the body is none of these.
- */
-export function rowsOf(body: unknown): Record<string, unknown>[] | null {
-  if (Array.isArray(body)) return body.filter(isRecord);
-  if (typeof body === 'string') {
-    const lines = body.split('\n').filter((l) => l.trim());
-    if (!lines.length) return [];
-    try {
-      const parsed = lines.map((l) => JSON.parse(l) as unknown);
-      if (parsed.length === 1 && Array.isArray(parsed[0])) return (parsed[0] as unknown[]).filter(isRecord);
-      return parsed.every(isRecord) ? (parsed as Record<string, unknown>[]) : null;
-    } catch {
-      return null;
-    }
-  }
-  return null;
-}
-
-/** The answer of the SQL query (InfluxDB 3): rows with steward_series and steward_newest_<i>. */
-export function parseSql(body: unknown, spec: Pick<InfluxReadSpec, 'fields' | 'groupBy'>): InfluxSeries[] {
-  if (isRecord(body) && typeof body.error === 'string') throw new InfluxQueryError(body.error.slice(0, 300));
-  let rows = rowsOf(body);
-  if (!rows && isRecord(body) && Array.isArray(body.results)) {
-    // the envelope of InfluxDB 3's API description: results[].series[] with columns and values
-    rows = [];
-    for (const res of body.results as V1Result[])
-      for (const s of Array.isArray(res?.series) ? res.series : [])
-        for (const v of Array.isArray(s.values) ? s.values : []) rows.push(Object.fromEntries((s.columns ?? []).map((c, i) => [c, v[i]])));
-  }
-  if (!rows) throw new InfluxQueryError('The answer is not a list of rows (format json)');
-  const out = new Collector(!!spec.groupBy);
-  const fields = spec.fields.length ? spec.fields : [undefined];
-  for (const r of rows) fields.forEach((f, i) => out.add(spec.groupBy ? r[SQL_SERIES] : null, f, r[sqlNewest(i)]));
   return out.list();
 }
 

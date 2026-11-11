@@ -4707,6 +4707,7 @@ export interface Resources {
     'codes.PLATFORM_CHOICE_KIND_several': string;
     'codes.SYNC_PLATFORM_CHOICE_NEEDED': string;
     'codes.PLATFORM_NO_TOKEN': string;
+    'codes.PLATFORM_INFLUX_VERSION': string;
     'codes.NOTIFICATION_LOOK_INVALID': string;
     'codes.NOTIFICATION_LOGO_TOO_LARGE': string;
     'codes.NOTIFICATION_LOGO_TYPE': string;
@@ -6863,8 +6864,6 @@ export interface Resources {
     'form.influxRetentionPolicy': string;
     'form.influxRetentionPolicyHint': string;
     'form.influxMeasurement': string;
-    'form.influxTable': string;
-    'form.influxLanguage': string;
     'form.influxFields': string;
     'form.influxFieldsHint': string;
     'form.influxTags': string;

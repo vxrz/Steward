@@ -181,7 +181,6 @@ export function delayIdentity(c: CheckDef): string | null {
             [...(c.fields ?? [])].sort(),
             Object.entries(c.tags ?? {}).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)),
             c.groupBy ?? '',
-            c.language ?? '',
           ]
         : ['api', c.platform, c.method ?? 'GET', c.path ?? '', c.query ?? {}, c.body ?? null, c.timestamp ?? ''];
   return crypto.createHash('sha256').update(JSON.stringify(parts)).digest('base64url').slice(0, 22);

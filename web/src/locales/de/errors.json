@@ -119,6 +119,7 @@
     "PLATFORM_CHOICE_KIND_several": "Plattform „{{name}}“ ist von keiner der Arten {{kinds}}, von denen „{{ref}}“ eine braucht.",
     "SYNC_PLATFORM_CHOICE_NEEDED": "Wählen Sie vor dem Übernehmen die Plattform für {{refs}}.",
     "PLATFORM_NO_TOKEN": "Diese Plattform meldet sich nicht mit einem Token an.",
+    "PLATFORM_INFLUX_VERSION": "Die InfluxDB-Version „{{version}}“ wird nicht unterstützt – setzen Sie die Variable version auf 1 (InfluxDB 1.x) oder 2 (InfluxDB 2.x).",
     "NOTIFICATION_LOOK_INVALID": "Bitte die Einstellungen zum Aussehen der Benachrichtigungen prüfen.",
     "NOTIFICATION_LOGO_TOO_LARGE": "Das Benachrichtigungslogo ist zu groß (höchstens {{maxKb}} KB).",
     "NOTIFICATION_LOGO_TYPE": "Das Benachrichtigungslogo muss ein PNG- oder JPEG-Bild sein – andere Formate zeigen E-Mail-Programme nicht an.",

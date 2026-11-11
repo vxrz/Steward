@@ -501,7 +501,7 @@ async function obtainAuthHeader(p: Platform, secrets: Record<string, string>, si
       // GitLab's own header for personal, group and project access tokens: reverse proxies and sign-in gateways in
       // front of GitLab often take over Authorization (v0.3.1). headerName "Authorization" there is for OAuth tokens.
       const name = (auth.headerName || (p.kind === 'gitlab' ? 'PRIVATE-TOKEN' : 'Authorization')).toLowerCase();
-      // InfluxDB 2.x documents its own scheme for API tokens (0.18.0): "Authorization: Token <token>"; 1.x (JWT) and 3.x take Bearer
+      // InfluxDB 2.x documents its own scheme for API tokens (0.18.0): "Authorization: Token <token>"; 1.x takes its JWT as Bearer
       const scheme = p.kind === INFLUX_KIND && influxVersionOf(p.config.variables) === '2' ? 'Token' : 'Bearer';
       return name === 'authorization' ? ['authorization', `${scheme} ${secrets.token}`] : [name, secrets.token];
     }

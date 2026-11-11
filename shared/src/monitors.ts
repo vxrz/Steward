@@ -18,7 +18,7 @@ import type { MonitorStateInfo } from './monitorStates.js';
 import { AWS_REGION_RE } from './aws.js';
 import { PAGE_WATCH_LIMITS, PAGE_WATCH_UUID_RE } from './changedetection.js';
 import { COST_CHECK_PERIODS, COST_SCOPES, currencyCode, toMicros } from './costs.js';
-import { INFLUX_CONTROL_RE, INFLUX_LANGUAGES, INFLUX_LIMITS } from './influx.js';
+import { INFLUX_CONTROL_RE, INFLUX_LIMITS } from './influx.js';
 
 // ---------- statuses ----------
 
@@ -209,7 +209,7 @@ const influxText = z
 
 /** The fields of the freshness check's InfluxDB source (docs/MONITORS.md#freshness-in-influxdb) */
 const influxFields = {
-  /** 1.x and 3.x: the database; 2.x: the bucket (either name is accepted for every version) */
+  /** 1.x: the database; 2.x: the bucket (either name is accepted for both versions) */
   database: influxText.optional(),
   bucket: influxText.optional(),
   /** 1.x: the retention policy (default: the database's default) */
@@ -235,8 +235,6 @@ const influxFields = {
   groupBy: influxText.optional(),
   /** Values of groupBy that must be there: one missing is down (no data) */
   expectedSeries: z.array(influxText).max(INFLUX_LIMITS.expectedSeries).optional(),
-  /** 3.x: SQL (default) or InfluxQL */
-  language: z.enum(INFLUX_LANGUAGES).optional(),
   /** How far the query looks back (hours; default 24, or the freshness window and a half when longer) */
   lookbackHours: z.number().int().min(1).max(INFLUX_LIMITS.maxLookbackHours).optional(),
 };
@@ -1034,7 +1032,7 @@ function influxIssues(c: CheckOf<'freshness'>, i: number): DefinitionIssue[] {
     for (const f of INFLUX_FIELD_NAMES) if (c[f] !== undefined) at(f, 'only the InfluxDB source reads this');
     return out;
   }
-  if (!c.database && !c.bucket) at('database', 'InfluxDB freshness needs the database (1.x, 3.x) or the bucket (2.x)');
+  if (!c.database && !c.bucket) at('database', 'InfluxDB freshness needs the database (1.x) or the bucket (2.x)');
   if (!c.measurement) at('measurement', 'InfluxDB freshness needs the measurement');
   if (c.fields && new Set(c.fields).size !== c.fields.length) at('fields', 'each field only once');
   if (c.expectedSeries?.length && !c.groupBy) at('expectedSeries', 'expected series need the tag the series are grouped by');

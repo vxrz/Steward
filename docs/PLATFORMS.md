@@ -37,15 +37,14 @@ While you model a process, the platform is often not reachable yet, or you do no
 
 ## InfluxDB
 
-Three presets of the kind `influxdb` (0.18.0) – _InfluxDB 1.x_, _2.x_ and _3.x_ – differ in the variable `version`, which tells Steward how to ask; all three are read-only and serve the freshness check's [InfluxDB source](MONITORS.md#freshness-in-influxdb). The base URL is the server root (`https://HOST:8086` for 1.x and 2.x, `https://HOST:8181` for 3.x).
+Two presets of the kind `influxdb` (0.18.0) – _InfluxDB 1.x_ and _2.x_ – differ in the variable `version`, which tells Steward how to ask; both are read-only and serve the freshness check's [InfluxDB source](MONITORS.md#freshness-in-influxdb). The base URL is the server root (`https://HOST:8086`). InfluxDB 3.x is not supported yet: saving a platform whose `version` is neither 1.x nor 2.x is refused.
 
 | Version | Sign-in                                                                                        | Variables           | Connection test                                                  |
 | ------- | ---------------------------------------------------------------------------------------------- | ------------------- | ---------------------------------------------------------------- |
 | 1.x     | none, basic (a user with READ on the database) or bearer (a JWT signed with the shared secret) | `version: 1`        | `GET /ping` (204), then `SHOW DATABASES` with the credentials    |
 | 2.x     | bearer: an API token with read access to the buckets, sent as `Authorization: Token <token>`   | `version: 2`, `org` | `GET /health`, then `GET /api/v2/buckets?limit=1` with the token |
-| 3.x     | bearer: a database token with read permission, sent as `Authorization: Bearer <token>`         | `version: 3`        | `GET /ping` (it asks for the token by default)                   |
 
-Credentials are kept in the vault like every other platform's and read with the platform's identity; requests go to the base URL only and through the outbound policy. The `Token` scheme is the platform client's own rule for this kind and version, as `PRIVATE-TOKEN` is for GitLab. The demo has _InfluxDB (demo)_, a 2.x mock; the mock also answers as 1.x and 3.x below `/mock/influxdb1` and `/mock/influxdb3`.
+Credentials are kept in the vault like every other platform's and read with the platform's identity; requests go to the base URL only and through the outbound policy. The `Token` scheme is the platform client's own rule for this kind and version, as `PRIVATE-TOKEN` is for GitLab. The demo has _InfluxDB (demo)_, a 2.x mock; the mock also answers as 1.x below `/mock/influxdb1`.
 
 ## Supported authentication
 

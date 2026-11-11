@@ -1,20 +1,16 @@
 /**
  * InfluxDB (0.18.0, docs/MONITORS.md#freshness-in-influxdb): the platform kind and the limits of the freshness check
- * with `source: influxdb`. Steward builds the query itself – InfluxQL (1.x, 3.x), Flux (2.x) or SQL (3.x) – from the
- * names in the check; names and values are quoted for the dialect and never written into a query as they are.
+ * with `source: influxdb`. Steward builds the query itself – InfluxQL (1.x) or Flux (2.x) – from the names in the check;
+ * names and values are quoted for the dialect and never written into a query as they are.
  */
 
 import type { MonitorStatus } from './monitors.js';
 
 export const INFLUX_KIND = 'influxdb';
 
-/** The API generation of an InfluxDB platform (its variable `version`): 1.x InfluxQL, 2.x Flux, 3.x SQL or InfluxQL. */
-export const INFLUX_VERSIONS = ['1', '2', '3'] as const;
+/** The API generations Steward reads (an InfluxDB platform's variable `version`): 1.x InfluxQL, 2.x Flux. */
+export const INFLUX_VERSIONS = ['1', '2'] as const;
 export type InfluxVersion = (typeof INFLUX_VERSIONS)[number];
-
-/** The query language of a 3.x check (1.x always reads InfluxQL, 2.x Flux). */
-export const INFLUX_LANGUAGES = ['sql', 'influxql'] as const;
-export type InfluxLanguage = (typeof INFLUX_LANGUAGES)[number];
 
 export const INFLUX_LIMITS = {
   /** Series (group values × fields) judged per check; more are cut off and the message says so */
@@ -38,12 +34,12 @@ export const INFLUX_LIMITS = {
 // eslint-disable-next-line no-control-regex -- the point is to find control characters
 export const INFLUX_CONTROL_RE = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/;
 
-/** The API generation of a platform from its variable `version` ("2", "2.7", "v3" …); undefined when it names none. */
+/** The variable `version` of a platform as written ("2", "2.7", "v1" …), trimmed; '' when it is not set. */
+export const influxVersionText = (variables: Record<string, unknown> | undefined | null): string => String(variables?.version ?? '').trim();
+
+/** The API generation of a platform from its variable `version` ("2", "2.7", "v1" …); undefined when it names none Steward reads. */
 export function influxVersionOf(variables: Record<string, unknown> | undefined | null): InfluxVersion | undefined {
-  const raw = String(variables?.version ?? '')
-    .trim()
-    .replace(/^v/i, '');
-  const major = raw.split('.')[0];
+  const major = influxVersionText(variables).replace(/^v/i, '').split('.')[0];
   return (INFLUX_VERSIONS as readonly string[]).includes(major ?? '') ? (major as InfluxVersion) : undefined;
 }
 

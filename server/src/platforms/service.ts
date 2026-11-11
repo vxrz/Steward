@@ -3,8 +3,11 @@ import path from 'node:path';
 import {
   BRAND,
   DATABASE_KIND,
+  INFLUX_KIND,
   aiGatewaySettingsSchema,
   databaseSettingsSchema,
+  influxVersionOf,
+  influxVersionText,
   type ApiOperation,
   type McpGatewayConfig,
   type Platform,
@@ -319,8 +322,25 @@ function checkedDatabase(cfg: PlatformConfig): PlatformConfig {
   return { ...cfg, database: r.data };
 }
 
+/**
+ * An InfluxDB platform reads 1.x or 2.x (0.18.0, docs/PLATFORMS.md#influxdb): any other variable version – 3.x as well –
+ * is refused when it is saved. A platform without one is told so when a check reads it.
+ */
+function assertInfluxVersion(kind: string | undefined, cfg: PlatformConfig | undefined): void {
+  if (kind !== INFLUX_KIND) return;
+  const version = influxVersionText(cfg?.variables).slice(0, 40);
+  if (version && !influxVersionOf(cfg?.variables))
+    throw new HttpError(
+      400,
+      `InfluxDB version "${version}" is not supported – set the variable version to 1 (InfluxDB 1.x) or 2 (InfluxDB 2.x)`,
+      'PLATFORM_INFLUX_VERSION',
+      { version },
+    );
+}
+
 export function createPlatform(input: PlatformInput): Platform {
   if (!input.name?.trim()) throw new HttpError(400, 'Name is required', 'NAME_REQUIRED');
+  assertInfluxVersion(input.kind, input.config);
   const id = newId('pf_');
   const ts = nowIso();
   const secrets = Object.fromEntries(Object.entries(input.secrets ?? {}).filter(([, v]) => v !== '' && v != null));
@@ -406,6 +426,7 @@ export function updatePlatform(id: string, patch: Partial<PlatformInput>): Platf
         }
       : stored,
   };
+  assertInfluxVersion(next.kind, next.config);
   db().tx(() => {
     db().run(
       `UPDATE platforms SET name=?, kind=?, description=?, base_url=?, environment=?, config=?, updated_at=? WHERE id=?`,

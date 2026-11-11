@@ -119,6 +119,7 @@
     "PLATFORM_CHOICE_KIND_several": "Platform “{{name}}” is not of one of the kinds {{kinds}}, one of which “{{ref}}” needs.",
     "SYNC_PLATFORM_CHOICE_NEEDED": "Choose the platform for {{refs}} before accepting.",
     "PLATFORM_NO_TOKEN": "This platform does not log in for a token.",
+    "PLATFORM_INFLUX_VERSION": "InfluxDB version “{{version}}” is not supported – set the variable version to 1 (InfluxDB 1.x) or 2 (InfluxDB 2.x).",
     "NOTIFICATION_LOOK_INVALID": "Check the settings of the notification look.",
     "NOTIFICATION_LOGO_TOO_LARGE": "The notification logo is too large (at most {{maxKb}} KB).",
     "NOTIFICATION_LOGO_TYPE": "The notification logo must be a PNG or JPEG image – mail clients cannot show other formats.",
