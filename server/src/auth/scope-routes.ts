@@ -221,6 +221,13 @@ function bulkResources(b: BulkInput): { kind: OwnedKind; r: ResourceRow }[] {
   return out;
 }
 
+/** The team ids a resource has after a bulk change. */
+function nextTeamIds(before: readonly string[], b: BulkInput): string[] {
+  if (b.mode === 'set') return [...new Set(b.teamIds)];
+  if (b.mode === 'add') return [...new Set([...before, ...b.teamIds])];
+  return before.filter((t) => !b.teamIds.includes(t));
+}
+
 function nextTeams(before: OwningTeam[], b: BulkInput, known: Map<string, string>): OwningTeam[] {
   const wanted = b.teamIds.map((id) => ({ id, name: known.get(id)! }));
   const list =
@@ -288,7 +295,14 @@ export async function scopeRoutes(app: FastifyInstance): Promise<void> {
           who: 'manageUsers',
           when: (req: FastifyRequest) => {
             const b = bulkInput.safeParse(req.body);
-            return !b.success || (!b.data.preview && b.data.mode !== 'remove' && b.data.teamIds.length > 0);
+            if (!b.success) return true;
+            if (b.data.preview) return false;
+            if (b.data.mode !== 'remove' && b.data.teamIds.length > 0) return true;
+            // removing teams: a resource left without any is opened to the whole instance (security review 0.18.0, M4)
+            return bulkResources(b.data).some(({ kind, r }) => {
+              const before = owningTeams(kind, r.id).map((t) => t.id);
+              return before.length > 0 && !nextTeamIds(before, b.data).length;
+            });
           },
         },
       },
@@ -337,6 +351,16 @@ export async function scopeRoutes(app: FastifyInstance): Promise<void> {
       if (!b.preview && changed.length) {
         db().tx(() => {
           for (const x of changed) {
+            // a supplier gets the same protections as through its own panel (ADR 0031 part 8; security review 0.18.0,
+            // M4): its contracts and contacts stay with who saw them. A contact that needs the administrator's choice
+            // (SUPPLIER_MERGE_CONTACT_CHOICE) stops the whole change – the supplier's own panel asks for it
+            const protectedWhat =
+              x.kind === 'supplier'
+                ? protectOpening(
+                    x.r.id,
+                    x.after.map((t) => t.id),
+                  )
+                : null;
             setOwningTeams(
               x.kind,
               x.r.id,
@@ -348,7 +372,7 @@ export async function scopeRoutes(app: FastifyInstance): Promise<void> {
               entityType: x.kind,
               entityId: x.r.id,
               summary: `Owning teams of ${x.kind} "${x.r.name}": ${names.length ? names.join(', ') : 'none (the whole instance)'}${x.before.length ? ` (were: ${x.before.map((t) => t.name).join(', ')})` : ''} – bulk change`,
-              details: { before: x.before.map((t) => t.name), after: names, bulk: true },
+              details: { before: x.before.map((t) => t.name), after: names, bulk: true, ...(protectedWhat ? { protected: protectedWhat } : {}) },
             });
           }
         });

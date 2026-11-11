@@ -315,6 +315,30 @@ describe('opening a team-scoped supplier', () => {
   });
 });
 
+describe('opening through the bulk change of owning teams', () => {
+  it('protects contracts and contacts like the supplier’s own panel, and stops at a contact that needs a choice', async () => {
+    const id = await teamSupplier('Invented Bulk Hosting', shopTeam);
+    await s.api('POST', `/suppliers/${id}/contracts`, { title: 'Bulk hosting', owners: [] });
+    await s.api('POST', `/suppliers/${id}/contacts`, { name: 'Bulk hosting desk', email: 'bulk@hosting.example' });
+    await s.api('POST', '/owning-teams/bulk', { mode: 'remove', teamIds: [shopTeam], resources: [{ kind: 'supplier', id }] });
+    expect((await s.api('GET', `/owning-teams/supplier/${id}`)).teams).toEqual([]);
+    const v = await vera('GET', `/suppliers/${id}`);
+    expect(v.contracts).toEqual([]);
+    expect(JSON.stringify(v.contacts)).not.toContain('bulk@hosting.example');
+    expect((await olivia('GET', `/suppliers/${id}`)).contracts.map((c: any) => c.title)).toEqual(['Bulk hosting']);
+    const audit = (await s.api('GET', `/audit?action=access.owning_teams_changed&entityId=${id}&limit=5`))[0];
+    expect(audit.details).toMatchObject({ bulk: true, protected: { contracts: [{ owners: ['team:shared shop team'] }] } });
+    // nothing to scope the contact to: the bulk change stops, nothing changed
+    const bare = await teamSupplier('Invented Bulk Bare', shopTeam);
+    await s.api('POST', `/suppliers/${bare}/contacts`, { name: 'Bare desk' });
+    expect(await refused(s.api('POST', '/owning-teams/bulk', { mode: 'set', teamIds: [], resources: [{ kind: 'supplier', id: bare }] }))).toEqual({
+      status: 409,
+      code: 'SUPPLIER_MERGE_CONTACT_CHOICE',
+    });
+    expect((await s.api('GET', `/owning-teams/supplier/${bare}`)).teams.map((t: any) => t.id)).toEqual([shopTeam]);
+  });
+});
+
 describe('Replaced by …', () => {
   it('moves what named a contract to another contract of the supplier', async () => {
     const sup = (await dana('POST', '/suppliers', { name: 'Invented Replacement Hosting' })).id;
