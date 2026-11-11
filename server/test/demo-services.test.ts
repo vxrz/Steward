@@ -85,6 +85,23 @@ describe('demo services', () => {
     expect(soa.versions).toEqual([]);
     expect(soa.counts).toMatchObject({ applicable: 5, notApplicable: 1 });
     expect(soa.entries.find((e: { ref: string }) => e.ref === '8.13').suggestion).toMatchObject({ counts: { supplier: 1, team: 1 }, party: 'shared' });
+    // shared by two services (ADR 0031): the hosting held by the service desk team, an order form of a framework
+    // agreement for customer care, a contact scoped to the hosting contract, and a pair split by team
+    const shared = await s.api('GET', `/suppliers/${cloud.id}`);
+    const hosting = shared.contracts.find((c: { title: string }) => c.title === 'Managed Kubernetes');
+    expect(hosting).toMatchObject({ teamOwned: true, services: [expect.objectContaining({ id: shop.id, purpose: 'Hosting of the shop’s clusters' })] });
+    const orderForm = shared.contracts.find((c: { title: string }) => c.title === 'Order form: agent workspace licences');
+    expect(orderForm).toMatchObject({
+      parent: { title: 'Platform framework agreement' },
+      slaAvailability: 99.5,
+      dpa: { personalData: true, inheritedFrom: 'master' },
+    });
+    expect(orderForm.inherited).toContain('slaAvailability');
+    expect(shared.contacts.find((c: { name: string }) => c.name === 'Example Cloud hosting account manager').scope[0]).toMatchObject({
+      kind: 'contract',
+      id: hosting.id,
+    });
+    expect((await s.api('GET', '/suppliers/shared-suggestions')).some((g: { name: string }) => g.name.startsWith('Invented Relay Mail'))).toBe(true);
     const toConfirm = (await s.api('GET', '/suppliers?status=unconfirmed')) as { name: string }[];
     expect(toConfirm.map((x) => x.name)).toEqual(expect.arrayContaining(['Zentrova Cloud', 'Mailbrook']));
 

@@ -171,7 +171,8 @@ export async function setupServiceDemo(now = Date.now()): Promise<number> {
     );
 
   // ---- suppliers (0.17.0, ADR 0029): a SaaS payment platform and the managed platform of the cluster ----
-  const suppliers = step('suppliers', () => setupSupplierDemo([...desk, ...dana], now)) ?? null;
+  const suppliers =
+    step('suppliers', () => setupSupplierDemo([...desk, ...dana], now, { shop: shop.id, care: care.id, teamOwner: desk[0], userOwner: dana[0] })) ?? null;
 
   // ---- a system in two environments ----
   const cluster = step('system', () =>
