@@ -3076,6 +3076,7 @@ export interface Resources {
     'entryImport.removeConfirm_one': string;
     'entryImport.removeConfirm_other': string;
     'entryImport.removed': string;
+    'entryImport.clearFile': string;
   };
   credentials: {
     title: string;

@@ -217,6 +217,7 @@ export function EntryImportDialog({ d, onClose, onSaved }: { d: CostPlanYear; on
           value={file}
           onChange={(f) => void choose(f)}
           clearable
+          clearButtonProps={{ 'aria-label': t('entryImport.clearFile') }}
           data-testid="import-file"
         />
         {error && (

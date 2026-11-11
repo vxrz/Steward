@@ -675,6 +675,7 @@
     "remove": "Remove import",
     "removeConfirm_one": "Remove the import of {{name}}? Its {{count}} entry that is still there goes.",
     "removeConfirm_other": "Remove the import of {{name}}? Its {{count}} entries that are still there go.",
-    "removed": "Import removed"
+    "removed": "Import removed",
+    "clearFile": "Remove the file"
   }
 }

@@ -675,6 +675,7 @@
     "remove": "Import entfernen",
     "removeConfirm_one": "Den Import von {{name}} entfernen? Seine {{count}} noch vorhandene Buchung entfällt.",
     "removeConfirm_other": "Den Import von {{name}} entfernen? Seine {{count}} noch vorhandenen Buchungen entfallen.",
-    "removed": "Import entfernt"
+    "removed": "Import entfernt",
+    "clearFile": "Datei entfernen"
   }
 }
