@@ -43,7 +43,7 @@ import { toAccessChange } from './access-changes.js';
 import { evidenceForControls, evidenceOf, getControl, type PackCoverageStatus } from './controls.js';
 import { getReview, verifySeal } from './person-reviews.js';
 import { findingsOfControls } from './corrective.js';
-import { latestApprovedFiles } from './soa.js';
+import { cataloguesWithApprovedSoa, latestApprovedFiles } from './soa.js';
 import { getCheck, getSnapshot, listFindings, listSnapshots, verifyChain } from './reconciliation.js';
 import type { PackPdfModel } from './pack-pdf.js';
 import { drawPdf } from '../reports/pdf/pool.js';
@@ -758,13 +758,20 @@ async function buildPack(id: string, lang: ReportLang, opts: { assurance?: boole
       );
     }
 
-    // the statement of applicability (ADR 0029 part 4): the latest approved version of each catalogue whose controls are
-    // in the pack – the archived PDF (checked against its recorded SHA-256), its CSV and the frozen JSON
+    // the statement of applicability (ADR 0029 part 4): of each catalogue whose controls are in the pack, the version
+    // valid at the end of the period – approved latest on or before it (0.17.1; a pack of a past period does not get a
+    // statement approved after it) – the archived PDF (checked against its recorded SHA-256), its CSV and the frozen JSON
     const catalogueIds = [...new Set(controls.map((c) => c.catalogue))]
       .map((key) => db().get<{ id: string }>('SELECT id FROM control_catalogues WHERE key = ?', key)?.id)
       .filter((x): x is string => !!x);
     const soas: { catalogue: string; number: number; approvedAt: string; approvedBy: string; contentSha256: string; files: string[] }[] = [];
-    for (const v of catalogueIds.length ? latestApprovedFiles(catalogueIds, u) : []) {
+    const valid = catalogueIds.length ? latestApprovedFiles(catalogueIds, u, to) : [];
+    for (const c of cataloguesWithApprovedSoa(catalogueIds))
+      if (!valid.some((v) => v.catalogueId === c.catalogueId))
+        b.omitted.push(
+          `soa/${safe(c.catalogueKey)}: no version of the statement of applicability was approved by the end of the period (${to}); the first was approved on ${c.firstApprovedAt}.`,
+        );
+    for (const v of valid) {
       const dir = `soa/${safe(v.catalogueKey)}`;
       // the signed bytes cannot be filtered: a version naming suppliers or services the creator may not see stays out
       if (v.hidden) {

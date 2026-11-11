@@ -6,7 +6,7 @@ import { setup, startTestServer, type Client, type TestServer } from './helpers.
 /**
  * The ISMS summary and the rest of ADR 0029 part 4: the report section (content, the owner's rights, the period, the
  * module switch, the PDF in English and German), the notification soa.approval_waiting to the approvers, and the
- * soa/ folder of evidence packs (the latest approved version of each catalogue whose controls are in the pack).
+ * soa/ folder of evidence packs (the version of each catalogue whose controls are in the pack valid at the period's end).
  */
 
 process.env.SM_GATUS_AUTOSTART = '0';
@@ -304,12 +304,12 @@ describe('the ISMS summary section', () => {
 
 describe('evidence packs', () => {
   it('hold the latest approved statement of each catalogue whose controls are in the pack, under soa/', async () => {
-    const make = async (controlIds: string[]) => {
+    const make = async (controlIds: string[], from = Date.now() - DAY, to = Date.now() + 60_000) => {
       const p = await s.api('POST', '/compliance/evidence-packs', {
         title: 'ISMS evidence',
         scope: { controlIds },
-        from: new Date(Date.now() - DAY).toISOString(),
-        to: new Date(Date.now() + 60_000).toISOString(),
+        from: new Date(from).toISOString(),
+        to: new Date(to).toISOString(),
       });
       let pack = p;
       for (let i = 0; i < 600 && pack.status === 'building'; i++) {
@@ -342,5 +342,52 @@ describe('evidence packs', () => {
     // a pack of other controls has no soa/ folder (ISO27001 has no approved statement here)
     const other = await ZipReader.open(await make([(await s.api('GET', '/compliance/controls?catalogue=ISO27001'))[0].id]));
     expect(other.find('soa/ISMSX/soa-ISMSX-v1.json')).toBeFalsy();
+  });
+
+  it('of a past period hold the version valid at its end, not the latest one (0.17.1)', async () => {
+    const { ZipReader } = await import('../src/compliance/zip.js');
+    const { verifyPack } = await import('../src/compliance/evidence-verify.js');
+    const { packsDir } = await import('../src/compliance/evidence-pack.js');
+    const { db } = await import('../src/db.js');
+    const make = async (from: number, to: number) => {
+      const p = await s.api('POST', '/compliance/evidence-packs', {
+        title: 'ISMS evidence of a past period',
+        scope: { controlIds: [ctl['I.1']!] },
+        from: new Date(from).toISOString(),
+        to: new Date(to).toISOString(),
+      });
+      let pack = p;
+      for (let i = 0; i < 600 && pack.status === 'building'; i++) {
+        await new Promise((r) => setTimeout(r, 100));
+        pack = await s.api('GET', `/compliance/evidence-packs/${p.id}`);
+      }
+      expect(pack.status).toBe('ready');
+      const zip = await ZipReader.open(path.join(packsDir(), `${p.id}.zip`));
+      const index = JSON.parse((await zip.read(zip.find('index.json')!)).toString('utf8'));
+      expect((await verifyPack(path.join(packsDir(), `${p.id}.zip`))).ok).toBe(true);
+      return { names: zip.entries.map((e) => e.name).filter((n) => n.startsWith('soa/')), index };
+    };
+    // version 2 approved now; version 1 (superseded by it) was approved ten days ago
+    await dana('POST', '/compliance/soa/ISMSX/versions');
+    await adam('POST', '/compliance/soa/ISMSX/versions/2/decision', { approve: true });
+    const versionOf = (n: number) =>
+      `(SELECT v.id FROM soa_versions v JOIN soas s ON s.id = v.soa_id JOIN control_catalogues k ON k.id = s.catalogue_id WHERE k.key = 'ISMSX' AND v.number = ${n})`;
+    db().run(`UPDATE soa_versions SET decided_at = ? WHERE id = ${versionOf(1)}`, new Date(Date.now() - 10 * DAY).toISOString());
+    expect(db().get<{ status: string }>(`SELECT status FROM soa_versions WHERE id = ${versionOf(1)}`)!.status).toBe('superseded');
+
+    // the current period: version 2
+    const now = await make(Date.now() - DAY, Date.now() + 60_000);
+    expect(now.names.filter((n) => n.endsWith('.json'))).toEqual(['soa/ISMSX/soa-ISMSX-v2.json']);
+    // a period that ended five days ago: version 1, valid then
+    const past = await make(Date.now() - 8 * DAY, Date.now() - 5 * DAY);
+    expect(past.names.sort()).toEqual(['soa/ISMSX/soa-ISMSX-v1.csv', 'soa/ISMSX/soa-ISMSX-v1.json', 'soa/ISMSX/soa-ISMSX-v1.pdf']);
+    expect(past.index.statementsOfApplicability).toEqual([expect.objectContaining({ catalogue: 'ISMSX', number: 1 })]);
+    // a period that ended before the first approval: nothing under soa/, and the index says why
+    const before = await make(Date.now() - 20 * DAY, Date.now() - 15 * DAY);
+    expect(before.names).toEqual([]);
+    expect(before.index.statementsOfApplicability).toBeUndefined();
+    expect(before.index.omitted).toEqual(
+      expect.arrayContaining([expect.stringMatching(/^soa\/ISMSX: no version of the statement of applicability was approved by the end of the period/)]),
+    );
   });
 });
