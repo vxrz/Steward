@@ -56,23 +56,35 @@ function text(l: Locale, x: ExpiringItem): { title: string; body: string } {
 
 /**
  * Who a reminder goes to (ADR 0031 part 7), each person once and only who may see what it is about:
- *  - a notice-by date: the contract's owners; without owners the supplier's owners; without those the administrators;
+ *  - a notice-by date: the contract's owners; without owners the supplier's owners; without those – or when none of
+ *    them may see the contract (a deleted team, a merge into another team's supplier) – the administrators;
  *  - a certificate: the supplier's owners and the owners of every active contract of the supplier; without any the
  *    administrators.
  */
 export function recipientsOf(x: ExpiringItem, all: UserInfo[]): UserInfo[] {
   const admins = () => all.filter((u) => u.roles.includes('admin'));
-  const supplier = db().get<{ id: string; owners: string }>('SELECT id, owners FROM suppliers WHERE id = ?', x.supplierId);
   if (x.kind === 'notice') {
-    const subjects = x.contractOwners.length ? x.contractOwners : x.owners;
-    const users = subjects.length ? usersOfSubjects(subjects, all) : admins();
-    const c = db().get<{ id: string; supplier_id: string; owners: string }>('SELECT id, supplier_id, owners FROM supplier_contracts WHERE id = ?', x.itemId);
-    return c ? users.filter((u) => contractVisible(c, supplier, toAuthUser(u))) : [];
+    const owners = noticeOwners(x, all);
+    return owners.length ? owners : admins();
   }
+  const supplier = db().get<{ id: string; owners: string }>('SELECT id, owners FROM suppliers WHERE id = ?', x.supplierId);
   const users = usersOfSubjects([...new Set([...x.owners, ...x.activeContractOwners])], all);
   const sees = (u: UserInfo) => !supplier || runAs(toAuthUser(u), () => supplierVisible(supplier));
   const seen = users.filter(sees);
   return seen.length ? seen : admins();
+}
+
+/**
+ * The owners a notice-by reminder goes to before the fallback: the contract's owners, else the supplier's – only who
+ * may see the contract. Empty: the administrators get it (recipientsOf, and their daily summary).
+ */
+export function noticeOwners(x: ExpiringItem, all: UserInfo[]): UserInfo[] {
+  const subjects = x.contractOwners.length ? x.contractOwners : x.owners;
+  if (!subjects.length) return [];
+  const c = db().get<{ id: string; supplier_id: string; owners: string }>('SELECT id, supplier_id, owners FROM supplier_contracts WHERE id = ?', x.itemId);
+  if (!c) return [];
+  const supplier = db().get<{ id: string; owners: string }>('SELECT id, owners FROM suppliers WHERE id = ?', x.supplierId);
+  return usersOfSubjects(subjects, all).filter((u) => contractVisible(c, supplier, toAuthUser(u)));
 }
 
 /** Sends the reminders that are due. Returns the number sent. */

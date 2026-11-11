@@ -15204,6 +15204,8 @@ export interface Resources {
     'shared.previewTitle': string;
     'shared.widens': string;
     'shared.gainers': string;
+    'shared.narrows': string;
+    'shared.losers': string;
     'shared.teams': string;
     'shared.noOwners': string;
     'shared.sameReference': string;

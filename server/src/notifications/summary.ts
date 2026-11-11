@@ -53,6 +53,7 @@ import { dashboardVisible } from '../dashboards/service.js';
 import { offeredFor } from '../kafka/prefixes.js';
 import { canEditApplication } from '../catalogue/applications.js';
 import { expiringItems, type ExpiringItem } from '../suppliers/service.js';
+import { noticeOwners } from '../suppliers/jobs.js';
 
 /**
  * Optional daily summary per user (off by default, turned on in the profile).
@@ -561,19 +562,18 @@ function dashboardOf(key: string): string {
 /**
  * Supplier certificates and notice dates (0.17.0; ADR 0031 since 0.18.0), in the next 90 days or passed in the last 30:
  * notice-by dates of contracts the recipient owns (administrators also those whose reminders fall back to them – no
- * contract owners and no supplier owners), and certificates of suppliers the recipient owns or holds an active
- * contract with.
+ * contract owners and no supplier owners, or none of them may see the contract), and certificates of suppliers the
+ * recipient owns or holds an active contract with.
  */
 function suppliersSection(c: Ctx): Section {
   const own = (subjects: string[]) => subjects.some((s) => matches(c.user, s));
   const admin = c.user.roles.includes('admin');
+  let users: UserInfo[] | null = null;
+  // the reminder's owners: none of them may see the contract (or there are none) – the administrators (jobs.ts)
+  const fallsBack = (x: ExpiringItem) => !noticeOwners(x, (users ??= listUsers().filter((u) => u.active))).length;
   const mine = (x: ExpiringItem) =>
     x.kind === 'notice'
-      ? x.contractOwners.length
-        ? own(x.contractOwners)
-        : x.owners.length
-          ? own(x.owners)
-          : admin
+      ? own(x.contractOwners.length ? x.contractOwners : x.owners) || (admin && fallsBack(x))
       : own(x.owners) || own(x.activeContractOwners) || (!x.owners.length && !x.activeContractOwners.length && admin);
   const items = expiringItems({ days: 90, pastDays: 30 }, Date.parse(c.until))
     .filter(mine)

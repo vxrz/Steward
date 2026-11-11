@@ -393,6 +393,8 @@
     "previewTitle": "Zu einem gemeinsamen Lieferanten zusammenführen",
     "widens": "Diese Zusammenführung zeigt den Lieferanten mehr Personen.",
     "gainers": "Sehen danach den Lieferanten (Name, Zertifikate, unternehmensweite Kontakte): {{names}}",
+    "narrows": "Diese Zusammenführung verbirgt einen Lieferanten und die Verträge darin vor Personen, die ihn jetzt sehen.",
+    "losers": "Sehen danach den Lieferanten und seine Verträge nicht mehr (Erinnerungen an Kündigungsfristen von Verträgen, die niemand mehr sieht, gehen an die Administratoren): {{names}}",
     "teams": "Besitzende Teams des Ergebnisses: {{teams}}",
     "noOwners": "keine Eigentümer",
     "sameReference": "gleiche Vertragsnummer",

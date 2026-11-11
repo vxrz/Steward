@@ -714,6 +714,13 @@ export interface SupplierMergePreview {
   widens: boolean;
   /** Who gains sight of the company record (name, certificates, company-wide contacts) */
   gainers: string[];
+  /**
+   * Narrows who sees a source (an instance-wide supplier, or one of other teams, into a team's supplier): its readers
+   * who do not see the result lose sight of it and of its contracts – administrators only
+   */
+  narrows: boolean;
+  /** Who loses sight of a source's company record and contracts */
+  losers: string[];
   /** The owning teams of the result (none: the whole instance) */
   teams: string[];
   contracts: { supplierId: string; id: string; title: string; reference: string; owners: string[]; ownersAfter: string[]; sameReference: boolean }[];

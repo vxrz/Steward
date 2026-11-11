@@ -56,6 +56,15 @@ export function widens(source: OwningTeam[], target: OwningTeam[]): boolean {
   return !target.length || target.some((t) => !source.some((x) => x.id === t.id));
 }
 
+/**
+ * Someone who saw the source does not see the result: the target is team-scoped and the source is instance-wide or
+ * has a team the target has not (security review 0.18.0, M2) – their contracts on the source would go out of sight.
+ */
+export function narrows(source: OwningTeam[], target: OwningTeam[]): boolean {
+  if (!target.length) return false;
+  return !source.length || source.some((t) => !target.some((x) => x.id === t.id));
+}
+
 interface ScopeItem {
   kind: SupplierContactScopeKind;
   id: string;
@@ -80,22 +89,22 @@ function protectiveScope(src: SupplierRow): ScopeItem[] {
 const scopeRows = (contactId: string) =>
   db().all<{ kind: SupplierContactScopeKind; item_id: string }>('SELECT kind, item_id FROM supplier_contact_scopes WHERE contact_id = ?', contactId);
 
-/** Who sees the supplier with these owning teams (active users). */
-function readersOf(s: SupplierRow, teams: OwningTeam[]): Set<string> {
+/** Who sees the supplier with these owning teams and owners (active users). */
+function readersOf(s: SupplierRow, teams: OwningTeam[], owners: string[] = ownersOf(s)): Set<string> {
   const out = new Set<string>();
   for (const u of listUsers().filter((x) => x.active)) {
     const a = toAuthUser(u);
     // the owning teams as they would be: members of these teams, the named owners, administrators and auditors
-    const mine = teams.length ? catalogueAccessWith(a, s, teams) : catalogueAccess(a, { kind: 'supplier', id: '\u0000none', owners: ownersOf(s) }).view;
+    const mine = teams.length ? catalogueAccessWith(a, owners, teams) : catalogueAccess(a, { kind: 'supplier', id: '\u0000none', owners }).view;
     if (mine) out.add(u.username);
   }
   return out;
 }
 
-/** catalogueAccess for a supplier as if it had these owning teams (a preview; nothing is stored). */
-function catalogueAccessWith(u: AuthUser, s: SupplierRow, teams: OwningTeam[]): boolean {
+/** catalogueAccess for a supplier as if it had these owning teams and owners (a preview; nothing is stored). */
+function catalogueAccessWith(u: AuthUser, owners: string[], teams: OwningTeam[]): boolean {
   if (isAdmin(u) || u.roles.includes('auditor')) return true;
-  if (ownersOf(s).some((o) => subjectMatches(u, o))) return true;
+  if (owners.some((o) => subjectMatches(u, o))) return true;
   const ids = new Set(teams.map((t) => t.id));
   return db()
     .all<{ team_id: string }>('SELECT team_id FROM team_members WHERE user_id = ?', u.id)
@@ -138,6 +147,8 @@ function plan(target: SupplierRow, sources: SupplierRow[], choices: Record<strin
     ids: sources.map((x) => x.id),
     widens: false,
     gainers: [],
+    narrows: false,
+    losers: [],
     teams: targetTeams.map((t) => t.name),
     contracts: [],
     contacts: [],
@@ -147,6 +158,8 @@ function plan(target: SupplierRow, sources: SupplierRow[], choices: Record<strin
     moves: { links: {}, spellings: [], schedules: 0 },
   };
   const targetReaders = readersOf(target, targetTeams);
+  // who sees the result: its owners are those of all suppliers merged (the default of the preview)
+  const resultReaders = opening ? targetReaders : readersOf(target, targetTeams, preview.owners);
   const all = opening ? [target] : sources;
   const refs = new Set(
     db()
@@ -163,6 +176,11 @@ function plan(target: SupplierRow, sources: SupplierRow[], choices: Record<strin
       preview.widens = true;
       const before = readersOf(src, srcTeams);
       for (const n of targetReaders) if (!before.has(n) && !preview.gainers.includes(n)) preview.gainers.push(n);
+    }
+    if (narrows(srcTeams, targetTeams)) {
+      // its readers who do not see the result lose it, and with it the contracts they saw through it
+      preview.narrows = true;
+      for (const n of readersOf(src, srcTeams)) if (!resultReaders.has(n) && !preview.losers.includes(n)) preview.losers.push(n);
     }
     // contracts: without a team owner they get the source's owning teams
     for (const c of db().all<ContractRow>('SELECT * FROM supplier_contracts WHERE supplier_id = ? ORDER BY lower(title), id', src.id)) {
@@ -239,6 +257,7 @@ function plan(target: SupplierRow, sources: SupplierRow[], choices: Record<strin
     }
   }
   preview.gainers.sort();
+  preview.losers.sort();
   out.preview = preview;
   return out;
 }
@@ -354,14 +373,18 @@ function protect(p: Plan, supplierId: string): void {
 /**
  * POST /api/suppliers/merge: up to ten suppliers into one, in one transaction. Their links (every linking table),
  * spellings, contracts with their schedules, certificates and contacts move; the protections of the plan apply; the
- * owners of the result are `owners` (default: all owners). A merge that widens who sees anything is for
- * administrators; one of suppliers with the same owning teams also for designers.
+ * owners of the result are `owners` (default: all owners). A merge that changes who sees anything – widening or
+ * narrowing – is for administrators; one of suppliers with the same owning teams also for designers.
  */
 export function mergeSuppliers(input: SupplierSharedMergeInput): SupplierDetail {
   const u = requireManager();
   const { target, sources } = loadMerge(input.intoId, input.ids);
   const p = plan(target, sources, (input.contacts ?? {}) as Record<string, SupplierContactChoice>);
-  if (p.preview.widens && !isAdmin(u)) forbid('merge suppliers that are seen by fewer people into this one (administrators)', 'mergeWidening');
+  // a merge that changes who sees anything – widening or narrowing – changes a team scope: administrators (ADR 0031
+  // part 8). Designers merge suppliers with the same owning teams.
+  const targetTeams = owningTeams('supplier', target.id);
+  if (!isAdmin(u) && sources.some((x) => !sameTeams(owningTeams('supplier', x.id), targetTeams)))
+    forbid('merge suppliers with other owning teams into this one (administrators)', 'mergeWidening');
   const choose = p.preview.contacts.find((c) => c.action === 'choose');
   if (choose)
     throw new HttpError(409, `Choose what happens to the contact "${choose.name}": company-wide or removed`, 'SUPPLIER_MERGE_CONTACT_CHOICE', {
@@ -428,6 +451,7 @@ export function mergeSuppliers(input: SupplierSharedMergeInput): SupplierDetail 
         sourceTeams,
         links: p.preview.moves.links,
         widens: p.preview.widens,
+        ...(p.preview.narrows ? { narrows: true, losers: p.preview.losers } : {}),
         contracts: p.preview.contracts
           .filter((c) => JSON.stringify(c.owners) !== JSON.stringify(c.ownersAfter))
           .map((c) => ({ id: c.id, owners: c.ownersAfter })),

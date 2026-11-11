@@ -63,7 +63,8 @@ describe('same supplier in several teams', () => {
 
   it('suggests one shared supplier for the same text in two teams, proposing the instance-wide one', async () => {
     shop = await teamSupplier('Invented Cloud GmbH', shopTeam, { personal_data: 1, dpa_status: 'inPlace', dpa_since: '2025-01-01' });
-    care = await teamSupplier('Invented Cloud', careTeam);
+    // made a moment later (the same millisecond would leave "the oldest" to the ids)
+    care = await teamSupplier('Invented Cloud', careTeam, { created_at: new Date(Date.now() + 1000).toISOString() });
     let groups = await s.api('GET', '/suppliers/shared-suggestions');
     const g = groups.find((x: any) => x.suppliers.some((y: any) => y.id === shop));
     expect(g.suppliers.map((x: any) => x.id).sort()).toEqual([shop, care].sort());
@@ -178,6 +179,61 @@ describe('same supplier in several teams', () => {
     // the "To confirm" route merges by the same rules
     const c = (await dana('POST', '/suppliers', { name: 'Invented Same Teams C' })).id;
     await dana('POST', `/suppliers/${c}/merge`, { into: a });
+  });
+});
+
+describe('a merge that narrows who sees a supplier', () => {
+  it('is for administrators, names who loses sight, and the notice reminders fall back to the administrators', async () => {
+    const soon = (days: number) => new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
+    // the instance-wide supplier with the shop team's contract, and a supplier of the care team
+    const shared = (await bert('POST', '/suppliers', { name: 'Invented Narrow Shared' })).id;
+    await s.api('POST', `/suppliers/${shared}/contracts`, {
+      title: 'Shop notice contract',
+      owners: ['team:shared shop team'],
+      endsOn: soon(80),
+      noticeDays: 30,
+    });
+    const careOnly = await teamSupplier('Invented Narrow Care', careTeam, { status: 'active' });
+    // bert (a designer in the care team) sees both, but the merge would hide the shared supplier from everyone else
+    const p = await bert('POST', '/suppliers/merge/preview', { intoId: careOnly, ids: [shared] });
+    expect(p).toMatchObject({ widens: false, narrows: true });
+    expect(p.losers).toEqual(expect.arrayContaining(['olivia', 'vera']));
+    expect(p.losers).not.toContain('bert');
+    expect(p.losers).not.toContain('admin');
+    expect(await refused(bert('POST', '/suppliers/merge', { intoId: careOnly, ids: [shared] }))).toEqual({ status: 403, code: 'FORBIDDEN' });
+    // the "To confirm" route keeps the same rule
+    expect(await refused(bert('POST', `/suppliers/${shared}/merge`, { into: careOnly }))).toEqual({ status: 403, code: 'FORBIDDEN' });
+    const { expiringItems } = await import('../src/suppliers/service.js');
+    const { recipientsOf } = await import('../src/suppliers/jobs.js');
+    const { runAs } = await import('../src/auth/context.js');
+    const { listUsers } = await import('../src/auth/users.js');
+    const to = () => {
+      const x = runAs(null, () => expiringItems({ days: 90, pastDays: 0 })).find((i) => i.title === 'Shop notice contract')!;
+      return recipientsOf(
+        x,
+        listUsers().filter((u) => u.active),
+      ).map((u) => u.username);
+    };
+    expect(to()).toEqual(['olivia']);
+    // an administrator merges it all the same: the shop team loses the contract, its reminder goes to the administrators
+    await s.api('POST', '/suppliers/merge', { intoId: careOnly, ids: [shared] });
+    expect((await s.api('GET', `/audit?action=supplier.merged&entityId=${careOnly}&limit=1`))[0].details).toMatchObject({ narrows: true });
+    expect(await refused(olivia('GET', `/suppliers/${careOnly}`))).toMatchObject({ status: 404 });
+    expect(to()).toEqual(['admin']);
+    // and the administrators' daily summary lists it
+    const sum = await import('../src/notifications/summary.js');
+    const prefs = { enabled: true, time: '08:00', timeZone: 'Europe/Berlin', days: 'weekdays', channel: 'inApp', sections: ['suppliers'], skipEmpty: true };
+    const built = (name: string) =>
+      JSON.stringify(
+        sum.buildSummary(
+          listUsers().find((u) => u.username === name)!,
+          prefs as never,
+          Date.now() - 3600000,
+          Date.now() + 1000,
+        ),
+      );
+    expect(built('admin')).toContain('Shop notice contract');
+    expect(built('olivia')).not.toContain('Shop notice contract');
   });
 });
 

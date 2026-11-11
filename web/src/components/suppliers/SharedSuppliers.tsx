@@ -190,6 +190,11 @@ export function MergePreviewModal({ intoId, ids, onClose, onMerged }: { intoId: 
               {p.gainers.length ? t('shared.gainers', { names: p.gainers.join(', ') }) : t('shared.widens')}
             </Alert>
           )}
+          {p.narrows && (
+            <Alert color="orange" variant="light" data-testid="merge-narrows">
+              {p.losers.length ? t('shared.losers', { names: p.losers.join(', ') }) : t('shared.narrows')}
+            </Alert>
+          )}
           <Text size="sm">{t('shared.teams', { teams: p.teams.length ? p.teams.join(', ') : t('shared.wholeInstance') })}</Text>
           {p.contracts.length > 0 && (
             <Stack gap={2}>

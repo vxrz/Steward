@@ -393,6 +393,8 @@
     "previewTitle": "Merge into one shared supplier",
     "widens": "This merge shows the company record to more people.",
     "gainers": "Gain sight of the company record (name, certificates, company-wide contacts): {{names}}",
+    "narrows": "This merge hides a supplier, and the contracts on it, from people who see it now.",
+    "losers": "Lose sight of the supplier and its contracts (notice-by reminders of contracts nobody can see any more go to the administrators): {{names}}",
     "teams": "Owning teams of the result: {{teams}}",
     "noOwners": "no owners",
     "sameReference": "same contract number",
