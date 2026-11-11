@@ -18,6 +18,7 @@ import type { MonitorStateInfo } from './monitorStates.js';
 import { AWS_REGION_RE } from './aws.js';
 import { PAGE_WATCH_LIMITS, PAGE_WATCH_UUID_RE } from './changedetection.js';
 import { COST_CHECK_PERIODS, COST_SCOPES, currencyCode, toMicros } from './costs.js';
+import { INFLUX_CONTROL_RE, INFLUX_LANGUAGES, INFLUX_LIMITS } from './influx.js';
 
 // ---------- statuses ----------
 
@@ -193,6 +194,54 @@ export const DYNAMODB_LIMITS = {
 /** Table and index names (DynamoDB naming rules): 3–255 of a-z A-Z 0-9 _ - . */
 export const DYNAMODB_NAME_RE = /^[A-Za-z0-9_.-]{3,255}$/;
 
+// ---------- InfluxDB (0.18.0) ----------
+
+export const FRESHNESS_SOURCES = ['insightsHub', 'platform', 'influxdb'] as const;
+export type FreshnessSource = (typeof FRESHNESS_SOURCES)[number];
+
+/** A name or value of the InfluxDB source: no control characters (it is quoted for the query's dialect, never written as it is) */
+const influxText = z
+  .string()
+  .trim()
+  .min(1)
+  .max(INFLUX_LIMITS.nameChars)
+  .refine((v) => !INFLUX_CONTROL_RE.test(v), 'no control characters or line breaks');
+
+/** The fields of the freshness check's InfluxDB source (docs/MONITORS.md#freshness-in-influxdb) */
+const influxFields = {
+  /** 1.x and 3.x: the database; 2.x: the bucket (either name is accepted for every version) */
+  database: influxText.optional(),
+  bucket: influxText.optional(),
+  /** 1.x: the retention policy (default: the database's default) */
+  retentionPolicy: influxText.optional(),
+  measurement: influxText.optional(),
+  /** Each field is a series of its own; none: the newest point of any field */
+  fields: z.array(influxText).max(INFLUX_LIMITS.fields).optional(),
+  /** Tag filters: every tag must have this value */
+  tags: boundedRecord(
+    z
+      .string()
+      .max(INFLUX_LIMITS.nameChars)
+      .refine((v) => !INFLUX_CONTROL_RE.test(v), 'no control characters or line breaks'),
+    INFLUX_LIMITS.tags,
+  )
+    .superRefine((t, ctx) => {
+      for (const k of Object.keys(t ?? {}))
+        if (!k.trim() || k.length > INFLUX_LIMITS.nameChars || INFLUX_CONTROL_RE.test(k))
+          ctx.addIssue({ code: 'custom', message: `"${k.slice(0, 40)}" is not a valid tag key` });
+    })
+    .optional(),
+  /** One series per value of this tag (e.g. device); the worst series counts */
+  groupBy: influxText.optional(),
+  /** Values of groupBy that must be there: one missing is down (no data) */
+  expectedSeries: z.array(influxText).max(INFLUX_LIMITS.expectedSeries).optional(),
+  /** 3.x: SQL (default) or InfluxQL */
+  language: z.enum(INFLUX_LANGUAGES).optional(),
+  /** How far the query looks back (hours; default 24, or the freshness window and a half when longer) */
+  lookbackHours: z.number().int().min(1).max(INFLUX_LIMITS.maxLookbackHours).optional(),
+};
+const INFLUX_FIELD_NAMES = Object.keys(influxFields) as (keyof typeof influxFields)[];
+
 /** platform: id or name of a configured platform (names are resolved to ids when saving). */
 const platformRef = z.string().trim().min(1).max(200);
 
@@ -243,8 +292,8 @@ export const checkSchema = z.discriminatedUnion('type', [
   z.object({
     ...checkBase,
     type: z.literal('freshness'),
-    /** insightsHub: IoT Time Series of an asset/aspect; platform: any API call + JSONata timestamp */
-    source: z.enum(['insightsHub', 'platform']).default('insightsHub'),
+    /** insightsHub: IoT Time Series of an asset/aspect; platform: any API call + JSONata timestamp; influxdb: series of a measurement (0.18) */
+    source: z.enum(FRESHNESS_SOURCES).default('insightsHub'),
     platform: platformRef,
     assetId: z.string().max(200).optional(),
     aspect: z.string().max(200).optional(),
@@ -262,6 +311,7 @@ export const checkSchema = z.discriminatedUnion('type', [
       .optional(),
     /** platform source: JSONata over the response body returning a timestamp (or a list – the newest counts) */
     timestamp: expr.optional(),
+    ...influxFields,
     ...freshnessFields,
   }),
   z.object({
@@ -870,7 +920,7 @@ export function definitionIssues(def: MonitorDefinition, opts: { template?: bool
       if (!c.path) issues.push({ path: `checks.${i}.path`, message: 'platform freshness needs the path', checkId: c.id });
       if (!c.timestamp) issues.push({ path: `checks.${i}.timestamp`, message: 'platform freshness needs the timestamp expression', checkId: c.id });
     }
-    if (c.type === 'freshness') issues.push(...requestIssues(c, i));
+    if (c.type === 'freshness') issues.push(...requestIssues(c, i), ...influxIssues(c, i));
     if (c.type === 'dynamodb') issues.push(...dynamoDbIssues(c, i));
   });
   const seen = new Set<string>();
@@ -973,6 +1023,23 @@ function requestIssues(c: CheckOf<'freshness'>, i: number): DefinitionIssue[] {
   }
   // header names and the body's size are rules of the schema
   if (bodyChars(c.body) > 0 && (c.method ?? 'GET') !== 'POST') at('body', 'a body is only sent with POST');
+  return out;
+}
+
+/** The InfluxDB source's fields: only with that source, a measurement and a database or bucket, each name once (0.18.0). */
+function influxIssues(c: CheckOf<'freshness'>, i: number): DefinitionIssue[] {
+  const out: DefinitionIssue[] = [];
+  const at = (field: string, message: string) => out.push({ path: `checks.${i}.${field}`, message, checkId: c.id });
+  if (c.source !== 'influxdb') {
+    for (const f of INFLUX_FIELD_NAMES) if (c[f] !== undefined) at(f, 'only the InfluxDB source reads this');
+    return out;
+  }
+  if (!c.database && !c.bucket) at('database', 'InfluxDB freshness needs the database (1.x, 3.x) or the bucket (2.x)');
+  if (!c.measurement) at('measurement', 'InfluxDB freshness needs the measurement');
+  if (c.fields && new Set(c.fields).size !== c.fields.length) at('fields', 'each field only once');
+  if (c.expectedSeries?.length && !c.groupBy) at('expectedSeries', 'expected series need the tag the series are grouped by');
+  else if (c.expectedSeries && new Set(c.expectedSeries).size !== c.expectedSeries.length) at('expectedSeries', 'each value only once');
+  if (c.groupBy && c.tags && Object.hasOwn(c.tags, c.groupBy)) at('groupBy', 'the series cannot be grouped by a tag that is filtered to one value');
   return out;
 }
 

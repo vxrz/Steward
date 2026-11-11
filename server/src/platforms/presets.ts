@@ -738,6 +738,62 @@ export const PRESETS: PlatformPreset[] = [
       },
     ],
   },
+  // InfluxDB (0.18.0, docs/MONITORS.md#freshness-in-influxdb): one preset per API generation, the variable version tells them apart
+  {
+    kind: 'influxdb',
+    label: 'InfluxDB 1.x (InfluxQL, read-only)',
+    description:
+      'An InfluxDB 1.x server (OSS or Enterprise, also 1.8 with Flux turned off) read with InfluxQL over GET /query: the freshness check (source InfluxDB) reads the newest timestamp of each series – per value of a tag, per field – and the worst series counts. Base URL: the server root (https://HOST:8086). Sign-in: none, a user name and password (basic; a user with READ on the database is enough) or a JWT signed with the shared secret (bearer) – filling in the fields below picks it. Connection test: GET /ping, then SHOW DATABASES with the credentials. Keep the variable version at 1. See docs/MONITORS.md#freshness-in-influxdb.',
+    baseUrl: 'https://influxdb.example.com:8086',
+    config: { auth: { type: 'none' }, variables: { version: '1' }, http: {}, testPath: '/ping' },
+    secretFields: [
+      { key: 'username', label: 'User name (basic auth)', help: 'A user with READ on the databases the checks read', auth: 'basic' },
+      { key: 'password', label: 'Password (basic auth)', auth: 'basic' },
+      {
+        key: 'token',
+        label: 'JWT (bearer, instead of a password)',
+        help: 'Signed with the shared secret of [http] shared-secret; sent as Authorization: Bearer',
+        auth: 'bearer',
+      },
+    ],
+    docs: [
+      { title: 'InfluxDB 1.x: query data with the HTTP API', url: 'https://docs.influxdata.com/influxdb/v1/guides/query_data/' },
+      {
+        title: 'InfluxDB 1.x: authentication and authorization',
+        url: 'https://docs.influxdata.com/influxdb/v1/administration/authentication_and_authorization/',
+      },
+    ],
+  },
+  {
+    kind: 'influxdb',
+    label: 'InfluxDB 2.x (Flux, read-only)',
+    description:
+      "An InfluxDB 2.x server (OSS 2.x, or InfluxDB Cloud on the TSM engine) read with Flux over POST /api/v2/query: the freshness check (source InfluxDB) reads the newest timestamp of each series of a bucket – per value of a tag, per field – from the annotated CSV, and the worst series counts. Base URL: the server root (https://HOST:8086). Sign-in: an API token with read access to the buckets, sent as Authorization: Token. Variable org: the organisation (name or id) – OSS needs it, InfluxDB Cloud takes the token's. Connection test: GET /health, then GET /api/v2/buckets?limit=1 with the token. Keep the variable version at 2. See docs/MONITORS.md#freshness-in-influxdb.",
+    baseUrl: 'https://influxdb.example.com:8086',
+    config: { auth: { type: 'bearer' }, variables: { version: '2', org: 'my-org' }, http: {}, testPath: '/health' },
+    secretFields: [{ key: 'token', label: 'API token (read)', help: 'A token with read access to the buckets the checks read; sent as Authorization: Token' }],
+    docs: [
+      { title: 'InfluxDB 2.x: query with the InfluxDB API', url: 'https://docs.influxdata.com/influxdb/v2/query-data/execute-queries/influx-api/' },
+      { title: 'InfluxDB 2.x: annotated CSV', url: 'https://docs.influxdata.com/influxdb/v2/reference/syntax/annotated-csv/' },
+      { title: 'InfluxDB 2.x: API tokens', url: 'https://docs.influxdata.com/influxdb/v2/admin/tokens/' },
+    ],
+  },
+  {
+    kind: 'influxdb',
+    label: 'InfluxDB 3.x (SQL and InfluxQL, read-only)',
+    description:
+      'An InfluxDB 3 server (Core or Enterprise) read over POST /api/v3/query_sql (SQL, the default) or /api/v3/query_influxql (InfluxQL, per check) with JSON answers: the freshness check (source InfluxDB) reads the newest timestamp of each series of a database – max(time) per value of a tag, per field – and the worst series counts. Base URL: the server root (https://HOST:8181). Sign-in: a database token with read permission, sent as Authorization: Bearer. Connection test: GET /ping (it needs the token unless authorisation is turned off for it). Keep the variable version at 3. See docs/MONITORS.md#freshness-in-influxdb.',
+    baseUrl: 'https://influxdb.example.com:8181',
+    config: { auth: { type: 'bearer' }, variables: { version: '3' }, http: {}, testPath: '/ping' },
+    secretFields: [
+      { key: 'token', label: 'Database token (read)', help: 'A token with read permission on the databases the checks read; sent as Authorization: Bearer' },
+    ],
+    docs: [
+      { title: 'InfluxDB 3 Core: query with the HTTP API', url: 'https://docs.influxdata.com/influxdb3/core/query-data/execute-queries/influxdb3-api/' },
+      { title: 'InfluxDB 3 Core: HTTP API reference', url: 'https://docs.influxdata.com/influxdb3/core/api/' },
+      { title: 'InfluxDB 3 Core: tokens', url: 'https://docs.influxdata.com/influxdb3/core/admin/tokens/' },
+    ],
+  },
   // Data contracts (0.9.0, #221, docs/DATA-CONTRACTS.md): the datacontract CLI's API as its own container
   {
     kind: 'datacontract',

@@ -170,6 +170,15 @@ const KINDS = {
     maturity: preview,
   },
   datacontract: { label: 'Data contract service', group: 'databases', maturity: preview },
+  // 0.18.0: InfluxDB 1.x (InfluxQL), 2.x (Flux) and 3.x (SQL, InfluxQL) – the freshness check reads its series
+  influxdb: {
+    label: 'InfluxDB',
+    group: 'databases',
+    apiExample: 'https://HOST:8086 (1.x, 2.x) or https://HOST:8181 (3.x)',
+    connectionTest: 'own',
+    checkTypes: ['freshness'],
+    maturity: preview,
+  },
   changedetection: { label: 'changedetection.io', group: 'monitoring', checkTypes: ['page-watch'], maturity: preview },
   // the Workflows URL of a channel, kept as a credential: the Teams card of a webhook output posts to it
   teams: { label: 'Microsoft Teams channel', group: 'messaging', http: false, maturity: preview },
