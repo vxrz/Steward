@@ -23,7 +23,7 @@ A duty belongs to a service and, if you like, to one of the service's applicatio
 - a **level** – mandatory, recommended or optional;
 - an optional **grace period** – days into the next period in which a run may still end, or a late run start (0–90);
 - a **reminder** – days before the end of a period (default 5, 0 = none);
-- optional **owners** – `user:<name>` or `team:<name>`. Without owners, the owners of the service are responsible;
+- optional **owners** – `user:<name>` or `team:<name>`. Without owners, the owners of the service are responsible. An owner from outside the service's owning teams gets its reminders and may ask for exceptions: saving asks for the step-up ([TEAMS.md](TEAMS.md#named-owners-and-responsibles));
 - optional (0.17) a **supplier** it reviews – the yearly supplier review with the example process _Supplier review_; the supplier page shows the duty and its last periods ([SUPPLIERS.md](SUPPLIERS.md#the-yearly-supplier-review)); since 0.18 also one of the supplier's contracts (_Contract_ in the form: those covering the service first, then those you may add the service to – choosing one of those adds it), shown as _a contract you may not see_ to who may not see it and kept on save.
 
 A duty can name the **schedule** that runs it. It does not need one: many procedures are started by people (a manual restore test, a process with manual steps). The schedule is shown on the duty page with its next run, and a warning when it is disabled or makes dry runs (they do not count).
