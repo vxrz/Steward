@@ -392,7 +392,7 @@ export async function checkLifecycleNotices(now = Date.now()): Promise<number> {
   let sent = 0;
   const { notify } = await import('../notifications/service.js');
   const { usersOfSubjects } = await import('../tickets/reminders.js');
-  const { t } = await import('../i18n/index.js');
+  const { formatDay, t } = await import('../i18n/index.js');
   const { listUsers } = await import('../auth/users.js');
   const admins = () => listUsers().filter((u) => u.active && u.roles.includes('admin'));
   const { productLabel } = await import('./components.js');
@@ -415,7 +415,7 @@ export async function checkLifecycleNotices(now = Date.now()): Promise<number> {
       event: 'stack.eol',
       text: (l) => ({
         title: t(l, lc.state === 'eol' ? 'stackEol.titleEol' : 'stackEol.titleEnding', params),
-        body: t(l, lc.state === 'eol' ? 'stackEol.bodyEol' : 'stackEol.bodyEnding', params),
+        body: t(l, lc.state === 'eol' ? 'stackEol.bodyEol' : 'stackEol.bodyEnding', { ...params, date: formatDay(l, params.date) }),
       }),
       link: `/applications/${row.application_id}`,
       recipients,
@@ -446,7 +446,7 @@ export async function checkLifecycleNotices(now = Date.now()): Promise<number> {
 async function systemNotices(rows: SystemStackRow[], releases: ReturnType<typeof releasesOf>, warnDays: number, now: number): Promise<number> {
   const { notify } = await import('../notifications/service.js');
   const { usersOfSubjects } = await import('../tickets/reminders.js');
-  const { t } = await import('../i18n/index.js');
+  const { formatDay, t } = await import('../i18n/index.js');
   const { listUsers } = await import('../auth/users.js');
   const { productLabel } = await import('./components.js');
   const admins = () => listUsers().filter((u) => u.active && u.roles.includes('admin'));
@@ -473,7 +473,7 @@ async function systemNotices(rows: SystemStackRow[], releases: ReturnType<typeof
       event: 'stack.eol',
       text: (l) => ({
         title: t(l, lc.state === 'eol' ? 'stackEol.systemTitleEol' : 'stackEol.systemTitleEnding', params),
-        body: t(l, lc.state === 'eol' ? 'stackEol.systemBodyEol' : 'stackEol.systemBodyEnding', params),
+        body: t(l, lc.state === 'eol' ? 'stackEol.systemBodyEol' : 'stackEol.systemBodyEnding', { ...params, date: formatDay(l, params.date) }),
       }),
       link: `/systems/${row.system_id}`,
       recipients,

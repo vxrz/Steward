@@ -5,7 +5,7 @@ import { vault } from '../vault.js';
 import { nowIso } from '../util.js';
 import { runAs } from '../auth/context.js';
 import { notify, titleName } from '../notifications/service.js';
-import { t } from '../i18n/index.js';
+import { formatDay, t } from '../i18n/index.js';
 import { publishDataset } from '../dashboards/datasets.js';
 import { usersOfSubjects } from '../tickets/reminders.js';
 import { expiringItems, type ExpiringItem } from './service.js';
@@ -42,7 +42,7 @@ export function plannedSupplierReminder(x: Pick<ExpiringItem, 'date' | 'days'>):
 }
 
 function text(l: Locale, x: ExpiringItem): { title: string; body: string } {
-  const vars = { supplier: titleName(x.supplierName), title: x.title, date: x.date, count: x.days };
+  const vars = { supplier: titleName(x.supplierName), title: x.title, date: formatDay(l, x.date), count: x.days };
   if (x.kind === 'certificate')
     return {
       title: t(l, 'supplierDue.certificateTitle', vars),

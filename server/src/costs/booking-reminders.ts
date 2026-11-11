@@ -8,7 +8,7 @@ import { visibleContracts } from '../suppliers/links.js';
 import { owningTeams } from '../auth/policy.js';
 import { notify, titleName } from '../notifications/service.js';
 import { optedIn } from '../notifications/opt-ins.js';
-import { t } from '../i18n/index.js';
+import { formatMonth, t } from '../i18n/index.js';
 import { usersOfSubjects } from '../tickets/reminders.js';
 import { lineMonths, lineTitle, startMonth, today, type LineRow } from './plans.js';
 
@@ -55,9 +55,9 @@ function text(l: Locale, service: string, month: string, missing: Missing[], rec
       )
     : new Map<string, { title: string }>();
   return {
-    title: t(l, 'costBooking.title', { service: titleName(service), month, count: missing.length }),
+    title: t(l, 'costBooking.title', { service: titleName(service), month: formatMonth(l, month), count: missing.length }),
     body: [
-      t(l, 'costBooking.body', { service, month, count: missing.length }),
+      t(l, 'costBooking.body', { service, month: formatMonth(l, month), count: missing.length }),
       ...missing.map(
         (m) =>
           `• ${lineTitle({ title: m.title, schedule_id: m.scheduleId, supplier_contract_id: m.contractId }, contracts)}: ${moneyText(m.amount, m.currency)}`,

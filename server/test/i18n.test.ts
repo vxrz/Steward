@@ -223,6 +223,16 @@ describe('server message catalog', () => {
     expect(formatDateTime('en', iso)).toMatch(/Mar 5, 2026/);
     expect(formatDateTime('en', 'not a date')).toBe('not a date');
   });
+
+  it('formats days and months of reminders as the app does, not as ISO dates', async () => {
+    const { formatDay, formatMonth } = await import('../src/i18n/index.js');
+    expect(formatDay('en', '2026-12-11')).toBe('11 Dec 2026');
+    expect(formatDay('de', '2026-12-11')).toBe('11.12.2026');
+    expect(formatDay('en', '?')).toBe('?');
+    expect(formatMonth('en', '2026-11')).toBe('November 2026');
+    expect(formatMonth('de', '2026-03')).toBe('März 2026');
+    expect(formatMonth('de', 'soon')).toBe('soon');
+  });
 });
 
 describe('error codes', () => {
