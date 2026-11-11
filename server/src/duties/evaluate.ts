@@ -33,6 +33,8 @@ export interface DutyRow {
   application_id: string | null;
   /** The supplier the duty reviews (0.17.0, ADR 0029: a supplier review) */
   supplier_id?: string | null;
+  /** One of its contracts that covers the duty's service (0.18.0, ADR 0031) */
+  supplier_contract_id?: string | null;
   name: string;
   description: string;
   process_id: string;

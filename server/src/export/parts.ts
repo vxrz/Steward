@@ -105,6 +105,15 @@ const costPlans: ExportPartDef = {
       await entries.write(s.entries.map((r) => `${r}\r\n`).join(''));
       await ctx.pause();
     }
+    // what the payment schedules still owe (ADR 0030): every schedule of a service that is not archived, as of the run
+    const { commitments, commitmentCsvLines, COMMITMENT_CSV_HEAD } = await import('../costs/commitments.js');
+    const owed = ctx.file('commitments.csv');
+    await owed.write(`\uFEFF${COMMITMENT_CSV_HEAD.join(',')}\r\n`);
+    await owed.write(
+      commitmentCsvLines(commitments({}, ctx.now.getTime()))
+        .map((r) => `${r}\r\n`)
+        .join(''),
+    );
   },
 };
 
@@ -258,6 +267,14 @@ const CONTRACT_HEAD = [
   'Link',
   'Note',
   'Cost plan lines',
+  // contracts with their own scope (0.18.0, ADR 0031): every contract – exports are instance-wide
+  'Owners',
+  'Services',
+  'Master agreement',
+  'Personal data',
+  'Personal data from',
+  'DPA',
+  'DPA from',
 ] as const;
 const CERTIFICATE_HEAD = [
   'Supplier id',
@@ -341,6 +358,13 @@ const suppliers: ExportPartDef = {
             c.link,
             c.note,
             c.costPlanLines.map((l) => `${l.serviceName} ${l.fiscalYear}: ${l.title}`),
+            c.owners,
+            c.services.map((x) => `${x.name}${x.purpose ? `: ${x.purpose}` : ''}${x.status === 'proposed' ? ' (proposed)' : ''}`),
+            c.parentId ?? '',
+            c.dpa.personalData,
+            c.dpa.personalDataFrom,
+            c.dpa.status ?? '',
+            c.dpa.inheritedFrom,
           ]),
         ),
       );

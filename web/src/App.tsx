@@ -89,11 +89,13 @@ const ApplicationsPage = page(() => import('./pages/Applications'), 'Application
 const SystemsPage = page(() => import('./pages/Systems'), 'SystemsPage');
 const SuppliersPage = page(() => import('./pages/Suppliers'), 'SuppliersPage');
 const SupplierDetailPage = page(() => import('./pages/SupplierDetail'), 'SupplierDetailPage');
+const SupplierContractPage = page(() => import('./pages/SupplierContract'), 'SupplierContractPage');
 const MaintenancePage = page(() => import('./pages/Maintenance'), 'MaintenancePage');
 const SystemDetailPage = page(() => import('./pages/SystemDetail'), 'SystemDetailPage');
 const SystemSchemaPage = page(() => import('./pages/SystemSchema'), 'SystemSchemaPage');
 const CostsPage = page(() => import('./pages/Costs'), 'CostsPage');
 const CostDetailPage = page(() => import('./pages/CostDetail'), 'CostDetailPage');
+const CostCommitmentsPage = page(() => import('./pages/CostCommitments'), 'CostCommitmentsPage');
 const DataContractsPage = page(() => import('./pages/DataContracts'), 'DataContractsPage');
 const DataContractNewPage = page(() => import('./pages/DataContractNew'), 'DataContractNewPage');
 const DataContractDetailPage = page(() => import('./pages/DataContractDetail'), 'DataContractDetailPage');
@@ -451,6 +453,7 @@ function Shell({ status }: { status: AuthStatus }) {
                     <Route path="/systems/:id/schema" element={<SystemSchemaPage />} />
                     <Route path="/suppliers" element={<SuppliersPage />} />
                     <Route path="/suppliers/:id" element={<SupplierDetailPage />} />
+                    <Route path="/suppliers/:id/contracts/:contractId" element={<SupplierContractPage />} />
                     <Route
                       path="/data-contracts"
                       element={
@@ -515,6 +518,14 @@ function Shell({ status }: { status: AuthStatus }) {
                       element={
                         <ModuleGate module="costs">
                           <CostsPage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/costs/commitments"
+                      element={
+                        <ModuleGate module="costs">
+                          <CostCommitmentsPage />
                         </ModuleGate>
                       }
                     />

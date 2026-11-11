@@ -20,10 +20,10 @@ import { audit } from '../audit.js';
 import { vault } from '../vault.js';
 import { logger } from '../log.js';
 import { readSetting, writeSetting } from '../settings.js';
-import { HttpError, newId, nowIso, parseJson } from '../util.js';
+import { HttpError, newId, nowIso, parseJson, sha256 } from '../util.js';
 import { currentActor } from '../auth/context.js';
 import { listUsers } from '../auth/users.js';
-import { getPlatform, getSecrets } from '../platforms/service.js';
+import { getConnection, getPlatform, getSecrets } from '../platforms/service.js';
 import { createArchive, checkArchive, dataFileSizes, workDir } from './archive.js';
 import { checkExclude, contentsOf, excludedText } from './contents.js';
 import { BACKUP_PASSPHRASE_MIN, decryptFile, deriveBackupKey, encryptFile, keyIdOf, newKdf, readHeader, type KdfParams } from './crypto.js';
@@ -42,6 +42,7 @@ import { S3Client, type S3Object } from './s3.js';
 
 const SETTINGS_KEY = 'backup.settings';
 const KEY_KEY = 'backup.key';
+const TARGET_KEY = 'backup.target';
 const OBJECT_RE = /(?:^|\/)steward-(\d{8}T\d{6}Z)(?:-\d+)?\.smbackup$/;
 
 interface StoredKey {
@@ -114,6 +115,133 @@ export function storagePlatform(id: string | null) {
   return p;
 }
 
+// ---------- the confirmed target ----------
+
+/**
+ * What identifies where the files of a backup or an export go: the platform, its address (the bucket), region and
+ * service, how it connects (proxy, TLS, extra origins, the role it assumes, its variables), the access key id (hashed –
+ * never a secret) and the folder. The platform can be changed by whoever manages it, without the step-up of the backup
+ * settings or the export; a run compares this with the fingerprint an administrator confirmed (ADR 0027).
+ */
+export function storageTargetFingerprint(platformId: string | null, prefix: string): string {
+  const p = storagePlatform(platformId);
+  const aws = p.config.auth?.aws;
+  const http = p.config.http ?? {};
+  const secrets = getConnection(p.id).secrets;
+  return sha256(
+    JSON.stringify({
+      v: 1,
+      platform: p.id,
+      baseUrl: (p.baseUrl ?? '').trim().replace(/\/+$/, ''),
+      variables: p.config.variables ?? {},
+      region: aws?.region ?? null,
+      service: aws?.service ?? null,
+      roleArn: aws?.roleArn ?? null,
+      externalId: aws?.externalId ?? null,
+      stsEndpoint: aws?.stsEndpoint ?? null,
+      proxy: http.proxy ?? null,
+      insecureTls: !!http.insecureTls,
+      caPem: http.caPem ? sha256(http.caPem) : null,
+      trustedOrigins: http.trustedOrigins ?? [],
+      accessKey: sha256(`access-key-id:${secrets.accessKeyId ?? ''}`),
+      prefix,
+    }),
+  );
+}
+
+/** The backup target an administrator confirmed (0.18.0): saved with the backup settings or with _Confirm target_. */
+interface StoredTarget {
+  fingerprint: string;
+  platformId: string;
+  prefix: string;
+  confirmedAt: string;
+  confirmedBy: string;
+}
+
+const storedTarget = (): StoredTarget | null => readSetting<StoredTarget | null>(TARGET_KEY, null);
+
+function pinTarget(platformId: string, prefix: string): StoredTarget {
+  const t: StoredTarget = { fingerprint: storageTargetFingerprint(platformId, prefix), platformId, prefix, confirmedAt: nowIso(), confirmedBy: currentActor() };
+  writeSetting(TARGET_KEY, t);
+  return t;
+}
+
+/** Whether the S3 target of the backups differs from the one an administrator confirmed (a target that cannot be read is reported by the run). */
+function backupTargetChanged(s: BackupSettings = backupSettings()): boolean {
+  const t = storedTarget();
+  if (!s.platformId || !t) return false;
+  try {
+    return storageTargetFingerprint(s.platformId, s.prefix) !== t.fingerprint;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * An installation updated from before 0.18.0 has no confirmed target yet: the target as it is now is taken over once
+ * (at the start, or by the first run), audited, so backups keep running after the update.
+ */
+function adoptTarget(s: BackupSettings): void {
+  if (!s.platformId || storedTarget()) return;
+  try {
+    const t = pinTarget(s.platformId, s.prefix);
+    const p = getPlatform(s.platformId);
+    audit({
+      action: 'backup.target_confirmed',
+      entityType: 'backup',
+      summary: `Backups: the S3 target recorded as ${p.name} (${p.baseUrl})/${s.prefix} – the first confirmed target after the update`,
+      details: {
+        platformId: p.id,
+        platform: p.name,
+        baseUrl: p.baseUrl,
+        region: p.config.auth?.aws?.region ?? null,
+        prefix: s.prefix,
+        adopted: true,
+        at: t.confirmedAt,
+      },
+    });
+  } catch (err) {
+    // not S3 storage (any more): the run reports it
+    logger.debug({ err }, 'could not record the backup target');
+  }
+}
+
+/** Uploads (and the restore test) only go to the target an administrator confirmed – checked before anything is written or read. */
+function checkTarget(s: BackupSettings): void {
+  adoptTarget(s);
+  if (!backupTargetChanged(s)) return;
+  throw new HttpError(
+    409,
+    "The S3 target of the backups changed since an administrator confirmed it (its platform's address, region, connection or access key) – nothing was written. Check the platform, then confirm the target under Settings → Backups",
+    'BACKUP_TARGET_CHANGED',
+  );
+}
+
+/**
+ * Confirms the S3 target of the backups as the platform is now (after it was changed by whoever manages it): an
+ * administrator with a step-up, like a change of the backup settings. Audited with the target as it is confirmed.
+ */
+export function confirmBackupTarget(): BackupStatus {
+  const s = backupSettings();
+  const p = storagePlatform(s.platformId);
+  const before = storedTarget();
+  const t = pinTarget(p.id, s.prefix);
+  audit({
+    action: 'backup.target_confirmed',
+    entityType: 'backup',
+    summary: `Backups: the S3 target confirmed as ${p.name} (${p.baseUrl}${p.config.auth?.aws?.region ? `, ${p.config.auth.aws.region}` : ''})/${s.prefix}`,
+    details: {
+      platformId: p.id,
+      platform: p.name,
+      baseUrl: p.baseUrl,
+      region: p.config.auth?.aws?.region ?? null,
+      prefix: s.prefix,
+      changed: before?.fingerprint !== t.fingerprint,
+    },
+  });
+  return backupStatus();
+}
+
 export function saveBackupSettings(input: unknown): BackupSettings {
   const parsed = backupSettingsSchema.parse(input);
   // a client that does not know the contents (before 0.16.0) keeps what is set
@@ -125,6 +253,8 @@ export function saveBackupSettings(input: unknown): BackupSettings {
   if (v.enabled && !v.platformId) throw new HttpError(400, 'Choose the S3 platform the backups go to', 'BACKUP_NO_STORAGE');
   if (v.enabled && !storedKey()) throw new HttpError(400, 'Set the backup passphrase first', 'BACKUP_NO_KEY');
   writeSetting(SETTINGS_KEY, v);
+  // what the administrator confirmed with the step-up (0.18.0)
+  if (v.platformId) pinTarget(v.platformId, v.prefix);
   audit({
     action: 'backup.settings_updated',
     entityType: 'backup',
@@ -194,6 +324,7 @@ export function backupTargetAvailable(): boolean {
  */
 export async function uploadToBackupTarget(file: string, folder: string, name: string): Promise<{ key: string; bytes: number; sha256: string }> {
   const s = backupSettings();
+  checkTarget(s);
   const { key, stored } = backupKey();
   // next to the file (the backup work folder is emptied when a backup starts)
   const enc = path.join(path.dirname(file), `.upload-${newId()}.smbackup`);
@@ -288,13 +419,15 @@ export function startBackupRun(kind: BackupRunKind, trigger: BackupRun['trigger'
     '[]',
   );
   running = kind;
+  let code: string | undefined;
   current = (kind === 'backup' ? backup(run) : restoreTest(run))
     .catch((e: Error) => {
       logger.error({ err: e, kind }, 'backup run failed');
       run.status = 'failed';
       run.message = e.message;
+      code = e instanceof HttpError ? e.code : undefined;
     })
-    .then(() => finish(run))
+    .then(() => finish(run, code))
     .finally(() => {
       running = null;
       current = null;
@@ -306,7 +439,7 @@ let current: Promise<void> | null = null;
 /** Waits for the running backup or restore test (tests, shutdown). */
 export const backupIdle = (): Promise<void> => current ?? Promise.resolve();
 
-function finish(run: BackupRun): void {
+function finish(run: BackupRun, code?: string): void {
   if (run.status === 'running') run.status = run.steps.every((s) => s.ok) ? 'succeeded' : 'failed';
   if (run.status === 'failed' && !run.message) run.message = run.steps.find((s) => !s.ok)?.message ?? 'failed';
   run.finishedAt = nowIso();
@@ -333,7 +466,7 @@ function finish(run: BackupRun): void {
           ? `Backup ${run.objectKey} uploaded (${run.bytes} bytes, SHA-256 ${run.sha256?.slice(0, 12)}…)${run.deleted ? `, ${run.deleted} older backup(s) removed` : ''}`
           : `Restore test of ${run.objectKey} passed`
         : `${what} failed: ${run.message}`,
-    details: { kind: run.kind, status: run.status, objectKey: run.objectKey, sha256: run.sha256, steps: run.steps },
+    details: { kind: run.kind, status: run.status, objectKey: run.objectKey, sha256: run.sha256, steps: run.steps, ...(code ? { code } : {}) },
   });
   if (run.status === 'failed') notifyFailure(run);
   cleanWorkDir();
@@ -407,6 +540,7 @@ export async function backupContents(): Promise<BackupContents> {
 
 async function backup(run: BackupRun): Promise<void> {
   const s = backupSettings();
+  checkTarget(s);
   const { key, stored } = backupKey();
   const dir = workDir();
   const now = new Date();
@@ -503,6 +637,8 @@ export async function listStoredBackups(): Promise<StoredBackup[]> {
 
 async function restoreTest(run: BackupRun): Promise<void> {
   const s = backupSettings();
+  // a restore test of another bucket would report on copies that are not the backups
+  checkTarget(s);
   const step = (name: string, ok: boolean, message: string) => (run.steps.push({ name, ok, message }), ok);
   const c = client(s);
   const newest = (await storedBackups(s, c)).sort((a, b) => b.at.getTime() - a.at.getTime())[0];
@@ -591,9 +727,12 @@ export function backupStatus(): BackupStatus {
       return null;
     }
   };
+  const target = storedTarget();
   return {
     settings: s,
     key: k ? { keyId: k.keyId, setAt: k.setAt, setBy: k.setBy } : null,
+    targetChanged: backupTargetChanged(s),
+    targetConfirmed: target && target.platformId === s.platformId ? { at: target.confirmedAt, by: target.confirmedBy } : null,
     running,
     lastBackup: lastRun("kind = 'backup'"),
     lastSuccess: lastRun("kind = 'backup' AND status = 'succeeded'"),
@@ -640,6 +779,7 @@ export function startBackupJobs(): void {
   // a run cut off by a restart stays "running" forever otherwise
   db().run("UPDATE backup_runs SET status = 'failed', finished_at = ?, message = 'Interrupted (the server stopped)' WHERE status = 'running'", nowIso());
   cleanWorkDir();
+  adoptTarget(backupSettings());
   scheduleJobs();
 }
 export function stopBackupJobs(): void {

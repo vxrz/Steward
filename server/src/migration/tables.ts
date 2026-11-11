@@ -87,6 +87,7 @@ export const NOT_MOVED: Record<string, string> = {
   cost_push_tokens: 'push tokens of CI for FOCUS cost files (#226), only their hashes: created again on the target, like API tokens',
   cost_budget_notices: 'send bookkeeping of the source (a cost budget notice of the current month may be sent again on the target)',
   supplier_reminders: 'send bookkeeping of the source (a supplier reminder of a date ahead may be sent again on the target)',
+  cost_booking_reminders: 'send bookkeeping of the source (a reminder of contract payments not booked may be sent again on the target)',
 };
 
 /** Rows keyed by user id: moved for mapped users only, with the target user's id. */
@@ -94,6 +95,7 @@ export const USER_ID_TABLES: Record<string, string> = {
   daily_summary_prefs: 'user_id',
   notification_prefs: 'user_id',
   notification_personal_channels: 'user_id',
+  notification_opt_ins: 'user_id',
 };
 
 export type RefKind =
@@ -112,6 +114,11 @@ export interface UserRef {
   table: string;
   column: string;
   kind: RefKind;
+  /**
+   * A team in this column restricts who sees the row (like an access list): a deleted team stays as an entry that
+   * matches nobody, because removing it could leave no team and so open the row to more people (auth/subjects.ts).
+   */
+  keepDeletedTeams?: true;
 }
 
 /** Columns that decide who owns something or may do something now: mapped on import. */
@@ -146,6 +153,9 @@ export const USER_REFS: UserRef[] = [
   { table: 'systems', column: 'owners', kind: 'subjects' },
   // suppliers (0.17.0, ADR 0029): owners like systems
   { table: 'suppliers', column: 'owners', kind: 'subjects' },
+  // contracts with their own scope (0.18.0, ADR 0031): who manages a contract now; a team among them restricts who
+  // sees it, so a deleted team stays (a contract without a team owner is seen by every reader of its supplier)
+  { table: 'supplier_contracts', column: 'owners', kind: 'subjects', keepDeletedTeams: true },
   { table: 'maintenance_windows', column: 'responsible', kind: 'subjects' },
   { table: 'record_measures', column: 'owners', kind: 'subjects' },
   // corrective actions (ADR 0029): who owns a finding and its actions now
@@ -178,10 +188,22 @@ export const HISTORY_COLUMNS: string[] = [
   'cost_plan_lines.updated_by',
   'cost_entries.created_by',
   'cost_entries.updated_by',
+  // contract payments and recorded costs (0.18.0, ADR 0030): payment schedules, CSV imports of entries
+  'cost_schedules.created_by',
+  'cost_schedules.updated_by',
+  'cost_entry_imports.created_by',
+  'cost_entry_imports.removed_by',
   // suppliers (0.17.0, ADR 0029): who made and changed one, who looked at a certificate
   'suppliers.created_by',
   'suppliers.updated_by',
   'supplier_certificates.checked_by',
+  // contracts with their own scope (0.18.0, ADR 0031): who made and changed a contract, who added and confirmed a covered service
+  'supplier_contracts.created_by',
+  'supplier_contracts.updated_by',
+  'supplier_contract_services.added_by',
+  'supplier_contract_services.confirmed_by',
+  // who kept a group of "Same supplier in several teams" separate (ADR 0031)
+  'supplier_merge_dismissals.dismissed_by',
   // the plant registry (#218)
   'plant_sites.created_by',
   'plant_sites.updated_by',

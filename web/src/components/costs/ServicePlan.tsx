@@ -5,6 +5,7 @@ import {
   Anchor,
   Badge,
   Button,
+  Checkbox,
   Group,
   Menu,
   Modal,
@@ -25,12 +26,25 @@ import { useElementSize } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { IconCalendarDue, IconCoin, IconCopy, IconDownload, IconEyeOff, IconPencil, IconPlus, IconReceipt, IconTrash } from '@tabler/icons-react';
+import {
+  IconCalendarDue,
+  IconCashRegister,
+  IconCoin,
+  IconCopy,
+  IconDownload,
+  IconEyeOff,
+  IconFileImport,
+  IconPencil,
+  IconPlus,
+  IconReceipt,
+  IconTrash,
+} from '@tabler/icons-react';
 import {
   COST_PLAN_CADENCES,
   COST_PLAN_CATEGORIES,
   COST_PLAN_LIMITS,
   ISO_4217_CODES,
+  lastDayOf,
   type CostEntry,
   type CostPlanCadence,
   type CostPlanCategory,
@@ -47,10 +61,14 @@ import { DataTable, type DataColumn } from '../DataTable';
 import { confirmDanger, confirmDialog } from '../confirm';
 import { compact, niceTicks } from '../dashboard/format';
 import { costKeys, platformKeys } from '../../queryKeys';
-import { fmtDay } from '../../format';
-import { fmtMonth, fmtMonthOnly, fmtMoney, SCOPE_PATH } from './common';
+import { fmtDay, listFormat } from '../../format';
+import { fmtMonth, fmtMonthOnly, fmtMoney, SCOPE_PATH, tooManyDecimals } from './common';
 import '../dashboard/viz.css';
-import { SupplierPicker, useSupplierChoice, useSupplierOptions } from '../suppliers/SupplierPicker';
+import { SupplierPicker, SupplierText, useSupplierChoice, useSupplierOptions } from '../suppliers/SupplierPicker';
+import { ScheduleBadge } from './ContractPayments';
+import { ChangesPanel, PrepaidRows, ProposalsPanel } from './ContractLines';
+import { ServiceContracts } from './Commitments';
+import { EntryImportDialog, EntryImports } from './EntryImport';
 
 /**
  * The cost plan of a service (0.16.0, ADR 0026, docs/COSTS.md#planning-per-service): per fiscal year the plan lines,
@@ -65,6 +83,8 @@ export function ServiceCostPlan({ serviceId }: { serviceId: string }) {
   const [group, setGroup] = useState<'category' | 'target'>('category');
   const [lineDialog, setLineDialog] = useState<CostPlanLine | 'new' | null>(null);
   const [entryDialog, setEntryDialog] = useState<CostEntry | 'new' | null>(null);
+  const [bookDialog, setBookDialog] = useState<CostPlanLine | null>(null);
+  const [importing, setImporting] = useState(false);
   const q = useQuery({
     queryKey: costKeys.plan(serviceId, year),
     queryFn: () => get<CostPlanYear>(`/costs/plans/${encodeURIComponent(serviceId)}${year ? `?fiscalYear=${year}` : ''}`),
@@ -91,8 +111,20 @@ export function ServiceCostPlan({ serviceId }: { serviceId: string }) {
     )
       return;
     try {
-      show(await post<CostPlanYear>(`/costs/plans/${encodeURIComponent(serviceId)}/copy`, { fiscalYear: d.fiscalYear }));
-      notifyOk(t('plan.copy.done', { to: nextLabel }));
+      const y = await post<CostPlanYear>(`/costs/plans/${encodeURIComponent(serviceId)}/copy`, { fiscalYear: d.fiscalYear });
+      show(y);
+      const r = y.copyResult;
+      notifyOk(
+        r
+          ? t('plan.copy.result', {
+              to: nextLabel,
+              copied: r.copied.length + r.shortened.length,
+              proposed: r.proposed.length,
+              shortened: r.shortened.length,
+              leftOut: r.leftOut.length,
+            })
+          : t('plan.copy.done', { to: nextLabel }),
+      );
     } catch (e) {
       notifyError(e, t('plan.copy.failed'));
     }
@@ -147,6 +179,9 @@ export function ServiceCostPlan({ serviceId }: { serviceId: string }) {
             </Button>
             <Button size="xs" variant="default" leftSection={<IconReceipt size={14} />} onClick={() => setEntryDialog('new')} data-testid="plan-add-entry">
               {t('plan.entry.add')}
+            </Button>
+            <Button size="xs" variant="default" leftSection={<IconFileImport size={14} />} onClick={() => setImporting(true)} data-testid="plan-import-entries">
+              {t('entryImport.button')}
             </Button>
             {d.lines.length > 0 && (
               <Button size="xs" variant="default" leftSection={<IconCopy size={14} />} onClick={copy} data-testid="plan-copy">
@@ -207,6 +242,9 @@ export function ServiceCostPlan({ serviceId }: { serviceId: string }) {
           </Stack>
         </Alert>
       )}
+      {d.canEdit && d.proposals > 0 && <ProposalsPanel d={d} onSaved={show} />}
+      <ChangesPanel d={d} onSaved={show} />
+      <PrepaidRows d={d} />
       {!d.lines.length && !d.entries.length && !d.currencies.length ? (
         <EmptyState icon={IconReceipt} title={t('plan.empty.title', { label: d.label })} whoCanAct={t('plan.empty.who')}>
           {t('plan.empty.body')}
@@ -232,14 +270,18 @@ export function ServiceCostPlan({ serviceId }: { serviceId: string }) {
               data-testid="plan-group"
             />
           </Group>
-          <LineGroups d={d} group={group} onEdit={(l) => setLineDialog(l)} onRemove={removeLine} />
+          <LineGroups d={d} group={group} onEdit={(l) => setLineDialog(l)} onRemove={removeLine} onBook={(l) => setBookDialog(l)} />
         </Stack>
       )}
+      <ServiceContracts serviceId={d.serviceId} canEdit={d.canEdit} />
       {(d.lines.length > 0 || d.entries.length > 0) && (
         <EntriesSection d={d} onEdit={(e) => setEntryDialog(e)} onRemove={removeEntry} unplanned={unplanned.length} />
       )}
       {lineDialog && <LineDialog d={d} line={lineDialog === 'new' ? null : lineDialog} onClose={() => setLineDialog(null)} onSaved={show} />}
       {entryDialog && <EntryDialog d={d} entry={entryDialog === 'new' ? null : entryDialog} onClose={() => setEntryDialog(null)} onSaved={show} />}
+      {bookDialog && <BookDialog d={d} line={bookDialog} onClose={() => setBookDialog(null)} onSaved={show} />}
+      <EntryImports serviceId={serviceId} onChanged={() => void qc.invalidateQueries({ queryKey: costKeys.planOf(serviceId) })} />
+      {importing && <EntryImportDialog d={d} onClose={() => setImporting(false)} onSaved={show} />}
     </Stack>
   );
 }
@@ -530,18 +572,66 @@ function ReadBadge({ l }: { l: CostPlanLine }) {
 }
 
 const cadenceText = (t: (k: string, o?: Record<string, unknown>) => string, l: CostPlanLine) =>
-  l.cadence === 'once' && l.onceMonth ? t('plan.cadenceOnceIn', { month: fmtMonth(l.onceMonth) }) : t(`plan.cadences.${l.cadence}`);
+  l.cadence === 'once' && l.onceMonth
+    ? t('plan.cadenceOnceIn', { month: fmtMonth(l.onceMonth) })
+    : l.fromMonth && l.toMonth
+      ? t('plan.cadenceSpan', { cadence: t(`plan.cadences.${l.cadence}`), from: fmtMonth(l.fromMonth), to: fmtMonth(l.toMonth) })
+      : t(`plan.cadences.${l.cadence}`);
+
+/** "Not booked: Oct 2026, Nov 2026" – payments of months up to now with no entry on their line (0.18.0). */
+function NotBooked({ l }: { l: CostPlanLine }) {
+  const { t } = useTranslation('costs');
+  if (!l.notBooked.length) return null;
+  return (
+    <Badge size="xs" variant="light" color="orange" data-testid="plan-not-booked">
+      {t('plan.book.notBooked', { months: listFormat().format(l.notBooked.map((mo) => fmtMonth(mo))) })}
+    </Badge>
+  );
+}
+
+/** The contract of a line (0.18.0): made from a schedule (Contract changed), two lines for one contract, its end in the year. */
+function ContractHints({ l }: { l: CostPlanLine }) {
+  const { t } = useTranslation('costs');
+  return (
+    <>
+      {l.schedule && <ScheduleBadge changed={l.schedule.changed} title={l.schedule.title} />}
+      {l.twoLines && (
+        <Badge size="xs" variant="light" color="yellow" data-testid="plan-two-lines">
+          {t('contractLines.twoLines')}
+        </Badge>
+      )}
+      {l.contractEnds && (
+        <Badge size="xs" variant="light" color="gray" data-testid="plan-contract-ends">
+          {t('contractLines.ends', { date: fmtDay(l.contractEnds) })}
+        </Badge>
+      )}
+    </>
+  );
+}
+
+/** What a line says besides its title: supplier and contract (or the vendor), the days a prepaid payment covers, the renewal. */
+function lineDetails(t: (k: string, o?: Record<string, unknown>) => string, l: CostPlanLine): string {
+  return [
+    l.supplier ? [l.supplier.name, l.supplierContract?.title].filter(Boolean).join(' – ') : l.supplierHidden ? t('plan.supplierHidden') : l.vendor,
+    l.coversFrom && l.coversTo ? t('plan.covers', { from: fmtDay(l.coversFrom), to: fmtDay(l.coversTo) }) : '',
+    l.renewalDate && !l.schedule ? t('plan.renewsOn', { date: fmtDay(l.renewalDate) }) : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
+}
 
 function LineGroups({
   d,
   group,
   onEdit,
   onRemove,
+  onBook,
 }: {
   d: CostPlanYear;
   group: 'category' | 'target';
   onEdit: (l: CostPlanLine) => void;
   onRemove: (l: CostPlanLine) => void;
+  onBook: (l: CostPlanLine) => void;
 }) {
   const { t } = useTranslation(['costs', 'common']);
   const tt = t as unknown as (k: string, o?: Record<string, unknown>) => string;
@@ -574,15 +664,12 @@ function LineGroups({
               {l.title}
             </Text>
             <ReadBadge l={l} />
+            <NotBooked l={l} />
+            <ContractHints l={l} />
           </Group>
-          {(l.supplier || l.vendor || l.renewalDate) && (
+          {lineDetails(tt, l) && (
             <Text size="xs" c="dimmed">
-              {[
-                l.supplier ? [l.supplier.name, l.supplierContract?.title].filter(Boolean).join(' – ') : l.vendor,
-                l.renewalDate ? t('plan.renewsOn', { date: fmtDay(l.renewalDate) }) : '',
-              ]
-                .filter(Boolean)
-                .join(' · ')}
+              {lineDetails(tt, l)}
             </Text>
           )}
         </div>
@@ -615,7 +702,7 @@ function LineGroups({
             key: 'actions',
             header: <VisuallyHidden>{t('plan.actions')}</VisuallyHidden>,
             label: t('plan.actions'),
-            cell: (l: CostPlanLine) => <LineActions l={l} onEdit={onEdit} onRemove={onRemove} />,
+            cell: (l: CostPlanLine) => <LineActions l={l} onEdit={onEdit} onRemove={onRemove} onBook={onBook} />,
           },
         ]
       : []),
@@ -629,7 +716,14 @@ function LineGroups({
               {l.title}
             </Text>
             <ReadBadge l={l} />
+            <NotBooked l={l} />
+            <ContractHints l={l} />
           </Group>
+          {lineDetails(tt, l) && (
+            <Text size="xs" c="dimmed">
+              {lineDetails(tt, l)}
+            </Text>
+          )}
           <Text size="xs" c="dimmed" component="div">
             {t(`plan.categories.${l.category}`)} · {cadenceText(tt, l)}
             {l.target && (
@@ -640,7 +734,7 @@ function LineGroups({
             )}
           </Text>
         </div>
-        {d.canEdit && <LineActions l={l} onEdit={onEdit} onRemove={onRemove} />}
+        {d.canEdit && <LineActions l={l} onEdit={onEdit} onRemove={onRemove} onBook={onBook} />}
       </Group>
       <SimpleGrid cols={2} spacing={4} verticalSpacing={2}>
         {(
@@ -682,10 +776,27 @@ function LineGroups({
   );
 }
 
-function LineActions({ l, onEdit, onRemove }: { l: CostPlanLine; onEdit: (l: CostPlanLine) => void; onRemove: (l: CostPlanLine) => void }) {
+function LineActions({
+  l,
+  onEdit,
+  onRemove,
+  onBook,
+}: {
+  l: CostPlanLine;
+  onEdit: (l: CostPlanLine) => void;
+  onRemove: (l: CostPlanLine) => void;
+  onBook: (l: CostPlanLine) => void;
+}) {
   const { t } = useTranslation('costs');
   return (
     <Group gap={2} wrap="nowrap">
+      {l.bookable && (
+        <Tooltip label={t('plan.book.action', { title: l.title })} withArrow>
+          <ActionIcon variant="subtle" aria-label={t('plan.book.action', { title: l.title })} onClick={() => onBook(l)} data-testid="plan-line-book">
+            <IconCashRegister size={16} />
+          </ActionIcon>
+        </Tooltip>
+      )}
       <ActionIcon variant="subtle" aria-label={t('plan.line.edit', { title: l.title })} onClick={() => onEdit(l)}>
         <IconPencil size={16} />
       </ActionIcon>
@@ -740,6 +851,7 @@ function EntriesSection({
     },
     { key: 'line', header: t('plan.entry.line'), cell: lineCell, sortValue: (e) => e.planLineTitle ?? '' },
     { key: 'for', header: t('plan.columns.for'), cell: (e) => <TargetText target={e.target} /> },
+    { key: 'supplier', header: t('plan.entry.supplier'), cell: (e) => <EntrySupplier e={e} /> },
     { key: 'reference', header: t('plan.entry.reference'), cell: (e) => e.reference || '–', sortValue: (e) => e.reference },
     { key: 'note', header: t('plan.entry.note'), cell: (e) => e.note || '–' },
     ...(d.canEdit
@@ -808,6 +920,34 @@ function EntriesSection({
   );
 }
 
+/** The supplier and contract of an entry (0.18.0); one the reader may not see is said, not named. */
+function EntrySupplier({ e }: { e: CostEntry }) {
+  const { t } = useTranslation('costs');
+  if (e.supplierHidden)
+    return (
+      <Text span size="sm" c="dimmed">
+        {t('plan.supplierHidden')}
+      </Text>
+    );
+  if (!e.supplier)
+    return (
+      <Text span size="sm" c="dimmed">
+        –
+      </Text>
+    );
+  return (
+    <span>
+      <SupplierText supplier={e.supplier} />
+      {e.supplierContract && (
+        <Text span size="xs" c="dimmed">
+          {' '}
+          · {e.supplierContract.title}
+        </Text>
+      )}
+    </span>
+  );
+}
+
 function EntryActions({ e, onEdit, onRemove }: { e: CostEntry; onEdit: (e: CostEntry) => void; onRemove: (e: CostEntry) => void }) {
   const { t } = useTranslation('costs');
   return (
@@ -844,6 +984,15 @@ const submit = (save: () => Promise<void>) => (e: FormEvent) => {
 };
 const amountText = (v: string) => v.trim().replace(',', '.');
 
+/** The form error of an amount with more decimals than its currency has (no decimals for JPY, 0.18.0), or null. */
+function useDecimalsError(): (amount: string, currency: string) => string | null {
+  const { t } = useTranslation('common');
+  return (amount, currency) => {
+    const x = tooManyDecimals(amount, currency);
+    return x && (x.digits ? t('validation.currencyDecimals', x) : t('validation.currencyWhole', x));
+  };
+}
+
 /** The targets to choose from: the service's applications and systems (and a platform for cloud lines), plus the current one. */
 function useTargetOptions(d: CostPlanYear, current: CostPlanTarget | null, withPlatforms: boolean) {
   const { t } = useTranslation('costs');
@@ -864,10 +1013,16 @@ function useTargetOptions(d: CostPlanYear, current: CostPlanTarget | null, withP
   return [{ value: NONE, label: t('plan.form.noTarget') }, ...groups];
 }
 
+/** A contract line's own title: the server puts the contract's title in front for who may see it, and stores the rest. */
+function ownTitle(l: CostPlanLine): string {
+  const prefix = l.schedule && l.supplierContract ? `${l.supplierContract.title} – ` : '';
+  return prefix && l.title.startsWith(prefix) ? l.title.slice(prefix.length) : l.title;
+}
+
 function LineDialog({ d, line, onClose, onSaved }: { d: CostPlanYear; line: CostPlanLine | null; onClose: () => void; onSaved: (y: CostPlanYear) => void }) {
   const { t } = useTranslation(['costs', 'common']);
   const { t: tSup } = useTranslation('suppliers');
-  const [title, setTitle] = useState(line?.title ?? '');
+  const [title, setTitle] = useState(line ? ownTitle(line) : '');
   const [category, setCategory] = useState<CostPlanCategory>(line?.category ?? 'licence');
   const [target, setTarget] = useState(targetValue(line?.target ?? null));
   const [vendor, setVendor] = useState(line?.vendor ?? '');
@@ -880,18 +1035,35 @@ function LineDialog({ d, line, onClose, onSaved }: { d: CostPlanYear; line: Cost
   const [currency, setCurrency] = useState(line?.currency ?? d.currencies[0]?.currency ?? 'EUR');
   const [cadence, setCadence] = useState<CostPlanCadence>(line?.cadence ?? 'yearly');
   const [onceMonth, setOnceMonth] = useState<string | null>(line?.onceMonth ?? d.months[0]!);
+  // only part of the year (0.18.0): monthly, quarterly and yearly lines
+  const [part, setPart] = useState(!!line?.fromMonth);
+  const [fromMonth, setFromMonth] = useState<string | null>(line?.fromMonth ?? d.months[0]!);
+  const [toMonth, setToMonth] = useState<string | null>(line?.toMonth ?? d.months[11]!);
+  // a one-off payment that covers more than its month (prepaid)
+  const [prepaid, setPrepaid] = useState(!!line?.coversFrom);
+  const [coversFrom, setCoversFrom] = useState(line?.coversFrom ?? '');
+  const [coversTo, setCoversTo] = useState(line?.coversTo ?? '');
   const [renewal, setRenewal] = useState(line?.renewalDate ?? '');
+  const [unlink, setUnlink] = useState(false);
   const [note, setNote] = useState(line?.note ?? '');
   const [busy, setBusy] = useState(false);
   const options = useTargetOptions(d, line?.target ?? null, category === 'cloud');
+  const decimals = useDecimalsError();
   const check = useFieldErrors({
     title: !title.trim() && t('common:validation.required'),
-    amount: (!amount.trim() && t('common:validation.required')) || (!amountOk(amount) && t('common:validation.invalid')),
+    amount: (!amount.trim() && t('common:validation.required')) || (!amountOk(amount) && t('common:validation.invalid')) || decimals(amount, currency),
     currency: !ISO_4217_CODES.has(currency.trim().toUpperCase()) && t('common:validation.currency'),
+    toMonth: cadence !== 'once' && part && !!fromMonth && !!toMonth && toMonth < fromMonth && t('plan.form.toBeforeFrom'),
+    coversTo:
+      cadence === 'once' &&
+      prepaid &&
+      (((!coversFrom || !coversTo) && t('common:validation.required')) || (coversTo < coversFrom && t('plan.form.toBeforeFrom'))),
   });
   const save = async () => {
     if (!check.validate()) return;
     setBusy(true);
+    const span = cadence !== 'once' && part;
+    const covers = cadence === 'once' && prepaid;
     const body = {
       title: title.trim(),
       category,
@@ -903,8 +1075,13 @@ function LineDialog({ d, line, onClose, onSaved }: { d: CostPlanYear; line: Cost
       currency: currency.trim().toUpperCase(),
       cadence,
       onceMonth: cadence === 'once' ? onceMonth : null,
+      fromMonth: span ? fromMonth : null,
+      toMonth: span ? toMonth : null,
+      coversFrom: covers ? coversFrom : null,
+      coversTo: covers ? coversTo : null,
       renewalDate: renewal || null,
       note: note.trim(),
+      ...(unlink ? { scheduleId: null } : {}),
     };
     try {
       const base = `/costs/plans/${encodeURIComponent(d.serviceId)}/lines`;
@@ -1030,14 +1207,88 @@ function LineDialog({ d, line, onClose, onSaved }: { d: CostPlanYear; line: Cost
               onChange={setOnceMonth}
             />
           )}
-          <TextInput
-            type="date"
-            label={t('plan.form.renewal')}
-            description={t('plan.form.renewalHint')}
-            w={220}
-            value={renewal}
-            onChange={(e) => setRenewal(e.currentTarget.value)}
-          />
+          {cadence !== 'once' ? (
+            <Stack gap="xs">
+              <Checkbox
+                label={t('plan.form.partOfYear')}
+                description={t(`plan.form.partOfYearHint.${cadence}`)}
+                checked={part}
+                onChange={(e) => setPart(e.currentTarget.checked)}
+                data-testid="plan-line-part"
+              />
+              {part && (
+                <SimpleGrid cols={{ base: 1, xs: 2 }}>
+                  <Select
+                    label={t('plan.form.fromMonth')}
+                    allowDeselect={false}
+                    data={d.months.map((mo) => ({ value: mo, label: fmtMonth(mo, 'long') }))}
+                    value={fromMonth}
+                    onChange={setFromMonth}
+                    data-testid="plan-line-from"
+                  />
+                  <Select
+                    label={t('plan.form.toMonth')}
+                    allowDeselect={false}
+                    data={d.months.map((mo) => ({ value: mo, label: fmtMonth(mo, 'long') }))}
+                    value={toMonth}
+                    onChange={setToMonth}
+                    error={check.error('toMonth')}
+                    data-testid="plan-line-to"
+                  />
+                </SimpleGrid>
+              )}
+            </Stack>
+          ) : (
+            <Stack gap="xs">
+              <Checkbox
+                label={t('plan.form.prepaid')}
+                description={t('plan.form.prepaidHint')}
+                checked={prepaid}
+                onChange={(e) => setPrepaid(e.currentTarget.checked)}
+                data-testid="plan-line-prepaid"
+              />
+              {prepaid && (
+                <SimpleGrid cols={{ base: 1, xs: 2 }}>
+                  <TextInput
+                    type="date"
+                    label={t('plan.form.coversFrom')}
+                    value={coversFrom}
+                    onChange={(e) => setCoversFrom(e.currentTarget.value)}
+                    data-testid="plan-line-covers-from"
+                  />
+                  <TextInput
+                    type="date"
+                    label={t('plan.form.coversTo')}
+                    value={coversTo}
+                    onChange={(e) => setCoversTo(e.currentTarget.value)}
+                    error={check.error('coversTo')}
+                    data-testid="plan-line-covers-to"
+                  />
+                </SimpleGrid>
+              )}
+            </Stack>
+          )}
+          {line?.schedule ? (
+            <Group justify="space-between" wrap="wrap" gap="xs">
+              <Text size="xs" c="dimmed" maw={420}>
+                {unlink ? t('contractLines.unlinkPending') : t('plan.form.renewalFromContract')}
+              </Text>
+              {!unlink && (
+                <Button size="compact-xs" variant="subtle" onClick={() => setUnlink(true)} data-testid="plan-line-unlink">
+                  {t('contractLines.unlink')}
+                </Button>
+              )}
+            </Group>
+          ) : (
+            <TextInput
+              type="date"
+              label={t('plan.form.renewal')}
+              description={t('plan.form.renewalHint')}
+              w={220}
+              value={renewal}
+              onChange={(e) => setRenewal(e.currentTarget.value)}
+            />
+          )}
           <Textarea
             label={t('plan.form.note')}
             autosize
@@ -1076,13 +1327,34 @@ function EntryDialog({ d, entry, onClose, onSaved }: { d: CostPlanYear; entry: C
   const [note, setNote] = useState(entry?.note ?? '');
   const [busy, setBusy] = useState(false);
   const options = useTargetOptions(d, entry?.target ?? null, false);
-  const check = useFieldErrors({
-    date: !date && t('common:validation.required'),
-    amount: (!amount.trim() && t('common:validation.required')) || (!amountOk(amount) && t('common:validation.invalid')),
-    currency: !ISO_4217_CODES.has(currency.trim().toUpperCase()) && t('common:validation.currency'),
-  });
+  const { t: tSup } = useTranslation('suppliers');
+  // the supplier and contract (0.18.0): untouched, a new entry with a plan line takes the line's (the server does)
+  const [supplierTouched, setSupplierTouched] = useState(false);
+  const [supplierId, setSupplierId] = useState<string | null>(entry?.supplier?.id ?? null);
+  const [contractId, setContractId] = useState<string | null>(entry?.supplierContract?.id ?? null);
+  const supplierOptions = useSupplierOptions();
+  const chosenLine = d.lines.find((x) => x.id === lineId);
+  const shownSupplier = supplierTouched ? supplierId : entry ? (entry.supplier?.id ?? null) : (chosenLine?.supplier?.id ?? null);
+  const shownContract = supplierTouched ? contractId : entry ? (entry.supplierContract?.id ?? null) : (chosenLine?.supplierContract?.id ?? null);
+  const initialSupplier = entry ? entry.supplier : (chosenLine?.supplier ?? null);
+  const initialContract = entry ? entry.supplierContract : (chosenLine?.supplierContract ?? null);
+  const entryContracts = [
+    ...(supplierOptions.data?.find((o) => o.id === shownSupplier)?.contracts ?? []),
+    ...(initialContract && shownSupplier === initialSupplier?.id && !supplierOptions.data?.some((o) => o.contracts.some((c) => c.id === initialContract.id))
+      ? [{ ...initialContract }]
+      : []),
+  ];
   // a plan line sets the currency (the entry must be in the line's) and, when nothing is chosen yet, what it is for
   const lineCurrency = (id: string) => d.lines.find((x) => x.id === id)?.currency ?? (id && id === entry?.planLineId ? entry.currency : null);
+  const decimals = useDecimalsError();
+  const check = useFieldErrors({
+    date: !date && t('common:validation.required'),
+    amount:
+      (!amount.trim() && t('common:validation.required')) ||
+      (!amountOk(amount) && t('common:validation.invalid')) ||
+      decimals(amount, lineCurrency(lineId) ?? currency),
+    currency: !ISO_4217_CODES.has(currency.trim().toUpperCase()) && t('common:validation.currency'),
+  });
   const chooseLine = (v: string | null) => {
     setLineId(v ?? NONE);
     const l = d.lines.find((x) => x.id === v);
@@ -1101,6 +1373,7 @@ function EntryDialog({ d, entry, onClose, onSaved }: { d: CostPlanYear; entry: C
       currency: (fromLine ?? currency).trim().toUpperCase(),
       planLineId: lineId || null,
       target: parseTarget(target),
+      ...(supplierTouched ? { supplierId, supplierContractId: supplierId ? contractId : null } : {}),
       reference: reference.trim(),
       note: note.trim(),
     };
@@ -1169,6 +1442,36 @@ function EntryDialog({ d, entry, onClose, onSaved }: { d: CostPlanYear; entry: C
             data-testid="plan-entry-line"
           />
           <Select label={t('plan.form.for')} data={options} value={target} onChange={(v) => setTarget(v ?? NONE)} searchable data-testid="plan-entry-target" />
+          <SimpleGrid cols={{ base: 1, xs: 2 }}>
+            <SupplierPicker
+              value={shownSupplier}
+              onChange={(v) => {
+                setSupplierTouched(true);
+                setSupplierId(v);
+                setContractId(null);
+              }}
+              initial={initialSupplier}
+              description={entry?.supplierHidden && !supplierTouched ? t('plan.supplierHidden') : t('plan.entry.supplierHint')}
+              testId="plan-entry-supplier"
+            />
+            {shownSupplier && (
+              <Select
+                label={tSup('picker.contract')}
+                placeholder={tSup('picker.noContract')}
+                data={entryContracts.map((c) => ({ value: c.id, label: c.reference ? `${c.title} (${c.reference})` : c.title }))}
+                value={shownContract}
+                onChange={(v) => {
+                  if (!supplierTouched) {
+                    setSupplierTouched(true);
+                    setSupplierId(shownSupplier);
+                  }
+                  setContractId(v);
+                }}
+                clearable
+                data-testid="plan-entry-contract"
+              />
+            )}
+          </SimpleGrid>
           <TextInput
             label={t('plan.entry.reference')}
             description={t('plan.entry.referenceHint')}
@@ -1191,6 +1494,152 @@ function EntryDialog({ d, entry, onClose, onSaved }: { d: CostPlanYear; entry: C
             </Button>
             <Button type="submit" loading={busy} data-testid="plan-entry-save">
               {t('common:save')}
+            </Button>
+          </Group>
+        </Stack>
+      </form>
+    </Modal>
+  );
+}
+
+/**
+ * Book (0.18.0, ADR 0030): one entry from a line's payment in a month – the month (the current one, or an earlier
+ * one without an entry), the date, the planned amount; reference and note optional; Enter saves. A month with an
+ * entry on the line already asks first. Never automatic: an entry says money was spent.
+ */
+function BookDialog({ d, line, onClose, onSaved }: { d: CostPlanYear; line: CostPlanLine; onClose: () => void; onSaved: (y: CostPlanYear) => void }) {
+  const { t } = useTranslation(['costs', 'common']);
+  const upto = Math.min(d.currentIndex, 11);
+  const offered = d.months.map((mo, i) => ({ mo, i })).filter(({ i }) => i <= upto && Number(line.months[i] ?? 0) !== 0);
+  const bookedIn = (mo: string) => d.entries.filter((e) => e.planLineId === line.id && e.date.startsWith(mo));
+  const first =
+    offered.find(({ i }) => i === d.currentIndex && !bookedIn(d.months[i]!).length) ??
+    [...offered].reverse().find(({ mo }) => !bookedIn(mo).length) ??
+    offered[offered.length - 1];
+  const [month, setMonth] = useState<string | null>(first?.mo ?? null);
+  const today = localToday();
+  const dateFor = (mo: string) => line.paymentDates?.[d.months.indexOf(mo)] ?? (today.startsWith(mo) ? today : lastDayOf(mo));
+  const [date, setDate] = useState(month ? dateFor(month) : today);
+  const [amount, setAmount] = useState(month ? (line.months[d.months.indexOf(month)] ?? '') : '');
+  const [reference, setReference] = useState('');
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+  const decimals = useDecimalsError();
+  const check = useFieldErrors({
+    month: !month && t('common:validation.required'),
+    date: !date && t('common:validation.required'),
+    amount:
+      (!(amount ?? '').trim() && t('common:validation.required')) ||
+      (!amountOk(amount ?? '') && t('common:validation.invalid')) ||
+      decimals(amount ?? '', line.currency),
+  });
+  const chooseMonth = (mo: string | null) => {
+    setMonth(mo);
+    if (!mo) return;
+    setDate(dateFor(mo));
+    setAmount(line.months[d.months.indexOf(mo)] ?? '');
+  };
+  const save = async () => {
+    if (!check.validate() || !month) return;
+    const already = bookedIn(month);
+    let again = false;
+    if (already.length) {
+      const sum = already.reduce((a, e) => a + Number(e.amount ?? 0), 0);
+      if (
+        !(await confirmDialog({
+          action: 'confirm',
+          title: t('plan.book.againTitle'),
+          message: t('plan.book.again', { month: fmtMonth(month, 'long'), amount: fmtMoney(String(sum), line.currency) }),
+          confirmLabel: t('plan.book.againButton'),
+          danger: false,
+        }))
+      )
+        return;
+      again = true;
+    }
+    setBusy(true);
+    try {
+      onSaved(
+        await post<CostPlanYear>(`/costs/plans/${encodeURIComponent(d.serviceId)}/lines/${encodeURIComponent(line.id)}/book`, {
+          month,
+          date,
+          amount: amountText(amount ?? ''),
+          reference: reference.trim(),
+          note: note.trim(),
+          again,
+        }),
+      );
+      notifyOk(t('plan.book.done'));
+      onClose();
+    } catch (e) {
+      notifyError(e, t('plan.book.failed'));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Modal opened onClose={onClose} title={t('plan.book.title', { title: line.title })} size="lg">
+      <form onSubmit={submit(save)} noValidate>
+        <Stack>
+          <Text size="xs" c="dimmed">
+            {t('plan.book.help')}
+          </Text>
+          <SimpleGrid cols={{ base: 1, xs: 2 }}>
+            <Select
+              label={t('plan.book.month')}
+              allowDeselect={false}
+              data={offered.map(({ mo }) => ({
+                value: mo,
+                label: bookedIn(mo).length ? t('plan.book.monthBooked', { month: fmtMonth(mo, 'long') }) : fmtMonth(mo, 'long'),
+              }))}
+              value={month}
+              onChange={chooseMonth}
+              error={check.error('month')}
+              data-testid="plan-book-month"
+            />
+            <TextInput
+              type="date"
+              label={t('plan.entry.date')}
+              required
+              value={date}
+              onChange={(e) => setDate(e.currentTarget.value)}
+              error={check.error('date')}
+              data-testid="plan-book-date"
+            />
+          </SimpleGrid>
+          <SimpleGrid cols={{ base: 1, xs: 2 }}>
+            <TextInput
+              label={t('plan.entry.amount')}
+              inputMode="decimal"
+              required
+              data-autofocus
+              rightSection={
+                <Text size="xs" c="dimmed">
+                  {line.currency}
+                </Text>
+              }
+              rightSectionWidth={48}
+              value={amount ?? ''}
+              onChange={(e) => setAmount(e.currentTarget.value)}
+              error={check.error('amount')}
+              data-testid="plan-book-amount"
+            />
+            <TextInput
+              label={t('plan.entry.reference')}
+              description={t('plan.entry.referenceHint')}
+              maxLength={COST_PLAN_LIMITS.referenceChars}
+              value={reference}
+              onChange={(e) => setReference(e.currentTarget.value)}
+              data-testid="plan-book-reference"
+            />
+          </SimpleGrid>
+          <TextInput label={t('plan.entry.note')} maxLength={COST_PLAN_LIMITS.noteChars} value={note} onChange={(e) => setNote(e.currentTarget.value)} />
+          <Group justify="flex-end">
+            <Button variant="default" onClick={onClose}>
+              {t('common:cancel')}
+            </Button>
+            <Button type="submit" loading={busy} disabled={!offered.length} data-testid="plan-book-save">
+              {t('plan.book.save')}
             </Button>
           </Group>
         </Stack>

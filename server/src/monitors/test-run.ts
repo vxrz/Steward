@@ -1,4 +1,4 @@
-import { checkPlatformKinds, checkSchema, issueLabel, type CheckDef, type MonitorStatus } from '@sm/shared';
+import { checkPlatformKinds, checkSchema, issueLabel, type CheckDef, type MonitorStatus, type SeriesFreshness } from '@sm/shared';
 import { HttpError } from '../util.js';
 import { vault } from '../vault.js';
 import { audit } from '../audit.js';
@@ -76,6 +76,8 @@ export async function previewCheck(input: { monitorId?: string; check: unknown; 
   status: MonitorStatus;
   message: string;
   durationMs: number | null;
+  /** InfluxDB freshness (0.18.0): the newest timestamp, age and status of every series */
+  series?: SeriesFreshness[];
 }> {
   let owner: string;
   let monitorId: string | null = null;
@@ -128,5 +130,5 @@ export async function previewCheck(input: { monitorId?: string; check: unknown; 
     summary: `Check "${c.name}" (${c.type}) tried in the editor: ${res.status}`,
     details: { checkId: c.id, type: c.type, status: res.status },
   });
-  return { status: res.status, message: res.message, durationMs: res.durationMs ?? Date.now() - started };
+  return { status: res.status, message: res.message, durationMs: res.durationMs ?? Date.now() - started, ...(res.series ? { series: res.series } : {}) };
 }

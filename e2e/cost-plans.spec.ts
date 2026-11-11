@@ -2,7 +2,7 @@ import type { APIRequestContext, Page } from '@playwright/test';
 import { test, expect } from './support/fixtures';
 import { appHref, authFile } from './support/env';
 import { expectAccessible } from './support/axe';
-import { chooseOption, expectNoHorizontalScroll, json, uniq } from './support/helpers';
+import { FISCAL_YEAR_LOCK, FISCAL_YEAR_TIMEOUT, chooseOption, expectNoHorizontalScroll, json, uniq, withLock } from './support/helpers';
 
 test.use({ storageState: authFile('admin') });
 
@@ -120,6 +120,13 @@ async function plan(page: Page, f: { app: { name: string }; service: { id: strin
 }
 
 test('cost plan: fiscal year start, plan lines, entries and the year view', async ({ page, apiAs }) => {
+  // the fiscal year start is one setting of the shared demo server: changed and restored under the lock the specs that
+  // compute fiscal years take (cost-contracts, cost-entry-import), so they never see it change halfway
+  test.setTimeout(FISCAL_YEAR_TIMEOUT);
+  await withLock(FISCAL_YEAR_LOCK, () => fiscalYearTour(page, apiAs));
+});
+
+async function fiscalYearTour(page: Page, apiAs: (user: 'admin') => Promise<APIRequestContext>): Promise<void> {
   const api = await apiAs('admin');
   const before = await json<{ hideAmountsFromViewers: boolean; defaultCurrency: string; fiscalYearStartMonth: number }>(await api.get('/api/costs/settings'));
   const f = await fixture(api);
@@ -155,13 +162,42 @@ test('cost plan: fiscal year start, plan lines, entries and the year view', asyn
     await api.put('/api/costs/settings', { data: before });
     await cleanup(api, f);
   }
-});
+}
 
 test('cost plan on a phone @mobile', async ({ page, apiAs }) => {
+  test.setTimeout(FISCAL_YEAR_TIMEOUT);
+  await withLock(FISCAL_YEAR_LOCK, async () => {
+    const api = await apiAs('admin');
+    const f = await fixture(api);
+    try {
+      await plan(page, f, true);
+    } finally {
+      await cleanup(api, f);
+    }
+  });
+});
+
+test('cost plan: an amount in yen has no decimals (0.18.0)', async ({ page, apiAs }) => {
   const api = await apiAs('admin');
   const f = await fixture(api);
   try {
-    await plan(page, f, true);
+    await page.goto(`/services/${f.service.id}/costs`);
+    const view = page.getByTestId('service-cost-plan');
+    await view.getByTestId('plan-add-line').click();
+    const dialog = page.getByRole('dialog', { name: /^New plan line, FY / });
+    await dialog.getByRole('textbox', { name: 'Title' }).fill('Kestrel licence in yen');
+    await dialog.getByRole('textbox', { name: 'Amount per year' }).fill('100000.50');
+    await dialog.getByRole('textbox', { name: 'Currency' }).fill('JPY');
+    await dialog.getByTestId('plan-line-save').click();
+    await expect(dialog.getByText('A whole amount: JPY has no decimals')).toBeVisible();
+    await dialog.getByRole('textbox', { name: 'Amount per year' }).fill('100000');
+    await dialog.getByTestId('plan-line-save').click();
+    await expect(dialog).toBeHidden();
+    // shown without decimals (a month is 8,333.33… yen in the API, 8,333 here)
+    const total = view.getByTestId('plan-currency-JPY').getByTestId('plan-total-planned');
+    await expect(total).toContainText('100,000');
+    await expect(total).not.toContainText('100,000.');
+    await expectAccessible(page, 'cost plan: yen');
   } finally {
     await cleanup(api, f);
   }

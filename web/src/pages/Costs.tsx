@@ -3,7 +3,7 @@ import { Alert, Anchor, Button, Group, Modal, Paper, SegmentedControl, Select, S
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { IconCoin, IconEyeOff, IconSettings } from '@tabler/icons-react';
+import { IconCalendarDollar, IconCoin, IconEyeOff, IconSettings } from '@tabler/icons-react';
 import { COST_SCOPES, type CostOverview, type CostOverviewRow, type CostScope, type CostSettings, type FiscalYearChange } from '@sm/shared';
 import { get, notifyError, notifyOk, put } from '../api';
 import { EmptyState, QueryState } from '../components/common';
@@ -126,11 +126,23 @@ export function CostsPage() {
       title={t('title')}
       description={t('description')}
       actions={
-        q.data?.canManageSettings ? (
-          <Button size="xs" variant="default" leftSection={<IconSettings size={14} />} onClick={() => setSettings(true)} data-testid="cost-settings">
-            {t('settings.open')}
+        <Group gap="xs">
+          <Button
+            size="xs"
+            variant="default"
+            component={Link}
+            to="/costs/commitments"
+            leftSection={<IconCalendarDollar size={14} />}
+            data-testid="cost-commitments"
+          >
+            {t('commitments.title')}
           </Button>
-        ) : undefined
+          {q.data?.canManageSettings && (
+            <Button size="xs" variant="default" leftSection={<IconSettings size={14} />} onClick={() => setSettings(true)} data-testid="cost-settings">
+              {t('settings.open')}
+            </Button>
+          )}
+        </Group>
       }
       search={{ value: search, onChange: setSearch, label: t('search') }}
       view="costs"

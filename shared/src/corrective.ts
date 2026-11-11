@@ -119,6 +119,8 @@ const findingFields = {
   serviceId: z.string().min(1).max(100).nullable(),
   /** The supplier the finding is about (one the person may see) */
   supplierId: z.string().min(1).max(100).nullable(),
+  /** A contract of that supplier (0.18.0, ADR 0031): its owners read the finding */
+  supplierContractId: z.string().min(1).max(100).nullable(),
   controlIds: ids,
   /** A Steward user name */
   owner: z.string().trim().min(1).max(128).nullable(),
@@ -136,6 +138,7 @@ export const caFindingInput = z
     severity: findingFields.severity.default('minor'),
     serviceId: findingFields.serviceId.default(null),
     supplierId: findingFields.supplierId.default(null),
+    supplierContractId: findingFields.supplierContractId.default(null),
     controlIds: ids.default([]),
     owner: findingFields.owner.default(null),
     dueDate: findingFields.dueDate.default(null),
@@ -252,6 +255,9 @@ export interface CaFindingSummary {
   supplierId: string | null;
   /** null when the reader may not see the supplier */
   supplierName: string | null;
+  /** The contract it names (0.18.0, ADR 0031); null with `supplierContractHidden`: a contract the reader may not see */
+  supplierContract: { id: string; title: string } | null;
+  supplierContractHidden: boolean;
   owner: string | null;
   dueDate: string | null;
   /** Not closed or cancelled, and past its due date or with an action past its due date */
@@ -275,6 +281,8 @@ export interface CaFinding extends CaFindingSummary {
   effectiveness: CaEffectiveness | null;
   cancelReason: string;
   suggestionId: string | null;
+  /** The owners of the contract it names, when the reader may see it (0.18.0): proposed as owners of the first action */
+  supplierContractOwners: string[];
   actions: CaAction[];
   createdBy: string;
   updatedBy: string;

@@ -1,11 +1,14 @@
 import { Badge, Group, Progress, Text, Tooltip } from '@mantine/core';
 import { IconAlertTriangle, IconCircleCheck, IconCircleX } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import type { CostBudgetStateName, CostScope } from '@sm/shared';
+import { currencyMinorUnits, type CostBudgetStateName, type CostScope } from '@sm/shared';
 import { dateTimeFormat, numberFormat } from '../../format';
 
-/** An amount (decimal text) in its currency, in the UI language: "1,840.00 USD" → "$1,840.00" / "1.840,00 $". */
-export function fmtMoney(amount: string | null | undefined, currency: string, digits = 2): string {
+/**
+ * An amount (decimal text) in its currency, in the UI language: "1,840.00 USD" → "$1,840.00" / "1.840,00 $" – rounded
+ * to the currency's minor units (0.18.0): "¥8,333" for JPY, "KWD 12.500" for the Kuwaiti dinar.
+ */
+export function fmtMoney(amount: string | null | undefined, currency: string, digits = currencyMinorUnits(currency)): string {
   if (amount === null || amount === undefined || amount === '') return '–';
   const n = Number(amount);
   if (!Number.isFinite(n)) return '–';
@@ -15,6 +18,25 @@ export function fmtMoney(amount: string | null | undefined, currency: string, di
     // a code Intl does not know: the number and the code
     return `${numberFormat({ minimumFractionDigits: digits, maximumFractionDigits: digits }).format(n)} ${currency}`;
   }
+}
+
+/** An amount (decimal text) as a number with the currency's minor units, without the code: "8,333" for JPY. */
+export function fmtAmount(amount: string | null | undefined, currency: string): string {
+  if (amount === null || amount === undefined || amount === '') return '–';
+  const n = Number(amount);
+  const digits = currencyMinorUnits(currency);
+  return Number.isFinite(n) ? numberFormat({ minimumFractionDigits: digits, maximumFractionDigits: digits }).format(n) : '–';
+}
+
+/**
+ * When an amount has more decimals than its currency has minor units (1500.50 JPY): the decimals allowed and the
+ * code, for the form's error; null when it fits (the server refuses it as well, 0.18.0).
+ */
+export function tooManyDecimals(amount: string, currency: string): { digits: number; currency: string } | null {
+  const m = /[.,](\d+)$/.exec(amount.trim());
+  const code = currency.trim().toUpperCase();
+  const digits = currencyMinorUnits(code);
+  return m && m[1]!.replace(/0+$/, '').length > digits ? { digits, currency: code } : null;
 }
 
 /** +12.5 % / −3 % (the sign always shown), or "–". */

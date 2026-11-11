@@ -8,7 +8,8 @@ import { sessionState, ISOLATED_SETUP_MS, startIsolatedServer, type IsolatedServ
 /**
  * 0.16.0 (ADR 0027): Settings → Exports – an export of the cost plans and the plant registry to the demo's S3, run now,
  * its run in the history – and Settings → Backups → Contents: leaving run artifacts out shows what a restore lacks.
- * Both change the whole installation (backup settings, the plant module), so they run on a server of their own.
+ * – and (0.18.0) a backup target changed by whoever manages its platform, confirmed again. They change the whole
+ * installation (backup settings, the plant module), so they run on a server of their own.
  */
 
 test.describe('exports and backup contents (own server)', () => {
@@ -163,5 +164,34 @@ test.describe('exports and backup contents (own server)', () => {
     await page.reload();
     await expect(page.getByTestId('backup-contents-warning')).toContainText('Run artifacts (artifacts/)');
     await expect(page.getByTestId('backup-contents').getByRole('checkbox', { name: 'Run artifacts (artifacts/)' })).not.toBeChecked();
+  });
+
+  test('Settings → Backups: a changed S3 target fails the backups until an administrator confirms it', async ({ browser }) => {
+    test.setTimeout(120_000);
+    await srv.api('POST', '/auth/step-up', { password: USERS.admin.password });
+    const platform = await srv.api('POST', '/platforms', {
+      name: 'Invented backup bucket',
+      kind: 'generic',
+      baseUrl: `${srv.baseURL}/mock/s3/e2e-backups`,
+      config: { auth: { type: 'aws_sigv4', aws: { region: 'eu-central-1', service: 's3' } }, variables: {}, http: { proxy: 'none' } },
+      secrets: { accessKeyId: 'AKIADEMOEXAMPLE', secretAccessKey: 'demoSecretKey' },
+    });
+    await srv.api('PUT', '/backups/passphrase', { passphrase: 'an invented backup passphrase 7' });
+    const { settings } = await srv.api('GET', '/backups');
+    await srv.api('PUT', '/backups/settings', { ...settings, platformId: platform.id, prefix: 'e2e/' });
+    // whoever manages the platform points it at another bucket
+    await srv.api('PUT', `/platforms/${platform.id}`, { baseUrl: `${srv.baseURL}/mock/s3/e2e-other-backups` });
+
+    const page = await open(browser);
+    await page.goto('/settings/backups');
+    const alert = page.getByTestId('backup-target-changed');
+    await expect(alert).toContainText('The S3 target changed – confirm it again');
+    await expectAccessible(page, 'backup target changed');
+    await srv.api('DELETE', '/auth/step-up');
+    await alert.getByRole('button', { name: 'Confirm target' }).click();
+    await confirmIfAsked(page, page.getByText('Target confirmed'));
+    await expect(page.getByText('Target confirmed')).toBeVisible();
+    await expect(alert).toBeHidden();
+    expect((await srv.api('GET', '/backups')).targetChanged).toBe(false);
   });
 });

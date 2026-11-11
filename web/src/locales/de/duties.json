@@ -22,6 +22,8 @@
   "application": "Anwendung",
   "process": "Prozess",
   "processHidden": "ein Prozess, den Sie nicht sehen dürfen",
+  "contractHint": "Optional: der Vertrag des Lieferanten, den diese Pflicht prüft – zuerst die Verträge, die diesen Service abdecken. Wählen Sie einen anderen, wird der Service ihm hinzugefügt.",
+  "contractHidden": "Ein Vertrag, den Sie nicht sehen dürfen",
   "schedule": "Zeitplan",
   "noSchedule": "Von Personen gestartet (kein Zeitplan)",
   "scheduleDisabled": "deaktiviert",

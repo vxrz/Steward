@@ -93,7 +93,8 @@
     "record": "Incident review",
     "created": "Recorded by {{user}} on {{date}}",
     "updated": "Last changed by {{user}} {{when}}",
-    "closed": "Closed by {{user}} on {{date}}"
+    "closed": "Closed by {{user}} on {{date}}",
+    "contract": "Contract"
   },
   "hints": {
     "sourceLabel": "For example: External ISMS audit 2026, finding 4",
@@ -102,16 +103,17 @@
     "grcRef": "Where the risk lives in your GRC tool, e.g. a risk id – Steward keeps no risk register",
     "service": "Editors of the service may change the finding",
     "supplier": "The supplier the finding is about, for example from a supplier review",
-    "owner": "Who sees the finding through and is reminded"
+    "owner": "Who sees the finding through and is reminded",
+    "contract": "Optional: one of the supplier’s contracts – its owners read the finding."
   },
   "form": {
     "newTitle": "Record a finding",
     "editTitle": "Change finding {{number}}",
     "confirmTitle": "Confirm as a finding",
     "confirmIntro": "The finding is filled in from the suggestion. Change what you need; it links to what it came from.",
-    "saved": "Saved.",
-    "created": "Finding {{number}} recorded.",
-    "confirmed": "Finding {{number}} recorded from the suggestion.",
+    "saved": "Saved",
+    "created": "Finding {{number}} recorded",
+    "confirmed": "Finding {{number}} recorded from the suggestion",
     "noService": "No service",
     "noOwner": "Nobody yet",
     "controlsPlaceholder": "Search controls",
@@ -124,7 +126,7 @@
     "reopen": "Back to in progress",
     "checkEffectiveness": "Check effectiveness",
     "cancel": "Cancel finding",
-    "statusChanged": "Status changed.",
+    "statusChanged": "Status changed",
     "about": "About the finding",
     "noDescription": "No description.",
     "sourceLink": "Came from",
@@ -152,14 +154,15 @@
     "fieldTitle": "Action",
     "owners": "Owners",
     "ownersHint": "They are reminded before the due date, on it and weekly while it is overdue.",
+    "ownersFromContract": "Proposed: the owners of the contract “{{contract}}”, so the action reminders reach them.",
     "dueDate": "Due date",
     "note": "Note",
     "done": "Done",
     "doneBy": "Done by {{user}} on {{date}}",
     "due": "Due {{date}}",
     "measure": "Measure of the review",
-    "saved": "Action saved.",
-    "removed": "Action removed."
+    "saved": "Action saved",
+    "removed": "Action removed"
   },
   "effectiveness": {
     "title": "Check effectiveness of {{number}}",
@@ -171,14 +174,14 @@
     "notEffective": "Not effective",
     "note": "Note",
     "submit": "Record the check",
-    "done": "Effectiveness check recorded."
+    "done": "Effectiveness check recorded"
   },
   "cancel": {
     "title": "Cancel finding {{number}}",
     "reason": "Reason",
     "reasonHint": "For example: recorded twice, or not a nonconformity after all",
     "submit": "Cancel finding",
-    "done": "Finding cancelled."
+    "done": "Finding cancelled"
   },
   "suggestions": {
     "intro": "Steward suggests findings from its own events; a person confirms each one or dismisses it with a reason. The same event is never suggested twice.",
@@ -195,7 +198,7 @@
     "dismiss": "Dismiss",
     "dismissTitle": "Dismiss the suggestion",
     "dismissReason": "Why it is not a finding",
-    "dismissed": "Suggestion dismissed.",
+    "dismissed": "Suggestion dismissed",
     "occurred": "Happened on {{date}}",
     "decided": "{{status}} by {{user}} on {{date}}",
     "finding": "Finding {{number}}",
@@ -229,7 +232,7 @@
     "intro": "Which of Steward's events become suggestions. Nothing becomes a finding without a person; switched on, a source suggests the events of the last 90 days.",
     "readOnly": "Only administrators change the sources.",
     "updated": "Last changed by {{user}} {{when}}.",
-    "saved": "Sources saved.",
+    "saved": "Sources saved",
     "sources": {
       "dutyMandatory": {
         "label": "Missed or failed periods of mandatory duties",
@@ -271,5 +274,6 @@
     "none": "No open finding is about this supplier.",
     "record": "Record a finding",
     "all": "All findings of this supplier"
-  }
+  },
+  "contractHidden": "A contract you may not see"
 }

@@ -2,8 +2,8 @@
   "title": "Modules",
   "intro": "Optional areas of {{brand}}. Switch off what your team does not use: its pages, menu entries, routes and background jobs go away for everyone. Its data stays, and comes back when you switch the area on again.",
   "switchLabel": "Switch {{name}} on",
-  "switchedOn": "{{name}} is switched on.",
-  "switchedOff": "{{name}} is switched off. Its data is kept.",
+  "switchedOn": "{{name}} is switched on",
+  "switchedOff": "{{name}} is switched off – its data is kept",
   "off": {
     "title": "This area is switched off",
     "text": "An administrator can turn it on in Settings → Modules.",

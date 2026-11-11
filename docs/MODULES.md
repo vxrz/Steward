@@ -66,6 +66,7 @@ For connectors, _verified against_ says what the tests talk to: a **real** syste
 | Kafka Connect                                     | `kafka-connect`               | preview  | mock             |
 | Confluent Cloud                                   | `confluent-cloud`             | preview  | mock             |
 | Data contract service                             | `datacontract`                | preview  | mock             |
+| InfluxDB                                          | `influxdb`                    | preview  | mock             |
 | changedetection.io                                | `changedetection`             | preview  | mock             |
 | Microsoft Teams (bot)                             | `teams`                       | preview  | mock             |
 

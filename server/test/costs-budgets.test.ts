@@ -38,6 +38,10 @@ describe('budgets', () => {
     const b = await dana('PUT', '/costs/budgets', { scope: 'service', scopeId: service, amount: '100000', currency: 'USD', comment: 'first' });
     expect(b.budget).toMatchObject({ amount: '100000.00', currency: 'USD', state: 'ok' });
     expect(await dana('PUT', '/costs/budgets', { scope: 'service', scopeId: service, amount: '50000', currency: 'USD' })).toBeTruthy();
+    // no more decimals than the currency has (0.17.1)
+    await expect(dana('PUT', '/costs/budgets', { scope: 'service', scopeId: service, amount: '40000.5', currency: 'JPY' })).rejects.toMatchObject({
+      status: 400,
+    });
     for (const raise of [
       { amount: '60000', currency: 'USD' },
       { amount: '10', currency: 'EUR' },

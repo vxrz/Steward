@@ -8,6 +8,7 @@ import {
   isMonth,
   planMonths,
   shiftMonth,
+  spreadAmount,
   toMicros,
   type CostPlanYear,
 } from '@sm/shared';
@@ -124,6 +125,28 @@ describe('fiscal years', () => {
     expect(shiftMonth('2026-11', 14)).toBe('2028-01');
   });
 
+  it('know the minor units of a currency and round to them (0.17.1)', async () => {
+    const { CURRENCY_MINOR_UNITS, ISO_4217_CODES, currencyMinorUnits, fitsCurrency, fromMicrosIn, moneyText, roundToCurrency } = await import('@sm/shared');
+    expect(Object.keys(CURRENCY_MINOR_UNITS).every((c) => ISO_4217_CODES.has(c))).toBe(true);
+    expect(['JPY', 'KRW', 'ISK', 'CLP', 'VND', 'jpy'].map(currencyMinorUnits)).toEqual([0, 0, 0, 0, 0, 0]);
+    expect(['BHD', 'KWD', 'OMR', 'JOD', 'TND', 'LYD', 'IQD'].map(currencyMinorUnits)).toEqual([3, 3, 3, 3, 3, 3, 3]);
+    expect(['EUR', 'USD', 'CHF', 'XAU', 'NOPE'].map(currencyMinorUnits)).toEqual([2, 2, 2, 2, 2]);
+    expect(fromMicrosIn(8_333_333_333, 'JPY')).toBe('8333');
+    expect(fromMicrosIn(1_500_500_000, 'JPY')).toBe('1501');
+    expect(fromMicrosIn(-1_500_500_000, 'JPY')).toBe('-1501');
+    expect(fromMicrosIn(-400_000, 'JPY')).toBe('0');
+    expect(fromMicrosIn(8_333_333_333, 'EUR')).toBe('8333.33');
+    expect(fromMicrosIn(12_500_000, 'KWD')).toBe('12.500');
+    expect(fromMicrosIn(12_345_600, 'CLF')).toBe('12.3456');
+    expect(roundToCurrency(1_005_000, 'EUR')).toBe(1_010_000);
+    expect(moneyText(1_500_000_000, 'JPY')).toBe('1500 JPY');
+    expect(fitsCurrency(toMicros('1500.00')!, 'JPY')).toBe(true);
+    expect(fitsCurrency(toMicros('1500.5')!, 'JPY')).toBe(false);
+    expect(fitsCurrency(toMicros('1.5e1')!, 'JPY')).toBe(true);
+    expect(fitsCurrency(toMicros('12.345')!, 'KWD')).toBe(true);
+    expect(fitsCurrency(toMicros('12.345')!, 'EUR')).toBe(false);
+  });
+
   it('spread a yearly amount evenly and exactly', () => {
     const y = planMonths(1_000_010_000, 'yearly', null);
     expect(y.reduce((a, b) => a + b, 0)).toBe(1_000_010_000);
@@ -201,6 +224,20 @@ describe('plan lines', () => {
     await expect(s.api('POST', `/costs/plans/${service}/entries`, { date: '2030-05-01', amount: '1', currency: 'XXX' })).rejects.toMatchObject({
       status: 400,
     });
+    // no more decimals than the currency has (0.17.1): none for the yen, three for the Kuwaiti dinar
+    await expect(post({ amount: '1500.50', currency: 'JPY' })).rejects.toMatchObject({
+      status: 400,
+      body: { error: expect.stringContaining('JPY has no decimals') },
+    });
+    await expect(post({ amount: '12.3456', currency: 'KWD' })).rejects.toMatchObject({
+      status: 400,
+      body: { error: expect.stringContaining('at most 3 decimals for KWD') },
+    });
+    await expect(s.api('POST', `/costs/plans/${service}/entries`, { date: '2030-05-01', amount: '99.9', currency: 'KRW' })).rejects.toMatchObject({
+      status: 400,
+    });
+    await expect(post({ title: 'Yen whole', amount: '1500.00', currency: 'jpy' })).resolves.toBeTruthy();
+    await expect(post({ title: 'Dinar', amount: '12.345', currency: 'KWD' })).resolves.toBeTruthy();
     const { ISO_4217_CODES } = await import('@sm/shared');
     expect(['EUR', 'USD', 'JPY', 'CHF', 'XCG'].every((c) => ISO_4217_CODES.has(c))).toBe(true);
     expect(ISO_4217_CODES.size).toBeGreaterThan(170);
@@ -265,10 +302,64 @@ describe('plan lines', () => {
       body: { code: 'COST_PLAN_NOTHING_TO_COPY' },
     });
     expect((await s.api('GET', `/audit?action=cost.plan_copied&entityId=${service}`))[0].summary).toBe(
-      'Cost plan of "Planned service" copied from FY 2032/33 to FY 2033/34: 2 line(s)',
+      'Cost plan of "Planned service" copied from FY 2032/33 to FY 2033/34: 2 line(s) copied',
     );
     const { nextYearDate } = await import('../src/costs/plans.js');
     expect(nextYearDate('2028-02-29')).toBe('2029-02-28');
+  });
+});
+
+describe('part of the year, quarterly and prepaid lines (0.18.0, ADR 0030)', () => {
+  it('spread yearly amounts in the currency’s minor units, adding up exactly', () => {
+    const eur = spreadAmount(1_000_000_000, 12, 'EUR');
+    expect(eur.reduce((a, b) => a + b, 0)).toBe(1_000_000_000);
+    expect(eur.every((v) => v % 10_000 === 0)).toBe(true);
+    const yen = spreadAmount(100_000_000_000, 12, 'JPY');
+    expect(yen.every((v) => v % 1_000_000 === 0)).toBe(true);
+    expect(yen.reduce((a, b) => a + b, 0)).toBe(100_000_000_000);
+    const kwd = spreadAmount(12_345_000, 7, 'KWD');
+    expect(kwd.every((v) => v % 1000 === 0)).toBe(true);
+    expect(kwd.reduce((a, b) => a + b, 0)).toBe(12_345_000);
+    // four minor units (CLF); an amount with more decimals than its currency (entered before 0.18.0): micros
+    expect(spreadAmount(1_000_100, 3, 'CLF').every((v) => v % 100 === 0)).toBe(true);
+    expect(spreadAmount(1_000_200, 4, 'CLF').reduce((a, b) => a + b, 0)).toBe(1_000_200);
+    expect(spreadAmount(1_000_001, 12, 'EUR').reduce((a, b) => a + b, 0)).toBe(1_000_001);
+    // part of the year: monthly, quarterly and yearly from–to
+    expect(planMonths(5, 'monthly', null, { from: 4, to: 6 })).toEqual([0, 0, 0, 0, 5, 5, 5, 0, 0, 0, 0, 0]);
+    expect(planMonths(5, 'quarterly', null, { from: 1, to: 9 })).toEqual([0, 5, 0, 0, 5, 0, 0, 5, 0, 0, 0, 0]);
+    expect(planMonths(5, 'quarterly', null)).toEqual([5, 0, 0, 5, 0, 0, 5, 0, 0, 5, 0, 0]);
+    expect(planMonths(9_000_000, 'yearly', null, { from: 9, currency: 'EUR' })).toEqual([0, 0, 0, 0, 0, 0, 0, 0, 0, 3_000_000, 3_000_000, 3_000_000]);
+  });
+
+  it('store from and to months as positions in the fiscal year; one-off payments say which days they cover', async () => {
+    const post = (b: Record<string, unknown>) =>
+      olivia<CostPlanYear>('POST', `/costs/plans/${service}/lines`, { title: 'Part', category: 'support', currency: 'EUR', fiscalYear: 2041, ...b });
+    // April starts the fiscal year: FY 2041/42 runs from 2041-04 to 2042-03
+    let y = await post({ title: 'Monthly from July', amount: '100', cadence: 'monthly', fromMonth: '2041-07', toMonth: '2041-12' });
+    const monthly = y.lines.find((l) => l.title === 'Monthly from July')!;
+    expect(monthly).toMatchObject({ fromMonth: '2041-07', toMonth: '2041-12', planned: '600.00' });
+    expect(monthly.months.map(m)).toEqual([0, 0, 0, 100, 100, 100, 100, 100, 100, 0, 0, 0]);
+    y = await post({ title: 'Licence from October', amount: '600', cadence: 'yearly', fromMonth: '2041-10' });
+    const yearly = y.lines.find((l) => l.title === 'Licence from October')!;
+    expect(yearly).toMatchObject({ fromMonth: '2041-10', toMonth: '2042-03', planned: '600.00' });
+    expect(yearly.months.map(m)).toEqual([0, 0, 0, 0, 0, 0, 100, 100, 100, 100, 100, 100]);
+    // the whole year chosen: stored as none
+    y = await post({ title: 'Whole year', amount: '120', cadence: 'quarterly', fromMonth: '2041-04', toMonth: '2042-03' });
+    expect(y.lines.find((l) => l.title === 'Whole year')).toMatchObject({ fromMonth: null, toMonth: null, planned: '480.00' });
+    y = await post({ title: 'Prepaid three years', amount: '3600', cadence: 'once', onceMonth: '2041-05', coversFrom: '2041-05-01', coversTo: '2044-04-30' });
+    expect(y.lines.find((l) => l.title === 'Prepaid three years')).toMatchObject({ coversFrom: '2041-05-01', coversTo: '2044-04-30', fromMonth: null });
+    // a month outside the year, the last month before the first, covers with one day only
+    await expect(post({ amount: '1', cadence: 'monthly', fromMonth: '2042-04' })).rejects.toMatchObject({ status: 400, body: { code: 'COST_PLAN_MONTH' } });
+    await expect(post({ amount: '1', cadence: 'monthly', fromMonth: '2041-09', toMonth: '2041-08' })).rejects.toMatchObject({ status: 400 });
+    await expect(post({ amount: '1', cadence: 'once', onceMonth: '2041-05', coversFrom: '2041-05-01' })).rejects.toMatchObject({ status: 400 });
+    // the fiscal year start moves: the positions stay (like the month of a one-off payment)
+    const { db } = await import('../src/db.js');
+    expect(db().get<{ from_index: number; to_index: number }>('SELECT from_index, to_index FROM cost_plan_lines WHERE id = ?', monthly.id)).toMatchObject({
+      from_index: 3,
+      to_index: 8,
+    });
+    const audit = (await s.api('GET', `/audit?action=cost.plan_line_added&entityId=${service}&limit=10`)) as { details: { after: Record<string, unknown> } }[];
+    expect(audit.some((a) => a.details.after.fromIndex === 3 && a.details.after.toIndex === 8)).toBe(true);
   });
 });
 
@@ -687,6 +778,39 @@ describe('the costs read from the cost model', () => {
 });
 
 describe('export, API and the team rollup', () => {
+  it('writes amounts with the minor units of their currency: none for JPY, three for KWD (0.17.1)', async () => {
+    await s.api('POST', `/costs/plans/${service}/lines`, {
+      fiscalYear: 2036,
+      title: 'Yen licence',
+      category: 'licence',
+      amount: '100000',
+      currency: 'JPY',
+      cadence: 'yearly',
+    });
+    await s.api('POST', `/costs/plans/${service}/lines`, {
+      fiscalYear: 2036,
+      title: 'Dinar support',
+      category: 'other',
+      amount: '12.5',
+      currency: 'KWD',
+      cadence: 'yearly',
+    });
+    await s.api('POST', `/costs/plans/${service}/entries`, { date: '2036-05-01', amount: '1234', currency: 'JPY', reference: 'JP-1' });
+    // the yearly spread is in whole yen since 0.18.0 (ADR 0030): 100000 / 12 a month, adding up exactly …
+    const y: CostPlanYear = await s.api('GET', `/costs/plans/${service}?fiscalYear=2036`);
+    const yenMonths = y.lines.find((l) => l.currency === 'JPY')!.months.map((v) => Number(v));
+    expect(yenMonths.every((v) => Number.isInteger(v))).toBe(true);
+    expect(yenMonths.reduce((a, b) => a + b, 0)).toBe(100000);
+    // … the CSV rounds to the currency
+    const plan: string = await vera('GET', `/costs/plans/${service}/export?fiscalYear=2036`);
+    const yen = plan.split('\r\n').find((l) => l.includes('Yen licence'))!;
+    expect(yen).toContain(',100000,JPY,yearly,');
+    expect(yen).not.toMatch(/\d\.\d/);
+    expect(plan.split('\r\n').find((l) => l.includes('Dinar support'))).toContain(',12.500,KWD,yearly,');
+    const entries: string = await vera('GET', `/costs/plans/${service}/export?fiscalYear=2036&what=entries`);
+    expect(entries).toContain('2036-05-01,1234,JPY,,yes,');
+  });
+
   it('exports the plan and the entries as CSV', async () => {
     await s.api('POST', `/costs/plans/${service}/lines`, {
       fiscalYear: 2035,
@@ -843,8 +967,8 @@ describe('export, API and the team rollup', () => {
     expect(out.some((r) => r.startsWith(`${onlyEntries},Set entries only,2026-05-04,30.00,EUR`))).toBe(true);
     expect(out.join('\n')).not.toContain('Set archived');
     // the same columns whether there is anything to export or not
-    expect(PLAN_EXPORT_HEADS.plan.split(',')).toHaveLength(19);
-    expect(PLAN_EXPORT_HEADS.entries.split(',')).toHaveLength(11);
+    expect(PLAN_EXPORT_HEADS.plan.split(',')).toHaveLength(25);
+    expect(PLAN_EXPORT_HEADS.entries.split(',')).toHaveLength(14);
     const none: unknown[] = [];
     for await (const x of planExportRows(2090)) none.push(x);
     expect(none).toEqual([]);

@@ -164,7 +164,9 @@
     "invalid": "Ungültig",
     "url": "Geben Sie eine Webadresse ein, die mit http:// oder https:// beginnt",
     "minLength": "Mindestens {{count}} Zeichen",
-    "currency": "Ein Währungscode aus drei Buchstaben, z. B. EUR"
+    "currency": "Ein Währungscode aus drei Buchstaben, z. B. EUR",
+    "currencyWhole": "Ein ganzer Betrag: {{currency}} hat keine Nachkommastellen",
+    "currencyDecimals": "Höchstens {{digits}} Nachkommastellen für {{currency}}"
   },
   "tags": {
     "hint": "Ein Schlüssel, optional mit Wert: Schlüssel eingeben, mit Tab zum Wert, mit Enter hinzufügen (z. B. env: prod oder nur pci).",
@@ -249,7 +251,7 @@
     "submit": "Kopie anlegen",
     "failed": "Nicht dupliziert",
     "doneTitle": "„{{name}}“ angelegt",
-    "done": "Die Kopie ist fertig.",
+    "done": "Die Kopie ist fertig",
     "skipped": {
       "components_one": "{{count}} Komponente konnte nicht kopiert werden.",
       "components_other": "{{count}} Komponenten konnten nicht kopiert werden.",

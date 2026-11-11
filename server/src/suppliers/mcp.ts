@@ -3,7 +3,7 @@ import { SUPPLIER_STATUSES } from '@sm/shared';
 import { pageArray } from '../api/v1/pagination.js';
 import { ToolError, cursorArg, defineTool, idArg, limitArg, type ToolDef } from '../mcp/tooling.js';
 import { HttpError } from '../util.js';
-import { getSupplier, listSuppliers, toPublic } from './service.js';
+import { getSupplier, listSuppliers, serviceContracts, toPublic, toPublicContract } from './service.js';
 
 /**
  * Suppliers for AI assistants (0.17.0, ADR 0029): read only, with the rights of the token owner; contacts without
@@ -50,13 +50,33 @@ export const supplierTools: ToolDef[] = [
     name: 'get_supplier',
     title: 'Get a supplier',
     description:
-      'One supplier: contracts (term, notice-by date, renewal, SLA availability, support hours, response times, contractual RTO and RPO in hours, the cost plan lines that pay for them), certificates (ISO/IEC 27001, SOC 2 … with validity), contacts with name and role only (no e-mail or phone), the items that link it and its supplier review duties with their last periods.',
+      'One supplier: the contracts you may see (term, notice-by date, renewal, SLA availability, support hours, response times, contractual RTO and RPO in hours, owners, the services each covers with its purpose, the cost plan lines that pay for them), certificates (ISO/IEC 27001, SOC 2 … with validity), contacts with name and role only (no e-mail or phone), the items that link it and its supplier review duties with their last periods.',
     input: z.object({ supplierId: idArg('Supplier id (sup_…, from list_suppliers)') }).strict(),
     handler: (a) => {
       try {
         return toPublic(getSupplier(a.supplierId));
       } catch (e) {
         if (e instanceof HttpError && e.statusCode === 404) throw new ToolError(`Supplier ${a.supplierId} not found`);
+        throw e;
+      }
+    },
+  }),
+  defineTool({
+    name: 'list_service_contracts',
+    title: 'List the contracts of a service',
+    description:
+      'The supplier contracts covering a service that you may see: supplier, contract (term, notice-by date, renewal, SLA, contractual RTO and RPO, owners), the purpose for this service and whether it is confirmed or still proposed; and the suppliers the service’s applications and systems link without a contract covering it.',
+    input: z.object({ serviceId: idArg('Service id (from list_services)') }).strict(),
+    handler: (a) => {
+      try {
+        const r = serviceContracts(a.serviceId);
+        return {
+          serviceId: r.serviceId,
+          contracts: r.contracts.map((x) => ({ supplier: x.supplier, contract: toPublicContract(x.contract), purpose: x.purpose, status: x.status })),
+          uncovered: r.uncovered,
+        };
+      } catch (e) {
+        if (e instanceof HttpError && e.statusCode === 404) throw new ToolError(`Service ${a.serviceId} not found`);
         throw e;
       }
     },

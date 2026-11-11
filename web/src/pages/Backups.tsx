@@ -19,7 +19,7 @@ import {
   Title,
 } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { IconCloudUpload, IconKey, IconShieldCheck } from '@tabler/icons-react';
+import { IconAlertTriangle, IconCloudUpload, IconKey, IconShieldCheck } from '@tabler/icons-react';
 import { Trans, useTranslation } from 'react-i18next';
 import type { BackupRun, BackupSettings, BackupStatus, Platform, StoredBackup } from '@sm/shared';
 import { get, notifyError, notifyOk, post, put } from '../api';
@@ -199,6 +199,21 @@ export function BackupsPage() {
           {(!s.key || !s.settings.platformId) && (
             <Alert color={TONE.attention} title={t('backups.setupTitle')}>
               {t('backups.setup')}
+            </Alert>
+          )}
+          {s.targetChanged && (
+            <Alert color={TONE.attention} icon={<IconAlertTriangle size={18} />} title={t('backups.targetChangedTitle')} data-testid="backup-target-changed">
+              <Stack gap="xs" align="flex-start">
+                <Text size="sm">{t('backups.targetChanged')}</Text>
+                <Button
+                  size="xs"
+                  variant="default"
+                  loading={busy === 'confirm'}
+                  onClick={() => void act('confirm', () => post('/backups/confirm-target'), t('backups.targetConfirmed'))}
+                >
+                  {t('backups.confirmTarget')}
+                </Button>
+              </Stack>
             </Alert>
           )}
           <Card withBorder>

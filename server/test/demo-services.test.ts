@@ -85,6 +85,31 @@ describe('demo services', () => {
     expect(soa.versions).toEqual([]);
     expect(soa.counts).toMatchObject({ applicable: 5, notApplicable: 1 });
     expect(soa.entries.find((e: { ref: string }) => e.ref === '8.13').suggestion).toMatchObject({ counts: { supplier: 1, team: 1 }, party: 'shared' });
+    // shared by two services (ADR 0031): the hosting held by the service desk team, an order form of a framework
+    // agreement for customer care, a contact scoped to the hosting contract, and a pair split by team
+    const shared = await s.api('GET', `/suppliers/${cloud.id}`);
+    const hosting = shared.contracts.find((c: { title: string }) => c.title === 'Managed Kubernetes');
+    expect(hosting).toMatchObject({ teamOwned: true, services: [expect.objectContaining({ id: shop.id, purpose: 'Hosting of the shop’s clusters' })] });
+    const orderForm = shared.contracts.find((c: { title: string }) => c.title === 'Order form: agent workspace licences');
+    expect(orderForm).toMatchObject({
+      parent: { title: 'Platform framework agreement' },
+      slaAvailability: 99.5,
+      dpa: { personalData: true, inheritedFrom: 'master' },
+    });
+    expect(orderForm.inherited).toContain('slaAvailability');
+    expect(shared.contacts.find((c: { name: string }) => c.name === 'Example Cloud hosting account manager').scope[0]).toMatchObject({
+      kind: 'contract',
+      id: hosting.id,
+    });
+    expect((await s.api('GET', '/suppliers/shared-suggestions')).some((g: { name: string }) => g.name.startsWith('Invented Relay Mail'))).toBe(true);
+    // the team-scoped one belongs to a team that takes no new resources: the demo teams' members keep their defaults
+    const { newResourceTeams } = await import('../src/auth/policy.js');
+    const { findUserByName, toAuthUser } = await import('../src/auth/users.js');
+    for (const name of ['olivia', 'adam']) {
+      const teams = newResourceTeams(toAuthUser(findUserByName(name)!)).teams.map((t) => t.name);
+      expect(teams, name).not.toContain('Service Desk');
+      expect(teams, name).not.toContain('Mail relay team');
+    }
     const toConfirm = (await s.api('GET', '/suppliers?status=unconfirmed')) as { name: string }[];
     expect(toConfirm.map((x) => x.name)).toEqual(expect.arrayContaining(['Zentrova Cloud', 'Mailbrook']));
 
@@ -93,8 +118,15 @@ describe('demo services', () => {
     const shopPlan = await s.api('GET', `/costs/plans/${shop.id}`);
     expect(shopPlan.label).toMatch(/^FY \d{4}\/\d{2}$/);
     expect(shopPlan.lines.map((l: { title: string }) => l.title)).toEqual(
-      expect.arrayContaining(['Cloud hosting of the webshop', 'Payment gateway licence', 'Cluster support subscription']),
+      expect.arrayContaining(['Cloud hosting of the webshop', 'Payment gateway licence – Licence fee', 'Cluster support subscription']),
     );
+    // contract payments (ADR 0030): the licence's lines made from its schedule, an imported ERP export with a duplicate
+    expect(shopPlan.lines.filter((l: { schedule: unknown }) => l.schedule).length).toBeGreaterThan(0);
+    const imports = await s.api('GET', `/costs/plans/${shop.id}/imports`);
+    expect(imports.imports[0]).toMatchObject({ fileName: 'erp-export-demo.csv' });
+    expect(imports.imports[0].skipped).toMatchObject({ duplicate: 1 });
+    const owed = await s.api('GET', `/costs/commitments?serviceId=${shop.id}`);
+    expect(owed.rows.map((r: { title: string }) => r.title)).toContain('Licence fee');
     expect(shopPlan.lines.find((l: { title: string }) => l.title === 'Cluster support subscription').target).toMatchObject({
       kind: 'system',
       name: 'k8s-shop-01 (demo)',
@@ -104,6 +136,8 @@ describe('demo services', () => {
     const plantPlan = await s.api('GET', `/costs/plans/${plantId}`);
     expect(plantPlan.lines.map((l: { title: string }) => l.title)).toContain('Historian licences');
     expect(plantPlan.renewals.map((r: { title: string }) => r.title)).toContain('Historian licences');
+    // the add-on prepaid in the last fiscal year: a quiet row in this one
+    expect(plantPlan.prepaid.map((p: { title: string }) => p.title)).toContain('Historian analytics add-on – Three years prepaid');
 
     // the Home tiles have figures instead of "not set up yet"
     const home = await s.api('GET', '/dashboard');

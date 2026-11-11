@@ -22,6 +22,8 @@ import * as triggers from '../triggers/service.js';
 import * as tickets from '../tickets/service.js';
 import { builtinDatasetVisible } from '../dashboards/builtin.js';
 import { planYear } from '../costs/plans.js';
+import { commitments } from '../costs/commitments.js';
+import type { CostCommitment } from '@sm/shared';
 import { moduleEnabled } from '../modules/registry.js';
 import { systemStatus } from '../system/routes.js';
 import { HttpError } from '../util.js';
@@ -34,6 +36,29 @@ import { gatewayTools, mcpIdentities } from './gateway.js';
 import { requestTools } from './requests.js';
 import { ToolError, cap, cursorArg, defineTool, idArg, isoArg, limitArg, type ToolContext, type ToolDef } from './tooling.js';
 import { zodJsonSchema } from '../jsonSchema.js';
+
+/** A commitment row for assistants: the fields that explain it, a contract the user may not see said as such. */
+const commitmentForTool = (r: CostCommitment) => ({
+  scheduleId: r.scheduleId,
+  title: r.title,
+  service: { id: r.serviceId, name: r.serviceName },
+  supplier: r.supplier ? { id: r.supplier.id, name: r.supplier.name } : null,
+  contract: r.contractHidden ? 'a contract of a supplier you may not see' : (r.contract?.title ?? null),
+  billing: r.billing,
+  currency: r.currency,
+  nextPayment: r.nextPayment,
+  owedThisYear: r.owedThisYear,
+  toContractEnd: r.toContractEnd,
+  contractEnd: r.contractEnd,
+  toEarliestExit: r.toEarliestExit,
+  earliestExit: r.earliestExit,
+  byFiscalYear: r.years,
+  later: r.later,
+  noticeBy: r.noticeBy,
+  warning: r.warning,
+  contractChanged: r.changed,
+  notBooked: r.notBooked,
+});
 
 export { ToolError, type McpPrincipal, type ToolContext, type ToolDef } from './tooling.js';
 
@@ -693,6 +718,12 @@ const steward: ToolDef[] = [
           currency: l.currency,
           cadence: l.cadence,
           onceMonth: l.onceMonth,
+          fromMonth: l.fromMonth,
+          toMonth: l.toMonth,
+          coversFrom: l.coversFrom,
+          coversTo: l.coversTo,
+          schedule: l.schedule,
+          notBooked: l.notBooked,
           renewalDate: l.renewalDate,
           read: l.read,
           ...fig(l),
@@ -703,11 +734,53 @@ const steward: ToolDef[] = [
           currency: e.currency,
           planLine: e.planLineTitle,
           unplanned: e.unplanned,
+          supplier: e.supplier ? { id: e.supplier.id, name: e.supplier.name, contract: e.supplierContract?.title ?? null } : null,
+          importId: e.importId,
           reference: e.reference,
           note: short(e.note, 200),
         })),
         renewals: y.renewals,
+        prepaid: y.prepaid,
+        contractChanges: y.contractChanges.map((c) => ({ scheduleId: c.scheduleId, title: c.title, changes: c.changes.length })),
+        commitments: commitments({ serviceId: a.serviceId }).rows.map(commitmentForTool),
       };
+    },
+  }),
+
+  defineTool({
+    name: 'list_cost_commitments',
+    title: 'List cost commitments',
+    description:
+      "What the payment schedules of supplier contracts still owe (Costs module, docs/COSTS.md#commitments): per schedule of a service you may see, the scheduled payments dated today or later – to contract end and to the earliest exit (the end of the term after the next notice-by date), per fiscal year (the current one and the next four) and later – the next payment, the contract's notice-by date and the notice warning (the notice-by date is ahead and the fiscal year of the next term is not planned yet). Scheduled payments, not liabilities: entries are not subtracted. Amounts are decimals in their currency (never converted); null where you may not see the paying service's amounts. Notice warnings first. Read only: confirming proposals, booking and imports stay with people in the app.",
+    input: z
+      .object({
+        serviceId: z.string().max(100).optional().describe('Only this service'),
+        teamId: z.string().max(100).optional().describe("Only this team's services"),
+        supplierId: z.string().max(100).optional().describe("Only this supplier's contracts"),
+        currency: z.string().length(3).optional().describe('Only this currency'),
+        cursor: cursorArg,
+        limit: limitArg(),
+      })
+      .strict(),
+    visible: () => moduleEnabled('costs'),
+    handler: (a) => {
+      if (!moduleEnabled('costs')) throw new ToolError('The Costs module is switched off');
+      let c;
+      try {
+        c = commitments({ serviceId: a.serviceId, teamId: a.teamId, supplierId: a.supplierId, currency: a.currency });
+      } catch (e) {
+        if (e instanceof HttpError && e.statusCode === 404)
+          throw notFound(a.serviceId ? `Service ${a.serviceId}` : a.teamId ? `Team ${a.teamId}` : `Supplier ${a.supplierId}`);
+        throw e;
+      }
+      const rows = c.rows.map(commitmentForTool);
+      const page = pageArray(rows, (r) => [r.warning ? 0 : 1, r.service.name.toLowerCase(), r.title.toLowerCase(), r.scheduleId], a, {
+        serviceId: a.serviceId,
+        teamId: a.teamId,
+        supplierId: a.supplierId,
+        currency: a.currency,
+      });
+      return { fiscalYears: c.years, totals: c.totals, ...page };
     },
   }),
 

@@ -11,6 +11,7 @@ import {
   type UserInfo,
   type QuietHours,
   isEmailAddress,
+  currencyMinorUnits,
 } from '@sm/shared';
 import { db } from '../db.js';
 import { on, type DomainEvents } from '../events.js';
@@ -860,7 +861,9 @@ export function notifyCostBudget(n: BudgetNotice): void {
   const recipients = owners.length ? owners : admins(all);
   const b = n.budget;
   const money = (l: Locale, v: string | null) =>
-    v === null ? '' : `${Number(v).toLocaleString(l, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${b.currency}`;
+    v === null
+      ? ''
+      : `${Number(v).toLocaleString(l, { minimumFractionDigits: currencyMinorUnits(b.currency), maximumFractionDigits: currencyMinorUnits(b.currency) })} ${b.currency}`;
   const name = (l: Locale) => t(l, `costBudget.${n.scope}`, { name: n.name });
   const forecast = (l: Locale) =>
     b.forecastPct === null || b.amount === null

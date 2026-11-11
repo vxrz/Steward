@@ -38,6 +38,7 @@ test.describe('as a designer', () => {
     // the supplier lists it: as an open finding and under "Used by"
     await page.goto(`/suppliers/${supplier.id}`);
     await expect(page.getByTestId('supplier-findings')).toContainText(title);
+    await page.getByTestId('supplier-tab-usedBy').click();
     await expect(page.getByTestId('supplier-used-by')).toContainText('Corrective action');
     await expect(page.getByTestId('supplier-used-by')).toContainText('Open');
     await expectAccessible(page, 'supplier with a finding');

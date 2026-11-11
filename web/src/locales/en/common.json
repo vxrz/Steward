@@ -164,7 +164,9 @@
     "invalid": "Not valid",
     "url": "Enter a web address that starts with http:// or https://",
     "minLength": "At least {{count}} characters",
-    "currency": "A three-letter currency code, e.g. EUR"
+    "currency": "A three-letter currency code, e.g. EUR",
+    "currencyWhole": "A whole amount: {{currency}} has no decimals",
+    "currencyDecimals": "At most {{digits}} decimals for {{currency}}"
   },
   "tags": {
     "hint": "A key, optionally with a value: type the key, Tab to the value, Enter to add (e.g. env: prod, or just pci).",
@@ -249,7 +251,7 @@
     "submit": "Create copy",
     "failed": "Not duplicated",
     "doneTitle": "“{{name}}” created",
-    "done": "The copy is ready.",
+    "done": "The copy is ready",
     "skipped": {
       "components_one": "{{count}} component could not be copied.",
       "components_other": "{{count}} components could not be copied.",

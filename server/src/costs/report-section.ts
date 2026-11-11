@@ -1,5 +1,5 @@
 import { z, type ZodType } from 'zod';
-import { COST_SCOPES, fromMicros } from '@sm/shared';
+import { COST_SCOPES, fromMicrosIn } from '@sm/shared';
 import { db } from '../db.js';
 import { coverOf, coverWhere, scopeInfo, visibleScopes } from './access.js';
 import { budgetOf } from './query.js';
@@ -56,7 +56,7 @@ function build(c: CostConfig, ctx: { from: number; to: number; now: number }): C
     for (const currency of [...new Set([...now.keys(), ...before.keys()])].sort()) {
       const p = now.get(currency) ?? 0;
       const b = before.get(currency) ?? 0;
-      const show = (n: number) => (s.amounts ? fromMicros(Math.round(n / 10_000) * 10_000) : null);
+      const show = (n: number) => (s.amounts ? fromMicrosIn(n, currency) : null);
       rows.push({
         name: s.name,
         currency,
@@ -81,8 +81,8 @@ function build(c: CostConfig, ctx: { from: number; to: number; now: number }): C
     rows: rows.slice(0, MAX_ROWS),
     totals: [...totals.entries()].map(([currency, t]) => ({
       currency,
-      period: fromMicros(Math.round(t.p / 10_000) * 10_000),
-      before: fromMicros(Math.round(t.b / 10_000) * 10_000),
+      period: fromMicrosIn(t.p, currency),
+      before: fromMicrosIn(t.b, currency),
     })),
   };
 }

@@ -3,7 +3,7 @@
   "comment": "Kommentar der prüfenden Person",
   "generatePdf": "PDF erstellen",
   "downloadPdf": "PDF herunterladen",
-  "archived": "{{file}} wurde archiviert.",
+  "archived": "{{file}} wurde archiviert",
   "run": {
     "dialogTitle": "PDF-Bericht erstellen",
     "generated": "PDF-Bericht erstellt",

@@ -1334,12 +1334,20 @@ export interface ApprovedSoaFiles {
  * its CSV and the archived PDF. Catalogues without an approved version are left out. With a `reader` (evidence packs:
  * their creator), `hidden` says whether the version names suppliers or services the reader may not see – the files are
  * signed bytes that cannot be filtered, so the caller leaves them out then.
+ *
+ * `asOf` (an ISO time, 0.18.0): the version that was valid then instead – the one approved latest on or before it,
+ * also when a later approval has superseded it since. An evidence pack of a past period holds the statement that was
+ * in force at its end; a catalogue whose first approval came later is left out.
  */
-export function latestApprovedFiles(catalogueIds?: readonly string[], reader?: AuthUser): ApprovedSoaFiles[] {
+export function latestApprovedFiles(catalogueIds?: readonly string[], reader?: AuthUser, asOf?: string): ApprovedSoaFiles[] {
   const out: ApprovedSoaFiles[] = [];
   for (const r of db().all<VersionRow & { key: string; catalogue_id: string }>(
-    `SELECT v.*, k.key, k.id AS catalogue_id FROM soa_versions v JOIN soas s ON s.id = v.soa_id JOIN control_catalogues k ON k.id = s.catalogue_id
-     WHERE v.status = 'approved' ORDER BY k.key, v.number DESC`,
+    asOf === undefined
+      ? `SELECT v.*, k.key, k.id AS catalogue_id FROM soa_versions v JOIN soas s ON s.id = v.soa_id JOIN control_catalogues k ON k.id = s.catalogue_id
+         WHERE v.status = 'approved' ORDER BY k.key, v.number DESC`
+      : `SELECT v.*, k.key, k.id AS catalogue_id FROM soa_versions v JOIN soas s ON s.id = v.soa_id JOIN control_catalogues k ON k.id = s.catalogue_id
+         WHERE v.status IN ('approved', 'superseded') AND v.decided_at IS NOT NULL AND v.decided_at <= ? ORDER BY k.key, v.decided_at DESC, v.number DESC`,
+    ...(asOf === undefined ? [] : [asOf]),
   )) {
     if (catalogueIds && !catalogueIds.includes(r.catalogue_id)) continue;
     if (out.some((x) => x.catalogueId === r.catalogue_id)) continue;
@@ -1367,6 +1375,19 @@ export function latestApprovedFiles(catalogueIds?: readonly string[], reader?: A
     });
   }
   return out;
+}
+
+/** The catalogues (of `catalogueIds`) whose SoA has an approved version now – evidence packs name those that had none at their period end. */
+export function cataloguesWithApprovedSoa(catalogueIds: readonly string[]): { catalogueId: string; catalogueKey: string; firstApprovedAt: string }[] {
+  if (!catalogueIds.length) return [];
+  return db()
+    .all<{ catalogue_id: string; key: string; first_at: string }>(
+      `SELECT k.id AS catalogue_id, k.key, MIN(v.decided_at) AS first_at FROM soa_versions v JOIN soas s ON s.id = v.soa_id
+       JOIN control_catalogues k ON k.id = s.catalogue_id WHERE v.status IN ('approved', 'superseded') AND v.decided_at IS NOT NULL
+       AND k.id IN (${catalogueIds.map(() => '?').join(', ')}) GROUP BY k.id, k.key`,
+      ...catalogueIds,
+    )
+    .map((r) => ({ catalogueId: r.catalogue_id, catalogueKey: r.key, firstApprovedAt: r.first_at }));
 }
 
 // ---------- for the ISMS summary (ADR 0029 part 4) and the dataset ----------

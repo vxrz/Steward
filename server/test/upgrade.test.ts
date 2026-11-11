@@ -122,6 +122,11 @@ describe.each(versions)('upgrade from %s', (version) => {
   let oldMonitorWindows: { id: string; monitorId: string; reason: string }[] = [];
   /** The free-text vendors of the old version (0.17, ADR 0029: they become suppliers to confirm) */
   const oldVendors: { table: string; vendor: string }[] = [];
+  /**
+   * Supplier contracts of 0.17 (ADR 0031, the upgrade to 0.18): added to the fixture's data before the upgrade, with
+   * the contracts each demo user could see then (every contract of a supplier they saw).
+   */
+  let oldContracts: { teamSupplier: string; userSupplier: string; teamContract: string; userContract: string; teamService: string } | null = null;
   /** The platforms as the old version stored them: credentials (ciphertext) and MCP gateway on the platform row */
   let oldPlatforms: { id: string; name: string; secrets: string | null; config: string }[] = [];
   let proc: ChildProcess | undefined;
@@ -200,6 +205,81 @@ describe.each(versions)('upgrade from %s', (version) => {
         } catch {
           // the table (or its vendor column) came later than this fixture's version
         }
+      }
+      // 0.17 supplier contracts (ADR 0031): one of a supplier owned by a team, one of a supplier owned by a user; a plan
+      // line and a matrix row of a team's service name the first one
+      const team = old.all<{ name: string; id: string }>('SELECT id, name FROM teams').find((t) => t.name === 'Service Desk');
+      let hasContracts = false;
+      try {
+        old.get('SELECT id FROM supplier_contracts LIMIT 1');
+        hasContracts = !!team;
+      } catch {
+        // suppliers came with 0.17
+      }
+      if (hasContracts) {
+        const at = '2026-11-01T08:00:00.000Z';
+        oldContracts = {
+          teamSupplier: 'sup_upg_team',
+          userSupplier: 'sup_upg_user',
+          teamContract: 'sct_upg_team',
+          userContract: 'sct_upg_user',
+          teamService: 'svc_upg_team',
+        };
+        const o = oldContracts;
+        for (const [id, name, owners] of [
+          [o.teamSupplier, 'Upgrade Platform Invented AG', '["team:service desk"]'],
+          [o.userSupplier, 'Upgrade Licensing Invented GmbH', '["user:dana"]'],
+        ] as const)
+          old.run(
+            `INSERT INTO suppliers (id, name, norm_name, owners, status, created_at, created_by, updated_at, updated_by) VALUES (?, ?, ?, ?, 'active', ?, 'admin', ?, 'admin')`,
+            id,
+            name,
+            name.toLowerCase().replace(/[^a-z0-9]/g, ''),
+            owners,
+            at,
+            at,
+          );
+        old.run(
+          'INSERT INTO supplier_contracts (id, supplier_id, title, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
+          o.teamContract,
+          o.teamSupplier,
+          'Platform hosting',
+          at,
+          at,
+        );
+        old.run(
+          'INSERT INTO supplier_contracts (id, supplier_id, title, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
+          o.userContract,
+          o.userSupplier,
+          'Licences',
+          at,
+          at,
+        );
+        for (const [id, name] of [[o.teamService, 'Upgrade team service']] as const)
+          old.run(
+            "INSERT INTO services (id, name, owners, created_at, created_by, updated_at, updated_by) VALUES (?, ?, '[]', ?, 'admin', ?, 'admin')",
+            id,
+            name,
+            at,
+            at,
+          );
+        old.run("INSERT INTO resource_teams (kind, resource_id, team_id, created_at) VALUES ('service', ?, ?, ?)", o.teamService, team!.id, at);
+        old.run(
+          `INSERT INTO cost_plan_lines (id, service_id, fiscal_year, title, category, amount, currency, cadence, supplier_id, supplier_contract_id, created_at, created_by, updated_at, updated_by)
+           VALUES ('cpl_upg_1', ?, 2026, 'Hosting', 'support', 1000000000, 'EUR', 'yearly', ?, ?, ?, 'admin', ?, 'admin')`,
+          o.teamService,
+          o.teamSupplier,
+          o.teamContract,
+          at,
+          at,
+        );
+        old.run(
+          `INSERT INTO service_responsibilities (service_id, area, party, supplier_id, contract_id, updated_at, updated_by) VALUES (?, 'backup', 'supplier', ?, ?, ?, 'admin')`,
+          o.teamService,
+          o.teamSupplier,
+          o.teamContract,
+          at,
+        );
       }
       oldDatasets = old.all<{ key: string; row_count: number }>('SELECT key, row_count FROM datasets').map((r) => ({ key: r.key, rows: Number(r.row_count) }));
       // evidence packs expire a week after they were made (SM_EVIDENCE_RETENTION_DAYS): the fixture's pack would turn
@@ -429,6 +509,67 @@ describe.each(versions)('upgrade from %s', (version) => {
     const audit = await admin('GET', '/audit?action=supplier.migrated&limit=100');
     expect(audit.length).toBe(new Set(texts.map((v) => `${v.table}\u0000${normVendor(v.vendor)}`)).size);
     expect(audit.every((a: any) => a.actor === 'system')).toBe(true);
+  });
+
+  it('gives contracts the owners of their supplier and proposes the services that named them, never widening (0.18, ADR 0031)', async () => {
+    if (!oldContracts) return;
+    const o = oldContracts;
+    const d = new Db(pg ? { ...pg, lock: false } : sqlite, { migrate: false });
+    try {
+      const owners = (id: string) => JSON.parse(d.get<{ owners: string }>('SELECT owners FROM supplier_contracts WHERE id = ?', id)!.owners);
+      expect(owners(o.teamContract)).toEqual(['team:service desk']);
+      expect(owners(o.userContract)).toEqual(['user:dana']);
+      const cover = d
+        .all<{ service_id: string; status: string; proposed_from: string }>(
+          'SELECT service_id, status, proposed_from FROM supplier_contract_services WHERE contract_id = ? ORDER BY service_id',
+          o.teamContract,
+        )
+        .map((r) => ({ service: r.service_id, status: r.status, from: JSON.parse(r.proposed_from) }));
+      expect(cover).toEqual([{ service: o.teamService, status: 'proposed', from: ['costPlanLine', 'responsibility'] }]);
+      // contacts stay company-wide, personal data and DPA of contracts stay "as the supplier"
+      expect(Number(d.get<{ n: number }>('SELECT COUNT(*) AS n FROM supplier_contact_scopes')!.n)).toBe(0);
+      expect(
+        d.get<{ p: number | null; s: string | null }>('SELECT personal_data AS p, dpa_status AS s FROM supplier_contracts WHERE id = ?', o.teamContract),
+      ).toEqual({ p: null, s: null });
+    } finally {
+      d.close();
+    }
+    // for every user the contracts visible after are a subset of those visible before (all of a supplier they saw)
+    for (const name of ['dana', 'olivia', 'adam', 'audrey', 'vera']) {
+      const u = client();
+      await u('POST', '/auth/login', { username: name, password: m.demoPassword });
+      for (const [sid, before] of [
+        [o.teamSupplier, ['Platform hosting']],
+        [o.userSupplier, ['Licences']],
+      ] as const) {
+        const titles = ((await u('GET', `/suppliers/${sid}`)).contracts as { title: string }[]).map((c) => c.title);
+        expect(
+          titles.every((t) => (before as readonly string[]).includes(t)),
+          `${name} ${sid}`,
+        ).toBe(true);
+      }
+    }
+    // the team's contract is now seen by its members (and the readers of the service, proposed services count for
+    // reading), administrators and auditors – no longer by a viewer outside the team; the user's stays open
+    const seen = async (name: string) => {
+      const u = client();
+      await u('POST', '/auth/login', { username: name, password: m.demoPassword });
+      return ((await u('GET', `/suppliers/${o.teamSupplier}`)).contracts as unknown[]).length;
+    };
+    expect(await seen('olivia')).toBe(1);
+    expect(await seen('audrey')).toBe(1);
+    expect(await seen('vera')).toBe(0);
+    // audited once, and the administrators' notice is open
+    await admin('GET', '/suppliers');
+    const scoped = await admin('GET', '/audit?action=supplier.contracts_scoped&limit=10');
+    expect(scoped).toHaveLength(1);
+    expect(scoped[0].actor).toBe('system');
+    expect(scoped[0].details.contractsWithOwners).toBeGreaterThanOrEqual(2);
+    expect(scoped[0].details.teamOwned).toBeGreaterThanOrEqual(1);
+    expect(scoped[0].details.servicesProposed).toBeGreaterThanOrEqual(1);
+    expect((await admin('GET', '/suppliers/scope-notice')).notice.narrowed).toBeGreaterThanOrEqual(1);
+    // the service of this check goes back to the whole instance (#131 below checks that nothing is owned by a team)
+    await admin('PUT', `/owning-teams/service/${o.teamService}`, { teamIds: [] });
   });
 
   it('returns the data of the old version', async () => {

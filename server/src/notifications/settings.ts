@@ -62,6 +62,8 @@ export function defaultRoutes(): Record<NotificationEvent, NotificationChannel[]
     'supplier.certificate_expiring',
     'supplier.notice_due',
     'soa.approval_waiting',
+    // opt-in (ADR 0030): only who turned it on gets it
+    'cost.booking_due',
   ];
   // emergency access: every channel that is set up, so nobody can use it unnoticed
   return Object.fromEntries(

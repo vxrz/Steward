@@ -207,6 +207,10 @@ export function exportPersonalData(userId: string, opts: { auditAfter?: number }
       personalChannels: ((r) => (r ? { teams: parseJson<unknown>(r.teams, []), updatedAt: r.updated_at } : null))(
         db().get<{ teams: string; updated_at: string }>('SELECT teams, updated_at FROM notification_personal_channels WHERE user_id = ?', userId),
       ),
+      // 0.18.0 (ADR 0030): the notifications the person turned on (off by default)
+      optIns: db()
+        .all<{ event: string; created_at: string }>('SELECT event, created_at FROM notification_opt_ins WHERE user_id = ? ORDER BY event', userId)
+        .map((r) => ({ event: r.event, since: r.created_at })),
     },
     notifications: {
       total: notifications,
@@ -282,6 +286,7 @@ export function pseudonymiseUser(userId: string, opts: { actor?: string } = {}):
     // the person's chat with the Teams bot (its cards and activities go with it)
     del('teamsChats', 'DELETE FROM teams_conversations WHERE user_id = ?');
     del('personalChannels', 'DELETE FROM notification_personal_channels WHERE user_id = ?');
+    del('optIns', 'DELETE FROM notification_opt_ins WHERE user_id = ?');
     del('oauthCodes', 'DELETE FROM oauth_codes WHERE user_id = ?');
     const grants = revokeOAuthGrants({ userId, username: u.username }, 'personal data replaced by a pseudonym');
     if (grants) removed.mcpClients = grants;

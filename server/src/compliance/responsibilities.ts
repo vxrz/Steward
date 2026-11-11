@@ -19,7 +19,8 @@ import { audit } from '../audit.js';
 import type { AuthUser } from '../auth/context.js';
 import { canEditService, canViewCatalogue } from '../records/access.js';
 import { supplierFacts } from '../suppliers/service.js';
-import { resolveSupplierContract, resolveSupplierLink, supplierRefs } from '../suppliers/links.js';
+import { coverChosenContract, resolveSupplierContract, resolveSupplierLink, supplierRefs } from '../suppliers/links.js';
+import { coveredPairs } from '../suppliers/contract-scope.js';
 import { HttpError, nowIso, parseJson } from '../util.js';
 import { ensureCatalogues } from './controls.js';
 import { forbid, me } from './access.js';
@@ -131,6 +132,7 @@ export function getResponsibilities(serviceId: string, u = me()): ServiceRespons
   const supplierIds = [...stored.values()].map((r) => r.supplier_id).filter((x): x is string => !!x);
   const refs = supplierRefs(supplierIds);
   const facts: Map<string, SupplierFacts> = supplierIds.length ? supplierFacts(supplierIds) : new Map();
+  const covered = coveredPairs([...stored.values()].flatMap((r) => (r.contract_id ? [{ contractId: r.contract_id, serviceId: s.id }] : [])));
   const perArea = controlsPerArea();
   const rows: ResponsibilityRow[] = RESPONSIBILITY_AREAS.map((area) => {
     const r = stored.get(area);
@@ -158,6 +160,9 @@ export function getResponsibilities(serviceId: string, u = me()): ServiceRespons
             rpoHours: c.rpoHours,
           }
         : null,
+      // a contract the reader may not see: the neutral text without its values; the supplier's certificates stay (ADR 0031)
+      contractHidden: !!r?.contract_id && !!f && !c,
+      contractUncovered: !!c && !covered.has(`${c.id}|${s.id}`),
       certificates: f ? f.validCertificates.map((x) => ({ kind: x.kind, name: x.name, validUntil: x.validUntil })) : [],
       centralName: r?.central_name ?? '',
       note: r?.note ?? '',
@@ -209,7 +214,7 @@ export function setResponsibilities(serviceId: string, input: ResponsibilitiesIn
     }
     const supplier = a.party === 'supplier' ? resolveSupplierLink(a.supplierId === undefined ? undefined : a.supplierId, cur?.supplier_id ?? null) : null;
     const contract =
-      a.party === 'supplier' ? resolveSupplierContract(supplier, a.contractId, supplier === cur?.supplier_id ? (cur?.contract_id ?? null) : null) : null;
+      a.party === 'supplier' ? resolveSupplierContract(supplier, a.contractId, supplier === cur?.supplier_id ? (cur?.contract_id ?? null) : null, s.id) : null;
     if (a.party === 'central' && !a.centralName)
       throw new HttpError(400, 'Name the central IT or group that does it', 'RESPONSIBILITY_CENTRAL_NAME', { area: a.area });
     if (a.party === 'shared' && !a.note) throw new HttpError(400, 'Say in the note who does what', 'RESPONSIBILITY_NOTE_REQUIRED', { area: a.area });
@@ -258,6 +263,9 @@ export function setResponsibilities(serviceId: string, input: ResponsibilitiesIn
         r.updated_at,
         r.updated_by,
       );
+      // a contract chosen for the area covers the service from now on (ADR 0031 part 4)
+      const before = stored.get(r.area);
+      coverChosenContract(r.contract_id, before && before.supplier_id === r.supplier_id ? before.contract_id : null, s.id, u.username);
     }
     audit({
       action: 'responsibility.changed',

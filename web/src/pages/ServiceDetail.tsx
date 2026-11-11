@@ -50,6 +50,7 @@ import { ServiceResponsibilitiesPanel } from '../components/compliance/Responsib
 import { LinkTabs } from '../components/page/LinkTabs';
 import { EnvironmentBadge } from '../components/catalogue/environments';
 import { useModuleOn } from '../modules';
+import { ServiceSuppliers } from '../components/suppliers/ServiceSuppliers';
 
 /** The tabs of the service hub (v0.4.0): most catalogue work starts from a service. '' is the overview. */
 export const SERVICE_TABS = [
@@ -198,6 +199,7 @@ export function ServiceDetailPage() {
                 )}
                 <ProtectionNeedPanel service={s} onSaved={refresh} />
                 <OpenMeasuresPanel serviceId={s.id} />
+                <ServiceSuppliers serviceId={s.id} />
                 <LinksPanel
                   links={s.links}
                   backlinks={s.backlinks}

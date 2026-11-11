@@ -79,7 +79,7 @@ Themes of this release (details in the CHANGELOG once released):
 
 ## Next
 
-The next release is not planned yet; the candidates are under _Later_.
+**0.18.0 – upgrades, review follow-ups, contracts in the cost plan and suppliers shared by services.** Dependency upgrades and security fixes; review follow-ups – backups pinned to their S3 target, monitor request bodies redacted in exports, currencies without cents, the statement of applicability as of the period end in evidence packs, document reviews in the ISMS summary; and multi-year contracts and recorded costs ([ADR 0030](adr/0030-contract-payments-and-recorded-costs.md)): payment schedules on supplier contracts that propose the plan lines of each fiscal year (part years and price changes included), plan lines for part of a year, what the contracts still commit a service to – to their end and to the earliest exit – per service and supplier, and cost entries imported from CSV or booked from a plan line in one step; suppliers shared by services ([ADR 0031](adr/0031-supplier-contracts-and-contacts-scope.md)) – contracts that name the services they cover with a purpose each, their own owners and visibility, data protection per contract and master agreements with order forms, contacts scoped to contracts, applications or systems, and the 0.17 duplicates merged into one shared supplier without showing one team's contracts to another; and a `source: influxdb` for the data freshness check of monitors. The candidates for later releases are under _Later_.
 
 ## Later
 

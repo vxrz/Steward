@@ -22,6 +22,23 @@ import type { NamedMigration } from '../db.js';
  *   as its position 0–11 in the fiscal year), renewal date, note.
  * cost_entries: what a service incurred – date, amount (micros, negative for a credit) and currency, the plan line
  *   (none: unplanned), what it is for, a reference (invoice or order number), a note. No hours: effort is not planned.
+ *
+ * 0.18.0 (ADR 0030, contract payments, commitments and recorded costs):
+ * costs-003-contract-payments:
+ *   cost_schedules: payment schedules of supplier contracts – the paying service, title, category and target, the
+ *     amount per payment in contract year 1 (micros) and currency, billing (monthly, quarterly, yearly, once, dates),
+ *     the first payment, start and end (null: the contract's), amounts of contract years 2–10 (`year_amounts`, JSON
+ *     micros), dated payments (`payments`, JSON: date, amount, covers until), a note.
+ *   cost_plan_lines: `from_index`/`to_index` (positions 0–11 of the months a line covers; null: the whole year),
+ *     `schedule_id` and `schedule_part` (the schedule and the contract-year part or payment a line was made from),
+ *     `schedule_basis` (JSON: the twelve month amounts it was made from, to see when the contract changed),
+ *     `covers_from`/`covers_to` (the days a prepaid payment covers). The cadence "quarterly" needs no column.
+ * costs-004-entry-imports:
+ *   cost_entries: `supplier_id`, `supplier_contract_id` and `import_id` (the CSV import it came from); an index on
+ *     (service_id, reference) for the duplicate check of imports.
+ *   cost_entry_imports: CSV imports of entries – file name, SHA-256, rows, added, skipped by reason, the mapping, who
+ *     and when, and who removed its entries and when.
+ *   cost_booking_reminders: the reminders "contract payments not booked" sent, once per service and month.
  */
 export const COSTS_MIGRATIONS: NamedMigration[] = [
   {
@@ -179,6 +196,79 @@ export const COSTS_MIGRATIONS: NamedMigration[] = [
       );
       CREATE INDEX cost_entries_service ON cost_entries(service_id, entry_date);
       CREATE INDEX cost_entries_line ON cost_entries(plan_line_id);
+    `,
+  },
+  {
+    name: 'costs-003-contract-payments',
+    sql: `
+      CREATE TABLE cost_schedules (
+        id TEXT PRIMARY KEY,
+        contract_id TEXT NOT NULL,
+        service_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        category TEXT NOT NULL,
+        target_kind TEXT,
+        target_id TEXT,
+        amount INTEGER NOT NULL,
+        currency TEXT NOT NULL,
+        billing TEXT NOT NULL,
+        first_payment_on TEXT,
+        starts_on TEXT,
+        ends_on TEXT,
+        year_amounts TEXT NOT NULL DEFAULT '[]',
+        payments TEXT NOT NULL DEFAULT '[]',
+        note TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL,
+        created_by TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        updated_by TEXT NOT NULL
+      );
+      CREATE INDEX cost_schedules_contract ON cost_schedules(contract_id);
+      CREATE INDEX cost_schedules_service ON cost_schedules(service_id);
+
+      ALTER TABLE cost_plan_lines ADD COLUMN from_index INTEGER;
+      ALTER TABLE cost_plan_lines ADD COLUMN to_index INTEGER;
+      ALTER TABLE cost_plan_lines ADD COLUMN schedule_id TEXT;
+      ALTER TABLE cost_plan_lines ADD COLUMN schedule_part TEXT;
+      ALTER TABLE cost_plan_lines ADD COLUMN schedule_basis TEXT;
+      ALTER TABLE cost_plan_lines ADD COLUMN covers_from TEXT;
+      ALTER TABLE cost_plan_lines ADD COLUMN covers_to TEXT;
+      CREATE INDEX cost_plan_lines_schedule ON cost_plan_lines(schedule_id);
+    `,
+  },
+  {
+    name: 'costs-004-entry-imports',
+    sql: `
+      ALTER TABLE cost_entries ADD COLUMN supplier_id TEXT;
+      ALTER TABLE cost_entries ADD COLUMN supplier_contract_id TEXT;
+      ALTER TABLE cost_entries ADD COLUMN import_id TEXT;
+      CREATE INDEX cost_entries_reference ON cost_entries(service_id, reference);
+      CREATE INDEX cost_entries_supplier ON cost_entries(supplier_id);
+      CREATE INDEX cost_entries_import ON cost_entries(import_id);
+
+      CREATE TABLE cost_entry_imports (
+        id TEXT PRIMARY KEY,
+        service_id TEXT NOT NULL,
+        file_name TEXT NOT NULL DEFAULT '',
+        sha256 TEXT NOT NULL,
+        rows INTEGER NOT NULL,
+        added INTEGER NOT NULL,
+        skipped TEXT NOT NULL DEFAULT '{}',
+        mapping TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL,
+        created_by TEXT NOT NULL,
+        removed_at TEXT,
+        removed_by TEXT
+      );
+      CREATE INDEX cost_entry_imports_service ON cost_entry_imports(service_id, created_at);
+      CREATE INDEX cost_entry_imports_sha ON cost_entry_imports(service_id, sha256);
+
+      CREATE TABLE cost_booking_reminders (
+        service_id TEXT NOT NULL,
+        month TEXT NOT NULL,
+        sent_at TEXT NOT NULL,
+        PRIMARY KEY (service_id, month)
+      );
     `,
   },
 ];

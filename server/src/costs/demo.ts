@@ -1,11 +1,28 @@
-import { AWS_KIND, CONFLUENT_KIND, fiscalYearMonths, fiscalYearOf, LLM_GATEWAY_KIND, SNOWFLAKE_KIND } from '@sm/shared';
+import {
+  AWS_KIND,
+  CONFLUENT_KIND,
+  addDays,
+  addMonths,
+  fiscalYearMonths,
+  fiscalYearOf,
+  fromMicros,
+  LLM_GATEWAY_KIND,
+  SNOWFLAKE_KIND,
+  supplierContractInput,
+  supplierInput,
+  toMicros,
+  yearAmountsFromPercent,
+} from '@sm/shared';
 import { db } from '../db.js';
 import { logger } from '../log.js';
 import { nowIso } from '../util.js';
 import { readSource } from './sources.js';
 import { tagKeyOf } from './store.js';
 import { costSettings, setCostSettings } from './access.js';
-import { addEntry, addPlanLine } from './plans.js';
+import { addEntry, addPlanLine, bookLine, planYear, today } from './plans.js';
+import { addSchedule, confirmProposals } from './schedules.js';
+import { importEntries } from './entry-import.js';
+import { addContract, createSupplier } from '../suppliers/service.js';
 
 /**
  * Demo costs (#226): the cost sources of the demo platforms – AWS (demo), Snowflake (demo), Confluent Cloud (demo) and
@@ -95,15 +112,6 @@ export function setupCostPlanDemo(services: { shop?: string; plant?: string }, n
       cadence: 'monthly',
       note: 'Compared with the costs read from AWS (demo).',
     });
-    const payments = line(shop, {
-      title: 'Payment gateway licence',
-      category: 'licence',
-      vendor: 'Corvid Payments (invented)',
-      amount: '18000',
-      currency: 'EUR',
-      cadence: 'yearly',
-      renewalDate: inDays(60),
-    });
     const support = line(shop, {
       title: 'Cluster support subscription',
       category: 'support',
@@ -113,7 +121,6 @@ export function setupCostPlanDemo(services: { shop?: string; plant?: string }, n
       currency: 'EUR',
       cadence: 'monthly',
     });
-    if (payments) entry(shop, { date: dayIn(0, 15), amount: '18000', currency: 'EUR', planLineId: payments, reference: 'INV-CP-2026-0915' });
     if (support) entry(shop, { date: dayIn(0, 3), amount: '1200', currency: 'EUR', planLineId: support, reference: 'INV-AC-10031' });
     entry(shop, { date: dayIn(0, 21), amount: '650', currency: 'EUR', reference: 'PO-55821', note: 'Load test tool for the autumn sale, one month' });
   }
@@ -149,4 +156,159 @@ export function setupCostPlanDemo(services: { shop?: string; plant?: string }, n
     entry(plant, { date: dayIn(0, 28), amount: '420', currency: 'EUR', reference: 'PO-55790', note: 'Spare power meter' });
   }
   return n;
+}
+
+/**
+ * Demo contract payments (0.18.0, ADR 0030) – invented, like everything in the demo:
+ *  - the shop's payment gateway licence: a three-year contract of Paylumen from the middle of the last fiscal year,
+ *    billed monthly with +3 % per contract year; its lines of the current fiscal year confirmed and the months that
+ *    are over booked;
+ *  - a historian analytics add-on of the plant, prepaid for three years in the last fiscal year (a quiet "Prepaid"
+ *    row in this one), from Brightfield Industrial Software;
+ *  - an imported CSV of entries (an ERP export with a duplicate row) on the shop, kept as an import record.
+ * Only when no payment schedule exists yet. Returns the number of plan lines it added.
+ */
+export function setupContractPaymentDemo(
+  services: { shop?: string; plant?: string },
+  suppliers: { payments: string; cloud: string } | null,
+  owners: string[],
+  now = Date.now(),
+): number {
+  if (!suppliers || !services.shop || db().get('SELECT id FROM cost_schedules LIMIT 1')) return 0;
+  const start = costSettings().fiscalYearStartMonth;
+  const day = today(now);
+  const fy = fiscalYearOf(day, start);
+  const last = fiscalYearMonths(fy - 1, start);
+  const contractOf = (supplierId: string, title: string) =>
+    db().get<{ id: string }>('SELECT id FROM supplier_contracts WHERE supplier_id = ? AND title = ?', supplierId, title)?.id;
+  let lines = 0;
+  // ---- the payment gateway licence: three years, monthly, +3 % per contract year ----
+  const gwStart = `${last[4]}-01`;
+  addContract(
+    suppliers.payments,
+    supplierContractInput.parse({
+      title: 'Payment gateway licence',
+      reference: 'PL-GW-2026',
+      startsOn: gwStart,
+      endsOn: addDays(addMonths(gwStart, 36), -1),
+      noticeDays: 90,
+      renewal: 'fixedEnd',
+      note: 'Card payments of the online shop, billed monthly (invented)',
+    }),
+  );
+  const gw = contractOf(suppliers.payments, 'Payment gateway licence');
+  if (gw) {
+    const l = addSchedule({
+      contractId: gw,
+      serviceId: services.shop,
+      title: 'Licence fee',
+      category: 'licence',
+      amount: '1500',
+      currency: 'EUR',
+      billing: 'monthly',
+      yearAmounts: yearAmountsFromPercent(toMicros('1500')!, 3, 'EUR', 2).map((v) => fromMicros(v)),
+    });
+    const scheduleId = l.schedules[0]?.id;
+    if (scheduleId) {
+      const y = confirmProposals(services.shop, { fiscalYear: fy, scheduleIds: [scheduleId] });
+      lines += y.lines.filter((x) => x.schedule?.id === scheduleId).length;
+      // the months that are over are booked; the current one is left for a person ("Not booked")
+      for (const x of y.lines.filter((z) => z.schedule?.id === scheduleId))
+        for (const m of x.notBooked.filter((mo) => mo < day.slice(0, 7)))
+          try {
+            bookLine(services.shop, x.id, { month: m, reference: `PL-${m}` }, now);
+          } catch (err) {
+            logger.warn({ err: (err as Error).message }, 'demo payment not booked');
+          }
+    }
+  }
+  // ---- the plant's historian analytics add-on, prepaid for three years ----
+  if (services.plant) {
+    const vendor = createSupplier(
+      supplierInput.parse({
+        name: 'Brightfield Industrial Software',
+        type: 'softwareVendor',
+        description: 'Maker of the Kestrel historian of the plant (invented).',
+        website: 'https://brightfield.example',
+        owners,
+      }),
+    );
+    // the plan's free-text vendor lines name it
+    db().run(
+      "UPDATE cost_plan_lines SET supplier_id = ? WHERE service_id = ? AND supplier_id IS NULL AND lower(vendor) LIKE '%brightfield%'",
+      vendor.id,
+      services.plant,
+    );
+    const addOnStart = `${last[2]}-01`;
+    addContract(
+      vendor.id,
+      supplierContractInput.parse({
+        title: 'Historian analytics add-on',
+        reference: 'BIS-AN-3Y',
+        startsOn: addOnStart,
+        endsOn: addDays(addMonths(addOnStart, 36), -1),
+        renewal: 'fixedEnd',
+        note: 'Three years, paid up front (invented)',
+      }),
+    );
+    const addOn = contractOf(vendor.id, 'Historian analytics add-on');
+    if (addOn) {
+      const l = addSchedule({
+        contractId: addOn,
+        serviceId: services.plant,
+        title: 'Three years prepaid',
+        category: 'licence',
+        amount: '9000',
+        currency: 'EUR',
+        billing: 'once',
+      });
+      const scheduleId = l.schedules[0]?.id;
+      if (scheduleId) {
+        const y = confirmProposals(services.plant, { fiscalYear: fy - 1, scheduleIds: [scheduleId] });
+        const line = y.lines.find((x) => x.schedule?.id === scheduleId);
+        if (line) {
+          lines++;
+          try {
+            bookLine(services.plant, line.id, { month: line.onceMonth ?? undefined, reference: 'INV-BIS-90117' }, now);
+          } catch (err) {
+            logger.warn({ err: (err as Error).message }, 'demo prepaid payment not booked');
+          }
+        }
+      }
+    }
+  }
+  // ---- an ERP export of the shop's invoices, imported (one row sent twice: left out as a duplicate) ----
+  const months = fiscalYearMonths(fy, start).filter((m) => `${m}-14` <= day);
+  const de = (d: string) => `${d.slice(8, 10)}.${d.slice(5, 7)}.${d.slice(0, 4)}`;
+  const rows = months.flatMap((m, i) => [
+    `${de(`${m}-14`)};EC-INV-${88120 + i};Example Cloud GmbH;2.310,40;EUR;Managed Kubernetes, usage of the month before`,
+    ...(i === 0
+      ? [
+          `${de(`${m}-14`)};MISC-4471;;189,90;EUR;Conference tickets for the shop team`,
+          `${de(`${m}-14`)};MISC-4471;;189,90;EUR;The same, sent twice by the ERP`,
+        ]
+      : []),
+  ]);
+  if (rows.length)
+    try {
+      importEntries(services.shop, {
+        csv: ['Belegdatum;Rechnungsnummer;Lieferant;Betrag;Währung;Text', ...rows].join('\r\n'),
+        fileName: 'erp-export-demo.csv',
+        mapping: {
+          date: 'Belegdatum',
+          amount: 'Betrag',
+          currency: 'Währung',
+          reference: 'Rechnungsnummer',
+          supplier: 'Lieferant',
+          note: 'Text',
+          dateFormat: 'DD.MM.YYYY',
+          decimal: ',',
+        },
+      });
+    } catch (err) {
+      logger.warn({ err: (err as Error).message }, 'demo entries not imported');
+    }
+  // read once more, so a failing step above shows in the log rather than half a plan
+  planYear(services.shop, fy, now);
+  return lines;
 }

@@ -154,6 +154,14 @@ export interface BackupStatus {
   settings: BackupSettings;
   /** The backup key (from the backup passphrase); the passphrase itself is never stored */
   key: { keyId: string; setAt: string; setBy: string } | null;
+  /**
+   * The platform of the backups (its address, region, connection or access key id) or the folder changed since an
+   * administrator confirmed the target (0.18.0). Runs fail with BACKUP_TARGET_CHANGED until it is confirmed again
+   * (POST /api/backups/confirm-target, step-up); saving the backup settings confirms it too.
+   */
+  targetChanged: boolean;
+  /** When and by whom the current target was confirmed (null: not yet – the first run after an update records it) */
+  targetConfirmed: { at: string; by: string } | null;
   running: BackupRunKind | null;
   lastBackup: BackupRun | null;
   lastSuccess: BackupRun | null;

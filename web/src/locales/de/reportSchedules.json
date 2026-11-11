@@ -62,7 +62,7 @@
     },
     "isms": {
       "title": "ISMS-Zusammenfassung",
-      "hint": "Kennzahlen für die Managementbewertung: die Erklärung zur Anwendbarkeit, Korrekturmaßnahmen, verpflichtende Pflichten, durchgeführte Überprüfungen, Lücken in der Verantwortungsmatrix, Zertifikate und Kündigungstermine von Lieferanten (Modul Compliance)"
+      "hint": "Kennzahlen für die Managementbewertung: die Erklärung zur Anwendbarkeit, Korrekturmaßnahmen, verpflichtende Pflichten, durchgeführte Überprüfungen (auch lebender Dokumente), Lücken in der Verantwortungsmatrix, Zertifikate und Kündigungstermine von Lieferanten (Modul Compliance)"
     },
     "ai": {
       "title": "Nutzung von KI-Modellen",

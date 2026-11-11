@@ -108,7 +108,7 @@
     "nothing": "Kein anderer Eintrag nennt diesen Eintrag.",
     "aliasNote": "Verknüpfungen, Lesezeichen, API-Aufrufe und Importdateien funktionieren weiter: {{ids}} führt weiterhin hierher.",
     "confirm": "Kennung ändern",
-    "done": "Die Kennung ist jetzt {{id}}."
+    "done": "Die Kennung ist jetzt {{id}}"
   },
   "aliases": {
     "title": "Alte Kennungen",
@@ -120,7 +120,7 @@
     "when": "Umbenannt",
     "remove": "Alte Kennung {{id}} entfernen",
     "removeConfirm": "Die alte Kennung „{{id}}“ entfernen? Verknüpfungen, Lesezeichen und Dateien, die sie verwenden, führen dann nicht mehr zu „{{target}}“, und die Kennung ist für einen neuen Eintrag frei.",
-    "removed": "Alte Kennung {{id}} entfernt."
+    "removed": "Alte Kennung {{id}} entfernt"
   },
   "bulk": {
     "selectAll": "Alle angezeigten auswählen",

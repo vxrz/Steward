@@ -20,7 +20,7 @@ import { get, getOptional, notifyError, notifyOk, post, put } from '../../api';
 import { TONE, useFieldErrors } from '../common';
 import { dateTimeFormat } from '../../format';
 import { processKeys, scheduleKeys } from '../../queryKeys';
-import { SupplierPicker, useSupplierChoice } from '../suppliers/SupplierPicker';
+import { SupplierPicker, useSupplierChoice, useSupplierOptions } from '../suppliers/SupplierPicker';
 
 /** Colours of period statuses (the label always says the status, too). */
 export const DUTY_STATUS_COLORS: Record<DutyPeriodStatus, string> = {
@@ -138,6 +138,14 @@ export function DutyFormModal({
   const [applicationId, setApplicationId] = useState<string | null>(duty?.applicationId ?? null);
   const supplier = useSupplierChoice(duty?.supplier);
   const { t: tSup } = useTranslation('suppliers');
+  // a contract of the supplier (0.18.0, ADR 0031 part 7): sent only when changed, so one the person may not see is kept.
+  // Offered: the contracts covering the service first, then those the person may add it to
+  const supplierOptions = useSupplierOptions();
+  const [contractId, setContractId] = useState<string | null>(duty?.supplierContract?.id ?? null);
+  const [contractTouched, setContractTouched] = useState(false);
+  const contracts = [...((supplierOptions.data ?? []).find((x) => x.id === supplier.value)?.contracts ?? [])]
+    .filter((c) => c.services.includes(serviceId) || c.canEdit || c.id === duty?.supplierContract?.id)
+    .sort((a, b) => Number(b.services.includes(serviceId)) - Number(a.services.includes(serviceId)));
   const [interval, setInterval] = useState<DutyInterval>(duty?.interval ?? 'monthly');
   const [level, setLevel] = useState<DutyLevel>(duty?.level ?? 'mandatory');
   const [graceDays, setGraceDays] = useState<number>(duty?.graceDays ?? 0);
@@ -169,6 +177,7 @@ export function DutyFormModal({
       scheduleId,
       applicationId,
       ...(supplier.body !== undefined ? { supplierId: supplier.body } : {}),
+      ...(contractTouched || supplier.body !== undefined ? { supplierContractId: supplier.value && contractId ? contractId : null } : {}),
       interval,
       level,
       graceDays,
@@ -274,12 +283,37 @@ export function DutyFormModal({
           )}
           <SupplierPicker
             value={supplier.value}
-            onChange={supplier.set}
+            onChange={(v) => {
+              supplier.set(v);
+              // another supplier: no contract until one of its contracts is chosen
+              setContractId(null);
+              setContractTouched(false);
+            }}
             initial={duty?.supplier}
             label={tSup('picker.label')}
             description={tSup('duties.help')}
             testId="duty-supplier"
           />
+          {duty?.supplierContractHidden && supplier.body === undefined ? (
+            <TextInput label={tSup('picker.contract')} value={t('contractHidden')} readOnly data-testid="duty-contract-hidden" />
+          ) : (
+            supplier.value &&
+            contracts.length > 0 && (
+              <Select
+                label={tSup('picker.contract')}
+                description={t('contractHint')}
+                placeholder={tSup('picker.noContract')}
+                data={contracts.map((c) => ({ value: c.id, label: c.reference ? `${c.title} (${c.reference})` : c.title }))}
+                value={contractId}
+                onChange={(v) => {
+                  setContractId(v);
+                  setContractTouched(true);
+                }}
+                clearable
+                data-testid="duty-contract"
+              />
+            )
+          )}
           <SubjectsInput label={t('owners')} description={t('ownersHint')} value={owners} onChange={setOwners} max={DUTY_LIMITS.owners} />
           <Textarea
             label={t('descriptionLabel')}

@@ -232,6 +232,7 @@ const EXPECT: Record<string, Access> = {
   'PUT /api/backups/passphrase': ADMIN,
   'POST /api/backups/run': ADMIN,
   'POST /api/backups/restore-test': ADMIN,
+  'POST /api/backups/confirm-target': ADMIN,
   'GET /api/backups/contents': ADMIN,
   // scheduled exports to S3 (0.16.0, ADR 0027)
   'GET /api/exports': ADMIN,
@@ -316,6 +317,22 @@ const EXPECT: Record<string, Access> = {
   'PUT /api/costs/plans/:serviceId/lines/:lineId': DESIGN,
   'DELETE /api/costs/plans/:serviceId/lines/:lineId': DESIGN,
   'POST /api/costs/plans/:serviceId/copy': DESIGN,
+  // 0.18.0 (ADR 0030): Book – who may change the service, in a session
+  'POST /api/costs/plans/:serviceId/lines/:lineId/book': DESIGN,
+  // payment schedules: who may change the contract (designers, administrators, the supplier's owners) or edit the paying service
+  'GET /api/costs/schedules': ALL,
+  'POST /api/costs/schedules': DESIGN,
+  'PUT /api/costs/schedules/:costScheduleId': DESIGN,
+  'DELETE /api/costs/schedules/:costScheduleId': DESIGN,
+  'GET /api/costs/plans/:serviceId/proposals': ALL,
+  'GET /api/costs/commitments': ALL,
+  'POST /api/costs/plans/:serviceId/entries/import/preview': DESIGN,
+  'POST /api/costs/plans/:serviceId/entries/import': DESIGN,
+  'GET /api/costs/plans/:serviceId/imports': ALL,
+  'DELETE /api/costs/plans/:serviceId/imports/:importId': DESIGN,
+  'GET /api/costs/commitments/export': ALL,
+  'POST /api/costs/plans/:serviceId/proposals': DESIGN,
+  'POST /api/costs/plans/:serviceId/contract-updates': DESIGN,
   'POST /api/costs/plans/:serviceId/entries': DESIGN,
   'PUT /api/costs/plans/:serviceId/entries/:entryId': DESIGN,
   'DELETE /api/costs/plans/:serviceId/entries/:entryId': DESIGN,
@@ -746,6 +763,17 @@ const EXPECT: Record<string, Access> = {
   'GET /api/suppliers': ALL,
   'POST /api/suppliers': DESIGN,
   'GET /api/suppliers/options': ALL,
+  'GET /api/suppliers/scope-notice': ALL,
+  'GET /api/suppliers/scoped-contacts': ALL,
+  'GET /api/suppliers/proposed-services': ALL,
+  // shared suppliers (ADR 0031 part 8): widening merges and openings are for administrators
+  'GET /api/suppliers/shared-suggestions': ADMIN,
+  'POST /api/suppliers/shared-suggestions/:key/keep-separate': ADMIN,
+  'POST /api/suppliers/merge/preview': DESIGN,
+  'POST /api/suppliers/merge': DESIGN,
+  'POST /api/suppliers/:id/open/preview': ADMIN,
+  'POST /api/suppliers/:id/open': ADMIN,
+  'DELETE /api/suppliers/scope-notice': ADMIN,
   'GET /api/suppliers/:id': ALL,
   'PUT /api/suppliers/:id': DESIGN,
   'POST /api/suppliers/:id/archive': DESIGN,
@@ -758,6 +786,11 @@ const EXPECT: Record<string, Access> = {
   'POST /api/suppliers/:id/contracts': DESIGN,
   'PUT /api/suppliers/:id/contracts/:contractId': DESIGN,
   'DELETE /api/suppliers/:id/contracts/:contractId': DESIGN,
+  // contracts with their own scope (0.18.0, ADR 0031): the contract page, covered services, the service's contracts
+  'GET /api/suppliers/:id/contracts/:contractId': ALL,
+  'PUT /api/suppliers/:id/contracts/:contractId/services/:serviceId': DESIGN,
+  'DELETE /api/suppliers/:id/contracts/:contractId/services/:serviceId': DESIGN,
+  'GET /api/services/:id/contracts': ALL,
   'POST /api/suppliers/:id/certificates': DESIGN,
   'PUT /api/suppliers/:id/certificates/:certificateId': DESIGN,
   'DELETE /api/suppliers/:id/certificates/:certificateId': DESIGN,
@@ -971,6 +1004,7 @@ const EXPECT: Record<string, Access> = {
   'GET /api/v1/scorecard/trend': ALL,
   'GET /api/v1/services/:serviceId/scorecard': ALL,
   'GET /api/v1/services/:serviceId/cost-plan': ALL,
+  'GET /api/v1/cost-commitments': ALL,
   'GET /api/v1/objectives': ALL,
   'GET /api/v1/objectives/:objectiveId/samples': ALL,
   'GET /api/v1/access-changes': ALL,
@@ -983,6 +1017,7 @@ const EXPECT: Record<string, Access> = {
   'GET /api/v1/statements-of-applicability': ALL,
   'GET /api/v1/statements-of-applicability/:catalogueKey': ALL,
   'GET /api/v1/services/:serviceId/responsibilities': ALL,
+  'GET /api/v1/services/:serviceId/contracts': ALL,
   'GET /api/v1/credentials': ALL,
   'GET /api/v1/credentials/:credentialId': NOT_VIEWER,
 
@@ -1060,6 +1095,8 @@ const EXPECT: Record<string, Access> = {
   'GET /api/me/notification-prefs': ALL,
   'PUT /api/me/notification-prefs': ALL,
   'DELETE /api/me/notification-prefs': ALL,
+  'GET /api/me/notification-opt-ins': ALL,
+  'PUT /api/me/notification-opt-ins': ALL,
   'GET /api/me/teams-personal': ALL,
   'PUT /api/me/teams-personal': ALL,
   'GET /api/settings/quiet-hours': ADMIN,
@@ -1324,9 +1361,26 @@ const SESSION_ONLY = [
   'POST /api/suppliers/:id/contracts',
   'PUT /api/suppliers/:id/contracts/:contractId',
   'DELETE /api/suppliers/:id/contracts/:contractId',
+  'PUT /api/suppliers/:id/contracts/:contractId/services/:serviceId',
+  'DELETE /api/suppliers/:id/contracts/:contractId/services/:serviceId',
+  'DELETE /api/suppliers/scope-notice',
+  'POST /api/suppliers/shared-suggestions/:key/keep-separate',
+  'POST /api/suppliers/merge/preview',
+  'POST /api/suppliers/merge',
+  'POST /api/suppliers/:id/open',
   'POST /api/suppliers/:id/certificates',
   'PUT /api/suppliers/:id/certificates/:certificateId',
   'DELETE /api/suppliers/:id/certificates/:certificateId',
+  // contract payments and recorded costs (ADR 0030): new writes for people, in a session
+  'POST /api/costs/plans/:serviceId/lines/:lineId/book',
+  'POST /api/costs/schedules',
+  'PUT /api/costs/schedules/:costScheduleId',
+  'DELETE /api/costs/schedules/:costScheduleId',
+  'POST /api/costs/plans/:serviceId/proposals',
+  'POST /api/costs/plans/:serviceId/contract-updates',
+  'POST /api/costs/plans/:serviceId/entries/import/preview',
+  'POST /api/costs/plans/:serviceId/entries/import',
+  'DELETE /api/costs/plans/:serviceId/imports/:importId',
   'PUT /api/settings/modules/:id',
   'GET /api/settings/plant/map',
   'PUT /api/settings/plant/map',
@@ -1441,7 +1495,8 @@ const SESSION_ONLY = [
  * one that does not (`harmless`, never STEP_UP_REQUIRED). A route that loses its step-up fails this test.
  */
 /** `query`: what is appended to the URL of the sensitive and the harmless request (a GET route whose query decides) */
-const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown; query?: { sensitive: string; harmless: string } }> = {
+/** `path`: the filled path to send to instead of the route's fixture path (a route whose path parameter decides) */
+const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown; query?: { sensitive: string; harmless: string }; path?: () => string }> = {
   // copying the access settings of an original shares the copy with its access list and owning teams (0.4.0);
   // harmless: no access settings, refused for the key (nothing is created)
   ...Object.fromEntries(
@@ -1480,6 +1535,32 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
     get harmless() {
       return { teamIds: [fx.team], resources: [{ kind: 'process', id: fx.process }], preview: true };
     },
+  },
+  // shared suppliers (ADR 0031 part 8, security review 0.18.0 M5): adding an owning team and a merge that widens who
+  // sees a supplier grant access like the owning-teams panel
+  'POST /api/suppliers/:id/open': {
+    get sensitive() {
+      return { teamIds: [fx.team] };
+    },
+    harmless: { teamIds: [] as string[] },
+  },
+  'POST /api/suppliers/merge': {
+    get sensitive() {
+      return { intoId: fx.supplier, ids: [fx.supplierTeam] };
+    },
+    // nothing to merge (refused as a merge into itself)
+    get harmless() {
+      return { intoId: fx.supplier, ids: [fx.supplier] };
+    },
+  },
+  'POST /api/suppliers/:id/merge': {
+    get sensitive() {
+      return { into: fx.supplier };
+    },
+    get harmless() {
+      return { into: fx.supplierTeam };
+    },
+    path: () => `/api/suppliers/${fx.supplierTeam}/merge`,
   },
   'POST /api/users': { sensitive: { username: 'matrix-new', roles: ['viewer'] }, harmless: { username: '!' } },
   'PUT /api/users/:id': { sensitive: { roles: ['admin'] }, harmless: {} },
@@ -1538,6 +1619,8 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
   'POST /api/migration/imports/staged/:id/apply': 'always',
   'PUT /api/catalogue/cia-scale': 'always',
   'PUT /api/backups/settings': 'always',
+  // the platform of the backups changed: confirming its target again (0.17.1, like an export's)
+  'POST /api/backups/confirm-target': 'always',
   // a scheduled export sends data out of Steward (0.16.0, control point export.settings)
   'POST /api/exports': 'always',
   'PUT /api/exports/:id': 'always',
@@ -1994,6 +2077,7 @@ const bodies = (): Record<string, unknown> => ({
   'PUT /api/suppliers/:id/contacts/:contactId': { name: 'Matrix contact', role: 'support' },
   'POST /api/suppliers/:id/contracts': { title: 'Matrix contract' },
   'PUT /api/suppliers/:id/contracts/:contractId': { title: 'Matrix contract', noticeDays: 30 },
+  'PUT /api/suppliers/:id/contracts/:contractId/services/:serviceId': { purpose: 'Matrix purpose' },
   'POST /api/suppliers/:id/certificates': { kind: 'iso27001' },
   'PUT /api/suppliers/:id/certificates/:certificateId': { kind: 'iso27001', validUntil: '2030-01-01' },
   'PUT /api/settings/plant': { enabled: true, enterprise: '', labels: {}, fields: {} },
@@ -2094,6 +2178,7 @@ const bodies = (): Record<string, unknown> => ({
   },
   'PUT /api/settings/quiet-hours': { allowed: true },
   'PUT /api/me/teams-personal': { events: [] },
+  'PUT /api/me/notification-opt-ins': { events: [] },
   'PUT /api/settings/teams-bot': { enabled: false, appId: '', tenantIds: [], providerId: null, credential: 'secret' },
   'POST /api/report-schedules': REPORT_SCHEDULE,
   'PUT /api/report-schedules/:id': REPORT_SCHEDULE,
@@ -2334,6 +2419,7 @@ beforeAll(async () => {
     })
   ).components[0];
   QUERY['GET /api/catalogue/versions/entry'] = `?holder=component&id=${component.id}&product=nodejs`;
+  QUERY['GET /api/suppliers/scoped-contacts'] = `?kind=application&id=${application.id}`;
   await a('PUT', `/services/${svc.id}/applications/${application.id}`, { role: 'primary' });
   const system = await a('POST', '/systems', { name: 'Matrix system', kind: 'server' });
   // a supplier with a contact, a contract and a certificate, and one waiting for confirmation (0.17.0)
@@ -2350,6 +2436,9 @@ beforeAll(async () => {
   });
   const gw = await a('POST', '/monitor-gateways', { name: 'Matrix gateway', allowedKeys: ['test.*'] });
   const team = await a('POST', '/teams', { name: 'Matrix team', members: [] });
+  // a supplier of that team (ADR 0031): merging it into one of the whole instance widens who sees it
+  const supplierTeam = (await a('POST', '/suppliers', { name: 'Matrix team supplier', type: 'saas' })).id as string;
+  await a('PUT', `/owning-teams/supplier/${supplierTeam}`, { teamIds: [team.id] });
   const report = await a('POST', `/runs/${run.id}/reports`, {});
   const users = await a('GET', '/users');
   const syncSource = (
@@ -2411,6 +2500,7 @@ beforeAll(async () => {
     supplierContract,
     supplierCertificate,
     supplierUnconfirmed: supplier.id,
+    supplierTeam,
     catalogueMaintenance: catalogueMaintenance.id,
     reportSchedule: (await a('POST', '/report-schedules', REPORT_SCHEDULE)).id,
     report: report.id,
@@ -2477,6 +2567,7 @@ beforeAll(async () => {
   QUERY['GET /api/v1/platforms/:platformId/schema/compare'] = `?from=${dbSnap}&to=${dbSnap}`;
   QUERY['GET /api/v1/systems/:systemId/schema/compare'] = `?from=${sysSnap}&to=${sysSnap}`;
   QUERY['GET /api/access/explain'] = `?kind=process&id=${fx.process}`;
+  QUERY['GET /api/costs/schedules'] = `?serviceId=${fx.service}`;
   const vaultPlatform = (await a('GET', '/platforms')).find((p: { kind: string }) => p.kind === 'privilege-vault').id;
   QUERY['GET /api/credentials/vault-secrets'] = `?platformId=${vaultPlatform}&q=`;
   // compliance: the demo access check with a finding, a control, an access change entry, an evidence pack
@@ -2698,7 +2789,8 @@ describe('route permission matrix', () => {
     const send = async (headers: Record<string, string>, k: string, body: unknown, query = '') => {
       const [method, url] = k.split(' ') as [string, string];
       const send = method !== 'DELETE' && method !== 'GET';
-      const res = await fetch(s.base + fill(url) + query, {
+      const rule = STEP_UP[k];
+      const res = await fetch(s.base + (rule !== 'always' && rule?.path ? rule.path() : fill(url)) + query, {
         method,
         headers: { 'x-sm-client': '1', ...headers, ...(send ? { 'content-type': 'application/json' } : {}) },
         body: send ? JSON.stringify(body ?? {}) : undefined,

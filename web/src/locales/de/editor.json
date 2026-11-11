@@ -894,7 +894,7 @@
       "access": "Zugriff"
     },
     "viewOnly": "Sie dürfen diesen Prozess ansehen, aber nicht ändern",
-    "restored": "Version v{{version}} als Arbeitskopie geladen – speichern, um sie zur aktuellen Version zu machen.",
+    "restored": "Version v{{version}} als Arbeitskopie geladen – speichern, um sie zur aktuellen Version zu machen",
     "accessSaved": "Zugriff gespeichert",
     "accessNotSaved": "Zugriff nicht gespeichert",
     "unsavedTitle": "Ungespeicherte Änderungen",

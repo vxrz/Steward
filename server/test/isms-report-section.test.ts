@@ -6,7 +6,7 @@ import { setup, startTestServer, type Client, type TestServer } from './helpers.
 /**
  * The ISMS summary and the rest of ADR 0029 part 4: the report section (content, the owner's rights, the period, the
  * module switch, the PDF in English and German), the notification soa.approval_waiting to the approvers, and the
- * soa/ folder of evidence packs (the latest approved version of each catalogue whose controls are in the pack).
+ * soa/ folder of evidence packs (the version of each catalogue whose controls are in the pack valid at the period's end).
  */
 
 process.env.SM_GATUS_AUTOSTART = '0';
@@ -33,7 +33,18 @@ type Data = {
     suggestions: number;
   };
   duties: { counts: Record<string, number>; notMet: any[] };
-  reviews: { personReviews: number; removals: number; gone: number; supplierReviews: { done: number; late: number; notDone: number } };
+  reviews: {
+    personReviews: number;
+    removals: number;
+    gone: number;
+    supplierReviews: { done: number; late: number; notDone: number };
+    documents?: {
+      withinInterval: number;
+      overdue: number;
+      reviewed: number;
+      overdueList: { number: string; title: string; owner: string; nextReviewAt: string }[];
+    };
+  };
   gaps: { service: string; undecided: string[]; noRecoveryTest: string[] }[];
   suppliers: { items: { supplier: string; kind: string; title: string; date: string; state: string }[]; unconfirmed: number };
 };
@@ -182,6 +193,24 @@ describe('the ISMS summary section', () => {
       now,
       now,
     );
+    // living documents (0.17.1): one approved and reviewed now, one approved 400 days ago and not reviewed since
+    const publish = async (title: string) => {
+      const rec = await dana('POST', '/records', { type: 'DOC', title, body: '## Purpose and scope\n\nInvented.\n' });
+      await dana('POST', `/records/${rec.id}/transition`, { action: 'submit', changeSummary: 'First edition' });
+      return adam('POST', `/records/${rec.id}/transition`, { action: 'approve', comment: 'Fine' });
+    };
+    const current = await publish('Payroll concept (isms)');
+    await adam('POST', `/records/${current.id}/review`, { outcome: 'no_change', comment: 'Still right' });
+    const late = await publish('Archive manual (isms)');
+    // record_editions refuses changes: the trigger is lifted for this one statement, as someone with database access could
+    const { immutableRowTriggers } = await import('../src/migrations/records.js');
+    const triggers = immutableRowTriggers(db().dialect, 'record_editions');
+    db().exec(triggers.drop);
+    try {
+      db().run('UPDATE record_editions SET approved_at = ? WHERE record_id = ?', new Date(Date.now() - 400 * DAY).toISOString(), late.id);
+    } finally {
+      db().exec(triggers.create);
+    }
   });
 
   it('is a section of scheduled reports with its options and their defaults', async () => {
@@ -221,6 +250,13 @@ describe('the ISMS summary section', () => {
     expect(d.duties.notMet).toEqual([expect.objectContaining({ duty: 'Key review (isms)', period: '2026-09', status: 'missed' })]);
     expect(d.reviews.supplierReviews).toEqual({ done: 0, late: 1, notDone: 0 });
     expect(d.reviews.personReviews).toBeGreaterThanOrEqual(1);
+    // living documents with a review cycle: within their interval or overdue at the end of the period (0.17.1)
+    const docs = d.reviews.documents!;
+    expect(docs.overdueList).toEqual(expect.arrayContaining([expect.objectContaining({ title: 'Archive manual (isms)', owner: 'dana' })]));
+    expect(docs.overdueList.some((x) => x.title === 'Payroll concept (isms)')).toBe(false);
+    expect(docs.overdue).toBe(docs.overdueList.length);
+    expect(docs.withinInterval).toBeGreaterThanOrEqual(1);
+    expect(docs.reviewed).toBeGreaterThanOrEqual(1);
     const gapA = d.gaps.find((g) => g.service === 'Payroll (isms)')!;
     expect(gapA).toEqual({ service: 'Payroll (isms)', undecided: ['patching', 'access', 'logging', 'incidents'], noRecoveryTest: ['recovery'] });
     expect(d.gaps.find((g) => g.service === 'Archive (isms)')!.undecided).toHaveLength(6);
@@ -265,6 +301,9 @@ describe('the ISMS summary section', () => {
     expect(past.corrective.checks).toEqual({ effective: 0, notEffective: 0 });
     expect(past.duties.counts.missed).toBe(0);
     expect(past.reviews.supplierReviews.late).toBe(0);
+    // the documents did not exist then
+    expect(past.reviews.documents!.overdueList.some((x) => x.title === 'Archive manual (isms)')).toBe(false);
+    expect(past.reviews.documents!.reviewed).toBe(0);
     // the state now stays: open findings and the statement
     expect(past.corrective.open.major).toBe(1);
     expect(past.soa.items[0].latestApproved.number).toBe(1);
@@ -282,11 +321,51 @@ describe('the ISMS summary section', () => {
     }
   });
 
+  it('lists the living documents overdue for review in the PDF of a period that ends now (0.17.1)', async () => {
+    const schedules = await import('../src/reports/schedules.js');
+    const sch = await dana('POST', '/report-schedules', {
+      name: 'Document reviews (isms)',
+      preset: 'custom',
+      cron: '0 6 * * 1',
+      timezone: 'UTC',
+      periodDays: 2,
+      lang: 'en',
+      title: 'Document reviews (isms)',
+      sections: { isms: { catalogue: 'ISMSX' } },
+      recipients: { users: [], teams: [], emails: [] },
+      attachPdf: false,
+      enabled: false,
+    });
+    const text = (await schedules.runReportSchedule(sch.id, { actor: 'dana', compress: false })).texts.join('\n');
+    for (const fact of ['Living documents overdue for review', 'Archive manual (isms)']) expect(text, fact).toContain(fact);
+    expect(text).not.toContain('Payroll concept (isms)');
+  });
+
   it('is drawn into the PDF of a scheduled report, in English and German', async () => {
     const schedules = await import('../src/reports/schedules.js');
     for (const [lang, facts] of [
-      ['en', ['ISMS summary', 'Statement of applicability', 'ISMSX · Payroll', 'Corrective actions', 'Payroll leavers keep access (isms)', 'Payrollio (isms)']],
-      ['de', ['ISMS-Zusammenfassung', 'Erklärung zur Anwendbarkeit', 'Korrekturmaßnahmen', 'Lücken in der Verantwortungsmatrix']],
+      [
+        'en',
+        [
+          'ISMS summary',
+          'Statement of applicability',
+          'ISMSX · Payroll',
+          'Corrective actions',
+          'Payroll leavers keep access (isms)',
+          'Payrollio (isms)',
+          'within their review interval',
+        ],
+      ],
+      [
+        'de',
+        [
+          'ISMS-Zusammenfassung',
+          'Erklärung zur Anwendbarkeit',
+          'Korrekturmaßnahmen',
+          'Lücken in der Verantwortungsmatrix',
+          'innerhalb ihres Überprüfungsintervalls',
+        ],
+      ],
     ] as const) {
       const sch = await dana('POST', '/report-schedules', {
         name: `Management review ${lang} (isms)`,
@@ -304,12 +383,12 @@ describe('the ISMS summary section', () => {
 
 describe('evidence packs', () => {
   it('hold the latest approved statement of each catalogue whose controls are in the pack, under soa/', async () => {
-    const make = async (controlIds: string[]) => {
+    const make = async (controlIds: string[], from = Date.now() - DAY, to = Date.now() + 60_000) => {
       const p = await s.api('POST', '/compliance/evidence-packs', {
         title: 'ISMS evidence',
         scope: { controlIds },
-        from: new Date(Date.now() - DAY).toISOString(),
-        to: new Date(Date.now() + 60_000).toISOString(),
+        from: new Date(from).toISOString(),
+        to: new Date(to).toISOString(),
       });
       let pack = p;
       for (let i = 0; i < 600 && pack.status === 'building'; i++) {
@@ -342,5 +421,52 @@ describe('evidence packs', () => {
     // a pack of other controls has no soa/ folder (ISO27001 has no approved statement here)
     const other = await ZipReader.open(await make([(await s.api('GET', '/compliance/controls?catalogue=ISO27001'))[0].id]));
     expect(other.find('soa/ISMSX/soa-ISMSX-v1.json')).toBeFalsy();
+  });
+
+  it('of a past period hold the version valid at its end, not the latest one (0.17.1)', async () => {
+    const { ZipReader } = await import('../src/compliance/zip.js');
+    const { verifyPack } = await import('../src/compliance/evidence-verify.js');
+    const { packsDir } = await import('../src/compliance/evidence-pack.js');
+    const { db } = await import('../src/db.js');
+    const make = async (from: number, to: number) => {
+      const p = await s.api('POST', '/compliance/evidence-packs', {
+        title: 'ISMS evidence of a past period',
+        scope: { controlIds: [ctl['I.1']!] },
+        from: new Date(from).toISOString(),
+        to: new Date(to).toISOString(),
+      });
+      let pack = p;
+      for (let i = 0; i < 600 && pack.status === 'building'; i++) {
+        await new Promise((r) => setTimeout(r, 100));
+        pack = await s.api('GET', `/compliance/evidence-packs/${p.id}`);
+      }
+      expect(pack.status).toBe('ready');
+      const zip = await ZipReader.open(path.join(packsDir(), `${p.id}.zip`));
+      const index = JSON.parse((await zip.read(zip.find('index.json')!)).toString('utf8'));
+      expect((await verifyPack(path.join(packsDir(), `${p.id}.zip`))).ok).toBe(true);
+      return { names: zip.entries.map((e) => e.name).filter((n) => n.startsWith('soa/')), index };
+    };
+    // version 2 approved now; version 1 (superseded by it) was approved ten days ago
+    await dana('POST', '/compliance/soa/ISMSX/versions');
+    await adam('POST', '/compliance/soa/ISMSX/versions/2/decision', { approve: true });
+    const versionOf = (n: number) =>
+      `(SELECT v.id FROM soa_versions v JOIN soas s ON s.id = v.soa_id JOIN control_catalogues k ON k.id = s.catalogue_id WHERE k.key = 'ISMSX' AND v.number = ${n})`;
+    db().run(`UPDATE soa_versions SET decided_at = ? WHERE id = ${versionOf(1)}`, new Date(Date.now() - 10 * DAY).toISOString());
+    expect(db().get<{ status: string }>(`SELECT status FROM soa_versions WHERE id = ${versionOf(1)}`)!.status).toBe('superseded');
+
+    // the current period: version 2
+    const now = await make(Date.now() - DAY, Date.now() + 60_000);
+    expect(now.names.filter((n) => n.endsWith('.json'))).toEqual(['soa/ISMSX/soa-ISMSX-v2.json']);
+    // a period that ended five days ago: version 1, valid then
+    const past = await make(Date.now() - 8 * DAY, Date.now() - 5 * DAY);
+    expect(past.names.sort()).toEqual(['soa/ISMSX/soa-ISMSX-v1.csv', 'soa/ISMSX/soa-ISMSX-v1.json', 'soa/ISMSX/soa-ISMSX-v1.pdf']);
+    expect(past.index.statementsOfApplicability).toEqual([expect.objectContaining({ catalogue: 'ISMSX', number: 1 })]);
+    // a period that ended before the first approval: nothing under soa/, and the index says why
+    const before = await make(Date.now() - 20 * DAY, Date.now() - 15 * DAY);
+    expect(before.names).toEqual([]);
+    expect(before.index.statementsOfApplicability).toBeUndefined();
+    expect(before.index.omitted).toEqual(
+      expect.arrayContaining([expect.stringMatching(/^soa\/ISMSX: no version of the statement of applicability was approved by the end of the period/)]),
+    );
   });
 });

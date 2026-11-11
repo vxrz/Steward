@@ -51,10 +51,14 @@ test('suppliers: confirm and merge suppliers made from free-text vendors', async
   // the supplier page of the demo's payment platform: a certificate about to run out, a contract with its notice date
   await page.goto(`/suppliers/${target!.id}`);
   await expect(page.getByRole('heading', { name: /Paylumen/ })).toBeVisible();
-  await expect(page.getByTestId('supplier-certificates')).toContainText('ISO/IEC 27001');
-  await expect(page.getByTestId('supplier-contracts')).toContainText('Payment platform subscription');
-  await expect(page.getByTestId('supplier-used-by')).toContainText('Ticket reference');
   await expectAccessible(page, 'supplier: demo payment platform');
+  // the tabs (0.18.0, ADR 0031)
+  await page.getByTestId('supplier-tab-certificates').click();
+  await expect(page.getByTestId('supplier-certificates')).toContainText('ISO/IEC 27001');
+  await page.getByTestId('supplier-tab-contracts').click();
+  await expect(page.getByTestId('supplier-contracts')).toContainText('Payment platform subscription');
+  await page.getByTestId('supplier-tab-usedBy').click();
+  await expect(page.getByTestId('supplier-used-by')).toContainText('Ticket reference');
 });
 
 test('a supplier with a contract that a cost plan line pays for', async ({ page, apiAs }) => {
@@ -74,6 +78,7 @@ test('a supplier with a contract that a cost plan line pays for', async ({ page,
     await expect(page.getByRole('heading', { name })).toBeVisible();
 
     // a contract with a notice period
+    await page.getByTestId('supplier-tab-contracts').click();
     await page.getByRole('button', { name: 'Add contract' }).click();
     dialog = page.getByRole('dialog', { name: 'Add contract' });
     await dialog.getByRole('textbox', { name: 'Title' }).fill('Analytics subscription');
@@ -85,7 +90,8 @@ test('a supplier with a contract that a cost plan line pays for', async ({ page,
     await dialog.getByRole('button', { name: 'Save' }).click();
     await expect(dialog).toBeHidden();
     const contracts = page.getByTestId('supplier-contracts');
-    await expect(contracts).toContainText('Analytics subscription · EA-2027-01');
+    await expect(contracts).toContainText('Analytics subscription');
+    await expect(contracts).toContainText('EA-2027-01');
     await expect(contracts).toContainText('2 Oct 2030');
 
     // a cost plan line of the service names the supplier and the contract
@@ -105,10 +111,12 @@ test('a supplier with a contract that a cost plan line pays for', async ({ page,
 
     // the supplier page lists the line under the contract and under "Used by"
     const sup = (await json<Supplier[]>(await api.get('/api/suppliers'))).find((s) => s.name === name)!;
-    await page.goto(`/suppliers/${sup.id}`);
-    await expect(page.getByTestId('supplier-contracts')).toContainText('Analytics licence');
+    await page.goto(`/suppliers/${sup.id}?tab=usedBy`);
     await expect(page.getByTestId('supplier-used-by')).toContainText('Cost plan line');
-    await expectAccessible(page, 'supplier: with a paid contract');
+    await page.getByTestId('supplier-tab-contracts').click();
+    await page.getByRole('link', { name: 'Analytics subscription' }).click();
+    await expect(page.getByTestId('contract-plan-lines')).toContainText('Analytics licence');
+    await expectAccessible(page, 'supplier: a paid contract');
   } finally {
     await api.post(`/api/services/${service.id}/archive`, { data: { archived: true } });
   }
@@ -123,7 +131,7 @@ test('suppliers on a phone @mobile', async ({ page, apiAs }) => {
   await expect(page.getByRole('link', { name: 'Example Cloud GmbH' }).first()).toBeVisible();
   await expectNoHorizontalScroll(page);
   await expectAccessible(page, 'suppliers: phone');
-  await page.goto(`/suppliers/${target!.id}`);
+  await page.goto(`/suppliers/${target!.id}?tab=contracts`);
   await expect(page.getByTestId('supplier-contracts')).toContainText('Managed Kubernetes');
   await expectNoHorizontalScroll(page);
   await expectAccessible(page, 'supplier: phone');

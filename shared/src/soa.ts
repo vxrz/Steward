@@ -227,6 +227,10 @@ export interface ResponsibilityRow {
   /** A supplier is linked that the reader may not see */
   supplierHidden: boolean;
   contract: ResponsibilityContract | null;
+  /** A contract is named that the reader may not see (ADR 0031): "a contract you may not see" – kept on save */
+  contractHidden: boolean;
+  /** The contract no longer covers the service (ADR 0031) */
+  contractUncovered: boolean;
   /** The supplier's certificates valid today */
   certificates: { kind: SupplierCertificateKind; name: string; validUntil: string | null }[];
   centralName: string;

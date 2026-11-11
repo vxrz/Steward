@@ -6,10 +6,10 @@ import {
   Badge,
   Button,
   Checkbox,
+  Chip,
   Grid,
   Group,
   Modal,
-  NumberInput,
   Paper,
   Select,
   Stack,
@@ -19,72 +19,59 @@ import {
   Textarea,
 } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { IconArchive, IconCheck, IconEdit, IconExternalLink, IconGitMerge, IconPlus, IconRestore, IconTrash, IconX } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import {
   CIA_DIMENSIONS,
   SUPPLIER_CERTIFICATE_KINDS,
-  SUPPLIER_CONTACT_ROLES,
   SUPPLIER_LIMITS,
-  SUPPLIER_RENEWALS,
   type SupplierCertificate,
   type SupplierCertificateKind,
-  type SupplierContact,
-  type SupplierContactRole,
   type SupplierContract,
   type SupplierDetail,
-  type SupplierRenewal,
 } from '@sm/shared';
 import { del, get, notifyError, notifyOk, post, put } from '../api';
 import { CopyId } from '../components/CopyId';
 import { DetailState, subjectLabel, useFieldErrors } from '../components/common';
 import { Field } from '../components/records/common';
 import { confirmDanger } from '../components/confirm';
-import { fmtDate, fmtDay, fmtNumber } from '../format';
+import { fmtDate, fmtDay } from '../format';
 import { OwningTeams } from '../components/OwningTeams';
 import { DetailHeader } from '../components/page/DetailPage';
+import { LinkTabs } from '../components/page/LinkTabs';
 import { supplierKeys } from '../queryKeys';
 import { DueDate, MergeModal, SupplierFormModal, SupplierStatusBadge } from './Suppliers';
 import { SupplierFindings } from '../components/compliance/corrective';
 import { useModuleOn } from '../modules';
+import { SupplierCosts } from '../components/costs/Commitments';
+import { ContractModal } from '../components/suppliers/ContractForm';
+import { SupplierContacts } from '../components/suppliers/ScopedContacts';
+import { DocLink, DpaState, RemoveContractModal } from '../components/suppliers/contractParts';
 
 const DOC_LINK = /^(https?:\/\/\S+|rec_[A-Za-z0-9_-]{4,40}|[A-Z][A-Z0-9]{0,9}-\d{4}-\d{4,6})$/i;
+const TABS = ['overview', 'contracts', 'services', 'contacts', 'certificates', 'usedBy'] as const;
+type Tab = (typeof TABS)[number];
 
-/** A document link: the record when the reader may open it, else the URL (or the text as it is). */
-function DocLink({ link, record }: { link: string; record?: { id: string; number: string; title: string } | null }) {
-  if (record)
-    return (
-      <Anchor component={Link} to={`/records/${record.id}`} size="sm">
-        {record.number} {record.title}
-      </Anchor>
-    );
-  if (/^https?:\/\//i.test(link))
-    return (
-      <Anchor href={link} target="_blank" rel="noopener noreferrer nofollow" size="sm">
-        {link.replace(/^https?:\/\//, '').slice(0, 60)} <IconExternalLink size={12} aria-hidden />
-      </Anchor>
-    );
-  return <Text size="sm">{link || '–'}</Text>;
-}
-
-/** A supplier (0.17.0, ADR 0029): contracts, certificates, contacts, what links it and its review duty. */
+/**
+ * A supplier (0.17.0, ADR 0029; shared since 0.18.0, ADR 0031): the company record and – in tabs – its contracts with
+ * the services they cover, the services it serves, its contacts, certificates and what links it.
+ */
 export function SupplierDetailPage() {
   const { t } = useTranslation(['suppliers', 'common', 'applications', 'corrective']);
   const { id } = useParams();
+  const [params] = useSearchParams();
+  const tab: Tab = (TABS as readonly string[]).includes(params.get('tab') ?? '') ? (params.get('tab') as Tab) : 'overview';
   const complianceOn = useModuleOn('compliance');
   const qc = useQueryClient();
   const navigate = useNavigate();
   const q = useQuery({ queryKey: supplierKeys.detail(id), queryFn: () => get<SupplierDetail>(`/suppliers/${id}`) });
   const [editing, setEditing] = useState(false);
   const [merging, setMerging] = useState(false);
-  const [contact, setContact] = useState<SupplierContact | 'new' | null>(null);
-  const [contract, setContract] = useState<SupplierContract | 'new' | null>(null);
-  const [certificate, setCertificate] = useState<SupplierCertificate | 'new' | null>(null);
   const s = q.data;
   if (!s) return <DetailState query={q} back="suppliers" />;
-  const saved = (x: SupplierDetail) => {
-    qc.setQueryData(supplierKeys.detail(id), x);
+  const saved = (x?: SupplierDetail) => {
+    if (x) qc.setQueryData(supplierKeys.detail(id), x);
     void qc.invalidateQueries({ queryKey: supplierKeys.all });
   };
   const act = async (fn: () => Promise<SupplierDetail | unknown>, ok: string) => {
@@ -92,7 +79,7 @@ export function SupplierDetailPage() {
       const r = await fn();
       notifyOk(ok);
       if (r && typeof r === 'object' && 'id' in r) saved(r as SupplierDetail);
-      else void qc.invalidateQueries({ queryKey: supplierKeys.all });
+      else saved();
     } catch (e) {
       notifyError(e);
     }
@@ -120,16 +107,7 @@ export function SupplierDetailPage() {
     if (archived && !(await confirmDanger({ action: 'archive', message: t('confirmArchive', { name: s.name }) }))) return;
     await act(() => post<SupplierDetail>(`/suppliers/${s.id}/archive`, { archived }), archived ? t('actions.archived') : t('actions.unarchived'));
   };
-  const remove = async (what: 'contacts' | 'contracts' | 'certificates', itemId: string, message: string) => {
-    if (!(await confirmDanger({ action: 'remove', message }))) return;
-    try {
-      saved(await del<SupplierDetail>(`/suppliers/${s.id}/${what}/${itemId}`));
-    } catch (e) {
-      notifyError(e);
-    }
-  };
-  const certName = (c: SupplierCertificate) => (c.kind === 'other' && c.name ? c.name : t(`certificates.kinds.${c.kind}`));
-  const crit = CIA_DIMENSIONS.filter((d) => s.criticality[d]);
+  const base = `/suppliers/${s.id}`;
   return (
     <>
       <DetailHeader
@@ -184,6 +162,18 @@ export function SupplierDetailPage() {
               }
             : undefined
         }
+        tabs={
+          <LinkTabs
+            label={t('detailTabs.label')}
+            active={tab === 'overview' ? base : `${base}?tab=${tab}`}
+            tabs={TABS.map((x) => ({
+              to: x === 'overview' ? base : `${base}?tab=${x}`,
+              label: t(`detailTabs.${x}`),
+              count: x === 'contracts' ? s.contracts.length : x === 'contacts' ? s.contacts.length : undefined,
+              testId: `supplier-tab-${x}`,
+            }))}
+          />
+        }
       />
       {s.status === 'unconfirmed' && (
         <Alert color="yellow" variant="light" mb="md" data-testid="supplier-unconfirmed">
@@ -195,386 +185,12 @@ export function SupplierDetailPage() {
           {t('detail.archivedNote')}
         </Alert>
       )}
-      <Grid gap="lg">
-        <Grid.Col span={{ base: 12, md: 8 }}>
-          <Stack gap="lg">
-            {s.description && <Text size="sm">{s.description}</Text>}
-            {/* ---- contracts ---- */}
-            <Stack gap="xs" data-testid="supplier-contracts">
-              <Group justify="space-between">
-                <Text fw={600} id="supplier-contracts-title">
-                  {t('contracts.title')}
-                </Text>
-                {s.canEdit && (
-                  <Button size="compact-xs" variant="light" leftSection={<IconPlus size={12} />} onClick={() => setContract('new')}>
-                    {t('contracts.add')}
-                  </Button>
-                )}
-              </Group>
-              <Text size="xs" c="dimmed">
-                {t('contracts.help')}
-              </Text>
-              {s.contracts.length === 0 ? (
-                <Text size="sm" c="dimmed">
-                  {t('contracts.empty')}
-                </Text>
-              ) : (
-                s.contracts.map((c) => (
-                  <Paper withBorder p="sm" key={c.id}>
-                    <Group justify="space-between" wrap="nowrap" align="flex-start">
-                      <div style={{ minWidth: 0 }}>
-                        <Text fw={600} size="sm">
-                          {c.title}
-                          {c.reference ? ` · ${c.reference}` : ''}
-                        </Text>
-                        <Text size="xs" c="dimmed">
-                          {[
-                            c.startsOn || c.endsOn ? `${c.startsOn ? fmtDay(c.startsOn) : '…'} – ${c.endsOn ? fmtDay(c.endsOn) : '…'}` : '',
-                            c.renewal === 'automatic' ? t('contracts.renewsBy', { count: c.renewalMonths ?? 0 }) : t(`contracts.renewals.${c.renewal}`),
-                          ]
-                            .filter(Boolean)
-                            .join(' · ')}
-                        </Text>
-                      </div>
-                      {s.canEdit && (
-                        <Group gap={4} wrap="nowrap">
-                          <ActionIcon variant="subtle" aria-label={t('contracts.edit')} onClick={() => setContract(c)}>
-                            <IconEdit size={14} />
-                          </ActionIcon>
-                          <ActionIcon
-                            variant="subtle"
-                            color="red"
-                            aria-label={t('common:remove')}
-                            onClick={() => void remove('contracts', c.id, t('contracts.removeConfirm', { name: c.title }))}
-                          >
-                            <IconTrash size={14} />
-                          </ActionIcon>
-                        </Group>
-                      )}
-                    </Group>
-                    <Group gap="lg" mt="xs" wrap="wrap" align="flex-start">
-                      <Field label={t('contracts.noticeBy')}>
-                        <DueDate date={c.noticeBy} state={c.noticeState} />
-                      </Field>
-                      {c.termEnd && c.termEnd !== c.endsOn && <Field label={t('contracts.termEnd')}>{fmtDay(c.termEnd)}</Field>}
-                      {(c.slaAvailability !== null || c.slaSupportHours) && (
-                        <Field label={t('contracts.sla')}>
-                          <Text size="sm">
-                            {[c.slaAvailability !== null ? `${fmtNumber(c.slaAvailability)} %` : '', c.slaSupportHours].filter(Boolean).join(' · ')}
-                          </Text>
-                        </Field>
-                      )}
-                      {(c.rtoHours !== null || c.rpoHours !== null) && (
-                        <Field label={`${t('contracts.rtoHours')} / ${t('contracts.rpoHours')}`}>
-                          <Text size="sm">
-                            {t('contracts.rtoRpo', {
-                              rto: c.rtoHours === null ? '–' : fmtNumber(c.rtoHours),
-                              rpo: c.rpoHours === null ? '–' : fmtNumber(c.rpoHours),
-                            })}
-                          </Text>
-                        </Field>
-                      )}
-                      {c.link && (
-                        <Field label={t('contracts.link')}>
-                          <DocLink link={c.link} record={c.record} />
-                        </Field>
-                      )}
-                    </Group>
-                    {c.slaResponse && (
-                      <Text size="xs" mt={4}>
-                        {t('contracts.slaResponse')}: {c.slaResponse}
-                      </Text>
-                    )}
-                    {c.costPlanLines.length > 0 && (
-                      <Text size="xs" mt={4}>
-                        {t('contracts.costPlanLines')}:{' '}
-                        {c.costPlanLines.map((l, i) => (
-                          <span key={l.id}>
-                            {i > 0 && ', '}
-                            <Anchor component={Link} to={`/services/${l.serviceId}?tab=costs`} size="xs">
-                              {l.serviceName} · {l.title} ({l.fiscalYear})
-                            </Anchor>
-                          </span>
-                        ))}
-                      </Text>
-                    )}
-                    {c.note && (
-                      <Text size="xs" c="dimmed" mt={4}>
-                        {c.note}
-                      </Text>
-                    )}
-                  </Paper>
-                ))
-              )}
-            </Stack>
-            {/* ---- certificates ---- */}
-            <Stack gap="xs" data-testid="supplier-certificates">
-              <Group justify="space-between">
-                <Text fw={600} id="supplier-certificates-title">
-                  {t('certificates.title')}
-                </Text>
-                {s.canEdit && (
-                  <Button size="compact-xs" variant="light" leftSection={<IconPlus size={12} />} onClick={() => setCertificate('new')}>
-                    {t('certificates.add')}
-                  </Button>
-                )}
-              </Group>
-              <Text size="xs" c="dimmed">
-                {t('certificates.help')}
-              </Text>
-              {s.certificates.length === 0 ? (
-                <Text size="sm" c="dimmed">
-                  {t('certificates.empty')}
-                </Text>
-              ) : (
-                <div className="table-scroll">
-                  <Table fz="sm" aria-labelledby="supplier-certificates-title">
-                    <Table.Thead>
-                      <Table.Tr>
-                        <Table.Th>{t('certificates.kind')}</Table.Th>
-                        <Table.Th>{t('certificates.scope')}</Table.Th>
-                        <Table.Th>{t('certificates.validUntil')}</Table.Th>
-                        <Table.Th>{t('certificates.link')}</Table.Th>
-                        {s.canEdit && <Table.Th aria-label={t('common:edit')} />}
-                      </Table.Tr>
-                    </Table.Thead>
-                    <Table.Tbody>
-                      {s.certificates.map((c) => (
-                        <Table.Tr key={c.id}>
-                          <Table.Td>
-                            <Text size="sm" fw={500}>
-                              {certName(c)}
-                            </Text>
-                            {c.issuer && (
-                              <Text size="xs" c="dimmed">
-                                {c.issuer}
-                              </Text>
-                            )}
-                            {c.checkedBy && c.checkedAt && (
-                              <Text size="xs" c="dimmed">
-                                {t('certificates.checkedBy', { user: c.checkedBy, date: fmtDay(c.checkedAt) })}
-                              </Text>
-                            )}
-                          </Table.Td>
-                          <Table.Td>{c.scope || '–'}</Table.Td>
-                          <Table.Td className="nowrap">
-                            <DueDate date={c.validUntil} state={c.state} />
-                          </Table.Td>
-                          <Table.Td>{c.link ? <DocLink link={c.link} record={c.record} /> : '–'}</Table.Td>
-                          {s.canEdit && (
-                            <Table.Td>
-                              <Group gap={4} wrap="nowrap">
-                                <ActionIcon variant="subtle" aria-label={t('certificates.edit')} onClick={() => setCertificate(c)}>
-                                  <IconEdit size={14} />
-                                </ActionIcon>
-                                <ActionIcon
-                                  variant="subtle"
-                                  color="red"
-                                  aria-label={t('common:remove')}
-                                  onClick={() => void remove('certificates', c.id, t('certificates.removeConfirm', { name: certName(c) }))}
-                                >
-                                  <IconTrash size={14} />
-                                </ActionIcon>
-                              </Group>
-                            </Table.Td>
-                          )}
-                        </Table.Tr>
-                      ))}
-                    </Table.Tbody>
-                  </Table>
-                </div>
-              )}
-            </Stack>
-            {/* ---- contacts ---- */}
-            <Stack gap="xs" data-testid="supplier-contacts">
-              <Group justify="space-between">
-                <Text fw={600} id="supplier-contacts-title">
-                  {t('contacts.title')}
-                </Text>
-                {s.canEdit && (
-                  <Button size="compact-xs" variant="light" leftSection={<IconPlus size={12} />} onClick={() => setContact('new')}>
-                    {t('contacts.add')}
-                  </Button>
-                )}
-              </Group>
-              <Text size="xs" c="dimmed">
-                {t('contacts.help')}
-              </Text>
-              {s.contacts.length === 0 ? (
-                <Text size="sm" c="dimmed">
-                  {t('contacts.empty')}
-                </Text>
-              ) : (
-                <div className="table-scroll">
-                  <Table fz="sm" aria-labelledby="supplier-contacts-title">
-                    <Table.Thead>
-                      <Table.Tr>
-                        <Table.Th>{t('contacts.name')}</Table.Th>
-                        <Table.Th>{t('contacts.role')}</Table.Th>
-                        <Table.Th>{t('contacts.email')}</Table.Th>
-                        <Table.Th>{t('contacts.phone')}</Table.Th>
-                        {s.canEdit && <Table.Th aria-label={t('common:edit')} />}
-                      </Table.Tr>
-                    </Table.Thead>
-                    <Table.Tbody>
-                      {s.contacts.map((c) => (
-                        <Table.Tr key={c.id}>
-                          <Table.Td>
-                            {c.name}
-                            {c.note && (
-                              <Text size="xs" c="dimmed">
-                                {c.note}
-                              </Text>
-                            )}
-                          </Table.Td>
-                          <Table.Td>{t(`contacts.roles.${c.role}`)}</Table.Td>
-                          <Table.Td>
-                            {c.email ? (
-                              <Anchor href={`mailto:${c.email}`} size="sm">
-                                {c.email}
-                              </Anchor>
-                            ) : (
-                              '–'
-                            )}
-                          </Table.Td>
-                          <Table.Td className="nowrap">{c.phone || '–'}</Table.Td>
-                          {s.canEdit && (
-                            <Table.Td>
-                              <Group gap={4} wrap="nowrap">
-                                <ActionIcon variant="subtle" aria-label={t('contacts.edit')} onClick={() => setContact(c)}>
-                                  <IconEdit size={14} />
-                                </ActionIcon>
-                                <ActionIcon
-                                  variant="subtle"
-                                  color="red"
-                                  aria-label={t('common:remove')}
-                                  onClick={() => void remove('contacts', c.id, t('contacts.removeConfirm', { name: c.name }))}
-                                >
-                                  <IconTrash size={14} />
-                                </ActionIcon>
-                              </Group>
-                            </Table.Td>
-                          )}
-                        </Table.Tr>
-                      ))}
-                    </Table.Tbody>
-                  </Table>
-                </div>
-              )}
-            </Stack>
-            {/* ---- used by ---- */}
-            <Stack gap="xs" data-testid="supplier-used-by">
-              <Text fw={600}>{t('usedBy.title')}</Text>
-              {s.usedBy.length === 0 ? (
-                <Text size="sm" c="dimmed">
-                  {t('usedBy.empty')}
-                </Text>
-              ) : (
-                <Stack gap={4}>
-                  {s.usedBy.map((u) => (
-                    <Group key={`${u.kind}:${u.id}`} gap="xs" wrap="nowrap">
-                      <Badge size="xs" variant="default" style={{ flexShrink: 0 }}>
-                        {t(`usedBy.kinds.${u.kind}`)}
-                      </Badge>
-                      <Anchor component={Link} to={u.path} size="sm" style={{ overflowWrap: 'anywhere' }}>
-                        {u.name}
-                      </Anchor>
-                      {u.detail && (
-                        <Text size="xs" c="dimmed" truncate>
-                          {u.kind === 'finding' ? t(`corrective:statuses.${u.detail}`, { defaultValue: u.detail }) : u.detail}
-                        </Text>
-                      )}
-                    </Group>
-                  ))}
-                </Stack>
-              )}
-            </Stack>
-            {/* ---- corrective action findings about the supplier (Compliance module) ---- */}
-            {complianceOn && <SupplierFindings supplier={{ id: s.id, name: s.name, status: s.status }} />}
-            {/* ---- the supplier review ---- */}
-            <Stack gap="xs" data-testid="supplier-duties">
-              <Text fw={600}>{t('duties.title')}</Text>
-              <Text size="xs" c="dimmed">
-                {t('duties.help')}
-              </Text>
-              {s.duties.length === 0 ? (
-                <Text size="sm" c="dimmed">
-                  {t('duties.empty')}
-                </Text>
-              ) : (
-                s.duties.map((d) => (
-                  <Group key={d.id} gap="xs" wrap="wrap">
-                    <Anchor component={Link} to={`/duties/${d.id}`} size="sm">
-                      {d.name}
-                    </Anchor>
-                    <Text size="xs" c="dimmed">
-                      {d.serviceName}
-                    </Text>
-                    {d.periods.map((p) => (
-                      <Badge
-                        key={p.periodKey}
-                        size="xs"
-                        variant="light"
-                        color={p.status === 'done' ? 'green' : p.status === 'missed' || p.status === 'failed' ? 'red' : 'gray'}
-                      >
-                        {p.periodKey}: {p.status}
-                      </Badge>
-                    ))}
-                  </Group>
-                ))
-              )}
-            </Stack>
-          </Stack>
-        </Grid.Col>
-        <Grid.Col span={{ base: 12, md: 4 }}>
-          <Paper withBorder p="md">
-            <Stack gap="sm">
-              <Field label={t('fields.website')}>
-                {s.website ? (
-                  <Anchor href={s.website} target="_blank" rel="noopener noreferrer nofollow" size="sm">
-                    {s.website.replace(/^https?:\/\//, '')} <IconExternalLink size={12} aria-hidden />
-                  </Anchor>
-                ) : (
-                  '–'
-                )}
-              </Field>
-              <Field label={t('fields.owners')}>{s.owners.length ? s.owners.map(subjectLabel).join(', ') : '–'}</Field>
-              <Field label={t('detail.dataProtection')}>
-                <Text size="sm">
-                  {!s.personalData ? t('dpa.none') : t(`dpa.${s.dpaStatus ?? 'missing'}`)}
-                  {s.personalData && s.dpaStatus === 'inPlace' && s.dpaSince ? ` · ${fmtDay(s.dpaSince)}` : ''}
-                </Text>
-                {s.personalData && s.dpaStatus === 'missing' && (
-                  <Badge size="xs" color="red" variant="light">
-                    {t('dpa.missing')}
-                  </Badge>
-                )}
-                {s.dpaLink && <DocLink link={s.dpaLink} />}
-              </Field>
-              <Field label={t('fields.criticality')}>
-                <Text size="sm">{crit.length ? crit.map((d) => `${t(`applications:cia.dimensions.${d}`)}: ${s.criticality[d]!.label}`).join(' · ') : '–'}</Text>
-                <Text size="xs" c="dimmed">
-                  {t('fields.criticalityHint')}
-                </Text>
-              </Field>
-              {s.aliases.length > 0 && <Field label={t('fields.aliases')}>{s.aliases.join(', ')}</Field>}
-              {s.migratedFrom.length > 0 && (
-                <Field label={t('detail.migratedFrom')}>
-                  {s.migratedFrom.map((m) => (
-                    <Text size="sm" key={m.table}>
-                      {t(`detail.migratedTable.${m.table}` as 'detail.migratedTable.applications')}: {m.spellings.join(', ')}
-                    </Text>
-                  ))}
-                </Field>
-              )}
-              <Text size="xs" c="dimmed">
-                {t('detail.created', { user: s.createdBy, date: fmtDate(s.createdAt) })}
-              </Text>
-            </Stack>
-          </Paper>
-          <OwningTeams kind="supplier" id={s.id} mt="md" />
-        </Grid.Col>
-      </Grid>
+      {tab === 'overview' && <Overview s={s} complianceOn={complianceOn} />}
+      {tab === 'contracts' && <ContractsTab s={s} onSaved={saved} />}
+      {tab === 'services' && <ServicesTab s={s} />}
+      {tab === 'contacts' && <SupplierContacts s={s} contacts={s.contacts} onSaved={() => saved()} />}
+      {tab === 'certificates' && <CertificatesTab s={s} onSaved={saved} />}
+      {tab === 'usedBy' && <UsedByTab s={s} />}
       {editing && <SupplierFormModal supplier={s} onClose={() => setEditing(false)} onSaved={saved} />}
       {merging && (
         <MergeModal
@@ -587,17 +203,424 @@ export function SupplierDetailPage() {
           }}
         />
       )}
-      {contact && <ContactModal supplierId={s.id} contact={contact === 'new' ? undefined : contact} onClose={() => setContact(null)} onSaved={saved} />}
-      {contract && <ContractModal supplierId={s.id} contract={contract === 'new' ? undefined : contract} onClose={() => setContract(null)} onSaved={saved} />}
+    </>
+  );
+}
+
+/** Overview: the company record – data, owners, owning teams, the DPA default for contracts, criticality, reviews and findings. */
+function Overview({ s, complianceOn }: { s: SupplierDetail; complianceOn: boolean }) {
+  const { t } = useTranslation(['suppliers', 'common', 'applications']);
+  const crit = CIA_DIMENSIONS.filter((d) => s.criticality[d]);
+  return (
+    <Grid gap="lg">
+      <Grid.Col span={{ base: 12, md: 8 }}>
+        <Stack gap="lg">
+          {s.description && <Text size="sm">{s.description}</Text>}
+          {s.dpaMissing && (
+            <Alert color="red" variant="light" data-testid="supplier-dpa-missing">
+              {s.contractCount ? t('detail.dpaMissingContracts', { count: s.dpaMissingContracts }) : t('dpa.missing')}
+            </Alert>
+          )}
+          {complianceOn && <SupplierFindings supplier={{ id: s.id, name: s.name, status: s.status }} />}
+          <Stack gap="xs" data-testid="supplier-duties">
+            <Text fw={600}>{t('duties.title')}</Text>
+            <Text size="xs" c="dimmed">
+              {t('duties.help')}
+            </Text>
+            {s.duties.length === 0 ? (
+              <Text size="sm" c="dimmed">
+                {t('duties.empty')}
+              </Text>
+            ) : (
+              s.duties.map((d) => (
+                <Group key={d.id} gap="xs" wrap="wrap">
+                  <Anchor component={Link} to={`/duties/${d.id}`} size="sm">
+                    {d.name}
+                  </Anchor>
+                  <Text size="xs" c="dimmed">
+                    {d.serviceName}
+                  </Text>
+                  {d.periods.map((p) => (
+                    <Badge
+                      key={p.periodKey}
+                      size="xs"
+                      variant="light"
+                      color={p.status === 'done' ? 'green' : p.status === 'missed' || p.status === 'failed' ? 'red' : 'gray'}
+                    >
+                      {p.periodKey}: {p.status}
+                    </Badge>
+                  ))}
+                </Group>
+              ))
+            )}
+          </Stack>
+        </Stack>
+      </Grid.Col>
+      <Grid.Col span={{ base: 12, md: 4 }}>
+        <Paper withBorder p="md">
+          <Stack gap="sm">
+            <Field label={t('fields.website')}>
+              {s.website ? (
+                <Anchor href={s.website} target="_blank" rel="noopener noreferrer nofollow" size="sm">
+                  {s.website.replace(/^https?:\/\//, '')} <IconExternalLink size={12} aria-hidden />
+                </Anchor>
+              ) : (
+                '–'
+              )}
+            </Field>
+            <Field label={t('fields.owners')}>{s.owners.length ? s.owners.map(subjectLabel).join(', ') : '–'}</Field>
+            <Field label={t('detail.dataProtectionDefault')}>
+              <Text size="sm">
+                {!s.personalData ? t('dpa.none') : t(`dpa.${s.dpaStatus ?? 'missing'}`)}
+                {s.personalData && s.dpaStatus === 'inPlace' && s.dpaSince ? ` · ${fmtDay(s.dpaSince)}` : ''}
+              </Text>
+              {s.dpaLink && <DocLink link={s.dpaLink} />}
+              <Text size="xs" c="dimmed">
+                {t('detail.dataProtectionDefaultHint')}
+              </Text>
+            </Field>
+            <Field label={t('fields.criticality')}>
+              <Text size="sm">{crit.length ? crit.map((d) => `${t(`applications:cia.dimensions.${d}`)}: ${s.criticality[d]!.label}`).join(' · ') : '–'}</Text>
+              <Text size="xs" c="dimmed">
+                {t('fields.criticalityHint')}
+              </Text>
+            </Field>
+            {s.aliases.length > 0 && <Field label={t('fields.aliases')}>{s.aliases.join(', ')}</Field>}
+            {s.migratedFrom.length > 0 && (
+              <Field label={t('detail.migratedFrom')}>
+                {s.migratedFrom.map((m) => (
+                  <Text size="sm" key={m.table}>
+                    {t(`detail.migratedTable.${m.table}` as 'detail.migratedTable.applications')}: {m.spellings.join(', ')}
+                  </Text>
+                ))}
+              </Field>
+            )}
+            <Text size="xs" c="dimmed">
+              {t('detail.created', { user: s.createdBy, date: fmtDate(s.createdAt) })}
+            </Text>
+          </Stack>
+        </Paper>
+        <OwningTeams kind="supplier" id={s.id} mt="md" />
+      </Grid.Col>
+    </Grid>
+  );
+}
+
+/** One contract as the Contracts tab lists it (a card; an order form indented under its master). */
+function ContractCard({ s, c, onEdit, onRemove }: { s: SupplierDetail; c: SupplierContract; onEdit: () => void; onRemove: () => void }) {
+  const { t } = useTranslation(['suppliers', 'common']);
+  return (
+    <Paper withBorder p="sm" ml={c.parentId ? 'xl' : 0} data-testid={`contract-${c.id}`}>
+      <Group justify="space-between" wrap="nowrap" align="flex-start">
+        <div style={{ minWidth: 0 }}>
+          <Group gap={6} wrap="wrap">
+            <Anchor component={Link} to={`/suppliers/${s.id}/contracts/${c.id}`} fw={600} size="sm">
+              {c.title}
+            </Anchor>
+            {c.reference && (
+              <Text size="xs" c="dimmed">
+                {c.reference}
+              </Text>
+            )}
+            {c.parentId && (
+              <Badge size="xs" variant="default">
+                {t('contract.orderForm')}
+              </Badge>
+            )}
+            {c.orderForms.length > 0 && (
+              <Badge size="xs" variant="default">
+                {t('contract.master')}
+              </Badge>
+            )}
+            {c.parentHidden && (
+              <Text size="xs" c="dimmed">
+                {t('contract.hiddenMaster')}
+              </Text>
+            )}
+          </Group>
+          <Group gap={4} mt={4} wrap="wrap">
+            {c.services.map((x) => (
+              <Badge
+                key={x.id}
+                size="sm"
+                variant="light"
+                color={x.status === 'proposed' ? 'yellow' : 'blue'}
+                style={{ textTransform: 'none' }}
+                title={x.purpose || undefined}
+              >
+                {x.name}
+                {x.purpose ? ` – ${x.purpose}` : ''}
+                {x.status === 'proposed' ? ` (${t('contractServices.toConfirm')})` : ''}
+              </Badge>
+            ))}
+            {c.hiddenServices > 0 && (
+              <Text size="xs" c="dimmed">
+                {t('contractServices.hidden', { count: c.hiddenServices })}
+              </Text>
+            )}
+          </Group>
+          <Group gap="md" mt={4} wrap="wrap">
+            <Text size="xs">
+              {t('contracts.noticeBy')}: <DueDate date={c.noticeBy} state={c.noticeState} />
+            </Text>
+            {c.termEnd && <Text size="xs">{t('serviceSuppliers.termEnd', { date: fmtDay(c.termEnd) })}</Text>}
+            <DpaState c={c} />
+          </Group>
+          {c.owners.length > 0 && (
+            <Text size="xs" c="dimmed">
+              {t('serviceSuppliers.owners', { owners: c.owners.map(subjectLabel).join(', ') })}
+            </Text>
+          )}
+        </div>
+        {c.canEdit && (
+          <Group gap={4} wrap="nowrap">
+            <ActionIcon variant="subtle" aria-label={t('contracts.edit')} onClick={onEdit}>
+              <IconEdit size={14} />
+            </ActionIcon>
+            <ActionIcon variant="subtle" color="red" aria-label={t('contract.remove')} onClick={onRemove}>
+              <IconTrash size={14} />
+            </ActionIcon>
+          </Group>
+        )}
+      </Group>
+    </Paper>
+  );
+}
+
+/** Contracts: masters with their order forms indented; filters "Mine" and "Covering services I edit"; the payments (Costs module). */
+function ContractsTab({ s, onSaved }: { s: SupplierDetail; onSaved: (x?: SupplierDetail) => void }) {
+  const { t } = useTranslation(['suppliers', 'common']);
+  const costsOn = useModuleOn('costs');
+  const [filter, setFilter] = useState<string[]>([]);
+  const [editing, setEditing] = useState<SupplierContract | 'new' | null>(null);
+  const [removing, setRemoving] = useState<SupplierContract | null>(null);
+  const shown = s.contracts.filter((c) => (!filter.includes('mine') || c.mine) && (!filter.includes('services') || c.services.some((x) => x.editsService)));
+  return (
+    <Stack gap="sm" data-testid="supplier-contracts">
+      <Group justify="space-between" wrap="wrap">
+        <Chip.Group multiple value={filter} onChange={setFilter}>
+          <Group gap={6}>
+            <Chip size="xs" value="mine" data-testid="contracts-filter-mine">
+              {t('contractsTab.mine')}
+            </Chip>
+            <Chip size="xs" value="services">
+              {t('contractsTab.myServices')}
+            </Chip>
+          </Group>
+        </Chip.Group>
+        {s.canAddContract && (
+          <Button size="compact-xs" variant="light" leftSection={<IconPlus size={12} />} onClick={() => setEditing('new')} data-testid="contract-add">
+            {t('contracts.add')}
+          </Button>
+        )}
+      </Group>
+      <Text size="xs" c="dimmed">
+        {t('contractsTab.help')}
+      </Text>
+      {shown.length === 0 ? (
+        <Text size="sm" c="dimmed">
+          {s.contracts.length ? t('contractsTab.noMatch') : t('contracts.empty')}
+        </Text>
+      ) : (
+        shown.map((c) => <ContractCard key={c.id} s={s} c={c} onEdit={() => setEditing(c)} onRemove={() => setRemoving(c)} />)
+      )}
+      {costsOn && <SupplierCosts supplierId={s.id} />}
+      {editing && (
+        <ContractModal supplier={s} contract={editing === 'new' ? undefined : editing} onClose={() => setEditing(null)} onSaved={(x) => onSaved(x)} />
+      )}
+      {removing && (
+        <RemoveContractModal
+          supplier={s}
+          contract={removing}
+          onClose={() => setRemoving(null)}
+          onRemoved={() => {
+            setRemoving(null);
+            onSaved();
+          }}
+        />
+      )}
+    </Stack>
+  );
+}
+
+/** Services: covered by a contract the reader sees (with purposes), or using the supplier without one. */
+function ServicesTab({ s }: { s: SupplierDetail }) {
+  const { t } = useTranslation('suppliers');
+  return (
+    <Stack gap="xs" data-testid="supplier-services">
+      <Text size="xs" c="dimmed">
+        {t('servicesTab.help')}
+      </Text>
+      {s.serviceUse.length === 0 && (
+        <Text size="sm" c="dimmed">
+          {t('servicesTab.empty')}
+        </Text>
+      )}
+      {s.serviceUse.map((x) => (
+        <Paper withBorder p="sm" key={x.id}>
+          <Group gap="xs" wrap="wrap">
+            <Anchor component={Link} to={`/services/${x.id}`} fw={600} size="sm">
+              {x.name}
+            </Anchor>
+            {x.contracts.length === 0 && (
+              <Badge size="xs" variant="light" color="gray">
+                {t('serviceSuppliers.noContract')}
+              </Badge>
+            )}
+          </Group>
+          {x.contracts.map((c) => (
+            <Text size="xs" key={c.id}>
+              <Anchor component={Link} to={`/suppliers/${s.id}/contracts/${c.id}`} size="xs">
+                {c.title}
+              </Anchor>
+              {c.purpose ? ` – ${c.purpose}` : ''}
+              {c.status === 'proposed' ? ` (${t('contractServices.toConfirm')})` : ''}
+            </Text>
+          ))}
+          {x.via.length > 0 && (
+            <Text size="xs" c="dimmed">
+              {t('servicesTab.via', { items: x.via.map((v) => v.name).join(', ') })}
+            </Text>
+          )}
+        </Paper>
+      ))}
+    </Stack>
+  );
+}
+
+/** Used by: what links the supplier (items the reader may see); an item naming a contract they may not see says so. */
+function UsedByTab({ s }: { s: SupplierDetail }) {
+  const { t } = useTranslation(['suppliers', 'corrective']);
+  return (
+    <Stack gap="xs" data-testid="supplier-used-by">
+      {s.usedBy.length === 0 ? (
+        <Text size="sm" c="dimmed">
+          {t('usedBy.empty')}
+        </Text>
+      ) : (
+        <Stack gap={4}>
+          {s.usedBy.map((u) => (
+            <Group key={`${u.kind}:${u.id}`} gap="xs" wrap="nowrap">
+              <Badge size="xs" variant="default" style={{ flexShrink: 0 }}>
+                {t(`usedBy.kinds.${u.kind}`)}
+              </Badge>
+              <Anchor component={Link} to={u.path} size="sm" style={{ overflowWrap: 'anywhere' }}>
+                {u.name}
+              </Anchor>
+              {u.detail && (
+                <Text size="xs" c="dimmed" truncate>
+                  {u.kind === 'finding' ? t(`corrective:statuses.${u.detail}`, { defaultValue: u.detail }) : u.detail}
+                </Text>
+              )}
+              {u.contract && (
+                <Text size="xs" c="dimmed" truncate>
+                  {u.contract.title}
+                </Text>
+              )}
+              {u.contractHidden && (
+                <Text size="xs" c="dimmed" fs="italic">
+                  {t('contract.hidden')}
+                </Text>
+              )}
+            </Group>
+          ))}
+        </Stack>
+      )}
+    </Stack>
+  );
+}
+
+/** Certificates and reports (unchanged since 0.17). */
+function CertificatesTab({ s, onSaved }: { s: SupplierDetail; onSaved: (x?: SupplierDetail) => void }) {
+  const { t } = useTranslation(['suppliers', 'common']);
+  const [certificate, setCertificate] = useState<SupplierCertificate | 'new' | null>(null);
+  const certName = (c: SupplierCertificate) => (c.kind === 'other' && c.name ? c.name : t(`certificates.kinds.${c.kind}`));
+  const remove = async (c: SupplierCertificate) => {
+    if (!(await confirmDanger({ action: 'remove', message: t('certificates.removeConfirm', { name: certName(c) }) }))) return;
+    try {
+      onSaved(await del<SupplierDetail>(`/suppliers/${s.id}/certificates/${c.id}`));
+    } catch (e) {
+      notifyError(e);
+    }
+  };
+  return (
+    <Stack gap="xs" data-testid="supplier-certificates">
+      <Group justify="space-between">
+        <Text size="xs" c="dimmed" style={{ flex: 1 }}>
+          {t('certificates.help')}
+        </Text>
+        {s.canEdit && (
+          <Button size="compact-xs" variant="light" leftSection={<IconPlus size={12} />} onClick={() => setCertificate('new')}>
+            {t('certificates.add')}
+          </Button>
+        )}
+      </Group>
+      {s.certificates.length === 0 ? (
+        <Text size="sm" c="dimmed">
+          {t('certificates.empty')}
+        </Text>
+      ) : (
+        <div className="table-scroll">
+          <Table fz="sm" aria-label={t('certificates.title')}>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>{t('certificates.kind')}</Table.Th>
+                <Table.Th>{t('certificates.scope')}</Table.Th>
+                <Table.Th>{t('certificates.validUntil')}</Table.Th>
+                <Table.Th>{t('certificates.link')}</Table.Th>
+                {s.canEdit && <Table.Th aria-label={t('common:edit')} />}
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {s.certificates.map((c) => (
+                <Table.Tr key={c.id}>
+                  <Table.Td>
+                    <Text size="sm" fw={500}>
+                      {certName(c)}
+                    </Text>
+                    {c.issuer && (
+                      <Text size="xs" c="dimmed">
+                        {c.issuer}
+                      </Text>
+                    )}
+                    {c.checkedBy && c.checkedAt && (
+                      <Text size="xs" c="dimmed">
+                        {t('certificates.checkedBy', { user: c.checkedBy, date: fmtDay(c.checkedAt) })}
+                      </Text>
+                    )}
+                  </Table.Td>
+                  <Table.Td>{c.scope || '–'}</Table.Td>
+                  <Table.Td className="nowrap">
+                    <DueDate date={c.validUntil} state={c.state} />
+                  </Table.Td>
+                  <Table.Td>{c.link ? <DocLink link={c.link} record={c.record} /> : '–'}</Table.Td>
+                  {s.canEdit && (
+                    <Table.Td>
+                      <Group gap={4} wrap="nowrap">
+                        <ActionIcon variant="subtle" aria-label={t('certificates.edit')} onClick={() => setCertificate(c)}>
+                          <IconEdit size={14} />
+                        </ActionIcon>
+                        <ActionIcon variant="subtle" color="red" aria-label={t('common:remove')} onClick={() => void remove(c)}>
+                          <IconTrash size={14} />
+                        </ActionIcon>
+                      </Group>
+                    </Table.Td>
+                  )}
+                </Table.Tr>
+              ))}
+            </Table.Tbody>
+          </Table>
+        </div>
+      )}
       {certificate && (
         <CertificateModal
           supplierId={s.id}
           certificate={certificate === 'new' ? undefined : certificate}
           onClose={() => setCertificate(null)}
-          onSaved={saved}
+          onSaved={(x) => onSaved(x)}
         />
       )}
-    </>
+    </Stack>
   );
 }
 
@@ -630,249 +653,6 @@ function FormButtons({ busy, onClose }: { busy: boolean; onClose: () => void }) 
         {t('save')}
       </Button>
     </Group>
-  );
-}
-
-function ContactModal({
-  supplierId,
-  contact,
-  onClose,
-  onSaved,
-}: {
-  supplierId: string;
-  contact?: SupplierContact;
-  onClose: () => void;
-  onSaved: (s: SupplierDetail) => void;
-}) {
-  const { t } = useTranslation(['suppliers', 'common']);
-  const [name, setName] = useState(contact?.name ?? '');
-  const [role, setRole] = useState<SupplierContactRole>(contact?.role ?? 'accountManager');
-  const [email, setEmail] = useState(contact?.email ?? '');
-  const [phone, setPhone] = useState(contact?.phone ?? '');
-  const [note, setNote] = useState(contact?.note ?? '');
-  const v = useFieldErrors({
-    name: !name.trim() && t('common:validation.required'),
-    email: !!email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) && t('common:validation.invalid'),
-  });
-  const { busy, save } = useSave(
-    (body) =>
-      contact ? put<SupplierDetail>(`/suppliers/${supplierId}/contacts/${contact.id}`, body) : post<SupplierDetail>(`/suppliers/${supplierId}/contacts`, body),
-    onSaved,
-    onClose,
-  );
-  return (
-    <Modal opened onClose={onClose} title={contact ? t('contacts.edit') : t('contacts.add')}>
-      <form
-        noValidate
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (v.validate()) void save({ name: name.trim(), role, email: email.trim(), phone: phone.trim(), note });
-        }}
-      >
-        <Stack gap="sm">
-          <TextInput
-            label={t('contacts.name')}
-            required
-            maxLength={SUPPLIER_LIMITS.text}
-            value={name}
-            onChange={(e) => setName(e.currentTarget.value)}
-            error={v.error('name')}
-            data-autofocus
-          />
-          <Select
-            label={t('contacts.role')}
-            data={SUPPLIER_CONTACT_ROLES.map((r) => ({ value: r, label: t(`contacts.roles.${r}`) }))}
-            value={role}
-            allowDeselect={false}
-            onChange={(r) => r && setRole(r as SupplierContactRole)}
-          />
-          <Group grow align="flex-start">
-            <TextInput
-              label={t('contacts.email')}
-              type="email"
-              maxLength={254}
-              value={email}
-              onChange={(e) => setEmail(e.currentTarget.value)}
-              error={v.error('email')}
-            />
-            <TextInput label={t('contacts.phone')} type="tel" maxLength={40} value={phone} onChange={(e) => setPhone(e.currentTarget.value)} />
-          </Group>
-          <Textarea
-            label={t('contacts.note')}
-            autosize
-            minRows={1}
-            maxRows={4}
-            maxLength={SUPPLIER_LIMITS.note}
-            value={note}
-            onChange={(e) => setNote(e.currentTarget.value)}
-          />
-          <FormButtons busy={busy} onClose={onClose} />
-        </Stack>
-      </form>
-    </Modal>
-  );
-}
-
-const numOrNull = (v: string | number) => (v === '' || v === null || v === undefined ? null : Number(v));
-
-function ContractModal({
-  supplierId,
-  contract,
-  onClose,
-  onSaved,
-}: {
-  supplierId: string;
-  contract?: SupplierContract;
-  onClose: () => void;
-  onSaved: (s: SupplierDetail) => void;
-}) {
-  const { t } = useTranslation(['suppliers', 'common']);
-  const [title, setTitle] = useState(contract?.title ?? '');
-  const [reference, setReference] = useState(contract?.reference ?? '');
-  const [startsOn, setStartsOn] = useState(contract?.startsOn ?? '');
-  const [endsOn, setEndsOn] = useState(contract?.endsOn ?? '');
-  const [noticeDays, setNoticeDays] = useState<string | number>(contract?.noticeDays ?? '');
-  const [renewal, setRenewal] = useState<SupplierRenewal>(contract?.renewal ?? 'fixedEnd');
-  const [renewalMonths, setRenewalMonths] = useState<string | number>(contract?.renewalMonths ?? 12);
-  const [link, setLink] = useState(contract?.link ?? '');
-  const [slaAvailability, setSlaAvailability] = useState<string | number>(contract?.slaAvailability ?? '');
-  const [slaSupportHours, setSlaSupportHours] = useState(contract?.slaSupportHours ?? '');
-  const [slaResponse, setSlaResponse] = useState(contract?.slaResponse ?? '');
-  const [rtoHours, setRtoHours] = useState<string | number>(contract?.rtoHours ?? '');
-  const [rpoHours, setRpoHours] = useState<string | number>(contract?.rpoHours ?? '');
-  const [note, setNote] = useState(contract?.note ?? '');
-  const v = useFieldErrors({
-    title: !title.trim() && t('common:validation.required'),
-    endsOn: !!startsOn && !!endsOn && endsOn < startsOn && t('common:validation.invalid'),
-    link: !!link.trim() && !DOC_LINK.test(link.trim()) && t('common:validation.invalid'),
-  });
-  const { busy, save } = useSave(
-    (body) =>
-      contract
-        ? put<SupplierDetail>(`/suppliers/${supplierId}/contracts/${contract.id}`, body)
-        : post<SupplierDetail>(`/suppliers/${supplierId}/contracts`, body),
-    onSaved,
-    onClose,
-  );
-  return (
-    <Modal opened onClose={onClose} size="lg" title={contract ? t('contracts.edit') : t('contracts.add')}>
-      <form
-        noValidate
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (!v.validate()) return;
-          void save({
-            title: title.trim(),
-            reference: reference.trim(),
-            startsOn: startsOn || null,
-            endsOn: endsOn || null,
-            noticeDays: numOrNull(noticeDays),
-            renewal,
-            renewalMonths: renewal === 'automatic' ? numOrNull(renewalMonths) : null,
-            link: link.trim(),
-            slaAvailability: numOrNull(slaAvailability),
-            slaSupportHours: slaSupportHours.trim(),
-            slaResponse: slaResponse.trim(),
-            rtoHours: numOrNull(rtoHours),
-            rpoHours: numOrNull(rpoHours),
-            note,
-          });
-        }}
-      >
-        <Stack gap="sm">
-          <Group grow align="flex-start">
-            <TextInput
-              label={t('contracts.titleField')}
-              required
-              maxLength={SUPPLIER_LIMITS.text}
-              value={title}
-              onChange={(e) => setTitle(e.currentTarget.value)}
-              error={v.error('title')}
-              data-autofocus
-            />
-            <TextInput
-              label={t('contracts.reference')}
-              maxLength={SUPPLIER_LIMITS.reference}
-              value={reference}
-              onChange={(e) => setReference(e.currentTarget.value)}
-            />
-          </Group>
-          <Group grow align="flex-start">
-            <TextInput type="date" label={t('contracts.startsOn')} value={startsOn} onChange={(e) => setStartsOn(e.currentTarget.value)} />
-            <TextInput type="date" label={t('contracts.endsOn')} value={endsOn} onChange={(e) => setEndsOn(e.currentTarget.value)} error={v.error('endsOn')} />
-            <NumberInput
-              label={t('contracts.noticeDays')}
-              min={0}
-              max={SUPPLIER_LIMITS.noticeDays}
-              allowDecimal={false}
-              value={noticeDays}
-              onChange={setNoticeDays}
-            />
-          </Group>
-          <Group grow align="flex-start">
-            <Select
-              label={t('contracts.renewal')}
-              data={SUPPLIER_RENEWALS.map((r) => ({ value: r, label: t(`contracts.renewals.${r}`) }))}
-              value={renewal}
-              allowDeselect={false}
-              onChange={(r) => r && setRenewal(r as SupplierRenewal)}
-            />
-            {renewal === 'automatic' && (
-              <NumberInput
-                label={t('contracts.renewalMonths')}
-                min={1}
-                max={SUPPLIER_LIMITS.renewalMonths}
-                allowDecimal={false}
-                value={renewalMonths}
-                onChange={setRenewalMonths}
-              />
-            )}
-          </Group>
-          <TextInput
-            label={t('contracts.link')}
-            description={t('fields.docLinkHint')}
-            value={link}
-            onChange={(e) => setLink(e.currentTarget.value)}
-            error={v.error('link')}
-          />
-          <Text fw={600} size="sm">
-            {t('contracts.sla')}
-          </Text>
-          <Group grow align="flex-start">
-            <NumberInput label={t('contracts.slaAvailability')} min={0} max={100} decimalScale={3} value={slaAvailability} onChange={setSlaAvailability} />
-            <TextInput
-              label={t('contracts.slaSupportHours')}
-              maxLength={SUPPLIER_LIMITS.text}
-              value={slaSupportHours}
-              onChange={(e) => setSlaSupportHours(e.currentTarget.value)}
-            />
-          </Group>
-          <Textarea
-            label={t('contracts.slaResponse')}
-            autosize
-            minRows={1}
-            maxRows={4}
-            maxLength={SUPPLIER_LIMITS.note}
-            value={slaResponse}
-            onChange={(e) => setSlaResponse(e.currentTarget.value)}
-          />
-          <Group grow align="flex-start">
-            <NumberInput label={t('contracts.rtoHours')} min={0} max={SUPPLIER_LIMITS.hours} decimalScale={2} value={rtoHours} onChange={setRtoHours} />
-            <NumberInput label={t('contracts.rpoHours')} min={0} max={SUPPLIER_LIMITS.hours} decimalScale={2} value={rpoHours} onChange={setRpoHours} />
-          </Group>
-          <Textarea
-            label={t('contracts.note')}
-            autosize
-            minRows={1}
-            maxRows={4}
-            maxLength={SUPPLIER_LIMITS.note}
-            value={note}
-            onChange={(e) => setNote(e.currentTarget.value)}
-          />
-          <FormButtons busy={busy} onClose={onClose} />
-        </Stack>
-      </form>
-    </Modal>
   );
 }
 

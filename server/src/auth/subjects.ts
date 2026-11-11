@@ -14,7 +14,7 @@ import { aliasTarget, teamAliasTarget } from './aliases.js';
 const lower = (s: string) => s.trim().toLowerCase();
 
 /** Does `user:<name>` / `team:<name>` (or a role) name something that exists? Former names of imported accounts count. */
-function exists(subject: string): boolean {
+export function subjectExists(subject: string): boolean {
   const m = /^(user|team|role):(.+)$/i.exec(subject.trim());
   if (!m) return false;
   const kind = m[1]!.toLowerCase();
@@ -32,7 +32,7 @@ export function assertKnownSubjects(next: readonly string[], before: readonly st
   const kept = new Set(before.map(lower));
   for (const s of next) {
     if (kept.has(lower(s))) continue;
-    if (!exists(s)) {
+    if (!subjectExists(s)) {
       const name = s.replace(/^(user|team):/i, '');
       throw new HttpError(400, `${/^team:/i.test(s) ? 'Team' : 'User'} "${name}" does not exist`, /^team:/i.test(s) ? 'TEAM_UNKNOWN' : 'USER_UNKNOWN', {
         name,
@@ -91,8 +91,9 @@ export function rewriteTeamReferences(from: string, to: string | null): number {
   for (const ref of USER_REFS) {
     if (ref.kind === 'username') continue;
     // a deleted team stays in access lists: an entry that matches nobody keeps the list restricted, while removing
-    // the last entry would leave the default access (everyone with the role's rights)
-    if (to === null && ref.kind === 'acl') continue;
+    // the last entry would leave the default access (everyone with the role's rights). The same for columns where a
+    // team restricts who sees the row – a contract's owners (ADR 0031): without a team it is seen by every supplier reader
+    if (to === null && (ref.kind === 'acl' || ref.keepDeletedTeams)) continue;
     let cols: string[];
     try {
       cols = columns(db(), ref.table);

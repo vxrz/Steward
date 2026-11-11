@@ -3,8 +3,11 @@
  * A monitor's own secrets (heartbeat keys) are never part of its definition, but a definition can carry credentials
  * typed into it: request headers of an HTTP check (`Authorization: Basic …`), user information in a URL
  * (`https://user:password@host/`), a key in a query (`…/api/hook?code=…`) or in the path of a webhook service that
- * puts it there (Slack, Discord). In the copy that leaves Steward each such value becomes `<redacted>`; the paths
- * of what was redacted are kept (never the values) and listed in the manifest.
+ * puts it there (Slack, Discord). The request body of a check (HTTP, platform, freshness) can carry them too – a
+ * login form, a GraphQL query with a token, a JSON document with a password – and nothing tells those apart from
+ * harmless bodies reliably, so a body goes as a whole unless it is empty (0.18.0). In the copy that leaves Steward
+ * each such value becomes `<redacted>`; the paths of what was redacted are kept (never the values) and listed in the
+ * manifest.
  *
  * Only for what leaves Steward: the definition in the database, its YAML export (_Monitors → Export_) and Git sync stay
  * as they are, because they must import back.
@@ -98,13 +101,18 @@ export function redactUrl(value: string): { text: string; hit: boolean } {
 }
 
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
+
+/** A request body that sends nothing: no value, an empty or blank string, an empty object or list. */
+const emptyBody = (v: unknown): boolean =>
+  v === undefined || v === null || (typeof v === 'string' && !v.trim()) || (Array.isArray(v) ? !v.length : isObj(v) && !Object.keys(v).length);
 const pathOf = (base: string, key: string | number) =>
   typeof key === 'number' ? `${base}[${key}]` : /^[A-Za-z_$][\w$]*$/.test(key) ? (base ? `${base}.${key}` : key) : `${base}[${JSON.stringify(key)}]`;
 
 /**
  * A copy of a definition with the credentials typed into it redacted, and where (paths like
- * `checks[0].headers.Authorization`). Request headers: by name; URLs: user information, secret query values and the
- * path of webhook services that carry their key in it – in URL fields and in any string that is an absolute URL.
+ * `checks[0].headers.Authorization`). Request headers: by name; request bodies (`body`): as a whole, unless empty;
+ * URLs: user information, secret query values and the path of webhook services that carry their key in it – in URL
+ * fields and in any string that is an absolute URL.
  */
 export function redactCredentials<T>(input: T): { value: T; paths: string[] } {
   const paths: string[] = [];
@@ -130,6 +138,11 @@ export function redactCredentials<T>(input: T): { value: T; paths: string[] } {
           } else headers[name] = walk(value, pathOf(here, name), name, depth + 2);
         }
         out[k] = headers;
+        continue;
+      }
+      if (k === 'body' && !emptyBody(x)) {
+        out[k] = EXPORT_REDACTED;
+        paths.push(here);
         continue;
       }
       out[k] = walk(x, here, k, depth + 1);

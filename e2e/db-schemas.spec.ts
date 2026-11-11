@@ -102,7 +102,7 @@ async function importAndChanges(page: Page, mobile: boolean) {
   await expectAccessible(page, 'schema import: preview');
   if (mobile) await expectNoHorizontalScroll(page);
   await modal.getByTestId('schema-apply').click();
-  await expect(page.getByText('Schema imported.')).toBeVisible();
+  await expect(page.getByText('Schema imported')).toBeVisible();
   await expect(view.getByTestId('schema-summary')).toContainText('tbls import');
   // the changes against the read: five tables removed, columns removed and narrowed – breaking
   await view.getByTestId('schema-tab-changes').click();

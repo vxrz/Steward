@@ -82,6 +82,8 @@ test.describe('accessibility (axe, WCAG 2.1 AA)', () => {
     ['statement of applicability', '/compliance/soa/ISO27001'],
     ['corrective action suggestions', '/compliance/corrective-actions/suggestions'],
     ['corrective action settings', '/compliance/corrective-actions/settings'],
+    // contract payments (ADR 0030): what the payment schedules still owe
+    ['cost commitments', '/costs/commitments'],
   ];
   for (const [name, path] of PAGES) {
     test(name, async ({ page }) => {
@@ -91,6 +93,25 @@ test.describe('accessibility (axe, WCAG 2.1 AA)', () => {
       await expectStructure(page, name);
     });
   }
+
+  // shared suppliers (ADR 0031): the supplier's tabs and a contract's own page
+  test('a supplier with its contracts and a contract page', async ({ page, apiAs }) => {
+    const api = await apiAs('admin');
+    const cloud = (await json<{ id: string; name: string }[]>(await api.get('/api/suppliers'))).find((s) => s.name === 'Example Cloud GmbH')!;
+    const detail = await json<{ contracts: { id: string; title: string }[] }>(await api.get(`/api/suppliers/${cloud.id}`));
+    for (const tab of ['contracts', 'services', 'contacts']) {
+      await page.goto(`/suppliers/${cloud.id}?tab=${tab}`);
+      await settle(page);
+      await expectAccessible(page, `supplier: ${tab}`);
+      await expectStructure(page, `supplier: ${tab}`);
+    }
+    const hosting = detail.contracts.find((c) => c.title === 'Managed Kubernetes') ?? detail.contracts[0]!;
+    await page.goto(`/suppliers/${cloud.id}/contracts/${hosting.id}`);
+    await settle(page);
+    await expect(page.getByTestId('contract-visibility')).toBeVisible();
+    await expectAccessible(page, 'supplier contract');
+    await expectStructure(page, 'supplier contract');
+  });
 
   test('a service cost plan', async ({ page, apiAs }) => {
     const service = (await json<{ id: string }[]>(await (await apiAs('admin')).get('/api/services')))[0]!;

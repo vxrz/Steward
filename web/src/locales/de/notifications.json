@@ -206,6 +206,10 @@
       "budget": {
         "label": "Kostenbudget",
         "info": "Das Monatsbudget für Kosten eines Service, einer Anwendung oder eines Teams, die Ihnen gehören, hat 80 % oder 100 % erreicht"
+      },
+      "booking_due": {
+        "label": "Vertragszahlungen nicht gebucht",
+        "info": "Vertragszahlungen des letzten Monats eines Service, der Ihnen gehört, haben noch keine Kostenbuchung (standardmäßig aus: in Ihrem Profil einschalten)"
       }
     },
     "contract": {

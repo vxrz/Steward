@@ -1,4 +1,4 @@
-import { accessSourceOfKind, checkTypeKinds, checkTypesOfKind, hasHttpApi, type PlatformGetStarted, type ProcessTemplate } from '@sm/shared';
+import { accessSourceOfKind, checkTypesOfKind, hasHttpApi, type PlatformGetStarted, type ProcessTemplate } from '@sm/shared';
 import { listTemplates } from '../processes/service.js';
 import { listBundles } from './bundles.js';
 
@@ -23,11 +23,11 @@ export async function getStarted(kind: string): Promise<PlatformGetStarted> {
   const bundles = (await listBundles()).filter((b) => b.kinds.includes(kind)).map((b) => ({ id: b.id, name: b.name, description: b.description }));
   // every HTTP API can be checked with a platform request
   const monitorTypes = checkTypesOfKind(kind);
-  const { listExamples, exampleCheckTypes } = await import('../monitors/service.js');
+  const { listExamples, exampleCheckKinds } = await import('../monitors/service.js');
   const monitorExamples = listExamples()
     .filter((e) => {
       try {
-        return exampleCheckTypes(e.file).some((type) => checkTypeKinds(type).includes(kind));
+        return exampleCheckKinds(e.file).includes(kind);
       } catch {
         return false;
       }

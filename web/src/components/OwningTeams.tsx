@@ -6,6 +6,8 @@ import { useTranslation } from 'react-i18next';
 import type { AccessExplanation, AccessReason, OwnedKind, Team, UserInfo } from '@sm/shared';
 import { get, notifyError, notifyOk, post, put } from '../api';
 import { useMe } from '../auth';
+import { supplierKeys } from '../queryKeys';
+import { OpenSupplierModal } from './suppliers/SharedSuppliers';
 
 interface OwningTeamsResponse {
   teams: { id: string; name: string }[];
@@ -30,7 +32,10 @@ export function OwningTeams({ kind, id, mt }: { kind: OwnedKind; id: string; mt?
   const current = (q.data?.teams ?? []).map((x) => x.id);
   const dirty = JSON.stringify([...value].sort()) !== JSON.stringify([...current].sort());
 
+  // a supplier: the preview of what the change protects, and the choice for contacts (ADR 0031 part 8)
+  const [opening, setOpening] = useState(false);
   const save = async () => {
+    if (kind === 'supplier') return setOpening(true);
     setBusy(true);
     try {
       const saved = await put<OwningTeamsResponse>(`/owning-teams/${kind}/${id}`, { teamIds: value });
@@ -91,6 +96,18 @@ export function OwningTeams({ kind, id, mt }: { kind: OwnedKind; id: string; mt?
         )}
       </Stack>
       {explain && <ExplainModal kind={kind} id={id} onClose={() => setExplain(false)} />}
+      {opening && (
+        <OpenSupplierModal
+          id={id}
+          teamIds={value}
+          onClose={() => setOpening(false)}
+          onDone={() => {
+            setOpening(false);
+            void qc.invalidateQueries({ queryKey: key });
+            void qc.invalidateQueries({ queryKey: supplierKeys.all });
+          }}
+        />
+      )}
     </Paper>
   );
 }

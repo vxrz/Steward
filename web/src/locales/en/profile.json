@@ -80,7 +80,10 @@
     "browserHint": "Show a system notification on this device while the app is open in a tab.",
     "testTitle": "Test notification",
     "testBody": "Browser notifications work.",
-    "test": "Show a test notification"
+    "test": "Show a test notification",
+    "optional": "Optional notifications",
+    "optionalHint": "Off unless you turn them on. Where they arrive (in the app, by e-mail) follows the instance's settings.",
+    "optInSaved": "Saved"
   },
   "password": {
     "title": "Password",

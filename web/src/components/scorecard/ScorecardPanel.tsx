@@ -8,6 +8,7 @@ import { fmtDate, fmtDay } from '../../format';
 import { QueryState } from '../common';
 import { useLevel } from '../catalogue/cia';
 import { AttentionBadge, PART_COLORS, PartBadge, shownParts } from './common';
+import { fmtAmount } from '../costs/common';
 
 /** The scorecard of one service (service page): its parts side by side, each with its own status, and the stored days. */
 export function ScorecardPanel({ serviceId }: { serviceId: string }) {
@@ -217,7 +218,12 @@ function PartDetails({ card: c, part }: { card: ServiceScorecardDetail; part: Sc
           {k.stateOnly || k.budgetPct === null
             ? t(`costs.state.${k.status === 'attention' ? 'exceeded' : k.status === 'pending' ? 'warning' : 'ok'}`)
             : k.thisMonth !== null && k.budget !== null
-              ? t('costs.summaryAmounts', { used: k.thisMonth, budget: k.budget, currency: k.currency, pct: k.budgetPct })
+              ? t('costs.summaryAmounts', {
+                  used: fmtAmount(k.thisMonth, k.currency ?? ''),
+                  budget: fmtAmount(k.budget, k.currency ?? ''),
+                  currency: k.currency,
+                  pct: k.budgetPct,
+                })
               : t('costs.summary', { pct: k.budgetPct })}
         </Text>
         {k.stateOnly && (

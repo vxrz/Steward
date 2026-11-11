@@ -9,7 +9,22 @@ import { overview, scopeDetail } from './query.js';
 import { getSource, importFromUi, listImports, previewImport, setSource } from './service.js';
 import { readNow } from './sources.js';
 import { mayChangeBudget, raisesBudget, setBudget } from './budgets.js';
-import { addEntry, addPlanLine, copyPlanYear, planCsv, planYear, removeEntry, removePlanLine, teamPlanYear, updateEntry, updatePlanLine } from './plans.js';
+import { commitments, commitmentsCsv } from './commitments.js';
+import { importEntries, listEntryImports, previewEntryImport, removeEntryImport } from './entry-import.js';
+import { addSchedule, applyContractUpdates, confirmProposals, listSchedules, proposals, removeSchedule, updateSchedule } from './schedules.js';
+import {
+  addEntry,
+  addPlanLine,
+  bookLine,
+  copyPlanYear,
+  planCsv,
+  planYear,
+  removeEntry,
+  removePlanLine,
+  teamPlanYear,
+  updateEntry,
+  updatePlanLine,
+} from './plans.js';
 import {
   authorizePush,
   createPushToken,
@@ -44,6 +59,20 @@ import {
  *   POST /api/costs/plans/:serviceId/copy                             copy a fiscal year's lines into the next one
  *   POST /api/costs/plans/:serviceId/entries, PUT|DELETE …/entries/:entryId   cost entries
  *   GET  /api/costs/team-plans/:teamId?fiscalYear=                    the plans of a team's services
+ *
+ * Contract payments, commitments and recorded costs (0.18.0, ADR 0030) – new writes for people: a signed-in session
+ * (ACCESS.session), like supplier writes; the entry and line routes above keep accepting API tokens:
+ *   POST /api/costs/plans/:serviceId/lines/:lineId/book               Book: one entry from a line's payment in a month
+ *   GET  /api/costs/schedules?contractId=|serviceId=                   payment schedules (the paying services the reader may see)
+ *   POST /api/costs/schedules, PUT|DELETE /api/costs/schedules/:id     who may change the contract, or edit the paying service and see the contract
+ *   GET  /api/costs/plans/:serviceId/proposals?fiscalYear=             "Contract payments to plan" of a fiscal year
+ *   POST /api/costs/plans/:serviceId/proposals                         "Add to plan"
+ *   POST /api/costs/plans/:serviceId/contract-updates                  "Update lines" (the current and later fiscal years)
+ *   GET  /api/costs/commitments?teamId=&serviceId=&supplierId=&currency=&endingWithinDays=   what the schedules still owe
+ *   GET  /api/costs/commitments/export?…                               the same as CSV
+ *   POST /api/costs/plans/:serviceId/entries/import/preview            a CSV file of entries: every row with what it becomes (nothing stored)
+ *   POST /api/costs/plans/:serviceId/entries/import                    import the rows without problems, all or nothing
+ *   GET  /api/costs/plans/:serviceId/imports, DELETE …/imports/:importId   the import records; "Remove import"
  */
 
 const scopeParams = (req: FastifyRequest) => z.object({ scope: z.enum(COST_SCOPES), id: z.string().min(1).max(100) }).parse(req.params);
@@ -55,10 +84,13 @@ const budgetBody = (req: FastifyRequest) => {
   return b.success ? b.data : null;
 };
 const serviceParam = (req: FastifyRequest) => z.object({ serviceId: z.string().min(1).max(100) }).parse(req.params).serviceId;
+const scheduleParam = (req: FastifyRequest) => z.object({ costScheduleId: z.string().min(1).max(100) }).parse(req.params).costScheduleId;
 const itemParam = (req: FastifyRequest, key: 'lineId' | 'entryId') => z.object({ [key]: z.string().min(1).max(100) }).parse(req.params)[key]!;
 /** One name for the fiscal year everywhere (query, bodies, responses, /api/v1, MCP): the calendar year it starts in. */
 const yearQuery = z.object({ fiscalYear: z.coerce.number().int().min(FISCAL_YEAR_MIN).max(FISCAL_YEAR_MAX).optional() });
 const imports = { config: { rateLimit: ROUTE_LIMITS.heavy }, bodyLimit: LARGE_BODIES.costImport.bytes };
+/** New writes of ADR 0030 are decisions of people in the app: no API tokens. */
+const session = { config: { access: ACCESS.session } };
 
 export async function costRoutes(app: FastifyInstance): Promise<void> {
   app.get('/costs', async (req) => {
@@ -107,9 +139,34 @@ export async function costRoutes(app: FastifyInstance): Promise<void> {
   app.put('/costs/plans/:serviceId/lines/:lineId', async (req) => updatePlanLine(serviceParam(req), itemParam(req, 'lineId'), req.body));
   app.delete('/costs/plans/:serviceId/lines/:lineId', async (req) => removePlanLine(serviceParam(req), itemParam(req, 'lineId')));
   app.post('/costs/plans/:serviceId/copy', async (req) => copyPlanYear(serviceParam(req), req.body));
+  app.post('/costs/plans/:serviceId/lines/:lineId/book', session, async (req) => bookLine(serviceParam(req), itemParam(req, 'lineId'), req.body));
   app.post('/costs/plans/:serviceId/entries', async (req) => addEntry(serviceParam(req), req.body));
   app.put('/costs/plans/:serviceId/entries/:entryId', async (req) => updateEntry(serviceParam(req), itemParam(req, 'entryId'), req.body));
   app.delete('/costs/plans/:serviceId/entries/:entryId', async (req) => removeEntry(serviceParam(req), itemParam(req, 'entryId')));
+  // contract payments (ADR 0030)
+  app.get('/costs/schedules', async (req) =>
+    listSchedules(z.object({ contractId: z.string().min(1).max(100).optional(), serviceId: z.string().min(1).max(100).optional() }).parse(req.query ?? {})),
+  );
+  app.post('/costs/schedules', session, async (req) => addSchedule(req.body));
+  app.put('/costs/schedules/:costScheduleId', session, async (req) => updateSchedule(scheduleParam(req), req.body));
+  app.delete('/costs/schedules/:costScheduleId', session, async (req) => removeSchedule(scheduleParam(req)));
+  app.get('/costs/plans/:serviceId/proposals', async (req) => proposals(serviceParam(req), yearQuery.parse(req.query ?? {}).fiscalYear));
+  app.post('/costs/plans/:serviceId/proposals', session, async (req) => confirmProposals(serviceParam(req), req.body));
+  app.post('/costs/plans/:serviceId/contract-updates', session, async (req) => applyContractUpdates(serviceParam(req), req.body));
+  const entryImport = { config: { access: ACCESS.session, rateLimit: ROUTE_LIMITS.heavy }, bodyLimit: LARGE_BODIES.costEntryImport.bytes };
+  app.post('/costs/plans/:serviceId/entries/import/preview', entryImport, async (req) => previewEntryImport(serviceParam(req), req.body));
+  app.post('/costs/plans/:serviceId/entries/import', entryImport, async (req) => importEntries(serviceParam(req), req.body));
+  app.get('/costs/plans/:serviceId/imports', async (req) => listEntryImports(serviceParam(req)));
+  app.delete('/costs/plans/:serviceId/imports/:importId', session, async (req) =>
+    removeEntryImport(serviceParam(req), z.object({ importId: z.string().min(1).max(100) }).parse(req.params).importId),
+  );
+  app.get('/costs/commitments', async (req) => commitments(req.query ?? {}));
+  app.get('/costs/commitments/export', async (req, reply) => {
+    const out = commitmentsCsv(req.query ?? {});
+    reply.header('content-disposition', `attachment; filename="${out.name}"`);
+    reply.header('cache-control', 'no-store');
+    return reply.type('text/csv; charset=utf-8').send(out.csv);
+  });
   app.get('/costs/team-plans/:teamId', async (req) =>
     teamPlanYear(z.object({ teamId: z.string().min(1).max(100) }).parse(req.params).teamId, yearQuery.parse(req.query ?? {}).fiscalYear),
   );

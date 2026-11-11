@@ -40,6 +40,7 @@ export const NOTIFICATION_EVENTS = [
   'supplier.certificate_expiring',
   'supplier.notice_due',
   'soa.approval_waiting',
+  'cost.booking_due',
 ] as const;
 export type NotificationEvent = (typeof NOTIFICATION_EVENTS)[number];
 
@@ -115,7 +116,15 @@ export const NOTIFICATION_EVENT_INFO: Record<NotificationEvent, string> = {
   'supplier.certificate_expiring': 'A certificate of a supplier you own runs out in 90 or 30 days',
   'supplier.notice_due': 'The last day to give notice on a contract of a supplier you own is 90 or 30 days away',
   'soa.approval_waiting': 'A version of a statement of applicability was submitted and waits for your approval (approvers and administrators)',
+  'cost.booking_due': 'Contract payments of last month of a service you own have no cost entry yet (off by default: turn it on in your profile)',
 };
+
+/**
+ * Events a person turns on for themselves (0.18.0, ADR 0030): off by default, sent only to who opted in (Profile →
+ * Notifications) – reminders some people want and others would find noise.
+ */
+export const NOTIFICATION_OPT_IN_EVENTS = ['cost.booking_due'] as const satisfies readonly NotificationEvent[];
+export type NotificationOptInEvent = (typeof NOTIFICATION_OPT_IN_EVENTS)[number];
 
 export interface AppNotification {
   id: string;

@@ -5,7 +5,7 @@ import { currentUser } from '../auth/context.js';
 import { canViewCatalogue } from '../records/access.js';
 import { moduleEnabled } from '../modules/registry.js';
 import { collectDutyPeriods } from '../duties/report-section.js';
-import { expiringItems, visibleSupplierRows } from '../suppliers/service.js';
+import { expiringItems, listSuppliers, visibleSupplierRows } from '../suppliers/service.js';
 import { supplierVisible } from '../suppliers/links.js';
 import { parseJson } from '../util.js';
 import { defineReportSection } from '../reports/sections.js';
@@ -15,13 +15,15 @@ import { matrixGaps } from './responsibilities.js';
 import { CaContext, canReadFinding, listFindingSummaries, type FindingRow } from './corrective.js';
 import { pendingSuggestionCount } from './corrective-sources.js';
 import { reviewsApprovedIn } from './person-reviews.js';
+import { livingDocumentsAt } from '../records/report-section.js';
+import { reminderSettings } from '../credentials/service.js';
 import { ismsSectionDraw, ISMS_MAX_ROWS, type IsmsSectionData } from './isms-report-section-draw.js';
 
 /**
  * "ISMS summary" section of scheduled reports (ADR 0029 part 4, docs/REPORTS.md, docs/COMPLIANCE.md#isms-summary): the
  * figures of a management review (ISO/IEC 27001 clause 9.3) from what Steward already has – the statement of
  * applicability per catalogue, corrective actions, mandatory duty periods, reviews done, gaps of the responsibility
- * matrix and the certificates and notice dates of suppliers. No page and no state of its own: it reads the parts, with
+ * matrix and the certificates and notice dates of suppliers, and (0.18.0) the periodic reviews of living documents. No page and no state of its own: it reads the parts, with
  * the rights of the schedule's owner (runAs, like every section) – findings, services, suppliers and person reviews
  * the owner may not see are not counted. Compliance module: while it is off the section says so and holds nothing.
  */
@@ -53,7 +55,13 @@ export function emptyIsmsData(days: number, moduleOff: boolean): IsmsSectionData
       suggestions: 0,
     },
     duties: { counts: { done: 0, late: 0, skipped: 0, failed: 0, missed: 0, ended: 0 }, notMet: [] },
-    reviews: { personReviews: 0, removals: 0, gone: 0, supplierReviews: { done: 0, late: 0, notDone: 0 } },
+    reviews: {
+      personReviews: 0,
+      removals: 0,
+      gone: 0,
+      supplierReviews: { done: 0, late: 0, notDone: 0 },
+      documents: { withinInterval: 0, overdue: 0, reviewed: 0, overdueList: [] },
+    },
     gaps: [],
     suppliers: { items: [], unconfirmed: 0 },
   };
@@ -166,6 +174,24 @@ function build(c: IsmsConfig, ctx: { from: number; to: number; now: number }): I
     else if (p.status !== 'skipped') out.reviews.supplierReviews.notDone++;
   }
 
+  // 4b. periodic reviews of living documents (0.18.0, docs/RECORDS.md#periodic-reviews): of the documents with a review
+  // cycle the owner may read, those not overdue at the end of the period (reviewed or approved within their interval)
+  // and those overdue then – replayed like the records section – and the reviews recorded in the period
+  const docs = livingDocumentsAt(u, { from: ctx.from, to: ctx.to, now: ctx.now, dueSoonDays: reminderSettings().dueSoonDays }).filter(
+    (x) => x.nextReviewAt !== null,
+  );
+  const dr = out.reviews.documents!;
+  for (const x of docs) {
+    if (x.reviewStatus === 'overdue') dr.overdue++;
+    else dr.withinInterval++;
+    dr.reviewed += x.reviewsInPeriod;
+  }
+  dr.overdueList = docs
+    .filter((x) => x.reviewStatus === 'overdue')
+    .sort((a, b) => a.nextReviewAt!.localeCompare(b.nextReviewAt!) || a.number.localeCompare(b.number))
+    .slice(0, ISMS_MAX_ROWS)
+    .map((x) => ({ number: x.number, title: x.title, owner: x.reviewOwner, nextReviewAt: x.nextReviewAt! }));
+
   // 5. services with gaps in their responsibility matrix (services the owner may see)
   const visible = new Set(
     db()
@@ -184,6 +210,8 @@ function build(c: IsmsConfig, ctx: { from: number; to: number; now: number }): I
     .map((x) => ({ supplier: x.supplierName, kind: x.kind, title: x.title, date: x.date, days: x.days, state: x.state }));
   out.suppliers.itemCount = dates.length;
   out.suppliers.unconfirmed = visibleSupplierRows({ status: 'unconfirmed' }).length;
+  // contracts processing personal data without a data processing agreement, of the contracts the owner may see (ADR 0031)
+  out.suppliers.dpaMissing = listSuppliers({ status: 'active' }, ctx.now).reduce((n, x) => n + x.dpaMissingContracts, 0);
   return out;
 }
 

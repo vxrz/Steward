@@ -23,7 +23,7 @@ import { TONE, useFieldErrors } from '../common';
 import { SubjectsInput } from '../SubjectsInput';
 import { fmtDay } from '../../format';
 import { correctiveKeys } from '../../queryKeys';
-import { SupplierPicker, useSupplierChoice } from '../suppliers/SupplierPicker';
+import { SupplierPicker, useSupplierChoice, useSupplierOptions } from '../suppliers/SupplierPicker';
 
 /** Shared pieces of the register of corrective actions (ADR 0029): badges, the forms and the panel on Controls. */
 
@@ -147,6 +147,18 @@ export function FindingForm({
       ? { id: suggestion.supplierId, name: suggestion.supplierName, status: 'active' as const }
       : (preset?.supplier ?? null);
   const supplier = useSupplierChoice(initialSupplier);
+  // a contract of the supplier (0.18.0, ADR 0031): sent only when changed, so one the person may not see is kept
+  const supplierOptions = useSupplierOptions();
+  const [contractId, setContractId] = useState<string | null>(finding?.supplierContract?.id ?? null);
+  const [contractTouched, setContractTouched] = useState(false);
+  const contracts = (supplierOptions.data ?? []).find((x) => x.id === supplier.value)?.contracts ?? [];
+  const chooseContract = (id: string | null) => {
+    setContractId(id);
+    setContractTouched(true);
+    // the finding's owner: proposed as the contract's first user owner (ADR 0031 part 7)
+    const first = contracts.find((c) => c.id === id)?.owners.find((o) => o.startsWith('user:'));
+    if (first && !owner) setOwner(first.slice(5));
+  };
   const [controlIds, setControlIds] = useState<string[]>(finding?.controls.map((c) => c.id) ?? suggestion?.controls.map((c) => c.id) ?? []);
   const [owner, setOwner] = useState<string | null>(finding?.owner ?? null);
   const [dueDate, setDueDate] = useState(finding?.dueDate ?? (finding ? '' : inDays(30)));
@@ -191,6 +203,7 @@ export function FindingForm({
       severity,
       serviceId,
       ...(supplier.body !== undefined ? { supplierId: supplier.body } : !finding && !suggestion && preset ? { supplierId: preset.supplier.id } : {}),
+      ...(contractTouched || supplier.body !== undefined ? { supplierContractId: supplier.value && contractId ? contractId : null } : {}),
       controlIds,
       owner,
       dueDate: dueDate || null,
@@ -333,6 +346,22 @@ export function FindingForm({
               testId="ca-supplier"
             />
           )}
+          {finding?.supplierContractHidden ? (
+            <TextInput label={t('fields.contract')} value={t('contractHidden')} readOnly />
+          ) : (
+            supplier.value &&
+            contracts.length > 0 && (
+              <Select
+                label={t('fields.contract')}
+                description={t('hints.contract')}
+                data={contracts.map((c) => ({ value: c.id, label: c.reference ? `${c.title} (${c.reference})` : c.title }))}
+                value={contractId}
+                onChange={chooseContract}
+                clearable
+                data-testid="ca-contract"
+              />
+            )
+          )}
           <MultiSelect
             label={t('fields.controls')}
             description={t('hints.controls')}
@@ -403,7 +432,9 @@ export function ActionForm({
 }) {
   const { t } = useTranslation(['corrective', 'common']);
   const [title, setTitle] = useState(action?.title ?? '');
-  const [owners, setOwners] = useState<string[]>(action?.owners ?? []);
+  // the first action of a finding that names a contract: its owners are proposed, so the reminders reach them (ADR 0031)
+  const proposed = !action && !finding.actions.length && finding.supplierContract ? (finding.supplierContractOwners ?? []) : [];
+  const [owners, setOwners] = useState<string[]>(action?.owners ?? proposed);
   const [dueDate, setDueDate] = useState(action?.dueDate ?? inDays(14));
   const [note, setNote] = useState(action?.note ?? '');
   const [busy, setBusy] = useState(false);
@@ -449,7 +480,11 @@ export function ActionForm({
           />
           <SubjectsInput
             label={t('actions.owners')}
-            description={t('actions.ownersHint')}
+            description={
+              proposed.length && finding.supplierContract
+                ? t('actions.ownersFromContract', { contract: finding.supplierContract.title })
+                : t('actions.ownersHint')
+            }
             value={owners}
             onChange={setOwners}
             max={CA_LIMITS.owners}

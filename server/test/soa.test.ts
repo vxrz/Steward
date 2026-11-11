@@ -54,6 +54,8 @@ beforeAll(async () => {
     slaSupportHours: '24/7',
     rtoHours: 4,
     rpoHours: 1,
+    // the service whose matrix names it is covered (ADR 0031)
+    services: [{ serviceId: svcA }],
   });
   contractId = withContract.contracts[0].id;
   await dana('POST', `/suppliers/${supplierId}/certificates`, { kind: 'iso27001', scope: 'Hosting', validUntil: '2099-01-01' });
