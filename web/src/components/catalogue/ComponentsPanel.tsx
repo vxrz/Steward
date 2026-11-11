@@ -56,6 +56,7 @@ import { CredentialEditor, type CredentialDraft } from '../credentials/Credentia
 import { platformKeys } from '../../queryKeys';
 import { TopicOffers, TopicPrefixModal } from './TopicPrefix';
 import { CollapsibleSection } from '../page/CollapsibleSection';
+import { fmtMoney } from '../costs/common';
 
 export const formatLabel = (f: string) => (f === 'cyclonedx' ? 'CycloneDX' : 'SPDX');
 
@@ -563,7 +564,8 @@ function AwsLine({ component: c, onRegister }: { component: ApplicationComponent
   const months = r.costs.months;
   const last = months.length > 1 ? months[months.length - 2] : null;
   const current = months.length ? months[months.length - 1] : null;
-  const money = (n: number, cur: string) => fmtNumber(n, { style: 'currency', currency: cur || 'USD', maximumFractionDigits: 0 });
+  // the cost pages' formatting: the currency's minor units, and "–" without a currency (0.19 review L7)
+  const money = (n: number, cur: string) => (cur ? fmtMoney(String(n), cur) : '–');
   const draftOf = (u: AwsIamUser, k: AwsAccessKey): CredentialDraft => ({
     name: `${c.name}: ${u.userName} (${k.accessKeyId})`,
     type: 'apiClient',

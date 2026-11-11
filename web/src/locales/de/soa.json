@@ -67,7 +67,7 @@
     "supplier": "Lieferant",
     "central": "Zentrale IT oder Konzern",
     "shared": "Geteilt",
-    "notApplicable": "Nicht zutreffend"
+    "notApplicable": "Nicht anwendbar"
   },
   "areas": {
     "backup": "Datensicherung",
