@@ -309,3 +309,24 @@ describe('supplier contracts covering a platform (security review 0.19.0 M1, L1)
     expect(await code(tara('GET', contractPath()))).toBe('ok');
   });
 });
+
+describe('the forms’ hint for a new item (security review 0.19.0 L6)', () => {
+  it('answers only who may create such an item', async () => {
+    const supplier = (await s.api('POST', '/suppliers', { name: 'Invented Hint AG', type: 'saas' })).id;
+    // a viewer reads the supplier, may not add a contract: no team names, no membership answers (the review's oracle)
+    const users = await import('../src/auth/users.js');
+    users.createUser({ username: 'wendy', roles: ['viewer'], password: PW, mustChangePassword: false });
+    const wendy = await s.as('wendy', PW);
+    expect(await code(wendy('GET', `/suppliers/${supplier}`))).toBe('ok');
+    expect(await code(wendy('POST', '/access/named-outside', { kind: 'supplierContract', supplierId: supplier, subjects: ['user:nobody', 'user:tara'] }))).toBe(
+      'FORBIDDEN',
+    );
+    expect(await code(wendy('POST', '/access/named-outside', { kind: 'credential', subjects: ['user:tara'] }))).toBe('FORBIDDEN');
+    expect(await code(wendy('POST', '/access/named-outside', { kind: 'process', subjects: ['user:tara'] }))).toBe('FORBIDDEN');
+    // who may add one is told as before
+    expect(await tara('POST', '/access/named-outside', { kind: 'supplierContract', supplierId: supplier, subjects: ['user:olaf', 'user:dave'] })).toEqual({
+      teams: ['Orders'],
+      outside: ['user:dave'],
+    });
+  });
+});

@@ -13,11 +13,11 @@ import {
 import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { HttpError, parseJson } from '../util.js';
-import { canReadRecordRow } from '../records/access.js';
-import { credentialAccess } from '../credentials/service.js';
+import { canCreateRecords, canCreateServices, canReadRecordRow } from '../records/access.js';
+import { canCreateCredentials, credentialAccess } from '../credentials/service.js';
 import { monitorAccess } from '../monitors/model.js';
 import { dashboardAccess } from '../dashboards/service.js';
-import { ticketAccess } from '../tickets/service.js';
+import { canCreateTickets, ticketAccess } from '../tickets/service.js';
 import { siteAccess } from '../plant/access.js';
 import { plantEnabled } from '../plant/settings.js';
 import { ACCESS, me } from './access.js';
@@ -40,7 +40,7 @@ import {
 } from './policy.js';
 import { findUserByName, listUsers, toAuthUser } from './users.js';
 import { protectOpening } from '../suppliers/shared.js';
-import { contractPlatformNamesOutsiders, contractScopeTeams } from '../suppliers/service.js';
+import { canManageSuppliers, contractPlatformNamesOutsiders, contractScopeTeams } from '../suppliers/service.js';
 import { uncoveredSubjects } from './named-grants.js';
 import type { AuthUser } from './context.js';
 
@@ -403,10 +403,20 @@ export async function scopeRoutes(app: FastifyInstance): Promise<void> {
     },
   );
 
+  /** Who may create a new item of a kind whose form names owners or responsibles (#195): as its create route. */
+  const createsNamed = (kind: string, u: AuthUser): boolean => {
+    if (kind === 'credential') return canCreateCredentials(u);
+    if (kind === 'ticket') return canCreateTickets(u);
+    if (kind === 'record') return canCreateRecords(u);
+    if (kind === 'supplier') return canManageSuppliers(u);
+    if (kind === 'service' || kind === 'application' || kind === 'system') return canCreateServices(u);
+    return false;
+  };
+
   /**
    * Which of these users and teams are outside the owning teams of an item (#195): the forms say so before saving
    * ("… is not in the owning teams and will see and change this item"); saving them asks for the step-up. Without `id`:
-   * a new item, with the teams its creator's new resources get. For whoever may change the item.
+   * a new item, with the teams its creator's new resources get – for who may create one (L6). For whoever may change the item.
    */
   app.post('/access/named-outside', async (req): Promise<{ teams: string[]; outside: string[] }> => {
     const b = namedOutsideInput.parse(req.body);
@@ -418,8 +428,11 @@ export async function scopeRoutes(app: FastifyInstance): Promise<void> {
       return { teams: teams.map((t) => t.name), outside: contractPlatformNamesOutsiders(b.supplierId ?? '', b.id, b.platformId) };
     }
     if (b.kind === 'supplierContract') teams = contractScopeTeams(b.supplierId ?? '', b.id ?? null);
-    else if (!b.id) teams = b.kind === 'supplier' ? [] : newResourceTeams(u).teams;
-    else {
+    else if (!b.id) {
+      // a new item: for who may create one of that kind, as its form's route would (security review 0.19.0 L6)
+      if (!createsNamed(b.kind, u)) throw new HttpError(403, 'You are not allowed to create this kind of item', 'FORBIDDEN');
+      teams = b.kind === 'supplier' ? [] : newResourceTeams(u).teams;
+    } else {
       const r = visible(b.kind, b.id);
       // the rights beyond seeing it: only who may change the item learns who is in its owning teams
       if (!access(b.kind, r, u).permissions.some((p) => p !== 'view')) throw notFound(b.kind, b.id);

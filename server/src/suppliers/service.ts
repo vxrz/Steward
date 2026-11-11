@@ -1757,7 +1757,11 @@ function contractGrant(s: SupplierRow, cur: ContractRow | undefined, title: stri
 /** The teams a contract's owners are covered by (#195), for the form's hint: a contract the caller changes, or a new one (null). */
 export function contractScopeTeams(supplierId: string, contractId: string | null): OwningTeam[] {
   const s = supplierRow(supplierId);
-  const cur = contractId ? editableContractRow(s, contractId, new ScopeCtx(me())) : undefined;
+  const ctx = new ScopeCtx(me());
+  // a new contract: for who may add one to the supplier, as the route would (security review 0.19.0 L6)
+  if (!contractId && !mayAddContract(s, ctx))
+    forbid('add a contract to this supplier (designers, administrators, the supplier’s owners, editors of a service it covers)', 'addContract');
+  const cur = contractId ? editableContractRow(s, contractId, ctx) : undefined;
   return [...contractGrant(s, cur, cur?.title ?? '', []).teams];
 }
 
