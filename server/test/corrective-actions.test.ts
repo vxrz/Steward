@@ -336,6 +336,7 @@ describe('suggestions', () => {
       incidentMinor: false,
       personReview: true,
       reconciliation: false,
+      supplierReview: true,
     });
     expect(st.canEdit).toBe(true);
     expect((await dana('GET', '/compliance/corrective-settings')).canEdit).toBe(false);
@@ -681,6 +682,177 @@ describe('reading through the API, MCP, the dataset and evidence packs', () => {
     expect(findings[0].permissions).toBeUndefined();
     expect((await zip.read(zip.find('corrective-actions/findings.csv')!)).toString()).toContain('Leavers keep database access');
     expect((await verifyPack(file)).ok).toBe(true);
+  });
+});
+
+describe('suppliers on findings and the supplier review source (ADR 0029 part 4)', () => {
+  let supplierId = '';
+  let hiddenId = '';
+  let findingId = '';
+  const DAYMS = 86_400_000;
+  const iso = (offset: number) => new Date(Date.now() + offset * DAYMS).toISOString().slice(0, 10);
+  const scan = async () => (await import('../src/compliance/corrective-sources.js')).scanSuggestions(Date.now(), true);
+  const pending = async () => (await s.api('GET', '/compliance/corrective-suggestions')).items as any[];
+
+  beforeAll(async () => {
+    supplierId = (await dana('POST', '/suppliers', { name: 'Ledgerly (corrective)', type: 'saas' })).id;
+    const team = await s.api('POST', '/teams', { name: 'Corrective supplier team', members: ['olivia'] });
+    hiddenId = (await dana('POST', '/suppliers', { name: 'Hidden Hosting (corrective)', type: 'managedPlatform' })).id;
+    await s.api('PUT', `/owning-teams/supplier/${hiddenId}`, { teamIds: [team.id] });
+  });
+
+  it('records a finding about a supplier the person may see, and refuses one they may not see', async () => {
+    const f = await dana('POST', '/compliance/corrective-actions', {
+      title: 'Ledgerly SOC 2 report not reviewed',
+      source: 'supplierReview',
+      severity: 'minor',
+      serviceId: svcA,
+      supplierId,
+    });
+    findingId = f.id;
+    expect(f).toMatchObject({ source: 'supplierReview', supplierId, supplierName: 'Ledgerly (corrective)' });
+    // dana does not see the team's supplier: it reads as missing
+    expect(await code(dana('POST', '/compliance/corrective-actions', { title: 'x', source: 'other', supplierId: hiddenId }))).toBe('SUPPLIER_NOT_FOUND');
+    expect(await code(dana('PUT', `/compliance/corrective-actions/${f.id}`, { supplierId: hiddenId }))).toBe('SUPPLIER_NOT_FOUND');
+    expect(await code(dana('PUT', `/compliance/corrective-actions/${f.id}`, { supplierId: 'sup_nope' }))).toBe('SUPPLIER_NOT_FOUND');
+    // olivia (in the team, editor of the service) may link it; dana then sees the finding without the supplier's name
+    const moved = await olivia('PUT', `/compliance/corrective-actions/${f.id}`, { supplierId: hiddenId });
+    expect(moved).toMatchObject({ supplierId: hiddenId, supplierName: 'Hidden Hosting (corrective)' });
+    expect(await dana('GET', `/compliance/corrective-actions/${f.id}`)).toMatchObject({ supplierId: hiddenId, supplierName: null });
+    // saving other fields keeps the supplier dana may not see
+    await dana('PUT', `/compliance/corrective-actions/${f.id}`, { cause: 'The report came by e-mail' });
+    expect((await s.api('GET', `/compliance/corrective-actions/${f.id}`)).supplierId).toBe(hiddenId);
+    // the public API leaves out a supplier the token owner may not see
+    const token = (await dana('POST', '/me/tokens', { name: 'ca-supplier', scope: 'read' })).token as string;
+    const one = await fetch(`${s.base}/api/v1/corrective-actions/${f.id}`, { headers: { authorization: `Bearer ${token}` } }).then((r) => r.json());
+    expect(one).toMatchObject({ supplierId: null, supplierName: null });
+    const back = await s.api('PUT', `/compliance/corrective-actions/${f.id}`, { supplierId });
+    expect(back.supplierName).toBe('Ledgerly (corrective)');
+    expect(await auditOf(f.id)).toContain('corrective.finding_changed');
+  });
+
+  it('filters the register by supplier and counts the finding as a use of the supplier', async () => {
+    const list = await dana('GET', `/compliance/corrective-actions?supplierId=${supplierId}&state=open`);
+    expect(list.items.map((x: any) => x.id)).toEqual([findingId]);
+    const sup = await dana('GET', `/suppliers/${supplierId}`);
+    expect(sup.usage.finding).toBe(1);
+    expect(sup.usedBy.find((u: any) => u.kind === 'finding')).toMatchObject({
+      id: findingId,
+      path: `/compliance/corrective-actions/${findingId}`,
+      detail: 'open',
+    });
+    // vera may not read the finding: it is not a use she sees
+    expect((await vera('GET', `/suppliers/${supplierId}`)).usage.finding).toBe(0);
+    const token = (await audrey('POST', '/me/tokens', { name: 'ca-supplier-v1', scope: 'read' })).token as string;
+    const v1 = await fetch(`${s.base}/api/v1/corrective-actions?supplierId=${supplierId}`, { headers: { authorization: `Bearer ${token}` } }).then((r) =>
+      r.json(),
+    );
+    expect(v1.items.map((x: any) => [x.id, x.supplierName])).toEqual([[findingId, 'Ledgerly (corrective)']]);
+  });
+
+  it('moves the finding with a merge and clears it for "not a supplier"', async () => {
+    const twin = await dana('POST', '/suppliers', { name: 'Ledgerly Ltd (corrective)', type: 'saas' });
+    const f = await dana('POST', '/compliance/corrective-actions', { title: 'Twin finding', source: 'other', supplierId: twin.id });
+    await dana('POST', `/suppliers/${twin.id}/merge`, { into: supplierId });
+    expect((await s.api('GET', `/compliance/corrective-actions/${f.id}`)).supplierId).toBe(supplierId);
+    const merged = (await s.api('GET', `/audit?entityId=${supplierId}&limit=50`)).find((a: any) => a.action === 'supplier.merged');
+    expect(merged.details.links).toMatchObject({ ca_findings: 1 });
+    // an unconfirmed supplier marked "not a supplier": the finding stays, without the supplier
+    const { db } = await import('../src/db.js');
+    const odd = await dana('POST', '/suppliers', { name: 'On-premises (corrective)', type: 'other' });
+    db().run("UPDATE suppliers SET status = 'unconfirmed' WHERE id = ?", odd.id);
+    await dana('PUT', `/compliance/corrective-actions/${f.id}`, { supplierId: odd.id });
+    await dana('POST', `/suppliers/${odd.id}/not-a-supplier`, {});
+    expect((await s.api('GET', `/compliance/corrective-actions/${f.id}`)).supplierId).toBeNull();
+  });
+
+  it('suggests an expired certificate of a confirmed supplier in use once, and a missed supplier review instead of the duty source', async () => {
+    const { db } = await import('../src/db.js');
+    // in use: an application links it; a second supplier with an expired certificate is linked by nothing
+    await dana('POST', '/applications', { name: 'Ledger app (corrective)', supplierId });
+    const unused = await dana('POST', '/suppliers', { name: 'Unused Vendor (corrective)', type: 'saas' });
+    const withCert = await dana('POST', `/suppliers/${supplierId}/certificates`, { kind: 'iso27001', name: 'Ledgerly ISMS', validUntil: iso(-3) });
+    await dana('POST', `/suppliers/${unused.id}/certificates`, { kind: 'soc2type2', validUntil: iso(-3) });
+    // a certificate still valid and one expired long ago (older than 90 days) are not suggested
+    await dana('POST', `/suppliers/${supplierId}/certificates`, { kind: 'c5', validUntil: iso(30) });
+    await dana('POST', `/suppliers/${supplierId}/certificates`, { kind: 'tisax', validUntil: iso(-200) });
+    const certId = withCert.certificates.find((c: any) => c.kind === 'iso27001').id;
+    // a supplier review duty with a missed period
+    const dutyId = 'dty_supplier_review_test';
+    const now = new Date().toISOString();
+    db().run(
+      `INSERT INTO service_duties (id, service_id, supplier_id, name, description, process_id, interval_kind, level, owners, active_from, created_at, created_by, updated_at, updated_by)
+       VALUES (?, ?, ?, 'Yearly supplier review', '', 'aws-iam-key-age', 'yearly', 'mandatory', '[]', ?, ?, 'admin', ?, 'admin')`,
+      dutyId,
+      svcA,
+      supplierId,
+      now,
+      now,
+      now,
+    );
+    const end = new Date(Date.now() - 5 * DAYMS).toISOString();
+    db().run(
+      `INSERT INTO duty_periods (duty_id, period_key, period_start, period_end, grace_end, status, service_id, duty_name, process_id, process_name, level,
+         interval_kind, grace_days, time_zone, evaluated_at, closed_at)
+       VALUES (?, '2026', ?, ?, ?, 'missed', ?, 'Yearly supplier review', 'aws-iam-key-age', 'AWS IAM key age', 'mandatory', 'yearly', 0, 'UTC', ?, ?)`,
+      dutyId,
+      new Date(Date.now() - 370 * DAYMS).toISOString(),
+      end,
+      end,
+      svcA,
+      end,
+      end,
+    );
+    await scan();
+    await scan();
+    const mine = (await pending()).filter((x) => x.source === 'supplierReview' && x.supplierId === supplierId);
+    expect(mine.map((x) => x.sourceKey).sort()).toEqual([`duty:${dutyId}:2026`, `supplierCertificate:${certId}:${iso(-3)}`].sort());
+    const cert = mine.find((x) => x.sourceKey.startsWith('supplierCertificate:'));
+    expect(cert).toMatchObject({
+      supplierId,
+      supplierName: 'Ledgerly (corrective)',
+      severity: 'minor',
+      sourceRef: { kind: 'supplier', path: `/suppliers/${supplierId}` },
+      details: { kind: 'supplierCertificate', supplier: 'Ledgerly (corrective)' },
+    });
+    expect(cert.details.supplierId).toBeUndefined();
+    expect(cert.controls.map((c: any) => c.ref)).toEqual(['5.22']);
+    const review = mine.find((x) => x.sourceKey.startsWith('duty:'));
+    expect(review).toMatchObject({ source: 'supplierReview', serviceId: svcA, supplierId, details: { kind: 'supplierReviewMissed', period: '2026' } });
+    // confirming takes the supplier into the finding
+    const f = await dana('POST', `/compliance/corrective-suggestions/${cert.id}/confirm`, {});
+    expect(f).toMatchObject({ source: 'supplierReview', supplierId, sourceRef: { kind: 'supplier' } });
+    // dismissed or confirmed, the same certificate and date are never suggested again
+    await scan();
+    expect((await pending()).filter((x) => x.sourceKey === cert.sourceKey)).toHaveLength(0);
+    expect(Number(db().get<{ n: number }>('SELECT COUNT(*) AS n FROM ca_suggestions WHERE source_key = ?', cert.sourceKey)!.n)).toBe(1);
+  });
+
+  it('suggests nothing of suppliers while the source is off; the duty source takes the missed review then', async () => {
+    const { db } = await import('../src/db.js');
+    await s.api('PUT', '/compliance/corrective-settings', { sources: { supplierReview: false } });
+    try {
+      const cert = await dana('POST', `/suppliers/${supplierId}/certificates`, { kind: 'iso22301', validUntil: iso(-1) });
+      const certId = cert.certificates.find((c: any) => c.kind === 'iso22301').id;
+      const end = new Date(Date.now() - 4 * DAYMS).toISOString();
+      db().run(
+        `INSERT INTO duty_periods (duty_id, period_key, period_start, period_end, grace_end, status, service_id, duty_name, process_id, process_name, level,
+           interval_kind, grace_days, time_zone, evaluated_at, closed_at)
+         VALUES ('dty_supplier_review_test', '2025', ?, ?, ?, 'failed', ?, 'Yearly supplier review', 'aws-iam-key-age', 'AWS IAM key age', 'mandatory', 'yearly', 0, 'UTC', ?, ?)`,
+        new Date(Date.now() - 400 * DAYMS).toISOString(),
+        end,
+        end,
+        svcA,
+        end,
+        end,
+      );
+      await scan();
+      const all = await pending();
+      expect(all.some((x) => x.sourceKey.startsWith(`supplierCertificate:${certId}:`))).toBe(false);
+      expect(all.find((x) => x.sourceKey === 'duty:dty_supplier_review_test:2025')).toMatchObject({ source: 'duty', details: { kind: 'dutyFailed' } });
+    } finally {
+      await s.api('PUT', '/compliance/corrective-settings', { sources: { supplierReview: true } });
+    }
   });
 });
 

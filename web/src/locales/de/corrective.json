@@ -57,7 +57,9 @@
     "overdueOnly": "Nur überfällige",
     "mine": "Nur meine",
     "oneControl": "Nur die Befunde einer Kontrolle.",
-    "allControls": "Alle Kontrollen"
+    "allControls": "Alle Kontrollen",
+    "oneSupplier": "Nur die Befunde zu einem Lieferanten.",
+    "allSuppliers": "Alle Lieferanten"
   },
   "overdue": "Überfällig",
   "actionsCount": "{{open}} von {{total}} offen",
@@ -80,6 +82,7 @@
     "sourceUrl": "Link zum Bericht",
     "severity": "Schwere",
     "service": "Service",
+    "supplier": "Lieferant",
     "controls": "Betroffene Kontrollen",
     "owner": "Verantwortlich",
     "dueDate": "Fällig am",
@@ -98,6 +101,7 @@
     "cause": "Warum es passiert ist (Grundursache), soweit bekannt",
     "grcRef": "Wo das Risiko in Ihrem GRC-Werkzeug steht, z. B. eine Risiko-ID – Steward führt kein Risikoregister",
     "service": "Wer den Service bearbeiten darf, darf den Befund ändern",
+    "supplier": "Der Lieferant, um den es im Befund geht, zum Beispiel aus einer Lieferantenbewertung",
     "owner": "Wer den Befund verfolgt und erinnert wird"
   },
   "form": {
@@ -200,7 +204,10 @@
       "dutyFailed": "{{level}} Pflicht „{{duty}}“ im Zeitraum {{period}} fehlgeschlagen",
       "incident": "Incident-Review {{record}} angenommen ({{severity}}): {{title}}",
       "personReview": "Personenprüfung „{{review}}“: {{count}} Entfernung(en) nach {{days}} Tagen nicht als erledigt bestätigt",
-      "reconciliation": "Zugriffsprüfung „{{check}}“: {{count}} Befund(e) länger als {{days}} Tage offen ({{week}})"
+      "reconciliation": "Zugriffsprüfung „{{check}}“: {{count}} Befund(e) länger als {{days}} Tage offen ({{week}})",
+      "supplierCertificate": "Zertifikat {{certificate}} des Lieferanten „{{supplier}}“ ist am {{date}} abgelaufen",
+      "supplierReviewMissed": "Lieferantenbewertung „{{duty}}“ von „{{supplier}}“ im Zeitraum {{period}} versäumt",
+      "supplierReviewFailed": "Lieferantenbewertung „{{duty}}“ von „{{supplier}}“ im Zeitraum {{period}} fehlgeschlagen"
     },
     "levels": {
       "mandatory": "Verpflichtende",
@@ -236,6 +243,10 @@
       "reconciliation": {
         "label": "Befunde des Zugriffsabgleichs, die länger als sieben Tage offen sind",
         "description": "Standardmäßig aus. Ein Vorschlag je Zugriffsprüfung und Woche, wie viele Befunde auch offen sind."
+      },
+      "supplierReview": {
+        "label": "Lieferantenbewertungen",
+        "description": "Ein abgelaufenes Zertifikat eines bestätigten, genutzten Lieferanten und ein versäumter oder fehlgeschlagener Zeitraum einer Pflicht, die einen Lieferanten bewertet (statt der Pflicht-Quellen oben)."
       }
     }
   },
@@ -243,5 +254,11 @@
     "title": "Offene Befunde",
     "none": "Kein offener Befund der Korrekturmaßnahmen nennt diese Kontrolle.",
     "link": "Alle Befunde dieser Kontrolle"
+  },
+  "supplierPanel": {
+    "title": "Korrekturmaßnahmen",
+    "none": "Kein offener Befund betrifft diesen Lieferanten.",
+    "record": "Befund erfassen",
+    "all": "Alle Befunde dieses Lieferanten"
   }
 }

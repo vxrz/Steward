@@ -57,7 +57,9 @@
     "overdueOnly": "Overdue only",
     "mine": "Mine only",
     "oneControl": "Only the findings of one control.",
-    "allControls": "All controls"
+    "allControls": "All controls",
+    "oneSupplier": "Only the findings about one supplier.",
+    "allSuppliers": "All suppliers"
   },
   "overdue": "Overdue",
   "actionsCount": "{{open}} of {{total}} open",
@@ -80,6 +82,7 @@
     "sourceUrl": "Link to the report",
     "severity": "Severity",
     "service": "Service",
+    "supplier": "Supplier",
     "controls": "Affected controls",
     "owner": "Owner",
     "dueDate": "Due date",
@@ -98,6 +101,7 @@
     "cause": "Why it happened (root cause), as far as known",
     "grcRef": "Where the risk lives in your GRC tool, e.g. a risk id – Steward keeps no risk register",
     "service": "Editors of the service may change the finding",
+    "supplier": "The supplier the finding is about, for example from a supplier review",
     "owner": "Who sees the finding through and is reminded"
   },
   "form": {
@@ -200,7 +204,10 @@
       "dutyFailed": "{{level}} duty “{{duty}}” failed in period {{period}}",
       "incident": "Incident review {{record}} accepted ({{severity}}): {{title}}",
       "personReview": "Person review “{{review}}”: {{count}} removal(s) not confirmed gone after {{days}} days",
-      "reconciliation": "Access check “{{check}}”: {{count}} finding(s) open for more than {{days}} days ({{week}})"
+      "reconciliation": "Access check “{{check}}”: {{count}} finding(s) open for more than {{days}} days ({{week}})",
+      "supplierCertificate": "Certificate {{certificate}} of supplier “{{supplier}}” ran out on {{date}}",
+      "supplierReviewMissed": "Supplier review “{{duty}}” of “{{supplier}}” missed in period {{period}}",
+      "supplierReviewFailed": "Supplier review “{{duty}}” of “{{supplier}}” failed in period {{period}}"
     },
     "levels": {
       "mandatory": "Mandatory",
@@ -236,6 +243,10 @@
       "reconciliation": {
         "label": "Reconciliation findings open for more than seven days",
         "description": "Off by default. One suggestion per access check and week, however many findings are open."
+      },
+      "supplierReview": {
+        "label": "Supplier reviews",
+        "description": "A certificate of a confirmed supplier in use that ran out, and a missed or failed period of a duty that reviews a supplier (instead of the duty sources above)."
       }
     }
   },
@@ -243,5 +254,11 @@
     "title": "Open findings",
     "none": "No open corrective action findings name this control.",
     "link": "All findings of this control"
+  },
+  "supplierPanel": {
+    "title": "Corrective actions",
+    "none": "No open finding is about this supplier.",
+    "record": "Record a finding",
+    "all": "All findings of this supplier"
   }
 }

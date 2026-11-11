@@ -18,8 +18,11 @@ import { isCalendarDate } from './costPlans.js';
 /** Where a finding comes from. supplierReview: added with the suppliers (ADR 0029 part 1). */
 export const CA_SOURCES = ['internalAudit', 'externalAudit', 'duty', 'accessReview', 'reconciliation', 'incidentReview', 'supplierReview', 'other'] as const;
 export type CaSource = (typeof CA_SOURCES)[number];
-/** The sources a person records by hand; the others come from confirmed suggestions. */
-export const CA_MANUAL_SOURCES = ['internalAudit', 'externalAudit', 'other'] as const satisfies readonly CaSource[];
+/**
+ * The sources a person records by hand; the others come from confirmed suggestions. supplierReview: a finding of a
+ * supplier review, recorded from the supplier's page (or the register) with the supplier.
+ */
+export const CA_MANUAL_SOURCES = ['internalAudit', 'externalAudit', 'supplierReview', 'other'] as const satisfies readonly CaSource[];
 
 /** major and minor: nonconformities; observation: an opportunity for improvement. */
 export const CA_SEVERITIES = ['major', 'minor', 'observation'] as const;
@@ -39,10 +42,18 @@ export type CaSuggestionStatus = (typeof CA_SUGGESTION_STATUSES)[number];
 
 /**
  * The switches of the suggestion sources (tab Settings, administrators) and their defaults (ADR 0029 decision 6): few,
- * clear signals first. The supplier review source (expired certificate, missed supplier review) comes with the
- * suppliers and adds its switch here (on by default).
+ * clear signals first. supplierReview: an expired certificate of a confirmed supplier that is in use, and a missed or
+ * failed period of a duty that reviews a supplier (on by default).
  */
-export const CA_SOURCE_SWITCHES = ['dutyMandatory', 'dutyRecommended', 'incidentMajor', 'incidentMinor', 'personReview', 'reconciliation'] as const;
+export const CA_SOURCE_SWITCHES = [
+  'dutyMandatory',
+  'dutyRecommended',
+  'incidentMajor',
+  'incidentMinor',
+  'personReview',
+  'reconciliation',
+  'supplierReview',
+] as const;
 export type CaSourceSwitch = (typeof CA_SOURCE_SWITCHES)[number];
 export const CA_SOURCE_DEFAULTS: Record<CaSourceSwitch, boolean> = {
   dutyMandatory: true,
@@ -51,6 +62,7 @@ export const CA_SOURCE_DEFAULTS: Record<CaSourceSwitch, boolean> = {
   incidentMinor: false,
   personReview: true,
   reconciliation: false,
+  supplierReview: true,
 };
 
 export const CA_LIMITS = {
@@ -105,6 +117,8 @@ const findingFields = {
   description: z.string().max(CA_LIMITS.description),
   severity: z.enum(CA_SEVERITIES),
   serviceId: z.string().min(1).max(100).nullable(),
+  /** The supplier the finding is about (one the person may see) */
+  supplierId: z.string().min(1).max(100).nullable(),
   controlIds: ids,
   /** A Steward user name */
   owner: z.string().trim().min(1).max(128).nullable(),
@@ -121,6 +135,7 @@ export const caFindingInput = z
     description: findingFields.description.default(''),
     severity: findingFields.severity.default('minor'),
     serviceId: findingFields.serviceId.default(null),
+    supplierId: findingFields.supplierId.default(null),
     controlIds: ids.default([]),
     owner: findingFields.owner.default(null),
     dueDate: findingFields.dueDate.default(null),
@@ -234,6 +249,9 @@ export interface CaFindingSummary {
   serviceId: string | null;
   /** null when the reader may not see the service */
   serviceName: string | null;
+  supplierId: string | null;
+  /** null when the reader may not see the supplier */
+  supplierName: string | null;
   owner: string | null;
   dueDate: string | null;
   /** Not closed or cancelled, and past its due date or with an action past its due date */
@@ -291,6 +309,9 @@ export interface CaSuggestion {
   sourceRef: CaSourceRef | null;
   serviceId: string | null;
   serviceName: string | null;
+  /** The supplier a supplier-review suggestion is about (the finding takes it); null when not visible */
+  supplierId: string | null;
+  supplierName: string | null;
   controls: CaControlRef[];
   /** English; the web app translates `details.kind` with its params */
   title: string;

@@ -233,6 +233,7 @@ export const correctiveKeys = {
   suggestions: (status: string) => ['corrective', 'suggestions', status] as const,
   settings: ['corrective', 'settings'] as const,
   ofControl: (controlId: string) => ['corrective', 'list', `control:${controlId}`] as const,
+  ofSupplier: (supplierId: string) => ['corrective', 'list', `supplier:${supplierId}`] as const,
 };
 
 /** Statement of applicability (ADR 0029 part 2): the statements, one statement by catalogue key. */

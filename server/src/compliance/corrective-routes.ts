@@ -31,6 +31,7 @@ export async function correctiveRoutes(app: FastifyInstance): Promise<void> {
         source: list(CA_SOURCES),
         severity: list(CA_SEVERITIES),
         serviceId: z.string().max(100).optional(),
+        supplierId: z.string().max(100).optional(),
         controlId: z.string().max(100).optional(),
         overdue: z.enum(['true', 'false']).optional(),
         owner: z.string().max(130).optional(),

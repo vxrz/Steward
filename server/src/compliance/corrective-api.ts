@@ -40,6 +40,8 @@ export const CorrectiveFinding = z.object({
   status: z.enum(CA_STATUSES).describe('open → inProgress → implemented → closed (the fix was checked and worked), or cancelled'),
   serviceId: z.string().nullable(),
   serviceName: z.string().nullable().describe('null when the token owner may not see the service'),
+  supplierId: z.string().nullable().describe('The supplier the finding is about; null when there is none or the token owner may not see it'),
+  supplierName: z.string().nullable(),
   owner: z.string().nullable().describe('User name of the finding’s owner'),
   dueDate: day().nullable(),
   overdue: z.boolean().describe('Open or in progress, and past its due date or with an action past its due date'),
@@ -93,6 +95,7 @@ export const CorrectiveListQuery = z.object({
   source: z.array(z.enum(CA_SOURCES)).max(QUERY_LIST_MAX).optional().describe('Only these sources (repeat the parameter)'),
   severity: z.array(z.enum(CA_SEVERITIES)).max(QUERY_LIST_MAX).optional().describe('Only these severities (repeat the parameter)'),
   serviceId: z.string().max(100).optional(),
+  supplierId: z.string().max(100).optional().describe('Only the findings about this supplier'),
   overdue: z.boolean().optional().describe('true: only overdue findings, false: only those that are not'),
 });
 
@@ -105,6 +108,8 @@ const summary = (f: CaFindingSummary) => ({
   status: f.status,
   serviceId: f.serviceName === null ? null : f.serviceId,
   serviceName: f.serviceName,
+  supplierId: f.supplierName === null ? null : f.supplierId,
+  supplierName: f.supplierName,
   owner: f.owner,
   dueDate: f.dueDate,
   overdue: f.overdue,
@@ -166,7 +171,14 @@ export function correctiveApiRoutes(get: Get): void {
     },
     async (req, reply) => {
       const q = req.query as z.infer<typeof CorrectiveListQuery>;
-      const list = listFindingSummaries({ status: q.status, source: q.source, severity: q.severity, serviceId: q.serviceId, overdue: q.overdue }).map(summary);
+      const list = listFindingSummaries({
+        status: q.status,
+        source: q.source,
+        severity: q.severity,
+        serviceId: q.serviceId,
+        supplierId: q.supplierId,
+        overdue: q.overdue,
+      }).map(summary);
       const page = pageArray(list, (f) => [-Date.parse(f.createdAt), f.id], q, q);
       linkNext(req, reply, page.nextCursor);
       return page;
@@ -199,7 +211,7 @@ export const correctiveTools = [
     name: 'list_corrective_actions',
     title: 'List corrective actions',
     description:
-      'The register of corrective actions (ISO/IEC 27001 clause 10.2): findings from audits and from events Steward noticed (missed duties, incident reviews, access reviews, reconciliation), with source, severity (major, minor, observation), status (open, inProgress, implemented, closed, cancelled), service, owner, due date, open and total actions, affected controls. With findingId: that one finding with its description, cause, actions and effectiveness check. Read only: people record, change and check findings in Steward. Default: findings that are not closed or cancelled.',
+      'The register of corrective actions (ISO/IEC 27001 clause 10.2): findings from audits and from events Steward noticed (missed duties, incident reviews, access reviews, reconciliation, supplier reviews), with source, severity (major, minor, observation), status (open, inProgress, implemented, closed, cancelled), service, supplier, owner, due date, open and total actions, affected controls. With findingId: that one finding with its description, cause, actions and effectiveness check. Read only: people record, change and check findings in Steward. Default: findings that are not closed or cancelled.',
     input: z
       .object({
         findingId: idArg('One finding (id or number, e.g. CA-2026-0001): its details').optional(),
@@ -208,6 +220,7 @@ export const correctiveTools = [
         source: z.array(z.enum(CA_SOURCES)).max(8).optional(),
         severity: z.array(z.enum(CA_SEVERITIES)).max(3).optional(),
         serviceId: z.string().max(100).optional(),
+        supplierId: z.string().max(100).optional().describe('Only the findings about this supplier'),
         overdue: z.boolean().optional(),
         cursor: cursorArg,
         limit: limitArg(),
@@ -232,6 +245,7 @@ export const correctiveTools = [
           source: a.source as CaSource[] | undefined,
           severity: a.severity as CaSeverity[] | undefined,
           serviceId: a.serviceId,
+          supplierId: a.supplierId,
           overdue: a.overdue,
         },
         new CaContext(),
@@ -242,6 +256,7 @@ export const correctiveTools = [
         source: a.source,
         severity: a.severity,
         serviceId: a.serviceId,
+        supplierId: a.supplierId,
         overdue: a.overdue,
       });
     },

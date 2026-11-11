@@ -9113,6 +9113,19 @@
             ],
             "description": "null when the token owner may not see the service"
           },
+          "supplierId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The supplier the finding is about; null when there is none or the token owner may not see it"
+          },
+          "supplierName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "owner": {
             "type": [
               "null",
@@ -9204,6 +9217,8 @@
           "status",
           "serviceId",
           "serviceName",
+          "supplierId",
+          "supplierName",
           "owner",
           "dueDate",
           "overdue",
@@ -9275,6 +9290,19 @@
               "string"
             ],
             "description": "null when the token owner may not see the service"
+          },
+          "supplierId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The supplier the finding is about; null when there is none or the token owner may not see it"
+          },
+          "supplierName": {
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "owner": {
             "type": [
@@ -9545,6 +9573,8 @@
           "status",
           "serviceId",
           "serviceName",
+          "supplierId",
+          "supplierName",
           "owner",
           "dueDate",
           "overdue",
@@ -35214,6 +35244,9 @@
               },
               "soaEntry": {
                 "type": "integer"
+              },
+              "finding": {
+                "type": "integer"
               }
             },
             "required": [
@@ -35224,7 +35257,8 @@
               "costPlanLine",
               "duty",
               "responsibility",
-              "soaEntry"
+              "soaEntry",
+              "finding"
             ],
             "additionalProperties": false,
             "description": "Linked items the token owner may see, per kind"
@@ -35501,6 +35535,9 @@
               },
               "soaEntry": {
                 "type": "integer"
+              },
+              "finding": {
+                "type": "integer"
               }
             },
             "required": [
@@ -35511,7 +35548,8 @@
               "costPlanLine",
               "duty",
               "responsibility",
-              "soaEntry"
+              "soaEntry",
+              "finding"
             ],
             "additionalProperties": false,
             "description": "Linked items the token owner may see, per kind"
@@ -35865,7 +35903,8 @@
                     "costPlanLine",
                     "duty",
                     "responsibility",
-                    "soaEntry"
+                    "soaEntry",
+                    "finding"
                   ]
                 },
                 "id": {
@@ -43731,6 +43770,16 @@
             "in": "query",
             "name": "serviceId",
             "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "in": "query",
+            "name": "supplierId",
+            "required": false,
+            "description": "Only the findings about this supplier"
           },
           {
             "schema": {

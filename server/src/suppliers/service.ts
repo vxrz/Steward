@@ -46,6 +46,7 @@ import { normVendor } from '../plant/advisories/match.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { moduleEnabled } from '../modules/registry.js';
 import { supplierVisible } from './links.js';
+import { CaContext, canReadFinding, type FindingRow } from '../compliance/corrective.js';
 
 /**
  * Suppliers (0.17.0, ADR 0029 part 1, docs/SUPPLIERS.md): records with contacts, contracts and certificates, linked
@@ -330,6 +331,17 @@ export function usageOf(ids?: string[]): Map<string, SupplierUsage[]> {
           name: `${e.key} ${e.ref} ${e.title}`,
           path: `/compliance/soa/${encodeURIComponent(e.key)}?control=${encodeURIComponent(e.control_id)}`,
           detail: e.key,
+        });
+    // corrective action findings about the supplier (ADR 0029 part 3), those the reader may read
+    const ctx = new CaContext();
+    for (const f of db().all<FindingRow>('SELECT * FROM ca_findings WHERE supplier_id IS NOT NULL ORDER BY created_at DESC, number DESC'))
+      if (want(f.supplier_id) && (!u || canReadFinding(u, f, ctx)))
+        add(f.supplier_id!, {
+          kind: 'finding',
+          id: f.id,
+          name: `${f.number} ${f.title}`,
+          path: `/compliance/corrective-actions/${f.id}`,
+          detail: f.status,
         });
   }
   return out;
@@ -764,6 +776,8 @@ export const LINKING_TABLES = [
   // the responsibility matrix and the rows of statements of applicability (ADR 0029 part 2)
   'service_responsibilities',
   'soa_entries',
+  // corrective action findings about the supplier (ADR 0029 part 3)
+  'ca_findings',
 ] as const;
 
 function countLinks(id: string): Record<string, number> {

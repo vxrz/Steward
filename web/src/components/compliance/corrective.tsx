@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Alert, Anchor, Badge, Button, Group, Modal, MultiSelect, SegmentedControl, Select, Stack, Text, TextInput, Textarea } from '@mantine/core';
-import { useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   CA_LIMITS,
@@ -16,12 +16,14 @@ import {
   type Control,
   type ServiceSummary,
   type Subject,
+  type SupplierRef,
 } from '@sm/shared';
 import { get, getOptional, notifyError, notifyOk, post, put } from '../../api';
 import { TONE, useFieldErrors } from '../common';
 import { SubjectsInput } from '../SubjectsInput';
 import { fmtDay } from '../../format';
 import { correctiveKeys } from '../../queryKeys';
+import { SupplierPicker, useSupplierChoice } from '../suppliers/SupplierPicker';
 
 /** Shared pieces of the register of corrective actions (ADR 0029): badges, the forms and the panel on Controls. */
 
@@ -77,6 +79,9 @@ export function useSuggestionTitle(): (s: CaSuggestion) => string {
       case 'incident':
       case 'personReview':
       case 'reconciliation':
+      case 'supplierCertificate':
+      case 'supplierReviewMissed':
+      case 'supplierReviewFailed':
         return t(`suggestions.titles.${d.kind}`, d);
       default:
         return s.title;
@@ -103,11 +108,14 @@ function useUsers() {
 export function FindingForm({
   finding,
   suggestion,
+  preset,
   onClose,
   onSaved,
 }: {
   finding?: CaFinding;
   suggestion?: CaSuggestion;
+  /** A new finding from a supplier's page: the supplier and the source supplier review */
+  preset?: { supplier: { id: string; name: string; status: SupplierRef['status'] } };
   onClose: () => void;
   onSaved: (f: CaFinding) => void;
 }) {
@@ -118,11 +126,20 @@ export function FindingForm({
   const users = useUsers();
   const [title, setTitle] = useState(finding?.title ?? (suggestion ? suggestionTitle(suggestion).slice(0, CA_LIMITS.title) : ''));
   const [description, setDescription] = useState(finding?.description ?? '');
-  const [source, setSource] = useState<string>('internalAudit');
+  const [source, setSource] = useState<string>(preset ? 'supplierReview' : 'internalAudit');
   const [sourceLabel, setSourceLabel] = useState('');
   const [sourceUrl, setSourceUrl] = useState('');
   const [severity, setSeverity] = useState<CaSeverity>(finding?.severity ?? suggestion?.severity ?? 'minor');
   const [serviceId, setServiceId] = useState<string | null>(finding?.serviceId ?? suggestion?.serviceId ?? null);
+  // the supplier: sent only when the person changed it, so a supplier they may not see is never cleared by saving
+  const initialSupplier = finding?.supplierId
+    ? finding.supplierName
+      ? { id: finding.supplierId, name: finding.supplierName, status: 'active' as const }
+      : null
+    : suggestion?.supplierId && suggestion.supplierName
+      ? { id: suggestion.supplierId, name: suggestion.supplierName, status: 'active' as const }
+      : (preset?.supplier ?? null);
+  const supplier = useSupplierChoice(initialSupplier);
   const [controlIds, setControlIds] = useState<string[]>(finding?.controls.map((c) => c.id) ?? suggestion?.controls.map((c) => c.id) ?? []);
   const [owner, setOwner] = useState<string | null>(finding?.owner ?? null);
   const [dueDate, setDueDate] = useState(finding?.dueDate ?? (finding ? '' : inDays(30)));
@@ -166,6 +183,7 @@ export function FindingForm({
       description,
       severity,
       serviceId,
+      ...(supplier.body !== undefined ? { supplierId: supplier.body } : !finding && !suggestion && preset ? { supplierId: preset.supplier.id } : {}),
       controlIds,
       owner,
       dueDate: dueDate || null,
@@ -296,6 +314,18 @@ export function FindingForm({
               miw={200}
             />
           </Group>
+          {finding?.supplierId && !finding.supplierName ? (
+            <TextInput label={t('fields.supplier')} value={t('notVisible')} readOnly />
+          ) : (
+            <SupplierPicker
+              value={supplier.value}
+              onChange={supplier.set}
+              initial={initialSupplier}
+              label={t('fields.supplier')}
+              description={t('hints.supplier')}
+              testId="ca-supplier"
+            />
+          )}
           <MultiSelect
             label={t('fields.controls')}
             description={t('hints.controls')}
@@ -628,5 +658,72 @@ export function ControlFindings({ controlId }: { controlId: string }) {
         ))}
       </Stack>
     </div>
+  );
+}
+
+/** The open findings about a supplier, on its page (ADR 0029), and recording one from there (source supplier review). */
+export function SupplierFindings({ supplier }: { supplier: { id: string; name: string; status: SupplierRef['status'] } }) {
+  const { t } = useTranslation('corrective');
+  const qc = useQueryClient();
+  const navigate = useNavigate();
+  const [recording, setRecording] = useState(false);
+  const q = useQuery({
+    queryKey: correctiveKeys.ofSupplier(supplier.id),
+    queryFn: () => getOptional<CaFindingList | null>(`/compliance/corrective-actions?state=open&supplierId=${encodeURIComponent(supplier.id)}`, null),
+  });
+  // the register is not there for this person (the Compliance module is off): nothing to show
+  if (q.isSuccess && !q.data) return null;
+  const items = q.data?.items ?? [];
+  return (
+    <Stack gap="xs" data-testid="supplier-findings">
+      <Group justify="space-between" gap="xs">
+        <Text fw={600}>{t('supplierPanel.title')}</Text>
+        {q.data?.canCreate && supplier.status !== 'archived' && (
+          <Button size="xs" variant="light" onClick={() => setRecording(true)}>
+            {t('supplierPanel.record')}
+          </Button>
+        )}
+      </Group>
+      {q.isSuccess && items.length === 0 && (
+        <Text size="sm" c="dimmed">
+          {t('supplierPanel.none')}
+        </Text>
+      )}
+      <Stack gap={4}>
+        {items.map((f) => (
+          <Group key={f.id} gap={6} wrap="wrap">
+            <Anchor component={Link} to={`/compliance/corrective-actions/${f.id}`} size="sm" className="mono">
+              {f.number}
+            </Anchor>
+            <Text size="sm" style={{ overflowWrap: 'anywhere' }}>
+              {f.title}
+            </Text>
+            <CaSeverityBadge severity={f.severity} size="xs" />
+            <CaStatusBadge status={f.status} size="xs" />
+            {f.overdue && (
+              <Badge color={TONE.bad} variant="light" size="xs">
+                {t('overdue')}
+              </Badge>
+            )}
+          </Group>
+        ))}
+      </Stack>
+      {q.isSuccess && (
+        <Anchor component={Link} to={`/compliance/corrective-actions?supplierId=${encodeURIComponent(supplier.id)}`} size="xs">
+          {t('supplierPanel.all')}
+        </Anchor>
+      )}
+      {recording && (
+        <FindingForm
+          preset={{ supplier }}
+          onClose={() => setRecording(false)}
+          onSaved={(f) => {
+            setRecording(false);
+            void qc.invalidateQueries({ queryKey: correctiveKeys.all });
+            navigate(`/compliance/corrective-actions/${f.id}`);
+          }}
+        />
+      )}
+    </Stack>
   );
 }

@@ -46,6 +46,8 @@ import { OwningTeams } from '../components/OwningTeams';
 import { DetailHeader } from '../components/page/DetailPage';
 import { supplierKeys } from '../queryKeys';
 import { DueDate, MergeModal, SupplierFormModal, SupplierStatusBadge } from './Suppliers';
+import { SupplierFindings } from '../components/compliance/corrective';
+import { useModuleOn } from '../modules';
 
 const DOC_LINK = /^(https?:\/\/\S+|rec_[A-Za-z0-9_-]{4,40}|[A-Z][A-Z0-9]{0,9}-\d{4}-\d{4,6})$/i;
 
@@ -68,8 +70,9 @@ function DocLink({ link, record }: { link: string; record?: { id: string; number
 
 /** A supplier (0.17.0, ADR 0029): contracts, certificates, contacts, what links it and its review duty. */
 export function SupplierDetailPage() {
-  const { t } = useTranslation(['suppliers', 'common', 'applications']);
+  const { t } = useTranslation(['suppliers', 'common', 'applications', 'corrective']);
   const { id } = useParams();
+  const complianceOn = useModuleOn('compliance');
   const qc = useQueryClient();
   const navigate = useNavigate();
   const q = useQuery({ queryKey: supplierKeys.detail(id), queryFn: () => get<SupplierDetail>(`/suppliers/${id}`) });
@@ -478,7 +481,7 @@ export function SupplierDetailPage() {
                       </Anchor>
                       {u.detail && (
                         <Text size="xs" c="dimmed" truncate>
-                          {u.detail}
+                          {u.kind === 'finding' ? t(`corrective:statuses.${u.detail}`, { defaultValue: u.detail }) : u.detail}
                         </Text>
                       )}
                     </Group>
@@ -486,6 +489,8 @@ export function SupplierDetailPage() {
                 </Stack>
               )}
             </Stack>
+            {/* ---- corrective action findings about the supplier (Compliance module) ---- */}
+            {complianceOn && <SupplierFindings supplier={{ id: s.id, name: s.name, status: s.status }} />}
             {/* ---- the supplier review ---- */}
             <Stack gap="xs" data-testid="supplier-duties">
               <Text fw={600}>{t('duties.title')}</Text>

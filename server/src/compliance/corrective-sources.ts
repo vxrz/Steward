@@ -25,7 +25,7 @@ import { readSetting, writeSetting } from '../settings.js';
 import { isoWeek } from '../backup/retention.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { forbid, me } from './access.js';
-import { CaContext, getFinding, insertFinding, listFindings, sourceRef, type FindingFilter } from './corrective.js';
+import { CaContext, caToday, getFinding, insertFinding, listFindings, sourceRef, type FindingFilter } from './corrective.js';
 
 /**
  * Suggestions of the register of corrective actions (ADR 0029 part 3): Steward notices events that may be
@@ -102,6 +102,8 @@ export interface SuggestionCandidate {
   sourceId: string | null;
   sourceLabel: string;
   serviceId: string | null;
+  /** The supplier it is about (a supplier review): the confirmed finding takes it (kept with the details) */
+  supplierId?: string | null;
   controlIds: string[];
   recordId: string | null;
   /** English (API, MCP); the web app translates details.kind with the other details */
@@ -161,6 +163,7 @@ registerSuggestionSource({
       }>(
         `SELECT duty_id, period_key, status, level, duty_name, service_id, process_id, grace_end, closed_at FROM duty_periods
          WHERE closed_at IS NOT NULL AND status IN ('missed', 'failed') AND level IN (${levels.map(() => '?').join(', ')}) AND grace_end >= ?
+         ${on('supplierReview') ? "AND duty_id NOT IN (SELECT d.id FROM service_duties d JOIN suppliers s ON s.id = d.supplier_id WHERE s.status = 'active')" : ''}
          ORDER BY grace_end`,
         ...levels,
         since,
@@ -298,6 +301,132 @@ registerSuggestionSource({
   },
 });
 
+/**
+ * Supplier reviews (ADR 0029 parts 1 and 3, on by default): a certificate of a confirmed supplier that is in use ran
+ * out (one suggestion per certificate and expiry date, so a renewed certificate that runs out again is suggested
+ * again), and a missed or failed period of a mandatory or recommended duty that reviews a supplier – that period is
+ * suggested here, as a supplier review, instead of by the duty source (the same key: never twice).
+ */
+registerSuggestionSource({
+  name: 'supplier-reviews',
+  collect: ({ now, since, on }) => {
+    if (!on('supplierReview')) return [];
+    const out: SuggestionCandidate[] = [];
+    const sinceDay = since.slice(0, 10);
+    const today = caToday(now);
+    const supplierControls = annexASupplierControls();
+    // the services a supplier is used for (its duties, the responsibility matrix, cost plan lines): one is pre-filled
+    const servicesOf = (supplierId: string): string[] => [
+      ...new Set(
+        db()
+          .all<{ service_id: string }>(
+            `SELECT service_id FROM service_duties WHERE supplier_id = ? AND archived = 0
+             UNION SELECT service_id FROM service_responsibilities WHERE supplier_id = ?
+             UNION SELECT service_id FROM cost_plan_lines WHERE supplier_id = ?`,
+            supplierId,
+            supplierId,
+            supplierId,
+          )
+          .map((r) => r.service_id)
+          .filter((id) => !!db().get('SELECT 1 FROM services WHERE id = ? AND archived = 0', id)),
+      ),
+    ];
+    for (const c of db().all<{ id: string; supplier_id: string; kind: string; name: string; valid_until: string; supplier: string }>(
+      `SELECT c.id, c.supplier_id, c.kind, c.name, c.valid_until, s.name AS supplier FROM supplier_certificates c JOIN suppliers s ON s.id = c.supplier_id
+       WHERE s.status = 'active' AND c.valid_until IS NOT NULL AND c.valid_until < ? AND c.valid_until >= ? ORDER BY c.valid_until, c.id`,
+      today,
+      sinceDay,
+    )) {
+      if (!supplierInUse(c.supplier_id)) continue;
+      const services = servicesOf(c.supplier_id);
+      const certificate = c.name ? `${c.kind} ${c.name}` : c.kind;
+      out.push({
+        source: 'supplierReview',
+        sourceKey: `supplierCertificate:${c.id}:${c.valid_until}`,
+        sourceKind: 'supplier',
+        sourceId: c.supplier_id,
+        sourceLabel: `${c.supplier} · ${certificate}`,
+        serviceId: services.length === 1 ? services[0]! : null,
+        supplierId: c.supplier_id,
+        controlIds: supplierControls,
+        recordId: null,
+        title: `Certificate ${certificate} of supplier "${c.supplier}" ran out on ${c.valid_until}`.slice(0, CA_LIMITS.title),
+        details: { kind: 'supplierCertificate', supplier: c.supplier, certificate, date: c.valid_until },
+        severity: 'minor',
+        occurredAt: `${c.valid_until}T23:59:59.000Z`,
+      });
+    }
+    for (const p of db().all<{
+      duty_id: string;
+      period_key: string;
+      status: string;
+      level: string;
+      duty_name: string;
+      service_id: string;
+      process_id: string;
+      grace_end: string;
+      supplier_id: string;
+      supplier: string;
+    }>(
+      `SELECT p.duty_id, p.period_key, p.status, p.level, p.duty_name, p.service_id, p.process_id, p.grace_end, d.supplier_id, s.name AS supplier
+       FROM duty_periods p JOIN service_duties d ON d.id = p.duty_id JOIN suppliers s ON s.id = d.supplier_id
+       WHERE p.closed_at IS NOT NULL AND p.status IN ('missed', 'failed') AND p.level IN ('mandatory', 'recommended') AND p.grace_end >= ?
+         AND s.status = 'active'
+       ORDER BY p.grace_end`,
+      since,
+    ))
+      out.push({
+        source: 'supplierReview',
+        // the key of the duty source: a period is suggested once, whichever source saw it first
+        sourceKey: `duty:${p.duty_id}:${p.period_key}`,
+        sourceKind: 'duty',
+        sourceId: p.duty_id,
+        sourceLabel: `${p.duty_name} · ${p.period_key}`,
+        serviceId: p.service_id,
+        supplierId: p.supplier_id,
+        controlIds: [...new Set([...controlsOf('process', p.process_id), ...supplierControls])].slice(0, CA_LIMITS.controls),
+        recordId: null,
+        title: `Supplier review "${p.duty_name}" of "${p.supplier}" ${p.status} in period ${p.period_key}`.slice(0, CA_LIMITS.title),
+        details: {
+          kind: p.status === 'failed' ? 'supplierReviewFailed' : 'supplierReviewMissed',
+          duty: p.duty_name,
+          supplier: p.supplier,
+          period: p.period_key,
+        },
+        severity: p.level === 'mandatory' ? 'minor' : 'observation',
+        occurredAt: p.grace_end,
+      });
+    return out;
+  },
+});
+
+/** A supplier in use: linked from something that is not archived (applications, systems, duties, the matrix …). */
+function supplierInUse(id: string): boolean {
+  return !!db().get(
+    `SELECT 1 FROM applications WHERE supplier_id = ? AND archived = 0
+     UNION ALL SELECT 1 FROM systems WHERE supplier_id = ?
+     UNION ALL SELECT 1 FROM service_duties WHERE supplier_id = ? AND archived = 0
+     UNION ALL SELECT 1 FROM service_responsibilities r JOIN services v ON v.id = r.service_id WHERE r.supplier_id = ? AND v.archived = 0
+     UNION ALL SELECT 1 FROM cost_plan_lines WHERE supplier_id = ?
+     UNION ALL SELECT 1 FROM cd_watches WHERE supplier_id = ? AND removed_at IS NULL
+     UNION ALL SELECT 1 FROM soa_entries WHERE supplier_id = ?`,
+    id,
+    id,
+    id,
+    id,
+    id,
+    id,
+    id,
+  );
+}
+
+/** ISO/IEC 27001:2022 Annex A 5.22 (monitoring and review of supplier services), when the built-in catalogue is there. */
+function annexASupplierControls(): string[] {
+  return db()
+    .all<{ id: string }>("SELECT c.id FROM controls c JOIN control_catalogues k ON k.id = c.catalogue_id WHERE k.key = 'ISO27001' AND c.ref = '5.22'")
+    .map((r) => r.id);
+}
+
 // ---------- scanning ----------
 
 let lastScan = 0;
@@ -336,7 +465,7 @@ export function scanSuggestions(now = Date.now(), force = false): { added: numbe
         JSON.stringify(c.controlIds),
         c.recordId,
         c.title.slice(0, CA_LIMITS.title),
-        JSON.stringify(c.details),
+        JSON.stringify(c.supplierId ? { ...c.details, supplierId: c.supplierId } : c.details),
         c.severity,
         c.occurredAt,
         nowIso(),
@@ -388,9 +517,18 @@ function canDecide(u: AuthUser, s: Pick<SuggestionRow, 'service_id'>, ctx: CaCon
   return !!svc && canEditService(u, { kind: 'service', id: svc.id, owners: svc.owners });
 }
 
+/** The supplier a suggestion is about (kept with its details). */
+const supplierOfSuggestion = (r: Pick<SuggestionRow, 'details'>): string | null => {
+  const id = parseJson<Record<string, unknown>>(r.details, {}).supplierId;
+  return typeof id === 'string' && id ? id : null;
+};
+
 function toSuggestion(r: SuggestionRow, u: AuthUser, ctx: CaContext): CaSuggestion {
   const svc = ctx.service(r.service_id);
   const finding = r.finding_id ? db().get<{ number: string }>('SELECT number FROM ca_findings WHERE id = ?', r.finding_id) : undefined;
+  const supplierId = supplierOfSuggestion(r);
+  const supplierName = ctx.supplierName(supplierId);
+  const { supplierId: _s, ...details } = parseJson<Record<string, string | number>>(r.details, {});
   return {
     id: r.id,
     source: r.source,
@@ -398,9 +536,11 @@ function toSuggestion(r: SuggestionRow, u: AuthUser, ctx: CaContext): CaSuggesti
     sourceRef: sourceRef(r.source_kind, r.source_id, r.source_label, u),
     serviceId: r.service_id,
     serviceName: svc && canViewCatalogue(u, { kind: 'service', id: svc.id, owners: svc.owners }) ? svc.name : null,
+    supplierId: supplierName === null ? null : supplierId,
+    supplierName,
     controls: ctx.controlRefs(parseJson<string[]>(r.control_ids, [])),
     title: r.title,
-    details: { kind: 'other', ...parseJson<Record<string, string | number>>(r.details, {}) },
+    details: { kind: 'other', ...details },
     severity: r.severity,
     recordId: r.record_id,
     occurredAt: r.occurred_at,
@@ -462,6 +602,8 @@ export function confirmSuggestion(id: string, input: z.input<typeof caConfirmInp
         description: v.description ?? '',
         severity: v.severity ?? r.severity,
         serviceId: v.serviceId !== undefined ? v.serviceId : r.service_id,
+        // the supplier of a supplier review; one the person may not see is left out rather than refused
+        supplierId: v.supplierId !== undefined ? v.supplierId : ctx.supplierName(supplierOfSuggestion(r)) === null ? null : supplierOfSuggestion(r),
         controlIds: v.controlIds ?? parseJson<string[]>(r.control_ids, []),
         owner: v.owner ?? null,
         dueDate: v.dueDate ?? null,

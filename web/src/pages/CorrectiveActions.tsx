@@ -116,6 +116,8 @@ function FindingsTab() {
   // ?controlId=: the findings of one control (from a row of the statement of applicability)
   const [params, setParams] = useSearchParams();
   const controlId = params.get('controlId');
+  // ?supplierId=: the findings about one supplier (from the supplier's page)
+  const supplierId = params.get('supplierId');
   const [creating, setCreating] = useState(false);
   const services = useQuery({ queryKey: ['services', false], queryFn: () => get<ServiceSummary[]>('/services') });
   const qs = useMemo(() => {
@@ -127,12 +129,13 @@ function FindingsTab() {
     if (overdue) u.set('overdue', 'true');
     if (mine) u.set('owner', 'me');
     if (controlId) u.set('controlId', controlId);
+    if (supplierId) u.set('supplierId', supplierId);
     return u.toString();
-  }, [state, debounced, severity, source, service, overdue, mine, controlId]);
+  }, [state, debounced, severity, source, service, overdue, mine, controlId, supplierId]);
   const list = useQuery({ queryKey: correctiveKeys.list(qs), queryFn: () => get<CaFindingList>(`/compliance/corrective-actions?${qs}`) });
   useCreateParam(list.data?.canCreate, () => setCreating(true));
   const items = list.data?.items ?? [];
-  const active = [debounced.trim(), state !== 'open', severity.length, source.length, service, overdue, mine, controlId].filter(Boolean).length;
+  const active = [debounced.trim(), state !== 'open', severity.length, source.length, service, overdue, mine, controlId, supplierId].filter(Boolean).length;
   const columns: DataColumn<CaFindingSummary>[] = [
     {
       key: 'finding',
@@ -282,6 +285,23 @@ function FindingsTab() {
           </Group>
         </Alert>
       )}
+      {supplierId && (
+        <Alert color="gray" variant="light" mb="md" data-testid="ca-supplier-filter">
+          <Group justify="space-between" gap="xs">
+            <Text size="sm">{t('filters.oneSupplier')}</Text>
+            <Button
+              size="compact-xs"
+              variant="subtle"
+              onClick={() => {
+                params.delete('supplierId');
+                setParams(params, { replace: true });
+              }}
+            >
+              {t('filters.allSuppliers')}
+            </Button>
+          </Group>
+        </Alert>
+      )}
       <QueryState query={list} />
       {list.isSuccess && items.length === 0 && active > 0 && (
         <Text c="dimmed" size="sm">
@@ -390,6 +410,11 @@ function SuggestionsTab() {
                   {s.serviceName && (
                     <Text size="xs" c="dimmed">
                       {s.serviceName}
+                    </Text>
+                  )}
+                  {s.supplierName && (
+                    <Text size="xs" c="dimmed">
+                      {s.supplierName}
                     </Text>
                   )}
                 </Group>
@@ -787,6 +812,15 @@ export function CorrectiveActionDetailPage() {
                   </Anchor>
                 ) : (
                   <Text size="sm">{f.serviceId ? t('notVisible') : '–'}</Text>
+                )}
+              </Field>
+              <Field label={t('fields.supplier')}>
+                {f.supplierId && f.supplierName ? (
+                  <Anchor component={Link} to={`/suppliers/${f.supplierId}`} size="sm" data-testid="ca-detail-supplier">
+                    {f.supplierName}
+                  </Anchor>
+                ) : (
+                  <Text size="sm">{f.supplierId ? t('notVisible') : '–'}</Text>
                 )}
               </Field>
               <Field label={t('fields.owner')}>

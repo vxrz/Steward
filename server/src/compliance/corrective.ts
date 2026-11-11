@@ -27,6 +27,7 @@ import { checkFourEyes, fourEyesRequired, samePerson } from '../auth/assurance.j
 import { canEditService, canReadRecordRow, canViewCatalogue } from '../records/access.js';
 import { instanceTimeZone, localDate } from '../duties/periods.js';
 import { likeEscape } from '../database/sql.js';
+import { resolveSupplierLink, supplierVisible } from '../suppliers/links.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { forbid, me, readsEverything, same } from './access.js';
 
@@ -128,6 +129,7 @@ export function caToday(now = Date.now()): string {
 
 export class CaContext {
   private services?: Map<string, ServiceRef>;
+  private suppliers?: Map<string, { id: string; name: string; owners: string }>;
   private work?: Map<string, Work[]>;
   private controls = new Map<string, CaControlRef | null>();
   readonly day = caToday();
@@ -140,6 +142,18 @@ export class CaContext {
         .map((s) => [s.id, { id: s.id, name: s.name, owners: parseJson<string[]>(s.owners, []) }]),
     );
     return this.services.get(id);
+  }
+
+  /** The name of a supplier the reader may see (team scope like systems); null otherwise. */
+  supplierName(id: string | null): string | null {
+    if (!id) return null;
+    this.suppliers ??= new Map(
+      db()
+        .all<{ id: string; name: string; owners: string }>('SELECT id, name, owners FROM suppliers')
+        .map((s) => [s.id, s]),
+    );
+    const s = this.suppliers.get(id);
+    return s && supplierVisible(s) ? s.name : null;
   }
 
   /** The actions of a finding as the register counts them (own actions, or the measures of its incident review). */
@@ -239,6 +253,8 @@ function toSummary(f: FindingRow, ctx: CaContext, u: AuthUser): CaFindingSummary
     status: f.status,
     serviceId: f.service_id,
     serviceName: s && canViewCatalogue(u, { kind: 'service', id: s.id, owners: s.owners }) ? s.name : null,
+    supplierId: f.supplier_id,
+    supplierName: ctx.supplierName(f.supplier_id),
     owner: f.owner,
     dueDate: f.due_date,
     overdue: active && ((!!f.due_date && f.due_date < ctx.day) || open.some((w) => w.dueDate < ctx.day)),
@@ -271,6 +287,11 @@ export function sourceRef(kind: string | null, id: string | null, label: string,
     const visible = readsEverything(u) || hasRole(u, ['approver', 'designer']);
     return { kind, id: visible ? id : null, label, path: visible ? `/compliance/person-reviews/${id}` : null, visible };
   }
+  if (kind === 'supplier') {
+    const r = db().get<{ id: string; owners: string }>('SELECT id, owners FROM suppliers WHERE id = ?', id);
+    const visible = !!r && canViewCatalogue(u, { kind: 'supplier', id: r.id, owners: parseJson<string[]>(r.owners, []) });
+    return { kind, id: visible ? id : null, label, path: visible ? `/suppliers/${id}` : null, visible };
+  }
   if (kind === 'accessCheck') {
     const visible = readsEverything(u) || hasRole(u, ['designer', 'operator']);
     return { kind, id: visible ? id : null, label, path: visible ? `/compliance/reconciliation?check=${encodeURIComponent(id)}` : null, visible };
@@ -284,6 +305,7 @@ export interface FindingFilter {
   source?: CaSource[];
   severity?: CaSeverity[];
   serviceId?: string;
+  supplierId?: string;
   controlId?: string;
   overdue?: boolean;
   /** user:<name> / team:<name> or "me": the finding's owner or an action's owner */
@@ -314,6 +336,10 @@ export function listFindingSummaries(f: FindingFilter = {}, ctx = new CaContext(
   if (f.serviceId) {
     where.push('service_id = ?');
     args.push(f.serviceId);
+  }
+  if (f.supplierId) {
+    where.push('supplier_id = ?');
+    args.push(f.supplierId);
   }
   if (f.controlId) {
     where.push(`lower(control_ids) LIKE lower(?) ESCAPE '\\'`);
@@ -480,6 +506,8 @@ export interface NewFinding {
   description: string;
   severity: CaSeverity;
   serviceId: string | null;
+  /** A supplier the person may see (checked here); null: none */
+  supplierId: string | null;
   controlIds: string[];
   owner: string | null;
   dueDate: string | null;
@@ -499,6 +527,7 @@ export function insertFinding(n: NewFinding, ctx = new CaContext(), u = me()): F
   if (!hasRole(u, ['admin', 'designer']) && !editsService(u, ctx.service(n.serviceId)))
     forbid('record findings of corrective actions (designers, administrators and the editors of the service)', 'recordCorrective');
   checkService(u, n.serviceId, ctx);
+  const supplierId = resolveSupplierLink(n.supplierId, null);
   checkControls(n.controlIds, ctx);
   const owner = checkOwner(n.owner);
   if (Number(db().get<{ n: number }>('SELECT COUNT(*) AS n FROM ca_findings')!.n) >= CA_LIMITS.findings)
@@ -508,9 +537,9 @@ export function insertFinding(n: NewFinding, ctx = new CaContext(), u = me()): F
   db().tx(() => {
     const number = nextNumber(ctx.day);
     db().run(
-      `INSERT INTO ca_findings (id, number, title, description, source, source_kind, source_id, source_label, service_id, control_ids, record_id,
+      `INSERT INTO ca_findings (id, number, title, description, source, source_kind, source_id, source_label, service_id, supplier_id, control_ids, record_id,
          severity, owner, due_date, cause, status, grc_ref, grc_url, suggestion_id, created_at, created_by, updated_at, updated_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?)`,
       id,
       number,
       n.title,
@@ -520,6 +549,7 @@ export function insertFinding(n: NewFinding, ctx = new CaContext(), u = me()): F
       n.sourceId,
       n.sourceLabel,
       n.serviceId,
+      supplierId,
       JSON.stringify(n.controlIds),
       n.recordId,
       n.severity,
@@ -544,6 +574,7 @@ export function insertFinding(n: NewFinding, ctx = new CaContext(), u = me()): F
         source: n.source,
         severity: n.severity,
         serviceId: n.serviceId,
+        supplierId,
         controlIds: n.controlIds,
         owner,
         dueDate: n.dueDate,
@@ -577,6 +608,7 @@ const FIELD_COLUMNS = {
   description: 'description',
   severity: 'severity',
   serviceId: 'service_id',
+  supplierId: 'supplier_id',
   owner: 'owner',
   dueDate: 'due_date',
   cause: 'cause',
@@ -596,6 +628,8 @@ export function updateFinding(id: string, input: z.input<typeof caFindingUpdate>
     // moving a finding to another service: also an editor there (or a designer or administrator)
     if (!hasRole(u, ['admin', 'designer']) && !editsService(u, ctx.service(v.serviceId))) forbid('move this finding to that service', 'editCorrective');
   }
+  // a supplier the person may see (a linked one they may not see stays while the field is not sent)
+  if (v.supplierId !== undefined && v.supplierId !== f.supplier_id) v.supplierId = resolveSupplierLink(v.supplierId, f.supplier_id);
   if (v.controlIds) checkControls(v.controlIds, ctx);
   if (v.owner !== undefined) v.owner = checkOwner(v.owner);
   if (v.status && v.status !== f.status && v.status === 'implemented') {
