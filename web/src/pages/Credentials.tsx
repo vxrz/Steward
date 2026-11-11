@@ -49,7 +49,7 @@ import { EmptyState, FilterPanel, QueryState, TONE, useCreateParam } from '../co
 import { CredentialEditor } from '../components/credentials/CredentialEditor';
 import { TagBadges, TagFilterChip, useTagFilter } from '../components/tags';
 import { DataTable, ListFooter, type DataColumn } from '../components/DataTable';
-import { fmtDate, fmtDay, fmtRelative } from '../format';
+import { fmtDate, fmtDay, fmtRelative, localToday } from '../format';
 import { confirmDanger } from '../components/confirm';
 import { OwningTeams } from '../components/OwningTeams';
 import { ListPage } from '../components/page/ListPage';
@@ -864,7 +864,7 @@ function ActionForm({
   onCancel: () => void;
 }) {
   const { t } = useTranslation(['credentials', 'common']);
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(() => localToday());
   const [comment, setComment] = useState('');
   const [expires, setExpires] = useState('');
   const [busy, setBusy] = useState(false);
@@ -891,7 +891,7 @@ function ActionForm({
           label={kind === 'rotated' ? t('detail.rotatedOn') : t('detail.reviewedOn')}
           value={date}
           onChange={(e) => setDate(e.currentTarget.value)}
-          max={new Date().toISOString().slice(0, 10)}
+          max={localToday()}
         />
         {kind === 'rotated' && (
           <TextInput

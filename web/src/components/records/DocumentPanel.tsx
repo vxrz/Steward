@@ -9,7 +9,7 @@ import { UnifiedDiff } from '../editor/VersionDiff';
 import { MarkdownView } from './MarkdownView';
 import { Field } from './common';
 import { fieldLabel } from './builtin';
-import { fmtDate, fmtDay } from '../../format';
+import { fmtDate, fmtDay, localToday } from '../../format';
 import { currentLanguage } from '../../i18n';
 
 /**
@@ -455,7 +455,7 @@ function ReviewSettingsModal({ rec, onClose, onDone }: { rec: RecordDetail; onCl
   const [busy, setBusy] = useState(false);
   const users = (subjects.data ?? []).filter((s) => s.kind === 'user').map((s) => ({ value: s.value.slice(5), label: s.label }));
   if (owner && !users.some((u) => u.value.toLowerCase() === owner.toLowerCase())) users.unshift({ value: owner, label: owner });
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localToday();
   const submit = async () => {
     setBusy(true);
     try {

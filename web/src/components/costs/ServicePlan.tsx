@@ -61,7 +61,7 @@ import { DataTable, type DataColumn } from '../DataTable';
 import { confirmDanger, confirmDialog } from '../confirm';
 import { compact, niceTicks } from '../dashboard/format';
 import { costKeys, platformKeys } from '../../queryKeys';
-import { fmtDay, listFormat } from '../../format';
+import { fmtDay, listFormat, localToday } from '../../format';
 import { fmtMonth, fmtMonthOnly, fmtMoney, SCOPE_PATH, tooManyDecimals } from './common';
 import '../dashboard/viz.css';
 import { SupplierPicker, SupplierText, useSupplierChoice, useSupplierOptions } from '../suppliers/SupplierPicker';
@@ -973,10 +973,6 @@ const parseTarget = (v: string | null): { kind: CostPlanTargetKind; id: string }
 };
 const amountOk = (v: string) => /^-?\d{1,12}([.,]\d{1,6})?$/.test(v.trim());
 /** Today in the browser's time zone (YYYY-MM-DD) – not the UTC date, which is yesterday's after midnight in Europe. */
-const localToday = () => {
-  const n = new Date();
-  return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`;
-};
 /** A form's submit (Enter in a field) runs the save. */
 const submit = (save: () => Promise<void>) => (e: FormEvent) => {
   e.preventDefault();

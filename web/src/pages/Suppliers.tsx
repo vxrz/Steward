@@ -19,7 +19,7 @@ import { get, notifyError, notifyOk, post, put } from '../api';
 import { EmptyState, QueryState, subjectLabel, useCreateParam, useFieldErrors } from '../components/common';
 import { SubjectsInput } from '../components/SubjectsInput';
 import { useMe } from '../auth';
-import { fmtDate, fmtDay, fmtRelative } from '../format';
+import { fmtDate, fmtDay, fmtRelative, localToday } from '../format';
 import { ListPage } from '../components/page/ListPage';
 import { LinkTabs } from '../components/page/LinkTabs';
 import { useListParams } from '../components/page/params';
@@ -35,7 +35,7 @@ const DOC_LINK = /^(https?:\/\/\S+|rec_[A-Za-z0-9_-]{4,40}|[A-Z][A-Z0-9]{0,9}-\d
 export function DueDate({ date, state }: { date: string | null; state: SupplierDateState }) {
   const { t } = useTranslation('suppliers');
   if (!date) return <>–</>;
-  const days = Math.round((Date.parse(`${date}T00:00:00Z`) - Date.parse(`${new Date().toISOString().slice(0, 10)}T00:00:00Z`)) / 86_400_000);
+  const days = Math.round((Date.parse(`${date}T00:00:00Z`) - Date.parse(`${localToday()}T00:00:00Z`)) / 86_400_000);
   const text = t(`dateState.${state}`, { date: fmtDay(date), days });
   return state === 'ok' || state === 'none' ? (
     <>{text}</>
