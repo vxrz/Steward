@@ -235,7 +235,7 @@ export function setupContractPaymentDemo(
     );
     // the plan's free-text vendor lines name it
     db().run(
-      "UPDATE cost_plan_lines SET supplier_id = ? WHERE service_id = ? AND supplier_id IS NULL AND vendor LIKE '%Brightfield%'",
+      "UPDATE cost_plan_lines SET supplier_id = ? WHERE service_id = ? AND supplier_id IS NULL AND lower(vendor) LIKE '%brightfield%'",
       vendor.id,
       services.plant,
     );
