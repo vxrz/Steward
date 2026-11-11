@@ -455,54 +455,71 @@ export function listSuppliers(o: { status?: SupplierStatus | SupplierStatus[] } 
 export function getSupplier(id: string, now = Date.now()): SupplierDetail {
   const u = me();
   const r = supplierRow(id);
+  return detailsOf([r], u, now)[0]!;
+}
+
+/**
+ * Suppliers with their contacts, contracts, certificates, links, duties and migrated texts, read in bulk (one query
+ * per table, not per supplier): the supplier page and the exports.
+ */
+function detailsOf(rows: SupplierRow[], u: AuthUser, now: number): SupplierDetail[] {
+  if (!rows.length) return [];
+  const ids = rows.map((r) => r.id);
+  const one = ids.length === 1 ? ids[0]! : null;
+  const where = one ? 'WHERE supplier_id = ?' : '';
+  const args = one ? [one] : [];
   const today = supplierToday(now);
-  const contracts = db().all<ContractRow>('SELECT * FROM supplier_contracts WHERE supplier_id = ? ORDER BY lower(title), id', id);
-  const certificates = db().all<CertificateRow>('SELECT * FROM supplier_certificates WHERE supplier_id = ? ORDER BY kind, valid_until, id', id);
-  const contacts = db().all<ContactRow>('SELECT * FROM supplier_contacts WHERE supplier_id = ? ORDER BY lower(name), id', id);
-  const usage = usageOf([id]);
-  const used = usage.get(id) ?? [];
+  const contracts = groupBy(db().all<ContractRow>(`SELECT * FROM supplier_contracts ${where} ORDER BY lower(title), id`, ...args));
+  const certificates = groupBy(db().all<CertificateRow>(`SELECT * FROM supplier_certificates ${where} ORDER BY kind, valid_until, id`, ...args));
+  const contacts = groupBy(db().all<ContactRow>(`SELECT * FROM supplier_contacts ${where} ORDER BY lower(name), id`, ...args));
+  const usage = usageOf(ids);
+  const crit = criticalityOf(usage);
   // the cost plan lines that pay for each contract (services the reader may see)
-  const lineIds = new Set(used.filter((x) => x.kind === 'costPlanLine').map((x) => x.id));
   const lines = db().all<{ id: string; service_id: string; fiscal_year: number; title: string; supplier_contract_id: string; name: string }>(
     `SELECT l.id, l.service_id, l.fiscal_year, l.title, l.supplier_contract_id, s.name FROM cost_plan_lines l JOIN services s ON s.id = l.service_id
-     WHERE l.supplier_id = ? AND l.supplier_contract_id IS NOT NULL ORDER BY l.fiscal_year DESC, l.title`,
-    id,
+     WHERE ${one ? 'l.supplier_id = ? AND ' : 'l.supplier_id IS NOT NULL AND '}l.supplier_contract_id IS NOT NULL ORDER BY l.fiscal_year DESC, l.title`,
+    ...args,
   );
-  const linesOf = (cid: string) =>
-    lines
-      .filter((l) => l.supplier_contract_id === cid && lineIds.has(l.id))
-      .map((l) => ({ id: l.id, serviceId: l.service_id, serviceName: l.name, fiscalYear: Number(l.fiscal_year), title: l.title }));
-  const dutyIds = used.filter((x) => x.kind === 'duty');
-  const duties = dutyIds.map((d) => {
-    const duty = db().get<{ id: string; name: string; service_id: string }>('SELECT id, name, service_id FROM service_duties WHERE id = ?', d.id)!;
-    const periods = db()
-      .all<{ period_key: string; status: string; period_end: string; grace_end: string }>(
-        'SELECT period_key, status, period_end, grace_end FROM duty_periods WHERE duty_id = ? ORDER BY period_start DESC LIMIT 3',
-        d.id,
-      )
-      .map((p) => ({ periodKey: p.period_key, status: p.status, dueAt: p.grace_end }));
-    return { id: duty.id, name: duty.name, serviceId: duty.service_id, serviceName: d.detail, periods };
+  const migrated = db().all<{ supplier_id: string; table_name: string; spellings: string }>(
+    `SELECT supplier_id, table_name, spellings FROM supplier_text_migrations ${where ? `${where} AND` : 'WHERE'} outcome = 'linked' ORDER BY table_name`,
+    ...args,
+  );
+  return rows.map((r) => {
+    const used = usage.get(r.id) ?? [];
+    const lineIds = new Set(used.filter((x) => x.kind === 'costPlanLine').map((x) => x.id));
+    const linesOf = (cid: string) =>
+      lines
+        .filter((l) => l.supplier_contract_id === cid && lineIds.has(l.id))
+        .map((l) => ({ id: l.id, serviceId: l.service_id, serviceName: l.name, fiscalYear: Number(l.fiscal_year), title: l.title }));
+    const duties = used
+      .filter((x) => x.kind === 'duty')
+      .map((d) => {
+        const duty = db().get<{ id: string; name: string; service_id: string }>('SELECT id, name, service_id FROM service_duties WHERE id = ?', d.id)!;
+        const periods = db()
+          .all<{ period_key: string; status: string; period_end: string; grace_end: string }>(
+            'SELECT period_key, status, period_end, grace_end FROM duty_periods WHERE duty_id = ? ORDER BY period_start DESC LIMIT 3',
+            d.id,
+          )
+          .map((p) => ({ periodKey: p.period_key, status: p.status, dueAt: p.grace_end }));
+        return { id: duty.id, name: duty.name, serviceId: duty.service_id, serviceName: d.detail, periods };
+      });
+    const mine = contracts.get(r.id) ?? [];
+    const certs = certificates.get(r.id) ?? [];
+    return {
+      ...toSummary(r, { contracts: mine, certificates: certs, usage: used, criticality: crit.get(r.id), today }),
+      contacts: (contacts.get(r.id) ?? []).map(toContact),
+      contracts: mine.map((c) => toContract(c, today, u, linesOf(c.id))),
+      certificates: certs.map((c) => toCertificate(c, today, u)),
+      usedBy: used,
+      duties,
+      migratedFrom: migrated.filter((m) => m.supplier_id === r.id).map((m) => ({ table: m.table_name, spellings: parseJson<string[]>(m.spellings, []) })),
+      createdAt: r.created_at,
+      createdBy: r.created_by,
+      updatedBy: r.updated_by,
+      canEdit: canEditSupplier(u, r) && r.status !== 'archived',
+      canManage: canManageSuppliers(u),
+    };
   });
-  const migratedFrom = db()
-    .all<{ table_name: string; spellings: string }>(
-      "SELECT table_name, spellings FROM supplier_text_migrations WHERE supplier_id = ? AND outcome = 'linked' ORDER BY table_name",
-      id,
-    )
-    .map((m) => ({ table: m.table_name, spellings: parseJson<string[]>(m.spellings, []) }));
-  return {
-    ...toSummary(r, { contracts, certificates, usage: used, criticality: criticalityOf(usage).get(id), today }),
-    contacts: contacts.map(toContact),
-    contracts: contracts.map((c) => toContract(c, today, u, linesOf(c.id))),
-    certificates: certificates.map((c) => toCertificate(c, today, u)),
-    usedBy: used,
-    duties,
-    migratedFrom,
-    createdAt: r.created_at,
-    createdBy: r.created_by,
-    updatedBy: r.updated_by,
-    canEdit: canEditSupplier(u, r) && r.status !== 'archived',
-    canManage: canManageSuppliers(u),
-  };
 }
 
 /** The supplier picker of the forms: the suppliers the person may see and link (not archived), with their contracts. */
@@ -568,6 +585,16 @@ export type PublicSupplier = Omit<SupplierDetail, 'contacts' | 'canEdit' | 'canM
   contracts: Omit<SupplierContract, 'record'>[];
   certificates: Omit<SupplierCertificate, 'record'>[];
 };
+
+/**
+ * Every supplier the reader may see (all statuses), as toPublic() gives it – contacts without e-mail and phone – read
+ * in bulk: the scheduled export (export/parts.ts), in pages of `page` suppliers.
+ */
+export function* publicSuppliers(page = 100, now = Date.now()): Generator<PublicSupplier[]> {
+  const u = me();
+  const rows = visibleSupplierRows();
+  for (let i = 0; i < rows.length; i += page) yield detailsOf(rows.slice(i, i + page), u, now).map(toPublic);
+}
 
 /** A supplier for /api/v1, MCP and exports: contacts without e-mail and phone (ADR 0029, decided 8). */
 export function toPublic(d: SupplierDetail): PublicSupplier {

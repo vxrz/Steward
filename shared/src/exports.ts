@@ -7,7 +7,18 @@ import type { ModuleId } from './modules.js';
  */
 
 /** The parts that can be exported (server/src/export/parts.ts has what each one writes). */
-export const EXPORT_PART_IDS = ['costPlans', 'plant', 'services', 'applications', 'systems', 'monitors', 'auditLog'] as const;
+export const EXPORT_PART_IDS = [
+  'costPlans',
+  'plant',
+  'services',
+  'applications',
+  'systems',
+  'monitors',
+  'auditLog',
+  'suppliers',
+  'correctiveActions',
+  'soa',
+] as const;
 export type ExportPartId = (typeof EXPORT_PART_IDS)[number];
 export const isExportPartId = (x: unknown): x is ExportPartId => typeof x === 'string' && (EXPORT_PART_IDS as readonly string[]).includes(x);
 

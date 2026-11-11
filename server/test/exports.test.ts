@@ -50,6 +50,9 @@ const ALL_PARTS = [
   { id: 'systems', format: 'csv' },
   { id: 'monitors', format: 'yaml' },
   { id: 'auditLog', format: 'csv', days: 2 },
+  { id: 'suppliers', format: 'csv' },
+  { id: 'correctiveActions', format: 'csv' },
+  { id: 'soa', format: 'json' },
 ];
 const job = (extra: Record<string, unknown> = {}) => ({
   name: 'nightly-share',
@@ -139,6 +142,32 @@ beforeAll(async () => {
   );
   // an API token and a credential with a secret value
   secrets.push((await s.api('POST', '/me/tokens', { name: 'export-test', scope: 'read' })).token);
+  // a supplier with a contact: the contact's e-mail and phone are personal data of people outside Steward and never
+  // leave through an export (ADR 0029, decided 8), a contract and a certificate
+  const sup = await s.api('POST', '/suppliers', { name: 'Invented Ledger SaaS', type: 'saas' });
+  await s.api('POST', `/suppliers/${sup.id}/contacts`, {
+    name: 'Ines Invented',
+    role: 'accountManager',
+    email: 'ines.invented@ledger.example.com',
+    phone: '+49 30 5550 4711',
+  });
+  await s.api('POST', `/suppliers/${sup.id}/contracts`, { title: 'Ledger subscription', reference: 'LG-2026-17', rtoHours: 8 });
+  await s.api('POST', `/suppliers/${sup.id}/certificates`, { kind: 'iso27001', scope: 'Ledger platform', validUntil: '2099-06-30' });
+  secrets.push('ines.invented@ledger.example.com', '+49 30 5550 4711', '5550 4711');
+  // a corrective action finding about it
+  await s.api('POST', '/compliance/corrective-actions', { title: 'Invented ledger finding', source: 'internalAudit', supplierId: sup.id });
+  // an approved statement of applicability of a small catalogue of its own
+  await s.api('POST', '/compliance/catalogues/import', {
+    key: 'EXPX',
+    name: 'Export controls',
+    filename: 'x.csv',
+    content: 'ref,title,description\nX.1,Backups,\nX.2,Supplier reviews,\n',
+  });
+  await s.api('POST', '/compliance/soa', { catalogueId: 'EXPX', fourEyes: false });
+  for (const c of await s.api('GET', '/compliance/controls?catalogue=EXPX'))
+    await s.api('PUT', `/compliance/soa/EXPX/entries/${c.id}`, { applicable: true, justification: 'Invented reason', status: 'implemented' });
+  await s.api('POST', '/compliance/soa/EXPX/versions');
+  await s.api('POST', '/compliance/soa/EXPX/versions/1/decision', { approve: true });
 });
 afterAll(async () => {
   (await import('../src/export/jobs.js')).stopExportJobs();
@@ -150,7 +179,12 @@ describe('the registry of exportable parts', () => {
     const { EXPORT_PARTS, objectsCsv } = await import('../src/export/parts.js');
     expect(EXPORT_PARTS.map((p) => p.id)).toEqual([...EXPORT_PART_IDS]);
     for (const p of EXPORT_PARTS) expect(p.formats.length, p.id).toBeGreaterThan(0);
-    expect(Object.fromEntries(EXPORT_PARTS.filter((p) => p.module).map((p) => [p.id, p.module]))).toEqual({ costPlans: 'costs', plant: 'plant' });
+    expect(Object.fromEntries(EXPORT_PARTS.filter((p) => p.module).map((p) => [p.id, p.module]))).toEqual({
+      costPlans: 'costs',
+      plant: 'plant',
+      correctiveActions: 'compliance',
+      soa: 'compliance',
+    });
     // one column per key; formulas defused, lists joined
     expect(objectsCsv([{ a: '=1+1', b: ['x', 'y'] }, { c: { d: 1 } }])).toBe('\uFEFFa,b,c\r\n\'=1+1,"x; y",\r\n,,"{""d"":1}"\r\n');
   });
@@ -366,6 +400,12 @@ describe('an export run', () => {
         'plant-registry.yaml',
         'services.csv',
         'systems.csv',
+        'suppliers.csv',
+        'supplier-contracts.csv',
+        'supplier-certificates.csv',
+        'corrective-actions.csv',
+        'soa-EXPX-v1.json',
+        'soa-EXPX-v1.csv',
       ].sort(),
     );
     const text = (name: string) => objs.get(`${r.folder}${name}`)!.body.toString('utf8');
@@ -408,6 +448,33 @@ describe('an export run', () => {
       expect.arrayContaining([expect.stringMatching(/: checks\[0\]\.headers\.Authorization$/), expect.stringMatching(/: outputs\[1\]\.url$/)]),
     );
     expect(text('audit-log.csv')).toContain('export.job_created');
+    // suppliers (toPublic): the contact by name and role, never its e-mail or phone
+    const supplierCsv = text('suppliers.csv');
+    expect(supplierCsv.startsWith('\uFEFFId,Name,Type,Status')).toBe(true);
+    expect(supplierCsv).toContain('Invented Ledger SaaS');
+    expect(supplierCsv).toContain('Ines Invented (accountManager)');
+    expect(supplierCsv).not.toMatch(/ledger\.example\.com|5550/);
+    expect(text('supplier-contracts.csv')).toContain('LG-2026-17');
+    expect(text('supplier-certificates.csv')).toContain('Ledger platform');
+    expect(objs.get(`${r.folder}supplier-contracts.csv`)!.contentType).toBe('text/csv; charset=utf-8');
+    // the register of corrective actions, with the supplier
+    expect(text('corrective-actions.csv')).toMatch(/CA-\d{4}-\d{4},Invented ledger finding,internalAudit,minor,open,,Invented Ledger SaaS,/);
+    // the latest approved statement of applicability: the frozen JSON byte for byte (its SHA-256 is the version's) and its CSV
+    const { db } = await import('../src/db.js');
+    const version = db().get<{ content_sha256: string }>(
+      "SELECT v.content_sha256 FROM soa_versions v JOIN soas s ON s.id = v.soa_id JOIN control_catalogues k ON k.id = s.catalogue_id WHERE k.key = 'EXPX' AND v.status = 'approved'",
+    )!;
+    expect(
+      crypto
+        .createHash('sha256')
+        .update(objs.get(`${r.folder}soa-EXPX-v1.json`)!.body)
+        .digest('hex'),
+    ).toBe(version.content_sha256);
+    expect(JSON.parse(text('soa-EXPX-v1.json')).entries.map((e: any) => e.ref)).toEqual(['X.1', 'X.2']);
+    expect(text('soa-EXPX-v1.csv')).toContain('Invented reason');
+    expect(manifest.parts.find((p: any) => p.id === 'soa').notes.versions).toEqual([
+      expect.objectContaining({ catalogue: 'EXPX', number: 1, contentSha256: version.content_sha256 }),
+    ]);
     // no secret in any file
     for (const [key, o] of objs) {
       const body = o.body.toString('utf8');

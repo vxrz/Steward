@@ -687,6 +687,18 @@
       "auditLog": {
         "label": "Audit log",
         "description": "The audit entries of the last days, as CSV or JSON Lines."
+      },
+      "suppliers": {
+        "label": "Suppliers",
+        "description": "The suppliers with their contracts and certificates, as three CSV files – contacts by name and role only, never their e-mail or phone."
+      },
+      "correctiveActions": {
+        "label": "Corrective actions",
+        "description": "The register of corrective action findings as CSV (Compliance module)."
+      },
+      "soa": {
+        "label": "Statement of applicability",
+        "description": "The latest approved version of each statement of applicability, as JSON with a CSV beside it (Compliance module)."
       }
     }
   },
