@@ -26,6 +26,7 @@ import { audit } from '../audit.js';
 import { currentActor, currentUser } from '../auth/context.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { contractEditable, contractVisible, supplierRefs, visibleContracts } from '../suppliers/links.js';
+import { ScopeCtx } from '../suppliers/contract-scope.js';
 import { scopeInfo, visibleScopes, type ScopeInfo } from './access.js';
 import { catalogueOf, checkTarget, lineRows, planYearOf, requireEdit, startMonth, targetOf, thisMonth, today, type LineRow } from './plans.js';
 import {
@@ -94,9 +95,9 @@ function visibleContract(id: string): ContractRow {
 }
 
 /** Who may add, change or remove a schedule: who may change the contract, or edit the paying service and see the contract. */
-function mayChange(c: ContractRow, service: ScopeInfo | null): boolean {
-  if (contractEditable(c, supplierOf(c))) return true;
-  return !!service?.canEditBudget && contractVisible(c, supplierOf(c));
+function mayChange(c: ContractRow, service: ScopeInfo | null, ctx = new ScopeCtx()): boolean {
+  if (contractEditable(c, supplierOf(c), currentUser(), ctx)) return true;
+  return !!service?.canEditBudget && contractVisible(c, supplierOf(c), currentUser(), ctx);
 }
 
 function requireChange(c: ContractRow, service: ScopeInfo | null): void {
@@ -121,6 +122,8 @@ function toViews(list: Schedule[], now: number): CostSchedule[] {
   const day = today(now);
   const start = startMonth();
   const out: CostSchedule[] = [];
+  // one reader's view of the contracts' scopes for the whole list (services read once)
+  const ctx = new ScopeCtx().load(list.map((x) => x.contract.id));
   for (const x of list) {
     const svc = info(x.row.service_id);
     if (!svc) continue;
@@ -151,7 +154,7 @@ function toViews(list: Schedule[], now: number): CostSchedule[] {
       payments: x.spec.payments.map((p) => ({ date: p.date, amount: s(p.amount), coversUntil: p.coversUntil })),
       note: x.row.note,
       nextPayment: owed.nextPayment ? { date: owed.nextPayment.date, amount: s(owed.nextPayment.amount) } : null,
-      canEdit: !!c && mayChange(c, svc),
+      canEdit: !!c && mayChange(c, svc, ctx),
       createdAt: x.row.created_at,
       createdBy: x.row.created_by,
       updatedAt: x.row.updated_at,

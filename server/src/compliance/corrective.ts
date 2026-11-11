@@ -174,9 +174,16 @@ export class CaContext {
   }
 
   /** The contract a finding names as the reader may see it (ADR 0031): a hidden one is named as such. */
+  private seenContracts?: ReturnType<typeof visibleContracts>;
   contractOf(id: string | null | undefined): { supplierContract: { id: string; title: string } | null; supplierContractHidden: boolean } {
     if (!id) return { supplierContract: null, supplierContractHidden: false };
-    const c = visibleContracts([id]).get(id);
+    // the contracts all findings name, read once for the reader
+    this.seenContracts ??= visibleContracts(
+      db()
+        .all<{ c: string }>('SELECT DISTINCT supplier_contract_id AS c FROM ca_findings WHERE supplier_contract_id IS NOT NULL')
+        .map((r) => r.c),
+    );
+    const c = this.seenContracts.get(id);
     return c ? { supplierContract: { id: c.id, title: c.title }, supplierContractHidden: false } : { supplierContract: null, supplierContractHidden: true };
   }
 

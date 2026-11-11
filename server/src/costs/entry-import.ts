@@ -28,7 +28,7 @@ import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { currentActor } from '../auth/context.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
-import { contractVisible, supplierVisible } from '../suppliers/links.js';
+import { supplierVisible, visibleContracts } from '../suppliers/links.js';
 import { csvRows } from './csv.js';
 import { requireScope } from './access.js';
 import { catalogueOf, insertEntry, planYearOf, requireEdit, startMonth, targetOf, type EntryValues, type LineRow } from './plans.js';
@@ -92,9 +92,12 @@ function lookups(serviceId: string) {
   const suppliers = db()
     .all<SupplierRow>('SELECT id, name, status, owners, aliases FROM suppliers')
     .filter((r) => supplierVisible(r));
-  const contracts = db()
+  const all = db()
     .all<{ id: string; supplier_id: string; title: string; reference: string }>('SELECT id, supplier_id, title, reference FROM supplier_contracts')
-    .filter((c) => suppliers.some((s) => s.id === c.supplier_id) && contractVisible(c));
+    .filter((c) => suppliers.some((s) => s.id === c.supplier_id));
+  // the contracts the person may see (ADR 0031), read in bulk
+  const seen = visibleContracts(all.map((c) => c.id));
+  const contracts = all.filter((c) => seen.has(c.id));
   const cat = catalogueOf(serviceId);
   const names = new Map<string, CostPlanTarget>();
   for (const [kind, ids] of [
