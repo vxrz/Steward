@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Anchor, Badge, Button, Group, Modal, Paper, Select, Stack, Text, TextInput } from '@mantine/core';
+import { Anchor, Badge, Button, Group, Paper, Select, Stack, Text, TextInput } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { IconCheck, IconDoorExit, IconPlus, IconX } from '@tabler/icons-react';
@@ -14,6 +14,7 @@ import { DueDate } from '../../pages/Suppliers';
 import { DpaState } from './contractParts';
 import { ContractModal } from './ContractForm';
 import { useSupplierOptions } from './SupplierPicker';
+import { FormModal, FormModalCancel } from '../FormModal';
 
 /**
  * The service page's _Suppliers_ section (ADR 0031): the contracts covering the service – supplier, contract, purpose,
@@ -217,7 +218,7 @@ function NewContractForService({ serviceId, onClose, onSaved }: { serviceId: str
       />
     );
   return (
-    <Modal opened onClose={onClose} title={t('serviceSuppliers.addContract')}>
+    <FormModal onClose={onClose} title={t('serviceSuppliers.addContract')}>
       <Stack gap="sm">
         <Select
           label={t('serviceSuppliers.supplier')}
@@ -233,12 +234,10 @@ function NewContractForService({ serviceId, onClose, onSaved }: { serviceId: str
           <Anchor component={Link} to="/suppliers?new=1" size="sm">
             {t('new')}
           </Anchor>
-          <Button variant="default" onClick={onClose}>
-            {t('common:cancel')}
-          </Button>
+          <FormModalCancel />
         </Group>
       </Stack>
-    </Modal>
+    </FormModal>
   );
 }
 
@@ -264,7 +263,7 @@ function AddToContract({
       .map((c) => ({ value: `${s.id}|${c.id}`, label: `${s.name} · ${c.title}` })),
   );
   return (
-    <Modal opened onClose={onClose} title={t('serviceSuppliers.addToContract')}>
+    <FormModal onClose={onClose} title={t('serviceSuppliers.addToContract')}>
       <Stack gap="sm">
         <Select
           label={t('serviceSuppliers.contract')}
@@ -283,9 +282,7 @@ function AddToContract({
           onChange={(e) => setPurpose(e.currentTarget.value)}
         />
         <Group justify="flex-end">
-          <Button variant="default" onClick={onClose}>
-            {t('common:cancel')}
-          </Button>
+          <FormModalCancel />
           <Button
             disabled={!value}
             onClick={() => {
@@ -297,6 +294,6 @@ function AddToContract({
           </Button>
         </Group>
       </Stack>
-    </Modal>
+    </FormModal>
   );
 }

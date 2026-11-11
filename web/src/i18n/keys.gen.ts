@@ -1510,6 +1510,7 @@ export interface Resources {
     'permissions.acknowledge': string;
     breadcrumb: string;
     loadFailed: string;
+    notFound: string;
     retry: string;
     filters: string;
     filtersActive_one: string;
@@ -1534,6 +1535,9 @@ export interface Resources {
     'confirm.cleanup.button': string;
     'confirm.confirm.title': string;
     'confirm.confirm.button': string;
+    'formModal.discardTitle': string;
+    'formModal.discardMessage': string;
+    tableScroll: string;
     'table.sortBy': string;
     'table.sortedAsc': string;
     'table.sortedDesc': string;
@@ -15237,6 +15241,7 @@ export interface Resources {
     'servicesTab.via': string;
     'contract.services': string;
     'contract.term': string;
+    'contract.termField': string;
     'contract.payments': string;
     'contract.reviews': string;
     'contract.noReviews': string;

@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { Badge, Box, Group, UnstyledButton } from '@mantine/core';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -19,12 +19,21 @@ export interface LinkTab {
 /**
  * Tabs that are addresses: every tab is a link (bookmarkable, opens in a new tab, the browser's back button
  * works), the current one is marked with aria-current. Used for an area's pages (Automate) and for the tabs of
- * a detail page (the service hub). Scrolls sideways on phones instead of wrapping.
+ * a detail page (the service hub). Wraps on wider screens; scrolls sideways on phones instead of wrapping, with the
+ * current tab scrolled into view (a link may lead straight to a tab at the end).
  */
 export function LinkTabs({ tabs, active, label, mb = 'md', after }: { tabs: LinkTab[]; active: string; label: string; mb?: string; after?: ReactNode }) {
+  const navRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    // the bar itself is scrolled, not the page (scrollIntoView would also move the page vertically)
+    const nav = navRef.current;
+    const tab = nav?.querySelector<HTMLElement>('[aria-current="page"]');
+    if (!nav || !tab || nav.scrollWidth <= nav.clientWidth) return;
+    nav.scrollLeft = tab.offsetLeft - (nav.clientWidth - tab.offsetWidth) / 2;
+  }, [active]);
   return (
-    <Box component="nav" aria-label={label} mb={mb} className="link-tabs" data-testid="link-tabs">
-      <Group gap={0} wrap="nowrap" className="link-tabs-list">
+    <Box component="nav" ref={navRef} aria-label={label} mb={mb} className="link-tabs" data-testid="link-tabs">
+      <Group gap={0} className="link-tabs-list">
         {tabs.map((tab) => {
           const current = tab.to === active;
           return (

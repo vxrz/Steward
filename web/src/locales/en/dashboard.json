@@ -31,7 +31,7 @@
     "credentialsSplit": "{{overdue}} overdue · {{dueSoon}} due soon",
     "findings": "Undocumented access changes",
     "findingsDetail": "Open findings to document",
-    "vendorTickets": "Waiting on vendors",
+    "vendorTickets": "Waiting on vendor tickets",
     "oldest_one": "oldest {{count}} day",
     "oldest_other": "oldest {{count}} days",
     "oldestToday": "oldest opened today",

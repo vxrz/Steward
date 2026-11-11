@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { TABLE_COLUMN_KINDS, TABLE_LIMITS, tableRows, type RecordFieldDef, type RecordTableColumn, type TableColumnKind } from '@sm/shared';
 import { fmtDay } from '../../format';
 import { columnLabel, columnOptionLabel, fieldHelp, fieldLabel } from './builtin';
+import { TableScroll } from '../TableScroll';
 
 /**
  * Table fields of records (#208): rows with a fixed set of columns (text, choice, date), e.g. the rule lines of a
@@ -49,7 +50,7 @@ export function TableFieldView({
       </Text>
     );
   return (
-    <div className="table-scroll">
+    <TableScroll>
       <Table fz="sm" withTableBorder striped aria-label={label}>
         <Table.Thead>
           <Table.Tr>
@@ -82,7 +83,7 @@ export function TableFieldView({
           ))}
         </Table.Tbody>
       </Table>
-    </div>
+    </TableScroll>
   );
 }
 
@@ -113,7 +114,7 @@ export function TableFieldInput({ typeKey, def, value, onChange }: { typeKey: st
         )}
       </div>
       {rows.length > 0 && (
-        <div className="table-scroll">
+        <TableScroll>
           <Table fz="sm" withTableBorder aria-label={label}>
             <Table.Thead>
               <Table.Tr>
@@ -172,7 +173,7 @@ export function TableFieldInput({ typeKey, def, value, onChange }: { typeKey: st
               ))}
             </Table.Tbody>
           </Table>
-        </div>
+        </TableScroll>
       )}
       <Button
         size="xs"

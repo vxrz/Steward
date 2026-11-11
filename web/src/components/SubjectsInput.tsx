@@ -4,8 +4,33 @@ import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import type { Subject } from '@sm/shared';
 import { getOptional } from '../api';
+import { subjectKeys } from '../queryKeys';
 import { subjectOptionLabel } from './AccessEditor';
+import { subjectLabel } from './common';
 import { NamedOutsideHint, type NamedScope } from './NamedOutsideHint';
+
+const useSubjects = () => useQuery({ queryKey: subjectKeys.all, queryFn: () => getOptional<Subject[]>('/subjects', []), retry: false, staleTime: 60_000 });
+
+/**
+ * Owners and other subjects by name: users by their display name ("Dana Designer", not "dana"), teams as they were
+ * entered ("Team Service Desk", while the stored value is lower-case). Without the list (read-only accounts) or for a
+ * subject that is not on it any more, as stored (`subjectLabel`).
+ */
+export function useSubjectLabel(): (subject: string) => string {
+  const { t } = useTranslation('common');
+  const subjects = useSubjects();
+  // `t`: recompute when the language changes (the labels are translated with the global i18n instance)
+  return useMemo(() => {
+    const known = new Map((subjects.data ?? []).map((s) => [s.value, s]));
+    return (subject: string) => {
+      const s = known.get(subject.toLowerCase());
+      if (!s) return subjectLabel(subject);
+      if (s.kind === 'user') return s.label.replace(/\s*\([^()]*\)$/, '') || subjectLabel(subject);
+      return subjectOptionLabel(s);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subjects.data, t]);
+}
 
 /**
  * Owners and other people (#143): users and teams picked from the list (with roles where `roles` is set), so a typo
@@ -36,7 +61,7 @@ export function SubjectsInput({
   saved?: readonly string[];
 }) {
   const { t } = useTranslation('common');
-  const subjects = useQuery({ queryKey: ['subjects'], queryFn: () => getOptional<Subject[]>('/subjects', []), retry: false, staleTime: 60_000 });
+  const subjects = useSubjects();
   const list = useMemo(() => (subjects.data ?? []).filter((s) => roles || s.kind !== 'role'), [subjects.data, roles]);
   const known = useMemo(() => new Map(list.map((s) => [s.value, s])), [list]);
   const hint = scope ? <NamedOutsideHint scope={scope} value={value} saved={saved} /> : null;

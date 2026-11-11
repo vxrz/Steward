@@ -60,6 +60,9 @@ body {
 }
 .table-scroll {
   overflow-x: auto;
+  /* the containing block of what is positioned inside (a visually hidden column header): otherwise it sits at the
+     table's right edge outside the box and widens the page on phones */
+  position: relative;
 }
 /*
  * Identifiers, paths and addresses (plant registry): broken after / . _ : ; , (the Breakable component marks those
@@ -190,6 +193,23 @@ p .mantine-Anchor-root,
 .md a {
   text-decoration: underline;
 }
+/*
+ * Badges in table cells keep their full label: a badge's label cuts off with "…", so its min-content width is tiny and
+ * the table squeezed the column until the status ("Partly implem…") or the type ("SOFTWAR…") was unreadable.
+ */
+.mantine-Table-td .mantine-Badge-root {
+  max-width: none;
+  flex-shrink: 0;
+}
+.mantine-Table-td .mantine-Badge-label {
+  overflow: visible;
+}
+/* A badge whose text can be long (several months, a sentence) wraps instead (`className="badge-wrap"`). */
+.mantine-Badge-root.badge-wrap {
+  white-space: normal;
+  height: auto;
+  flex-shrink: 1;
+}
 /* Inactive rows (revoked tokens, deactivated users): dimmed text instead of opacity, which broke text contrast. */
 .mantine-Table-tr[data-inactive] {
   color: var(--mantine-color-dimmed);
@@ -265,6 +285,19 @@ p .mantine-Anchor-root,
   --cb-size-sm: 28px;
 }
 
+/*
+ * Links that stand on their own in a table cell (a service's name, a badge that links) are targets of at least 24 px
+ * height too (WCAG 2.2, 2.5.8): rows are dense, so their neighbours are closer than 24 px. Links inside running text
+ * are exempt and keep their line height.
+ */
+.mantine-Table-td > a.mantine-Anchor-root,
+.mantine-Table-td > a.mantine-Badge-root {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  vertical-align: middle;
+}
+
 /* Sidebar pins (v0.4.0): the pin of an entry shows on hover and keyboard focus; on touch screens always. */
 .nav-entry .nav-pin {
   opacity: 0;
@@ -291,6 +324,25 @@ p .mantine-Anchor-root,
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: thin;
+}
+/* One line that scrolls on phones and tablets; from md up the tabs wrap, so none hides past the edge (11 tabs on a service). */
+.link-tabs .link-tabs-list {
+  flex-wrap: nowrap;
+}
+@media (min-width: 62em) {
+  .link-tabs .link-tabs-list {
+    flex-wrap: wrap;
+  }
+}
+/* Below md: a shadow at an edge that has more tabs past it (the covers scroll with the content, the shadows stay). */
+@media (max-width: 61.99em) {
+  .link-tabs {
+    background:
+      linear-gradient(to right, var(--mantine-color-body) 40%, transparent) left center / 24px 100% no-repeat local,
+      linear-gradient(to left, var(--mantine-color-body) 40%, transparent) right center / 24px 100% no-repeat local,
+      radial-gradient(farthest-side at 0 50%, rgb(0 0 0 / 20%), transparent) left center / 12px 100% no-repeat scroll,
+      radial-gradient(farthest-side at 100% 50%, rgb(0 0 0 / 20%), transparent) right center / 12px 100% no-repeat scroll;
+  }
 }
 .link-tab {
   padding: 8px 12px;
@@ -344,6 +396,14 @@ p .mantine-Anchor-root,
     margin-left: 14px;
     padding-left: var(--mantine-spacing-md);
   }
+}
+
+/*
+ * Whatever gets the focus or is scrolled to stays clear of the sticky header, also when tabbing backwards up a long page
+ * (WCAG 2.2 2.4.11). The header's height variable lives on the app shell, so on `html` its fallback applies.
+ */
+html {
+  scroll-padding-top: calc(var(--app-shell-header-height, 52px) + 8px);
 }
 
 /*

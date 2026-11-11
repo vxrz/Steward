@@ -17,6 +17,25 @@ export const numberFormat = (opts: Intl.NumberFormatOptions = {}) => cached('n',
 /** "A, B and C" / "A, B und C" */
 export const listFormat = (opts: Intl.ListFormatOptions = { type: 'conjunction' }) => cached('l', opts, (l) => new Intl.ListFormat(l, opts));
 
+/**
+ * Today in the browser's time zone as `YYYY-MM-DD` (or `days` later), for date inputs, their limits and day counts.
+ * Not `new Date().toISOString().slice(0, 10)`: that is the day in UTC, yesterday between midnight and 01:00/02:00 in
+ * Europe (ESLint refuses it in web/).
+ */
+export function localToday(days = 0): string {
+  const n = new Date();
+  if (days) n.setDate(n.getDate() + days);
+  return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`;
+}
+
+/**
+ * The first letter upper-case, for names stored in lower case that start a line or a heading (the neutral topic names
+ * of the built-in control catalogues: "5.1 Information security policies").
+ */
+export function capFirst(s: string): string {
+  return s ? s.charAt(0).toLocaleUpperCase() + s.slice(1) : s;
+}
+
 /** Number in the UI language, e.g. 1,284 / 1.284 */
 export function fmtNumber(n: number | null | undefined, opts: Intl.NumberFormatOptions = {}): string {
   if (n === null || n === undefined || !Number.isFinite(n)) return '–';

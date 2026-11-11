@@ -144,7 +144,7 @@ export function FilterPanel({ active, children }: { active: number; children: Re
 export function SeverityBadge({ severity, size = 'xs' }: { severity: string; size?: 'xs' | 'sm' }) {
   useTranslation();
   return (
-    <Badge color={SEVERITY_COLORS[severity] ?? TONE.neutral} variant="light" size={size}>
+    <Badge color={SEVERITY_COLORS[severity] ?? TONE.neutral} variant="light" size={size} style={{ flexShrink: 0 }}>
       {severityLabel(severity)}
     </Badge>
   );
@@ -208,9 +208,12 @@ export function EmptyState({
   compact,
   whoCanAct,
   testId = 'empty-state',
+  titleOrder,
 }: {
   icon?: TablerIcon;
   title: ReactNode;
+  /** The title as a heading of this level (the page's h1 when the state is all a page shows) */
+  titleOrder?: 1 | 2 | 3;
   children?: ReactNode;
   action?: ReactNode;
   compact?: boolean;
@@ -222,9 +225,15 @@ export function EmptyState({
     <Paper withBorder={!compact} p={compact ? 'sm' : 'xl'} mb={compact ? 0 : 'md'} data-testid={testId}>
       <Stack align="center" gap={6}>
         {Icon && <Icon size={compact ? 28 : 40} stroke={1.3} color="var(--mantine-color-dimmed)" aria-hidden />}
-        <Text fw={600} ta="center">
-          {title}
-        </Text>
+        {titleOrder ? (
+          <Title order={titleOrder} size="h4" ta="center">
+            {title}
+          </Title>
+        ) : (
+          <Text fw={600} ta="center">
+            {title}
+          </Text>
+        )}
         {children && (
           <Text size="sm" c="dimmed" ta="center" maw={560} component="div">
             {children}
@@ -274,11 +283,25 @@ export function ErrorState({ error, onRetry }: { error: unknown; onRetry?: () =>
 
 /**
  * A detail page before its entry is there: a skeleton of breadcrumb, title and content while it loads;
- * the reason, _Try again_ and the way back when it could not be loaded.
+ * the reason, _Try again_ and the way back when it could not be loaded. An entry that does not exist or that the
+ * reader may not see (404, 403) is no error to retry: the page says "Not found" as its heading, in a neutral colour.
  */
 export function DetailState({ query, back }: { query: { isLoading: boolean; error: unknown; refetch: () => unknown }; back?: Crumb | Crumb[] }) {
   const { t } = useTranslation();
   const crumbs = back ? (Array.isArray(back) ? back : [back]) : [];
+  const status = (query.error as { status?: unknown } | null)?.status;
+  if (query.error && (status === 404 || status === 403))
+    return (
+      <>
+        {crumbs.length > 0 && <BackLinks crumbs={crumbs} />}
+        <Title order={1} fz={{ base: 'h3', sm: 'h2' }} mb="xs" data-testid="detail-not-found">
+          {t('notFound')}
+        </Title>
+        <Text size="sm" c="dimmed" mb="md">
+          {errorText(query.error)}
+        </Text>
+      </>
+    );
   if (query.error)
     return (
       <>

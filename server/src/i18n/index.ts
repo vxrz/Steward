@@ -66,3 +66,23 @@ export function formatDateTime(locale: Locale, iso: string): string {
     d,
   );
 }
+
+/** English dates read the British way (11 Dec 2026), as in the UI's English style (docs/I18N.md). */
+const dateLocale = (locale: Locale): string => (locale === 'en' ? 'en-GB' : locale);
+
+/** A calendar day (`YYYY-MM-DD`) in the given language for message bodies: "11 Dec 2026", "11.12.2026". Anything else is returned as it is. */
+export function formatDay(locale: Locale, day: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day);
+  if (!m) return day;
+  // noon UTC, formatted in UTC: the same calendar day whatever the server's time zone
+  const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12));
+  return new Intl.DateTimeFormat(dateLocale(locale), { dateStyle: 'medium', timeZone: 'UTC' }).format(d);
+}
+
+/** A month (`YYYY-MM`) in the given language: "November 2026". Anything else is returned as it is. */
+export function formatMonth(locale: Locale, month: string): string {
+  const m = /^(\d{4})-(\d{2})$/.exec(month);
+  if (!m) return month;
+  const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, 15, 12));
+  return new Intl.DateTimeFormat(dateLocale(locale), { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(d);
+}

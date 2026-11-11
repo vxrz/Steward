@@ -17,7 +17,8 @@ import { del, get, getOptional, notifyError, notifyOk, post, put } from '../../a
 import { useFieldErrors } from '../common';
 import { SubjectsInput } from '../SubjectsInput';
 import { confirmDanger } from '../confirm';
-import { fmtDate, fmtDay } from '../../format';
+import { fmtDate, fmtDay, localToday } from '../../format';
+import { TableScroll } from '../TableScroll';
 
 /** Incident reviews (#109): measures with owners and due dates, the timeline from what Steward saw, starting a review. */
 
@@ -50,7 +51,7 @@ function MeasureModal({
   const { t } = useTranslation(['records', 'common']);
   const [title, setTitle] = useState(measure?.title ?? '');
   const [owners, setOwners] = useState<string[]>(measure?.owners ?? []);
-  const [dueDate, setDueDate] = useState(measure?.dueDate ?? new Date(Date.now() + 14 * 86_400_000).toISOString().slice(0, 10));
+  const [dueDate, setDueDate] = useState(measure?.dueDate ?? localToday(14));
   const [note, setNote] = useState(measure?.note ?? '');
   const [busy, setBusy] = useState(false);
   const v = useFieldErrors({
@@ -179,7 +180,7 @@ export function MeasuresPanel({ recordId }: { recordId: string }) {
         </Text>
       )}
       {items.length > 0 && (
-        <div className="table-scroll">
+        <TableScroll>
           <Table fz="sm" aria-labelledby="review-measures-title">
             <Table.Thead>
               <Table.Tr>
@@ -252,7 +253,7 @@ export function MeasuresPanel({ recordId }: { recordId: string }) {
               ))}
             </Table.Tbody>
           </Table>
-        </div>
+        </TableScroll>
       )}
       {editing && <MeasureModal recordId={recordId} measure={editing === 'new' ? undefined : editing} onClose={() => setEditing(null)} onSaved={set} />}
     </Stack>

@@ -20,7 +20,7 @@ import { assertKnownSubjects } from '../auth/subjects.js';
 import { owningTeams } from '../auth/policy.js';
 import { auditNamedGrant, outsidersOf, requireNamedGrant, type NamedGrant } from '../auth/named-grants.js';
 import { getUser } from '../auth/users.js';
-import { formatDateTime, resolveLocale, t, type MessageKey } from '../i18n/index.js';
+import { formatDateTime, formatDay, resolveLocale, t, type MessageKey } from '../i18n/index.js';
 import { getSettings } from '../settings.js';
 import { monitorVisibility } from '../monitors/redact.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
@@ -535,7 +535,7 @@ export async function runMeasureJob(now = Date.now()): Promise<number> {
       event: 'measure.due',
       text: (l) => ({
         title: t(l, `measure.${kind}.title` as MessageKey, { ...params, measure: titleName(m.title) }),
-        body: t(l, `measure.${kind}.body` as MessageKey, params),
+        body: t(l, `measure.${kind}.body` as MessageKey, { ...params, due: formatDay(l, params.due) }),
       }),
       link: `/records/${m.record_id}`,
       recipients,

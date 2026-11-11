@@ -28,6 +28,7 @@ import { dataContractKeys, platformKeys } from '../queryKeys';
 import { fmtDate, fmtDuration, fmtRelative } from '../format';
 import { ChangeList, ContractYamlEditor, FindingsList, LintList, OdcsStatusBadge, ResultBadge } from '../components/contracts/parts';
 import { LinksPanel } from '../components/contracts/links';
+import { TableScroll } from '../components/TableScroll';
 
 const TABS = ['', 'contract', 'versions', 'tests', 'links'] as const;
 const TAB_ICONS = { '': IconInfoCircle, contract: IconCode, versions: IconHistory, tests: IconFlask, links: IconLink } as const;
@@ -654,7 +655,7 @@ function RunModal({ contractId, runId, onClose }: { contractId: string; runId: s
             {r.truncated ? ` ${t('tests.truncated')}` : ''}
           </Text>
           {checks.length > 0 && (
-            <div className="table-scroll">
+            <TableScroll>
               <Table fz="sm" aria-label={t('tests.checksTitle')} data-testid="contract-run-checks">
                 <Table.Thead>
                   <Table.Tr>
@@ -682,7 +683,7 @@ function RunModal({ contractId, runId, onClose }: { contractId: string; runId: s
                   ))}
                 </Table.Tbody>
               </Table>
-            </div>
+            </TableScroll>
           )}
           <details>
             <summary>

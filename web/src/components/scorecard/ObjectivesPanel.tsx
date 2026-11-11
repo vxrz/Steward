@@ -192,13 +192,13 @@ function ObjectiveCard({ objective: o, onEdit, onArchive }: { objective: Objecti
             </Text>
           )}
           {o.noDataReason && !o.archived && (
-            <Text size="xs" c={o.noDataTooLong ? 'red.8' : 'dimmed'}>
+            <Text size="xs" c={o.noDataTooLong ? 'red' : 'dimmed'}>
               {o.noDataTooLong && o.noDataSince ? `${t('objectives.noDataSince', { date: fmtDate(o.noDataSince) })} ` : ''}
               {t(o.sourceKind === 'monitor' && o.noDataReason === 'noValue' ? 'noData.monitorNoValue' : `noData.${o.noDataReason}`)}
             </Text>
           )}
           {o.breach && (
-            <Text size="xs" c="red.8">
+            <Text size="xs" c="red">
               {t('objectives.breachSince', { date: fmtDate(o.breach.startedAt) })}
             </Text>
           )}

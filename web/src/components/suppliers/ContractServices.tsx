@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ActionIcon, Anchor, Badge, Button, Group, Modal, MultiSelect, Select, Stack, Text, TextInput } from '@mantine/core';
+import { ActionIcon, Anchor, Badge, Button, Group, MultiSelect, Select, Stack, Text, TextInput } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { IconCheck, IconDoorExit, IconEdit, IconPlus, IconX } from '@tabler/icons-react';
@@ -16,6 +16,7 @@ import {
 import { del, get, notifyError, notifyOk, put } from '../../api';
 import { confirmDanger } from '../confirm';
 import { platformKeys } from '../../queryKeys';
+import { FormModal, FormModalCancel } from '../FormModal';
 
 /**
  * The services a contract covers, each with its purpose (ADR 0031): proposed ones with _Confirm_ and _Not this service_,
@@ -192,7 +193,7 @@ function PurposeModal({
   ];
   const parsed = items.map((v) => ({ kind: v.slice(0, v.indexOf(':')) as SupplierContractItemKind, id: v.slice(v.indexOf(':') + 1) }));
   return (
-    <Modal opened onClose={onClose} title={t('contractServices.purposeTitle', { service: service.name })}>
+    <FormModal onClose={onClose} title={t('contractServices.purposeTitle', { service: service.name })}>
       <Stack gap="sm">
         <TextInput
           label={t('contractServices.purpose')}
@@ -214,15 +215,13 @@ function PurposeModal({
           data-testid="contract-service-items"
         />
         <Group justify="flex-end">
-          <Button variant="default" onClick={onClose}>
-            {t('common:cancel')}
-          </Button>
+          <FormModalCancel />
           <Button onClick={() => void onSave(value.trim(), parsed)} data-testid="contract-service-save">
             {t('common:save')}
           </Button>
         </Group>
       </Stack>
-    </Modal>
+    </FormModal>
   );
 }
 
@@ -232,7 +231,7 @@ function AddServiceModal({ taken, onClose, onSave }: { taken: string[]; onClose:
   const [id, setId] = useState<string | null>(null);
   const [purpose, setPurpose] = useState('');
   return (
-    <Modal opened onClose={onClose} title={t('contractServices.add')}>
+    <FormModal onClose={onClose} title={t('contractServices.add')}>
       <Stack gap="sm">
         <Select
           label={t('contractServices.service')}
@@ -250,15 +249,13 @@ function AddServiceModal({ taken, onClose, onSave }: { taken: string[]; onClose:
           onChange={(e) => setPurpose(e.currentTarget.value)}
         />
         <Group justify="flex-end">
-          <Button variant="default" onClick={onClose}>
-            {t('common:cancel')}
-          </Button>
+          <FormModalCancel />
           <Button disabled={!id} onClick={() => id && void onSave(id, purpose.trim())} data-testid="add-service-save">
             {t('common:add')}
           </Button>
         </Group>
       </Stack>
-    </Modal>
+    </FormModal>
   );
 }
 
@@ -385,7 +382,7 @@ function PlatformModal({
   const [id, setId] = useState<string | null>(current?.id ?? null);
   const [purpose, setPurpose] = useState(current?.purpose ?? '');
   return (
-    <Modal opened onClose={onClose} title={current ? t('contractServices.purposeTitle', { service: current.name }) : t('contractPlatforms.add')}>
+    <FormModal onClose={onClose} title={current ? t('contractServices.purposeTitle', { service: current.name }) : t('contractPlatforms.add')}>
       <Stack gap="sm">
         {!current && (
           <Select
@@ -407,14 +404,12 @@ function PlatformModal({
           data-testid="add-platform-purpose"
         />
         <Group justify="flex-end">
-          <Button variant="default" onClick={onClose}>
-            {t('common:cancel')}
-          </Button>
+          <FormModalCancel />
           <Button disabled={!id} onClick={() => id && void onSave(id, purpose.trim())} data-testid="add-platform-save">
             {current ? t('common:save') : t('common:add')}
           </Button>
         </Group>
       </Stack>
-    </Modal>
+    </FormModal>
   );
 }

@@ -57,6 +57,7 @@ import { platformKeys } from '../../queryKeys';
 import { TopicOffers, TopicPrefixModal } from './TopicPrefix';
 import { CollapsibleSection } from '../page/CollapsibleSection';
 import { fmtMoney } from '../costs/common';
+import { TableScroll } from '../TableScroll';
 
 export const formatLabel = (f: string) => (f === 'cyclonedx' ? 'CycloneDX' : 'SPDX');
 
@@ -184,7 +185,7 @@ export function ComponentsPanel({ app, onSaved }: { app: ApplicationDetail; onSa
             {t('components.empty')}
           </Text>
         ) : (
-          <div className="table-scroll">
+          <TableScroll>
             <Table fz="sm" aria-labelledby="components-title">
               <Table.Thead>
                 <Table.Tr>
@@ -289,7 +290,7 @@ export function ComponentsPanel({ app, onSaved }: { app: ApplicationDetail; onSa
                 ))}
               </Table.Tbody>
             </Table>
-          </div>
+          </TableScroll>
         )}
         {app.stack.length > 0 && <StackRollup app={app} />}
         {editing && <ComponentFormModal app={app} component={editing === 'new' ? null : editing} onClose={() => setEditing(null)} onSaved={onSaved} />}
@@ -329,7 +330,7 @@ function ClusterLine({ component: c }: { component: ApplicationComponent }) {
   return (
     <Stack gap={0} data-testid="cluster-readout">
       {r.error && (
-        <Text size="xs" c="red.8">
+        <Text size="xs" c="red">
           {t('components.cluster.error', { error: r.error })}
         </Text>
       )}
@@ -371,7 +372,7 @@ function RepositoryLine({ component: c, onRegister }: { component: ApplicationCo
         {t('components.repository.notRead')}
       </Text>
     );
-  const color = r.pipeline.state === 'failed' ? 'red.8' : r.pipeline.state === 'success' ? 'green.8' : 'dimmed';
+  const color = r.pipeline.state === 'failed' ? 'red' : r.pipeline.state === 'success' ? 'green.8' : 'dimmed';
   const alerts = r.alerts ? r.alerts.critical + r.alerts.high + r.alerts.medium + r.alerts.low : 0;
   const draftOf = (k: RepositoryKey): CredentialDraft => ({
     name: `${c.name}: ${k.title}`,
@@ -386,7 +387,7 @@ function RepositoryLine({ component: c, onRegister }: { component: ApplicationCo
   return (
     <Stack gap={0} data-testid="repository-readout">
       {r.error && (
-        <Text size="xs" c="red.8">
+        <Text size="xs" c="red">
           {t('components.cluster.error', { error: r.error })}
         </Text>
       )}
@@ -471,11 +472,11 @@ function DtrackLine({ component: c }: { component: ApplicationComponent }) {
   return (
     <Stack gap={0} data-testid="dtrack-readout">
       {r.error && (
-        <Text size="xs" c="red.8">
+        <Text size="xs" c="red">
           {t('components.cluster.error', { error: r.error })}
         </Text>
       )}
-      <Text size="xs" c={bad ? 'red.8' : r.counts.high ? 'orange' : 'dimmed'}>
+      <Text size="xs" c={bad ? 'red' : r.counts.high ? 'orange' : 'dimmed'}>
         {r.url ? (
           <Anchor size="xs" href={r.url} target="_blank" rel="noreferrer">
             {project}
@@ -490,7 +491,7 @@ function DtrackLine({ component: c }: { component: ApplicationComponent }) {
         .filter((f) => f.severity === 'critical' || f.severity === 'high')
         .slice(0, 5)
         .map((f) => (
-          <Text key={`${f.vulnId}-${f.component}`} size="xs" c={f.severity === 'critical' ? 'red.8' : 'orange'}>
+          <Text key={`${f.vulnId}-${f.component}`} size="xs" c={f.severity === 'critical' ? 'red' : 'orange'}>
             {t('components.dtrack.finding', {
               id: f.vulnId,
               severity: t(`components.dtrack.severity.${f.severity}`),
@@ -518,7 +519,7 @@ function SnowflakeLine({ component: c }: { component: ApplicationComponent }) {
   return (
     <Stack gap={0} data-testid="snowflake-readout">
       {r.error && (
-        <Text size="xs" c="red.8">
+        <Text size="xs" c="red">
           {t('components.cluster.error', { error: r.error })}
         </Text>
       )}
@@ -527,7 +528,7 @@ function SnowflakeLine({ component: c }: { component: ApplicationComponent }) {
         {t('components.snowflake.summary', { account: r.account ?? '–', count: r.tableCount, size: fmtBytes(r.bytes) })}
       </Text>
       {r.failedTasks.length > 0 && (
-        <Text size="xs" c="red.8">
+        <Text size="xs" c="red">
           {t('components.snowflake.failedTasks', {
             tasks: [...new Set(r.failedTasks.map((x) => `${x.schema}.${x.name}`))].join(', '),
             error: r.failedTasks[0]!.error,
@@ -579,7 +580,7 @@ function AwsLine({ component: c, onRegister }: { component: ApplicationComponent
   return (
     <Stack gap={0} data-testid="aws-readout">
       {r.error && (
-        <Text size="xs" c="red.8">
+        <Text size="xs" c="red">
           {t('components.cluster.error', { error: r.error })}
         </Text>
       )}
@@ -712,7 +713,7 @@ function TopicLine({ component: c }: { component: ApplicationComponent }) {
   return (
     <Stack gap={0} data-testid="topic-readout">
       {r.error && (
-        <Text size="xs" c="red.8">
+        <Text size="xs" c="red">
           {t('components.cluster.error', { error: r.error })}
         </Text>
       )}
@@ -1266,7 +1267,7 @@ export function SbomImportModal<R extends { preview: SbomPreview }>({
             {changing.length === 0 ? (
               <Alert color="gray">{t('components.sbom.nothing')}</Alert>
             ) : (
-              <div className="table-scroll">
+              <TableScroll>
                 <Table fz="sm">
                   <Table.Thead>
                     <Table.Tr>
@@ -1299,7 +1300,7 @@ export function SbomImportModal<R extends { preview: SbomPreview }>({
                     ))}
                   </Table.Tbody>
                 </Table>
-              </div>
+              </TableScroll>
             )}
           </Stack>
         )}

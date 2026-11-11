@@ -16,6 +16,7 @@ import { fieldLabelByKey, typeDescription, typeTemplate } from '../components/re
 import { EditionBadge, ReviewStatusBadge } from '../components/records/DocumentPanel';
 import { ListPage } from '../components/page/ListPage';
 import { RestrictedEmpty, useHiddenByPermissions } from '../components/modules/RestrictedEmpty';
+import { TableScroll } from '../components/TableScroll';
 
 /** Records per request; "Load more" raises the limit by this much. */
 const RECORDS_PAGE = 500;
@@ -507,7 +508,7 @@ function ImportModal({ onClose }: { onClose: () => void }) {
         </Box>
         {problem && <Alert color="orange">{problem}</Alert>}
         {items.length > 0 && (
-          <div className="table-scroll">
+          <TableScroll>
             <Table fz="sm" aria-label={result ? t('importer.result') : t('importer.preview')}>
               <Table.Thead>
                 <Table.Tr>
@@ -572,7 +573,7 @@ function ImportModal({ onClose }: { onClose: () => void }) {
                 ))}
               </Table.Tbody>
             </Table>
-          </div>
+          </TableScroll>
         )}
         {result && <Alert color="green">{t('importer.done', { count: result.filter((r) => r.record).length })}</Alert>}
         <Group justify="flex-end">

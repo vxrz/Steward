@@ -8,7 +8,6 @@ import {
   Checkbox,
   Group,
   Menu,
-  Modal,
   Paper,
   SegmentedControl,
   Select,
@@ -61,7 +60,7 @@ import { DataTable, type DataColumn } from '../DataTable';
 import { confirmDanger, confirmDialog } from '../confirm';
 import { compact, niceTicks } from '../dashboard/format';
 import { costKeys, platformKeys } from '../../queryKeys';
-import { fmtDay, listFormat } from '../../format';
+import { fmtDay, listFormat, localToday } from '../../format';
 import { fmtMonth, fmtMonthOnly, fmtMoney, ownerKey, SCOPE_PATH, tooManyDecimals, type PlanOwner } from './common';
 import '../dashboard/viz.css';
 import { SupplierPicker, SupplierText, useSupplierChoice, useSupplierOptions } from '../suppliers/SupplierPicker';
@@ -70,6 +69,7 @@ import { ChangesPanel, PrepaidRows, ProposalsPanel } from './ContractLines';
 import { ServiceContracts } from './Commitments';
 import { VolumesSection } from './Volumes';
 import { EntryImportDialog, EntryImports } from './EntryImport';
+import { FormModal, FormModalCancel } from '../FormModal';
 
 /** The API path of a cost plan (a service's or a platform's) – spelled out in this file so the route contract test follows it. */
 const planBase = (o: PlanOwner): string =>
@@ -612,7 +612,7 @@ function NotBooked({ l }: { l: CostPlanLine }) {
   const { t } = useTranslation('costs');
   if (!l.notBooked.length) return null;
   return (
-    <Badge size="xs" variant="light" color="orange" data-testid="plan-not-booked">
+    <Badge size="xs" variant="light" color="orange" className="badge-wrap" data-testid="plan-not-booked">
       {t('plan.book.notBooked', { months: listFormat().format(l.notBooked.map((mo) => fmtMonth(mo))) })}
     </Badge>
   );
@@ -1027,10 +1027,6 @@ const parseTarget = (v: string | null): { kind: CostPlanTargetKind; id: string }
 };
 const amountOk = (v: string) => /^-?\d{1,12}([.,]\d{1,6})?$/.test(v.trim());
 /** Today in the browser's time zone (YYYY-MM-DD) – not the UTC date, which is yesterday's after midnight in Europe. */
-const localToday = () => {
-  const n = new Date();
-  return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`;
-};
 /** A form's submit (Enter in a field) runs the save. */
 const submit = (save: () => Promise<void>) => (e: FormEvent) => {
   e.preventDefault();
@@ -1151,7 +1147,7 @@ function LineDialog({ d, line, onClose, onSaved }: { d: CostPlanYear; line: Cost
     }
   };
   return (
-    <Modal opened onClose={onClose} title={line ? t('plan.line.editTitle', { label: d.label }) : t('plan.line.addTitle', { label: d.label })} size="lg">
+    <FormModal onClose={onClose} title={line ? t('plan.line.editTitle', { label: d.label }) : t('plan.line.addTitle', { label: d.label })} size="lg">
       <form onSubmit={submit(save)} noValidate>
         <Stack>
           <TextInput
@@ -1357,16 +1353,14 @@ function LineDialog({ d, line, onClose, onSaved }: { d: CostPlanYear; line: Cost
             {t('plan.form.noEffort')}
           </Text>
           <Group justify="flex-end">
-            <Button variant="default" onClick={onClose}>
-              {t('common:cancel')}
-            </Button>
+            <FormModalCancel />
             <Button type="submit" loading={busy} data-testid="plan-line-save">
               {t('common:save')}
             </Button>
           </Group>
         </Stack>
       </form>
-    </Modal>
+    </FormModal>
   );
 }
 
@@ -1445,7 +1439,7 @@ function EntryDialog({ d, entry, onClose, onSaved }: { d: CostPlanYear; entry: C
     }
   };
   return (
-    <Modal opened onClose={onClose} title={entry ? t('plan.entry.editTitle') : t('plan.entry.addTitle')} size="lg">
+    <FormModal onClose={onClose} title={entry ? t('plan.entry.editTitle') : t('plan.entry.addTitle')} size="lg">
       <form onSubmit={submit(save)} noValidate>
         <Stack>
           <SimpleGrid cols={{ base: 1, xs: 3 }}>
@@ -1554,16 +1548,14 @@ function EntryDialog({ d, entry, onClose, onSaved }: { d: CostPlanYear; entry: C
             onChange={(e) => setNote(e.currentTarget.value)}
           />
           <Group justify="flex-end">
-            <Button variant="default" onClick={onClose}>
-              {t('common:cancel')}
-            </Button>
+            <FormModalCancel />
             <Button type="submit" loading={busy} data-testid="plan-entry-save">
               {t('common:save')}
             </Button>
           </Group>
         </Stack>
       </form>
-    </Modal>
+    </FormModal>
   );
 }
 
@@ -1646,7 +1638,7 @@ function BookDialog({ d, line, onClose, onSaved }: { d: CostPlanYear; line: Cost
     }
   };
   return (
-    <Modal opened onClose={onClose} title={t('plan.book.title', { title: line.title })} size="lg">
+    <FormModal onClose={onClose} title={t('plan.book.title', { title: line.title })} size="lg">
       <form onSubmit={submit(save)} noValidate>
         <Stack>
           <Text size="xs" c="dimmed">
@@ -1703,15 +1695,13 @@ function BookDialog({ d, line, onClose, onSaved }: { d: CostPlanYear; line: Cost
           </SimpleGrid>
           <TextInput label={t('plan.entry.note')} maxLength={COST_PLAN_LIMITS.noteChars} value={note} onChange={(e) => setNote(e.currentTarget.value)} />
           <Group justify="flex-end">
-            <Button variant="default" onClick={onClose}>
-              {t('common:cancel')}
-            </Button>
+            <FormModalCancel />
             <Button type="submit" loading={busy} disabled={!offered.length} data-testid="plan-book-save">
               {t('plan.book.save')}
             </Button>
           </Group>
         </Stack>
       </form>
-    </Modal>
+    </FormModal>
   );
 }

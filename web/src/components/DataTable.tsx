@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { formatLocale } from '../i18n';
 import { useListView } from './page/ListPage';
 import { readJsonPref, writePref } from './page/prefs';
+import { TableScroll } from './TableScroll';
 
 export type SortValue = string | number | boolean | null | undefined;
 export type SortDir = 'asc' | 'desc';
@@ -181,7 +182,7 @@ export function DataTable<T>({
 
   return (
     <>
-      <div className="table-scroll">
+      <TableScroll>
         <Table highlightOnHover={clickable} fz="sm" verticalSpacing={verticalSpacing} aria-label={ariaLabel} data-testid={testId}>
           <Table.Thead>
             <Table.Tr>
@@ -237,7 +238,7 @@ export function DataTable<T>({
             })}
           </Table.Tbody>
         </Table>
-      </div>
+      </TableScroll>
       {footer}
     </>
   );

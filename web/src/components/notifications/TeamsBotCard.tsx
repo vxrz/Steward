@@ -29,6 +29,7 @@ import { apiUrl, get, getOptional, notifyError, notifyOk, put } from '../../api'
 import { fmtRelative } from '../../format';
 import { useSaveSection } from '../settings/SaveBar';
 import { useSsoProviders } from '../sso/SsoSection';
+import { TableScroll } from '../TableScroll';
 
 /**
  * Settings → Notifications → Teams bot (ADR 0013 stage 2, a preview, off by default): approve inside the Teams card.
@@ -122,7 +123,9 @@ export function TeamsBotCard() {
   return (
     <Card withBorder data-testid="teams-bot-card">
       <Group gap="xs" mb="xs">
-        <Title order={5}>{t('bot.title')}</Title>
+        <Title order={2} size="h5">
+          {t('bot.title')}
+        </Title>
         <Badge color="grape" variant="light" data-testid="teams-bot-preview">
           {t('bot.preview')}
         </Badge>
@@ -264,7 +267,7 @@ export function TeamsBotCard() {
               {t('bot.installedNone')}
             </Text>
           ) : (
-            <div className="table-scroll">
+            <TableScroll>
               <Table fz="sm" aria-label={t('bot.installed')}>
                 <Table.Thead>
                   <Table.Tr>
@@ -283,7 +286,7 @@ export function TeamsBotCard() {
                   ))}
                 </Table.Tbody>
               </Table>
-            </div>
+            </TableScroll>
           )}
         </div>
         <Group justify="space-between" wrap="wrap" gap="xs">

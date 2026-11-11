@@ -1,23 +1,5 @@
 import { useState } from 'react';
-import {
-  ActionIcon,
-  Alert,
-  Anchor,
-  Badge,
-  Button,
-  Checkbox,
-  Chip,
-  Grid,
-  Group,
-  Modal,
-  Paper,
-  Select,
-  Stack,
-  Table,
-  Text,
-  TextInput,
-  Textarea,
-} from '@mantine/core';
+import { ActionIcon, Alert, Anchor, Badge, Button, Checkbox, Chip, Grid, Group, Paper, Select, Stack, Table, Text, TextInput, Textarea } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { IconArchive, IconCheck, IconEdit, IconExternalLink, IconGitMerge, IconPlus, IconRestore, IconTrash, IconX } from '@tabler/icons-react';
@@ -33,7 +15,7 @@ import {
 } from '@sm/shared';
 import { del, get, notifyError, notifyOk, post, put } from '../api';
 import { CopyId } from '../components/CopyId';
-import { DetailState, subjectLabel, useFieldErrors } from '../components/common';
+import { DetailState, useFieldErrors } from '../components/common';
 import { Field } from '../components/records/common';
 import { confirmDanger } from '../components/confirm';
 import { fmtDate, fmtDay } from '../format';
@@ -48,6 +30,9 @@ import { SupplierCosts } from '../components/costs/Commitments';
 import { ContractModal } from '../components/suppliers/ContractForm';
 import { SupplierContacts } from '../components/suppliers/ScopedContacts';
 import { DocLink, DpaState, RemoveContractModal } from '../components/suppliers/contractParts';
+import { FormModal, FormModalCancel } from '../components/FormModal';
+import { useSubjectLabel } from '../components/SubjectsInput';
+import { TableScroll } from '../components/TableScroll';
 
 const DOC_LINK = /^(https?:\/\/\S+|rec_[A-Za-z0-9_-]{4,40}|[A-Z][A-Z0-9]{0,9}-\d{4}-\d{4,6})$/i;
 const TABS = ['overview', 'contracts', 'services', 'contacts', 'certificates', 'usedBy'] as const;
@@ -210,6 +195,7 @@ export function SupplierDetailPage() {
 /** Overview: the company record – data, owners, owning teams, the DPA default for contracts, criticality, reviews and findings. */
 function Overview({ s, complianceOn }: { s: SupplierDetail; complianceOn: boolean }) {
   const { t } = useTranslation(['suppliers', 'common', 'applications']);
+  const ownerLabel = useSubjectLabel();
   const crit = CIA_DIMENSIONS.filter((d) => s.criticality[d]);
   return (
     <Grid gap="lg">
@@ -268,7 +254,7 @@ function Overview({ s, complianceOn }: { s: SupplierDetail; complianceOn: boolea
                 '–'
               )}
             </Field>
-            <Field label={t('fields.owners')}>{s.owners.length ? s.owners.map(subjectLabel).join(', ') : '–'}</Field>
+            <Field label={t('fields.owners')}>{s.owners.length ? s.owners.map(ownerLabel).join(', ') : '–'}</Field>
             <Field label={t('detail.dataProtectionDefault')}>
               <Text size="sm">
                 {!s.personalData ? t('dpa.none') : t(`dpa.${s.dpaStatus ?? 'missing'}`)}
@@ -309,6 +295,7 @@ function Overview({ s, complianceOn }: { s: SupplierDetail; complianceOn: boolea
 /** One contract as the Contracts tab lists it (a card; an order form indented under its master). */
 function ContractCard({ s, c, onEdit, onRemove }: { s: SupplierDetail; c: SupplierContract; onEdit: () => void; onRemove: () => void }) {
   const { t } = useTranslation(['suppliers', 'common']);
+  const ownerLabel = useSubjectLabel();
   return (
     <Paper withBorder p="sm" ml={c.parentId ? 'xl' : 0} data-testid={`contract-${c.id}`}>
       <Group justify="space-between" wrap="nowrap" align="flex-start">
@@ -368,7 +355,7 @@ function ContractCard({ s, c, onEdit, onRemove }: { s: SupplierDetail; c: Suppli
           </Group>
           {c.owners.length > 0 && (
             <Text size="xs" c="dimmed">
-              {t('serviceSuppliers.owners', { owners: c.owners.map(subjectLabel).join(', ') })}
+              {t('serviceSuppliers.owners', { owners: c.owners.map(ownerLabel).join(', ') })}
             </Text>
           )}
         </div>
@@ -459,7 +446,8 @@ function ServicesTab({ s }: { s: SupplierDetail }) {
       {s.serviceUse.map((x) => (
         <Paper withBorder p="sm" key={x.id}>
           <Group gap="xs" wrap="wrap">
-            <Anchor component={Link} to={`/services/${x.id}`} fw={600} size="sm">
+            {/* a 24 px target: the contract links sit right below it (WCAG 2.5.8) */}
+            <Anchor component={Link} to={`/services/${x.id}`} fw={600} size="sm" display="inline-flex" mih={24} style={{ alignItems: 'center' }}>
               {x.name}
             </Anchor>
             {x.contracts.length === 0 && (
@@ -560,7 +548,7 @@ function CertificatesTab({ s, onSaved }: { s: SupplierDetail; onSaved: (x?: Supp
           {t('certificates.empty')}
         </Text>
       ) : (
-        <div className="table-scroll">
+        <TableScroll>
           <Table fz="sm" aria-label={t('certificates.title')}>
             <Table.Thead>
               <Table.Tr>
@@ -610,7 +598,7 @@ function CertificatesTab({ s, onSaved }: { s: SupplierDetail; onSaved: (x?: Supp
               ))}
             </Table.Tbody>
           </Table>
-        </div>
+        </TableScroll>
       )}
       {certificate && (
         <CertificateModal
@@ -642,13 +630,11 @@ function useSave(send: (body: unknown) => Promise<SupplierDetail>, onSaved: (s: 
   };
 }
 
-function FormButtons({ busy, onClose }: { busy: boolean; onClose: () => void }) {
+function FormButtons({ busy }: { busy: boolean }) {
   const { t } = useTranslation('common');
   return (
     <Group justify="flex-end">
-      <Button variant="default" onClick={onClose}>
-        {t('cancel')}
-      </Button>
+      <FormModalCancel />
       <Button type="submit" loading={busy}>
         {t('save')}
       </Button>
@@ -686,7 +672,7 @@ function CertificateModal({
     onClose,
   );
   return (
-    <Modal opened onClose={onClose} size="lg" title={certificate ? t('certificates.edit') : t('certificates.add')}>
+    <FormModal onClose={onClose} size="lg" title={certificate ? t('certificates.edit') : t('certificates.add')}>
       <form
         noValidate
         onSubmit={(e) => {
@@ -750,9 +736,9 @@ function CertificateModal({
             error={v.error('link')}
           />
           <Checkbox label={t('certificates.checked')} checked={checked} onChange={(e) => setChecked(e.currentTarget.checked)} />
-          <FormButtons busy={busy} onClose={onClose} />
+          <FormButtons busy={busy} />
         </Stack>
       </form>
-    </Modal>
+    </FormModal>
   );
 }

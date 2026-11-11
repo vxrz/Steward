@@ -55,6 +55,7 @@ import { platformKeys, versionKeys } from '../../queryKeys';
 import { EmptyState } from '../common';
 import { LifecycleBadge, lifecycleText } from './lifecycle';
 import { CollapsibleSection } from '../page/CollapsibleSection';
+import { TableScroll } from '../TableScroll';
 
 /**
  * Version watch (#241): the newest version of every tech stack entry, how far behind it is and where it was found –
@@ -264,7 +265,7 @@ export function StackVersions({ app }: { app: ApplicationDetail }) {
             ))}
           </Stack>
         ) : (
-          <div className="table-scroll">
+          <TableScroll>
             <Table fz="sm" aria-labelledby="versions-title" verticalSpacing={4}>
               <Table.Thead>
                 <Table.Tr>
@@ -331,7 +332,7 @@ export function StackVersions({ app }: { app: ApplicationDetail }) {
                 })}
               </Table.Tbody>
             </Table>
-          </div>
+          </TableScroll>
         )}
         {open && (
           <VersionEntryModal
@@ -500,7 +501,7 @@ export function VersionEntryModal({
               <Text size="sm" fw={600} id="version-tried">
                 {t('versions.tried')}
               </Text>
-              <div className="table-scroll">
+              <TableScroll>
                 <Table fz="xs" aria-labelledby="version-tried" verticalSpacing={2}>
                   <Table.Thead>
                     <Table.Tr>
@@ -519,7 +520,7 @@ export function VersionEntryModal({
                     ))}
                   </Table.Tbody>
                 </Table>
-              </div>
+              </TableScroll>
             </Stack>
           )}
           {d.canEdit && (

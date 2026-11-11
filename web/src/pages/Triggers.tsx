@@ -57,6 +57,7 @@ import { ListPage } from '../components/page/ListPage';
 import { useListParams } from '../components/page/params';
 import { DataTable, ListFooter, type DataColumn } from '../components/DataTable';
 import { processKeys } from '../queryKeys';
+import { TableScroll } from '../components/TableScroll';
 
 type Draft = WebhookTriggerSettings & { id?: string; owner?: string };
 
@@ -914,7 +915,7 @@ function HistoryModal({ trigger, onClose }: { trigger: WebhookTrigger; onClose: 
         </Text>
       )}
       {rows.length > 0 && (
-        <div className="table-scroll">
+        <TableScroll>
           <Table fz="xs">
             <Table.Thead>
               <Table.Tr>
@@ -951,7 +952,7 @@ function HistoryModal({ trigger, onClose }: { trigger: WebhookTrigger; onClose: 
               ))}
             </Table.Tbody>
           </Table>
-        </div>
+        </TableScroll>
       )}
     </Modal>
   );

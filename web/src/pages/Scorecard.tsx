@@ -41,6 +41,7 @@ import { useCiaScale, useLevel } from '../components/catalogue/cia';
 import { AttentionBadge, PartBadge, shownParts } from '../components/scorecard/common';
 import { fmtNumber } from '../format';
 import { ServiceTabs } from '../components/page/LinkTabs';
+import { TableScroll } from '../components/TableScroll';
 
 /**
  * The service scorecard: every service (not archived) with its four parts – duties, availability, documentation,
@@ -141,7 +142,7 @@ export function ScorecardPage() {
               ))}
             </Stack>
           ) : (
-            <div className="table-scroll">
+            <TableScroll>
               <Table highlightOnHover fz="sm" aria-label={t('servicesTable')} data-testid="scorecard-table">
                 <Table.Thead>
                   <Table.Tr>
@@ -176,7 +177,7 @@ export function ScorecardPage() {
                   ))}
                 </Table.Tbody>
               </Table>
-            </div>
+            </TableScroll>
           )}
           <OwnersTable overview={o} onPick={(k) => set('owner', k)} />
           <RulesPanel />
@@ -259,7 +260,7 @@ function OwnersTable({ overview, onPick }: { overview: ScorecardOverview; onPick
       <Title order={3} size="h5">
         {t('rollup.perOwner')}
       </Title>
-      <div className="table-scroll">
+      <TableScroll>
         <Table fz="sm" aria-label={t('rollup.perOwner')} data-testid="scorecard-owners">
           <Table.Thead>
             <Table.Tr>
@@ -288,7 +289,7 @@ function OwnersTable({ overview, onPick }: { overview: ScorecardOverview; onPick
             ))}
           </Table.Tbody>
         </Table>
-      </div>
+      </TableScroll>
     </Stack>
   );
 }

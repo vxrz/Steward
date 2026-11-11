@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, Button, Group, Modal, MultiSelect, NumberInput, SegmentedControl, Select, Stack, Text, TextInput, Textarea } from '@mantine/core';
+import { Alert, Button, Group, MultiSelect, NumberInput, SegmentedControl, Select, Stack, Text, TextInput, Textarea } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import {
@@ -18,6 +18,7 @@ import { useFieldErrors } from '../common';
 import { platformKeys } from '../../queryKeys';
 import { SubjectsInput } from '../SubjectsInput';
 import { confirmDialog } from '../confirm';
+import { FormModal, FormModalCancel } from '../FormModal';
 
 const DOC_LINK = /^(https?:\/\/\S+|rec_[A-Za-z0-9_-]{4,40}|[A-Z][A-Z0-9]{0,9}-\d{4}-\d{4,6})$/i;
 const numOrNull = (v: string | number) => (v === '' || v === null || v === undefined ? null : Number(v));
@@ -146,7 +147,7 @@ export function ContractModal({
   };
   const willOpen = !!c && c.teamOwned && !hasTeamOwner(owners);
   return (
-    <Modal opened onClose={onClose} size="lg" title={c ? t('contracts.edit') : t('contracts.add')}>
+    <FormModal onClose={onClose} size="lg" title={c ? t('contracts.edit') : t('contracts.add')}>
       <form
         noValidate
         onSubmit={(e) => {
@@ -364,15 +365,13 @@ export function ContractModal({
             onChange={(e) => setNote(e.currentTarget.value)}
           />
           <Group justify="flex-end">
-            <Button variant="default" onClick={onClose}>
-              {t('common:cancel')}
-            </Button>
+            <FormModalCancel />
             <Button type="submit" loading={busy} data-testid="contract-save">
               {t('common:save')}
             </Button>
           </Group>
         </Stack>
       </form>
-    </Modal>
+    </FormModal>
   );
 }

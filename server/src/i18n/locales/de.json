@@ -621,7 +621,7 @@
     "noticeTitle_one": "Lieferant {{supplier}}: Kündigung von „{{title}}“ in {{count}} Tag fällig",
     "noticeTitle_other": "Lieferant {{supplier}}: Kündigung von „{{title}}“ in {{count}} Tagen fällig",
     "noticeBody": "Der letzte Tag, um den Vertrag „{{title}}“ des Lieferanten „{{supplier}}“ zu kündigen, ist der {{date}}. Bitte entscheiden Sie, ob er sich verlängern soll.",
-    "hint": "Sie erhalten diese Nachricht, weil Sie in Steward für den Lieferanten verantwortlich sind."
+    "hint": "Sie erhalten diese Nachricht, weil Sie in Steward für den Vertrag oder den Lieferanten verantwortlich sind."
   },
   "costBooking": {
     "title_one": "{{service}}: {{count}} Vertragszahlung von {{month}} nicht gebucht",

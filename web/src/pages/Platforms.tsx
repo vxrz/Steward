@@ -50,6 +50,7 @@ import { ListPage, useStoredListView } from '../components/page/ListPage';
 import { DataTable, ListFooter, type DataColumn } from '../components/DataTable';
 import { platformKeys } from '../queryKeys';
 import { AddPlatformWizard } from '../components/platform/AddPlatformWizard';
+import { TableScroll } from '../components/TableScroll';
 
 export const KIND_COLORS: Record<string, string> = {
   'insights-hub': 'teal',
@@ -436,7 +437,7 @@ function ConnectorTypesModal({ opened, onClose, canManage }: { opened: boolean; 
             })}
           </Text>
         ) : (
-          <div className="table-scroll">
+          <TableScroll>
             <Table fz="sm">
               <Table.Thead>
                 <Table.Tr>
@@ -493,7 +494,7 @@ function ConnectorTypesModal({ opened, onClose, canManage }: { opened: boolean; 
                 ))}
               </Table.Tbody>
             </Table>
-          </div>
+          </TableScroll>
         )}
       </Stack>
     </Modal>

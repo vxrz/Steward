@@ -73,7 +73,7 @@ export function GettingStarted({ setup, demoAction, forceShow }: { setup: Dashbo
             </ActionIcon>
           </Tooltip>
           <IconRocket size={18} aria-hidden />
-          <Title order={5} id="getting-started-title">
+          <Title order={2} size="h5" id="getting-started-title">
             {t('checklist.title')}
           </Title>
         </Group>

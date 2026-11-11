@@ -385,7 +385,7 @@
       "forHint": "Eine Anwendung oder ein System des Service (für Cloud-Positionen eine Plattform)",
       "noTarget": "Keiner Anwendung und keinem System zugeordnet",
       "cloudHint": "Eine Cloud-Position für eine Anwendung oder Plattform wird mit den Kosten verglichen, die Steward dafür liest (bei einer Plattform: der Anteil der Anwendungen des Service).",
-      "vendor": "Anbieter oder Vertrag",
+      "vendor": "Lieferant (Freitext)",
       "vendorHint": "Freitext, z. B. der Anbieter und die Vertragsnummer",
       "cadence": "Turnus",
       "amount": {

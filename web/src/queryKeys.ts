@@ -264,3 +264,8 @@ export const accessKeys = {
   namedOutside: (kind: string, id: string | null | undefined, supplierId: string | undefined, subjects: readonly string[]) =>
     ['access', 'named-outside', kind, id ?? null, supplierId ?? null, [...subjects].sort().join('\n')] as const,
 };
+
+/** Users, teams and roles for owner pickers and owner names (`GET /api/subjects`; empty for read-only accounts). */
+export const subjectKeys = {
+  all: ['subjects'] as const,
+};

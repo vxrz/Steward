@@ -24,8 +24,9 @@ import {
   SoaVersionModal,
   usePartyLabel,
 } from '../components/compliance/soa';
-import { fmtDate, fmtDay } from '../format';
+import { capFirst, fmtDate, fmtDay } from '../format';
 import { soaKeys } from '../queryKeys';
+import { TableScroll } from '../components/TableScroll';
 
 /**
  * The statement of applicability (ISO/IEC 27001 clause 6.1.3 d, ADR 0029 part 2; Compliance module, preview): the
@@ -253,7 +254,7 @@ export function SoaDetailPage() {
       cell: (x) => (
         <>
           <Anchor component="button" type="button" fw={600} size="sm" onClick={() => select(x)} style={{ textAlign: 'left' }}>
-            {x.ref} {x.title}
+            {x.ref} {capFirst(x.title)}
           </Anchor>
           {x.changed && (
             <Badge color="orange" variant="outline" size="xs" ml={4}>
@@ -323,7 +324,7 @@ export function SoaDetailPage() {
       nowrap: true,
       cell: (x) => (
         <Text size="sm" c={x.reviewDue ? 'orange' : undefined}>
-          {x.reviewedAt ? fmtDay(x.reviewedAt) : t('entry.never')}
+          {x.reviewedAt ? fmtDay(x.reviewedAt) : x.decided ? t('entry.never') : '–'}
         </Text>
       ),
     },
@@ -484,7 +485,7 @@ export function SoaDetailPage() {
               <Group justify="space-between" wrap="nowrap" align="flex-start">
                 <div style={{ minWidth: 0 }}>
                   <Anchor component="button" type="button" fw={600} size="sm" onClick={() => select(x)} style={{ textAlign: 'left' }}>
-                    {x.ref} {x.title}
+                    {x.ref} {capFirst(x.title)}
                   </Anchor>
                   <Text size="xs" c="dimmed">
                     {[partyLabel(x), x.owner && subjectLabel(x.owner)].filter((v) => v && v !== '–').join(' · ') || t('entry.notDecided')}
@@ -510,7 +511,7 @@ export function SoaDetailPage() {
             {t('versions.none')}
           </Text>
         ) : (
-          <div className="table-scroll">
+          <TableScroll>
             <Table fz="sm" data-testid="soa-versions" aria-label={t('versions.title')}>
               <Table.Thead>
                 <Table.Tr>
@@ -597,7 +598,7 @@ export function SoaDetailPage() {
                 })}
               </Table.Tbody>
             </Table>
-          </div>
+          </TableScroll>
         )}
         <Text size="xs" c="dimmed" mt="xs">
           {soa.permissions.fourEyes ? t('versions.fourEyesOn') : t('versions.fourEyesOff')} {t('versions.verifyHint')}

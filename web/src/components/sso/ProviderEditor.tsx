@@ -47,6 +47,7 @@ import { ClaimFields, LinkingAndRequired, ProfileAndSync, StableIdField, type Pr
 import { ConfigWarnings } from './ConfigWarnings';
 import { TestSignIn } from './TestSignIn';
 import { useCollapsible } from '../page/CollapsibleSection';
+import { TableScroll } from '../TableScroll';
 
 const ENTRA_PREFIX = 'https://login.microsoftonline.com/';
 const entraIssuer = (tenant: string) => `${ENTRA_PREFIX}${tenant.trim()}/v2.0`;
@@ -442,7 +443,7 @@ export function ProviderEditor({ provider, onClose, onSaved }: { provider: SsoPr
             <Trans t={t} i18nKey="provider.entraHint" components={{ b: <b />, c: <Code /> }} />
           </Text>
         )}
-        <div className="table-scroll">
+        <TableScroll>
           <Table fz="sm" verticalSpacing={4} withTableBorder>
             <Table.Thead>
               <Table.Tr>
@@ -526,7 +527,7 @@ export function ProviderEditor({ provider, onClose, onSaved }: { provider: SsoPr
               ))}
             </Table.Tbody>
           </Table>
-        </div>
+        </TableScroll>
         <Group>
           <Button
             size="xs"

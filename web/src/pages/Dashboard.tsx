@@ -151,13 +151,13 @@ export function DashboardPage({ demo }: { demo: boolean }) {
           {ops && (
             <SimpleGrid cols={{ base: 1, lg: 3 }}>
               <Card withBorder style={{ gridColumn: 'span 2' }}>
-                <Title order={5} mb="xs">
+                <Title order={2} size="h5" mb="xs">
                   {t('recentRuns')}
                 </Title>
                 <RunTable runs={data.recentRuns} compact />
               </Card>
               <Card withBorder>
-                <Title order={5} mb="xs">
+                <Title order={2} size="h5" mb="xs">
                   {t('upcoming')}
                 </Title>
                 {data.upcoming.length === 0 && (

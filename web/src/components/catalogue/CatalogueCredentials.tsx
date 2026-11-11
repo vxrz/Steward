@@ -5,6 +5,7 @@ import type { ApplicationCredential } from '@sm/shared';
 import { fmtDay } from '../../format';
 import { CredentialStatusBadge } from '../../pages/Credentials';
 import { CollapsibleSection } from '../page/CollapsibleSection';
+import { TableScroll } from '../TableScroll';
 
 /** Credentials register entries of a catalogue item (application or system), with what is due (#125, #143). */
 export function CatalogueCredentials({
@@ -46,7 +47,7 @@ export function CatalogueCredentials({
             {empty}
           </Text>
         ) : (
-          <div className="table-scroll">
+          <TableScroll>
             <Table fz="sm" aria-labelledby={titleId}>
               <Table.Thead>
                 <Table.Tr>
@@ -84,7 +85,7 @@ export function CatalogueCredentials({
                 ))}
               </Table.Tbody>
             </Table>
-          </div>
+          </TableScroll>
         )}
       </Stack>
     </CollapsibleSection>

@@ -12,6 +12,7 @@ import { ManualTaskPanel } from './ManualTaskPanel';
 import { TaskHeader } from './TaskHeader';
 import { DecideFromLinkModal, DecideNotPossible, useDecideParam } from './DecideFromLink';
 import { PrivilegedBadge } from './platform/PrivilegedBadge';
+import { TableScroll } from './TableScroll';
 
 const MAX_ROWS = 1000;
 
@@ -137,7 +138,7 @@ function DecisionPanel({ task, showRunLink }: { task: TaskRecord; showRunLink: b
                   : t('panel.wereSelectedOf', { count: decided.size, total: task.items.length })}
               </Text>
             </Group>
-            <div className="table-scroll">
+            <TableScroll>
               <Table striped highlightOnHover withTableBorder verticalSpacing={4} fz="sm">
                 <Table.Thead>
                   <Table.Tr>
@@ -186,7 +187,7 @@ function DecisionPanel({ task, showRunLink }: { task: TaskRecord; showRunLink: b
                   ))}
                 </Table.Tbody>
               </Table>
-            </div>
+            </TableScroll>
             {visible.length > MAX_ROWS && (
               <Text size="xs" c="dimmed">
                 {t('panel.truncated', { max: MAX_ROWS, total: visible.length })}

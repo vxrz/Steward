@@ -160,7 +160,7 @@ export function WhyThisState({ monitor, onSelect }: { monitor: MonitorDetail; on
           {s.maxOffSeconds ? ` · ${t('states.offOfMax', { off: fmtSpan(s.offSeconds), max: fmtSpan(s.maxOffSeconds) })}` : ''}
           {s.plannedDowntime ? ` · ${t('states.plannedDowntime')}` : ''}
         </Text>
-        <Text size="sm" c={s.reason === 'contradiction' || s.reason === 'required' ? 'red.8' : undefined} data-testid="state-message" aria-live="polite">
+        <Text size="sm" c={s.reason === 'contradiction' || s.reason === 'required' ? 'red' : undefined} data-testid="state-message" aria-live="polite">
           {t(`states.reason.${s.reason}`)} – {s.message}
         </Text>
         {s.contradiction && (

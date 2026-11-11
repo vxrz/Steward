@@ -9,8 +9,9 @@ import { UnifiedDiff } from '../editor/VersionDiff';
 import { MarkdownView } from './MarkdownView';
 import { Field } from './common';
 import { fieldLabel } from './builtin';
-import { fmtDate, fmtDay } from '../../format';
+import { fmtDate, fmtDay, localToday } from '../../format';
 import { currentLanguage } from '../../i18n';
+import { TableScroll } from '../TableScroll';
 
 /**
  * Living documents (workflow "document"): the review status, the document changelog (editions and
@@ -190,7 +191,7 @@ export function DocumentChangelog({ rec, onChange }: { rec: RecordDetail; onChan
             {t('document.noEditions')}
           </Text>
         ) : (
-          <div className="table-scroll">
+          <TableScroll>
             <Table fz="sm" aria-label={t('document.changelog')} data-testid="document-changelog" style={{ minWidth: 760 }}>
               <Table.Thead>
                 <Table.Tr>
@@ -274,7 +275,7 @@ export function DocumentChangelog({ rec, onChange }: { rec: RecordDetail; onChan
                 ))}
               </Table.Tbody>
             </Table>
-          </div>
+          </TableScroll>
         )}
       </Stack>
       {viewing && <EditionModal rec={rec} edition={viewing} onClose={() => setViewing(null)} />}
@@ -455,7 +456,7 @@ function ReviewSettingsModal({ rec, onClose, onDone }: { rec: RecordDetail; onCl
   const [busy, setBusy] = useState(false);
   const users = (subjects.data ?? []).filter((s) => s.kind === 'user').map((s) => ({ value: s.value.slice(5), label: s.label }));
   if (owner && !users.some((u) => u.value.toLowerCase() === owner.toLowerCase())) users.unshift({ value: owner, label: owner });
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localToday();
   const submit = async () => {
     setBusy(true);
     try {

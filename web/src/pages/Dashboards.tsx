@@ -37,6 +37,7 @@ import { ListPage, useStoredListView } from '../components/page/ListPage';
 import { DataTable, ListFooter, type DataColumn } from '../components/DataTable';
 import { dashboardKeys, datasetKeys } from '../queryKeys';
 import { RestrictedEmpty, useHiddenByPermissions } from '../components/modules/RestrictedEmpty';
+import { TableScroll } from '../components/TableScroll';
 
 interface DashboardTemplate {
   id: string;
@@ -181,7 +182,7 @@ export function DashboardsPage() {
       <Text size="sm" c="dimmed" mb="sm">
         {t('datasets.hint', { node: t('editor:steps.publish.label') })}
       </Text>
-      <div className="table-scroll">
+      <TableScroll>
         <Table fz="sm" highlightOnHover className="viz-root">
           <Table.Thead>
             <Table.Tr>
@@ -262,7 +263,7 @@ export function DashboardsPage() {
             ))}
           </Table.Tbody>
         </Table>
-      </div>
+      </TableScroll>
 
       <TemplatesModal opened={templatesOpen} onClose={templates.close} />
       <ImportModal opened={importOpen} onClose={importModal.close} />

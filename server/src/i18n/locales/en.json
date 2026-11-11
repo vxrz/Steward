@@ -621,7 +621,7 @@
     "noticeTitle_one": "Supplier {{supplier}}: notice on “{{title}}” due in {{count}} day",
     "noticeTitle_other": "Supplier {{supplier}}: notice on “{{title}}” due in {{count}} days",
     "noticeBody": "The last day to give notice on the contract “{{title}}” of the supplier “{{supplier}}” is {{date}}. Decide whether it should renew.",
-    "hint": "You get this because you own the supplier in Steward."
+    "hint": "You get this because you own the contract or the supplier in Steward."
   },
   "costBooking": {
     "title_one": "{{service}}: {{count}} contract payment of {{month}} not booked",

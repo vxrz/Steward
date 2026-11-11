@@ -44,7 +44,9 @@ export function ModulesCard() {
     <Card withBorder data-testid="modules-card">
       <Group gap="xs" mb="xs" wrap="nowrap">
         <IconPuzzle size={18} aria-hidden />
-        <Title order={5}>{t('title')}</Title>
+        <Title order={2} size="h5">
+          {t('title')}
+        </Title>
       </Group>
       <Text size="sm" c="dimmed" mb="sm">
         {t('intro', { brand: BRAND.name })}

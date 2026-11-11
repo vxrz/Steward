@@ -88,7 +88,9 @@ export function BackupContentsCard({ status }: { status: BackupStatus }) {
       <Group justify="space-between" mb="xs" wrap="wrap">
         <Group gap="xs" wrap="nowrap">
           <IconFolders size={18} aria-hidden />
-          <Title order={5}>{t('backups.contents.title')}</Title>
+          <Title order={2} size="h5">
+            {t('backups.contents.title')}
+          </Title>
         </Group>
         <Button size="xs" variant="light" loading={contents.isFetching} onClick={() => (sizes ? void contents.refetch() : setSizes(true))}>
           {t('backups.contents.load')}

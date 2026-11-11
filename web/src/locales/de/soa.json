@@ -57,13 +57,13 @@
     "notStarted": "Nicht begonnen"
   },
   "parties": {
-    "team": "Unser Team",
+    "team": "Service-Team",
     "supplier": "Lieferant",
     "central": "Zentrale IT oder Konzern",
     "shared": "Geteilt"
   },
   "matrixParties": {
-    "team": "Unser Team",
+    "team": "Service-Team",
     "supplier": "Lieferant",
     "central": "Zentrale IT oder Konzern",
     "shared": "Geteilt",
@@ -226,8 +226,8 @@
     "undecided_one": "{{count}} Bereich ist noch nicht entschieden.",
     "undecided_other": "{{count}} Bereiche sind noch nicht entschieden.",
     "notDecided": "Nicht entschieden",
-    "edit": "Ändern",
-    "editArea": "{{area}} ändern",
+    "edit": "Bearbeiten",
+    "editArea": "{{area}} bearbeiten",
     "hours": "{{value}} h",
     "noSupplier": "Kein Lieferant angegeben",
     "contract": "{{title}} · SLA {{sla}} · RTO {{rto}} · RPO {{rpo}}",

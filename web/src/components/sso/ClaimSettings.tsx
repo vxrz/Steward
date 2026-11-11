@@ -15,6 +15,7 @@ import {
   type SsoSyncRule,
   type SsoUsernameTransform,
 } from '@sm/shared';
+import { TableScroll } from '../TableScroll';
 
 /** The editor's form: every setting of a provider except the ones the server keeps. */
 export type ProviderForm = Omit<SsoProvider, 'id' | 'hasClientSecret' | 'createdAt' | 'updatedAt' | 'type' | 'warnings'>;
@@ -152,7 +153,7 @@ export function ProfileAndSync({ form, set }: { form: ProviderForm; set: Set }) 
       <Text size="sm" fw={500}>
         {t('provider.syncTitle')}
       </Text>
-      <div className="table-scroll">
+      <TableScroll>
         <Table fz="sm" verticalSpacing={4} withTableBorder>
           <Table.Tbody>
             {SSO_SYNCED_FIELDS.map((f) => (
@@ -173,12 +174,12 @@ export function ProfileAndSync({ form, set }: { form: ProviderForm; set: Set }) 
             ))}
           </Table.Tbody>
         </Table>
-      </div>
+      </TableScroll>
       <Divider label={t('provider.profileFields')} labelPosition="left" />
       <Text size="xs" c="dimmed">
         {t('provider.profileFieldsHint')}
       </Text>
-      <div className="table-scroll">
+      <TableScroll>
         <Table fz="sm" verticalSpacing={4} withTableBorder>
           <Table.Thead>
             <Table.Tr>
@@ -261,7 +262,7 @@ export function ProfileAndSync({ form, set }: { form: ProviderForm; set: Set }) 
             ))}
           </Table.Tbody>
         </Table>
-      </div>
+      </TableScroll>
       <Group>
         <Button
           size="xs"

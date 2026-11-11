@@ -287,6 +287,7 @@ function Shell({ status }: { status: AuthStatus }) {
     <EmptyState
       icon={IconMapPinOff}
       title={t('pageNotFound')}
+      titleOrder={1}
       action={
         <Button component={Link} to="/">
           {t('backToDashboard')}

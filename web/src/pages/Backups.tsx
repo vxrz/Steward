@@ -219,7 +219,9 @@ export function BackupsPage() {
           <Card withBorder>
             <Group gap="xs" mb="sm" wrap="nowrap">
               <IconCloudUpload size={18} aria-hidden />
-              <Title order={5}>{t('backups.overview')}</Title>
+              <Title order={2} size="h5">
+                {t('backups.overview')}
+              </Title>
             </Group>
             <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
               <div>
@@ -281,7 +283,9 @@ export function BackupsPage() {
           <Card withBorder>
             <Group gap="xs" mb="xs" wrap="nowrap">
               <IconKey size={18} aria-hidden />
-              <Title order={5}>{t('backups.key.title')}</Title>
+              <Title order={2} size="h5">
+                {t('backups.key.title')}
+              </Title>
             </Group>
             <Text size="sm" mb="sm">
               {t('backups.key.intro')}
@@ -338,7 +342,7 @@ export function BackupsPage() {
           </Card>
 
           <Card withBorder>
-            <Title order={5} mb="sm">
+            <Title order={2} size="h5" mb="sm">
               {t('backups.settingsTitle')}
             </Title>
             <Stack gap="sm">
@@ -441,7 +445,9 @@ export function BackupsPage() {
 
           <Card withBorder>
             <Group justify="space-between" mb="sm">
-              <Title order={5}>{t('backups.stored')}</Title>
+              <Title order={2} size="h5">
+                {t('backups.stored')}
+              </Title>
               <Button
                 size="xs"
                 variant="light"
@@ -476,7 +482,7 @@ export function BackupsPage() {
           </Card>
 
           <Card withBorder>
-            <Title order={5} mb="sm">
+            <Title order={2} size="h5" mb="sm">
               {t('backups.runs')}
             </Title>
             {!s.runs.length ? (

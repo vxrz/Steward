@@ -8,6 +8,7 @@ import { get, notifyError, notifyOk, put } from '../../api';
 import { fmtBytes, fmtNumber } from '../../format';
 import { plantKeys } from '../../queryKeys';
 import { useSaveSection } from '../settings/SaveBar';
+import { TableScroll } from '../TableScroll';
 
 const FIELDS = ['removedHistoryDays', 'closedDays', 'baselinesPerEntry'] as const;
 const valid = (d: PlantHistorySettingsInput) =>
@@ -76,7 +77,7 @@ export function PlantHistorySettingsCard() {
       <SimpleGrid cols={{ base: 1, sm: 3 }} mb="md">
         {FIELDS.map(field)}
       </SimpleGrid>
-      <div className="table-scroll">
+      <TableScroll>
         <Table fz="sm" aria-label={t('retention.usage')} data-testid="plant-history-usage">
           <Table.Caption>{t('retention.usageHint', { size: size(u.databaseBytes) })}</Table.Caption>
           <Table.Thead>
@@ -114,7 +115,7 @@ export function PlantHistorySettingsCard() {
             </Table.Tr>
           </Table.Tbody>
         </Table>
-      </div>
+      </TableScroll>
       {!inBar && (
         <Group justify="flex-end" mt="sm">
           <Button size="xs" onClick={() => void save()} loading={busy} disabled={!valid(d) || !dirty}>

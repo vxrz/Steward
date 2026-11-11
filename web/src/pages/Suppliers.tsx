@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, Anchor, Badge, Button, Group, Modal, Paper, Select, Stack, Switch, Text, TextInput, Textarea } from '@mantine/core';
+import { Alert, Anchor, Badge, Button, Group, Paper, Select, Stack, Switch, Text, TextInput, Textarea } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import { IconCheck, IconGitMerge, IconPlus, IconTruckDelivery, IconX } from '@tabler/icons-react';
@@ -16,10 +16,10 @@ import {
   type SupplierType,
 } from '@sm/shared';
 import { get, notifyError, notifyOk, post, put } from '../api';
-import { EmptyState, QueryState, subjectLabel, useCreateParam, useFieldErrors } from '../components/common';
+import { EmptyState, QueryState, useCreateParam, useFieldErrors } from '../components/common';
 import { SubjectsInput } from '../components/SubjectsInput';
 import { useMe } from '../auth';
-import { fmtDate, fmtDay, fmtRelative } from '../format';
+import { fmtDate, fmtDay, fmtRelative, localToday } from '../format';
 import { ListPage } from '../components/page/ListPage';
 import { LinkTabs } from '../components/page/LinkTabs';
 import { useListParams } from '../components/page/params';
@@ -27,6 +27,8 @@ import { DataTable, ListFooter, type DataColumn } from '../components/DataTable'
 import { confirmDanger } from '../components/confirm';
 import { supplierKeys } from '../queryKeys';
 import { ContractScopeNotice, ProposedServices, SharedSuppliers } from '../components/suppliers/SharedSuppliers';
+import { FormModal, FormModalCancel } from '../components/FormModal';
+import { useSubjectLabel } from '../components/SubjectsInput';
 
 const usageTotal = (s: SupplierSummary) => Object.values(s.usage).reduce((a, b) => a + b, 0);
 const DOC_LINK = /^(https?:\/\/\S+|rec_[A-Za-z0-9_-]{4,40}|[A-Z][A-Z0-9]{0,9}-\d{4}-\d{4,6})$/i;
@@ -35,7 +37,7 @@ const DOC_LINK = /^(https?:\/\/\S+|rec_[A-Za-z0-9_-]{4,40}|[A-Z][A-Z0-9]{0,9}-\d
 export function DueDate({ date, state }: { date: string | null; state: SupplierDateState }) {
   const { t } = useTranslation('suppliers');
   if (!date) return <>–</>;
-  const days = Math.round((Date.parse(`${date}T00:00:00Z`) - Date.parse(`${new Date().toISOString().slice(0, 10)}T00:00:00Z`)) / 86_400_000);
+  const days = Math.round((Date.parse(`${date}T00:00:00Z`) - Date.parse(`${localToday()}T00:00:00Z`)) / 86_400_000);
   const text = t(`dateState.${state}`, { date: fmtDay(date), days });
   return state === 'ok' || state === 'none' ? (
     <>{text}</>
@@ -59,6 +61,7 @@ export function SupplierStatusBadge({ status }: { status: SupplierStatus }) {
 /** Suppliers (0.17.0, ADR 0029): the active ones, those to confirm after the update, and the archived ones. */
 export function SuppliersPage() {
   const { t } = useTranslation(['suppliers', 'common']);
+  const ownerLabel = useSubjectLabel();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [creating, setCreating] = useState(false);
@@ -205,7 +208,7 @@ export function SuppliersPage() {
             cell: (s) => <DueDate date={s.nextCertificateExpiry} state={s.certificateState} />,
           },
           usage,
-          { key: 'owners', header: t('columns.owners'), sortValue: (s) => s.owners.join(', '), cell: (s) => s.owners.map(subjectLabel).join(', ') || '–' },
+          { key: 'owners', header: t('columns.owners'), sortValue: (s) => s.owners.join(', '), cell: (s) => s.owners.map(ownerLabel).join(', ') || '–' },
           {
             key: 'updated',
             header: t('columns.updated'),
@@ -398,20 +401,18 @@ export function MergeModal({
     }
   };
   return (
-    <Modal opened onClose={onClose} title={t('merge.title', { name: supplier.name })}>
+    <FormModal onClose={onClose} title={t('merge.title', { name: supplier.name })}>
       <Stack gap="sm">
         <Text size="sm">{t('merge.intro', { name: supplier.name })}</Text>
         <Select label={t('merge.into')} data={data} value={into} onChange={setInto} searchable data-autofocus data-testid="merge-into" />
         <Group justify="flex-end">
-          <Button variant="default" onClick={onClose}>
-            {t('common:cancel')}
-          </Button>
+          <FormModalCancel />
           <Button onClick={() => void save()} loading={busy} disabled={!into}>
             {t('merge.submit')}
           </Button>
         </Group>
       </Stack>
-    </Modal>
+    </FormModal>
   );
 }
 
@@ -457,7 +458,7 @@ export function SupplierFormModal({ supplier, onClose, onSaved }: { supplier?: S
     }
   };
   return (
-    <Modal opened onClose={onClose} size="lg" title={supplier ? supplier.name : t('new')}>
+    <FormModal onClose={onClose} size="lg" title={supplier ? supplier.name : t('new')}>
       <form
         noValidate
         onSubmit={(e) => {
@@ -539,15 +540,13 @@ export function SupplierFormModal({ supplier, onClose, onSaved }: { supplier?: S
             </Alert>
           )}
           <Group justify="flex-end">
-            <Button variant="default" onClick={onClose}>
-              {t('common:cancel')}
-            </Button>
+            <FormModalCancel />
             <Button type="submit" loading={busy}>
               {t('common:save')}
             </Button>
           </Group>
         </Stack>
       </form>
-    </Modal>
+    </FormModal>
   );
 }

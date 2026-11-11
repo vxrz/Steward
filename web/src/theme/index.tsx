@@ -67,6 +67,8 @@ const variantColorResolver: VariantColorsResolver = (input) => {
 const BASE: MantineThemeOverride = {
   fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
   fontFamilyMonospace: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+  // modals, menus and collapses open without their transitions when the system asks for reduced motion
+  respectReducedMotion: true,
   variantColorResolver,
   // Icon-only close buttons need an accessible name (screen readers, axe "button-name").
   components: {

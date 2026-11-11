@@ -29,7 +29,9 @@ export function NewResourceTeamsCard() {
   return (
     <Card withBorder>
       <Group justify="space-between" align="flex-start" wrap="nowrap" mb="xs">
-        <Title order={5}>{t('newResources.title')}</Title>
+        <Title order={2} size="h5">
+          {t('newResources.title')}
+        </Title>
         <Badge variant="light" color={s.source.from === 'own' ? 'blue' : 'gray'} data-testid="new-resources-source">
           {t(`newResources.source.${s.source.from}`)}
         </Badge>

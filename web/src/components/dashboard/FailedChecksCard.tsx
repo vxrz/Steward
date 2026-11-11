@@ -74,7 +74,7 @@ export function FailedChecksCard({ checks }: { checks: FailedCheckGroup[] }) {
         )}
         {list.items.map((c) => (
           <Group key={`${c.processId}/${c.checkId}`} justify="space-between" gap={4} wrap="wrap" align="flex-start" data-testid="failed-check">
-            <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ minWidth: 0, flex: '1 1 18rem' }}>
               {/* what was found first (the check's result), the expectation (its name) under it */}
               <Group gap={6} wrap="nowrap" align="flex-start">
                 <SeverityBadge severity={c.severity} />
@@ -84,6 +84,8 @@ export function FailedChecksCard({ checks }: { checks: FailedCheckGroup[] }) {
                   hideLabel={t('checks.showLess')}
                   styles={{ control: { fontSize: 'var(--mantine-font-size-xs)' } }}
                   style={{ minWidth: 0 }}
+                  // each finding's region has a name of its own (axe landmark-unique)
+                  attributes={{ content: { 'aria-label': `${c.name} · ${c.processName}` } }}
                 >
                   <Anchor component={Link} to={`/runs/${c.runId}`} size="sm" style={{ overflowWrap: 'anywhere' }} data-testid="failed-check-result">
                     {c.message || t('checks.failedName', { name: c.name })}
@@ -108,7 +110,7 @@ export function FailedChecksCard({ checks }: { checks: FailedCheckGroup[] }) {
                 </Anchor>
               </Text>
             </div>
-            <Text size="xs" c="dimmed" className="nowrap">
+            <Text size="xs" c="dimmed" style={{ overflowWrap: 'anywhere' }}>
               {c.processName} · {fmtRelative(c.ts)}
             </Text>
           </Group>

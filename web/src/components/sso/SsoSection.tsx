@@ -54,7 +54,9 @@ export function SsoSection() {
   return (
     <>
       <Group justify="space-between" mt="md">
-        <Title order={4}>{t('sso.title')}</Title>
+        <Title order={2} size="h4">
+          {t('sso.title')}
+        </Title>
         <Button size="xs" variant="light" leftSection={<IconPlus size={14} />} onClick={() => setEditing('new')}>
           {t('sso.add')}
         </Button>

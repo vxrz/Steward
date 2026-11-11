@@ -38,6 +38,7 @@ import { plantKeys } from '../../queryKeys';
 import { useSaveSection } from '../settings/SaveBar';
 import { PlantAliasesCard } from './ids';
 import { useRecordTypes, useTypeName } from '../records/common';
+import { TableScroll } from '../TableScroll';
 
 /**
  * Settings → Modules → Plant registry (#218): the switch (off by default; off, the module's pages and routes are gone
@@ -147,7 +148,7 @@ export function PlantSettingsCard() {
                     <Text size="xs" c="dimmed" mb="xs">
                       {t('settings.labelsHelp')}
                     </Text>
-                    <div className="table-scroll">
+                    <TableScroll>
                       <Table fz="sm" aria-label={t('settings.labels')}>
                         <Table.Thead>
                           <Table.Tr>
@@ -189,7 +190,7 @@ export function PlantSettingsCard() {
                           ))}
                         </Table.Tbody>
                       </Table>
-                    </div>
+                    </TableScroll>
                   </Accordion.Panel>
                 </Accordion.Item>
                 <Accordion.Item value="documentReview">
@@ -198,7 +199,7 @@ export function PlantSettingsCard() {
                     <Text size="xs" c="dimmed" mb="xs">
                       {t('plantDocs:settings.help')}
                     </Text>
-                    <div className="table-scroll">
+                    <TableScroll>
                       <Table fz="sm" aria-label={t('plantDocs:settings.title')} data-testid="plant-doc-review-types">
                         <Table.Thead>
                           <Table.Tr>
@@ -225,7 +226,7 @@ export function PlantSettingsCard() {
                           ))}
                         </Table.Tbody>
                       </Table>
-                    </div>
+                    </TableScroll>
                   </Accordion.Panel>
                 </Accordion.Item>
                 <Accordion.Item value="fields">

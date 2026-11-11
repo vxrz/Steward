@@ -153,7 +153,9 @@ export function DailySummaryCard() {
   return (
     <Card withBorder>
       <Group justify="space-between" align="flex-start" wrap="nowrap" mb="xs">
-        <Title order={5}>{t('dailySummary.title')}</Title>
+        <Title order={2} size="h5">
+          {t('dailySummary.title')}
+        </Title>
         <SourceBadge source={st.source} />
       </Group>
       <Text size="sm" c="dimmed" mb="sm">

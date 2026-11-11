@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Anchor, Badge, Button, Group, Modal, Paper, Select, SimpleGrid, Stack, Text, TextInput, Textarea } from '@mantine/core';
+import { Anchor, Badge, Button, Group, Paper, Select, SimpleGrid, Stack, Text, TextInput, Textarea } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { IconEdit } from '@tabler/icons-react';
@@ -19,6 +19,16 @@ import { SupplierPicker, useSupplierOptions } from '../suppliers/SupplierPicker'
 import { calDay } from './corrective';
 import { fmtNumber, fmtRelative } from '../../format';
 import { responsibilityKeys } from '../../queryKeys';
+import { FormModal, FormModalCancel } from '../FormModal';
+
+/** Short names of the built-in catalogues (product and standard names, not translated); others by their key. */
+const CATALOGUE_LABELS: Record<string, string> = { ISO27001: 'ISO/IEC 27001', 'IEC62443-2-1': 'IEC 62443-2-1', NIS2: 'NIS2' };
+const catalogueLabel = (key: string) => (Object.hasOwn(CATALOGUE_LABELS, key) ? CATALOGUE_LABELS[key]! : key);
+function byCatalogue<T extends { catalogueKey: string }>(controls: T[]): [string, T[]][] {
+  const out = new Map<string, T[]>();
+  for (const c of controls) out.set(c.catalogueKey, [...(out.get(c.catalogueKey) ?? []), c]);
+  return [...out];
+}
 
 /**
  * The tab "Responsibilities" of a service (ADR 0029 part 2): who does backup, recovery and continuity, patching and
@@ -139,27 +149,33 @@ function AreaCard({ row: r, canEdit, onEdit }: { row: ResponsibilityRow; canEdit
           </Text>
         )}
         {r.controls.length > 0 && (
-          <Group gap={4} wrap="wrap" mt={2}>
+          <Group gap={4} wrap="wrap" mt={2} align="baseline">
             <Text size="xs" c="dimmed">
               {t('matrix.controls')}
             </Text>
-            {r.controls.map((c) =>
-              c.soa ? (
-                <Anchor
-                  key={`${c.catalogueKey}:${c.controlId}`}
-                  component={Link}
-                  to={`/compliance/soa/${encodeURIComponent(c.catalogueKey)}?control=${encodeURIComponent(c.controlId)}`}
-                  size="xs"
-                  title={c.title}
-                >
-                  {c.catalogueKey} {c.ref}
-                </Anchor>
-              ) : (
-                <Text key={`${c.catalogueKey}:${c.controlId}`} size="xs" title={c.title}>
-                  {c.catalogueKey} {c.ref}
-                </Text>
-              ),
-            )}
+            {/* per catalogue: "ISO/IEC 27001: 5.29, 5.30, 8.14" */}
+            {byCatalogue(r.controls).map(([key, controls]) => (
+              <Text key={key} size="xs" data-testid="matrix-controls">
+                {catalogueLabel(key)}:{' '}
+                {controls.map((c, i) => (
+                  <span key={c.controlId}>
+                    {i > 0 && ', '}
+                    {c.soa ? (
+                      <Anchor
+                        component={Link}
+                        to={`/compliance/soa/${encodeURIComponent(c.catalogueKey)}?control=${encodeURIComponent(c.controlId)}`}
+                        inherit
+                        title={c.title}
+                      >
+                        {c.ref}
+                      </Anchor>
+                    ) : (
+                      <span title={c.title}>{c.ref}</span>
+                    )}
+                  </span>
+                ))}
+              </Text>
+            ))}
           </Group>
         )}
         {r.updatedAt && (
@@ -216,7 +232,7 @@ function AreaForm({ matrix, row, onClose }: { matrix: ServiceResponsibilities; r
     }
   };
   return (
-    <Modal opened onClose={onClose} title={t('matrix.formTitle', { area: t(`areas.${row.area}`), service: matrix.serviceName })}>
+    <FormModal onClose={onClose} title={t('matrix.formTitle', { area: t(`areas.${row.area}`), service: matrix.serviceName })}>
       <form
         noValidate
         onSubmit={(e) => {
@@ -291,15 +307,13 @@ function AreaForm({ matrix, row, onClose }: { matrix: ServiceResponsibilities; r
             />
           )}
           <Group justify="flex-end" gap="xs">
-            <Button variant="default" onClick={onClose}>
-              {t('common:cancel')}
-            </Button>
+            <FormModalCancel />
             <Button type="submit" loading={busy} data-testid="responsibility-save">
               {t('common:save')}
             </Button>
           </Group>
         </Stack>
       </form>
-    </Modal>
+    </FormModal>
   );
 }
