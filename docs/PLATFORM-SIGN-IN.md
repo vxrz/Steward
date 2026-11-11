@@ -2,16 +2,16 @@
 
 How Steward signs in to a platform is its **auth type** (_Platforms → a platform → Settings → Authentication_). Credentials are stored encrypted in the vault, sent only to the platform's own origins (and to its token or STS endpoint), never shown again and masked in everything Steward returns – the request explorer, test runs, the MCP gateway, logs.
 
-| Auth type                       | Credentials                                                 | Used by                                                       |
-| ------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------- |
-| None                            | –                                                           | public APIs (endoflife.date)                                  |
-| Basic                           | `username`, `password`                                      | many on-prem APIs; on Kafka platforms the Schema Registry key |
-| Static bearer token             | `token`                                                     | GitHub, GitLab, Forgejo, Kubernetes, Checkmk                  |
-| API key                         | `apiKey` (header or query)                                  |                                                               |
-| OAuth2 client credentials       | `clientId`, `clientSecret` – or `privateKey`, `certificate` | Insights Hub, Microsoft Graph (Entra ID)                      |
-| Custom login request            | any, referenced as `{{ secrets.x }}`                        | Industrial Edge Management, IBM Verify Privilege Vault        |
-| **Key-pair JWT**                | `privateKey` (PEM), optionally `privateKeyPassphrase`       | Snowflake; Google service accounts, Salesforce (exchange)     |
-| **AWS request signing (SigV4)** | `accessKeyId`, `secretAccessKey`, optionally `sessionToken` | AWS APIs, S3 and S3-compatible storage                        |
+| Auth type                       | Credentials                                                 | Used by                                                                                        |
+| ------------------------------- | ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| None                            | –                                                           | public APIs (endoflife.date)                                                                   |
+| Basic                           | `username`, `password`                                      | many on-prem APIs; on Kafka platforms the Schema Registry key                                  |
+| Static bearer token             | `token`                                                     | GitHub, GitLab, Forgejo, Kubernetes, Checkmk, InfluxDB (2.x: sent as `Authorization: Token …`) |
+| API key                         | `apiKey` (header or query)                                  |                                                                                                |
+| OAuth2 client credentials       | `clientId`, `clientSecret` – or `privateKey`, `certificate` | Insights Hub, Microsoft Graph (Entra ID)                                                       |
+| Custom login request            | any, referenced as `{{ secrets.x }}`                        | Industrial Edge Management, IBM Verify Privilege Vault                                         |
+| **Key-pair JWT**                | `privateKey` (PEM), optionally `privateKeyPassphrase`       | Snowflake; Google service accounts, Salesforce (exchange)                                      |
+| **AWS request signing (SigV4)** | `accessKeyId`, `secretAccessKey`, optionally `sessionToken` | AWS APIs, S3 and S3-compatible storage                                                         |
 
 The connection test, _Get a new token_ (for logins, JWTs and assumed roles) and the MCP gateway work the same for every type.
 

@@ -6,6 +6,7 @@ import { mockIdentitySpec } from './mockSpec.js';
 import { mockOidc } from './mockOidc.js';
 import { mockCheckmk } from './mockCheckmk.js';
 import { mockPrometheus } from './mockPrometheus.js';
+import { mockInflux } from './mockInflux.js';
 import { mockKubernetes } from './mockKubernetes.js';
 import { mockGitPlatforms } from './mockGitPlatforms.js';
 import { mockSchemaRegistry } from './mockKafka.js';
@@ -229,6 +230,7 @@ export async function mockPlatform(app: FastifyInstance): Promise<void> {
   await mockGatus(app);
   await mockCheckmk(app);
   await mockPrometheus(app);
+  await mockInflux(app);
   await mockKubernetes(app);
   await mockGitPlatforms(app);
   await mockSchemaRegistry(app);

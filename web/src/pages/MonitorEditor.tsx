@@ -48,6 +48,7 @@ import {
   type MonitorSummary,
   type Platform,
   type ProcessSummary,
+  type SeriesFreshness,
 } from '@sm/shared';
 import { TagInput } from '../components/tags';
 import { ApiError, get, notifyError, post, put } from '../api';
@@ -59,6 +60,7 @@ import { StatesEditor } from '../components/monitors/StatesEditor';
 import { CHECK_ICONS, newCheck } from '../components/monitors/checkMeta';
 import { SecretsModal } from '../components/monitors/dialogs';
 import { MonitorStatusBadge, checkTypeHelp, checkTypeLabel } from '../components/monitors/status';
+import { SeriesPreview } from '../components/monitors/SeriesPreview';
 import { editorIssues, issuesByCheck, serverIssues, type EditorIssue } from '../components/monitors/validate';
 import { isTextTarget, modKey, useDefHistory, useUndoKeys } from '../components/editor/useDefHistory';
 import { monitorKeys, platformKeys, processKeys } from '../queryKeys';
@@ -106,6 +108,8 @@ interface Preview {
   status: MonitorStatus;
   message: string;
   durationMs: number | null;
+  /** InfluxDB freshness (0.18.0): every series with its newest timestamp */
+  series?: SeriesFreshness[];
 }
 
 export function MonitorEditorPage() {
@@ -557,6 +561,7 @@ export function MonitorEditorPage() {
                               {p.durationMs !== null ? ` · ${p.durationMs} ms` : ''}
                             </Text>
                           </Group>
+                          {p.series && p.series.length > 0 && <SeriesPreview series={p.series} />}
                           <Text size="xs" c="dimmed">
                             {t('editor.previewNote')}
                           </Text>

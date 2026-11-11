@@ -23,10 +23,10 @@ export interface CheckTypeDef<T extends CheckType = CheckType> {
   defaultName: string;
   platform: CheckPlatformUse;
   /**
-   * The check reads any platform with these settings (the freshness check with an API request as its source), else
-   * one of the type's kinds.
+   * The kinds a check with these settings reads, when its settings decide them (the freshness check: Insights Hub,
+   * InfluxDB, or any platform for an API request as its source); empty: any platform. Without it: the type's kinds.
    */
-  anyPlatform?: (c: { source?: unknown }) => boolean;
+  kindsOf?: (c: { source?: unknown }) => string[];
   /** Makes a call on its interval (heartbeat and sub-monitor checks are evaluated from stored state) */
   active: boolean;
   /** Offered in the monitor editor only while this module is on (existing checks stay as they are) */
@@ -72,11 +72,11 @@ const DEFS: Defs = {
   },
   freshness: {
     label: 'Data freshness',
-    help: 'Latest timestamp of a data source must be recent: expected cadence or maximum age (Insights Hub time series preset)',
+    help: 'Latest timestamp of a data source must be recent: expected cadence or maximum age (Insights Hub time series, InfluxDB series or an API answer)',
     defaultName: 'Data in Insights Hub',
     platform: 'kind',
-    // the platform source is any API call with a JSONata timestamp
-    anyPlatform: (c) => c.source === 'platform',
+    // the platform source is any API call with a JSONata timestamp; the InfluxDB source reads an InfluxDB platform
+    kindsOf: (c) => (c.source === 'platform' ? [] : c.source === 'influxdb' ? ['influxdb'] : ['insights-hub']),
     active: true,
     defaults: { source: 'insightsHub', platform: '', assetId: '', aspect: '', variables: [], mode: 'cadence', expectedIntervalSeconds: 60 },
   },
@@ -292,11 +292,11 @@ export const isActiveCheckType = (type: string): boolean => defOf(type)?.active 
 
 /**
  * The platform kinds a check (or a check type, without settings) may read: one of these; empty: any platform, or none.
- * GitHub, GitLab and Forgejo for the repository check; Insights Hub for the freshness check, unless its source is an
- * API request.
+ * GitHub, GitLab and Forgejo for the repository check; Insights Hub for the freshness check – InfluxDB with the InfluxDB
+ * source, any platform with an API request as its source.
  */
 export function checkPlatformKinds(c: { type: string; source?: unknown }): string[] {
   const d = defOf(c.type);
-  if (d?.platform !== 'kind' || d.anyPlatform?.(c)) return [];
-  return checkTypeKinds(c.type);
+  if (d?.platform !== 'kind') return [];
+  return d.kindsOf ? d.kindsOf(c) : checkTypeKinds(c.type);
 }

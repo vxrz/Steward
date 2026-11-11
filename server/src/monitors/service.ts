@@ -9,6 +9,7 @@ import {
   MONITOR_KEY_RE,
   MONITOR_PERMISSIONS,
   RESERVED_MONITOR_KEYS,
+  checkPlatformKinds,
   definitionIssues,
   hasStates,
   issueLabel,
@@ -1411,11 +1412,22 @@ export function exampleReferences(file: string): PlatformReference[] {
   return importReferences(exampleText(file));
 }
 
-/** The check types of an example (no rights needed: the library is public to signed-in users) – "Get started", v0.4.0. */
-export function exampleCheckTypes(file: string): string[] {
+/**
+ * The platform kinds the checks of an example read, by type and source – an InfluxDB freshness check reads InfluxDB
+ * (no rights needed: the library is public to signed-in users) – "Get started", v0.4.0.
+ */
+export function exampleCheckKinds(file: string): string[] {
   const { definition } = parseMonitorFile(exampleText(file));
   const checks = Array.isArray(definition.checks) ? (definition.checks as unknown[]) : [];
-  return [...new Set(checks.map((c) => (c && typeof c === 'object' ? String((c as Record<string, unknown>).type ?? '') : '')).filter(Boolean))];
+  return [
+    ...new Set(
+      checks.flatMap((c) =>
+        c && typeof c === 'object'
+          ? checkPlatformKinds({ type: String((c as Record<string, unknown>).type ?? ''), source: (c as Record<string, unknown>).source })
+          : [],
+      ),
+    ),
+  ];
 }
 
 export const isMonitorId = (s: string) => MONITOR_ID_RE.test(s);

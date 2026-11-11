@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import { once } from 'node:events';
 import { Agent, EnvHttpProxyAgent, ProxyAgent, fetch, type Dispatcher } from 'undici';
 import { trace } from '@opentelemetry/api';
-import type { AuthConfig, Platform } from '@sm/shared';
+import { INFLUX_KIND, influxVersionOf, type AuthConfig, type Platform } from '@sm/shared';
 import { evalExpr, render, renderString } from '../engine/expr.js';
 import { HttpError } from '../util.js';
 import { SpanKind, SpanStatusCode, injectTraceHeaders, withSpan } from '../telemetry.js';
@@ -501,7 +501,9 @@ async function obtainAuthHeader(p: Platform, secrets: Record<string, string>, si
       // GitLab's own header for personal, group and project access tokens: reverse proxies and sign-in gateways in
       // front of GitLab often take over Authorization (v0.3.1). headerName "Authorization" there is for OAuth tokens.
       const name = (auth.headerName || (p.kind === 'gitlab' ? 'PRIVATE-TOKEN' : 'Authorization')).toLowerCase();
-      return name === 'authorization' ? ['authorization', `Bearer ${secrets.token}`] : [name, secrets.token];
+      // InfluxDB 2.x documents its own scheme for API tokens (0.18.0): "Authorization: Token <token>"; 1.x takes its JWT as Bearer
+      const scheme = p.kind === INFLUX_KIND && influxVersionOf(p.config.variables) === '2' ? 'Token' : 'Bearer';
+      return name === 'authorization' ? ['authorization', `${scheme} ${secrets.token}`] : [name, secrets.token];
     }
     case 'apiKey':
       if (auth.apiKeyIn === 'query') return null;

@@ -61,6 +61,8 @@ export const DRIVERS: Partial<Record<PlatformKind, PlatformDriver>> = {
   },
   // IBM Verify Privilege Vault (#205): signs in, then every read Steward makes, naming missing permissions
   'privilege-vault': { test: { run: async (p, s) => passes(await (await import('../pvault/service.js')).testPrivilegeVault(p, s)), token: true } },
+  // InfluxDB (0.18.0): the version's ping or health endpoint, then a request that needs the credentials
+  influxdb: { test: { run: async (p, s) => passes(await (await import('../influx/client.js')).testInflux(p, s)) } },
   // container registries (#241): the token flow and the tags of a test image
   'container-registry': { test: { run: async (p, s) => passes(await (await import('../versions/sources.js')).testRegistry(p, s)) } },
 };

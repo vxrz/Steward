@@ -16,6 +16,7 @@ import { DEMO_KAFKA_CONNECT } from '../mock/mockKafkaConnect.js';
 import { DEMO_MQTT, startMqttSimulator } from '../mock/mockMqtt.js';
 import { DEMO_KAFKA_BOOTSTRAP } from '../kafka/client.js';
 import { DEMO_GATUS } from '../mock/mockGatus.js';
+import { DEMO_INFLUX } from '../mock/mockInflux.js';
 import { MOCK_UTS_PROVIDER } from '../mock/mockUsage.js';
 import { gatusOpenApiSpec } from '../platforms/gatusSpec.js';
 import { PRESETS, PRESET_SPECS } from '../platforms/presets.js';
@@ -25,6 +26,7 @@ import {
   CHANGEDETECTION_KIND,
   CONTAINER_REGISTRY_KIND,
   DATABASE_KIND,
+  INFLUX_KIND,
   KAFKA_CONNECT_KIND,
   LLM_GATEWAY_KIND,
   PVAULT_KIND,
@@ -314,6 +316,20 @@ export async function setupDemo(opts: { applications?: boolean; services?: boole
       description: 'Simulated Prometheus HTTP API served by the built-in mock (a few fixed queries). See docs/MONITORS.md.',
       baseUrl: `${base}/prometheus`,
       config: { auth: { type: 'none' }, variables: {}, http: { proxy: 'none' }, testPath: '/api/v1/status/buildinfo' },
+    });
+    platforms++;
+  }
+  if (!existing.has('InfluxDB (demo)')) {
+    // InfluxDB (0.18.0): the freshness check's InfluxDB source – press-03 of machine_data stopped three hours ago
+    createPlatform({
+      name: 'InfluxDB (demo)',
+      kind: INFLUX_KIND,
+      environment: 'demo',
+      description:
+        'Simulated InfluxDB 2.x (Flux over /api/v2/query, annotated CSV) served by the built-in mock: bucket plant, measurement machine_data, one series per device – press-03 is stale. The mock also answers as 1.x (/mock/influxdb1). See docs/MONITORS.md#freshness-in-influxdb.',
+      baseUrl: `${base}/influxdb2`,
+      config: { auth: { type: 'bearer' }, variables: { version: '2', org: DEMO_INFLUX.v2.org }, http: { proxy: 'none' }, testPath: '/health' },
+      secrets: { token: DEMO_INFLUX.v2.token },
     });
     platforms++;
   }

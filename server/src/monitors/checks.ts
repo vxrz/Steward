@@ -23,6 +23,8 @@ import {
   CHANGEDETECTION_KIND,
   CHECK_TYPE_INFO,
   DATABASE_KIND,
+  INFLUX_LIMITS,
+  type SeriesFreshness,
   PVAULT_KIND,
   isActiveCheckType,
   isGitPlatformKind,
@@ -52,6 +54,8 @@ export interface RawResult {
   value?: unknown;
   /** Freshness checks (0.13): the read the observed delay is measured from (delay.ts), or that it failed */
   observation?: DelayObservation;
+  /** InfluxDB freshness (0.18.0): every series judged – shown by Check now in the editor, not stored */
+  series?: SeriesFreshness[];
 }
 
 export interface ExecContext {
@@ -416,6 +420,7 @@ async function checkFreshness(c: CheckOf<'freshness'>, ctx: ExecContext): Promis
   const now = ctx.now();
   const t0 = Date.now();
   const failed = (): DelayObservation => ({ failed: true, at: Date.now() });
+  if (c.source === 'influxdb') return checkInfluxFreshness(c, ctx);
   if (c.source === 'insightsHub') {
     platformFor(ctx.owner, c.platform, c.identity); // the owner's rights, also when the answer comes from the shared read
     const vars = c.variables ?? [];
@@ -489,6 +494,97 @@ async function checkFreshness(c: CheckOf<'freshness'>, ctx: ExecContext): Promis
 }
 
 const rank = (s: MonitorStatus) => ({ off: -1, up: 0, maintenance: 1, blocked: 2, unknown: 3, degraded: 4, down: 5 })[s];
+
+/**
+ * The InfluxDB source (0.18.0, docs/MONITORS.md#freshness-in-influxdb): the newest timestamp of every series – a value
+ * of the grouping tag, per field – judged like an Insights Hub variable; the worst series counts. No series at all is
+ * "no data" (down). More series than the cap: the first by name are judged and the message says so.
+ */
+async function checkInfluxFreshness(c: CheckOf<'freshness'>, ctx: ExecContext): Promise<RawResult> {
+  const now = ctx.now();
+  const t0 = Date.now();
+  const failed = (): DelayObservation => ({ failed: true, at: Date.now() });
+  const { platform, secrets } = platformFor(ctx.owner, c.platform, c.identity);
+  const influx = await import('../influx/client.js');
+  const { lookbackSeconds } = await import('../influx/query.js');
+  const startedAt = Date.now();
+  let read;
+  try {
+    const version = influx.platformVersion(platform);
+    if (c.retentionPolicy && version !== '1') throw new influx.InfluxError('A retention policy is only for InfluxDB 1.x – remove it and name the bucket (2.x)');
+    read = await influx.readInfluxSeries(
+      platform,
+      secrets,
+      {
+        database: (version === '2' ? (c.bucket ?? c.database) : (c.database ?? c.bucket)) ?? '',
+        retentionPolicy: c.retentionPolicy,
+        measurement: c.measurement ?? '',
+        fields: c.fields ?? [],
+        tags: c.tags ?? {},
+        groupBy: c.groupBy,
+        lookbackSeconds: lookbackSeconds(c.lookbackHours, freshnessLookbackSeconds(c)),
+      },
+      {
+        version,
+        org: String(platform.config.variables?.org ?? ''),
+        expectedSeries: c.groupBy ? c.expectedSeries : undefined,
+        signal: AbortSignal.any([ctx.signal, AbortSignal.timeout(ctx.timeoutMs)]),
+      },
+    );
+  } catch (e) {
+    if (e instanceof CheckSetupError) throw e;
+    return {
+      status: 'unknown',
+      message: `InfluxDB could not be read: ${(e as Error).message}`.slice(0, 500),
+      durationMs: Date.now() - t0,
+      observation: failed(),
+    };
+  }
+  const receivedAt = Date.now();
+  const durationMs = receivedAt - t0;
+  // the observed delay of the first series by name (delay.ts keeps about 3 KB per series)
+  const observed = read.series.slice(0, INFLUX_LIMITS.delaySeries);
+  const observation: DelayObservation = { start: startedAt, end: receivedAt, newest: Object.fromEntries(observed.map((x) => [x.name, x.newest])) };
+  if (!read.series.length) {
+    const f = freshnessStatus(null, now, c, 'data');
+    return { status: f.status, message: `${f.message} in ${c.measurement}`, durationMs, value: { series: 0 }, observation, series: [] };
+  }
+  const per = read.series.map((x) => {
+    const latest = monotonic(x.newest, ctx.newestSeen?.(x.name));
+    return { name: x.name, latest, ...freshnessStatus(latest, now, c, x.name ? `data of ${x.name}` : 'data') };
+  });
+  const worst = per.reduce(
+    (a, b) => (rank(b.status) > rank(a.status) || (rank(b.status) === rank(a.status) && (b.ageSeconds ?? Infinity) > (a.ageSeconds ?? Infinity)) ? b : a),
+    per[0]!,
+  );
+  const series: SeriesFreshness[] = per.map((p) => ({
+    name: p.name,
+    newest: p.latest === null ? null : new Date(p.latest).toISOString(),
+    ageSeconds: p.ageSeconds === null ? null : Math.round(p.ageSeconds),
+    status: p.status,
+  }));
+  // the oldest first, at most 50: what trends and the history show
+  const ages = Object.fromEntries(
+    [...series]
+      .sort((a, b) => (b.ageSeconds ?? Infinity) - (a.ageSeconds ?? Infinity))
+      .slice(0, 50)
+      .map((x) => [x.name, x.ageSeconds]),
+  );
+  const cap = read.truncated ? ` – only the first ${read.series.length} of ${read.total} series checked; narrow the query with tag filters` : '';
+  const bad = per.filter((p) => p.status !== 'up').sort((a, b) => rank(b.status) - rank(a.status) || (b.ageSeconds ?? Infinity) - (a.ageSeconds ?? Infinity));
+  let text: string;
+  if (per.length === 1) text = worst.message;
+  else if (bad.length) text = `${bad.length} of ${per.length} series not fresh: ${bad.map((p) => p.message).join('; ')}`;
+  else text = `All ${per.length} series are fresh (oldest ${fmtAge(Math.max(...per.map((p) => p.ageSeconds ?? 0)))})`;
+  return {
+    status: worst.status,
+    message: `${text.slice(0, 500 - cap.length)}${cap}`,
+    durationMs,
+    value: { series: per.length, ...(read.truncated ? { total: read.total } : {}), worst: worst.name, ages },
+    observation,
+    series,
+  };
+}
 
 export function toMillis(t: unknown): number | undefined {
   if (t === undefined || t === null || t === '' || typeof t === 'boolean') return undefined;
