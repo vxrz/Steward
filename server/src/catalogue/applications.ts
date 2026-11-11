@@ -394,14 +394,26 @@ function columns(input: ApplicationInput, currentSupplier: string | null = null)
   };
 }
 
-function nameTaken(name: string, except = ''): boolean {
-  return !!db().get('SELECT 1 FROM applications WHERE lower(name) = lower(?) AND archived = 0 AND id <> ?', name, except);
+/**
+ * 409 when another active application has the name. One the person may not see (another team's) is not confirmed by
+ * name: APPLICATION_NAME_TAKEN says only that the name cannot be used (security review 0.19.0 L4, as for suppliers).
+ */
+function refuseTakenName(name: string, except = '', restoring = false): void {
+  const clash = db().get<{ id: string; owners: string }>(
+    'SELECT id, owners FROM applications WHERE lower(name) = lower(?) AND archived = 0 AND id <> ?',
+    name,
+    except,
+  );
+  if (!clash) return;
+  if (!canViewCatalogue(me(), { kind: 'application', id: clash.id, owners: parseJson<string[]>(clash.owners, []) }))
+    throw new HttpError(409, 'This name cannot be used for an application – choose another one', 'APPLICATION_NAME_TAKEN');
+  throw new HttpError(409, `An application named "${name}" exists already${restoring ? ' – rename one of them first' : ''}`, 'APPLICATION_EXISTS', { name });
 }
 
 export function createApplication(input: ApplicationInput): ApplicationDetail {
   const u = me();
   if (!canCreateServices(u)) forbid('create applications', 'createApplications');
-  if (nameTaken(input.name)) throw new HttpError(409, `An application named "${input.name}" exists already`, 'APPLICATION_EXISTS', { name: input.name });
+  refuseTakenName(input.name);
   assertKnownSubjects(input.owners);
   const id = newId('app_');
   const now = nowIso();
@@ -443,7 +455,7 @@ export function createApplication(input: ApplicationInput): ApplicationDetail {
 export function updateApplication(id: string, input: ApplicationInput): ApplicationDetail {
   const u = me();
   const cur = requireEditableApplication(id, 'change this application');
-  if (nameTaken(input.name, id)) throw new HttpError(409, `An application named "${input.name}" exists already`, 'APPLICATION_EXISTS', { name: input.name });
+  refuseTakenName(input.name, id);
   assertKnownSubjects(input.owners, ownersOf(cur));
   const next = columns(input, cur.supplier_id);
   const changes = (Object.keys(next) as (keyof typeof next)[]).filter((k) => (next[k] ?? null) !== (cur[k] ?? null));
@@ -492,8 +504,7 @@ export function setApplicationArchived(id: string, archived: boolean): Applicati
   const u = me();
   const cur = requireEditableApplication(id, 'archive this application');
   if (!!cur.archived === archived) return getApplication(id);
-  if (!archived && nameTaken(cur.name, id))
-    throw new HttpError(409, `An application named "${cur.name}" exists already – rename one of them first`, 'APPLICATION_EXISTS', { name: cur.name });
+  if (!archived) refuseTakenName(cur.name, id, true);
   const needs = protectionNeeds(servicesWith(id));
   const scale = currentScale();
   db().tx(() => {

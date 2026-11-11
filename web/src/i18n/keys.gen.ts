@@ -5030,8 +5030,10 @@ export interface Resources {
     'codes.AUDIT_CURSOR_SORT': string;
     'codes.AUDIT_CURSOR_UNKNOWN': string;
     'codes.SERVICE_EXISTS': string;
+    'codes.SERVICE_NAME_TAKEN': string;
     'codes.APPLICATION_NOT_FOUND': string;
     'codes.APPLICATION_EXISTS': string;
+    'codes.APPLICATION_NAME_TAKEN': string;
     'codes.APPLICATION_ARCHIVED': string;
     'codes.APPLICATION_PLATFORM_NOT_FOUND': string;
     'codes.APPLICATION_ROLE_TEXT': string;
