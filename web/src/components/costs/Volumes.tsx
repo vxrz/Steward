@@ -29,7 +29,7 @@ export function VolumeWarningBadge({ w, runsOutOn }: { w: CostVolumeWarning; run
       variant="light"
       color={WARNING_COLOR[w]}
       leftSection={<IconAlertTriangle size={10} aria-hidden />}
-      style={{ whiteSpace: 'normal', height: 'auto' }}
+      className="badge-wrap"
       data-testid={`volume-warning-${w}`}
     >
       {w === 'runsOut' && runsOutOn ? t('volumes.warnings.runsOutOn', { date: fmtDay(runsOutOn) }) : t(`volumes.warnings.${w}`)}

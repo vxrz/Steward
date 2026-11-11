@@ -32,7 +32,7 @@ export function NoticeWarning({ r }: { r: Pick<CostCommitment, 'warning' | 'noti
         color={r.warning.soon ? 'orange' : 'yellow'}
         leftSection={<IconAlertTriangle size={12} aria-hidden />}
         data-testid="commitment-warning"
-        style={{ whiteSpace: 'normal', height: 'auto' }}
+        className="badge-wrap"
       >
         {t('commitments.warning', { date: fmtDay(r.warning.noticeBy), label: r.warning.label })}
       </Badge>

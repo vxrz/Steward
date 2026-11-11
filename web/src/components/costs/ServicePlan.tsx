@@ -869,7 +869,7 @@ function EntriesSection({
   // the part of an entry a prepaid volume covers (0.19.0): use of what was paid up front, not counted again
   const drawn = (e: CostEntry) =>
     e.drawn ? (
-      <Badge size="xs" variant="light" color="gray" data-testid="entry-drawn">
+      <Badge size="xs" variant="light" color="gray" className="badge-wrap" data-testid="entry-drawn">
         {t('volumes.entryDrawn', { amount: fmtMoney(e.drawn, e.currency) })}
       </Badge>
     ) : null;
