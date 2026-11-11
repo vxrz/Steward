@@ -2,7 +2,7 @@ import type { APIRequestContext, Page } from '@playwright/test';
 import { test, expect } from './support/fixtures';
 import { authFile } from './support/env';
 import { expectAccessible } from './support/axe';
-import { chooseOption, expectNoHorizontalScroll, json, uniq } from './support/helpers';
+import { FISCAL_YEAR_LOCK, FISCAL_YEAR_TIMEOUT, chooseOption, expectNoHorizontalScroll, json, uniq, withLock } from './support/helpers';
 
 test.use({ storageState: authFile('admin') });
 
@@ -112,21 +112,29 @@ async function flow(page: Page, api: APIRequestContext, f: Fixture, mobile: bool
 }
 
 test('contract payments: a schedule, its lines confirmed, the contract changed, the commitments', async ({ page, apiAs }) => {
-  const api = await apiAs('admin');
-  const f = await fixture(api);
-  try {
-    await flow(page, api, f, false);
-  } finally {
-    await cleanup(api, f);
-  }
+  // computes fiscal years from the instance's start: never while cost-plans changes it
+  test.setTimeout(FISCAL_YEAR_TIMEOUT);
+  await withLock(FISCAL_YEAR_LOCK, async () => {
+    const api = await apiAs('admin');
+    const f = await fixture(api);
+    try {
+      await flow(page, api, f, false);
+    } finally {
+      await cleanup(api, f);
+    }
+  });
 });
 
 test('contract payments on a phone @mobile', async ({ page, apiAs }) => {
-  const api = await apiAs('admin');
-  const f = await fixture(api);
-  try {
-    await flow(page, api, f, true);
-  } finally {
-    await cleanup(api, f);
-  }
+  // computes fiscal years from the instance's start: never while cost-plans changes it
+  test.setTimeout(FISCAL_YEAR_TIMEOUT);
+  await withLock(FISCAL_YEAR_LOCK, async () => {
+    const api = await apiAs('admin');
+    const f = await fixture(api);
+    try {
+      await flow(page, api, f, true);
+    } finally {
+      await cleanup(api, f);
+    }
+  });
 });

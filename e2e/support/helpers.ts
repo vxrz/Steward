@@ -122,6 +122,14 @@ export function settingsSave(page: Page): Locator {
 }
 
 /**
+ * The instance's fiscal year start is one setting of the shared demo server: the test that changes it (and restores it)
+ * and the tests that compute fiscal years from it take this lock, so none of them sees it change halfway
+ * (cost-plans, cost-contracts, cost-entry-import). Waiting counts against the test's time: they allow for it.
+ */
+export const FISCAL_YEAR_LOCK = 'fiscal-year-start';
+export const FISCAL_YEAR_TIMEOUT = 300_000;
+
+/**
  * A lock across the test workers (a directory in e2e/.auth, removed by the global setup): around a test that changes
  * shared demo data for a while and the tests that read that data – a `serial` describe orders its own tests, but its
  * repeats (`--repeat-each`) run side by side in other workers. A lock older than `staleMs` (a killed worker) is taken over.

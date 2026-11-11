@@ -2,7 +2,7 @@ import type { APIRequestContext, Page } from '@playwright/test';
 import { test, expect } from './support/fixtures';
 import { authFile } from './support/env';
 import { expectAccessible } from './support/axe';
-import { chooseOption, expectNoHorizontalScroll, json, uniq } from './support/helpers';
+import { FISCAL_YEAR_LOCK, FISCAL_YEAR_TIMEOUT, chooseOption, expectNoHorizontalScroll, json, uniq, withLock } from './support/helpers';
 
 test.use({ storageState: authFile('admin') });
 
@@ -67,21 +67,29 @@ async function flow(page: Page, service: { id: string }, mobile: boolean) {
 }
 
 test('import entries: map, preview with a problem and a duplicate, import, remove', async ({ page, apiAs }) => {
-  const api = await apiAs('admin');
-  const service = await fixture(api);
-  try {
-    await flow(page, service, false);
-  } finally {
-    await api.post(`/api/services/${service.id}/archive`, { data: { archived: true } });
-  }
+  // computes fiscal years from the instance's start: never while cost-plans changes it
+  test.setTimeout(FISCAL_YEAR_TIMEOUT);
+  await withLock(FISCAL_YEAR_LOCK, async () => {
+    const api = await apiAs('admin');
+    const service = await fixture(api);
+    try {
+      await flow(page, service, false);
+    } finally {
+      await api.post(`/api/services/${service.id}/archive`, { data: { archived: true } });
+    }
+  });
 });
 
 test('import entries on a phone @mobile', async ({ page, apiAs }) => {
-  const api = await apiAs('admin');
-  const service = await fixture(api);
-  try {
-    await flow(page, service, true);
-  } finally {
-    await api.post(`/api/services/${service.id}/archive`, { data: { archived: true } });
-  }
+  // computes fiscal years from the instance's start: never while cost-plans changes it
+  test.setTimeout(FISCAL_YEAR_TIMEOUT);
+  await withLock(FISCAL_YEAR_LOCK, async () => {
+    const api = await apiAs('admin');
+    const service = await fixture(api);
+    try {
+      await flow(page, service, true);
+    } finally {
+      await api.post(`/api/services/${service.id}/archive`, { data: { archived: true } });
+    }
+  });
 });
