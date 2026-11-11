@@ -79,7 +79,7 @@ Themes of this release (details in the CHANGELOG once released):
 
 ## Next
 
-The next release is not planned yet; the candidates are under _Later_.
+**0.18.0 – upgrades, review follow-ups, and contracts in the cost plan.** Dependency upgrades and security fixes; review follow-ups – backups pinned to their S3 target, monitor request bodies redacted in exports, currencies without cents, the statement of applicability as of the period end in evidence packs, document reviews in the ISMS summary; and multi-year contracts and recorded costs ([ADR 0030](adr/0030-contract-payments-and-recorded-costs.md)): payment schedules on supplier contracts that propose the plan lines of each fiscal year (part years and price changes included), plan lines for part of a year, what the contracts still commit a service to – to their end and to the earliest exit – per service and supplier, and cost entries imported from CSV or booked from a plan line in one step. The candidates for later releases are under _Later_.
 
 ## Later
 
