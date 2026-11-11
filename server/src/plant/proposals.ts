@@ -28,7 +28,7 @@ import { plantEnabled } from './settings.js';
 import { applyImport, importInput, previewImport, type ImportInput } from './import.js';
 import { issueMessages, plantFileSchema, SCHEMA_ID } from './format.js';
 import { redactValue } from './collections-redact.js';
-import { combineParts, PartConflict } from './proposal-parts.js';
+import { combineParts, PartConflict, PartKeyRefused } from './proposal-parts.js';
 import { proposalSources } from './proposal-sources.js';
 
 /**
@@ -706,6 +706,7 @@ export const plantProposalTools: ToolDef[] = [
         combined = combineParts(parts.map((p) => JSON.parse(p) as unknown));
       } catch (e) {
         if (e instanceof PartConflict) throw new ToolError(`Part ${parts.length} does not combine with the parts before – it was not kept:\n- ${e.message}`);
+        if (e instanceof PartKeyRefused) throw new ToolError(`Part ${parts.length} was not kept:\n- ${e.message}`);
         throw e;
       }
       const whole = JSON.stringify(combined);

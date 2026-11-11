@@ -407,6 +407,44 @@ describe('proposals in parts', () => {
   });
 });
 
+describe('combining parts with keys of the prototype (security review 0.17.0)', () => {
+  it('matches keys as the part’s own: a key such as toString combines like any other', async () => {
+    const { combineParts } = await import('../src/plant/proposal-parts.js');
+    const a = { version: 1, device_profile: { id: 'p', name: 'P', labels: { toString: 'x', hasOwnProperty: 'y' } } };
+    const b = { version: 1, device_profile: { id: 'p', name: 'P', labels: { toString: 'x', valueOf: 'z' } } };
+    expect(combineParts([a, b])).toEqual({
+      version: 1,
+      device_profiles: [{ id: 'p', name: 'P', labels: { toString: 'x', hasOwnProperty: 'y', valueOf: 'z' } }],
+    });
+  });
+
+  it('refuses a part with a key __proto__, constructor or prototype anywhere, with a clear message', async () => {
+    const { combineParts, PartKeyRefused } = await import('../src/plant/proposal-parts.js');
+    const ok = { version: 1, device_profile: { id: 'p', name: 'P' } };
+    // JSON.parse makes __proto__ an own key, as the parts arrive
+    const proto = JSON.parse('{"version":1,"device_profile":{"id":"p","name":"P","labels":{"__proto__":{"polluted":true}}}}');
+    expect(() => combineParts([ok, proto])).toThrow(PartKeyRefused);
+    expect(() => combineParts([ok, proto])).toThrow(/device_profile\.labels\.__proto__: part 2 has the key "__proto__"/);
+    for (const key of ['constructor', 'prototype']) {
+      const bad = JSON.parse(`{"version":1,"device_profile":{"id":"p","name":"P","interfaces":[{"id":"i","${key}":{"x":1}}]}}`);
+      expect(() => combineParts([bad]), key).toThrow(new RegExp(`device_profile\\.interfaces\\[0\\]\\.${key}: part 1 has the key "${key}"`));
+    }
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+  });
+
+  // the format's own check refuses such a key where the format names its fields; combineParts refuses it everywhere
+  it('answers the assistant that the part was not kept', async () => {
+    const first = await propose({ more: true, document: profilePart('proto-c80', [{ name: 'Axes', data_points: [point('x_pos', 1)] }]) });
+    expect(first.isError, first.data).toBe(false);
+    const doc = JSON.parse(JSON.stringify(profilePart('proto-c80', [{ name: 'Axes', data_points: [point('y_pos', 2)] }])));
+    doc.device_profile.interfaces[0].groups[0].data_points[0].constructor = { name: 'x' };
+    const refused = await propose({ proposalId: first.data.proposalId, more: true, document: doc });
+    expect(refused.isError).toBe(true);
+    expect(refused.data).toMatch(/not kept[\s\S]*"constructor"/);
+    await dana('POST', `/mcp-requests/${first.data.proposalId}/decision`, { approve: false, comment: '' });
+  });
+});
+
 describe('sources of data points', () => {
   it('are part of the import format: imported, exported and imported again unchanged – also on a derived profile', async () => {
     const files = [

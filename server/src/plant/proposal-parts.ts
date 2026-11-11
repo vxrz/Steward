@@ -16,6 +16,10 @@
  *
  * The rules that keep a proposal to adding and changing (never a removal, never a dropped item) apply to the combined
  * document, when the last part has come.
+ *
+ * Keys are matched as the document's own (Object.hasOwn), never through the prototype – a key such as `toString`
+ * combines like any other – and a part with a key `__proto__`, `constructor` or `prototype` anywhere is refused: they
+ * name no field of the format and would change how the combined object behaves (security review 0.17.0, L7).
  */
 
 type Json = null | boolean | number | string | Json[] | { [k: string]: Json };
@@ -33,6 +37,19 @@ const LISTS: Record<string, string> = {
 
 /** The keys entries of a list are matched by, in this order (the first one every entry has, without repeats). */
 const ITEM_KEYS = ['id', 'asset', 'site', 'collection', 'data_point', 'interface', 'job', 'kpi', 'name', 'output_name', 'key', 'cidr', 'start', 'address'];
+
+/** Keys a part may not have anywhere: they could reach an object's prototype when parts are combined. */
+export const REFUSED_KEYS: readonly string[] = ['__proto__', 'constructor', 'prototype'];
+
+/** A part with a key it may not have (REFUSED_KEYS): refused before anything is combined. */
+export class PartKeyRefused extends Error {
+  constructor(
+    readonly path: string,
+    message: string,
+  ) {
+    super(message);
+  }
+}
 
 export class PartConflict extends Error {
   constructor(
@@ -66,7 +83,7 @@ function merge(a: Json, b: Json, path: string, part: number): Json {
   if (same(a, b)) return a;
   if (isObj(a) && isObj(b)) {
     const out: Obj = { ...a };
-    for (const [k, v] of Object.entries(b)) out[k] = k in out ? merge(out[k]!, v, path ? `${path}.${k}` : k, part) : v;
+    for (const [k, v] of Object.entries(b)) out[k] = Object.hasOwn(out, k) ? merge(out[k]!, v, path ? `${path}.${k}` : k, part) : v;
     return out;
   }
   if (Array.isArray(a) && Array.isArray(b)) {
@@ -103,16 +120,33 @@ function normalised(doc: Obj): Obj {
   for (const [k, v] of Object.entries(doc)) {
     // where an editor finds the schema: no part of the content
     if (k === '$schema') continue;
-    const list = LISTS[k];
-    if (list) out[list] = [...((out[list] as Json[] | undefined) ?? []), v];
-    else if (Object.values(LISTS).includes(k)) out[k] = [...((out[k] as Json[] | undefined) ?? []), ...(Array.isArray(v) ? v : [v])];
+    const list = Object.hasOwn(LISTS, k) ? LISTS[k] : undefined;
+    const had = (key: string) => (Object.hasOwn(out, key) ? (out[key] as Json[]) : []);
+    if (list) out[list] = [...had(list), v];
+    else if (Object.values(LISTS).includes(k)) out[k] = [...had(k), ...(Array.isArray(v) ? v : [v])];
     else out[k] = v;
   }
   return out;
 }
 
-/** The parts (documents of the import format, in the order they came) as one document; a conflict throws PartConflict. */
+/** Refuses a key of REFUSED_KEYS anywhere in a part (JSON.parse makes `__proto__` an own key). */
+function refuseKeys(v: unknown, path: string, part: number): void {
+  if (Array.isArray(v)) v.forEach((x, i) => refuseKeys(x, `${path}[${i}]`, part));
+  else if (isObj(v))
+    for (const k of Object.keys(v)) {
+      const at = path ? `${path}.${k}` : k;
+      if (REFUSED_KEYS.includes(k))
+        throw new PartKeyRefused(at, `${at}: part ${part} has the key "${k}" – no field of the import format is called so; leave it out`);
+      refuseKeys(v[k], at, part);
+    }
+}
+
+/**
+ * The parts (documents of the import format, in the order they came) as one document; a conflict throws PartConflict,
+ * a key of REFUSED_KEYS PartKeyRefused.
+ */
 export function combineParts(parts: unknown[]): Obj {
+  parts.forEach((p, i) => refuseKeys(p, '', i + 1));
   let out: Json = {};
   parts.forEach((p, i) => {
     out = merge(out, normalised(p as Obj), '', i + 1);
