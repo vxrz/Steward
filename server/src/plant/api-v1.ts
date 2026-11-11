@@ -29,7 +29,7 @@ import { PlantAssetListQuery, PlantCatalogueListQuery, PlantCheckListQuery, Plan
  */
 type Get = <R>(url: string, op: Op, handler: (req: FastifyRequest, reply: FastifyReply) => Promise<R> | R) => unknown;
 
-function found<T>(f: () => T, what: string): T {
+export function found<T>(f: () => T, what: string): T {
   try {
     return f();
   } catch (e) {

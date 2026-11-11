@@ -25,6 +25,7 @@ import { ChecksList } from '../components/plant/data';
 import { IdMappingStep, ImportIdsPreview, idOptionsBody, NO_ID_OPTIONS, type IdOptions } from '../components/plant/importIds';
 import { ACTION_COLOR, ChangeTable, useKindLabel } from '../components/plant/changes';
 import { useChangeSetConfig } from '../components/plant/changes/common';
+import { NO_STEWARD_CHOICES, StewardChoices, stewardBody, type StewardState } from '../components/plant/changes/StewardChoices';
 
 const ACTIONS: PlantChangeAction[] = ['add', 'change', 'remove', 'mark', 'unchanged', 'skip'];
 
@@ -62,19 +63,24 @@ export function PlantImportPage() {
   const canImport = canApply || canDraft;
   const [drafted, setDrafted] = useState<PlantChangeSetSummary | null>(null);
   const [proposed, setProposed] = useState<PlantChangeSetSummary | null>(null);
+  // 0.19.0: fields changed in Steward since the last import – keep Steward's (the default) or take the file's
+  const [steward, setSteward] = useState<StewardState>(NO_STEWARD_CHOICES);
+  const [announce, setAnnounce] = useState('');
   const earlier = imports.data ?? [];
-  const body = () => ({
+  const body = (choices: StewardState = steward) => ({
     files: files.map(({ name, content }) => ({ name, content })),
     mode,
     missing,
     replaces: mode === 'replace' ? replaces : null,
     ...idOptionsBody(ids),
+    changedInSteward: stewardBody(choices),
   });
   const stale = () => {
     setPreview(null);
     setResult(null);
     setDrafted(null);
     setProposed(null);
+    setSteward(NO_STEWARD_CHOICES);
   };
   const pick = async (list: File[]) => {
     const read = await Promise.all(list.map(async (f) => ({ name: f.name, content: await f.text(), bytes: f.size })));
@@ -90,13 +96,16 @@ export function PlantImportPage() {
   const total = files.reduce((n, f) => n + f.bytes, 0);
   const tooLarge = total > PLANT_LIMITS.importBytes;
   const ready = files.length > 0 && !tooLarge && (mode !== 'replace' || !!replaces);
-  const runPreview = async () => {
+  const runPreview = async (choices: StewardState = steward) => {
     setBusy(true);
     setResult(null);
     setDrafted(null);
     setProposed(null);
     try {
-      setPreview(await post<PlantImportPreview>('/plant/import/preview', body()));
+      const p = await post<PlantImportPreview>('/plant/import/preview', body(choices));
+      setPreview(p);
+      if (choices !== NO_STEWARD_CHOICES)
+        setAnnounce(t('import.steward.updated', { kept: p.changedInSteward?.kept ?? 0, total: p.changedInSteward?.total ?? 0 }));
     } catch (e) {
       notifyError(e);
     } finally {
@@ -176,6 +185,9 @@ export function PlantImportPage() {
           </Button>
         }
       />
+      <div aria-live="polite" className="visually-hidden" data-testid="import-announce">
+        {announce}
+      </div>
       {cfg.isSuccess && !canImport ? (
         <EmptyState icon={IconFileImport} title={t('import.notAllowedTitle')} whoCanAct={t('common:whoCanAct.plantSites')}>
           {t('import.notAllowedText')}
@@ -290,7 +302,12 @@ export function PlantImportPage() {
                 </Stack>
               )}
               <Group>
-                <Button onClick={() => void runPreview()} loading={busy && !preview} disabled={!ready} data-testid="import-preview">
+                <Button
+                  onClick={() => (setSteward(NO_STEWARD_CHOICES), void runPreview(NO_STEWARD_CHOICES))}
+                  loading={busy && !preview}
+                  disabled={!ready}
+                  data-testid="import-preview"
+                >
                   {t('import.previewButton')}
                 </Button>
               </Group>
@@ -352,6 +369,17 @@ export function PlantImportPage() {
                   </Alert>
                 )}
                 <ImportIdsPreview preview={preview} />
+                {preview.changedInSteward && (
+                  <StewardChoices
+                    flags={preview.changedInSteward}
+                    value={steward}
+                    busy={busy}
+                    onChange={(next) => {
+                      setSteward(next);
+                      void runPreview(next);
+                    }}
+                  />
+                )}
                 {preview.ok && (
                   <>
                     <SegmentedControl

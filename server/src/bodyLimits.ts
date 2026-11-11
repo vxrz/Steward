@@ -25,6 +25,7 @@ import {
   DB_SCHEMA_LIMITS,
   LIBRARY_LIMITS,
   PLANT_LIMITS,
+  PLANT_PROPOSAL_LIMITS,
   PLANT_COLLECTION_LIMITS,
   PLANT_IH_LIMITS,
   RECORDING_LIMITS,
@@ -71,6 +72,8 @@ export const LARGE_BODIES = {
     ],
     bytes: jsonText(DATA_CONTRACT_LIMITS.yamlBytes),
   },
+  /** 0.19.0: a proposal of plant registry changes from CI (/api/v1): a document of PLANT_PROPOSAL_LIMITS.totalBytes (1 MB) as JSON */
+  plantProposalApi: { routes: ['POST /api/v1/plant/proposals'], bytes: PLANT_PROPOSAL_LIMITS.totalBytes + 64 * KIB },
   recordings: { routes: ['POST /api/platforms/:id/recordings', 'PUT /api/platforms/:id/recordings/:recId'], bytes: jsonText(RECORDING_LIMITS.bodyBytes) },
   /** Running one node (ADR 0010): sample data up to DEBUG_LIMITS.sampleBytes (1 MB), the unsaved node and a pasted answer of the same size */
   debugNode: { routes: ['POST /api/processes/:id/debug/node'], bytes: jsonText(2 * DEBUG_LIMITS.sampleBytes) },

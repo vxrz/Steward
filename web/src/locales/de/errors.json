@@ -1187,7 +1187,7 @@
     "PLANT_CHANGESET_ENTRY_GONE": "Den Eintrag gibt es nicht mehr.",
     "PLANT_CHANGESET_INVALID": "Der Änderungssatz kann nicht übernommen werden – siehe die Probleme in seiner Vorschau.",
     "PLANT_CHANGESET_LIMIT": "Höchstens {{max}} – schlagen Sie erst einige vor oder ziehen Sie sie zurück.",
-    "PLANT_CHANGESET_NOTHING": "Davon lässt sich jetzt nichts rückgängig machen (entfernte Einträge stellt eine spätere Version wieder her).",
+    "PLANT_CHANGESET_NOTHING": "Davon lässt sich jetzt nichts rückgängig machen.",
     "PLANT_CHANGESET_NOT_APPLIED": "Nur ein übernommener Änderungssatz wird rückgängig gemacht.",
     "PLANT_CHANGESET_NOT_DRAFT": "Nur ein Entwurf wird geändert.",
     "PLANT_CHANGESET_NOT_FOUND": "Änderungssatz {{id}} nicht gefunden.",

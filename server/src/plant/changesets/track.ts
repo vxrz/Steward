@@ -505,6 +505,23 @@ export function recordBaselines(importId: string, o: { values?: boolean } = {}):
   return n;
 }
 
+/**
+ * 0.19.0: baselines with stored values for entries an import wrote – those where Steward's values of fields changed since
+ * the last import were kept (changesets/steward.ts): the baseline is what the file said, so the field stays flagged.
+ * Written after recordBaselines() of the same import (they replace its rows for these entries), 200 a statement.
+ */
+export function recordBaselineValues(importId: string, list: { kind: PlantEntryKind; scope: string; id: string; values: Record<string, unknown> }[]): void {
+  const at = nowIso();
+  const seq = nextSeq();
+  for (const part of chunks(list))
+    db().run(
+      `INSERT INTO plant_entry_baselines (kind, scope, entry_id, import_id, seq, revision, field_values, recorded_at)
+       VALUES ${part.map(() => '(?, ?, ?, ?, ?, ?, ?, ?)').join(', ')}
+       ON CONFLICT (kind, scope, entry_id, import_id) DO UPDATE SET seq = excluded.seq, revision = excluded.revision, field_values = excluded.field_values, recorded_at = excluded.recorded_at`,
+      ...part.flatMap((e) => [e.kind, e.scope, e.id, importId, seq, null, storedValues(JSON.stringify(e.values)), at]),
+    );
+}
+
 /** Baselines of an entry in the order they were recorded (a counter that never goes back within the process; time otherwise). */
 let lastSeq = 0;
 const nextSeq = () => (lastSeq = Math.max(lastSeq + 1, Date.now() * 1000));

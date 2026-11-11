@@ -90,7 +90,8 @@ export function EntryHistory({ kind, id, scope = '', children = false }: { kind:
                   onClick={() => revert.mutate(h.id)}
                   data-testid="history-revert"
                 >
-                  {t('history.revert')}
+                  {/* 0.19.0: a removal is reverted by adding the entry again */}
+                  {h.op === 'remove' ? t('history.restore') : t('history.revert')}
                 </Button>
               )}
             </Group>

@@ -66,6 +66,8 @@ import { entryWrite, revisedNetwork, splitRevision, type WriteTarget } from './c
 import {
   applyDirect,
   bulkRegion,
+  collectionsRegion,
+  collectionsTouchProfile,
   entryDiffs,
   quietDryRun,
   importRegion,
@@ -81,6 +83,7 @@ import {
 } from './changesets/core.js';
 import { changeSetConfig, changeSetRoutes } from './changesets/api.js';
 import { checkOpenLimits, documentOperation } from './changesets/drafts.js';
+import { withSteward } from './changesets/steward.js';
 import { notifyProposed } from './changesets/notify.js';
 import { revisionOf } from './changesets/entries.js';
 import type { EntryChange, Region } from './changesets/track.js';
@@ -800,15 +803,40 @@ export async function plantRoutes(app: FastifyInstance): Promise<void> {
     reply.header('cache-control', 'no-store');
     return reply.type(x.contentType).send(x.content);
   });
-  app.post('/plant/assets/:assetId/collections/import/preview', collectionImports, async (req) =>
-    previewCollectionImport(p(req).assetId!, collectionImportInput.parse(req.body)),
-  );
-  // through a change set (history and revisions); as operations of their own in phase 2 (ADR 0020)
-  app.post('/plant/assets/:assetId/collections/import', collectionImports, async (req) => {
+  // who may only propose sees what the files would do with their propose right counted as manage – to add them to their
+  // draft (0.19.0; a dry run that is rolled back and audits nothing)
+  app.post('/plant/assets/:assetId/collections/import/preview', collectionImports, async (req) => {
     const input = collectionImportInput.parse(req.body);
-    return directly('import', `Collection import into asset "${p(req).assetId!}"`, { assets: [p(req).assetId!] }, () =>
-      applyCollectionImport(p(req).assetId!, input),
-    );
+    const assetId = p(req).assetId!;
+    if (!proposesOnly(false)) return previewCollectionImport(assetId, input);
+    return quietDryRun(() => asProposer(() => previewCollectionImport(assetId, input)));
+  });
+  // 0.19.0: an operation of a change set of its own (ADR 0020) – applied at once, or proposed where review is required
+  app.post('/plant/assets/:assetId/collections/import', collectionImports, async (req, reply) => {
+    const input = collectionImportInput.parse(req.body);
+    const assetId = p(req).assetId!;
+    const title = `Collection import into asset "${assetId}"`;
+    const op = documentOperation('collections', { assetId, ...input }, me());
+    const region = collectionsRegion(assetId, collectionsTouchProfile(input));
+    if (changeSetLevel() !== 'off') {
+      // what it would do now (refused as the import refuses it), and whether that needs a second person
+      const f = previewFingerprint(region, () => applyCollectionImport(assetId, input));
+      const where = touchedBy(f.changes);
+      if (f.changes.length && reviewNeeded(where.sites, where.catalogue)) {
+        const changeSet = proposed('import', title, op, where.sites, where.catalogue);
+        reply.code(202);
+        return { preview: f.result.preview, changeSet };
+      }
+    }
+    const done = applyDirect({
+      source: 'import',
+      title,
+      region,
+      // the files are kept as the collector's sources (collection-sources); a proposed import keeps them whole
+      ops: [{ ...op, source: undefined }],
+      fn: () => applyCollectionImport(assetId, input),
+    });
+    return { ...done.result, changeSetId: done.changeSetId };
   });
   // ---------- 0.14: Insights Hub as a mapped sink (docs/PLANT.md "Insights Hub mapping") ----------
   const sinkBase = '/plant/assets/:assetId/collections/:collectionId/sinks/:sinkId/insights-hub';
@@ -1110,7 +1138,11 @@ export async function plantRoutes(app: FastifyInstance): Promise<void> {
     // who may only propose sees what the files would do with their propose right counted as manage – to add them to
     // their draft (0.13.0; a dry run that is rolled back and audits nothing)
     const draft = proposesOnly(false);
-    const f = previewFingerprint(importRegion(input), () => (draft ? asProposer(() => previewImport(input)) : previewImport(input)));
+    // 0.19.0: with the fields changed in Steward since the last import (kept unless taken from the file)
+    const f = previewFingerprint(importRegion(input), () => {
+      const st = withSteward(input, () => (draft ? asProposer(() => previewImport(input)) : previewImport(input)));
+      return st.flags ? { ...st.result, changedInSteward: st.flags } : st.result;
+    });
     return { ...f.result, fingerprint: f.fingerprint };
   });
   // renaming or removing more than one entry asks for a step-up (plant.bulkChange), one rename as the policy says (plant.renameId)
@@ -1135,16 +1167,23 @@ export async function plantRoutes(app: FastifyInstance): Promise<void> {
           return { ...pre, changeSet };
         }
       }
+      let kept: ((importId: string) => void) | null = null;
       return applyDirect({
         source: 'import',
         title: `Import ${input.files.map((x) => x.name).join(', ')}`.slice(0, 200),
         region: importRegion(input),
         // the files are kept by their names and hashes (plant_imports); a proposed import keeps them whole
         ops: [{ ...documentOperation('import', input, me()), source: undefined }],
-        fn: () => applyImport(input),
+        // 0.19.0: fields changed in Steward since the last import keep Steward's value unless taken from the file
+        fn: () => {
+          const st = withSteward(input, () => applyImport(input));
+          kept = st.recordKept;
+          return st.flags ? { ...st.result, changedInSteward: st.flags } : st.result;
+        },
         fingerprint,
         changedCode: 'PLANT_IMPORT_CHANGED',
         importIdOf: (r) => r.import.id,
+        afterBaselines: (r) => kept?.(r.import.id),
       }).result;
     },
   );

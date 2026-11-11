@@ -1187,7 +1187,7 @@
     "PLANT_CHANGESET_ENTRY_GONE": "The entry is no longer there.",
     "PLANT_CHANGESET_INVALID": "The change set cannot be applied – see the problems in its preview.",
     "PLANT_CHANGESET_LIMIT": "At most {{max}} – propose or withdraw some first.",
-    "PLANT_CHANGESET_NOTHING": "Nothing of it can be reverted now (removed entries are restored in a later version).",
+    "PLANT_CHANGESET_NOTHING": "Nothing of it can be reverted now.",
     "PLANT_CHANGESET_NOT_APPLIED": "Only an applied change set is reverted.",
     "PLANT_CHANGESET_NOT_DRAFT": "Only a draft is changed.",
     "PLANT_CHANGESET_NOT_FOUND": "Change set {{id}} not found.",
