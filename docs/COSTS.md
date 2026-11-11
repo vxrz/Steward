@@ -235,6 +235,25 @@ A payment counts in the **month of its date** – no pro rata for part months (a
 
 A payment that covers more than its month – a yearly or one-off payment of a schedule, a dated payment with _covers until_, or any one-off line with **covers from/to** – is planned and counted **in the fiscal year it is paid**, with a note _Covers 1 Feb 2026 – 31 Jan 2029_. In the later fiscal years it covers, the cost plan shows it as a quiet row _Prepaid in FY 2025/26_ with its amount, not counted in planned, incurred or expected – so the team sees why nothing is planned there. No amortisation, no accruals: the plan shows cash by the year it leaves.
 
+### Commitments
+
+**What is owed** (German _Verpflichtungen_), per payment schedule, from its payments dated **today or later** (the instance's time zone):
+
+- **to contract end**: until the schedule's end – its own end date, else the contract's end date; for a contract that renews automatically or has no end date, until the earliest exit (no later end is agreed);
+- **to the earliest exit** (_frühester Ausstieg_): until the end of the term that follows the next notice-by date – for a contract with a fixed end or renewed by agreement its end date, for a contract without an end date today plus its notice period. Both are capped by the schedule's end.
+
+Entries are not subtracted: a commitment is what the contract says is still to pay, not what is unbooked – scheduled payments, not liabilities. Both figures are shown per fiscal year and in total, per currency. With the example of [SUPPLIERS.md](SUPPLIERS.md#contracts-and-the-notice-by-date) (ends 31 January 2027, 90 days' notice, renews by 12 months), a schedule of 1,000.00 EUR on the first of each month until 31 January 2029 owes on 11 November 2026 26,000.00 EUR to contract end and 14,000.00 EUR to the earliest exit (31 January 2028, notice by 2 November 2027).
+
+**The notice warning:** _Notice by 2 Nov 2027 – FY 2027/28 not planned yet_ when an automatically renewing contract's next notice-by date is ahead and the fiscal year in which its next term would start has no plan lines of the paying service – once that date passes, the next term is owed whether planned or not. Orange within 90 days, like the supplier's notice state.
+
+**Where:**
+
+- **The service's cost plan**, section _Contracts_: the contracts the service pays, per schedule the billing, the next payment, owed this fiscal year (remaining), later years, to contract end and to the earliest exit, the notice-by date with its warning, _Contract changed_ and the months _Not booked_. _Add payments_ opens the schedule dialog with the service filled in (choose the supplier and the contract).
+- **Costs → Commitments** (`/costs/commitments`, beside services, teams and platforms): every schedule of the services you may see, grouped by supplier, service or team, columns for the current and the next four fiscal years and _later_, totals per currency, the warnings first; filters team, service, supplier and _ending within … days_; _Export (CSV)_.
+- **The supplier page**: per contract its schedules and what they owe (services you may see), the supplier's total per currency, and what was incurred per fiscal year from entries that name the supplier – as sums; entries are not listed under _Used by_.
+
+Schedules of services the reader may not see are neither named nor counted – also in the totals, which add only the amounts the reader sees. `GET /api/costs/commitments?teamId=&serviceId=&supplierId=&currency=&endingWithinDays=` and `…/export` (CSV); `GET /api/v1/cost-commitments` (paged; filters `serviceId`, `teamId`, `supplierId`, `currency`) and the commitments in `GET /api/v1/services/{serviceId}/cost-plan` ([API.md](API.md)); `paymentSchedules` per contract in `GET /api/v1/suppliers/{supplierId}`; the MCP tool `list_cost_commitments` ([MCP.md](MCP.md)); the built-in dataset **Commitments** (`costs.commitments`: one row per schedule of a service that is not archived, with this and next fiscal year, to contract end, to the earliest exit and the notice-by date, status _warning_ while the notice warning applies; administrators and auditors, published at most hourly); and `commitments.csv` in the scheduled export part _Cost plans_ ([EXPORTS.md](EXPORTS.md), formulas defused). The ISMS summary stays as it is: it lists notice-by dates already, and amounts do not belong in an ISMS report.
+
 ## Who sees costs
 
 - A scope is only reachable for those who may see it: a hidden service, application, team or platform answers like a missing one; lists, breakdowns, reports and the check neither name nor count it. A service or team covers only the applications you may see – one you may not see is left out of its totals; a platform's total is its bill, so there the applications (or, for an application, the platforms) you may not see are one row _Others you may not see_ without a name; sources you may not see are left out. Budgets always use the whole service or team – so a reader who does not see all of it gets only the budget's state, never its figures ([Budgets](#budgets)); the totals never reveal hidden applications by subtraction.

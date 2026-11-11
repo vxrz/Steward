@@ -94,6 +94,7 @@ const SystemDetailPage = page(() => import('./pages/SystemDetail'), 'SystemDetai
 const SystemSchemaPage = page(() => import('./pages/SystemSchema'), 'SystemSchemaPage');
 const CostsPage = page(() => import('./pages/Costs'), 'CostsPage');
 const CostDetailPage = page(() => import('./pages/CostDetail'), 'CostDetailPage');
+const CostCommitmentsPage = page(() => import('./pages/CostCommitments'), 'CostCommitmentsPage');
 const DataContractsPage = page(() => import('./pages/DataContracts'), 'DataContractsPage');
 const DataContractNewPage = page(() => import('./pages/DataContractNew'), 'DataContractNewPage');
 const DataContractDetailPage = page(() => import('./pages/DataContractDetail'), 'DataContractDetailPage');
@@ -515,6 +516,14 @@ function Shell({ status }: { status: AuthStatus }) {
                       element={
                         <ModuleGate module="costs">
                           <CostsPage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/costs/commitments"
+                      element={
+                        <ModuleGate module="costs">
+                          <CostCommitmentsPage />
                         </ModuleGate>
                       }
                     />

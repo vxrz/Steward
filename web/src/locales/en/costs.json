@@ -560,5 +560,52 @@
     "prepaid": "Prepaid in {{label}}: {{title}}, {{amount}} (covers {{from}} – {{to}}) – not counted here",
     "unlink": "Unlink from contract",
     "unlinkPending": "Saving makes this an ordinary line without contract hints."
+  },
+  "commitments": {
+    "title": "Commitments",
+    "description": "What the payment schedules of supplier contracts still owe, per fiscal year and currency – scheduled payments dated today or later, not liabilities.",
+    "back": "Costs",
+    "export": "Export (CSV)",
+    "search": "Search schedules, services and suppliers",
+    "filters": {
+      "team": "Team",
+      "service": "Service",
+      "supplier": "Supplier",
+      "ending": "Ending within … days"
+    },
+    "groupBy": "Group by",
+    "groups": {
+      "supplier": "Supplier",
+      "service": "Service",
+      "team": "Team"
+    },
+    "warnings_one": "{{count}} notice date before an unplanned year",
+    "warnings_other": "{{count}} notice dates before unplanned years",
+    "empty": "No payment schedules here. Add payments to a supplier contract to see what it still owes.",
+    "hiddenSupplier": "Suppliers you may not see",
+    "noTeam": "Without a team",
+    "hiddenContract": "A contract of a supplier you may not see",
+    "hiddenDates": "The dates of a contract you may not see are not shown",
+    "until": "Up to {{date}}",
+    "warning": "Notice by {{date}} – {{label}} not planned yet",
+    "columns": {
+      "schedule": "Payment schedule",
+      "billing": "Billing",
+      "next": "Next payment",
+      "thisYear": "{{label}} (remaining)",
+      "later": "Later",
+      "toContractEnd": "To contract end",
+      "toEarliestExit": "To earliest exit",
+      "noticeBy": "Notice by"
+    },
+    "total": "Owed in {{currency}} to contract end",
+    "totalExit": "To the earliest exit {{amount}} · this fiscal year {{thisYear}}",
+    "serviceTitle": "Contracts",
+    "help": "The contracts this service pays, from their payment schedules: what is still owed from today, to contract end and to the earliest exit (the end of the term after the next notice-by date). Entries are not subtracted.",
+    "noneForService": "No payment schedules for this service yet.",
+    "supplierTitle": "Payments and commitments",
+    "supplierHelp": "The payment schedules of this supplier's contracts for services you may see, what they still owe, and what was incurred with the supplier.",
+    "incurred": "Incurred (entries naming this supplier)",
+    "note": "Commitments are the scheduled payments of contracts dated today or later – not liabilities, not accounting. Totals are per currency and only count amounts you may see."
   }
 }

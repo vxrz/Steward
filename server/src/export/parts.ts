@@ -105,6 +105,15 @@ const costPlans: ExportPartDef = {
       await entries.write(s.entries.map((r) => `${r}\r\n`).join(''));
       await ctx.pause();
     }
+    // what the payment schedules still owe (ADR 0030): every schedule of a service that is not archived, as of the run
+    const { commitments, commitmentCsvLines, COMMITMENT_CSV_HEAD } = await import('../costs/commitments.js');
+    const owed = ctx.file('commitments.csv');
+    await owed.write(`\uFEFF${COMMITMENT_CSV_HEAD.join(',')}\r\n`);
+    await owed.write(
+      commitmentCsvLines(commitments({}, ctx.now.getTime()))
+        .map((r) => `${r}\r\n`)
+        .join(''),
+    );
   },
 };
 

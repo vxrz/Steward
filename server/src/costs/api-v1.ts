@@ -5,9 +5,10 @@ import { HttpError } from '../util.js';
 import { notFound } from '../api/v1/helpers.js';
 import { linkNext, pageArray } from '../api/v1/pagination.js';
 import type { Op } from '../api/v1/routes.js';
-import { CostListQuery, CostPlanQuery } from './api-schemas.js';
+import { CostCommitmentsQuery, CostListQuery, CostPlanQuery } from './api-schemas.js';
 import { overview, scopeDetail } from './query.js';
 import { planYear } from './plans.js';
+import { commitments } from './commitments.js';
 
 /**
  * Platform costs in the public, read-only API (#226): the overview of a kind and one scope, with the rights of the web
@@ -80,11 +81,48 @@ export function costApiRoutes(get: Get): void {
       const p = req.params as { serviceId: string };
       const q = req.query as z.infer<typeof CostPlanQuery>;
       try {
-        return planYear(p.serviceId, q.fiscalYear);
+        return { ...planYear(p.serviceId, q.fiscalYear), commitments: commitments({ serviceId: p.serviceId }).rows };
       } catch (e) {
         if (e instanceof HttpError && e.statusCode === 404) throw notFound(`Service ${p.serviceId}`);
         throw e;
       }
+    },
+  );
+  get(
+    '/cost-commitments',
+    {
+      operationId: 'listCostCommitments',
+      tag: 'Costs',
+      summary: 'List the commitments of payment schedules',
+      description:
+        "What the payment schedules of supplier contracts still owe (docs/COSTS.md#commitments): per schedule of a service the token owner may see, the scheduled payments dated today or later – to contract end and to the earliest exit, per fiscal year (the current one and the next four) and later – the next payment, the notice-by date and the notice warning. Scheduled payments, not liabilities: entries are not subtracted; amounts per currency, never converted, null where the token owner may not see the paying service's amounts. Notice warnings first.",
+      query: CostCommitmentsQuery,
+      paginated: true,
+      response: {
+        type: 'object',
+        required: ['items', 'nextCursor'],
+        additionalProperties: false,
+        properties: { items: { type: 'array', items: { $ref: 'CostCommitment#' } }, nextCursor: { type: ['string', 'null'] } },
+      },
+    },
+    async (req, reply) => {
+      const q = req.query as z.infer<typeof CostCommitmentsQuery>;
+      let rows;
+      try {
+        rows = commitments({ serviceId: q.serviceId, teamId: q.teamId, supplierId: q.supplierId, currency: q.currency }).rows;
+      } catch (e) {
+        if (e instanceof HttpError && e.statusCode === 404)
+          throw notFound(q.serviceId ? `Service ${q.serviceId}` : q.teamId ? `Team ${q.teamId}` : `Supplier ${q.supplierId}`);
+        throw e;
+      }
+      const p = pageArray(rows, (r) => [r.warning ? 0 : 1, r.serviceName.toLowerCase(), r.title.toLowerCase(), r.scheduleId], q, {
+        serviceId: q.serviceId,
+        teamId: q.teamId,
+        supplierId: q.supplierId,
+        currency: q.currency,
+      });
+      linkNext(req, reply, p.nextCursor);
+      return p;
     },
   );
 }

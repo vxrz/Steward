@@ -70,6 +70,10 @@ const SupplierContractEntry = z.object({
   rpoHours: z.number().nullable().describe('Contractual recovery point objective (hours)'),
   note: z.string(),
   costPlanLines: z.array(z.object({ id: z.string(), serviceId: z.string(), serviceName: z.string(), fiscalYear: z.number().int(), title: z.string() })),
+  paymentSchedules: z
+    .array(z.object({}).passthrough())
+    .optional()
+    .describe('Costs module (0.18.0): the payment schedules of services the token owner may see, as GET /api/v1/cost-commitments rows'),
 });
 
 const SupplierCertificateEntry = z.object({

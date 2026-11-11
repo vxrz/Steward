@@ -6,6 +6,8 @@ import { linkNext, pageArray } from '../api/v1/pagination.js';
 import type { Op } from '../api/v1/routes.js';
 import { SupplierListQuery } from './api-schemas.js';
 import { getSupplier, listSuppliers, toPublic } from './service.js';
+import { moduleEnabled } from '../modules/registry.js';
+import { commitments } from '../costs/commitments.js';
 
 /**
  * Suppliers in the public, read-only API (0.17.0, ADR 0029): what the web app shows, with the rights of the token
@@ -48,14 +50,18 @@ export function supplierApiRoutes(get: Get): void {
       tag: 'Suppliers',
       summary: 'Get a supplier with its contracts, certificates and links',
       description:
-        'Contracts with term, notice-by date, renewal, SLA and contractual RTO/RPO; certificates with their validity; contacts with name and role only (no e-mail or phone); the items that link the supplier and its supplier review duties.',
+        'Contracts with term, notice-by date, renewal, SLA and contractual RTO/RPO, and (Costs module) their payment schedules with what they still owe – services the token owner may see; certificates with their validity; contacts with name and role only (no e-mail or phone); the items that link the supplier and its supplier review duties.',
       params: { supplierId: 'Supplier id (sup_…)' },
       response: { $ref: 'SupplierEntry#' },
     },
     async (req) => {
       const id = (req.params as { supplierId: string }).supplierId;
       try {
-        return toPublic(getSupplier(id));
+        const d = toPublic(getSupplier(id));
+        if (!moduleEnabled('costs')) return d;
+        // the payment schedules of each contract (ADR 0030): services the token owner may see, amounts by the module's rule
+        const rows = commitments({ supplierId: id }).rows;
+        return { ...d, contracts: d.contracts.map((c) => ({ ...c, paymentSchedules: rows.filter((r) => r.contract?.id === c.id) })) };
       } catch (e) {
         if (e instanceof HttpError && e.statusCode === 404) throw notFound(`Supplier ${id}`);
         throw e;

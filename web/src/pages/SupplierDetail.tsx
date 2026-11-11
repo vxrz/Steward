@@ -50,6 +50,7 @@ import { DueDate, MergeModal, SupplierFormModal, SupplierStatusBadge } from './S
 import { SupplierFindings } from '../components/compliance/corrective';
 import { useModuleOn } from '../modules';
 import { ContractPayments } from '../components/costs/ContractPayments';
+import { SupplierCosts } from '../components/costs/Commitments';
 
 const DOC_LINK = /^(https?:\/\/\S+|rec_[A-Za-z0-9_-]{4,40}|[A-Z][A-Z0-9]{0,9}-\d{4}-\d{4,6})$/i;
 
@@ -323,6 +324,8 @@ export function SupplierDetailPage() {
                 ))
               )}
             </Stack>
+            {/* ---- payments and what they owe (Costs module, ADR 0030) ---- */}
+            {costsOn && <SupplierCosts supplierId={s.id} />}
             {/* ---- certificates ---- */}
             <Stack gap="xs" data-testid="supplier-certificates">
               <Group justify="space-between">

@@ -34522,6 +34522,17 @@
                   ],
                   "description": "The payment schedule of a supplier contract the line was made from (0.18.0); changed: the contract changed since (Contract changed)"
                 },
+                "contractEnds": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "A line naming a contract without a schedule: the end of its contract when it falls in this fiscal year"
+                },
+                "twoLines": {
+                  "type": "boolean",
+                  "description": "A hand-made line for a contract that also has a payment schedule paying in this year"
+                },
                 "paymentDates": {
                   "anyOf": [
                     {
@@ -34653,6 +34664,8 @@
                 "renewalDate",
                 "note",
                 "schedule",
+                "contractEnds",
+                "twoLines",
                 "paymentDates",
                 "bookable",
                 "notBooked",
@@ -35156,6 +35169,96 @@
               "entriesPerYear"
             ],
             "additionalProperties": false
+          },
+          "prepaid": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "lineId": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "fiscalYear": {
+                  "type": "integer"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "amount": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "The prepaid amount – a decimal in the currency; null when the token owner may not see amounts"
+                },
+                "currency": {
+                  "type": "string"
+                },
+                "coversFrom": {
+                  "type": "string"
+                },
+                "coversTo": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "lineId",
+                "title",
+                "fiscalYear",
+                "label",
+                "amount",
+                "currency",
+                "coversFrom",
+                "coversTo"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Payments of earlier fiscal years that cover part of this one (prepaid): shown, not counted"
+          },
+          "proposals": {
+            "type": "integer",
+            "description": "Payment schedules of the service with payments in this year and no lines for it yet"
+          },
+          "contractChanges": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "scheduleId": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "changes": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {},
+                    "additionalProperties": {}
+                  }
+                }
+              },
+              "required": [
+                "scheduleId",
+                "title",
+                "changes"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Contract changed: per payment schedule, its lines before and after (current and later fiscal years)"
+          },
+          "commitments": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": {}
+            },
+            "description": "The service's commitments (as GET /api/v1/cost-commitments rows)"
           }
         },
         "required": [
@@ -35177,7 +35280,295 @@
           "renewals",
           "targets",
           "years",
-          "limits"
+          "limits",
+          "prepaid",
+          "proposals",
+          "contractChanges"
+        ],
+        "additionalProperties": false
+      },
+      "CostCommitment": {
+        "title": "CostCommitment",
+        "type": "object",
+        "properties": {
+          "scheduleId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string",
+            "description": "The payment schedule"
+          },
+          "serviceId": {
+            "type": "string"
+          },
+          "serviceName": {
+            "type": "string"
+          },
+          "teams": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "name"
+              ],
+              "additionalProperties": false
+            },
+            "description": "The paying service's owning teams"
+          },
+          "supplier": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "unconfirmed",
+                      "active",
+                      "archived"
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "status"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "null with contractHidden: a contract of a supplier the token owner may not see"
+          },
+          "contract": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "reference": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "title",
+                  "reference"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "contractHidden": {
+            "type": "boolean"
+          },
+          "billing": {
+            "type": "string",
+            "enum": [
+              "monthly",
+              "quarterly",
+              "yearly",
+              "once",
+              "dates"
+            ]
+          },
+          "currency": {
+            "type": "string",
+            "description": "ISO 4217 code (never converted)"
+          },
+          "amountsVisible": {
+            "type": "boolean"
+          },
+          "nextPayment": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "date": {
+                    "type": "string"
+                  },
+                  "amount": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "The next payment – a decimal in the schedule's currency; null when the token owner may not see the paying service's amounts"
+                  }
+                },
+                "required": [
+                  "date",
+                  "amount"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "owedThisYear": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Owed in the current fiscal year from today (to contract end) – a decimal in the schedule's currency; null when the token owner may not see the paying service's amounts"
+          },
+          "owedLaterYears": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Owed in the later fiscal years (to contract end) – a decimal in the schedule's currency; null when the token owner may not see the paying service's amounts"
+          },
+          "toContractEnd": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Scheduled payments dated today or later up to the schedule's or the contract's end (automatic renewal: the earliest exit) – a decimal in the schedule's currency; null when the token owner may not see the paying service's amounts"
+          },
+          "toEarliestExit": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Scheduled payments dated today or later up to the end of the term after the next notice-by date – a decimal in the schedule's currency; null when the token owner may not see the paying service's amounts"
+          },
+          "contractEnd": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "earliestExit": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "years": {
+            "type": "array",
+            "items": {
+              "type": [
+                "null",
+                "string"
+              ],
+              "description": "To contract end in a fiscal year – a decimal in the schedule's currency; null when the token owner may not see the paying service's amounts"
+            },
+            "description": "The current fiscal year and the next four"
+          },
+          "later": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "To contract end after those five fiscal years – a decimal in the schedule's currency; null when the token owner may not see the paying service's amounts"
+          },
+          "noticeBy": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The contract's next notice-by date"
+          },
+          "warning": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "noticeBy": {
+                    "type": "string"
+                  },
+                  "fiscalYear": {
+                    "type": "integer"
+                  },
+                  "label": {
+                    "type": "string"
+                  },
+                  "days": {
+                    "type": "integer"
+                  },
+                  "soon": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "noticeBy",
+                  "fiscalYear",
+                  "label",
+                  "days",
+                  "soon"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The notice-by date is ahead and the fiscal year of the next term has no plan lines of the paying service (soon: within 90 days)"
+          },
+          "changed": {
+            "type": "boolean",
+            "description": "Lines of the current or a later fiscal year made from it show \"Contract changed\""
+          },
+          "notBooked": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Months of the current fiscal year with a payment of its lines and no entry"
+          }
+        },
+        "required": [
+          "scheduleId",
+          "title",
+          "serviceId",
+          "serviceName",
+          "teams",
+          "supplier",
+          "contract",
+          "contractHidden",
+          "billing",
+          "currency",
+          "amountsVisible",
+          "nextPayment",
+          "owedThisYear",
+          "owedLaterYears",
+          "toContractEnd",
+          "toEarliestExit",
+          "contractEnd",
+          "earliestExit",
+          "years",
+          "later",
+          "noticeBy",
+          "warning",
+          "changed",
+          "notBooked"
         ],
         "additionalProperties": false
       },
@@ -35936,6 +36327,15 @@
                     ],
                     "additionalProperties": false
                   }
+                },
+                "paymentSchedules": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {},
+                    "additionalProperties": {}
+                  },
+                  "description": "Costs module (0.18.0): the payment schedules of services the token owner may see, as GET /api/v1/cost-commitments rows"
                 }
               },
               "required": [
@@ -42102,7 +42502,7 @@
         "tags": [
           "Suppliers"
         ],
-        "description": "Contracts with term, notice-by date, renewal, SLA and contractual RTO/RPO; certificates with their validity; contacts with name and role only (no e-mail or phone); the items that link the supplier and its supplier review duties.",
+        "description": "Contracts with term, notice-by date, renewal, SLA and contractual RTO/RPO, and (Costs module) their payment schedules with what they still owe – services the token owner may see; certificates with their validity; contacts with name and role only (no e-mail or phone); the items that link the supplier and its supplier review duties.",
         "parameters": [
           {
             "schema": {
@@ -47337,6 +47737,145 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/cost-commitments": {
+      "get": {
+        "operationId": "listCostCommitments",
+        "summary": "List the commitments of payment schedules",
+        "tags": [
+          "Costs"
+        ],
+        "description": "What the payment schedules of supplier contracts still owe (docs/COSTS.md#commitments): per schedule of a service the token owner may see, the scheduled payments dated today or later – to contract end and to the earliest exit, per fiscal year (the current one and the next four) and later – the next payment, the notice-by date and the notice warning. Scheduled payments, not liabilities: entries are not subtracted; amounts per currency, never converted, null where the token owner may not see the paying service's amounts. Notice warnings first.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "in": "query",
+            "name": "serviceId",
+            "required": false,
+            "description": "Only this service"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "in": "query",
+            "name": "teamId",
+            "required": false,
+            "description": "Only this team's services"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "in": "query",
+            "name": "supplierId",
+            "required": false,
+            "description": "Only this supplier's contracts"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 3
+            },
+            "in": "query",
+            "name": "currency",
+            "required": false,
+            "description": "Only this currency"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "OK",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/CostCommitment"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"

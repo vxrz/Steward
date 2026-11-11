@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { toMicros, type CostPlanYear, type CostProposals, type CostScheduleList, type SupplierDetail } from '@sm/shared';
+import { toMicros, type CostCommitments, type CostPlanYear, type CostProposals, type CostScheduleList, type SupplierDetail } from '@sm/shared';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
 /**
@@ -375,7 +375,8 @@ describe('copy to the next fiscal year with contracts', () => {
     });
     // a copy into a year without the schedule's lines adds its proposal
     const z: CostPlanYear = await olivia('POST', `/costs/plans/${svc}/copy`, { fiscalYear: 2041 });
-    expect(z.copyResult).toMatchObject({ proposed: ['Long – Licence'], leftOut: ['Monthly until March', 'Yearly until March'] });
+    expect(z.copyResult!.proposed).toEqual(['Long – Licence']);
+    expect([...z.copyResult!.leftOut].sort()).toEqual(['Monthly until March', 'Yearly until March']);
     expect(z.lines.filter((l) => l.schedule)).toHaveLength(1);
     const audit = (await audits('cost.plan_copied'))[1]!;
     expect(audit.details).toMatchObject({ shortened: ['Monthly until March'], leftOut: ['Ended contract'] });
@@ -448,5 +449,185 @@ describe('removing a contract and merging suppliers', () => {
     });
     await s.api('POST', `/suppliers/${supplier}/archive`, { archived: false });
     expect(m('1')).toBe(1);
+  });
+});
+
+describe('commitments', () => {
+  let svc: string;
+  let hiddenSvc: string;
+  let secretSupplier: string;
+  let team: string;
+  const MODERN = '2026-07-28';
+  async function mcp(token: string, name: string, args: Record<string, unknown>): Promise<{ isError: boolean; data: any }> {
+    const res = await fetch(`${s.base}/api/mcp`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        accept: 'application/json, text/event-stream',
+        authorization: `Bearer ${token}`,
+        'mcp-protocol-version': MODERN,
+        'mcp-method': 'tools/call',
+        'mcp-name': name,
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: {
+          name,
+          arguments: args,
+          _meta: {
+            'io.modelcontextprotocol/protocolVersion': MODERN,
+            'io.modelcontextprotocol/clientCapabilities': {},
+            'io.modelcontextprotocol/clientInfo': { name: 'test', version: '1' },
+          },
+        },
+      }),
+    });
+    const r = JSON.parse(await res.text()).result;
+    return { isError: !!r.isError, data: r.isError ? r.content[0].text : r.structuredContent };
+  }
+
+  beforeAll(async () => {
+    const { db } = await import('../src/db.js');
+    svc = (await s.api('POST', '/services', { name: 'Committed service', owners: ['user:olivia'] })).id;
+    // the documentation's contract: ends 31 January 2027, 90 days' notice, renews by 12 months
+    const sup: SupplierDetail = await s.api('POST', `/suppliers/${supplier}/contracts`, {
+      title: 'Hosting renewing',
+      startsOn: '2024-02-01',
+      endsOn: '2027-01-31',
+      noticeDays: 90,
+      renewal: 'automatic',
+      renewalMonths: 12,
+    });
+    const hosting = sup.contracts.find((c) => c.title === 'Hosting renewing')!.id;
+    await olivia('POST', '/costs/schedules', { ...base, yearAmounts: [], startsOn: '2024-02-01', endsOn: '2029-01-31', contractId: hosting, serviceId: svc });
+    // a service of a team the viewer is not in, and a supplier of such a team
+    team = (await s.api('POST', '/teams', { name: 'Commitment secret team' })).id;
+    hiddenSvc = (await s.api('POST', '/services', { name: 'Hidden committed service' })).id;
+    db().run("INSERT INTO resource_teams (kind, resource_id, team_id, created_at) VALUES ('service', ?, ?, ?)", hiddenSvc, team, new Date().toISOString());
+    await s.api('POST', '/costs/schedules', { ...base, title: 'Hidden fee', yearAmounts: [], contractId: hosting, serviceId: hiddenSvc });
+    secretSupplier = (await s.api('POST', '/suppliers', { name: 'Secret Licensing AG' })).id;
+    const sc: SupplierDetail = await s.api('POST', `/suppliers/${secretSupplier}/contracts`, {
+      title: 'Secret licence',
+      startsOn: '2040-01-01',
+      endsOn: '2041-12-31',
+    });
+    await s.api('POST', '/costs/schedules', {
+      ...base,
+      title: 'Secret fee',
+      amount: '500',
+      yearAmounts: [],
+      contractId: sc.contracts[0]!.id,
+      serviceId: svc,
+    });
+    db().run(
+      "INSERT INTO resource_teams (kind, resource_id, team_id, created_at) VALUES ('supplier', ?, ?, ?)",
+      secretSupplier,
+      team,
+      new Date().toISOString(),
+    );
+  });
+
+  it('owe to contract end and to the earliest exit as of a day, with the notice warning', async () => {
+    const { commitments } = await import('../src/costs/commitments.js');
+    // a job (no reader) on 11 November 2026
+    const c = commitments({ serviceId: svc }, Date.parse('2026-11-11T12:00:00Z'));
+    const row = c.rows.find((r) => r.title === 'Base fee')!;
+    expect(row).toMatchObject({ toContractEnd: '26000.00', toEarliestExit: '14000.00', earliestExit: '2028-01-31', nextPayment: { date: '2026-12-01' } });
+    expect(c.years.map((y) => y.label)).toEqual(['FY 2026/27', 'FY 2027/28', 'FY 2028/29', 'FY 2029/30', 'FY 2030/31']);
+    expect(row.years).toEqual(['10000.00', '12000.00', '4000.00', '0.00', '0.00']);
+    // the notice-by date is ahead, and FY 2027/28 – where the next term would start – has no lines of the service
+    expect(row.warning).toMatchObject({ noticeBy: '2027-11-02', label: 'FY 2027/28' });
+    expect(c.rows[0]!.warning).not.toBeNull();
+    // planned there: no warning
+    await olivia('POST', `/costs/plans/${svc}/lines`, {
+      fiscalYear: 2027,
+      title: 'Something',
+      category: 'other',
+      amount: '1',
+      currency: 'EUR',
+      cadence: 'once',
+      onceMonth: '2027-10',
+    });
+    expect(commitments({ serviceId: svc }, Date.parse('2026-11-11T12:00:00Z')).rows.find((r) => r.title === 'Base fee')!.warning).toBeNull();
+  });
+
+  it('name and count only services the reader may see; a hidden supplier shows amounts only', async () => {
+    const all: CostCommitments = await s.api('GET', '/costs/commitments');
+    expect(all.rows.some((r) => r.serviceId === hiddenSvc)).toBe(true);
+    const mine: CostCommitments = await olivia('GET', '/costs/commitments');
+    expect(mine.rows.some((r) => r.serviceId === hiddenSvc)).toBe(false);
+    // totals add only what the reader sees
+    const eur = (c: CostCommitments) => m(c.totals.find((t) => t.currency === 'EUR')?.toContractEnd);
+    expect(eur(all)! - eur(mine)!).toBeGreaterThan(0);
+    const secret = mine.rows.find((r) => r.title === 'Secret fee')!;
+    expect(secret).toMatchObject({ contractHidden: true, supplier: null, contract: null, contractEnd: null, noticeBy: null, toContractEnd: '12000.00' });
+    // the supplier's own page: 404 for who may not see it, its contracts only for who may
+    await expect(olivia('GET', `/costs/commitments?supplierId=${secretSupplier}`)).rejects.toMatchObject({ status: 404 });
+    const bySupplier: CostCommitments = await olivia('GET', `/costs/commitments?supplierId=${supplier}`);
+    expect(bySupplier.rows.every((r) => r.supplier?.id === supplier)).toBe(true);
+    expect(bySupplier.incurred).toBeDefined();
+    // team scope: a team the reader is not in answers 404
+    await expect(olivia('GET', `/costs/commitments?teamId=${team}`)).rejects.toMatchObject({ status: 404 });
+    expect((await s.api<CostCommitments>('GET', `/costs/commitments?teamId=${team}`)).rows.map((r) => r.serviceId)).toEqual([hiddenSvc]);
+  });
+
+  it('follow "Hide amounts from viewers"', async () => {
+    await s.api('PUT', '/costs/settings', { hideAmountsFromViewers: true, defaultCurrency: 'EUR', fiscalYearStartMonth: 10 });
+    try {
+      const v: CostCommitments = await vera('GET', `/costs/commitments?serviceId=${svc}`);
+      expect(v.rows.length).toBeGreaterThan(0);
+      expect(v.rows.every((r) => !r.amountsVisible && r.toContractEnd === null && r.years.every((x) => x === null))).toBe(true);
+      expect(v.totals).toEqual([]);
+    } finally {
+      await s.api('PUT', '/costs/settings', { hideAmountsFromViewers: false, defaultCurrency: 'EUR', fiscalYearStartMonth: 10 });
+    }
+  });
+
+  it('are in /api/v1, MCP, the CSV export, the dataset and the supplier in /api/v1', async () => {
+    const token = (await olivia('POST', '/me/tokens', { name: 'commitments', scope: 'read' })).token as string;
+    const v1 = async (path: string) => {
+      const res = await fetch(`${s.base}/api/v1${path}`, { headers: { authorization: `Bearer ${token}` } });
+      expect(res.status, path).toBe(200);
+      return res.json();
+    };
+    const page = await v1(`/cost-commitments?serviceId=${svc}&limit=1`);
+    expect(page.items).toHaveLength(1);
+    expect(page.nextCursor).not.toBeNull();
+    const plan = await v1(`/services/${svc}/cost-plan`);
+    expect(plan.commitments.length).toBeGreaterThan(0);
+    const sup = await v1(`/suppliers/${supplier}`);
+    expect(sup.contracts.find((c: { title: string }) => c.title === 'Hosting renewing').paymentSchedules.map((x: { title: string }) => x.title)).toEqual([
+      'Base fee',
+    ]);
+    await s.api('PUT', '/mcp-server', { enabled: true });
+    const mcpToken = (await olivia('POST', '/me/tokens', { name: 'commitments-mcp', scope: 'mcp' })).token as string;
+    const tool = await mcp(mcpToken, 'list_cost_commitments', { serviceId: svc });
+    expect(tool.isError).toBe(false);
+    expect(tool.data.items.find((x: { title: string }) => x.title === 'Secret fee').contract).toBe('a contract of a supplier you may not see');
+    const csv: string = await olivia('GET', `/costs/commitments/export?serviceId=${svc}`);
+    expect(csv).toContain('Service id,Service,Supplier,Contract,Schedule');
+    expect(csv).toContain('Committed service');
+    const { publishCommitmentsDataset } = await import('../src/costs/commitments.js');
+    expect(publishCommitmentsDataset(true)).toBe(true);
+    const ds = await s.api('GET', '/datasets/costs.commitments');
+    expect(ds.rows.some((r: { Schedule: string }) => r.Schedule === 'Hidden fee')).toBe(true);
+    await expect(vera('GET', '/datasets/costs.commitments')).rejects.toMatchObject({ status: 404 });
+  });
+
+  it('switch off with the Costs module', async () => {
+    await s.api('PUT', '/settings/modules/costs', { enabled: false });
+    try {
+      await expect(olivia('GET', '/costs/commitments')).rejects.toMatchObject({ status: 404, body: { code: 'MODULE_OFF' } });
+      await expect(olivia('GET', `/costs/schedules?serviceId=${svc}`)).rejects.toMatchObject({ status: 404 });
+      const token = (await olivia('POST', '/me/tokens', { name: 'off', scope: 'read' })).token as string;
+      const res = await fetch(`${s.base}/api/v1/cost-commitments`, { headers: { authorization: `Bearer ${token}` } });
+      expect(res.status).toBe(404);
+      // contracts stay core
+      expect((await olivia<SupplierDetail>('GET', `/suppliers/${supplier}`)).contracts.length).toBeGreaterThan(0);
+    } finally {
+      await s.api('PUT', '/settings/modules/costs', { enabled: true });
+    }
   });
 });

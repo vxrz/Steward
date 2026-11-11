@@ -82,6 +82,8 @@ test.describe('accessibility (axe, WCAG 2.1 AA)', () => {
     ['statement of applicability', '/compliance/soa/ISO27001'],
     ['corrective action suggestions', '/compliance/corrective-actions/suggestions'],
     ['corrective action settings', '/compliance/corrective-actions/settings'],
+    // contract payments (ADR 0030): what the payment schedules still owe
+    ['cost commitments', '/costs/commitments'],
   ];
   for (const [name, path] of PAGES) {
     test(name, async ({ page }) => {

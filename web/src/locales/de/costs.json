@@ -560,5 +560,52 @@
     "prepaid": "Vorausbezahlt in {{label}}: {{title}}, {{amount}} (deckt {{from}} – {{to}} ab) – hier nicht gezählt",
     "unlink": "Vom Vertrag lösen",
     "unlinkPending": "Beim Speichern wird dies eine gewöhnliche Position ohne Vertragshinweise."
+  },
+  "commitments": {
+    "title": "Verpflichtungen",
+    "description": "Was die Zahlungspläne von Lieferantenverträgen noch schulden, je Geschäftsjahr und Währung – geplante Zahlungen ab heute, keine Verbindlichkeiten.",
+    "back": "Kosten",
+    "export": "Exportieren (CSV)",
+    "search": "Zahlungspläne, Services und Lieferanten suchen",
+    "filters": {
+      "team": "Team",
+      "service": "Service",
+      "supplier": "Lieferant",
+      "ending": "Endet in … Tagen"
+    },
+    "groupBy": "Gruppieren nach",
+    "groups": {
+      "supplier": "Lieferant",
+      "service": "Service",
+      "team": "Team"
+    },
+    "warnings_one": "{{count}} Kündigungsfrist vor einem ungeplanten Jahr",
+    "warnings_other": "{{count}} Kündigungsfristen vor ungeplanten Jahren",
+    "empty": "Hier gibt es keine Zahlungspläne. Fügen Sie einem Lieferantenvertrag Zahlungen hinzu, um zu sehen, was er noch schuldet.",
+    "hiddenSupplier": "Lieferanten, die Sie nicht sehen dürfen",
+    "noTeam": "Ohne Team",
+    "hiddenContract": "Ein Vertrag eines Lieferanten, den Sie nicht sehen dürfen",
+    "hiddenDates": "Die Daten eines Vertrags, den Sie nicht sehen dürfen, werden nicht gezeigt",
+    "until": "Bis {{date}}",
+    "warning": "Kündigen bis {{date}} – {{label}} noch nicht geplant",
+    "columns": {
+      "schedule": "Zahlungsplan",
+      "billing": "Abrechnung",
+      "next": "Nächste Zahlung",
+      "thisYear": "{{label}} (verbleibend)",
+      "later": "Später",
+      "toContractEnd": "Bis Vertragsende",
+      "toEarliestExit": "Bis zum frühesten Ausstieg",
+      "noticeBy": "Kündigen bis"
+    },
+    "total": "Geschuldet in {{currency}} bis Vertragsende",
+    "totalExit": "Bis zum frühesten Ausstieg {{amount}} · dieses Geschäftsjahr {{thisYear}}",
+    "serviceTitle": "Verträge",
+    "help": "Die Verträge, die dieser Service bezahlt, aus ihren Zahlungsplänen: was ab heute noch geschuldet ist, bis Vertragsende und bis zum frühesten Ausstieg (dem Ende der Laufzeit nach der nächsten Kündigungsfrist). Buchungen werden nicht abgezogen.",
+    "noneForService": "Noch keine Zahlungspläne für diesen Service.",
+    "supplierTitle": "Zahlungen und Verpflichtungen",
+    "supplierHelp": "Die Zahlungspläne der Verträge dieses Lieferanten für Services, die Sie sehen dürfen, was sie noch schulden, und was beim Lieferanten angefallen ist.",
+    "incurred": "Angefallen (Buchungen mit diesem Lieferanten)",
+    "note": "Verpflichtungen sind die geplanten Zahlungen von Verträgen ab heute – keine Verbindlichkeiten, keine Buchhaltung. Summen gelten je Währung und zählen nur Beträge, die Sie sehen dürfen."
   }
 }

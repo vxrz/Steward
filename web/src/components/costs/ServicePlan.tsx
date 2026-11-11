@@ -66,6 +66,7 @@ import '../dashboard/viz.css';
 import { SupplierPicker, SupplierText, useSupplierChoice, useSupplierOptions } from '../suppliers/SupplierPicker';
 import { ScheduleBadge } from './ContractPayments';
 import { ChangesPanel, PrepaidRows, ProposalsPanel } from './ContractLines';
+import { ServiceContracts } from './Commitments';
 
 /**
  * The cost plan of a service (0.16.0, ADR 0026, docs/COSTS.md#planning-per-service): per fiscal year the plan lines,
@@ -266,6 +267,7 @@ export function ServiceCostPlan({ serviceId }: { serviceId: string }) {
           <LineGroups d={d} group={group} onEdit={(l) => setLineDialog(l)} onRemove={removeLine} onBook={(l) => setBookDialog(l)} />
         </Stack>
       )}
+      <ServiceContracts serviceId={d.serviceId} canEdit={d.canEdit} />
       {(d.lines.length > 0 || d.entries.length > 0) && (
         <EntriesSection d={d} onEdit={(e) => setEntryDialog(e)} onRemove={removeEntry} unplanned={unplanned.length} />
       )}

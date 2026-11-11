@@ -9,6 +9,7 @@ import { overview, scopeDetail } from './query.js';
 import { getSource, importFromUi, listImports, previewImport, setSource } from './service.js';
 import { readNow } from './sources.js';
 import { mayChangeBudget, raisesBudget, setBudget } from './budgets.js';
+import { commitments, commitmentsCsv } from './commitments.js';
 import { addSchedule, applyContractUpdates, confirmProposals, listSchedules, proposals, removeSchedule, updateSchedule } from './schedules.js';
 import {
   addEntry,
@@ -66,6 +67,8 @@ import {
  *   GET  /api/costs/plans/:serviceId/proposals?fiscalYear=             "Contract payments to plan" of a fiscal year
  *   POST /api/costs/plans/:serviceId/proposals                         "Add to plan"
  *   POST /api/costs/plans/:serviceId/contract-updates                  "Update lines" (the current and later fiscal years)
+ *   GET  /api/costs/commitments?teamId=&serviceId=&supplierId=&currency=&endingWithinDays=   what the schedules still owe
+ *   GET  /api/costs/commitments/export?…                               the same as CSV
  */
 
 const scopeParams = (req: FastifyRequest) => z.object({ scope: z.enum(COST_SCOPES), id: z.string().min(1).max(100) }).parse(req.params);
@@ -146,6 +149,13 @@ export async function costRoutes(app: FastifyInstance): Promise<void> {
   app.get('/costs/plans/:serviceId/proposals', async (req) => proposals(serviceParam(req), yearQuery.parse(req.query ?? {}).fiscalYear));
   app.post('/costs/plans/:serviceId/proposals', session, async (req) => confirmProposals(serviceParam(req), req.body));
   app.post('/costs/plans/:serviceId/contract-updates', session, async (req) => applyContractUpdates(serviceParam(req), req.body));
+  app.get('/costs/commitments', async (req) => commitments(req.query ?? {}));
+  app.get('/costs/commitments/export', async (req, reply) => {
+    const out = commitmentsCsv(req.query ?? {});
+    reply.header('content-disposition', `attachment; filename="${out.name}"`);
+    reply.header('cache-control', 'no-store');
+    return reply.type('text/csv; charset=utf-8').send(out.csv);
+  });
   app.get('/costs/team-plans/:teamId', async (req) =>
     teamPlanYear(z.object({ teamId: z.string().min(1).max(100) }).parse(req.params).teamId, yearQuery.parse(req.query ?? {}).fiscalYear),
   );

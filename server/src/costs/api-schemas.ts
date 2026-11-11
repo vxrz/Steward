@@ -4,6 +4,7 @@ import {
   COST_PLAN_CADENCES,
   COST_PLAN_CATEGORIES,
   COST_PLAN_TARGET_KINDS,
+  COST_SCHEDULE_BILLINGS,
   COST_SCOPES,
   COST_SOURCES,
   FISCAL_YEAR_MAX,
@@ -183,6 +184,8 @@ export const CostPlanYear = z.object({
         .object({ id: z.string(), contractId: z.string(), title: z.string(), changed: z.boolean() })
         .nullable()
         .describe('The payment schedule of a supplier contract the line was made from (0.18.0); changed: the contract changed since (Contract changed)'),
+      contractEnds: z.string().nullable().describe('A line naming a contract without a schedule: the end of its contract when it falls in this fiscal year'),
+      twoLines: z.boolean().describe('A hand-made line for a contract that also has a payment schedule paying in this year'),
       paymentDates: z.array(z.string().nullable()).nullable().describe('A schedule line: the payment date in each month of the year (null: no payment)'),
       bookable: z.boolean().describe('Monthly, quarterly and one-off lines with a payment: a person can book them'),
       notBooked: z.array(z.string()).describe('Months (YYYY-MM) up to the current one with a planned payment and no entry on the line'),
@@ -248,6 +251,25 @@ export const CostPlanYear = z.object({
   targets: z.array(z.object({ kind: z.enum(['application', 'system']), id: z.string(), name: z.string() })),
   years: z.array(z.object({ fiscalYear: z.number().int(), label: z.string() })),
   limits: z.object({ linesPerYear: z.number().int(), entriesPerYear: z.number().int() }),
+  prepaid: z
+    .array(
+      z.object({
+        lineId: z.string(),
+        title: z.string(),
+        fiscalYear: z.number().int(),
+        label: z.string(),
+        amount: planAmount('The prepaid amount'),
+        currency: z.string(),
+        coversFrom: z.string(),
+        coversTo: z.string(),
+      }),
+    )
+    .describe('Payments of earlier fiscal years that cover part of this one (prepaid): shown, not counted'),
+  proposals: z.number().int().describe('Payment schedules of the service with payments in this year and no lines for it yet'),
+  contractChanges: z
+    .array(z.object({ scheduleId: z.string(), title: z.string(), changes: z.array(z.object({}).passthrough()) }))
+    .describe('Contract changed: per payment schedule, its lines before and after (current and later fiscal years)'),
+  commitments: z.array(z.object({}).passthrough()).optional().describe("The service's commitments (as GET /api/v1/cost-commitments rows)"),
 });
 
 export const CostPlanQuery = z.object({
@@ -260,7 +282,51 @@ export const CostPlanQuery = z.object({
     .describe('The fiscal year (the calendar year it starts in); default: the current one'),
 });
 
-export const COST_COMPONENTS: Record<string, ZodTypeAny> = { CostOverviewRow, CostScopeDetail, CostPlanYear };
+// ---------- commitments (0.18.0, ADR 0030) ----------
+
+const owed = (d: string) =>
+  z.string().nullable().describe(`${d} – a decimal in the schedule's currency; null when the token owner may not see the paying service's amounts`);
+
+export const CostCommitment = z.object({
+  scheduleId: z.string(),
+  title: z.string().describe('The payment schedule'),
+  serviceId: z.string(),
+  serviceName: z.string(),
+  teams: z.array(z.object({ id: z.string(), name: z.string() })).describe("The paying service's owning teams"),
+  supplier: SupplierRef.describe('null with contractHidden: a contract of a supplier the token owner may not see'),
+  contract: ContractRef,
+  contractHidden: z.boolean(),
+  billing: z.enum(COST_SCHEDULE_BILLINGS),
+  currency: z.string().describe('ISO 4217 code (never converted)'),
+  amountsVisible: z.boolean(),
+  nextPayment: z.object({ date: z.string(), amount: owed('The next payment') }).nullable(),
+  owedThisYear: owed('Owed in the current fiscal year from today (to contract end)'),
+  owedLaterYears: owed('Owed in the later fiscal years (to contract end)'),
+  toContractEnd: owed("Scheduled payments dated today or later up to the schedule's or the contract's end (automatic renewal: the earliest exit)"),
+  toEarliestExit: owed('Scheduled payments dated today or later up to the end of the term after the next notice-by date'),
+  contractEnd: z.string().nullable(),
+  earliestExit: z.string().nullable(),
+  years: z.array(owed('To contract end in a fiscal year')).describe('The current fiscal year and the next four'),
+  later: owed('To contract end after those five fiscal years'),
+  noticeBy: z.string().nullable().describe("The contract's next notice-by date"),
+  warning: z
+    .object({ noticeBy: z.string(), fiscalYear: z.number().int(), label: z.string(), days: z.number().int(), soon: z.boolean() })
+    .nullable()
+    .describe('The notice-by date is ahead and the fiscal year of the next term has no plan lines of the paying service (soon: within 90 days)'),
+  changed: z.boolean().describe('Lines of the current or a later fiscal year made from it show "Contract changed"'),
+  notBooked: z.array(z.string()).describe('Months of the current fiscal year with a payment of its lines and no entry'),
+});
+
+export const CostCommitmentsQuery = z.object({
+  serviceId: z.string().max(100).optional().describe('Only this service'),
+  teamId: z.string().max(100).optional().describe("Only this team's services"),
+  supplierId: z.string().max(100).optional().describe("Only this supplier's contracts"),
+  currency: z.string().length(3).optional().describe('Only this currency'),
+  limit,
+  cursor,
+});
+
+export const COST_COMPONENTS: Record<string, ZodTypeAny> = { CostOverviewRow, CostScopeDetail, CostPlanYear, CostCommitment };
 
 export const CostListQuery = z.object({
   scope: z.enum(COST_SCOPES).default('service').describe('service, application, team or platform'),

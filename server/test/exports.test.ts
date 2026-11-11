@@ -424,6 +424,7 @@ describe('an export run', () => {
         'audit-log.csv',
         `cost-entries-${fy}`,
         `cost-plan-lines-${fy}`,
+        'commitments.csv',
         'manifest.json',
         'monitors.yaml',
         'plant-registry.yaml',
@@ -459,6 +460,8 @@ describe('an export run', () => {
     expect(lines).toContain('Historian licence');
     expect(lines).toContain('Invented Historian GmbH');
     expect(text(`cost-entries-${fy}`)).toContain('INV-4711');
+    // what the payment schedules still owe (ADR 0030): the columns whether there are schedules or not
+    expect(text('commitments.csv').startsWith('\uFEFFService id,Service,Supplier,Contract,Schedule,Billing,Currency')).toBe(true);
     expect(text('plant-registry.yaml')).toMatch(/^# yaml-language-server: \$schema=/);
     expect(text('plant-registry.yaml')).toContain('Brightwater');
     expect(text('services.csv')).toContain('Invented Billing Service');
