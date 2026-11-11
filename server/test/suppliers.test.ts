@@ -301,6 +301,18 @@ describe('team scope', () => {
       status: 404,
       code: 'SUPPLIER_NOT_FOUND',
     });
+    // its name cannot be taken, but the refusal neither names nor links it (security review 0.17.0)
+    const taken = await dana('POST', '/suppliers', { name: 'team supplier' }).then(
+      () => null,
+      (e: { status: number; body: any }) => ({ status: e.status, body: typeof e.body === 'string' ? JSON.parse(e.body) : e.body }),
+    );
+    expect(taken).toMatchObject({ status: 409, body: { code: 'SUPPLIER_NAME_TAKEN' } });
+    expect(JSON.stringify(taken)).not.toContain(scoped.id);
+    expect(JSON.stringify(taken)).not.toContain('Team Supplier');
+    const own = await dana('POST', '/suppliers', { name: 'Not the team supplier' });
+    expect(await refused(dana('PUT', `/suppliers/${own.id}`, { name: 'Team Supplier' }))).toEqual({ status: 409, code: 'SUPPLIER_NAME_TAKEN' });
+    // whoever may see it is told which supplier has the name
+    expect(await refused(s.api('POST', '/suppliers', { name: 'Team supplier' }))).toEqual({ status: 409, code: 'SUPPLIER_EXISTS' });
   });
 });
 

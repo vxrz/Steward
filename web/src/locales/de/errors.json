@@ -670,6 +670,7 @@
     "FORBIDDEN_manageSuppliers": "Nur Designer und Administratoren legen Lieferanten an, bestätigen, führen sie zusammen und archivieren sie.",
     "SUPPLIER_NOT_FOUND": "Diesen Lieferanten gibt es nicht (mehr).",
     "SUPPLIER_EXISTS": "Ein Lieferant namens „{{name}}“ ist bereits vorhanden.",
+    "SUPPLIER_NAME_TAKEN": "Dieser Name kann für einen Lieferanten nicht verwendet werden: Wählen Sie einen anderen.",
     "SUPPLIER_ARCHIVED": "Der Lieferant „{{name}}“ ist archiviert. Holen Sie ihn zuerst aus dem Archiv zurück.",
     "SUPPLIER_LIMIT": "Steward führt höchstens {{max}} Lieferanten. Archivieren Sie die, die Sie nicht mehr brauchen.",
     "SUPPLIER_NOT_UNCONFIRMED": "Der Lieferant „{{name}}“ wartet nicht auf Bestätigung.",

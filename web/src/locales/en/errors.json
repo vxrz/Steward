@@ -670,6 +670,7 @@
     "FORBIDDEN_manageSuppliers": "Only designers and administrators add, confirm, merge and archive suppliers.",
     "SUPPLIER_NOT_FOUND": "This supplier does not exist (any more).",
     "SUPPLIER_EXISTS": "A supplier named “{{name}}” exists already.",
+    "SUPPLIER_NAME_TAKEN": "This name cannot be used for a supplier: choose another one.",
     "SUPPLIER_ARCHIVED": "Supplier “{{name}}” is archived. Take it back from the archive first.",
     "SUPPLIER_LIMIT": "Steward keeps at most {{max}} suppliers. Archive the ones you no longer need.",
     "SUPPLIER_NOT_UNCONFIRMED": "Supplier “{{name}}” is not waiting for confirmation.",

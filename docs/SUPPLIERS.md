@@ -18,7 +18,7 @@ Steward keeps the records and reminds you of dates. It is not a GRC tool: no sup
 
 ## What a supplier holds
 
-- **Name** and **type**: SaaS, managed platform, software vendor, support or service provider, other.
+- **Name** and **type**: SaaS, managed platform, software vendor, support or service provider, other. Names are unique (letter case aside, archived suppliers left out); when a supplier you may not see has the name, Steward says only that the name cannot be used, without naming or linking that supplier.
 - **Description** and **website**.
 - **Owners**: Steward users and teams (`user:dana`, `team:service desk`), like systems. They change the supplier and get its reminders.
 - **Data processing**: whether the supplier processes personal data for your services and, if so, the **data processing agreement** – _in place_ (since when, and the document) or _missing_.

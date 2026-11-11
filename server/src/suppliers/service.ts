@@ -615,6 +615,17 @@ function nameTaken(name: string, except = ''): SupplierRow | undefined {
   return db().get<SupplierRow>("SELECT * FROM suppliers WHERE lower(name) = lower(?) AND id <> ? AND status <> 'archived'", name, except);
 }
 
+/**
+ * 409 when another supplier has the name (names are unique). A supplier the person may not see (another team's) is
+ * neither named nor linked: SUPPLIER_NAME_TAKEN says only that the name cannot be used (security review 0.17.0, L5).
+ */
+function refuseTakenName(name: string, except = ''): void {
+  const clash = nameTaken(name, except);
+  if (!clash) return;
+  if (!supplierVisible(clash)) throw new HttpError(409, 'This name cannot be used for a supplier – choose another one', 'SUPPLIER_NAME_TAKEN');
+  throw new HttpError(409, `A supplier "${name}" exists already`, 'SUPPLIER_EXISTS', { name, id: clash.id });
+}
+
 function dpaOf(x: Input): { status: SupplierDpaStatus | null; since: string | null; link: string } {
   if (!x.personalData) return { status: null, since: null, link: '' };
   const status = x.dpaStatus ?? 'missing';
@@ -657,8 +668,7 @@ function checkSupplierLimit(): void {
 export function createSupplier(input: Input): SupplierDetail {
   const u = requireManager('create suppliers');
   checkSupplierLimit();
-  const clash = nameTaken(input.name);
-  if (clash) throw new HttpError(409, `A supplier "${input.name}" exists already`, 'SUPPLIER_EXISTS', { name: input.name, id: clash.id });
+  refuseTakenName(input.name);
   assertKnownSubjects(input.owners);
   const owners = [...new Set(input.owners)];
   const dpa = dpaOf(input);
@@ -690,8 +700,7 @@ export function createSupplier(input: Input): SupplierDetail {
 export function updateSupplier(id: string, input: Input): SupplierDetail {
   const u = me();
   const cur = requireEditable(id, 'change this supplier');
-  const clash = nameTaken(input.name, id);
-  if (clash) throw new HttpError(409, `A supplier "${input.name}" exists already`, 'SUPPLIER_EXISTS', { name: input.name, id: clash.id });
+  refuseTakenName(input.name, id);
   assertKnownSubjects(input.owners, ownersOf(cur));
   const owners = [...new Set(input.owners)];
   const dpa = dpaOf(input);
@@ -753,8 +762,7 @@ export function setSupplierArchived(id: string, archived: boolean): SupplierDeta
   if (archived === (cur.status === 'archived')) return getSupplier(id);
   if (!archived) {
     checkSupplierLimit();
-    const clash = nameTaken(cur.name, id);
-    if (clash) throw new HttpError(409, `A supplier "${cur.name}" exists already`, 'SUPPLIER_EXISTS', { name: cur.name, id: clash.id });
+    refuseTakenName(cur.name, id);
   }
   db().tx(() => {
     db().run('UPDATE suppliers SET status = ?, updated_at = ?, updated_by = ? WHERE id = ?', archived ? 'archived' : 'active', nowIso(), u.username, id);

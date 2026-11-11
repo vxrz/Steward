@@ -5258,6 +5258,7 @@ export interface Resources {
     'codes.FORBIDDEN_manageSuppliers': string;
     'codes.SUPPLIER_NOT_FOUND': string;
     'codes.SUPPLIER_EXISTS': string;
+    'codes.SUPPLIER_NAME_TAKEN': string;
     'codes.SUPPLIER_ARCHIVED': string;
     'codes.SUPPLIER_LIMIT': string;
     'codes.SUPPLIER_NOT_UNCONFIRMED': string;
