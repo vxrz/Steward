@@ -509,6 +509,12 @@ async function crawl(token: string): Promise<{ template: string; url: string; re
   for (const x of (await listAll('/systems', '/systems')).slice(0, 5)) await get('/systems/{systemId}', `/systems/${x.id}`);
   // suppliers (0.17, ADR 0029)
   for (const x of (await listAll('/suppliers', '/suppliers')).slice(0, 5)) await get('/suppliers/{supplierId}', `/suppliers/${x.id}`);
+  // the statement of applicability, the responsibility matrix and corrective actions (0.17, ADR 0029)
+  for (const x of (await listAll('/statements-of-applicability', '/statements-of-applicability')).slice(0, 3))
+    await get('/statements-of-applicability/{catalogueKey}', `/statements-of-applicability/${x.catalogueKey}`);
+  if (apiService) await get('/services/{serviceId}/responsibilities', `/services/${apiService}/responsibilities`);
+  for (const x of (await listAll('/corrective-actions', '/corrective-actions')).slice(0, 5))
+    await get('/corrective-actions/{findingId}', `/corrective-actions/${x.id}`);
   await get('/environments', '/environments');
   await get('/maintenance-windows', '/maintenance-windows');
   await get('/measures', '/measures');
@@ -706,6 +712,10 @@ describe('every endpoint', () => {
     const tbls = (cols: unknown[]) => JSON.stringify({ name: 'api', tables: [{ name: 'public.t', type: 'BASE TABLE', columns: cols }] });
     await s.api('POST', `/db-schemas/system/${sys.id}/import`, { schema: tbls([{ name: 'id', type: 'integer', nullable: false }]) });
     await s.api('POST', `/db-schemas/system/${sys.id}/import`, { schema: tbls([{ name: 'id', type: 'bigint', nullable: false }]) });
+    // a statement of applicability and a corrective action finding (0.17, ADR 0029)
+    const catalogue = (await s.api('GET', '/compliance/soa')).catalogues.find((c: any) => c.key === 'ISO27001');
+    if (catalogue) await s.api('POST', '/compliance/soa', { catalogueId: catalogue.id });
+    await s.api('POST', '/compliance/corrective-actions', { title: 'API finding', source: 'internalAudit', serviceId: apiService });
     adminCrawl = await crawl(tokens.admin);
   });
 
