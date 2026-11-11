@@ -60,6 +60,10 @@
       "title": "Service-Scorecard",
       "hint": "Je Service Pflichten, Verfügbarkeit, Dokumentation und Schutzbedarf mit Handlungsbedarf; der Verlauf der gespeicherten Tage; Verfügbarkeitsziele mit ihren Unterschreitungen"
     },
+    "isms": {
+      "title": "ISMS-Zusammenfassung",
+      "hint": "Kennzahlen für die Managementbewertung: die Erklärung zur Anwendbarkeit, Korrekturmaßnahmen, verpflichtende Pflichten, durchgeführte Überprüfungen, Lücken in der Verantwortungsmatrix, Zertifikate und Kündigungstermine von Lieferanten (Modul Compliance)"
+    },
     "ai": {
       "title": "Nutzung von KI-Modellen",
       "hint": "Aufrufe und Tokens pro Gateway, Modell und Prozess, abgelehnte und fehlgeschlagene Aufrufe, die Budgets – ein monatlicher Zeitplan ist der monatliche KI-Bericht"
@@ -144,7 +148,12 @@
       "application": "Anwendung",
       "team": "Team",
       "platform": "Plattform"
-    }
+    },
+    "ismsCatalogue": "Erklärung zur Anwendbarkeit",
+    "ismsAllCatalogues": "Jeder Katalog mit einer Erklärung",
+    "ismsServices": "Services",
+    "ismsDays": "Lieferantentermine innerhalb von (Tagen)",
+    "ismsDaysHint": "Zertifikate und Kündigungstermine so viele Tage voraus und so viele Tage zurück"
   },
   "emptyState": {
     "title": "Noch keine Berichtszeitpläne",

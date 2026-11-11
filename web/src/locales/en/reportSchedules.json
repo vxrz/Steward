@@ -60,6 +60,10 @@
       "title": "Service scorecard",
       "hint": "Per service duties, availability, documentation and protection need with attention needed; the trend of the stored days; availability objectives with their breaches"
     },
+    "isms": {
+      "title": "ISMS summary",
+      "hint": "Figures for the management review: the statement of applicability, corrective actions, mandatory duties, reviews done, gaps in the responsibility matrix, supplier certificates and notice dates (Compliance module)"
+    },
     "ai": {
       "title": "AI usage",
       "hint": "Calls and tokens per gateway, model and process, refused and failed calls, the budgets – a monthly schedule is the monthly AI report"
@@ -144,7 +148,12 @@
       "application": "Application",
       "team": "Team",
       "platform": "Platform"
-    }
+    },
+    "ismsCatalogue": "Statement of applicability",
+    "ismsAllCatalogues": "Every catalogue with a statement",
+    "ismsServices": "Services",
+    "ismsDays": "Supplier dates within (days)",
+    "ismsDaysHint": "Certificates and notice-by dates this many days ahead, and passed this many days ago"
   },
   "emptyState": {
     "title": "No report schedules yet",

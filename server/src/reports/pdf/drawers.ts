@@ -11,6 +11,7 @@ import { recordsSectionDraw } from '../../records/report-section-draw.js';
 import { ticketsSectionDraw } from '../../tickets/report-section-draw.js';
 import { dutiesSectionDraw } from '../../duties/report-section-draw.js';
 import { scorecardSectionDraw } from '../../scorecard/report-section-draw.js';
+import { ismsSectionDraw } from '../../compliance/isms-report-section-draw.js';
 import { aiSectionDraw } from '../../ai/report-section-draw.js';
 import { costsSectionDraw } from '../../costs/report-section-draw.js';
 import { contractsSectionDraw } from '../../datacontracts/report-section-draw.js';
@@ -45,6 +46,7 @@ export const SECTION_DRAWERS: readonly ReportSectionDraw<never>[] = [
   ticketsSectionDraw,
   dutiesSectionDraw,
   scorecardSectionDraw,
+  ismsSectionDraw,
   aiSectionDraw,
   costsSectionDraw,
   contractsSectionDraw,

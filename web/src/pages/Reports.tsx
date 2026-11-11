@@ -39,6 +39,8 @@ import type {
   ReportRecord,
   ReportSchedule,
   ReportSchedulePreset,
+  ServiceSummary,
+  SoaList,
   Subject,
 } from '@sm/shared';
 import { apiUrl, del, get, getOptional, notifyError, notifyOk, post, put } from '../api';
@@ -49,12 +51,13 @@ import { fmtBytes, fmtDate, fmtDay, fmtRelative } from '../format';
 import { confirmDanger } from '../components/confirm';
 import { CronPreview } from '../components/CronPreview';
 import { useMe } from '../auth';
-import { monitorKeys, platformKeys, processKeys, scheduleKeys } from '../queryKeys';
+import { monitorKeys, platformKeys, processKeys, scheduleKeys, soaKeys } from '../queryKeys';
+import { useModuleOn } from '../modules';
 import { DuplicateActionIcon, useDuplicate } from '../components/duplicate/DuplicateButton';
 import { DataTable, ListFooter, type DataColumn } from '../components/DataTable';
 
 const PRESETS: ReportSchedulePreset[] = ['daily', 'weekly', 'monthly', 'custom'];
-const BUILTIN = ['availability', 'gatus', 'credentials', 'runs', 'records', 'tickets', 'duties', 'scorecard', 'ai', 'costs', 'contracts'];
+const BUILTIN = ['availability', 'gatus', 'credentials', 'runs', 'records', 'tickets', 'duties', 'scorecard', 'isms', 'ai', 'costs', 'contracts'];
 
 type Draft = Pick<
   ReportSchedule,
@@ -110,6 +113,8 @@ export function ReportsPage() {
   useCreateParam(schedules.data?.canCreate, () => setDraft(emptyDraft(i18n.language.startsWith('de') ? 'de' : 'en')));
   const [running, setRunning] = useState<string | null>(null);
   const duplicate = useDuplicate();
+  // the ISMS summary belongs to the Compliance module
+  const complianceOn = useModuleOn('compliance');
   // ?edit=<id> (a copy opens in edit mode)
   useEffect(() => {
     const id = params.get('edit');
@@ -385,7 +390,7 @@ export function ReportsPage() {
       {draft && (
         <ScheduleModal
           draft={draft}
-          sections={schedules.data?.sections ?? BUILTIN}
+          sections={(schedules.data?.sections ?? BUILTIN).filter((x) => x !== 'isms' || complianceOn)}
           onClose={() => setDraft(null)}
           onSaved={() => {
             setDraft(null);
@@ -408,6 +413,10 @@ type SectionConfig = Record<string, unknown> & {
   windowDays?: number;
   sources?: { platformId: string; endpointKeys: string[] | null }[];
   levels?: string[] | null;
+  /** ISMS summary: one catalogue (key), null for every statement of applicability */
+  catalogue?: string | null;
+  serviceIds?: string[] | null;
+  days?: number;
 };
 
 function ScheduleModal({ draft, sections, onClose, onSaved }: { draft: Draft; sections: string[]; onClose: () => void; onSaved: () => void }) {
@@ -427,6 +436,12 @@ function ScheduleModal({ draft, sections, onClose, onSaved }: { draft: Draft; se
     queryFn: async () => (await get<Platform[]>('/platforms')).filter((p) => p.kind === LLM_GATEWAY_KIND),
     enabled: sections.includes('ai'),
   });
+  const soas = useQuery({
+    queryKey: soaKeys.list,
+    queryFn: () => getOptional<SoaList>('/compliance/soa', { items: [], catalogues: [], canCreate: false }),
+    enabled: sections.includes('isms'),
+  });
+  const services = useQuery({ queryKey: ['services', false], queryFn: () => get<ServiceSummary[]>('/services'), enabled: sections.includes('isms') });
   const set = (patch: Partial<Draft>) => setD((x) => ({ ...x, ...patch }));
   const sec = (id: string) => d.sections[id] as SectionConfig | undefined;
   const setSec = (id: string, v: SectionConfig | undefined) => {
@@ -444,6 +459,7 @@ function ScheduleModal({ draft, sections, onClose, onSaved }: { draft: Draft; se
     tickets: {},
     duties: { levels: null, serviceIds: null },
     scorecard: { serviceIds: null },
+    isms: { catalogue: null, serviceIds: null, days: 90 },
     ai: { platformIds: null },
     costs: { scope: 'service', ids: null },
     contracts: { contractIds: null },
@@ -630,6 +646,34 @@ function ScheduleModal({ draft, sections, onClose, onSaved }: { draft: Draft; se
                   value={(cfg.scope as string) ?? 'service'}
                   onChange={(v) => setSec(id, { ...cfg, scope: v ?? 'service', ids: null })}
                 />
+              )}
+              {cfg && id === 'isms' && (
+                <SimpleGrid cols={{ base: 1, sm: 3 }} ml="lg" data-testid="isms-options">
+                  <Select
+                    label={t('form.ismsCatalogue')}
+                    placeholder={t('form.ismsAllCatalogues')}
+                    clearable
+                    data={(soas.data?.items ?? []).map((x) => ({ value: x.catalogueKey, label: `${x.catalogueKey} – ${x.catalogueName}` }))}
+                    value={cfg.catalogue ?? null}
+                    onChange={(v) => setSec(id, { ...cfg, catalogue: v })}
+                  />
+                  <MultiSelect
+                    label={t('form.ismsServices')}
+                    placeholder={t('form.allVisible')}
+                    searchable
+                    data={(services.data ?? []).filter((x) => !x.archived).map((x) => ({ value: x.id, label: x.name }))}
+                    value={cfg.serviceIds ?? []}
+                    onChange={(v) => setSec(id, { ...cfg, serviceIds: v.length ? v : null })}
+                  />
+                  <NumberInput
+                    label={t('form.ismsDays')}
+                    description={t('form.ismsDaysHint')}
+                    min={1}
+                    max={365}
+                    value={cfg.days ?? 90}
+                    onChange={(v) => setSec(id, { ...cfg, days: typeof v === 'number' ? v : 90 })}
+                  />
+                </SimpleGrid>
               )}
               {cfg && id === 'duties' && (
                 <MultiSelect
