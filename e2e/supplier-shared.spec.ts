@@ -22,9 +22,18 @@ interface Fixture {
   teams: string[];
 }
 
+/**
+ * A team that takes no new resources of its members: a team that owns something takes them by default, and olivia's
+ * and adam's defaults must stay as other specs expect them while this one runs (team-defaults.spec.ts).
+ */
+async function quietTeam(api: APIRequestContext, name: string, members: string[]): Promise<{ id: string; name: string }> {
+  const t = await json<{ id: string; name: string }>(await api.post('/api/teams', { data: { name: uniq(name), members } }));
+  expect((await api.put(`/api/teams/${t.id}/settings`, { data: { newResources: 'never' } })).ok()).toBe(true);
+  return t;
+}
+
 async function fixture(api: APIRequestContext): Promise<Fixture> {
-  const team = async (name: string, members: string[]) =>
-    json<{ id: string; name: string }>(await api.post('/api/teams', { data: { name: uniq(name), members } }));
+  const team = (name: string, members: string[]) => quietTeam(api, name, members);
   const shopTeam = await team('Shop e2e team', ['olivia']);
   const careTeam = await team('Care e2e team', ['adam']);
   const shop = await json<{ id: string; name: string }>(await api.post('/api/services', { data: { name: uniq('Shop e2e service'), owners: ['user:olivia'] } }));
@@ -135,7 +144,7 @@ test('the service page confirms a proposed service and lists its contracts', asy
 test('an administrator merges a pair split by team, with the preview', async ({ page, apiAs }) => {
   const api = await apiAs('admin');
   const name = uniq('Invented Pair Mail');
-  const team = (await json<{ id: string }>(await api.post('/api/teams', { data: { name: uniq('Pair e2e team'), members: ['olivia'] } }))).id;
+  const team = (await quietTeam(api, 'Pair e2e team', ['olivia'])).id;
   const open = await json<{ id: string }>(await api.post('/api/suppliers', { data: { name } }));
   const scoped = await json<{ id: string }>(await api.post('/api/suppliers', { data: { name: `${name} GmbH` } }));
   expect((await api.put(`/api/owning-teams/supplier/${scoped.id}`, { data: { teamIds: [team] } })).ok()).toBe(true);
@@ -219,7 +228,7 @@ test('a finding naming a contract proposes its owners for the first action', asy
 
 test('the Owning teams panel previews opening a supplier and asks about contacts', async ({ page, apiAs }) => {
   const api = await apiAs('admin');
-  const team = (await json<{ id: string; name: string }>(await api.post('/api/teams', { data: { name: uniq('Open e2e team'), members: ['olivia'] } }))).id;
+  const team = (await quietTeam(api, 'Open e2e team', ['olivia'])).id;
   const sup = await json<{ id: string }>(await api.post('/api/suppliers', { data: { name: uniq('Invented Team Desk') } }));
   expect((await api.put(`/api/owning-teams/supplier/${sup.id}`, { data: { teamIds: [team] } })).ok()).toBe(true);
   // a company-wide contact, and nothing to scope it to: the administrator chooses
