@@ -2348,6 +2348,8 @@ export interface Resources {
     'filters.mine': string;
     'filters.oneControl': string;
     'filters.allControls': string;
+    'filters.oneSupplier': string;
+    'filters.allSuppliers': string;
     overdue: string;
     actionsCount: string;
     noActions: string;
@@ -2366,6 +2368,7 @@ export interface Resources {
     'fields.sourceUrl': string;
     'fields.severity': string;
     'fields.service': string;
+    'fields.supplier': string;
     'fields.controls': string;
     'fields.owner': string;
     'fields.dueDate': string;
@@ -2382,6 +2385,7 @@ export interface Resources {
     'hints.cause': string;
     'hints.grcRef': string;
     'hints.service': string;
+    'hints.supplier': string;
     'hints.owner': string;
     'form.newTitle': string;
     'form.editTitle': string;
@@ -2470,6 +2474,9 @@ export interface Resources {
     'suggestions.titles.incident': string;
     'suggestions.titles.personReview': string;
     'suggestions.titles.reconciliation': string;
+    'suggestions.titles.supplierCertificate': string;
+    'suggestions.titles.supplierReviewMissed': string;
+    'suggestions.titles.supplierReviewFailed': string;
     'suggestions.levels.mandatory': string;
     'suggestions.levels.recommended': string;
     'settings.intro': string;
@@ -2488,9 +2495,15 @@ export interface Resources {
     'settings.sources.personReview.description': string;
     'settings.sources.reconciliation.label': string;
     'settings.sources.reconciliation.description': string;
+    'settings.sources.supplierReview.label': string;
+    'settings.sources.supplierReview.description': string;
     'controlPanel.title': string;
     'controlPanel.none': string;
     'controlPanel.link': string;
+    'supplierPanel.title': string;
+    'supplierPanel.none': string;
+    'supplierPanel.record': string;
+    'supplierPanel.all': string;
   };
   costs: {
     title: string;
@@ -7886,6 +7899,8 @@ export interface Resources {
     'events.supplier.certificate_expiring.info': string;
     'events.supplier.notice_due.label': string;
     'events.supplier.notice_due.info': string;
+    'events.soa.approval_waiting.label': string;
+    'events.soa.approval_waiting.info': string;
     'quiet.title': string;
     'quiet.intro': string;
     'quiet.notAllowed': string;
@@ -12961,6 +12976,8 @@ export interface Resources {
     'sections.duties.hint': string;
     'sections.scorecard.title': string;
     'sections.scorecard.hint': string;
+    'sections.isms.title': string;
+    'sections.isms.hint': string;
     'sections.ai.title': string;
     'sections.ai.hint': string;
     'sections.costs.title': string;
@@ -13032,6 +13049,11 @@ export interface Resources {
     'form.costScopes.application': string;
     'form.costScopes.team': string;
     'form.costScopes.platform': string;
+    'form.ismsCatalogue': string;
+    'form.ismsAllCatalogues': string;
+    'form.ismsServices': string;
+    'form.ismsDays': string;
+    'form.ismsDaysHint': string;
     'emptyState.title': string;
     'emptyState.text': string;
     'emptyState.action': string;
@@ -14298,6 +14320,12 @@ export interface Resources {
     'exports.partNames.monitors.description': string;
     'exports.partNames.auditLog.label': string;
     'exports.partNames.auditLog.description': string;
+    'exports.partNames.suppliers.label': string;
+    'exports.partNames.suppliers.description': string;
+    'exports.partNames.correctiveActions.label': string;
+    'exports.partNames.correctiveActions.description': string;
+    'exports.partNames.soa.label': string;
+    'exports.partNames.soa.description': string;
     'scope.instance': string;
     'scope.personal': string;
     'areas.label': string;
@@ -14707,6 +14735,7 @@ export interface Resources {
     'usedBy.kinds.duty': string;
     'usedBy.kinds.responsibility': string;
     'usedBy.kinds.soaEntry': string;
+    'usedBy.kinds.finding': string;
     'duties.title': string;
     'duties.help': string;
     'duties.empty': string;

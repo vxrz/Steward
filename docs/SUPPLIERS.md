@@ -61,7 +61,7 @@ Owners, creators and who looked at a certificate are Steward users: they appear 
 
 Applications, systems, ticket references, page watches of changedetection.io and cost plan lines each had a free-text vendor field. They now have a **supplier picker** with _New supplier_ (designers and administrators). The free text stays as a fallback: it is shown where no supplier is linked and the API keeps accepting it. Saving a form keeps a linked supplier you may not see. An archived supplier stays linked but cannot be chosen again.
 
-The supplier page lists under _Used by_ every item that links it and that you may see – also the areas of a service's [responsibility matrix](COMPLIANCE.md#responsibility-matrix) and the rows of a [statement of applicability](COMPLIANCE.md#statement-of-applicability) that name it – and a service duty can name the supplier it reviews ([below](#the-yearly-supplier-review)).
+The supplier page lists under _Used by_ every item that links it and that you may see – also the areas of a service's [responsibility matrix](COMPLIANCE.md#responsibility-matrix), the rows of a [statement of applicability](COMPLIANCE.md#statement-of-applicability) and the [corrective action](COMPLIANCE.md#corrective-actions) findings that name it – and a service duty can name the supplier it reviews ([below](#the-yearly-supplier-review)).
 
 API fields: `supplierId` in the internal routes of applications, systems, ticket references, page watches (`PUT /api/changedetection/:platformId/watches/:uuid/link`), cost plan lines (with `supplierContractId`) and duties – missing keeps the link, `null` clears it. The public API shows `supplier` (id, name, status) on applications, systems, ticket references, duties and cost plan lines.
 
@@ -77,7 +77,7 @@ On the update to 0.17, Steward turns the free-text vendors into suppliers, once,
 _Suppliers → To confirm_ lists them with their spellings and how many items link them. Designers and administrators work through it once:
 
 - **Confirm** a real supplier – it becomes active.
-- **Merge into …** another supplier: its links (also in responsibility matrices and statements of applicability), contacts, contracts, certificates and spellings move, and it goes.
+- **Merge into …** another supplier: its links (also in responsibility matrices, statements of applicability and corrective action findings), contacts, contracts, certificates and spellings move, and it goes.
 - **Not a supplier** (`On-premises`, an AWS account name): the supplier goes, the items lose the link and keep their text, and the text is not made a supplier again. A responsibility matrix area or a statement row that named it keeps the party _supplier_ without a name.
 
 Summaries, reminders and the dataset leave unconfirmed suppliers out. Confirming, merging, marking _not a supplier_ and archiving are decisions of people: they need a signed-in session, not an API token.
@@ -85,6 +85,10 @@ Summaries, reminders and the dataset leave unconfirmed suppliers out. Confirming
 ## The yearly supplier review
 
 A service duty can name a supplier ([DUTIES.md](DUTIES.md)): _Service → Duties → New duty_, choose the supplier, interval _yearly_, level _mandatory_. The example process _Supplier review (manual procedure)_ (`examples/processes/96-supplier-review.yaml`, _Processes → From template_) walks through certificates and audit reports, SLA reports, the data processing agreement, the contract's notice date and open findings as manual steps with evidence files and a second person's verification ([MANUAL-STEPS.md](MANUAL-STEPS.md)). The supplier page shows the duty and its last periods.
+
+**Findings.** With the Compliance module on, the supplier page lists the open [corrective action](COMPLIANCE.md#corrective-actions) findings about the supplier. _Record a finding_ (for who may record findings) opens the finding form with the supplier and the source _supplier review_ filled in; any finding can name a supplier you may see. Steward also **suggests** findings of supplier reviews (the source _Supplier reviews_, on by default): a certificate of a confirmed supplier in use that ran out, and a missed or failed period of a duty that reviews a supplier – a person confirms or dismisses each one ([COMPLIANCE.md](COMPLIANCE.md#suggestions)).
+
+The [ISMS summary](COMPLIANCE.md#isms-summary) of scheduled reports lists the certificates and notice-by dates of confirmed suppliers and the supplier reviews done, late or missed in its period, and [scheduled exports](EXPORTS.md) can write the suppliers with their contracts and certificates as CSV – contacts without e-mail or phone.
 
 ## Reminders
 
