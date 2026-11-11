@@ -114,6 +114,11 @@ export interface UserRef {
   table: string;
   column: string;
   kind: RefKind;
+  /**
+   * A team in this column restricts who sees the row (like an access list): a deleted team stays as an entry that
+   * matches nobody, because removing it could leave no team and so open the row to more people (auth/subjects.ts).
+   */
+  keepDeletedTeams?: true;
 }
 
 /** Columns that decide who owns something or may do something now: mapped on import. */
@@ -148,8 +153,9 @@ export const USER_REFS: UserRef[] = [
   { table: 'systems', column: 'owners', kind: 'subjects' },
   // suppliers (0.17.0, ADR 0029): owners like systems
   { table: 'suppliers', column: 'owners', kind: 'subjects' },
-  // contracts with their own scope (0.18.0, ADR 0031): who manages a contract now
-  { table: 'supplier_contracts', column: 'owners', kind: 'subjects' },
+  // contracts with their own scope (0.18.0, ADR 0031): who manages a contract now; a team among them restricts who
+  // sees it, so a deleted team stays (a contract without a team owner is seen by every reader of its supplier)
+  { table: 'supplier_contracts', column: 'owners', kind: 'subjects', keepDeletedTeams: true },
   { table: 'maintenance_windows', column: 'responsible', kind: 'subjects' },
   { table: 'record_measures', column: 'owners', kind: 'subjects' },
   // corrective actions (ADR 0029): who owns a finding and its actions now

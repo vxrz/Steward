@@ -72,6 +72,27 @@ describe('subjects', () => {
     expect(aclOf()).toContain(key);
   });
 
+  it('keeps a deleted team among the owners of a supplier contract, so the contract never opens (ADR 0031)', async () => {
+    const team = await s.api('POST', '/teams', { name: 'Contract Payments', members: ['olivia'] });
+    const sup = await s.api('POST', '/suppliers', { name: 'Invented Team Delete Supplier' });
+    await s.api('POST', `/suppliers/${sup.id}/contracts`, { title: 'Payments contract', owners: ['team:contract payments'] });
+    const vera = await s.as('vera', 'Demo-password-1');
+    const titles = async (c: typeof vera) => ((await c('GET', `/suppliers/${sup.id}`)).contracts as { title: string }[]).map((x) => x.title);
+    expect(await titles(vera)).toEqual([]);
+    await s.api('DELETE', `/teams/${team.id}`);
+    // the entry matches nobody now: the contract stays restricted to administrators, auditors and covered services
+    const { db } = await import('../src/db.js');
+    expect(JSON.parse(db().get<{ owners: string }>('SELECT owners FROM supplier_contracts WHERE supplier_id = ?', sup.id)!.owners)).toEqual([
+      'team:contract payments',
+    ]);
+    expect(await titles(vera)).toEqual([]);
+    expect(await titles(await s.as('olivia', 'Demo-password-1'))).toEqual([]);
+    expect(await titles(s.api)).toEqual(['Payments contract']);
+    // the contract can still be saved with the entry it has
+    const id = (await s.api('GET', `/suppliers/${sup.id}`)).contracts[0].id;
+    await s.api('PUT', `/suppliers/${sup.id}/contracts/${id}`, { title: 'Payments contract 2', owners: ['team:contract payments'] });
+  });
+
   it('shows where a user is still named', async () => {
     const users = await s.api('GET', '/users');
     const olivia = users.find((u: any) => u.username === 'olivia');
