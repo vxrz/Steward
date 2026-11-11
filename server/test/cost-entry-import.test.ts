@@ -213,3 +213,176 @@ describe('entries with a supplier and a contract', () => {
     expect(after.entries.find((x) => x.reference === 'INV-B1')).toMatchObject({ supplier: { id: supplier }, supplierContract: null });
   });
 });
+
+describe('CSV import of entries', () => {
+  const base = () => `/costs/plans/${service}/entries/import`;
+  const mapping = (x: Record<string, unknown> = {}) => ({
+    date: 'Date',
+    amount: 'Amount',
+    currency: 'Currency',
+    reference: 'Invoice',
+    note: null,
+    planLine: null,
+    supplier: null,
+    contract: null,
+    target: null,
+    dateFormat: 'YYYY-MM-DD',
+    decimal: '.',
+    ...x,
+  });
+  const d1 = () => `${months[0]}-15`;
+  const d2 = () => `${months[0]}-16`;
+
+  it('reads comma, semicolon and tab files with a byte order mark, every date format and a decimal comma', async () => {
+    const comma = `\uFEFFDate,Amount,Currency,Invoice\n${d1()},"1,234.50",EUR,CSV-1\n`;
+    let p = await olivia('POST', `${base()}/preview`, { csv: comma, fileName: 'a.csv', mapping: mapping() });
+    expect(p.rows[0]).toMatchObject({ date: d1(), amount: '1234.50', currency: 'EUR', problems: [], duplicate: false, label: `FY ${fy}` });
+    const [y, mo, d] = d1().split('-');
+    const semi = `Datum;Betrag;Währung;Rechnung\n${d}.${mo}.${y};1.234,50;EUR;CSV-2\n`;
+    p = await olivia('POST', `${base()}/preview`, {
+      csv: semi,
+      mapping: mapping({ date: 'Datum', amount: 'Betrag', currency: 'Währung', reference: 'Rechnung', dateFormat: 'DD.MM.YYYY', decimal: ',' }),
+    });
+    expect(p.rows[0]).toMatchObject({ date: d1(), amount: '1234.50', problems: [] });
+    const tab = `Date\tAmount\tInvoice\n${mo}/${d}/${y}\t99\tCSV-3\n`;
+    p = await olivia('POST', `${base()}/preview`, { csv: tab, mapping: mapping({ currency: null, fixedCurrency: 'EUR', dateFormat: 'MM/DD/YYYY' }) });
+    expect(p.rows[0]).toMatchObject({ date: d1(), amount: '99.00', currency: 'EUR', problems: [] });
+    p = await olivia('POST', `${base()}/preview`, { csv: tab, mapping: mapping({ currency: null, fixedCurrency: 'EUR', dateFormat: 'DD/MM/YYYY' }) });
+    // 15/01 read as the 15th month: not a date in that format (never guessed)
+    expect(p.rows[0]!.problems).toEqual(['badDate']);
+  });
+
+  it('names every problem of a row', async () => {
+    const csv = [
+      'Date,Amount,Currency,Invoice,Line,Supplier,For',
+      `,10,EUR,P-1,,,`,
+      `31.02.2026,10,EUR,P-2,,,`,
+      `${d1()},ten,EUR,P-3,,,`,
+      `${d1()},0,EUR,P-4,,,`,
+      `${d1()},10.5,JPY,P-5,,,`,
+      `${d1()},10,,P-6,,,`,
+      `${d1()},10,EUX,P-7,,,`,
+      `${d1()},10,EUR,P-8,No such line,,`,
+      `${d1()},10,USD,P-9,Hosting fee,,`,
+      `${d1()},10,EUR,P-10,,Nobody Ltd,`,
+      `${d1()},10,EUR,P-11,,,Nothing app`,
+      `${d1()},10,EUR,,Hosting fee,,`,
+    ].join('\n');
+    const p = await olivia('POST', `${base()}/preview`, { csv, mapping: mapping({ planLine: 'Line', supplier: 'Supplier', target: 'For' }) });
+    expect(p.rows.map((r: { problems: string[] }) => r.problems)).toEqual([
+      ['noDate'],
+      ['badDate'],
+      ['notNumber'],
+      ['zero'],
+      ['decimals'],
+      ['noCurrency'],
+      ['unknownCurrency'],
+      ['planLineUnknown'],
+      ['planLineCurrency'],
+      ['supplierUnknown'],
+      ['targetUnknown'],
+      [],
+    ]);
+    // no reference: marked, not left out; the named line, with its supplier and contract
+    const last = p.rows[11];
+    expect(last).toMatchObject({ noReference: true, duplicate: false, planLine: { title: 'Hosting fee' }, supplier: { id: supplier } });
+    // an unknown column
+    await expect(olivia('POST', `${base()}/preview`, { csv, mapping: mapping({ note: 'Nope' }) })).rejects.toMatchObject({
+      status: 400,
+      body: { code: 'COST_ENTRY_IMPORT_COLUMN' },
+    });
+  });
+
+  it('finds duplicates against stored entries and within the file, and imports the rows without problems', async () => {
+    await olivia('POST', `/costs/plans/${service}/entries`, { date: d1(), amount: '100', currency: 'EUR', reference: 'dup-1' });
+    const csv = ['Date,Amount,Currency,Invoice', `${d1()},100,EUR, DUP-1 `, `${d2()},50,EUR,NEW-1`, `${d2()},50,EUR,new-1`, `${d2()},bad,EUR,BAD-1`].join('\n');
+    const p = await olivia('POST', `${base()}/preview`, { csv, fileName: 'invoices.csv', mapping: mapping() });
+    expect(p.rows.map((r: { duplicate: boolean }) => r.duplicate)).toEqual([true, false, true, false]);
+    expect(p.counts).toEqual({ rows: 4, ready: 1, problems: 1, duplicates: 2 });
+    expect(p.sameFile).toBeNull();
+    // the preview stores nothing
+    const before = (await plan()).entries.length;
+    expect((await plan()).entries.length).toBe(before);
+    // import: duplicates left out unless ticked one by one
+    const y = await olivia('POST', base(), { csv, fileName: 'invoices.csv', mapping: mapping(), include: [2] });
+    expect(y.added).toBe(2);
+    expect(y.skipped).toEqual({ duplicate: 1, notNumber: 1 });
+    const after = await plan();
+    expect(after.entries.length).toBe(before + 2);
+    expect(
+      after.entries
+        .filter((e) => e.importId === y.importId)
+        .map((e) => e.reference)
+        .sort(),
+    ).toEqual(['NEW-1', 'new-1']);
+    const a = (await s.api('GET', `/audit?action=cost.entries_imported&entityId=${service}&limit=1`))[0];
+    expect(a.details).toMatchObject({ fileName: 'invoices.csv', rows: 4, added: 2, sums: { EUR: '100.00' }, duplicatesIncluded: 1 });
+    expect(a.details.sha256).toMatch(/^[0-9a-f]{64}$/);
+    // the same file again: the preview says so; the mapping is offered again
+    const again = await olivia('POST', `${base()}/preview`, { csv, fileName: 'invoices.csv', mapping: mapping() });
+    expect(again.sameFile).toMatchObject({ id: y.importId, fileName: 'invoices.csv' });
+    expect(again.rows.every((r: { duplicate: boolean; problems: string[] }) => r.duplicate || r.problems.length)).toBe(true);
+    const list = await olivia('GET', `/costs/plans/${service}/imports`);
+    expect(list.lastMapping).toMatchObject({ date: 'Date', dateFormat: 'YYYY-MM-DD' });
+    expect(list.imports[0]).toMatchObject({ id: y.importId, added: 2, entries: 2 });
+  });
+
+  it('imports all or nothing, within the limits; a viewer and API tokens may not', async () => {
+    await expect(olivia('POST', base(), { csv: 'Date,Amount,Currency,Invoice\n,1,EUR,X', mapping: mapping() })).rejects.toMatchObject({
+      status: 400,
+      body: { code: 'COST_ENTRY_IMPORT_NOTHING' },
+    });
+    const rows = ['Date,Amount,Currency,Invoice', ...Array.from({ length: 5001 }, (_, i) => `${d1()},1,EUR,L-${i}`)].join('\n');
+    await expect(olivia('POST', `${base()}/preview`, { csv: rows, mapping: mapping() })).rejects.toMatchObject({
+      status: 400,
+      body: { code: 'COST_IMPORT_CSV' },
+    });
+    const cols = [Array.from({ length: 101 }, (_, i) => `C${i}`).join(','), Array.from({ length: 101 }, () => '1').join(',')].join('\n');
+    await expect(olivia('POST', `${base()}/preview`, { csv: cols, mapping: mapping({ date: 'C0', amount: 'C1' }) })).rejects.toMatchObject({ status: 400 });
+    // over the limit of 2,000 entries per service and fiscal year: those rows are a problem
+    const { db } = await import('../src/db.js');
+    const other = (await s.api('POST', '/services', { name: 'Full service', owners: ['user:olivia'] })).id;
+    const now = new Date().toISOString();
+    db().tx(() => {
+      for (let i = 0; i < 1999; i++)
+        db().run(
+          `INSERT INTO cost_entries (id, service_id, entry_date, amount, currency, reference, note, created_at, created_by, updated_at, updated_by)
+           VALUES (?, ?, ?, 1000000, 'EUR', '', '', ?, 'admin', ?, 'admin')`,
+          `cen_full_${i}`,
+          other,
+          d1(),
+          now,
+          now,
+        );
+    });
+    const full = await olivia('POST', `/costs/plans/${other}/entries/import/preview`, {
+      csv: `Date,Amount,Currency,Invoice\n${d1()},1,EUR,F-1\n${d1()},1,EUR,F-2\n`,
+      mapping: mapping(),
+    });
+    expect(full.rows.map((r: { problems: string[] }) => r.problems)).toEqual([[], ['limit']]);
+    await expect(vera('POST', `${base()}/preview`, { csv: 'Date,Amount\n', mapping: mapping() })).rejects.toMatchObject({ status: 403 });
+    const token = (await olivia('POST', '/me/tokens', { name: 'imports', scope: 'full' })).token as string;
+    const res = await fetch(`${s.base}/api${base()}`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ csv: `Date,Amount,Currency,Invoice\n${d1()},1,EUR,T-1\n`, mapping: mapping() }),
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it('removes an import: those of its entries that are still there, in one step', async () => {
+    const csv = `Date,Amount,Currency,Invoice\n${d1()},7,EUR,RM-1\n${d1()},8,EUR,RM-2\n`;
+    const y = await olivia('POST', base(), { csv, fileName: 'remove-me.csv', mapping: mapping() });
+    const one = y.entries.find((e: { reference: string }) => e.reference === 'RM-1');
+    await olivia('DELETE', `/costs/plans/${service}/entries/${one.id}`);
+    const list = await olivia('DELETE', `/costs/plans/${service}/imports/${y.importId}`);
+    expect(list.imports.find((r: { id: string }) => r.id === y.importId)).toMatchObject({ entries: 0, removedBy: 'olivia' });
+    expect((await plan()).entries.some((e) => e.reference.startsWith('RM-'))).toBe(false);
+    const a = (await s.api('GET', `/audit?action=cost.import_removed&entityId=${service}&limit=1`))[0];
+    expect(a.details).toMatchObject({ importId: y.importId, entriesRemoved: 1 });
+    await expect(olivia('DELETE', `/costs/plans/${service}/imports/${y.importId}`)).rejects.toMatchObject({
+      status: 409,
+      body: { code: 'COST_ENTRY_IMPORT_REMOVED' },
+    });
+  });
+});

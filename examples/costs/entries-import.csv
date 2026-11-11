@@ -1,0 +1,6 @@
+Belegdatum;Rechnungsnummer;Lieferant;Betrag;Währung;Text
+05.10.2026;PL-2026-10-001;Paylumen;1.545,00;EUR;Payment gateway licence, October
+03.11.2026;PL-2026-11-001;Paylumen;1.545,00;EUR;Payment gateway licence, November
+14.10.2026;EC-INV-88120;Example Cloud GmbH;2.310,40;EUR;Managed Kubernetes, September usage
+21.10.2026;MISC-4471;;189,90;EUR;Conference tickets for the shop team
+21.10.2026;MISC-4471;;189,90;EUR;Conference tickets for the shop team (sent twice by the ERP)

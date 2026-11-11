@@ -10,6 +10,7 @@ import { getSource, importFromUi, listImports, previewImport, setSource } from '
 import { readNow } from './sources.js';
 import { mayChangeBudget, raisesBudget, setBudget } from './budgets.js';
 import { commitments, commitmentsCsv } from './commitments.js';
+import { importEntries, listEntryImports, previewEntryImport, removeEntryImport } from './entry-import.js';
 import { addSchedule, applyContractUpdates, confirmProposals, listSchedules, proposals, removeSchedule, updateSchedule } from './schedules.js';
 import {
   addEntry,
@@ -69,6 +70,9 @@ import {
  *   POST /api/costs/plans/:serviceId/contract-updates                  "Update lines" (the current and later fiscal years)
  *   GET  /api/costs/commitments?teamId=&serviceId=&supplierId=&currency=&endingWithinDays=   what the schedules still owe
  *   GET  /api/costs/commitments/export?…                               the same as CSV
+ *   POST /api/costs/plans/:serviceId/entries/import/preview            a CSV file of entries: every row with what it becomes (nothing stored)
+ *   POST /api/costs/plans/:serviceId/entries/import                    import the rows without problems, all or nothing
+ *   GET  /api/costs/plans/:serviceId/imports, DELETE …/imports/:importId   the import records; "Remove import"
  */
 
 const scopeParams = (req: FastifyRequest) => z.object({ scope: z.enum(COST_SCOPES), id: z.string().min(1).max(100) }).parse(req.params);
@@ -149,6 +153,13 @@ export async function costRoutes(app: FastifyInstance): Promise<void> {
   app.get('/costs/plans/:serviceId/proposals', async (req) => proposals(serviceParam(req), yearQuery.parse(req.query ?? {}).fiscalYear));
   app.post('/costs/plans/:serviceId/proposals', session, async (req) => confirmProposals(serviceParam(req), req.body));
   app.post('/costs/plans/:serviceId/contract-updates', session, async (req) => applyContractUpdates(serviceParam(req), req.body));
+  const entryImport = { config: { access: ACCESS.session, rateLimit: ROUTE_LIMITS.heavy }, bodyLimit: LARGE_BODIES.costEntryImport.bytes };
+  app.post('/costs/plans/:serviceId/entries/import/preview', entryImport, async (req) => previewEntryImport(serviceParam(req), req.body));
+  app.post('/costs/plans/:serviceId/entries/import', entryImport, async (req) => importEntries(serviceParam(req), req.body));
+  app.get('/costs/plans/:serviceId/imports', async (req) => listEntryImports(serviceParam(req)));
+  app.delete('/costs/plans/:serviceId/imports/:importId', session, async (req) =>
+    removeEntryImport(serviceParam(req), z.object({ importId: z.string().min(1).max(100) }).parse(req.params).importId),
+  );
   app.get('/costs/commitments', async (req) => commitments(req.query ?? {}));
   app.get('/costs/commitments/export', async (req, reply) => {
     const out = commitmentsCsv(req.query ?? {});

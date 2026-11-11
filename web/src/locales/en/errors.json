@@ -1316,7 +1316,13 @@
     "COST_UPDATE_PAST_YEAR": "{{year}} is over: its plan stays as planned.",
     "COST_UPDATE_STALE": "This change no longer applies – reload the plan.",
     "COST_SCHEDULE_CONTRACT_LIMIT": "A contract has at most {{max}} payment schedules.",
-    "COST_SCHEDULE_SERVICE_LIMIT": "A service pays at most {{max}} payment schedules."
+    "COST_SCHEDULE_SERVICE_LIMIT": "A service pays at most {{max}} payment schedules.",
+    "COST_ENTRY_IMPORT_TOO_LARGE": "The file is larger than {{maxMb}} MB.",
+    "COST_ENTRY_IMPORT_EMPTY": "The file has no header row.",
+    "COST_ENTRY_IMPORT_COLUMN": "The file has no column “{{column}}”.",
+    "COST_ENTRY_IMPORT_NOTHING": "No row of the file can be imported ({{skipped}} left out).",
+    "COST_ENTRY_IMPORT_NOT_FOUND": "This import does not exist (any more).",
+    "COST_ENTRY_IMPORT_REMOVED": "This import was removed already."
   },
   "boundary": {
     "title": "Something went wrong on this page",

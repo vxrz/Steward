@@ -33,6 +33,7 @@ import {
   IconCopy,
   IconDownload,
   IconEyeOff,
+  IconFileImport,
   IconPencil,
   IconPlus,
   IconReceipt,
@@ -67,6 +68,7 @@ import { SupplierPicker, SupplierText, useSupplierChoice, useSupplierOptions } f
 import { ScheduleBadge } from './ContractPayments';
 import { ChangesPanel, PrepaidRows, ProposalsPanel } from './ContractLines';
 import { ServiceContracts } from './Commitments';
+import { EntryImportDialog, EntryImports } from './EntryImport';
 
 /**
  * The cost plan of a service (0.16.0, ADR 0026, docs/COSTS.md#planning-per-service): per fiscal year the plan lines,
@@ -82,6 +84,7 @@ export function ServiceCostPlan({ serviceId }: { serviceId: string }) {
   const [lineDialog, setLineDialog] = useState<CostPlanLine | 'new' | null>(null);
   const [entryDialog, setEntryDialog] = useState<CostEntry | 'new' | null>(null);
   const [bookDialog, setBookDialog] = useState<CostPlanLine | null>(null);
+  const [importing, setImporting] = useState(false);
   const q = useQuery({
     queryKey: costKeys.plan(serviceId, year),
     queryFn: () => get<CostPlanYear>(`/costs/plans/${encodeURIComponent(serviceId)}${year ? `?fiscalYear=${year}` : ''}`),
@@ -176,6 +179,9 @@ export function ServiceCostPlan({ serviceId }: { serviceId: string }) {
             </Button>
             <Button size="xs" variant="default" leftSection={<IconReceipt size={14} />} onClick={() => setEntryDialog('new')} data-testid="plan-add-entry">
               {t('plan.entry.add')}
+            </Button>
+            <Button size="xs" variant="default" leftSection={<IconFileImport size={14} />} onClick={() => setImporting(true)} data-testid="plan-import-entries">
+              {t('entryImport.button')}
             </Button>
             {d.lines.length > 0 && (
               <Button size="xs" variant="default" leftSection={<IconCopy size={14} />} onClick={copy} data-testid="plan-copy">
@@ -274,6 +280,8 @@ export function ServiceCostPlan({ serviceId }: { serviceId: string }) {
       {lineDialog && <LineDialog d={d} line={lineDialog === 'new' ? null : lineDialog} onClose={() => setLineDialog(null)} onSaved={show} />}
       {entryDialog && <EntryDialog d={d} entry={entryDialog === 'new' ? null : entryDialog} onClose={() => setEntryDialog(null)} onSaved={show} />}
       {bookDialog && <BookDialog d={d} line={bookDialog} onClose={() => setBookDialog(null)} onSaved={show} />}
+      <EntryImports serviceId={serviceId} onChanged={() => void qc.invalidateQueries({ queryKey: costKeys.planOf(serviceId) })} />
+      {importing && <EntryImportDialog d={d} onClose={() => setImporting(false)} onSaved={show} />}
     </Stack>
   );
 }

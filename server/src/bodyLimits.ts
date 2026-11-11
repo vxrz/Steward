@@ -18,6 +18,7 @@
 import {
   ADVISORY_LIMITS,
   COMPONENT_LIMITS,
+  COST_ENTRY_IMPORT_LIMITS,
   COST_LIMITS,
   DATA_CONTRACT_LIMITS,
   DEBUG_LIMITS,
@@ -157,6 +158,11 @@ export const LARGE_BODIES = {
   costImport: {
     routes: ['POST /api/costs/platform/:id/imports/preview', 'POST /api/costs/platform/:id/imports', 'POST /api/hooks/costs/:platformId'],
     bytes: jsonText(COST_LIMITS.importBytes, 16 * KIB),
+  },
+  /** A CSV file of cost entries (0.18.0, ADR 0030): COST_ENTRY_IMPORT_LIMITS.bytes (5 MB) as text in the web app's JSON body, with its mapping */
+  costEntryImport: {
+    routes: ['POST /api/costs/plans/:serviceId/entries/import/preview', 'POST /api/costs/plans/:serviceId/entries/import'],
+    bytes: jsonText(COST_ENTRY_IMPORT_LIMITS.bytes, 16 * KIB),
   },
   /** A library release as a .zip (0.10.0, #238): LIBRARY_LIMITS.maxUploadBytes (8 MB) as base64 in a JSON body */
   libraryUpload: {
