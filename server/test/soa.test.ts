@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { controlPoint, instanceRule } from '@sm/shared';
-import { ADMIN, setup, startTestServer, type Client, type TestServer } from './helpers.js';
+import { ADMIN, authHeaders, loginCookie, setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
 /**
  * The statement of applicability with the responsibility matrix (ISO/IEC 27001 clause 6.1.3 d, ADR 0029 part 2): the
@@ -391,7 +391,20 @@ describe('versions, approval and the signed export', () => {
   it('exports the approved version as PDF, CSV and a signed ZIP that verifies offline', async () => {
     const token = (await audrey('POST', '/me/tokens', { name: 'soa-export', scope: 'read' })).token as string;
     const get = (q: string) => fetch(`${s.base}/api/compliance/soa/ISO27001/versions/${q}`, { headers: { authorization: `Bearer ${token}` } });
-    expect((await get('1/export?format=zip')).status).toBe(409);
+    // the signed ZIP uses the installation's key like an evidence pack: in a session, after a fresh confirmation
+    const cookie = await loginCookie(s.base, 'audrey', PW);
+    const inSession = (q: string) => fetch(`${s.base}/api/compliance/soa/ISO27001/versions/${q}`, { headers: { 'x-sm-client': '1', ...authHeaders(cookie) } });
+    const byToken = await get('2/export?format=zip');
+    expect(byToken.status).toBe(403);
+    expect(((await byToken.json()) as { code: string }).code).toBe('SESSION_REQUIRED');
+    expect((await get('2/export')).status).toBe(403);
+    const unconfirmed = await loginCookie(s.base, 'audrey', PW);
+    await fetch(`${s.base}/api/auth/step-up`, { method: 'DELETE', headers: { 'x-sm-client': '1', ...authHeaders(unconfirmed) } });
+    const asked = await fetch(`${s.base}/api/compliance/soa/ISO27001/versions/2/export?format=zip`, {
+      headers: { 'x-sm-client': '1', ...authHeaders(unconfirmed) },
+    });
+    expect(((await asked.json()) as { code: string }).code).toBe('STEP_UP_REQUIRED');
+    expect((await inSession('1/export?format=zip')).status).toBe(409);
     const pdf = await get('2/export?format=pdf');
     expect(pdf.status).toBe(200);
     expect(pdf.headers.get('content-type')).toContain('application/pdf');
@@ -403,7 +416,7 @@ describe('versions, approval and the signed export', () => {
     const csv = await (await get('2/export?format=csv')).text();
     expect(csv.split('\r\n')[0]).toContain('Control,Title,Applicable,Justification');
     expect(csv).toContain('Hostwell (soa)');
-    const zipRes = await get('2/export?format=zip');
+    const zipRes = await inSession('2/export?format=zip');
     expect(zipRes.status).toBe(200);
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'soa-test-'));
     const file = path.join(dir, 'soa.zip');

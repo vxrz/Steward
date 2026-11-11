@@ -1428,7 +1428,8 @@ const SESSION_ONLY = [
  * routes where only some changes are sensitive – with a body that makes the request a sensitive one (`sensitive`) and
  * one that does not (`harmless`, never STEP_UP_REQUIRED). A route that loses its step-up fails this test.
  */
-const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown }> = {
+/** `query`: what is appended to the URL of the sensitive and the harmless request (a GET route whose query decides) */
+const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown; query?: { sensitive: string; harmless: string } }> = {
   // copying the access settings of an original shares the copy with its access list and owning teams (0.4.0);
   // harmless: no access settings, refused for the key (nothing is created)
   ...Object.fromEntries(
@@ -1511,6 +1512,8 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
   // switching the second person of a statement of applicability off (soa.approve, security review 0.17.0)
   'PUT /api/compliance/soa/:catalogueId/settings': { sensitive: { fourEyes: false }, harmless: { scopeName: 'Matrix' } },
   'POST /api/compliance/soa': { sensitive: { catalogueId: 'none', fourEyes: false }, harmless: { catalogueId: 'none' } },
+  // the signed export of a statement of applicability (the evidence-pack key, like creating a pack); PDF and CSV are not
+  'GET /api/compliance/soa/:catalogueId/versions/:n/export': { sensitive: {}, harmless: {}, query: { sensitive: '?format=zip', harmless: '?format=csv' } },
   'GET /api/audit/export': 'always',
   'PUT /api/assurance/policy': 'always',
   'POST /api/assurance/policy/changes/:changeId/approve': 'always',
@@ -2680,10 +2683,10 @@ describe('route permission matrix', () => {
     const cookie = await loginCookie(s.base, 'admin', 'Admin-password-1');
     const ended = await fetch(`${s.base}/api/auth/step-up`, { method: 'DELETE', headers: { 'x-sm-client': '1', ...authHeaders(cookie) } });
     expect(ended.status).toBe(200);
-    const send = async (headers: Record<string, string>, k: string, body: unknown) => {
+    const send = async (headers: Record<string, string>, k: string, body: unknown, query = '') => {
       const [method, url] = k.split(' ') as [string, string];
       const send = method !== 'DELETE' && method !== 'GET';
-      const res = await fetch(s.base + fill(url), {
+      const res = await fetch(s.base + fill(url) + query, {
         method,
         headers: { 'x-sm-client': '1', ...headers, ...(send ? { 'content-type': 'application/json' } : {}) },
         body: send ? JSON.stringify(body ?? {}) : undefined,
@@ -2694,12 +2697,13 @@ describe('route permission matrix', () => {
     const problems: string[] = [];
     for (const [k, rule] of Object.entries(STEP_UP)) {
       const body = rule === 'always' ? (bodies()[k] ?? {}) : rule.sensitive;
-      const asSession = await send(authHeaders(cookie), k, body);
+      const query = rule === 'always' ? '' : (rule.query?.sensitive ?? '');
+      const asSession = await send(authHeaders(cookie), k, body, query);
       if (asSession.status !== 403 || asSession.code !== 'STEP_UP_REQUIRED') problems.push(`${k} unconfirmed session: ${asSession.status} ${asSession.code}`);
-      const asToken = await send({ authorization: `Bearer ${fullAdminToken}` }, k, body);
+      const asToken = await send({ authorization: `Bearer ${fullAdminToken}` }, k, body, query);
       if (asToken.status !== 403) problems.push(`${k} full API token: ${asToken.status} ${asToken.code}`);
       if (rule !== 'always') {
-        const harmless = await send(authHeaders(cookie), k, rule.harmless);
+        const harmless = await send(authHeaders(cookie), k, rule.harmless, rule.query?.harmless ?? '');
         if (harmless.code === 'STEP_UP_REQUIRED') problems.push(`${k} harmless change: asks for a step-up`);
       }
     }

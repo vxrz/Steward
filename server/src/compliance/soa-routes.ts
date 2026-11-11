@@ -20,6 +20,7 @@ import { getResponsibilities, setResponsibilities } from './responsibilities.js'
 
 const session = { config: { access: ACCESS.session } };
 const adminCaller = () => isAdmin(currentUser());
+const exportQuery = z.object({ format: z.enum(SOA_EXPORT_FORMATS).default('zip') });
 const versionNo = (req: FastifyRequest) => z.coerce.number().int().min(1).max(1_000_000).parse(params(req).n);
 
 export async function soaRoutes(app: FastifyInstance): Promise<void> {
@@ -65,13 +66,24 @@ export async function soaRoutes(app: FastifyInstance): Promise<void> {
     },
     async (req) => soa.decideVersion(params(req).catalogueId!, versionNo(req), req.body as never),
   );
-  app.get('/compliance/soa/:catalogueId/versions/:n/export', { config: { rateLimit: ROUTE_LIMITS.heavy } }, async (req, reply) => {
-    const q = z.object({ format: z.enum(SOA_EXPORT_FORMATS).default('zip') }).parse(req.query);
-    const f = await soa.exportVersion(params(req).catalogueId!, versionNo(req), q.format);
-    reply.header('content-disposition', contentDisposition(f.filename));
-    reply.header('content-security-policy', "default-src 'none'; sandbox");
-    return reply.type(f.contentType).send(f.body);
-  });
+  app.get(
+    '/compliance/soa/:catalogueId/versions/:n/export',
+    {
+      config: {
+        rateLimit: ROUTE_LIMITS.heavy,
+        // the signed ZIP uses the installation's key like an evidence pack: a fresh confirmation, in a session (an API
+        // token is refused); the PDF and CSV are copies of the approved version
+        stepUp: { action: 'exportEvidencePack', who: 'exportEvidence', when: (req) => exportQuery.parse(req.query).format === 'zip' },
+      },
+    },
+    async (req, reply) => {
+      const q = exportQuery.parse(req.query);
+      const f = await soa.exportVersion(params(req).catalogueId!, versionNo(req), q.format);
+      reply.header('content-disposition', contentDisposition(f.filename));
+      reply.header('content-security-policy', "default-src 'none'; sandbox");
+      return reply.type(f.contentType).send(f.body);
+    },
+  );
 
   // the responsibility matrix of a service (whoever may edit the service changes it)
   app.get('/services/:id/responsibilities', async (req) => getResponsibilities(params(req).id!));

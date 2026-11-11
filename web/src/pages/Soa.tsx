@@ -6,7 +6,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { IconCheck, IconDownload, IconClipboardText, IconPlus, IconSearch, IconSend, IconSettings, IconX } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { SOA_PARTIES, SOA_STATUSES, type Soa, type SoaEntry, type SoaList, type SoaSummary } from '@sm/shared';
-import { apiUrl, get, notifyError, notifyOk, post } from '../api';
+import { apiUrl, confirmedDownload, get, notifyError, notifyOk, post } from '../api';
 import { DetailState, FilterPanel, QueryState, subjectLabel, useCreateParam } from '../components/common';
 import { DataTable, ListFooter, type DataColumn } from '../components/DataTable';
 import { ListPage } from '../components/page/ListPage';
@@ -574,6 +574,8 @@ export function SoaDetailPage() {
                               variant="light"
                               component="a"
                               href={url('zip')}
+                              // signed with the installation's key, like an evidence pack: a fresh confirmation first
+                              onClick={confirmedDownload('exportEvidencePack')}
                               leftSection={<IconDownload size={12} />}
                               data-testid={`soa-export-zip-${v.number}`}
                             >
