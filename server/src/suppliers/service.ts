@@ -292,6 +292,7 @@ function toContract(
     services: cover.services,
     hiddenServices: canEdit || ctx.ownsContract(c) ? cover.hidden : 0,
     readReason: ctx.readReason(c, supplier) ?? 'supplierReaders',
+    mine: ctx.ownsContract(c),
     canEdit,
     createdBy: c.created_by ?? '',
     updatedBy: c.updated_by ?? '',
@@ -702,6 +703,7 @@ function detailsOf(rows: SupplierRow[], u: AuthUser, now: number): SupplierDetai
       ),
       certificates: certs.map((c) => toCertificate(c, today, u)),
       usedBy: used,
+      serviceUse: serviceUseOf(r, mine, used, ctx),
       duties,
       migratedFrom: migrated.filter((m) => m.supplier_id === r.id).map((m) => ({ table: m.table_name, spellings: parseJson<string[]>(m.spellings, []) })),
       createdAt: r.created_at,
@@ -712,6 +714,43 @@ function detailsOf(rows: SupplierRow[], u: AuthUser, now: number): SupplierDetai
       canManage: canManageSuppliers(u),
     };
   });
+}
+
+/**
+ * The services a supplier serves, as the reader may see them (the supplier page's "Services" tab): those covered by the
+ * contracts the reader may see, with their purposes, and those that use it through applications or systems without a
+ * contract covering them ("No contract for this service").
+ */
+function serviceUseOf(s: SupplierRow, contracts: ContractRow[], used: SupplierUsage[], ctx: ScopeCtx): SupplierDetail['serviceUse'] {
+  const out = new Map<string, SupplierDetail['serviceUse'][number]>();
+  const entry = (id: string) => {
+    if (!out.has(id)) out.set(id, { id, name: ctx.service(id)?.name ?? id, contracts: [], via: [] });
+    return out.get(id)!;
+  };
+  for (const c of contracts)
+    for (const x of ctx.servicesOf(c, s).services) entry(x.id).contracts.push({ id: c.id, title: c.title, purpose: x.purpose, status: x.status });
+  const apps = used.filter((x) => x.kind === 'application');
+  const systems = used.filter((x) => x.kind === 'system');
+  const ids = (list: SupplierUsage[]) => list.map((x) => x.id);
+  const viaApps = (appIds: string[]) =>
+    appIds.length
+      ? db().all<{ service_id: string; application_id: string }>(
+          `SELECT service_id, application_id FROM service_applications WHERE application_id IN (${appIds.map(() => '?').join(', ')})`,
+          ...appIds,
+        )
+      : [];
+  for (const r of viaApps(ids(apps)))
+    if (ctx.seesService(r.service_id))
+      entry(r.service_id).via.push({ kind: 'application', id: r.application_id, name: apps.find((a) => a.id === r.application_id)!.name });
+  if (systems.length)
+    for (const r of db().all<{ system_id: string; service_id: string }>(
+      `SELECT DISTINCT ay.system_id, sa.service_id FROM application_systems ay JOIN service_applications sa ON sa.application_id = ay.application_id
+        WHERE ay.system_id IN (${systems.map(() => '?').join(', ')})`,
+      ...ids(systems),
+    ))
+      if (ctx.seesService(r.service_id) && !entry(r.service_id).via.some((v) => v.kind === 'system' && v.id === r.system_id))
+        entry(r.service_id).via.push({ kind: 'system', id: r.system_id, name: systems.find((x) => x.id === r.system_id)!.name });
+  return [...out.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
 /** The supplier picker of the forms: the suppliers the person may see and link (not archived), with their contracts. */
@@ -789,7 +828,10 @@ export function supplierFacts(ids?: readonly string[], now = Date.now()): Map<st
 export type PublicSupplierContact = Pick<SupplierContact, 'id' | 'name' | 'role' | 'note'> & {
   scope: { kind: SupplierContactScopeKind; id: string; name: string }[];
 };
-export type PublicSupplierContract = Omit<SupplierContract, 'record' | 'services' | 'hiddenServices' | 'readReason' | 'canEdit' | 'parent' | 'orderForms'> & {
+export type PublicSupplierContract = Omit<
+  SupplierContract,
+  'record' | 'services' | 'hiddenServices' | 'readReason' | 'canEdit' | 'parent' | 'orderForms' | 'mine'
+> & {
   services: { id: string; name: string; purpose: string; status: SupplierContract['services'][number]['status'] }[];
 };
 export type PublicSupplier = Omit<SupplierDetail, 'contacts' | 'canEdit' | 'canManage' | 'canAddContract' | 'contracts' | 'certificates'> & {
@@ -803,7 +845,7 @@ export type PublicSupplier = Omit<SupplierDetail, 'contacts' | 'canEdit' | 'canM
  * and status – no count of the others, no rights.
  */
 export function toPublicContract(c: SupplierContract): PublicSupplierContract {
-  const { record: _r, services, hiddenServices: _h, readReason: _w, canEdit: _e, parent: _p, orderForms: _o, ...rest } = c;
+  const { record: _r, services, hiddenServices: _h, readReason: _w, canEdit: _e, parent: _p, orderForms: _o, mine: _m, ...rest } = c;
   return { ...rest, services: services.map((x) => ({ id: x.id, name: x.name, purpose: x.purpose, status: x.status })) };
 }
 

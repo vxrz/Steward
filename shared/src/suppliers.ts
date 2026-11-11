@@ -358,6 +358,8 @@ export interface SupplierContractService {
   proposedFrom: SupplierContractProposalSource[];
   /** The reader may change the purpose, leave the contract, confirm or dismiss it */
   canChange: boolean;
+  /** The reader edits this service (the filter "Covering services I edit") */
+  editsService: boolean;
 }
 
 /** The SLA values an order form takes from its master agreement while its own are empty (ADR 0031 part 3). */
@@ -494,6 +496,8 @@ export interface SupplierContract {
   hiddenServices: number;
   /** Why the reader sees it */
   readReason: SupplierContractReadReason;
+  /** The reader is among its owners (the filter "Mine") */
+  mine: boolean;
   /** Change it (terms, SLA, owners, remove it) */
   canEdit: boolean;
   createdBy: string;
@@ -571,6 +575,16 @@ export interface SupplierDetail extends SupplierSummary {
   contracts: SupplierContract[];
   certificates: SupplierCertificate[];
   usedBy: SupplierUsage[];
+  /**
+   * The services the reader may see that the supplier serves (ADR 0031): covered by a contract the reader may see (with
+   * its purposes), or using it through applications or systems without such a contract (`contracts` empty)
+   */
+  serviceUse: {
+    id: string;
+    name: string;
+    contracts: { id: string; title: string; purpose: string; status: SupplierContractServiceStatus }[];
+    via: { kind: 'application' | 'system'; id: string; name: string }[];
+  }[];
   /** Supplier review duties that name it, with their last periods */
   duties: { id: string; name: string; serviceId: string; serviceName: string; periods: { periodKey: string; status: string; dueAt: string }[] }[];
   /** Free-text spellings that became this supplier on upgrade */

@@ -201,6 +201,18 @@ async function checkPages(page: Page, headers: Record<string, string>) {
   await expect(page.getByRole('heading', { level: 1 })).toContainText('Kundenportal');
   await expectGerman(page, 'service detail');
 
+  // a shared supplier (ADR 0031): its contracts tab and a contract's page, in German
+  const cloud = (await json<{ id: string; name: string }[]>(await api.get('/api/suppliers', { headers }))).find((x) => x.name === 'Example Cloud GmbH');
+  if (cloud) {
+    await page.goto(`/suppliers/${cloud.id}?tab=contracts`);
+    await expect(page.getByTestId('supplier-tab-contracts')).toContainText('Verträge');
+    await expect(page.getByTestId('supplier-contracts')).toContainText('Rahmenvertrag');
+    await expectGerman(page, 'supplier contracts');
+    await page.getByRole('link', { name: 'Managed Kubernetes' }).click();
+    await expect(page.getByTestId('contract-visibility')).toContainText('Eigentümer und Sichtbarkeit');
+    await expectGerman(page, 'supplier contract');
+  }
+
   // Credentials, reports, monitors, settings (incl. MCP), profile
   for (const path of ['/credentials', '/reports', '/monitors', '/monitors/new', '/settings', '/profile']) {
     await page.goto(path);

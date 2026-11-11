@@ -34,6 +34,7 @@ import { IfModule } from '../components/modules/ModuleOff';
 import { CollectorCollections } from '../components/plant/CollectorCollections';
 import { CollapsibleSection, SectionGroup } from '../components/page/CollapsibleSection';
 import { SupplierText } from '../components/suppliers/SupplierPicker';
+import { ItemContacts } from '../components/suppliers/ScopedContacts';
 
 export function ApplicationDetailPage() {
   const { t } = useTranslation(['applications', 'common']);
@@ -193,6 +194,7 @@ export function ApplicationDetailPage() {
                     {a.version && `${a.supplier || a.vendor ? ' · ' : ''}${a.version}`}
                   </Text>
                 </Field>
+                <ItemContacts kind="application" id={a.id} />
                 {a.url && (
                   <Field label={t('url')}>
                     <Anchor href={a.url} target="_blank" rel="noopener noreferrer nofollow" size="sm" style={{ overflowWrap: 'anywhere' }}>

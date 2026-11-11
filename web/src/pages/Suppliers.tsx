@@ -26,6 +26,7 @@ import { useListParams } from '../components/page/params';
 import { DataTable, ListFooter, type DataColumn } from '../components/DataTable';
 import { confirmDanger } from '../components/confirm';
 import { supplierKeys } from '../queryKeys';
+import { ContractScopeNotice, ProposedServices, SharedSuppliers } from '../components/suppliers/SharedSuppliers';
 
 const usageTotal = (s: SupplierSummary) => Object.values(s.usage).reduce((a, b) => a + b, 0);
 const DOC_LINK = /^(https?:\/\/\S+|rec_[A-Za-z0-9_-]{4,40}|[A-Z][A-Z0-9]{0,9}-\d{4}-\d{4,6})$/i;
@@ -179,6 +180,19 @@ export function SuppliersPage() {
             ),
           },
           {
+            key: 'dpa',
+            header: t('columns.dpa'),
+            sortValue: (s) => s.dpaMissingContracts + (s.dpaMissing ? 1 : 0),
+            cell: (s) =>
+              s.dpaMissing ? (
+                <Badge size="sm" color="red" variant="light">
+                  {s.contractCount ? t('dpaMissingCount', { count: s.dpaMissingContracts }) : t('dpa.missing')}
+                </Badge>
+              ) : (
+                '–'
+              ),
+          },
+          {
             key: 'notice',
             header: t('columns.notice'),
             sortValue: (s) => s.nextNoticeBy ?? '9999',
@@ -243,10 +257,15 @@ export function SuppliersPage() {
         )
       }
     >
+      {tab === 'active' && <ContractScopeNotice />}
       {tab === 'unconfirmed' && (
-        <Text size="sm" c="dimmed" mb="md">
-          {t('toConfirmIntro')}
-        </Text>
+        <>
+          <SharedSuppliers />
+          <ProposedServices />
+          <Text size="sm" c="dimmed" mb="md">
+            {t('toConfirmIntro')}
+          </Text>
+        </>
       )}
       <QueryState query={list} />
       {list.isSuccess && all.length === 0 && tab === 'active' && (

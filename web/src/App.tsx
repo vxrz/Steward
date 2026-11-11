@@ -89,6 +89,7 @@ const ApplicationsPage = page(() => import('./pages/Applications'), 'Application
 const SystemsPage = page(() => import('./pages/Systems'), 'SystemsPage');
 const SuppliersPage = page(() => import('./pages/Suppliers'), 'SuppliersPage');
 const SupplierDetailPage = page(() => import('./pages/SupplierDetail'), 'SupplierDetailPage');
+const SupplierContractPage = page(() => import('./pages/SupplierContract'), 'SupplierContractPage');
 const MaintenancePage = page(() => import('./pages/Maintenance'), 'MaintenancePage');
 const SystemDetailPage = page(() => import('./pages/SystemDetail'), 'SystemDetailPage');
 const SystemSchemaPage = page(() => import('./pages/SystemSchema'), 'SystemSchemaPage');
@@ -452,6 +453,7 @@ function Shell({ status }: { status: AuthStatus }) {
                     <Route path="/systems/:id/schema" element={<SystemSchemaPage />} />
                     <Route path="/suppliers" element={<SuppliersPage />} />
                     <Route path="/suppliers/:id" element={<SupplierDetailPage />} />
+                    <Route path="/suppliers/:id/contracts/:contractId" element={<SupplierContractPage />} />
                     <Route
                       path="/data-contracts"
                       element={

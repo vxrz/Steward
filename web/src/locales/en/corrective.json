@@ -93,7 +93,8 @@
     "record": "Incident review",
     "created": "Recorded by {{user}} on {{date}}",
     "updated": "Last changed by {{user}} {{when}}",
-    "closed": "Closed by {{user}} on {{date}}"
+    "closed": "Closed by {{user}} on {{date}}",
+    "contract": "Contract"
   },
   "hints": {
     "sourceLabel": "For example: External ISMS audit 2026, finding 4",
@@ -102,7 +103,8 @@
     "grcRef": "Where the risk lives in your GRC tool, e.g. a risk id – Steward keeps no risk register",
     "service": "Editors of the service may change the finding",
     "supplier": "The supplier the finding is about, for example from a supplier review",
-    "owner": "Who sees the finding through and is reminded"
+    "owner": "Who sees the finding through and is reminded",
+    "contract": "Optional: one of the supplier’s contracts – its owners read the finding."
   },
   "form": {
     "newTitle": "Record a finding",
@@ -271,5 +273,6 @@
     "none": "No open finding is about this supplier.",
     "record": "Record a finding",
     "all": "All findings of this supplier"
-  }
+  },
+  "contractHidden": "A contract you may not see"
 }

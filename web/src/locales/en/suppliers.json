@@ -22,7 +22,8 @@
     "usage": "Linked",
     "owners": "Owners",
     "spellings": "Spellings",
-    "updated": "Updated"
+    "updated": "Updated",
+    "dpa": "DPA"
   },
   "usageCount_one": "{{count}} item",
   "usageCount_other": "{{count}} items",
@@ -80,7 +81,11 @@
       "ticket_refs": "Ticket references",
       "cd_watches": "Page watches",
       "cost_plan_lines": "Cost plan lines"
-    }
+    },
+    "dataProtectionDefault": "Data processing – default for contracts",
+    "dataProtectionDefaultHint": "Contracts that answer “as the supplier” use this; each contract can answer for itself.",
+    "dpaMissingContracts_one": "{{count}} contract processes personal data without a data processing agreement.",
+    "dpaMissingContracts_other": "{{count}} contracts process personal data without a data processing agreement."
   },
   "actions": {
     "create": "Create",
@@ -222,5 +227,197 @@
     "contract": "Contract",
     "contractHint": "The supplier's contract this line pays for.",
     "noContract": "No contract"
-  }
+  },
+  "detailTabs": {
+    "label": "Supplier sections",
+    "overview": "Overview",
+    "contracts": "Contracts",
+    "services": "Services",
+    "contacts": "Contacts",
+    "certificates": "Certificates",
+    "usedBy": "Used by"
+  },
+  "contractsTab": {
+    "help": "Each team holds its own contracts: a contract with a team among its owners is seen only by its owners, the readers of the services it covers, administrators and auditors.",
+    "mine": "Mine",
+    "myServices": "Covering services I edit",
+    "noMatch": "No contract matches the filters."
+  },
+  "servicesTab": {
+    "help": "The services covered by the contracts you may see, with their purposes – and those that use the supplier through applications or systems without a contract.",
+    "empty": "No service you may see uses this supplier.",
+    "via": "Through {{items}}"
+  },
+  "contract": {
+    "services": "Services and purpose",
+    "term": "Term and notice",
+    "payments": "Payments",
+    "reviews": "Reviews and findings",
+    "noReviews": "No supplier review or finding names this contract.",
+    "visibility": "Owners and visibility",
+    "visibleOpen": "No team is among its owners: everyone who may see the supplier sees this contract.",
+    "visibleTeam": "Seen by the members of {{teams}}, its user owners, the readers of the services it covers, administrators and auditors.",
+    "visibleServices": "Services it covers: {{services}}",
+    "why": {
+      "supplierReaders": "You see it because you see the supplier.",
+      "admin": "You see it as an administrator.",
+      "auditor": "You see it as an auditor.",
+      "owner": "You see it as one of its owners.",
+      "service": "You see it because you see a service it covers."
+    },
+    "dataProtection": "Data protection",
+    "noPersonalData": "No personal data",
+    "dpaMissing": "DPA missing",
+    "dpaFrom": {
+      "master": "from the master agreement",
+      "supplier": "the supplier’s default"
+    },
+    "personalDataFrom": {
+      "contract": "Its own answer.",
+      "master": "Personal data: as the master agreement.",
+      "supplier": "Personal data: as the supplier."
+    },
+    "personalDataOwn": "Personal data: its own answer.",
+    "fromMaster": "from the master agreement",
+    "hiddenMaster": "Part of a master agreement you may not see.",
+    "endsAfterMaster": "Ends after the master agreement.",
+    "master": "Master agreement",
+    "orderForm": "Order form",
+    "orderForms": "Order forms",
+    "teamOwned": "Team-owned",
+    "hidden": "A contract you may not see",
+    "remove": "Remove contract",
+    "removed": "Contract removed",
+    "removeMaster_one": "This master agreement has {{count}} order form. It becomes standalone, with the values it inherited copied into it. Remove the master agreement?",
+    "removeMaster_other": "This master agreement has {{count}} order forms. They become standalone, with the values they inherited copied into them. Remove the master agreement?",
+    "replacedBy": "Replaced by …",
+    "replacedByHint": "Optional: another contract of this supplier that you may change takes over its services, payment schedules, plan lines, entries, matrix rows, duties, findings and contacts."
+  },
+  "contractForm": {
+    "services": "Services covered",
+    "servicesHint": "The services the contract covers – you may add a contract for a service you edit. The purpose can be added on the contract.",
+    "master": "Master agreement",
+    "masterHint": "Optional: the master agreement this order form belongs to (one level).",
+    "noMaster": "None",
+    "owners": "Owners of the contract",
+    "ownersHint": "Users and teams who manage the contract and get its notice reminders.",
+    "ownersNewHint": "Empty: you and your teams for new resources.",
+    "opens": "No team is among the owners any more: everyone who may see the supplier will see this contract.",
+    "opensTitle": "Open the contract?",
+    "opensConfirm": "Open it",
+    "inheritHint": "Empty values are taken from the master agreement (shown in grey).",
+    "inheritedPlaceholder": "{{value}} (from the master agreement)",
+    "personalData": "Processes personal data for the services it covers",
+    "personalDataChoices": {
+      "supplier": "As the supplier",
+      "yes": "Yes",
+      "no": "No"
+    },
+    "dpaInherited": "As the master agreement or supplier"
+  },
+  "contractServices": {
+    "none": "No services – a company-wide agreement.",
+    "toConfirm": "To confirm",
+    "archived": "archived",
+    "noPurpose": "No purpose given",
+    "proposedFrom": "proposed from {{from}}",
+    "sources": {
+      "costPlanLine": "cost plan lines",
+      "costEntry": "cost entries",
+      "responsibility": "the responsibility matrix",
+      "paymentSchedule": "payment schedules"
+    },
+    "confirm": "Confirm",
+    "confirmed": "Service confirmed",
+    "dismiss": "Not this service",
+    "dismissed": "Proposal dismissed",
+    "dismissConfirm": "The contract does not cover “{{service}}”? Plan lines and matrix rows that name it stay as they are.",
+    "leave": "Leave contract",
+    "left": "Service left the contract",
+    "leaveConfirm": "Take “{{service}}” off the contract “{{contract}}”? Plan lines and matrix rows that name the contract keep it.",
+    "editPurpose": "Change the purpose",
+    "purpose": "Purpose",
+    "purposeTitle": "Purpose for “{{service}}”",
+    "saved": "Purpose saved",
+    "hidden_one": "and {{count}} service you may not see",
+    "hidden_other": "and {{count}} services you may not see",
+    "add": "Add a service",
+    "added": "Service added to the contract",
+    "service": "Service"
+  },
+  "scopedContacts": {
+    "appliesTo": "Applies to",
+    "companyWide": "Company-wide",
+    "unused": "No longer in use",
+    "kinds": {
+      "contract": "Contract",
+      "application": "Application",
+      "system": "System"
+    },
+    "hiddenItems_one": "and {{count}} item you may not see",
+    "hiddenItems_other": "and {{count}} items you may not see",
+    "scopeHint": "Empty: company-wide. A scoped contact is seen only by who may see one of its items.",
+    "scopedHint": "A scoped contact never becomes company-wide: remove the contact instead of its last item.",
+    "lastItem": "Remove the contact instead of its last item.",
+    "takeOff": "Remove from my item",
+    "takeOffNamed": "Remove from {{item}}",
+    "takeOffConfirm": "Take “{{item}}” off the contact “{{name}}”?",
+    "itemTitle": "Supplier contacts for this item"
+  },
+  "serviceSuppliers": {
+    "title": "Suppliers",
+    "empty": "No contract covers this service yet.",
+    "addContract": "Add contract",
+    "addToContract": "Add to a contract",
+    "supplier": "Supplier",
+    "contract": "Contract",
+    "newSupplierHint": "The new contract covers this service.",
+    "noContracts": "No contract you may change",
+    "contractAdded": "Contract added",
+    "owners": "Owners: {{owners}}",
+    "termEnd": "Term ends {{date}}",
+    "uncovered": "Suppliers its applications and systems use, without a contract covering the service",
+    "noContract": "No contract for this service",
+    "leaveConfirm": "Take this service off the contract “{{contract}}”?",
+    "dismissConfirm": "The contract “{{contract}}” does not cover this service?"
+  },
+  "shared": {
+    "title": "Same supplier in several teams",
+    "intro": "Suppliers that look like one company, kept apart by team since the update to 0.17. Merging them into one shared supplier keeps each team’s contracts and contacts protected.",
+    "wholeInstance": "the whole instance",
+    "counts": "{{contracts}} contracts, {{contacts}} contacts",
+    "proposed": "Proposed shared supplier",
+    "merge": "Merge …",
+    "keepSeparate": "Keep separate",
+    "keptSeparate": "Kept separate",
+    "previewTitle": "Merge into one shared supplier",
+    "widens": "This merge shows the company record to more people.",
+    "gainers": "Gain sight of the company record (name, certificates, company-wide contacts): {{names}}",
+    "teams": "Owning teams of the result: {{teams}}",
+    "noOwners": "no owners",
+    "sameReference": "same contract number",
+    "contactActions": {
+      "keep": "stays as it is",
+      "scope": "applies to {{items}}",
+      "combined": "is the same person: combined",
+      "companyWide": "becomes company-wide",
+      "remove": "is removed",
+      "choose": "choose"
+    },
+    "makeCompanyWide": "Make it company-wide",
+    "removeContact": "Remove it",
+    "certificatesCombined_one": "{{count}} certificate is the same as one of the shared supplier: combined.",
+    "certificatesCombined_other": "{{count}} certificates are the same as ones of the shared supplier: combined.",
+    "dpaWritten": "Personal data and DPA written onto: {{contracts}}",
+    "owners": "Owners of the shared supplier",
+    "moves": "Also moves: links, {{spellings}} spellings, {{schedules}} payment schedules.",
+    "noticeTitle": "Contracts now seen only by their owners and services",
+    "noticeText_one": "Since the update, contracts have owners of their own. {{count}} contract whose supplier had a team among its owners is now seen only by its owners, the readers of the services it covers, administrators and auditors. Removing the team owner reopens it.",
+    "noticeText_other": "Since the update, contracts have owners of their own. {{count}} contracts whose supplier had a team among its owners are now seen only by their owners, the readers of the services they cover, administrators and auditors. Removing the team owner reopens a contract.",
+    "noticeClose": "Close the notice",
+    "proposedTitle": "Contracts with services to confirm",
+    "proposedIntro": "The update to 0.18 proposed these services from the plan lines, cost entries and matrix rows that name the contracts. Confirm each one, or choose “Not this service”."
+  },
+  "dpaMissingCount_one": "{{count}} contract without a DPA",
+  "dpaMissingCount_other": "{{count}} contracts without a DPA"
 }

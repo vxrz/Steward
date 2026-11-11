@@ -201,6 +201,7 @@ export class ScopeCtx {
         status: x.status,
         proposedFrom: parseJson<SupplierContractProposalSource[]>(x.proposed_from, []),
         canChange: this.editsCover(c, s, svc.id),
+        editsService: !!this.u && this.editsService(svc.id),
       });
     }
     return { services: services.sort((a, b) => a.name.localeCompare(b.name)), hidden };

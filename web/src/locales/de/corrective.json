@@ -93,7 +93,8 @@
     "record": "Incident-Review",
     "created": "Erfasst von {{user}} am {{date}}",
     "updated": "Zuletzt geändert von {{user}} {{when}}",
-    "closed": "Abgeschlossen von {{user}} am {{date}}"
+    "closed": "Abgeschlossen von {{user}} am {{date}}",
+    "contract": "Vertrag"
   },
   "hints": {
     "sourceLabel": "Zum Beispiel: Externes ISMS-Audit 2026, Befund 4",
@@ -102,7 +103,8 @@
     "grcRef": "Wo das Risiko in Ihrem GRC-Werkzeug steht, z. B. eine Risiko-ID – Steward führt kein Risikoregister",
     "service": "Wer den Service bearbeiten darf, darf den Befund ändern",
     "supplier": "Der Lieferant, um den es im Befund geht, zum Beispiel aus einer Lieferantenbewertung",
-    "owner": "Wer den Befund verfolgt und erinnert wird"
+    "owner": "Wer den Befund verfolgt und erinnert wird",
+    "contract": "Optional: einer der Verträge des Lieferanten – seine Eigentümer lesen die Feststellung."
   },
   "form": {
     "newTitle": "Befund erfassen",
@@ -271,5 +273,6 @@
     "none": "Kein offener Befund betrifft diesen Lieferanten.",
     "record": "Befund erfassen",
     "all": "Alle Befunde dieses Lieferanten"
-  }
+  },
+  "contractHidden": "Ein Vertrag, den Sie nicht sehen dürfen"
 }

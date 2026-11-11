@@ -48,7 +48,8 @@ async function cleanup(api: APIRequestContext, f: Fixture) {
 
 async function flow(page: Page, api: APIRequestContext, f: Fixture, mobile: boolean) {
   // ---- a payment schedule on the contract, +3 % per contract year ----
-  await page.goto(`/suppliers/${f.supplier.id}`);
+  // the contract's own page (ADR 0031) holds its payments
+  await page.goto(`/suppliers/${f.supplier.id}/contracts/${f.contract.id}`);
   const payments = page.getByTestId('contract-payments');
   await expect(payments).toContainText('No payment schedule yet');
   await payments.getByTestId('contract-payments-add').click();
