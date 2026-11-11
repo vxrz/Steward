@@ -84,6 +84,19 @@ test('the service hub has a tab for each part, with addresses that can be shared
   }
 });
 
+test('on a desktop every tab of a service is in view: the tab bar wraps instead of hiding the last ones', async ({ page, apiAs }) => {
+  const api = await apiAs('dana');
+  const svc = await json<{ id: string; name: string }>(await api.post('/api/services', { data: { name: uniq('E2E hub tabs') } }));
+  try {
+    await page.goto(`/services/${svc.id}`);
+    await settle(page);
+    const links = page.getByRole('navigation', { name: `Sections of ${svc.name}` }).getByRole('link');
+    for (const link of await links.all()) await expect(link).toBeInViewport({ ratio: 1 });
+  } finally {
+    await api.delete(`/api/services/${svc.id}`);
+  }
+});
+
 test.describe('on a phone @mobile', () => {
   test.use({ storageState: authFile('dana') });
   test('the tabs scroll sideways instead of widening the page @mobile', async ({ page, apiAs }) => {
@@ -96,6 +109,11 @@ test.describe('on a phone @mobile', () => {
       await page.getByTestId('service-tab-scorecard').scrollIntoViewIfNeeded();
       await page.getByTestId('service-tab-scorecard').tap();
       await expect(page).toHaveURL((u) => u.pathname.endsWith(`/services/${svc.id}/scorecard`));
+      // a link straight to a tab far to the right: the bar scrolls it into view
+      await page.goto('/');
+      await page.goto(`/services/${svc.id}/scorecard`);
+      await settle(page);
+      await expect(page.getByTestId('service-tab-scorecard')).toBeInViewport({ ratio: 1 });
     } finally {
       await api.delete(`/api/services/${svc.id}`);
     }

@@ -325,6 +325,25 @@ p .mantine-Anchor-root,
   padding: 0;
 }
 .plant-tree .plant-tree {
+/* One line that scrolls on phones and tablets; from md up the tabs wrap, so none hides past the edge (11 tabs on a service). */
+.link-tabs .link-tabs-list {
+  flex-wrap: nowrap;
+}
+@media (min-width: 62em) {
+  .link-tabs .link-tabs-list {
+    flex-wrap: wrap;
+  }
+}
+/* Below md: a shadow at an edge that has more tabs past it (the covers scroll with the content, the shadows stay). */
+@media (max-width: 61.99em) {
+  .link-tabs {
+    background:
+      linear-gradient(to right, var(--mantine-color-body) 40%, transparent) left center / 24px 100% no-repeat local,
+      linear-gradient(to left, var(--mantine-color-body) 40%, transparent) right center / 24px 100% no-repeat local,
+      radial-gradient(farthest-side at 0 50%, rgb(0 0 0 / 20%), transparent) left center / 12px 100% no-repeat scroll,
+      radial-gradient(farthest-side at 100% 50%, rgb(0 0 0 / 20%), transparent) right center / 12px 100% no-repeat scroll;
+  }
+}
   margin-left: 10px;
   padding-left: var(--mantine-spacing-sm);
   border-left: 1px solid var(--mantine-color-default-border);
