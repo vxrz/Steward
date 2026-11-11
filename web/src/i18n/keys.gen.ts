@@ -15211,6 +15211,10 @@ export interface Resources {
     'shared.gainers': string;
     'shared.narrows': string;
     'shared.losers': string;
+    'shared.openTitle': string;
+    'shared.openIntro': string;
+    'shared.openConfirm': string;
+    'shared.opened': string;
     'shared.teams': string;
     'shared.noOwners': string;
     'shared.sameReference': string;

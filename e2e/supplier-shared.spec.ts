@@ -217,6 +217,36 @@ test('a finding naming a contract proposes its owners for the first action', asy
   }
 });
 
+test('the Owning teams panel previews opening a supplier and asks about contacts', async ({ page, apiAs }) => {
+  const api = await apiAs('admin');
+  const team = (await json<{ id: string; name: string }>(await api.post('/api/teams', { data: { name: uniq('Open e2e team'), members: ['olivia'] } }))).id;
+  const sup = await json<{ id: string }>(await api.post('/api/suppliers', { data: { name: uniq('Invented Team Desk') } }));
+  expect((await api.put(`/api/owning-teams/supplier/${sup.id}`, { data: { teamIds: [team] } })).ok()).toBe(true);
+  // a company-wide contact, and nothing to scope it to: the administrator chooses
+  expect((await api.post(`/api/suppliers/${sup.id}/contacts`, { data: { name: 'Team desk', email: 'desk@team.example' } })).ok()).toBe(true);
+  try {
+    await page.goto(`/suppliers/${sup.id}`);
+    const teams = page.getByRole('combobox', { name: 'Teams' });
+    await teams.click();
+    await teams.press('Backspace');
+    await teams.press('Escape'); // closes the dropdown
+    await page.getByRole('button', { name: 'Save owning teams' }).click();
+    const preview = page.getByTestId('open-preview');
+    await expect(preview).toContainText('Gain sight of the company record');
+    await expect(preview).toContainText('Team desk');
+    await expect(page.getByTestId('open-confirm')).toBeDisabled();
+    await expectAccessible(page, 'supplier: opening preview');
+    await preview.getByText('Remove it', { exact: true }).click();
+    await page.getByTestId('open-confirm').click();
+    await expect(page.getByText('Owning teams changed')).toBeVisible();
+    expect((await json<{ teams: unknown[] }>(await api.get(`/api/owning-teams/supplier/${sup.id}`))).teams).toEqual([]);
+    expect((await json<{ contacts: unknown[] }>(await api.get(`/api/suppliers/${sup.id}`))).contacts).toEqual([]);
+  } finally {
+    await api.post(`/api/suppliers/${sup.id}/archive`, { data: { archived: true } });
+    await api.delete(`/api/teams/${team}`);
+  }
+});
+
 test('a shared supplier on a phone @mobile', async ({ page, apiAs }) => {
   const api = await apiAs('admin');
   const f = await fixture(api);

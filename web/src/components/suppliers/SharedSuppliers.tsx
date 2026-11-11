@@ -185,66 +185,7 @@ export function MergePreviewModal({ intoId, ids, onClose, onMerged }: { intoId: 
         </Text>
       ) : (
         <Stack gap="sm" data-testid="merge-preview">
-          {p.widens && (
-            <Alert color="orange" variant="light">
-              {p.gainers.length ? t('shared.gainers', { names: p.gainers.join(', ') }) : t('shared.widens')}
-            </Alert>
-          )}
-          {p.narrows && (
-            <Alert color="orange" variant="light" data-testid="merge-narrows">
-              {p.losers.length ? t('shared.losers', { names: p.losers.join(', ') }) : t('shared.narrows')}
-            </Alert>
-          )}
-          <Text size="sm">{t('shared.teams', { teams: p.teams.length ? p.teams.join(', ') : t('shared.wholeInstance') })}</Text>
-          {p.contracts.length > 0 && (
-            <Stack gap={2}>
-              <Text fw={600} size="sm">
-                {t('contracts.title')}
-              </Text>
-              <List size="sm" spacing={2}>
-                {p.contracts.map((c) => (
-                  <List.Item key={c.id}>
-                    {c.title}
-                    {c.reference ? ` · ${c.reference}` : ''}: {c.ownersAfter.length ? c.ownersAfter.map(subjectLabel).join(', ') : t('shared.noOwners')}
-                    {c.sameReference && (
-                      <Badge size="xs" color="yellow" variant="light" ml={4}>
-                        {t('shared.sameReference')}
-                      </Badge>
-                    )}
-                  </List.Item>
-                ))}
-              </List>
-            </Stack>
-          )}
-          {p.contacts.length > 0 && (
-            <Stack gap={4}>
-              <Text fw={600} size="sm">
-                {t('contacts.title')}
-              </Text>
-              {p.contacts.map((c) => (
-                <Group key={c.id} gap="xs" wrap="wrap">
-                  <Text size="sm">{c.name}:</Text>
-                  {c.action === 'choose' || choices[c.id] ? (
-                    <SegmentedControl
-                      size="xs"
-                      data={[
-                        { value: 'companyWide', label: t('shared.makeCompanyWide') },
-                        { value: 'remove', label: t('shared.removeContact') },
-                      ]}
-                      value={choices[c.id] ?? ''}
-                      onChange={(v) => setChoices({ ...choices, [c.id]: v as SupplierContactChoice })}
-                    />
-                  ) : (
-                    <Text size="sm" c="dimmed">
-                      {t(`shared.contactActions.${c.action}`, { items: c.scope.map((x) => x.name).join(', ') })}
-                    </Text>
-                  )}
-                </Group>
-              ))}
-            </Stack>
-          )}
-          {p.certificates.length > 0 && <Text size="sm">{t('shared.certificatesCombined', { count: p.certificates.length })}</Text>}
-          {p.dpa.length > 0 && <Text size="sm">{t('shared.dpaWritten', { contracts: p.dpa.map((x) => x.title).join(', ') })}</Text>}
+          <PreviewDetails p={p} choices={choices} setChoices={setChoices} />
           <SubjectsInput label={t('shared.owners')} value={owners ?? p.owners} onChange={setOwners} max={20} />
           <Text size="xs" c="dimmed">
             {t('shared.moves', { spellings: p.moves.spellings.length, schedules: p.moves.schedules })}
@@ -255,6 +196,139 @@ export function MergePreviewModal({ intoId, ids, onClose, onMerged }: { intoId: 
             </Button>
             <Button onClick={() => void merge()} loading={busy} disabled={pending.length > 0} data-testid="merge-confirm">
               {t('merge.submit')}
+            </Button>
+          </Group>
+        </Stack>
+      )}
+    </Modal>
+  );
+}
+
+/**
+ * What a merge or an opening changes (ADR 0031 part 8): who gains or loses sight, the owning teams of the result, the
+ * owners each contract will have, the scope each company-wide contact will get (or the administrator's choice), what
+ * is combined and the DPA written onto moved contracts. Only what the person may see (the server filters it).
+ */
+function PreviewDetails({
+  p,
+  choices,
+  setChoices,
+}: {
+  p: SupplierMergePreview;
+  choices: Record<string, SupplierContactChoice>;
+  setChoices: (c: Record<string, SupplierContactChoice>) => void;
+}) {
+  const { t } = useTranslation(['suppliers', 'common']);
+  return (
+    <>
+      {p.widens && (
+        <Alert color="orange" variant="light">
+          {p.gainers.length ? t('shared.gainers', { names: p.gainers.join(', ') }) : t('shared.widens')}
+        </Alert>
+      )}
+      {p.narrows && (
+        <Alert color="orange" variant="light" data-testid="merge-narrows">
+          {p.losers.length ? t('shared.losers', { names: p.losers.join(', ') }) : t('shared.narrows')}
+        </Alert>
+      )}
+      <Text size="sm">{t('shared.teams', { teams: p.teams.length ? p.teams.join(', ') : t('shared.wholeInstance') })}</Text>
+      {p.contracts.length > 0 && (
+        <Stack gap={2}>
+          <Text fw={600} size="sm">
+            {t('contracts.title')}
+          </Text>
+          <List size="sm" spacing={2}>
+            {p.contracts.map((c) => (
+              <List.Item key={c.id}>
+                {c.title}
+                {c.reference ? ` · ${c.reference}` : ''}: {c.ownersAfter.length ? c.ownersAfter.map(subjectLabel).join(', ') : t('shared.noOwners')}
+                {c.sameReference && (
+                  <Badge size="xs" color="yellow" variant="light" ml={4}>
+                    {t('shared.sameReference')}
+                  </Badge>
+                )}
+              </List.Item>
+            ))}
+          </List>
+        </Stack>
+      )}
+      {p.contacts.length > 0 && (
+        <Stack gap={4}>
+          <Text fw={600} size="sm">
+            {t('contacts.title')}
+          </Text>
+          {p.contacts.map((c) => (
+            <Group key={c.id} gap="xs" wrap="wrap">
+              <Text size="sm">{c.name}:</Text>
+              {c.action === 'choose' || choices[c.id] ? (
+                <SegmentedControl
+                  size="xs"
+                  data={[
+                    { value: 'companyWide', label: t('shared.makeCompanyWide') },
+                    { value: 'remove', label: t('shared.removeContact') },
+                  ]}
+                  value={choices[c.id] ?? ''}
+                  onChange={(v) => setChoices({ ...choices, [c.id]: v as SupplierContactChoice })}
+                />
+              ) : (
+                <Text size="sm" c="dimmed">
+                  {t(`shared.contactActions.${c.action}`, { items: c.scope.map((x) => x.name).join(', ') })}
+                </Text>
+              )}
+            </Group>
+          ))}
+        </Stack>
+      )}
+      {p.certificates.length > 0 && <Text size="sm">{t('shared.certificatesCombined', { count: p.certificates.length })}</Text>}
+      {p.dpa.length > 0 && <Text size="sm">{t('shared.dpaWritten', { contracts: p.dpa.map((x) => x.title).join(', ') })}</Text>}
+    </>
+  );
+}
+
+/**
+ * The preview of new owning teams for a supplier (the _Owning teams_ panel): what the opening protects and the choice
+ * for company-wide contacts that cannot be scoped, then `POST /suppliers/:id/open` (confirmed with a step-up when it
+ * grants access). Nothing changes before _Change owning teams_.
+ */
+export function OpenSupplierModal({ id, teamIds, onClose, onDone }: { id: string; teamIds: string[]; onClose: () => void; onDone: () => void }) {
+  const { t } = useTranslation(['suppliers', 'common']);
+  const [choices, setChoices] = useState<Record<string, SupplierContactChoice>>({});
+  const [busy, setBusy] = useState(false);
+  const q = useQuery({
+    queryKey: [...supplierKeys.all, 'open-preview', id, ...teamIds, JSON.stringify(choices)],
+    queryFn: () => post<SupplierMergePreview>(`/suppliers/${id}/open/preview`, { teamIds, contacts: choices }),
+  });
+  const p = q.data;
+  const open = async () => {
+    setBusy(true);
+    try {
+      await post(`/suppliers/${id}/open`, { teamIds, contacts: choices });
+      notifyOk(t('shared.opened'));
+      onDone();
+    } catch (e) {
+      notifyError(e);
+      setBusy(false);
+    }
+  };
+  const pending = p?.contacts.filter((c) => c.action === 'choose' && !choices[c.id]) ?? [];
+  return (
+    <Modal opened onClose={onClose} size="lg" title={t('shared.openTitle')}>
+      {!p ? (
+        <Text size="sm" c="dimmed">
+          {t('common:loading')}
+        </Text>
+      ) : (
+        <Stack gap="sm" data-testid="open-preview">
+          <Text size="sm" c="dimmed">
+            {t('shared.openIntro')}
+          </Text>
+          <PreviewDetails p={p} choices={choices} setChoices={setChoices} />
+          <Group justify="flex-end">
+            <Button variant="default" onClick={onClose}>
+              {t('common:cancel')}
+            </Button>
+            <Button onClick={() => void open()} loading={busy} disabled={pending.length > 0} data-testid="open-confirm">
+              {t('shared.openConfirm')}
             </Button>
           </Group>
         </Stack>
