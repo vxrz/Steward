@@ -24,7 +24,7 @@ import { migrateVendorTexts } from '../suppliers/migrate.js';
  * demo monitors linked, two availability objectives (Prometheus and a Steward monitor), a duty, a system in two
  * environments, a decision record, a change record, a reviewed operations manual, credential register entries
  * (metadata only – never a secret), a vendor ticket, a planned maintenance window, a status page and a weekly report
- * schedule, two corrective action findings with a suggestion, and the responsibility matrix of two services with a draft statement of applicability (Compliance module). Everything is invented. It runs once: when the first demo service exists, it does nothing.
+ * schedule, two corrective action findings with a suggestion, the responsibility matrix of two services with a draft statement of applicability and a monthly report schedule with the ISMS summary (Compliance module). Everything is invented. It runs once: when the first demo service exists, it does nothing.
  */
 export const DEMO_SERVICES = { shop: 'Online shop (demo)', care: 'Customer care (demo)', plant: 'Plant monitoring (demo)' } as const;
 
@@ -378,5 +378,18 @@ export async function setupServiceDemo(now = Date.now()): Promise<number> {
         // a demo must never fail half way: logged, the rest stays
         logger.warn({ err: (err as Error).message }, 'demo statement of applicability not loaded'),
       );
+  // ---- a monthly management review with the ISMS summary (ADR 0029 part 4) ----
+  if (moduleEnabled('compliance'))
+    step('ISMS report schedule', () =>
+      createReportSchedule(
+        scheduleInputSchema.parse({
+          name: 'Monthly management review (demo)',
+          preset: 'monthly',
+          title: 'ISMS management review',
+          sections: { isms: { days: 90 }, duties: { levels: ['mandatory'] } },
+          recipients: { users: [currentUser()?.username].filter((n): n is string => !!n) },
+        }),
+      ),
+    );
   return 3;
 }

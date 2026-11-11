@@ -54,7 +54,11 @@ describe('demo services', () => {
     const maintenance = await s.api('GET', '/maintenance-windows');
     expect(JSON.stringify(maintenance)).toContain('Shop database upgrade');
     expect((await s.api('GET', '/status-pages')).length).toBe(1);
-    expect(JSON.stringify(await s.api('GET', '/report-schedules'))).toContain('Weekly service meeting (demo)');
+    const schedules = await s.api('GET', '/report-schedules');
+    expect(JSON.stringify(schedules)).toContain('Weekly service meeting (demo)');
+    // the monthly management review with the ISMS summary (ADR 0029 part 4)
+    const review = schedules.items.find((x: { name: string }) => x.name === 'Monthly management review (demo)');
+    expect(review?.sections).toMatchObject({ isms: { catalogue: null, days: 90 } });
     const systems = (await s.api('GET', '/systems')) as { name: string }[];
     expect(systems.map((x) => x.name)).toContain('k8s-shop-01 (demo)');
 
