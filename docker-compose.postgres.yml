@@ -43,7 +43,8 @@ services:
       SM_LOG_LEVEL: info
 
   postgres:
-    image: postgres:16
+    # a fixed minor release (as in .woodpecker/postgres.yaml); move to the next one deliberately, after it is two weeks old
+    image: postgres:16.15-bookworm
     restart: unless-stopped
     environment:
       POSTGRES_DB: steward

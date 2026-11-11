@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { noteRemoteDate } from '../system/clock.js';
 import fs from 'node:fs';
 import { once } from 'node:events';
 import { Agent, EnvHttpProxyAgent, ProxyAgent, fetch, type Dispatcher } from 'undici';
@@ -386,6 +387,8 @@ async function sendRaw(p: Platform, req: HttpRequest, signal?: AbortSignal): Pro
   }
   const resHeaders: Record<string, string> = {};
   res.headers.forEach((v, k) => (resHeaders[k] = v));
+  // the platform's clock as a reference for Steward's own (system/clock.ts): no request of its own
+  noteRemoteDate(resHeaders.date, started, Date.now());
   let parsed: unknown = null;
   let truncated = false;
   if (req.responseFile && res.ok && req.method !== 'HEAD') {

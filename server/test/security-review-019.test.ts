@@ -75,3 +75,31 @@ describe('L2: single sign-on calls go through address safety', () => {
     expect(r.ok).toBe(true);
   });
 });
+
+describe('L6: clock and version', () => {
+  it('shows how far the clock is from a reference it has anyway', async () => {
+    const clock = await import('../src/system/clock.js');
+    clock.resetClockSamples();
+    const { db } = await import('../src/db.js');
+    const before = (await s.api('GET', '/system/status')).clock;
+    // SQLite has no clock of its own; PostgreSQL's is the same machine's here
+    if (db().dialect === 'sqlite') expect(before).toEqual({ skewSeconds: null, source: null, checkedAt: null, warning: false });
+    else expect(before).toMatchObject({ source: 'database', warning: false });
+    // a platform answered with a Date two minutes behind Steward's clock
+    const now = Date.now();
+    clock.noteRemoteDate(new Date(now - 120_000).toUTCString(), now - 50, now);
+    const after = (await s.api('GET', '/system/status')).clock;
+    expect(after).toMatchObject({ source: 'http', warning: true });
+    expect(after.skewSeconds).toBeGreaterThan(118);
+    expect(after.skewSeconds).toBeLessThan(121);
+    // within the Date header's resolution: no difference
+    clock.noteRemoteDate(new Date(now).toUTCString(), now - 50, now);
+    expect((await s.api('GET', '/system/status')).clock.warning).toBe(false);
+  });
+
+  it('names the version to signed-in callers only', async () => {
+    const anonymous = await (await fetch(`${s.base}/api/auth/status`)).json();
+    expect(anonymous).not.toHaveProperty('version');
+    expect((await s.api('GET', '/auth/status')).version).toMatch(/^\d+\.\d+\.\d+/);
+  });
+});

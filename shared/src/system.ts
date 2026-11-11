@@ -72,6 +72,12 @@ export interface SystemStatus {
     /** full view: a request to loosen the assurance policy waits for a second administrator (#210) */
     assurancePendingChange?: { id: string; requestedBy: string; expiresAt: string } | null;
   };
+  /**
+   * Steward's clock against a reference it has anyway (0.19.0): the PostgreSQL server's clock, or the Date header of the
+   * latest platform answer – seconds Steward is ahead (negative: behind); null without a reference. warning: more than
+   * 30 seconds
+   */
+  clock: { skewSeconds: number | null; source: 'database' | 'http' | null; checkedAt: string | null; warning: boolean };
   runtime: {
     node: string;
     platform: string;

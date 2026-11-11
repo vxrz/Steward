@@ -56,6 +56,9 @@ test.describe('System status', () => {
     await expect(page.getByText(/\/api\/health$/)).toBeVisible();
     await expect(page.getByRole('button', { name: new RegExp(`^Copy http://127\\.0\\.0\\.1:\\d+${appHref('/api/ready')}$`) })).toBeVisible();
     await expect(page.getByRole('rowheader', { name: 'Data folder' })).toBeVisible();
+    // the clock against a reference (0.19.0): SQLite has none until a platform answered with a Date
+    await expect(page.getByRole('rowheader', { name: 'Clock' })).toBeVisible();
+    await expect(page.getByTestId('clock-skew')).toHaveText(/In sync|Off|No reference yet/);
     await expect(page.getByRole('cell', { name: 'SQLite', exact: true }).or(page.getByRole('cell', { name: 'PostgreSQL', exact: true }))).toBeVisible();
     // the background jobs, with "Run now"
     const jobs = page.getByTestId('background-jobs');

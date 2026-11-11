@@ -20,6 +20,7 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 - **Name clashes no longer confirm hidden services and applications** ([docs/TEAMS.md](docs/TEAMS.md)): when another team's service or application you may not see has the name, Steward says only that the name cannot be used (`SERVICE_NAME_TAKEN`, `APPLICATION_NAME_TAKEN`), as for suppliers.
 - **Single sign-on calls are checked like other outbound calls** ([docs/SECURITY-HARDENING.md](docs/SECURITY-HARDENING.md#which-rule-checks-which-call)): discovery, token, key and user-info requests to the identity provider never reach cloud-metadata or link-local addresses or Steward's own API, and connect to the address that was checked.
 - **MQTT and Kafka connect to the checked address** ([docs/SECURITY-HARDENING.md](docs/SECURITY-HARDENING.md#which-rule-checks-which-call)): MQTT connections and reconnects and Kafka TLS connections resolve the broker's name through the pinning lookup, so a name rebound to a cloud-metadata address after the check is refused.
+- **Clock check and version** ([docs/SECURITY-HARDENING.md](docs/SECURITY-HARDENING.md#audit-log-as-evidence)): _System status_ shows how far Steward's clock is from the PostgreSQL server's or from the time of the latest platform answer, and marks more than 30 seconds; `/api/auth/status` names the version only to signed-in callers. The PostgreSQL compose file uses the fixed release `postgres:16.15-bookworm`.
 
 ## [0.18.0] - 2026-11-11
 

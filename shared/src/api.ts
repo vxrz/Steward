@@ -469,7 +469,8 @@ export interface AuthStatus {
   /** 'adminsOnly': password sign-in is limited to administrators (break-glass); 'none': single sign-on only */
   passwordLogin: PasswordLogin;
   demo: boolean;
-  version: string;
+  /** The server's version – only for a signed-in caller (0.19.0) */
+  version?: string;
   browserAvailable: boolean;
 }
 
