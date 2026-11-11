@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, Anchor, Badge, Button, Group, Modal, Paper, Select, Stack, Switch, Text, TextInput, Textarea } from '@mantine/core';
+import { Alert, Anchor, Badge, Button, Group, Paper, Select, Stack, Switch, Text, TextInput, Textarea } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import { IconCheck, IconGitMerge, IconPlus, IconTruckDelivery, IconX } from '@tabler/icons-react';
@@ -27,6 +27,7 @@ import { DataTable, ListFooter, type DataColumn } from '../components/DataTable'
 import { confirmDanger } from '../components/confirm';
 import { supplierKeys } from '../queryKeys';
 import { ContractScopeNotice, ProposedServices, SharedSuppliers } from '../components/suppliers/SharedSuppliers';
+import { FormModal, FormModalCancel } from '../components/FormModal';
 
 const usageTotal = (s: SupplierSummary) => Object.values(s.usage).reduce((a, b) => a + b, 0);
 const DOC_LINK = /^(https?:\/\/\S+|rec_[A-Za-z0-9_-]{4,40}|[A-Z][A-Z0-9]{0,9}-\d{4}-\d{4,6})$/i;
@@ -397,20 +398,18 @@ export function MergeModal({
     }
   };
   return (
-    <Modal opened onClose={onClose} title={t('merge.title', { name: supplier.name })}>
+    <FormModal onClose={onClose} title={t('merge.title', { name: supplier.name })}>
       <Stack gap="sm">
         <Text size="sm">{t('merge.intro', { name: supplier.name })}</Text>
         <Select label={t('merge.into')} data={data} value={into} onChange={setInto} searchable data-autofocus data-testid="merge-into" />
         <Group justify="flex-end">
-          <Button variant="default" onClick={onClose}>
-            {t('common:cancel')}
-          </Button>
+          <FormModalCancel />
           <Button onClick={() => void save()} loading={busy} disabled={!into}>
             {t('merge.submit')}
           </Button>
         </Group>
       </Stack>
-    </Modal>
+    </FormModal>
   );
 }
 
@@ -456,7 +455,7 @@ export function SupplierFormModal({ supplier, onClose, onSaved }: { supplier?: S
     }
   };
   return (
-    <Modal opened onClose={onClose} size="lg" title={supplier ? supplier.name : t('new')}>
+    <FormModal onClose={onClose} size="lg" title={supplier ? supplier.name : t('new')}>
       <form
         noValidate
         onSubmit={(e) => {
@@ -530,15 +529,13 @@ export function SupplierFormModal({ supplier, onClose, onSaved }: { supplier?: S
             </Alert>
           )}
           <Group justify="flex-end">
-            <Button variant="default" onClick={onClose}>
-              {t('common:cancel')}
-            </Button>
+            <FormModalCancel />
             <Button type="submit" loading={busy}>
               {t('common:save')}
             </Button>
           </Group>
         </Stack>
       </form>
-    </Modal>
+    </FormModal>
   );
 }

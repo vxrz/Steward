@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ActionIcon, Badge, Button, Group, Modal, NumberInput, Paper, Select, SimpleGrid, Stack, Text, Textarea, TextInput, Tooltip } from '@mantine/core';
+import { ActionIcon, Badge, Button, Group, NumberInput, Paper, Select, SimpleGrid, Stack, Text, Textarea, TextInput, Tooltip } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { IconCalendarDollar, IconPencil, IconPlus, IconTrash } from '@tabler/icons-react';
@@ -24,6 +24,7 @@ import { costKeys } from '../../queryKeys';
 import { fmtDay } from '../../format';
 import { fmtMoney, tooManyDecimals } from './common';
 import { useSupplierOptions } from '../suppliers/SupplierPicker';
+import { FormModal, FormModalCancel } from '../FormModal';
 
 /**
  * Payment schedules of a contract (0.18.0, ADR 0030, docs/COSTS.md#contract-payments-and-commitments): the "Payments"
@@ -222,7 +223,7 @@ export function ScheduleDialog({
   };
   const contracts = supplierOptions.data?.find((o) => o.id === supplierId)?.contracts ?? [];
   return (
-    <Modal opened onClose={onClose} size="lg" title={schedule ? t('schedules.editTitle') : t('schedules.addTitle', { contract: contract?.title ?? '' })}>
+    <FormModal onClose={onClose} size="lg" title={schedule ? t('schedules.editTitle') : t('schedules.addTitle', { contract: contract?.title ?? '' })}>
       <form
         noValidate
         onSubmit={(e) => {
@@ -472,16 +473,14 @@ export function ScheduleDialog({
             {t('schedules.form.noProRata')}
           </Text>
           <Group justify="flex-end">
-            <Button variant="default" onClick={onClose}>
-              {t('common:cancel')}
-            </Button>
+            <FormModalCancel />
             <Button type="submit" loading={busy} data-testid="schedule-save">
               {t('common:save')}
             </Button>
           </Group>
         </Stack>
       </form>
-    </Modal>
+    </FormModal>
   );
 }
 

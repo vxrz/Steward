@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Anchor, Badge, Button, Group, Modal, Select, Stack, Text } from '@mantine/core';
+import { Anchor, Badge, Button, Group, Select, Stack, Text } from '@mantine/core';
 import { Link } from 'react-router-dom';
 import { IconExternalLink } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
@@ -7,6 +7,7 @@ import type { SupplierContract, SupplierDetail } from '@sm/shared';
 import { ApiError, del, notifyError, notifyOk } from '../../api';
 import { fmtDay } from '../../format';
 import { confirmDanger } from '../confirm';
+import { FormModal, FormModalCancel } from '../FormModal';
 
 /** A document link: the record when the reader may open it, else the URL (or the text as it is). */
 export function DocLink({ link, record }: { link: string; record?: { id: string; number: string; title: string } | null }) {
@@ -86,7 +87,7 @@ export function RemoveContractModal({
     }
   };
   return (
-    <Modal opened onClose={onClose} title={t('contract.remove')}>
+    <FormModal onClose={onClose} title={t('contract.remove')}>
       <Stack gap="sm">
         <Text size="sm">{t('contracts.removeConfirm', { name: contract.title })}</Text>
         <Select
@@ -99,14 +100,12 @@ export function RemoveContractModal({
           data-testid="contract-replaced-by"
         />
         <Group justify="flex-end">
-          <Button variant="default" onClick={onClose}>
-            {t('common:cancel')}
-          </Button>
+          <FormModalCancel />
           <Button color="red" loading={busy} onClick={() => void remove()} data-testid="contract-remove-confirm">
             {t('contract.remove')}
           </Button>
         </Group>
       </Stack>
-    </Modal>
+    </FormModal>
   );
 }

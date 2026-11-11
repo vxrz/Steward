@@ -147,6 +147,10 @@
       "button": "Confirm"
     }
   },
+  "formModal": {
+    "discardTitle": "Discard your changes?",
+    "discardMessage": "What you entered in this dialog is not saved."
+  },
   "table": {
     "sortBy": "Sort by",
     "sortedAsc": "Ascending – switch to descending",

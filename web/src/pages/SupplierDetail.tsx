@@ -1,23 +1,5 @@
 import { useState } from 'react';
-import {
-  ActionIcon,
-  Alert,
-  Anchor,
-  Badge,
-  Button,
-  Checkbox,
-  Chip,
-  Grid,
-  Group,
-  Modal,
-  Paper,
-  Select,
-  Stack,
-  Table,
-  Text,
-  TextInput,
-  Textarea,
-} from '@mantine/core';
+import { ActionIcon, Alert, Anchor, Badge, Button, Checkbox, Chip, Grid, Group, Paper, Select, Stack, Table, Text, TextInput, Textarea } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { IconArchive, IconCheck, IconEdit, IconExternalLink, IconGitMerge, IconPlus, IconRestore, IconTrash, IconX } from '@tabler/icons-react';
@@ -48,6 +30,7 @@ import { SupplierCosts } from '../components/costs/Commitments';
 import { ContractModal } from '../components/suppliers/ContractForm';
 import { SupplierContacts } from '../components/suppliers/ScopedContacts';
 import { DocLink, DpaState, RemoveContractModal } from '../components/suppliers/contractParts';
+import { FormModal, FormModalCancel } from '../components/FormModal';
 
 const DOC_LINK = /^(https?:\/\/\S+|rec_[A-Za-z0-9_-]{4,40}|[A-Z][A-Z0-9]{0,9}-\d{4}-\d{4,6})$/i;
 const TABS = ['overview', 'contracts', 'services', 'contacts', 'certificates', 'usedBy'] as const;
@@ -642,13 +625,11 @@ function useSave(send: (body: unknown) => Promise<SupplierDetail>, onSaved: (s: 
   };
 }
 
-function FormButtons({ busy, onClose }: { busy: boolean; onClose: () => void }) {
+function FormButtons({ busy }: { busy: boolean }) {
   const { t } = useTranslation('common');
   return (
     <Group justify="flex-end">
-      <Button variant="default" onClick={onClose}>
-        {t('cancel')}
-      </Button>
+      <FormModalCancel />
       <Button type="submit" loading={busy}>
         {t('save')}
       </Button>
@@ -686,7 +667,7 @@ function CertificateModal({
     onClose,
   );
   return (
-    <Modal opened onClose={onClose} size="lg" title={certificate ? t('certificates.edit') : t('certificates.add')}>
+    <FormModal onClose={onClose} size="lg" title={certificate ? t('certificates.edit') : t('certificates.add')}>
       <form
         noValidate
         onSubmit={(e) => {
@@ -750,9 +731,9 @@ function CertificateModal({
             error={v.error('link')}
           />
           <Checkbox label={t('certificates.checked')} checked={checked} onChange={(e) => setChecked(e.currentTarget.checked)} />
-          <FormButtons busy={busy} onClose={onClose} />
+          <FormButtons busy={busy} />
         </Stack>
       </form>
-    </Modal>
+    </FormModal>
   );
 }

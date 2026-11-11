@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Anchor, Badge, Button, Group, Modal, Paper, Select, SimpleGrid, Stack, Text, TextInput, Textarea } from '@mantine/core';
+import { Anchor, Badge, Button, Group, Paper, Select, SimpleGrid, Stack, Text, TextInput, Textarea } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { IconEdit } from '@tabler/icons-react';
@@ -19,6 +19,7 @@ import { SupplierPicker, useSupplierOptions } from '../suppliers/SupplierPicker'
 import { calDay } from './corrective';
 import { fmtNumber, fmtRelative } from '../../format';
 import { responsibilityKeys } from '../../queryKeys';
+import { FormModal, FormModalCancel } from '../FormModal';
 
 /**
  * The tab "Responsibilities" of a service (ADR 0029 part 2): who does backup, recovery and continuity, patching and
@@ -216,7 +217,7 @@ function AreaForm({ matrix, row, onClose }: { matrix: ServiceResponsibilities; r
     }
   };
   return (
-    <Modal opened onClose={onClose} title={t('matrix.formTitle', { area: t(`areas.${row.area}`), service: matrix.serviceName })}>
+    <FormModal onClose={onClose} title={t('matrix.formTitle', { area: t(`areas.${row.area}`), service: matrix.serviceName })}>
       <form
         noValidate
         onSubmit={(e) => {
@@ -291,15 +292,13 @@ function AreaForm({ matrix, row, onClose }: { matrix: ServiceResponsibilities; r
             />
           )}
           <Group justify="flex-end" gap="xs">
-            <Button variant="default" onClick={onClose}>
-              {t('common:cancel')}
-            </Button>
+            <FormModalCancel />
             <Button type="submit" loading={busy} data-testid="responsibility-save">
               {t('common:save')}
             </Button>
           </Group>
         </Stack>
       </form>
-    </Modal>
+    </FormModal>
   );
 }

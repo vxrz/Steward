@@ -8,7 +8,6 @@ import {
   Checkbox,
   Drawer,
   Group,
-  Modal,
   MultiSelect,
   Paper,
   SegmentedControl,
@@ -44,6 +43,7 @@ import { QueryState, subjectLabel, useFieldErrors } from '../common';
 import { SubjectsInput } from '../SubjectsInput';
 import { SupplierPicker } from '../suppliers/SupplierPicker';
 import { fmtDate, fmtRelative } from '../../format';
+import { FormModal, FormModalCancel } from '../FormModal';
 
 /**
  * The parts of the statement of applicability (ADR 0029 part 2): badges, the row form (a drawer), the settings, a new
@@ -501,7 +501,7 @@ export function NewSoaModal({
     }
   };
   return (
-    <Modal opened onClose={onClose} title={t('new.title')} size="lg">
+    <FormModal onClose={onClose} title={t('new.title')} size="lg">
       <form
         noValidate
         onSubmit={(e) => {
@@ -526,16 +526,14 @@ export function NewSoaModal({
           <ScopeFields services={services.data ?? []} scopeName={scopeName} setScopeName={setScopeName} scope={scope} setScope={setScope} />
           <FourEyesSwitch checked={fourEyes} onChange={setFourEyes} mayTurnOff={fourEyesOff} />
           <Group justify="flex-end" gap="xs">
-            <Button variant="default" onClick={onClose}>
-              {t('common:cancel')}
-            </Button>
+            <FormModalCancel />
             <Button type="submit" loading={busy} disabled={!catalogueId} data-testid="soa-new-submit">
               {t('new.submit')}
             </Button>
           </Group>
         </Stack>
       </form>
-    </Modal>
+    </FormModal>
   );
 }
 
@@ -639,7 +637,7 @@ export function SoaSettingsModal({ soa, onClose, onSaved }: { soa: Soa; onClose:
     }
   };
   return (
-    <Modal opened onClose={onClose} title={t('settings.title')} size="lg">
+    <FormModal onClose={onClose} title={t('settings.title')} size="lg">
       <form
         noValidate
         onSubmit={(e) => {
@@ -676,16 +674,14 @@ export function SoaSettingsModal({ soa, onClose, onSaved }: { soa: Soa; onClose:
             />
           ))}
           <Group justify="flex-end" gap="xs">
-            <Button variant="default" onClick={onClose}>
-              {t('common:cancel')}
-            </Button>
+            <FormModalCancel />
             <Button type="submit" loading={busy}>
               {t('common:save')}
             </Button>
           </Group>
         </Stack>
       </form>
-    </Modal>
+    </FormModal>
   );
 }
 
@@ -710,7 +706,7 @@ export function SoaDecisionModal({ soa, approve, onClose, onSaved }: { soa: Soa;
     }
   };
   return (
-    <Modal opened onClose={onClose} title={approve ? t('decision.approveTitle', { number: w.number }) : t('decision.returnTitle', { number: w.number })}>
+    <FormModal onClose={onClose} title={approve ? t('decision.approveTitle', { number: w.number }) : t('decision.returnTitle', { number: w.number })}>
       <form
         noValidate
         onSubmit={(e) => {
@@ -745,16 +741,14 @@ export function SoaDecisionModal({ soa, approve, onClose, onSaved }: { soa: Soa;
             data-autofocus
           />
           <Group justify="flex-end" gap="xs">
-            <Button variant="default" onClick={onClose}>
-              {t('common:cancel')}
-            </Button>
+            <FormModalCancel />
             <Button type="submit" color={approve ? undefined : 'orange'} loading={busy} data-testid="soa-decision-submit">
               {approve ? t('decision.approve') : t('decision.return')}
             </Button>
           </Group>
         </Stack>
       </form>
-    </Modal>
+    </FormModal>
   );
 }
 
@@ -767,7 +761,7 @@ export function SoaVersionModal({ catalogueKey, number, onClose }: { catalogueKe
   });
   const v = q.data;
   return (
-    <Modal opened onClose={onClose} title={t('versionView.title', { number })} size="xl">
+    <FormModal onClose={onClose} title={t('versionView.title', { number })} size="xl">
       {!v ? (
         <QueryState query={q} />
       ) : (
@@ -813,6 +807,6 @@ export function SoaVersionModal({ catalogueKey, number, onClose }: { catalogueKe
           </div>
         </Stack>
       )}
-    </Modal>
+    </FormModal>
   );
 }

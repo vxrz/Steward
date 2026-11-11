@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ActionIcon, Anchor, Badge, Button, Group, Modal, MultiSelect, Paper, Select, Stack, Text, TextInput, Textarea } from '@mantine/core';
+import { ActionIcon, Anchor, Badge, Button, Group, MultiSelect, Paper, Select, Stack, Text, TextInput, Textarea } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { IconEdit, IconPlus, IconTrash } from '@tabler/icons-react';
@@ -19,6 +19,7 @@ import {
 import { del, get, notifyError, post, put } from '../../api';
 import { useFieldErrors } from '../common';
 import { confirmDanger } from '../confirm';
+import { FormModal, FormModalCancel } from '../FormModal';
 
 const pathOf = (supplierId: string, x: { kind: SupplierContactScopeKind; id: string }) =>
   x.kind === 'contract' ? `/suppliers/${supplierId}/contracts/${x.id}` : x.kind === 'application' ? `/applications/${x.id}` : `/systems/${x.id}`;
@@ -261,7 +262,7 @@ function ContactModal({
     }
   };
   return (
-    <Modal opened onClose={onClose} title={contact ? t('contacts.edit') : t('contacts.add')}>
+    <FormModal onClose={onClose} title={contact ? t('contacts.edit') : t('contacts.add')}>
       <form
         noValidate
         onSubmit={(e) => {
@@ -319,16 +320,14 @@ function ContactModal({
             onChange={(e) => setNote(e.currentTarget.value)}
           />
           <Group justify="flex-end">
-            <Button variant="default" onClick={onClose}>
-              {t('common:cancel')}
-            </Button>
+            <FormModalCancel />
             <Button type="submit" loading={busy} data-testid="contact-save">
               {t('common:save')}
             </Button>
           </Group>
         </Stack>
       </form>
-    </Modal>
+    </FormModal>
   );
 }
 

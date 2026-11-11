@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Alert, Anchor, Badge, Button, Group, Modal, MultiSelect, SegmentedControl, Select, Stack, Text, TextInput, Textarea } from '@mantine/core';
+import { Alert, Anchor, Badge, Button, Group, MultiSelect, SegmentedControl, Select, Stack, Text, TextInput, Textarea } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -24,6 +24,7 @@ import { SubjectsInput } from '../SubjectsInput';
 import { fmtDay } from '../../format';
 import { correctiveKeys } from '../../queryKeys';
 import { SupplierPicker, useSupplierChoice, useSupplierOptions } from '../suppliers/SupplierPicker';
+import { FormModal, FormModalCancel } from '../FormModal';
 
 /** Shared pieces of the register of corrective actions (ADR 0029): badges, the forms and the panel on Controls. */
 
@@ -225,8 +226,7 @@ export function FindingForm({
     }
   };
   return (
-    <Modal
-      opened
+    <FormModal
       onClose={onClose}
       size="lg"
       title={finding ? t('form.editTitle', { number: finding.number }) : suggestion ? t('form.confirmTitle') : t('form.newTitle')}
@@ -404,16 +404,14 @@ export function FindingForm({
             />
           </Group>
           <Group justify="flex-end">
-            <Button variant="default" onClick={onClose}>
-              {t('common:cancel')}
-            </Button>
+            <FormModalCancel />
             <Button type="submit" loading={busy}>
               {suggestion ? t('suggestions.confirm') : t('common:save')}
             </Button>
           </Group>
         </Stack>
       </form>
-    </Modal>
+    </FormModal>
   );
 }
 
@@ -460,7 +458,7 @@ export function ActionForm({
     }
   };
   return (
-    <Modal opened onClose={onClose} title={action ? t('actions.edit') : t('actions.add')}>
+    <FormModal onClose={onClose} title={action ? t('actions.edit') : t('actions.add')}>
       <form
         noValidate
         onSubmit={(e) => {
@@ -508,16 +506,14 @@ export function ActionForm({
             onChange={(e) => setNote(e.currentTarget.value)}
           />
           <Group justify="flex-end">
-            <Button variant="default" onClick={onClose}>
-              {t('common:cancel')}
-            </Button>
+            <FormModalCancel />
             <Button type="submit" loading={busy}>
               {t('common:save')}
             </Button>
           </Group>
         </Stack>
       </form>
-    </Modal>
+    </FormModal>
   );
 }
 
@@ -542,7 +538,7 @@ export function EffectivenessModal({ finding, onClose, onSaved }: { finding: CaF
     }
   };
   return (
-    <Modal opened onClose={onClose} title={t('effectiveness.title', { number: finding.number })}>
+    <FormModal onClose={onClose} title={t('effectiveness.title', { number: finding.number })}>
       <form
         noValidate
         onSubmit={(e) => {
@@ -590,16 +586,14 @@ export function EffectivenessModal({ finding, onClose, onSaved }: { finding: CaF
             onChange={(e) => setNote(e.currentTarget.value)}
           />
           <Group justify="flex-end">
-            <Button variant="default" onClick={onClose}>
-              {t('common:cancel')}
-            </Button>
+            <FormModalCancel />
             <Button type="submit" loading={busy}>
               {t('effectiveness.submit')}
             </Button>
           </Group>
         </Stack>
       </form>
-    </Modal>
+    </FormModal>
   );
 }
 
@@ -624,7 +618,7 @@ export function ReasonModal({
   const [busy, setBusy] = useState(false);
   const v = useFieldErrors({ reason: !reason.trim() && t('validation.required') });
   return (
-    <Modal opened onClose={onClose} title={title}>
+    <FormModal onClose={onClose} title={title}>
       <form
         noValidate
         onSubmit={(e) => {
@@ -651,16 +645,14 @@ export function ReasonModal({
             data-autofocus
           />
           <Group justify="flex-end">
-            <Button variant="default" onClick={onClose}>
-              {t('cancel')}
-            </Button>
+            <FormModalCancel />
             <Button type="submit" color="red" loading={busy}>
               {submit}
             </Button>
           </Group>
         </Stack>
       </form>
-    </Modal>
+    </FormModal>
   );
 }
 

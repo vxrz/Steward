@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ActionIcon, Anchor, Badge, Button, Group, Modal, Select, Stack, Text, TextInput } from '@mantine/core';
+import { ActionIcon, Anchor, Badge, Button, Group, Select, Stack, Text, TextInput } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { IconCheck, IconDoorExit, IconEdit, IconPlus, IconX } from '@tabler/icons-react';
@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { SUPPLIER_LIMITS, type ServiceSummary, type SupplierContract, type SupplierContractService } from '@sm/shared';
 import { del, get, notifyError, notifyOk, put } from '../../api';
 import { confirmDanger } from '../confirm';
+import { FormModal, FormModalCancel } from '../FormModal';
 
 /**
  * The services a contract covers, each with its purpose (ADR 0031): proposed ones with _Confirm_ and _Not this service_,
@@ -146,7 +147,7 @@ function PurposeModal({ service, onClose, onSave }: { service: SupplierContractS
   const { t } = useTranslation(['suppliers', 'common']);
   const [value, setValue] = useState(service.purpose);
   return (
-    <Modal opened onClose={onClose} title={t('contractServices.purposeTitle', { service: service.name })}>
+    <FormModal onClose={onClose} title={t('contractServices.purposeTitle', { service: service.name })}>
       <Stack gap="sm">
         <TextInput
           label={t('contractServices.purpose')}
@@ -156,13 +157,11 @@ function PurposeModal({ service, onClose, onSave }: { service: SupplierContractS
           data-autofocus
         />
         <Group justify="flex-end">
-          <Button variant="default" onClick={onClose}>
-            {t('common:cancel')}
-          </Button>
+          <FormModalCancel />
           <Button onClick={() => void onSave(value.trim())}>{t('common:save')}</Button>
         </Group>
       </Stack>
-    </Modal>
+    </FormModal>
   );
 }
 
@@ -172,7 +171,7 @@ function AddServiceModal({ taken, onClose, onSave }: { taken: string[]; onClose:
   const [id, setId] = useState<string | null>(null);
   const [purpose, setPurpose] = useState('');
   return (
-    <Modal opened onClose={onClose} title={t('contractServices.add')}>
+    <FormModal onClose={onClose} title={t('contractServices.add')}>
       <Stack gap="sm">
         <Select
           label={t('contractServices.service')}
@@ -190,14 +189,12 @@ function AddServiceModal({ taken, onClose, onSave }: { taken: string[]; onClose:
           onChange={(e) => setPurpose(e.currentTarget.value)}
         />
         <Group justify="flex-end">
-          <Button variant="default" onClick={onClose}>
-            {t('common:cancel')}
-          </Button>
+          <FormModalCancel />
           <Button disabled={!id} onClick={() => id && void onSave(id, purpose.trim())} data-testid="add-service-save">
             {t('common:add')}
           </Button>
         </Group>
       </Stack>
-    </Modal>
+    </FormModal>
   );
 }

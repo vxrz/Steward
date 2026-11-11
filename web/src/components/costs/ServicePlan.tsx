@@ -8,7 +8,6 @@ import {
   Checkbox,
   Group,
   Menu,
-  Modal,
   Paper,
   SegmentedControl,
   Select,
@@ -69,6 +68,7 @@ import { ScheduleBadge } from './ContractPayments';
 import { ChangesPanel, PrepaidRows, ProposalsPanel } from './ContractLines';
 import { ServiceContracts } from './Commitments';
 import { EntryImportDialog, EntryImports } from './EntryImport';
+import { FormModal, FormModalCancel } from '../FormModal';
 
 /**
  * The cost plan of a service (0.16.0, ADR 0026, docs/COSTS.md#planning-per-service): per fiscal year the plan lines,
@@ -1093,7 +1093,7 @@ function LineDialog({ d, line, onClose, onSaved }: { d: CostPlanYear; line: Cost
     }
   };
   return (
-    <Modal opened onClose={onClose} title={line ? t('plan.line.editTitle', { label: d.label }) : t('plan.line.addTitle', { label: d.label })} size="lg">
+    <FormModal onClose={onClose} title={line ? t('plan.line.editTitle', { label: d.label }) : t('plan.line.addTitle', { label: d.label })} size="lg">
       <form onSubmit={submit(save)} noValidate>
         <Stack>
           <TextInput
@@ -1297,16 +1297,14 @@ function LineDialog({ d, line, onClose, onSaved }: { d: CostPlanYear; line: Cost
             {t('plan.form.noEffort')}
           </Text>
           <Group justify="flex-end">
-            <Button variant="default" onClick={onClose}>
-              {t('common:cancel')}
-            </Button>
+            <FormModalCancel />
             <Button type="submit" loading={busy} data-testid="plan-line-save">
               {t('common:save')}
             </Button>
           </Group>
         </Stack>
       </form>
-    </Modal>
+    </FormModal>
   );
 }
 
@@ -1385,7 +1383,7 @@ function EntryDialog({ d, entry, onClose, onSaved }: { d: CostPlanYear; entry: C
     }
   };
   return (
-    <Modal opened onClose={onClose} title={entry ? t('plan.entry.editTitle') : t('plan.entry.addTitle')} size="lg">
+    <FormModal onClose={onClose} title={entry ? t('plan.entry.editTitle') : t('plan.entry.addTitle')} size="lg">
       <form onSubmit={submit(save)} noValidate>
         <Stack>
           <SimpleGrid cols={{ base: 1, xs: 3 }}>
@@ -1485,16 +1483,14 @@ function EntryDialog({ d, entry, onClose, onSaved }: { d: CostPlanYear; entry: C
             onChange={(e) => setNote(e.currentTarget.value)}
           />
           <Group justify="flex-end">
-            <Button variant="default" onClick={onClose}>
-              {t('common:cancel')}
-            </Button>
+            <FormModalCancel />
             <Button type="submit" loading={busy} data-testid="plan-entry-save">
               {t('common:save')}
             </Button>
           </Group>
         </Stack>
       </form>
-    </Modal>
+    </FormModal>
   );
 }
 
@@ -1574,7 +1570,7 @@ function BookDialog({ d, line, onClose, onSaved }: { d: CostPlanYear; line: Cost
     }
   };
   return (
-    <Modal opened onClose={onClose} title={t('plan.book.title', { title: line.title })} size="lg">
+    <FormModal onClose={onClose} title={t('plan.book.title', { title: line.title })} size="lg">
       <form onSubmit={submit(save)} noValidate>
         <Stack>
           <Text size="xs" c="dimmed">
@@ -1631,15 +1627,13 @@ function BookDialog({ d, line, onClose, onSaved }: { d: CostPlanYear; line: Cost
           </SimpleGrid>
           <TextInput label={t('plan.entry.note')} maxLength={COST_PLAN_LIMITS.noteChars} value={note} onChange={(e) => setNote(e.currentTarget.value)} />
           <Group justify="flex-end">
-            <Button variant="default" onClick={onClose}>
-              {t('common:cancel')}
-            </Button>
+            <FormModalCancel />
             <Button type="submit" loading={busy} disabled={!offered.length} data-testid="plan-book-save">
               {t('plan.book.save')}
             </Button>
           </Group>
         </Stack>
       </form>
-    </Modal>
+    </FormModal>
   );
 }

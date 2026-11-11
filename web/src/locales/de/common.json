@@ -147,6 +147,10 @@
       "button": "Bestätigen"
     }
   },
+  "formModal": {
+    "discardTitle": "Änderungen verwerfen?",
+    "discardMessage": "Ihre Eingaben in diesem Dialog werden nicht gespeichert."
+  },
   "table": {
     "sortBy": "Sortieren nach",
     "sortedAsc": "Aufsteigend – auf absteigend umstellen",

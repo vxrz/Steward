@@ -1523,6 +1523,8 @@ export interface Resources {
     'confirm.cleanup.button': string;
     'confirm.confirm.title': string;
     'confirm.confirm.button': string;
+    'formModal.discardTitle': string;
+    'formModal.discardMessage': string;
     'table.sortBy': string;
     'table.sortedAsc': string;
     'table.sortedDesc': string;

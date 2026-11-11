@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, Anchor, Badge, Button, Group, List, Modal, Paper, SegmentedControl, Stack, Text } from '@mantine/core';
+import { Alert, Anchor, Badge, Button, Group, List, Paper, SegmentedControl, Stack, Text } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { IconGitMerge } from '@tabler/icons-react';
@@ -9,6 +9,7 @@ import { del, get, notifyError, notifyOk, post } from '../../api';
 import { useMe } from '../../auth';
 import { subjectLabel } from '../common';
 import { SubjectsInput } from '../SubjectsInput';
+import { FormModal, FormModalCancel } from '../FormModal';
 import { supplierKeys } from '../../queryKeys';
 
 /** The administrators' one-time notice after the update to 0.18: contracts now seen only by their owners and services. */
@@ -178,7 +179,7 @@ export function MergePreviewModal({ intoId, ids, onClose, onMerged }: { intoId: 
   };
   const pending = p?.contacts.filter((c) => c.action === 'choose' && !choices[c.id]) ?? [];
   return (
-    <Modal opened onClose={onClose} size="lg" title={t('shared.previewTitle')}>
+    <FormModal onClose={onClose} size="lg" title={t('shared.previewTitle')}>
       {!p ? (
         <Text size="sm" c="dimmed">
           {t('common:loading')}
@@ -191,16 +192,14 @@ export function MergePreviewModal({ intoId, ids, onClose, onMerged }: { intoId: 
             {t('shared.moves', { spellings: p.moves.spellings.length, schedules: p.moves.schedules })}
           </Text>
           <Group justify="flex-end">
-            <Button variant="default" onClick={onClose}>
-              {t('common:cancel')}
-            </Button>
+            <FormModalCancel />
             <Button onClick={() => void merge()} loading={busy} disabled={pending.length > 0} data-testid="merge-confirm">
               {t('merge.submit')}
             </Button>
           </Group>
         </Stack>
       )}
-    </Modal>
+    </FormModal>
   );
 }
 
@@ -312,7 +311,7 @@ export function OpenSupplierModal({ id, teamIds, onClose, onDone }: { id: string
   };
   const pending = p?.contacts.filter((c) => c.action === 'choose' && !choices[c.id]) ?? [];
   return (
-    <Modal opened onClose={onClose} size="lg" title={t('shared.openTitle')}>
+    <FormModal onClose={onClose} size="lg" title={t('shared.openTitle')}>
       {!p ? (
         <Text size="sm" c="dimmed">
           {t('common:loading')}
@@ -324,15 +323,13 @@ export function OpenSupplierModal({ id, teamIds, onClose, onDone }: { id: string
           </Text>
           <PreviewDetails p={p} choices={choices} setChoices={setChoices} />
           <Group justify="flex-end">
-            <Button variant="default" onClick={onClose}>
-              {t('common:cancel')}
-            </Button>
+            <FormModalCancel />
             <Button onClick={() => void open()} loading={busy} disabled={pending.length > 0} data-testid="open-confirm">
               {t('shared.openConfirm')}
             </Button>
           </Group>
         </Stack>
       )}
-    </Modal>
+    </FormModal>
   );
 }
