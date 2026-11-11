@@ -114,7 +114,7 @@ export function resolveSupplierContract(
         'SUPPLIER_CONTRACT_COVER_SESSION',
         { contract: c.title },
       );
-    // a platform: never a grant to another team on the side (security review 0.19.0 M1)
+    // a platform: within the limit, and never a grant to another team on the side (security review 0.19.0 M1, L7)
     if (p.kind === 'platform') checkSideCover(c.id, p.id);
   }
   return c.id;

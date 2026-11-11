@@ -1,4 +1,5 @@
 import {
+  SUPPLIER_LIMITS,
   contractReaders,
   hasTeamOwner,
   type AclEntry,
@@ -459,16 +460,21 @@ export function platformCoverOutsiders(
 
 /**
  * The paths that add a covered platform on the side (a payment schedule, a cost plan line or entry, the CSV import of
- * entries, "Replaced by …"): never a grant – a platform whose grantees are outside the contract's teams is refused there
- * (SUPPLIER_CONTRACT_PLATFORM_GRANT); the person adds it on the contract, where the step-up asks (security review
- * 0.19.0 M1).
+ * entries, "Replaced by …"): within the limit of platforms per contract (`adding` more; security review 0.19.0 L7), and
+ * never a grant – a platform whose grantees are outside the contract's teams is refused there
+ * (SUPPLIER_CONTRACT_PLATFORM_GRANT); the person adds it on the contract, where the step-up asks (M1).
  */
-export function checkSideCover(contractId: string, platformId: string): void {
+export function checkSideCover(contractId: string, platformId: string, adding = 1): void {
   const c = db().get<{ id: string; title: string; owners: string; supplier_id: string; s_name: string }>(
     'SELECT c.id, c.title, c.owners, c.supplier_id, s.name AS s_name FROM supplier_contracts c JOIN suppliers s ON s.id = c.supplier_id WHERE c.id = ?',
     contractId,
   );
   if (!c) return;
+  const n = Number(db().get<{ n: number }>('SELECT COUNT(*) AS n FROM supplier_contract_platforms WHERE contract_id = ?', contractId)?.n ?? 0);
+  if (n + adding > SUPPLIER_LIMITS.contractPlatforms)
+    throw new HttpError(409, `A contract covers at most ${SUPPLIER_LIMITS.contractPlatforms} platforms`, 'SUPPLIER_CONTRACT_PLATFORM_LIMIT', {
+      max: SUPPLIER_LIMITS.contractPlatforms,
+    });
   if (platformCoverOutsiders({ id: c.id, title: c.title, owners: contractOwnersOf(c) }, { id: c.supplier_id, name: c.s_name }, platformId).length) {
     const platform = db().get<{ name: string }>('SELECT name FROM platforms WHERE id = ?', platformId)?.name ?? platformId;
     throw new HttpError(

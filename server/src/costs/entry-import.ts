@@ -195,7 +195,7 @@ function resolve(o: OwnerRef, p: Parsed, m: CostEntryImportMapping): Resolved[] 
       );
     return mayCover.get(id)!;
   };
-  // a platform added on the side: never a grant to another team (security review 0.19.0 M1)
+  // a platform added on the side: within the limit and never a grant to another team (security review 0.19.0 M1, L7)
   const sideOk = new Map<string, boolean>();
   const mayAddSide = (id: string) => {
     if (o.kind !== 'platform') return true;

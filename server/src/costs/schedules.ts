@@ -337,7 +337,7 @@ export function addSchedule(body: unknown): CostScheduleList {
   checkOwnerTarget(payer, x.target);
   checkLimits(c.id, payer);
   checkVolume(x, c.id, payer, null);
-  // a platform added on the side: never a grant to another team (security review 0.19.0 M1)
+  // a platform added on the side: within the limit and never a grant to another team (security review 0.19.0 M1, L7)
   if (payer.kind === 'platform' && !cover) checkSideCover(c.id, payer.id);
   const cols = columnsOf(x, payer);
   const id = newId('csc_');

@@ -5,6 +5,7 @@ import {
   fiscalYearOf,
   prepaidDrawdown,
   proposalParts,
+  SUPPLIER_LIMITS,
   schedulePayments,
   toMicros,
   volumeEstimate,
@@ -429,6 +430,50 @@ describe('contracts covering a platform', () => {
     const first = checkVolumeNotices(Date.now(), true);
     expect(first).toBeGreaterThan(0);
     expect(checkVolumeNotices(Date.now(), true)).toBe(0);
+  });
+});
+
+describe('the limit of platforms per contract (security review 0.19.0 L7)', () => {
+  it('holds on the paths that add a covered platform on the side', async () => {
+    const ids: string[] = [];
+    for (let i = 0; i <= SUPPLIER_LIMITS.contractPlatforms; i++)
+      ids.push((await s.api('POST', '/platforms', { name: `Limit platform ${i}`, kind: 'rest', baseUrl: `https://limit-${i}.example.com` })).id);
+    const d: SupplierDetail = await s.api('POST', `/suppliers/${supplier}/contracts`, {
+      title: 'Twenty platforms',
+      startsOn: day(-10),
+      endsOn: day(355),
+      renewal: 'fixedEnd',
+      owners: ['user:admin'],
+      platforms: ids.slice(0, SUPPLIER_LIMITS.contractPlatforms).map((platformId) => ({ platformId, purpose: '' })),
+    });
+    const contract = d.contracts.find((c) => c.title === 'Twenty platforms')!.id;
+    const last = ids[SUPPLIER_LIMITS.contractPlatforms]!;
+    const limit = { status: 409, body: { code: 'SUPPLIER_CONTRACT_PLATFORM_LIMIT' } };
+    // a payment schedule the 21st platform pays, and an entry of its plan naming the contract
+    await expect(
+      s.api('POST', '/costs/schedules', {
+        contractId: contract,
+        platformId: last,
+        title: 'Over',
+        category: 'support',
+        amount: '10',
+        currency: 'USD',
+        billing: 'yearly',
+      }),
+    ).rejects.toMatchObject(limit);
+    await expect(
+      s.api('POST', `/costs/platform-plans/${last}/entries`, {
+        date: day(0),
+        amount: '5',
+        currency: 'USD',
+        supplierId: supplier,
+        supplierContractId: contract,
+      }),
+    ).rejects.toMatchObject(limit);
+    const { db } = await import('../src/db.js');
+    expect(db().get<{ n: number }>('SELECT COUNT(*) AS n FROM supplier_contract_platforms WHERE contract_id = ?', contract)!.n).toBe(
+      SUPPLIER_LIMITS.contractPlatforms,
+    );
   });
 });
 

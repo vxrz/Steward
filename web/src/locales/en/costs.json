@@ -679,7 +679,7 @@
       "supplierArchived": "Archived supplier",
       "contractUnknown": "Unknown contract, or one you may not see",
       "contractNotCovering": "The contract does not cover this service, and you may not add the service to it",
-      "contractPlatformGrant": "The contract does not cover this platform, and adding it here would let another team see the contract – add the platform on the contract first",
+      "contractPlatformGrant": "The contract does not cover this platform, and adding it here would let another team see the contract or pass the limit of platforms – add the platform on the contract first",
       "targetUnknown": "Unknown application or system",
       "limit": "Over the limit of entries per fiscal year"
     },

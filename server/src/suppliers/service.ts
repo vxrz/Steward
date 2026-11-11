@@ -2064,8 +2064,9 @@ function replacementOf(
     .platformCoverOf(cur.id)
     .filter((x) => !havePlatforms.has(x.platform_id) && ctx.seesPlatform(x.platform_id))
     .map((x) => x.platform_id);
-  // never a grant on the side: a platform of another team is added on the replacement first (security review 0.19.0 M1)
-  for (const pid of joiningPlatforms) checkSideCover(row.id, pid);
+  // within the limit, and never a grant on the side: a platform of another team is added on the replacement first
+  // (security review 0.19.0 M1, L7)
+  joiningPlatforms.forEach((pid, i) => checkSideCover(row.id, pid, i ? 0 : joiningPlatforms.length));
   // a payment schedule moves with its payer only: one whose service or platform cannot join is refused
   const paying = db().all<{ service_id: string; platform_id: string | null; title: string }>(
     'SELECT service_id, platform_id, title FROM cost_schedules WHERE contract_id = ?',
