@@ -16,7 +16,8 @@ Check:
 5. **No generated or build files committed** (`web/dist`, `server/dist`, coverage, test results) – except the generated files the repository tracks on purpose (`docs/openapi.json`, `docs/CONFIGURATION.md`, `web/src/i18n/keys.gen.ts`), which must match their source.
 6. **Docs:** docs of the area and the **Unreleased** entry in `CHANGELOG.md` updated when behaviour changed; a decision record under `docs/adr/` for a changed decision.
 7. **Repository rules** (`AGENTS.md`): migrations additive and appended; English and German texts for new UI texts and error codes; access declared on routes, step-up and audit for anything that widens access; team scope (hidden items neither listed nor counted nor named); Conventional Commits title.
-8. **Checks:** the checks in `AGENTS.md` pass (run them, or confirm from CI).
+8. **Size and shared files:** under about 400 changed lines (generated files, translations and fixtures not counted); shared files (lockfiles, CI, migrations, `AGENTS.md`, `.claude/`) changed only when the issue requires it; no test deleted, skipped or weakened.
+9. **Checks:** the checks in `AGENTS.md` pass (run them, or confirm from CI).
 
 Output: a list of findings, each as
 

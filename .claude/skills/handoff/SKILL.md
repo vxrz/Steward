@@ -14,6 +14,7 @@ Never leave knowledge only in the session. Before you stop:
    - **Done:** what was implemented, with the pull request and the main files.
    - **Left:** what is not done yet, as concrete next steps (or "nothing").
    - **Open questions:** decisions the maintainer has to take, each with your recommendation.
-5. If work is left that does not fit this issue, propose a new issue with acceptance criteria and a tier label (see the `plan-issues` skill) instead of extending this one.
+5. **Label:** remove the `in progress` label once the pull request is open or when you stop without one.
+6. If work is left that does not fit this issue, propose a new issue with acceptance criteria and a tier label (see the `plan-issues` skill) instead of extending this one.
 
 No secrets, credentials, personal data or internal hostnames in records or comments.
