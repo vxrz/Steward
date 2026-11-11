@@ -237,6 +237,12 @@
         "label": "Kündigungsfrist eines Lieferanten",
         "info": "Der letzte Tag, um einen Vertrag eines Lieferanten zu kündigen, für den Sie verantwortlich sind, ist in 90 oder 30 Tagen"
       }
+    },
+    "soa": {
+      "approval_waiting": {
+        "label": "Erklärung zur Anwendbarkeit wartet",
+        "info": "Eine Version einer Erklärung zur Anwendbarkeit wurde eingereicht und wartet auf Ihre Freigabe (Freigeber und Administratoren)"
+      }
     }
   },
   "quiet": {

@@ -918,7 +918,33 @@ export function submitVersion(catalogueIdOrKey: string): Soa {
       details: { catalogue: cat.key, number, contentSha256: hash, counts: content.counts, fourEyes: fourEyesRequired(SOA_POINT, !!Number(soa.four_eyes)) },
     });
   });
+  notifyApprovalWaiting(cat, soa, number, u.username, content.counts.applicable);
   return getSoa(cat.id);
+}
+
+/**
+ * soa.approval_waiting (docs/NOTIFICATIONS.md): a submitted version waits – to the approvers and administrators who may
+ * decide it (not who submitted it). The text names the catalogue and the version, nothing of its rows. Never fails the
+ * submission: a message that cannot go out is logged.
+ */
+function notifyApprovalWaiting(cat: Catalogue, soa: SoaRow, number: number, submittedBy: string, applicable: number): void {
+  void (async () => {
+    const { listUsers, toAuthUser } = await import('../auth/users.js');
+    const { notify } = await import('../notifications/service.js');
+    const { t } = await import('../i18n/index.js');
+    const recipients = listUsers().filter((x) => x.active && canApproveSoa(toAuthUser(x)) && !samePerson(submittedBy, toAuthUser(x)));
+    if (!recipients.length) return;
+    const params = { catalogue: cat.key, number, by: submittedBy, scope: soa.scope_name || cat.name, applicable };
+    notify({
+      event: 'soa.approval_waiting',
+      text: (l) => ({ title: t(l, 'soa.waiting.title', params), body: t(l, 'soa.waiting.body', params) }),
+      link: `/compliance/soa/${encodeURIComponent(cat.key)}`,
+      recipients,
+      inAppKey: `soa:${soa.id}:${number}:waiting`,
+      externalKey: `soa:${soa.id}:${number}:waiting`,
+      data: { catalogue: cat.key, number, submittedBy },
+    });
+  })().catch((err: unknown) => logger.warn({ err, catalogue: cat.key, number }, 'statement of applicability: the approvers could not be told'));
 }
 
 function versionRow(soa: SoaRow, n: number): VersionRow {

@@ -51,6 +51,7 @@ export const EVENT_DIGEST_GROUP: Record<NotificationEvent, DigestGroup | null> =
   'mcp.request': 'decisions',
   'duty.exception': 'decisions',
   'plant.change_proposed': 'decisions',
+  'soa.approval_waiting': 'decisions',
   'run.failed': 'runs',
   'check.failed': 'runs',
   'check.resolved': 'runs',

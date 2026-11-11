@@ -436,6 +436,12 @@
       "body": "Die Maßnahme „{{action}}“ zum Befund {{finding}} war am {{due}} fällig (vor {{days}} Tagen). Markieren Sie sie im Register der Korrekturmaßnahmen als erledigt oder verschieben Sie die Fälligkeit."
     }
   },
+  "soa": {
+    "waiting": {
+      "title": "Erklärung zur Anwendbarkeit wartet auf Freigabe: {{catalogue}} Version {{number}}",
+      "body": "{{by}} hat Version {{number}} der Erklärung zur Anwendbarkeit für {{catalogue}} eingereicht ({{scope}}, {{applicable}} anwendbare Kontrollen). Prüfen Sie sie und geben Sie sie frei oder geben Sie sie mit einem Kommentar zurück."
+    }
+  },
   "review": {
     "timelineHeading": "Zeitlicher Ablauf"
   },

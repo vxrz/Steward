@@ -295,6 +295,7 @@ const WARN_EVENTS = new Set([
   'task.assigned',
   'mcp.request',
   'plant.change_proposed',
+  'soa.approval_waiting',
   'dataset.stale',
   'schedule.skipped',
   'credential.due',

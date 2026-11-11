@@ -237,6 +237,12 @@
         "label": "Supplier notice date",
         "info": "The last day to give notice on a contract of a supplier you own is 90 or 30 days away"
       }
+    },
+    "soa": {
+      "approval_waiting": {
+        "label": "Statement of applicability waits",
+        "info": "A version of a statement of applicability was submitted and waits for your approval (approvers and administrators)"
+      }
     }
   },
   "quiet": {

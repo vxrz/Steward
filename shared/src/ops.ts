@@ -39,6 +39,7 @@ export const NOTIFICATION_EVENTS = [
   'plant.advisory_matched',
   'supplier.certificate_expiring',
   'supplier.notice_due',
+  'soa.approval_waiting',
 ] as const;
 export type NotificationEvent = (typeof NOTIFICATION_EVENTS)[number];
 
@@ -48,7 +49,13 @@ export type NotificationEvent = (typeof NOTIFICATION_EVENTS)[number];
  */
 export const NOTIFICATION_CATEGORIES = ['decision', 'alert', 'update'] as const;
 export type NotificationCategory = (typeof NOTIFICATION_CATEGORIES)[number];
-export const NOTIFICATION_DECISION_EVENTS: readonly NotificationEvent[] = ['task.assigned', 'mcp.request', 'duty.exception', 'plant.change_proposed'];
+export const NOTIFICATION_DECISION_EVENTS: readonly NotificationEvent[] = [
+  'task.assigned',
+  'mcp.request',
+  'duty.exception',
+  'plant.change_proposed',
+  'soa.approval_waiting',
+];
 const ALERT_EVENTS: readonly NotificationEvent[] = [
   'run.failed',
   'check.failed',
@@ -107,6 +114,7 @@ export const NOTIFICATION_EVENT_INFO: Record<NotificationEvent, string> = {
   'plant.advisory_matched': 'A new high or critical security advisory affects assets of a site you manage (plant registry)',
   'supplier.certificate_expiring': 'A certificate of a supplier you own runs out in 90 or 30 days',
   'supplier.notice_due': 'The last day to give notice on a contract of a supplier you own is 90 or 30 days away',
+  'soa.approval_waiting': 'A version of a statement of applicability was submitted and waits for your approval (approvers and administrators)',
 };
 
 export interface AppNotification {

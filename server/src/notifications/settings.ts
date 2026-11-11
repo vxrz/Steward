@@ -61,6 +61,7 @@ export function defaultRoutes(): Record<NotificationEvent, NotificationChannel[]
     'plant.advisory_matched',
     'supplier.certificate_expiring',
     'supplier.notice_due',
+    'soa.approval_waiting',
   ];
   // emergency access: every channel that is set up, so nobody can use it unnoticed
   return Object.fromEntries(

@@ -436,6 +436,12 @@
       "body": "The action “{{action}}” of the finding {{finding}} was due on {{due}} ({{days}} days ago). Mark it done in the register of corrective actions, or move its due date."
     }
   },
+  "soa": {
+    "waiting": {
+      "title": "Statement of applicability waits for approval: {{catalogue}} version {{number}}",
+      "body": "{{by}} submitted version {{number}} of the statement of applicability for {{catalogue}} ({{scope}}, {{applicable}} applicable controls). Review it and approve it or return it with a comment."
+    }
+  },
   "review": {
     "timelineHeading": "Timeline"
   },
