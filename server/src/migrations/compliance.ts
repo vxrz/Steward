@@ -404,4 +404,14 @@ export const COMPLIANCE_MIGRATIONS: NamedMigration[] = [
       ALTER TABLE soa_versions ADD COLUMN four_eyes INTEGER NOT NULL DEFAULT 1;
     `,
   },
+  {
+    // everyone who took part in the fix of a corrective action finding, kept for good (security review 0.17.0): its
+    // owners, the owners of its actions (a team with its members of then), who marked an action done and who removed or
+    // changed one after it was implemented – a JSON list of subjects. The effectiveness check excludes them all, also
+    // after an action was removed or reassigned.
+    name: 'compliance-007-corrective-participants',
+    sql: `
+      ALTER TABLE ca_findings ADD COLUMN fix_participants TEXT NOT NULL DEFAULT '[]';
+    `,
+  },
 ];

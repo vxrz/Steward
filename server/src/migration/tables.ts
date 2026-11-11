@@ -281,6 +281,8 @@ export const HISTORY_COLUMNS: string[] = [
   'ca_findings.updated_by',
   'ca_findings.closed_by',
   'ca_findings.eff_checked_by',
+  // who took part in a fix (security review 0.17.0): subjects user:/team:/role:, kept as history
+  'ca_findings.fix_participants',
   'ca_actions.created_by',
   'ca_actions.updated_by',
   'ca_actions.done_by',

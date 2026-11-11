@@ -84,9 +84,9 @@ function namedIn(table: string, column: string, kind: PersonalDataActivity['kind
     const v = String(r.v ?? '');
     if (lower(v) === name) return true;
     if (refKind && refKind !== 'username') return mapValue(refKind, v, probe) !== mapValue(refKind, v, none);
-    // history columns holding a JSON list of user names (e.g. the authors of a record edition)
+    // history columns holding a JSON list of user names (e.g. the authors of a record edition) or of subjects (user:<name>)
     const list = parseJson<unknown>(v, null);
-    return Array.isArray(list) && list.some((x) => typeof x === 'string' && lower(x) === name);
+    return Array.isArray(list) && list.some((x) => typeof x === 'string' && (lower(x) === name || lower(x) === `user:${name}`));
   });
   if (!hits.length) return null;
   const str = (x: unknown) => (x === null || x === undefined ? null : String(x));

@@ -219,6 +219,60 @@ describe('actions, the status workflow and the effectiveness check', () => {
     );
   });
 
+  it('keeps who took part in the fix: removing or reassigning actions or the owner does not open the check to them', async () => {
+    // a designer records a finding they own, adds an action of their own and marks it done
+    const own = await dana('POST', '/compliance/corrective-actions', { title: 'Own fix (participants)', source: 'internalAudit', owner: 'dana' });
+    const a = (await dana('POST', `/compliance/corrective-actions/${own.id}/actions`, { title: 'Fix it', owners: ['user:dana'], dueDate: day(3), done: true }))
+      .actions[0].id;
+    expect((await dana('PUT', `/compliance/corrective-actions/${own.id}`, { status: 'implemented' })).status).toBe('implemented');
+    // removing the action of an implemented finding sends it back to "in progress"
+    const removed = await dana('DELETE', `/compliance/corrective-actions/${own.id}/actions/${a}`);
+    expect(removed).toMatchObject({ status: 'inProgress', actionsTotal: 0 });
+    expect(await code(dana('PUT', `/compliance/corrective-actions/${own.id}`, { status: 'implemented' }))).toBe('CA_NO_ACTIONS');
+    // someone else does the work; the designer gives up the ownership
+    const b = (await dana('POST', `/compliance/corrective-actions/${own.id}/actions`, { title: 'Fix it again', owners: ['user:otto'], dueDate: day(3) }))
+      .actions[0].id;
+    await otto('PUT', `/compliance/corrective-actions/${own.id}/actions/${b}`, { done: true });
+    expect((await dana('PUT', `/compliance/corrective-actions/${own.id}`, { status: 'implemented' })).status).toBe('implemented');
+    // a new owner of an implemented finding sends it back as well
+    expect((await dana('PUT', `/compliance/corrective-actions/${own.id}`, { owner: null })).status).toBe('inProgress');
+    expect((await dana('PUT', `/compliance/corrective-actions/${own.id}`, { status: 'implemented' })).status).toBe('implemented');
+    // the designer took part (owner, action owner, marked done, removed an action): never the checker
+    const seen = await dana('GET', `/compliance/corrective-actions/${own.id}`);
+    expect(seen.permissions).toMatchObject({ verify: false, verifyBlocked: 'ownPart' });
+    expect(await code(dana('POST', `/compliance/corrective-actions/${own.id}/effectiveness`, { method: 'Own sample', result: 'effective' }))).toBe(
+      'CA_FOUR_EYES',
+    );
+    const { db } = await import('../src/db.js');
+    const stored = JSON.parse(db().get<{ fix_participants: string }>('SELECT fix_participants FROM ca_findings WHERE id = ?', own.id)!.fix_participants);
+    expect(stored).toEqual(expect.arrayContaining(['user:dana', 'user:otto']));
+    // reassigning an action of an implemented finding sends it back too; who changed it takes part
+    const re = await s.api('PUT', `/compliance/corrective-actions/${own.id}/actions/${b}`, { owners: ['user:olivia'] });
+    expect(re.status).toBe('inProgress');
+    await s.api('PUT', `/compliance/corrective-actions/${own.id}`, { status: 'implemented' });
+    expect(await code(s.api('POST', `/compliance/corrective-actions/${own.id}/effectiveness`, { method: 'x', result: 'effective' }))).toBe('CA_FOUR_EYES');
+    // a person who took no part checks it
+    expect((await adam('POST', `/compliance/corrective-actions/${own.id}/effectiveness`, { method: 'Sample of five', result: 'effective' })).status).toBe(
+      'closed',
+    );
+  });
+
+  it('counts the members of a team that owns an action as its owners', async () => {
+    const team = await s.api('POST', '/teams', { name: 'Fixers', members: ['adam'] });
+    const f = await dana('POST', '/compliance/corrective-actions', { title: 'Team fix (participants)', source: 'internalAudit', serviceId: svcA });
+    const a = (await dana('POST', `/compliance/corrective-actions/${f.id}/actions`, { title: 'Team work', owners: ['team:Fixers'], dueDate: day(3) }))
+      .actions[0].id;
+    // olivia (the service's editor) marks it done; adam is a member of the owning team
+    await olivia('PUT', `/compliance/corrective-actions/${f.id}/actions/${a}`, { done: true });
+    await olivia('PUT', `/compliance/corrective-actions/${f.id}`, { status: 'implemented' });
+    expect((await adam('GET', `/compliance/corrective-actions/${f.id}`)).permissions).toMatchObject({ verify: false, verifyBlocked: 'ownPart' });
+    expect(await code(adam('POST', `/compliance/corrective-actions/${f.id}/effectiveness`, { method: 'x', result: 'effective' }))).toBe('CA_FOUR_EYES');
+    // also after leaving the team: the members of then are kept
+    await s.api('PUT', `/teams/${team.id}`, { name: 'Fixers', members: [] });
+    expect(await code(adam('POST', `/compliance/corrective-actions/${f.id}/effectiveness`, { method: 'x', result: 'effective' }))).toBe('CA_FOUR_EYES');
+    expect((await s.api('POST', `/compliance/corrective-actions/${f.id}/effectiveness`, { method: 'Sample', result: 'effective' })).status).toBe('closed');
+  });
+
   it('has the four-eyes rule of correctiveAction.verify: required by default, may be set off', () => {
     const p = controlPoint('correctiveAction.verify')!;
     expect(instanceRule(p, { points: {} })).toMatchObject({ fourEyes: 'required', stepUp: false });
@@ -464,6 +518,25 @@ describe('suggestions', () => {
     expect(await auditOf(f.id)).toEqual(expect.arrayContaining(['corrective.action_added', 'corrective.action_done']));
     const removed = await dana('DELETE', `/compliance/corrective-actions/${f.id}/actions/${mid}`);
     expect(removed.actionsTotal).toBe(1);
+  });
+
+  it('keeps who took part when the measures change on the review, and sends an implemented finding back', async () => {
+    const list = await s.api('GET', '/compliance/corrective-actions?source=incidentReview');
+    const f = await s.api('GET', `/compliance/corrective-actions/${list.items[0].id}`);
+    const rid = f.record.id as string;
+    const m = f.actions.find((a: any) => a.title === 'Alert on payment errors');
+    await dana('PUT', `/records/${rid}/measures/${m.id}`, { done: true });
+    expect((await dana('PUT', `/compliance/corrective-actions/${f.id}`, { status: 'implemented' })).status).toBe('implemented');
+    // reassigning the measure on the review's page sends the finding back; dana stays part of the fix
+    await dana('PUT', `/records/${rid}/measures/${m.id}`, { owners: ['user:otto'] });
+    expect((await s.api('GET', `/compliance/corrective-actions/${f.id}`)).status).toBe('inProgress');
+    expect((await dana('PUT', `/compliance/corrective-actions/${f.id}`, { status: 'implemented' })).status).toBe('implemented');
+    expect(await code(dana('POST', `/compliance/corrective-actions/${f.id}/effectiveness`, { method: 'x', result: 'effective' }))).toBe('CA_FOUR_EYES');
+    // removing it there sends it back as well
+    await dana('DELETE', `/records/${rid}/measures/${m.id}`);
+    const after = await s.api('GET', `/compliance/corrective-actions/${f.id}`);
+    expect(after).toMatchObject({ status: 'inProgress', actionsTotal: 0 });
+    expect(await auditOf(f.id)).toContain('corrective.finding_changed');
   });
 
   it('suggests person reviews whose removals are still there 30 days after approval', async () => {

@@ -1268,7 +1268,7 @@
     "CA_ACTION_LIMIT": "Ein Befund hat höchstens {{max}} Maßnahmen.",
     "CA_ACTION_NOT_FOUND": "Diese Maßnahme gibt es nicht mehr.",
     "CA_NOT_IMPLEMENTED": "Die Wirksamkeit wird geprüft, sobald der Befund umgesetzt ist.",
-    "CA_FOUR_EYES": "Eine zweite Person prüft die Wirksamkeit: nicht die verantwortliche Person des Befunds oder einer Maßnahme und nicht, wer eine Maßnahme als erledigt markiert hat.",
+    "CA_FOUR_EYES": "Eine zweite Person prüft die Wirksamkeit: niemand, der an der Korrektur mitgewirkt hat – nicht die Verantwortlichen des Befunds oder seiner Maßnahmen (auch als Mitglied eines verantwortlichen Teams) und nicht, wer eine Maßnahme als erledigt markiert oder nach der Umsetzung geändert hat.",
     "CA_SUGGESTION_NOT_FOUND": "Diesen Vorschlag gibt es nicht, oder Sie dürfen ihn nicht sehen.",
     "CA_SUGGESTION_DECIDED": "Über diesen Vorschlag wurde bereits entschieden.",
     "FORBIDDEN_recordCorrective": "Befunde erfassen und über Vorschläge entscheiden Designer, Administratoren und wer den Service bearbeiten darf.",

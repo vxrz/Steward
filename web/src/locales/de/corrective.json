@@ -134,7 +134,7 @@
     "checkedBy": "{{result}} – geprüft von {{user}} am {{date}}",
     "method": "Methode: {{method}}",
     "cancelled": "Storniert: {{reason}}",
-    "ownPart": "Sie haben an der Korrektur mitgewirkt (als Verantwortliche oder Verantwortlicher des Befunds oder einer Maßnahme, oder indem Sie eine Maßnahme als erledigt markiert haben): Eine zweite Person prüft sie.",
+    "ownPart": "Sie haben an der Korrektur mitgewirkt (als Verantwortliche oder Verantwortlicher des Befunds oder einer Maßnahme – auch als Mitglied eines verantwortlichen Teams –, indem Sie eine Maßnahme als erledigt markiert oder nach der Umsetzung geändert haben): Eine zweite Person prüft sie.",
     "fourEyesOff": "Die Absicherungsrichtlinie erlaubt prüfenden Personen, die eigene Korrektur zu bestätigen.",
     "recordHidden": "Die Maßnahmen sind Maßnahmen eines Incident-Reviews, das Sie nicht lesen dürfen.",
     "measuresNote": "Die Maßnahmen dieses Befunds sind die Maßnahmen seines Incident-Reviews {{record}}: Sie bleiben im Review, mit dessen Erinnerungen."

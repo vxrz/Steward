@@ -312,7 +312,7 @@ A finding is numbered `CA-2026-0001` (per calendar year) and has:
 
 ### Actions and reminders
 
-An action has a title, owners (users and teams), a due date and a note; it is done when someone marks it done (who and when are kept). The owners of an action see the finding and mark their action done or change its note, nothing else. Reminders (event `corrective.action_due`, [NOTIFICATIONS.md](NOTIFICATIONS.md)) go to the owners – else to the finding's owner – three days before the due date, on it and once a week while it is overdue, each once. Reopening an action of an implemented finding sends the finding back to _in progress_.
+An action has a title, owners (users and teams), a due date and a note; it is done when someone marks it done (who and when are kept). The owners of an action see the finding and mark their action done or change its note, nothing else. Reminders (event `corrective.action_due`, [NOTIFICATIONS.md](NOTIFICATIONS.md)) go to the owners – else to the finding's owner – three days before the due date, on it and once a week while it is overdue, each once. Once a finding is implemented, its fix stays as it was checked: **reopening, removing or reassigning an action, adding an open one, or changing the finding's owner sends the finding back to _in progress_** – also when the measures of an incident review change on the review's page. It is implemented again once its actions are done.
 
 **Incident reviews.** The measures of an incident review stay where they are ([RECORDS.md](RECORDS.md#incident-reviews)), with their reminders, the service page and `GET /api/v1/measures`. A finding confirmed from an accepted incident review links the review, and its actions **are** the review's measures, read through, not copied: adding an action there adds a measure to the review, and the review's rules apply (its author and owner, designers and administrators keep its measures; the owners of a measure mark it done). The register counts them like its own actions. No data is migrated.
 
@@ -320,7 +320,14 @@ An action has a title, owners (users and teams), a due date and a note; it is do
 
 When a finding is implemented, an approver, designer or administrator checks whether the fix worked: how (the method – a sample, a restore, an interview), the result and a note. _Effective_ closes the finding; _not effective_ sends it back to _in progress_ for a new action, and the check stays on the finding until the next one.
 
-The checker is a **second person**: not the finding's owner, not a user who owns one of its actions and not who marked an action done. This is the control point `correctiveAction.verify` of the [assurance policy](ASSURANCE.md) (group _audit_): four-eyes is _required_ by default; an administrator may set it _off_ (a loosening, so a second administrator approves it). Owners named as a team do not exclude every member of the team: who marked the action done is excluded.
+The checker is a **second person** who took no part in the fix. Steward keeps everyone who did on the finding, for good – removing an action or giving the finding another owner does not take anyone off the list:
+
+- every owner the finding has had;
+- every owner of its actions (and of the measures of its incident review): a user; a **team with its members** – those of the time it owned the action, and those of the time of the check; a role with everyone who has it;
+- who marked an action or measure done;
+- who removed or changed an action, or the finding's owner, after the finding was implemented.
+
+This is the control point `correctiveAction.verify` of the [assurance policy](ASSURANCE.md) (group _audit_): four-eyes is _required_ by default; an administrator may set it _off_ (a loosening, so a second administrator approves it).
 
 ### Suggestions
 

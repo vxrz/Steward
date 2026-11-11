@@ -134,7 +134,7 @@
     "checkedBy": "{{result}} – checked by {{user}} on {{date}}",
     "method": "Method: {{method}}",
     "cancelled": "Cancelled: {{reason}}",
-    "ownPart": "You took part in the fix (as the finding's or an action's owner, or by marking an action done): a second person checks it.",
+    "ownPart": "You took part in the fix (as an owner of the finding or of an action – also as a member of an owning team –, by marking an action done or by changing one after the finding was implemented): a second person checks it.",
     "fourEyesOff": "The assurance policy lets anyone who checks confirm their own fix.",
     "recordHidden": "The actions are measures of an incident review you may not read.",
     "measuresNote": "This finding's actions are the measures of its incident review {{record}}: they stay in the review, with its reminders."

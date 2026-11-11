@@ -1268,7 +1268,7 @@
     "CA_ACTION_LIMIT": "A finding has at most {{max}} actions.",
     "CA_ACTION_NOT_FOUND": "This action does not exist any more.",
     "CA_NOT_IMPLEMENTED": "The effectiveness is checked once the finding is implemented.",
-    "CA_FOUR_EYES": "A second person checks the effectiveness: not the finding's owner, an action's owner or who marked an action done.",
+    "CA_FOUR_EYES": "A second person checks the effectiveness: not anyone who took part in the fix – the finding's owners, the owners of its actions (also as a member of an owning team), who marked an action done or changed one after the finding was implemented.",
     "CA_SUGGESTION_NOT_FOUND": "This suggestion does not exist, or you may not see it.",
     "CA_SUGGESTION_DECIDED": "Someone decided this suggestion already.",
     "FORBIDDEN_recordCorrective": "Designers, administrators and the editors of the service record findings and decide suggestions.",

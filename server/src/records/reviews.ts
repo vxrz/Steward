@@ -27,6 +27,7 @@ import { canReadRecordRow, me } from './access.js';
 import { createRecord, getRecord, updateRecord } from './service.js';
 import { addLink } from './links.js';
 import { ticketVisible } from '../tickets/service.js';
+import { measureChanged } from '../compliance/corrective-participants.js';
 
 /**
  * Incident reviews (#109): the measures of a review (owners, due dates, reminders, overdue on the service page), the
@@ -168,6 +169,8 @@ export function addMeasure(recordId: string, input: MeasureInput): RecordMeasure
       summary: `Measure "${input.title}" added to ${r.number} (due ${input.dueDate})`,
       details: { measureId: id, owners: input.owners, dueDate: input.dueDate },
     });
+    // a corrective action finding of the review reads its measures as actions: who takes part in the fix
+    measureChanged(r.id, { kind: 'added', after: { owners: input.owners, doneBy: input.done ? u.username : null }, actor: u.username });
   });
   return listMeasures(r.id);
 }
@@ -208,6 +211,12 @@ export function updateMeasure(recordId: string, measureId: string, input: Partia
       summary: `Measure "${input.title ?? m.title}" of ${r.number} ${what === 'changed' ? 'changed' : what === 'done' ? 'marked done' : 'reopened'}`,
       details: { measureId: m.id, owners, dueDate: input.dueDate ?? m.due_date },
     });
+    measureChanged(r.id, {
+      kind: 'changed',
+      before: { owners: parseJson<string[]>(m.owners, []), doneBy: m.done_by },
+      after: { owners, doneBy },
+      actor: u.username,
+    });
   });
   return listMeasures(r.id);
 }
@@ -221,6 +230,7 @@ export function deleteMeasure(recordId: string, measureId: string): RecordMeasur
     db().run('DELETE FROM record_measures WHERE id = ?', m.id);
     db().run('DELETE FROM record_measure_reminders WHERE measure_id = ?', m.id);
     audit({ action: 'record.measure_removed', entityType: 'record', entityId: r.id, summary: `Measure "${m.title}" removed from ${r.number}` });
+    measureChanged(r.id, { kind: 'removed', before: { owners: parseJson<string[]>(m.owners, []), doneBy: m.done_by }, actor: u.username });
   });
   return listMeasures(r.id);
 }

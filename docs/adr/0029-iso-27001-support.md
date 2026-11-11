@@ -88,20 +88,20 @@ Public, read-only: `GET /api/v1/suppliers`, `/api/v1/suppliers/{supplierId}`, `/
 
 ### Permissions and audit
 
-| Action                                                                  | Who                                                                                                                                 |
-| ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| See suppliers, contracts, certificates, contacts                        | everyone who can sign in (like systems)                                                                                             |
-| Create suppliers; confirm, merge, mark _not a supplier_; archive        | designers, administrators                                                                                                           |
-| Change a supplier, its contacts, contracts and certificates             | designers, administrators, the supplier's owners                                                                                    |
-| Change a service's responsibility matrix                                | whoever may edit the service                                                                                                        |
-| See the SoA                                                             | everyone who can sign in (evidence by the coverage rule)                                                                            |
-| Change SoA rows and settings; submit a version                          | designers, administrators; a row's owner changes its status, _how it is met_ and _last review_                                      |
-| Switch an SoA's second person off                                       | administrators, with the confirmation of `soa.approve`; never while the policy requires a second person                             |
-| Approve or return an SoA version                                        | approvers, administrators – control point `soa.approve`                                                                             |
-| See findings and suggestions                                            | administrators, auditors, designers, approvers, owners of a finding or action, whoever may edit the affected service                |
-| Record findings; confirm or dismiss suggestions; change findings        | designers, administrators, whoever may edit the affected service; owners mark their actions done                                    |
-| Check effectiveness                                                     | approvers, designers, administrators – not the finding's owner, an action's owner or who marked it done (`correctiveAction.verify`) |
-| Cancel a finding; suggestion sources; area controls of other catalogues | administrators                                                                                                                      |
+| Action                                                                  | Who                                                                                                                  |
+| ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| See suppliers, contracts, certificates, contacts                        | everyone who can sign in (like systems)                                                                              |
+| Create suppliers; confirm, merge, mark _not a supplier_; archive        | designers, administrators                                                                                            |
+| Change a supplier, its contacts, contracts and certificates             | designers, administrators, the supplier's owners                                                                     |
+| Change a service's responsibility matrix                                | whoever may edit the service                                                                                         |
+| See the SoA                                                             | everyone who can sign in (evidence by the coverage rule)                                                             |
+| Change SoA rows and settings; submit a version                          | designers, administrators; a row's owner changes its status, _how it is met_ and _last review_                       |
+| Switch an SoA's second person off                                       | administrators, with the confirmation of `soa.approve`; never while the policy requires a second person              |
+| Approve or return an SoA version                                        | approvers, administrators – control point `soa.approve`                                                              |
+| See findings and suggestions                                            | administrators, auditors, designers, approvers, owners of a finding or action, whoever may edit the affected service |
+| Record findings; confirm or dismiss suggestions; change findings        | designers, administrators, whoever may edit the affected service; owners mark their actions done                     |
+| Check effectiveness                                                     | approvers, designers, administrators – not anyone who took part in the fix (`correctiveAction.verify`, see below)    |
+| Cancel a finding; suggestion sources; area controls of other catalogues | administrators                                                                                                       |
 
 New control points ([ASSURANCE.md](../ASSURANCE.md)): `soa.approve` (group _audit_; step-up on; four-eyes _optional_ – the SoA's switch _A second person approves_, on by default; the policy may make it required) and `correctiveAction.verify` (group _audit_; four-eyes `required` by default, may be set off). Audit actions: `supplier.created`, `.changed`, `.archived`, `.confirmed`, `.merged`, `.dismissed`, `.migrated` (system), `.contact_added|changed|removed` (without e-mail or phone values), `.contract_added|changed|removed`, `.certificate_added|changed|removed`; `responsibility.changed`; `soa.entry_changed` (before and after), `soa.settings_changed`, `soa.version_submitted`, `.version_approved` (with the content and PDF SHA-256), `.version_returned`, `.exported`; `corrective.finding_created`, `.finding_changed`, `.action_added|changed|removed|done`, `.effectiveness_checked`, `.finding_closed`, `.finding_cancelled`, `.suggestion_confirmed`, `.suggestion_dismissed`, `.settings_changed`.
 
@@ -150,6 +150,7 @@ The owner took the recommended answer to every open question ("go with the recom
 Before the release, a security review found ways around the decisions above; the fixes change them as follows.
 
 - **Decision 2, the SoA's second person:** whether a second person approves is fixed into each version when it is submitted (`soa_versions.four_eyes`, migration `compliance-006-soa-version-four-eyes`); approving reads that value, or the policy now if it is stricter, never the switch as it is now. Designers switch it on; only administrators switch it off (also when creating a statement), after the confirmation of `soa.approve` (step-up action `changeSoaApproval`), and not at all while the policy requires a second person.
+- **The effectiveness check (part 3):** who took part in the fix is kept on the finding for good (`ca_findings.fix_participants`, migration `compliance-007-corrective-participants`): every owner the finding has had, every owner of its actions and of its incident review's measures – a team with its members of then, and its members at the time of the check –, who marked one done, and who removed or changed one, or the owner, after the finding was implemented. None of them checks the effectiveness. Removing, reassigning, reopening or adding an open action, or changing the owner, sends an implemented finding back to _in progress_ – the simpler rule than refusing, and the one that also works for measures changed on the incident review's page.
 
 ## Consequences
 

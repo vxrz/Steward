@@ -23,13 +23,14 @@ import type { AuthUser } from '../auth/context.js';
 import { hasRole, isAdmin, matches } from '../auth/permissions.js';
 import { assertKnownSubjects } from '../auth/subjects.js';
 import { findUserByName } from '../auth/users.js';
-import { checkFourEyes, fourEyesRequired, samePerson } from '../auth/assurance.js';
+import { checkFourEyes, fourEyesRequired } from '../auth/assurance.js';
 import { canEditService, canReadRecordRow, canViewCatalogue } from '../records/access.js';
 import { instanceTimeZone, localDate } from '../duties/periods.js';
 import { likeEscape } from '../database/sql.js';
 import { resolveSupplierLink, supplierVisible } from '../suppliers/links.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { forbid, me, readsEverything, same } from './access.js';
+import { backToInProgress, noteParticipants, participantNames, participantsOf, takesPart } from './corrective-participants.js';
 
 /**
  * The register of corrective actions (ISO/IEC 27001 clause 10.2, ADR 0029 part 3, docs/COMPLIANCE.md#corrective-actions):
@@ -41,8 +42,9 @@ import { forbid, me, readsEverything, same } from './access.js';
  *   whoever may edit the affected service;
  * - record and change findings: designers, administrators and whoever may edit the affected service; the owners of an
  *   action mark it done;
- * - check the effectiveness: approvers, designers, administrators – not the finding's owner, an action's owner or who
- *   marked an action done (four-eyes required by default);
+ * - check the effectiveness: approvers, designers, administrators – not anyone who took part in the fix: the finding's
+ *   owners, the owners of its actions (a team: its members), who marked an action done, who removed or changed one after
+ *   it was implemented – kept for good (corrective-participants.ts; four-eyes required by default);
  * - cancel a finding: administrators, with a reason.
  *
  * A finding of an incident review reads the review's measures as its actions (ADR 0029 decision 5): they stay in
@@ -83,6 +85,8 @@ export interface FindingRow {
   updated_by: string;
   closed_at: string | null;
   closed_by: string | null;
+  /** Everyone who took part in the fix (JSON list of subjects, only ever grows: corrective-participants.ts) */
+  fix_participants: string;
 }
 
 interface ActionRow {
@@ -216,16 +220,19 @@ export function canEditFinding(u: AuthUser, f: FindingRow, ctx: CaContext): bool
   return hasRole(u, ['admin', 'designer']) || editsService(u, ctx.service(f.service_id));
 }
 
-/** Who took part in the fix: the finding's owner, the users who own an action, who marked an action done. */
-function partOfFix(f: FindingRow, ctx: CaContext): string[] {
-  const names = new Set<string>();
-  if (f.owner) names.add(f.owner);
+/** Who takes part in the fix now: the finding's owner, the owners of its actions (subjects), who marked an action done. */
+function currentPart(f: FindingRow, ctx: CaContext): string[] {
+  const out: string[] = [];
+  if (f.owner) out.push(f.owner);
   for (const w of ctx.workOf(f)) {
-    for (const s of w.owners) if (s.startsWith('user:')) names.add(s.slice(5));
-    if (w.doneBy) names.add(w.doneBy);
+    out.push(...w.owners);
+    if (w.doneBy) out.push(w.doneBy);
   }
-  return [...names];
+  return out;
 }
+
+/** Everyone who took part in the fix: kept on the finding for good, and who takes part now (subjects). */
+const partOfFix = (f: FindingRow, ctx: CaContext): string[] => participantsOf(f.fix_participants, currentPart(f, ctx));
 
 // ---------- reading ----------
 
@@ -419,7 +426,7 @@ export function toFinding(f: FindingRow, ctx = new CaContext(), u = me()): CaFin
   const { items, record } = actionsOf(f, u, ctx);
   const checker = hasRole(u, CHECKERS);
   const fourEyes = fourEyesRequired(CORRECTIVE_POINT);
-  const ownPart = fourEyes && partOfFix(f, ctx).some((n) => samePerson(n, u));
+  const ownPart = fourEyes && takesPart(u, partOfFix(f, ctx));
   const verifyBlocked = !checker ? null : f.status !== 'implemented' ? 'notImplemented' : ownPart ? 'ownPart' : null;
   const editable = canEditFinding(u, f, ctx);
   return {
@@ -534,6 +541,10 @@ export function insertFinding(n: NewFinding, ctx = new CaContext(), u = me()): F
     throw new HttpError(400, `At most ${CA_LIMITS.findings} findings`, 'CA_FINDING_LIMIT', { max: CA_LIMITS.findings });
   const id = newId('caf_');
   const now = nowIso();
+  // who takes part from the start: the owner, and for an incident review the owners of its measures and who did them
+  const measures = n.recordId
+    ? db().all<{ owners: string; done_by: string | null }>('SELECT owners, done_by FROM record_measures WHERE record_id = ?', n.recordId)
+    : [];
   db().tx(() => {
     const number = nextNumber(ctx.day);
     db().run(
@@ -564,6 +575,7 @@ export function insertFinding(n: NewFinding, ctx = new CaContext(), u = me()): F
       now,
       u.username,
     );
+    noteParticipants(id, [owner, ...measures.flatMap((m) => [...parseJson<string[]>(m.owners, []), m.done_by])]);
     audit({
       action: 'corrective.finding_created',
       entityType: 'corrective_finding',
@@ -659,6 +671,9 @@ export function updateFinding(id: string, input: z.input<typeof caFindingUpdate>
     before.controlIds = parseJson<string[]>(f.control_ids, []);
     after.controlIds = v.controlIds;
   }
+  const ownerChanged = changed.includes('owner');
+  // a new owner of an implemented finding: the fix goes back to "in progress" (security review 0.17.0, M2)
+  if (ownerChanged && f.status === 'implemented' && (!v.status || v.status === 'implemented')) v.status = 'inProgress';
   if (v.status && v.status !== f.status) {
     sets.push('status = ?');
     args.push(v.status);
@@ -670,6 +685,10 @@ export function updateFinding(id: string, input: z.input<typeof caFindingUpdate>
   const now = nowIso();
   db().tx(() => {
     db().run(`UPDATE ca_findings SET ${sets.join(', ')}, updated_at = ?, updated_by = ? WHERE id = ?`, ...args, now, u.username, f.id);
+    // who takes part: every owner it has had (and who changed the owner of an implemented one), and everyone in the fix
+    // as it stands when it is implemented
+    if (ownerChanged) noteParticipants(f.id, [f.owner, v.owner, f.status === 'implemented' ? u.username : null]);
+    if (after.status === 'implemented') noteParticipants(f.id, currentPart({ ...f, owner: v.owner === undefined ? f.owner : v.owner }, ctx));
     audit({
       action: 'corrective.finding_changed',
       entityType: 'corrective_finding',
@@ -683,7 +702,10 @@ export function updateFinding(id: string, input: z.input<typeof caFindingUpdate>
 
 /** Moves a finding back to "in progress" (an action reopened or added after it was implemented), or on from "open". */
 function touchStatus(f: FindingRow, to: 'inProgress', why: string, u: AuthUser): void {
-  if (f.status === to || FINAL.includes(f.status)) return;
+  // as stored now: a measure of the incident review may have moved it already (corrective-participants.ts)
+  const status = db().get<{ status: CaStatus }>('SELECT status FROM ca_findings WHERE id = ?', f.id)?.status ?? f.status;
+  if (status === to || FINAL.includes(status)) return;
+  f = { ...f, status };
   db().run('UPDATE ca_findings SET status = ?, updated_at = ?, updated_by = ? WHERE id = ?', to, nowIso(), u.username, f.id);
   audit({
     action: 'corrective.finding_changed',
@@ -758,6 +780,7 @@ export async function addAction(findingId: string, input: z.input<typeof caActio
       summary: `Action "${v.title}" added to ${f.number} (due ${v.dueDate})`,
       details: { number: f.number, actionId: id, owners: v.owners, dueDate: v.dueDate, done: !!v.done },
     });
+    noteParticipants(f.id, [...v.owners, v.done ? u.username : null, f.status === 'implemented' ? u.username : null]);
     if (!v.done) touchStatus(f, 'inProgress', 'an action was added', u);
   });
   return getFinding(f.id);
@@ -785,7 +808,19 @@ export async function updateAction(findingId: string, actionId: string, input: z
   if (v.owners) assertKnownSubjects(v.owners, parseJson<string[]>(a.owners, []));
   const now = nowIso();
   const done = v.done === undefined ? !!a.done_at : v.done;
+  const ownersBefore = parseJson<string[]>(a.owners, []);
+  const ownersChanged =
+    !!v.owners && JSON.stringify(v.owners.map((x) => x.toLowerCase()).sort()) !== JSON.stringify(ownersBefore.map((x) => x.toLowerCase()).sort());
   db().tx(() => {
+    // who takes part: every owner the action has had, who marked it done, and who changed it after the finding was implemented
+    noteParticipants(f.id, [
+      ...ownersBefore,
+      ...(v.owners ?? []),
+      a.done_by,
+      done ? (a.done_by ?? u.username) : null,
+      f.status === 'implemented' ? u.username : null,
+    ]);
+    if (ownersChanged) touchStatus(f, 'inProgress', "an action's owners changed", u);
     db().run(
       'UPDATE ca_actions SET title = ?, owners = ?, due_date = ?, note = ?, done_at = ?, done_by = ?, updated_at = ?, updated_by = ? WHERE id = ?',
       v.title ?? a.title,
@@ -850,6 +885,9 @@ export async function deleteAction(findingId: string, actionId: string): Promise
       summary: `Action "${a.title}" removed from ${f.number}`,
       details: { number: f.number, actionId: a.id },
     });
+    // the action's people stay part of the fix; removing one from an implemented finding sends it back to "in progress"
+    noteParticipants(f.id, [...parseJson<string[]>(a.owners, []), a.done_by, f.status === 'implemented' ? u.username : null]);
+    if (f.status === 'implemented') backToInProgress(f.id, 'an action was removed', u.username);
   });
   return getFinding(f.id);
 }
@@ -858,8 +896,8 @@ export async function deleteAction(findingId: string, actionId: string): Promise
 
 /**
  * The effectiveness check (control point correctiveAction.verify): approvers, designers and administrators confirm
- * whether the fix worked – never the finding's owner, an action's owner or who marked an action done while four-eyes
- * is required (the default). Effective closes the finding; not effective sends it back to "in progress".
+ * whether the fix worked – never anyone who took part in the fix (corrective-participants.ts) while four-eyes is
+ * required (the default). Effective closes the finding; not effective sends it back to "in progress".
  */
 export function checkEffectiveness(id: string, input: z.input<typeof caEffectivenessInput>): CaFinding {
   const u = me();
@@ -869,11 +907,13 @@ export function checkEffectiveness(id: string, input: z.input<typeof caEffective
   if (!hasRole(u, CHECKERS)) forbid('check the effectiveness of corrective actions (approvers, designers, administrators)', 'verifyCorrective');
   if (f.status !== 'implemented')
     throw new HttpError(409, `Finding ${f.number} is not implemented yet`, 'CA_NOT_IMPLEMENTED', { number: f.number, status: f.status });
-  const fe = checkFourEyes(CORRECTIVE_POINT, partOfFix(f, ctx), u);
+  // everyone who took part, kept for good: a member of an owning team counts as an owner
+  const part = partOfFix(f, ctx);
+  const fe = checkFourEyes(CORRECTIVE_POINT, [...participantNames(part), ...(takesPart(u, part) ? [u.username] : [])], u);
   if (!fe.ok)
     throw new HttpError(
       403,
-      "A second person checks the effectiveness: not the finding's owner, an action's owner or who marked an action done",
+      "A second person checks the effectiveness: not anyone who took part in the fix – the finding's owners, the owners of its actions (also as a team member), who marked an action done or changed one after it was implemented",
       'CA_FOUR_EYES',
     );
   const now = nowIso();
