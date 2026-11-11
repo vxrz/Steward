@@ -105,7 +105,8 @@ interface Query {
   measurement: string;
   field?: string;
   fields: string[];
-  tags: Record<string, string>;
+  /** a Map: tag names come from the query and never reach Object.prototype (__proto__, constructor …) */
+  tags: Map<string, string>;
   groupBy?: string;
   lookbackMs: number;
   /** SLIMIT, Flux's last limit(n:): series (rows) at most */
@@ -117,7 +118,7 @@ function answer(q: Query, now: number): { group: string | null; field?: string; 
   if (q.measurement !== DEMO_INFLUX.measurement) return [];
   const out = new Map<string, { group: string | null; field?: string; time: number }>();
   for (const p of [...SERIES, ...extra]) {
-    if (Object.entries(q.tags).some(([k, v]) => (p as unknown as Record<string, string>)[k] !== v)) continue;
+    if ([...q.tags].some(([k, v]) => (p as unknown as Record<string, string>)[k] !== v)) continue;
     const group = q.groupBy ? ((p as unknown as Record<string, string | undefined>)[q.groupBy] ?? null) : null;
     const fields = q.fields.length ? q.fields : [undefined];
     for (const f of fields) {
@@ -166,7 +167,7 @@ function parseInfluxQl(st: Tok[]): Query | 'show-databases' {
     if (st[i]?.v === '.') i++;
     else break;
   }
-  const tags: Record<string, string> = {};
+  const tags = new Map<string, string>();
   let lookbackMs = 3600_000;
   let groupBy: string | undefined;
   let limit: number | undefined;
@@ -176,7 +177,7 @@ function parseInfluxQl(st: Tok[]): Query | 'show-databases' {
       const unit = st[st.indexOf(n!) + 1];
       lookbackMs = Number(n?.v ?? 0) * 1000 * (unit?.v === 's' ? 1 : 0);
     } else if (st[i]?.t === 'ident' && st[i + 1]?.v === '=' && st[i + 2]?.t === 'string') {
-      tags[st[i]!.v] = st[i + 2]!.v;
+      tags.set(st[i]!.v, st[i + 2]!.v);
       i += 2;
     } else if (word(st[i], 'GROUP') && word(st[i + 1], 'BY') && st[i + 2]?.t === 'ident') {
       groupBy = st[i + 2]!.v;
@@ -206,7 +207,7 @@ function parseFlux(text: string): Query & { bucket: string } {
   const at = (i: number, ...vs: string[]) => vs.every((v, k) => t[i + k]?.v === v);
   let bucket = '';
   let measurement = '';
-  const tags: Record<string, string> = {};
+  const tags = new Map<string, string>();
   const fields: string[] = [];
   let group: string[] | null = null;
   let lookbackMs = 3600_000;
@@ -216,7 +217,7 @@ function parseFlux(text: string): Query & { bucket: string } {
     else if (at(i, 'range', '(', 'start', ':', '-') && t[i + 5]?.t === 'num') lookbackMs = Number(t[i + 5]!.v) * 1000;
     else if (at(i, 'r', '.', '_measurement', '==') && t[i + 4]?.t === 'string') measurement = t[i + 4]!.v;
     else if (at(i, 'r', '.', '_field', '==') && t[i + 4]?.t === 'string') fields.push(t[i + 4]!.v);
-    else if (at(i, 'r', '[') && t[i + 2]?.t === 'string' && at(i + 3, ']', '==') && t[i + 5]?.t === 'string') tags[t[i + 2]!.v] = t[i + 5]!.v;
+    else if (at(i, 'r', '[') && t[i + 2]?.t === 'string' && at(i + 3, ']', '==') && t[i + 5]?.t === 'string') tags.set(t[i + 2]!.v, t[i + 5]!.v);
     else if (at(i, 'limit', '(', 'n', ':') && t[i + 4]?.t === 'num') limit = Number(t[i + 4]!.v);
     else if (group === null && at(i, 'group', '(', 'columns', ':', '[')) {
       group = [];
