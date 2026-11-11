@@ -42,3 +42,17 @@ describe('last connection test', () => {
     expect((await list()).find((x) => x.id === created.id)!.lastTest).toMatchObject({ ok: false });
   });
 });
+
+describe('platform list performance (security review 0.19.0 M3)', () => {
+  it('finds the latest test by an indexed lookup per platform, not by reading every test ever written', async () => {
+    const { db } = await import('../src/db.js');
+    const d = db();
+    if (d.dialect !== 'sqlite') return; // (PostgreSQL plans by table statistics; the expression index is the same)
+    const { LAST_TESTS_SQL, lastConnectionTests } = await import('../src/platforms/service.js');
+    expect(lastConnectionTests().size).toBeGreaterThan(0);
+    const plan = d.all<{ detail: string }>(`EXPLAIN QUERY PLAN ${LAST_TESTS_SQL}`).map((r) => r.detail);
+    // the subquery searches audit_target for each platform; no step reads the whole audit log
+    expect(plan.some((p) => /SEARCH t USING (COVERING )?INDEX audit_target/.test(p))).toBe(true);
+    expect(plan.filter((p) => /SCAN (a|t)\b/.test(p))).toEqual([]);
+  });
+});

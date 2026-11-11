@@ -9,6 +9,7 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 ### Fixed
 
 - **The audit log export streams** ([docs/SECURITY-HARDENING.md](docs/SECURITY-HARDENING.md#audit-log-as-evidence)): `GET /api/audit/export` reads and writes the chain in pages of 5,000 entries instead of holding it in memory, as the scheduled export does; the files are the same.
+- **The platform list stays fast with many connection tests**: the latest test of each platform is found through an index instead of reading every connection test ever recorded.
 
 ### Security
 
