@@ -18,7 +18,12 @@ const list = <T extends string>(values: readonly T[]) =>
     .max(500)
     .optional()
     .transform((v) => (v ? v.split(',').map((s) => s.trim()) : undefined))
-    .pipe(z.array(z.enum(values as [T, ...T[]])).optional());
+    .pipe(
+      z
+        .array(z.enum(values as [T, ...T[]]))
+        .max(50)
+        .optional(),
+    );
 
 const session = { config: { access: ACCESS.session } };
 

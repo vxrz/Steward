@@ -18,7 +18,7 @@ import { timeLimit } from './time.js';
 const ROOT = path.resolve(import.meta.dirname, '../..');
 const SOURCES = ['server/src', 'shared/src'];
 /** Response schemas (OpenAPI only, never parsed): only their query schemas (`…Query`) read input. */
-const RESPONSE_SCHEMAS = /(^|\/)(api-schemas|api\/v1\/schemas)\.ts$/;
+const RESPONSE_SCHEMAS = /(^|\/)(api-schemas|corrective-api|soa-api|api\/v1\/schemas)\.ts$/;
 /** A schema that never reads input says why on its line or the line before. */
 const EXEMPT = 'zod-unbounded:';
 /** Methods that may come before the length limit without disabling its early stop. */
