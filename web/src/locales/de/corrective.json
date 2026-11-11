@@ -114,7 +114,8 @@
     "confirmed": "Befund {{number}} aus dem Vorschlag erfasst.",
     "noService": "Kein Service",
     "noOwner": "Noch niemand",
-    "controlsPlaceholder": "Kontrollen suchen"
+    "controlsPlaceholder": "Kontrollen suchen",
+    "confirmNeutral": "Der Titel nennt kein Incident-Review, keine Pflicht und keinen Lieferanten: Alle, die das Register lesen, lesen ihn, und der Befund verweist auf seine Quelle, die jede Person mit ihren eigenen Rechten sieht."
   },
   "detail": {
     "edit": "Bearbeiten",
@@ -208,6 +209,16 @@
       "supplierCertificate": "Zertifikat {{certificate}} des Lieferanten „{{supplier}}“ ist am {{date}} abgelaufen",
       "supplierReviewMissed": "Lieferantenbewertung „{{duty}}“ von „{{supplier}}“ im Zeitraum {{period}} versäumt",
       "supplierReviewFailed": "Lieferantenbewertung „{{duty}}“ von „{{supplier}}“ im Zeitraum {{period}} fehlgeschlagen"
+    },
+    "neutralTitles": {
+      "dutyMissed": "{{level}} Pflicht im Zeitraum {{period}} versäumt",
+      "dutyFailed": "{{level}} Pflicht im Zeitraum {{period}} fehlgeschlagen",
+      "incident": "Incident-Review angenommen ({{severity}})",
+      "personReview": "Personenprüfung: {{count}} Entfernung(en) nach {{days}} Tagen nicht als erledigt bestätigt",
+      "reconciliation": "Zugriffsprüfung: {{count}} Befund(e) länger als {{days}} Tage offen ({{week}})",
+      "supplierCertificate": "Ein Lieferantenzertifikat ist am {{date}} abgelaufen",
+      "supplierReviewMissed": "Lieferantenbewertung im Zeitraum {{period}} versäumt",
+      "supplierReviewFailed": "Lieferantenbewertung im Zeitraum {{period}} fehlgeschlagen"
     },
     "levels": {
       "mandatory": "Verpflichtende",

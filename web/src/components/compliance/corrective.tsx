@@ -67,22 +67,27 @@ const inDays = (n: number) => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
-/** The translated title of a suggestion (its details), the stored English title otherwise. */
-export function useSuggestionTitle(): (s: CaSuggestion) => string {
+/**
+ * The translated title of a suggestion (its details), the stored English title otherwise. The server fills in the names
+ * of what it came from only where the reader may see them (`hidden` otherwise): then, and with `neutral` – the title a
+ * confirmed finding starts with, read by everyone who reads the register – the title names nothing.
+ */
+export function useSuggestionTitle(): (s: CaSuggestion, opts?: { neutral?: boolean }) => string {
   const { t } = useTranslation('corrective');
-  return (s) => {
+  return (s, opts = {}) => {
     const d = s.details;
+    const which = opts.neutral || d.hidden ? 'neutralTitles' : 'titles';
     switch (d.kind) {
       case 'dutyMissed':
       case 'dutyFailed':
-        return t(`suggestions.titles.${d.kind}`, { ...d, level: t(`suggestions.levels.${d.level === 'recommended' ? 'recommended' : 'mandatory'}`) });
+        return t(`suggestions.${which}.${d.kind}`, { ...d, level: t(`suggestions.levels.${d.level === 'recommended' ? 'recommended' : 'mandatory'}`) });
       case 'incident':
       case 'personReview':
       case 'reconciliation':
       case 'supplierCertificate':
       case 'supplierReviewMissed':
       case 'supplierReviewFailed':
-        return t(`suggestions.titles.${d.kind}`, d);
+        return t(`suggestions.${which}.${d.kind}`, d);
       default:
         return s.title;
     }
@@ -124,7 +129,9 @@ export function FindingForm({
   const services = useServices();
   const controls = useControls();
   const users = useUsers();
-  const [title, setTitle] = useState(finding?.title ?? (suggestion ? suggestionTitle(suggestion).slice(0, CA_LIMITS.title) : ''));
+  // a confirmed finding starts with the neutral title: everyone who reads the register reads it, and the names of its
+  // source are shown through its link, with each reader's rights
+  const [title, setTitle] = useState(finding?.title ?? (suggestion ? suggestionTitle(suggestion, { neutral: true }).slice(0, CA_LIMITS.title) : ''));
   const [description, setDescription] = useState(finding?.description ?? '');
   const [source, setSource] = useState<string>(preset ? 'supplierReview' : 'internalAudit');
   const [sourceLabel, setSourceLabel] = useState('');
@@ -221,7 +228,7 @@ export function FindingForm({
         <Stack gap="sm" data-testid="ca-finding-form">
           {suggestion && (
             <Text size="sm" c="dimmed">
-              {t('form.confirmIntro')}
+              {t('form.confirmIntro')} {t('form.confirmNeutral')}
             </Text>
           )}
           <TextInput

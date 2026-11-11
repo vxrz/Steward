@@ -53,7 +53,8 @@ test.describe('as an administrator', () => {
     await expectAccessible(page, 'corrective actions: suggestions');
     await card.getByTestId('ca-confirm').click();
     const form = page.getByRole('dialog', { name: 'Confirm as a finding' });
-    await expect(form.getByRole('textbox', { name: 'Title' })).toHaveValue(new RegExp(review.title));
+    // the title names no incident review: everyone who reads the register reads it (the finding links the review)
+    await expect(form.getByRole('textbox', { name: 'Title' })).toHaveValue('Incident review accepted (major)');
     await expect(form.getByRole('combobox', { name: 'Service' })).toHaveValue(review.service.name);
     await form.getByRole('textbox', { name: 'Cause' }).fill('The payment provider changed its certificate chain');
     await expectAccessible(page, 'corrective actions: confirm dialog');
@@ -115,8 +116,8 @@ test.describe('as an administrator', () => {
     // the register lists it as closed
     await page.goto('/compliance/corrective-actions');
     await expectAccessible(page, 'corrective actions: register');
-    const closed = await json<{ items: { title: string; status: string }[] }>(await admin.get('/api/compliance/corrective-actions?state=closed'));
-    expect(closed.items.find((f) => f.title.includes(review.title))?.status).toBe('closed');
+    const closed = await json<{ items: { id: string; status: string }[] }>(await admin.get('/api/compliance/corrective-actions?state=closed'));
+    expect(closed.items.find((f) => url.endsWith(`/${f.id}`))?.status).toBe('closed');
   });
 });
 

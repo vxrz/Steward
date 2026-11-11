@@ -2398,6 +2398,7 @@ export interface Resources {
     'form.noService': string;
     'form.noOwner': string;
     'form.controlsPlaceholder': string;
+    'form.confirmNeutral': string;
     'detail.edit': string;
     'detail.markInProgress': string;
     'detail.markImplemented': string;
@@ -2478,6 +2479,14 @@ export interface Resources {
     'suggestions.titles.supplierCertificate': string;
     'suggestions.titles.supplierReviewMissed': string;
     'suggestions.titles.supplierReviewFailed': string;
+    'suggestions.neutralTitles.dutyMissed': string;
+    'suggestions.neutralTitles.dutyFailed': string;
+    'suggestions.neutralTitles.incident': string;
+    'suggestions.neutralTitles.personReview': string;
+    'suggestions.neutralTitles.reconciliation': string;
+    'suggestions.neutralTitles.supplierCertificate': string;
+    'suggestions.neutralTitles.supplierReviewMissed': string;
+    'suggestions.neutralTitles.supplierReviewFailed': string;
     'suggestions.levels.mandatory': string;
     'suggestions.levels.recommended': string;
     'settings.intro': string;

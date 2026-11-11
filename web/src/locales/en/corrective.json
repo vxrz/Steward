@@ -114,7 +114,8 @@
     "confirmed": "Finding {{number}} recorded from the suggestion.",
     "noService": "No service",
     "noOwner": "Nobody yet",
-    "controlsPlaceholder": "Search controls"
+    "controlsPlaceholder": "Search controls",
+    "confirmNeutral": "The title names no incident review, duty or supplier: everyone who reads the register reads it, and the finding links what it came from, which each reader sees with their own rights."
   },
   "detail": {
     "edit": "Edit",
@@ -208,6 +209,16 @@
       "supplierCertificate": "Certificate {{certificate}} of supplier “{{supplier}}” ran out on {{date}}",
       "supplierReviewMissed": "Supplier review “{{duty}}” of “{{supplier}}” missed in period {{period}}",
       "supplierReviewFailed": "Supplier review “{{duty}}” of “{{supplier}}” failed in period {{period}}"
+    },
+    "neutralTitles": {
+      "dutyMissed": "{{level}} duty missed in period {{period}}",
+      "dutyFailed": "{{level}} duty failed in period {{period}}",
+      "incident": "Incident review accepted ({{severity}})",
+      "personReview": "Person review: {{count}} removal(s) not confirmed gone after {{days}} days",
+      "reconciliation": "Access check: {{count}} finding(s) open for more than {{days}} days ({{week}})",
+      "supplierCertificate": "A supplier certificate ran out on {{date}}",
+      "supplierReviewMissed": "Supplier review missed in period {{period}}",
+      "supplierReviewFailed": "Supplier review failed in period {{period}}"
     },
     "levels": {
       "mandatory": "Mandatory",

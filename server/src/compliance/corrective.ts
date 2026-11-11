@@ -274,36 +274,82 @@ function toSummary(f: FindingRow, ctx: CaContext, u: AuthUser): CaFindingSummary
   };
 }
 
-/** What a finding or suggestion came from, as the reader may see it. */
+/** The name of what a finding or suggestion came from, as the reader may see it (resolved when read, never stored). */
+export interface SourceName {
+  visible: boolean;
+  /** The name shown (empty when not visible) */
+  name: string;
+  /** The parts of the name for texts (duty, record and title, review and person, supplier, check) */
+  parts: Record<string, string>;
+  path: string | null;
+}
+
+/** What the reader is told instead of a name they may not see (English: API, MCP, exports; the web app translates). */
+const HIDDEN_SOURCE: Record<string, string> = {
+  duty: 'a duty you may not see',
+  record: 'an incident review you may not see',
+  personReview: 'a person review you may not see',
+  supplier: 'a supplier you may not see',
+  accessCheck: 'an access check you may not see',
+};
+
+/**
+ * The name of a source for the reader (security review 0.17.0, M3): titles of incident reviews, names of duties,
+ * suppliers, person reviews and access checks are read now with the reader's rights – a suggestion or finding stores
+ * only the id, so a name never crosses a team boundary through a stored title or label. Unknown ids are not visible.
+ */
+export function sourceName(kind: string, id: string, u: AuthUser): SourceName {
+  const none: SourceName = { visible: false, name: '', parts: {}, path: null };
+  const seesService = (serviceId: string) => {
+    const s = db().get<{ id: string; owners: string }>('SELECT id, owners FROM services WHERE id = ?', serviceId);
+    return !!s && canViewCatalogue(u, { kind: 'service', id: s.id, owners: parseJson<string[]>(s.owners, []) });
+  };
+  if (kind === 'duty') {
+    const d = db().get<{ name: string; service_id: string }>('SELECT name, service_id FROM service_duties WHERE id = ?', id);
+    return d && seesService(d.service_id) ? { visible: true, name: d.name, parts: { duty: d.name }, path: `/duties/${id}` } : none;
+  }
+  if (kind === 'record') {
+    const r = db().get<{ id: string; number: string; title: string; type_id: string; fields: string; owner: string }>(
+      'SELECT id, number, title, type_id, fields, owner FROM records WHERE id = ?',
+      id,
+    );
+    return r && canReadRecordRow(u, r)
+      ? { visible: true, name: `${r.number} ${r.title}`, parts: { record: r.number, title: r.title }, path: `/records/${id}` }
+      : none;
+  }
+  if (kind === 'personReview') {
+    const r = db().get<{ title: string; person_name: string }>('SELECT title, person_name FROM person_reviews WHERE id = ?', id);
+    return r && (readsEverything(u) || hasRole(u, ['approver', 'designer']))
+      ? { visible: true, name: r.title, parts: { review: r.title, person: r.person_name }, path: `/compliance/person-reviews/${id}` }
+      : none;
+  }
+  if (kind === 'supplier') {
+    const r = db().get<{ id: string; name: string; owners: string }>('SELECT id, name, owners FROM suppliers WHERE id = ?', id);
+    return r && canViewCatalogue(u, { kind: 'supplier', id: r.id, owners: parseJson<string[]>(r.owners, []) })
+      ? { visible: true, name: r.name, parts: { supplier: r.name }, path: `/suppliers/${id}` }
+      : none;
+  }
+  if (kind === 'accessCheck') {
+    const r = db().get<{ name: string }>('SELECT name FROM access_checks WHERE id = ?', id);
+    return r && (readsEverything(u) || hasRole(u, ['designer', 'operator']))
+      ? { visible: true, name: r.name, parts: { check: r.name }, path: `/compliance/reconciliation?check=${encodeURIComponent(id)}` }
+      : none;
+  }
+  return { visible: true, name: '', parts: {}, path: null };
+}
+
+/**
+ * What a finding or suggestion came from, as the reader may see it. `label` is what was stored with it: a free text for
+ * a link (kind url), otherwise only what names nothing (the period of a duty); the name is read now (sourceName).
+ */
 export function sourceRef(kind: string | null, id: string | null, label: string, u: AuthUser): CaSourceRef | null {
   if (!kind) return null;
   if (kind === 'url') return { kind, id: null, label: label || id || '', path: id && /^https?:\/\//i.test(id) ? id : null, visible: true };
   if (!id) return { kind, id: null, label, path: null, visible: true };
-  if (kind === 'duty') {
-    const d = db().get<{ service_id: string }>('SELECT service_id FROM service_duties WHERE id = ?', id);
-    const s = d && db().get<{ id: string; owners: string }>('SELECT id, owners FROM services WHERE id = ?', d.service_id);
-    const visible = !!s && canViewCatalogue(u, { kind: 'service', id: s.id, owners: parseJson<string[]>(s.owners, []) });
-    return { kind, id: visible ? id : null, label, path: visible ? `/duties/${id}` : null, visible };
-  }
-  if (kind === 'record') {
-    const r = db().get<{ id: string; type_id: string; fields: string; owner: string }>('SELECT id, type_id, fields, owner FROM records WHERE id = ?', id);
-    const visible = !!r && canReadRecordRow(u, r);
-    return { kind, id: visible ? id : null, label, path: visible ? `/records/${id}` : null, visible };
-  }
-  if (kind === 'personReview') {
-    const visible = readsEverything(u) || hasRole(u, ['approver', 'designer']);
-    return { kind, id: visible ? id : null, label, path: visible ? `/compliance/person-reviews/${id}` : null, visible };
-  }
-  if (kind === 'supplier') {
-    const r = db().get<{ id: string; owners: string }>('SELECT id, owners FROM suppliers WHERE id = ?', id);
-    const visible = !!r && canViewCatalogue(u, { kind: 'supplier', id: r.id, owners: parseJson<string[]>(r.owners, []) });
-    return { kind, id: visible ? id : null, label, path: visible ? `/suppliers/${id}` : null, visible };
-  }
-  if (kind === 'accessCheck') {
-    const visible = readsEverything(u) || hasRole(u, ['designer', 'operator']);
-    return { kind, id: visible ? id : null, label, path: visible ? `/compliance/reconciliation?check=${encodeURIComponent(id)}` : null, visible };
-  }
-  return { kind, id, label, path: null, visible: true };
+  if (!(kind in HIDDEN_SOURCE)) return { kind, id, label, path: null, visible: true };
+  const n = sourceName(kind, id, u);
+  if (!n.visible) return { kind, id: null, label: HIDDEN_SOURCE[kind]!, path: null, visible: false };
+  return { kind, id, label: [n.name, label].filter(Boolean).join(' · '), path: n.path, visible: true };
 }
 
 export interface FindingFilter {

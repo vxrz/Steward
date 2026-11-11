@@ -929,6 +929,127 @@ describe('suppliers on findings and the supplier review source (ADR 0029 part 4)
   });
 });
 
+describe('names of what a suggestion or finding came from, read with the reader’s rights (security review 0.17.0)', () => {
+  const NAMES = ['Ransomware on the HR share (names)', 'Hidden Vendor (names)', 'Secret payroll export (names)', 'Hidden ISMS scope (names)'];
+  const scan = async () => (await import('../src/compliance/corrective-sources.js')).scanSuggestions(Date.now(), true);
+  const leaks = (x: unknown) => NAMES.filter((n) => JSON.stringify(x).includes(n));
+  let recordId = '';
+  let supplierId = '';
+  const dutyId = 'dty_names_test';
+
+  beforeAll(async () => {
+    const { db } = await import('../src/db.js');
+    const team = await s.api('POST', '/teams', { name: 'Names team', members: ['olivia'] });
+    // a service, an accepted incident review, a supplier in use with an expired certificate and a duty with a missed
+    // period – all owned by a team dana is not in
+    const svc = (await s.api('POST', '/services', { name: 'HR (names)' })).id as string;
+    await s.api('PUT', `/owning-teams/service/${svc}`, { teamIds: [team.id] });
+    const r = await s.api('POST', '/records', { type: 'PIR', title: NAMES[0], links: [{ kind: 'service', id: svc, note: '' }] });
+    await s.api('PUT', `/records/${r.id}`, { fields: { incidentStart: new Date().toISOString(), severity: 'critical', impact: 'HR' }, baseVersion: r.version });
+    await dana('POST', `/records/${r.id}/transition`, { action: 'propose' });
+    await adam('POST', `/records/${r.id}/transition`, { action: 'accept' });
+    await s.api('PUT', `/owning-teams/record/${r.id}`, { teamIds: [team.id] });
+    recordId = r.id;
+    supplierId = (await s.api('POST', '/suppliers', { name: NAMES[1], type: 'saas' })).id;
+    await s.api('PUT', `/owning-teams/supplier/${supplierId}`, { teamIds: [team.id] });
+    await s.api('POST', '/applications', { name: 'HR app (names)', supplierId });
+    await s.api('POST', `/suppliers/${supplierId}/certificates`, { kind: 'iso27001', name: NAMES[3], validUntil: day(-2) });
+    const now = new Date().toISOString();
+    db().run(
+      `INSERT INTO service_duties (id, service_id, name, description, process_id, interval_kind, level, owners, active_from, created_at, created_by, updated_at, updated_by)
+       VALUES (?, ?, ?, '', 'aws-iam-key-age', 'monthly', 'mandatory', '[]', ?, ?, 'admin', ?, 'admin')`,
+      dutyId,
+      svc,
+      NAMES[2],
+      now,
+      now,
+      now,
+    );
+    const end = new Date(Date.now() - 3 * DAY).toISOString();
+    db().run(
+      `INSERT INTO duty_periods (duty_id, period_key, period_start, period_end, grace_end, status, service_id, duty_name, process_id, process_name, level,
+         interval_kind, grace_days, time_zone, evaluated_at, closed_at)
+       VALUES (?, '2026-10', ?, ?, ?, 'missed', ?, ?, 'aws-iam-key-age', 'AWS IAM key age', 'mandatory', 'monthly', 0, 'UTC', ?, ?)`,
+      dutyId,
+      new Date(Date.now() - 34 * DAY).toISOString(),
+      end,
+      end,
+      svc,
+      NAMES[2],
+      end,
+      end,
+    );
+    await scan();
+  });
+
+  it('stores ids, never the names, and names them only to readers who may see them', async () => {
+    const { db } = await import('../src/db.js');
+    const keys = [`incident:${recordId}`, `duty:${dutyId}:2026-10`];
+    const stored = db().all<Record<string, unknown>>(
+      `SELECT * FROM ca_suggestions WHERE source_key IN (?, ?) OR source_key LIKE ?`,
+      ...keys,
+      `supplierCertificate:%`,
+    );
+    expect(stored.filter((x) => keys.includes(String(x.source_key))).length).toBe(2);
+    expect(leaks(stored)).toEqual([]);
+    // dana (designer) reads every suggestion, but not the team's names
+    const mine = (await dana('GET', '/compliance/corrective-suggestions?status=all')).items as any[];
+    const incident = mine.find((x) => x.sourceKey === `incident:${recordId}`);
+    expect(incident).toMatchObject({
+      title: 'Incident review accepted (critical)',
+      details: { kind: 'incident', severity: 'critical', hidden: 1 },
+      sourceRef: { kind: 'record', id: null, path: null, visible: false, label: 'an incident review you may not see' },
+      serviceName: null,
+    });
+    const duty = mine.find((x) => x.sourceKey === `duty:${dutyId}:2026-10`);
+    expect(duty).toMatchObject({ title: 'Mandatory duty missed in period 2026-10', details: { hidden: 1 }, sourceRef: { visible: false } });
+    const cert = mine.find((x) => x.sourceKey.startsWith('supplierCertificate:') && x.details.date === day(-2) && x.details.hidden === 1);
+    expect(cert).toMatchObject({ title: `A supplier certificate ran out on ${day(-2)}`, supplierId: null, supplierName: null });
+    expect(leaks(mine)).toEqual([]);
+    // the administrator reads the names
+    const all = (await s.api('GET', '/compliance/corrective-suggestions?status=all')).items as any[];
+    expect(all.find((x) => x.sourceKey === `incident:${recordId}`)).toMatchObject({
+      title: expect.stringContaining(NAMES[0]),
+      details: { title: NAMES[0] },
+      sourceRef: { visible: true, path: `/records/${recordId}` },
+    });
+    expect(all.find((x) => x.sourceKey === `duty:${dutyId}:2026-10`)).toMatchObject({
+      title: `Mandatory duty "${NAMES[2]}" missed in period 2026-10`,
+      sourceRef: { label: `${NAMES[2]} · 2026-10` },
+    });
+    expect(all.find((x) => x.supplierId === supplierId && x.sourceKey.startsWith('supplierCertificate:'))).toMatchObject({
+      title: `Certificate iso27001 ${NAMES[3]} of supplier "${NAMES[1]}" ran out on ${day(-2)}`,
+      details: { supplier: NAMES[1], certificate: `iso27001 ${NAMES[3]}` },
+    });
+  });
+
+  it('keeps the names out of the findings confirmed from them: register, /api/v1 (MCP maps the same) and evidence packs', async () => {
+    const all = (await s.api('GET', '/compliance/corrective-suggestions')).items as any[];
+    const ids: string[] = [];
+    for (const key of [`incident:${recordId}`, `duty:${dutyId}:2026-10`]) {
+      const sug = all.find((x) => x.sourceKey === key);
+      ids.push((await s.api('POST', `/compliance/corrective-suggestions/${sug.id}/confirm`, { controlIds: [c518] })).id);
+    }
+    const f = await dana('GET', `/compliance/corrective-actions/${ids[0]}`);
+    expect(f).toMatchObject({ title: 'Incident review accepted (critical)', sourceRef: { visible: false, label: 'an incident review you may not see' } });
+    expect(leaks(f)).toEqual([]);
+    expect(leaks(await dana('GET', '/compliance/corrective-actions?state=all'))).toEqual([]);
+    expect((await s.api('GET', `/compliance/corrective-actions/${ids[1]}`)).sourceRef).toMatchObject({ visible: true, label: `${NAMES[2]} · 2026-10` });
+    const token = (await dana('POST', '/me/tokens', { name: 'ca-names', scope: 'read' })).token as string;
+    const v1 = async (p: string) => (await fetch(`${s.base}/api/v1${p}`, { headers: { authorization: `Bearer ${token}` } })).json();
+    expect(leaks(await v1('/corrective-actions?limit=500'))).toEqual([]);
+    expect(leaks(await v1(`/corrective-actions/${ids[0]}`))).toEqual([]);
+    // evidence packs and the ISMS summary read the findings with the creator's (schedule owner's) rights
+    const { findingsOfControls } = await import('../src/compliance/corrective.js');
+    const { findUserByName, toAuthUser } = await import('../src/auth/users.js');
+    const { runAs } = await import('../src/auth/context.js');
+    const du = toAuthUser(findUserByName('dana')!);
+    const inPack = runAs(du, () => findingsOfControls([c518], du));
+    expect(inPack.some((x) => x.id === ids[0])).toBe(true);
+    expect(leaks(inPack)).toEqual([]);
+  });
+});
+
 describe('the module switch', () => {
   it('answers 404 MODULE_OFF while the Compliance module is off', async () => {
     await s.api('PUT', '/settings/modules/compliance', { enabled: false });

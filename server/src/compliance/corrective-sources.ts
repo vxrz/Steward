@@ -25,7 +25,7 @@ import { readSetting, writeSetting } from '../settings.js';
 import { isoWeek } from '../backup/retention.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { forbid, me } from './access.js';
-import { CaContext, caToday, getFinding, insertFinding, listFindings, sourceRef, type FindingFilter } from './corrective.js';
+import { CaContext, caToday, getFinding, insertFinding, listFindings, sourceName, sourceRef, type FindingFilter } from './corrective.js';
 
 /**
  * Suggestions of the register of corrective actions (ADR 0029 part 3): Steward notices events that may be
@@ -38,6 +38,10 @@ import { CaContext, caToday, getFinding, insertFinding, listFindings, sourceRef,
  * administrator (tab Settings); the defaults are ADR 0029 decision 6. A new source (the supplier review of ADR 0029
  * part 1: expired certificate, missed supplier review, a finding recorded from the supplier page) registers itself
  * with registerSuggestionSource() from its feature and adds its switch to CA_SOURCE_SWITCHES (shared/src/corrective.ts).
+ *
+ * A suggestion stores ids, never names (security review 0.17.0, M3): the title of an incident review, the names of
+ * duties, suppliers, certificates, person reviews and access checks are read when the suggestion is read, with the
+ * reader's rights (suggestionView). The stored title is the neutral one ("Incident review accepted (critical)").
  */
 
 const SETTINGS_KEY = 'compliance.corrective';
@@ -106,8 +110,7 @@ export interface SuggestionCandidate {
   supplierId?: string | null;
   controlIds: string[];
   recordId: string | null;
-  /** English (API, MCP); the web app translates details.kind with the other details */
-  title: string;
+  /** What names nothing: ids and figures (period, severity, counts, dates); the names are read with the reader's rights */
   details: Record<string, string | number> & { kind: string };
   severity: CaSeverity;
   occurredAt: string;
@@ -155,13 +158,12 @@ registerSuggestionSource({
         period_key: string;
         status: string;
         level: string;
-        duty_name: string;
         service_id: string;
         process_id: string;
         grace_end: string;
         closed_at: string;
       }>(
-        `SELECT duty_id, period_key, status, level, duty_name, service_id, process_id, grace_end, closed_at FROM duty_periods
+        `SELECT duty_id, period_key, status, level, service_id, process_id, grace_end, closed_at FROM duty_periods
          WHERE closed_at IS NOT NULL AND status IN ('missed', 'failed') AND level IN (${levels.map(() => '?').join(', ')}) AND grace_end >= ?
          ${on('supplierReview') ? "AND duty_id NOT IN (SELECT d.id FROM service_duties d JOIN suppliers s ON s.id = d.supplier_id WHERE s.status = 'active')" : ''}
          ORDER BY grace_end`,
@@ -173,12 +175,11 @@ registerSuggestionSource({
         sourceKey: `duty:${p.duty_id}:${p.period_key}`,
         sourceKind: 'duty',
         sourceId: p.duty_id,
-        sourceLabel: `${p.duty_name} · ${p.period_key}`,
+        sourceLabel: p.period_key,
         serviceId: p.service_id,
         controlIds: controlsOf('process', p.process_id),
         recordId: null,
-        title: `${p.level === 'mandatory' ? 'Mandatory' : 'Recommended'} duty "${p.duty_name}" ${p.status} in period ${p.period_key}`,
-        details: { kind: p.status === 'failed' ? 'dutyFailed' : 'dutyMissed', duty: p.duty_name, period: p.period_key, level: p.level },
+        details: { kind: p.status === 'failed' ? 'dutyFailed' : 'dutyMissed', period: p.period_key, level: p.level },
         severity: p.level === 'mandatory' ? ('minor' as const) : ('observation' as const),
         occurredAt: p.grace_end,
       }));
@@ -191,11 +192,11 @@ registerSuggestionSource({
   collect: ({ since, on }) => {
     if (!on('incidentMajor') && !on('incidentMinor')) return [];
     const out: SuggestionCandidate[] = [];
-    for (const r of db().all<{ id: string; number: string; title: string; fields: string; accepted_at: string }>(
-      `SELECT r.id, r.number, r.title, r.fields, MIN(e.created_at) AS accepted_at FROM records r
+    for (const r of db().all<{ id: string; fields: string; accepted_at: string }>(
+      `SELECT r.id, r.fields, MIN(e.created_at) AS accepted_at FROM records r
        JOIN record_events e ON e.record_id = r.id AND e.kind = 'transition' AND e.to_status = 'accepted'
        WHERE r.type_id = ? AND e.created_at >= ?
-       GROUP BY r.id, r.number, r.title, r.fields ORDER BY accepted_at`,
+       GROUP BY r.id, r.fields ORDER BY accepted_at`,
       INCIDENT_TYPE_ID,
       since,
     )) {
@@ -213,12 +214,11 @@ registerSuggestionSource({
         sourceKey: `incident:${r.id}`,
         sourceKind: 'record',
         sourceId: r.id,
-        sourceLabel: `${r.number} ${r.title}`,
+        sourceLabel: '',
         serviceId: service?.id ?? null,
         controlIds: [...new Set([...controlsOf('recordType', INCIDENT_TYPE_ID), ...controlsOf('record', r.id)])],
         recordId: r.id,
-        title: `Incident review ${r.number} accepted (${severity || 'no severity'}): ${r.title}`.slice(0, CA_LIMITS.title),
-        details: { kind: 'incident', record: r.number, title: r.title, severity: severity || '–' },
+        details: { kind: 'incident', severity: severity || '–' },
         severity: major ? 'major' : 'minor',
         occurredAt: r.accepted_at,
       });
@@ -234,8 +234,8 @@ registerSuggestionSource({
     if (!on('personReview')) return [];
     const due = new Date(now - CA_LIMITS.personReviewDays * DAY).toISOString();
     const out: SuggestionCandidate[] = [];
-    for (const r of db().all<{ id: string; title: string; person_name: string; sources: string; approved_at: string }>(
-      "SELECT id, title, person_name, sources, approved_at FROM person_reviews WHERE status = 'approved' AND approved_at <= ? AND approved_at >= ? ORDER BY approved_at",
+    for (const r of db().all<{ id: string; sources: string; approved_at: string }>(
+      "SELECT id, sources, approved_at FROM person_reviews WHERE status = 'approved' AND approved_at <= ? AND approved_at >= ? ORDER BY approved_at",
       due,
       new Date(Date.parse(since) - CA_LIMITS.personReviewDays * DAY).toISOString(),
     )) {
@@ -252,12 +252,11 @@ registerSuggestionSource({
         sourceKey: `personReview:${r.id}`,
         sourceKind: 'personReview',
         sourceId: r.id,
-        sourceLabel: r.title,
+        sourceLabel: '',
         serviceId: null,
         controlIds: controlsOf('accessCheck', ...checks),
         recordId: null,
-        title: `Person review "${r.title}": ${left} removal(s) not confirmed gone ${CA_LIMITS.personReviewDays} days after approval`.slice(0, CA_LIMITS.title),
-        details: { kind: 'personReview', review: r.title, person: r.person_name, count: left, days: CA_LIMITS.personReviewDays },
+        details: { kind: 'personReview', count: left, days: CA_LIMITS.personReviewDays },
         severity: 'minor',
         occurredAt: new Date(Date.parse(r.approved_at) + CA_LIMITS.personReviewDays * DAY).toISOString(),
       });
@@ -276,9 +275,9 @@ registerSuggestionSource({
     if (!on('reconciliation')) return [];
     const week = isoWeek(new Date(now));
     return db()
-      .all<{ check_id: string; name: string; n: number; oldest: string }>(
-        `SELECT f.check_id, c.name, COUNT(*) AS n, MIN(f.detected_at) AS oldest FROM access_findings f JOIN access_checks c ON c.id = f.check_id
-         WHERE f.status = 'open' AND f.detected_at <= ? GROUP BY f.check_id, c.name ORDER BY f.check_id`,
+      .all<{ check_id: string; n: number; oldest: string }>(
+        `SELECT f.check_id, COUNT(*) AS n, MIN(f.detected_at) AS oldest FROM access_findings f JOIN access_checks c ON c.id = f.check_id
+         WHERE f.status = 'open' AND f.detected_at <= ? GROUP BY f.check_id ORDER BY f.check_id`,
         new Date(now - CA_LIMITS.reconciliationDays * DAY).toISOString(),
       )
       .map((c) => ({
@@ -286,15 +285,11 @@ registerSuggestionSource({
         sourceKey: `reconciliation:${c.check_id}:${week}`,
         sourceKind: 'accessCheck',
         sourceId: c.check_id,
-        sourceLabel: c.name,
+        sourceLabel: '',
         serviceId: null,
         controlIds: controlsOf('accessCheck', c.check_id),
         recordId: null,
-        title: `Access check "${c.name}": ${Number(c.n)} finding(s) open for more than ${CA_LIMITS.reconciliationDays} days (${week})`.slice(
-          0,
-          CA_LIMITS.title,
-        ),
-        details: { kind: 'reconciliation', check: c.name, count: Number(c.n), days: CA_LIMITS.reconciliationDays, week },
+        details: { kind: 'reconciliation', count: Number(c.n), days: CA_LIMITS.reconciliationDays, week },
         severity: 'minor' as const,
         occurredAt: c.oldest,
       }));
@@ -331,27 +326,26 @@ registerSuggestionSource({
           .filter((id) => !!db().get('SELECT 1 FROM services WHERE id = ? AND archived = 0', id)),
       ),
     ];
-    for (const c of db().all<{ id: string; supplier_id: string; kind: string; name: string; valid_until: string; supplier: string }>(
-      `SELECT c.id, c.supplier_id, c.kind, c.name, c.valid_until, s.name AS supplier FROM supplier_certificates c JOIN suppliers s ON s.id = c.supplier_id
+    for (const c of db().all<{ id: string; supplier_id: string; kind: string; valid_until: string }>(
+      `SELECT c.id, c.supplier_id, c.kind, c.valid_until FROM supplier_certificates c JOIN suppliers s ON s.id = c.supplier_id
        WHERE s.status = 'active' AND c.valid_until IS NOT NULL AND c.valid_until < ? AND c.valid_until >= ? ORDER BY c.valid_until, c.id`,
       today,
       sinceDay,
     )) {
       if (!supplierInUse(c.supplier_id)) continue;
       const services = servicesOf(c.supplier_id);
-      const certificate = c.name ? `${c.kind} ${c.name}` : c.kind;
       out.push({
         source: 'supplierReview',
         sourceKey: `supplierCertificate:${c.id}:${c.valid_until}`,
         sourceKind: 'supplier',
         sourceId: c.supplier_id,
-        sourceLabel: `${c.supplier} · ${certificate}`,
+        // the kind of certificate names nobody; its name is read with the supplier's
+        sourceLabel: c.kind,
         serviceId: services.length === 1 ? services[0]! : null,
         supplierId: c.supplier_id,
         controlIds: supplierControls,
         recordId: null,
-        title: `Certificate ${certificate} of supplier "${c.supplier}" ran out on ${c.valid_until}`.slice(0, CA_LIMITS.title),
-        details: { kind: 'supplierCertificate', supplier: c.supplier, certificate, date: c.valid_until },
+        details: { kind: 'supplierCertificate', certificateId: c.id, certificateKind: c.kind, date: c.valid_until },
         severity: 'minor',
         occurredAt: `${c.valid_until}T23:59:59.000Z`,
       });
@@ -361,14 +355,12 @@ registerSuggestionSource({
       period_key: string;
       status: string;
       level: string;
-      duty_name: string;
       service_id: string;
       process_id: string;
       grace_end: string;
       supplier_id: string;
-      supplier: string;
     }>(
-      `SELECT p.duty_id, p.period_key, p.status, p.level, p.duty_name, p.service_id, p.process_id, p.grace_end, d.supplier_id, s.name AS supplier
+      `SELECT p.duty_id, p.period_key, p.status, p.level, p.service_id, p.process_id, p.grace_end, d.supplier_id
        FROM duty_periods p JOIN service_duties d ON d.id = p.duty_id JOIN suppliers s ON s.id = d.supplier_id
        WHERE p.closed_at IS NOT NULL AND p.status IN ('missed', 'failed') AND p.level IN ('mandatory', 'recommended') AND p.grace_end >= ?
          AND s.status = 'active'
@@ -381,18 +373,12 @@ registerSuggestionSource({
         sourceKey: `duty:${p.duty_id}:${p.period_key}`,
         sourceKind: 'duty',
         sourceId: p.duty_id,
-        sourceLabel: `${p.duty_name} · ${p.period_key}`,
+        sourceLabel: p.period_key,
         serviceId: p.service_id,
         supplierId: p.supplier_id,
         controlIds: [...new Set([...controlsOf('process', p.process_id), ...supplierControls])].slice(0, CA_LIMITS.controls),
         recordId: null,
-        title: `Supplier review "${p.duty_name}" of "${p.supplier}" ${p.status} in period ${p.period_key}`.slice(0, CA_LIMITS.title),
-        details: {
-          kind: p.status === 'failed' ? 'supplierReviewFailed' : 'supplierReviewMissed',
-          duty: p.duty_name,
-          supplier: p.supplier,
-          period: p.period_key,
-        },
+        details: { kind: p.status === 'failed' ? 'supplierReviewFailed' : 'supplierReviewMissed', period: p.period_key, level: p.level },
         severity: p.level === 'mandatory' ? 'minor' : 'observation',
         occurredAt: p.grace_end,
       });
@@ -464,7 +450,7 @@ export function scanSuggestions(now = Date.now(), force = false): { added: numbe
         c.serviceId,
         JSON.stringify(c.controlIds),
         c.recordId,
-        c.title.slice(0, CA_LIMITS.title),
+        suggestionTitle(c.details, '').slice(0, CA_LIMITS.title),
         JSON.stringify(c.supplierId ? { ...c.details, supplierId: c.supplierId } : c.details),
         c.severity,
         c.occurredAt,
@@ -523,12 +509,94 @@ const supplierOfSuggestion = (r: Pick<SuggestionRow, 'details'>): string | null 
   return typeof id === 'string' && id ? id : null;
 };
 
+type Details = Record<string, string | number> & { kind: string };
+
+/**
+ * The English title of a suggestion from its details: with the names when they are there (the reader may see them),
+ * the neutral one otherwise – which is also the stored title. The web app translates the same details.
+ */
+export function suggestionTitle(d: Details, stored: string): string {
+  const level = d.level === 'recommended' ? 'Recommended' : 'Mandatory';
+  const missed = d.kind === 'dutyFailed' || d.kind === 'supplierReviewFailed' ? 'failed' : 'missed';
+  switch (d.kind) {
+    case 'dutyMissed':
+    case 'dutyFailed':
+      return d.duty ? `${level} duty "${d.duty}" ${missed} in period ${d.period}` : `${level} duty ${missed} in period ${d.period}`;
+    case 'incident':
+      return d.record ? `Incident review ${d.record} accepted (${d.severity}): ${d.title}` : `Incident review accepted (${d.severity})`;
+    case 'personReview':
+      return d.review
+        ? `Person review "${d.review}": ${d.count} removal(s) not confirmed gone ${d.days} days after approval`
+        : `Person review: ${d.count} removal(s) not confirmed gone ${d.days} days after approval`;
+    case 'reconciliation':
+      return d.check
+        ? `Access check "${d.check}": ${d.count} finding(s) open for more than ${d.days} days (${d.week})`
+        : `Access check: ${d.count} finding(s) open for more than ${d.days} days (${d.week})`;
+    case 'supplierCertificate':
+      return d.supplier ? `Certificate ${d.certificate} of supplier "${d.supplier}" ran out on ${d.date}` : `A supplier certificate ran out on ${d.date}`;
+    case 'supplierReviewMissed':
+    case 'supplierReviewFailed':
+      return d.duty && d.supplier
+        ? `Supplier review "${d.duty}" of "${d.supplier}" ${missed} in period ${d.period}`
+        : `Supplier review ${missed} in period ${d.period}`;
+    default:
+      return stored;
+  }
+}
+
+/** The kinds of details that name something, and what they name. */
+const NAMED: Record<string, ('source' | 'supplier' | 'certificate')[]> = {
+  dutyMissed: ['source'],
+  dutyFailed: ['source'],
+  incident: ['source'],
+  personReview: ['source'],
+  reconciliation: ['source'],
+  supplierCertificate: ['source', 'certificate'],
+  supplierReviewMissed: ['source', 'supplier'],
+  supplierReviewFailed: ['source', 'supplier'],
+};
+
+/**
+ * The title and details of a suggestion as the reader may see them: the names of what it came from are read now with
+ * the reader's rights; `hidden: 1` when one of them may not be seen – the title is then the neutral one. Ids stay out.
+ */
+function suggestionView(r: SuggestionRow, u: AuthUser, ctx: CaContext): { title: string; details: Details } {
+  const { supplierId, certificateId, certificateKind, ...stored } = parseJson<Record<string, string | number>>(r.details, {});
+  const details: Details = { ...stored, kind: typeof stored.kind === 'string' ? stored.kind : 'other' };
+  const named = NAMED[details.kind];
+  if (!named) return { title: r.title, details };
+  let hidden = false;
+  if (named.includes('source')) {
+    const n = r.source_kind && r.source_id ? sourceName(r.source_kind, r.source_id, u) : null;
+    if (n?.visible) Object.assign(details, n.parts);
+    else hidden = true;
+  }
+  if (named.includes('supplier')) {
+    const name = ctx.supplierName(typeof supplierId === 'string' ? supplierId : null);
+    if (name) details.supplier = name;
+    else hidden = true;
+  }
+  if (named.includes('certificate') && !hidden) {
+    const c =
+      typeof certificateId === 'string'
+        ? db().get<{ kind: string; name: string }>('SELECT kind, name FROM supplier_certificates WHERE id = ?', certificateId)
+        : undefined;
+    const kind = c?.kind ?? (typeof certificateKind === 'string' ? certificateKind : '');
+    details.certificate = c?.name ? `${kind} ${c.name}` : kind;
+  }
+  if (hidden) {
+    for (const k of ['duty', 'record', 'title', 'review', 'person', 'check', 'supplier', 'certificate']) delete details[k];
+    details.hidden = 1;
+  }
+  return { title: suggestionTitle(details, r.title).slice(0, CA_LIMITS.title), details };
+}
+
 function toSuggestion(r: SuggestionRow, u: AuthUser, ctx: CaContext): CaSuggestion {
   const svc = ctx.service(r.service_id);
   const finding = r.finding_id ? db().get<{ number: string }>('SELECT number FROM ca_findings WHERE id = ?', r.finding_id) : undefined;
   const supplierId = supplierOfSuggestion(r);
   const supplierName = ctx.supplierName(supplierId);
-  const { supplierId: _s, ...details } = parseJson<Record<string, string | number>>(r.details, {});
+  const view = suggestionView(r, u, ctx);
   return {
     id: r.id,
     source: r.source,
@@ -539,8 +607,8 @@ function toSuggestion(r: SuggestionRow, u: AuthUser, ctx: CaContext): CaSuggesti
     supplierId: supplierName === null ? null : supplierId,
     supplierName,
     controls: ctx.controlRefs(parseJson<string[]>(r.control_ids, [])),
-    title: r.title,
-    details: { kind: 'other', ...details },
+    title: view.title,
+    details: view.details,
     severity: r.severity,
     recordId: r.record_id,
     occurredAt: r.occurred_at,

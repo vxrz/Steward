@@ -85,8 +85,8 @@ export async function setupCorrectiveDemo(services: { shop: string; care: string
     }
 
     // a missed period of a mandatory duty, waiting for a person to confirm or dismiss it
-    const duty = db().get<{ id: string; name: string; service_id: string; process_id: string }>(
-      "SELECT id, name, service_id, process_id FROM service_duties WHERE service_id = ? AND level = 'mandatory' ORDER BY created_at LIMIT 1",
+    const duty = db().get<{ id: string; service_id: string; process_id: string }>(
+      "SELECT id, service_id, process_id FROM service_duties WHERE service_id = ? AND level = 'mandatory' ORDER BY created_at LIMIT 1",
       services.shop,
     );
     if (duty) {
@@ -98,11 +98,12 @@ export async function setupCorrectiveDemo(services: { shop: string; care: string
         newId('cas_'),
         `demo:duty:${duty.id}:${period}`,
         duty.id,
-        `${duty.name} · ${period}`,
+        period,
         duty.service_id,
         JSON.stringify(ids('5.18')),
-        `Mandatory duty "${duty.name}" missed in period ${period}`,
-        JSON.stringify({ kind: 'dutyMissed', duty: duty.name, period, level: 'mandatory' }),
+        // ids and figures only: the duty's name is read with the reader's rights (corrective-sources.ts)
+        `Mandatory duty missed in period ${period}`,
+        JSON.stringify({ kind: 'dutyMissed', period, level: 'mandatory' }),
         new Date(now - 30 * DAY).toISOString(),
         nowIso(),
       );
