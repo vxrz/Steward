@@ -519,6 +519,28 @@ export function verifySeal(id: string): { ok: boolean; hash: string | null; comp
 }
 
 /**
+ * The person reviews approved in a period that the reader may see, with the rights they decided to remove – for
+ * summaries (the ISMS summary of scheduled reports, ADR 0029 part 4).
+ */
+export function reviewsApprovedIn(from: string, to: string, u: AuthUser): { approved: number; removals: number; gone: number } {
+  let approved = 0;
+  let removals = 0;
+  let gone = 0;
+  for (const r of db().all<ReviewRow>(
+    "SELECT * FROM person_reviews WHERE status IN ('approved', 'closed') AND approved_at >= ? AND approved_at <= ? ORDER BY approved_at",
+    from,
+    to,
+  )) {
+    if (!mayRead(u, r)) continue;
+    const c = countsOf(itemsOf(r.id));
+    approved++;
+    removals += c.remove;
+    gone += c.gone;
+  }
+  return { approved, removals, gone };
+}
+
+/**
  * Evidence of an access check (controls, evidence packs): the approved or closed person reviews that read it, approved
  * in the period, that the reader may see.
  */

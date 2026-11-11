@@ -653,6 +653,35 @@ const EXPECT: Record<string, Access> = {
   'GET /api/compliance/evidence-packs/:packId': ADMIN_AUDITOR,
   'DELETE /api/compliance/evidence-packs/:packId': ADMIN,
   'GET /api/compliance/evidence-packs/:packId/download': ADMIN_AUDITOR,
+  // corrective actions (ADR 0029): read by the roles of the register and the service's editors; changed in the app only
+  'GET /api/compliance/corrective-actions': ALL, // each sees the findings they may read
+  'POST /api/compliance/corrective-actions': DESIGN,
+  'GET /api/compliance/corrective-actions/:findingId': ['admin', 'designer', 'approver', 'auditor'],
+  'PUT /api/compliance/corrective-actions/:findingId': DESIGN,
+  'POST /api/compliance/corrective-actions/:findingId/actions': DESIGN,
+  'PUT /api/compliance/corrective-actions/:findingId/actions/:actionId': DESIGN,
+  'DELETE /api/compliance/corrective-actions/:findingId/actions/:actionId': DESIGN,
+  'POST /api/compliance/corrective-actions/:findingId/effectiveness': ['admin', 'designer', 'approver'],
+  'POST /api/compliance/corrective-actions/:findingId/cancel': ADMIN,
+  'GET /api/compliance/corrective-suggestions': ALL,
+  'POST /api/compliance/corrective-suggestions/:suggestionId/confirm': DESIGN,
+  'POST /api/compliance/corrective-suggestions/:suggestionId/dismiss': DESIGN,
+  'GET /api/compliance/corrective-settings': ALL,
+  'PUT /api/compliance/corrective-settings': ADMIN,
+  // statement of applicability (ADR 0029 part 2): everyone reads it; designers and administrators change it (a row's
+  // owner its status and review), approvers and administrators decide versions, who exports evidence exports it
+  'GET /api/compliance/soa': ALL,
+  'POST /api/compliance/soa': DESIGN,
+  'GET /api/compliance/soa/:catalogueId': ALL,
+  'PUT /api/compliance/soa/:catalogueId/settings': DESIGN,
+  'PUT /api/compliance/soa/:catalogueId/entries/:controlId': DESIGN,
+  'POST /api/compliance/soa/:catalogueId/versions': DESIGN,
+  'GET /api/compliance/soa/:catalogueId/versions/:n': ALL,
+  'POST /api/compliance/soa/:catalogueId/versions/:n/decision': ['admin', 'approver'],
+  'GET /api/compliance/soa/:catalogueId/versions/:n/export': NOT_VIEWER,
+  // the responsibility matrix of a service: whoever may edit the service changes it
+  'GET /api/services/:id/responsibilities': ALL,
+  'PUT /api/services/:id/responsibilities': DESIGN,
 
   'POST /api/record-types': ADMIN,
   'PUT /api/record-types/:id': ADMIN,
@@ -713,6 +742,25 @@ const EXPECT: Record<string, Access> = {
   'POST /api/applications/:id/components/:componentId/aws': DESIGN,
   'POST /api/applications/:id/components/:componentId/snowflake': DESIGN,
   'POST /api/applications/:id/components/:componentId/dependency-track': DESIGN,
+  // suppliers (0.17.0, ADR 0029): like systems; the "To confirm" decisions need a session
+  'GET /api/suppliers': ALL,
+  'POST /api/suppliers': DESIGN,
+  'GET /api/suppliers/options': ALL,
+  'GET /api/suppliers/:id': ALL,
+  'PUT /api/suppliers/:id': DESIGN,
+  'POST /api/suppliers/:id/archive': DESIGN,
+  'POST /api/suppliers/:id/confirm': DESIGN,
+  'POST /api/suppliers/:id/merge': DESIGN,
+  'POST /api/suppliers/:id/not-a-supplier': DESIGN,
+  'POST /api/suppliers/:id/contacts': DESIGN,
+  'PUT /api/suppliers/:id/contacts/:contactId': DESIGN,
+  'DELETE /api/suppliers/:id/contacts/:contactId': DESIGN,
+  'POST /api/suppliers/:id/contracts': DESIGN,
+  'PUT /api/suppliers/:id/contracts/:contractId': DESIGN,
+  'DELETE /api/suppliers/:id/contracts/:contractId': DESIGN,
+  'POST /api/suppliers/:id/certificates': DESIGN,
+  'PUT /api/suppliers/:id/certificates/:certificateId': DESIGN,
+  'DELETE /api/suppliers/:id/certificates/:certificateId': DESIGN,
   'GET /api/systems': ALL,
   'POST /api/systems': DESIGN,
   'GET /api/systems/:id': ALL,
@@ -869,6 +917,8 @@ const EXPECT: Record<string, Access> = {
   'GET /api/v1/services/:serviceId/documents': ALL,
   'GET /api/v1/applications': ALL,
   'GET /api/v1/applications/:applicationId': ALL,
+  'GET /api/v1/suppliers': ALL,
+  'GET /api/v1/suppliers/:supplierId': ALL,
   'GET /api/v1/systems': ALL,
   'GET /api/v1/systems/:systemId': ALL,
   // the plant registry (#218): who may see the site (every role that works in Steward, without an access list)
@@ -928,6 +978,11 @@ const EXPECT: Record<string, Access> = {
   'GET /api/v1/control-catalogues': ALL,
   'GET /api/v1/controls': ALL,
   'GET /api/v1/control-coverage': ALL,
+  'GET /api/v1/corrective-actions': ALL,
+  'GET /api/v1/corrective-actions/:findingId': ['admin', 'designer', 'approver', 'auditor'],
+  'GET /api/v1/statements-of-applicability': ALL,
+  'GET /api/v1/statements-of-applicability/:catalogueKey': ALL,
+  'GET /api/v1/services/:serviceId/responsibilities': ALL,
   'GET /api/v1/credentials': ALL,
   'GET /api/v1/credentials/:credentialId': NOT_VIEWER,
 
@@ -1256,6 +1311,22 @@ const EXPECT: Record<string, Access> = {
 
 /** Routes that only work with an interactive session: an API token must not manage identities, the vault or sign-in. */
 const SESSION_ONLY = [
+  // suppliers (ADR 0029 decision 9): every change is a decision of a person in the app
+  'POST /api/suppliers',
+  'PUT /api/suppliers/:id',
+  'POST /api/suppliers/:id/archive',
+  'POST /api/suppliers/:id/confirm',
+  'POST /api/suppliers/:id/merge',
+  'POST /api/suppliers/:id/not-a-supplier',
+  'POST /api/suppliers/:id/contacts',
+  'PUT /api/suppliers/:id/contacts/:contactId',
+  'DELETE /api/suppliers/:id/contacts/:contactId',
+  'POST /api/suppliers/:id/contracts',
+  'PUT /api/suppliers/:id/contracts/:contractId',
+  'DELETE /api/suppliers/:id/contracts/:contractId',
+  'POST /api/suppliers/:id/certificates',
+  'PUT /api/suppliers/:id/certificates/:certificateId',
+  'DELETE /api/suppliers/:id/certificates/:certificateId',
   'PUT /api/settings/modules/:id',
   'GET /api/settings/plant/map',
   'PUT /api/settings/plant/map',
@@ -1327,6 +1398,24 @@ const SESSION_ONLY = [
   'POST /api/library-releases/:id/withdraw',
   'DELETE /api/library-releases/:id',
   'POST /api/library-releases/upload',
+  // corrective actions (ADR 0029 decision 9): decisions of people in the app
+  'POST /api/compliance/corrective-actions',
+  'PUT /api/compliance/corrective-actions/:findingId',
+  'POST /api/compliance/corrective-actions/:findingId/actions',
+  'PUT /api/compliance/corrective-actions/:findingId/actions/:actionId',
+  'DELETE /api/compliance/corrective-actions/:findingId/actions/:actionId',
+  'POST /api/compliance/corrective-actions/:findingId/effectiveness',
+  'POST /api/compliance/corrective-actions/:findingId/cancel',
+  'POST /api/compliance/corrective-suggestions/:suggestionId/confirm',
+  'POST /api/compliance/corrective-suggestions/:suggestionId/dismiss',
+  'PUT /api/compliance/corrective-settings',
+  // statement of applicability and responsibility matrix (ADR 0029 decision 9): decisions of people in the app
+  'POST /api/compliance/soa',
+  'PUT /api/compliance/soa/:catalogueId/settings',
+  'PUT /api/compliance/soa/:catalogueId/entries/:controlId',
+  'POST /api/compliance/soa/:catalogueId/versions',
+  'POST /api/compliance/soa/:catalogueId/versions/:n/decision',
+  'PUT /api/services/:id/responsibilities',
   'POST /api/library-publishers',
   'PUT /api/library-publishers/:id',
   'DELETE /api/library-publishers/:id',
@@ -1351,7 +1440,8 @@ const SESSION_ONLY = [
  * routes where only some changes are sensitive – with a body that makes the request a sensitive one (`sensitive`) and
  * one that does not (`harmless`, never STEP_UP_REQUIRED). A route that loses its step-up fails this test.
  */
-const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown }> = {
+/** `query`: what is appended to the URL of the sensitive and the harmless request (a GET route whose query decides) */
+const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown; query?: { sensitive: string; harmless: string } }> = {
   // copying the access settings of an original shares the copy with its access list and owning teams (0.4.0);
   // harmless: no access settings, refused for the key (nothing is created)
   ...Object.fromEntries(
@@ -1429,6 +1519,13 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
     harmless: { acl: 'not a list' },
   },
   'POST /api/compliance/evidence-packs': 'always',
+  // approving or returning a version of the statement of applicability (soa.approve, ADR 0029)
+  'POST /api/compliance/soa/:catalogueId/versions/:n/decision': 'always',
+  // switching the second person of a statement of applicability off (soa.approve, security review 0.17.0)
+  'PUT /api/compliance/soa/:catalogueId/settings': { sensitive: { fourEyes: false }, harmless: { scopeName: 'Matrix' } },
+  'POST /api/compliance/soa': { sensitive: { catalogueId: 'none', fourEyes: false }, harmless: { catalogueId: 'none' } },
+  // the signed export of a statement of applicability (the evidence-pack key, like creating a pack); PDF and CSV are not
+  'GET /api/compliance/soa/:catalogueId/versions/:n/export': { sensitive: {}, harmless: {}, query: { sensitive: '?format=zip', harmless: '?format=csv' } },
   'GET /api/audit/export': 'always',
   'PUT /api/assurance/policy': 'always',
   'POST /api/assurance/policy/changes/:changeId/approve': 'always',
@@ -1593,6 +1690,8 @@ const NO_POSITIVE = new Set([
   'GET /api/teams/:id/settings/logo', // the matrix team has no logo of its own
   // no S3 storage set up in the fixtures
   'GET /api/backups/stored',
+  // the SoA version of the fixtures was never approved through the app: no archived PDF (404)
+  'GET /api/compliance/soa/:catalogueId/versions/:n/export',
   // no scheduled export in the fixtures
   'GET /api/exports/:id',
   'GET /api/exports/:id/runs',
@@ -1702,7 +1801,14 @@ function fill(url: string): string {
       .replace(/:requestId/g, 'mrq_none')
       .replace(/:pageId/g, fx.statusPage!)
       .replace(/:snapshotId/g, fx.snapshot!)
+      // corrective actions (ADR 0029): a finding with one action, a pending suggestion
+      .replace(/corrective-actions\/:findingId/g, `corrective-actions/${fx.correctiveFinding}`)
+      .replace(/:actionId/g, fx.correctiveAction!)
+      .replace(/:suggestionId/g, fx.correctiveSuggestion!)
       .replace(/:findingId/g, fx.finding!)
+      // the statement of applicability of the fixtures' catalogue and its one version
+      .replace(/versions\/:n(?=\/|$)/, 'versions/1')
+      .replace(/:catalogueKey/g, 'ISO27001')
       .replace(/:catalogueId/g, fx.catalogue!)
       .replace(/:controlId/g, fx.control!)
       .replace(/:packId/g, fx.pack!)
@@ -1741,6 +1847,10 @@ function fill(url: string): string {
       )
       .replace(/:library/g, fx.library!)
       .replace(/:measureId/g, fx.measure!)
+      .replace(/:supplierId/g, fx.supplier!)
+      .replace(/:contactId/g, fx.supplierContact!)
+      .replace(/:contractId/g, fx.supplierContract!)
+      .replace(/:certificateId/g, fx.supplierCertificate!)
       .replace(/^\/api\/records\/:id\/(measures|timeline)/, (_m, rest: string) => `/api/records/${fx.review}/${rest}`)
       .replace(/:id/g, () => {
         const prefix = url.split('/')[2]!;
@@ -1763,6 +1873,7 @@ function fill(url: string): string {
           services: 'service',
           applications: 'application',
           systems: 'system',
+          suppliers: 'supplier',
           'maintenance-windows': 'catalogueMaintenance',
           duties: 'duty',
           objectives: 'objective',
@@ -1875,6 +1986,16 @@ const bodies = (): Record<string, unknown> => ({
   'POST /api/applications/:id/components/:componentId/sbom/preview': { sbom: { bomFormat: 'CycloneDX', components: [] } },
   'POST /api/applications/:id/components/:componentId/sbom': { sbom: { bomFormat: 'CycloneDX', components: [] } },
   'POST /api/systems': { name: 'Matrix system x', kind: 'server' },
+  'POST /api/suppliers': { name: 'Matrix supplier x', type: 'saas' },
+  'PUT /api/suppliers/:id': { name: 'Matrix supplier', type: 'saas' },
+  'POST /api/suppliers/:id/archive': { archived: true },
+  'POST /api/suppliers/:id/merge': { into: fx.supplierUnconfirmed },
+  'POST /api/suppliers/:id/contacts': { name: 'Matrix contact' },
+  'PUT /api/suppliers/:id/contacts/:contactId': { name: 'Matrix contact', role: 'support' },
+  'POST /api/suppliers/:id/contracts': { title: 'Matrix contract' },
+  'PUT /api/suppliers/:id/contracts/:contractId': { title: 'Matrix contract', noticeDays: 30 },
+  'POST /api/suppliers/:id/certificates': { kind: 'iso27001' },
+  'PUT /api/suppliers/:id/certificates/:certificateId': { kind: 'iso27001', validUntil: '2030-01-01' },
   'PUT /api/settings/plant': { enabled: true, enterprise: '', labels: {}, fields: {} },
   'PUT /api/settings/modules/:id': { enabled: true },
   'PUT /api/settings/plant/map': { source: 'osm' },
@@ -2215,6 +2336,11 @@ beforeAll(async () => {
   QUERY['GET /api/catalogue/versions/entry'] = `?holder=component&id=${component.id}&product=nodejs`;
   await a('PUT', `/services/${svc.id}/applications/${application.id}`, { role: 'primary' });
   const system = await a('POST', '/systems', { name: 'Matrix system', kind: 'server' });
+  // a supplier with a contact, a contract and a certificate, and one waiting for confirmation (0.17.0)
+  const supplier = await a('POST', '/suppliers', { name: 'Matrix supplier', type: 'saas' });
+  const supplierContact = (await a('POST', `/suppliers/${supplier.id}/contacts`, { name: 'Matrix contact' })).contacts[0].id;
+  const supplierContract = (await a('POST', `/suppliers/${supplier.id}/contracts`, { title: 'Matrix contract' })).contracts[0].id;
+  const supplierCertificate = (await a('POST', `/suppliers/${supplier.id}/certificates`, { kind: 'iso27001' })).certificates[0].id;
   const systemLink = (await a('POST', `/applications/${application.id}/systems`, { systemId: system.id, environment: 'dev' })).systems[0];
   const catalogueMaintenance = await a('POST', '/maintenance-windows', {
     title: 'Matrix maintenance',
@@ -2280,6 +2406,11 @@ beforeAll(async () => {
     component: component.id,
     system: system.id,
     systemLink: systemLink.id,
+    supplier: supplier.id,
+    supplierContact,
+    supplierContract,
+    supplierCertificate,
+    supplierUnconfirmed: supplier.id,
     catalogueMaintenance: catalogueMaintenance.id,
     reportSchedule: (await a('POST', '/report-schedules', REPORT_SCHEDULE)).id,
     report: report.id,
@@ -2404,6 +2535,37 @@ beforeAll(async () => {
     ).id,
     statusPage: (await a('POST', '/status-pages', { title: 'Matrix status', serviceIds: [svc.id] })).id,
   });
+  // corrective actions (ADR 0029): a finding of the matrix service with an action of the administrator, a suggestion
+  const caFinding = await a('POST', '/compliance/corrective-actions', { title: 'Matrix finding', source: 'internalAudit', serviceId: svc.id });
+  const caWithAction = await a('POST', `/compliance/corrective-actions/${caFinding.id}/actions`, {
+    title: 'Matrix action',
+    owners: ['user:admin'],
+    dueDate: '2030-01-01',
+  });
+  {
+    const { db } = await import('../src/db.js');
+    db().run(
+      `INSERT INTO ca_suggestions (id, source, source_key, title, severity, occurred_at, status, created_at)
+       VALUES ('cas_matrix', 'duty', 'matrix:duty', 'Matrix suggestion', 'minor', ?, 'pending', ?)`,
+      new Date().toISOString(),
+      new Date().toISOString(),
+    );
+  }
+  Object.assign(fx, { correctiveFinding: caFinding.id, correctiveAction: caWithAction.actions[0].id, correctiveSuggestion: 'cas_matrix' });
+  // statement of applicability (ADR 0029 part 2): the SoA of the control's catalogue with one approved version
+  {
+    const soa = await a('POST', '/compliance/soa', { catalogueId: fx.catalogue, scopeServiceIds: [svc.id] });
+    const { db } = await import('../src/db.js');
+    db().run(
+      `INSERT INTO soa_versions (id, soa_id, number, status, content, content_sha256, submitted_at, submitted_by, decided_at, decided_by)
+       VALUES ('soav_matrix', ?, 1, 'approved', '{"entries":[]}', ?, ?, 'admin', ?, 'adam')`,
+      soa.id,
+      // the SHA-256 of the content: it is checked before an export (security review 0.17.0)
+      (await import('../src/util.js')).sha256('{"entries":[]}'),
+      new Date().toISOString(),
+      new Date().toISOString(),
+    );
+  }
   for (const role of ROLES) cookies[role] = await loginCookie(s.base, USERS[role], role === 'admin' ? 'Admin-password-1' : PW);
   for (const role of ROLES) {
     const res = await fetch(`${s.base}/api/me/tokens`, {
@@ -2533,10 +2695,10 @@ describe('route permission matrix', () => {
     const cookie = await loginCookie(s.base, 'admin', 'Admin-password-1');
     const ended = await fetch(`${s.base}/api/auth/step-up`, { method: 'DELETE', headers: { 'x-sm-client': '1', ...authHeaders(cookie) } });
     expect(ended.status).toBe(200);
-    const send = async (headers: Record<string, string>, k: string, body: unknown) => {
+    const send = async (headers: Record<string, string>, k: string, body: unknown, query = '') => {
       const [method, url] = k.split(' ') as [string, string];
       const send = method !== 'DELETE' && method !== 'GET';
-      const res = await fetch(s.base + fill(url), {
+      const res = await fetch(s.base + fill(url) + query, {
         method,
         headers: { 'x-sm-client': '1', ...headers, ...(send ? { 'content-type': 'application/json' } : {}) },
         body: send ? JSON.stringify(body ?? {}) : undefined,
@@ -2547,12 +2709,13 @@ describe('route permission matrix', () => {
     const problems: string[] = [];
     for (const [k, rule] of Object.entries(STEP_UP)) {
       const body = rule === 'always' ? (bodies()[k] ?? {}) : rule.sensitive;
-      const asSession = await send(authHeaders(cookie), k, body);
+      const query = rule === 'always' ? '' : (rule.query?.sensitive ?? '');
+      const asSession = await send(authHeaders(cookie), k, body, query);
       if (asSession.status !== 403 || asSession.code !== 'STEP_UP_REQUIRED') problems.push(`${k} unconfirmed session: ${asSession.status} ${asSession.code}`);
-      const asToken = await send({ authorization: `Bearer ${fullAdminToken}` }, k, body);
+      const asToken = await send({ authorization: `Bearer ${fullAdminToken}` }, k, body, query);
       if (asToken.status !== 403) problems.push(`${k} full API token: ${asToken.status} ${asToken.code}`);
       if (rule !== 'always') {
-        const harmless = await send(authHeaders(cookie), k, rule.harmless);
+        const harmless = await send(authHeaders(cookie), k, rule.harmless, rule.query?.harmless ?? '');
         if (harmless.code === 'STEP_UP_REQUIRED') problems.push(`${k} harmless change: asks for a step-up`);
       }
     }

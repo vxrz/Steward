@@ -67,6 +67,7 @@ const EVENT_COLORS: Record<string, string> = {
   'monitor.state': 'gray',
   'plant.change_proposed': 'violet',
   'plant.change_decided': 'blue',
+  'soa.approval_waiting': 'violet',
 };
 
 /** Bell with unread badge; opens a drawer with the latest notifications. */

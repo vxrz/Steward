@@ -447,6 +447,10 @@ export function DataPointFormModal({
   const [description, setDescription] = useState(point?.description ?? '');
   const [notes, setNotes] = useState(point?.notes ?? '');
   const [pubs, setPubs] = useState(point?.publications ?? []);
+  // 0.17.0: where it is described (a manual and the page); an assistant's proposal fills it in
+  const [srcDocument, setSrcDocument] = useState(point?.source?.document ?? '');
+  const [srcPage, setSrcPage] = useState(point?.source?.page ?? '');
+  const [srcSection, setSrcSection] = useState(point?.source?.section ?? '');
   const addressError = addressProblem(protocol, address.trim());
   const v = useFieldErrors({
     name: !name.trim() && t('common:validation.required'),
@@ -474,6 +478,8 @@ export function DataPointFormModal({
             aliases,
             notes,
             publications: pubs.map((x) => ({ target: x.target.trim(), path: x.path.trim(), name: x.name.trim() })).filter((x) => x.target || x.path || x.name),
+            // no document: no source (null says so where the data point had one)
+            source: srcDocument.trim() ? { document: srcDocument.trim(), page: srcPage.trim(), section: srcSection.trim() } : point?.source ? null : undefined,
           },
           groupName.trim(),
         );
@@ -571,6 +577,17 @@ export function DataPointFormModal({
         onChange={(e) => setDescription(e.currentTarget.value)}
       />
       <Textarea label={t('data.notes')} autosize minRows={1} maxRows={5} maxLength={8000} value={notes} onChange={(e) => setNotes(e.currentTarget.value)} />
+      <SimpleGrid cols={{ base: 1, sm: 3 }} data-testid="point-source-fields">
+        <TextInput
+          label={t('data.sourceDocument')}
+          placeholder={t('data.sourceDocumentHint')}
+          maxLength={200}
+          value={srcDocument}
+          onChange={(e) => setSrcDocument(e.currentTarget.value)}
+        />
+        <TextInput label={t('data.sourcePage')} maxLength={40} value={srcPage} onChange={(e) => setSrcPage(e.currentTarget.value)} />
+        <TextInput label={t('data.sourceSection')} maxLength={200} value={srcSection} onChange={(e) => setSrcSection(e.currentTarget.value)} />
+      </SimpleGrid>
       <RowsEditor
         title={t('data.defaultPublications')}
         help={t('data.defaultPublicationsHelp')}

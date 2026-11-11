@@ -74,6 +74,8 @@ const TEXTS = {
       report: 'Scheduled report',
       monitor: 'Monitor',
       privilegedUse: 'Privileged use (vault audit)',
+      correctiveAction: 'Corrective action',
+      soa: 'Statement of applicability',
     },
   },
   de: {
@@ -143,6 +145,8 @@ const TEXTS = {
       report: 'Geplanter Bericht',
       monitor: 'Monitor',
       privilegedUse: 'Privilegierte Nutzung (Tresor-Audit)',
+      correctiveAction: 'Korrekturmaßnahme',
+      soa: 'Erklärung zur Anwendbarkeit',
     },
   },
 };

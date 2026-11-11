@@ -46,7 +46,8 @@
       "ticket": "Diese Ticket-Referenz gehört der ganzen Instanz: alle Angemeldeten sehen sie; Designer, Operatoren und ihre Verantwortlichen ändern sie.",
       "site": "Dieser Standort gehört der ganzen Instanz: Rollen und die Zugriffsliste bestimmen, wer ihn, seine Hierarchie und seine Anlagen sehen und verwalten darf.",
       "contract": "Dieser Datenvertrag gehört der ganzen Instanz: Alle, die in Steward arbeiten, sehen ihn; Operatoren testen ihn, Designer ändern ihn.",
-      "platform_identity": "Kein zuständiges Team: Nur Administratoren und die Zugriffsliste unten dürfen diese Identität verwenden."
+      "platform_identity": "Kein zuständiges Team: Nur Administratoren und die Zugriffsliste unten dürfen diese Identität verwenden.",
+      "supplier": "Dieser Lieferant gehört der ganzen Instanz: alle Angemeldeten sehen ihn; Designer, Administratoren und seine Eigentümer ändern ihn."
     },
     "hintOwned": {
       "process": "Mitglieder dieser Teams haben auf diesem Prozess ihre Rollen im Team. Alle anderen sehen ihn nur über die Zugriffsliste unten; Administratoren immer, Auditoren dürfen ihn ansehen.",
@@ -61,7 +62,8 @@
       "ticket": "Nur Mitglieder dieser Teams sehen diese Ticket-Referenz (Designer und Operatoren unter ihnen ändern sie), außerdem ihre Verantwortlichen, Administratoren und Auditoren.",
       "site": "Nur Mitglieder dieser Teams sehen diesen Standort mit Hierarchie und Anlagen (Designer unter ihnen verwalten ihn), außerdem die Einträge seiner Zugriffsliste, Administratoren und Auditoren.",
       "contract": "Nur Mitglieder dieser Teams sehen diesen Datenvertrag (Operatoren unter ihnen testen ihn, Designer ändern ihn), außerdem Administratoren und Prüfer. Ein fehlgeschlagener Test benachrichtigt sie.",
-      "platform_identity": "Mitglieder dieser Teams mit der Rolle Designer oder Operator dürfen diese Identität verwenden; alle anderen nur, was ihre Zugriffsliste erlaubt."
+      "platform_identity": "Mitglieder dieser Teams mit der Rolle Designer oder Operator dürfen diese Identität verwenden; alle anderen nur, was ihre Zugriffsliste erlaubt.",
+      "supplier": "Nur Mitglieder dieser Teams sehen diesen Lieferanten (Designer unter ihnen ändern ihn), außerdem seine Eigentümer, Administratoren und Auditoren."
     },
     "saved": "Zuständige Teams gespeichert",
     "notSaved": "Zuständige Teams nicht gespeichert",
@@ -112,7 +114,8 @@
         "ticket": "Ticket-Referenz",
         "site": "Standort",
         "contract": "Datenvertrag",
-        "platform_identity": "Plattform-Identitäten"
+        "platform_identity": "Plattform-Identitäten",
+        "supplier": "Lieferant"
       }
     }
   },

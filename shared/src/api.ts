@@ -391,6 +391,8 @@ export const OWNED_KINDS = [
   'contract',
   /** An identity of a platform (0.13.0, ADR 0009 step 2): its members may use it */
   'platform_identity',
+  /** A supplier (0.17.0, ADR 0029): like systems */
+  'supplier',
 ] as const;
 export type OwnedKind = (typeof OWNED_KINDS)[number];
 
@@ -540,6 +542,10 @@ export const STEP_UP_ACTIONS = [
   'usePrivilegedIdentity',
   // 0.16.0 (ADR 0027): defining, changing or removing a scheduled export – it sends data out of Steward
   'changeExports',
+  // 0.17.0 (ADR 0029): approving or returning a version of the statement of applicability, and switching its second
+  // approver off (control point soa.approve)
+  'approveSoa',
+  'changeSoaApproval',
 ] as const;
 export type StepUpAction = (typeof STEP_UP_ACTIONS)[number];
 
@@ -2070,6 +2076,24 @@ export interface McpPlantPreview {
 }
 
 /**
+ * 0.17.0: the data points a plant proposal adds or changes with a source, grouped by entry and document (docs/PLANT.md
+ * "Sources of data points"): the reviewer sees where each comes from, and whether the document is kept in Steward.
+ */
+export interface McpPlantSourceGroup {
+  /** A device profile's data points, or an asset's own (its assignment's additions) */
+  kind: 'profile' | 'asset';
+  entry: string;
+  entryName: string;
+  /** The entry is in Steward now (a new one gets its documents once the proposal is applied) */
+  exists: boolean;
+  /** The document as the source names it: a title, or the number of a record */
+  document: string;
+  /** The record that is this document, linked to the entry (or inherited from its bases) and readable by the reader */
+  record: { id: string; number: string; title: string } | null;
+  points: { interface: string; group: string; id: string; name: string; action: 'add' | 'change'; page: string; section: string }[];
+}
+
+/**
  * Changes to the plant registry proposed by an AI assistant (0.12.0, docs/PLANT.md "Proposals from assistants"): a
  * document of the plant import format, previewed without writing. The reviewer sees the preview of when it was proposed
  * and the preview of now, as themselves; entries of sites the reviewer may not see are left out of both.
@@ -2092,6 +2116,14 @@ export interface McpPlantProposal {
   importId: string | null;
   /** 0.13.0: the change set it is (Plant → Changes shows it too) */
   changeSetId?: string | null;
+  /** 0.17.0: the parts it came in (1: one document); while incomplete, the parts received so far */
+  parts?: number;
+  /** 0.17.0: its last part never came – still being sent (`incomplete`), or withdrawn or expired before */
+  unfinished?: boolean;
+  /** 0.17.0: the data points it adds or changes with a source, by entry and document */
+  sources?: McpPlantSourceGroup[];
+  /** 0.17.0: data points with a source beyond the ones listed */
+  sourcesMore?: number;
 }
 
 /**

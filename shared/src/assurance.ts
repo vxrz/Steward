@@ -21,7 +21,7 @@ export type FourEyesLevel = (typeof FOUR_EYES_LEVELS)[number];
 export const FOUR_EYES_RANK: Record<FourEyesLevel, number> = { off: 0, optional: 1, required: 2 };
 
 /** Where the overrides of single items live (listed on the policy page with a link). */
-export const ASSURANCE_OVERRIDE_KINDS = ['recordType', 'processStep', 'manualStep', 'platformMcp', 'personReview', 'setting', 'process'] as const;
+export const ASSURANCE_OVERRIDE_KINDS = ['recordType', 'processStep', 'manualStep', 'platformMcp', 'personReview', 'setting', 'process', 'soa'] as const;
 export type AssuranceOverrideKind = (typeof ASSURANCE_OVERRIDE_KINDS)[number];
 
 export interface ControlPoint {
@@ -123,6 +123,31 @@ export const CONTROL_POINTS: readonly ControlPoint[] = [
   sp('evidencePack.export', 'audit', ['exportEvidencePack']),
   sp('credentials.export', 'audit', ['exportCredentials']),
   sp('personalData.export', 'audit', ['exportPersonalData']),
+  {
+    // corrective actions (0.17.0, ADR 0029): who confirms that a fix worked is a second person – not the finding's owner,
+    // an action's owner or who marked an action done. Required by default; an administrator may set it off
+    key: 'correctiveAction.verify',
+    group: 'audit',
+    actions: [],
+    supports: { fourEyes: true, stepUp: false },
+    baseline: {},
+    defaults: { fourEyes: 'required', stepUp: false },
+    fourEyesLevels: ONOFF,
+  },
+  {
+    // the statement of applicability (0.17.0, ADR 0029): approving or returning a version – approvers and administrators,
+    // after a fresh confirmation. Four-eyes optional: each SoA's switch "A second person approves" (on by default); the
+    // policy may require it for every SoA (the submitter then never approves). Switching an SoA's second approver off is
+    // protected like approving (administrators, with the same confirmation): changeSoaApproval
+    key: 'soa.approve',
+    group: 'audit',
+    actions: ['approveSoa', 'changeSoaApproval'],
+    supports: { fourEyes: true, stepUp: true },
+    baseline: {},
+    defaults: { fourEyes: 'optional', stepUp: true },
+    fourEyesLevels: BOTH,
+    overrides: 'soa',
+  },
   // ---- changes and records ----
   {
     key: 'record.approve',

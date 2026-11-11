@@ -21,6 +21,7 @@ import {
   PLANT_LANG_RE,
   PLANT_LIMITS,
   PLANT_PROTOCOLS,
+  PLANT_POINT_SOURCE_LIMITS,
   protocolOf,
   WORK_CENTER_TYPES,
   WORK_UNIT_TYPES,
@@ -240,6 +241,24 @@ const publicationTarget = z
   })
   .strict();
 
+/** 0.17.0: where a data point is described – a manual or data sheet and the place in it. */
+export const pointSourceSchema = z
+  .object({
+    document: z
+      .string()
+      .min(1)
+      .max(PLANT_POINT_SOURCE_LIMITS.document)
+      .describe('The document: its title with its version (C80 Operating Manual v4), or the number of a record in Steward that keeps it (DOC-12)'),
+    page: z
+      .union([z.string().max(PLANT_POINT_SOURCE_LIMITS.page), z.number().int().min(0)])
+      .nullable()
+      .optional()
+      .describe('The page or pages, as the document numbers them (112, 112–114, A-7)'),
+    section: text(PLANT_POINT_SOURCE_LIMITS.section).describe('The section: its number and title (6.3 OPC UA variables)'),
+  })
+  .strict()
+  .meta({ id: 'DataPointSource', description: 'Where a data point is described: a document and the place in it (0.17.0)' });
+
 export const dataPointSchema = z
   .object({
     id: pointId,
@@ -274,6 +293,10 @@ export const dataPointSchema = z
       .describe('Known as: names that tools commonly use for it (a gateway’s variable names) – matched when collections are imported'),
     notes: long,
     publications: z.array(publicationTarget).max(L.publicationsPerPoint).optional().describe('Where it is usually published'),
+    source: pointSourceSchema
+      .nullable()
+      .optional()
+      .describe('0.17.0: where it is described – a manual and the page; in a profile that extends another, null: not the inherited source'),
     present: z
       .boolean()
       .optional()

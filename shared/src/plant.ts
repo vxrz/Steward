@@ -371,6 +371,18 @@ export const PLANT_PROPOSAL_LIMITS = {
   /** The proposed document (JSON), as sent (an MCP request is at most 64 KB) */
   documentBytes: 48 * 1024,
   title: 120,
+  /**
+   * 0.17.0: a larger proposal comes in parts of up to `documentBytes` each, combined into one document: at most this
+   * many parts and this size together – about the 5,000 data points a profile's list may hold, with their sources
+   */
+  parts: 25,
+  totalBytes: 1024 * 1024,
+  /** 0.17.0: an unfinished proposal (more parts announced) expires this long after its last part */
+  partExpiryHours: 24,
+  /** 0.17.0: the combined document of the parts so far is previewed with each part up to this size (problems so far) */
+  partPreviewBytes: 256 * 1024,
+  /** 0.17.0: data points with a source the review lists (the first ones) */
+  sourcePoints: 1000,
 } as const;
 
 /** 0.12.0: the size of the field-level differences an import's preview shows. */

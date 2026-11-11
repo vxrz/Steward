@@ -55,6 +55,8 @@ export const PROFILE_POINT_FIELDS = [
   'aliases',
   'notes',
   'publications',
+  // 0.17.0
+  'source',
 ] as const;
 export type ProfilePointField = (typeof PROFILE_POINT_FIELDS)[number];
 
@@ -102,6 +104,8 @@ export interface PlantProfilePointOverride {
   aliases?: string[];
   notes?: string;
   publications?: PlantDataPoint['publications'];
+  /** 0.17.0: where the derived device's data point is described (null: no source, not the inherited one) */
+  source?: PlantDataPoint['source'];
 }
 
 /** The key of a group or file set in `PlantResolvedProfile.origins` (interface ids hold no "/"). */

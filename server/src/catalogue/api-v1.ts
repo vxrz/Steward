@@ -100,6 +100,7 @@ const mapApplication = (a: apps.ApplicationEntry, scale: Scale) => ({
   name: a.name,
   description: a.description,
   vendor: a.vendor,
+  supplier: a.supplier,
   version: a.version,
   url: a.url,
   criticality: a.criticality,

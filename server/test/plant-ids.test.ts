@@ -313,6 +313,9 @@ describe('the registry of reference columns', () => {
    * that do are in REFERENCES (item_links, resource_teams, copied_from, plant_refs; credentials' used_by by its JSON).
    */
   const OTHER_KINDS: Record<string, string> = {
+    ca_findings: 'the source of a corrective action finding',
+    ca_suggestions: 'the source of a suggested finding',
+    supplier_certificates: 'a certificate kind (ISO 27001, SOC 2 …)',
     platforms: 'the platform type',
     platform_docs: 'a document kind',
     platform_types: 'the platform type',

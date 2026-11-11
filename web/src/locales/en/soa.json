@@ -1,0 +1,271 @@
+{
+  "title": "Statement of applicability",
+  "description": "One statement per control catalogue: for every control whether it applies and why, how far it is implemented, how it is met and who is responsible – with the evidence Steward already holds. Versions are approved by a second person and exported as a signed file.",
+  "whoCanAct": "Designers and administrators create a statement and decide its rows; approvers and administrators approve its versions.",
+  "allServices": "All services",
+  "notVisible": "not visible to you",
+  "partyWithName": "{{party}}: {{name}}",
+  "empty": {
+    "title": "No statement of applicability yet",
+    "text": "Create one for a control catalogue: it starts with one undecided row per control.",
+    "filtered": "No row matches the filters.",
+    "noControls": "The catalogue has no controls."
+  },
+  "new": {
+    "button": "New statement",
+    "title": "New statement of applicability",
+    "intro": "One statement per control catalogue. It starts with one row per control, none decided yet.",
+    "catalogueOption_one": "{{name}} ({{count}} control)",
+    "catalogueOption_other": "{{name}} ({{count}} controls)",
+    "submit": "Create",
+    "created": "Statement of applicability for {{catalogue}} created"
+  },
+  "table": {
+    "catalogue": "Catalogue and scope",
+    "decided": "Decided",
+    "applicable": "Applicable",
+    "version": "Version",
+    "label": "Rows of the statement of applicability for {{catalogue}}",
+    "control": "Control",
+    "applies": "Applies",
+    "status": "Status",
+    "party": "Responsible",
+    "owner": "Owner",
+    "evidence": "Evidence",
+    "review": "Last review"
+  },
+  "counts": {
+    "decided": "{{decided}} of {{total}}",
+    "applicableShort": "{{applicable}} applicable, {{implemented}} implemented",
+    "decidedLabel": "Decided",
+    "applicable": "Applicable",
+    "notApplicable_one": "{{count}} not applicable",
+    "notApplicable_other": "{{count}} not applicable",
+    "partlyPlanned": "partly {{partly}} · planned {{planned}} · not started {{notStarted}}",
+    "attention": "Needs attention",
+    "attentionHint": "{{noEvidence}} without evidence · {{reviewDue}} not reviewed for a year"
+  },
+  "applicable": {
+    "yes": "Applies",
+    "no": "Does not apply",
+    "undecided": "Undecided"
+  },
+  "statuses": {
+    "implemented": "Implemented",
+    "partly": "Partly implemented",
+    "planned": "Planned",
+    "notStarted": "Not started"
+  },
+  "parties": {
+    "team": "Our team",
+    "supplier": "Supplier",
+    "central": "Central IT or group",
+    "shared": "Shared"
+  },
+  "matrixParties": {
+    "team": "Our team",
+    "supplier": "Supplier",
+    "central": "Central IT or group",
+    "shared": "Shared",
+    "notApplicable": "Not applicable"
+  },
+  "areas": {
+    "backup": "Backup",
+    "recovery": "Recovery and continuity",
+    "patching": "Patching and vulnerabilities",
+    "access": "Access management",
+    "logging": "Logging and monitoring",
+    "incidents": "Security incidents"
+  },
+  "coverage": {
+    "covered": "Evidence",
+    "gap": "Gap",
+    "unmapped": "Not mapped",
+    "notVisible": "Not visible"
+  },
+  "fields": {
+    "catalogue": "Control catalogue",
+    "scopeName": "Scope",
+    "scopeServices": "Services in scope",
+    "fourEyes": "A second person approves",
+    "applicable": "Does the control apply?",
+    "justification": "Justification",
+    "status": "Implementation status",
+    "howMet": "How it is met",
+    "party": "Responsible party",
+    "centralName": "Central IT or group",
+    "owner": "Owner",
+    "grcRef": "GRC reference",
+    "grcUrl": "GRC link",
+    "evidenceLinks": "External evidence links"
+  },
+  "hints": {
+    "justification": "Needed either way: why the control applies, or why it does not.",
+    "owner": "A user or team. The owner changes the status, how it is met and the last review.",
+    "scopeName": "For example the organisation or the part of it the statement covers.",
+    "scopeServices": "The services whose responsibility matrix makes the suggestions. None: every service.",
+    "fourEyes": "Whoever submitted a version does not approve it. The assurance policy may require this for every statement."
+  },
+  "filters": {
+    "search": "Search",
+    "searchPlaceholder": "Identifier or topic",
+    "applicable": "Applies",
+    "applicableValues": {
+      "all": "All",
+      "yes": "Applies",
+      "no": "Does not apply",
+      "undecided": "Undecided"
+    },
+    "status": "Status",
+    "party": "Responsible",
+    "owner": "Owner",
+    "all": "All",
+    "open": "Not decided only",
+    "noEvidence": "Without evidence only"
+  },
+  "suggestion": {
+    "label": "From the responsibility matrix",
+    "count_one": "{{party}}: {{count}} service",
+    "count_other": "{{party}}: {{count}} services",
+    "undecided_one": "{{count}} service not decided",
+    "undecided_other": "{{count}} services not decided",
+    "take": "Take suggestion",
+    "none": "No responsibility area names this control: no suggestion from the matrix.",
+    "short": "Suggested: {{party}}"
+  },
+  "entry": {
+    "saved": "{{ref}} saved",
+    "ownerHint": "You own this row: you change its status, how it is met and the last review.",
+    "linksInvalid": "Every link needs a title and an http(s) address.",
+    "addLink": "Add link",
+    "noLinks": "No external links, for example a scanner's report or a supplier's trust centre.",
+    "linkTitle": "Title of link {{n}}",
+    "linkTitlePlaceholder": "Title",
+    "linkUrl": "Address of link {{n}}",
+    "removeLink": "Remove link {{n}}",
+    "reviewed": "Last reviewed by {{user}} on {{date}}",
+    "neverReviewed": "Not reviewed yet",
+    "updated": "Changed by {{user}} {{when}}",
+    "markReviewed": "Mark as reviewed now",
+    "changed": "changed",
+    "never": "never",
+    "notDecided": "Not decided"
+  },
+  "evidence": {
+    "title": "Evidence in Steward (last 12 months)",
+    "none": "No evidence",
+    "counts": "{{items}} items from {{mapped}} mapped",
+    "hidden_one": "{{count}} not visible to you",
+    "hidden_other": "{{count}} not visible to you",
+    "openControl": "Open the control",
+    "findings": "Corrective actions: {{open}} open of {{total}}",
+    "openFindings_one": "{{count}} open finding",
+    "openFindings_other": "{{count}} open findings"
+  },
+  "settings": {
+    "button": "Settings",
+    "title": "Settings of the statement",
+    "saved": "Settings saved",
+    "fourEyesPolicy": "The assurance policy requires a second person for every statement.",
+    "fourEyesAdmins": "Administrators switch it off, after confirming it is them. A version waiting keeps the rule it was submitted with.",
+    "areaControls": "Controls per responsibility area",
+    "areaDefault": "The built-in identifiers of ISO/IEC 27001:2022 Annex A apply.",
+    "areaOwn": "These controls apply instead of the built-in ones.",
+    "areaAdmins": "Administrators change them."
+  },
+  "versions": {
+    "title": "Versions",
+    "none": "No version yet. Submit the statement once every row is decided.",
+    "submit": "Submit for approval",
+    "submitHint": "Freezes the rows, the control texts, the evidence and the suggestions into a version.",
+    "blocked": {
+      "undecided": "Decide every row first: applies or not, why, and a status for every applicable control.",
+      "waiting": "A version waits for approval."
+    },
+    "submitted": "Version submitted for approval",
+    "waiting": "Version {{number}} waits for approval – submitted by {{user}} on {{date}}.",
+    "draft": "Draft",
+    "approvedShort": "Approved v{{number}}",
+    "waitingShort": "v{{number}} waiting",
+    "changed_one": "{{count}} row changed since",
+    "changed_other": "{{count}} rows changed since",
+    "number": "Version",
+    "state": "Status",
+    "submittedCol": "Submitted",
+    "decidedCol": "Decided",
+    "sha": "SHA-256",
+    "export": "Export",
+    "signed": "Signed",
+    "by": "{{user}}, {{date}}",
+    "statuses": {
+      "submitted": "Waiting",
+      "approved": "Approved",
+      "returned": "Returned",
+      "superseded": "Superseded"
+    },
+    "fourEyesOn": "A second person approves each version.",
+    "fourEyesOff": "The submitter may approve a version.",
+    "verifyHint": "Check a signed file offline with: steward evidence verify <file.zip> --fingerprint <key fingerprint>."
+  },
+  "decision": {
+    "approve": "Approve",
+    "return": "Return",
+    "approveTitle": "Approve version {{number}}",
+    "returnTitle": "Return version {{number}}",
+    "submitted": "Submitted by {{user}} on {{date}}.",
+    "counts": "{{applicable}} applicable, {{notApplicable}} not applicable, {{implemented}} implemented.",
+    "comment": "Comment",
+    "commentOptional": "Optional.",
+    "commentRequired": "Say what needs to change.",
+    "approved": "Version {{number}} approved",
+    "returned": "Version {{number}} returned",
+    "ownSubmission": "You submitted this version: a second person approves it."
+  },
+  "matrix": {
+    "intro": "Who does what for this service. A supplier's SLA, contractual RTO and RPO and its certificates come from the supplier record. The statement of applicability suggests its responsible party from these rows.",
+    "undecided_one": "{{count}} area is not decided yet.",
+    "undecided_other": "{{count}} areas are not decided yet.",
+    "notDecided": "Not decided",
+    "edit": "Change",
+    "editArea": "Change {{area}}",
+    "hours": "{{value}} h",
+    "noSupplier": "No supplier named",
+    "contract": "{{title}} · SLA {{sla}} · RTO {{rto}} · RPO {{rpo}}",
+    "certificates": "Valid: {{list}}",
+    "noCertificate": "No valid certificate",
+    "noRecoveryTest": "No recovery test",
+    "recoveryTest": "Recovery test:",
+    "controls": "Controls:",
+    "updated": "Changed by {{user}} {{when}}",
+    "formTitle": "{{area}} – {{service}}",
+    "party": "Who does it",
+    "contractLabel": "Contract",
+    "contractHint": "Its SLA and contractual RTO and RPO are shown with the area.",
+    "centralName": "Name of the central IT or group",
+    "note": "Note",
+    "noteShared": "Say who does what.",
+    "noteRequired": "Say who does what.",
+    "duty": "Recovery-test duty",
+    "dutyHint": "The duty of this service that tests the recovery. Steward does not create it.",
+    "noDuties": "The service has no duty yet.",
+    "saved": "{{area}} saved"
+  },
+  "certificateKinds": {
+    "iso27001": "ISO/IEC 27001",
+    "iso27017": "ISO/IEC 27017",
+    "iso27018": "ISO/IEC 27018",
+    "iso22301": "ISO 22301",
+    "soc2type1": "SOC 2 type I",
+    "soc2type2": "SOC 2 type II",
+    "c5": "C5",
+    "tisax": "TISAX",
+    "other": "Other"
+  },
+  "versionView": {
+    "title": "Version {{number}} as submitted",
+    "intro": "Frozen when {{user}} submitted it on {{date}}. The signed file holds exactly this content (soa.json).",
+    "open": "Show version {{number}}",
+    "show": "Show version",
+    "hidden": "Suppliers and services you may not see are left out here. The signed file holds them: an auditor or administrator exports it."
+  }
+}

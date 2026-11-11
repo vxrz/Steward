@@ -1,3 +1,4 @@
+import type { SupplierRef } from './suppliers.js';
 import type { ItemLink, LinkKind } from './records.js';
 
 /**
@@ -71,8 +72,10 @@ export interface TicketReference {
   title: string;
   /** Short note (Markdown, rendered safely) */
   note: string;
-  /** Vendor (free text), e.g. "Siemens" */
+  /** Vendor (free text), e.g. "Siemens"; the fallback when no supplier is linked */
   vendor: string;
+  /** The supplier (0.17.0, ADR 0029; null: none, or one the reader may not see) */
+  supplier: SupplierRef | null;
   /** Responsible people on our side: user:<name>, team:<name> */
   responsible: string[];
   status: TicketStatus;

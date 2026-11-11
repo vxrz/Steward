@@ -20,6 +20,7 @@ import { get, getOptional, notifyError, notifyOk, post, put } from '../../api';
 import { TONE, useFieldErrors } from '../common';
 import { dateTimeFormat } from '../../format';
 import { processKeys, scheduleKeys } from '../../queryKeys';
+import { SupplierPicker, useSupplierChoice } from '../suppliers/SupplierPicker';
 
 /** Colours of period statuses (the label always says the status, too). */
 export const DUTY_STATUS_COLORS: Record<DutyPeriodStatus, string> = {
@@ -135,6 +136,8 @@ export function DutyFormModal({
   const [processId, setProcessId] = useState<string | null>(duty?.processId ?? null);
   const [scheduleId, setScheduleId] = useState<string | null>(duty?.schedule?.id ?? null);
   const [applicationId, setApplicationId] = useState<string | null>(duty?.applicationId ?? null);
+  const supplier = useSupplierChoice(duty?.supplier);
+  const { t: tSup } = useTranslation('suppliers');
   const [interval, setInterval] = useState<DutyInterval>(duty?.interval ?? 'monthly');
   const [level, setLevel] = useState<DutyLevel>(duty?.level ?? 'mandatory');
   const [graceDays, setGraceDays] = useState<number>(duty?.graceDays ?? 0);
@@ -165,6 +168,7 @@ export function DutyFormModal({
       processId,
       scheduleId,
       applicationId,
+      ...(supplier.body !== undefined ? { supplierId: supplier.body } : {}),
       interval,
       level,
       graceDays,
@@ -268,6 +272,14 @@ export function DutyFormModal({
               clearable
             />
           )}
+          <SupplierPicker
+            value={supplier.value}
+            onChange={supplier.set}
+            initial={duty?.supplier}
+            label={tSup('picker.label')}
+            description={tSup('duties.help')}
+            testId="duty-supplier"
+          />
           <SubjectsInput label={t('owners')} description={t('ownersHint')} value={owners} onChange={setOwners} max={DUTY_LIMITS.owners} />
           <Textarea
             label={t('descriptionLabel')}

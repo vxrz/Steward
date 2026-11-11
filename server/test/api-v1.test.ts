@@ -507,6 +507,14 @@ async function crawl(token: string): Promise<{ template: string; url: string; re
   }
   await get('/cia-scale', '/cia-scale');
   for (const x of (await listAll('/systems', '/systems')).slice(0, 5)) await get('/systems/{systemId}', `/systems/${x.id}`);
+  // suppliers (0.17, ADR 0029)
+  for (const x of (await listAll('/suppliers', '/suppliers')).slice(0, 5)) await get('/suppliers/{supplierId}', `/suppliers/${x.id}`);
+  // the statement of applicability, the responsibility matrix and corrective actions (0.17, ADR 0029)
+  for (const x of (await listAll('/statements-of-applicability', '/statements-of-applicability')).slice(0, 3))
+    await get('/statements-of-applicability/{catalogueKey}', `/statements-of-applicability/${x.catalogueKey}`);
+  if (apiService) await get('/services/{serviceId}/responsibilities', `/services/${apiService}/responsibilities`);
+  for (const x of (await listAll('/corrective-actions', '/corrective-actions')).slice(0, 5))
+    await get('/corrective-actions/{findingId}', `/corrective-actions/${x.id}`);
   await get('/environments', '/environments');
   await get('/maintenance-windows', '/maintenance-windows');
   await get('/measures', '/measures');
@@ -657,6 +665,12 @@ describe('every endpoint', () => {
     // a system it runs on (#129), with a component per environment
     const sys = await s.api('POST', '/systems', { name: 'API system', kind: 'vm', stack: [{ product: 'ubuntu', version: '24.04' }] });
     await s.api('POST', `/applications/${app.id}/systems`, { systemId: sys.id, environment: 'prod' });
+    // a supplier with a contact, a contract and a certificate, linked to the system (0.17, ADR 0029)
+    const sup = await s.api('POST', '/suppliers', { name: 'API supplier', type: 'saas' });
+    await s.api('POST', `/suppliers/${sup.id}/contacts`, { name: 'API contact', email: 'contact@api-supplier.example' });
+    await s.api('POST', `/suppliers/${sup.id}/contracts`, { title: 'API contract', endsOn: '2030-06-30', noticeDays: 30, rtoHours: 4 });
+    await s.api('POST', `/suppliers/${sup.id}/certificates`, { kind: 'iso27001', validUntil: '2030-01-01' });
+    await s.api('PUT', `/systems/${sys.id}`, { name: 'API system', kind: 'vm', supplierId: sup.id });
     await s.api('POST', `/applications/${app.id}/components`, { type: 'snowflake-database', name: 'API_PROD', environment: 'prod' });
     // a duty of the service (#85), with an exception waiting for a second person
     const duty = await s.api('POST', '/duties', {
@@ -698,6 +712,10 @@ describe('every endpoint', () => {
     const tbls = (cols: unknown[]) => JSON.stringify({ name: 'api', tables: [{ name: 'public.t', type: 'BASE TABLE', columns: cols }] });
     await s.api('POST', `/db-schemas/system/${sys.id}/import`, { schema: tbls([{ name: 'id', type: 'integer', nullable: false }]) });
     await s.api('POST', `/db-schemas/system/${sys.id}/import`, { schema: tbls([{ name: 'id', type: 'bigint', nullable: false }]) });
+    // a statement of applicability and a corrective action finding (0.17, ADR 0029)
+    const catalogue = (await s.api('GET', '/compliance/soa')).catalogues.find((c: any) => c.key === 'ISO27001');
+    if (catalogue) await s.api('POST', '/compliance/soa', { catalogueId: catalogue.id });
+    await s.api('POST', '/compliance/corrective-actions', { title: 'API finding', source: 'internalAudit', serviceId: apiService });
     adminCrawl = await crawl(tokens.admin);
   });
 

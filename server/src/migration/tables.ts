@@ -50,6 +50,7 @@ export const NOT_MOVED: Record<string, string> = {
   notify_alerts: 'send bookkeeping of the source (a check that still fails is notified again on the target)',
   notify_pause_ends: 'send bookkeeping of the source',
   record_measure_reminders: 'send bookkeeping of the source (a reminder of an open measure may be sent again on the target)',
+  ca_action_reminders: 'send bookkeeping of the source (a reminder of an open corrective action may be sent again on the target)',
   maintenance_notices: 'send bookkeeping of the source (announcements of future occurrences are sent again on the target)',
   daily_summary_sends: 'send bookkeeping of the source',
   notification_outbox: "messages held for quiet hours and digests (short-lived; another instance must not send this one's messages)",
@@ -85,6 +86,7 @@ export const NOT_MOVED: Record<string, string> = {
   db_schema_push_tokens: 'push tokens of CI (#222), only their hashes: created again on the target, like API tokens',
   cost_push_tokens: 'push tokens of CI for FOCUS cost files (#226), only their hashes: created again on the target, like API tokens',
   cost_budget_notices: 'send bookkeeping of the source (a cost budget notice of the current month may be sent again on the target)',
+  supplier_reminders: 'send bookkeeping of the source (a supplier reminder of a date ahead may be sent again on the target)',
 };
 
 /** Rows keyed by user id: moved for mapped users only, with the target user's id. */
@@ -142,8 +144,15 @@ export const USER_REFS: UserRef[] = [
   { table: 'services', column: 'owners', kind: 'subjects' },
   { table: 'applications', column: 'owners', kind: 'subjects' },
   { table: 'systems', column: 'owners', kind: 'subjects' },
+  // suppliers (0.17.0, ADR 0029): owners like systems
+  { table: 'suppliers', column: 'owners', kind: 'subjects' },
   { table: 'maintenance_windows', column: 'responsible', kind: 'subjects' },
   { table: 'record_measures', column: 'owners', kind: 'subjects' },
+  // corrective actions (ADR 0029): who owns a finding and its actions now
+  { table: 'ca_findings', column: 'owner', kind: 'username' },
+  { table: 'ca_actions', column: 'owners', kind: 'subjects' },
+  // statement of applicability (ADR 0029 part 2): who owns a row now
+  { table: 'soa_entries', column: 'owner', kind: 'subjects' },
   { table: 'service_duties', column: 'owners', kind: 'subjects' },
   { table: 'duty_skips', column: 'decider_subjects', kind: 'subjects' },
   // the owners a service had on the day of the snapshot: mapped, so the trend per owner names the target's users and teams
@@ -169,6 +178,10 @@ export const HISTORY_COLUMNS: string[] = [
   'cost_plan_lines.updated_by',
   'cost_entries.created_by',
   'cost_entries.updated_by',
+  // suppliers (0.17.0, ADR 0029): who made and changed one, who looked at a certificate
+  'suppliers.created_by',
+  'suppliers.updated_by',
+  'supplier_certificates.checked_by',
   // the plant registry (#218)
   'plant_sites.created_by',
   'plant_sites.updated_by',
@@ -263,6 +276,25 @@ export const HISTORY_COLUMNS: string[] = [
   'record_measures.created_by',
   'record_measures.updated_by',
   'record_measures.done_by',
+  // corrective actions (ADR 0029): who recorded, changed, closed and checked a finding, did an action, decided a suggestion
+  'ca_findings.created_by',
+  'ca_findings.updated_by',
+  'ca_findings.closed_by',
+  'ca_findings.eff_checked_by',
+  // who took part in a fix (security review 0.17.0): subjects user:/team:/role:, kept as history
+  'ca_findings.fix_participants',
+  'ca_actions.created_by',
+  'ca_actions.updated_by',
+  'ca_actions.done_by',
+  'ca_suggestions.decided_by',
+  // statement of applicability and responsibility matrix (ADR 0029 part 2): who made, changed, reviewed, submitted and decided
+  'soas.created_by',
+  'soas.updated_by',
+  'soa_entries.reviewed_by',
+  'soa_entries.updated_by',
+  'soa_versions.submitted_by',
+  'soa_versions.decided_by',
+  'service_responsibilities.updated_by',
   'systems.updated_by',
   'systems.sbom_imported_by',
   'system_stack.set_by',
@@ -390,6 +422,7 @@ export const SETTINGS_MOVED = [
   'catalogue.versions',
   'catalogue.environments',
   'plant.settings',
+  'compliance.corrective',
 ];
 
 /** Folders of the data directory with stored files (attachments, artifacts, reports, evidence packs, logos). */

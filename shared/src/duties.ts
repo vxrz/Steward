@@ -1,3 +1,4 @@
+import type { SupplierRef } from './suppliers.js';
 /**
  * Service duties (#85): recurring tasks a service must (or should) have done – an access review every quarter, a
  * restore test every month. A duty names a process, an interval of calendar periods in the instance time zone, a
@@ -120,6 +121,8 @@ export interface DutySummary {
   serviceName: string;
   applicationId: string | null;
   applicationName: string | null;
+  /** The supplier the duty reviews (0.17.0, ADR 0029; null: none, or one the reader may not see) */
+  supplier: SupplierRef | null;
   name: string;
   description: string;
   /** null when the reader may not see the process */
@@ -157,6 +160,8 @@ export interface DutyDetail extends DutySummary {
 export interface DutyInput {
   serviceId: string;
   applicationId?: string | null;
+  /** The supplier the duty reviews: missing keeps it, null clears it */
+  supplierId?: string | null;
   name: string;
   description?: string;
   processId: string;

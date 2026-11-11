@@ -49,13 +49,44 @@ describe('demo services', () => {
     expect((creds.items ?? creds).length).toBe(3);
     expect(JSON.stringify(await s.api('GET', '/ticket-references'))).toContain('PL-48213');
     const duties = await s.api('GET', '/duties');
-    expect((duties.items ?? duties).length).toBe(3);
+    // three duties of the services and the yearly supplier review (0.17)
+    expect((duties.items ?? duties).length).toBe(4);
     const maintenance = await s.api('GET', '/maintenance-windows');
     expect(JSON.stringify(maintenance)).toContain('Shop database upgrade');
     expect((await s.api('GET', '/status-pages')).length).toBe(1);
-    expect(JSON.stringify(await s.api('GET', '/report-schedules'))).toContain('Weekly service meeting (demo)');
+    const schedules = await s.api('GET', '/report-schedules');
+    expect(JSON.stringify(schedules)).toContain('Weekly service meeting (demo)');
+    // the monthly management review with the ISMS summary (ADR 0029 part 4)
+    const review = schedules.items.find((x: { name: string }) => x.name === 'Monthly management review (demo)');
+    expect(review?.sections).toMatchObject({ isms: { catalogue: null, days: 90 } });
     const systems = (await s.api('GET', '/systems')) as { name: string }[];
     expect(systems.map((x) => x.name)).toContain('k8s-shop-01 (demo)');
+
+    // suppliers (0.17, ADR 0029): two invented ones linked to the ticket, the cluster and the review duty; the vendor texts
+    // left (page watches, cost plan lines) wait under "To confirm"
+    const suppliers = (await s.api('GET', '/suppliers?status=active')) as { id: string; name: string; certificateState: string }[];
+    expect(suppliers.map((x) => x.name)).toEqual(expect.arrayContaining(['Example Cloud GmbH', 'Paylumen']));
+    const paylumen = await s.api('GET', `/suppliers/${suppliers.find((x) => x.name === 'Paylumen')!.id}`);
+    expect(paylumen.certificateState).toBe('dueSoon');
+    expect(paylumen.usage).toMatchObject({ ticket: 1, duty: 1, watch: 1 });
+    expect((await s.api('GET', `/suppliers/${suppliers.find((x) => x.name === 'Example Cloud GmbH')!.id}`)).usage.system).toBe(1);
+    // the responsibility matrix of two services and a draft statement of applicability (ADR 0029 part 2)
+    const cloud = suppliers.find((x) => x.name === 'Example Cloud GmbH')!;
+    const matrix = await s.api('GET', `/services/${shop.id}/responsibilities`);
+    expect(matrix.undecided).toBe(0);
+    expect(matrix.rows.find((r: { area: string }) => r.area === 'backup')).toMatchObject({
+      party: 'supplier',
+      supplier: { name: 'Example Cloud GmbH' },
+      contract: { rtoHours: 8, rpoHours: 24 },
+    });
+    expect(matrix.rows.find((r: { area: string }) => r.area === 'recovery').recoveryTest).toBe('missing');
+    expect((await s.api('GET', `/suppliers/${cloud.id}`)).usage).toMatchObject({ responsibility: 1, soaEntry: 1 });
+    const soa = await s.api('GET', '/compliance/soa/ISO27001');
+    expect(soa.versions).toEqual([]);
+    expect(soa.counts).toMatchObject({ applicable: 5, notApplicable: 1 });
+    expect(soa.entries.find((e: { ref: string }) => e.ref === '8.13').suggestion).toMatchObject({ counts: { supplier: 1, team: 1 }, party: 'shared' });
+    const toConfirm = (await s.api('GET', '/suppliers?status=unconfirmed')) as { name: string }[];
+    expect(toConfirm.map((x) => x.name)).toEqual(expect.arrayContaining(['Zentrova Cloud', 'Mailbrook']));
 
     // cost plans of the shop and the plant (ADR 0026): the demo's fiscal year starts in October
     expect((await s.api('GET', '/costs/settings')).fiscalYearStartMonth).toBe(10);

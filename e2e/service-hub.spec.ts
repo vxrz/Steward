@@ -31,6 +31,7 @@ test('the service hub has a tab for each part, with addresses that can be shared
       'Tickets',
       'Scorecard',
       'Cost plan',
+      'Responsibilities',
     ]);
     await expect(tabs.getByRole('link', { name: 'Overview' })).toHaveAttribute('aria-current', 'page');
     await expect(page.getByTestId('protection-need')).toBeVisible();
@@ -47,6 +48,7 @@ test('the service hub has a tab for each part, with addresses that can be shared
       ['Tickets', 'tickets', 'tickets-panel'],
       ['Scorecard', 'scorecard', 'scorecard-panel'],
       ['Cost plan', 'costs', 'service-cost-plan'],
+      ['Responsibilities', 'responsibilities', 'responsibilities'],
     ];
     for (const [name, path, testId] of cases) {
       await tabs.getByRole('link', { name }).click();

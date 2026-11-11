@@ -69,7 +69,7 @@ export const MODULES: readonly ModuleDef[] = [
     maturity: 'stable',
     defaultOn: true,
     switchable: true,
-    nav: ['controls', 'accessChanges', 'reconciliation', 'personReviews', 'evidencePacks'],
+    nav: ['controls', 'soa', 'accessChanges', 'reconciliation', 'personReviews', 'correctiveActions', 'evidencePacks'],
     pages: ['/compliance'],
     routes: [
       '/api/compliance',
@@ -78,8 +78,14 @@ export const MODULES: readonly ModuleDef[] = [
       '/api/v1/control-catalogues',
       '/api/v1/controls',
       '/api/v1/control-coverage',
+      '/api/v1/corrective-actions',
+      // the statement of applicability and the responsibility matrix of services (ADR 0029 part 2)
+      '/api/services/:id/responsibilities',
+      '/api/v1/statements-of-applicability',
+      '/api/v1/services/:serviceId/responsibilities',
     ],
-    jobs: [],
+    jobs: ['corrective-actions', 'soa'],
+    datasets: ['compliance:'],
   },
   {
     id: 'statusPages',
@@ -313,6 +319,7 @@ export const VISIBILITY_AREAS = [
   'accessChanges',
   'reconciliation',
   'personReviews',
+  'correctiveActions',
 ] as const;
 export type VisibilityArea = (typeof VISIBILITY_AREAS)[number];
 

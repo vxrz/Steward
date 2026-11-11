@@ -25,6 +25,7 @@ export const NOTIFICATION_EVENTS = [
   'objective.breached',
   'maintenance.announced',
   'measure.due',
+  'corrective.action_due',
   'security.emergency',
   'backup.failed',
   'export.failed',
@@ -36,6 +37,9 @@ export const NOTIFICATION_EVENTS = [
   'plant.change_proposed',
   'plant.change_decided',
   'plant.advisory_matched',
+  'supplier.certificate_expiring',
+  'supplier.notice_due',
+  'soa.approval_waiting',
 ] as const;
 export type NotificationEvent = (typeof NOTIFICATION_EVENTS)[number];
 
@@ -45,7 +49,13 @@ export type NotificationEvent = (typeof NOTIFICATION_EVENTS)[number];
  */
 export const NOTIFICATION_CATEGORIES = ['decision', 'alert', 'update'] as const;
 export type NotificationCategory = (typeof NOTIFICATION_CATEGORIES)[number];
-export const NOTIFICATION_DECISION_EVENTS: readonly NotificationEvent[] = ['task.assigned', 'mcp.request', 'duty.exception', 'plant.change_proposed'];
+export const NOTIFICATION_DECISION_EVENTS: readonly NotificationEvent[] = [
+  'task.assigned',
+  'mcp.request',
+  'duty.exception',
+  'plant.change_proposed',
+  'soa.approval_waiting',
+];
 const ALERT_EVENTS: readonly NotificationEvent[] = [
   'run.failed',
   'check.failed',
@@ -90,6 +100,7 @@ export const NOTIFICATION_EVENT_INFO: Record<NotificationEvent, string> = {
   'objective.breached': 'An availability objective of a service you are responsible for fell below its target (once per breach)',
   'maintenance.announced': 'Maintenance of something you are responsible for or own was planned, starts soon, started or ended',
   'measure.due': 'A measure from an incident review that you own is due soon or overdue',
+  'corrective.action_due': 'An action of a corrective action finding that you own is due soon or overdue',
   'security.emergency': 'Someone signed in with emergency access from the server command line (administrators)',
   'backup.failed': 'A backup or the weekly restore test of the backups failed (administrators)',
   'export.failed': 'A scheduled export to S3 failed (administrators)',
@@ -101,6 +112,9 @@ export const NOTIFICATION_EVENT_INFO: Record<NotificationEvent, string> = {
   'plant.change_proposed': 'Someone proposed a change to the plant registry that you may apply (never the author)',
   'plant.change_decided': 'A plant change you wrote was applied, rejected, returned to you or expired (with the reviewer’s comment)',
   'plant.advisory_matched': 'A new high or critical security advisory affects assets of a site you manage (plant registry)',
+  'supplier.certificate_expiring': 'A certificate of a supplier you own runs out in 90 or 30 days',
+  'supplier.notice_due': 'The last day to give notice on a contract of a supplier you own is 90 or 30 days away',
+  'soa.approval_waiting': 'A version of a statement of applicability was submitted and waits for your approval (approvers and administrators)',
 };
 
 export interface AppNotification {

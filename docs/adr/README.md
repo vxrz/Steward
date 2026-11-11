@@ -31,5 +31,7 @@ Short records of decisions that shape Steward's design: the context, what was de
 | [0025](0025-personal-teams-notifications.md)           | Personal Teams notifications through the bot            | Accepted                                                               |
 | [0026](0026-service-cost-planning.md)                  | Service cost planning per fiscal year                   | Accepted                                                               |
 | [0027](0027-backup-contents-and-exports.md)            | Backup contents and scheduled exports                   | Accepted                                                               |
+| [0028](0028-plant-proposals-in-parts.md)               | Plant proposals in parts; sources of data points        | Accepted                                                               |
+| [0029](0029-iso-27001-support.md)                      | ISO/IEC 27001: suppliers, SoA, corrective actions       | Accepted                                                               |
 
 New record: copy [template.md](template.md) to `NNNN-short-title.md`, fill it in, add it to the table, and link it from [ARCHITECTURE.md](../ARCHITECTURE.md) where it applies.

@@ -160,6 +160,12 @@
         "info": "Eine Maßnahme aus einem Incident-Review, die Ihnen gehört, ist bald fällig oder überfällig"
       }
     },
+    "corrective": {
+      "action_due": {
+        "label": "Korrekturmaßnahme",
+        "info": "Eine Maßnahme zu einem Befund im Register der Korrekturmaßnahmen, die Ihnen gehört, ist bald fällig oder überfällig"
+      }
+    },
     "maintenance": {
       "announced": {
         "label": "Wartung",
@@ -221,6 +227,22 @@
         "label": "Sicherheitshinweis betrifft einen Standort",
         "info": "Ein neuer Sicherheitshinweis mit hohem oder kritischem Schweregrad betrifft Anlagen eines Standorts, den Sie verwalten (Werksregister)"
       }
+    },
+    "supplier": {
+      "certificate_expiring": {
+        "label": "Zertifikat eines Lieferanten läuft ab",
+        "info": "Ein Zertifikat eines Lieferanten, für den Sie verantwortlich sind, läuft in 90 oder 30 Tagen ab"
+      },
+      "notice_due": {
+        "label": "Kündigungsfrist eines Lieferanten",
+        "info": "Der letzte Tag, um einen Vertrag eines Lieferanten zu kündigen, für den Sie verantwortlich sind, ist in 90 oder 30 Tagen"
+      }
+    },
+    "soa": {
+      "approval_waiting": {
+        "label": "Erklärung zur Anwendbarkeit wartet",
+        "info": "Eine Version einer Erklärung zur Anwendbarkeit wurde eingereicht und wartet auf Ihre Freigabe (Freigeber und Administratoren)"
+      }
     }
   },
   "quiet": {
@@ -258,7 +280,7 @@
       "decisions": "Entscheidungsschritte, KI-Anfragen, ausgelassene Pflichten, zu prüfende Werksänderungen. Eine Ausführung wartet: höchstens stündlich.",
       "runs": "Fehlgeschlagene Ausführungen und Prüfungen, ausgelassene Zeitpläne, veraltete Daten, Backups, Datenverträge.",
       "monitors": "Monitorstatus, Verbindungstests von Plattformen, Ziele, Wartung.",
-      "reminders": "Zugangsdaten, Dokumentprüfungen, Tickets, Pflichten, Maßnahmen, Zugriffsänderungen, entschiedene Werksänderungen.",
+      "reminders": "Zugangsdaten, Dokumentprüfungen, Tickets, Pflichten, Maßnahmen, Zugriffsänderungen, entschiedene Werksänderungen, Zertifikate und Kündigungsfristen von Lieferanten.",
       "reports": "Geplante Berichte, Supportende und neue Releases.",
       "costs": "Token-Budgets für KI und Kostenbudgets."
     },

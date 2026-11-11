@@ -47,11 +47,14 @@ import {
   IconListSearch,
   IconClipboardCheck,
   IconUserSearch,
+  IconListCheck,
+  IconClipboardText,
   IconUserShield,
   IconUsers,
   IconWebhook,
   type Icon,
   IconGitPullRequest,
+  IconTruckDelivery,
 } from '@tabler/icons-react';
 import type { Capabilities, VisibilitySummary } from '@sm/shared';
 import { useOwnLabel } from './plant/labels';
@@ -76,6 +79,7 @@ export type NavKey =
   | 'services'
   | 'applications'
   | 'systems'
+  | 'suppliers'
   | 'maintenance'
   | 'statusPages'
   | 'duties'
@@ -88,6 +92,8 @@ export type NavKey =
   | 'accessChanges'
   | 'reconciliation'
   | 'personReviews'
+  | 'soa'
+  | 'correctiveActions'
   | 'evidencePacks'
   | 'audit'
   | 'users'
@@ -181,6 +187,8 @@ export const NAV_GROUPS: { key: NavGroupKey; items: NavItemDef[] }[] = [
       { to: '/services', key: 'services', icon: IconStack2, also: ['/scorecard', '/costs'] },
       { to: '/applications', key: 'applications', icon: IconApps },
       { to: '/systems', key: 'systems', icon: IconServer2 },
+      // suppliers (0.17.0, ADR 0029): who runs, backs up and recovers what the services use
+      { to: '/suppliers', key: 'suppliers', icon: IconTruckDelivery },
       { to: '/platforms', key: 'platforms', icon: IconServer },
       { to: '/data-contracts', key: 'dataContracts', icon: IconContract },
     ],
@@ -217,9 +225,13 @@ export const NAV_GROUPS: { key: NavGroupKey; items: NavItemDef[] }[] = [
     key: 'compliance',
     items: [
       { to: '/compliance/controls', key: 'controls', icon: IconChecklist },
+      // statement of applicability (ADR 0029, preview): one per control catalogue, with its versions
+      { to: '/compliance/soa', key: 'soa', icon: IconClipboardText },
       { to: '/compliance/access-changes', key: 'accessChanges', icon: IconUserShield },
       { to: '/compliance/reconciliation', key: 'reconciliation', icon: IconArrowsDiff },
       { to: '/compliance/person-reviews', key: 'personReviews', icon: IconUserSearch },
+      // corrective actions (ADR 0029, preview): the register with its suggestions and settings
+      { to: '/compliance/corrective-actions', key: 'correctiveActions', icon: IconListCheck },
       { to: '/compliance/evidence-packs', key: 'evidencePacks', icon: IconPackageExport, cap: 'exportEvidence' },
     ],
   },

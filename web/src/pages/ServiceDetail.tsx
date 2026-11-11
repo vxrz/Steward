@@ -17,6 +17,7 @@ import {
   IconTarget,
   IconTicket,
   IconTool,
+  IconUsersGroup,
 } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { CopyId } from '../components/CopyId';
@@ -45,12 +46,25 @@ import { DataTable } from '../components/DataTable';
 import { DetailPage } from '../components/page/DetailPage';
 import { CostsButton } from '../components/costs/CostsButton';
 import { ServiceCostPlan } from '../components/costs/ServicePlan';
+import { ServiceResponsibilitiesPanel } from '../components/compliance/Responsibilities';
 import { LinkTabs } from '../components/page/LinkTabs';
 import { EnvironmentBadge } from '../components/catalogue/environments';
 import { useModuleOn } from '../modules';
 
 /** The tabs of the service hub (v0.4.0): most catalogue work starts from a service. '' is the overview. */
-export const SERVICE_TABS = ['', 'applications', 'systems', 'duties', 'objectives', 'maintenance', 'documents', 'tickets', 'scorecard', 'costs'] as const;
+export const SERVICE_TABS = [
+  '',
+  'applications',
+  'systems',
+  'duties',
+  'objectives',
+  'maintenance',
+  'documents',
+  'tickets',
+  'scorecard',
+  'costs',
+  'responsibilities',
+] as const;
 export type ServiceTab = (typeof SERVICE_TABS)[number];
 const TAB_ICONS = {
   '': IconInfoCircle,
@@ -63,6 +77,7 @@ const TAB_ICONS = {
   tickets: IconTicket,
   scorecard: IconGauge,
   costs: IconReceipt,
+  responsibilities: IconUsersGroup,
 } as const;
 
 export function ServiceDetailPage() {
@@ -91,7 +106,11 @@ export function ServiceDetailPage() {
   const scorecardOn = useModuleOn('scorecard');
   // the cost plan (ADR 0026) belongs to the costs module
   const costsOn = useModuleOn('costs');
-  const tabs = SERVICE_TABS.filter((x) => (scorecardOn || (x !== 'objectives' && x !== 'scorecard')) && (costsOn || x !== 'costs'));
+  // the responsibility matrix (ADR 0029) belongs to the compliance module
+  const complianceOn = useModuleOn('compliance');
+  const tabs = SERVICE_TABS.filter(
+    (x) => (scorecardOn || (x !== 'objectives' && x !== 'scorecard')) && (costsOn || x !== 'costs') && (complianceOn || x !== 'responsibilities'),
+  );
   const tab = tabs.find((x) => x === tabParam);
   // an unknown tab: the overview
   if (tab === undefined) return <Navigate to={`/services/${id}`} replace />;
@@ -221,6 +240,7 @@ export function ServiceDetailPage() {
             <ScorecardPanel serviceId={s.id} />
           ))}
         {tab === 'costs' && <ServiceCostPlan serviceId={s.id} />}
+        {tab === 'responsibilities' && <ServiceResponsibilitiesPanel serviceId={s.id} />}
       </div>
       {editing && s.canEdit && <ServiceFormModal service={s} onClose={() => setEditing(false)} onSaved={(x) => refresh(x)} />}
     </DetailPage>

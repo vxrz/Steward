@@ -28,6 +28,8 @@ import { MONITOR_COMPONENTS } from '../../monitors/api-schemas.js';
 import { CREDENTIAL_COMPONENTS } from '../../credentials/api-schemas.js';
 import { RECORD_COMPONENTS } from '../../records/api-schemas.js';
 import { TICKET_COMPONENTS } from '../../tickets/api-schemas.js';
+import { CORRECTIVE_COMPONENTS } from '../../compliance/corrective-api.js';
+import { SOA_COMPONENTS } from '../../compliance/soa-api.js';
 import { COMPLIANCE_COMPONENTS } from '../../compliance/api-schemas.js';
 import { SERVICE_COMPONENTS } from '../../catalogue/api-schemas.js';
 import { DUTY_COMPONENTS } from '../../duties/api-schemas.js';
@@ -36,6 +38,7 @@ import { PLANT_COMPONENTS } from '../../plant/api-schemas.js';
 import { ADVISORY_COMPONENTS } from '../../plant/advisories/api-schemas.js';
 import { DB_SCHEMA_COMPONENTS } from '../../dbschema/api-schemas.js';
 import { COST_COMPONENTS } from '../../costs/api-schemas.js';
+import { SUPPLIER_COMPONENTS } from '../../suppliers/api-schemas.js';
 
 export const RUN_STATUSES = ['queued', 'running', 'waiting', 'succeeded', 'failed', 'cancelled', 'interrupted'] as const satisfies readonly RunStatus[];
 export const RUN_OUTCOMES = [...RUN_STATUSES, 'findings'] as const satisfies readonly RunOutcome[];
@@ -664,6 +667,8 @@ export const COMPONENTS: Record<string, ZodTypeAny> = {
   ...RECORD_COMPONENTS,
   ...TICKET_COMPONENTS,
   ...COMPLIANCE_COMPONENTS,
+  ...CORRECTIVE_COMPONENTS,
+  ...SOA_COMPONENTS,
   ...SERVICE_COMPONENTS,
   ...DUTY_COMPONENTS,
   ...SCORECARD_COMPONENTS,
@@ -671,6 +676,7 @@ export const COMPONENTS: Record<string, ZodTypeAny> = {
   ...ADVISORY_COMPONENTS,
   ...DB_SCHEMA_COMPONENTS,
   ...COST_COMPONENTS,
+  ...SUPPLIER_COMPONENTS,
 };
 
 /** Example values shown in the documentation. */

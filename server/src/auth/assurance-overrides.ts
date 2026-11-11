@@ -135,6 +135,19 @@ export function listOverrides(policy: AssurancePolicy): AssuranceOverride[] {
       effective: rule('personReview.decide', !!r.four_eyes),
     });
 
+  // statements of applicability (0.17.0, ADR 0029): their own switch "A second person approves" (soa.approve)
+  for (const r of db().all<{ id: string; key: string; four_eyes: number }>(
+    'SELECT s.id, k.key, s.four_eyes FROM soas s JOIN control_catalogues k ON k.id = s.catalogue_id ORDER BY k.key',
+  ))
+    push({
+      point: 'soa.approve',
+      kind: 'soa',
+      label: r.key,
+      value: r.four_eyes ? 'fourEyes' : 'off',
+      link: `/compliance/soa/${encodeURIComponent(r.key)}`,
+      effective: rule('soa.approve', !!r.four_eyes),
+    });
+
   // the instance setting of four-eyes dismissals of reconciliation findings (accessCheck.decide)
   const dismiss = parseJson<boolean>(db().get<{ value: string }>('SELECT value FROM settings WHERE key = ?', 'findingDismissFourEyes')?.value ?? null, false);
   push({

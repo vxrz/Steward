@@ -42,6 +42,8 @@ import { canExportEvidence, canReadCheck, forbid, me, readsEverything, same, vis
 import { toAccessChange } from './access-changes.js';
 import { evidenceForControls, evidenceOf, getControl, type PackCoverageStatus } from './controls.js';
 import { getReview, verifySeal } from './person-reviews.js';
+import { findingsOfControls } from './corrective.js';
+import { latestApprovedFiles } from './soa.js';
 import { getCheck, getSnapshot, listFindings, listSnapshots, verifyChain } from './reconciliation.js';
 import type { PackPdfModel } from './pack-pdf.js';
 import { drawPdf } from '../reports/pdf/pool.js';
@@ -706,6 +708,81 @@ async function buildPack(id: string, lang: ReportLang, opts: { assurance?: boole
         'monitors/monitors.json',
         monitors.map(({ files: _f, ...m }) => m),
       );
+    // corrective actions (ADR 0029): the findings naming the pack's controls that were open at some time in the period
+    const findings = scope.controlIds?.length
+      ? findingsOfControls(scope.controlIds, u).filter((f) => f.createdAt <= to && (!f.closedAt || f.closedAt >= from))
+      : [];
+    if (findings.length) {
+      await b.json(
+        'corrective-actions/findings.json',
+        findings.map(({ permissions: _p, actions, ...f }) => ({ ...f, actions: actions.map(({ canEdit: _e, canMarkDone: _d, ...a }) => a) })),
+      );
+      const head = [
+        'number',
+        'title',
+        'source',
+        'severity',
+        'status',
+        'serviceName',
+        'supplierName',
+        'owner',
+        'dueDate',
+        'overdue',
+        'actionsOpen',
+        'actionsTotal',
+        'controls',
+        'effective',
+        'checkedBy',
+        'checkedAt',
+        'createdAt',
+        'closedAt',
+      ] as const;
+      await b.buffer(
+        'corrective-actions/findings.csv',
+        csvTable(
+          head,
+          findings.map((f) =>
+            head.map((h) =>
+              h === 'controls'
+                ? f.controls.map((c) => `${c.catalogueKey} ${c.ref}`).join('; ')
+                : h === 'effective'
+                  ? (f.effectiveness?.result ?? '')
+                  : h === 'checkedBy'
+                    ? (f.effectiveness?.checkedBy ?? '')
+                    : h === 'checkedAt'
+                      ? (f.effectiveness?.checkedAt ?? '')
+                      : f[h],
+            ),
+          ),
+        ),
+      );
+    }
+
+    // the statement of applicability (ADR 0029 part 4): the latest approved version of each catalogue whose controls are
+    // in the pack – the archived PDF (checked against its recorded SHA-256), its CSV and the frozen JSON
+    const catalogueIds = [...new Set(controls.map((c) => c.catalogue))]
+      .map((key) => db().get<{ id: string }>('SELECT id FROM control_catalogues WHERE key = ?', key)?.id)
+      .filter((x): x is string => !!x);
+    const soas: { catalogue: string; number: number; approvedAt: string; approvedBy: string; contentSha256: string; files: string[] }[] = [];
+    for (const v of catalogueIds.length ? latestApprovedFiles(catalogueIds, u) : []) {
+      const dir = `soa/${safe(v.catalogueKey)}`;
+      // the signed bytes cannot be filtered: a version naming suppliers or services the creator may not see stays out
+      if (v.hidden) {
+        b.omitted.push(
+          `${dir}: version ${v.number} of the statement of applicability names suppliers or services ${row.created_by} may not see. Ask an auditor or administrator for a complete pack.`,
+        );
+        continue;
+      }
+      const files: string[] = [];
+      if (v.pdf) {
+        const p = await b.file(`${dir}/${v.base}.pdf`, v.pdf.file, v.pdf.sha256);
+        if (p) files.push(p);
+      } else b.omitted.push(`${dir}/${v.base}.pdf: no archived PDF is recorded for version ${v.number}`);
+      files.push(await b.buffer(`${dir}/${v.base}.csv`, Buffer.from(v.csv, 'utf8')));
+      files.push(await b.buffer(`${dir}/${v.base}.json`, Buffer.from(v.json, 'utf8')));
+      soas.push({ catalogue: v.catalogueKey, number: v.number, approvedAt: v.approvedAt, approvedBy: v.approvedBy, contentSha256: v.contentSha256, files });
+    }
+
     // privileged use of the vault platforms in scope (#205)
     const privilegedUse: PrivilegedUseSection[] = [];
     for (const pid of vaultPlatformsOf(scope, checks)) {
@@ -767,6 +844,10 @@ async function buildPack(id: string, lang: ReportLang, opts: { assurance?: boole
       ...(catalogue ? { catalogue } : {}),
       items: list.map(({ via, ...i }) => ({ ...i, via })),
       ...(privilegedUse.length ? { privilegedUse } : {}),
+      ...(findings.length
+        ? { correctiveActions: { findings: findings.length, files: ['corrective-actions/findings.json', 'corrective-actions/findings.csv'] } }
+        : {}),
+      ...(soas.length ? { statementsOfApplicability: soas } : {}),
       audit: auditInfo,
       assurance: assuranceInfo,
       omitted: b.omitted,
@@ -793,6 +874,13 @@ async function buildPack(id: string, lang: ReportLang, opts: { assurance?: boole
           label: `${p.platformName}: ${p.events} event(s) on ${p.secrets} secret(s)${p.truncated ? ' (truncated)' : ''}`,
           at: to,
           files: p.files.length,
+        })),
+        ...findings.map((f) => ({ kind: 'correctiveAction', label: `${f.number} ${f.title} (${f.status})`, at: f.updatedAt, files: 2 })),
+        ...soas.map((v) => ({
+          kind: 'soa',
+          label: `${v.catalogue}, version ${v.number} (approved by ${v.approvedBy})`,
+          at: v.approvedAt,
+          files: v.files.length,
         })),
       ],
       omitted: b.omitted,

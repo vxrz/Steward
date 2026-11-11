@@ -13,7 +13,7 @@ import { DetailHeader } from '../components/page/DetailPage';
 import { Field } from '../components/records/common';
 import { plantKeys } from '../queryKeys';
 import { PreviewBadge, useNameOf, usePlantConfig, usePlantLabel } from '../components/plant/common';
-import { AssetBriefLink, Breakable, ProtocolBadge, rateText, useAddressHint } from '../components/plant/data';
+import { AssetBriefLink, Breakable, ProtocolBadge, rateText, useAddressHint, useSourceText } from '../components/plant/data';
 import { PointCollections } from '../components/plant/CollectorCollections';
 import { ShowAll, useShowMore } from '../components/page/ShowAll';
 
@@ -30,6 +30,7 @@ export function PlantDataPointPage() {
   const label = usePlantLabel();
   const nameOf = useNameOf();
   const hint = useAddressHint();
+  const sourceText = useSourceText();
   const { profileId, pointId } = useParams();
   const narrow = useMediaQuery('(max-width: 48em)') ?? false;
   const q = useQuery({
@@ -262,6 +263,13 @@ export function PlantDataPointPage() {
                       </Text>
                     ))}
                   </Stack>
+                </Field>
+              )}
+              {p.source && (
+                <Field label={t('data.source')}>
+                  <Text size="sm" data-testid="point-source-view" style={{ overflowWrap: 'anywhere' }}>
+                    {sourceText(p.source)}
+                  </Text>
                 </Field>
               )}
               {p.notes && (

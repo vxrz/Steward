@@ -11,6 +11,7 @@ import {
   type Platform,
 } from '@sm/shared';
 import { db } from '../db.js';
+import { resolveSupplierLink, supplierRefOf } from '../suppliers/links.js';
 import { audit } from '../audit.js';
 import { logger } from '../log.js';
 import { vault } from '../vault.js';
@@ -42,6 +43,8 @@ interface Row {
   application_id: string | null;
   service_id: string | null;
   vendor: string;
+  /** The supplier (0.17.0, ADR 0029); `vendor` stays as the fallback text */
+  supplier_id: string | null;
   linked_at: string | null;
   linked_by: string | null;
 }
@@ -101,12 +104,13 @@ function toWatch(r: Row, ui: string): PageWatch {
     application: target('application', r.application_id),
     service: target('service', r.service_id),
     vendor: r.vendor,
+    supplier: supplierRefOf(r.supplier_id),
     linkedAt: r.linked_at,
     linkedBy: r.linked_by,
   };
 }
 
-const linked = (r: Pick<Row, 'application_id' | 'service_id' | 'vendor'>) => !!(r.application_id || r.service_id || r.vendor);
+const linked = (r: Pick<Row, 'application_id' | 'service_id' | 'vendor' | 'supplier_id'>) => !!(r.application_id || r.service_id || r.vendor || r.supplier_id);
 
 export function listWatches(platformId: string): PageWatchList {
   const p = cdPlatform(platformId);
@@ -264,17 +268,25 @@ export function setWatchLink(platformId: string, uuid: string, input: PageWatchL
     application_id: input.applicationId === undefined ? row.application_id : input.applicationId,
     service_id: input.serviceId === undefined ? row.service_id : input.serviceId,
     vendor: input.vendor === undefined ? row.vendor : input.vendor.slice(0, PAGE_WATCH_LIMITS.vendor),
+    supplier_id: resolveSupplierLink(input.supplierId, row.supplier_id),
   };
-  if (next.application_id === row.application_id && next.service_id === row.service_id && next.vendor === row.vendor) return toWatch(row, uiUrlOf(p));
+  if (
+    next.application_id === row.application_id &&
+    next.service_id === row.service_id &&
+    next.vendor === row.vendor &&
+    next.supplier_id === (row.supplier_id ?? null)
+  )
+    return toWatch(row, uiUrlOf(p));
   const at = nowIso();
   db().tx(() => {
     if (row.removed_at && !linked(next)) db().run('DELETE FROM cd_watches WHERE platform_id = ? AND uuid = ?', p.id, row.uuid);
     else
       db().run(
-        'UPDATE cd_watches SET application_id = ?, service_id = ?, vendor = ?, linked_at = ?, linked_by = ? WHERE platform_id = ? AND uuid = ?',
+        'UPDATE cd_watches SET application_id = ?, service_id = ?, vendor = ?, supplier_id = ?, linked_at = ?, linked_by = ? WHERE platform_id = ? AND uuid = ?',
         next.application_id,
         next.service_id,
         next.vendor,
+        next.supplier_id,
         at,
         actor,
         p.id,
@@ -283,7 +295,7 @@ export function setWatchLink(platformId: string, uuid: string, input: PageWatchL
     const parts = [
       next.application_id ? `application "${resolveTarget('application', next.application_id)?.label ?? next.application_id}"` : null,
       next.service_id ? `service "${resolveTarget('service', next.service_id)?.label ?? next.service_id}"` : null,
-      next.vendor ? `vendor "${next.vendor}"` : null,
+      next.supplier_id ? `supplier "${supplierRefOf(next.supplier_id)?.name ?? next.supplier_id}"` : next.vendor ? `vendor "${next.vendor}"` : null,
     ].filter(Boolean);
     audit({
       action: 'changedetection.watch_linked',
@@ -295,7 +307,8 @@ export function setWatchLink(platformId: string, uuid: string, input: PageWatchL
         applicationId: next.application_id,
         serviceId: next.service_id,
         vendor: next.vendor,
-        previous: { applicationId: row.application_id, serviceId: row.service_id, vendor: row.vendor },
+        supplierId: next.supplier_id,
+        previous: { applicationId: row.application_id, serviceId: row.service_id, vendor: row.vendor, supplierId: row.supplier_id ?? null },
       },
     });
   });

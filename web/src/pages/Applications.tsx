@@ -21,6 +21,7 @@ import { useListParams } from '../components/page/params';
 import { DataTable, ListFooter, type DataColumn } from '../components/DataTable';
 import { IfModule } from '../components/modules/ModuleOff';
 import { RestrictedEmpty, useHiddenByPermissions } from '../components/modules/RestrictedEmpty';
+import { SupplierPicker, useSupplierChoice } from '../components/suppliers/SupplierPicker';
 
 const NOT_RATED = '__none';
 
@@ -58,7 +59,7 @@ export function ApplicationsPage() {
   const needle = q.trim().toLowerCase();
   const all = apps.data ?? [];
   const list = all.filter((a) => {
-    if (needle && ![a.name, a.vendor, ...a.tags.map(tagLabel)].some((x) => x.toLowerCase().includes(needle))) return false;
+    if (needle && ![a.name, a.vendor, a.supplier?.name ?? '', ...a.tags.map(tagLabel)].some((x) => x.toLowerCase().includes(needle))) return false;
     if (!tagsMatch(a.tags, tag)) return false;
     if (service && !a.services.some((s) => s.id === service)) return false;
     if (criticality && a.criticality !== criticality) return false;
@@ -83,9 +84,9 @@ export function ApplicationsPage() {
               {t('archived')}
             </Badge>
           )}
-          {(a.vendor || a.version) && (
+          {(a.supplier || a.vendor || a.version) && (
             <Text size="xs" c="dimmed">
-              {[a.vendor, a.version].filter(Boolean).join(' · ')}
+              {[a.supplier?.name ?? a.vendor, a.version].filter(Boolean).join(' · ')}
             </Text>
           )}
           <TagBadges tags={a.tags} onTag={setTag} />
@@ -252,6 +253,7 @@ export function ApplicationFormModal({ app, onClose, onSaved }: { app?: Applicat
   const [name, setName] = useState(app?.name ?? '');
   const [description, setDescription] = useState(app?.description ?? '');
   const [vendor, setVendor] = useState(app?.vendor ?? '');
+  const supplier = useSupplierChoice(app?.supplier);
   const [version, setVersion] = useState(app?.version ?? '');
   const [url, setUrl] = useState(app?.url ?? '');
   const [criticality, setCriticality] = useState<string | null>(app?.criticality ?? null);
@@ -271,6 +273,7 @@ export function ApplicationFormModal({ app, onClose, onSaved }: { app?: Applicat
         name: name.trim(),
         description,
         vendor: vendor.trim(),
+        supplierId: supplier.body,
         version: version.trim(),
         url: url.trim(),
         criticality,
@@ -308,7 +311,9 @@ export function ApplicationFormModal({ app, onClose, onSaved }: { app?: Applicat
             error={v.error('name')}
           />
           <Group grow align="flex-start" wrap="wrap">
-            <TextInput label={t('vendor')} value={vendor} onChange={(e) => setVendor(e.currentTarget.value)} maxLength={120} miw={160} />
+            <SupplierPicker value={supplier.value} onChange={supplier.set} initial={app?.supplier} testId="application-supplier">
+              <TextInput label={t('vendor')} value={vendor} onChange={(e) => setVendor(e.currentTarget.value)} maxLength={120} miw={160} />
+            </SupplierPicker>
             <TextInput label={t('version')} value={version} onChange={(e) => setVersion(e.currentTarget.value)} maxLength={60} miw={120} />
           </Group>
           <TextInput label={t('url')} placeholder="https://" value={url} onChange={(e) => setUrl(e.currentTarget.value)} maxLength={2000} />

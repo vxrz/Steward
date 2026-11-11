@@ -20,6 +20,7 @@ import changedetection from './changedetection.js';
 import credentials from './credentials.js';
 import records from './records.js';
 import catalogue from './catalogue.js';
+import suppliers from './suppliers.js';
 import versions from './versions.js';
 import backup from './backup.js';
 import tickets from './tickets.js';
@@ -75,6 +76,7 @@ export const FEATURES: readonly FeatureManifest[] = [
   credentials,
   records,
   catalogue,
+  suppliers,
   versions,
   backup,
   tickets,

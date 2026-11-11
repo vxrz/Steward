@@ -338,7 +338,7 @@ export function contractAccess(u: AuthUser | null, c: { id: string }): Decision<
 
 // ---------- the service catalogue: services, applications, systems ----------
 
-export type CatalogueKind = 'service' | 'application' | 'system';
+export type CatalogueKind = 'service' | 'application' | 'system' | 'supplier';
 /** Who may change the catalogue by instance role (as before team scopes). */
 const CATALOGUE_EDITORS: readonly Role[] = ['admin', 'designer'];
 

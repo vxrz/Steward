@@ -1,0 +1,224 @@
+{
+  "title": "Lieferanten",
+  "description": "Wer die Systeme und Lösungen betreibt, sichert, patcht und wiederherstellt, die Sie nutzen – mit Verträgen, Kündigungsfristen, SLAs und Zertifikaten.",
+  "new": "Neuer Lieferant",
+  "searchPlaceholder": "Name, Schreibweise oder Beschreibung suchen",
+  "noMatch": "Kein Lieferant passt zur Suche und zu den Filtern.",
+  "emptyTitle": "Noch keine Lieferanten",
+  "emptyText": "Legen Sie die SaaS-Anbieter, Managed-Plattformen, Softwarehersteller und Dienstleister an, von denen Ihre Services abhängen. Anwendungen, Systeme, Ticket-Referenzen, Seitenüberwachungen, Planpositionen und Pflichten können sie dann verknüpfen.",
+  "toConfirmEmpty": "Nichts zu bestätigen. Alle Hersteller-Freitexte aus der Zeit vor 0.17 sind bearbeitet.",
+  "tabs": {
+    "label": "Lieferantenlisten",
+    "active": "Lieferanten",
+    "toConfirm": "Zu bestätigen",
+    "archived": "Archiviert"
+  },
+  "toConfirmIntro": "Beim Update auf 0.17 wurde aus jedem unterschiedlichen Hersteller-Freitext ein Lieferant, der auf Bestätigung wartet, mit seinen Schreibweisen. Bestätigen Sie einen echten Lieferanten, führen Sie Doppelte zusammen oder markieren Sie einen Text, der keinen Lieferanten nennt (einen Kontonamen, „On-premises“), als „Kein Lieferant“: Seine Verknüpfungen werden entfernt, der Text bleibt.",
+  "columns": {
+    "name": "Name",
+    "type": "Art",
+    "notice": "Nächste Kündigungsfrist",
+    "certificate": "Nächster Zertifikatsablauf",
+    "usage": "Verknüpft",
+    "owners": "Eigentümer",
+    "spellings": "Schreibweisen",
+    "updated": "Geändert"
+  },
+  "usageCount_one": "{{count}} Eintrag",
+  "usageCount_other": "{{count}} Einträge",
+  "cardLine": "{{type}} · {{usage}}",
+  "types": {
+    "saas": "SaaS-Dienst",
+    "managedPlatform": "Managed-Plattform",
+    "softwareVendor": "Softwarehersteller",
+    "serviceProvider": "Support- oder Dienstleister",
+    "other": "Sonstiges"
+  },
+  "status": {
+    "unconfirmed": "Zu bestätigen",
+    "active": "Aktiv",
+    "archived": "Archiviert"
+  },
+  "dateState": {
+    "ok": "{{date}}",
+    "dueSoon": "{{date}} (in {{days}} Tagen)",
+    "past": "{{date}} (vorbei)",
+    "none": "–"
+  },
+  "fields": {
+    "name": "Name",
+    "type": "Art",
+    "description": "Beschreibung",
+    "website": "Webseite",
+    "owners": "Eigentümer",
+    "ownersHelp": "Steward-Benutzer und Teams, die für den Lieferanten verantwortlich sind: Sie ändern ihn und erhalten seine Erinnerungen.",
+    "personalData": "Verarbeitet personenbezogene Daten für unsere Services",
+    "dpaStatus": "Auftragsverarbeitungsvertrag",
+    "dpaSince": "Gültig seit",
+    "dpaLink": "Vertrag (URL oder Dokumentnummer)",
+    "docLinkHint": "Ein http(s)-Link oder die Nummer eines Dokuments in Steward (z. B. DOC-2026-0004).",
+    "criticality": "Kritikalität (abgeleitet)",
+    "criticalityHint": "Der höchste Schutzbedarf der verknüpften Anwendungen.",
+    "aliases": "Weitere Schreibweisen"
+  },
+  "dpa": {
+    "inPlace": "Vorhanden",
+    "missing": "Fehlt",
+    "none": "Nicht nötig (keine personenbezogenen Daten)"
+  },
+  "detail": {
+    "created": "Angelegt von {{user}} am {{date}}",
+    "updated": "Geändert von {{user}} am {{date}}",
+    "overview": "Überblick",
+    "dataProtection": "Auftragsverarbeitung",
+    "unconfirmedNote": "Dieser Lieferant entstand beim Update auf 0.17 aus Hersteller-Freitexten. Bestätigen Sie ihn, führen Sie ihn mit einem anderen Lieferanten zusammen oder markieren Sie ihn als „Kein Lieferant“.",
+    "archivedNote": "Archiviert: bleibt für seine Historie und die Einträge erhalten, die ihn noch verknüpfen, wird in Formularen aber nicht mehr angeboten.",
+    "migratedFrom": "Entstanden aus den Hersteller-Freitexten",
+    "migratedTable": {
+      "applications": "Anwendungen",
+      "systems": "Systeme",
+      "ticket_refs": "Ticket-Referenzen",
+      "cd_watches": "Seitenüberwachungen",
+      "cost_plan_lines": "Planpositionen"
+    }
+  },
+  "actions": {
+    "create": "Anlegen",
+    "confirm": "Bestätigen",
+    "merge": "Zusammenführen mit …",
+    "notSupplier": "Kein Lieferant",
+    "archive": "Archivieren",
+    "unarchive": "Aus dem Archiv zurückholen",
+    "confirmed": "Lieferant bestätigt",
+    "merged": "Lieferanten zusammengeführt",
+    "dismissed": "Als „Kein Lieferant“ markiert",
+    "archived": "Lieferant archiviert",
+    "unarchived": "Lieferant zurückgeholt"
+  },
+  "confirmNotSupplier": "„{{name}}“ als „Kein Lieferant“ markieren? Der Lieferant wird entfernt, die Einträge, die ihn verknüpfen, behalten ihren Text. Aus dem Text wird kein Lieferant mehr.",
+  "confirmArchive": "„{{name}}“ archivieren? Er bleibt dort verknüpft, wo er es ist, und wird in Formularen nicht mehr angeboten.",
+  "merge": {
+    "title": "„{{name}}“ mit einem anderen Lieferanten zusammenführen",
+    "intro": "Seine Verknüpfungen, Kontakte, Verträge, Zertifikate und Schreibweisen gehen auf den gewählten Lieferanten über, „{{name}}“ wird entfernt. Der andere Lieferant behält Namen, Art und Eigentümer.",
+    "into": "Zusammenführen mit",
+    "submit": "Zusammenführen"
+  },
+  "contacts": {
+    "title": "Kontakte",
+    "help": "Ansprechpersonen beim Lieferanten. E-Mail und Telefon bleiben in der App: API, MCP, Datensätze und Exporte lassen sie weg.",
+    "empty": "Noch keine Kontakte.",
+    "add": "Kontakt hinzufügen",
+    "edit": "Kontakt ändern",
+    "name": "Name",
+    "role": "Rolle",
+    "email": "E-Mail",
+    "phone": "Telefon",
+    "note": "Notiz",
+    "removeConfirm": "Den Kontakt „{{name}}“ entfernen? Er wird gelöscht.",
+    "roles": {
+      "accountManager": "Account-Manager",
+      "support": "Supportkontakt",
+      "security": "Sicherheitskontakt",
+      "dataProtection": "Datenschutzbeauftragte(r)",
+      "other": "Sonstige"
+    }
+  },
+  "contracts": {
+    "title": "Verträge",
+    "help": "Laufzeit, Kündigungsfrist und Verlängerung ergeben das Kündigungsdatum: den letzten Tag, um zu kündigen. Die Eigentümer werden 90 und 30 Tage vorher erinnert.",
+    "empty": "Noch keine Verträge.",
+    "add": "Vertrag hinzufügen",
+    "edit": "Vertrag ändern",
+    "titleField": "Titel",
+    "reference": "Vertragsnummer",
+    "startsOn": "Beginn",
+    "endsOn": "Ende",
+    "noticeDays": "Kündigungsfrist (Tage)",
+    "renewal": "Verlängerung",
+    "renewalMonths": "Verlängert sich um (Monate)",
+    "renewals": {
+      "automatic": "Automatisch",
+      "byAgreement": "Nach Vereinbarung",
+      "fixedEnd": "Festes Ende"
+    },
+    "renewsBy_one": "automatisch, um {{count}} Monat",
+    "renewsBy_other": "automatisch, um {{count}} Monate",
+    "termEnd": "Aktuelle Laufzeit endet",
+    "noticeBy": "Kündigen bis",
+    "link": "Vertragsdokument (URL oder Dokumentnummer)",
+    "sla": "SLA",
+    "slaAvailability": "Verfügbarkeitsziel (%)",
+    "slaSupportHours": "Supportzeiten",
+    "slaResponse": "Reaktionszeiten",
+    "rtoHours": "RTO (Stunden)",
+    "rpoHours": "RPO (Stunden)",
+    "rtoRpo": "RTO {{rto}} h · RPO {{rpo}} h",
+    "note": "Notiz",
+    "costPlanLines": "Bezahlt über",
+    "removeConfirm": "Den Vertrag „{{name}}“ entfernen? Planpositionen, die ihn nennen, behalten den Lieferanten."
+  },
+  "certificates": {
+    "title": "Zertifikate und Berichte",
+    "help": "Die Eigentümer werden 90 und 30 Tage vor dem Ablauf eines Zertifikats erinnert. Ein SOC-2-Bericht gilt zwölf Monate nach dem Ende seines Zeitraums, wenn Sie kein anderes Datum eintragen.",
+    "empty": "Noch keine Zertifikate.",
+    "add": "Zertifikat hinzufügen",
+    "edit": "Zertifikat ändern",
+    "kind": "Art",
+    "name": "Name",
+    "nameHint": "Bei „Sonstiges“: worum es sich handelt",
+    "scope": "Geltungsbereich",
+    "issuer": "Aussteller",
+    "issuedOn": "Ausgestellt (SOC-2-Bericht: Ende seines Zeitraums)",
+    "validUntil": "Gültig bis",
+    "validUntilHint": "Leer bei einem SOC-2-Bericht: Ende seines Zeitraums plus zwölf Monate.",
+    "link": "Zertifikat oder Bericht (URL oder Dokumentnummer)",
+    "checked": "Ich habe es jetzt geprüft",
+    "checkedBy": "Geprüft von {{user}} am {{date}}",
+    "removeConfirm": "Das Zertifikat „{{name}}“ entfernen?",
+    "kinds": {
+      "iso27001": "ISO/IEC 27001",
+      "iso27017": "ISO/IEC 27017",
+      "iso27018": "ISO/IEC 27018",
+      "iso22301": "ISO 22301",
+      "soc2type1": "SOC 2 Typ I",
+      "soc2type2": "SOC 2 Typ II",
+      "c5": "C5",
+      "tisax": "TISAX",
+      "other": "Sonstiges"
+    }
+  },
+  "usedBy": {
+    "title": "Verwendet von",
+    "empty": "Noch verknüpft nichts diesen Lieferanten. Wählen Sie ihn im Formular einer Anwendung, eines Systems, einer Ticket-Referenz, einer Seitenüberwachung, einer Planposition oder einer Pflicht, in den Verantwortlichkeiten eines Service, in einer Zeile der Erklärung zur Anwendbarkeit oder in einem Befund einer Korrekturmaßnahme.",
+    "kinds": {
+      "application": "Anwendung",
+      "system": "System",
+      "ticket": "Ticket-Referenz",
+      "watch": "Seitenüberwachung",
+      "costPlanLine": "Planposition",
+      "duty": "Pflicht",
+      "responsibility": "Verantwortungsmatrix",
+      "soaEntry": "Erklärung zur Anwendbarkeit",
+      "finding": "Korrekturmaßnahme"
+    }
+  },
+  "duties": {
+    "title": "Lieferantenprüfung",
+    "help": "Eine Pflicht eines Service, die diesen Lieferanten nennt, zum Beispiel mit dem Beispielprozess „Supplier review“.",
+    "empty": "Noch prüft keine Pflicht diesen Lieferanten.",
+    "lastPeriods": "Letzte Zeiträume"
+  },
+  "picker": {
+    "label": "Lieferant",
+    "hint": "Der Lieferanteneintrag; ohne ihn bleibt der Text unten erhalten.",
+    "none": "Kein Lieferant",
+    "new": "+ Neuer Lieferant",
+    "open": "Lieferanten öffnen",
+    "unconfirmed": "{{name}} (zu bestätigen)",
+    "archived": "{{name}} (archiviert)",
+    "nothingFound": "Kein Lieferant gefunden",
+    "contract": "Vertrag",
+    "contractHint": "Der Vertrag des Lieferanten, den diese Zeile bezahlt.",
+    "noContract": "Kein Vertrag"
+  }
+}

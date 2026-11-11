@@ -6,15 +6,17 @@ Steward helps a service team keep evidence of how access to its platforms is man
 
 Recurring tasks such as the quarterly access review are tracked as **service duties**: each period is done, late, failed, missed or skipped with a four-eyes exception, and the result is stored for good – see [DUTIES.md](DUTIES.md). The **service scorecard** shows per service whether duties are met, availability objectives are on target, documentation is current (including documents expected by rules on the CIA rating, such as an authorization concept for confidentiality _high_) and the protection need is rated, with a daily snapshot for the trend – see [SCORECARD.md](SCORECARD.md).
 
-The _Compliance_ section of the sidebar has five pages:
+The _Compliance_ section of the sidebar has seven pages:
 
-| Page                      | What it does                                                                                                       |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| **Controls**              | Control catalogues, the Steward items mapped to each control, and the evidence in a period. Gaps are highlighted.  |
-| **Access changes**        | Every documented grant, revocation and change of access rights – by hand, from runs, or documented after the fact. |
-| **Access reconciliation** | Snapshots of who has which access, compared with the documented access changes. Undocumented changes show up here. |
-| **Person reviews**        | Everything one person may do on several platforms, decided right by right, approved by a second person and sealed. |
-| **Evidence packs**        | Signed ZIP exports for auditors: the evidence of some controls (or a platform or service) in a period.             |
+| Page                           | What it does                                                                                                           |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| **Controls**                   | Control catalogues, the Steward items mapped to each control, and the evidence in a period. Gaps are highlighted.      |
+| **Statement of applicability** | Per control whether it applies and why, its status, how it is met and who is responsible; approved versions (preview). |
+| **Access changes**             | Every documented grant, revocation and change of access rights – by hand, from runs, or documented after the fact.     |
+| **Access reconciliation**      | Snapshots of who has which access, compared with the documented access changes. Undocumented changes show up here.     |
+| **Person reviews**             | Everything one person may do on several platforms, decided right by right, approved by a second person and sealed.     |
+| **Corrective actions**         | Nonconformities and observations with their actions and an effectiveness check by a second person (preview).           |
+| **Evidence packs**             | Signed ZIP exports for auditors: the evidence of some controls (or a platform or service) in a period.                 |
 
 - [How it maps to the standards](#how-it-maps-to-the-standards)
 - [Access change entries](#access-change-entries)
@@ -22,6 +24,11 @@ The _Compliance_ section of the sidebar has five pages:
 - [Access reconciliation](#access-reconciliation)
 - [Person access reviews](#person-access-reviews)
 - [Controls and coverage](#controls-and-coverage)
+- [Statement of applicability](#statement-of-applicability)
+- [Responsibility matrix](#responsibility-matrix)
+- [Corrective actions](#corrective-actions)
+- [ISMS summary](#isms-summary)
+- [Using Steward for ISO/IEC 27001](#using-steward-for-isoiec-27001)
 - [Evidence packs](#evidence-packs)
 - [Protection needs (CIA)](#protection-needs-cia)
 - [Who may do what](#who-may-do-what)
@@ -32,17 +39,21 @@ The _Compliance_ section of the sidebar has five pages:
 
 The table shows which Steward evidence is typically relevant to which requirement. Map your own processes, document types, monitors, report schedules and checks under _Controls_.
 
-| Requirement                                                                        | Steward evidence                                                                                                                                                                                                                                    |
-| ---------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ISO/IEC 27001 A.5.15 (access control), A.5.18 (access rights)                      | Access change entries with reason, request, approval and performer; access reviews (example processes 10–12) with their sealed PDF protocols                                                                                                        |
-| ISO/IEC 27001 A.5.16 (identity management)                                         | Onboarding and offboarding runs (examples 13, 20) and their automatic access change entries; the reconciliation reports new and removed accounts                                                                                                    |
-| ISO/IEC 27001 A.8.2 (privileged access rights)                                     | Privileged access review (example 12, four-eyes removal); the reconciliation reports an administrator role granted outside Steward                                                                                                                  |
-| ISO/IEC 27001 A.8.15 (logging)                                                     | The HMAC-chained audit log with signed checkpoints; the audit log excerpt in every evidence pack                                                                                                                                                    |
-| IEC 62443-2-1 4.3.3.5 (account administration), 4.3.3.7 (authorization)            | As for A.5.16 and A.5.18; snapshots prove who had access when                                                                                                                                                                                       |
-| NIS2 Art. 21(2)(i) (access control policies, asset management)                     | As above                                                                                                                                                                                                                                            |
-| ISO/IEC 27001 A.5.3 (segregation of duties)                                        | Four-eyes by identity at every control point of the [assurance policy](ASSURANCE.md) (records, runs, manual steps, person reviews, findings, MCP writes); loosening the policy needs a second administrator; the assurance report counts each event |
-| ISO/IEC 27001 A.8.5 (secure authentication)                                        | Step-up per control point with a maximum age and, where required, multi-factor authentication shown by the identity provider (`amr`/`acr`); the assurance report lists how each event was confirmed and the exceptions                              |
-| ISO/IEC 27001 A.5.37 (documented operating procedures), A.8.32 (change management) | Manual procedures: checklists, fields and evidence files per step, second-person verification (maker–checker), sealed PDF protocol ([MANUAL-STEPS.md](MANUAL-STEPS.md))                                                                             |
+| Requirement                                                                        | Steward evidence                                                                                                                                                                                                                                                                                  |
+| ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ISO/IEC 27001 A.5.15 (access control), A.5.18 (access rights)                      | Access change entries with reason, request, approval and performer; access reviews (example processes 10–12) with their sealed PDF protocols                                                                                                                                                      |
+| ISO/IEC 27001 A.5.16 (identity management)                                         | Onboarding and offboarding runs (examples 13, 20) and their automatic access change entries; the reconciliation reports new and removed accounts                                                                                                                                                  |
+| ISO/IEC 27001 A.8.2 (privileged access rights)                                     | Privileged access review (example 12, four-eyes removal); the reconciliation reports an administrator role granted outside Steward                                                                                                                                                                |
+| ISO/IEC 27001 A.8.15 (logging)                                                     | The HMAC-chained audit log with signed checkpoints; the audit log excerpt in every evidence pack                                                                                                                                                                                                  |
+| IEC 62443-2-1 4.3.3.5 (account administration), 4.3.3.7 (authorization)            | As for A.5.16 and A.5.18; snapshots prove who had access when                                                                                                                                                                                                                                     |
+| NIS2 Art. 21(2)(i) (access control policies, asset management)                     | As above                                                                                                                                                                                                                                                                                          |
+| ISO/IEC 27001 A.5.3 (segregation of duties)                                        | Four-eyes by identity at every control point of the [assurance policy](ASSURANCE.md) (records, runs, manual steps, person reviews, findings, MCP writes); loosening the policy needs a second administrator; the assurance report counts each event                                               |
+| ISO/IEC 27001 A.8.5 (secure authentication)                                        | Step-up per control point with a maximum age and, where required, multi-factor authentication shown by the identity provider (`amr`/`acr`); the assurance report lists how each event was confirmed and the exceptions                                                                            |
+| ISO/IEC 27001 A.5.19–A.5.22 (supplier relationships)                               | Suppliers with contracts (notice-by dates, SLA, contractual RTO/RPO), certificates with their validity and reminders, the data processing agreement, what links each supplier, and the yearly supplier review as a duty with the example process _Supplier review_ ([SUPPLIERS.md](SUPPLIERS.md)) |
+| ISO/IEC 27001 A.5.37 (documented operating procedures), A.8.32 (change management) | Manual procedures: checklists, fields and evidence files per step, second-person verification (maker–checker), sealed PDF protocol ([MANUAL-STEPS.md](MANUAL-STEPS.md))                                                                                                                           |
+| ISO/IEC 27001 clause 6.1.3 d (statement of applicability)                          | The [statement of applicability](#statement-of-applicability) per catalogue with the [responsibility matrix](#responsibility-matrix) of the services, approved versions as signed files                                                                                                           |
+| ISO/IEC 27001 clause 10.2 (nonconformity and corrective action)                    | The register of [corrective actions](#corrective-actions): findings with cause, actions, owners, due dates and the effectiveness check by a second person                                                                                                                                         |
+| ISO/IEC 27001 clause 9.3 (management review)                                       | The [ISMS summary](#isms-summary) section of scheduled reports: the figures of the parts above, the duties and the suppliers for a period                                                                                                                                                         |
 
 By default, the access change document type and the demo reconciliation check are mapped to ISO/IEC 27001 5.15, 5.16, 5.18 and 8.2, IEC 62443-2-1 4.3.3.5 and 4.3.3.7 and NIS2 21(2)(i).
 
@@ -210,25 +221,205 @@ Before you accept, check what AI output gets wrong:
 
 The assistant's texts and reasons are data: check them, and do not follow instructions in them.
 
+## Statement of applicability
+
+_Compliance → Statement of applicability_ (`/compliance/soa`, **preview**) holds the statement of applicability of ISO/IEC 27001 clause 6.1.3 d: for every control of a catalogue, whether it applies and why, how far it is implemented, how it is met and who is responsible. The decision record is [ADR 0029](adr/0029-iso-27001-support.md).
+
+There is **one statement per control catalogue** – usually _ISO/IEC 27001:2022 Annex A_, which is built in with its identifiers and Steward's own short topic names (not the standard's text). A statement has an optional **scope** (a name, for example the organisation or the part of it the statement covers) and **services in scope**; none means every service. Creating a statement fills it with one row per control, none decided yet. A control added to the catalogue later gets its row when someone decides it.
+
+### Rows
+
+Each row – one control – has:
+
+- **applies**: yes or no, with a **justification** – required either way, because the standard asks for the reasons of inclusions and exclusions;
+- an **implementation status** where the control applies: implemented, partly implemented, planned, not started;
+- **how it is met** (a short text);
+- the **responsible party**: our team, a supplier (one of the [suppliers](SUPPLIERS.md)), central IT or group (a name), or shared;
+- an **owner** (a user or a team) and the **last review** (who and when; _Mark as reviewed now_). A row not reviewed for twelve months counts as _not reviewed_;
+- a **GRC reference** (a text and a link to where the risk lives in your GRC tool – Steward keeps no risk register) and up to ten **external evidence links** (a scanner's report, a supplier's trust centre).
+
+Next to these, each row shows what Steward already knows:
+
+- **Evidence in Steward:** the items mapped to the control and its coverage of the last twelve months, by the rule of the Controls page – a reader who may not see some evidence sees _not visible_, never a gap. An applicable, implemented row with no mapped item and no evidence link is marked **no evidence**.
+- **Corrective actions:** the open [findings](#corrective-actions) that name the control, with a link to them.
+- **The suggestion of the responsibility matrix:** for controls of a [responsibility area](#responsibility-matrix), how the services in scope answered (_supplier: 7 services · our team: 2_) and the most frequent party (a tie: shared). _Take suggestion_ copies it into the form; **the suggestion never overwrites the stored party** – what a person chose stays until a person changes it.
+
+The table filters by applies, status, responsible party, owner, not decided and without evidence; on a phone the rows are cards. A row opens in a drawer (`?control=<id>` links straight to it).
+
+### Versions and approval
+
+_Submit for approval_ is possible when every row is decided – applies or not, a justification, and a status for every applicable control – and no other version waits. It freezes the rows, the control texts as they are, the coverage (as an auditor sees it: the status and counts, no item named) and the suggestions into a **version** with its SHA-256. One version waits at a time.
+
+An **approver or administrator approves** the version, or **returns** it with a comment. This is the control point `soa.approve` of the [assurance policy](ASSURANCE.md) (group _audit_): a fresh confirmation (step-up) is asked by default, and a **second person** approves – not who submitted the version – while the statement's switch _A second person approves_ is on (the default); the policy may require it for every statement. Whether a second person approves is **fixed when a version is submitted**: switching it off later does not apply to a version that waits already. Designers switch it on; only **administrators switch it off** (also when creating a statement), after the same confirmation as approving (step-up of `soa.approve`), and not at all while the policy requires a second person – the change is in the audit log (`soa.settings_changed`). Approving archives the version's **PDF** (PDF/A, in the data folder with the reports) and supersedes the version approved before. The page shows how many rows changed since the latest approved version.
+
+When a version is submitted, the approvers and administrators who may decide it – not who submitted it – get the message _Statement of applicability waits for approval_ (event `soa.approval_waiting`, a decision like a task: [NOTIFICATIONS.md](NOTIFICATIONS.md)). It names the catalogue, the version and who submitted it, nothing of its rows.
+
+The latest approved version also goes into [evidence packs](#evidence-packs) of the catalogue's controls (`soa/`) and into [scheduled exports](EXPORTS.md) (the part _Statement of applicability_), and the [ISMS summary](#isms-summary) reports its state.
+
+### The signed export
+
+An approved (or superseded) version is exported as:
+
+- **Signed** – a ZIP in the [evidence-pack](#evidence-packs) format: `soa.pdf` (the archived PDF), `soa.csv` (formulas defused), `soa.json` (the frozen content, byte for byte: its SHA-256 is the version's), `manifest.json` with the SHA-256 of each file, `manifest.sig` (Ed25519, the installation's key, signature domain `steward-soa-manifest-v1`) and `public-key.pem`;
+- **PDF** or **CSV** on their own.
+
+Check a signed file offline with `steward evidence verify <file.zip> --fingerprint <fingerprint>` (or `npm run evidence:verify -- …`): the same verifier and key as evidence packs, with a domain of its own, so a signed statement is never taken for an evidence pack. The verifier also checks that `soa.json` is the content whose SHA-256 the approval names (`contentSha256` in the manifest). Steward checks the stored content against its SHA-256 before it approves, exports or puts a version into an evidence pack or a scheduled export, and refuses one changed outside Steward (`SOA_CONTENT_CHANGED`), as it does for the archived PDF. Exports are for everyone but viewers (like evidence packs) and are audited. The signed ZIP is made with the installation's key, like an evidence pack: it asks for a fresh confirmation (step-up of `evidencePack.export`) and only works in a session in the app, not with an API token; the PDF and the CSV are copies of the approved version and need neither.
+
+**Suppliers and services the reader may not see.** A version freezes the names of the suppliers and of the services in scope as they were. Like the live statement and evidence packs, what a reader is shown holds only what they may see: _Show version_ (`GET …/versions/:n`) leaves out a supplier or service of another team (_not visible to you_) – matched by name, so one renamed or removed since counts as not visible; the stored content and its SHA-256 stay as they are. The files cannot leave anything out (they are signed byte for byte), so a version that names a supplier or service someone may not see is exported only by who may see them all – auditors and administrators always – (`SOA_EXPORT_HIDDEN` otherwise), and an evidence pack of someone who may not see them leaves `soa/` out and says so.
+
+### Limits
+
+One statement per catalogue (up to the catalogue's 2,000 controls); justification 2,000 and _how it is met_ 1,000 characters; ten evidence links per row; 500 services in scope; 500 versions per statement.
+
+### Audit
+
+`soa.created`, `soa.entry_changed` (the fields with before and after, and whether the row's owner changed it), `soa.settings_changed`, `soa.version_submitted` (with the content's SHA-256), `soa.version_approved` (with the content's and the PDF's SHA-256 and how the control point was met), `soa.version_returned` (with the comment) and `soa.exported` (format and SHA-256 of the file).
+
+## Responsibility matrix
+
+Each service has a tab **Responsibilities** (`/services/<id>/responsibilities`) that says who does six fixed areas for it:
+
+| Area                         | Default controls (ISO/IEC 27001:2022 Annex A) |
+| ---------------------------- | --------------------------------------------- |
+| Backup                       | 8.13                                          |
+| Recovery and continuity      | 5.29, 5.30, 8.14                              |
+| Patching and vulnerabilities | 8.8                                           |
+| Access management            | 5.15–5.18, 8.2, 8.5                           |
+| Logging and monitoring       | 8.15, 8.16                                    |
+| Security incidents           | 5.24–5.27                                     |
+
+For each area: **our team**, **a supplier** (one supplier, optionally one of its contracts), **central IT or group** (with its name), **shared** (with a note on who does what) or **not applicable**; an area nobody decided is _not decided_.
+
+- For a supplier the area shows the values of the [supplier record](SUPPLIERS.md) – the contract's SLA availability, support hours and contractual **RTO** and **RPO**, and the supplier's certificates valid today. They are read, never copied: when the contract changes, the matrix shows the new values.
+- Where the team does recovery itself – backup or recovery and continuity done by our team or shared – the area asks for a **recovery-test duty**: one of the service's [duties](DUTIES.md) that tests the restore. Until one is linked, it says _no recovery test_. Steward does not create the duty.
+- Each area links the rows of its controls in the statements of applicability. For a catalogue other than Annex A, an administrator names the controls per area in the statement's settings.
+
+The matrix of the services in scope feeds the [suggestion](#rows) of the responsible party. Whoever may edit the service changes its matrix; everyone who may see the service reads it. Changes are audited as `responsibility.changed` (per area before and after). A supplier linked here counts as a use of the supplier, moves with it when it is merged into another and is cleared when it is marked _not a supplier_ ([SUPPLIERS.md](SUPPLIERS.md#after-the-update-suppliers-to-confirm)).
+
+## Corrective actions
+
+_Compliance → Corrective actions_ (`/compliance/corrective-actions`, **preview**) is one register of nonconformities and observations (ISO/IEC 27001 clause 10.2): from audits, entered by hand, and from what Steward itself notices, confirmed by a person. Each finding has actions with owners and due dates, and a second person checks that the fix worked. The decision record is [ADR 0029](adr/0029-iso-27001-support.md). The page has three tabs: _Findings_, _Suggestions_ and _Settings_.
+
+### Findings
+
+A finding is numbered `CA-2026-0001` (per calendar year) and has:
+
+- a **title**, a **description** and a **cause** (the root cause, as far as known);
+- a **source** – internal audit, external audit, supplier review or other when entered by hand (with what it came from, e.g. _External ISMS audit 2026, finding 4_, and a link to the report); service duty, access review, access reconciliation, incident review or supplier review when confirmed from a suggestion, with a link to the duty, the person review, the access check, the incident review or the supplier;
+- the affected **controls** of any catalogue, a **service** and a **supplier** – one of the [suppliers](SUPPLIERS.md) the person may see (a finding about a supplier they may not see shows _not visible to you_ and keeps it when they save);
+- a **severity**: major nonconformity, minor nonconformity or observation;
+- an **owner** (a user), a **due date** (a calendar date in the instance's time zone) and a **GRC reference** – a text and a link to where the risk lives in your GRC tool. Steward keeps no risk register.
+
+**Status:** _open_ → _in progress_ (set by hand, or when the first open action is added) → _implemented_ (every action is done; a finding without actions cannot be implemented) → _closed_, when the effectiveness check finds the fix effective. _Cancelled_ is for administrators, with a reason (a finding recorded twice, or not a nonconformity after all). Closed and cancelled findings do not change any more. A finding is **overdue** while it is open or in progress and past its due date, or one of its actions is.
+
+### Actions and reminders
+
+An action has a title, owners (users and teams), a due date and a note; it is done when someone marks it done (who and when are kept). The owners of an action see the finding and mark their action done or change its note, nothing else. Reminders (event `corrective.action_due`, [NOTIFICATIONS.md](NOTIFICATIONS.md)) go to the owners – else to the finding's owner – three days before the due date, on it and once a week while it is overdue, each once. Once a finding is implemented, its fix stays as it was checked: **reopening, removing or reassigning an action, adding an open one, or changing the finding's owner sends the finding back to _in progress_** – also when the measures of an incident review change on the review's page. It is implemented again once its actions are done.
+
+**Incident reviews.** The measures of an incident review stay where they are ([RECORDS.md](RECORDS.md#incident-reviews)), with their reminders, the service page and `GET /api/v1/measures`. A finding confirmed from an accepted incident review links the review, and its actions **are** the review's measures, read through, not copied: adding an action there adds a measure to the review, and the review's rules apply (its author and owner, designers and administrators keep its measures; the owners of a measure mark it done). The register counts them like its own actions. No data is migrated.
+
+### Effectiveness check
+
+When a finding is implemented, an approver, designer or administrator checks whether the fix worked: how (the method – a sample, a restore, an interview), the result and a note. _Effective_ closes the finding; _not effective_ sends it back to _in progress_ for a new action, and the check stays on the finding until the next one.
+
+The checker is a **second person** who took no part in the fix. Steward keeps everyone who did on the finding, for good – removing an action or giving the finding another owner does not take anyone off the list:
+
+- every owner the finding has had;
+- every owner of its actions (and of the measures of its incident review): a user; a **team with its members** – those of the time it owned the action, and those of the time of the check; a role with everyone who has it;
+- who marked an action or measure done;
+- who removed or changed an action, or the finding's owner, after the finding was implemented.
+
+This is the control point `correctiveAction.verify` of the [assurance policy](ASSURANCE.md) (group _audit_): four-eyes is _required_ by default; an administrator may set it _off_ (a loosening, so a second administrator approves it).
+
+### Suggestions
+
+Steward suggests findings from its own events; **a person confirms** each one – the finding form opens filled in from the suggestion, with the service and the controls the source is mapped to – **or dismisses** it with a reason. Nothing becomes a finding without a person. Each suggestion has a **source key**, unique for good, so the same event is never suggested twice, also after it was dismissed. Suggestions look back 90 days: a source switched on later does not bring the whole history.
+
+| Source (_Settings_ tab)                                 | Default | Source key                          | Suggested when                                                                                                                                                                                       |
+| ------------------------------------------------------- | ------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Missed or failed periods of mandatory duties            | on      | `duty:<duty>:<period>`              | a period of a mandatory [service duty](DUTIES.md) closed as missed or failed (severity minor)                                                                                                        |
+| Missed or failed periods of recommended duties          | off     | `duty:<duty>:<period>`              | the same for recommended duties (observation)                                                                                                                                                        |
+| Accepted incident reviews of severity major or critical | on      | `incident:<record>`                 | an incident review was accepted (major); its measures become the actions                                                                                                                             |
+| Accepted incident reviews of severity minor             | off     | `incident:<record>`                 | the same for minor incidents – not every incident is a nonconformity                                                                                                                                 |
+| Person review removals still there after 30 days        | on      | `personReview:<review>`             | a person review was approved 30 days ago and its removals are not confirmed gone (rechecked)                                                                                                         |
+| Reconciliation findings open for more than seven days   | off     | `reconciliation:<check>:<ISO week>` | an access check has findings open for more than seven days: one suggestion per check and week                                                                                                        |
+| Supplier reviews                                        | on      | `supplierCertificate:<cert>:<date>` | a certificate of a confirmed supplier that is in use ran out (minor; a renewed certificate that runs out again is suggested again)                                                                   |
+|                                                         |         | `duty:<duty>:<period>`              | a period of a mandatory or recommended duty that reviews a confirmed supplier closed as missed or failed – suggested as a supplier review instead of by the duty sources (the same key: never twice) |
+
+**Names are read with the reader's rights.** A suggestion stores what it came from by its id, never by name: the title of an incident review, the names of a duty, a supplier and its certificate, a person review or an access check are read when someone reads the suggestion, and only where they may see them. Someone who may read the register but not the source sees a neutral title (_Incident review accepted (critical)_, _A supplier certificate ran out on 2026-11-02_) and _an incident review you may not see_ in place of the link – on the page, in `/api/v1`, MCP, the [ISMS summary](#isms-summary) (with the schedule owner's rights) and evidence packs (with the creator's). A confirmed finding starts with the neutral title too, because everyone who reads the register reads its title; its link to the source shows the name to who may see it.
+
+Steward looks for new events once an hour (the job `corrective-actions`), and at once after a source was switched on. At most **1,000 suggestions** wait at a time; further ones wait until some are decided, and the _Suggestions_ tab says so.
+
+**Supplier reviews.** A supplier is _in use_ while an application or duty that is not archived, a system, a page watch, a cost plan line, a service's responsibility matrix or a row of a statement of applicability links it; unconfirmed suppliers are left out until someone confirms them ([SUPPLIERS.md](SUPPLIERS.md#after-the-update-suppliers-to-confirm)). A supplier review suggestion carries the supplier, the service when exactly one uses it, and ISO/IEC 27001:2022 Annex A 5.22 (monitoring and review of supplier services) as its control; the confirmed finding takes the supplier. With the source off, a missed supplier review duty is suggested by the duty sources like any duty.
+
+Who sees a suggestion: the roles that read the whole register, and – for a suggestion of a service – whoever may edit the service. Designers, administrators and the service's editors confirm or dismiss it; only administrators switch sources.
+
+### On other pages
+
+- **Controls:** a control's panel lists the open findings that name it.
+- **Suppliers:** a supplier's page lists the open findings about it, with _Record a finding_ (source _supplier review_, the supplier filled in) for who may record findings; a finding counts as a use of the supplier, moves with it when it is merged into another and loses the link when it is marked _not a supplier_.
+- **Statement of applicability:** a row shows the open findings of its control, with a link to the register filtered by it.
+- **Evidence packs:** a pack of controls has a folder `corrective-actions/` with the findings naming its controls that were open at some time in the period (`findings.json` with their actions and effectiveness check, `findings.csv`), as the pack's creator may see them; the signed manifest covers both files.
+- **Dashboards:** the built-in dataset `compliance.correctiveActions` (one row per finding: number, source, severity, status, service, owner, due date, overdue, open and total actions) is read by administrators and auditors, like `costs.plans`. It is published at most hourly.
+- **Public API and MCP:** `GET /api/v1/corrective-actions` (filters `status`, `source`, `severity`, `serviceId`, `supplierId`, `overdue`; the supplier only when the token owner may see it) and `GET /api/v1/corrective-actions/{findingId}` (id or number), and the MCP tool `list_corrective_actions` – read only, with the token owner's rights. Recording, changing, checking and deciding suggestions are decisions of people in the app: those routes refuse API tokens.
+
+### Limits
+
+20,000 findings; 50 actions per finding; 50 controls per finding; 1,000 pending suggestions; title 200, description 10,000, cause 4,000 and note 2,000 characters.
+
+### Audit
+
+`corrective.finding_created`, `corrective.finding_changed` (the fields, with before and after), `corrective.action_added`, `.action_changed`, `.action_removed`, `.action_done`, `corrective.effectiveness_checked` (method, result, whether four-eyes was required), `corrective.finding_closed`, `corrective.finding_cancelled` (with the reason), `corrective.suggestion_confirmed`, `corrective.suggestion_dismissed` (with the reason) and `corrective.settings_changed`.
+
+## ISMS summary
+
+The report section **ISMS summary** puts the figures of a management review (ISO/IEC 27001 clause 9.3) into a [scheduled report](REPORTS.md) – usually monthly or quarterly, next to the _Service duties_ section. It is part of the Compliance module and has no page or state of its own: it reads the parts above when the report is made, **with the rights of the schedule's owner** like every section. Options: one catalogue (default: every statement of applicability), services (default: all the owner may see) and the days ahead for supplier dates (default 90).
+
+| Part                       | What it shows                                                                                                                                                                                                                                                                                                    |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Statement of applicability | Per catalogue the controls applicable, not applicable and undecided; implemented, partly, planned, not started; rows not reviewed for twelve months and implemented without evidence; the latest approved version, a version waiting and the rows changed since; the versions approved or returned in the period |
+| Corrective actions         | Open findings by severity, overdue findings (listed), findings closed in the period, effectiveness checks recorded in the period (effective, not effective), suggestions waiting                                                                                                                                 |
+| Mandatory duties           | Periods of mandatory duties that ended in the period: on time, late, skipped, missed, failed, ended without a run; those not met listed                                                                                                                                                                          |
+| Reviews done               | Person access reviews approved in the period (with the rights to remove and those confirmed gone); supplier reviews – periods of duties that name a supplier – on time, late, not done                                                                                                                           |
+| Responsibility matrix      | Services with areas not decided, or with backup or recovery done by the team without a recovery-test duty                                                                                                                                                                                                        |
+| Suppliers                  | Certificates that run out and notice-by dates in the next _N_ days or passed in the last _N_ days, of confirmed suppliers; how many suppliers are still to confirm                                                                                                                                               |
+
+What the owner may not see is not counted: findings they may not read, services and suppliers outside their team scope, person reviews of others (unless they are an approver, auditor or administrator). Choose the owner like the author of a document for the management. While the Compliance module is off the section says so and holds nothing.
+
+## Using Steward for ISO/IEC 27001
+
+Steward keeps the evidence an ISO/IEC 27001 audit asks for where the work happens. **It does not make you compliant** – the risk assessment, the policies and the audit itself stay with your organisation, its GRC tool and its auditors. A typical path through the parts:
+
+1. **Suppliers** ([SUPPLIERS.md](SUPPLIERS.md), A.5.19–A.5.22). Record the SaaS providers, managed platforms and vendors you rely on, with contracts (notice-by dates, SLA, contractual RTO and RPO), certificates and the data processing agreement. After an upgrade, work through _Suppliers → To confirm_ once. Make the yearly supplier review a duty with the example process _Supplier review_.
+2. **Responsibility matrix** ([above](#responsibility-matrix)). Per service, say who does backup, recovery, patching, access management, logging and incident handling – your team, a supplier, central IT or shared. Where the team recovers itself, link a recovery-test duty.
+3. **Statement of applicability** ([above](#statement-of-applicability), clause 6.1.3 d). Decide every control with a justification; take the matrix's suggestion of the responsible party where it fits; map processes, documents and checks under _Controls_ so the rows show their evidence. Submit, have a second person approve, and export the signed file for the auditor.
+4. **Corrective actions** ([above](#corrective-actions), clause 10.2). Record audit findings; confirm or dismiss what Steward suggests from missed duties, incident reviews, person reviews and supplier reviews; let a second person check that each fix worked.
+5. **ISMS summary** ([above](#isms-summary), clause 9.3). A monthly or quarterly report schedule with the section gives the management review its figures, archived as a PDF with its SHA-256.
+6. **Evidence pack** ([below](#evidence-packs)). Before the audit, an auditor or administrator builds a pack of the controls in scope and the period: the evidence items, the findings naming the controls (`corrective-actions/`), the latest approved statement (`soa/`) and the audit log excerpt – signed, checked offline with `steward evidence verify`.
+
+[Scheduled exports](EXPORTS.md) can also send the suppliers, the register of corrective actions and the approved statements to an S3 bucket for a GRC tool.
+
 ## Evidence packs
 
 _Compliance → Evidence packs → New evidence pack_: choose controls, a platform or a service, a period (at most three years) and the language of the PDFs. From the _Controls_ page, select controls and click _Evidence pack for … controls_.
 
 The pack is built in the background and kept for download for 7 days (`SM_EVIDENCE_RETENTION_DAYS`). It holds:
 
-| Path                                              | Content                                                                                                                                                                                                                                               |
-| ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `index.pdf`, `index.json`                         | Summary (PDF/A): scope, controls with coverage, the protection need (service and platform packs, see below), contents; the machine-readable index                                                                                                     |
-| `runs/<run>/…pdf`                                 | The run protocols (an archived report, or a new one; up to 100 are generated per pack)                                                                                                                                                                |
-| `records/<number>/`                               | Record PDF, `record.json` (content, hashes, history) and the attached files                                                                                                                                                                           |
-| `access-changes/`                                 | All access change entries of the pack as JSON and CSV                                                                                                                                                                                                 |
-| `reconciliation/<check>/`                         | Check, snapshots (list and data), findings and the verification of the snapshot chain                                                                                                                                                                 |
-| `reports/`                                        | Scheduled report PDFs of mapped report schedules                                                                                                                                                                                                      |
-| `monitors/monitors.json`                          | Monitor evidence                                                                                                                                                                                                                                      |
-| `audit/`                                          | Audit log excerpt from the start of the period up to a signed checkpoint created for the pack, the checkpoint and the result of the last chain verification (auditors and administrators only)                                                        |
-| `assurance/`                                      | With _Include the assurance report_: the [assurance report](ASSURANCE.md#the-assurance-report) of the period as PDF/A and JSON – the policy in force and its changes, how each event was confirmed, the exceptions (auditors and administrators only) |
-| `manifest.json`, `manifest.sig`, `public-key.pem` | SHA-256 and size of every file, signed with the installation's Ed25519 key (the key of the audit checkpoints)                                                                                                                                         |
-| `privileged-use/<platform>/`                      | IBM Verify Privilege Vault: views, checkouts, password displays, edits and access requests of the privileged secrets in the period, read from the vault's audit (JSON and CSV)                                                                        |
+| Path                                              | Content                                                                                                                                                                                                                                                                                            |
+| ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `index.pdf`, `index.json`                         | Summary (PDF/A): scope, controls with coverage, the protection need (service and platform packs, see below), contents; the machine-readable index                                                                                                                                                  |
+| `runs/<run>/…pdf`                                 | The run protocols (an archived report, or a new one; up to 100 are generated per pack)                                                                                                                                                                                                             |
+| `records/<number>/`                               | Record PDF, `record.json` (content, hashes, history) and the attached files                                                                                                                                                                                                                        |
+| `access-changes/`                                 | All access change entries of the pack as JSON and CSV                                                                                                                                                                                                                                              |
+| `reconciliation/<check>/`                         | Check, snapshots (list and data), findings and the verification of the snapshot chain                                                                                                                                                                                                              |
+| `reports/`                                        | Scheduled report PDFs of mapped report schedules                                                                                                                                                                                                                                                   |
+| `monitors/monitors.json`                          | Monitor evidence                                                                                                                                                                                                                                                                                   |
+| `audit/`                                          | Audit log excerpt from the start of the period up to a signed checkpoint created for the pack, the checkpoint and the result of the last chain verification (auditors and administrators only)                                                                                                     |
+| `assurance/`                                      | With _Include the assurance report_: the [assurance report](ASSURANCE.md#the-assurance-report) of the period as PDF/A and JSON – the policy in force and its changes, how each event was confirmed, the exceptions (auditors and administrators only)                                              |
+| `manifest.json`, `manifest.sig`, `public-key.pem` | SHA-256 and size of every file, signed with the installation's Ed25519 key (the key of the audit checkpoints)                                                                                                                                                                                      |
+| `privileged-use/<platform>/`                      | IBM Verify Privilege Vault: views, checkouts, password displays, edits and access requests of the privileged secrets in the period, read from the vault's audit (JSON and CSV)                                                                                                                     |
+| `corrective-actions/`                             | The [corrective action](#corrective-actions) findings naming the pack's controls that were open at some time in the period (JSON with their actions, CSV)                                                                                                                                          |
+| `soa/<catalogue>/`                                | The latest approved [statement of applicability](#statement-of-applicability) of each catalogue whose controls are in the pack: its archived PDF (checked against its recorded SHA-256), CSV and frozen JSON (`soa-<catalogue>-v<n>.*`); `index.json` lists them under `statementsOfApplicability` |
 
 The pack contains only what the requester may see: auditors and administrators get everything, others only items they may read (and no audit log). A pack of someone who cannot see everything says so: `index.json` has `filtered.complete: false`, the manifest `pack.filtered: true`, and the summary PDF a note. Each control lists how many evidence items were left out (`hidden`); a control with evidence the creator may not see is _not visible_ instead of a gap. For an audit, have an auditor or administrator create the pack. Requesting, building and downloading a pack are audited. Limits: 512 MB per pack (`SM_EVIDENCE_MAX_MB`), 5000 files, 1000 records, one pack in progress per user, 20 stored packs per user. Files are written to `data/evidence-packs/` as they are added, never held in memory as a whole.
 
@@ -284,23 +475,33 @@ The default scale is the BSI one (normal, high, very high). Administrators can d
 
 ## Who may do what
 
-| Action                                         | Who                                                                                                    |
-| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| Read controls and coverage                     | everyone who can sign in (items they may not see are left out)                                         |
-| Read access change entries                     | admin, auditor, approver, the owner of the entry, and who has a right on its platform                  |
-| Document access changes, document findings     | operator, designer, admin who may use the platform (findings: and read the check) – never their own    |
-| Verify an access change entry                  | approver, admin – four-eyes (not the subject, performer, author, owner, run starter or run approver)   |
-| Complete a manual step                         | the step's assignees, otherwise who may run or approve the process (four-eyes: not the run starter)    |
-| Verify a manual step                           | the step's verifiers, otherwise who may run or approve the process – never the person who completed it |
-| Read checks, snapshots and findings            | admin, auditor, the owner of the check, and who may use the platform                                   |
-| Set up checks                                  | designer, admin (with the right to use the platform; dataset: and to view the publishing process)      |
-| Change, run, disable a check; dismiss findings | the owner of the check, admin (dismiss: never the subject; four-eyes dismissals: a second person)      |
-| Set or change ignored rights                   | admin                                                                                                  |
-| Map items to controls                          | designer, admin (remove: only items they may see)                                                      |
-| Edit and import catalogues                     | admin                                                                                                  |
-| Start person reviews, decide, submit           | designer, admin (decide and submit: the reviewer or an admin) – never about their own access           |
-| Approve or send back a person review           | approver, admin – not the reviewer, not the person reviewed                                            |
-| Create evidence packs                          | everyone but viewers; download: the creator, auditors, administrators                                  |
+| Action                                                         | Who                                                                                                                             |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Read controls and coverage                                     | everyone who can sign in (items they may not see are left out)                                                                  |
+| Read access change entries                                     | admin, auditor, approver, the owner of the entry, and who has a right on its platform                                           |
+| Document access changes, document findings                     | operator, designer, admin who may use the platform (findings: and read the check) – never their own                             |
+| Verify an access change entry                                  | approver, admin – four-eyes (not the subject, performer, author, owner, run starter or run approver)                            |
+| Complete a manual step                                         | the step's assignees, otherwise who may run or approve the process (four-eyes: not the run starter)                             |
+| Verify a manual step                                           | the step's verifiers, otherwise who may run or approve the process – never the person who completed it                          |
+| Read checks, snapshots and findings                            | admin, auditor, the owner of the check, and who may use the platform                                                            |
+| Set up checks                                                  | designer, admin (with the right to use the platform; dataset: and to view the publishing process)                               |
+| Change, run, disable a check; dismiss findings                 | the owner of the check, admin (dismiss: never the subject; four-eyes dismissals: a second person)                               |
+| Set or change ignored rights                                   | admin                                                                                                                           |
+| Map items to controls                                          | designer, admin (remove: only items they may see)                                                                               |
+| Edit and import catalogues                                     | admin                                                                                                                           |
+| Start person reviews, decide, submit                           | designer, admin (decide and submit: the reviewer or an admin) – never about their own access                                    |
+| Approve or send back a person review                           | approver, admin – not the reviewer, not the person reviewed                                                                     |
+| Create evidence packs                                          | everyone but viewers; download: the creator, auditors, administrators                                                           |
+| See corrective action findings and suggestions                 | admin, auditor, designer, approver; the owner of a finding or one of its actions; who may edit the affected service             |
+| Record and change findings; decide suggestions                 | designer, admin, who may edit the affected service; the owners of an action mark it done                                        |
+| Check the effectiveness of a finding                           | approver, designer, admin – not the finding's owner, an action's owner or who marked an action done (`correctiveAction.verify`) |
+| Cancel a finding; switch suggestion sources                    | admin                                                                                                                           |
+| Read the statement of applicability                            | everyone who can sign in (evidence by the coverage rule)                                                                        |
+| Create a statement, change rows and settings, submit a version | designer, admin; a row's owner changes its status, how it is met and its last review; the controls per area: admin              |
+| Switch a statement's second person off                         | admin – step-up (`soa.approve`); never while the policy requires a second person                                                |
+| Approve or return a version                                    | approver, admin – step-up; a second person while the statement's switch is on or the policy requires it (`soa.approve`)         |
+| Export an approved version                                     | everyone but viewers – the signed ZIP: step-up (`evidencePack.export`), in a session                                            |
+| Change a service's responsibility matrix                       | who may edit the service                                                                                                        |
 
 ## API
 
@@ -309,10 +510,21 @@ Web UI API under `/api/compliance/…`. Public, read-only API (API tokens):
 - `GET /api/v1/access-changes` – access change entries the token owner may read (filters: platform, subject, status, kind, period),
 - `GET /api/v1/access-findings` – reconciliation findings (filters: check, platform, status, period),
 - `GET /api/v1/control-catalogues`, `GET /api/v1/controls` – catalogues and controls with their mapped items,
-- `GET /api/v1/control-coverage?from=…&to=…` – coverage per control.
+- `GET /api/v1/control-coverage?from=…&to=…` – coverage per control,
+- `GET /api/v1/corrective-actions`, `GET /api/v1/corrective-actions/{findingId}` – the register of [corrective actions](#corrective-actions) (filters: status, source, severity, service, supplier, overdue).
+- `GET /api/v1/statements-of-applicability`, `GET /api/v1/statements-of-applicability/{catalogueKey}` – the [statements of applicability](#statement-of-applicability) with their counts, current rows and versions,
+- `GET /api/v1/services/{serviceId}/responsibilities` – the [responsibility matrix](#responsibility-matrix) of a service.
+
+The MCP tools `get_statement_of_applicability` and `get_service_responsibilities` read the same ([MCP.md](MCP.md)), and the built-in dataset `compliance.soa` (one row per row of every statement) is read by administrators and auditors. Rows, settings, versions and the matrix are changed only in the app: those routes refuse API tokens.
 
 See the OpenAPI document (`/api/v1/openapi.json`).
 
 ## Try it in the demo
 
 `npm run demo`, load the demo data, then open _Compliance → Access reconciliation_. The check _Insights Hub (demo) – user access_ has a baseline snapshot. Click **Simulate a change outside Steward**: the simulated tenant grants the tenant administrator role to a user, as if someone did it in the Insights Hub UI, and the check reports it as an undocumented grant. Click **Document this change**, give a reason – the finding is closed and the entry appears under _Access changes_ as _documented after the fact_. Then export an evidence pack for ISO/IEC 27001 5.18 from _Controls_ and check it with `npm run evidence:verify`.
+
+With the demo services, the online shop and customer care have a responsibility matrix (the shop's backup is done by the invented managed platform supplier, with its contract's RTO and RPO), and _Compliance → Statement of applicability_ holds a draft statement of Annex A with a few rows decided – take a suggestion, decide the rest, submit it, and approve it as Adam Approver.
+
+With the demo services, _Compliance → Corrective actions_ holds two invented findings – one of an external audit with an open action, and an observation of an internal audit whose action is done, ready for the effectiveness check by Adam Approver – and a suggestion of a missed duty period to confirm or dismiss.
+
+The report schedule _Monthly management review (demo)_ under _Reports_ has the [ISMS summary](#isms-summary): click ▶ to generate it now.

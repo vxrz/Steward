@@ -173,7 +173,8 @@
       "reviews": "Fällige Überprüfungen von Dokumenten",
       "duties": "Service-Pflichten",
       "trends": "Trends",
-      "topics": "Neue Kafka-Topics"
+      "topics": "Neue Kafka-Topics",
+      "suppliers": "Zertifikate und Kündigungsfristen von Lieferanten"
     },
     "count": "{{section}}: {{count}}",
     "topicsTitle": "{{application}}: {{count}} neue(s) Topic(s) unter {{prefix}}",
@@ -242,7 +243,10 @@
     "limitIn_one": "Limit von {{limit}} bei diesem Verlauf in etwa {{count}} Tag erreicht ({{date}})",
     "limitIn_other": "Limit von {{limit}} bei diesem Verlauf in etwa {{count}} Tagen erreicht ({{date}})",
     "trendRough": "grobe Schätzung",
-    "trendDetail": "{{change}} in 7 Tagen, jetzt {{value}} (aus {{points}} Messpunkten)"
+    "trendDetail": "{{change}} in 7 Tagen, jetzt {{value}} (aus {{points}} Messpunkten)",
+    "supplierCertificate": "Zertifikat {{title}} · {{supplier}}",
+    "supplierNotice": "Kündigung von „{{title}}“ · {{supplier}}",
+    "supplierDetail": "{{status}} · {{date}}"
   },
   "accessUndocumented": {
     "title": "Undokumentierte Zugriffsänderungen: „{{name}}“",
@@ -418,6 +422,26 @@
       "body": "Die Maßnahme „{{measure}}“ aus dem Incident-Review {{record}} war am {{due}} fällig (vor {{days}} Tagen). Markieren Sie sie im Review als erledigt oder verschieben Sie die Fälligkeit."
     }
   },
+  "corrective": {
+    "soon": {
+      "title": "Korrekturmaßnahme bald fällig: {{action}}",
+      "body": "Die Maßnahme „{{action}}“ zum Befund {{finding}} ist am {{due}} fällig."
+    },
+    "due": {
+      "title": "Korrekturmaßnahme heute fällig: {{action}}",
+      "body": "Die Maßnahme „{{action}}“ zum Befund {{finding}} ist heute fällig ({{due}})."
+    },
+    "overdue": {
+      "title": "Korrekturmaßnahme überfällig: {{action}}",
+      "body": "Die Maßnahme „{{action}}“ zum Befund {{finding}} war am {{due}} fällig (vor {{days}} Tagen). Markieren Sie sie im Register der Korrekturmaßnahmen als erledigt oder verschieben Sie die Fälligkeit."
+    }
+  },
+  "soa": {
+    "waiting": {
+      "title": "Erklärung zur Anwendbarkeit wartet auf Freigabe: {{catalogue}} Version {{number}}",
+      "body": "{{by}} hat Version {{number}} der Erklärung zur Anwendbarkeit für {{catalogue}} eingereicht ({{scope}}, {{applicable}} anwendbare Kontrollen). Prüfen Sie sie und geben Sie sie frei oder geben Sie sie mit einem Kommentar zurück."
+    }
+  },
   "review": {
     "timelineHeading": "Zeitlicher Ablauf"
   },
@@ -588,5 +612,14 @@
       "none": "ohne Risiko",
       "unknown": "ohne Bewertung"
     }
+  },
+  "supplierDue": {
+    "certificateTitle_one": "Lieferant {{supplier}}: Zertifikat {{title}} läuft in {{count}} Tag ab",
+    "certificateTitle_other": "Lieferant {{supplier}}: Zertifikat {{title}} läuft in {{count}} Tagen ab",
+    "certificateBody": "Das Zertifikat {{title}} des Lieferanten „{{supplier}}“ ist bis {{date}} gültig. Bitte fordern Sie beim Lieferanten das neue Zertifikat oder den neuen Bericht an und tragen Sie es auf der Seite des Lieferanten ein.",
+    "noticeTitle_one": "Lieferant {{supplier}}: Kündigung von „{{title}}“ in {{count}} Tag fällig",
+    "noticeTitle_other": "Lieferant {{supplier}}: Kündigung von „{{title}}“ in {{count}} Tagen fällig",
+    "noticeBody": "Der letzte Tag, um den Vertrag „{{title}}“ des Lieferanten „{{supplier}}“ zu kündigen, ist der {{date}}. Bitte entscheiden Sie, ob er sich verlängern soll.",
+    "hint": "Sie erhalten diese Nachricht, weil Sie in Steward für den Lieferanten verantwortlich sind."
   }
 }

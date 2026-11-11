@@ -1,0 +1,275 @@
+{
+  "title": "Corrective actions",
+  "description": "Nonconformities and observations from audits and from what Steward notices, with actions, owners and a check by a second person that the fix worked (ISO/IEC 27001 clause 10.2).",
+  "docs": "How the register works: docs/COMPLIANCE.md#corrective-actions",
+  "tabs": {
+    "label": "Corrective actions",
+    "findings": "Findings",
+    "suggestions": "Suggestions",
+    "settings": "Settings"
+  },
+  "new": "Record a finding",
+  "sources": {
+    "internalAudit": "Internal audit",
+    "externalAudit": "External audit",
+    "duty": "Service duty",
+    "accessReview": "Access review",
+    "reconciliation": "Access reconciliation",
+    "incidentReview": "Incident review",
+    "supplierReview": "Supplier review",
+    "other": "Other"
+  },
+  "severities": {
+    "major": "Major nonconformity",
+    "minor": "Minor nonconformity",
+    "observation": "Observation"
+  },
+  "statuses": {
+    "open": "Open",
+    "inProgress": "In progress",
+    "implemented": "Implemented",
+    "closed": "Closed",
+    "cancelled": "Cancelled"
+  },
+  "table": {
+    "finding": "Finding",
+    "status": "Status",
+    "severity": "Severity",
+    "service": "Service",
+    "owner": "Owner",
+    "due": "Due",
+    "actions": "Actions"
+  },
+  "filters": {
+    "search": "Search number or title",
+    "state": "State",
+    "states": {
+      "open": "Not closed",
+      "closed": "Closed or cancelled",
+      "all": "All"
+    },
+    "source": "Source",
+    "allSources": "All sources",
+    "severity": "Severity",
+    "allSeverities": "All severities",
+    "service": "Service",
+    "allServices": "All services",
+    "overdueOnly": "Overdue only",
+    "mine": "Mine only",
+    "oneControl": "Only the findings of one control.",
+    "allControls": "All controls",
+    "oneSupplier": "Only the findings about one supplier.",
+    "allSuppliers": "All suppliers"
+  },
+  "overdue": "Overdue",
+  "actionsCount": "{{open}} of {{total}} open",
+  "noActions": "No actions yet",
+  "notVisible": "not visible to you",
+  "empty": {
+    "title": "No findings yet",
+    "text": "Record a finding of an audit, or confirm a suggestion Steward made from a missed duty, an incident review or an access review.",
+    "filtered": "No finding matches the filters."
+  },
+  "whoCanAct": "Designers, administrators and the editors of a service record findings.",
+  "suggestionsWaiting_one": "{{count}} suggestion waits for a decision.",
+  "suggestionsWaiting_other": "{{count}} suggestions wait for a decision.",
+  "showSuggestions": "Show suggestions",
+  "fields": {
+    "title": "Title",
+    "description": "Description",
+    "source": "Source",
+    "sourceLabel": "What it came from",
+    "sourceUrl": "Link to the report",
+    "severity": "Severity",
+    "service": "Service",
+    "supplier": "Supplier",
+    "controls": "Affected controls",
+    "owner": "Owner",
+    "dueDate": "Due date",
+    "cause": "Cause",
+    "grcRef": "GRC reference",
+    "grcUrl": "Link to the GRC tool",
+    "status": "Status",
+    "record": "Incident review",
+    "created": "Recorded by {{user}} on {{date}}",
+    "updated": "Last changed by {{user}} {{when}}",
+    "closed": "Closed by {{user}} on {{date}}"
+  },
+  "hints": {
+    "sourceLabel": "For example: External ISMS audit 2026, finding 4",
+    "controls": "The controls the finding is about: the finding shows on their panel on Controls and goes into their evidence packs.",
+    "cause": "Why it happened (root cause), as far as known",
+    "grcRef": "Where the risk lives in your GRC tool, e.g. a risk id – Steward keeps no risk register",
+    "service": "Editors of the service may change the finding",
+    "supplier": "The supplier the finding is about, for example from a supplier review",
+    "owner": "Who sees the finding through and is reminded"
+  },
+  "form": {
+    "newTitle": "Record a finding",
+    "editTitle": "Change finding {{number}}",
+    "confirmTitle": "Confirm as a finding",
+    "confirmIntro": "The finding is filled in from the suggestion. Change what you need; it links to what it came from.",
+    "saved": "Saved.",
+    "created": "Finding {{number}} recorded.",
+    "confirmed": "Finding {{number}} recorded from the suggestion.",
+    "noService": "No service",
+    "noOwner": "Nobody yet",
+    "controlsPlaceholder": "Search controls",
+    "confirmNeutral": "The title names no incident review, duty or supplier: everyone who reads the register reads it, and the finding links what it came from, which each reader sees with their own rights."
+  },
+  "detail": {
+    "edit": "Edit",
+    "markInProgress": "Start work",
+    "markImplemented": "Mark as implemented",
+    "reopen": "Back to in progress",
+    "checkEffectiveness": "Check effectiveness",
+    "cancel": "Cancel finding",
+    "statusChanged": "Status changed.",
+    "about": "About the finding",
+    "noDescription": "No description.",
+    "sourceLink": "Came from",
+    "grc": "GRC reference",
+    "fromSuggestion": "Recorded from a suggestion",
+    "effectiveness": "Effectiveness check",
+    "notChecked": "Not checked yet. Once every action is done and the finding is implemented, a second person checks that the fix worked.",
+    "checkedBy": "{{result}} – checked by {{user}} on {{date}}",
+    "method": "Method: {{method}}",
+    "cancelled": "Cancelled: {{reason}}",
+    "ownPart": "You took part in the fix (as an owner of the finding or of an action – also as a member of an owning team –, by marking an action done or by changing one after the finding was implemented): a second person checks it.",
+    "fourEyesOff": "The assurance policy lets anyone who checks confirm their own fix.",
+    "recordHidden": "The actions are measures of an incident review you may not read.",
+    "measuresNote": "This finding's actions are the measures of its incident review {{record}}: they stay in the review, with its reminders."
+  },
+  "actions": {
+    "title": "Actions",
+    "add": "Add an action",
+    "edit": "Change action",
+    "remove": "Remove action “{{title}}”",
+    "removeConfirm": "Remove the action “{{title}}”?",
+    "markDone": "Mark “{{title}}” as done",
+    "markOpen": "Mark “{{title}}” as not done",
+    "editAction": "Change “{{title}}”",
+    "fieldTitle": "Action",
+    "owners": "Owners",
+    "ownersHint": "They are reminded before the due date, on it and weekly while it is overdue.",
+    "dueDate": "Due date",
+    "note": "Note",
+    "done": "Done",
+    "doneBy": "Done by {{user}} on {{date}}",
+    "due": "Due {{date}}",
+    "measure": "Measure of the review",
+    "saved": "Action saved.",
+    "removed": "Action removed."
+  },
+  "effectiveness": {
+    "title": "Check effectiveness of {{number}}",
+    "intro": "Confirm whether the fix worked. Effective closes the finding; not effective sends it back to in progress for a new action.",
+    "method": "How you checked it",
+    "methodHint": "For example: sampled five leavers of the last month; restored last week's backup",
+    "result": "Result",
+    "effective": "Effective",
+    "notEffective": "Not effective",
+    "note": "Note",
+    "submit": "Record the check",
+    "done": "Effectiveness check recorded."
+  },
+  "cancel": {
+    "title": "Cancel finding {{number}}",
+    "reason": "Reason",
+    "reasonHint": "For example: recorded twice, or not a nonconformity after all",
+    "submit": "Cancel finding",
+    "done": "Finding cancelled."
+  },
+  "suggestions": {
+    "intro": "Steward suggests findings from its own events; a person confirms each one or dismisses it with a reason. The same event is never suggested twice.",
+    "atLimit": "{{limit}} suggestions are waiting: further ones wait until some are decided.",
+    "empty": "No suggestions wait for a decision.",
+    "statusFilter": "Show",
+    "statuses": {
+      "pending": "Waiting",
+      "confirmed": "Confirmed",
+      "dismissed": "Dismissed",
+      "all": "All"
+    },
+    "confirm": "Confirm",
+    "dismiss": "Dismiss",
+    "dismissTitle": "Dismiss the suggestion",
+    "dismissReason": "Why it is not a finding",
+    "dismissed": "Suggestion dismissed.",
+    "occurred": "Happened on {{date}}",
+    "decided": "{{status}} by {{user}} on {{date}}",
+    "finding": "Finding {{number}}",
+    "reason": "Reason: {{reason}}",
+    "titles": {
+      "dutyMissed": "{{level}} duty “{{duty}}” missed in period {{period}}",
+      "dutyFailed": "{{level}} duty “{{duty}}” failed in period {{period}}",
+      "incident": "Incident review {{record}} accepted ({{severity}}): {{title}}",
+      "personReview": "Person review “{{review}}”: {{count}} removal(s) not confirmed gone after {{days}} days",
+      "reconciliation": "Access check “{{check}}”: {{count}} finding(s) open for more than {{days}} days ({{week}})",
+      "supplierCertificate": "Certificate {{certificate}} of supplier “{{supplier}}” ran out on {{date}}",
+      "supplierReviewMissed": "Supplier review “{{duty}}” of “{{supplier}}” missed in period {{period}}",
+      "supplierReviewFailed": "Supplier review “{{duty}}” of “{{supplier}}” failed in period {{period}}"
+    },
+    "neutralTitles": {
+      "dutyMissed": "{{level}} duty missed in period {{period}}",
+      "dutyFailed": "{{level}} duty failed in period {{period}}",
+      "incident": "Incident review accepted ({{severity}})",
+      "personReview": "Person review: {{count}} removal(s) not confirmed gone after {{days}} days",
+      "reconciliation": "Access check: {{count}} finding(s) open for more than {{days}} days ({{week}})",
+      "supplierCertificate": "A supplier certificate ran out on {{date}}",
+      "supplierReviewMissed": "Supplier review missed in period {{period}}",
+      "supplierReviewFailed": "Supplier review failed in period {{period}}"
+    },
+    "levels": {
+      "mandatory": "Mandatory",
+      "recommended": "Recommended"
+    }
+  },
+  "settings": {
+    "intro": "Which of Steward's events become suggestions. Nothing becomes a finding without a person; switched on, a source suggests the events of the last 90 days.",
+    "readOnly": "Only administrators change the sources.",
+    "updated": "Last changed by {{user}} {{when}}.",
+    "saved": "Sources saved.",
+    "sources": {
+      "dutyMandatory": {
+        "label": "Missed or failed periods of mandatory duties",
+        "description": "A period of a mandatory service duty that ended missed or failed."
+      },
+      "dutyRecommended": {
+        "label": "Missed or failed periods of recommended duties",
+        "description": "The same for recommended duties – off by default."
+      },
+      "incidentMajor": {
+        "label": "Accepted incident reviews of severity major or critical",
+        "description": "Its measures become the actions of the finding."
+      },
+      "incidentMinor": {
+        "label": "Accepted incident reviews of severity minor",
+        "description": "Off by default: not every incident is a nonconformity."
+      },
+      "personReview": {
+        "label": "Person review removals still there after 30 days",
+        "description": "An approved person access review whose removals are not confirmed gone 30 days after its approval."
+      },
+      "reconciliation": {
+        "label": "Reconciliation findings open for more than seven days",
+        "description": "Off by default. One suggestion per access check and week, however many findings are open."
+      },
+      "supplierReview": {
+        "label": "Supplier reviews",
+        "description": "A certificate of a confirmed supplier in use that ran out, and a missed or failed period of a duty that reviews a supplier (instead of the duty sources above)."
+      }
+    }
+  },
+  "controlPanel": {
+    "title": "Open findings",
+    "none": "No open corrective action findings name this control.",
+    "link": "All findings of this control"
+  },
+  "supplierPanel": {
+    "title": "Corrective actions",
+    "none": "No open finding is about this supplier.",
+    "record": "Record a finding",
+    "all": "All findings of this supplier"
+  }
+}

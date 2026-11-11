@@ -78,7 +78,14 @@ Themes of this release (details in the CHANGELOG once released):
 
 ## Next
 
-**0.16.1 – device profiles from manuals.** Plant proposals from AI assistants (MCP) in parts, so a whole manual with hundreds of data points arrives as one reviewable proposal; and a source per data point – the document and page it comes from – shown in the review, with the manual kept as a plant document on the profile.
+**0.17.0 – device profiles from manuals, and ISO/IEC 27001 support for service management.**
+
+- **Plant proposals in parts** ([ADR 0028](adr/0028-plant-proposals-in-parts.md), built): proposals from AI assistants (MCP) in parts, so a whole manual with hundreds of data points arrives as one reviewable proposal; and a source per data point – the document and page it comes from – shown in the review, with the manual kept as a plant document on the profile.
+- **ISO/IEC 27001 support** ([ADR 0029](adr/0029-iso-27001-support.md), built): evidence for an audit, not compliance by itself – risk registers, policy management, questionnaires and audit planning stay in a GRC tool ([non-goals](#non-goals)). In this order:
+  1. **Suppliers** as records instead of free-text vendor fields – type, contacts, contracts with notice periods and renewals linked to cost plan lines, SLA, data processing agreement, certificates with expiry, an annual supplier review as a service duty; existing vendor texts become unconfirmed suppliers to confirm or merge.
+  2. **Statement of applicability with a responsibility matrix**: per catalogue and control applicability with a justification, status, how it is met, the responsible party and the evidence Steward already has; versions approved and exported signed (PDF and CSV). Per service who does backup, recovery, patching, access management, logging and incident handling – our team, a supplier (with its SLA and certificate) or central IT – suggesting the SoA's responsible party.
+  3. **Corrective actions**: one register of nonconformities from audits and from Steward's own events (suggested, confirmed by a person), with actions, owners, due dates and an effectiveness check; incident review measures read through.
+  4. **ISMS summary** as a section of scheduled reports: SoA status, overdue corrective actions, duties on time, reviews done, supplier certificates and contracts expiring.
 
 ## Later
 

@@ -14,6 +14,7 @@ import {
   type DocumentApplicationRef,
   type PlatformPermission,
   type ServiceApplication,
+  supplierLinkField,
 } from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
@@ -43,6 +44,7 @@ import { systemCounts, systemLinksOf } from './systems.js';
 import { credentialsBelongingTo, credentialsLinkingTo, toCredential, type CredentialRow } from '../credentials/service.js';
 import { assertKnownSubjects } from '../auth/subjects.js';
 import { assignCreatorTeams, catalogueTeams } from '../auth/policy.js';
+import { resolveSupplierLink, supplierRefs } from '../suppliers/links.js';
 
 /**
  * Applications of the service catalogue (#84): name, description, vendor, version, URL, owners, criticality, tags,
@@ -66,6 +68,8 @@ interface ApplicationRow {
   cmdb_url: string | null;
   tags: string;
   archived: number;
+  /** The supplier (0.17.0, ADR 0029); `vendor` stays as the fallback text */
+  supplier_id: string | null;
   created_at: string;
   created_by: string;
   updated_at: string;
@@ -85,6 +89,8 @@ export const applicationInput = z
     name: z.string().trim().min(1).max(APPLICATION_LIMITS.name),
     description: z.string().max(APPLICATION_LIMITS.description).default(''),
     vendor: z.string().trim().max(APPLICATION_LIMITS.vendor).default(''),
+    /** The supplier (0.17.0): missing keeps it, null clears it; `vendor` stays as text */
+    supplierId: supplierLinkField,
     version: z.string().trim().max(APPLICATION_LIMITS.version).default(''),
     url: z.union([httpUrl, z.literal('')]).default(''),
     owners: z.array(ownerSubject).max(20).default([]),
@@ -224,12 +230,14 @@ function toSummary(
     docs: { documents: number; overdue: number };
     components: number;
     systems: number;
+    supplier?: ApplicationSummary['supplier'];
   },
 ): ApplicationSummary {
   return {
     id: r.id,
     name: r.name,
     vendor: r.vendor,
+    supplier: x.supplier !== undefined ? x.supplier : r.supplier_id ? (supplierRefs([r.supplier_id]).get(r.supplier_id) ?? null) : null,
     version: r.version,
     url: r.url,
     criticality: (r.criticality as ApplicationSummary['criticality']) ?? null,
@@ -266,6 +274,7 @@ export function listApplicationEntries(o: { archived?: boolean } = {}): Applicat
   const docs = documentCounts(db().all<{ item: string; record: string }>('SELECT application_id AS item, record_id AS record FROM record_applications'), u);
   const components = componentCounts();
   const systems = systemCounts();
+  const suppliers = supplierRefs(rows.map((r) => r.supplier_id));
   return rows.map((r) => ({
     ...toSummary(r, {
       services: services.get(r.id) ?? [],
@@ -274,6 +283,7 @@ export function listApplicationEntries(o: { archived?: boolean } = {}): Applicat
       docs: docs.get(r.id) ?? { documents: 0, overdue: 0 },
       components: components.get(r.id) ?? 0,
       systems: systems.get(r.id) ?? 0,
+      supplier: r.supplier_id ? (suppliers.get(r.supplier_id) ?? null) : null,
     }),
     description: r.description,
     createdAt: r.created_at,
@@ -367,11 +377,12 @@ export function applicationOfPlatform(platformId: string): { id: string; name: s
 
 const dedupe = <T>(xs: T[]) => [...new Set(xs)];
 
-function columns(input: ApplicationInput) {
+function columns(input: ApplicationInput, currentSupplier: string | null = null) {
   return {
     name: input.name,
     description: input.description,
     vendor: input.vendor,
+    supplier_id: resolveSupplierLink(input.supplierId, currentSupplier),
     version: input.version,
     url: input.url,
     owners: JSON.stringify(dedupe(input.owners)),
@@ -397,12 +408,13 @@ export function createApplication(input: ApplicationInput): ApplicationDetail {
   const c = columns(input);
   db().tx(() => {
     db().run(
-      `INSERT INTO applications (id, name, description, vendor, version, url, owners, criticality, cmdb_system, cmdb_id, cmdb_url, tags, archived, created_at, created_by, updated_at, updated_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)`,
+      `INSERT INTO applications (id, name, description, vendor, supplier_id, version, url, owners, criticality, cmdb_system, cmdb_id, cmdb_url, tags, archived, created_at, created_by, updated_at, updated_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)`,
       id,
       c.name,
       c.description,
       c.vendor,
+      c.supplier_id,
       c.version,
       c.url,
       c.owners,
@@ -422,7 +434,7 @@ export function createApplication(input: ApplicationInput): ApplicationDetail {
       entityType: 'application',
       entityId: id,
       summary: `Application "${input.name}" created`,
-      details: { vendor: input.vendor, criticality: input.criticality, owners: dedupe(input.owners), cmdb: input.cmdb },
+      details: { vendor: input.vendor, supplierId: c.supplier_id, criticality: input.criticality, owners: dedupe(input.owners), cmdb: input.cmdb },
     });
   });
   return getApplication(id);
@@ -433,15 +445,16 @@ export function updateApplication(id: string, input: ApplicationInput): Applicat
   const cur = requireEditableApplication(id, 'change this application');
   if (nameTaken(input.name, id)) throw new HttpError(409, `An application named "${input.name}" exists already`, 'APPLICATION_EXISTS', { name: input.name });
   assertKnownSubjects(input.owners, ownersOf(cur));
-  const next = columns(input);
+  const next = columns(input, cur.supplier_id);
   const changes = (Object.keys(next) as (keyof typeof next)[]).filter((k) => (next[k] ?? null) !== (cur[k] ?? null));
   if (!changes.length) return getApplication(id);
   db().tx(() => {
     db().run(
-      'UPDATE applications SET name = ?, description = ?, vendor = ?, version = ?, url = ?, owners = ?, criticality = ?, cmdb_system = ?, cmdb_id = ?, cmdb_url = ?, tags = ?, updated_at = ?, updated_by = ? WHERE id = ?',
+      'UPDATE applications SET name = ?, description = ?, vendor = ?, supplier_id = ?, version = ?, url = ?, owners = ?, criticality = ?, cmdb_system = ?, cmdb_id = ?, cmdb_url = ?, tags = ?, updated_at = ?, updated_by = ? WHERE id = ?',
       next.name,
       next.description,
       next.vendor,
+      next.supplier_id,
       next.version,
       next.url,
       next.owners,
@@ -459,7 +472,11 @@ export function updateApplication(id: string, input: ApplicationInput): Applicat
       entityType: 'application',
       entityId: id,
       summary: `Application "${input.name}" changed (${changes.join(', ')})`,
-      details: { changes, ...(changes.includes('owners') ? { owners: { old: ownersOf(cur), new: dedupe(input.owners) } } : {}) },
+      details: {
+        changes,
+        ...(changes.includes('owners') ? { owners: { old: ownersOf(cur), new: dedupe(input.owners) } } : {}),
+        ...(changes.includes('supplier_id') ? { supplierId: { old: cur.supplier_id, new: next.supplier_id } } : {}),
+      },
     });
   });
   return getApplication(id);

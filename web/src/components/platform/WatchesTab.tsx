@@ -21,6 +21,7 @@ import { platformKeys } from '../../queryKeys';
 import { fmtDate, fmtRelative } from '../../format';
 import { DataTable, type DataColumn } from '../DataTable';
 import { EmptyState, FilterPanel, TONE } from '../common';
+import { SupplierPicker, useSupplierChoice } from '../suppliers/SupplierPicker';
 
 const STATE_COLORS: Record<PageWatchState, string> = {
   ok: TONE.ok,
@@ -68,10 +69,16 @@ function Links({ w }: { w: PageWatch }) {
           {t('watches.hidden')}
         </Text>
       )),
-    w.vendor && (
-      <Text key="v" span size="sm">
-        {t('watches.vendorIs', { vendor: w.vendor })}
-      </Text>
+    w.supplier ? (
+      <Anchor key="v" component={Link} to={`/suppliers/${w.supplier.id}`} size="sm">
+        {t('watches.vendorIs', { vendor: w.supplier.name })}
+      </Anchor>
+    ) : (
+      w.vendor && (
+        <Text key="v" span size="sm">
+          {t('watches.vendorIs', { vendor: w.vendor })}
+        </Text>
+      )
     ),
   ].filter(Boolean);
   if (!parts.length)
@@ -243,7 +250,7 @@ export function WatchesTab({ platform }: { platform: Platform }) {
             {w.lastError}
           </Text>
         )}
-        {(w.application || w.service || w.vendor) && <Links w={w} />}
+        {(w.application || w.service || w.vendor || w.supplier) && <Links w={w} />}
         <Actions w={w} />
       </Stack>
     </Paper>
@@ -381,6 +388,7 @@ function LinkModal({ platformId, watch: w, vendors, onClose }: { platformId: str
   const [application, setApplication] = useState<string | null | undefined>(undefined);
   const [service, setService] = useState<string | null | undefined>(undefined);
   const [vendor, setVendor] = useState(w.vendor);
+  const supplier = useSupplierChoice(w.supplier);
   const [saving, setSaving] = useState(false);
   const appValue = application === undefined ? (w.application?.id ?? null) : application;
   const serviceValue = service === undefined ? (w.service?.id ?? null) : service;
@@ -391,6 +399,7 @@ function LinkModal({ platformId, watch: w, vendors, onClose }: { platformId: str
         ...(application !== undefined ? { applicationId: application } : {}),
         ...(service !== undefined ? { serviceId: service } : {}),
         vendor: vendor.trim(),
+        ...(supplier.body !== undefined ? { supplierId: supplier.body } : {}),
       });
       notifyOk(t('watches.linked'));
       void qc.invalidateQueries({ queryKey: platformKeys.watches(platformId) });
@@ -425,14 +434,16 @@ function LinkModal({ platformId, watch: w, vendors, onClose }: { platformId: str
           placeholder={w.service && !w.service.visible && service === undefined ? t('watches.hidden') : undefined}
           onChange={setService}
         />
-        <Autocomplete
-          label={t('watches.vendor')}
-          description={t('watches.vendorHint')}
-          maxLength={PAGE_WATCH_LIMITS.vendor}
-          data={vendors}
-          value={vendor}
-          onChange={setVendor}
-        />
+        <SupplierPicker value={supplier.value} onChange={supplier.set} initial={w.supplier} testId="watch-supplier">
+          <Autocomplete
+            label={t('watches.vendor')}
+            description={t('watches.vendorHint')}
+            maxLength={PAGE_WATCH_LIMITS.vendor}
+            data={vendors}
+            value={vendor}
+            onChange={setVendor}
+          />
+        </SupplierPicker>
         <Group justify="flex-end">
           <Button variant="default" onClick={onClose}>
             {t('common:cancel')}

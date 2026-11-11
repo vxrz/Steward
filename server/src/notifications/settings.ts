@@ -48,6 +48,7 @@ export function defaultRoutes(): Record<NotificationEvent, NotificationChannel[]
     'stack.release',
     'maintenance.announced',
     'measure.due',
+    'corrective.action_due',
     'backup.failed',
     'export.failed',
     'mcp.request',
@@ -58,6 +59,9 @@ export function defaultRoutes(): Record<NotificationEvent, NotificationChannel[]
     'plant.change_proposed',
     'plant.change_decided',
     'plant.advisory_matched',
+    'supplier.certificate_expiring',
+    'supplier.notice_due',
+    'soa.approval_waiting',
   ];
   // emergency access: every channel that is set up, so nobody can use it unnoticed
   return Object.fromEntries(

@@ -20,15 +20,18 @@
     "services": "Services",
     "applications": "Applications",
     "systems": "Systems",
+    "suppliers": "Suppliers",
     "maintenance": "Maintenance",
     "statusPages": "Status pages",
     "gitUpdates": "Git sync",
     "libraries": "Libraries",
     "tickets": "Ticket references",
     "controls": "Controls",
+    "soa": "Statement of applicability",
     "accessChanges": "Access changes",
     "reconciliation": "Access reconciliation",
     "personReviews": "Person reviews",
+    "correctiveActions": "Corrective actions",
     "evidencePacks": "Evidence packs",
     "duties": "Duties",
     "scorecard": "Scorecard",
@@ -149,7 +152,8 @@
       "asset": "Asset",
       "profile": "Device profile",
       "kpi": "KPI definition",
-      "contract": "Data contract"
+      "contract": "Data contract",
+      "supplier": "Supplier"
     }
   },
   "groups": {

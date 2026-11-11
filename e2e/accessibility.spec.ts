@@ -66,6 +66,8 @@ test.describe('accessibility (axe, WCAG 2.1 AA)', () => {
     ['platforms', '/platforms'],
     ['credentials', '/credentials'],
     ['ticket references', '/tickets'],
+    ['suppliers', '/suppliers'],
+    ['suppliers to confirm', '/suppliers?status=unconfirmed'],
     ['reports', '/reports'],
     ['settings', '/settings'],
     ['exports', '/settings/exports'],
@@ -74,6 +76,12 @@ test.describe('accessibility (axe, WCAG 2.1 AA)', () => {
     ['profile', '/profile'],
     ['AI requests', '/mcp-requests'],
     ['status pages', '/status-pages'],
+    ['corrective actions', '/compliance/corrective-actions'],
+    // statement of applicability (ADR 0029 part 2): the list and the demo statement of Annex A
+    ['statements of applicability', '/compliance/soa'],
+    ['statement of applicability', '/compliance/soa/ISO27001'],
+    ['corrective action suggestions', '/compliance/corrective-actions/suggestions'],
+    ['corrective action settings', '/compliance/corrective-actions/settings'],
   ];
   for (const [name, path] of PAGES) {
     test(name, async ({ page }) => {
@@ -91,6 +99,16 @@ test.describe('accessibility (axe, WCAG 2.1 AA)', () => {
     await expect(page.getByTestId('service-cost-plan')).toBeVisible();
     await expectAccessible(page, 'service cost plan');
     await expectStructure(page, 'service cost plan');
+  });
+
+  test('the responsibilities of a service', async ({ page, apiAs }) => {
+    const services = await json<{ id: string; name: string }[]>(await (await apiAs('admin')).get('/api/services'));
+    const service = services.find((s) => s.name === 'Online shop (demo)') ?? services[0]!;
+    await page.goto(`/services/${service.id}/responsibilities`);
+    await settle(page);
+    await expect(page.getByTestId('responsibilities')).toBeVisible();
+    await expectAccessible(page, 'service responsibilities');
+    await expectStructure(page, 'service responsibilities');
   });
 
   test('"Skip to content" is the first focusable element and moves focus to the page', async ({ page }) => {

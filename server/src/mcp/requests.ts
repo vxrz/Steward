@@ -107,6 +107,8 @@ export interface ReviewKind {
   precheck?: (r: Row, selection: McpProposalSelection | undefined, u: AuthUser) => void;
   /** 0.12.0: called in the transaction that rejects or withdraws it (an audit entry of the module, for example) */
   onRejected?: (r: Row, u: AuthUser, o: { withdrawn: boolean; comment: string }) => void;
+  /** 0.17.0: called when it expired without a decision (what an unfinished proposal kept can go, for example) */
+  onExpired?: (r: Row) => void;
 }
 const REVIEW_KINDS = new Map<McpRequestKind, ReviewKind>();
 export function registerReviewKind(kind: McpRequestKind, def: ReviewKind): void {
@@ -244,6 +246,7 @@ export function expireRequests(now = nowIso()): number {
   const rows = db().all<Row>("SELECT * FROM mcp_requests WHERE status = 'pending' AND expires_at <= ? LIMIT 500", now);
   for (const r of rows) {
     if (db().run("UPDATE mcp_requests SET status = 'expired' WHERE id = ? AND status = 'pending'", r.id).changes !== 1) continue;
+    reviewOf(r)?.onExpired?.(r);
     audit({
       actor: 'system',
       action: 'mcp.request_expired',

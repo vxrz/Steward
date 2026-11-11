@@ -79,6 +79,11 @@ const TAGS = [
     description:
       'Platform costs (showback) per service, application, team and platform: 12 months, the current month, trend, forecast and budget, per currency, in FinOps FOCUS columns',
   },
+  {
+    name: 'Suppliers',
+    description:
+      'Suppliers of SaaS, managed platforms, software and services: contracts with notice-by dates, SLA and contractual RTO/RPO, certificates, and what links them – contacts without e-mail or phone',
+  },
 ];
 
 const problemContent = { 'application/problem+json': { schema: { $ref: '#/components/schemas/Problem' } } };

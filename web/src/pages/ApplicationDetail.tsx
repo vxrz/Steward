@@ -33,6 +33,7 @@ import { useMe } from '../auth';
 import { IfModule } from '../components/modules/ModuleOff';
 import { CollectorCollections } from '../components/plant/CollectorCollections';
 import { CollapsibleSection, SectionGroup } from '../components/page/CollapsibleSection';
+import { SupplierText } from '../components/suppliers/SupplierPicker';
 
 export function ApplicationDetailPage() {
   const { t } = useTranslation(['applications', 'common']);
@@ -187,7 +188,10 @@ export function ApplicationDetailPage() {
             <Paper withBorder p="sm">
               <Stack gap="sm">
                 <Field label={t('vendor')}>
-                  <Text size="sm">{[a.vendor, a.version].filter(Boolean).join(' · ') || '–'}</Text>
+                  <Text size="sm" component="div">
+                    {a.supplier || a.vendor ? <SupplierText supplier={a.supplier} vendor={a.vendor} /> : !a.version && '–'}
+                    {a.version && `${a.supplier || a.vendor ? ' · ' : ''}${a.version}`}
+                  </Text>
                 </Field>
                 {a.url && (
                   <Field label={t('url')}>

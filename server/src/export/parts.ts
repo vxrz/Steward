@@ -10,7 +10,7 @@ import {
   type ExportPartInfo,
   type ModuleId,
 } from '@sm/shared';
-import { csvTable } from '../csv.js';
+import { csvCell, csvTable } from '../csv.js';
 
 /**
  * The parts a scheduled export can write (0.16.0, docs/EXPORTS.md, ADR 0027) – a registry: each part names its
@@ -62,6 +62,19 @@ export function objectsCsv(items: readonly Record<string, unknown>[]): string {
     items.map((i) => keys.map((k) => i[k] ?? null)),
     { quote: 'needed', bom: true },
   );
+}
+
+/** A CSV file written in pages: the header (with a byte order mark) first, then each page of rows as it comes. */
+function csvFile(out: ExportWriter, head: readonly string[]) {
+  let started = false;
+  const line = (r: readonly unknown[]) => `${r.map((v) => csvCell(v, 'needed')).join(',')}\r\n`;
+  return {
+    async rows(rows: readonly (readonly unknown[])[]): Promise<void> {
+      if (!started) await out.write(`\uFEFF${head.join(',')}\r\n`);
+      started = true;
+      if (rows.length) await out.write(rows.map(line).join(''));
+    },
+  };
 }
 
 /** The fiscal year of a choice, counted from the run's day. */
@@ -200,7 +213,268 @@ const auditLog: ExportPartDef = {
   },
 };
 
-export const EXPORT_PARTS: readonly ExportPartDef[] = [costPlans, plant, services, applications, systems, monitors, auditLog];
+const SUPPLIER_HEAD = [
+  'Id',
+  'Name',
+  'Type',
+  'Status',
+  'Description',
+  'Website',
+  'Owners',
+  'Aliases',
+  'Personal data',
+  'Data processing agreement',
+  'Agreement since',
+  'Agreement link',
+  'Confidentiality',
+  'Integrity',
+  'Availability',
+  'Contracts',
+  'Certificates',
+  'Next notice by',
+  'Next certificate expiry',
+  'Contacts',
+  'Used by',
+  'Updated',
+] as const;
+const CONTRACT_HEAD = [
+  'Supplier id',
+  'Supplier',
+  'Contract id',
+  'Title',
+  'Reference',
+  'Starts',
+  'Ends',
+  'Notice days',
+  'Renewal',
+  'Renewal months',
+  'Term end',
+  'Notice by',
+  'SLA availability (%)',
+  'Support hours',
+  'Response times',
+  'RTO (hours)',
+  'RPO (hours)',
+  'Link',
+  'Note',
+  'Cost plan lines',
+] as const;
+const CERTIFICATE_HEAD = [
+  'Supplier id',
+  'Supplier',
+  'Certificate id',
+  'Kind',
+  'Name',
+  'Scope',
+  'Issuer',
+  'Issued',
+  'Valid until',
+  'State',
+  'Link',
+  'Checked by',
+  'Checked at',
+] as const;
+
+const suppliers: ExportPartDef = {
+  id: 'suppliers',
+  formats: ['csv'],
+  module: null,
+  options: [],
+  async write(_choice, ctx) {
+    // as /api/v1 and MCP give them (toPublic): contacts by name and role – never their e-mail or phone (ADR 0029, decided 8)
+    const { publicSuppliers } = await import('../suppliers/service.js');
+    const list = csvFile(ctx.file('suppliers.csv'), SUPPLIER_HEAD);
+    const contracts = csvFile(ctx.file('supplier-contracts.csv'), CONTRACT_HEAD);
+    const certificates = csvFile(ctx.file('supplier-certificates.csv'), CERTIFICATE_HEAD);
+    await list.rows([]);
+    await contracts.rows([]);
+    await certificates.rows([]);
+    for (const page of publicSuppliers(100, ctx.now.getTime())) {
+      await list.rows(
+        page.map((s) => [
+          s.id,
+          s.name,
+          s.type,
+          s.status,
+          s.description,
+          s.website,
+          s.owners,
+          s.aliases,
+          s.personalData,
+          s.dpaStatus ?? '',
+          s.dpaSince ?? '',
+          s.dpaLink,
+          s.criticality.confidentiality?.label ?? '',
+          s.criticality.integrity?.label ?? '',
+          s.criticality.availability?.label ?? '',
+          s.contractCount,
+          s.certificateCount,
+          s.nextNoticeBy ?? '',
+          s.nextCertificateExpiry ?? '',
+          s.contacts.map((c) => `${c.name} (${c.role})`),
+          Object.entries(s.usage)
+            .filter(([, n]) => n > 0)
+            .map(([k, n]) => `${k}: ${n}`),
+          s.updatedAt,
+        ]),
+      );
+      await contracts.rows(
+        page.flatMap((s) =>
+          s.contracts.map((c) => [
+            s.id,
+            s.name,
+            c.id,
+            c.title,
+            c.reference,
+            c.startsOn ?? '',
+            c.endsOn ?? '',
+            c.noticeDays,
+            c.renewal,
+            c.renewalMonths,
+            c.termEnd ?? '',
+            c.noticeBy ?? '',
+            c.slaAvailability,
+            c.slaSupportHours,
+            c.slaResponse,
+            c.rtoHours,
+            c.rpoHours,
+            c.link,
+            c.note,
+            c.costPlanLines.map((l) => `${l.serviceName} ${l.fiscalYear}: ${l.title}`),
+          ]),
+        ),
+      );
+      await certificates.rows(
+        page.flatMap((s) =>
+          s.certificates.map((c) => [
+            s.id,
+            s.name,
+            c.id,
+            c.kind,
+            c.name,
+            c.scope,
+            c.issuer,
+            c.issuedOn ?? '',
+            c.validUntil ?? '',
+            c.state,
+            c.link,
+            c.checkedBy ?? '',
+            c.checkedAt ?? '',
+          ]),
+        ),
+      );
+      await ctx.pause();
+    }
+  },
+};
+
+const FINDING_HEAD = [
+  'Number',
+  'Title',
+  'Source',
+  'Severity',
+  'Status',
+  'Service',
+  'Supplier',
+  'Controls',
+  'Owner',
+  'Due',
+  'Overdue',
+  'Open actions',
+  'Actions',
+  'Effectiveness',
+  'Checked by',
+  'Checked at',
+  'GRC reference',
+  'Created',
+  'Closed',
+] as const;
+
+const correctiveActions: ExportPartDef = {
+  id: 'correctiveActions',
+  formats: ['csv'],
+  module: 'compliance',
+  options: [],
+  async write(_choice, ctx) {
+    const { CaContext, listFindingSummaries } = await import('../compliance/corrective.js');
+    const { db } = await import('../db.js');
+    const out = csvFile(ctx.file('corrective-actions.csv'), FINDING_HEAD);
+    await out.rows([]);
+    const cactx = new CaContext();
+    // oldest first, like a register
+    const list = listFindingSummaries({}, cactx).reverse();
+    for (let i = 0; i < list.length; i += 500) {
+      const page = list.slice(i, i + 500);
+      const extra = new Map(
+        db()
+          .all<{ id: string; eff_result: string | null; eff_checked_by: string | null; eff_checked_at: string | null; grc_ref: string }>(
+            `SELECT id, eff_result, eff_checked_by, eff_checked_at, grc_ref FROM ca_findings WHERE id IN (${page.map(() => '?').join(', ')})`,
+            ...page.map((f) => f.id),
+          )
+          .map((r) => [r.id, r]),
+      );
+      await out.rows(
+        page.map((f) => {
+          const x = extra.get(f.id);
+          return [
+            f.number,
+            f.title,
+            f.source,
+            f.severity,
+            f.status,
+            f.serviceName ?? '',
+            f.supplierName ?? '',
+            f.controls.map((c) => `${c.catalogueKey} ${c.ref}`),
+            f.owner ?? '',
+            f.dueDate ?? '',
+            f.overdue,
+            f.actionsOpen,
+            f.actionsTotal,
+            x?.eff_result ?? '',
+            x?.eff_checked_by ?? '',
+            x?.eff_checked_at ?? '',
+            x?.grc_ref ?? '',
+            f.createdAt,
+            f.closedAt ?? '',
+          ];
+        }),
+      );
+      await ctx.pause();
+    }
+  },
+};
+
+const soa: ExportPartDef = {
+  id: 'soa',
+  formats: ['json'],
+  module: 'compliance',
+  options: [],
+  async write(_choice, ctx) {
+    // the latest approved version of each catalogue: the frozen JSON byte for byte (its SHA-256 is the version's, as in
+    // the audit log and the signed export) and its CSV beside it; nothing while no version is approved
+    const { latestApprovedFiles } = await import('../compliance/soa.js');
+    const versions = latestApprovedFiles();
+    for (const v of versions) {
+      await ctx.file(`${v.base}.json`).write(v.json);
+      await ctx.file(`${v.base}.csv`).write(v.csv);
+      await ctx.pause();
+    }
+    ctx.note({ versions: versions.map((v) => ({ catalogue: v.catalogueKey, number: v.number, approvedAt: v.approvedAt, contentSha256: v.contentSha256 })) });
+  },
+};
+
+export const EXPORT_PARTS: readonly ExportPartDef[] = [
+  costPlans,
+  plant,
+  services,
+  applications,
+  systems,
+  monitors,
+  auditLog,
+  suppliers,
+  correctiveActions,
+  soa,
+];
 
 export const exportPart = (id: string): ExportPartDef | undefined => EXPORT_PARTS.find((p) => p.id === id);
 

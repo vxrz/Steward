@@ -156,9 +156,9 @@ describe('daily summary sections added later', () => {
         new Date().toISOString(),
       );
     const base = { enabled: true, time: '08:00', timeZone: 'UTC', days: 'weekdays', channel: 'inApp', skipEmpty: true };
-    // saved before 0.2.6 with every section of the time: trends and topics are added
+    // saved before 0.2.6 with every section of the time: trends, topics and suppliers are added
     store({ ...base, sections: old });
-    expect(sum.getPrefs(olivia.id).sections).toEqual([...old, 'trends', 'topics']);
+    expect(sum.getPrefs(olivia.id).sections).toEqual([...old, 'trends', 'topics', 'suppliers']);
     // saved before 0.4.0 without trends: nothing is added (as before)
     store({ ...base, sections: old.slice(1) });
     expect(sum.getPrefs(olivia.id).sections).toEqual(old.slice(1));

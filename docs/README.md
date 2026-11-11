@@ -74,6 +74,7 @@ Every page of Steward's documentation, grouped by what you want to do. New here?
 | [REPORTS.md](REPORTS.md)                                                 | PDF/A run, summary and scheduled reports, branding, archiving and verification              |
 | [RECORDS.md](RECORDS.md)                                                 | Documents: change requests, decision records, incident reviews, living documents; services  |
 | [APPLICATIONS.md](APPLICATIONS.md)                                       | Applications, systems, components, tech stack, end of life, version watch, protection needs |
+| [SUPPLIERS.md](SUPPLIERS.md)                                             | Suppliers with contracts, notice dates, SLA, RTO/RPO and certificates; free-text vendors    |
 | [CREDENTIALS.md](CREDENTIALS.md)                                         | The credentials register: where credentials are kept, owners, expiry and rotation           |
 | [DUTIES.md](DUTIES.md)                                                   | Recurring tasks a service must have done, judged by the real runs                           |
 | [SCORECARD.md](SCORECARD.md)                                             | Availability objectives and the service scorecard                                           |
@@ -113,15 +114,15 @@ Every page of Steward's documentation, grouped by what you want to do. New here?
 
 ## Security and compliance
 
-| Page                                           | What it covers                                                                       |
-| ---------------------------------------------- | ------------------------------------------------------------------------------------ |
-| [SECURITY-MODEL.md](SECURITY-MODEL.md)         | How Steward protects sessions, credentials, platforms, the audit log and its APIs    |
-| [SECURITY-HARDENING.md](SECURITY-HARDENING.md) | The checklist for a work deployment, audit log as evidence, verifying downloads      |
-| [SECURITY.md](../SECURITY.md)                  | Reporting a vulnerability, supported versions                                        |
-| [PRIVACY.md](PRIVACY.md)                       | Which personal data Steward stores, for how long, and erasure requests               |
-| [ASSURANCE.md](ASSURANCE.md)                   | Where four-eyes and step-up are enforced, and the assurance report                   |
-| [COMPLIANCE.md](COMPLIANCE.md)                 | Access governance evidence: access changes, reconciliation, controls, evidence packs |
-| [FIREWALL-CHANGES.md](FIREWALL-CHANGES.md)     | Documenting firewall changes and network segments                                    |
+| Page                                           | What it covers                                                                                                                                                                                                                                                                                                                  |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [SECURITY-MODEL.md](SECURITY-MODEL.md)         | How Steward protects sessions, credentials, platforms, the audit log and its APIs                                                                                                                                                                                                                                               |
+| [SECURITY-HARDENING.md](SECURITY-HARDENING.md) | The checklist for a work deployment, audit log as evidence, verifying downloads                                                                                                                                                                                                                                                 |
+| [SECURITY.md](../SECURITY.md)                  | Reporting a vulnerability, supported versions                                                                                                                                                                                                                                                                                   |
+| [PRIVACY.md](PRIVACY.md)                       | Which personal data Steward stores, for how long, and erasure requests                                                                                                                                                                                                                                                          |
+| [ASSURANCE.md](ASSURANCE.md)                   | Where four-eyes and step-up are enforced, and the assurance report                                                                                                                                                                                                                                                              |
+| [COMPLIANCE.md](COMPLIANCE.md)                 | Access governance evidence: access changes, reconciliation, controls, evidence packs; the [statement of applicability](COMPLIANCE.md#statement-of-applicability) with the responsibility matrix of services and the register of [corrective actions](COMPLIANCE.md#corrective-actions) (ISO/IEC 27001 clauses 6.1.3 d and 10.2) |
+| [FIREWALL-CHANGES.md](FIREWALL-CHANGES.md)     | Documenting firewall changes and network segments                                                                                                                                                                                                                                                                               |
 
 ## Develop and contribute
 

@@ -15,6 +15,7 @@ import {
   type TicketSettings,
   type TicketSource,
   type TicketStatus,
+  supplierLinkField,
 } from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
@@ -27,6 +28,7 @@ import { likeEscape } from '../database/sql.js';
 import { addLink, httpUrl, listLinks, removeLink, targetVisible } from '../records/links.js';
 import { me } from '../auth/access.js';
 import { assignCreatorTeams, forgetOwningTeams, teamScoped } from '../auth/policy.js';
+import { resolveSupplierLink, supplierRefOf } from '../suppliers/links.js';
 
 /**
  * Ticket references: Steward documents that a ticket exists in another system
@@ -59,6 +61,8 @@ export interface TicketRow {
   title: string;
   note: string;
   vendor: string;
+  /** The supplier (0.17.0, ADR 0029); `vendor` stays as the fallback text */
+  supplier_id: string | null;
   responsible: string;
   status: TicketStatus;
   opened_at: string;
@@ -188,6 +192,7 @@ export function toTicket(r: TicketRow, u: AuthUser | null = currentUser(), now =
     title: r.title,
     note: r.note,
     vendor: r.vendor,
+    supplier: supplierRefOf(r.supplier_id),
     responsible: parseJson(r.responsible, []),
     status: r.status,
     openedAt: r.opened_at,
@@ -233,6 +238,8 @@ export const ticketInputSchema = z
     title: z.string().trim().min(1).max(TICKET_LIMITS.title),
     note: z.string().max(TICKET_LIMITS.note).default(''),
     vendor: z.string().trim().max(TICKET_LIMITS.vendor).default(''),
+    /** The supplier (0.17.0): missing keeps it, null clears it; `vendor` stays as text */
+    supplierId: supplierLinkField,
     responsible: z.array(subjectSchema).max(TICKET_LIMITS.responsible).default([]),
     status: z.enum(TICKET_STATUSES).default('open'),
     openedAt: dateish.optional(),
@@ -557,12 +564,13 @@ export function createTicket(b: TicketInput): TicketDetail {
   const openedAt = b.openedAt ?? nowIso();
   const resolvedAt = resolvedFor(b.status, null, b.resolvedAt);
   checkDates(openedAt, resolvedAt);
+  const supplierId = resolveSupplierLink(b.supplierId, null);
   const id = newId('tkt_');
   const now = nowIso();
   db().tx(() => {
     db().run(
-      `INSERT INTO ticket_refs (id, source, external_number, external_url, title, note, vendor, responsible, status, opened_at, resolved_at, last_checked_at, reminder_days, version, created_at, created_by, updated_at, updated_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, 1, ?, ?, ?, ?)`,
+      `INSERT INTO ticket_refs (id, source, external_number, external_url, title, note, vendor, supplier_id, responsible, status, opened_at, resolved_at, last_checked_at, reminder_days, version, created_at, created_by, updated_at, updated_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, 1, ?, ?, ?, ?)`,
       id,
       b.source,
       b.externalNumber,
@@ -570,6 +578,7 @@ export function createTicket(b: TicketInput): TicketDetail {
       b.title,
       b.note,
       b.vendor,
+      supplierId,
       JSON.stringify([...new Set(b.responsible)]),
       b.status,
       openedAt,
@@ -592,6 +601,7 @@ export function createTicket(b: TicketInput): TicketDetail {
         externalNumber: b.externalNumber,
         externalUrl: b.externalUrl || null,
         vendor: b.vendor,
+        supplierId,
         responsible: b.responsible,
         status: b.status,
         openedAt,
@@ -625,6 +635,7 @@ export function updateTicket(id: string, b: TicketInput): TicketDetail {
     title: b.title,
     note: b.note,
     vendor: b.vendor,
+    supplier_id: resolveSupplierLink(b.supplierId, before.supplier_id),
     responsible: JSON.stringify(responsible),
     status: b.status,
     opened_at: openedAt,

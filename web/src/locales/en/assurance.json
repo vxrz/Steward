@@ -91,7 +91,8 @@
       "platformMcp": "Platform (MCP)",
       "personReview": "Person review",
       "setting": "Setting",
-      "process": "Process"
+      "process": "Process",
+      "soa": "Statement of applicability"
     },
     "fourEyes": "four-eyes",
     "stepUp": "step-up",
@@ -360,6 +361,18 @@
       "privilegedIdentity": {
         "label": "Use a privileged platform identity",
         "description": "Starting a run, saving a schedule or webhook trigger, a request explorer call or approving an MCP request with a privileged identity. Four-eyes: the run waits for a start approval by a second person – off: only where a process asks for it; required: every such run."
+      }
+    },
+    "correctiveAction": {
+      "verify": {
+        "label": "Check that a corrective action worked",
+        "description": "Whoever confirms that a fix worked is not the finding's owner, an action's owner or who marked an action done. Required by default; off: any checker may confirm."
+      }
+    },
+    "soa": {
+      "approve": {
+        "label": "Approve a version of the statement of applicability",
+        "description": "Approvers and administrators approve or return a submitted version after confirming it is them. Four-eyes: the submitter does not approve (each statement has its own switch, on by default); required: for every statement."
       }
     }
   },

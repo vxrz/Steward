@@ -73,6 +73,10 @@ const McpRequestsPage = page(() => import('./pages/McpRequests'), 'McpRequestsPa
 const McpRequestDetailPage = page(() => import('./pages/McpRequests'), 'McpRequestDetailPage');
 const PersonReviewsPage = page(() => import('./pages/PersonReviews'), 'PersonReviewsPage');
 const PersonReviewDetailPage = page(() => import('./pages/PersonReviews'), 'PersonReviewDetailPage');
+const CorrectiveActionsPage = page(() => import('./pages/CorrectiveActions'), 'CorrectiveActionsPage');
+const CorrectiveActionDetailPage = page(() => import('./pages/CorrectiveActions'), 'CorrectiveActionDetailPage');
+const SoaListPage = page(() => import('./pages/Soa'), 'SoaListPage');
+const SoaDetailPage = page(() => import('./pages/Soa'), 'SoaDetailPage');
 const ReportsPage = page(() => import('./pages/Reports'), 'ReportsPage');
 const RecordsPage = page(() => import('./pages/Records'), 'RecordsPage');
 const RecordDetailPage = page(() => import('./pages/RecordDetail'), 'RecordDetailPage');
@@ -83,6 +87,8 @@ const ServicesPage = page(() => import('./pages/Services'), 'ServicesPage');
 const ServiceDetailPage = page(() => import('./pages/ServiceDetail'), 'ServiceDetailPage');
 const ApplicationsPage = page(() => import('./pages/Applications'), 'ApplicationsPage');
 const SystemsPage = page(() => import('./pages/Systems'), 'SystemsPage');
+const SuppliersPage = page(() => import('./pages/Suppliers'), 'SuppliersPage');
+const SupplierDetailPage = page(() => import('./pages/SupplierDetail'), 'SupplierDetailPage');
 const MaintenancePage = page(() => import('./pages/Maintenance'), 'MaintenancePage');
 const SystemDetailPage = page(() => import('./pages/SystemDetail'), 'SystemDetailPage');
 const SystemSchemaPage = page(() => import('./pages/SystemSchema'), 'SystemSchemaPage');
@@ -443,6 +449,8 @@ function Shell({ status }: { status: AuthStatus }) {
                     <Route path="/systems" element={<SystemsPage />} />
                     <Route path="/systems/:id" element={<SystemDetailPage />} />
                     <Route path="/systems/:id/schema" element={<SystemSchemaPage />} />
+                    <Route path="/suppliers" element={<SuppliersPage />} />
+                    <Route path="/suppliers/:id" element={<SupplierDetailPage />} />
                     <Route
                       path="/data-contracts"
                       element={
@@ -566,6 +574,54 @@ function Shell({ status }: { status: AuthStatus }) {
                       element={
                         <ModuleGate module="compliance">
                           <PersonReviewDetailPage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/compliance/soa"
+                      element={
+                        <ModuleGate module="compliance">
+                          <SoaListPage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/compliance/soa/:key"
+                      element={
+                        <ModuleGate module="compliance">
+                          <SoaDetailPage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/compliance/corrective-actions"
+                      element={
+                        <ModuleGate module="compliance">
+                          <CorrectiveActionsPage tab="findings" />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/compliance/corrective-actions/suggestions"
+                      element={
+                        <ModuleGate module="compliance">
+                          <CorrectiveActionsPage tab="suggestions" />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/compliance/corrective-actions/settings"
+                      element={
+                        <ModuleGate module="compliance">
+                          <CorrectiveActionsPage tab="settings" />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/compliance/corrective-actions/:id"
+                      element={
+                        <ModuleGate module="compliance">
+                          <CorrectiveActionDetailPage />
                         </ModuleGate>
                       }
                     />

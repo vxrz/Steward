@@ -64,6 +64,8 @@ async function rules(): Promise<Record<VisibilityArea, AreaRule>> {
     reconciliation,
     personReviews,
     complianceAccess,
+    corrective,
+    correctiveSources,
   ] = await Promise.all([
     import('../routes/helpers.js'),
     import('../processes/service.js'),
@@ -87,6 +89,8 @@ async function rules(): Promise<Record<VisibilityArea, AreaRule>> {
     import('../compliance/reconciliation.js'),
     import('../compliance/person-reviews.js'),
     import('../compliance/access.js'),
+    import('../compliance/corrective.js'),
+    import('../compliance/corrective-sources.js'),
   ]);
   const editor = (u: AuthUser) => recordAccess.canCreateServices(u);
   const usable = () => platforms.listPlatforms().filter((p) => p.permissions?.includes('use'));
@@ -225,6 +229,14 @@ async function rules(): Promise<Record<VisibilityArea, AreaRule>> {
       any: () => personReviews.listReviews().length > 0,
       create: (u) => complianceAccess.canCreateChecks(u),
       exists: row('SELECT 1 FROM person_reviews LIMIT 1'),
+    },
+    // corrective actions (ADR 0029): the roles of the register; others see the findings they or their actions own, those
+    // of services they may edit, and the suggestions of those services
+    correctiveActions: {
+      roles: ['admin', 'auditor', 'designer', 'approver'],
+      any: () => corrective.listFindingSummaries({}).length > 0 || correctiveSources.pendingSuggestionCount(me()) > 0,
+      create: (u) => corrective.canRecordFindings(u),
+      exists: row('SELECT 1 FROM ca_findings LIMIT 1'),
     },
   };
 }

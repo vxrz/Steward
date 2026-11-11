@@ -216,3 +216,34 @@ export const libraryKeys = {
   publishers: ['libraries', 'publishers'] as const,
   origins: (kind: string) => ['libraries', 'origins', kind] as const,
 };
+
+/** Suppliers (0.17.0, ADR 0029): the list (by status), the picker of the forms and one supplier. */
+export const supplierKeys = {
+  all: ['suppliers'] as const,
+  list: (status: string | null) => ['suppliers', 'list', status] as const,
+  options: ['suppliers', 'options'] as const,
+  detail: (id: string | null | undefined) => ['suppliers', 'detail', id] as const,
+};
+
+/** Corrective actions (ADR 0029): the register with its filters, one finding, the suggestions, the source settings. */
+export const correctiveKeys = {
+  all: ['corrective'] as const,
+  list: (qs: string) => ['corrective', 'list', qs] as const,
+  detail: (id: string | null | undefined) => ['corrective', 'detail', id] as const,
+  suggestions: (status: string) => ['corrective', 'suggestions', status] as const,
+  settings: ['corrective', 'settings'] as const,
+  ofControl: (controlId: string) => ['corrective', 'list', `control:${controlId}`] as const,
+  ofSupplier: (supplierId: string) => ['corrective', 'list', `supplier:${supplierId}`] as const,
+};
+
+/** Statement of applicability (ADR 0029 part 2): the statements, one statement by catalogue key. */
+export const soaKeys = {
+  all: ['soa'] as const,
+  list: ['soa', 'list'] as const,
+  detail: (key: string) => ['soa', 'detail', key] as const,
+};
+
+/** The responsibility matrix of a service (ADR 0029 part 2). */
+export const responsibilityKeys = {
+  service: (serviceId: string) => ['responsibilities', serviceId] as const,
+};

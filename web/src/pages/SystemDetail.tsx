@@ -22,6 +22,7 @@ import { FirewallNetworkPanel, NetworkAttributesView } from '../components/catal
 import { CopiedFromNote, DuplicateButton } from '../components/duplicate/DuplicateButton';
 import { useMe } from '../auth';
 import { SystemSchemaField } from '../components/dbschema/SystemSchemaField';
+import { SupplierText } from '../components/suppliers/SupplierPicker';
 
 /** A system (#129): what it is, its tech stack, the platform it is, and the applications that run on it per environment. */
 export function SystemDetailPage() {
@@ -164,7 +165,9 @@ export function SystemDetailPage() {
         <Grid.Col span={{ base: 12, md: 4 }}>
           <Paper withBorder p="md">
             <Stack gap="sm">
-              <Field label={t('systems.vendor')}>{s.vendor || '–'}</Field>
+              <Field label={t('systems.vendor')}>
+                <SupplierText supplier={s.supplier} vendor={s.vendor} />
+              </Field>
               {s.kind === 'network' && <NetworkAttributesView attributes={s.attributes} />}
               <Field label={t('owners')}>{s.owners.length ? s.owners.map(subjectLabel).join(', ') : '–'}</Field>
               <Field label={t('systems.platform')}>

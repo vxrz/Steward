@@ -20,7 +20,8 @@ export type RecentKind =
   | 'asset'
   | 'profile'
   | 'kpi'
-  | 'contract';
+  | 'contract'
+  | 'supplier';
 
 export interface RecentItem {
   to: string;

@@ -13,6 +13,7 @@ import {
   type UserInfo,
 } from '@sm/shared';
 import { db } from '../db.js';
+import { resolveSupplierLink, supplierRefOf } from '../suppliers/links.js';
 import { audit } from '../audit.js';
 import { currentUser, type AuthUser } from '../auth/context.js';
 import { matches, processPermissions } from '../auth/permissions.js';
@@ -50,6 +51,8 @@ const id = z.string().trim().min(1).max(200);
 
 const fields = {
   applicationId: id.nullable().default(null),
+  /** The supplier the duty reviews (0.17.0, ADR 0029): missing keeps it, null clears it */
+  supplierId: id.nullable().optional(),
   name: z.string().trim().min(1).max(DUTY_LIMITS.name),
   description: z.string().max(DUTY_LIMITS.description).default(''),
   processId: id,
@@ -276,6 +279,7 @@ function build(d: DutyRow, s: ServiceRef, c: ViewCtx, appName: string | null): B
       serviceName: s.name,
       applicationId: d.application_id,
       applicationName: d.application_id ? appName : null,
+      supplier: supplierRefOf(d.supplier_id),
       name: d.name,
       description: d.description,
       processId: visible ? d.process_id : null,
@@ -396,15 +400,17 @@ export function createDuty(input: DutyInputData): DutyDetail {
   checkReferences(s.id, input);
   checkName(s.id, input.name);
   assertKnownSubjects(input.owners ?? []);
+  const supplierId = resolveSupplierLink(input.supplierId, null);
   const dutyId = newId('dty_');
   const now = nowIso();
   db().tx(() => {
     db().run(
-      `INSERT INTO service_duties (id, service_id, application_id, name, description, process_id, schedule_id, interval_kind, level, grace_days, remind_days, owners, archived, active_from, created_at, created_by, updated_at, updated_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)`,
+      `INSERT INTO service_duties (id, service_id, application_id, supplier_id, name, description, process_id, schedule_id, interval_kind, level, grace_days, remind_days, owners, archived, active_from, created_at, created_by, updated_at, updated_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)`,
       dutyId,
       s.id,
       input.applicationId,
+      supplierId,
       input.name,
       input.description,
       input.processId,
@@ -428,6 +434,7 @@ export function createDuty(input: DutyInputData): DutyDetail {
       details: {
         serviceId: s.id,
         applicationId: input.applicationId,
+        supplierId,
         processId: input.processId,
         scheduleId: input.scheduleId,
         interval: input.interval,
@@ -466,6 +473,7 @@ export function updateDuty(dutyId: string, input: DutyUpdateData): DutyDetail {
   if (input.owners) assertKnownSubjects(input.owners, dutyOwners(cur));
   const next = {
     application_id: input.applicationId,
+    supplier_id: resolveSupplierLink(input.supplierId, cur.supplier_id ?? null),
     name: input.name,
     description: input.description,
     process_id: input.processId,
@@ -489,9 +497,10 @@ export function updateDuty(dutyId: string, input: DutyUpdateData): DutyDetail {
     const change = rules && !stricter ? closeForChange(cur, s, Date.now(), 'duty changed') : null;
     endedNow = change?.closed ?? [];
     db().run(
-      `UPDATE service_duties SET application_id = ?, name = ?, description = ?, process_id = ?, schedule_id = ?, interval_kind = ?, level = ?, grace_days = ?,
+      `UPDATE service_duties SET application_id = ?, supplier_id = ?, name = ?, description = ?, process_id = ?, schedule_id = ?, interval_kind = ?, level = ?, grace_days = ?,
        remind_days = ?, owners = ?, updated_at = ?, updated_by = ?${change ? ', rules_from = ?' : ''} WHERE id = ?`,
       next.application_id,
+      next.supplier_id,
       next.name,
       next.description,
       next.process_id,

@@ -125,7 +125,8 @@
       "reviews": "Fällige Überprüfungen meiner Dokumente",
       "duties": "Fällige oder versäumte Service-Pflichten, für die ich verantwortlich bin",
       "trends": "Trends von Dashboard-Kennzahlen: bald erreichte Limits und starke Veränderungen",
-      "topics": "Neue Kafka-Topics unter aktuell gehaltenen Präfixen meiner Anwendungen"
+      "topics": "Neue Kafka-Topics unter aktuell gehaltenen Präfixen meiner Anwendungen",
+      "suppliers": "Zertifikate und Kündigungsfristen der Lieferanten, für die ich verantwortlich bin"
     },
     "skipEmpty": "An Tagen ohne Neuigkeiten nichts senden",
     "save": "Speichern",

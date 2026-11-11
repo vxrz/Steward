@@ -67,6 +67,8 @@ export const applicationDuplicator: Duplicator<ApplicationDetail> = {
         name: input.name,
         description: a.description,
         vendor: a.vendor,
+        // the same supplier runs the copy (an archived one is not linked again)
+        supplierId: a.supplier && a.supplier.status !== 'archived' ? a.supplier.id : null,
         version: a.version,
         url: a.url,
         // owners may change the application: they are its access settings
@@ -208,6 +210,7 @@ export const systemDuplicator: Duplicator<SystemDetail> = {
         name: input.name.slice(0, SYSTEM_LIMITS.name),
         kind: s.kind,
         vendor: s.vendor,
+        supplierId: s.supplier && s.supplier.status !== 'archived' ? s.supplier.id : null,
         // the CMDB entry and the platform are the original's (a copy is a different configuration item)
         cmdbUrl: '',
         owners: input.copyAccess ? s.owners : [],

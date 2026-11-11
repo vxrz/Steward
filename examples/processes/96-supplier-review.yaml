@@ -1,0 +1,120 @@
+name: "Supplier review (manual procedure)"
+description: |
+  The yearly review of a supplier (ISO/IEC 27001 A.5.22) as a documented
+  manual procedure: certificates and audit reports, SLA reports, the data
+  processing agreement, the contract's notice date and open findings. Each
+  step has a checklist, fields and evidence files; a second person verifies
+  the result before the run ends (maker–checker).
+
+  Use it as a service duty that names the supplier (Service → Duties → New
+  duty, interval yearly, level mandatory): the supplier page then shows the
+  duty and its last periods, and the duty reminds its owners. Contracts and
+  certificates themselves are kept on the supplier page (docs/SUPPLIERS.md).
+
+  Recommended schedule: none – started by the duty once a year, or on demand
+  before a contract renews. The run protocol PDF lists every step with its
+  ticks, values, evidence (name, size, SHA-256), who completed it and who
+  verified it.
+tags: [manual, procedure, supplier, compliance]
+inputs:
+  - name: supplier
+    label: Supplier
+    type: string
+    required: true
+    default: Example Cloud GmbH
+steps:
+  - id: certificates
+    type: userTask
+    mode: manual
+    name: Check certificates and audit reports
+    title: "Certificates of {{ inputs.supplier }}"
+    instructions: |
+      Ask the supplier (or their trust centre) for the current certificates and
+      audit reports – ISO/IEC 27001, SOC 2, C5 or what the contract names.
+
+      - Check the **scope**: it must cover the service you use.
+      - Read the exceptions of a SOC 2 report and note the ones that matter.
+      - Record new certificates on the supplier page with their valid-until date.
+    checklist:
+      - Certificates and reports received
+      - Scope covers the service we use
+      - Exceptions and qualified opinions read
+      - New certificates recorded on the supplier page
+    checklistAllRequired: true
+    fields:
+      - id: certificates
+        type: text
+        label: Certificates and reports checked
+        hint: e.g. ISO/IEC 27001 until 2027-06-30, SOC 2 type II 2026
+        use: required
+      - id: trustCentre
+        type: link
+        label: Trust centre or report location
+    evidence: required
+
+  - id: sla
+    type: userTask
+    mode: manual
+    name: Check the SLA reports
+    title: "Service levels of {{ inputs.supplier }}"
+    instructions: |
+      Compare the supplier's SLA reports of the last twelve months with the
+      contract: availability, support response times and incidents.
+    checklist:
+      - SLA reports of the last twelve months at hand
+      - Availability target met (or the breaches are documented)
+      - Major incidents of the supplier reviewed
+    fields:
+      - id: availability
+        type: text
+        label: Availability reached
+        hint: e.g. 99.95 % (target 99.9 %)
+      - id: incidents
+        type: number
+        label: Major incidents in the period
+    evidence: optional
+
+  - id: dataProtection
+    type: userTask
+    mode: manual
+    name: Check the data processing agreement
+    title: "Data processing by {{ inputs.supplier }}"
+    instructions: |
+      If the supplier processes personal data for the service: the data
+      processing agreement must be in place and current, and the list of
+      subprocessors known. Update the supplier page when something changed.
+    checklist:
+      - Personal data processed by the supplier is known
+      - Data processing agreement in place and current (or not needed)
+      - Changes of subprocessors reviewed
+    fields:
+      - id: dpaReference
+        type: text
+        label: Data processing agreement (document or reference)
+    evidence: optional
+
+  - id: contract
+    type: userTask
+    mode: manual
+    name: Check the contract and its notice date
+    title: "Contract with {{ inputs.supplier }}"
+    instructions: |
+      Look at the notice-by date on the supplier page and decide whether the
+      contract should renew. Note open findings of this review (ticket or
+      corrective action) so they are followed up.
+    checklist:
+      - Notice-by date known and the decision to renew taken
+      - Open findings recorded with an owner
+    fields:
+      - id: decision
+        type: text
+        label: Decision on the contract
+        hint: e.g. renew, renegotiate, give notice
+        use: required
+      - id: findingTicket
+        type: ticket
+        label: Ticket of an open finding
+    evidence: "off"
+    verification:
+      required: true
+      notRunStarter: true

@@ -16,13 +16,15 @@ import { createObjective, objectiveInput, readPromObjectives } from '../scorecar
 import { createReportSchedule, scheduleInputSchema } from '../reports/schedules.js';
 import { setupCostPlanDemo } from '../costs/demo.js';
 import { moduleEnabled } from '../modules/registry.js';
+import { setupSupplierDemo } from '../suppliers/demo.js';
+import { migrateVendorTexts } from '../suppliers/migrate.js';
 
 /**
  * The service half of the demo (U5 of the 0.10 review): three services built from the sample applications, with the
  * demo monitors linked, two availability objectives (Prometheus and a Steward monitor), a duty, a system in two
  * environments, a decision record, a change record, a reviewed operations manual, credential register entries
  * (metadata only – never a secret), a vendor ticket, a planned maintenance window, a status page and a weekly report
- * schedule. Everything is invented. It runs once: when the first demo service exists, it does nothing.
+ * schedule, two corrective action findings with a suggestion, the responsibility matrix of two services with a draft statement of applicability and a monthly report schedule with the ISMS summary (Compliance module). Everything is invented. It runs once: when the first demo service exists, it does nothing.
  */
 export const DEMO_SERVICES = { shop: 'Online shop (demo)', care: 'Customer care (demo)', plant: 'Plant monitoring (demo)' } as const;
 
@@ -168,6 +170,9 @@ export async function setupServiceDemo(now = Date.now()): Promise<number> {
       ),
     );
 
+  // ---- suppliers (0.17.0, ADR 0029): a SaaS payment platform and the managed platform of the cluster ----
+  const suppliers = step('suppliers', () => setupSupplierDemo([...desk, ...dana], now)) ?? null;
+
   // ---- a system in two environments ----
   const cluster = step('system', () =>
     createSystem(
@@ -175,6 +180,7 @@ export async function setupServiceDemo(now = Date.now()): Promise<number> {
         name: 'k8s-shop-01 (demo)',
         kind: 'cluster',
         vendor: 'Kubernetes',
+        supplierId: suppliers?.cloud ?? null,
         owners: [...desk],
         note: 'Kubernetes cluster of the shop. Namespace shop-prod is production, shop-test the test environment.',
         platformId: platform('Kubernetes (demo)') ?? null,
@@ -286,6 +292,7 @@ export async function setupServiceDemo(now = Date.now()): Promise<number> {
         title: 'Payment callbacks arrive late',
         note: 'Paylumen confirms delays of up to 10 minutes for some callbacks.',
         vendor: 'Paylumen',
+        supplierId: suppliers?.payments ?? null,
         responsible: desk,
         status: 'waitingVendor',
         openedAt: isoDay(now - 9 * DAY),
@@ -304,6 +311,22 @@ export async function setupServiceDemo(now = Date.now()): Promise<number> {
   duty(shop.id, 'aws-iam-key-age', 'Monthly access key review', 'monthly', 'mandatory');
   duty(shop.id, 'database-access-review', 'Quarterly database access review', 'quarterly', 'mandatory');
   duty(care.id, 'snowflake-account-hygiene', 'Weekly account hygiene', 'weekly', 'recommended');
+  // the yearly supplier review of the payment platform (examples/processes/96-supplier-review.yaml)
+  if (suppliers && db().get("SELECT 1 FROM processes WHERE id = 'supplier-review'"))
+    step('supplier review duty', () =>
+      createDuty(
+        dutyInput.parse({
+          serviceId: shop.id,
+          processId: 'supplier-review',
+          supplierId: suppliers.payments,
+          name: 'Yearly supplier review: Paylumen',
+          interval: 'yearly',
+          level: 'mandatory',
+          owners: desk,
+          description: 'Certificates, SLA reports, the data processing agreement and the notice date of the payment platform.',
+        }),
+      ),
+    );
 
   // ---- an upcoming maintenance window for the change ----
   step('maintenance', () =>
@@ -339,5 +362,34 @@ export async function setupServiceDemo(now = Date.now()): Promise<number> {
   );
   // ---- cost plans of the shop and the plant service (ADR 0026; the demo's fiscal year starts in October) ----
   if (moduleEnabled('costs')) step('cost plans', () => setupCostPlanDemo({ shop: shop.id, plant: plant.id }, now));
+  // the free-text vendors left (page watches, cost plan lines) become suppliers to confirm, as after an upgrade
+  step('vendor texts', () => migrateVendorTexts());
+  // ---- corrective actions (ADR 0029): two findings and a suggestion of a missed duty period ----
+  if (moduleEnabled('compliance'))
+    await (await import('../compliance/corrective-demo.js')).setupCorrectiveDemo({ shop: shop.id, care: care.id }, now).catch((err: unknown) =>
+      // a demo must never fail half way: logged, the rest stays
+      logger.warn({ err: (err as Error).message }, 'demo corrective actions not loaded'),
+    );
+  // ---- statement of applicability (ADR 0029 part 2): the responsibility matrix of two services and a draft statement ----
+  if (moduleEnabled('compliance'))
+    await import('../compliance/soa-demo.js')
+      .then((m) => m.setupSoaDemo({ shop: shop.id, care: care.id }, suppliers?.cloud ?? null))
+      .catch((err: unknown) =>
+        // a demo must never fail half way: logged, the rest stays
+        logger.warn({ err: (err as Error).message }, 'demo statement of applicability not loaded'),
+      );
+  // ---- a monthly management review with the ISMS summary (ADR 0029 part 4) ----
+  if (moduleEnabled('compliance'))
+    step('ISMS report schedule', () =>
+      createReportSchedule(
+        scheduleInputSchema.parse({
+          name: 'Monthly management review (demo)',
+          preset: 'monthly',
+          title: 'ISMS management review',
+          sections: { isms: { days: 90 }, duties: { levels: ['mandatory'] } },
+          recipients: { users: [currentUser()?.username].filter((n): n is string => !!n) },
+        }),
+      ),
+    );
   return 3;
 }

@@ -37,6 +37,7 @@ import { DATA_CONTRACT_MIGRATIONS } from './datacontracts.js';
 import { LIBRARY_MIGRATIONS } from './libraries.js';
 import { NOTIFICATION_MIGRATIONS } from './notifications.js';
 import { CONFLUENT_MIGRATIONS } from './confluent.js';
+import { SUPPLIER_MIGRATIONS } from './suppliers.js';
 
 /**
  * The named migrations, in the order they run on a new database (db.ts). Each feature owns its list (its manifest
@@ -83,6 +84,7 @@ export const MIGRATION_LISTS: readonly (readonly NamedMigration[])[] = [
   LIBRARY_MIGRATIONS,
   NOTIFICATION_MIGRATIONS,
   CONFLUENT_MIGRATIONS,
+  SUPPLIER_MIGRATIONS,
 ];
 
 export const NAMED_MIGRATIONS: readonly NamedMigration[] = MIGRATION_LISTS.flat();

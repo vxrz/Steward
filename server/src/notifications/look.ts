@@ -295,6 +295,7 @@ const WARN_EVENTS = new Set([
   'task.assigned',
   'mcp.request',
   'plant.change_proposed',
+  'soa.approval_waiting',
   'dataset.stale',
   'schedule.skipped',
   'credential.due',
@@ -305,6 +306,9 @@ const WARN_EVENTS = new Set([
   'duty.exception',
   'duty.ended',
   'measure.due',
+  'supplier.certificate_expiring',
+  'supplier.notice_due',
+  'corrective.action_due',
   'ai.budget',
   'cost.budget',
 ]);

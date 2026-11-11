@@ -1601,6 +1601,17 @@
             "additionalProperties": false
           }
         },
+        "source": {
+          "description": "0.17.0: where it is described – a manual and the page; in a profile that extends another, null: not the inherited source",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DataPointSource"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "present": {
           "description": "In a profile that extends another: false marks an inherited data point as not present (the other keys change an inherited one)",
           "type": "boolean"
@@ -1611,6 +1622,55 @@
       ],
       "additionalProperties": false,
       "description": "A value an interface delivers"
+    },
+    "DataPointSource": {
+      "type": "object",
+      "properties": {
+        "document": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "description": "The document: its title with its version (C80 Operating Manual v4), or the number of a record in Steward that keeps it (DOC-12)"
+        },
+        "page": {
+          "description": "The page or pages, as the document numbers them (112, 112–114, A-7)",
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 40
+                },
+                {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "section": {
+          "description": "The section: its number and title (6.3 OPC UA variables)",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 200
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "document"
+      ],
+      "additionalProperties": false,
+      "description": "Where a data point is described: a document and the place in it (0.17.0)"
     },
     "FileSet": {
       "type": "object",
@@ -2730,6 +2790,17 @@
                       },
                       "additionalProperties": false
                     }
+                  },
+                  "source": {
+                    "description": "0.17.0: where it is described – a manual and the page; in a profile that extends another, null: not the inherited source",
+                    "anyOf": [
+                      {
+                        "$ref": "#/$defs/DataPointSource"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "present": {
                     "description": "In a profile that extends another: false marks an inherited data point as not present (the other keys change an inherited one)",

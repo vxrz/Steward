@@ -8043,6 +8043,39 @@
           "vendor": {
             "type": "string"
           },
+          "supplier": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "unconfirmed",
+                      "active",
+                      "archived"
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "status"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The linked supplier (0.17.0; null: none, or one the token owner may not see); vendor is the fallback text"
+          },
           "responsible": {
             "type": "array",
             "items": {
@@ -8155,6 +8188,7 @@
           "title",
           "note",
           "vendor",
+          "supplier",
           "responsible",
           "status",
           "openedAt",
@@ -8207,6 +8241,39 @@
           },
           "vendor": {
             "type": "string"
+          },
+          "supplier": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "unconfirmed",
+                      "active",
+                      "archived"
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "status"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The linked supplier (0.17.0; null: none, or one the token owner may not see); vendor is the fallback text"
           },
           "responsible": {
             "type": "array",
@@ -8392,6 +8459,7 @@
           "title",
           "note",
           "vendor",
+          "supplier",
           "responsible",
           "status",
           "openedAt",
@@ -8982,6 +9050,1704 @@
           "status",
           "counts",
           "hidden"
+        ],
+        "additionalProperties": false
+      },
+      "CorrectiveFinding": {
+        "title": "CorrectiveFinding",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "number": {
+            "type": "string",
+            "description": "e.g. CA-2026-0001"
+          },
+          "title": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "internalAudit",
+              "externalAudit",
+              "duty",
+              "accessReview",
+              "reconciliation",
+              "incidentReview",
+              "supplierReview",
+              "other"
+            ]
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "major",
+              "minor",
+              "observation"
+            ],
+            "description": "major and minor: nonconformities; observation: an opportunity for improvement"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "inProgress",
+              "implemented",
+              "closed",
+              "cancelled"
+            ],
+            "description": "open → inProgress → implemented → closed (the fix was checked and worked), or cancelled"
+          },
+          "serviceId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "serviceName": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "null when the token owner may not see the service"
+          },
+          "supplierId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The supplier the finding is about; null when there is none or the token owner may not see it"
+          },
+          "supplierName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "owner": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "User name of the finding’s owner"
+          },
+          "dueDate": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "Calendar date YYYY-MM-DD in the instance time zone"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Calendar date YYYY-MM-DD in the instance time zone"
+          },
+          "overdue": {
+            "type": "boolean",
+            "description": "Open or in progress, and past its due date or with an action past its due date"
+          },
+          "actionsOpen": {
+            "type": "integer"
+          },
+          "actionsTotal": {
+            "type": "integer",
+            "description": "Its actions – for a finding of an incident review the review’s measures"
+          },
+          "controls": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "ref": {
+                  "type": "string"
+                },
+                "catalogueKey": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "ref",
+                "catalogueKey",
+                "title"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Affected controls"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "closedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp (UTC)"
+          }
+        },
+        "required": [
+          "id",
+          "number",
+          "title",
+          "source",
+          "severity",
+          "status",
+          "serviceId",
+          "serviceName",
+          "supplierId",
+          "supplierName",
+          "owner",
+          "dueDate",
+          "overdue",
+          "actionsOpen",
+          "actionsTotal",
+          "controls",
+          "createdAt",
+          "updatedAt",
+          "closedAt"
+        ],
+        "additionalProperties": false
+      },
+      "CorrectiveFindingDetail": {
+        "title": "CorrectiveFindingDetail",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "number": {
+            "type": "string",
+            "description": "e.g. CA-2026-0001"
+          },
+          "title": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "internalAudit",
+              "externalAudit",
+              "duty",
+              "accessReview",
+              "reconciliation",
+              "incidentReview",
+              "supplierReview",
+              "other"
+            ]
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "major",
+              "minor",
+              "observation"
+            ],
+            "description": "major and minor: nonconformities; observation: an opportunity for improvement"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "inProgress",
+              "implemented",
+              "closed",
+              "cancelled"
+            ],
+            "description": "open → inProgress → implemented → closed (the fix was checked and worked), or cancelled"
+          },
+          "serviceId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "serviceName": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "null when the token owner may not see the service"
+          },
+          "supplierId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The supplier the finding is about; null when there is none or the token owner may not see it"
+          },
+          "supplierName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "owner": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "User name of the finding’s owner"
+          },
+          "dueDate": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "Calendar date YYYY-MM-DD in the instance time zone"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Calendar date YYYY-MM-DD in the instance time zone"
+          },
+          "overdue": {
+            "type": "boolean",
+            "description": "Open or in progress, and past its due date or with an action past its due date"
+          },
+          "actionsOpen": {
+            "type": "integer"
+          },
+          "actionsTotal": {
+            "type": "integer",
+            "description": "Its actions – for a finding of an incident review the review’s measures"
+          },
+          "controls": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "ref": {
+                  "type": "string"
+                },
+                "catalogueKey": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "ref",
+                "catalogueKey",
+                "title"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Affected controls"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "closedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "description": {
+            "type": "string"
+          },
+          "cause": {
+            "type": "string"
+          },
+          "sourceRef": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string"
+                  },
+                  "id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "label": {
+                    "type": "string"
+                  },
+                  "visible": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "id",
+                  "label",
+                  "visible"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What it came from: a duty, a record, a person review, an access check or a link (id null when the token owner may not see it)"
+          },
+          "recordId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The incident review whose measures are its actions"
+          },
+          "grcRef": {
+            "type": "string",
+            "description": "Reference in the GRC tool, e.g. a risk id"
+          },
+          "grcUrl": {
+            "type": "string"
+          },
+          "effectiveness": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "method": {
+                    "type": "string"
+                  },
+                  "result": {
+                    "type": "string",
+                    "enum": [
+                      "effective",
+                      "notEffective"
+                    ]
+                  },
+                  "note": {
+                    "type": "string"
+                  },
+                  "checkedBy": {
+                    "type": "string"
+                  },
+                  "checkedAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "ISO 8601 timestamp (UTC)"
+                  }
+                },
+                "required": [
+                  "method",
+                  "result",
+                  "note",
+                  "checkedBy",
+                  "checkedAt"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The latest effectiveness check (by a second person)"
+          },
+          "cancelReason": {
+            "type": "string"
+          },
+          "actions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "owners": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "user:<name>, team:<name>"
+                },
+                "dueDate": {
+                  "type": "string",
+                  "description": "Calendar date YYYY-MM-DD in the instance time zone"
+                },
+                "note": {
+                  "type": "string"
+                },
+                "doneAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "description": "ISO 8601 timestamp (UTC)"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "ISO 8601 timestamp (UTC)"
+                },
+                "doneBy": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "overdue": {
+                  "type": "boolean"
+                },
+                "measure": {
+                  "type": "boolean",
+                  "description": "A measure of the finding’s incident review (also in /api/v1/measures)"
+                }
+              },
+              "required": [
+                "id",
+                "title",
+                "owners",
+                "dueDate",
+                "note",
+                "doneAt",
+                "doneBy",
+                "overdue",
+                "measure"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "updatedBy": {
+            "type": "string"
+          },
+          "closedBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "number",
+          "title",
+          "source",
+          "severity",
+          "status",
+          "serviceId",
+          "serviceName",
+          "supplierId",
+          "supplierName",
+          "owner",
+          "dueDate",
+          "overdue",
+          "actionsOpen",
+          "actionsTotal",
+          "controls",
+          "createdAt",
+          "updatedAt",
+          "closedAt",
+          "description",
+          "cause",
+          "sourceRef",
+          "recordId",
+          "grcRef",
+          "grcUrl",
+          "effectiveness",
+          "cancelReason",
+          "actions",
+          "createdBy",
+          "updatedBy",
+          "closedBy"
+        ],
+        "additionalProperties": false
+      },
+      "SoaSummaryEntry": {
+        "title": "SoaSummaryEntry",
+        "type": "object",
+        "properties": {
+          "catalogueKey": {
+            "type": "string"
+          },
+          "catalogueName": {
+            "type": "string"
+          },
+          "scopeName": {
+            "type": "string"
+          },
+          "scopeServiceIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Services in scope; empty: every service"
+          },
+          "fourEyes": {
+            "type": "boolean",
+            "description": "A second person approves a version (the statement’s switch)"
+          },
+          "counts": {
+            "type": "object",
+            "properties": {
+              "controls": {
+                "type": "integer"
+              },
+              "applicable": {
+                "type": "integer"
+              },
+              "notApplicable": {
+                "type": "integer"
+              },
+              "undecided": {
+                "type": "integer"
+              },
+              "implemented": {
+                "type": "integer"
+              },
+              "partly": {
+                "type": "integer"
+              },
+              "planned": {
+                "type": "integer"
+              },
+              "notStarted": {
+                "type": "integer"
+              },
+              "noStatus": {
+                "type": "integer",
+                "description": "Applicable rows without an implementation status"
+              },
+              "reviewDue": {
+                "type": "integer",
+                "description": "Rows not reviewed for twelve months (or never)"
+              },
+              "noEvidence": {
+                "type": "integer",
+                "description": "Applicable, implemented rows with no mapped item and no evidence link"
+              }
+            },
+            "required": [
+              "controls",
+              "applicable",
+              "notApplicable",
+              "undecided",
+              "implemented",
+              "partly",
+              "planned",
+              "notStarted",
+              "noStatus",
+              "reviewDue",
+              "noEvidence"
+            ],
+            "additionalProperties": false,
+            "description": "Counts of the rows"
+          },
+          "latestApproved": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "number": {
+                    "type": "integer"
+                  },
+                  "decidedAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "ISO 8601 timestamp (UTC)"
+                  },
+                  "decidedBy": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "number",
+                  "decidedAt",
+                  "decidedBy"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "waiting": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "number": {
+                    "type": "integer"
+                  },
+                  "submittedAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "ISO 8601 timestamp (UTC)"
+                  },
+                  "submittedBy": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "number",
+                  "submittedAt",
+                  "submittedBy"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A version waiting for approval"
+          },
+          "changedSinceApproved": {
+            "type": "integer",
+            "description": "Rows that differ from the latest approved version"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          }
+        },
+        "required": [
+          "catalogueKey",
+          "catalogueName",
+          "scopeName",
+          "scopeServiceIds",
+          "fourEyes",
+          "counts",
+          "latestApproved",
+          "waiting",
+          "changedSinceApproved",
+          "createdAt",
+          "updatedAt"
+        ],
+        "additionalProperties": false
+      },
+      "SoaDetailEntry": {
+        "title": "SoaDetailEntry",
+        "type": "object",
+        "properties": {
+          "catalogueKey": {
+            "type": "string"
+          },
+          "catalogueName": {
+            "type": "string"
+          },
+          "scopeName": {
+            "type": "string"
+          },
+          "scopeServiceIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Services in scope; empty: every service"
+          },
+          "fourEyes": {
+            "type": "boolean",
+            "description": "A second person approves a version (the statement’s switch)"
+          },
+          "counts": {
+            "type": "object",
+            "properties": {
+              "controls": {
+                "type": "integer"
+              },
+              "applicable": {
+                "type": "integer"
+              },
+              "notApplicable": {
+                "type": "integer"
+              },
+              "undecided": {
+                "type": "integer"
+              },
+              "implemented": {
+                "type": "integer"
+              },
+              "partly": {
+                "type": "integer"
+              },
+              "planned": {
+                "type": "integer"
+              },
+              "notStarted": {
+                "type": "integer"
+              },
+              "noStatus": {
+                "type": "integer",
+                "description": "Applicable rows without an implementation status"
+              },
+              "reviewDue": {
+                "type": "integer",
+                "description": "Rows not reviewed for twelve months (or never)"
+              },
+              "noEvidence": {
+                "type": "integer",
+                "description": "Applicable, implemented rows with no mapped item and no evidence link"
+              }
+            },
+            "required": [
+              "controls",
+              "applicable",
+              "notApplicable",
+              "undecided",
+              "implemented",
+              "partly",
+              "planned",
+              "notStarted",
+              "noStatus",
+              "reviewDue",
+              "noEvidence"
+            ],
+            "additionalProperties": false,
+            "description": "Counts of the rows"
+          },
+          "latestApproved": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "number": {
+                    "type": "integer"
+                  },
+                  "decidedAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "ISO 8601 timestamp (UTC)"
+                  },
+                  "decidedBy": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "number",
+                  "decidedAt",
+                  "decidedBy"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "waiting": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "number": {
+                    "type": "integer"
+                  },
+                  "submittedAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "ISO 8601 timestamp (UTC)"
+                  },
+                  "submittedBy": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "number",
+                  "submittedAt",
+                  "submittedBy"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A version waiting for approval"
+          },
+          "changedSinceApproved": {
+            "type": "integer",
+            "description": "Rows that differ from the latest approved version"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "catalogueVersion": {
+            "type": "string"
+          },
+          "servicesInScope": {
+            "type": "integer"
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "controlId": {
+                  "type": "string"
+                },
+                "ref": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "applicable": {
+                  "type": [
+                    "null",
+                    "boolean"
+                  ],
+                  "description": "null: undecided"
+                },
+                "justification": {
+                  "type": "string"
+                },
+                "status": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "implemented",
+                        "partly",
+                        "planned",
+                        "notStarted"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "howMet": {
+                  "type": "string"
+                },
+                "party": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "team",
+                        "supplier",
+                        "central",
+                        "shared"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The responsible party a person chose"
+                },
+                "supplier": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "unconfirmed",
+                            "active",
+                            "archived"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "status"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "centralName": {
+                  "type": "string"
+                },
+                "owner": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "user:<name> or team:<name>"
+                },
+                "reviewedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "description": "ISO 8601 timestamp (UTC)"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "ISO 8601 timestamp (UTC)"
+                },
+                "reviewedBy": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "reviewDue": {
+                  "type": "boolean"
+                },
+                "grcRef": {
+                  "type": "string"
+                },
+                "grcUrl": {
+                  "type": "string"
+                },
+                "evidenceLinks": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "title": {
+                        "type": "string"
+                      },
+                      "url": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "title",
+                      "url"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "areas": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "backup",
+                      "recovery",
+                      "patching",
+                      "access",
+                      "logging",
+                      "incidents"
+                    ]
+                  },
+                  "description": "Responsibility areas whose controls include this one"
+                },
+                "suggestion": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "counts": {
+                          "type": "object",
+                          "properties": {
+                            "team": {
+                              "type": "integer"
+                            },
+                            "supplier": {
+                              "type": "integer"
+                            },
+                            "central": {
+                              "type": "integer"
+                            },
+                            "shared": {
+                              "type": "integer"
+                            },
+                            "notApplicable": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "team",
+                            "supplier",
+                            "central",
+                            "shared",
+                            "notApplicable"
+                          ],
+                          "additionalProperties": false,
+                          "description": "Services in scope per party"
+                        },
+                        "undecided": {
+                          "type": "integer"
+                        },
+                        "party": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "team",
+                                "supplier",
+                                "central",
+                                "shared"
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "supplier": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "status": {
+                                  "type": "string",
+                                  "enum": [
+                                    "unconfirmed",
+                                    "active",
+                                    "archived"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "name",
+                                "status"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "centralName": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "counts",
+                        "undecided",
+                        "party",
+                        "supplier",
+                        "centralName"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Derived from the responsibility matrix of the services in scope; never stored in the row"
+                },
+                "evidence": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "covered",
+                        "gap",
+                        "unmapped",
+                        "notVisible"
+                      ],
+                      "description": "Coverage of the last twelve months, as on the Controls page"
+                    },
+                    "mapped": {
+                      "type": "integer"
+                    },
+                    "items": {
+                      "type": "integer"
+                    },
+                    "hidden": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "mapped",
+                    "items",
+                    "hidden"
+                  ],
+                  "additionalProperties": false
+                },
+                "noEvidence": {
+                  "type": "boolean"
+                },
+                "findings": {
+                  "type": "object",
+                  "properties": {
+                    "open": {
+                      "type": "integer"
+                    },
+                    "total": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "open",
+                    "total"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Corrective action findings naming the control"
+                },
+                "decided": {
+                  "type": "boolean"
+                },
+                "changed": {
+                  "type": "boolean",
+                  "description": "Differs from the latest approved version"
+                },
+                "updatedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "description": "ISO 8601 timestamp (UTC)"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "ISO 8601 timestamp (UTC)"
+                },
+                "updatedBy": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                }
+              },
+              "required": [
+                "controlId",
+                "ref",
+                "title",
+                "applicable",
+                "justification",
+                "status",
+                "howMet",
+                "party",
+                "supplier",
+                "centralName",
+                "owner",
+                "reviewedAt",
+                "reviewedBy",
+                "reviewDue",
+                "grcRef",
+                "grcUrl",
+                "evidenceLinks",
+                "areas",
+                "suggestion",
+                "evidence",
+                "noEvidence",
+                "findings",
+                "decided",
+                "changed",
+                "updatedAt",
+                "updatedBy"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "versions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "number": {
+                  "type": "integer"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "submitted",
+                    "approved",
+                    "returned",
+                    "superseded"
+                  ]
+                },
+                "contentSha256": {
+                  "type": "string",
+                  "description": "SHA-256 of the frozen content (soa.json of the signed export)"
+                },
+                "submittedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "ISO 8601 timestamp (UTC)"
+                },
+                "submittedBy": {
+                  "type": "string"
+                },
+                "decidedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "description": "ISO 8601 timestamp (UTC)"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "ISO 8601 timestamp (UTC)"
+                },
+                "decidedBy": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "comment": {
+                  "type": "string"
+                },
+                "pdfSha256": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "counts": {
+                  "type": "object",
+                  "properties": {
+                    "controls": {
+                      "type": "integer"
+                    },
+                    "applicable": {
+                      "type": "integer"
+                    },
+                    "notApplicable": {
+                      "type": "integer"
+                    },
+                    "undecided": {
+                      "type": "integer"
+                    },
+                    "implemented": {
+                      "type": "integer"
+                    },
+                    "partly": {
+                      "type": "integer"
+                    },
+                    "planned": {
+                      "type": "integer"
+                    },
+                    "notStarted": {
+                      "type": "integer"
+                    },
+                    "noStatus": {
+                      "type": "integer",
+                      "description": "Applicable rows without an implementation status"
+                    },
+                    "reviewDue": {
+                      "type": "integer",
+                      "description": "Rows not reviewed for twelve months (or never)"
+                    },
+                    "noEvidence": {
+                      "type": "integer",
+                      "description": "Applicable, implemented rows with no mapped item and no evidence link"
+                    }
+                  },
+                  "required": [
+                    "controls",
+                    "applicable",
+                    "notApplicable",
+                    "undecided",
+                    "implemented",
+                    "partly",
+                    "planned",
+                    "notStarted",
+                    "noStatus",
+                    "reviewDue",
+                    "noEvidence"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Counts of the rows"
+                }
+              },
+              "required": [
+                "number",
+                "status",
+                "contentSha256",
+                "submittedAt",
+                "submittedBy",
+                "decidedAt",
+                "decidedBy",
+                "comment",
+                "pdfSha256",
+                "counts"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "catalogueKey",
+          "catalogueName",
+          "scopeName",
+          "scopeServiceIds",
+          "fourEyes",
+          "counts",
+          "latestApproved",
+          "waiting",
+          "changedSinceApproved",
+          "createdAt",
+          "updatedAt",
+          "catalogueVersion",
+          "servicesInScope",
+          "entries",
+          "versions"
+        ],
+        "additionalProperties": false
+      },
+      "ServiceResponsibilitiesEntry": {
+        "title": "ServiceResponsibilitiesEntry",
+        "type": "object",
+        "properties": {
+          "serviceId": {
+            "type": "string"
+          },
+          "serviceName": {
+            "type": "string"
+          },
+          "undecided": {
+            "type": "integer"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "area": {
+                  "type": "string",
+                  "enum": [
+                    "backup",
+                    "recovery",
+                    "patching",
+                    "access",
+                    "logging",
+                    "incidents"
+                  ]
+                },
+                "party": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "team",
+                        "supplier",
+                        "central",
+                        "shared",
+                        "notApplicable"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "null: undecided"
+                },
+                "supplier": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "unconfirmed",
+                            "active",
+                            "archived"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "status"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "contract": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "reference": {
+                          "type": "string"
+                        },
+                        "termEnd": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "noticeBy": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "slaAvailability": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "slaSupportHours": {
+                          "type": "string"
+                        },
+                        "slaResponse": {
+                          "type": "string"
+                        },
+                        "rtoHours": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "rpoHours": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "title",
+                        "reference",
+                        "termEnd",
+                        "noticeBy",
+                        "slaAvailability",
+                        "slaSupportHours",
+                        "slaResponse",
+                        "rtoHours",
+                        "rpoHours"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The contract’s SLA and contractual RTO/RPO, read from the supplier record"
+                },
+                "certificates": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "iso27001",
+                          "iso27017",
+                          "iso27018",
+                          "iso22301",
+                          "soc2type1",
+                          "soc2type2",
+                          "c5",
+                          "tisax",
+                          "other"
+                        ]
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "validUntil": {
+                        "type": [
+                          "null",
+                          "string"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "name",
+                      "validUntil"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "centralName": {
+                  "type": "string"
+                },
+                "note": {
+                  "type": "string"
+                },
+                "duty": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The recovery-test duty"
+                },
+                "recoveryTest": {
+                  "type": "string",
+                  "enum": [
+                    "notNeeded",
+                    "linked",
+                    "missing"
+                  ]
+                },
+                "controls": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "catalogueKey": {
+                        "type": "string"
+                      },
+                      "controlId": {
+                        "type": "string"
+                      },
+                      "ref": {
+                        "type": "string"
+                      },
+                      "title": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "catalogueKey",
+                      "controlId",
+                      "ref",
+                      "title"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "updatedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "description": "ISO 8601 timestamp (UTC)"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "ISO 8601 timestamp (UTC)"
+                },
+                "updatedBy": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                }
+              },
+              "required": [
+                "area",
+                "party",
+                "supplier",
+                "contract",
+                "certificates",
+                "centralName",
+                "note",
+                "duty",
+                "recoveryTest",
+                "controls",
+                "updatedAt",
+                "updatedBy"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "serviceId",
+          "serviceName",
+          "undecided",
+          "rows"
         ],
         "additionalProperties": false
       },
@@ -10224,6 +11990,39 @@
           "vendor": {
             "type": "string"
           },
+          "supplier": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "unconfirmed",
+                      "active",
+                      "archived"
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "status"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The linked supplier (0.17.0; null: none, or one the token owner may not see); vendor is the fallback text"
+          },
           "version": {
             "type": "string"
           },
@@ -10550,6 +12349,7 @@
           "name",
           "description",
           "vendor",
+          "supplier",
           "version",
           "url",
           "criticality",
@@ -10588,6 +12388,39 @@
           },
           "vendor": {
             "type": "string"
+          },
+          "supplier": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "unconfirmed",
+                      "active",
+                      "archived"
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "status"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The linked supplier (0.17.0; null: none, or one the token owner may not see); vendor is the fallback text"
           },
           "version": {
             "type": "string"
@@ -11909,6 +13742,7 @@
           "name",
           "description",
           "vendor",
+          "supplier",
           "version",
           "url",
           "criticality",
@@ -12219,6 +14053,39 @@
           "vendor": {
             "type": "string",
             "description": "Vendor or provider (AWS, Azure, on-premises, the hoster, …)"
+          },
+          "supplier": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "unconfirmed",
+                      "active",
+                      "archived"
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "status"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The linked supplier (0.17.0; null: none, or one the token owner may not see); vendor is the fallback text"
           },
           "cmdbUrl": {
             "type": "string",
@@ -12763,6 +14630,7 @@
           "name",
           "kind",
           "vendor",
+          "supplier",
           "cmdbUrl",
           "owners",
           "note",
@@ -13445,6 +15313,39 @@
               "string"
             ]
           },
+          "supplier": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "unconfirmed",
+                      "active",
+                      "archived"
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "status"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The supplier the duty reviews (a supplier review; 0.17.0), null: none or one the token owner may not see"
+          },
           "name": {
             "type": "string"
           },
@@ -14085,6 +15986,7 @@
           "serviceName",
           "applicationId",
           "applicationName",
+          "supplier",
           "name",
           "description",
           "processId",
@@ -21931,6 +23833,34 @@
                                 "additionalProperties": false
                               },
                               "description": "Where it is usually published"
+                            },
+                            "source": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "document": {
+                                      "type": "string"
+                                    },
+                                    "page": {
+                                      "type": "string"
+                                    },
+                                    "section": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "document",
+                                    "page",
+                                    "section"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ],
+                              "description": "0.17.0: where it is described – the document (its title or a record number) and the page and section in it"
                             }
                           },
                           "required": [
@@ -23428,6 +25358,34 @@
                                             "additionalProperties": false
                                           },
                                           "description": "Where it is usually published"
+                                        },
+                                        "source": {
+                                          "anyOf": [
+                                            {
+                                              "type": "object",
+                                              "properties": {
+                                                "document": {
+                                                  "type": "string"
+                                                },
+                                                "page": {
+                                                  "type": "string"
+                                                },
+                                                "section": {
+                                                  "type": "string"
+                                                }
+                                              },
+                                              "required": [
+                                                "document",
+                                                "page",
+                                                "section"
+                                              ],
+                                              "additionalProperties": false
+                                            },
+                                            {
+                                              "type": "null"
+                                            }
+                                          ],
+                                          "description": "0.17.0: where it is described – the document (its title or a record number) and the page and section in it"
                                         }
                                       },
                                       "required": [
@@ -23618,6 +25576,34 @@
                                 "additionalProperties": false
                               },
                               "description": "Where it is usually published"
+                            },
+                            "source": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "document": {
+                                      "type": "string"
+                                    },
+                                    "page": {
+                                      "type": "string"
+                                    },
+                                    "section": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "document",
+                                    "page",
+                                    "section"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ],
+                              "description": "0.17.0: where it is described – the document (its title or a record number) and the page and section in it"
                             },
                             "interface": {
                               "type": "string"
@@ -23907,6 +25893,34 @@
                                         "additionalProperties": false
                                       },
                                       "description": "Where it is usually published"
+                                    },
+                                    "source": {
+                                      "anyOf": [
+                                        {
+                                          "type": "object",
+                                          "properties": {
+                                            "document": {
+                                              "type": "string"
+                                            },
+                                            "page": {
+                                              "type": "string"
+                                            },
+                                            "section": {
+                                              "type": "string"
+                                            }
+                                          },
+                                          "required": [
+                                            "document",
+                                            "page",
+                                            "section"
+                                          ],
+                                          "additionalProperties": false
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ],
+                                      "description": "0.17.0: where it is described – the document (its title or a record number) and the page and section in it"
                                     }
                                   },
                                   "required": [
@@ -24192,6 +26206,34 @@
                                 "additionalProperties": false
                               },
                               "description": "Where it is usually published"
+                            },
+                            "source": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "document": {
+                                      "type": "string"
+                                    },
+                                    "page": {
+                                      "type": "string"
+                                    },
+                                    "section": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "document",
+                                    "page",
+                                    "section"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ],
+                              "description": "0.17.0: where it is described – the document (its title or a record number) and the page and section in it"
                             }
                           },
                           "required": [
@@ -32321,6 +34363,67 @@
                   "type": "string",
                   "description": "Vendor or contract (free text)"
                 },
+                "supplier": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "unconfirmed",
+                            "active",
+                            "archived"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "status"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The linked supplier (0.17.0; null: none, or one the token owner may not see); vendor is the fallback text"
+                },
+                "supplierContract": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "reference": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "title",
+                        "reference"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The supplier contract the line pays for"
+                },
                 "amount": {
                   "type": [
                     "null",
@@ -32443,6 +34546,8 @@
                 "category",
                 "target",
                 "vendor",
+                "supplier",
+                "supplierContract",
                 "amount",
                 "currency",
                 "cadence",
@@ -32895,6 +35000,1052 @@
           "targets",
           "years",
           "limits"
+        ],
+        "additionalProperties": false
+      },
+      "SupplierSummaryEntry": {
+        "title": "SupplierSummaryEntry",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "saas",
+              "managedPlatform",
+              "softwareVendor",
+              "serviceProvider",
+              "other"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "unconfirmed",
+              "active",
+              "archived"
+            ],
+            "description": "unconfirmed: made from a free-text vendor on upgrade, waiting for confirmation; active; archived"
+          },
+          "description": {
+            "type": "string"
+          },
+          "website": {
+            "type": "string"
+          },
+          "owners": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Steward users and teams responsible: user:<name>, team:<name>"
+          },
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Other spellings (free-text vendors it was made from or merged with, former names)"
+          },
+          "personalData": {
+            "type": "boolean",
+            "description": "Whether the supplier processes personal data for the service"
+          },
+          "dpaStatus": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "inPlace",
+                  "missing"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The data processing agreement: inPlace or missing (null: no personal data)"
+          },
+          "dpaSince": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "Calendar date YYYY-MM-DD (the instance time zone)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Calendar date YYYY-MM-DD (the instance time zone)"
+          },
+          "dpaLink": {
+            "type": "string",
+            "description": "The agreement: an http(s) URL or a record (id or number)"
+          },
+          "criticality": {
+            "type": "object",
+            "properties": {
+              "confidentiality": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "level": {
+                        "type": "string"
+                      },
+                      "label": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "level",
+                      "label"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "integrity": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "level": {
+                        "type": "string"
+                      },
+                      "label": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "level",
+                      "label"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "availability": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "level": {
+                        "type": "string"
+                      },
+                      "label": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "level",
+                      "label"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "confidentiality",
+              "integrity",
+              "availability"
+            ],
+            "additionalProperties": false,
+            "description": "Derived: the highest protection need of the linked applications per dimension"
+          },
+          "contractCount": {
+            "type": "integer"
+          },
+          "certificateCount": {
+            "type": "integer"
+          },
+          "nextNoticeBy": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "Calendar date YYYY-MM-DD (the instance time zone)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The earliest notice-by date ahead of its contracts (else the latest passed one)"
+          },
+          "noticeState": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "dueSoon",
+              "past",
+              "none"
+            ],
+            "description": "ok; dueSoon: within 90 days; past: the date has passed; none: no date"
+          },
+          "nextCertificateExpiry": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "Calendar date YYYY-MM-DD (the instance time zone)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Calendar date YYYY-MM-DD (the instance time zone)"
+          },
+          "certificateState": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "dueSoon",
+              "past",
+              "none"
+            ],
+            "description": "ok; dueSoon: within 90 days; past: the date has passed; none: no date"
+          },
+          "usage": {
+            "type": "object",
+            "properties": {
+              "application": {
+                "type": "integer"
+              },
+              "system": {
+                "type": "integer"
+              },
+              "ticket": {
+                "type": "integer"
+              },
+              "watch": {
+                "type": "integer"
+              },
+              "costPlanLine": {
+                "type": "integer"
+              },
+              "duty": {
+                "type": "integer"
+              },
+              "responsibility": {
+                "type": "integer"
+              },
+              "soaEntry": {
+                "type": "integer"
+              },
+              "finding": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "application",
+              "system",
+              "ticket",
+              "watch",
+              "costPlanLine",
+              "duty",
+              "responsibility",
+              "soaEntry",
+              "finding"
+            ],
+            "additionalProperties": false,
+            "description": "Linked items the token owner may see, per kind"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "type",
+          "status",
+          "description",
+          "website",
+          "owners",
+          "aliases",
+          "personalData",
+          "dpaStatus",
+          "dpaSince",
+          "dpaLink",
+          "criticality",
+          "contractCount",
+          "certificateCount",
+          "nextNoticeBy",
+          "noticeState",
+          "nextCertificateExpiry",
+          "certificateState",
+          "usage",
+          "updatedAt"
+        ],
+        "additionalProperties": false
+      },
+      "SupplierEntry": {
+        "title": "SupplierEntry",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "saas",
+              "managedPlatform",
+              "softwareVendor",
+              "serviceProvider",
+              "other"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "unconfirmed",
+              "active",
+              "archived"
+            ],
+            "description": "unconfirmed: made from a free-text vendor on upgrade, waiting for confirmation; active; archived"
+          },
+          "description": {
+            "type": "string"
+          },
+          "website": {
+            "type": "string"
+          },
+          "owners": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Steward users and teams responsible: user:<name>, team:<name>"
+          },
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Other spellings (free-text vendors it was made from or merged with, former names)"
+          },
+          "personalData": {
+            "type": "boolean",
+            "description": "Whether the supplier processes personal data for the service"
+          },
+          "dpaStatus": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "inPlace",
+                  "missing"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The data processing agreement: inPlace or missing (null: no personal data)"
+          },
+          "dpaSince": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "Calendar date YYYY-MM-DD (the instance time zone)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Calendar date YYYY-MM-DD (the instance time zone)"
+          },
+          "dpaLink": {
+            "type": "string",
+            "description": "The agreement: an http(s) URL or a record (id or number)"
+          },
+          "criticality": {
+            "type": "object",
+            "properties": {
+              "confidentiality": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "level": {
+                        "type": "string"
+                      },
+                      "label": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "level",
+                      "label"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "integrity": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "level": {
+                        "type": "string"
+                      },
+                      "label": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "level",
+                      "label"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "availability": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "level": {
+                        "type": "string"
+                      },
+                      "label": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "level",
+                      "label"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "confidentiality",
+              "integrity",
+              "availability"
+            ],
+            "additionalProperties": false,
+            "description": "Derived: the highest protection need of the linked applications per dimension"
+          },
+          "contractCount": {
+            "type": "integer"
+          },
+          "certificateCount": {
+            "type": "integer"
+          },
+          "nextNoticeBy": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "Calendar date YYYY-MM-DD (the instance time zone)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The earliest notice-by date ahead of its contracts (else the latest passed one)"
+          },
+          "noticeState": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "dueSoon",
+              "past",
+              "none"
+            ],
+            "description": "ok; dueSoon: within 90 days; past: the date has passed; none: no date"
+          },
+          "nextCertificateExpiry": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "Calendar date YYYY-MM-DD (the instance time zone)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Calendar date YYYY-MM-DD (the instance time zone)"
+          },
+          "certificateState": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "dueSoon",
+              "past",
+              "none"
+            ],
+            "description": "ok; dueSoon: within 90 days; past: the date has passed; none: no date"
+          },
+          "usage": {
+            "type": "object",
+            "properties": {
+              "application": {
+                "type": "integer"
+              },
+              "system": {
+                "type": "integer"
+              },
+              "ticket": {
+                "type": "integer"
+              },
+              "watch": {
+                "type": "integer"
+              },
+              "costPlanLine": {
+                "type": "integer"
+              },
+              "duty": {
+                "type": "integer"
+              },
+              "responsibility": {
+                "type": "integer"
+              },
+              "soaEntry": {
+                "type": "integer"
+              },
+              "finding": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "application",
+              "system",
+              "ticket",
+              "watch",
+              "costPlanLine",
+              "duty",
+              "responsibility",
+              "soaEntry",
+              "finding"
+            ],
+            "additionalProperties": false,
+            "description": "Linked items the token owner may see, per kind"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "contacts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "role": {
+                  "type": "string",
+                  "enum": [
+                    "accountManager",
+                    "support",
+                    "security",
+                    "dataProtection",
+                    "other"
+                  ]
+                },
+                "note": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "role",
+                "note"
+              ],
+              "additionalProperties": false
+            },
+            "description": "People at the supplier: name, role and note only (no e-mail or phone)"
+          },
+          "contracts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "reference": {
+                  "type": "string",
+                  "description": "The contract number"
+                },
+                "startsOn": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "description": "Calendar date YYYY-MM-DD (the instance time zone)"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Calendar date YYYY-MM-DD (the instance time zone)"
+                },
+                "endsOn": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "description": "Calendar date YYYY-MM-DD (the instance time zone)"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Calendar date YYYY-MM-DD (the instance time zone)"
+                },
+                "noticeDays": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "renewal": {
+                  "type": "string",
+                  "enum": [
+                    "automatic",
+                    "byAgreement",
+                    "fixedEnd"
+                  ]
+                },
+                "renewalMonths": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "termEnd": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "description": "Calendar date YYYY-MM-DD (the instance time zone)"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The end of the current term (an automatic renewal rolls on)"
+                },
+                "noticeBy": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "description": "Calendar date YYYY-MM-DD (the instance time zone)"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The last day to give notice: the term end minus the notice period"
+                },
+                "noticeState": {
+                  "type": "string",
+                  "enum": [
+                    "ok",
+                    "dueSoon",
+                    "past",
+                    "none"
+                  ],
+                  "description": "ok; dueSoon: within 90 days; past: the date has passed; none: no date"
+                },
+                "link": {
+                  "type": "string"
+                },
+                "slaAvailability": {
+                  "type": [
+                    "null",
+                    "number"
+                  ],
+                  "description": "Availability target in %"
+                },
+                "slaSupportHours": {
+                  "type": "string"
+                },
+                "slaResponse": {
+                  "type": "string"
+                },
+                "rtoHours": {
+                  "type": [
+                    "null",
+                    "number"
+                  ],
+                  "description": "Contractual recovery time objective (hours)"
+                },
+                "rpoHours": {
+                  "type": [
+                    "null",
+                    "number"
+                  ],
+                  "description": "Contractual recovery point objective (hours)"
+                },
+                "note": {
+                  "type": "string"
+                },
+                "costPlanLines": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "serviceId": {
+                        "type": "string"
+                      },
+                      "serviceName": {
+                        "type": "string"
+                      },
+                      "fiscalYear": {
+                        "type": "integer"
+                      },
+                      "title": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "serviceId",
+                      "serviceName",
+                      "fiscalYear",
+                      "title"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "id",
+                "title",
+                "reference",
+                "startsOn",
+                "endsOn",
+                "noticeDays",
+                "renewal",
+                "renewalMonths",
+                "termEnd",
+                "noticeBy",
+                "noticeState",
+                "link",
+                "slaAvailability",
+                "slaSupportHours",
+                "slaResponse",
+                "rtoHours",
+                "rpoHours",
+                "note",
+                "costPlanLines"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "certificates": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "iso27001",
+                    "iso27017",
+                    "iso27018",
+                    "iso22301",
+                    "soc2type1",
+                    "soc2type2",
+                    "c5",
+                    "tisax",
+                    "other"
+                  ]
+                },
+                "name": {
+                  "type": "string"
+                },
+                "scope": {
+                  "type": "string"
+                },
+                "issuer": {
+                  "type": "string"
+                },
+                "issuedOn": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "description": "Calendar date YYYY-MM-DD (the instance time zone)"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Issued on; a SOC 2 report: the end of its period"
+                },
+                "validUntil": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "description": "Calendar date YYYY-MM-DD (the instance time zone)"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Calendar date YYYY-MM-DD (the instance time zone)"
+                },
+                "state": {
+                  "type": "string",
+                  "enum": [
+                    "ok",
+                    "dueSoon",
+                    "past",
+                    "none"
+                  ],
+                  "description": "ok; dueSoon: within 90 days; past: the date has passed; none: no date"
+                },
+                "link": {
+                  "type": "string"
+                },
+                "checkedBy": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "checkedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "description": "ISO 8601 timestamp (UTC)"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "ISO 8601 timestamp (UTC)"
+                }
+              },
+              "required": [
+                "id",
+                "kind",
+                "name",
+                "scope",
+                "issuer",
+                "issuedOn",
+                "validUntil",
+                "state",
+                "link",
+                "checkedBy",
+                "checkedAt"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "usedBy": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "application",
+                    "system",
+                    "ticket",
+                    "watch",
+                    "costPlanLine",
+                    "duty",
+                    "responsibility",
+                    "soaEntry",
+                    "finding"
+                  ]
+                },
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "detail": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "id",
+                "name",
+                "path",
+                "detail"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "duties": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "serviceId": {
+                  "type": "string"
+                },
+                "serviceName": {
+                  "type": "string"
+                },
+                "periods": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "periodKey": {
+                        "type": "string"
+                      },
+                      "status": {
+                        "type": "string"
+                      },
+                      "dueAt": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "periodKey",
+                      "status",
+                      "dueAt"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "serviceId",
+                "serviceName",
+                "periods"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "migratedFrom": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "table": {
+                  "type": "string"
+                },
+                "spellings": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "table",
+                "spellings"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "updatedBy": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "type",
+          "status",
+          "description",
+          "website",
+          "owners",
+          "aliases",
+          "personalData",
+          "dpaStatus",
+          "dpaSince",
+          "dpaLink",
+          "criticality",
+          "contractCount",
+          "certificateCount",
+          "nextNoticeBy",
+          "noticeState",
+          "nextCertificateExpiry",
+          "certificateState",
+          "usage",
+          "updatedAt",
+          "contacts",
+          "contracts",
+          "certificates",
+          "usedBy",
+          "duties",
+          "migratedFrom",
+          "createdAt",
+          "createdBy",
+          "updatedBy"
         ],
         "additionalProperties": false
       }
@@ -38654,6 +41805,182 @@
         }
       }
     },
+    "/suppliers": {
+      "get": {
+        "operationId": "listSuppliers",
+        "summary": "List suppliers",
+        "tags": [
+          "Suppliers"
+        ],
+        "description": "The suppliers of SaaS, managed platforms, software and services (docs/SUPPLIERS.md), ordered by name, with their next notice-by date and certificate expiry, the derived criticality and how many items link them. Default: unconfirmed and active suppliers.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "unconfirmed",
+                "active",
+                "archived"
+              ]
+            },
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "description": "Only suppliers with this status (default: unconfirmed and active)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of suppliers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A page of suppliers",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/SupplierSummaryEntry"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/suppliers/{supplierId}": {
+      "get": {
+        "operationId": "getSupplier",
+        "summary": "Get a supplier with its contracts, certificates and links",
+        "tags": [
+          "Suppliers"
+        ],
+        "description": "Contracts with term, notice-by date, renewal, SLA and contractual RTO/RPO; certificates with their validity; contacts with name and role only (no e-mail or phone); the items that link the supplier and its supplier review duties.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "supplierId",
+            "required": true,
+            "description": "Supplier id (sup_…)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupplierEntry"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
     "/ticket-references": {
       "get": {
         "operationId": "listTicketReferences",
@@ -40333,6 +43660,482 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/corrective-actions": {
+      "get": {
+        "operationId": "listCorrectiveActions",
+        "summary": "List corrective action findings",
+        "tags": [
+          "Compliance"
+        ],
+        "description": "The register of corrective actions (ISO/IEC 27001 clause 10.2, Compliance module, preview): nonconformities and observations from audits and from events Steward noticed, with their source, severity, status, service, owner, due date, actions and affected controls – newest first. Only findings the token owner may read: administrators, auditors, designers and approvers all, others those they or their actions own and those of services they may edit.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          },
+          {
+            "schema": {
+              "maxItems": 50,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "open",
+                  "inProgress",
+                  "implemented",
+                  "closed",
+                  "cancelled"
+                ]
+              }
+            },
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "description": "Only these statuses (repeat the parameter)"
+          },
+          {
+            "schema": {
+              "maxItems": 50,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "internalAudit",
+                  "externalAudit",
+                  "duty",
+                  "accessReview",
+                  "reconciliation",
+                  "incidentReview",
+                  "supplierReview",
+                  "other"
+                ]
+              }
+            },
+            "in": "query",
+            "name": "source",
+            "required": false,
+            "description": "Only these sources (repeat the parameter)"
+          },
+          {
+            "schema": {
+              "maxItems": 50,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "major",
+                  "minor",
+                  "observation"
+                ]
+              }
+            },
+            "in": "query",
+            "name": "severity",
+            "required": false,
+            "description": "Only these severities (repeat the parameter)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "in": "query",
+            "name": "serviceId",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "in": "query",
+            "name": "supplierId",
+            "required": false,
+            "description": "Only the findings about this supplier"
+          },
+          {
+            "schema": {
+              "type": "boolean"
+            },
+            "in": "query",
+            "name": "overdue",
+            "required": false,
+            "description": "true: only overdue findings, false: only those that are not"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "OK",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/CorrectiveFinding"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/corrective-actions/{findingId}": {
+      "get": {
+        "operationId": "getCorrectiveAction",
+        "summary": "Get a corrective action finding with its actions and effectiveness check",
+        "tags": [
+          "Compliance"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "findingId",
+            "required": true,
+            "description": "Finding id (caf_…) or number (CA-2026-0001)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CorrectiveFindingDetail"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/statements-of-applicability": {
+      "get": {
+        "operationId": "listStatementsOfApplicability",
+        "summary": "List statements of applicability",
+        "tags": [
+          "Compliance"
+        ],
+        "description": "One statement of applicability (ISO/IEC 27001 clause 6.1.3 d, Compliance module, preview) per control catalogue: scope, counts of applicable, not applicable and undecided rows and of their implementation status, the latest approved version, a version waiting for approval and the rows changed since.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "OK",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/SoaSummaryEntry"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/statements-of-applicability/{catalogueKey}": {
+      "get": {
+        "operationId": "getStatementOfApplicability",
+        "summary": "Get a statement of applicability with its rows and versions",
+        "tags": [
+          "Compliance"
+        ],
+        "description": "The current rows – applicable and why, implementation status, how it is met, the responsible party with the suggestion derived from the responsibility matrix of the services in scope, owner, last review, GRC reference, evidence links, the coverage of the last twelve months (as the token owner may see it) and open corrective action findings – and the versions with their SHA-256 and approval.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "catalogueKey",
+            "required": true,
+            "description": "Catalogue key (e.g. ISO27001) or id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SoaDetailEntry"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/services/{serviceId}/responsibilities": {
+      "get": {
+        "operationId": "getServiceResponsibilities",
+        "summary": "Get the responsibility matrix of a service",
+        "tags": [
+          "Compliance"
+        ],
+        "description": "Who does backup, recovery and continuity, patching and vulnerabilities, access management, logging and monitoring, and security incidents for the service: our team, a supplier (with its contract’s SLA and contractual RTO/RPO and its valid certificates, read from the supplier record), central IT or group, shared or not applicable – the recovery-test duty where the team does recovery itself, and the default controls of each area.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "serviceId",
+            "required": true,
+            "description": "Service id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceResponsibilitiesEntry"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
@@ -43453,6 +47256,10 @@
     {
       "name": "Costs",
       "description": "Platform costs (showback) per service, application, team and platform: 12 months, the current month, trend, forecast and budget, per currency, in FinOps FOCUS columns"
+    },
+    {
+      "name": "Suppliers",
+      "description": "Suppliers of SaaS, managed platforms, software and services: contracts with notice-by dates, SLA and contractual RTO/RPO, certificates, and what links them – contacts without e-mail or phone"
     }
   ],
   "externalDocs": {

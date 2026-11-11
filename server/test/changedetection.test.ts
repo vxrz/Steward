@@ -116,6 +116,8 @@ describe('changedetection.io platform', () => {
         'removed_at',
         'seen_at',
         'service_id',
+        // the supplier of the vendor text (0.17, ADR 0029)
+        'supplier_id',
         'tags',
         'title',
         'url',

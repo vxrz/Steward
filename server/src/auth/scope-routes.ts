@@ -58,7 +58,7 @@ interface ResourceRow {
   responsible?: string;
 }
 
-const CATALOGUE_TABLES = { service: 'services', application: 'applications', system: 'systems' } as const;
+const CATALOGUE_TABLES = { service: 'services', application: 'applications', system: 'systems', supplier: 'suppliers' } as const;
 const isCatalogue = (kind: OwnedKind): kind is CatalogueKind => kind in CATALOGUE_TABLES;
 
 /** The resource of a kind (any kind that can have owning teams). Records by id or number. */
@@ -134,6 +134,7 @@ const NOT_FOUND: Record<OwnedKind, [string, string]> = {
   site: ['Site not found', 'PLANT_SITE_NOT_FOUND'],
   contract: ['Data contract not found', 'DATA_CONTRACT_NOT_FOUND'],
   platform_identity: ['Identity not found', 'IDENTITY_NOT_FOUND'],
+  supplier: ['Supplier not found', 'SUPPLIER_NOT_FOUND'],
 };
 const notFound = (kind: OwnedKind, id: string) => new HttpError(404, NOT_FOUND[kind][0], NOT_FOUND[kind][1], { id });
 

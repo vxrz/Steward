@@ -22,11 +22,12 @@ const schema = z.object({
   serviceIds: z.array(z.string().min(1).max(200)).max(200).nullable().default(null),
 });
 
-type DutiesConfig = z.infer<typeof schema>;
+export type DutiesConfig = z.infer<typeof schema>;
 
 const iso = (t: number) => new Date(t).toISOString();
 
-function build(c: DutiesConfig, ctx: { from: number; to: number; now: number }): DutiesSectionData {
+/** The periods of the report period and the duties not done yet at its end (also the ISMS summary's duty figures). */
+export function collectDutyPeriods(c: DutiesConfig, ctx: { from: number; to: number; now: number }): DutiesSectionData {
   const out: DutiesSectionData = { counts: { due: 0, done: 0, late: 0, skipped: 0, failed: 0, missed: 0, inactive: 0, ended: 0 }, ended: [], open: [] };
   if (!currentUser()) return out;
   const at = Math.min(ctx.to, ctx.now);
@@ -72,5 +73,5 @@ export const dutiesSection = defineReportSection<DutiesConfig, DutiesSectionData
     const missing = c.serviceIds.filter((x) => !known.has(x));
     if (missing.length) throw Object.assign(new Error(`Service(s) not found: ${missing.join(', ')}`), { statusCode: 400 });
   },
-  build,
+  build: collectDutyPeriods,
 });

@@ -13,9 +13,11 @@ import { confirmDanger } from '../components/confirm';
 import { DutyFormModal, DutyLevelBadge, DutyStatusBadge, lastDay, periodLabel, SkipModal } from '../components/duties/common';
 import { fmtDate } from '../format';
 import { DetailHeader } from '../components/page/DetailPage';
+import { SupplierText } from '../components/suppliers/SupplierPicker';
 
 export function DutyDetailPage() {
   const { t } = useTranslation(['duties', 'common']);
+  const { t: tSup } = useTranslation('suppliers');
   const { id } = useParams();
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ['duty', id], queryFn: () => get<DutyDetail>(`/duties/${id}`) });
@@ -271,6 +273,11 @@ export function DutyDetailPage() {
                     : t('noSchedule')}
                 </Text>
               </Field>
+              {d.supplier && (
+                <Field label={tSup('picker.label')}>
+                  <SupplierText supplier={d.supplier} />
+                </Field>
+              )}
               {d.applicationName && (
                 <Field label={t('application')}>
                   <Anchor component={Link} to={`/applications/${d.applicationId}`} size="sm">

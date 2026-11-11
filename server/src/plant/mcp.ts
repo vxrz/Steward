@@ -10,7 +10,7 @@ import * as cat from './catalogue.js';
 import { getAssignment } from './assignments.js';
 import { assetCollections, getCollection, pointCollections } from './collections.js';
 import { allAssignments, allProfiles, ownProfiles, pointsOf } from './data-model.js';
-import { assignmentOut, kpiOut, profileOut } from './import-data.js';
+import { assignmentOut, kpiOut, profileOut, sourceOut } from './import-data.js';
 import { plantJsonSchema, SCHEMA_ID } from './format.js';
 import { collectionOut, sinkOut } from './import-network.js';
 import { ihMapping } from './ih.js';
@@ -66,6 +66,8 @@ const pointOut = (d: PlantDataPoint, detail = false) => ({
   ...(detail && d.enumValues.length ? { enumValues: d.enumValues } : {}),
   ...(detail && d.notes ? { notes: d.notes } : {}),
   ...(detail && d.publications.length ? { publications: d.publications } : {}),
+  // 0.17.0: where it is described (a manual and the page)
+  ...(d.source ? { source: sourceOut(d.source) } : {}),
 });
 
 function interfaceOut(i: PlantInterface, r: Pick<PlantResolvedProfile, 'id' | 'origins'> | null, points: boolean) {
@@ -283,7 +285,7 @@ export const plantReadTools: ToolDef[] = [
     name: 'get_device_profile',
     title: 'Get a device profile',
     description:
-      'One device profile as it is in effect (resolved): its interfaces, data point groups, data points (with known-as names) and file sets, each with where it comes from when the profile extends another (`origin`, `descriptionFrom`), the chain of bases, the items marked as not present, the profiles that extend it and its assets. `file` is the profile’s own part in the plant import format (a derived profile lists only what it adds or changes) – change it and send it with propose_plant_changes. Use interfaceId and points: false for a large profile.',
+      'One device profile as it is in effect (resolved): its interfaces, data point groups, data points (with known-as names and, since 0.17.0, their `source`: the document and page that describe them) and file sets, each with where it comes from when the profile extends another (`origin`, `descriptionFrom`), the chain of bases, the items marked as not present, the profiles that extend it and its assets. `file` is the profile’s own part in the plant import format (a derived profile lists only what it adds or changes) – change it and send it with propose_plant_changes. Use interfaceId and points: false for a large profile.',
     input: z
       .object({
         profileId: plantId('Device profile id (from list_device_profiles)'),
@@ -366,7 +368,7 @@ export const plantReadTools: ToolDef[] = [
     name: 'get_data_point',
     title: 'Get a data point',
     description:
-      'One data point of a device profile: its fields and known-as names, where it comes from, which assets with the profile (or one that extends it) deliver it and why not, their asset-specific addresses, the KPI definitions that read it and the data collections that read it under which names.',
+      'One data point of a device profile: its fields, known-as names and source (the document and page that describe it), where it comes from, which assets with the profile (or one that extends it) deliver it and why not, their asset-specific addresses, the KPI definitions that read it and the data collections that read it under which names.',
     input: z.object({ profileId: plantId('Device profile id'), pointId: z.string().min(1).max(120).describe('Data point id') }).strict(),
     visible,
     handler: (a) =>

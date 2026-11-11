@@ -68,6 +68,8 @@ async function addWithWizard(page: Page, api: APIRequestContext, mobile: boolean
 
 async function watchesOfTheDemo(page: Page, api: APIRequestContext, mobile: boolean) {
   const id = await demoPlatform(api);
+  // the demo linked the vendor text to a supplier to confirm (0.17, docs/SUPPLIERS.md): this part is about the text
+  await json(await api.put(`/api/changedetection/${id}/watches/${PRICING}/link`, { data: { supplierId: null } }));
   await page.goto(`/platforms/${id}`);
   await settle(page);
   const tab = page.getByTestId('watches-tab');

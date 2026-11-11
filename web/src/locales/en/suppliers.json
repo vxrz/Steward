@@ -1,0 +1,224 @@
+{
+  "title": "Suppliers",
+  "description": "Who runs, backs up, patches and recovers the systems and solutions you use – with contracts, notice dates, SLAs and certificates.",
+  "new": "New supplier",
+  "searchPlaceholder": "Search name, spelling or description",
+  "noMatch": "No supplier matches the search and filters.",
+  "emptyTitle": "No suppliers yet",
+  "emptyText": "Add the SaaS providers, managed platforms, software vendors and service providers your services depend on. Applications, systems, ticket references, page watches, cost plan lines and duties can then link them.",
+  "toConfirmEmpty": "Nothing to confirm. Free-text vendors from before 0.17 are all handled.",
+  "tabs": {
+    "label": "Supplier lists",
+    "active": "Suppliers",
+    "toConfirm": "To confirm",
+    "archived": "Archived"
+  },
+  "toConfirmIntro": "On the update to 0.17, each distinct vendor text became a supplier waiting for confirmation, with its spellings. Confirm a real supplier, merge duplicates into one, or mark a text that names no supplier (an account name, “On-premises”) as not a supplier: its links are cleared and the text stays.",
+  "columns": {
+    "name": "Name",
+    "type": "Type",
+    "notice": "Next notice date",
+    "certificate": "Next certificate expiry",
+    "usage": "Linked",
+    "owners": "Owners",
+    "spellings": "Spellings",
+    "updated": "Updated"
+  },
+  "usageCount_one": "{{count}} item",
+  "usageCount_other": "{{count}} items",
+  "cardLine": "{{type}} · {{usage}}",
+  "types": {
+    "saas": "SaaS",
+    "managedPlatform": "Managed platform",
+    "softwareVendor": "Software vendor",
+    "serviceProvider": "Support or service provider",
+    "other": "Other"
+  },
+  "status": {
+    "unconfirmed": "To confirm",
+    "active": "Active",
+    "archived": "Archived"
+  },
+  "dateState": {
+    "ok": "{{date}}",
+    "dueSoon": "{{date}} (in {{days}} days)",
+    "past": "{{date}} (passed)",
+    "none": "–"
+  },
+  "fields": {
+    "name": "Name",
+    "type": "Type",
+    "description": "Description",
+    "website": "Website",
+    "owners": "Owners",
+    "ownersHelp": "Steward users and teams responsible for the supplier: they change it and get its reminders.",
+    "personalData": "Processes personal data for our services",
+    "dpaStatus": "Data processing agreement",
+    "dpaSince": "In place since",
+    "dpaLink": "Agreement (URL or document number)",
+    "docLinkHint": "An http(s) link, or the number of a document in Steward (e.g. DOC-2026-0004).",
+    "criticality": "Criticality (derived)",
+    "criticalityHint": "The highest protection need of the linked applications.",
+    "aliases": "Other spellings"
+  },
+  "dpa": {
+    "inPlace": "In place",
+    "missing": "Missing",
+    "none": "Not needed (no personal data)"
+  },
+  "detail": {
+    "created": "Added by {{user}} on {{date}}",
+    "updated": "Changed by {{user}} on {{date}}",
+    "overview": "Overview",
+    "dataProtection": "Data processing",
+    "unconfirmedNote": "This supplier was made from free-text vendors on the update to 0.17. Confirm it, merge it into another supplier, or mark it as not a supplier.",
+    "archivedNote": "Archived: kept for its history and the items that still link it, not offered in forms.",
+    "migratedFrom": "Made from the free-text vendors",
+    "migratedTable": {
+      "applications": "Applications",
+      "systems": "Systems",
+      "ticket_refs": "Ticket references",
+      "cd_watches": "Page watches",
+      "cost_plan_lines": "Cost plan lines"
+    }
+  },
+  "actions": {
+    "create": "Create",
+    "confirm": "Confirm",
+    "merge": "Merge into …",
+    "notSupplier": "Not a supplier",
+    "archive": "Archive",
+    "unarchive": "Take back from the archive",
+    "confirmed": "Supplier confirmed",
+    "merged": "Supplier merged",
+    "dismissed": "Marked as not a supplier",
+    "archived": "Supplier archived",
+    "unarchived": "Supplier taken back"
+  },
+  "confirmNotSupplier": "Mark “{{name}}” as not a supplier? The supplier goes and the items that link it keep their text. The text is not made a supplier again.",
+  "confirmArchive": "Archive “{{name}}”? It stays linked where it is and is no longer offered in forms.",
+  "merge": {
+    "title": "Merge “{{name}}” into another supplier",
+    "intro": "Its links, contacts, contracts, certificates and spellings move to the supplier you choose, and “{{name}}” goes. The other supplier keeps its name, type and owners.",
+    "into": "Merge into",
+    "submit": "Merge"
+  },
+  "contacts": {
+    "title": "Contacts",
+    "help": "People at the supplier. Their e-mail and phone stay in the app: the API, MCP, datasets and exports leave them out.",
+    "empty": "No contacts yet.",
+    "add": "Add contact",
+    "edit": "Change contact",
+    "name": "Name",
+    "role": "Role",
+    "email": "E-mail",
+    "phone": "Phone",
+    "note": "Note",
+    "removeConfirm": "Remove the contact “{{name}}”? It is deleted.",
+    "roles": {
+      "accountManager": "Account manager",
+      "support": "Support",
+      "security": "Security contact",
+      "dataProtection": "Data protection officer",
+      "other": "Other"
+    }
+  },
+  "contracts": {
+    "title": "Contracts",
+    "help": "Term, notice period and renewal give the notice-by date: the last day to give notice. The owners are reminded 90 and 30 days before it.",
+    "empty": "No contracts yet.",
+    "add": "Add contract",
+    "edit": "Change contract",
+    "titleField": "Title",
+    "reference": "Contract number",
+    "startsOn": "Start",
+    "endsOn": "End",
+    "noticeDays": "Notice period (days)",
+    "renewal": "Renewal",
+    "renewalMonths": "Renews by (months)",
+    "renewals": {
+      "automatic": "Automatic",
+      "byAgreement": "By agreement",
+      "fixedEnd": "Fixed end"
+    },
+    "renewsBy_one": "automatic, by {{count}} month",
+    "renewsBy_other": "automatic, by {{count}} months",
+    "termEnd": "Current term ends",
+    "noticeBy": "Notice by",
+    "link": "Contract document (URL or document number)",
+    "sla": "SLA",
+    "slaAvailability": "Availability target (%)",
+    "slaSupportHours": "Support hours",
+    "slaResponse": "Response times",
+    "rtoHours": "RTO (hours)",
+    "rpoHours": "RPO (hours)",
+    "rtoRpo": "RTO {{rto}} h · RPO {{rpo}} h",
+    "note": "Note",
+    "costPlanLines": "Paid by",
+    "removeConfirm": "Remove the contract “{{name}}”? Cost plan lines that name it keep the supplier."
+  },
+  "certificates": {
+    "title": "Certificates and reports",
+    "help": "The owners are reminded 90 and 30 days before a certificate runs out. A SOC 2 report is valid for twelve months after the end of its period unless you enter another date.",
+    "empty": "No certificates yet.",
+    "add": "Add certificate",
+    "edit": "Change certificate",
+    "kind": "Kind",
+    "name": "Name",
+    "nameHint": "For “Other”: what it is",
+    "scope": "Scope",
+    "issuer": "Issuer",
+    "issuedOn": "Issued (a SOC 2 report: end of its period)",
+    "validUntil": "Valid until",
+    "validUntilHint": "Empty for a SOC 2 report: the end of its period plus twelve months.",
+    "link": "Certificate or report (URL or document number)",
+    "checked": "I looked at it now",
+    "checkedBy": "Looked at by {{user}} on {{date}}",
+    "removeConfirm": "Remove the certificate “{{name}}”?",
+    "kinds": {
+      "iso27001": "ISO/IEC 27001",
+      "iso27017": "ISO/IEC 27017",
+      "iso27018": "ISO/IEC 27018",
+      "iso22301": "ISO 22301",
+      "soc2type1": "SOC 2 type I",
+      "soc2type2": "SOC 2 type II",
+      "c5": "C5",
+      "tisax": "TISAX",
+      "other": "Other"
+    }
+  },
+  "usedBy": {
+    "title": "Used by",
+    "empty": "Nothing links this supplier yet. Choose it in the form of an application, system, ticket reference, page watch, cost plan line or duty, in the responsibilities of a service, in a row of the statement of applicability or in a corrective action finding.",
+    "kinds": {
+      "application": "Application",
+      "system": "System",
+      "ticket": "Ticket reference",
+      "watch": "Page watch",
+      "costPlanLine": "Cost plan line",
+      "duty": "Duty",
+      "responsibility": "Responsibility matrix",
+      "soaEntry": "Statement of applicability",
+      "finding": "Corrective action"
+    }
+  },
+  "duties": {
+    "title": "Supplier review",
+    "help": "A duty of a service that names this supplier, for example with the example process “Supplier review”.",
+    "empty": "No duty reviews this supplier yet.",
+    "lastPeriods": "Last periods"
+  },
+  "picker": {
+    "label": "Supplier",
+    "hint": "The supplier record; without one, the text below is kept.",
+    "none": "No supplier",
+    "new": "+ New supplier",
+    "open": "Open the supplier",
+    "unconfirmed": "{{name}} (to confirm)",
+    "archived": "{{name}} (archived)",
+    "nothingFound": "No supplier found",
+    "contract": "Contract",
+    "contractHint": "The supplier's contract this line pays for.",
+    "noContract": "No contract"
+  }
+}

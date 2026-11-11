@@ -49,6 +49,7 @@ const map = (d: DutySummary) => ({
   serviceName: d.serviceName,
   applicationId: d.applicationId,
   applicationName: d.applicationName,
+  supplier: d.supplier,
   name: d.name,
   description: d.description,
   processId: d.processId,

@@ -1,0 +1,275 @@
+{
+  "title": "Korrekturmaßnahmen",
+  "description": "Nichtkonformitäten und Beobachtungen aus Audits und aus dem, was Steward bemerkt – mit Maßnahmen, Verantwortlichen und der Prüfung durch eine zweite Person, dass die Korrektur wirkt (ISO/IEC 27001 Abschnitt 10.2).",
+  "docs": "Wie das Register funktioniert: docs/COMPLIANCE.md#corrective-actions",
+  "tabs": {
+    "label": "Korrekturmaßnahmen",
+    "findings": "Befunde",
+    "suggestions": "Vorschläge",
+    "settings": "Einstellungen"
+  },
+  "new": "Befund erfassen",
+  "sources": {
+    "internalAudit": "Internes Audit",
+    "externalAudit": "Externes Audit",
+    "duty": "Servicepflicht",
+    "accessReview": "Zugriffsprüfung",
+    "reconciliation": "Zugriffsabgleich",
+    "incidentReview": "Incident-Review",
+    "supplierReview": "Lieferantenbewertung",
+    "other": "Sonstiges"
+  },
+  "severities": {
+    "major": "Wesentliche Nichtkonformität",
+    "minor": "Geringfügige Nichtkonformität",
+    "observation": "Beobachtung"
+  },
+  "statuses": {
+    "open": "Offen",
+    "inProgress": "In Arbeit",
+    "implemented": "Umgesetzt",
+    "closed": "Abgeschlossen",
+    "cancelled": "Storniert"
+  },
+  "table": {
+    "finding": "Befund",
+    "status": "Status",
+    "severity": "Schwere",
+    "service": "Service",
+    "owner": "Verantwortlich",
+    "due": "Fällig",
+    "actions": "Maßnahmen"
+  },
+  "filters": {
+    "search": "Nummer oder Titel suchen",
+    "state": "Stand",
+    "states": {
+      "open": "Nicht abgeschlossen",
+      "closed": "Abgeschlossen oder storniert",
+      "all": "Alle"
+    },
+    "source": "Quelle",
+    "allSources": "Alle Quellen",
+    "severity": "Schwere",
+    "allSeverities": "Alle Schweregrade",
+    "service": "Service",
+    "allServices": "Alle Services",
+    "overdueOnly": "Nur überfällige",
+    "mine": "Nur meine",
+    "oneControl": "Nur die Befunde einer Kontrolle.",
+    "allControls": "Alle Kontrollen",
+    "oneSupplier": "Nur die Befunde zu einem Lieferanten.",
+    "allSuppliers": "Alle Lieferanten"
+  },
+  "overdue": "Überfällig",
+  "actionsCount": "{{open}} von {{total}} offen",
+  "noActions": "Noch keine Maßnahmen",
+  "notVisible": "für Sie nicht sichtbar",
+  "empty": {
+    "title": "Noch keine Befunde",
+    "text": "Erfassen Sie einen Befund aus einem Audit oder bestätigen Sie einen Vorschlag, den Steward aus einer versäumten Pflicht, einem Incident-Review oder einer Zugriffsprüfung gemacht hat.",
+    "filtered": "Kein Befund passt zu den Filtern."
+  },
+  "whoCanAct": "Befunde erfassen Designer, Administratoren und wer einen Service bearbeiten darf.",
+  "suggestionsWaiting_one": "{{count}} Vorschlag wartet auf eine Entscheidung.",
+  "suggestionsWaiting_other": "{{count}} Vorschläge warten auf eine Entscheidung.",
+  "showSuggestions": "Vorschläge anzeigen",
+  "fields": {
+    "title": "Titel",
+    "description": "Beschreibung",
+    "source": "Quelle",
+    "sourceLabel": "Woher er stammt",
+    "sourceUrl": "Link zum Bericht",
+    "severity": "Schwere",
+    "service": "Service",
+    "supplier": "Lieferant",
+    "controls": "Betroffene Kontrollen",
+    "owner": "Verantwortlich",
+    "dueDate": "Fällig am",
+    "cause": "Ursache",
+    "grcRef": "GRC-Referenz",
+    "grcUrl": "Link zum GRC-Werkzeug",
+    "status": "Status",
+    "record": "Incident-Review",
+    "created": "Erfasst von {{user}} am {{date}}",
+    "updated": "Zuletzt geändert von {{user}} {{when}}",
+    "closed": "Abgeschlossen von {{user}} am {{date}}"
+  },
+  "hints": {
+    "sourceLabel": "Zum Beispiel: Externes ISMS-Audit 2026, Befund 4",
+    "controls": "Die Kontrollen, um die es geht: Der Befund erscheint in ihrem Bereich unter Kontrollen und in ihren Nachweispaketen.",
+    "cause": "Warum es passiert ist (Grundursache), soweit bekannt",
+    "grcRef": "Wo das Risiko in Ihrem GRC-Werkzeug steht, z. B. eine Risiko-ID – Steward führt kein Risikoregister",
+    "service": "Wer den Service bearbeiten darf, darf den Befund ändern",
+    "supplier": "Der Lieferant, um den es im Befund geht, zum Beispiel aus einer Lieferantenbewertung",
+    "owner": "Wer den Befund verfolgt und erinnert wird"
+  },
+  "form": {
+    "newTitle": "Befund erfassen",
+    "editTitle": "Befund {{number}} ändern",
+    "confirmTitle": "Als Befund bestätigen",
+    "confirmIntro": "Der Befund ist aus dem Vorschlag vorausgefüllt. Ändern Sie, was nötig ist; er verweist auf das, woher er stammt.",
+    "saved": "Gespeichert.",
+    "created": "Befund {{number}} erfasst.",
+    "confirmed": "Befund {{number}} aus dem Vorschlag erfasst.",
+    "noService": "Kein Service",
+    "noOwner": "Noch niemand",
+    "controlsPlaceholder": "Kontrollen suchen",
+    "confirmNeutral": "Der Titel nennt kein Incident-Review, keine Pflicht und keinen Lieferanten: Alle, die das Register lesen, lesen ihn, und der Befund verweist auf seine Quelle, die jede Person mit ihren eigenen Rechten sieht."
+  },
+  "detail": {
+    "edit": "Bearbeiten",
+    "markInProgress": "Arbeit beginnen",
+    "markImplemented": "Als umgesetzt markieren",
+    "reopen": "Zurück auf in Arbeit",
+    "checkEffectiveness": "Wirksamkeit prüfen",
+    "cancel": "Befund stornieren",
+    "statusChanged": "Status geändert.",
+    "about": "Zum Befund",
+    "noDescription": "Keine Beschreibung.",
+    "sourceLink": "Stammt aus",
+    "grc": "GRC-Referenz",
+    "fromSuggestion": "Aus einem Vorschlag erfasst",
+    "effectiveness": "Wirksamkeitsprüfung",
+    "notChecked": "Noch nicht geprüft. Sobald jede Maßnahme erledigt und der Befund umgesetzt ist, prüft eine zweite Person, ob die Korrektur wirkt.",
+    "checkedBy": "{{result}} – geprüft von {{user}} am {{date}}",
+    "method": "Methode: {{method}}",
+    "cancelled": "Storniert: {{reason}}",
+    "ownPart": "Sie haben an der Korrektur mitgewirkt (als Verantwortliche oder Verantwortlicher des Befunds oder einer Maßnahme – auch als Mitglied eines verantwortlichen Teams –, indem Sie eine Maßnahme als erledigt markiert oder nach der Umsetzung geändert haben): Eine zweite Person prüft sie.",
+    "fourEyesOff": "Die Absicherungsrichtlinie erlaubt prüfenden Personen, die eigene Korrektur zu bestätigen.",
+    "recordHidden": "Die Maßnahmen sind Maßnahmen eines Incident-Reviews, das Sie nicht lesen dürfen.",
+    "measuresNote": "Die Maßnahmen dieses Befunds sind die Maßnahmen seines Incident-Reviews {{record}}: Sie bleiben im Review, mit dessen Erinnerungen."
+  },
+  "actions": {
+    "title": "Maßnahmen",
+    "add": "Maßnahme hinzufügen",
+    "edit": "Maßnahme ändern",
+    "remove": "Maßnahme „{{title}}“ entfernen",
+    "removeConfirm": "Die Maßnahme „{{title}}“ entfernen?",
+    "markDone": "„{{title}}“ als erledigt markieren",
+    "markOpen": "„{{title}}“ als nicht erledigt markieren",
+    "editAction": "„{{title}}“ ändern",
+    "fieldTitle": "Maßnahme",
+    "owners": "Verantwortliche",
+    "ownersHint": "Sie werden vor der Fälligkeit, am Fälligkeitstag und wöchentlich während der Überfälligkeit erinnert.",
+    "dueDate": "Fällig am",
+    "note": "Notiz",
+    "done": "Erledigt",
+    "doneBy": "Erledigt von {{user}} am {{date}}",
+    "due": "Fällig am {{date}}",
+    "measure": "Maßnahme des Reviews",
+    "saved": "Maßnahme gespeichert.",
+    "removed": "Maßnahme entfernt."
+  },
+  "effectiveness": {
+    "title": "Wirksamkeit von {{number}} prüfen",
+    "intro": "Bestätigen Sie, ob die Korrektur wirkt. Wirksam schließt den Befund ab; nicht wirksam setzt ihn zurück auf in Arbeit, für eine neue Maßnahme.",
+    "method": "Wie Sie es geprüft haben",
+    "methodHint": "Zum Beispiel: fünf Austritte des letzten Monats stichprobenartig geprüft; die Sicherung der letzten Woche wiederhergestellt",
+    "result": "Ergebnis",
+    "effective": "Wirksam",
+    "notEffective": "Nicht wirksam",
+    "note": "Notiz",
+    "submit": "Prüfung festhalten",
+    "done": "Wirksamkeitsprüfung festgehalten."
+  },
+  "cancel": {
+    "title": "Befund {{number}} stornieren",
+    "reason": "Begründung",
+    "reasonHint": "Zum Beispiel: doppelt erfasst oder doch keine Nichtkonformität",
+    "submit": "Befund stornieren",
+    "done": "Befund storniert."
+  },
+  "suggestions": {
+    "intro": "Steward schlägt Befunde aus eigenen Ereignissen vor; eine Person bestätigt jeden oder verwirft ihn mit Begründung. Dasselbe Ereignis wird nie zweimal vorgeschlagen.",
+    "atLimit": "{{limit}} Vorschläge warten: Weitere folgen, sobald über einige entschieden ist.",
+    "empty": "Keine Vorschläge warten auf eine Entscheidung.",
+    "statusFilter": "Anzeigen",
+    "statuses": {
+      "pending": "Wartend",
+      "confirmed": "Bestätigt",
+      "dismissed": "Verworfen",
+      "all": "Alle"
+    },
+    "confirm": "Bestätigen",
+    "dismiss": "Verwerfen",
+    "dismissTitle": "Vorschlag verwerfen",
+    "dismissReason": "Warum es kein Befund ist",
+    "dismissed": "Vorschlag verworfen.",
+    "occurred": "Geschehen am {{date}}",
+    "decided": "{{status}} von {{user}} am {{date}}",
+    "finding": "Befund {{number}}",
+    "reason": "Begründung: {{reason}}",
+    "titles": {
+      "dutyMissed": "{{level}} Pflicht „{{duty}}“ im Zeitraum {{period}} versäumt",
+      "dutyFailed": "{{level}} Pflicht „{{duty}}“ im Zeitraum {{period}} fehlgeschlagen",
+      "incident": "Incident-Review {{record}} angenommen ({{severity}}): {{title}}",
+      "personReview": "Personenprüfung „{{review}}“: {{count}} Entfernung(en) nach {{days}} Tagen nicht als erledigt bestätigt",
+      "reconciliation": "Zugriffsprüfung „{{check}}“: {{count}} Befund(e) länger als {{days}} Tage offen ({{week}})",
+      "supplierCertificate": "Zertifikat {{certificate}} des Lieferanten „{{supplier}}“ ist am {{date}} abgelaufen",
+      "supplierReviewMissed": "Lieferantenbewertung „{{duty}}“ von „{{supplier}}“ im Zeitraum {{period}} versäumt",
+      "supplierReviewFailed": "Lieferantenbewertung „{{duty}}“ von „{{supplier}}“ im Zeitraum {{period}} fehlgeschlagen"
+    },
+    "neutralTitles": {
+      "dutyMissed": "{{level}} Pflicht im Zeitraum {{period}} versäumt",
+      "dutyFailed": "{{level}} Pflicht im Zeitraum {{period}} fehlgeschlagen",
+      "incident": "Incident-Review angenommen ({{severity}})",
+      "personReview": "Personenprüfung: {{count}} Entfernung(en) nach {{days}} Tagen nicht als erledigt bestätigt",
+      "reconciliation": "Zugriffsprüfung: {{count}} Befund(e) länger als {{days}} Tage offen ({{week}})",
+      "supplierCertificate": "Ein Lieferantenzertifikat ist am {{date}} abgelaufen",
+      "supplierReviewMissed": "Lieferantenbewertung im Zeitraum {{period}} versäumt",
+      "supplierReviewFailed": "Lieferantenbewertung im Zeitraum {{period}} fehlgeschlagen"
+    },
+    "levels": {
+      "mandatory": "Verpflichtende",
+      "recommended": "Empfohlene"
+    }
+  },
+  "settings": {
+    "intro": "Welche Ereignisse von Steward zu Vorschlägen werden. Nichts wird ohne eine Person zum Befund; eingeschaltet schlägt eine Quelle die Ereignisse der letzten 90 Tage vor.",
+    "readOnly": "Nur Administratoren ändern die Quellen.",
+    "updated": "Zuletzt geändert von {{user}} {{when}}.",
+    "saved": "Quellen gespeichert.",
+    "sources": {
+      "dutyMandatory": {
+        "label": "Versäumte oder fehlgeschlagene Zeiträume verpflichtender Pflichten",
+        "description": "Ein Zeitraum einer verpflichtenden Servicepflicht, der versäumt oder fehlgeschlagen endete."
+      },
+      "dutyRecommended": {
+        "label": "Versäumte oder fehlgeschlagene Zeiträume empfohlener Pflichten",
+        "description": "Dasselbe für empfohlene Pflichten – standardmäßig aus."
+      },
+      "incidentMajor": {
+        "label": "Angenommene Incident-Reviews der Schwere wesentlich oder kritisch",
+        "description": "Ihre Maßnahmen werden die Maßnahmen des Befunds."
+      },
+      "incidentMinor": {
+        "label": "Angenommene Incident-Reviews der Schwere gering",
+        "description": "Standardmäßig aus: Nicht jeder Vorfall ist eine Nichtkonformität."
+      },
+      "personReview": {
+        "label": "Entfernungen aus Personenprüfungen, die nach 30 Tagen noch bestehen",
+        "description": "Eine freigegebene Personenprüfung, deren Entfernungen 30 Tage nach der Freigabe nicht als erledigt bestätigt sind."
+      },
+      "reconciliation": {
+        "label": "Befunde des Zugriffsabgleichs, die länger als sieben Tage offen sind",
+        "description": "Standardmäßig aus. Ein Vorschlag je Zugriffsprüfung und Woche, wie viele Befunde auch offen sind."
+      },
+      "supplierReview": {
+        "label": "Lieferantenbewertungen",
+        "description": "Ein abgelaufenes Zertifikat eines bestätigten, genutzten Lieferanten und ein versäumter oder fehlgeschlagener Zeitraum einer Pflicht, die einen Lieferanten bewertet (statt der Pflicht-Quellen oben)."
+      }
+    }
+  },
+  "controlPanel": {
+    "title": "Offene Befunde",
+    "none": "Kein offener Befund der Korrekturmaßnahmen nennt diese Kontrolle.",
+    "link": "Alle Befunde dieser Kontrolle"
+  },
+  "supplierPanel": {
+    "title": "Korrekturmaßnahmen",
+    "none": "Kein offener Befund betrifft diesen Lieferanten.",
+    "record": "Befund erfassen",
+    "all": "Alle Befunde dieses Lieferanten"
+  }
+}

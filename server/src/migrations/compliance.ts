@@ -225,4 +225,193 @@ export const COMPLIANCE_MIGRATIONS: NamedMigration[] = [
       CREATE INDEX person_reviews_created ON person_reviews(created_at);
     `,
   },
+  {
+    // corrective actions (ISO/IEC 27001 clause 10.2, ADR 0029 part 3): findings, their actions and reminders, and the
+    // suggestions Steward makes from its own events (source_key unique: an event is suggested once). Kept at the end
+    // of this list: migrations run by name in list order, so compliance-004-soa can go before or after it.
+    name: 'compliance-005-corrective-actions',
+    sql: `
+      CREATE TABLE ca_findings (
+        id TEXT PRIMARY KEY,
+        number TEXT NOT NULL UNIQUE,
+        title TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        source TEXT NOT NULL,
+        source_kind TEXT,
+        source_id TEXT,
+        source_label TEXT NOT NULL DEFAULT '',
+        service_id TEXT,
+        supplier_id TEXT,
+        control_ids TEXT NOT NULL DEFAULT '[]',
+        record_id TEXT,
+        severity TEXT NOT NULL,
+        owner TEXT,
+        due_date TEXT,
+        cause TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL,
+        eff_method TEXT,
+        eff_result TEXT,
+        eff_note TEXT,
+        eff_checked_by TEXT,
+        eff_checked_at TEXT,
+        grc_ref TEXT NOT NULL DEFAULT '',
+        grc_url TEXT NOT NULL DEFAULT '',
+        cancel_reason TEXT NOT NULL DEFAULT '',
+        suggestion_id TEXT,
+        created_at TEXT NOT NULL,
+        created_by TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        updated_by TEXT NOT NULL,
+        closed_at TEXT,
+        closed_by TEXT
+      );
+      CREATE INDEX ca_findings_status ON ca_findings(status, due_date);
+      CREATE INDEX ca_findings_service ON ca_findings(service_id);
+      CREATE INDEX ca_findings_record ON ca_findings(record_id);
+
+      CREATE TABLE ca_actions (
+        id TEXT PRIMARY KEY,
+        finding_id TEXT NOT NULL REFERENCES ca_findings(id),
+        title TEXT NOT NULL,
+        owners TEXT NOT NULL DEFAULT '[]',
+        due_date TEXT NOT NULL,
+        note TEXT NOT NULL DEFAULT '',
+        done_at TEXT,
+        done_by TEXT,
+        created_at TEXT NOT NULL,
+        created_by TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        updated_by TEXT NOT NULL
+      );
+      CREATE INDEX ca_actions_finding ON ca_actions(finding_id);
+      CREATE INDEX ca_actions_open ON ca_actions(done_at, due_date);
+
+      -- reminders sent, so each goes out once (also across restarts)
+      CREATE TABLE ca_action_reminders (
+        action_id TEXT NOT NULL,
+        reminder_key TEXT NOT NULL,
+        sent_at TEXT NOT NULL,
+        PRIMARY KEY (action_id, reminder_key)
+      );
+
+      CREATE TABLE ca_suggestions (
+        id TEXT PRIMARY KEY,
+        source TEXT NOT NULL,
+        source_key TEXT NOT NULL UNIQUE,
+        source_kind TEXT,
+        source_id TEXT,
+        source_label TEXT NOT NULL DEFAULT '',
+        service_id TEXT,
+        control_ids TEXT NOT NULL DEFAULT '[]',
+        record_id TEXT,
+        title TEXT NOT NULL,
+        details TEXT NOT NULL DEFAULT '{}',
+        severity TEXT NOT NULL,
+        occurred_at TEXT NOT NULL,
+        status TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        decided_by TEXT,
+        decided_at TEXT,
+        reason TEXT NOT NULL DEFAULT '',
+        finding_id TEXT
+      );
+      CREATE INDEX ca_suggestions_status ON ca_suggestions(status, created_at);
+    `,
+  },
+  {
+    // statement of applicability with a responsibility matrix per service (ISO/IEC 27001 clause 6.1.3 d, ADR 0029 part 2):
+    // one SoA per control catalogue, its rows per control, its versions (frozen content and SHA-256, approval) and who
+    // does six fixed areas of each service. Listed after compliance-005: migrations run in list order, and the list is
+    // history (an upgraded and a fresh database must match).
+    name: 'compliance-004-soa',
+    sql: `
+      CREATE TABLE soas (
+        id TEXT PRIMARY KEY,
+        catalogue_id TEXT NOT NULL UNIQUE,
+        scope_name TEXT NOT NULL DEFAULT '',
+        scope_service_ids TEXT NOT NULL DEFAULT '[]',
+        four_eyes INTEGER NOT NULL DEFAULT 1,
+        area_controls TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL,
+        created_by TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        updated_by TEXT NOT NULL
+      );
+
+      CREATE TABLE soa_entries (
+        id TEXT PRIMARY KEY,
+        soa_id TEXT NOT NULL REFERENCES soas(id),
+        control_id TEXT NOT NULL,
+        applicable INTEGER,
+        justification TEXT NOT NULL DEFAULT '',
+        status TEXT,
+        how_met TEXT NOT NULL DEFAULT '',
+        party TEXT,
+        supplier_id TEXT,
+        central_name TEXT NOT NULL DEFAULT '',
+        owner TEXT,
+        reviewed_at TEXT,
+        reviewed_by TEXT,
+        grc_ref TEXT NOT NULL DEFAULT '',
+        grc_url TEXT NOT NULL DEFAULT '',
+        evidence_links TEXT NOT NULL DEFAULT '[]',
+        version INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT,
+        updated_by TEXT,
+        UNIQUE (soa_id, control_id)
+      );
+      CREATE INDEX soa_entries_supplier ON soa_entries(supplier_id);
+
+      CREATE TABLE soa_versions (
+        id TEXT PRIMARY KEY,
+        soa_id TEXT NOT NULL REFERENCES soas(id),
+        number INTEGER NOT NULL,
+        status TEXT NOT NULL,
+        content TEXT NOT NULL,
+        content_sha256 TEXT NOT NULL,
+        submitted_at TEXT NOT NULL,
+        submitted_by TEXT NOT NULL,
+        decided_at TEXT,
+        decided_by TEXT,
+        comment TEXT NOT NULL DEFAULT '',
+        files TEXT NOT NULL DEFAULT '{}',
+        UNIQUE (soa_id, number)
+      );
+      CREATE INDEX soa_versions_status ON soa_versions(soa_id, status);
+
+      CREATE TABLE service_responsibilities (
+        service_id TEXT NOT NULL,
+        area TEXT NOT NULL,
+        party TEXT NOT NULL,
+        supplier_id TEXT,
+        contract_id TEXT,
+        central_name TEXT NOT NULL DEFAULT '',
+        note TEXT NOT NULL DEFAULT '',
+        duty_id TEXT,
+        updated_at TEXT NOT NULL,
+        updated_by TEXT NOT NULL,
+        PRIMARY KEY (service_id, area)
+      );
+      CREATE INDEX service_responsibilities_supplier ON service_responsibilities(supplier_id);
+    `,
+  },
+  {
+    // whether a second person approves a version is fixed when it is submitted (security review 0.17.0): switching the
+    // SoA's "A second person approves" off later never lets the submitter approve a version that waits already.
+    // Versions submitted before this migration need a second person (the default of the switch).
+    name: 'compliance-006-soa-version-four-eyes',
+    sql: `
+      ALTER TABLE soa_versions ADD COLUMN four_eyes INTEGER NOT NULL DEFAULT 1;
+    `,
+  },
+  {
+    // everyone who took part in the fix of a corrective action finding, kept for good (security review 0.17.0): its
+    // owners, the owners of its actions (a team with its members of then), who marked an action done and who removed or
+    // changed one after it was implemented – a JSON list of subjects. The effectiveness check excludes them all, also
+    // after an action was removed or reassigned.
+    name: 'compliance-007-corrective-participants',
+    sql: `
+      ALTER TABLE ca_findings ADD COLUMN fix_participants TEXT NOT NULL DEFAULT '[]';
+    `,
+  },
 ];
