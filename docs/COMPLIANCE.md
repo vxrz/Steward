@@ -265,6 +265,8 @@ An approved (or superseded) version is exported as:
 
 Check a signed file offline with `steward evidence verify <file.zip> --fingerprint <fingerprint>` (or `npm run evidence:verify -- …`): the same verifier and key as evidence packs, with a domain of its own, so a signed statement is never taken for an evidence pack. Exports are for everyone but viewers (like evidence packs) and are audited.
 
+**Suppliers and services the reader may not see.** A version freezes the names of the suppliers and of the services in scope as they were. Like the live statement and evidence packs, what a reader is shown holds only what they may see: _Show version_ (`GET …/versions/:n`) leaves out a supplier or service of another team (_not visible to you_) – matched by name, so one renamed or removed since counts as not visible; the stored content and its SHA-256 stay as they are. The files cannot leave anything out (they are signed byte for byte), so a version that names a supplier or service someone may not see is exported only by who may see them all – auditors and administrators always – (`SOA_EXPORT_HIDDEN` otherwise), and an evidence pack of someone who may not see them leaves `soa/` out and says so.
+
 ### Limits
 
 One statement per catalogue (up to the catalogue's 2,000 controls); justification 2,000 and _how it is met_ 1,000 characters; ten evidence links per row; 500 services in scope; 500 versions per statement.

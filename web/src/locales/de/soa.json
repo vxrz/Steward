@@ -265,6 +265,7 @@
     "title": "Version {{number}} wie eingereicht",
     "intro": "Eingefroren, als {{user}} sie am {{date}} eingereicht hat. Die signierte Datei enthält genau diesen Inhalt (soa.json).",
     "open": "Version {{number}} anzeigen",
-    "show": "Version anzeigen"
+    "show": "Version anzeigen",
+    "hidden": "Lieferanten und Services, die Sie nicht sehen dürfen, sind hier ausgelassen. Die signierte Datei enthält sie: Auditoren oder Administratoren exportieren sie."
   }
 }

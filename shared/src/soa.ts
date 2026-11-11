@@ -418,7 +418,8 @@ export interface SoaVersionContent {
   format: 'steward-soa';
   version: 1;
   catalogue: { key: string; name: string; version: string };
-  scope: { name: string; services: string[] };
+  /** `servicesHidden`: only in what GET …/versions/:n shows – services in scope the reader may not see (left out) */
+  scope: { name: string; services: string[]; servicesHidden?: number };
   number: number;
   submittedAt: string;
   submittedBy: string;
@@ -433,6 +434,8 @@ export interface SoaVersionContent {
     howMet: string;
     party: SoaParty | null;
     supplier: string | null;
+    /** Only in what GET …/versions/:n shows: a supplier is named that the reader may not see (supplier is then null) */
+    supplierHidden?: boolean;
     centralName: string;
     owner: string | null;
     reviewedAt: string | null;

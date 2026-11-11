@@ -265,6 +265,7 @@
     "title": "Version {{number}} as submitted",
     "intro": "Frozen when {{user}} submitted it on {{date}}. The signed file holds exactly this content (soa.json).",
     "open": "Show version {{number}}",
-    "show": "Show version"
+    "show": "Show version",
+    "hidden": "Suppliers and services you may not see are left out here. The signed file holds them: an auditor or administrator exports it."
   }
 }

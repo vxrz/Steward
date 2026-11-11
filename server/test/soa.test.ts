@@ -640,6 +640,64 @@ describe('reading through the API, MCP and the dataset', () => {
   });
 });
 
+describe('a version naming suppliers and services the reader may not see (security review 0.17.0)', () => {
+  let hiddenSup = '';
+  let hiddenSvc = '';
+  let n = 0;
+
+  beforeAll(async () => {
+    const team = await s.api('POST', '/teams', { name: 'SoA names team', members: ['olivia'] });
+    hiddenSup = (await s.api('POST', '/suppliers', { name: 'Shadow Hosting (soa)', type: 'saas' })).id;
+    await s.api('PUT', `/owning-teams/supplier/${hiddenSup}`, { teamIds: [team.id] });
+    hiddenSvc = (await s.api('POST', '/services', { name: 'Shadow service (soa)' })).id;
+    await s.api('PUT', `/owning-teams/service/${hiddenSvc}`, { teamIds: [team.id] });
+    const before = await s.api('GET', '/compliance/soa/ISO27001');
+    await s.api('PUT', '/compliance/soa/ISO27001/settings', { scopeServiceIds: [...before.scopeServiceIds, hiddenSvc] });
+    await s.api('PUT', `/compliance/soa/ISO27001/entries/${ctl['5.23']}`, {
+      applicable: true,
+      justification: 'Cloud services in use',
+      status: 'implemented',
+      party: 'supplier',
+      supplierId: hiddenSup,
+    });
+    const soa = await s.api('POST', '/compliance/soa/ISO27001/versions');
+    n = soa.waiting.number;
+    await adam('POST', `/compliance/soa/ISO27001/versions/${n}/decision`, { approve: true });
+  });
+
+  it('leaves them out of what the reader is shown; the stored content and its SHA-256 stay', async () => {
+    const shown = await dana('GET', `/compliance/soa/ISO27001/versions/${n}`);
+    expect(shown.content.entries.find((e: any) => e.ref === '5.23')).toMatchObject({ party: 'supplier', supplier: null, supplierHidden: true });
+    expect(shown.content.scope.services).not.toContain('Shadow service (soa)');
+    expect(shown.content.scope.servicesHidden).toBe(1);
+    expect(JSON.stringify(shown)).not.toContain('Shadow');
+    // auditors and administrators see the frozen content as it is
+    for (const c of [audrey, s.api]) {
+      const all = await c('GET', `/compliance/soa/ISO27001/versions/${n}`);
+      expect(all.content.entries.find((e: any) => e.ref === '5.23').supplier).toBe('Shadow Hosting (soa)');
+      expect(all.content.scope.services).toContain('Shadow service (soa)');
+      expect(all.content.scope.servicesHidden).toBeUndefined();
+    }
+    const { db } = await import('../src/db.js');
+    const { sha256 } = await import('../src/util.js');
+    const row = db().get<{ content: string; content_sha256: string }>('SELECT content, content_sha256 FROM soa_versions WHERE number = ?', n)!;
+    expect(row.content).toContain('Shadow Hosting (soa)');
+    expect(sha256(row.content)).toBe(row.content_sha256);
+  });
+
+  it('exports the signed files and puts them into evidence packs only for who may see every name', async () => {
+    const soa = await dana('GET', '/compliance/soa/ISO27001');
+    expect(soa.versions.find((v: any) => v.number === n).canExport).toBe(false);
+    expect(await code(dana('GET', `/compliance/soa/ISO27001/versions/${n}/export?format=csv`))).toBe('SOA_EXPORT_HIDDEN');
+    expect((await audrey('GET', '/compliance/soa/ISO27001')).versions.find((v: any) => v.number === n).canExport).toBe(true);
+    const { latestApprovedFiles } = await import('../src/compliance/soa.js');
+    const { findUserByName, toAuthUser } = await import('../src/auth/users.js');
+    const files = (name: string) => latestApprovedFiles(undefined, toAuthUser(findUserByName(name)!)).find((v) => v.catalogueKey === 'ISO27001')!;
+    expect(files('dana')).toMatchObject({ number: n, hidden: true });
+    expect(files('audrey')).toMatchObject({ number: n, hidden: false });
+  });
+});
+
 describe('the module switch', () => {
   it('answers 404 MODULE_OFF while the Compliance module is off', async () => {
     await s.api('PUT', '/settings/modules/compliance', { enabled: false });

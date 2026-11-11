@@ -54,7 +54,7 @@ import { getBranding, logo } from '../reports/branding.js';
 import { reportsDir } from '../reports/service.js';
 import { defaultLocale } from '../notifications/locale.js';
 import { HttpError, newId, nowIso, parseJson, sha256 } from '../util.js';
-import { canExportEvidence, forbid, me, SYSTEM_USER } from './access.js';
+import { canExportEvidence, forbid, me, readsEverything, SYSTEM_USER } from './access.js';
 import { coverage, ensureCatalogues, findCatalogue } from './controls.js';
 import { findingsOfControls } from './corrective.js';
 import { areaControlsOf, matrixOf } from './responsibilities.js';
@@ -403,7 +403,8 @@ function versionSummary(v: VersionRow, u: AuthUser): SoaVersionSummary {
     pdfSha256: files.pdf?.sha256 ?? null,
     fourEyes: versionFourEyes(v),
     counts: content?.counts ?? countsOf([], new Map(), new Map()),
-    canExport: (v.status === 'approved' || v.status === 'superseded') && canExportEvidence(u),
+    // the signed files hold every name: only for who may see them all (L1)
+    canExport: (v.status === 'approved' || v.status === 'superseded') && canExportEvidence(u) && !!content && seesAllOf(content, u),
   };
 }
 
@@ -984,12 +985,64 @@ function versionRow(soa: SoaRow, n: number): VersionRow {
   return v;
 }
 
-/** One version with its frozen content (everyone who can sign in, like the SoA). */
+/**
+ * The suppliers and services a frozen version names that the reader may not see (security review 0.17.0, L1). The
+ * content holds names, not ids (it is what was approved and signed), so they are matched by name: a name no supplier
+ * or service the reader may see has now – one of another team, or one renamed or removed since – counts as hidden.
+ * Administrators and auditors see everything.
+ */
+export function hiddenNamesOf(c: SoaVersionContent, u: AuthUser): { suppliers: Set<string>; services: Set<string> } {
+  const out = { suppliers: new Set<string>(), services: new Set<string>() };
+  if (readsEverything(u)) return out;
+  const seen = (table: 'suppliers' | 'services', kind: 'supplier' | 'service', name: string) =>
+    db()
+      .all<{ id: string; owners: string }>(`SELECT id, owners FROM ${table} WHERE name = ?`, name)
+      .some((r) => canViewCatalogue(u, { kind, id: r.id, owners: parseJson<string[]>(r.owners, []) }));
+  for (const name of new Set((c.entries ?? []).map((e) => e.supplier).filter((x): x is string => !!x)))
+    if (!seen('suppliers', 'supplier', name)) out.suppliers.add(name);
+  for (const name of new Set(c.scope?.services ?? [])) if (!seen('services', 'service', name)) out.services.add(name);
+  return out;
+}
+
+/**
+ * One version with its frozen content (everyone who can sign in, like the SoA) – as the reader may see it, like the live
+ * SoA and evidence packs: a supplier or service the reader may not see is left out of what is shown (`supplierHidden`,
+ * `servicesHidden`); the stored content and its SHA-256 stay as they are.
+ */
 export function getVersion(catalogueIdOrKey: string, n: number): SoaVersionDetail {
   const u = me();
   const { soa } = soaOf(catalogueIdOrKey);
   const v = versionRow(soa, n);
-  return { ...versionSummary(v, u), content: JSON.parse(v.content) as SoaVersionContent };
+  const content = JSON.parse(v.content) as SoaVersionContent;
+  const hidden = hiddenNamesOf(content, u);
+  if (!hidden.suppliers.size && !hidden.services.size) return { ...versionSummary(v, u), content };
+  return {
+    ...versionSummary(v, u),
+    content: {
+      ...content,
+      scope: { ...content.scope, services: content.scope.services.filter((x) => !hidden.services.has(x)), servicesHidden: hidden.services.size },
+      entries: content.entries.map((e) => (e.supplier && hidden.suppliers.has(e.supplier) ? { ...e, supplier: null, supplierHidden: true } : e)),
+    },
+  };
+}
+
+function seesAllOf(c: SoaVersionContent, u: AuthUser): boolean {
+  const h = hiddenNamesOf(c, u);
+  return !h.suppliers.size && !h.services.size;
+}
+
+/**
+ * The frozen files hold names the person may not see (an evidence pack or export holds what its creator may see; the
+ * signed bytes cannot be filtered): 403 SOA_EXPORT_HIDDEN – an auditor or administrator exports it.
+ */
+function assertSeesAll(c: SoaVersionContent, u: AuthUser, n: number): void {
+  const hidden = hiddenNamesOf(c, u);
+  if (hidden.suppliers.size || hidden.services.size)
+    throw new HttpError(403, `Version ${n} names suppliers or services you may not see – an auditor or administrator exports it`, 'SOA_EXPORT_HIDDEN', {
+      number: n,
+      suppliers: hidden.suppliers.size,
+      services: hidden.services.size,
+    });
 }
 
 const soaPdfDir = () => path.join(reportsDir(), 'soa');
@@ -1175,6 +1228,7 @@ export async function exportVersion(catalogueIdOrKey: string, n: number, format:
   if (v.status !== 'approved' && v.status !== 'superseded')
     throw new HttpError(409, `Version ${n} is not approved`, 'SOA_VERSION_NOT_APPROVED', { number: n, status: v.status });
   const content = JSON.parse(v.content) as SoaVersionContent;
+  assertSeesAll(content, u, n);
   const base = `soa-${cat.key.replace(/[^A-Za-z0-9._-]+/g, '_')}-v${n}`;
   let out: SoaExport;
   if (format === 'pdf') out = { filename: `${base}.pdf`, contentType: 'application/pdf', body: archivedPdf(v) };
@@ -1258,14 +1312,17 @@ export interface ApprovedSoaFiles {
   csv: string;
   /** The archived PDF in the data folder and its recorded SHA-256 (null: none recorded) */
   pdf: { file: string; sha256: string } | null;
+  /** The version names suppliers or services `reader` may not see (always false without a reader) */
+  hidden: boolean;
 }
 
 /**
  * The latest approved version of the SoA of each catalogue (`catalogueIds` narrows it) as files: the frozen JSON,
- * its CSV and the archived PDF. Catalogues without an approved version are left out. Read as Steward or any reader –
- * the SoA is readable by everyone who can sign in.
+ * its CSV and the archived PDF. Catalogues without an approved version are left out. With a `reader` (evidence packs:
+ * their creator), `hidden` says whether the version names suppliers or services the reader may not see – the files are
+ * signed bytes that cannot be filtered, so the caller leaves them out then.
  */
-export function latestApprovedFiles(catalogueIds?: readonly string[]): ApprovedSoaFiles[] {
+export function latestApprovedFiles(catalogueIds?: readonly string[], reader?: AuthUser): ApprovedSoaFiles[] {
   const out: ApprovedSoaFiles[] = [];
   for (const r of db().all<VersionRow & { key: string; catalogue_id: string }>(
     `SELECT v.*, k.key, k.id AS catalogue_id FROM soa_versions v JOIN soas s ON s.id = v.soa_id JOIN control_catalogues k ON k.id = s.catalogue_id
@@ -1276,6 +1333,7 @@ export function latestApprovedFiles(catalogueIds?: readonly string[]): ApprovedS
     const files = parseJson<{ pdf?: { path: string; sha256: string } }>(r.files, {});
     const file = files.pdf ? path.join(reportsDir(), files.pdf.path) : null;
     const inside = !!file && path.resolve(file).startsWith(path.resolve(reportsDir()) + path.sep);
+    const content = JSON.parse(r.content) as SoaVersionContent;
     out.push({
       catalogueId: r.catalogue_id,
       catalogueKey: r.key,
@@ -1285,8 +1343,14 @@ export function latestApprovedFiles(catalogueIds?: readonly string[]): ApprovedS
       contentSha256: r.content_sha256,
       base: `soa-${r.key.replace(/[^A-Za-z0-9._-]+/g, '_')}-v${Number(r.number)}`,
       json: r.content,
-      csv: versionCsv(JSON.parse(r.content) as SoaVersionContent),
+      csv: versionCsv(content),
       pdf: inside && files.pdf ? { file: file!, sha256: files.pdf.sha256 } : null,
+      hidden:
+        !!reader &&
+        (() => {
+          const h = hiddenNamesOf(content, reader);
+          return h.suppliers.size + h.services.size > 0;
+        })(),
     });
   }
   return out;

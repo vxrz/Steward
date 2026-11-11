@@ -764,8 +764,15 @@ async function buildPack(id: string, lang: ReportLang, opts: { assurance?: boole
       .map((key) => db().get<{ id: string }>('SELECT id FROM control_catalogues WHERE key = ?', key)?.id)
       .filter((x): x is string => !!x);
     const soas: { catalogue: string; number: number; approvedAt: string; approvedBy: string; contentSha256: string; files: string[] }[] = [];
-    for (const v of catalogueIds.length ? latestApprovedFiles(catalogueIds) : []) {
+    for (const v of catalogueIds.length ? latestApprovedFiles(catalogueIds, u) : []) {
       const dir = `soa/${safe(v.catalogueKey)}`;
+      // the signed bytes cannot be filtered: a version naming suppliers or services the creator may not see stays out
+      if (v.hidden) {
+        b.omitted.push(
+          `${dir}: version ${v.number} of the statement of applicability names suppliers or services ${row.created_by} may not see. Ask an auditor or administrator for a complete pack.`,
+        );
+        continue;
+      }
       const files: string[] = [];
       if (v.pdf) {
         const p = await b.file(`${dir}/${v.base}.pdf`, v.pdf.file, v.pdf.sha256);

@@ -778,6 +778,11 @@ export function SoaVersionModal({ catalogueKey, number, onClose }: { catalogueKe
           <Text size="xs" c="dimmed" className="mono" style={{ overflowWrap: 'anywhere' }}>
             SHA-256 {v.contentSha256}
           </Text>
+          {(v.content.scope.servicesHidden || v.content.entries.some((e) => e.supplierHidden)) && (
+            <Text size="xs" c="dimmed">
+              {t('versionView.hidden')}
+            </Text>
+          )}
           <div className="table-scroll">
             <Table fz="xs" aria-label={t('versionView.title', { number })}>
               <Table.Thead>
@@ -798,7 +803,9 @@ export function SoaVersionModal({ catalogueKey, number, onClose }: { catalogueKe
                     <Table.Td>{t(e.applicable === null ? 'applicable.undecided' : e.applicable ? 'applicable.yes' : 'applicable.no')}</Table.Td>
                     <Table.Td style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{e.justification || '–'}</Table.Td>
                     <Table.Td>{e.status ? t(`statuses.${e.status}`) : '–'}</Table.Td>
-                    <Table.Td>{e.party ? [t(`parties.${e.party}`), e.supplier ?? e.centralName].filter(Boolean).join(': ') : '–'}</Table.Td>
+                    <Table.Td>
+                      {e.party ? [t(`parties.${e.party}`), e.supplier ?? (e.supplierHidden ? t('notVisible') : e.centralName)].filter(Boolean).join(': ') : '–'}
+                    </Table.Td>
                   </Table.Tr>
                 ))}
               </Table.Tbody>
