@@ -1353,6 +1353,7 @@
     "COST_SCHEDULE_PLATFORM_NOT_COVERED": "Der Vertrag „{{contract}}“ deckt die Plattform „{{platform}}“ nicht ab. Wer den Vertrag ändern darf, fügt die Plattform mit dem Zahlungsplan hinzu.",
     "COST_VOLUME_READ_PLATFORM": "Nur ein Volumen, das eine Plattform bezahlt, kann durch die gelesenen Kosten der Plattform aufgebraucht werden. Wählen Sie die Kostenbuchungen als seine Nutzung.",
     "COST_VOLUME_ONE_PER_CURRENCY": "Der Vertrag hat bereits ein Volumen in {{currency}} („{{title}}“). Ein Vertrag hat ein Volumen je Währung.",
+    "COST_VOLUME_ONE_PER_CURRENCY_hidden": "Der Vertrag hat bereits ein Volumen in {{currency}}. Ein Vertrag hat ein Volumen je Währung.",
     "COST_BOOK_READ": "Die Nutzung von „{{title}}“ wird von der Plattform gelesen – es gibt nichts zu buchen.",
     "COST_BOOK_AMOUNT_REQUIRED": "„{{title}}“ wird nach Nutzung abgerechnet: Geben Sie den Betrag der Rechnung ein, um sie zu buchen.",
     "SUPPLIER_CONTRACT_ITEM": "Keine Anwendung und kein System des Service, oder eines, das Sie nicht sehen dürfen.",

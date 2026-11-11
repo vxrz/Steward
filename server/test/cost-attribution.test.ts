@@ -433,10 +433,12 @@ describe('contracts covering a platform', () => {
   });
 });
 
-describe('a prepaid volume another payer pays (security review 0.19.0 M2)', () => {
+describe('a prepaid volume another payer pays (security review 0.19.0 M2, L2)', () => {
+  let contract: string;
+  let svcA: string;
   it('draws an entry down only for who sees the payer with its amounts and every service using it', async () => {
     const { db } = await import('../src/db.js');
-    const svcA = (await s.api('POST', '/services', { name: 'Prepaid service A', owners: ['user:olivia'] })).id;
+    svcA = (await s.api('POST', '/services', { name: 'Prepaid service A', owners: ['user:olivia'] })).id;
     const svcB = (await s.api('POST', '/services', { name: 'Prepaid service B' })).id;
     const hidden = (await s.api('POST', '/teams', { name: 'Prepaid hidden team', members: [] })).id;
     db().run("INSERT INTO resource_teams (kind, resource_id, team_id, created_at) VALUES ('service', ?, ?, ?)", svcB, hidden, new Date().toISOString());
@@ -451,7 +453,7 @@ describe('a prepaid volume another payer pays (security review 0.19.0 M2)', () =
         { serviceId: svcB, purpose: 'B' },
       ],
     });
-    const contract = d.contracts.find((c) => c.title === 'Shared prepaid')!.id;
+    contract = d.contracts.find((c) => c.title === 'Shared prepaid')!.id;
     // B pays a prepaid volume of 1,000 and uses 900 of it; A books 300 on the same contract
     await s.api('POST', '/costs/schedules', {
       contractId: contract,
@@ -477,6 +479,15 @@ describe('a prepaid volume another payer pays (security review 0.19.0 M2)', () =
     const all: CostPlanYear = await s.api('GET', `/costs/plans/${svcA}?fiscalYear=${fy}`);
     expect(all.entries.find((e) => e.amount === '300.00')).toMatchObject({ drawn: '100.00', drawnHidden: false });
     expect(m(all.currencies.find((c) => c.currency === 'USD')!.unplanned.incurredToDate)).toBe(200);
+  });
+
+  it('does not name the volume of a payer the person may not see when a second one is refused', async () => {
+    const body = { ...volBody(contract), serviceId: svcA, volume: { per: 'year', billing: 'byUse', committed: 'none' } };
+    const e = await olivia('POST', '/costs/schedules', body).catch((x: { status: number; body: Record<string, unknown> }) => x);
+    expect(e).toMatchObject({ status: 409, body: { code: 'COST_VOLUME_ONE_PER_CURRENCY', params: { context: 'hidden', currency: 'USD' } } });
+    expect(JSON.stringify(e.body)).not.toContain('B secret prepaid');
+    // who sees the payer is told which one
+    await expect(s.api('POST', '/costs/schedules', body)).rejects.toMatchObject({ body: { params: { title: 'B secret prepaid' } } });
   });
 });
 
