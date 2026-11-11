@@ -1,6 +1,8 @@
 import { addDays, supplierCertificateInput, supplierContactInput, supplierContractInput, supplierInput } from '@sm/shared';
 import { db } from '../db.js';
 import { setOwningTeams } from '../auth/policy.js';
+import { saveTeam } from '../auth/users.js';
+import { nowIso } from '../util.js';
 import { addCertificate, addContact, addContract, createSupplier, insertSupplier, supplierToday } from './service.js';
 
 /**
@@ -147,12 +149,23 @@ export function setupSupplierDemo(
         scope: [{ kind: 'contract', id: hosting }],
       }),
     );
-  // a pair as the 0.17 update left it: one company, split by team – "Same supplier in several teams" suggests merging it
-  const desk = db().get<{ id: string }>("SELECT id FROM teams WHERE lower(name) = 'service desk'")?.id;
-  if (desk) {
-    insertSupplier({ name: 'Invented Relay Mail', status: 'unconfirmed', aliases: ['invented relay mail'] }, 'system');
-    const scoped = insertSupplier({ name: 'Invented Relay Mail GmbH', status: 'unconfirmed' }, 'system');
-    setOwningTeams('supplier', scoped, [desk]);
-  }
+  // a pair as the 0.17 update left it: one company, split by team – "Same supplier in several teams" suggests merging it.
+  // The team-scoped one belongs to a demo team of its own that takes no new resources of its members: a team that owns
+  // something takes them by default ("auto"), and the Service Desk's members' new resources must stay as they were
+  const team = saveTeam({
+    name: 'Mail relay team',
+    description: 'Demo team',
+    members: db().get("SELECT 1 FROM users WHERE username = 'olivia'") ? ['olivia'] : [],
+  });
+  db().run(
+    `INSERT INTO team_settings (team_id, defaults, updated_at, updated_by) VALUES (?, ?, ?, 'system')
+     ON CONFLICT (team_id) DO UPDATE SET defaults = excluded.defaults, updated_at = excluded.updated_at, updated_by = excluded.updated_by`,
+    team.id,
+    JSON.stringify({ newResources: 'never' }),
+    nowIso(),
+  );
+  insertSupplier({ name: 'Invented Relay Mail', status: 'unconfirmed', aliases: ['invented relay mail'] }, 'system');
+  const scoped = insertSupplier({ name: 'Invented Relay Mail GmbH', status: 'unconfirmed' }, 'system');
+  setOwningTeams('supplier', scoped, [team.id]);
   return { payments: payments.id, cloud: cloud.id };
 }

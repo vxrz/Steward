@@ -102,6 +102,14 @@ describe('demo services', () => {
       id: hosting.id,
     });
     expect((await s.api('GET', '/suppliers/shared-suggestions')).some((g: { name: string }) => g.name.startsWith('Invented Relay Mail'))).toBe(true);
+    // the team-scoped one belongs to a team that takes no new resources: the demo teams' members keep their defaults
+    const { newResourceTeams } = await import('../src/auth/policy.js');
+    const { findUserByName, toAuthUser } = await import('../src/auth/users.js');
+    for (const name of ['olivia', 'adam']) {
+      const teams = newResourceTeams(toAuthUser(findUserByName(name)!)).teams.map((t) => t.name);
+      expect(teams, name).not.toContain('Service Desk');
+      expect(teams, name).not.toContain('Mail relay team');
+    }
     const toConfirm = (await s.api('GET', '/suppliers?status=unconfirmed')) as { name: string }[];
     expect(toConfirm.map((x) => x.name)).toEqual(expect.arrayContaining(['Zentrova Cloud', 'Mailbrook']));
 
