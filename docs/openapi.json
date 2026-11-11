@@ -9716,7 +9716,7 @@
               },
               "reviewDue": {
                 "type": "integer",
-                "description": "Rows not reviewed for twelve months (or never)"
+                "description": "Decided rows not reviewed for twelve months (or never); undecided rows count as undecided only"
               },
               "noEvidence": {
                 "type": "integer",
@@ -9885,7 +9885,7 @@
               },
               "reviewDue": {
                 "type": "integer",
-                "description": "Rows not reviewed for twelve months (or never)"
+                "description": "Decided rows not reviewed for twelve months (or never); undecided rows count as undecided only"
               },
               "noEvidence": {
                 "type": "integer",
@@ -10454,7 +10454,7 @@
                     },
                     "reviewDue": {
                       "type": "integer",
-                      "description": "Rows not reviewed for twelve months (or never)"
+                      "description": "Decided rows not reviewed for twelve months (or never); undecided rows count as undecided only"
                     },
                     "noEvidence": {
                       "type": "integer",

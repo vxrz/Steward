@@ -33,7 +33,7 @@ import { get, notifyError, notifyOk, post, put } from '../api';
 import { useMe } from '../auth';
 import { EmptyState, PageHeader, QueryState, TONE } from '../components/common';
 import { CoverageBadge, PeriodPicker, periodRange, presetPeriod, validPeriod, type Period } from '../components/compliance/common';
-import { fmtDate } from '../format';
+import { capFirst, fmtDate } from '../format';
 import { ControlFindings } from '../components/compliance/corrective';
 import { TableScroll } from '../components/TableScroll';
 
@@ -319,7 +319,7 @@ function CoverageTable({
                         )}
                         <Box style={{ minWidth: 0 }}>
                           <Anchor component={Link} to={link(c)} onClick={() => onOpen(c.control.id)} fw={600} size="sm">
-                            {c.control.ref} – {c.control.title}
+                            {c.control.ref} – {capFirst(c.control.title)}
                           </Anchor>
                           <Text size="xs" c="dimmed">
                             {t('controls.evidenceCount', { count: total(c) })} · {t('controls.mappedCount', { count: c.control.tags.length })}
@@ -376,7 +376,7 @@ function CoverageTable({
                       <Text span className="mono" size="sm">
                         {c.control.ref}
                       </Text>{' '}
-                      – {c.control.title}
+                      – {capFirst(c.control.title)}
                     </Anchor>
                   </Table.Td>
                   <Table.Td>
@@ -460,7 +460,7 @@ function ControlDrawer({ cov, meta, onClose }: { cov: ControlCoverage; meta?: Co
     }
   };
   return (
-    <Drawer opened onClose={onClose} position="right" size="lg" title={`${cov.control.catalogueKey} ${cov.control.ref} – ${cov.control.title}`}>
+    <Drawer opened onClose={onClose} position="right" size="lg" title={`${cov.control.catalogueKey} ${cov.control.ref} – ${capFirst(cov.control.title)}`}>
       <Stack gap="md">
         <Group gap="xs">
           <CoverageBadge status={cov.status} hidden={cov.hidden} />

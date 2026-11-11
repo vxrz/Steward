@@ -209,7 +209,8 @@ function reviewCutoff(now: number): string {
   return d.toISOString();
 }
 
-const reviewDueOf = (e: EntryRow | undefined, cutoff: string) => !e?.reviewed_at || e.reviewed_at < cutoff;
+/** A review is due for a decided row not reviewed for twelve months (or never); an undecided row is counted as undecided only. */
+const reviewDueOf = (e: EntryRow | undefined, cutoff: string) => isDecided(e) && (!e?.reviewed_at || e.reviewed_at < cutoff);
 const noEvidenceOf = (e: EntryRow | undefined, mapped: number) =>
   applicableOf(e) === true && e!.status === 'implemented' && mapped === 0 && linksOf(e).length === 0;
 

@@ -45,7 +45,7 @@ const Counts = z
     planned: z.number().int(),
     notStarted: z.number().int(),
     noStatus: z.number().int().describe('Applicable rows without an implementation status'),
-    reviewDue: z.number().int().describe('Rows not reviewed for twelve months (or never)'),
+    reviewDue: z.number().int().describe('Decided rows not reviewed for twelve months (or never); undecided rows count as undecided only'),
     noEvidence: z.number().int().describe('Applicable, implemented rows with no mapped item and no evidence link'),
   })
   .describe('Counts of the rows');

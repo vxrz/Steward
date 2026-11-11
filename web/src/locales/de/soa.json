@@ -57,13 +57,13 @@
     "notStarted": "Nicht begonnen"
   },
   "parties": {
-    "team": "Unser Team",
+    "team": "Service-Team",
     "supplier": "Lieferant",
     "central": "Zentrale IT oder Konzern",
     "shared": "Geteilt"
   },
   "matrixParties": {
-    "team": "Unser Team",
+    "team": "Service-Team",
     "supplier": "Lieferant",
     "central": "Zentrale IT oder Konzern",
     "shared": "Geteilt",

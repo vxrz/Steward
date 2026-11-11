@@ -32,11 +32,11 @@ test.describe('as an administrator', () => {
     await area.getByRole('button', { name: 'Change Backup' }).click();
     const form = page.getByRole('dialog', { name: /^Backup – / });
     await form.getByTestId('responsibility-party').click();
-    await page.getByRole('option', { name: 'Our team' }).click();
+    await page.getByRole('option', { name: 'Service team' }).click();
     await expectAccessible(page, 'responsibility form');
     await form.getByTestId('responsibility-save').click();
     await expect(form).toBeHidden();
-    await expect(area).toContainText('Our team');
+    await expect(area).toContainText('Service team');
     await expect(page.getByTestId('responsibility-backup-no-test')).toBeVisible();
     await expectAccessible(page, 'service responsibilities');
 
@@ -64,9 +64,9 @@ test.describe('as an administrator', () => {
     // the backup row: take the suggestion of the matrix, decide it
     await page.getByRole('button', { name: 'B.1 backups of the service' }).first().click();
     const drawer = page.getByRole('dialog', { name: 'B.1 backups of the service' });
-    await expect(drawer.getByTestId('soa-suggestion')).toContainText('Our team: 1 service');
+    await expect(drawer.getByTestId('soa-suggestion')).toContainText('Service team: 1 service');
     await drawer.getByTestId('soa-take-suggestion').click();
-    await expect(drawer.getByTestId('soa-party')).toHaveValue('Our team');
+    await expect(drawer.getByTestId('soa-party')).toHaveValue('Service team');
     await drawer.getByTestId('soa-applicable').getByText('Applies', { exact: true }).click();
     await drawer.getByTestId('soa-justification').fill('Customer data must be restorable');
     await drawer.getByTestId('soa-status').click();
@@ -74,7 +74,7 @@ test.describe('as an administrator', () => {
     await expectAccessible(page, 'statement row drawer');
     await drawer.getByTestId('soa-entry-save').click();
     await expect(drawer).toBeHidden();
-    await expect(page.getByTestId('soa-entries')).toContainText('Our team');
+    await expect(page.getByTestId('soa-entries')).toContainText('Service team');
     await expectAccessible(page, 'statement of applicability');
 
     // submit: the administrator who submitted does not approve

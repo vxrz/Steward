@@ -28,6 +28,14 @@ export function localToday(days = 0): string {
   return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`;
 }
 
+/**
+ * The first letter upper-case, for names stored in lower case that start a line or a heading (the neutral topic names
+ * of the built-in control catalogues: "5.1 Information security policies").
+ */
+export function capFirst(s: string): string {
+  return s ? s.charAt(0).toLocaleUpperCase() + s.slice(1) : s;
+}
+
 /** Number in the UI language, e.g. 1,284 / 1.284 */
 export function fmtNumber(n: number | null | undefined, opts: Intl.NumberFormatOptions = {}): string {
   if (n === null || n === undefined || !Number.isFinite(n)) return '–';
