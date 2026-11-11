@@ -764,6 +764,7 @@ const EXPECT: Record<string, Access> = {
   'POST /api/suppliers': DESIGN,
   'GET /api/suppliers/options': ALL,
   'GET /api/suppliers/scope-notice': ALL,
+  'GET /api/suppliers/scoped-contacts': ALL,
   'DELETE /api/suppliers/scope-notice': ADMIN,
   'GET /api/suppliers/:id': ALL,
   'PUT /api/suppliers/:id': DESIGN,
@@ -2379,6 +2380,7 @@ beforeAll(async () => {
     })
   ).components[0];
   QUERY['GET /api/catalogue/versions/entry'] = `?holder=component&id=${component.id}&product=nodejs`;
+  QUERY['GET /api/suppliers/scoped-contacts'] = `?kind=application&id=${application.id}`;
   await a('PUT', `/services/${svc.id}/applications/${application.id}`, { role: 'primary' });
   const system = await a('POST', '/systems', { name: 'Matrix system', kind: 'server' });
   // a supplier with a contact, a contract and a certificate, and one waiting for confirmation (0.17.0)

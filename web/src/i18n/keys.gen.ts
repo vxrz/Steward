@@ -5476,6 +5476,9 @@ export interface Resources {
     'codes.SUPPLIER_MERGE_SELF': string;
     'codes.SUPPLIER_HAS_RECORDS': string;
     'codes.SUPPLIER_CONTACT_LIMIT': string;
+    'codes.SUPPLIER_CONTACT_SCOPE_UNKNOWN': string;
+    'codes.SUPPLIER_CONTACT_SCOPE_LIMIT': string;
+    'codes.SUPPLIER_CONTACT_LAST_ITEM': string;
     'codes.SUPPLIER_CONTRACT_LIMIT': string;
     'codes.SUPPLIER_CERTIFICATE_LIMIT': string;
     'codes.SUPPLIER_CONTACT_NOT_FOUND': string;

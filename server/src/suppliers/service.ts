@@ -25,6 +25,8 @@ import {
   type SupplierCertificateKind,
   type SupplierContact,
   type SupplierContactRole,
+  type SupplierContactScopeKind,
+  type SupplierRef,
   type SupplierContract,
   type SupplierCriticality,
   type SupplierDateState,
@@ -45,8 +47,8 @@ import type { z } from 'zod';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { currentUser, type AuthUser } from '../auth/context.js';
-import { platformPermissions } from '../auth/permissions.js';
-import { canCreateServices, canEditService, canReadRecordRow, catalogueVisibleNow, forbid, me } from '../records/access.js';
+import { isAdmin, matches, platformPermissions } from '../auth/permissions.js';
+import { canCreateServices, canEditService, canReadRecordRow, canViewCatalogue, catalogueVisibleNow, forbid, me } from '../records/access.js';
 import { assertKnownSubjects } from '../auth/subjects.js';
 import { assignCreatorTeams, catalogueTeams, forgetOwningTeams, newResourceTeams } from '../auth/policy.js';
 import { currentScale, protectionNeeds, ratingsOf } from '../catalogue/cia.js';
@@ -312,7 +314,14 @@ function toCertificate(c: CertificateRow, today: string, u: AuthUser | null): Su
   };
 }
 
-const toContact = (c: ContactRow): SupplierContact => ({ id: c.id, name: c.name, role: c.role, email: c.email, phone: c.phone, note: c.note });
+const toContact = (c: ContactRow): Pick<SupplierContact, 'id' | 'name' | 'role' | 'email' | 'phone' | 'note'> => ({
+  id: c.id,
+  name: c.name,
+  role: c.role,
+  email: c.email,
+  phone: c.phone,
+  note: c.note,
+});
 
 function groupBy<T extends { supplier_id: string }>(rows: T[]): Map<string, T[]> {
   const out = new Map<string, T[]>();
@@ -665,7 +674,7 @@ function detailsOf(rows: SupplierRow[], u: AuthUser, now: number): SupplierDetai
     const certs = certificates.get(r.id) ?? [];
     return {
       ...toSummary(r, { contracts: mine, certificates: certs, usage: used, criticality: crit.get(r.id), today, byId }),
-      contacts: (contacts.get(r.id) ?? []).map(toContact),
+      contacts: contactViews(r, contacts.get(r.id) ?? [], ctx),
       // masters first, each followed by its order forms (one level)
       contracts: withOrderForms(mine).map((c) =>
         toContract(c, today, u, linesOf(c.id), ctx, r, {
@@ -758,7 +767,9 @@ export function supplierFacts(ids?: readonly string[], now = Date.now()): Map<st
 
 // ---------- the public view (no contact e-mail or phone) ----------
 
-export type PublicSupplierContact = Omit<SupplierContact, 'email' | 'phone'>;
+export type PublicSupplierContact = Pick<SupplierContact, 'id' | 'name' | 'role' | 'note'> & {
+  scope: { kind: SupplierContactScopeKind; id: string; name: string }[];
+};
 export type PublicSupplierContract = Omit<SupplierContract, 'record' | 'services' | 'hiddenServices' | 'readReason' | 'canEdit' | 'parent' | 'orderForms'> & {
   services: { id: string; name: string; purpose: string; status: SupplierContract['services'][number]['status'] }[];
 };
@@ -787,12 +798,22 @@ export function* publicSuppliers(page = 100, now = Date.now()): Generator<Public
   for (let i = 0; i < rows.length; i += page) yield detailsOf(rows.slice(i, i + page), u, now).map(toPublic);
 }
 
+/** A contact for /api/v1, MCP, exports and API tokens: name, role and note, its scope as the items the reader may see. */
+export const toPublicContact = (c: SupplierContact): PublicSupplierContact => ({
+  id: c.id,
+  name: c.name,
+  role: c.role,
+  note: c.note,
+  scope: c.scope.map((x) => ({ kind: x.kind, id: x.id, name: x.name })),
+});
+
 /** A supplier for /api/v1, MCP and exports: contacts without e-mail and phone (ADR 0029, decided 8). */
 export function toPublic(d: SupplierDetail): PublicSupplier {
   const { canEdit: _e, canManage: _m, canAddContract: _a, contacts, contracts, certificates, ...rest } = d;
   return {
     ...rest,
-    contacts: contacts.map(({ email: _mail, phone: _phone, ...c }) => c),
+    // name, role and note; the scope as the items the reader may see (ADR 0031)
+    contacts: contacts.map(toPublicContact),
     contracts: contracts.map(toPublicContract),
     certificates: certificates.map(({ record: _r, ...c }) => c),
   };
@@ -1091,7 +1112,7 @@ export function dismissSupplier(id: string): { ok: true; unlinked: Record<string
   return { ok: true, unlinked };
 }
 
-// ---------- contacts ----------
+// ---------- contacts (scoped since 0.18.0, ADR 0031 part 6) ----------
 
 function contactRow(supplierId: string, contactId: string): ContactRow {
   const c = db().get<ContactRow>('SELECT * FROM supplier_contacts WHERE id = ? AND supplier_id = ?', contactId, supplierId);
@@ -1099,12 +1120,183 @@ function contactRow(supplierId: string, contactId: string): ContactRow {
   return c;
 }
 
-/** What an audit entry says about a contact: name and role, never the e-mail or phone (ADR 0029, decided 8). */
-const contactAudit = (c: { name: string; role: string }) => ({ name: c.name, role: c.role });
+/** What an audit entry says about a contact: name, role and scope, never the e-mail or phone (ADR 0029, decided 8). */
+const contactAudit = (c: { name: string; role: string }, scope?: ScopeItem[]) => ({
+  name: c.name,
+  role: c.role,
+  ...(scope ? { scope: scope.map((x) => ({ kind: x.kind, id: x.id })) } : {}),
+});
+
+interface ScopeItem {
+  kind: SupplierContactScopeKind;
+  id: string;
+}
+interface ItemRow {
+  id: string;
+  name: string;
+  owners: string;
+  archived?: number;
+}
+
+/**
+ * The items contacts are scoped to, read in bulk: contracts (of the supplier), applications and systems. A scope row
+ * whose item is gone (a contract removed, a system deleted) stays as a mark, so a contact never becomes company-wide
+ * by losing its scope; it no longer counts as an item.
+ */
+class ContactScopes {
+  readonly rows = new Map<string, ScopeItem[]>();
+  private readonly contracts: Map<string, ContractRow>;
+  private readonly apps = new Map<string, ItemRow>();
+  private readonly systems = new Map<string, ItemRow>();
+  constructor(
+    contactIds: readonly string[],
+    private readonly ctx: ScopeCtx,
+  ) {
+    for (let i = 0; i < contactIds.length; i += 500) {
+      const part = contactIds.slice(i, i + 500);
+      if (part.length)
+        for (const r of db().all<{ contact_id: string; kind: SupplierContactScopeKind; item_id: string }>(
+          `SELECT contact_id, kind, item_id FROM supplier_contact_scopes WHERE contact_id IN (${part.map(() => '?').join(', ')}) ORDER BY kind, item_id`,
+          ...part,
+        ))
+          this.rows.set(r.contact_id, [...(this.rows.get(r.contact_id) ?? []), { kind: r.kind, id: r.item_id }]);
+    }
+    const all = [...this.rows.values()].flat();
+    const of = (k: SupplierContactScopeKind) => [...new Set(all.filter((x) => x.kind === k).map((x) => x.id))];
+    this.contracts = contractRowsById(of('contract'));
+    ctx.load([...this.contracts.keys()]);
+    const load = (table: string, ids: string[], into: Map<string, ItemRow>, cols: string) => {
+      for (let i = 0; i < ids.length; i += 500) {
+        const part = ids.slice(i, i + 500);
+        for (const r of db().all<ItemRow>(`SELECT ${cols} FROM ${table} WHERE id IN (${part.map(() => '?').join(', ')})`, ...part)) into.set(r.id, r);
+      }
+    };
+    load('applications', of('application'), this.apps, 'id, name, owners, archived');
+    load('systems', of('system'), this.systems, 'id, name, owners');
+  }
+
+  /** The items that still exist (a contract of this supplier, an application, a system). */
+  existing(contactId: string, s: SupplierRow): ScopeItem[] {
+    return (this.rows.get(contactId) ?? []).filter((x) =>
+      x.kind === 'contract' ? this.contracts.get(x.id)?.supplier_id === s.id : x.kind === 'application' ? this.apps.has(x.id) : this.systems.has(x.id),
+    );
+  }
+
+  name(x: ScopeItem): string {
+    return (
+      (x.kind === 'contract' ? this.contracts.get(x.id)?.title : x.kind === 'application' ? this.apps.get(x.id)?.name : this.systems.get(x.id)?.name) ?? x.id
+    );
+  }
+
+  sees(x: ScopeItem, s: SupplierRow): boolean {
+    const u = this.ctx.u;
+    if (x.kind === 'contract') {
+      const c = this.contracts.get(x.id);
+      return !!c && this.ctx.reads(c, s);
+    }
+    const r = (x.kind === 'application' ? this.apps : this.systems).get(x.id);
+    return !!r && (!u || canViewCatalogue(u, { kind: x.kind, id: r.id, owners: parseJson<string[]>(r.owners, []) }));
+  }
+
+  /** May change the item: the contract (ctx.edits), the application or system (catalogue rights; not archived). */
+  edits(x: ScopeItem, s: SupplierRow): boolean {
+    const u = this.ctx.u;
+    if (x.kind === 'contract') {
+      const c = this.contracts.get(x.id);
+      return !!c && this.ctx.edits(c, s);
+    }
+    const r = (x.kind === 'application' ? this.apps : this.systems).get(x.id);
+    if (!r || Number(r.archived ?? 0)) return false;
+    return !u || canEditService(u, { kind: x.kind, id: r.id, owners: parseJson<string[]>(r.owners, []) });
+  }
+}
+
+/**
+ * Who sees a contact (ADR 0031 part 6): a company-wide one – who sees the supplier; a scoped one – who sees one of its
+ * items, administrators and auditors; one whose items are all gone – the supplier's owners, administrators and
+ * auditors. Who may change it: who may change the supplier, or every item it is scoped to.
+ */
+function contactViews(
+  s: SupplierRow,
+  rows: ContactRow[],
+  ctx: ScopeCtx,
+  scopes = new ContactScopes(
+    rows.map((c) => c.id),
+    ctx,
+  ),
+): SupplierContact[] {
+  const u = ctx.u;
+  const privileged = !u || isAdmin(u) || u.roles.includes('auditor');
+  const supplierEditor = ctx.editsSupplier(s);
+  const out: SupplierContact[] = [];
+  for (const c of rows) {
+    const marked = scopes.rows.get(c.id) ?? [];
+    const existing = scopes.existing(c.id, s);
+    const visible = existing.filter((x) => scopes.sees(x, s));
+    const companyWide = marked.length === 0;
+    const unused = !companyWide && existing.length === 0;
+    const reads = companyWide || privileged || (unused ? ownersOf(s).some((o) => !!u && matches(u, o)) : visible.length > 0);
+    if (!reads) continue;
+    const canEdit = s.status !== 'archived' && (supplierEditor || (existing.length > 0 && existing.every((x) => scopes.edits(x, s))));
+    out.push({
+      ...toContact(c),
+      scope: visible.map((x) => ({ kind: x.kind, id: x.id, name: scopes.name(x), canRemove: canEdit || (s.status !== 'archived' && scopes.edits(x, s)) })),
+      companyWide,
+      hiddenScope: canEdit ? existing.length - visible.length : 0,
+      unused,
+      canEdit,
+    });
+  }
+  // company-wide first, then the scoped ones
+  return out.sort((a, b) => Number(b.companyWide) - Number(a.companyWide));
+}
+
+/**
+ * The scope a form asks for, checked: items that exist (contracts of this supplier), that the person may see – those
+ * the person may not see stay as they were (`keep`).
+ */
+function checkScope(s: SupplierRow, next: readonly ScopeItem[], keep: readonly ScopeItem[], ctx: ScopeCtx): ScopeItem[] {
+  const want = [...new Map(next.map((x) => [`${x.kind}:${x.id}`, x])).values()];
+  const out: ScopeItem[] = [];
+  for (const x of want) {
+    const exists =
+      x.kind === 'contract'
+        ? db().get<ContractRow>('SELECT * FROM supplier_contracts WHERE id = ? AND supplier_id = ?', x.id, s.id)
+        : db().get<ItemRow>(
+            `SELECT id, name, owners${x.kind === 'application' ? ', archived' : ''} FROM ${x.kind === 'application' ? 'applications' : 'systems'} WHERE id = ?`,
+            x.id,
+          );
+    const seen =
+      !!exists &&
+      (x.kind === 'contract'
+        ? ctx.reads(exists as ContractRow, s)
+        : !ctx.u || canViewCatalogue(ctx.u, { kind: x.kind, id: x.id, owners: parseJson<string[]>((exists as ItemRow).owners, []) }));
+    if (!seen && !keep.some((k) => k.kind === x.kind && k.id === x.id))
+      throw new HttpError(404, `${x.kind} ${x.id} not found`, 'SUPPLIER_CONTACT_SCOPE_UNKNOWN', { kind: x.kind, id: x.id });
+    out.push(x);
+  }
+  const merged = [...out, ...keep.filter((k) => !out.some((x) => x.kind === k.kind && x.id === k.id))];
+  if (merged.length > SUPPLIER_LIMITS.contactScope)
+    throw new HttpError(409, `A contact applies to at most ${SUPPLIER_LIMITS.contactScope} items`, 'SUPPLIER_CONTACT_SCOPE_LIMIT', {
+      max: SUPPLIER_LIMITS.contactScope,
+    });
+  return merged;
+}
+
+function writeScope(contactId: string, scope: readonly ScopeItem[]): void {
+  db().run('DELETE FROM supplier_contact_scopes WHERE contact_id = ?', contactId);
+  for (const x of scope) db().run('INSERT INTO supplier_contact_scopes (contact_id, kind, item_id) VALUES (?, ?, ?)', contactId, x.kind, x.id);
+}
 
 export function addContact(supplierId: string, input: z.infer<typeof supplierContactInput>): SupplierDetail {
   const u = me();
-  const s = requireEditable(supplierId, 'change this supplier');
+  const s = supplierRow(supplierId);
+  const ctx = new ScopeCtx(u);
+  if (s.status === 'archived') throw new HttpError(409, `Supplier "${s.name}" is archived`, 'SUPPLIER_ARCHIVED', { name: s.name });
+  const scope = checkScope(s, input.scope ?? [], [], ctx);
+  // a company-wide contact: who may change the supplier; a scoped one also who may change every item it applies to
+  const editsItems = scope.length > 0 && scope.every((x) => editsItem(s, x, ctx));
+  if (!ctx.editsSupplier(s) && !editsItems) forbid('add a contact to this supplier', 'changeSupplier');
   const n = Number(db().get<{ n: number }>('SELECT COUNT(*) AS n FROM supplier_contacts WHERE supplier_id = ?', supplierId)?.n ?? 0);
   if (n >= SUPPLIER_LIMITS.contacts)
     throw new HttpError(409, `A supplier has at most ${SUPPLIER_LIMITS.contacts} contacts`, 'SUPPLIER_CONTACT_LIMIT', { max: SUPPLIER_LIMITS.contacts });
@@ -1121,53 +1313,116 @@ export function addContact(supplierId: string, input: z.infer<typeof supplierCon
       input.note,
       nowIso(),
     );
+    writeScope(id, scope);
     touch(supplierId, u);
     audit({
       action: 'supplier.contact_added',
       entityType: 'supplier',
       entityId: supplierId,
-      summary: `Contact "${input.name}" added to supplier "${s.name}"`,
-      details: { contactId: id, ...contactAudit(input), email: !!input.email, phone: !!input.phone },
+      summary: `Contact "${input.name}" added to supplier "${s.name}"${scope.length ? ` (applies to ${scope.length} item(s))` : ''}`,
+      details: { contactId: id, ...contactAudit(input, scope), email: !!input.email, phone: !!input.phone },
     });
   });
   return getSupplier(supplierId);
 }
 
+/** May change one item a contact is scoped to (a contract of the supplier, an application, a system). */
+function editsItem(s: SupplierRow, x: ScopeItem, ctx: ScopeCtx): boolean {
+  if (x.kind === 'contract') {
+    const c = db().get<ContractRow>('SELECT * FROM supplier_contracts WHERE id = ? AND supplier_id = ?', x.id, s.id);
+    return !!c && ctx.edits(c, s);
+  }
+  const r = db().get<ItemRow>(
+    `SELECT id, name, owners${x.kind === 'application' ? ', archived' : ''} FROM ${x.kind === 'application' ? 'applications' : 'systems'} WHERE id = ?`,
+    x.id,
+  );
+  if (!r || Number(r.archived ?? 0)) return false;
+  return !ctx.u || canEditService(ctx.u, { kind: x.kind, id: r.id, owners: parseJson<string[]>(r.owners, []) });
+}
+
+/** The contact as the person sees it, or 404 (also for one they may not see). */
+function visibleContact(s: SupplierRow, contactId: string, ctx: ScopeCtx): { row: ContactRow; view: SupplierContact; scopes: ContactScopes } {
+  const row = contactRow(s.id, contactId);
+  const scopes = new ContactScopes([row.id], ctx);
+  const view = contactViews(s, [row], ctx, scopes)[0];
+  if (!view) throw new HttpError(404, `Contact ${contactId} not found`, 'SUPPLIER_CONTACT_NOT_FOUND', { id: contactId });
+  return { row, view, scopes };
+}
+
+/**
+ * Changes a contact. Who may change it changes everything; who may change only some of its items may take their own
+ * items off its scope (_Remove from my contract_) and nothing else. A contact never becomes company-wide by losing its
+ * scope: taking off its last item is refused – remove the contact instead (asked first).
+ */
 export function updateContact(supplierId: string, contactId: string, input: z.infer<typeof supplierContactInput>): SupplierDetail {
   const u = me();
-  const s = requireEditable(supplierId, 'change this supplier');
-  const cur = contactRow(supplierId, contactId);
+  const s = supplierRow(supplierId);
+  const ctx = new ScopeCtx(u);
+  if (s.status === 'archived') throw new HttpError(409, `Supplier "${s.name}" is archived`, 'SUPPLIER_ARCHIVED', { name: s.name });
+  const { row: cur, view, scopes } = visibleContact(s, contactId, ctx);
+  const marked = scopes.rows.get(contactId) ?? [];
+  const existing = scopes.existing(contactId, s);
+  const hidden = existing.filter((x) => !scopes.sees(x, s));
+  const gone = marked.filter((x) => !existing.some((e) => e.kind === x.kind && e.id === x.id));
+  const before = existing;
+  let scope = input.scope === undefined ? existing : checkScope(s, input.scope, hidden, ctx);
+  const key = (x: ScopeItem) => `${x.kind}:${x.id}`;
+  const added = scope.filter((x) => !before.some((b) => key(b) === key(x)));
+  const removed = before.filter((b) => !scope.some((x) => key(x) === key(b)));
   const fields = (['name', 'role', 'email', 'phone', 'note'] as const).filter((k) => input[k] !== cur[k]);
-  if (!fields.length) return getSupplier(supplierId);
+  if (!view.canEdit) {
+    // only taking off items the person may change
+    if (fields.length || added.length || !removed.length || !removed.every((x) => editsItem(s, x, ctx)))
+      forbid('change this contact (who may change the supplier, or every item it applies to)', 'changeSupplier');
+  }
+  if (!fields.length && !added.length && !removed.length) return getSupplier(supplierId);
+  if (marked.length > 0 && scope.length === 0)
+    throw new HttpError(409, `"${cur.name}" would apply to nothing – remove the contact instead`, 'SUPPLIER_CONTACT_LAST_ITEM', { name: cur.name });
+  // the marks of items that are gone stay while the contact is scoped
+  scope = [...scope, ...gone];
   db().tx(() => {
     db().run(
       'UPDATE supplier_contacts SET name = ?, role = ?, email = ?, phone = ?, note = ? WHERE id = ?',
-      input.name,
-      input.role,
-      input.email,
-      input.phone,
-      input.note,
+      view.canEdit ? input.name : cur.name,
+      view.canEdit ? input.role : cur.role,
+      view.canEdit ? input.email : cur.email,
+      view.canEdit ? input.phone : cur.phone,
+      view.canEdit ? input.note : cur.note,
       contactId,
     );
+    if (added.length || removed.length) writeScope(contactId, scope);
     touch(supplierId, u);
     audit({
       action: 'supplier.contact_changed',
       entityType: 'supplier',
       entityId: supplierId,
-      summary: `Contact "${input.name}" of supplier "${s.name}" changed (${fields.join(', ')})`,
+      summary: `Contact "${input.name}" of supplier "${s.name}" changed (${[...fields, ...(added.length || removed.length ? ['scope'] : [])].join(', ')})`,
       // which fields changed, never the e-mail or phone values
-      details: { contactId, changes: fields, ...contactAudit(input), ...(fields.includes('name') ? { previousName: cur.name } : {}) },
+      details: {
+        contactId,
+        changes: fields,
+        ...contactAudit(view.canEdit ? input : cur),
+        ...(fields.includes('name') ? { previousName: cur.name } : {}),
+        ...(added.length || removed.length
+          ? { scope: { before: before.map((x) => ({ kind: x.kind, id: x.id })), after: scope.map((x) => ({ kind: x.kind, id: x.id })) } }
+          : {}),
+      },
     });
   });
   return getSupplier(supplierId);
 }
 
-/** Removing a contact deletes it (personal data of someone outside Steward). */
+/** Removing a contact deletes it (personal data of someone outside Steward): who may change it. */
 export function removeContact(supplierId: string, contactId: string): SupplierDetail {
   const u = me();
-  const s = requireEditable(supplierId, 'change this supplier');
-  const cur = contactRow(supplierId, contactId);
+  const s = supplierRow(supplierId);
+  const ctx = new ScopeCtx(u);
+  if (s.status === 'archived') throw new HttpError(409, `Supplier "${s.name}" is archived`, 'SUPPLIER_ARCHIVED', { name: s.name });
+  const { row: cur, view, scopes } = visibleContact(s, contactId, ctx);
+  if (!view.canEdit) forbid('remove this contact (who may change the supplier, or every item it applies to)', 'changeSupplier');
+  const scope = scopes.rows.get(contactId) ?? [];
   db().tx(() => {
+    db().run('DELETE FROM supplier_contact_scopes WHERE contact_id = ?', contactId);
     db().run('DELETE FROM supplier_contacts WHERE id = ?', contactId);
     touch(supplierId, u);
     audit({
@@ -1175,10 +1430,37 @@ export function removeContact(supplierId: string, contactId: string): SupplierDe
       entityType: 'supplier',
       entityId: supplierId,
       summary: `Contact "${cur.name}" removed from supplier "${s.name}"`,
-      details: { contactId, ...contactAudit(cur) },
+      details: { contactId, ...contactAudit(cur, scope) },
     });
   });
   return getSupplier(supplierId);
+}
+
+/**
+ * The contacts scoped to an application or system that the reader may see, per supplier (the item's "Suppliers"
+ * panel); a contract's contacts are on the contract page.
+ */
+export function scopedContacts(kind: 'application' | 'system', id: string): { supplier: SupplierRef; contacts: SupplierContact[] }[] {
+  const u = me();
+  const ctx = new ScopeCtx(u);
+  const rows = db().all<ContactRow>(
+    `SELECT c.* FROM supplier_contacts c JOIN supplier_contact_scopes x ON x.contact_id = c.id WHERE x.kind = ? AND x.item_id = ? ORDER BY lower(c.name), c.id`,
+    kind,
+    id,
+  );
+  const suppliers = new Map(visibleSupplierRows().map((r) => [r.id, r]));
+  const out: { supplier: SupplierRef; contacts: SupplierContact[] }[] = [];
+  for (const sid of new Set(rows.map((r) => r.supplier_id))) {
+    const s = suppliers.get(sid);
+    if (!s) continue;
+    const contacts = contactViews(
+      s,
+      rows.filter((r) => r.supplier_id === sid),
+      ctx,
+    ).filter((c) => c.scope.some((x) => x.kind === kind && x.id === id));
+    if (contacts.length) out.push({ supplier: { id: s.id, name: s.name, status: s.status }, contacts });
+  }
+  return out.sort((a, b) => a.supplier.name.localeCompare(b.supplier.name));
 }
 
 // ---------- contracts ----------
@@ -1496,7 +1778,7 @@ export function removeContract(supplierId: string, contractId: string, opts: { o
       .all<{ service_id: string }>('SELECT service_id FROM supplier_contract_services WHERE contract_id = ?', contractId)
       .map((r) => r.service_id);
     db().run('DELETE FROM supplier_contract_services WHERE contract_id = ?', contractId);
-    db().run("DELETE FROM supplier_contact_scopes WHERE kind = 'contract' AND item_id = ?", contractId);
+    // contacts scoped to it keep the mark: one whose items are all gone is "No longer in use", never company-wide
     db().run('DELETE FROM supplier_contracts WHERE id = ?', contractId);
     db().run('DELETE FROM supplier_reminders WHERE item_id = ?', contractId);
     touch(supplierId, u);
@@ -1714,7 +1996,12 @@ export function getContract(supplierId: string, contractId: string, now = Date.n
     orderForms: children.filter((x) => ctx.reads(x, s)).map((x) => x.id),
   });
   const owners = contract.owners;
+  const scoped = db().all<ContactRow>(
+    `SELECT c.* FROM supplier_contacts c JOIN supplier_contact_scopes x ON x.contact_id = c.id WHERE x.kind = 'contract' AND x.item_id = ? ORDER BY lower(c.name), c.id`,
+    c.id,
+  );
   return {
+    contacts: contactViews(s, scoped, ctx).filter((x) => x.scope.some((i) => i.kind === 'contract' && i.id === c.id)),
     supplier: { id: s.id, name: s.name, status: s.status, owners: ownersOf(s), teams: catalogueTeams('supplier', s.id).map((t) => t.name) },
     contract,
     visibility: {

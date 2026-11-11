@@ -100,11 +100,19 @@ Kind (ISO/IEC 27001, 27017, 27018, ISO 22301, SOC 2 type I or II, C5, TISAX, oth
 
 ## Contacts and data protection
 
-Contacts are people at the supplier: name, role (account manager, support, security contact, data protection officer, other), e-mail, phone and a note. They are personal data of people outside Steward:
+Contacts are people at the supplier: name, role (account manager, support, security contact, data protection officer, other), e-mail, phone and a note.
 
-- the app shows them to everyone who may see the supplier, in a signed-in session;
-- the public API, MCP, the dataset, exports and any request with an API token leave out their e-mail and phone (name, role and note only);
-- audit entries name the contact and say which fields changed, never the e-mail or phone values;
+**Company-wide or scoped** (0.18.0, [ADR 0031](adr/0031-supplier-contracts-and-contacts-scope.md)): a contact is **company-wide** (the default, as in 0.17) or **scoped** to one or more contracts, applications or systems (_Applies to_, German _Gilt für_; at most 20 items) – the account manager of the hosting contract, the support line of one product, the security contact of one platform.
+
+- A scoped contact is seen by who may see **one** of its items (and the supplier), administrators and auditors; others neither see it nor that it exists. It shows on the pages of its items – the contract, the application's and the system's _Suppliers_ panel – besides the supplier's _Contacts_ tab (company-wide first).
+- **Who may change it:** a company-wide contact – who may change the supplier. A scoped contact – who may change the supplier, or who may change **every** item it is scoped to (a contract's owners add their account manager). Who may change only some of its items may take their own items off its scope (_Remove from my contract_) and nothing else. Items the person may not see are kept on save and shown as _and 1 item you may not see_ to who may change the contact.
+- **A contact never becomes company-wide by losing its scope.** Taking off its last item is refused – remove the contact instead (asked first). When all its items are gone (a contract removed, a system deleted), it is shown only to the supplier's owners, administrators and auditors, marked _No longer in use_.
+
+Contacts are personal data of people outside Steward:
+
+- the app shows e-mail and phone in a signed-in session to who may see the contact;
+- the public API, MCP, the dataset, exports and any request with an API token leave out their e-mail and phone (name, role and note only; since 0.18 the scope as the items the reader may see, and contacts none of whose items the reader may see are left out);
+- audit entries name the contact, the fields that changed and its scope (kinds and ids), never the e-mail or phone values;
 - removing a contact deletes it.
 
 Owners, creators and who looked at a certificate are Steward users: they appear in a person's data export and stay as history after pseudonymisation ([PRIVACY.md](PRIVACY.md)).
@@ -174,7 +182,7 @@ The owners of an active supplier (without owners: the administrators) are remind
 
 ## Audit, API, MCP and the dataset
 
-**Audit actions:** `supplier.created`, `.changed`, `.archived`, `.unarchived`, `.confirmed`, `.merged`, `.dismissed` (not a supplier), `.migrated` (system, the update), `.contact_added|changed|removed` (without e-mail or phone values), `.contract_added|changed|removed` (since 0.18 with the owners, the master, personal data and the DPA before and after, and the order forms made standalone), `.contract_service_added|changed|removed|confirmed|dismissed` (on the supplier, naming the contract and the service; _removed_ is also _Leave contract_), `.contracts_scoped` (system, once, the update to 0.18), `.certificate_added|changed|removed`.
+**Audit actions:** `supplier.created`, `.changed`, `.archived`, `.unarchived`, `.confirmed`, `.merged`, `.dismissed` (not a supplier), `.migrated` (system, the update), `.contact_added|changed|removed` (with the scope since 0.18, without e-mail or phone values), `.contract_added|changed|removed` (since 0.18 with the owners, the master, personal data and the DPA before and after, and the order forms made standalone), `.contract_service_added|changed|removed|confirmed|dismissed` (on the supplier, naming the contract and the service; _removed_ is also _Leave contract_), `.contracts_scoped` (system, once, the update to 0.18), `.certificate_added|changed|removed`.
 
 **Public API** (read-only, [API.md](API.md)): `GET /api/v1/suppliers` (paged; default unconfirmed and active, `?status=`) and `GET /api/v1/suppliers/{supplierId}` – the contracts the token owner may see with notice-by date, SLA and RTO/RPO (the values that apply, `inherited` naming those of the master), `owners`, `services` (id, name, purpose, status – the services the token owner may see, no count of others), `parentId`, `personalData` and `dpa` (as it applies, with `inheritedFrom`: `contract`, `master`, `supplier`), certificates, contacts without e-mail or phone, what links the supplier and its review duties. `GET /api/v1/services/{serviceId}/contracts` lists the contracts covering a service (0.18).
 
@@ -182,10 +190,10 @@ The owners of an active supplier (without owners: the administrators) are remind
 
 **Dataset** _Suppliers: expiring_ (`suppliers.expiring`): one row per certificate and notice-by date of an active supplier in the next 90 days or passed in the last 30, with status _warning_ within 30 days and _serious_ once passed; a notice-by date also names the contract's owners and the services it covers (0.18). Administrators and auditors, published at most hourly ([DASHBOARDS.md](DASHBOARDS.md)).
 
-Writes are only in the app: every changing route – also marking a certificate as looked at – needs a signed-in session and refuses API tokens (ADR 0029 decision 9). Reading one supplier through the internal route with an API token gives what the public API gives: contacts without e-mail or phone. Internal routes: `GET|POST /api/suppliers[?status=]`, `GET /api/suppliers/options`, `GET|PUT /api/suppliers/:id`, `POST /api/suppliers/:id/archive|confirm|merge|not-a-supplier`, `POST /api/suppliers/:id/contacts|contracts|certificates`, `PUT|DELETE …/:itemId`; since 0.18 `GET /api/suppliers/:id/contracts/:contractId` (the contract page), contracts take `owners`, `services` (`[{ serviceId, purpose }]`, on create), `confirmOpen`, `parentId`, `personalData`, `dpaStatus`, `dpaSince` and `dpaLink` (null: inherited), `DELETE …/contracts/:contractId?orderForms=standalone` removes a master, `PUT|DELETE /api/suppliers/:id/contracts/:contractId/services/:serviceId` (`purpose`, `confirm: true`; leave or dismiss), `GET /api/services/:id/contracts` and `GET|DELETE /api/suppliers/scope-notice` (the administrators' notice after the update).
+Writes are only in the app: every changing route – also marking a certificate as looked at – needs a signed-in session and refuses API tokens (ADR 0029 decision 9). Reading one supplier through the internal route with an API token gives what the public API gives: contacts without e-mail or phone. Internal routes: `GET|POST /api/suppliers[?status=]`, `GET /api/suppliers/options`, `GET|PUT /api/suppliers/:id`, `POST /api/suppliers/:id/archive|confirm|merge|not-a-supplier`, `POST /api/suppliers/:id/contacts|contracts|certificates`, `PUT|DELETE …/:itemId`; since 0.18 `GET /api/suppliers/:id/contracts/:contractId` (the contract page), contracts take `owners`, `services` (`[{ serviceId, purpose }]`, on create), `confirmOpen`, `parentId`, `personalData`, `dpaStatus`, `dpaSince` and `dpaLink` (null: inherited), `DELETE …/contracts/:contractId?orderForms=standalone` removes a master, `PUT|DELETE /api/suppliers/:id/contracts/:contractId/services/:serviceId` (`purpose`, `confirm: true`; leave or dismiss), contacts take `scope` (`[{ kind, id }]`), `GET /api/suppliers/scoped-contacts?kind=application|system&id=`, `GET /api/services/:id/contracts` and `GET|DELETE /api/suppliers/scope-notice` (the administrators' notice after the update).
 
 Suppliers and their contracts, certificates and contacts move with migration packages ([MIGRATION.md](MIGRATION.md)); the reminders sent do not.
 
 ## Limits
 
-2,000 suppliers (not counting archived ones); per supplier 20 contacts, 200 contracts (50 before 0.18), 20 certificates and 50 spellings; per contract 50 covered services, 20 owners and a purpose of 200 characters.
+2,000 suppliers (not counting archived ones); per supplier 100 contacts (20 before 0.18; a contact applies to at most 20 items), 200 contracts (50 before 0.18), 20 certificates and 50 spellings; per contract 50 covered services, 20 owners and a purpose of 200 characters.

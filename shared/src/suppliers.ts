@@ -45,7 +45,10 @@ export const SUPPLIER_DUE_DAYS = 90;
 
 export const SUPPLIER_LIMITS = {
   suppliers: 2000,
-  contacts: 20,
+  /** 100 since 0.18.0 (ADR 0031): a shared supplier holds several teams' contacts */
+  contacts: 100,
+  /** Items one contact is scoped to (contracts, applications, systems) */
+  contactScope: 20,
   /** 200 since 0.18.0 (ADR 0031): a shared supplier holds several teams' contracts */
   contracts: 200,
   /** Services one contract covers, its owners and the purpose of each covered service (ADR 0031) */
@@ -168,6 +171,11 @@ export const supplierInput = z
   .strict();
 export type SupplierInput = z.input<typeof supplierInput>;
 
+/** What a contact can be scoped to (ADR 0031 part 6); none: company-wide. */
+export const SUPPLIER_CONTACT_SCOPE_KINDS = ['contract', 'application', 'system'] as const;
+export type SupplierContactScopeKind = (typeof SUPPLIER_CONTACT_SCOPE_KINDS)[number];
+const contactScopeItem = z.object({ kind: z.enum(SUPPLIER_CONTACT_SCOPE_KINDS), id: z.string().trim().min(1).max(100) }).strict();
+
 export const supplierContactInput = z
   .object({
     name: z.string().trim().min(1).max(SUPPLIER_LIMITS.text),
@@ -180,6 +188,11 @@ export const supplierContactInput = z
       .regex(/^[+0-9 ()/.-]*$/, 'digits, spaces and + ( ) / . -')
       .default(''),
     note: z.string().trim().max(SUPPLIER_LIMITS.note).default(''),
+    /**
+     * Applies to (ADR 0031): contracts of the supplier, applications and systems; empty: company-wide. Missing: on create
+     * company-wide, on change the scope stays. Items the person may not see stay as they are.
+     */
+    scope: z.array(contactScopeItem).max(SUPPLIER_LIMITS.contactScope).optional(),
   })
   .strict();
 export type SupplierContactInput = z.input<typeof supplierContactInput>;
@@ -294,6 +307,15 @@ export interface SupplierContact {
   email: string;
   phone: string;
   note: string;
+  /** What it applies to (ADR 0031) – the items the reader may see; empty and `companyWide`: the whole company */
+  scope: { kind: SupplierContactScopeKind; id: string; name: string; canRemove: boolean }[];
+  companyWide: boolean;
+  /** Scope items the reader may not see – counted only for who may change the contact */
+  hiddenScope: number;
+  /** Scoped, and every item it was scoped to is gone: shown only to the supplier's owners, administrators and auditors */
+  unused: boolean;
+  /** Change it (all fields): who may change the supplier, or every item it is scoped to */
+  canEdit: boolean;
 }
 
 /** A service a contract covers, as the reader may see it (ADR 0031). */
@@ -587,6 +609,14 @@ export interface SupplierContractDetail {
   contract: SupplierContract;
   /** Who sees it: the supplier's readers (no team owner), or the owning teams, user owners and the readers of the covered services */
   visibility: { open: boolean; teams: string[]; users: string[]; services: { id: string; name: string }[]; hiddenServices: number };
+  /** The contacts scoped to the contract that the reader may see */
+  contacts: SupplierContact[];
+}
+
+/** The contacts scoped to an application or system, per supplier (the item's "Suppliers" panel, ADR 0031). */
+export interface ScopedContacts {
+  supplier: SupplierRef;
+  contacts: SupplierContact[];
 }
 
 /**

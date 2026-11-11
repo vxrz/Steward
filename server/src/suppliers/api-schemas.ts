@@ -2,6 +2,7 @@ import { z, type ZodTypeAny } from 'zod';
 import {
   SUPPLIER_CERTIFICATE_KINDS,
   SUPPLIER_CONTACT_ROLES,
+  SUPPLIER_CONTACT_SCOPE_KINDS,
   SUPPLIER_CONTRACT_SERVICE_STATUSES,
   SUPPLIER_DPA_STATUSES,
   SUPPLIER_INHERITED_FIELDS,
@@ -55,7 +56,15 @@ const SupplierSummaryEntry = z.object({
   updatedAt: ts(),
 });
 
-const SupplierContactEntry = z.object({ id: z.string(), name: z.string(), role: z.enum(SUPPLIER_CONTACT_ROLES), note: z.string() });
+const SupplierContactEntry = z.object({
+  id: z.string(),
+  name: z.string(),
+  role: z.enum(SUPPLIER_CONTACT_ROLES),
+  note: z.string(),
+  scope: z
+    .array(z.object({ kind: z.enum(SUPPLIER_CONTACT_SCOPE_KINDS), id: z.string(), name: z.string() }))
+    .describe('What the contact applies to (0.18.0): the contracts, applications and systems the token owner may see; empty: company-wide'),
+});
 
 const SupplierContractEntry = z.object({
   id: z.string(),

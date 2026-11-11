@@ -36199,13 +36199,43 @@
                 },
                 "note": {
                   "type": "string"
+                },
+                "scope": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "contract",
+                          "application",
+                          "system"
+                        ]
+                      },
+                      "id": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "id",
+                      "name"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "description": "What the contact applies to (0.18.0): the contracts, applications and systems the token owner may see; empty: company-wide"
                 }
               },
               "required": [
                 "id",
                 "name",
                 "role",
-                "note"
+                "note",
+                "scope"
               ],
               "additionalProperties": false
             },

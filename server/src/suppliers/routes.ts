@@ -33,6 +33,7 @@ import { contractScopeNotice, dismissContractScopeNotice } from './contract-scop
  * contacts without e-mail and phone (decision 8).
  */
 const listQuery = z.object({ status: z.enum(SUPPLIER_STATUSES).optional() });
+const scopedQuery = z.object({ kind: z.enum(['application', 'system']), id: z.string().min(1).max(100) });
 /** Removing a master agreement: `orderForms=standalone` says the order forms become standalone (ADR 0031) */
 const removeContractQuery = z.object({ orderForms: z.enum(['standalone']).optional() });
 const session = { config: { access: ACCESS.session } };
@@ -43,6 +44,13 @@ export async function supplierRoutes(app: FastifyInstance): Promise<void> {
   app.get('/suppliers', async (req) => s.listSuppliers({ status: listQuery.parse(req.query).status }));
   app.post('/suppliers', session, async (req) => s.createSupplier(supplierInput.parse(req.body)));
   app.get('/suppliers/options', async () => s.supplierOptions());
+  // the contacts scoped to an application or system (its "Suppliers" panel, ADR 0031)
+  app.get('/suppliers/scoped-contacts', async (req) => {
+    const q = scopedQuery.parse(req.query ?? {});
+    const list = s.scopedContacts(q.kind, q.id);
+    // with an API token: name, role and note only (ADR 0029 decided 8)
+    return viaToken(req) ? list.map((x) => ({ supplier: x.supplier, contacts: x.contacts.map(s.toPublicContact) })) : list;
+  });
   // the administrators' one-time notice after the upgrade to 0.18 (ADR 0031 part 9)
   app.get('/suppliers/scope-notice', async () => ({ notice: contractScopeNotice() }));
   app.delete('/suppliers/scope-notice', { config: { access: ACCESS.adminSession } }, async () => dismissContractScopeNotice());
