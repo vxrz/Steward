@@ -661,6 +661,7 @@
       "supplierUnknown": "Unknown supplier, or one you may not see",
       "supplierArchived": "Archived supplier",
       "contractUnknown": "Unknown contract, or one you may not see",
+      "contractNotCovering": "The contract does not cover this service, and you may not add the service to it",
       "targetUnknown": "Unknown application or system",
       "limit": "Over the limit of entries per fiscal year"
     },

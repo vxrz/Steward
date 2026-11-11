@@ -79,6 +79,7 @@ export const COST_IMPORT_PROBLEMS = [
   'supplierUnknown',
   'supplierArchived',
   'contractUnknown',
+  'contractNotCovering',
   'targetUnknown',
   'limit',
 ] as const;

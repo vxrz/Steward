@@ -3065,6 +3065,7 @@ export interface Resources {
     'entryImport.problems.supplierUnknown': string;
     'entryImport.problems.supplierArchived': string;
     'entryImport.problems.contractUnknown': string;
+    'entryImport.problems.contractNotCovering': string;
     'entryImport.problems.targetUnknown': string;
     'entryImport.problems.limit': string;
     'entryImport.import_one': string;
@@ -5489,6 +5490,7 @@ export interface Resources {
     'codes.SUPPLIER_CONTACT_NOT_FOUND': string;
     'codes.SUPPLIER_CONTRACT_NOT_FOUND': string;
     'codes.SUPPLIER_CONTRACT_NOT_COVERING': string;
+    'codes.SUPPLIER_CONTRACT_COVER_SESSION': string;
     'codes.SUPPLIER_CONTRACT_OPENS': string;
     'codes.SUPPLIER_CONTRACT_SERVICE_LIMIT': string;
     'codes.SUPPLIER_CONTRACT_SERVICE_ARCHIVED': string;

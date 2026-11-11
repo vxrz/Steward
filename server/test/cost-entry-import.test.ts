@@ -295,6 +295,25 @@ describe('CSV import of entries', () => {
     });
   });
 
+  it('refuses a contract that does not cover the service unless the person may add the service to it', async () => {
+    const add = async (title: string, owners: string[]) =>
+      (await s.api('POST', `/suppliers/${supplier}/contracts`, { title, owners })).contracts.find((c: { title: string }) => c.title === title).id as string;
+    const other = await add('Import other contract', ['user:vera']);
+    const mine = await add('Import own contract', ['user:olivia']);
+    const csv = ['Date,Amount,Currency,Invoice,Contract', `${d1()},10,EUR,CT-1,Import other contract`, `${d1()},11,EUR,CT-2,Import own contract`].join('\n');
+    const p = await olivia('POST', `${base()}/preview`, { csv, mapping: mapping({ contract: 'Contract' }) });
+    expect(p.rows.map((r: { problems: string[] }) => r.problems)).toEqual([['contractNotCovering'], []]);
+    const y = await olivia('POST', base(), { csv, mapping: mapping({ contract: 'Contract' }) });
+    expect(y).toMatchObject({ added: 1, skipped: { contractNotCovering: 1 } });
+    // the contract she may change covers the service now; the other does not
+    const { db } = await import('../src/db.js');
+    const covered = (id: string) => db().get('SELECT 1 FROM supplier_contract_services WHERE contract_id = ? AND service_id = ?', id, service);
+    expect(covered(mine)).toBeTruthy();
+    expect(covered(other)).toBeFalsy();
+    const audit = (await s.api('GET', `/audit?action=supplier.contract_service_added&entityId=${supplier}&limit=1`))[0];
+    expect(audit.details).toMatchObject({ contractId: mine, serviceId: service, chosenFor: true });
+  });
+
   it('finds duplicates against stored entries and within the file, and imports the rows without problems', async () => {
     await olivia('POST', `/costs/plans/${service}/entries`, { date: d1(), amount: '100', currency: 'EUR', reference: 'dup-1' });
     const csv = ['Date,Amount,Currency,Invoice', `${d1()},100,EUR, DUP-1 `, `${d2()},50,EUR,NEW-1`, `${d2()},50,EUR,new-1`, `${d2()},bad,EUR,BAD-1`].join('\n');

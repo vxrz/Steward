@@ -661,6 +661,7 @@
       "supplierUnknown": "Unbekannter Lieferant oder einer, den Sie nicht sehen dürfen",
       "supplierArchived": "Archivierter Lieferant",
       "contractUnknown": "Unbekannter Vertrag oder einer, den Sie nicht sehen dürfen",
+      "contractNotCovering": "Der Vertrag deckt diesen Service nicht ab, und Sie dürfen den Service nicht hinzufügen",
       "targetUnknown": "Unbekannte Anwendung oder unbekanntes System",
       "limit": "Über der Grenze an Buchungen je Geschäftsjahr"
     },

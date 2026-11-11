@@ -28,7 +28,8 @@ import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { currentActor } from '../auth/context.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
-import { supplierVisible, visibleContracts } from '../suppliers/links.js';
+import { contractEditable, coverChosenContract, supplierVisible, visibleContracts } from '../suppliers/links.js';
+import { ScopeCtx } from '../suppliers/contract-scope.js';
 import { csvRows } from './csv.js';
 import { requireScope } from './access.js';
 import { catalogueOf, insertEntry, lineTitle, planYearOf, requireEdit, startMonth, targetOf, type EntryValues, type LineRow } from './plans.js';
@@ -123,6 +124,8 @@ const dupKey = (reference: string, date: string, amount: number, currency: strin
 interface Resolved {
   row: CostEntryImportRow;
   values: EntryValues | null;
+  /** A named contract that does not cover the service yet, which the person may add it to (on import) */
+  cover: string | null;
 }
 
 /** Every row with what it becomes and its problems (nothing stored). */
@@ -146,6 +149,29 @@ function resolve(serviceId: string, p: Parsed, m: CostEntryImportMapping): Resol
     target: col(m.target),
   };
   const L = lookups(serviceId);
+  // a named contract must cover the service – or the person may add the service to it (who may change the contract and
+  // sees the service), as in the entry form (suppliers/links.ts resolveSupplierContract)
+  const covering = new Set(
+    db()
+      .all<{ contract_id: string }>('SELECT contract_id FROM supplier_contract_services WHERE service_id = ?', serviceId)
+      .map((r) => r.contract_id),
+  );
+  const ctx = new ScopeCtx();
+  const mayCover = new Map<string, boolean>();
+  const mayAdd = (id: string) => {
+    if (!mayCover.has(id))
+      mayCover.set(
+        id,
+        ctx.seesService(serviceId) &&
+          contractEditable(
+            L.contracts.find((k) => k.id === id)!,
+            undefined,
+            ctx.u,
+            ctx,
+          ),
+      );
+    return mayCover.get(id)!;
+  };
   const seen = new Set(L.existing.map((e) => dupKey(e.reference, e.entry_date, Number(e.amount), e.currency)));
   // entries per fiscal year so far, against the limit of 2,000
   const inYear = new Map<number, number>();
@@ -195,7 +221,10 @@ function resolve(serviceId: string, p: Parsed, m: CostEntryImportMapping): Resol
       );
       contract = matches.length === 1 ? matches[0] : undefined;
       if (!contract) problems.push('contractUnknown');
-      else if (!supplier) supplier = L.suppliers.find((s) => s.id === contract!.supplier_id);
+      else {
+        if (!supplier) supplier = L.suppliers.find((s) => s.id === contract!.supplier_id);
+        if (!covering.has(contract.id) && !mayAdd(contract.id)) problems.push('contractNotCovering');
+      }
     }
     // the plan line: named (title or id), or the only line of the contract in that year and currency, else unplanned
     let line: LineRow | undefined;
@@ -264,7 +293,7 @@ function resolve(serviceId: string, p: Parsed, m: CostEntryImportMapping): Resol
             note,
           }
         : null;
-    return { row, values };
+    return { row, values, cover: values && contract && !covering.has(contract.id) ? contract.id : null };
   });
   // the limit of entries per service and fiscal year: rows that would pass it are a problem (duplicates not counted)
   for (const x of out)
@@ -340,7 +369,11 @@ export function importEntries(serviceId: string, body: unknown): CostPlanYear & 
       nowIso(),
       currentActor(),
     );
-    for (const r of take) insertEntry(serviceId, r.values!, id);
+    for (const r of take) {
+      insertEntry(serviceId, r.values!, id);
+      // a named contract that did not cover the service covers it now (audited on the supplier, once)
+      coverChosenContract(r.cover, null, serviceId, currentActor());
+    }
     // 100 import records per service: older ones keep their entries and lose "Remove import"
     const old = db()
       .all<{ id: string }>('SELECT id FROM cost_entry_imports WHERE service_id = ? ORDER BY created_at DESC, id DESC', serviceId)
