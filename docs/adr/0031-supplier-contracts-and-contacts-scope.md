@@ -1,6 +1,6 @@
 # 0031. Suppliers shared by services: contracts and contacts with their own scope
 
-- **Status:** Accepted (owner decision 2026-11-11) and built in 0.18.0, after the parts of [ADR 0030](0030-contract-payments-and-recorded-costs.md) – the model and the answers to the open questions were set by the owner, each as recommended; the further questions are settled below (see _Decided (November 2026)_). What the build added or settled differently is listed under _Built in 0.18.0_
+- **Status:** Accepted (owner decision 2026-11-11) and built in 0.18.0, after the parts of [ADR 0030](0030-contract-payments-and-recorded-costs.md) – the model and the answers to the open questions were set by the owner, each as recommended; the further questions are settled below (see _Decided (November 2026)_). What the build added or settled differently is listed under _Built in 0.18.0_, what the security review of the build changed under _Changed after the security review of 0.18.0_
 - **Date:** 2026-11-11
 - **Since:** 0.18.0 ([ROADMAP.md](../ROADMAP.md#next))
 
@@ -258,6 +258,25 @@ Built as decided, in the six parts of the delivery order. Settled while building
 - **"Replaced by …"** refuses when a payment schedule's paying service may not join the replacement – a schedule needs its service covered, and adding a service the person may not see would widen the replacement.
 - **No shared-package test runner**: the pure rules (`contractReaders`, `effectiveTerms`) are tested in `server/test/supplier-contract-scope.test.ts`.
 - **The service's audit view**: services have no audit view of their own; the `supplier.contract_service_*` entries name the service in their details.
+- **The duty form** has a _Contract_ picker (the contracts covering the service first, then those the person may add it to), and the action dialog of a finding that names a contract proposes the contract's owners for its first action (the finding carries `supplierContractOwners`, existing users and teams only).
+- **The supplier's _Owning teams_ panel** shows the opening preview with the choice for contacts and saves through `POST /api/suppliers/:id/open`.
+- **The demo's 0.17-style pair** belongs to a demo team of its own (_Mail relay team_, set to take no new resources): a team that owns something takes its members' new resources by default, and the Service Desk's members must keep theirs.
+
+## Changed after the security review of 0.18.0 (November 2026)
+
+A security review of the build found no critical or high issues; these changes close the medium and low ones before the release:
+
+1. **The merge preview applies the read rules.** It lists only the contracts the person may read (with their DPA rows, and _same contract number_ only over the target's contracts they may read), the contacts they may see and the scope items they may see – the others are neither named nor counted, as on the supplier page (part 2: others do not know a contract exists). The merge and its audit entry still cover everything; administrators read everything anyway.
+2. **A merge that narrows is for administrators.** A source without owning teams merged into a team's supplier hides it, and the contracts on it, from its other readers. A merge of suppliers with other owning teams – widening or narrowing – is for administrators (part 8 kept only "the same owning teams" for designers); the preview says who loses sight (`narrows`, `losers`) and the audit entry records it. A notice-by reminder whose owners may not see the contract goes to the administrators (part 7), also in their daily summary.
+3. **A deleted team stays among a contract's owners** as an entry that matches nobody, like an access list entry (`keepDeletedTeams` in `server/src/migration/tables.ts`): otherwise deleting a team would leave no team among the owners and open the contract silently (part 2: "nothing becomes visible silently"). Contact scopes hold contracts, applications and systems, not teams; payment schedules have no owners.
+4. **The bulk change of owning teams** (`POST /api/owning-teams/bulk`) gives a supplier the protections of an opening; a contact that needs the administrator's choice stops the whole change.
+5. **Granting access asks for the step-up** (`grantAccess`, the baseline control point access.grant): an opening that adds a team or removes every team, a merge that widens who sees a supplier (`POST /api/suppliers/merge` and `…/:id/merge`), and – for every kind of resource – removing every owning team, also in a bulk change.
+6. **Contract lines name their contract only for who may see it.** A line made from a payment schedule stores the schedule's title; the contract's title is put in front when the line is read with the reader's rights – cost plan, `/api/v1`, MCP, CSV and, per recipient, the `cost.booking_due` reminder ([ADR 0030](0030-contract-payments-and-recorded-costs.md)). 0.18.0 was not released, so no stored title needed changing.
+7. **API tokens never get contact e-mail or phone** on the contract page either (ADR 0029 decision 8); a test reads every supplier and contract route with a read token.
+8. **A merge never makes a scoped contact company-wide** (part 6): a company-wide source contact is not combined into a scoped target contact – it stays a contact of its own; two company-wide or two scoped contacts are still combined (part 8, "the wider of their scopes", now only between contacts of the same kind).
+9. **The CSV import of entries keeps the coverage rule** of part 4: a contract that does not cover the service and that the person may not add it to is a problem of the row (`contractNotCovering`); one they may change gets the service on import.
+10. **Adding a covered service needs a session.** Choosing a contract that does not cover the service on a plan line, an entry, a duty or a matrix row adds the service – refused for API tokens (`SUPPLIER_CONTRACT_COVER_SESSION`, ADR 0029 decision 9); linking a covering contract stays allowed.
+11. **The supplier picker** (`GET /api/suppliers/options`) names only the covered services the reader may see.
 
 ## Consequences
 
