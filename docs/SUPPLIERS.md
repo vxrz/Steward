@@ -50,8 +50,8 @@ Kind (ISO/IEC 27001, 27017, 27018, ISO 22301, SOC 2 type I or II, C5, TISAX, oth
 
 Contacts are people at the supplier: name, role (account manager, support, security contact, data protection officer, other), e-mail, phone and a note. They are personal data of people outside Steward:
 
-- the app shows them to everyone who may see the supplier;
-- the public API, MCP, the dataset and exports leave out their e-mail and phone (name, role and note only);
+- the app shows them to everyone who may see the supplier, in a signed-in session;
+- the public API, MCP, the dataset, exports and any request with an API token leave out their e-mail and phone (name, role and note only);
 - audit entries name the contact and say which fields changed, never the e-mail or phone values;
 - removing a contact deletes it.
 
@@ -114,7 +114,7 @@ The owners of an active supplier (without owners: the administrators) are remind
 
 **Dataset** _Suppliers: expiring_ (`suppliers.expiring`): one row per certificate and notice-by date of an active supplier in the next 90 days or passed in the last 30, with status _warning_ within 30 days and _serious_ once passed; administrators and auditors, published at most hourly ([DASHBOARDS.md](DASHBOARDS.md)).
 
-Writes are only in the app. Internal routes: `GET|POST /api/suppliers[?status=]`, `GET /api/suppliers/options`, `GET|PUT /api/suppliers/:id`, `POST /api/suppliers/:id/archive|confirm|merge|not-a-supplier`, `POST /api/suppliers/:id/contacts|contracts|certificates`, `PUT|DELETE …/:itemId`.
+Writes are only in the app: every changing route – also marking a certificate as looked at – needs a signed-in session and refuses API tokens (ADR 0029 decision 9). Reading one supplier through the internal route with an API token gives what the public API gives: contacts without e-mail or phone. Internal routes: `GET|POST /api/suppliers[?status=]`, `GET /api/suppliers/options`, `GET|PUT /api/suppliers/:id`, `POST /api/suppliers/:id/archive|confirm|merge|not-a-supplier`, `POST /api/suppliers/:id/contacts|contracts|certificates`, `PUT|DELETE …/:itemId`.
 
 Suppliers and their contracts, certificates and contacts move with migration packages ([MIGRATION.md](MIGRATION.md)); the reminders sent do not.
 

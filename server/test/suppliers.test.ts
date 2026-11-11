@@ -369,6 +369,30 @@ describe('the public API, MCP and the dataset', () => {
     expect(one.text).not.toContain('robin@');
     expect(one.text).not.toContain('0100');
     expect((await get('/suppliers/sup_nope')).status).toBe(404);
+    // the app's route gives an API token the same (security review 0.17.0): no e-mail or phone of contacts
+    const app = await fetch(`${s.base}/api/suppliers/${sup.id}`, { headers: { authorization: `Bearer ${token}` } });
+    expect(app.status).toBe(200);
+    const appText = await app.text();
+    expect(JSON.parse(appText).contacts).toEqual([expect.objectContaining({ name: 'Robin Example', role: 'support' })]);
+    expect(appText).not.toContain('robin@');
+    expect(appText).not.toContain('0100');
+    expect((await vera('GET', `/suppliers/${sup.id}`)).contacts[0].email).toBe('robin@public-supplier.example');
+    // and changes nothing: every change, also marking a certificate as looked at, is a decision in a session
+    const write = (await dana('POST', '/me/tokens', { name: 'suppliers-write', scope: 'full' })).token as string;
+    const send = (method: string, path: string, body: unknown) =>
+      fetch(`${s.base}/api${path}`, { method, headers: { authorization: `Bearer ${write}`, 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    const certId = (await dana('GET', `/suppliers/${sup.id}`)).certificates[0].id;
+    for (const [method, path, body] of [
+      ['POST', '/suppliers', { name: 'By token' }],
+      ['PUT', `/suppliers/${sup.id}`, { name: 'Public Supplier', type: 'saas' }],
+      ['POST', `/suppliers/${sup.id}/contacts`, { name: 'Token contact', role: 'support' }],
+      ['POST', `/suppliers/${sup.id}/contracts`, { title: 'Token contract' }],
+      ['PUT', `/suppliers/${sup.id}/certificates/${certId}`, { kind: 'iso27001', checked: true }],
+    ] as const) {
+      const res = await send(method, path, body);
+      expect(res.status, `${method} ${path}`).toBe(403);
+    }
+    expect((await dana('GET', `/suppliers/${sup.id}`)).certificates[0].checkedBy).toBeNull();
     // MCP
     await s.api('PUT', '/mcp-server', { enabled: true });
     const mcpToken = (await vera('POST', '/me/tokens', { name: 'suppliers-mcp', scope: 'mcp' })).token;

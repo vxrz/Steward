@@ -1311,10 +1311,22 @@ const EXPECT: Record<string, Access> = {
 
 /** Routes that only work with an interactive session: an API token must not manage identities, the vault or sign-in. */
 const SESSION_ONLY = [
+  // suppliers (ADR 0029 decision 9): every change is a decision of a person in the app
+  'POST /api/suppliers',
+  'PUT /api/suppliers/:id',
   'POST /api/suppliers/:id/archive',
   'POST /api/suppliers/:id/confirm',
   'POST /api/suppliers/:id/merge',
   'POST /api/suppliers/:id/not-a-supplier',
+  'POST /api/suppliers/:id/contacts',
+  'PUT /api/suppliers/:id/contacts/:contactId',
+  'DELETE /api/suppliers/:id/contacts/:contactId',
+  'POST /api/suppliers/:id/contracts',
+  'PUT /api/suppliers/:id/contracts/:contractId',
+  'DELETE /api/suppliers/:id/contracts/:contractId',
+  'POST /api/suppliers/:id/certificates',
+  'PUT /api/suppliers/:id/certificates/:certificateId',
+  'DELETE /api/suppliers/:id/certificates/:certificateId',
   'PUT /api/settings/modules/:id',
   'GET /api/settings/plant/map',
   'PUT /api/settings/plant/map',
