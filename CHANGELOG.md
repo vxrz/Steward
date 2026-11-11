@@ -6,6 +6,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- **The audit log export streams** ([docs/SECURITY-HARDENING.md](docs/SECURITY-HARDENING.md#audit-log-as-evidence)): `GET /api/audit/export` reads and writes the chain in pages of 5,000 entries instead of holding it in memory, as the scheduled export does; the files are the same.
+
 ### Security
 
 - **Changing where a platform's credentials go** ([docs/PLATFORMS.md](docs/PLATFORMS.md#changing-the-address)): a new base URL, trusted origin, sign-in address, proxy, broker or database host of a platform with stored credentials needs a signed-in session and a step-up (control point `platform.destination`), and removes the credentials unless an administrator confirms sending them to the new address; audited as `platform.destination_changed`. **Check before updating:** API tokens can no longer change these settings, and platform managers who are not administrators enter the credentials again after such a change.

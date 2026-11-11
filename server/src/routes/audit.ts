@@ -1,11 +1,12 @@
 import fs from 'node:fs';
+import { Readable } from 'node:stream';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { vault, publicKeyPem } from '../vault.js';
-import { AUDIT_SORT_KEYS } from '@sm/shared';
-import { audit, auditFacets, queryAudit, chainEntriesAscending, prunedBase } from '../audit.js';
+import { AUDIT_SORT_KEYS, type AuditEntry } from '@sm/shared';
+import { audit, auditFacets, queryAudit, chainEntriesPage, chainExtent, prunedBase } from '../audit.js';
 import { anchoringStatus, createCheckpoint, parseAnchor, saveEmailSettings, verificationResult, verifyWithAnchors, anchorFile } from '../audit-anchor.js';
-import { auditCsv, auditExportBundle } from '../audit-export.js';
+import { auditCsvHead, auditCsvLine, auditExportBundleText } from '../audit-export.js';
 import { archiveForDownload, archiveStatusAsync, runArchiving, saveArchiveSettings, startFullVerification } from '../audit-archive.js';
 import { HttpError } from '../util.js';
 import { requireCapability } from '../auth/permissions.js';
@@ -34,6 +35,14 @@ const auditQuery = z.object({
 });
 
 /** Audit log, verification, anchoring and export (mounted under /api). */
+/** Entries per page of the interactive export (as the scheduled export part). */
+const EXPORT_PAGE = 5000;
+
+async function* prepend(head: string, rest: AsyncIterable<string>): AsyncGenerator<string> {
+  yield head;
+  yield* rest;
+}
+
 export async function auditRoutes(app: FastifyInstance): Promise<void> {
   // ---------- audit ----------
   app.get('/audit', async (req) => {
@@ -153,21 +162,48 @@ export async function auditRoutes(app: FastifyInstance): Promise<void> {
     // the chain in the database: after archived entries were deleted, from the signed checkpoint it continues
     const base = prunedBase();
     const start = base && !('problem' in base) ? base : null;
-    const all = chainEntriesAscending(start?.seq ?? 0);
+    // read and written page by page (security review 0.19.0 M2): the chain as it was before this export's own entry
+    const after = start?.seq ?? 0;
+    const { count, lastSeq } = chainExtent(after);
     audit({
       action: 'audit.exported',
       entityType: 'audit',
-      summary: `Audit log exported (${all.length} entries${start ? ` after #${start.seq}; the entries before are archived` : ''}, ${format})`,
+      summary: `Audit log exported (${count} entries${start ? ` after #${start.seq}; the entries before are archived` : ''}, ${format})`,
     });
+    async function* pages(): AsyncGenerator<AuditEntry[]> {
+      let from = after;
+      for (;;) {
+        const page = chainEntriesPage(from, lastSeq, EXPORT_PAGE);
+        if (!page.length) return;
+        yield page;
+        if (page.length < EXPORT_PAGE) return;
+        from = page[page.length - 1]!.seq;
+        // let other requests run between pages
+        await new Promise((r) => setImmediate(r));
+      }
+    }
+    async function* lines(line: (a: AuditEntry) => string): AsyncGenerator<string> {
+      for await (const page of pages()) yield page.map(line).join('');
+    }
     if (format === 'csv') {
       reply.header('content-disposition', 'attachment; filename="audit-log.csv"');
-      return reply.type('text/csv; charset=utf-8').send(auditCsv(all));
+      return reply.type('text/csv; charset=utf-8').send(Readable.from(prepend(auditCsvHead(), lines(auditCsvLine))));
     }
     if (format === 'json') {
       reply.header('content-disposition', 'attachment; filename="audit-log.json"');
-      return reply.type('application/json').send(JSON.stringify(auditExportBundle(all, checkpoint, start?.checkpoint ?? null), null, 1));
+      return reply.type('application/json').send(Readable.from(auditExportBundleText(pages(), checkpoint, start?.checkpoint ?? null)));
     }
     reply.header('content-disposition', 'attachment; filename="audit-log.jsonl"');
-    return reply.type('application/x-ndjson').send(all.map((a) => JSON.stringify(a)).join('\n'));
+    // one entry per line, no line break after the last (as before)
+    let firstLine = true;
+    return reply.type('application/x-ndjson').send(
+      Readable.from(
+        lines((a) => {
+          const text = (firstLine ? '' : '\n') + JSON.stringify(a);
+          firstLine = false;
+          return text;
+        }),
+      ),
+    );
   });
 }

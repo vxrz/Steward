@@ -2,7 +2,7 @@ import { BRAND, type AuditCheckpoint, type AuditEntry } from '@sm/shared';
 import { config } from './config.js';
 import { publicKeyFingerprint, publicKeyPem, vault } from './vault.js';
 import { nowIso } from './util.js';
-import { csvCell, csvTable } from './csv.js';
+import { csvCell } from './csv.js';
 
 export { csvCell } from './csv.js';
 
@@ -22,13 +22,9 @@ const auditCells = (a: AuditEntry): unknown[] => [
 ];
 
 /** The audit log as CSV (every cell quoted; see csv.ts). */
-export function auditCsv(entries: AuditEntry[]): string {
-  return csvTable(AUDIT_CSV_HEAD, entries.map(auditCells));
-}
-
-/** The header line of auditCsv – for a file written in pages (scheduled exports). */
+/** The header line of the audit log as CSV – the file is written in pages (the export route, scheduled exports). */
 export const auditCsvHead = (): string => AUDIT_CSV_HEAD.join(',') + '\r\n';
-/** One line of auditCsv. */
+/** One line of the audit log as CSV. */
 export const auditCsvLine = (a: AuditEntry): string =>
   auditCells(a)
     .map((v) => csvCell(v))
@@ -56,6 +52,27 @@ export interface AuditExportBundle {
 }
 
 /** The JSON export: entries with prevHash and details plus the latest signed checkpoint (offline check: npm run audit:verify-export). */
+/**
+ * The bundle (format json) as text in pieces: everything but the entries, then the entries as they come – the
+ * interactive export streams them page by page instead of holding the chain in memory (security review 0.19.0 M2).
+ */
+export async function* auditExportBundleText(
+  pages: AsyncIterable<AuditEntry[]>,
+  checkpoint: AuditCheckpoint | null,
+  startCheckpoint: AuditCheckpoint | null = null,
+): AsyncGenerator<string> {
+  const head = JSON.stringify(auditExportBundle([], checkpoint, startCheckpoint), null, 1);
+  // the head ends with `"entries": []\n}`: open the list instead
+  yield head.slice(0, head.lastIndexOf('[')) + '[';
+  let first = true;
+  for await (const page of pages) {
+    if (!page.length) continue;
+    yield (first ? '\n' : ',\n') + page.map((e) => JSON.stringify(e)).join(',\n');
+    first = false;
+  }
+  yield '\n]\n}';
+}
+
 export function auditExportBundle(
   entries: AuditEntry[],
   checkpoint: AuditCheckpoint | null,
