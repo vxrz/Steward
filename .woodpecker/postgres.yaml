@@ -4,7 +4,7 @@
 # The password is a throw-away value for this service only (no secret needed).
 
 variables:
-  - &node_image node:24-trixie-slim@sha256:43b9ba1142b8dcf33fa8f922ca1be85714adc444e0586c7cf7726daaeabc1bea
+  - &node_image node:24-trixie-slim@sha256:89c5244bc22a9bc3287d89ebc7e49b9cb5bb84cd40e6175ac3421d5a9f68b95a
   # postgres:16.15-bookworm (same major version as docker-compose.postgres.yml)
   - &postgres_image postgres:16.15-bookworm@sha256:d81f7b51697014367236d07ec58b54153fc28f828b72bf247fe5c7487520bcb0
   # as in ci.yaml: server tests read README.md and files in docs/
