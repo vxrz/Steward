@@ -1163,6 +1163,8 @@ export interface Resources {
     'points.plant.bulkChange.description': string;
     'points.plant.changeSet.label': string;
     'points.plant.changeSet.description': string;
+    'points.sync.sources.label': string;
+    'points.sync.sources.description': string;
     'points.library.publishers.label': string;
     'points.library.publishers.description': string;
     'points.library.install.label': string;
@@ -1396,6 +1398,7 @@ export interface Resources {
     'stepUp.actions.changeBackups': string;
     'stepUp.actions.changeExports': string;
     'stepUp.actions.changePlatformDestination': string;
+    'stepUp.actions.changeSyncSources': string;
     'stepUp.actions.allowMcpWrites': string;
     'stepUp.actions.other': string;
     'stepUp.actions.allowMcpClient': string;

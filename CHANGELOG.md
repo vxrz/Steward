@@ -9,6 +9,7 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 ### Security
 
 - **Changing where a platform's credentials go** ([docs/PLATFORMS.md](docs/PLATFORMS.md#changing-the-address)): a new base URL, trusted origin, sign-in address, proxy, broker or database host of a platform with stored credentials needs a signed-in session and a step-up (control point `platform.destination`), and removes the credentials unless an administrator confirms sending them to the new address; audited as `platform.destination_changed`. **Check before updating:** API tokens can no longer change these settings, and platform managers who are not administrators enter the credentials again after such a change.
+- **Git sync sources ask for a step-up** ([docs/GIT-SYNC.md](docs/GIT-SYNC.md)) when one is added or its repository, API URL or provider changes (where its token goes), when signed commits are no longer required, an allowed signer is added or new items are accepted automatically (control point `sync.sources`).
 
 ## [0.18.0] - 2026-11-11
 

@@ -1587,6 +1587,22 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
   'POST /api/plant/advisory-sources': 'always',
   'PUT /api/plant/advisory-sources/:advisorySourceId': 'always',
   'DELETE /api/plant/advisory-sources/:advisorySourceId': 'always',
+  // Git sync sources (security review 0.19.0 L1, control point sync.sources): a new source, another repository, signing
+  // loosened or auto-accept on; harmless: an invalid body (refused by the route) and the fixture's own settings
+  'POST /api/sync-sources': {
+    get sensitive() {
+      return SYNC_SOURCE;
+    },
+    harmless: { name: '!' },
+  },
+  'PUT /api/sync-sources/:id': {
+    get sensitive() {
+      return SYNC_SOURCE;
+    },
+    get harmless() {
+      return { ...SYNC_SOURCE, repoUrl: `${s.base}/mock/git/steward/library`, folder: 'steward', kinds: ['dashboard'] };
+    },
+  },
   // a new address of a platform's stored credentials (security review 0.19.0 H1, control point platform.destination)
   'PUT /api/platforms/:id': { sensitive: { baseUrl: 'https://matrix.example' }, harmless: {} },
   'PUT /api/platforms/:id/database': {

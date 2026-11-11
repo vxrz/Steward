@@ -549,6 +549,8 @@ export const STEP_UP_ACTIONS = [
   // 0.19.0 (security review H1): a new address of a platform's stored credentials (base URL, trusted origins, sign-in,
   // proxy, broker or database host)
   'changePlatformDestination',
+  // 0.19.0 (security review L1): a Git sync source – a new one, another repository or API URL, signing loosened, auto-accept on
+  'changeSyncSources',
 ] as const;
 export type StepUpAction = (typeof STEP_UP_ACTIONS)[number];
 

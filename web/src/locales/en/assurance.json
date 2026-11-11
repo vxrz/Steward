@@ -329,6 +329,12 @@
         "description": "Who applies a change to the plant registry. Optional: each site decides with its switch \"Changes need a second person\" (the catalogue in the plant settings); required: every change. Under review every change goes through a draft and no author applies it, administrators included."
       }
     },
+    "sync": {
+      "sources": {
+        "label": "Change a Git sync source",
+        "description": "A new source, another repository or API URL, signed commits no longer required, a new allowed signer, or new items accepted automatically."
+      }
+    },
     "library": {
       "publishers": {
         "label": "Trust a library publisher",

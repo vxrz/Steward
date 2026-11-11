@@ -192,6 +192,9 @@ export const CONTROL_POINTS: readonly ControlPoint[] = [
   },
   // shared procedure libraries (0.10.0, #238): trusting publishers and their keys; installing a release
   sp('library.publishers', 'processes', ['changeTrustedPublishers'], true),
+  // 0.19.0 (security review L1): Git sync sources – a new source, another repository or API URL (where its token goes),
+  // signed commits no longer required, a new allowed signer, auto-accept turned on
+  sp('sync.sources', 'processes', ['changeSyncSources']),
   {
     key: 'library.install',
     group: 'processes',
