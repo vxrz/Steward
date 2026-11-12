@@ -1,5 +1,6 @@
 import type { z } from 'zod';
 import {
+  dataPathEnds,
   inCidr,
   ipValue,
   PLANT_NETWORK_LIMITS as L,
@@ -294,11 +295,8 @@ function addressBetween(a: string, start: string, end: string): boolean {
   return !!x && !!lo && !!hi && x.v === lo.v && x.v === hi.v && x.n >= lo.n && x.n <= hi.n;
 }
 
-/** Hosts a data path reads from (transfer peers that are systems, the collector's host) and writes to (destinations). */
-const hostsOf = (p: PlantDataPathValues) => ({
-  from: [...p.transfers.filter((t) => t.peerKind === 'system').map((t) => t.peer), ...(p.collector?.host ? [p.collector.host] : [])],
-  to: p.destinations.filter((x) => x.kind === 'system').map((x) => x.ref),
-});
+/** The Steward items a data path reads from and writes to (`system:<id>`, shared/plantNetwork.ts `dataPathEnds`). */
+const hostsOf = (p: PlantDataPathValues) => dataPathEnds(p);
 
 /** A data path of the chains index: where it sits in the index, its hosts. */
 interface IndexedPath {
@@ -322,6 +320,8 @@ interface PathIndex {
 }
 
 const pathKey = (assetId: string, id: string) => `${assetId}\u0000${id}`;
+/** The id of an item key (`system:<id>`) */
+const idOfKey = (key: string) => key.slice(key.indexOf(':') + 1);
 
 function pathIndex(rights: Map<string, PlantPermission[]>): PathIndex {
   const idx: PathIndex = { byKey: new Map(), readers: new Map(), writers: new Map(), memo: new Map() };
@@ -378,10 +378,11 @@ function chainOf(idx: PathIndex, side: 'readers' | 'writers', hosts: string[]): 
 export function pathsReadingFrom(host: string): { paths: PlantPathLink[]; more: number; hidden: number } {
   const rights = siteRights(db().all<{ id: string; acl: string }>('SELECT id, acl FROM plant_sites'));
   const idx = pathIndex(rights);
-  const c = chainOf(idx, 'readers', [host]);
+  const key = `system:${host}`;
+  const c = chainOf(idx, 'readers', [key]);
   const all = db()
     .all<DataPathRow>('SELECT * FROM plant_data_paths')
-    .filter((r) => hostsOf(dataPathValuesOf(r)).from.includes(host)).length;
+    .filter((r) => hostsOf(dataPathValuesOf(r)).from.includes(key)).length;
   const shown = c.first.slice(0, L.chainLinks);
   return {
     paths: shown.map((x) => ({ assetId: x.r.asset_id, assetName: x.r.asset_name, pathId: x.v.id, subject: x.v.subject, via: host })),
@@ -411,7 +412,7 @@ function pathView(r: DataPathRow, assetName: string, idx: PathIndex, refs: Map<s
         assetName: x.r.asset_name,
         pathId: x.v.id,
         subject: x.v.subject,
-        via: unique.find((h) => (side === 'readers' ? x.from : x.to).has(h))!,
+        via: idOfKey(unique.find((h) => (side === 'readers' ? x.from : x.to).has(h))!),
       })),
       more: Math.max(0, total - others.length),
     };

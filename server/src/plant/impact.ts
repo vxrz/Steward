@@ -1,4 +1,5 @@
 import {
+  dataPathEnds,
   IMPACT_LIMITS,
   type ImpactGroupKind,
   type ImpactVia,
@@ -196,10 +197,17 @@ export function plantImpact(targets: { kind: MaintenanceTargetKind; id: string }
     return null;
   };
   const systemName = (id: string) => resolveTarget('system', id)?.label ?? null;
-  const hostsOf = (p: PlantDataPathValues) => ({
-    from: [...p.transfers.filter((t) => t.peerKind === 'system').map((t) => t.peer), ...(p.collector?.host ? [p.collector.host] : [])],
-    to: p.destinations.filter((x) => x.kind === 'system').map((x) => x.ref),
-  });
+  // what a path reads from and writes to (`system:<id>`), as the chains of the OT network follow them
+  const hostsOf = (p: PlantDataPathValues) => dataPathEnds(p);
+  /** A Steward item a path names (a peer, a destination, the collector's host) that the maintenance reaches */
+  const touched = (p: PlantDataPathValues): { from: string | null } | null => {
+    const h = dataPathEnds(p);
+    for (const key of [...h.from, ...h.to, ...(p.collector?.host ? [`system:${p.collector.host}`] : [])]) {
+      const id = key.slice(key.indexOf(':') + 1);
+      if (key.startsWith('system:') && reach.systems.has(id)) return { from: systemName(id) };
+    }
+    return null;
+  };
   for (const { assetId, v } of paths) {
     const k = key2(assetId, v.id);
     if (wholeAssets.has(assetId)) {
@@ -225,9 +233,8 @@ export function plantImpact(targets: { kind: MaintenanceTargetKind; id: string }
       affPaths.set(k, { via: 'collector', from: col });
       continue;
     }
-    const h = hostsOf(v);
-    const host = [...h.from, ...h.to].find((x) => reach.systems.has(x));
-    if (host) affPaths.set(k, { via: 'host', from: systemName(host) });
+    const host = touched(v);
+    if (host) affPaths.set(k, { via: 'host', from: host.from });
   }
   // the paths that continue from affected ones: they read from a system an affected path writes to
   const readers = new Map<string, string[]>();

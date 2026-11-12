@@ -666,7 +666,9 @@ const DataPath = z.object({
   transfers: z.array(
     z.object({
       protocol: z.string(),
-      mode: z.enum(TRANSFER_MODES),
+      mode: z
+        .enum(TRANSFER_MODES)
+        .describe('Seen from the collector: pull (it fetches from the peer), push (it sends to the peer) or receive (the peer sends to it)'),
       peerKind: z.enum(PEER_KINDS),
       peer: z.string(),
       port: z.number().int().nullable(),
@@ -682,7 +684,11 @@ const DataPath = z.object({
   collectorHost: ItemRef.nullable(),
   peers: z.array(ItemRef.nullable()),
   targets: z.array(ItemRef.nullable()),
-  next: z.array(PathLink).describe('Data paths that read from a system this one writes to (at most 50)'),
+  next: z
+    .array(PathLink)
+    .describe(
+      'Data paths that read from a system this one writes to (at most 50). A path reads from its pull and receive peers (else from the system its collector runs on) and writes to its push peers and destinations',
+    ),
   previous: z.array(PathLink).describe('Data paths that write to a system this one reads from (at most 50)'),
   nextMore: z.number().int().describe('How many more data paths read from it than `next` lists'),
   previousMore: z.number().int().describe('How many more data paths write to it than `previous` lists'),

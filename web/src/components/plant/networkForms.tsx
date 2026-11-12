@@ -1085,6 +1085,9 @@ export function DataPathModal({
         <Text size="sm" fw={500}>
           {t('path.transfers')}
         </Text>
+        <Text size="xs" c="dimmed">
+          {t('path.transfersHelp')}
+        </Text>
         {transfers.map((x, i) => (
           <Paper key={i} withBorder p="xs">
             <Group gap="xs" align="flex-start" wrap="nowrap">
@@ -1099,9 +1102,18 @@ export function DataPathModal({
                 />
                 <Select
                   label={t('path.mode')}
+                  description={t(`modeHelp.${x.mode}`)}
                   data={TRANSFER_MODES.map((m) => ({ value: m, label: t(`modes.${m}`) }))}
                   value={x.mode}
                   allowDeselect={false}
+                  renderOption={({ option }) => (
+                    <Stack gap={0}>
+                      <Text size="sm">{option.label}</Text>
+                      <Text size="xs" c="dimmed">
+                        {t(`modeHelp.${option.value as (typeof TRANSFER_MODES)[number]}`)}
+                      </Text>
+                    </Stack>
+                  )}
                   onChange={(m) => m && setTransfers(at(transfers, i, { mode: m as (typeof TRANSFER_MODES)[number] }))}
                 />
                 <NumberInput
@@ -1147,6 +1159,12 @@ export function DataPathModal({
               </SimpleGrid>
               <RemoveButton label={t('path.removeTransfer')} onClick={() => setTransfers(del(transfers, i))} />
             </Group>
+            {/* pushing to or pulling from the collector's own host is usually a service on it that is a system of its own */}
+            {x.peerKind === 'system' && x.mode !== 'receive' && !!x.peer && x.peer === collector?.host && (
+              <Text size="xs" c="dimmed" mt={4} data-testid="peer-is-host">
+                {t('path.peerIsHost')}
+              </Text>
+            )}
           </Paper>
         ))}
         {v.error('transfers') && (

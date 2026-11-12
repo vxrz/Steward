@@ -742,7 +742,11 @@ export const dataPathSchema = z
         z
           .object({
             protocol: z.string().min(1).max(60),
-            mode: z.enum(TRANSFER_MODES),
+            mode: z
+              .enum(TRANSFER_MODES)
+              .describe(
+                'Seen from the collector: pull (it fetches from the peer – a source), push (it sends to the peer – a target) or receive (the peer sends to it – a source)',
+              ),
             peer_kind: z.enum(PEER_KINDS).optional().describe('device (of the asset), system (a Steward system) or other (default)'),
             peer: short,
             port: z.number().int().min(1).max(65535).nullable().optional(),

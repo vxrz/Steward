@@ -28564,9 +28564,11 @@
                       "mode": {
                         "type": "string",
                         "enum": [
+                          "pull",
                           "push",
-                          "pull"
-                        ]
+                          "receive"
+                        ],
+                        "description": "Seen from the collector: pull (it fetches from the peer), push (it sends to the peer) or receive (the peer sends to it)"
                       },
                       "peerKind": {
                         "type": "string",
@@ -28886,7 +28888,7 @@
                     ],
                     "additionalProperties": false
                   },
-                  "description": "Data paths that read from a system this one writes to (at most 50)"
+                  "description": "Data paths that read from a system this one writes to (at most 50). A path reads from its pull and receive peers (else from the system its collector runs on) and writes to its push peers and destinations"
                 },
                 "previous": {
                   "type": "array",
@@ -29853,9 +29855,11 @@
                       "mode": {
                         "type": "string",
                         "enum": [
+                          "pull",
                           "push",
-                          "pull"
-                        ]
+                          "receive"
+                        ],
+                        "description": "Seen from the collector: pull (it fetches from the peer), push (it sends to the peer) or receive (the peer sends to it)"
                       },
                       "peerKind": {
                         "type": "string",
@@ -30175,7 +30179,7 @@
                     ],
                     "additionalProperties": false
                   },
-                  "description": "Data paths that read from a system this one writes to (at most 50)"
+                  "description": "Data paths that read from a system this one writes to (at most 50). A path reads from its pull and receive peers (else from the system its collector runs on) and writes to its push peers and destinations"
                 },
                 "previous": {
                   "type": "array",

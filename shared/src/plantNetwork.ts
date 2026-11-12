@@ -58,8 +58,16 @@ export const DEVICE_FLAG_SUGGESTIONS = ['device_ordered', 'port_ordered', 'addre
 export const COLLECTOR_KINDS = ['application', 'platform', 'process', 'job'] as const;
 export type CollectorKind = (typeof COLLECTOR_KINDS)[number];
 
-export const TRANSFER_MODES = ['push', 'pull'] as const;
+/**
+ * How a transfer moves the data, seen from the collector: `pull` – the collector fetches it from the peer (the peer is
+ * a source); `push` – the collector sends it to the peer (the peer is a target, like a destination); `receive` (0.20) –
+ * the peer sends it to the collector (a PLC or HMI publishing over MQTT to a gateway; the peer is a source).
+ */
+export const TRANSFER_MODES = ['pull', 'push', 'receive'] as const;
 export type TransferMode = (typeof TRANSFER_MODES)[number];
+
+/** Modes whose peer is where the data comes from (the others send to their peer). */
+export const SOURCE_MODES: readonly TransferMode[] = ['pull', 'receive'];
 
 /** The other end of a transfer: a device of the asset, a Steward system (a host) or something else (text). */
 export const PEER_KINDS = ['device', 'system', 'other'] as const;
@@ -369,6 +377,30 @@ export interface PlantDeviceView extends PlantDeviceValues, PlantSource {
   live: PlantLiveStatus;
   /** What looks wrong: the VLAN does not exist, the address is outside its subnets, the address is in a blocked range */
   hints: ('vlan_missing' | 'address_outside' | 'address_blocked')[];
+}
+
+/**
+ * The Steward items a data path reads from and writes to (0.20, docs/PLANT.md#chains-of-data-paths), as `system:<id>`:
+ * it reads from the systems its pull and receive transfers name, and – only when it has no pull or receive transfer –
+ * from the system its collector runs on (a job that archives what lands on a file share runs on that share); it
+ * writes to the systems its push transfers name and to its destinations. Two paths that only write into the same
+ * system share nothing: chains run from a writer to a reader.
+ */
+export function dataPathEnds(p: Pick<PlantDataPathValues, 'collector' | 'transfers' | 'destinations'>): { from: string[]; to: string[] } {
+  const from: string[] = [];
+  const to: string[] = [];
+  const add = (list: string[], key: string) => {
+    if (!list.includes(key)) list.push(key);
+  };
+  let sourced = false;
+  for (const t of p.transfers) {
+    const source = SOURCE_MODES.includes(t.mode);
+    if (source) sourced = true;
+    if (t.peerKind === 'system' && t.peer) add(source ? from : to, `system:${t.peer}`);
+  }
+  if (!sourced && p.collector?.host) add(from, `system:${p.collector.host}`);
+  for (const d of p.destinations) if (d.kind === 'system' && d.ref) add(to, `system:${d.ref}`);
+  return { from, to };
 }
 
 export interface PlantPathLink {

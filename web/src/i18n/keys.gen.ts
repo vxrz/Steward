@@ -10693,6 +10693,7 @@ export interface Resources {
     'collectorKinds.job': string;
     'modes.push': string;
     'modes.pull': string;
+    'modes.receive': string;
     'peerKinds.device': string;
     'peerKinds.system': string;
     'peerKinds.other': string;
@@ -10893,6 +10894,8 @@ export interface Resources {
     'path.count_other': string;
     'path.countOf_one': string;
     'path.countOf_other': string;
+    'path.transfersHelp': string;
+    'path.peerIsHost': string;
     'asset.title': string;
     'asset.help': string;
     'asset.siteNetwork': string;
@@ -10919,6 +10922,9 @@ export interface Resources {
     'quality.kinds.no_vlan_other': string;
     'quality.kinds.switch_case_one': string;
     'quality.kinds.switch_case_other': string;
+    'modeHelp.pull': string;
+    'modeHelp.push': string;
+    'modeHelp.receive': string;
   };
   plantViews: {
     noAssets: string;

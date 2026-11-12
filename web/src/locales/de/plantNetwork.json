@@ -153,7 +153,8 @@
   },
   "modes": {
     "push": "Push",
-    "pull": "Pull"
+    "pull": "Pull",
+    "receive": "Empfangen"
   },
   "peerKinds": {
     "device": "Gerät der Anlage",
@@ -318,7 +319,7 @@
   },
   "path": {
     "title": "Datenwege",
-    "help": "Welche Daten die Anlage verlassen, wer sie abholt, wie sie übertragen werden und wo sie landen. Hosts sind Steward-Systeme, so lassen sich Ketten verfolgen.",
+    "help": "Welche Daten die Anlage verlassen, wer sie abholt, wie sie übertragen werden und wo sie landen. Gegenstellen und Ziele sind Steward-Einträge, so lassen sich Ketten verfolgen: Ein Datenweg geht weiter in den Datenwegen, die lesen, wohin er schreibt.",
     "siteHelp": "Die Datenwege aller Anlagen dieses Standorts mit den Gliedern ihrer Ketten. Fügen Sie sie hier oder auf der Seite der Anlage hinzu, ändern oder entfernen Sie sie.",
     "add": "Datenweg hinzufügen",
     "newTitle": "Neuer Datenweg",
@@ -345,16 +346,16 @@
     "removeTransfer": "Übertragung entfernen",
     "transferIncomplete": "Jede Übertragung braucht ein Protokoll und ihre Gegenstelle.",
     "protocol": "Protokoll",
-    "mode": "Push oder Pull",
+    "mode": "Pull, Push oder Empfangen",
     "port": "Port",
-    "peerKind": "Gegenstelle",
+    "peerKind": "Art der Gegenstelle",
     "peer": "Gegenstelle",
     "from": "von",
     "to": "an",
     "destinations": "Ziele",
     "addDestination": "Ziel hinzufügen",
     "removeDestination": "Ziel entfernen",
-    "destinationIncomplete": "Jedes Ziel braucht sein Ziel.",
+    "destinationIncomplete": "Jedes Ziel braucht seine Angabe, wohin.",
     "destinationKind": "Art",
     "destination": "Ziel",
     "where": "Wo dort",
@@ -369,7 +370,9 @@
     "count_one": "{{count}} Datenweg",
     "count_other": "{{count}} Datenwege",
     "countOf_one": "{{shown}} von {{count}} Datenweg",
-    "countOf_other": "{{shown}} von {{count}} Datenwegen"
+    "countOf_other": "{{shown}} von {{count}} Datenwegen",
+    "transfersHelp": "Aus Sicht des Sammlers. Die Gegenstelle ist das andere Ende der Übertragung: Wovon der Sammler abholt oder empfängt, dort kommen die Daten her; wohin er sendet (Push), ist ein Ziel wie die Ziele unten.",
+    "peerIsHost": "Das ist das System, auf dem der Sammler läuft. Ein Dienst auf demselben Host – eine Datenbank, ein Broker – ist meist ein eigenes Steward-System: Nennen Sie dieses, damit Ketten und das Diagramm es zeigen."
   },
   "asset": {
     "title": "OT-Netzwerk",
@@ -404,5 +407,10 @@
       "switch_case_one": "Ein Switch in unterschiedlicher Groß- und Kleinschreibung: {{variants}}",
       "switch_case_other": "Ein Switch in unterschiedlicher Groß- und Kleinschreibung: {{variants}}"
     }
+  },
+  "modeHelp": {
+    "pull": "Der Sammler holt die Daten bei der Gegenstelle ab",
+    "push": "Der Sammler sendet die Daten an die Gegenstelle",
+    "receive": "Die Gegenstelle sendet die Daten an den Sammler (eine SPS, die über MQTT veröffentlicht)"
   }
 }

@@ -4013,9 +4013,11 @@
               "mode": {
                 "type": "string",
                 "enum": [
+                  "pull",
                   "push",
-                  "pull"
-                ]
+                  "receive"
+                ],
+                "description": "Seen from the collector: pull (it fetches from the peer – a source), push (it sends to the peer – a target) or receive (the peer sends to it – a source)"
               },
               "peer_kind": {
                 "description": "device (of the asset), system (a Steward system) or other (default)",

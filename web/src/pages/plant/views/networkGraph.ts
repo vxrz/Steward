@@ -12,11 +12,13 @@ import type {
   PlantSiteNetwork,
   ZoneLevelOf,
 } from '@sm/shared';
+import { SOURCE_MODES } from '@sm/shared';
 
 /**
  * The OT network of a site (#220) as a graph (#230, view 5): IEC 62443-3-2 zones as areas, the IEEE 802.1Q VLANs in
  * them as areas, the assets on their VLANs (their devices on hover), the conduits between the zones, and the data
- * paths – from where the data comes, over the collector and the parties it pushes to, to its destinations. A way from
+ * paths – from where the data comes (what the collector pulls from or receives from), over the collector, to the parties
+ * it pushes to and its destinations. A way from
  * one zone into another runs through the conduit between them; one without a documented conduit says so.
  *
  * Status only from what #220 links: an asset's live status comes from its checks and those of its devices – a part
@@ -237,6 +239,21 @@ export function networkGraph(
     }
     return id;
   };
+  /** The collector of a data path as a part (one per collector, whichever data paths name it) */
+  const collectorNode = (dp: PlantDataPathView): string | null => {
+    const c = dp.collector;
+    if (!c) return null;
+    const hostRef = dp.collectorHost;
+    return node({
+      id: `col:${c.kind}:${norm(c.ref)}`,
+      kind: 'collector',
+      label: dp.collectorRef?.visible === false ? '' : dp.collectorRef?.label || c.ref,
+      hidden: dp.collectorRef?.visible === false,
+      detail: [w.collectorKind(c.kind), hostRef ? w.on(hostRef.visible ? hostRef.label : w.hidden) : ''].filter(Boolean).join(' · '),
+      path: dp.collectorRef?.path ?? null,
+      parent: c.host ? vlanParent(hostVlan.get(c.host)) : undefined,
+    });
+  };
   for (const dp of n.dataPaths as PlantDataPathView[]) {
     const pid = `${dp.assetId}/${dp.id}`;
     const asset = `asset:${dp.assetId}`;
@@ -281,35 +298,22 @@ export function networkGraph(
     };
     const party = (kind: 'device' | 'system' | 'other', ref: string, item: PlantItemRef | null) =>
       kind === 'device' ? asset : kind === 'system' ? host(item, ref) : peer(ref);
-    // where the data comes from: what the collector pulls from (devices are the asset), else the asset itself
-    const pulls = dp.transfers.map((t, i) => ({ t, i })).filter((x) => x.t.mode === 'pull');
-    const sources = pulls.map((x) => ({ id: party(x.t.peerKind, x.t.peer, dp.peers[x.i] ?? null), label: transferLabel(x.t, w) }));
-    if (!sources.some((s) => s.id === asset) && (!pulls.length || dp.devices.length)) sources.unshift({ id: asset, label: '' });
+    // where the data comes from (seen from the collector): what it pulls from and what sends to it – a device is its
+    // asset –, else the asset itself
+    const ends = dp.transfers.map((t, i) => ({ t, id: party(t.peerKind, t.peer, dp.peers[i] ?? null), label: transferLabel(t, w) }));
+    const fetched = ends.filter((x) => SOURCE_MODES.includes(x.t.mode));
+    const sources = fetched.map(({ id, label }) => ({ id, label }));
+    if (!sources.some((s) => s.id === asset) && (!fetched.length || dp.devices.length)) sources.unshift({ id: asset, label: '' });
     let stage = sources;
     if (dp.collector) {
-      const c = dp.collector;
-      const hostRef = dp.collectorHost;
-      const id = node({
-        id: `col:${c.kind}:${norm(c.ref)}`,
-        kind: 'collector',
-        label: dp.collectorRef?.visible === false ? '' : dp.collectorRef?.label || c.ref,
-        hidden: dp.collectorRef?.visible === false,
-        detail: [w.collectorKind(c.kind), hostRef ? w.on(hostRef.visible ? hostRef.label : w.hidden) : ''].filter(Boolean).join(' · '),
-        path: dp.collectorRef?.path ?? null,
-        parent: c.host ? vlanParent(hostVlan.get(c.host)) : undefined,
-      });
+      const id = collectorNode(dp)!;
       for (const s of sources) link(s.id, id, s.label);
       stage = [{ id, label: '' }];
     }
-    // the parties the collector pushes to, then the destinations
-    const pushes = dp.transfers
-      .map((t, i) => ({ t, i }))
-      .filter((x) => x.t.mode === 'push')
-      .map((x) => ({ id: party(x.t.peerKind, x.t.peer, dp.peers[x.i] ?? null), label: transferLabel(x.t, w) }));
-    if (pushes.length) {
-      for (const s of stage) for (const x of pushes) link(s.id, x.id, x.label);
-      stage = pushes.map((x) => ({ id: x.id, label: '' }));
-    }
+    // the parties the collector pushes to are targets like the destinations: each is reached from the collector (two
+    // targets are never drawn one after the other)
+    const pushes = ends.filter((x) => x.t.mode === 'push');
+    for (const s of stage) for (const x of pushes) link(s.id, x.id, x.label);
     const dests = dp.destinations.map((d, i) => {
       const item = dp.targets[i] ?? null;
       if (d.kind === 'system') return host(item, d.ref);

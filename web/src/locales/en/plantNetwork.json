@@ -153,7 +153,8 @@
   },
   "modes": {
     "push": "Push",
-    "pull": "Pull"
+    "pull": "Pull",
+    "receive": "Receive"
   },
   "peerKinds": {
     "device": "Device of the asset",
@@ -318,7 +319,7 @@
   },
   "path": {
     "title": "Data paths",
-    "help": "What data leaves the asset, who collects it, how it is transferred and where it ends up. Hosts are Steward systems, so chains can be followed.",
+    "help": "What data leaves the asset, who collects it, how it is transferred and where it ends up. Peers and destinations are Steward items, so chains can be followed: a path continues in the paths that read from what it writes to.",
     "siteHelp": "The data paths of every asset of this site, with the links of their chains. Add, change or remove them here or on the asset’s page.",
     "add": "Add data path",
     "newTitle": "New data path",
@@ -345,9 +346,9 @@
     "removeTransfer": "Remove the transfer",
     "transferIncomplete": "Each transfer needs a protocol and its peer.",
     "protocol": "Protocol",
-    "mode": "Push or pull",
+    "mode": "Pull, push or receive",
     "port": "Port",
-    "peerKind": "Peer",
+    "peerKind": "Kind of peer",
     "peer": "Peer",
     "from": "from",
     "to": "to",
@@ -369,7 +370,9 @@
     "count_one": "{{count}} data path",
     "count_other": "{{count}} data paths",
     "countOf_one": "{{shown}} of {{count}} data path",
-    "countOf_other": "{{shown}} of {{count}} data paths"
+    "countOf_other": "{{shown}} of {{count}} data paths",
+    "transfersHelp": "Seen from the collector. The peer is the other end of the transfer: what the collector pulls from or receives from is where the data comes from; what it pushes to is a target, like a destination.",
+    "peerIsHost": "This is the system the collector runs on. A service on the same host – a database, a broker – is usually a Steward system of its own: name that one, so chains and the diagram show it."
   },
   "asset": {
     "title": "OT network",
@@ -404,5 +407,10 @@
       "switch_case_one": "One switch written in different letter case: {{variants}}",
       "switch_case_other": "One switch written in different letter case: {{variants}}"
     }
+  },
+  "modeHelp": {
+    "pull": "The collector fetches the data from the peer",
+    "push": "The collector sends the data to the peer",
+    "receive": "The peer sends the data to the collector (a PLC publishing over MQTT)"
   }
 }

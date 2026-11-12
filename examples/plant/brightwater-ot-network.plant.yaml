@@ -115,8 +115,11 @@ asset_networks:
         subject: Machine state and spindle values
         devices: [rvs-mill-01-ipc]
         collector: { kind: job, ref: rvs-edge-collector }
+        # seen from the collector: it pulls from the machine PC, the cell's HMI publishes its alarms to it (receive),
+        # and it pushes everything on to the IoT platform's broker
         transfers:
           - { protocol: opc-ua, mode: pull, peer_kind: device, peer: rvs-mill-01-ipc, port: 4840 }
+          - { protocol: mqtt, mode: receive, peer: Cell HMI (alarms), port: 1883 }
           - { protocol: mqtt, mode: push, peer: IoT platform broker, port: 8883 }
         destinations:
           - { ref: IoT platform, path: rvs-mill-01/state }

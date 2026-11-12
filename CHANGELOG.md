@@ -6,6 +6,14 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Data path transfers can receive** ([docs/PLANT.md](docs/PLANT.md#data-paths-of-an-asset)): besides _Pull_ and _Push_, a transfer's mode can be _Receive_ – the peer sends to the collector, as a PLC or HMI that publishes over MQTT to a gateway. The dialog explains the three modes from the collector's view and what the peer is, and hints when a pushed-to or pulled-from system is the collector's own host (a service on it is usually a system of its own). File format `mode: receive`, the API and the JSON Schema take it; the example network shows one.
+
+### Changed
+
+- **Chains of data paths follow the direction of the data** ([docs/PLANT.md](docs/PLANT.md#chains-of-data-paths)): a data path reads from its pull and receive peers – from the system its collector runs on only when it has neither – and writes to its push peers and destinations. Two paths that only push into the same system (two machines into one IoT platform) are no longer shown as continuing in each other; a job that reads from that system continues both. The diagram draws push peers as targets beside the destinations, and maintenance impact follows the same chains. **Check before updating:** a data path that reads from a system through a transfer marked _Push_ needs that transfer set to _Pull_ (or _Receive_) to keep its _Comes from_.
+
 ### Fixed
 
 - **Searchable pickers no longer flicker** ([docs/PLANT.md](docs/PLANT.md#data-paths-of-an-asset)): a picker that searches as you type – the systems, applications and processes of a data path or data collection, links, documents, affected items of a ticket, a record that replaces another, compliance tags, vault secrets – showed an item whose name has a detail (_Gateway (server · Invented AG)_) alternately with and without it, asking the server every quarter second. The selected item's name is no longer taken as a search, and an item keeps one name while you search.
