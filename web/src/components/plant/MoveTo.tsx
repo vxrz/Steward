@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
-import { Modal, Select, Stack, Text } from '@mantine/core';
+import { Select, Stack, Text } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 import { LEVEL_RECORD_TYPE, type PlantAssetDetail, type PlantLevel, type PlantNode, type PlantSiteDetail } from '@sm/shared';
 import { notifyError, put } from '../../api';
 import { cleanRefs, useNameOf, usePlantLabel } from './common';
 import { cleanFieldValues, flatNodes, FormButtons, nodePath, useHierarchy } from './forms';
+import { FormModal as GuardedModal } from '../FormModal';
 
 /**
  * "Move to…" (0.12, docs/PLANT.md#move-to): a node to another parent of the level above it (a work center to another
@@ -41,7 +42,7 @@ function MoveModal({
 }) {
   const { t } = useTranslation('plant');
   return (
-    <Modal opened onClose={onClose} title={title} size="md">
+    <GuardedModal onClose={onClose} title={title} size="md">
       <form
         noValidate
         onSubmit={(e) => {
@@ -70,7 +71,7 @@ function MoveModal({
           <FormButtons busy={busy} onClose={onClose} />
         </Stack>
       </form>
-    </Modal>
+    </GuardedModal>
   );
 }
 

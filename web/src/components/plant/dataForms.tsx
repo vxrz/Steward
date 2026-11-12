@@ -3,7 +3,6 @@ import {
   Autocomplete,
   Badge,
   Group,
-  Modal,
   MultiSelect,
   NumberInput,
   Select,
@@ -70,6 +69,7 @@ import { TranslationsInput } from './common';
 import { FormButtons, IdInput, useIdField } from './forms';
 import { RowsEditor } from './data';
 import { TableScroll } from '../TableScroll';
+import { FormModal as GuardedModal } from '../FormModal';
 
 /**
  * The forms of part 2 of the plant registry (#219). Each form edits one part – a profile's own fields, an interface,
@@ -95,7 +95,7 @@ function FormModal({
 }) {
   const [busy, setBusy] = useState(false);
   return (
-    <Modal opened onClose={onClose} size={size} title={title}>
+    <GuardedModal onClose={onClose} size={size} title={title}>
       <form
         noValidate
         onSubmit={(e) => {
@@ -117,7 +117,7 @@ function FormModal({
           <FormButtons busy={busy} onClose={onClose} />
         </Stack>
       </form>
-    </Modal>
+    </GuardedModal>
   );
 }
 

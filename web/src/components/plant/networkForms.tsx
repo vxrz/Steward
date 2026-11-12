@@ -3,7 +3,6 @@ import {
   ActionIcon,
   Button,
   Group,
-  Modal,
   MultiSelect,
   NumberInput,
   Paper,
@@ -59,6 +58,7 @@ import { useFieldErrors } from '../common';
 import { FormButtons, IdInput, useIdField } from './forms';
 import { ItemMultiSelect, ItemSelect } from './network';
 import { saveOrDraft } from './changes/common';
+import { FormModal as GuardedModal } from '../FormModal';
 
 /**
  * The forms of the OT network (#220): a VLAN with its subnets and ranges, a zone, a conduit, a device, a data path and
@@ -105,7 +105,7 @@ function FormModal({
   size?: string;
 }) {
   return (
-    <Modal opened onClose={onClose} size={size} title={title}>
+    <GuardedModal onClose={onClose} size={size} title={title}>
       <form
         noValidate
         onSubmit={(e) => {
@@ -118,7 +118,7 @@ function FormModal({
           <FormButtons busy={busy} onClose={onClose} />
         </Stack>
       </form>
-    </Modal>
+    </GuardedModal>
   );
 }
 

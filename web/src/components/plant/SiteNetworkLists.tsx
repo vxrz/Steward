@@ -33,6 +33,7 @@ import { FormButtons } from './forms';
 import { Tokens } from './Tokens';
 import { saveOrDraft } from './changes/common';
 import { DeviceMenuItems, DuplicateDeviceModal, MoveEntriesModal, type MoveItem } from './MoveEntries';
+import { FormModal as GuardedModal } from '../FormModal';
 
 /**
  * The site's Devices and Data paths tabs (0.12, docs/PLANT.md#editing-in-place): sortable and filtered lists with a
@@ -130,7 +131,7 @@ function PickAssetModal({
   const [assetId, setAssetId] = useState<string | null>(null);
   const [shown, setShown] = useState(false);
   return (
-    <Modal opened onClose={onClose} title={what === 'device' ? t('device.newTitle') : t('path.newTitle')} size="md">
+    <GuardedModal onClose={onClose} title={what === 'device' ? t('device.newTitle') : t('path.newTitle')} size="md">
       <form
         noValidate
         onSubmit={(e) => {
@@ -160,7 +161,7 @@ function PickAssetModal({
           <FormButtons busy={false} onClose={onClose} />
         </Stack>
       </form>
-    </Modal>
+    </GuardedModal>
   );
 }
 

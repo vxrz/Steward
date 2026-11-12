@@ -77,6 +77,11 @@ export function useFormModalClose(): () => void {
   return close;
 }
 
+/** The guarded close of the surrounding {@link FormModal}, or null outside one (a shared _Cancel_ button). */
+export function useFormModalCloseIfAny(): (() => void) | null {
+  return useContext(GuardedClose);
+}
+
 /** The _Cancel_ button of a {@link FormModal}. */
 export function FormModalCancel({ children, ...props }: ButtonProps & { children?: ReactNode; 'data-testid'?: string }) {
   const { t } = useTranslation('common');
