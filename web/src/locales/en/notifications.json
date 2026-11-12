@@ -106,6 +106,10 @@
       "undocumented": {
         "label": "Undocumented access",
         "info": "The access reconciliation found access changes without an access change entry"
+      },
+      "share_expiring": {
+        "label": "Share ends soon",
+        "info": "A share of an item you manage ends in 7 days (it is removed then unless someone extends it)"
       }
     },
     "document": {

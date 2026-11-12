@@ -15,6 +15,8 @@ export default defineFeature({
   jobs: [
     // assurance policy: requests to loosen it that no second administrator approved within 7 days expire (auth/assurance.ts)
     every5Minutes('assurance-policy-changes', MINUTE, () => import('../auth/assurance.js').then((m) => m.expirePolicyChanges())),
+    // shares (ADR 0033): ended ones removed and audited, their Manage holders reminded 7 days before (auth/share-jobs.ts)
+    every5Minutes('shares', MINUTE, () => import('../auth/share-jobs.js').then((m) => m.runShareJob())),
   ],
   migrations: [SECURITY_MIGRATIONS, SIGN_IN_MIGRATIONS, TEAM_MIGRATIONS, ASSURANCE_MIGRATIONS],
 });

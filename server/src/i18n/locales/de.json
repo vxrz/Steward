@@ -623,6 +623,20 @@
     "noticeBody": "Der letzte Tag, um den Vertrag „{{title}}“ des Lieferanten „{{supplier}}“ zu kündigen, ist der {{date}}. Bitte entscheiden Sie, ob er sich verlängern soll.",
     "hint": "Sie erhalten diese Nachricht, weil Sie in Steward für den Vertrag oder den Lieferanten verantwortlich sind."
   },
+  "shareExpiry": {
+    "title_one": "{{item}}: Das Teilen mit {{subject}} endet in {{count}} Tag",
+    "title_other": "{{item}}: Das Teilen mit {{subject}} endet in {{count}} Tagen",
+    "body": "„{{item}}“ ist bis {{date}} mit {{subject}} geteilt ({{level}}). Danach entfällt dieser Zugriff. Verlängern Sie ihn im Reiter Zugriff, falls er noch gebraucht wird.",
+    "hint": "Sie erhalten diese Nachricht, weil Sie „{{item}}“ in Steward verwalten.",
+    "user": "{{name}}",
+    "team": "Team {{name}}",
+    "role": "alle mit der Rolle {{name}}",
+    "levels": {
+      "view": "Ansehen",
+      "edit": "Bearbeiten",
+      "manage": "Verwalten"
+    }
+  },
   "costBooking": {
     "title_one": "{{service}}: {{count}} Vertragszahlung von {{month}} nicht gebucht",
     "title_other": "{{service}}: {{count}} Vertragszahlungen von {{month}} nicht gebucht",
