@@ -17,7 +17,7 @@ import { me } from '../auth/access.js';
 import { fourEyesRequired, noteFourEyes } from '../auth/assurance.js';
 import { getProcess, permissionsFor } from '../processes/service.js';
 import { getPlatform } from '../platforms/service.js';
-import { requireRun, visibleTask } from '../routes/helpers.js';
+import { requireRun, visibleTask } from './run-access.js';
 import * as store from './store.js';
 import type { RunSignal } from './engine.js';
 

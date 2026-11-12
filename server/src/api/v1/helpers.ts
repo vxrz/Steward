@@ -1,8 +1,8 @@
 /** Helpers shared by the /api/v1 route modules: request accessors, paging and visibility checks. */
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import { db } from '../../db.js';
 import * as processes from '../../processes/service.js';
-import * as store from '../../engine/store.js';
+import type * as store from '../../engine/store.js';
+import { readableRun } from '../../engine/run-access.js';
 import { ProblemError } from './problem.js';
 import { linkNext } from './pagination.js';
 import type { Op } from './routes.js';
@@ -25,21 +25,12 @@ export function paged<T>(req: FastifyRequest, reply: FastifyReply, page: Paged<T
 
 // ---------- visibility helpers (mirror the internal API) ----------
 
-export function visibleProcessIds(): string[] {
-  return db()
-    .all<{ id: string }>('SELECT id FROM processes')
-    .map((r) => r.id)
-    .filter((id) => processes.permissionsFor(id).includes('view'));
-}
+/** The processes the caller may view (one statement, processes/service.ts), as a list. */
+export const visibleProcessIds = (): string[] => [...processes.visibleProcessIds()];
 
+/** A run the caller may read here (engine/run-access.ts: debug runs stay in the app); 404 otherwise. */
 export function viewableRun(id: string): store.RunRow {
-  let r: store.RunRow;
-  try {
-    r = store.runRow(id);
-  } catch {
-    throw notFound(`Run ${id}`);
-  }
-  // debug runs (ADR 0010) stay in the app: never served here
-  if (r.debug || !processes.permissionsFor(r.process_id).includes('view')) throw notFound(`Run ${id}`);
+  const r = readableRun(id);
+  if (!r) throw notFound(`Run ${id}`);
   return r;
 }
