@@ -378,7 +378,7 @@
     "continuesIn": "Geht weiter in",
     "chainMore_one": "und {{count}} weiterer",
     "chainMore_other": "und {{count}} weitere",
-    "search": "Gegenstand, Sammler, Protokoll suchen",
+    "search": "Gegenstand, Sammler, Protokoll, Gegenstelle, Ziel suchen",
     "noMatch": "Kein Datenweg passt.",
     "count_one": "{{count}} Datenweg",
     "count_other": "{{count}} Datenwege",

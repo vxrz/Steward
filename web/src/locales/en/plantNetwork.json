@@ -378,7 +378,7 @@
     "continuesIn": "Continues in",
     "chainMore_one": "and {{count}} more",
     "chainMore_other": "and {{count}} more",
-    "search": "Search subject, collector, protocol",
+    "search": "Search subject, collector, protocol, peer, destination",
     "noMatch": "No data path matches.",
     "count_one": "{{count}} data path",
     "count_other": "{{count}} data paths",

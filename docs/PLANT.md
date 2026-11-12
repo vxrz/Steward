@@ -407,7 +407,7 @@ Since 0.12 the site's **Devices** and **Data paths** tabs are where the OT netwo
 - selects devices and uses **Edit selected** or **Remove selected** ([Changing many entries at once](#changing-many-entries-at-once): state, confidence, owner, flags). Data paths have no bulk change; they are changed one at a time;
 - since 0.16 moves selected devices – or one from its row's menu – to another asset with **Move to another asset**, and copies one with **Duplicate** ([Moving devices and data collections](#moving-devices-and-data-collections), [Duplicating a device](#duplicating-a-device)).
 
-Both lists sort by every column, filter (devices by VLAN – or _No VLAN_ –, state and asset, data paths by asset, both with a search) and say how many entries they show. Inactive and retired devices are shown quieter. Identifiers – host names, addresses, MAC addresses, VLANs, switches and ports – never break inside; a wide table scrolls sideways. A device without an address shows its address type alone (_Dynamic (DHCP)_). On a phone the rows are cards.
+Both lists sort by every column, filter (devices by VLAN – or _No VLAN_ –, state and asset, data paths by asset, both with a search; since 0.20 the data paths' search also finds the collector's host, the peers and the destinations by name) and say how many entries they show. Inactive and retired devices are shown quieter. Identifiers – host names, addresses, MAC addresses, VLANs, switches and ports – never break inside; a wide table scrolls sideways. A device without an address shows its address type alone (_Dynamic (DHCP)_). On a phone the rows are cards.
 
 ### Moving devices and data collections
 

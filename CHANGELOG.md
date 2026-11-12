@@ -16,6 +16,7 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- **The site's data paths are found by their peers and destinations** ([docs/PLANT.md](docs/PLANT.md#editing-in-place)): the search of _OT network → Data paths_ also matches the collector's host and the names of the systems, applications and platforms a path pulls from, pushes to or delivers to (as you may see them), and text peers and destinations.
 - **Chains of data paths follow the direction of the data** ([docs/PLANT.md](docs/PLANT.md#chains-of-data-paths)): a data path reads from its pull and receive peers – from the system its collector runs on only when it has neither – and writes to its push peers and destinations. Two paths that only push into the same system (two machines into one IoT platform) are no longer shown as continuing in each other; a job that reads from that system continues both. The diagram draws push peers as targets beside the destinations, and maintenance impact follows the same chains. **Check before updating:** a data path that reads from a system through a transfer marked _Push_ needs that transfer set to _Pull_ (or _Receive_) to keep its _Comes from_.
 
 ### Fixed

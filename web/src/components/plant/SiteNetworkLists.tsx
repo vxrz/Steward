@@ -608,9 +608,18 @@ export function SitePaths({ n, edit }: { n: PlantSiteNetwork; edit: SiteNetworkE
   const shown = n.dataPaths.filter(
     (p) =>
       (!s ||
-        [p.id, p.subject, p.description, p.assetName, p.collectorRef?.label ?? '', ...p.transfers.map((x) => x.protocol)].some((x) =>
-          x.toLowerCase().includes(s),
-        )) &&
+        [
+          p.id,
+          p.subject,
+          p.description,
+          p.assetName,
+          p.collectorRef?.label ?? '',
+          p.collectorHost?.label ?? '',
+          ...p.transfers.map((x) => x.protocol),
+          // the peers and destinations by the names the reader sees (text ones as written; never a hidden item's id)
+          ...p.transfers.map((x, i) => (p.peers[i] ? p.peers[i].label : x.peerKind === 'other' ? x.peer : '')),
+          ...p.destinations.map((x, i) => (p.targets[i] ? p.targets[i].label : x.kind === 'other' ? x.ref : '')),
+        ].some((x) => x.toLowerCase().includes(s))) &&
       (asset === ALL || p.assetId === asset),
   );
   const menu = (p: PlantDataPathView) =>
