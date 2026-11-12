@@ -1,4 +1,5 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import dns from 'node:dns/promises';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { setEnv, setup, startTestServer, type TestServer } from './helpers.js';
 
 /**
@@ -91,5 +92,34 @@ describe('per-key limiters', () => {
     t += 1000;
     for (let i = 0; i < 1000; i++) l.take(`ip:${i}`, 3);
     expect(l.size).toBeLessThanOrEqual(100);
+  });
+});
+
+describe('outbound calls', () => {
+  it('connect the Kafka OAuth token request to the address that was checked (DNS rebinding)', async () => {
+    await s.api('PUT', '/settings', { outboundPolicy: 'open' });
+    // without a proxy (behind HTTPS_PROXY the proxy resolves names, docs/SECURITY-HARDENING.md)
+    const proxies = Object.fromEntries(['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy'].map((k) => [k, process.env[k]]));
+    for (const k of Object.keys(proxies)) delete process.env[k];
+    // the check sees a harmless address, the connection would see the cloud metadata address
+    let calls = 0;
+    const spy = vi.spyOn(dns, 'lookup').mockImplementation((async () => {
+      calls++;
+      return [{ address: calls === 1 ? '203.0.113.7' : '169.254.169.254', family: 4 }];
+    }) as never);
+    try {
+      const { oauthToken } = await import('../src/kafka/client.js');
+      const platform = { config: { variables: { tokenUrl: 'https://idp.invented.example/token' } } } as never;
+      const err = (await oauthToken(platform, { clientId: 'invented', clientSecret: 'invented-secret' }).catch((e: unknown) => e)) as Error & {
+        cause?: { code?: string };
+      };
+      expect(err).toBeInstanceOf(Error);
+      expect(err.cause?.code).toBe('ESSRFBLOCKED');
+      expect(calls).toBeGreaterThan(1);
+    } finally {
+      spy.mockRestore();
+      for (const [k, v] of Object.entries(proxies)) if (v !== undefined) process.env[k] = v;
+      await s.api('PUT', '/settings', { outboundPolicy: 'platforms' });
+    }
   });
 });

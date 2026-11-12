@@ -13,6 +13,7 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 ### Security
 
 - **Rate limits and sign-in counters count an IPv6 client by its /64 network everywhere** ([docs/SECURITY-HARDENING.md](docs/SECURITY-HARDENING.md#request-rate-limits)): the public API's and the MCP endpoint's limits for requests without a valid token and the failed sign-in and step-up counters per address took each IPv6 address on its own, so a client could sidestep them by changing addresses within its network. The per-token limiters keep a bounded number of counters.
+- **The Kafka OAuth token request connects to the address that was checked** ([docs/SECURITY-HARDENING.md](docs/SECURITY-HARDENING.md#which-rule-checks-which-call)): a token URL whose name was rebound between the outbound check and the connection could have received the client secret.
 
 ## [0.19.0] - 2026-11-12
 
