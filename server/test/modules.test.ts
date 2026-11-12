@@ -48,6 +48,28 @@ describe('the registry', () => {
     expect(moduleOfRoute('/api/processes')).toBeUndefined();
   });
 
+  it('declares the parts that leave with module access: every tool, report section and export part of a module (ADR 0034)', async () => {
+    const { MODULES: all, NOTIFICATION_EVENTS, moduleOfMcpTool, moduleOfReportSection, moduleOfExportPart, moduleOfEvent } = await import('@sm/shared');
+    const { FEATURES } = await import('../src/features/index.js');
+    const { allTools } = await import('../src/mcp/tools.js');
+    const { EXPORT_PARTS } = await import('../src/export/parts.js');
+    for (const f of FEATURES) {
+      if (!f.module) continue;
+      for (const t of f.mcpTools ?? []) expect(moduleOfMcpTool(t.name), `${f.name}: MCP tool ${t.name}`).toBe(f.module);
+      for (const sct of f.reportSections ?? []) expect(moduleOfReportSection(sct.id), `${f.name}: report section ${sct.id}`).toBe(f.module);
+    }
+    for (const p of EXPORT_PARTS) expect(moduleOfExportPart(p.id) ?? null, `export part ${p.id}`).toBe(p.module);
+    // and nothing stale: every declared tool exists, every declared event is an event
+    const tools = new Set(allTools().map((t) => t.name));
+    for (const m of all) {
+      for (const t of m.access?.mcpTools ?? []) expect(tools.has(t), `${m.id}: MCP tool ${t}`).toBe(true);
+      for (const e of m.access?.events ?? []) expect(NOTIFICATION_EVENTS as readonly string[], `${m.id}: event ${e}`).toContain(e);
+      expect(m.access, `${m.id}: declares its access`).toBeDefined();
+    }
+    expect(moduleOfEvent('cost.budget')).toBe('costs');
+    expect(moduleOfEvent('run.failed')).toBeUndefined();
+  });
+
   it('names registered routes only: every route prefix matches at least one route of the server', async () => {
     const { registeredRoutes } = await import('../src/app.js');
     const urls = registeredRoutes(s.app).map((r) => r.url);

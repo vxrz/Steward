@@ -864,7 +864,10 @@ function transformStaging(staging: Db, pkg: OpenedPackage, maps: NameMaps, dataD
       );
       for (const r of rows) {
         const next = mapValue(ref.kind, r.v, maps);
-        if (next !== r.v)
+        // a single subject of a dropped team (module access): the grant goes, the module stays restricted
+        if (next === null)
+          staging.run(`DELETE FROM ${quoteIdent(ref.table)} WHERE ${key.map((k) => `${quoteIdent(k)} = ?`).join(' AND ')}`, ...key.map((k) => r[k]));
+        else if (next !== r.v)
           staging.run(
             `UPDATE ${quoteIdent(ref.table)} SET ${quoteIdent(ref.column)} = ? WHERE ${key.map((k) => `${quoteIdent(k)} = ?`).join(' AND ')}`,
             next,

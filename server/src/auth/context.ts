@@ -40,6 +40,8 @@ interface RequestStore {
   apiToken?: string;
   /** Owning teams of all resources, read once per request (auth/policy.ts) */
   teamIndex?: Map<string, { id: string; name: string }[]>;
+  /** The restricted modules and the subjects that use them, read once per request (modules/access.ts, ADR 0034) */
+  moduleAccess?: Map<string, string[]>;
   /** How this request met the assurance policy (auth/assurance.ts): written into its audit entries */
   assurance?: { proofs: Record<string, unknown>[]; consumed: boolean };
 }

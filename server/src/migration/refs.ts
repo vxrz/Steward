@@ -35,6 +35,8 @@ export function mapValue(kind: RefKind, raw: unknown, maps: NameMaps): unknown {
     const to = maps.users.get(lower(String(raw)));
     return to ?? raw;
   }
+  // one subject (module access): null for a team that is dropped – the row goes (migration/import.ts)
+  if (kind === 'subject') return mapSubject(String(raw), maps);
   const json = parseJson<unknown>(String(raw), undefined);
   if (json === undefined) return raw;
   let out: unknown = json;

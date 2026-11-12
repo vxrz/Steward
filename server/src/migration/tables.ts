@@ -102,6 +102,8 @@ export const USER_ID_TABLES: Record<string, string> = {
 export type RefKind =
   /** a plain user name */
   | 'username'
+  /** one subject: "user:x" | "team:y" (module access, ADR 0034) */
+  | 'subject'
   /** JSON array of { subject: "user:x" | "team:y" | "role:z", … } */
   | 'acl'
   /** JSON array of subjects */
@@ -171,6 +173,9 @@ export const USER_REFS: UserRef[] = [
   { table: 'ticket_refs', column: 'responsible', kind: 'subjects' },
   // the access list of a plant registry site (#218)
   { table: 'plant_sites', column: 'acl', kind: 'acl' },
+  // module access (0.21.0, ADR 0034): the teams and users that use a restricted module; a deleted team stays as a grant
+  // that matches nobody, so the list still says whom the administrator chose (a dropped team on import: the row goes)
+  { table: 'module_grants', column: 'subject', kind: 'subject', keepDeletedTeams: true },
 ];
 
 /**
@@ -178,6 +183,9 @@ export const USER_REFS: UserRef[] = [
  * Listed so that the classification test notices new person columns.
  */
 export const HISTORY_COLUMNS: string[] = [
+  // module access (0.21.0, ADR 0034): who restricted a module, who gave a team or user its use
+  'module_access.updated_by',
+  'module_grants.created_by',
   'ai_usage.actor',
   'ai_budgets.updated_by',
   // platform costs (#226)
