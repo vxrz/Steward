@@ -1126,6 +1126,20 @@
     "afterMaxOffOf": "{{state}}: länger aus als der Höchstwert",
     "tryBeyondMax": "Länger aus als der Höchstwert",
     "legendMaxOff": "wie lange ein Aus-Zustand dauern darf (leer: der Höchstwert des Monitors; 0: kein Höchstwert) und was er danach aus dem Monitor macht: Beeinträchtigt (eine Warnung, zählt als verfügbar) oder Ausgefallen (ein Ausfall, zählt als nicht verfügbar). Geplante Stillstandszeit zählt nicht.",
-    "offTooLong": "{{state}} länger als erwartet: aus seit {{off}}, Höchstwert {{max}}"
+    "offTooLong": "{{state}} länger als erwartet: aus seit {{off}}, Höchstwert {{max}}",
+    "issue": {
+      "duplicateId": "Die Zustands-ID „{{id}}“ ist doppelt vergeben – jeder Zustand braucht seine eigene",
+      "unknownCheck": "Die Prüfung „{{check}}“ gibt es nicht (mehr) – wählen Sie für sie „Beliebig“ oder entfernen Sie den Zustand",
+      "checkDisabled": "Die Prüfung „{{check}}“ ist deaktiviert – eine deaktivierte Prüfung kann nicht auswählen, erwartet oder vorausgesetzt werden",
+      "offOnlySub": "„Aus“ gibt es nur in Spalten von Unter-Monitoren: Eine eigene Prüfung ist „Ausgefallen“, wenn ihr Gerät aus ist („{{check}}“)",
+      "conditionAlready": "„{{check}}“ wählt diesen Zustand bereits aus – sie kann nicht zugleich erwartet werden",
+      "requiredOtherCell": "„{{check}}“ ist vorausgesetzt – sie kann den Zustand nicht zugleich auswählen oder in ihm erwartet werden",
+      "followerNoCondition": "Ein Zustand, der einem anderen Monitor folgt, hat keine eigene Bedingung – er gilt, solange der andere Monitor in ihm ist",
+      "needsCondition": "Keine Prüfung wählt diesen Zustand aus – setzen Sie mindestens eine Zelle auf „OK · wählt“ oder „Ausgefallen · wählt“",
+      "maxOffOnlyOff": "Nur ein Zustand, der „Aus“ zeigt, hat eine höchste Aus-Zeit",
+      "followerNoMaxOff": "Ein Zustand, der einem anderen Monitor folgt, hat keine eigene höchste Aus-Zeit – der Monitor, dem er folgt, meldet sie",
+      "neverMatches": "Dieser Zustand kann nie zutreffen: „{{earlier}}“ kommt vorher mit derselben oder einer weiteren Bedingung und gewinnt – schieben Sie diesen Zustand nach oben oder schränken Sie die Bedingung von „{{earlier}}“ ein",
+      "requiredDataPath": "„{{check}}“ ist in {{state}} vorausgesetzt: Eine vorausgesetzte Prüfung hat keine Einschwingzeit – bleiben ihre Daten aus, während die Maschine aus ist, ist der Monitor sofort ausgefallen. Erwarten Sie sie stattdessen als „Ausgefallen“ und setzen Sie nur voraus, was beweist, dass der Datenweg funktioniert – etwa den eigenen Herzschlag des Gateways"
+    }
   }
 }

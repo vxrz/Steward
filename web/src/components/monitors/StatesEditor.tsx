@@ -41,6 +41,7 @@ import { get } from '../../api';
 import { monitorKeys } from '../../queryKeys';
 import { MonitorStatusBadge, monitorStatusLabel } from './status';
 import { fmtSpan } from './StatePanel';
+import { issueText } from './validate';
 
 /**
  * The editor's "States" tab (0.13, ADR 0021): the decision table – one row per state, one column per check. A cell is
@@ -177,6 +178,14 @@ export function StatesEditor({
     ];
   };
   const leaderIds = leader.data?.definition.states?.cases.map((c) => c.id) ?? [];
+  /** "State 2 (Off): " for a row's problem, nothing for the monitor's */
+  const issueWhere = (path: string): string => {
+    const m = /^states\.cases\.(\d+)/.exec(path);
+    if (!m) return '';
+    const r = cases[Number(m[1])];
+    const name = r ? r.name || r.id : '';
+    return `${t('states.rowRef', { n: Number(m[1]) + 1 })}${name ? ` (${name})` : ''}: `;
+  };
   /** The controls of one state, shared by the table (desktop) and the cards (phones). */
   const rowControls = (r: StateCase, i: number) => {
     const label = r.name || r.id;
@@ -556,7 +565,8 @@ export function StatesEditor({
             <Alert key={i} color={x.warning ? 'yellow' : 'red'} p="xs">
               <Text size="sm">
                 {x.warning ? `${t('states.warning')}: ` : ''}
-                {x.path.replace(/^states\.cases\.(\d+)/, (_, n: string) => t('states.rowRef', { n: Number(n) + 1 }))} – {x.message}
+                {issueWhere(x.path)}
+                {issueText(t, x)}
               </Text>
             </Alert>
           ))}

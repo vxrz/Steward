@@ -1126,6 +1126,20 @@
     "afterMaxOffOf": "{{state}}: off for longer than the maximum",
     "tryBeyondMax": "Off for longer than the maximum",
     "legendMaxOff": "how long an off state may last (empty: the monitor’s maximum; 0: no maximum) and what it makes the monitor after that: Degraded (a warning, counted as available) or Down (an outage, counted as unavailable). Planned downtime does not count.",
-    "offTooLong": "{{state}} for longer than expected: off {{off}}, maximum {{max}}"
+    "offTooLong": "{{state}} for longer than expected: off {{off}}, maximum {{max}}",
+    "issue": {
+      "duplicateId": "the state id “{{id}}” is used twice – each state needs its own",
+      "unknownCheck": "the check “{{check}}” does not exist (any more) – choose Any for it or remove the state",
+      "checkDisabled": "the check “{{check}}” is disabled – a disabled check cannot select, be expected or be required",
+      "offOnlySub": "Off is only for sub-monitor columns: a check of its own is Down when its device is off (“{{check}}”)",
+      "conditionAlready": "“{{check}}” selects this state already – it cannot be expected too",
+      "requiredOtherCell": "“{{check}}” is required – it cannot also select the state or be expected in it",
+      "followerNoCondition": "a state that follows another monitor has no condition of its own – it holds while the other monitor is in it",
+      "needsCondition": "no check selects this state – set at least one cell to Up · selects or Down · selects",
+      "maxOffOnlyOff": "only a state that shows Off has a maximum off time",
+      "followerNoMaxOff": "a state that follows another monitor has no maximum off time of its own – the monitor it follows reports it",
+      "neverMatches": "this state can never match: “{{earlier}}” comes first with the same or a wider condition and wins – move this state up, or narrow the condition of “{{earlier}}”",
+      "requiredDataPath": "“{{check}}” is required in {{state}}: a required check has no settle time, so if its data stops while the machine is off the monitor is Down at once. Expect it Down instead, and require only what proves the data path works – such as the gateway’s own heartbeat"
+    }
   }
 }

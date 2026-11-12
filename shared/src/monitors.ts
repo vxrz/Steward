@@ -887,7 +887,25 @@ export interface DefinitionIssue {
   checkId?: string;
   /** Shown, but does not stop saving (a state that can never match) */
   warning?: boolean;
+  /** The rules of the decision table (0.20): a code and its details, so the editor can show the text in the reader's language */
+  code?: StateIssueCode;
+  params?: Record<string, string>;
 }
+
+/** The codes of stateIssues (the States tab translates them as monitors:states.issue.<code>). */
+export type StateIssueCode =
+  | 'duplicateId'
+  | 'unknownCheck'
+  | 'checkDisabled'
+  | 'offOnlySub'
+  | 'conditionAlready'
+  | 'requiredOtherCell'
+  | 'followerNoCondition'
+  | 'needsCondition'
+  | 'maxOffOnlyOff'
+  | 'followerNoMaxOff'
+  | 'neverMatches'
+  | 'requiredDataPath';
 
 /** Structural rules beyond the schema: unique ids, valid links, no cycles, sensible check settings. */
 export function definitionIssues(def: MonitorDefinition, opts: { template?: boolean } = {}): DefinitionIssue[] {
@@ -972,36 +990,75 @@ export function stateIssues(def: MonitorDefinition): DefinitionIssue[] {
   const follower = !!st.from;
   st.cases.forEach((r, i) => {
     const at = `states.cases.${i}`;
-    if (ids.has(r.id)) out.push({ path: `${at}.id`, message: `duplicate state id "${r.id}"` });
+    const state = r.name || r.id;
+    if (ids.has(r.id)) out.push({ path: `${at}.id`, message: `duplicate state id "${r.id}"`, code: 'duplicateId', params: { id: r.id } });
     ids.add(r.id);
     const cellsOf = (field: 'when' | 'expect') => Object.entries(r[field] ?? {});
     for (const field of ['when', 'expect'] as const) {
       for (const [cid, cell] of cellsOf(field)) {
         const c = checks.get(cid);
-        if (!c) out.push({ path: `${at}.${field}.${cid}`, message: `unknown check "${cid}"` });
-        else if (c.enabled === false) out.push({ path: `${at}.${field}.${cid}`, message: `the check "${c.name}" is disabled`, checkId: cid });
+        if (!c) out.push({ path: `${at}.${field}.${cid}`, message: `unknown check "${cid}"`, code: 'unknownCheck', params: { check: cid } });
+        else if (c.enabled === false)
+          out.push({
+            path: `${at}.${field}.${cid}`,
+            message: `the check "${c.name}" is disabled`,
+            checkId: cid,
+            code: 'checkDisabled',
+            params: { check: c.name },
+          });
         else if (cell === 'off' && c.type !== 'monitor')
-          out.push({ path: `${at}.${field}.${cid}`, message: 'off is only for sub-monitor checks', checkId: cid });
+          out.push({
+            path: `${at}.${field}.${cid}`,
+            message: 'off is only for sub-monitor checks',
+            checkId: cid,
+            code: 'offOnlySub',
+            params: { check: c.name },
+          });
       }
     }
     for (const cid of Object.keys(r.when ?? {}))
-      if (r.expect && cid in r.expect) out.push({ path: `${at}.expect.${cid}`, message: `"${cid}" is a condition of this state already`, checkId: cid });
+      if (r.expect && cid in r.expect)
+        out.push({
+          path: `${at}.expect.${cid}`,
+          message: `"${cid}" is a condition of this state already`,
+          checkId: cid,
+          code: 'conditionAlready',
+          params: { check: checks.get(cid)?.name ?? cid },
+        });
     for (const cid of r.requires ?? []) {
       const c = checks.get(cid);
-      if (!c) out.push({ path: `${at}.requires`, message: `unknown check "${cid}"` });
-      else if (c.enabled === false) out.push({ path: `${at}.requires`, message: `the check "${c.name}" is disabled`, checkId: cid });
+      if (!c) out.push({ path: `${at}.requires`, message: `unknown check "${cid}"`, code: 'unknownCheck', params: { check: cid } });
+      else if (c.enabled === false)
+        out.push({ path: `${at}.requires`, message: `the check "${c.name}" is disabled`, checkId: cid, code: 'checkDisabled', params: { check: c.name } });
       if ((r.when && cid in r.when) || (r.expect && cid in r.expect))
-        out.push({ path: `${at}.requires`, message: `a required check is no other cell of its state ("${cid}")`, checkId: cid });
+        out.push({
+          path: `${at}.requires`,
+          message: `a required check is no other cell of its state ("${cid}")`,
+          checkId: cid,
+          code: 'requiredOtherCell',
+          params: { check: c?.name ?? cid },
+        });
+      // a data path required in an off state: it stops when the machine is off, and a required check is judged at once
+      else if (!follower && r.status === 'off' && c && c.enabled !== false && (c.type === 'heartbeat' || c.type === 'freshness'))
+        out.push({
+          path: `${at}.requires`,
+          message: `"${c.name}" is required in ${state}: if its data stops while the machine is off, the monitor is down at once (a required check has no settle time) – expect it down instead and require only what proves the path works, such as the gateway's own heartbeat`,
+          checkId: cid,
+          warning: true,
+          code: 'requiredDataPath',
+          params: { check: c.name, state },
+        });
     }
     const condition = cellsOf('when').filter(([, v]) => v !== 'any');
     if (follower && r.when && Object.keys(r.when).length)
-      out.push({ path: `${at}.when`, message: 'a state that follows another monitor has no condition of its own' });
-    if (!follower && !condition.length) out.push({ path: `${at}.when`, message: 'a state needs at least one condition cell' });
+      out.push({ path: `${at}.when`, message: 'a state that follows another monitor has no condition of its own', code: 'followerNoCondition' });
+    if (!follower && !condition.length) out.push({ path: `${at}.when`, message: 'a state needs at least one condition cell', code: 'needsCondition' });
     if (!follower && r.status !== 'off' && r.maxOffHours !== undefined)
-      out.push({ path: `${at}.maxOffHours`, message: 'only an off state has a maximum off time' });
+      out.push({ path: `${at}.maxOffHours`, message: 'only an off state has a maximum off time', code: 'maxOffOnlyOff' });
     if (follower && r.afterMaxOff !== undefined)
-      out.push({ path: `${at}.afterMaxOff`, message: 'a state that follows another monitor has no maximum off time of its own' });
-    else if (r.status !== 'off' && r.afterMaxOff !== undefined) out.push({ path: `${at}.afterMaxOff`, message: 'only an off state has a maximum off time' });
+      out.push({ path: `${at}.afterMaxOff`, message: 'a state that follows another monitor has no maximum off time of its own', code: 'followerNoMaxOff' });
+    else if (r.status !== 'off' && r.afterMaxOff !== undefined)
+      out.push({ path: `${at}.afterMaxOff`, message: 'only an off state has a maximum off time', code: 'maxOffOnlyOff' });
     // a row that an earlier row always wins against: every condition cell of the earlier row is in this one, the same
     if (!follower && condition.length) {
       const earlier = st.cases.slice(0, i).find((e) => {
@@ -1013,13 +1070,15 @@ export function stateIssues(def: MonitorDefinition): DefinitionIssue[] {
           path: `${at}.when`,
           message: `this state can never match: "${earlier.name || earlier.id}" comes first with the same or a wider condition`,
           warning: true,
+          code: 'neverMatches',
+          params: { earlier: earlier.name || earlier.id },
         });
     }
   });
   if (follower && st.maxOffHours !== undefined)
-    out.push({ path: 'states.maxOffHours', message: 'a state that follows another monitor has no maximum off time of its own' });
+    out.push({ path: 'states.maxOffHours', message: 'a state that follows another monitor has no maximum off time of its own', code: 'followerNoMaxOff' });
   if (follower && st.afterMaxOff !== undefined)
-    out.push({ path: 'states.afterMaxOff', message: 'a state that follows another monitor has no maximum off time of its own' });
+    out.push({ path: 'states.afterMaxOff', message: 'a state that follows another monitor has no maximum off time of its own', code: 'followerNoMaxOff' });
   return out;
 }
 

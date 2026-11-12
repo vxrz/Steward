@@ -322,6 +322,27 @@ describe('decision table (pure)', () => {
     expect(tryStates(down, { pm: 'up', data: 'up', ih: 'up', machine: 'up', gw: 'up' }, { beyondMaxOff: true }).status).toBe('up');
   });
 
+  it('rules carry a code for the editor; a data path required in an off state is a warning (0.20 review)', () => {
+    const d = def({
+      ...MACHINE,
+      states: {
+        cases: [
+          { id: 'running', name: 'Running', when: { pm: 'up' }, expect: { data: 'up' } },
+          { id: 'off', name: 'Off', status: 'off', when: { pm: 'down' }, requires: ['gw', 'data'] },
+          { id: 'standby', name: 'Standby', when: { pm: 'up', ih: 'down' } },
+        ],
+      },
+    });
+    expect(stateIssues(d)).toEqual([
+      expect.objectContaining({ path: 'states.cases.1.requires', warning: true, code: 'requiredDataPath', params: { check: 'PowerMeter data', state: 'Off' } }),
+      expect.objectContaining({ path: 'states.cases.2.when', warning: true, code: 'neverMatches', params: { earlier: 'Running' } }),
+    ]);
+    // warnings never stop saving
+    expect(stateIssues(d).every((i) => i.warning)).toBe(true);
+    // the gateway (a sub-monitor) is what a required check is for: no warning
+    expect(stateIssues(MACHINE)).toEqual([]);
+  });
+
   it('afterMaxOff is refused on a row that does not show off and on a follower (#288)', () => {
     const msgs = (d: MonitorDefinition) => stateIssues(d).map((i) => `${i.path}: ${i.message}`);
     const running = def({

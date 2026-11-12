@@ -8037,6 +8037,18 @@ export interface Resources {
     'states.tryBeyondMax': string;
     'states.legendMaxOff': string;
     'states.offTooLong': string;
+    'states.issue.duplicateId': string;
+    'states.issue.unknownCheck': string;
+    'states.issue.checkDisabled': string;
+    'states.issue.offOnlySub': string;
+    'states.issue.conditionAlready': string;
+    'states.issue.requiredOtherCell': string;
+    'states.issue.followerNoCondition': string;
+    'states.issue.needsCondition': string;
+    'states.issue.maxOffOnlyOff': string;
+    'states.issue.followerNoMaxOff': string;
+    'states.issue.neverMatches': string;
+    'states.issue.requiredDataPath': string;
   };
   nav: {
     'items.dashboard': string;

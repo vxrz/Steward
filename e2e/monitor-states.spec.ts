@@ -198,6 +198,16 @@ test('off beyond the maximum: degraded or down, per monitor and per off row, and
   await page.getByRole('option', { name: 'Degraded', exact: true }).click();
   await page.getByTestId('states-try').click();
   await expect(result.locator('[data-status="degraded"]')).toBeVisible();
+  // a data path made a precondition of Off: a warning that says why and what to do instead (0.20 review)
+  const offData = page.getByRole('combobox', { name: 'Off – PowerMeter data', exact: true });
+  await offData.click();
+  await page.getByRole('option', { name: 'Required', exact: true }).click();
+  await expect(page.getByTestId('states-issues')).toContainText(
+    'Warning: State 2 (Off): “PowerMeter data” is required in Off: a required check has no settle time',
+  );
+  await offData.click();
+  await page.getByRole('option', { name: 'Down · expected', exact: true }).click();
+  await expect(page.getByTestId('states-issues')).toHaveCount(0);
   await page.getByRole('button', { name: 'Save' }).click();
   await expect(page).toHaveURL((url) => url.pathname.endsWith(`/monitors/${id}`));
   const saved = await json(await api.get(`/api/monitors/${id}`));

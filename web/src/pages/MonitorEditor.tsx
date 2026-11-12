@@ -61,7 +61,7 @@ import { CHECK_ICONS, newCheck } from '../components/monitors/checkMeta';
 import { SecretsModal } from '../components/monitors/dialogs';
 import { MonitorStatusBadge, checkTypeHelp, checkTypeLabel } from '../components/monitors/status';
 import { SeriesPreview } from '../components/monitors/SeriesPreview';
-import { editorIssues, issuesByCheck, serverIssues, type EditorIssue } from '../components/monitors/validate';
+import { editorIssues, issueText, issuesByCheck, serverIssues, type EditorIssue } from '../components/monitors/validate';
 import { isTextTarget, modKey, useDefHistory, useUndoKeys } from '../components/editor/useDefHistory';
 import { monitorKeys, platformKeys, processKeys } from '../queryKeys';
 import { SaveAsTemplateModal } from '../components/monitors/SaveAsTemplate';
@@ -360,7 +360,8 @@ export function MonitorEditorPage() {
   };
   const goTo = (issue: EditorIssue) => {
     if (issue.index === null) {
-      setTab(issue.path.startsWith('outputs') ? 'outputs' : 'settings');
+      // a problem of the decision table opens the States tab (templates have none: their Settings)
+      setTab(issue.path.startsWith('outputs') ? 'outputs' : issue.path.startsWith('states') && !isTemplate ? 'states' : 'settings');
       return;
     }
     setTab('graph');
@@ -438,7 +439,7 @@ export function MonitorEditorPage() {
                 {labelOf(i)}:{' '}
                 {i.index !== null && i.field && isEmpty((def.checks[i.index] as Record<string, unknown> | undefined)?.[i.field])
                   ? t('editor.required')
-                  : i.message}
+                  : issueText(t, i)}
               </Anchor>
             ))}
           </Stack>

@@ -1,4 +1,5 @@
-import { checkIssueTarget, definitionIssues, issueLabel, monitorDefinitionSchema, type MonitorDefinition } from '@sm/shared';
+import type { TFunction } from 'i18next';
+import { checkIssueTarget, definitionIssues, issueLabel, monitorDefinitionSchema, type DefinitionIssue, type MonitorDefinition } from '@sm/shared';
 
 /** A problem of a monitor definition as the editor shows it: on the card's field and in the summary (#141). */
 export interface EditorIssue {
@@ -10,12 +11,27 @@ export interface EditorIssue {
   message: string;
   /** "Check "Name" (id) – field" */
   label: string;
+  /** The decision table's rules: a code for the text in the reader's language (issueText) */
+  code?: DefinitionIssue['code'];
+  params?: Record<string, string>;
 }
 
-const toIssue = (def: unknown, path: string, message: string): EditorIssue => {
+const toIssue = (def: unknown, path: string, message: string, coded?: Pick<DefinitionIssue, 'code' | 'params'>): EditorIssue => {
   const target = checkIssueTarget(path);
-  return { path, index: target?.index ?? null, field: target?.field ?? null, message, label: issueLabel(def, path) };
+  return {
+    path,
+    index: target?.index ?? null,
+    field: target?.field ?? null,
+    message,
+    label: issueLabel(def, path),
+    ...(coded?.code ? { code: coded.code, params: coded.params } : {}),
+  };
 };
+
+/** The text of a problem in the reader's language where it has a code (the decision table), else its English message. */
+export function issueText(t: TFunction<'monitors'> | TFunction<['monitors', 'common']>, i: Pick<DefinitionIssue, 'code' | 'params' | 'message'>): string {
+  return i.code ? (t as TFunction<'monitors'>)(`states.issue.${i.code}`, { ...i.params }) : i.message;
+}
 
 /**
  * The same validation as the server: the definition schema from `@sm/shared` and its structural rules (unique ids,
@@ -25,7 +41,7 @@ export function editorIssues(def: MonitorDefinition): EditorIssue[] {
   const parsed = monitorDefinitionSchema.safeParse(def);
   const out: EditorIssue[] = parsed.success ? [] : parsed.error.issues.map((i) => toIssue(def, i.path.join('.'), i.message));
   try {
-    for (const i of definitionIssues(parsed.success ? parsed.data : def)) out.push(toIssue(def, i.path, i.message));
+    for (const i of definitionIssues(parsed.success ? parsed.data : def)) out.push(toIssue(def, i.path, i.message, i));
   } catch {
     /* an incomplete definition: the schema issues say enough */
   }
@@ -48,8 +64,5 @@ export function issuesByCheck(issues: EditorIssue[]): Map<number, Map<string, st
 
 /** Issues the server returned (`issues` of a MONITOR_INVALID error) in the editor's form. */
 export function serverIssues(def: MonitorDefinition, issues: { path: string; message: string }[]): EditorIssue[] {
-  return issues.map((i) => {
-    const target = checkIssueTarget(i.path);
-    return { path: i.path, index: target?.index ?? null, field: target?.field ?? null, message: i.message, label: issueLabel(def, i.path) };
-  });
+  return issues.map((i) => toIssue(def, i.path, i.message));
 }
