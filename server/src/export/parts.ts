@@ -504,12 +504,12 @@ export const exportPart = (id: string): ExportPartDef | undefined => EXPORT_PART
 
 /** The parts as the export page offers them, with whether their module is on. */
 export async function exportPartInfos(): Promise<ExportPartInfo[]> {
-  const { moduleEnabled } = await import('../modules/registry.js');
+  const { moduleAvailable } = await import('../modules/access.js');
   return EXPORT_PARTS.map((p) => ({
     id: p.id,
     formats: [...p.formats],
     module: p.module,
-    available: !p.module || moduleEnabled(p.module),
+    available: !p.module || moduleAvailable(p.module),
     options: [...p.options],
   }));
 }

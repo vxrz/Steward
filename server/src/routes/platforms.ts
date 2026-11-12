@@ -20,7 +20,7 @@ import { ACCESS, me } from '../auth/access.js';
 import { requirePlatform } from './helpers.js';
 import { PRESET_SPECS } from '../platforms/presets.js';
 import { moduleOfPlatformKind } from '@sm/shared';
-import { moduleEnabled } from '../modules/registry.js';
+import { moduleAvailable } from '../modules/access.js';
 import { params } from './params.js';
 import { platformIdentityRoutes } from './platform-identities.js';
 import { isPrivileged, privilegedRefusal } from '../platforms/privileged.js';
@@ -74,7 +74,7 @@ export async function platformRoutes(app: FastifyInstance): Promise<void> {
   app.get('/platform-presets', async () =>
     connectors.listPresets().filter((p) => {
       const m = moduleOfPlatformKind(p.kind);
-      return !m || moduleEnabled(m);
+      return !m || moduleAvailable(m);
     }),
   );
   app.post('/platform-types', { config: { access: ACCESS.admin } }, async (req) => {

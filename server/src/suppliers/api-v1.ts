@@ -6,7 +6,7 @@ import { linkNext, pageArray } from '../api/v1/pagination.js';
 import type { Op } from '../api/v1/routes.js';
 import { SupplierListQuery } from './api-schemas.js';
 import { getSupplier, listSuppliers, serviceContracts, toPublic, toPublicContract } from './service.js';
-import { moduleEnabled } from '../modules/registry.js';
+import { moduleAvailable } from '../modules/access.js';
 import { commitments } from '../costs/commitments.js';
 
 /**
@@ -58,7 +58,7 @@ export function supplierApiRoutes(get: Get): void {
       const id = (req.params as { supplierId: string }).supplierId;
       try {
         const d = toPublic(getSupplier(id));
-        if (!moduleEnabled('costs')) return d;
+        if (!moduleAvailable('costs')) return d;
         // the payment schedules of each contract (ADR 0030): services the token owner may see, amounts by the module's rule
         const rows = commitments({ supplierId: id }).rows;
         return { ...d, contracts: d.contracts.map((c) => ({ ...c, paymentSchedules: rows.filter((r) => r.contract?.id === c.id) })) };

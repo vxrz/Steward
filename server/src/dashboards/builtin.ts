@@ -1,10 +1,13 @@
 import { MODULES } from '@sm/shared';
-import { moduleEnabled } from '../modules/registry.js';
+import { moduleAvailable } from '../modules/access.js';
 
-/** A built-in dataset of a switched-off module (ADR 0016): hidden from everyone, as if it did not exist. */
+/**
+ * A built-in dataset of a switched-off module (ADR 0016) – or of a module the signed-in person does not use (ADR
+ * 0034): hidden, as if it did not exist.
+ */
 export function datasetOfSwitchedOffModule(processId: string): boolean {
   const m = MODULES.find((x) => x.datasets?.some((p) => processId.startsWith(p)));
-  return !!m && !moduleEnabled(m.id);
+  return !!m && !moduleAvailable(m.id);
 }
 
 /**

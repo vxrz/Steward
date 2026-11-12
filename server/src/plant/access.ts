@@ -5,6 +5,7 @@ import { decide } from '../auth/policy.js';
 import { forbid, hasRole } from '../auth/access.js';
 import { db } from '../db.js';
 import { parseJson } from '../util.js';
+import { usesModule } from '../modules/access.js';
 
 /**
  * Rights in the plant registry (#218): per site, through the one policy module (auth/policy.ts, ADR 0006). Assets,
@@ -35,6 +36,9 @@ export function siteAccess(
   u: AuthUser | null,
   s: { id: string; acl: AclEntry<PlantPermission>[] | string },
 ): { permissions: PlantPermission[]; reasons: AccessReason[] } {
+  // someone who does not use the plant registry (ADR 0034) has no right on a site: wherever a core page names a site
+  // or an asset (maintenance targets, impact, links), they see nothing of it
+  if (u && !usesModule(u, 'plant')) return { permissions: [], reasons: [] };
   const acl = typeof s.acl === 'string' ? parseJson<AclEntry<PlantPermission>[]>(s.acl, []) : s.acl;
   const d = decide(u, { kind: 'site', id: s.id, acl }, PLANT_PERMISSIONS, DEFAULT_PLANT, 'view');
   // managing a site includes seeing it and proposing changes; proposing includes seeing it

@@ -12,9 +12,14 @@ import {
   type QuietHours,
   isEmailAddress,
   currencyMinorUnits,
+  accessModule,
+  moduleOfEvent,
+  type ModuleId,
 } from '@sm/shared';
 import { db } from '../db.js';
 import { on, type DomainEvents } from '../events.js';
+import { moduleAccessMode } from '../modules/registry.js';
+import { subjectUsesModule, usesModule } from '../modules/access.js';
 import { logger } from '../log.js';
 import { vault } from '../vault.js';
 import { HttpError, nowIso, parseJson } from '../util.js';
@@ -206,8 +211,19 @@ export { defaultLocale, userLocale };
 
 const pending = new Set<Promise<void>>();
 
+/**
+ * The audience of an event of a module (ADR 0034): only people who use the module, in every channel; addresses outside
+ * Steward count as not using a restricted module. Everything else as it is.
+ */
+function moduleAudience(n: Notice): { notice: Notice; module?: ModuleId } {
+  const mod = moduleOfEvent(n.event);
+  if (!mod || moduleAccessMode(accessModule(mod)) !== 'selected') return { notice: n };
+  return { notice: { ...n, recipients: n.recipients.filter((u) => usesModule(u, mod)), emails: [] }, module: mod };
+}
+
 /** Stores in-app notifications and sends the external messages (in the background; failures are only logged). */
-export function notify(n: Notice): void {
+export function notify(input: Notice): void {
+  const { notice: n, module: restrictedModule } = moduleAudience(input);
   if (!n.recipients.length && !n.emails?.length) return;
   const settings = getNotificationSettings();
   const policy = n.source?.policy;
@@ -244,7 +260,9 @@ export function notify(n: Notice): void {
   let external = channels.filter((c) => c !== 'inApp' && settings[c].enabled);
   // the owning teams' own channels (#136): for messages routed to a channel (Teams or webhook)
   const toChannel = channels.includes('teams') || channels.includes('webhook');
-  const teamChannels = toChannel ? teamChannelsFor(teamsOf(n.about, n.runId)) : { channels: [], skipInstance: false };
+  // a team's own channel gets a module's messages only while the team uses the module (ADR 0034)
+  const owningTeams = toChannel ? teamsOf(n.about, n.runId).filter((tm) => !restrictedModule || subjectUsesModule(`team:${tm.name}`, restrictedModule)) : [];
+  const teamChannels = toChannel ? teamChannelsFor(owningTeams) : { channels: [], skipInstance: false };
   if (teamChannels.skipInstance) external = external.filter((c) => c !== 'teams' && c !== 'webhook');
   // Teams (personal) (ADR 0025): instead of the personal e-mail – the route says e-mail – for the recipients who chose
   // the event and have a chat with the bot that may be used; decision cards take their own path below
