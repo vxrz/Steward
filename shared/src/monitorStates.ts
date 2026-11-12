@@ -1,5 +1,6 @@
 import {
   STATE_LIMITS,
+  type AfterMaxOff,
   worstStatus,
   type CheckDef,
   type CheckOf,
@@ -18,8 +19,9 @@ import {
  * 2. Compare the selected row's cells with the checks. A deviating expectation is a contradiction once the settle
  *    time of the latest state change has passed; a required check that is not up makes the monitor down at once.
  * 3. Status: off or up (aggregated over the checks expected up) while everything agrees; down (or degraded) on a
- *    contradiction, root cause the deviating cells of the closest row; degraded when off for longer than the maximum
- *    (planned downtime does not count) or when the state changes more than 4 times within an hour.
+ *    contradiction, root cause the deviating cells of the closest row; degraded (or down, `afterMaxOff`) when off for
+ *    longer than the maximum (planned downtime does not count); degraded when the state changes more than 4 times
+ *    within an hour.
  */
 
 export type CellVerdict = 'agrees' | 'contradicts' | 'settling' | 'unknown';
@@ -171,6 +173,9 @@ export function maxOffSecondsOf(def: MonitorDefinition, row: StateCase): number 
   const h = row.maxOffHours ?? def.states?.maxOffHours ?? STATE_LIMITS.defaultMaxOffHours;
   return Math.round(h * 3600);
 }
+
+/** What off beyond the maximum makes the monitor (0.20, #288): the row's setting, else the monitor's, else degraded. */
+export const afterMaxOffOf = (def: MonitorDefinition, row: StateCase): AfterMaxOff => row.afterMaxOff ?? def.states?.afterMaxOff ?? 'degraded';
 
 /** The cells of a row in table order: condition, required, expectations ("any" left out). */
 export function rowCells(row: StateCase): { checkId: string; role: StateRole; expected: Exclude<StateCell, 'any'> }[] {
@@ -380,7 +385,8 @@ export function evaluateStates(input: StateInput): StateOutcome {
     info.offSeconds = Math.round(offMs / 1000);
     info.maxOffSeconds = max;
     if (max > 0 && out.status === 'off' && !input.downtime?.active && offMs > max * 1000) {
-      out.status = 'degraded';
+      // degraded by default (not an outage in uptime, ADR 0021 decision 11); down where off that long is an outage (#288)
+      out.status = afterMaxOffOf(def, row);
       info.reason = 'maxOff';
       info.message = `Off for longer than expected (${fmtSpan(offMs)}, maximum ${fmtSpan(max * 1000)})`;
     }
@@ -414,11 +420,14 @@ export function foldDeviations(def: MonitorDefinition, ids: string[]): string[] 
   return out.length ? out : ids;
 }
 
-/** "Try it" of the editor: what the monitor would report for the given check statuses (nothing settles, nothing is stored). */
+/**
+ * "Try it" of the editor: what the monitor would report for the given check statuses (nothing settles, nothing is
+ * stored). `beyondMaxOff`: an off state has lasted longer than its maximum off time (planned downtime not active).
+ */
 export function tryStates(
   def: MonitorDefinition,
   statuses: Record<string, MonitorStatus>,
-  opts: { leaderState?: string | null; current?: string | null } = {},
+  opts: { leaderState?: string | null; current?: string | null; beyondMaxOff?: boolean } = {},
 ) {
   const map = new Map(def.checks.filter((c) => c.enabled !== false).map((c) => [c.id, statuses[c.id] ?? 'unknown'] as const));
   const now = 0;
@@ -430,12 +439,14 @@ export function tryStates(
     now,
     leaderState: opts.leaderState,
   });
-  // a changed state settles in the engine; "Try it" shows the settled answer
-  if (outcome.changed && outcome.row) {
+  const row = outcome.row;
+  const offMs = opts.beyondMaxOff && row && (row.status ?? 'up') === 'off' ? (maxOffSecondsOf(def, row) + 60) * 1000 : 0;
+  // a changed state settles in the engine; "Try it" shows the settled answer (and, asked for, the off time past the maximum)
+  if (row && (outcome.changed || offMs > 0)) {
     return evaluateStates({
       def,
       statuses: map,
-      memory: { id: outcome.row.id, since: now, settleUntil: null, changes: [] },
+      memory: { id: row.id, since: now - offMs, settleUntil: null, changes: [] },
       now,
       leaderState: opts.leaderState,
     });

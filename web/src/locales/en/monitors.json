@@ -1060,7 +1060,7 @@
     "follows": "Follows the state of",
     "followsHint": "A monitor that cannot tell its state itself: its rows name the other monitor’s state ids",
     "maxOff": "Maximum off time (hours)",
-    "maxOffHint": "Off for longer is degraded and notifies; empty: {{hours}} h, 0: no maximum",
+    "maxOffHint": "Off for longer notifies (as set beside); empty: {{hours}} h, 0: no maximum",
     "leaderIds": "States of the monitor it follows: {{ids}}",
     "order": "Order",
     "state": "State",
@@ -1117,6 +1117,15 @@
     "legendContradiction": "what a contradiction in this state makes the monitor: Down (default) or Degraded. The other way, per check: a check without “Critical” (in its card) only degrades the monitor when it deviates.",
     "notAsExpectedYet_one": "{{count}} check not as expected yet",
     "notAsExpectedYet_other": "{{count}} checks not as expected yet",
-    "settlingCard": "Settling – not counted yet"
+    "settlingCard": "Settling – not counted yet",
+    "afterMaxOff": "Off for longer than the maximum",
+    "afterMaxOffHint": "Degraded: a warning, counted as available in uptime. Down: an outage, alerted and counted as unavailable.",
+    "afterMaxOffDegradedDefault": "Degraded (default)",
+    "afterMaxOffDown": "Down – an outage",
+    "afterMaxOffInherit": "As the monitor ({{value}})",
+    "afterMaxOffOf": "{{state}}: off for longer than the maximum",
+    "tryBeyondMax": "Off for longer than the maximum",
+    "legendMaxOff": "how long an off state may last (empty: the monitor’s maximum; 0: no maximum) and what it makes the monitor after that: Degraded (a warning, counted as available) or Down (an outage, counted as unavailable). Planned downtime does not count.",
+    "offTooLong": "{{state}} for longer than expected: off {{off}}, maximum {{max}}"
   }
 }

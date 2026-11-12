@@ -7,7 +7,7 @@ import { useTranslation } from 'react-i18next';
 import type { MonitorStatus, MonitorSummary } from '@sm/shared';
 import { get } from '../api';
 import { MONITOR_COLORS, causeText, fmtUptime, monitorStatusLabel } from '../components/monitors/status';
-import { settlingCheckIds } from '../components/monitors/StatePanel';
+import { settlingCheckIds, stateProblemText } from '../components/monitors/StatePanel';
 import { fmtRelative } from '../format';
 import { monitorKeys } from '../queryKeys';
 
@@ -122,7 +122,7 @@ export function MonitorWallPage() {
                       })
                     : m.rootCauses.length
                       ? m.rootCauses.map((c) => causeText(c, m.id)).join(', ')
-                      : t('wall.checks', { count: m.checkCount })}
+                      : (stateProblemText(t, m.state) ?? t('wall.checks', { count: m.checkCount }))}
             </Text>
             <Text size="xs" mt={6}>
               {t('wall.uptimeSince', { uptime: fmtUptime(m.uptime.h24), since: fmtRelative(m.since) })}

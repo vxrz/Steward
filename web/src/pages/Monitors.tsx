@@ -39,7 +39,7 @@ import { EmptyState, Hint, QueryState, useFieldErrors } from '../components/comm
 import { useMe } from '../auth';
 import { fmtDate, fmtNumber, fmtRelative } from '../format';
 import { MONITOR_COLORS, MonitorStatusBadge, causeText, fmtUptime, monitorStatusLabel, monitorStatusLower } from '../components/monitors/status';
-import { CheckSettlingBadge, settlingCheckIds } from '../components/monitors/StatePanel';
+import { CheckSettlingBadge, settlingCheckIds, stateProblemText } from '../components/monitors/StatePanel';
 import { CopyBlock, ImportModal, InstantiateModal, SecretsModal, gatewayCurl } from '../components/monitors/dialogs';
 import { confirmDanger } from '../components/confirm';
 import { DataTable, type DataColumn } from '../components/DataTable';
@@ -186,7 +186,11 @@ const STATUS_ORDER = ['down', 'degraded', 'blocked', 'unknown', 'maintenance', '
 function MonitorTable({ monitors, onTag }: { monitors: MonitorSummary[]; onTag: (tag: string) => void }) {
   const { t } = useTranslation('monitors');
   const causes = (m: MonitorSummary) =>
-    m.maintenance ? t('list.maintenanceLine', { reason: m.maintenance.reason }) : m.rootCauses.map((c) => causeText(c, m.id)).join(', ');
+    m.maintenance
+      ? t('list.maintenanceLine', { reason: m.maintenance.reason })
+      : m.rootCauses.length
+        ? m.rootCauses.map((c) => causeText(c, m.id)).join(', ')
+        : (stateProblemText(t, m.state) ?? '');
   const columns: DataColumn<MonitorSummary>[] = [
     {
       key: 'status',
@@ -237,7 +241,7 @@ function MonitorTable({ monitors, onTag }: { monitors: MonitorSummary[]; onTag: 
       sortValue: causes,
       tdProps: () => ({ style: { maxWidth: 280 } }),
       cell: (m) => (
-        <Text size="xs" c={m.rootCauses.length ? 'red' : 'dimmed'} lineClamp={2}>
+        <Text size="xs" c={m.rootCauses.length || (m.status === 'down' && m.state?.reason === 'maxOff') ? 'red' : 'dimmed'} lineClamp={2}>
           {causes(m) || '–'}
         </Text>
       ),
@@ -291,6 +295,11 @@ function MonitorTable({ monitors, onTag }: { monitors: MonitorSummary[]; onTag: 
           {m.rootCauses.length > 0 && (
             <Text size="xs" c="red">
               {t('list.rootCauseLine', { causes: m.rootCauses.map((c) => causeText(c, m.id)).join(', ') })}
+            </Text>
+          )}
+          {!m.rootCauses.length && !m.maintenance && stateProblemText(t, m.state) && (
+            <Text size="xs" c={m.status === 'down' ? 'red' : undefined}>
+              {stateProblemText(t, m.state)}
             </Text>
           )}
           <Text size="xs" c="dimmed">

@@ -5,6 +5,7 @@ import {
   Alert,
   Badge,
   Button,
+  Checkbox,
   Group,
   NumberInput,
   Paper,
@@ -22,6 +23,7 @@ import { IconArrowDown, IconArrowUp, IconPlus, IconTrash } from '@tabler/icons-r
 import { useTranslation } from 'react-i18next';
 import {
   STATE_LIMITS,
+  type AfterMaxOff,
   derivedSettleSeconds,
   selectState,
   stateIssues,
@@ -75,6 +77,8 @@ function withChoice(row: StateCase, checkId: string, choice: CellChoice): StateC
 }
 
 const TRY_STATUSES: MonitorStatus[] = ['up', 'degraded', 'down', 'unknown'];
+/** The row's "after the maximum" select: as the monitor says (not written), or its own value (#288). */
+const INHERIT = 'inherit';
 
 export function StatesEditor({
   def,
@@ -91,6 +95,7 @@ export function StatesEditor({
   selfId: string | null;
 }) {
   const { t } = useTranslation('monitors');
+  const afterMaxOffLabel = (v: AfterMaxOff) => (v === 'down' ? t('states.afterMaxOffDown') : monitorStatusLabel('degraded'));
   const states = def.states;
   const checks = def.checks.filter((c) => c.enabled !== false);
   const follower = !!states?.from;
@@ -109,6 +114,7 @@ export function StatesEditor({
   const issues = useMemo(() => stateIssues(def), [def]);
   const [trial, setTrial] = useState<Record<string, MonitorStatus>>({});
   const [trialLeader, setTrialLeader] = useState<string | null>(null);
+  const [trialBeyondMax, setTrialBeyondMax] = useState(false);
   // phones: one card per state with the same controls (the table is a desktop task)
   const phone = useMediaQuery('(max-width: 48em)') ?? false;
   const [result, setResult] = useState<ReturnType<typeof tryStates> | null>(null);
@@ -231,7 +237,10 @@ export function StatesEditor({
           ]}
           onChange={(v) => {
             const next = { ...r, status: (v ?? 'up') as 'up' | 'off' };
-            if (next.status === 'up') delete next.maxOffHours;
+            if (next.status === 'up') {
+              delete next.maxOffHours;
+              delete next.afterMaxOff;
+            }
             setRow(i, next);
           }}
         />
@@ -295,22 +304,43 @@ export function StatesEditor({
       ),
       maxOff:
         (r.status ?? 'up') === 'off' ? (
-          <NumberInput
-            size="xs"
-            w={90}
-            min={0}
-            max={STATE_LIMITS.maxOffHoursMax}
-            suffix=" h"
-            aria-label={t('states.maxOffOf', { state: label })}
-            placeholder={`${states.maxOffHours ?? STATE_LIMITS.defaultMaxOffHours} h`}
-            value={r.maxOffHours ?? ''}
-            onChange={(v) => {
-              const next = { ...r };
-              if (v === '' || v === null) delete next.maxOffHours;
-              else next.maxOffHours = Number(v);
-              setRow(i, next);
-            }}
-          />
+          <Stack gap={4}>
+            <NumberInput
+              size="xs"
+              w={110}
+              min={0}
+              max={STATE_LIMITS.maxOffHoursMax}
+              suffix=" h"
+              aria-label={t('states.maxOffOf', { state: label })}
+              placeholder={`${states.maxOffHours ?? STATE_LIMITS.defaultMaxOffHours} h`}
+              value={r.maxOffHours ?? ''}
+              onChange={(v) => {
+                const next = { ...r };
+                if (v === '' || v === null) delete next.maxOffHours;
+                else next.maxOffHours = Number(v);
+                setRow(i, next);
+              }}
+            />
+            <Select
+              size="xs"
+              w={150}
+              aria-label={t('states.afterMaxOffOf', { state: label })}
+              value={r.afterMaxOff ?? INHERIT}
+              allowDeselect={false}
+              data={[
+                { value: INHERIT, label: t('states.afterMaxOffInherit', { value: afterMaxOffLabel(states.afterMaxOff ?? 'degraded') }) },
+                { value: 'degraded', label: afterMaxOffLabel('degraded') },
+                { value: 'down', label: afterMaxOffLabel('down') },
+              ]}
+              onChange={(v) => {
+                const next = { ...r };
+                if (v === 'degraded' || v === 'down') next.afterMaxOff = v;
+                else delete next.afterMaxOff;
+                setRow(i, next);
+              }}
+              data-testid={`after-max-off-${r.id}`}
+            />
+          </Stack>
         ) : (
           <Text size="sm" c="dimmed">
             –
@@ -345,8 +375,10 @@ export function StatesEditor({
             const next: StatesDef = { ...states };
             if (v) {
               next.from = v;
+              // a follower has no maximum off time of its own (the leader reports it)
               delete next.maxOffHours;
-              next.cases = cases.map(({ when: _w, requires: _r, ...c }) => c);
+              delete next.afterMaxOff;
+              next.cases = cases.map(({ when: _w, requires: _r, maxOffHours: _m, afterMaxOff: _a, ...c }) => c);
             } else delete next.from;
             set(next);
           }}
@@ -366,6 +398,27 @@ export function StatesEditor({
               else next.maxOffHours = Number(v);
               set(next);
             }}
+          />
+        )}
+        {!follower && (
+          <Select
+            label={t('states.afterMaxOff')}
+            description={t('states.afterMaxOffHint')}
+            w={260}
+            allowDeselect={false}
+            value={states.afterMaxOff ?? 'degraded'}
+            data={[
+              { value: 'degraded', label: t('states.afterMaxOffDegradedDefault') },
+              { value: 'down', label: afterMaxOffLabel('down') },
+            ]}
+            onChange={(v) => {
+              const next: StatesDef = { ...states };
+              // degraded is the default: not written
+              if (v === 'down') next.afterMaxOff = 'down';
+              else delete next.afterMaxOff;
+              set(next);
+            }}
+            data-testid="after-max-off"
           />
         )}
         <Button variant="subtle" color="red" size="xs" onClick={() => set(undefined)}>
@@ -532,6 +585,15 @@ export function StatesEditor({
                 data-testid={`try-${c.id}`}
               />
             ))}
+            {!follower && (
+              <Checkbox
+                size="xs"
+                label={t('states.tryBeyondMax')}
+                checked={trialBeyondMax}
+                onChange={(e) => setTrialBeyondMax(e.currentTarget.checked)}
+                data-testid="try-beyond-max"
+              />
+            )}
             {follower && (
               <Select
                 size="xs"
@@ -547,7 +609,7 @@ export function StatesEditor({
               size="xs"
               onClick={() => {
                 const statuses = Object.fromEntries(checks.map((c) => [c.id, trial[c.id] ?? nowStatuses.get(c.id) ?? 'up'])) as Record<string, MonitorStatus>;
-                setResult(tryStates(def, statuses, { leaderState: trialLeader }));
+                setResult(tryStates(def, statuses, { leaderState: trialLeader, beyondMaxOff: !follower && trialBeyondMax }));
               }}
               data-testid="states-try"
             >
@@ -611,6 +673,11 @@ function StatesLegend({ follower, open }: { follower: boolean; open: boolean }) 
         <Text size="xs" c="dimmed">
           <b>{t('states.onContradiction')}</b> – {t('states.legendContradiction')}
         </Text>
+        {!follower && (
+          <Text size="xs" c="dimmed">
+            <b>{t('states.maxOffShort')}</b> – {t('states.legendMaxOff')}
+          </Text>
+        )}
       </Stack>
     </details>
   );

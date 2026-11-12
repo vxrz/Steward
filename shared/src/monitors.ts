@@ -816,6 +816,9 @@ export const STATE_LIMITS = {
   changesPerHour: 4,
 } as const;
 const cells = boundedRecord(z.enum(STATE_CELLS), 100);
+/** What off beyond the maximum off time makes the monitor (0.20, #288): degraded (default) or down */
+export const AFTER_MAX_OFF = ['degraded', 'down'] as const;
+export type AfterMaxOff = (typeof AFTER_MAX_OFF)[number];
 
 export const stateCaseSchema = z.object({
   /** The state's id (as a check id); a follower names the leader's state ids */
@@ -835,6 +838,8 @@ export const stateCaseSchema = z.object({
   maxOffHours: z.number().min(0).max(STATE_LIMITS.maxOffHoursMax).optional(),
   /** What a contradiction makes the monitor: down (default) or degraded */
   contradiction: z.enum(['down', 'degraded']).optional(),
+  /** Off rows: what off beyond the maximum makes the monitor (default: the monitor's) */
+  afterMaxOff: z.enum(AFTER_MAX_OFF).optional(),
 });
 export type StateCase = z.output<typeof stateCaseSchema>;
 
@@ -843,6 +848,8 @@ export const statesSchema = z.object({
   from: z.string().trim().min(1).max(200).optional(),
   /** Maximum off time in hours (default 8; 0 = none) */
   maxOffHours: z.number().min(0).max(STATE_LIMITS.maxOffHoursMax).optional(),
+  /** What off beyond the maximum makes the monitor: degraded (default – not an outage in uptime) or down (0.20, #288) */
+  afterMaxOff: z.enum(AFTER_MAX_OFF).optional(),
   cases: z.array(stateCaseSchema).max(STATE_LIMITS.cases).default([]),
 });
 export type StatesDef = z.output<typeof statesSchema>;
@@ -992,6 +999,9 @@ export function stateIssues(def: MonitorDefinition): DefinitionIssue[] {
     if (!follower && !condition.length) out.push({ path: `${at}.when`, message: 'a state needs at least one condition cell' });
     if (!follower && r.status !== 'off' && r.maxOffHours !== undefined)
       out.push({ path: `${at}.maxOffHours`, message: 'only an off state has a maximum off time' });
+    if (follower && r.afterMaxOff !== undefined)
+      out.push({ path: `${at}.afterMaxOff`, message: 'a state that follows another monitor has no maximum off time of its own' });
+    else if (r.status !== 'off' && r.afterMaxOff !== undefined) out.push({ path: `${at}.afterMaxOff`, message: 'only an off state has a maximum off time' });
     // a row that an earlier row always wins against: every condition cell of the earlier row is in this one, the same
     if (!follower && condition.length) {
       const earlier = st.cases.slice(0, i).find((e) => {
@@ -1008,6 +1018,8 @@ export function stateIssues(def: MonitorDefinition): DefinitionIssue[] {
   });
   if (follower && st.maxOffHours !== undefined)
     out.push({ path: 'states.maxOffHours', message: 'a state that follows another monitor has no maximum off time of its own' });
+  if (follower && st.afterMaxOff !== undefined)
+    out.push({ path: 'states.afterMaxOff', message: 'a state that follows another monitor has no maximum off time of its own' });
   return out;
 }
 

@@ -1060,7 +1060,7 @@
     "follows": "Folgt dem Zustand von",
     "followsHint": "Für einen Monitor, der seinen Zustand nicht selbst erkennen kann: Seine Zeilen nennen die Zustands-IDs des anderen Monitors",
     "maxOff": "Höchste Aus-Zeit (Stunden)",
-    "maxOffHint": "Länger aus ist eingeschränkt und benachrichtigt; leer: {{hours}} h, 0: kein Höchstwert",
+    "maxOffHint": "Länger aus benachrichtigt (wie daneben eingestellt); leer: {{hours}} h, 0: kein Höchstwert",
     "leaderIds": "Zustände des Monitors, dem er folgt: {{ids}}",
     "order": "Reihenfolge",
     "state": "Zustand",
@@ -1117,6 +1117,15 @@
     "legendContradiction": "was ein Widerspruch in diesem Zustand aus dem Monitor macht: Ausgefallen (Standard) oder Beeinträchtigt. Der andere Weg, je Prüfung: Eine Prüfung ohne „Kritisch“ (in ihrer Karte) beeinträchtigt den Monitor nur, wenn sie abweicht.",
     "notAsExpectedYet_one": "{{count}} Prüfung noch nicht wie erwartet",
     "notAsExpectedYet_other": "{{count}} Prüfungen noch nicht wie erwartet",
-    "settlingCard": "Stellt sich ein – zählt noch nicht"
+    "settlingCard": "Stellt sich ein – zählt noch nicht",
+    "afterMaxOff": "Länger aus als der Höchstwert",
+    "afterMaxOffHint": "Beeinträchtigt: eine Warnung, zählt in der Verfügbarkeit als verfügbar. Ausgefallen: ein Ausfall, wird alarmiert und zählt als nicht verfügbar.",
+    "afterMaxOffDegradedDefault": "Beeinträchtigt (Standard)",
+    "afterMaxOffDown": "Ausgefallen – ein Ausfall",
+    "afterMaxOffInherit": "Wie der Monitor ({{value}})",
+    "afterMaxOffOf": "{{state}}: länger aus als der Höchstwert",
+    "tryBeyondMax": "Länger aus als der Höchstwert",
+    "legendMaxOff": "wie lange ein Aus-Zustand dauern darf (leer: der Höchstwert des Monitors; 0: kein Höchstwert) und was er danach aus dem Monitor macht: Beeinträchtigt (eine Warnung, zählt als verfügbar) oder Ausgefallen (ein Ausfall, zählt als nicht verfügbar). Geplante Stillstandszeit zählt nicht.",
+    "offTooLong": "{{state}} länger als erwartet: aus seit {{off}}, Höchstwert {{max}}"
   }
 }

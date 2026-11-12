@@ -8028,6 +8028,15 @@ export interface Resources {
     'states.notAsExpectedYet_one': string;
     'states.notAsExpectedYet_other': string;
     'states.settlingCard': string;
+    'states.afterMaxOff': string;
+    'states.afterMaxOffHint': string;
+    'states.afterMaxOffDegradedDefault': string;
+    'states.afterMaxOffDown': string;
+    'states.afterMaxOffInherit': string;
+    'states.afterMaxOffOf': string;
+    'states.tryBeyondMax': string;
+    'states.legendMaxOff': string;
+    'states.offTooLong': string;
   };
   nav: {
     'items.dashboard': string;
