@@ -3040,6 +3040,14 @@ export interface Resources {
     'commitments.columns.toContractEnd': string;
     'commitments.columns.toEarliestExit': string;
     'commitments.columns.noticeBy': string;
+    'commitments.billingCell.monthly': string;
+    'commitments.billingCell.quarterly': string;
+    'commitments.billingCell.yearly': string;
+    'commitments.billingCell.once': string;
+    'commitments.billingCell.dates': string;
+    'commitments.billingCell.volume': string;
+    'commitments.billingCell.prepaid': string;
+    'commitments.billingCell.byUse': string;
     'commitments.total': string;
     'commitments.totalExit': string;
     'commitments.serviceTitle': string;

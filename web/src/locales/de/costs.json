@@ -609,6 +609,16 @@
       "toEarliestExit": "Bis zum frühesten Ausstieg",
       "noticeBy": "Kündigen bis"
     },
+    "billingCell": {
+      "monthly": "Monatlich",
+      "quarterly": "Vierteljährlich",
+      "yearly": "Jährlich",
+      "once": "Einmalig",
+      "dates": "Datierte Zahlungen",
+      "volume": "Volumen",
+      "prepaid": "Volumen, vorausbezahlt",
+      "byUse": "Volumen, nach Nutzung"
+    },
     "total": "Geschuldet in {{currency}} bis Vertragsende",
     "totalExit": "Bis zum frühesten Ausstieg {{amount}} · dieses Geschäftsjahr {{thisYear}}",
     "serviceTitle": "Verträge",

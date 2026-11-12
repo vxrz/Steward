@@ -370,7 +370,7 @@ export function ScheduleDialog({
             <Select
               label={t('schedules.form.billing')}
               allowDeselect={false}
-              data={COST_SCHEDULE_BILLINGS.map((b) => ({ value: b, label: t(`schedules.billings.${b}`) }))}
+              data={COST_SCHEDULE_BILLINGS.map((b) => ({ value: b, label: t(`commitments.billingCell.${b}`) }))}
               value={billing}
               onChange={(v) => v && setBilling(v as CostScheduleBilling)}
               data-testid="schedule-billing"

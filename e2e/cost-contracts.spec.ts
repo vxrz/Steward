@@ -55,6 +55,8 @@ async function flow(page: Page, api: APIRequestContext, f: Fixture, mobile: bool
   await payments.getByTestId('contract-payments-add').click();
   const dialog = page.getByRole('dialog', { name: /^Add payments/ });
   await dialog.getByTestId('schedule-title').fill('Base fee');
+  // options in sentence case ("Monthly", not "monthly")
+  await expect(dialog.getByTestId('schedule-billing')).toHaveValue('Monthly');
   await chooseOption(page, /^Paying service/, f.service.name);
   await dialog.getByTestId('schedule-amount').fill('1000');
   await dialog.getByTestId('schedule-currency').fill('EUR');
@@ -106,6 +108,8 @@ async function flow(page: Page, api: APIRequestContext, f: Fixture, mobile: bool
   await page.goto('/costs/commitments');
   await expect(page.getByTestId('commitments-page')).toContainText(f.supplier.name);
   await expect(page.getByTestId('commitments-page')).toContainText('Base fee');
+  // the billing cell starts with a capital, as every cell does ("Monthly · EUR")
+  if (!mobile) await expect(page.getByRole('row').filter({ hasText: 'Base fee' }).first()).toContainText('Monthly · EUR');
   await page.getByTestId('commitments-group').getByText('Service or platform', { exact: true }).click();
   await expect(page.getByTestId('commitment-group').filter({ hasText: f.service.name })).toBeVisible();
   await expectAccessible(page, 'commitments');

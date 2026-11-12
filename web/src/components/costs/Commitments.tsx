@@ -258,11 +258,9 @@ export function CommitmentsTable({ c, withService = true, testId = 'commitment-r
   );
 }
 
-/** "Monthly · EUR", or for a volume "Volume, prepaid · USD". */
+/** "Monthly · EUR", or for a volume "Volume, prepaid · USD" (sentence case: the cell starts with it). */
 function billingText(t: (k: string) => string, r: CostCommitment): string {
-  return r.volume
-    ? `${t('schedules.billings.volume')}, ${t(`volumes.billing.${r.volume.billing}`)} · ${r.currency}`
-    : `${t(`schedules.billings.${r.billing}`)} · ${r.currency}`;
+  return `${t(`commitments.billingCell.${r.volume ? r.volume.billing : r.billing}`)} · ${r.currency}`;
 }
 
 /** Totals per currency (only the amounts the reader sees). */

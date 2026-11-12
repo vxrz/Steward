@@ -609,6 +609,16 @@
       "toEarliestExit": "To earliest exit",
       "noticeBy": "Notice by"
     },
+    "billingCell": {
+      "monthly": "Monthly",
+      "quarterly": "Quarterly",
+      "yearly": "Yearly",
+      "once": "Once",
+      "dates": "Dated payments",
+      "volume": "Volume",
+      "prepaid": "Volume, prepaid",
+      "byUse": "Volume, billed by use"
+    },
     "total": "Owed in {{currency}} to contract end",
     "totalExit": "To the earliest exit {{amount}} · this fiscal year {{thisYear}}",
     "serviceTitle": "Contracts",
