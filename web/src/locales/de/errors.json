@@ -1362,7 +1362,11 @@
     "SUPPLIER_CONTRACT_PLATFORM_LIMIT": "Ein Vertrag deckt höchstens {{max}} Plattformen ab.",
     "SUPPLIER_CONTRACT_PLATFORM_GRANT": "Wenn der Vertrag „{{contract}}“ die Plattform „{{platform}}“ abdeckt, sehen ihn Personen außerhalb seiner zuständigen Teams. Fügen Sie die Plattform zuerst auf der Seite des Vertrags hinzu – dort bestätigen Sie das.",
     "SUPPLIER_CONTRACT_PLATFORM_NOT_FOUND": "Der Vertrag deckt diese Plattform nicht (mehr) ab.",
-    "SUPPLIER_CONTRACT_PLATFORM_HAS_SCHEDULES": "Die Plattform zahlt {{count}} Zahlungspläne dieses Vertrags ({{schedules}}). Verschieben oder entfernen Sie diese zuerst."
+    "SUPPLIER_CONTRACT_PLATFORM_HAS_SCHEDULES": "Die Plattform zahlt {{count}} Zahlungspläne dieses Vertrags ({{schedules}}). Verschieben oder entfernen Sie diese zuerst.",
+    "SHARE_SUBJECT_UNSUITABLE": "Mit {{subject}} kann dieser Eintrag nicht geteilt werden: Statusbetrachter erhalten nichts, Anlagenbetrachter nur im Anlagenregister.",
+    "SHARE_EXCEEDS_OWN_RIGHTS": "Sie können nicht mehr teilen, als Sie selbst haben ({{subject}}).",
+    "SHARE_EXPIRY_INVALID": "Das Enddatum muss in der Zukunft und höchstens ein Jahr entfernt liegen.",
+    "SHARE_ACTION_UNKNOWN": "Diese Art von Eintrag hat kein Recht „{{action}}“, das geteilt werden kann."
   },
   "boundary": {
     "title": "Auf dieser Seite ist ein Fehler aufgetreten",
