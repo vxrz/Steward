@@ -220,6 +220,14 @@ async function checkPages(page: Page, headers: Record<string, string>) {
   const volumes = page.getByTestId('volume-use');
   if (await volumes.count()) for (const v of await volumes.all()) await expect(v).not.toContainText(/\d\.\d+ %/);
 
+  // the sidebar cuts no long German word off ("Korrekturmaßnahmen" in the open Compliance group)
+  await page.goto('/compliance/soa');
+  await expect(page.getByRole('link', { name: 'Korrekturmaßnahmen' })).toBeVisible();
+  const clipped = await page
+    .locator('.nav-entry .mantine-NavLink-label')
+    .evaluateAll((els) => els.filter((e) => e.scrollWidth > e.clientWidth + 1).map((e) => e.textContent));
+  expect(clipped).toEqual([]);
+
   // Credentials, reports, monitors, settings (incl. MCP), profile
   for (const path of ['/credentials', '/reports', '/monitors', '/monitors/new', '/settings', '/profile']) {
     await page.goto(path);
