@@ -23,17 +23,17 @@ Short records of decisions that shape Steward's design: the context, what was de
 | [0017](0017-audit-retention.md)                        | Audit retention: archives keep the chain verifiable     | Accepted                                                               |
 | [0018](0018-one-maintenance-window-concept.md)         | One maintenance-window concept; monitors as a source    | Accepted                                                               |
 | [0019](0019-data-collections.md)                       | Data collections: what a collector reads, mapped        | Accepted                                                               |
-| [0020](0020-plant-change-sets.md)                      | Plant change sets: one path for every change            | Accepted                                                               |
+| [0020](0020-plant-change-sets.md)                      | Plant change sets: one path for every change            | Accepted, built in 0.13.0–0.19.0                                       |
 | [0021](0021-monitor-states.md)                         | Monitor states and expected statuses                    | Accepted                                                               |
-| [0022](0022-privileged-access-checkout.md)             | Privileged access: credentials checked out from a PAM   | Accepted                                                               |
-| [0023](0023-edge-runner.md)                            | Steward edge runner: steps inside an OT segment         | Accepted                                                               |
-| [0024](0024-signed-releases.md)                        | Signed releases: provenance and an update notice        | Accepted                                                               |
+| [0022](0022-privileged-access-checkout.md)             | Privileged access: credentials checked out from a PAM   | Accepted, not built yet                                                |
+| [0023](0023-edge-runner.md)                            | Steward edge runner: steps inside an OT segment         | Accepted, not built yet                                                |
+| [0024](0024-signed-releases.md)                        | Signed releases: provenance and an update notice        | Accepted, not built yet                                                |
 | [0025](0025-personal-teams-notifications.md)           | Personal Teams notifications through the bot            | Accepted                                                               |
 | [0026](0026-service-cost-planning.md)                  | Service cost planning per fiscal year                   | Accepted                                                               |
 | [0027](0027-backup-contents-and-exports.md)            | Backup contents and scheduled exports                   | Accepted                                                               |
 | [0028](0028-plant-proposals-in-parts.md)               | Plant proposals in parts; sources of data points        | Accepted                                                               |
-| [0029](0029-iso-27001-support.md)                      | ISO/IEC 27001: suppliers, SoA, corrective actions       | Accepted                                                               |
-| [0030](0030-contract-payments-and-recorded-costs.md)   | Contract payments, commitments and recorded costs       | Accepted                                                               |
+| [0029](0029-iso-27001-support.md)                      | ISO/IEC 27001: suppliers, SoA, corrective actions       | Accepted, built in 0.17.0                                              |
+| [0030](0030-contract-payments-and-recorded-costs.md)   | Contract payments, commitments and recorded costs       | Accepted, built in 0.18.0                                              |
 | [0031](0031-supplier-contracts-and-contacts-scope.md)  | Shared suppliers: contracts and contacts with own scope | Accepted, built in 0.18.0                                              |
 | [0032](0032-cost-attribution-platform-plans.md)        | Cost attribution, platform cost plans and volumes       | Accepted, built in 0.19.0                                              |
 
