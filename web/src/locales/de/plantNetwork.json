@@ -250,7 +250,16 @@
     "riskAssessmentHelp": "Die Beurteilung, die SL-T festgelegt hat: eine Dokumentnummer oder ein Link",
     "assessmentRequired": "Nennen Sie die Risikobeurteilung, die SL-T festgelegt hat.",
     "assessedAt": "Beurteilt am",
-    "assessedBy": "Festgelegt durch {{assessment}} ({{date}})"
+    "assessedBy": "Festgelegt durch {{assessment}} ({{date}})",
+    "systems": "Steward-Systeme",
+    "systemsHelp": "Systeme in dieser Zone ohne VLAN des Standorts – ein Cloud-Dienst, ein Unternehmenssystem. Das Diagramm stellt sie hier dar.",
+    "platforms": "Steward-Plattformen",
+    "platformsHelp": "Plattformen in dieser Zone, etwa eine IoT-Plattform in der externen Zone.",
+    "items": "Systeme und Plattformen",
+    "hiddenItems_one": "und {{count}}, die Sie nicht sehen dürfen",
+    "hiddenItems_other": "und {{count}}, die Sie nicht sehen dürfen",
+    "hiddenItemsKept_one": "{{count}} weiteres System oder weitere Plattform dieser Zone ist für Sie nicht sichtbar; es bleibt, wie es ist.",
+    "hiddenItemsKept_other": "{{count}} weitere Systeme oder Plattformen dieser Zone sind für Sie nicht sichtbar; sie bleiben, wie sie sind."
   },
   "conduit": {
     "title": "Conduits",

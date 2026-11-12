@@ -25,6 +25,7 @@ const words: NetworkWords = {
     subnets: 'Subnets',
     owner: 'Owner',
     vlans: 'VLANs',
+    items: 'Systems and platforms',
     protocols: 'Protocols',
     controls: 'Controls',
     assessment: 'Assessment',

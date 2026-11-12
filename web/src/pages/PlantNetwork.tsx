@@ -18,7 +18,16 @@ import {
   IconShieldLock,
 } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import type { PlantConduitView, PlantHierarchySite, PlantSiteNetwork, PlantVlanValues, PlantVlanView, PlantZoneValues, PlantZoneView } from '@sm/shared';
+import type {
+  PlantConduitView,
+  PlantHierarchySite,
+  PlantItemRef,
+  PlantSiteNetwork,
+  PlantVlanValues,
+  PlantVlanView,
+  PlantZoneValues,
+  PlantZoneView,
+} from '@sm/shared';
 import { apiUrl, del, get, notifyError } from '../api';
 import { DetailState, EmptyState } from '../components/common';
 import { useAliasRedirect } from '../components/plant/ids';
@@ -28,7 +37,18 @@ import { confirmDanger } from '../components/confirm';
 import { plantKeys } from '../queryKeys';
 import { AssetStatusBadge, NotInSourceBadge, PreviewBadge, useNameOf, usePlantLabel } from '../components/plant/common';
 import { RowMenu } from '../components/plant/data';
-import { anyWatched, CriticalityBadge, ItemRefView, LiveBadge, LiveCounts, liveCountsOf, NetField, NotWatchedHint, SlBadge } from '../components/plant/network';
+import {
+  anyWatched,
+  CriticalityBadge,
+  ItemRefView,
+  LiveBadge,
+  LiveCounts,
+  liveCountsOf,
+  NetField,
+  NotWatchedHint,
+  SlBadge,
+  ZoneItems,
+} from '../components/plant/network';
 import { SiteDevices, SiteNetworkAddButton, SitePaths, useSiteNetworkEdit } from '../components/plant/SiteNetworkLists';
 import { ConduitModal, SegmentModal, VlanModal, ZoneModal } from '../components/plant/networkForms';
 import { saveOrDraft } from '../components/plant/changes/common';
@@ -43,14 +63,15 @@ const NetworkDiagramView = lazy(() => import('./plant/views/NetworkDiagramView')
 type Dialog =
   | { kind: 'vlan'; vlan?: PlantVlanValues }
   | { kind: 'segment'; vlan: PlantVlanValues }
-  | { kind: 'zone'; zone?: PlantZoneValues }
+  | { kind: 'zone'; zone?: PlantZoneValues & { items?: PlantItemRef[]; hiddenItems?: number } }
   | { kind: 'conduit'; conduit?: PlantConduitView };
 
 const vlanValues = (v: PlantVlanView): PlantVlanValues => {
   const { segment: _s, segmentHint: _h, otherSites: _o, zones: _z, deviceCount: _d, importId: _i, notInSource: _n, ...rest } = v;
   return rest;
 };
-const zoneValues = (z: PlantZoneView): PlantZoneValues => {
+// the systems and platforms it lists stay with the values: the form names them and counts the hidden ones
+const zoneValues = (z: PlantZoneView): PlantZoneValues & { items: PlantItemRef[]; hiddenItems: number } => {
   const { conduits: _c, deviceCount: _d, importId: _i, notInSource: _n, ...rest } = z;
   return rest;
 };
@@ -465,6 +486,11 @@ function NetworkPage({
                           <Group gap="lg" wrap="wrap" style={{ rowGap: 6 }}>
                             <NetField label={t('zone.level')}>{z.level ? t(`levels.${z.level}`) : t('zone.levelNotSet')}</NetField>
                             <NetField label={t('zone.vlans')}>{z.vlans.map(vlanName).join(', ') || '–'}</NetField>
+                            {(z.items.length > 0 || z.hiddenItems > 0) && (
+                              <NetField label={t('zone.items')}>
+                                <ZoneItems zone={z} />
+                              </NetField>
+                            )}
                             <NetField label={t('owner')}>{z.owner || '–'}</NetField>
                             <NetField label={t('device.title')}>{z.deviceCount}</NetField>
                           </Group>

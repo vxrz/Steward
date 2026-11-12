@@ -98,6 +98,7 @@ export function NetworkDiagramView({ siteId }: { siteId: string }) {
         subnets: t('network.subnets'),
         owner: t('plantNetwork:owner'),
         vlans: t('plantNetwork:zone.vlans'),
+        items: t('plantNetwork:zone.items'),
         protocols: t('plantNetwork:conduit.protocols'),
         controls: t('network.controls'),
         assessment: t('network.assessment'),

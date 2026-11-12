@@ -250,7 +250,16 @@
     "riskAssessmentHelp": "The assessment that set SL-T: a document number or link",
     "assessmentRequired": "Name the risk assessment that set SL-T.",
     "assessedAt": "Assessed on",
-    "assessedBy": "Set by {{assessment}} ({{date}})"
+    "assessedBy": "Set by {{assessment}} ({{date}})",
+    "systems": "Steward systems",
+    "systemsHelp": "Systems in this zone without a VLAN of the site – a cloud service, an enterprise system. The diagram places them here.",
+    "platforms": "Steward platforms",
+    "platformsHelp": "Platforms in this zone, such as an IoT platform in the external zone.",
+    "items": "Systems and platforms",
+    "hiddenItems_one": "and {{count}} you may not see",
+    "hiddenItems_other": "and {{count}} you may not see",
+    "hiddenItemsKept_one": "{{count}} more system or platform in this zone is not visible to you; it stays as it is.",
+    "hiddenItemsKept_other": "{{count}} more systems or platforms in this zone are not visible to you; they stay as they are."
   },
   "conduit": {
     "title": "Conduits",

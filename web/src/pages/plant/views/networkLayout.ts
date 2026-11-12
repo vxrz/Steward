@@ -4,7 +4,8 @@ import { ZONE_LEVELS, type PlantFlowGraph, type PlantFlowNode, type ZoneLevel } 
  * The layout of the OT network diagram (#230): the zones in horizontal bands by their level in the Purdue model –
  * field and cells at the bottom, then supervisory, operations, the DMZ, the enterprise network and external parties at
  * the top – so data paths run upwards. A zone's VLANs are areas inside it, the parts on a VLAN small chips in a grid.
- * A conduit is a gate on the boundary between its two zones. What is outside every zone stands in a column on the
+ * A system or platform a zone lists (0.20) is a chip in the zone itself, below its VLANs. A conduit is a gate on the
+ * boundary between its two zones. What is outside every zone stands in a column on the
  * right, near what it is connected to. Edges get their geometry here too: the picture does not move its nodes.
  *
  * Deterministic and cheap (no graph layout library): the same graph gives the same picture.
@@ -131,6 +132,8 @@ function place(g: Pick<PlantFlowGraph, 'nodes' | 'edges'>, levels: Map<string, Z
     y: number;
     /** members with their place in the unit */
     members: { id: string; x: number; y: number }[];
+    /** parts placed in the zone itself, not on a VLAN of it (0.20: a system or platform the zone lists) */
+    chips: { id: string; x: number; y: number }[];
     index: number;
   }
   const units: Unit[] = [];
@@ -157,20 +160,33 @@ function place(g: Pick<PlantFlowGraph, 'nodes' | 'edges'>, levels: Map<string, Z
       rowH = Math.max(rowH, s.h);
       w = Math.max(w, x - GX - 4 + ZPAD);
     }
+    // parts in the zone itself: a grid below its VLANs
+    const inZone = (kids.get(z.id) ?? []).filter((x) => !x.group && x.kind !== 'vlan').sort(byKindThenLabel);
+    const chips: Unit['chips'] = [];
+    let bottom = vlans.length ? y + rowH : 0;
+    if (inZone.length) {
+      const cols = colsFor(inZone.length, wide);
+      const top = vlans.length ? bottom + GY + 4 : ZHEAD;
+      inZone.forEach((c, i) => chips.push({ id: c.id, x: ZPAD + (i % cols) * (CHIP_W + GX), y: top + Math.floor(i / cols) * (CHIP_H + GY) }));
+      const rows = Math.ceil(inZone.length / cols);
+      bottom = top + rows * CHIP_H + (rows - 1) * GY;
+      w = Math.max(w, 2 * ZPAD + cols * CHIP_W + (cols - 1) * GX);
+    }
     units.push({
       id: z.id,
       level: rank(levels.get(z.id.slice(5))),
       w: Math.max(w, 240),
-      h: vlans.length ? y + rowH + ZPAD : ZHEAD + 34,
+      h: bottom ? bottom + ZPAD : ZHEAD + 34,
       x: 0,
       y: 0,
       members,
+      chips,
       index: units.length,
     });
   }
   for (const v of g.nodes.filter((n) => n.kind === 'vlan' && !(n.parent && byId.has(n.parent)))) {
     const s = vlanSize.get(v.id)!;
-    units.push({ id: v.id, level: rank('control'), w: s.w, h: s.h, x: 0, y: 0, members: [], index: units.length });
+    units.push({ id: v.id, level: rank('control'), w: s.w, h: s.h, x: 0, y: 0, members: [], chips: [], index: units.length });
   }
   const unitOf = new Map(units.map((u) => [u.id, u]));
 
@@ -228,6 +244,7 @@ function place(g: Pick<PlantFlowGraph, 'nodes' | 'edges'>, levels: Map<string, Z
       const s = vlanSize.get(m.id)!;
       rects.set(m.id, { x: u.x + m.x, y: u.y + m.y, w: s.w, h: s.h });
     }
+    for (const c of u.chips) rects.set(c.id, { x: u.x + c.x, y: u.y + c.y, w: CHIP_W, h: CHIP_H });
   }
   for (const v of g.nodes.filter((n) => n.kind === 'vlan')) {
     const r = rects.get(v.id);

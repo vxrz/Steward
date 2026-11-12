@@ -600,6 +600,8 @@ const Zone = z.object({
   criticality: z.enum(ZONE_CRITICALITIES).nullable(),
   level: z.enum(ZONE_LEVELS).nullable().describe('Where the zone sits in the Purdue levels (field … external); null: not set'),
   vlans: z.array(z.string()),
+  systems: z.array(z.string()).describe('Steward systems in the zone the token owner may see (ids)'),
+  platforms: z.array(z.string()).describe('Steward platforms in the zone the token owner may see (ids)'),
   owner: z.string(),
   slTarget: z.number().int().min(1).max(4).nullable().describe('IEC 62443-3-2 target security level (SL-T); null: open until a risk assessment sets it'),
   riskAssessment: z.string(),
@@ -608,6 +610,8 @@ const Zone = z.object({
   ...source,
   conduits: z.array(z.string()),
   deviceCount: z.number().int(),
+  items: z.array(ItemRef).describe('The systems and platforms in the zone the token owner may see, by name'),
+  hiddenItems: z.number().int().describe('How many systems and platforms in the zone the token owner may not see (counted, not named)'),
 });
 const Conduit = z.object({
   id: z.string(),

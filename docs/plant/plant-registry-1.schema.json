@@ -3355,6 +3355,26 @@
             "description": "Stable id: lower-case letters, digits, \".\", \"_\" and \"-\"; never changes"
           }
         },
+        "systems": {
+          "description": "Steward systems in the zone (ids) – cloud services and enterprise systems without a VLAN of the site; the same system may be in zones of several sites",
+          "maxItems": 200,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          }
+        },
+        "platforms": {
+          "description": "Steward platforms in the zone (ids), as systems",
+          "maxItems": 200,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          }
+        },
         "owner": {
           "anyOf": [
             {

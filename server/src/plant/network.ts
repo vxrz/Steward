@@ -235,6 +235,27 @@ const seenSites = (sites: string[], rights: Map<string, PlantPermission[]>) => s
  * The other sites a save sends, with the ones of `before` the caller may not see kept in their place (they cannot
  * name or remove them); sites that no longer exist are left out.
  */
+/**
+ * The systems or platforms a zone's save sends, with the ones of `before` the caller may not see kept in their place
+ * (they cannot name or remove them; 0.20); ones that no longer exist are left out.
+ */
+export function withHiddenItems(kind: 'system' | 'platform', input: string[], before: string[] | null): string[] {
+  const out = [...input];
+  (before ?? []).forEach((id, i) => {
+    if (out.includes(id) || resolveTarget(kind, id) || !itemExists(kind, id)) return;
+    out.splice(Math.min(i, out.length), 0, id);
+  });
+  return out;
+}
+const itemExists = (kind: 'system' | 'platform', id: string) => !!db().get(`SELECT 1 FROM ${kind === 'system' ? 'systems' : 'platforms'} WHERE id = ?`, id);
+
+/** A zone's own values with the hidden systems and platforms of `before` kept (0.20). */
+export const zoneWithHidden = (v: PlantZoneValues, before: PlantZoneValues | null): PlantZoneValues => ({
+  ...v,
+  systems: withHiddenItems('system', v.systems, before?.systems ?? null),
+  platforms: withHiddenItems('platform', v.platforms, before?.platforms ?? null),
+});
+
 export function withHiddenSites(input: string[], before: string[] | null, rights: Map<string, PlantPermission[]>): string[] {
   const out = [...input];
   (before ?? []).forEach((s, i) => {
@@ -452,11 +473,32 @@ function conduitView(siteId: string, r: ConduitRow): PlantConduitView {
   };
 }
 
-function zoneView(r: ReturnType<typeof zoneRows>[number], d: SiteData): PlantZoneView {
+function zoneView(r: ReturnType<typeof zoneRows>[number], d: SiteData, refs: Map<string, PlantItemRef>): PlantZoneView {
   const v = zoneValuesOf(r);
   const vlans = new Set(v.vlans);
+  const ref = (kind: 'system' | 'platform', id: string) => {
+    const k = `${kind}:${id}`;
+    if (!refs.has(k)) refs.set(k, itemRef(kind, id));
+    return refs.get(k)!;
+  };
+  // what the reader may see is named; what they may not see (and still exists) is counted
+  const items: PlantItemRef[] = [];
+  let hiddenItems = 0;
+  for (const [kind, ids] of [
+    ['system', v.systems],
+    ['platform', v.platforms],
+  ] as const)
+    for (const id of ids) {
+      const x = ref(kind, id);
+      if (x.visible) items.push(x);
+      else if (itemExists(kind, id)) hiddenItems++;
+    }
   return {
     ...v,
+    systems: items.filter((x) => x.kind === 'system').map((x) => x.id),
+    platforms: items.filter((x) => x.kind === 'platform').map((x) => x.id),
+    items,
+    hiddenItems,
     ...source(r),
     conduits: d.conduits.filter((c) => c.zone_a === v.id || c.zone_b === v.id).map((c) => c.id),
     deviceCount: d.devices.filter((x) => x.vlan_id && vlans.has(x.vlan_id)).length,
@@ -497,12 +539,13 @@ export function siteNetwork(siteId: string): PlantSiteNetwork {
     return { id: a.id, name: a.name, status: a.status, live, devices: mine.length, paths: dataPaths.filter((p) => p.assetId === a.id).length };
   });
   const hosts = [...refs.values()].filter((x) => x.kind === 'system');
+  const zoneRefs = new Map<string, PlantItemRef>();
   return {
     site: { id: d.site.id, code: d.site.code, name: d.site.name, names: parseJson(d.site.names, {}) },
     canManage: d.perms.includes('manage'),
     canPropose: d.perms.includes('propose'),
     vlans: d.vlans.map((r) => vlanView(r, d, rights, names)),
-    zones: d.zoneRows.map((r) => zoneView(r, d)),
+    zones: d.zoneRows.map((r) => zoneView(r, d, zoneRefs)),
     conduits: d.conduits.map((r) => conduitView(siteId, r)),
     devices,
     dataPaths,
@@ -664,7 +707,7 @@ export function createZone(siteId: string, input: z.infer<typeof zoneInput>): Pl
   refuseAliasId('zone', siteId, input.id);
   if (zoneRows(siteId).length >= L.zonesPerSite) throw new HttpError(409, `At most ${L.zonesPerSite} zones per site`, 'PLANT_LIMIT', { max: L.zonesPerSite });
   const v: PlantZoneValues = input;
-  invalid(zoneProblems(v, new Set(vlanRows(siteId).map((x) => x.id))));
+  invalid([...zoneProblems(v, new Set(vlanRows(siteId).map((x) => x.id))), ...refProblems(v, null)]);
   db().tx(() => {
     upsertZone(siteId, v, nextPosition('plant_zones', 'site_id', siteId), { at: nowIso(), by: me().username });
     touchSite(siteId);
@@ -673,7 +716,14 @@ export function createZone(siteId: string, input: z.infer<typeof zoneInput>): Pl
       entityType: 'site',
       entityId: siteId,
       summary: `Zone "${v.name}" (${v.id}) added to site ${siteId}${v.slTarget ? ` (SL-T ${v.slTarget})` : ''}`,
-      details: { zone: v.id, criticality: v.criticality, slTarget: v.slTarget, vlans: v.vlans },
+      details: {
+        zone: v.id,
+        criticality: v.criticality,
+        slTarget: v.slTarget,
+        vlans: v.vlans,
+        ...(v.systems.length ? { systems: v.systems } : {}),
+        ...(v.platforms.length ? { platforms: v.platforms } : {}),
+      },
     });
   });
   return siteNetwork(siteId);
@@ -684,8 +734,9 @@ export function updateZone(siteId: string, zoneId: string, input: z.infer<typeof
   const cur = zoneRowOf(siteId, zoneId);
   if (!cur) throw notFound('zone', zoneId);
   const before = zoneValuesOf(cur);
-  const v: PlantZoneValues = { id: zoneId, ...input };
-  invalid(zoneProblems(v, new Set(vlanRows(siteId).map((x) => x.id))));
+  // systems and platforms the caller may not see stay as they are (0.20)
+  const v: PlantZoneValues = zoneWithHidden({ id: zoneId, ...input }, before);
+  invalid([...zoneProblems(v, new Set(vlanRows(siteId).map((x) => x.id))), ...refProblems(v, before)]);
   const changes = changedKeys(before, v);
   if (!changes.length) return siteNetwork(siteId);
   db().tx(() => {

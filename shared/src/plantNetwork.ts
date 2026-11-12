@@ -130,6 +130,8 @@ export const PLANT_NETWORK_LIMITS = {
   ranges: 64,
   sites: 50,
   vlansPerZone: 200,
+  /** Steward systems, and platforms, a zone lists (0.20) */
+  itemsPerZone: 200,
   devicesPerPath: 100,
   protocols: 30,
   controls: 30,
@@ -201,6 +203,14 @@ export interface PlantZoneValues {
   level: ZoneLevel | null;
   /** VLANs in the zone (ids of VLANs of the site) */
   vlans: string[];
+  /**
+   * Steward systems in the zone (0.20) – cloud services and enterprise systems without a VLAN of the site; the same
+   * system may be in zones of several sites. A view lists only those the reader may see (and counts the others); a
+   * save keeps the ones the caller may not see.
+   */
+  systems: string[];
+  /** Steward platforms in the zone (0.20: an IoT platform in the External zone), as `systems` */
+  platforms: string[];
   owner: string;
   /** IEC 62443-3-2 target security level SL-T (1–4); null: open until a risk assessment sets it */
   slTarget: SecurityLevel | null;
@@ -373,6 +383,10 @@ export interface PlantVlanView extends PlantVlanValues, PlantSource {
 export interface PlantZoneView extends PlantZoneValues, PlantSource {
   conduits: string[];
   deviceCount: number;
+  /** The systems and platforms in it the reader may see, by name (0.20) */
+  items: PlantItemRef[];
+  /** How many systems and platforms in it the reader may not see: counted, never named */
+  hiddenItems: number;
 }
 
 export interface PlantConduitView extends PlantConduitValues, PlantSource {

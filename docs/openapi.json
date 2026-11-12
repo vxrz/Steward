@@ -27973,6 +27973,20 @@
                     "type": "string"
                   }
                 },
+                "systems": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Steward systems in the zone the token owner may see (ids)"
+                },
+                "platforms": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Steward platforms in the zone the token owner may see (ids)"
+                },
                 "owner": {
                   "type": "string"
                 },
@@ -28025,6 +28039,54 @@
                 },
                 "deviceCount": {
                   "type": "integer"
+                },
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "system",
+                          "application",
+                          "platform",
+                          "process",
+                          "dataset",
+                          "job"
+                        ]
+                      },
+                      "id": {
+                        "type": "string"
+                      },
+                      "label": {
+                        "type": "string",
+                        "description": "Its name (empty when the token owner may not see it)"
+                      },
+                      "path": {
+                        "type": [
+                          "null",
+                          "string"
+                        ]
+                      },
+                      "visible": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "id",
+                      "label",
+                      "path",
+                      "visible"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "description": "The systems and platforms in the zone the token owner may see, by name"
+                },
+                "hiddenItems": {
+                  "type": "integer",
+                  "description": "How many systems and platforms in the zone the token owner may not see (counted, not named)"
                 }
               },
               "required": [
@@ -28034,6 +28096,8 @@
                 "criticality",
                 "level",
                 "vlans",
+                "systems",
+                "platforms",
                 "owner",
                 "slTarget",
                 "riskAssessment",
@@ -28042,7 +28106,9 @@
                 "importId",
                 "notInSource",
                 "conduits",
-                "deviceCount"
+                "deviceCount",
+                "items",
+                "hiddenItems"
               ],
               "additionalProperties": false
             }

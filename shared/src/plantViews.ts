@@ -214,8 +214,18 @@ export interface PlantFlowGraph {
 }
 
 /** GET /api/plant/sites/:siteId/network/placement: which VLANs of the site the hosts of its data paths are in (their network segments). */
+/**
+ * Where the Steward items the data paths of a site name stand in its OT network diagram (docs/PLANT.md#ot-network-diagram):
+ * a system on the VLANs of this site linked to a segment it is a member of, else in a zone of this site that lists it
+ * (0.20); an application where the first system it runs on that is placed in this site stands; a platform in a zone of
+ * this site that lists it. Items the reader may not see place nothing.
+ */
 export interface PlantHostPlacement {
-  hosts: { id: string; vlans: string[] }[];
+  hosts: { id: string; vlans: string[]; zones: string[] }[];
+  /** 0.20: an application and the system it is drawn with */
+  applications: { id: string; system: string }[];
+  /** 0.20: a platform and the zones that list it */
+  platforms: { id: string; zones: string[] }[];
 }
 
 // ---------- 4. KPI coverage ----------

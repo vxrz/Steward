@@ -40,7 +40,10 @@ export interface NetworkWords {
   /** A zone's level: its own, or derived for the diagram */
   level: (l: ZoneLevelOf) => string;
   /** info labels */
-  label: Record<'devices' | 'subnets' | 'owner' | 'vlans' | 'protocols' | 'controls' | 'assessment' | 'managedBy' | 'segment' | 'restricted' | 'level', string>;
+  label: Record<
+    'devices' | 'subnets' | 'owner' | 'vlans' | 'items' | 'protocols' | 'controls' | 'assessment' | 'managedBy' | 'segment' | 'restricted' | 'level',
+    string
+  >;
   yes: string;
   hidden: string;
   noVlan: string;
@@ -84,6 +87,11 @@ export function networkGraph(
   const zoneOfVlan = new Map<string, string>();
   for (const z of n.zones) for (const v of z.vlans) if (!zoneOfVlan.has(v) && vlanById.has(v)) zoneOfVlan.set(v, z.id);
   const hostVlan = new Map((placement?.hosts ?? []).map((h) => [h.id, h.vlans[0]]));
+  // 0.20: a system without a VLAN of the site stands in a zone that lists it; an application with the system it runs
+  // on; a platform in a zone that lists it
+  const hostZone = new Map((placement?.hosts ?? []).map((h) => [h.id, h.zones?.[0]]));
+  const appSystem = new Map((placement?.applications ?? []).map((a) => [a.id, a.system]));
+  const platformZone = new Map((placement?.platforms ?? []).map((x) => [x.id, x.zones[0]]));
   // an asset is drawn on the VLAN of its first device that has one
   const assetVlan = new Map<string, string>();
   for (const d of n.devices) if (d.vlan && vlanById.has(d.vlan) && !assetVlan.has(d.assetId)) assetVlan.set(d.assetId, d.vlan);
@@ -101,6 +109,15 @@ export function networkGraph(
       info: [
         ...(levels?.has(z.id) ? [{ label: w.label.level, value: w.level(levels.get(z.id)!) }] : []),
         { label: w.label.vlans, value: z.vlans.map((v) => vlanById.get(v)?.name ?? v).join(', ') || '–' },
+        // 0.20: the systems and platforms it lists – those the reader may not see counted, never named
+        ...((z.items?.length ?? 0) || z.hiddenItems
+          ? [
+              {
+                label: w.label.items,
+                value: [...(z.items ?? []).map((x) => x.label || x.id), ...(z.hiddenItems ? [`${w.hidden}: ${z.hiddenItems}`] : [])].join(', '),
+              },
+            ]
+          : []),
         ...(z.owner ? [{ label: w.label.owner, value: z.owner }] : []),
         ...(z.riskAssessment ? [{ label: w.label.assessment, value: [z.riskAssessment, z.assessedAt].filter(Boolean).join(' · ') }] : []),
         { label: w.label.devices, value: String(z.deviceCount) },
@@ -207,6 +224,11 @@ export function networkGraph(
     return undefined;
   };
   const vlanParent = (vlan: string | undefined) => (vlan && nodes.has(`vlan:${vlan}`) && nodes.get(`vlan:${vlan}`)!.group ? `vlan:${vlan}` : undefined);
+  const zoneParent = (zone: string | undefined) => (zone && nodes.has(`zone:${zone}`) ? `zone:${zone}` : undefined);
+  /** Where a system stands: on a VLAN of its segment, else in a zone that lists it, else outside (undefined) */
+  const hostParent = (id: string | null | undefined) => (id ? (vlanParent(hostVlan.get(id)) ?? zoneParent(hostZone.get(id))) : undefined);
+  const itemParent = (kind: string, id: string) =>
+    kind === 'application' ? hostParent(appSystem.get(id)) : kind === 'platform' ? zoneParent(platformZone.get(id)) : undefined;
   const host = (ref: PlantItemRef | null, id: string) =>
     node({
       id: `host:${id}`,
@@ -215,7 +237,7 @@ export function networkGraph(
       hidden: !ref?.visible,
       detail: '',
       path: ref?.path ?? null,
-      parent: vlanParent(hostVlan.get(id)),
+      parent: hostParent(id),
     });
   const peer = (text: string) => node({ id: `peer:${norm(text)}`, kind: 'peer', label: text || '–', detail: '', path: null, small: true });
   const worst = (a: LiveState | null | undefined, b: LiveState | null | undefined): LiveState | null => {
@@ -251,7 +273,8 @@ export function networkGraph(
       hidden: dp.collectorRef?.visible === false,
       detail: [w.collectorKind(c.kind), hostRef ? w.on(hostRef.visible ? hostRef.label : w.hidden) : ''].filter(Boolean).join(' · '),
       path: dp.collectorRef?.path ?? null,
-      parent: c.host ? vlanParent(hostVlan.get(c.host)) : undefined,
+      // on the system it runs on; an application or platform without one where it stands itself
+      parent: c.host ? hostParent(c.host) : itemParent(c.kind, c.ref),
     });
   };
   /**
@@ -266,6 +289,7 @@ export function networkGraph(
       hidden: !item?.visible,
       detail: '',
       path: item?.path ?? null,
+      parent: itemParent(kind, id),
     });
   // collectors first: an application that collects for one path and receives from another is drawn as its collector
   for (const dp of n.dataPaths as PlantDataPathView[]) if (nodes.has(`asset:${dp.assetId}`)) collectorNode(dp);

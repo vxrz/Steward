@@ -1,10 +1,20 @@
 import { type ReactNode } from 'react';
-import { Anchor, Badge, Button, Group, Paper, Select, SimpleGrid, Stack, Text, Tooltip } from '@mantine/core';
+import { Anchor, Badge, Button, Group, MultiSelect, Paper, Select, SimpleGrid, Stack, Text, Tooltip } from '@mantine/core';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { IconCircleCheck, IconCircleDashed, IconCircleX, IconEyeOff, IconNetwork } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import type { LinkKind, LinkTarget, LiveState, PlantItemRef, PlantLiveStatus, PlantSiteNetwork, SecurityLevel, ZoneCriticality } from '@sm/shared';
+import type {
+  LinkKind,
+  LinkTarget,
+  LiveState,
+  PlantItemRef,
+  PlantLiveStatus,
+  PlantSiteNetwork,
+  PlantZoneView,
+  SecurityLevel,
+  ZoneCriticality,
+} from '@sm/shared';
 import { get } from '../../api';
 import { TONE } from '../common';
 import { fmtDate } from '../../format';
@@ -320,5 +330,72 @@ export function ItemSelect({
       data-testid={testId}
       comboboxProps={{ withinPortal: true }}
     />
+  );
+}
+
+/**
+ * Several Steward items to pick (0.20: the systems or platforms of a zone), searched as one types through the link
+ * targets the reader may see; `known` names the items already chosen. Items the reader may not see are not in `value`
+ * – the form says how many there are, and the server keeps them.
+ */
+export function ItemMultiSelect({
+  kind,
+  value,
+  onChange,
+  label,
+  description,
+  known,
+  testId,
+}: {
+  kind: LinkKind;
+  value: string[];
+  onChange: (v: string[]) => void;
+  label: ReactNode;
+  description?: ReactNode;
+  known?: { id: string; label: string }[];
+  testId?: string;
+}) {
+  const pick = useRemoteSelect({ value, fallback: (id) => known?.find((x) => x.id === id)?.label ?? null });
+  const q = useQuery({
+    queryKey: ['link-targets', kind, pick.term],
+    queryFn: () => get<LinkTarget[]>(`/link-targets?kind=${kind}&q=${encodeURIComponent(pick.term)}&limit=50`),
+    placeholderData: keepPreviousData,
+  });
+  const options = pick.options((q.data ?? []).map((x) => ({ value: x.id, label: x.detail ? `${x.label} (${x.detail})` : x.label })));
+  return (
+    <MultiSelect
+      label={label}
+      description={description}
+      data={options}
+      value={value}
+      onChange={onChange}
+      searchable
+      clearable
+      searchValue={pick.search}
+      onSearchChange={pick.setSearch}
+      nothingFoundMessage="–"
+      data-testid={testId}
+      comboboxProps={{ withinPortal: true }}
+    />
+  );
+}
+
+/** The systems and platforms a zone lists (0.20): by name where the reader may see them, the others counted. */
+export function ZoneItems({ zone }: { zone: Pick<PlantZoneView, 'items' | 'hiddenItems'> }) {
+  const { t } = useTranslation('plantNetwork');
+  return (
+    <Group gap={6} wrap="wrap" component="span" data-testid="zone-items">
+      {zone.items.map((x, i) => (
+        <Text key={`${x.kind}:${x.id}`} span size="sm">
+          <ItemRefView item={x} />
+          {i < zone.items.length - 1 || zone.hiddenItems ? ',' : ''}
+        </Text>
+      ))}
+      {zone.hiddenItems > 0 && (
+        <Text span size="sm" c="dimmed">
+          {t('zone.hiddenItems', { count: zone.hiddenItems })}
+        </Text>
+      )}
+    </Group>
   );
 }

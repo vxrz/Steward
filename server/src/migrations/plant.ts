@@ -807,4 +807,14 @@ export const PLANT_MIGRATIONS: NamedMigration[] = [
       DELETE FROM plant_import_baselines;
     `,
   },
+  {
+    // 0.20 (docs/PLANT.md#steward-items-in-zones): a zone lists the Steward systems and platforms in it – cloud services
+    // and enterprise systems without a VLAN of the site; not exclusive (a cloud platform stands in the External zone of
+    // every site). Ids as JSON, like the zone's VLANs.
+    name: 'plant-031-zone-items',
+    sql: `
+      ALTER TABLE plant_zones ADD COLUMN systems TEXT NOT NULL DEFAULT '[]';
+      ALTER TABLE plant_zones ADD COLUMN platforms TEXT NOT NULL DEFAULT '[]';
+    `,
+  },
 ];

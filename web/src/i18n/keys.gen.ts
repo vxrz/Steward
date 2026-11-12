@@ -10780,6 +10780,15 @@ export interface Resources {
     'zone.assessmentRequired': string;
     'zone.assessedAt': string;
     'zone.assessedBy': string;
+    'zone.systems': string;
+    'zone.systemsHelp': string;
+    'zone.platforms': string;
+    'zone.platformsHelp': string;
+    'zone.items': string;
+    'zone.hiddenItems_one': string;
+    'zone.hiddenItems_other': string;
+    'zone.hiddenItemsKept_one': string;
+    'zone.hiddenItemsKept_other': string;
     'conduit.title': string;
     'conduit.help': string;
     'conduit.add': string;

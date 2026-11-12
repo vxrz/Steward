@@ -659,6 +659,14 @@ export const zoneSchema = z
       .optional()
       .describe('Where the zone sits in the Purdue levels, bottom to top; leave it out and the diagram derives one'),
     vlans: z.array(id).max(NL.vlansPerZone).optional().describe('The VLANs in the zone (ids of VLANs of the site)'),
+    systems: z
+      .array(z.string().min(1).max(100))
+      .max(NL.itemsPerZone)
+      .optional()
+      .describe(
+        'Steward systems in the zone (ids) – cloud services and enterprise systems without a VLAN of the site; the same system may be in zones of several sites',
+      ),
+    platforms: z.array(z.string().min(1).max(100)).max(NL.itemsPerZone).optional().describe('Steward platforms in the zone (ids), as systems'),
     owner: short,
     sl_t: z
       .union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)])

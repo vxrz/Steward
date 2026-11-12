@@ -57,7 +57,7 @@ import {
 import { get, notifyError, post, put } from '../../api';
 import { useFieldErrors } from '../common';
 import { FormButtons, IdInput, useIdField } from './forms';
-import { ItemSelect } from './network';
+import { ItemMultiSelect, ItemSelect } from './network';
 import { saveOrDraft } from './changes/common';
 
 /**
@@ -425,7 +425,8 @@ export function ZoneModal({
   onSaved,
 }: {
   network: PlantSiteNetwork;
-  zone?: PlantZoneValues & { revision?: number };
+  /** The zone as the reader sees it: `items` names its systems and platforms, `hiddenItems` counts the others */
+  zone?: PlantZoneValues & { revision?: number; items?: PlantItemRef[]; hiddenItems?: number };
   onClose: () => void;
   onSaved: (n: PlantSiteNetwork) => void;
 }) {
@@ -436,6 +437,9 @@ export function ZoneModal({
   const [criticality, setCriticality] = useState<string | null>(zone?.criticality ?? null);
   const [level, setLevel] = useState<string | null>(zone?.level ?? null);
   const [vlans, setVlans] = useState<string[]>(zone?.vlans ?? []);
+  const [systems, setSystems] = useState<string[]>(zone?.systems ?? []);
+  const [platforms, setPlatforms] = useState<string[]>(zone?.platforms ?? []);
+  const known = (zone?.items ?? []).map((x) => ({ id: x.id, label: x.label }));
   const [owner, setOwner] = useState(zone?.owner ?? '');
   const [sl, setSl] = useState<string | null>(zone?.slTarget ? String(zone.slTarget) : null);
   const [assessment, setAssessment] = useState(zone?.riskAssessment ?? '');
@@ -455,6 +459,9 @@ export function ZoneModal({
       criticality,
       level: level as ZoneLevel | null,
       vlans,
+      // those the reader may not see are not sent: the server keeps them
+      systems,
+      platforms,
       owner: text(owner),
       slTarget: sl ? (Number(sl) as SecurityLevel) : null,
       riskAssessment: text(assessment),
@@ -515,6 +522,32 @@ export function ZoneModal({
         searchable
         clearable
       />
+      {/* 0.20: Steward systems and platforms in the zone – cloud services, enterprise systems without a VLAN of the site */}
+      <SimpleGrid cols={{ base: 1, sm: 2 }}>
+        <ItemMultiSelect
+          kind="system"
+          label={t('zone.systems')}
+          description={t('zone.systemsHelp')}
+          value={systems}
+          onChange={setSystems}
+          known={known}
+          testId="zone-systems"
+        />
+        <ItemMultiSelect
+          kind="platform"
+          label={t('zone.platforms')}
+          description={t('zone.platformsHelp')}
+          value={platforms}
+          onChange={setPlatforms}
+          known={known}
+          testId="zone-platforms"
+        />
+      </SimpleGrid>
+      {!!zone?.hiddenItems && (
+        <Text size="xs" c="dimmed" data-testid="zone-hidden-items">
+          {t('zone.hiddenItemsKept', { count: zone.hiddenItems })}
+        </Text>
+      )}
       <SimpleGrid cols={{ base: 1, sm: 3 }}>
         <Select
           label={t('zone.slTarget')}
