@@ -112,7 +112,7 @@
     },
     "maintenanceNow": "Wartung läuft: {{title}} (bis {{to}})",
     "maintenancePlanned": "Geplante Wartung: {{title}}, {{from}} – {{to}}",
-    "vendorIssue": "Bekanntes Problem mit {{vendor}} (seit {{since}})",
+    "vendorIssue": "Bekanntes Problem mit {{vendor}} (gemeldet {{since}})",
     "objective": "{{name}}: {{value}} % (Ziel {{target}} %)",
     "objectiveNoData": "{{name}}: noch keine Daten (Ziel {{target}} %)",
     "generated": "Stand {{when}}",

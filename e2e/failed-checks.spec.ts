@@ -51,6 +51,9 @@ test('failed checks are grouped per check and the card folds and stays folded', 
     const entry = card.getByTestId('failed-check').filter({ hasText: `${name} – endpoints healthy` });
     await expect(entry).toHaveCount(1);
     await expect(entry).toContainText('3 runs');
+    // a relative time reads on its own: "first failed 1 minute ago", never "failing since 1 minute ago"
+    await expect(entry).toContainText(/first failed .+, 3 runs/);
+    await expect(entry).not.toContainText(/since .+ ago/);
     // the result leads, the expectation (the check's name) follows
     await expect(entry.getByTestId('failed-check-result')).toHaveText('Historian API, MES frontend down');
     await expect(entry.getByTestId('failed-check-expected')).toHaveText(`Expected: ${name} – endpoints healthy`);
