@@ -577,7 +577,7 @@
     "notePlaceholder": "z. B. Runbook: Service Credentials rotieren …",
     "url": "URL",
     "chooseFile": "Datei auswählen",
-    "fileHint": "PDF, Word, Text… bis 50 MB",
+    "fileHint": "PDF, Word, Text … bis 50 MB",
     "listTitle": "Dokumentation",
     "none": "Noch keine Dokumentation. Runbooks, API-Handbücher und nützliche Links direkt bei der Plattform ablegen.",
     "deleteTitle": "Dokumentation löschen",
@@ -958,8 +958,8 @@
     "save": "Verbindung speichern",
     "saved": "Verbindung gespeichert",
     "notSaved": "Die Verbindung konnte nicht gespeichert werden",
-    "contractServiceUnverified": "Dem Data-Contract-Dienst die Verbindung ohne Zertifikatsprüfung erlauben",
-    "contractServiceUnverifiedHint": "Der Data-Contract-Dienst kann das Zertifikat von PostgreSQL und MySQL nicht prüfen. Ohne diese Einstellung werden Data-Contract-Tests dieser Plattform abgelehnt, solange TLS eingeschaltet ist. Standardmäßig aus; die Änderung wird protokolliert."
+    "contractServiceUnverified": "Dem Datenvertragsdienst die Verbindung ohne Zertifikatsprüfung erlauben",
+    "contractServiceUnverifiedHint": "Der Datenvertragsdienst kann das Zertifikat von PostgreSQL und MySQL nicht prüfen. Ohne diese Einstellung werden Datenvertragstests dieser Plattform abgelehnt, solange TLS eingeschaltet ist. Standardmäßig aus; die Änderung wird protokolliert."
   },
   "schema": {
     "title": "Datenbankschema",
