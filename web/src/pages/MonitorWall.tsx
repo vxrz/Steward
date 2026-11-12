@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react';
-import { ActionIcon, Box, Group, SimpleGrid, Switch, Text, Title, Tooltip } from '@mantine/core';
+import { ActionIcon, Alert, Box, Group, SimpleGrid, Switch, Text, Title, Tooltip } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { IconArrowLeft, IconMaximize, IconPower } from '@tabler/icons-react';
+import { IconAlertTriangle, IconArrowLeft, IconMaximize, IconPower } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { MonitorStatus, MonitorSummary } from '@sm/shared';
 import { get } from '../api';
 import { MONITOR_COLORS, causeText, fmtUptime, monitorStatusLabel } from '../components/monitors/status';
 import { settlingCheckIds, stateProblemText } from '../components/monitors/StatePanel';
-import { fmtRelative } from '../format';
+import { fmtDate, fmtRelative } from '../format';
+import { QueryState } from '../components/common';
 import { monitorKeys } from '../queryKeys';
 
 const ORDER: Record<MonitorStatus, number> = { down: 0, degraded: 1, unknown: 2, blocked: 3, maintenance: 4, off: 5, up: 6 };
@@ -20,6 +21,9 @@ const readHideOff = (): boolean => {
     return false;
   }
 };
+
+/** Three refreshes missed: the statuses on the wall are not current any more. */
+const STALE_AFTER_MS = 35000;
 
 /** Status grid for a wall display: problems first, refreshed every 10 seconds. */
 export function MonitorWallPage() {
@@ -44,6 +48,10 @@ export function MonitorWallPage() {
     .filter((m) => m.enabled && !(hideOff && m.status === 'off'))
     .sort((a, b) => ORDER[a.status] - ORDER[b.status] || a.name.localeCompare(b.name));
   const problems = list.filter((m) => m.status === 'down' || m.status === 'degraded').length;
+  // a wall that cannot refresh must not look healthy: no headline before the first answer, and a banner once the
+  // statuses are older than three refreshes (the server or the network is gone, or the session ended)
+  const loaded = q.data !== undefined;
+  const outdated = loaded && now - q.dataUpdatedAt > STALE_AFTER_MS;
   return (
     <Box>
       <Group justify="space-between" mb="md" wrap="wrap">
@@ -57,9 +65,11 @@ export function MonitorWallPage() {
         </Group>
         <Group gap="md">
           <Switch size="sm" label={t('wall.hideOff')} checked={hideOff} onChange={(e) => toggleHideOff(e.currentTarget.checked)} />
-          <Text size="lg" fw={700} c={problems ? 'red' : 'green'} aria-live="polite">
-            {problems ? t('wall.problems', { count: problems, total: list.length }) : t('wall.allHealthy', { count: list.length })}
-          </Text>
+          {loaded && (
+            <Text size="lg" fw={700} c={outdated ? 'dimmed' : problems ? 'red' : 'green'} aria-live="polite" data-testid="status-wall-headline">
+              {problems ? t('wall.problems', { count: problems, total: list.length }) : t('wall.allHealthy', { count: list.length })}
+            </Text>
+          )}
           <Text size="xs" c="dimmed">
             {t('wall.updated', { when: fmtRelative(new Date(q.dataUpdatedAt || now).toISOString()) })}
           </Text>
@@ -74,7 +84,13 @@ export function MonitorWallPage() {
           </Tooltip>
         </Group>
       </Group>
-      <SimpleGrid cols={{ base: 1, xs: 2, md: 3, xl: 4 }} spacing="sm">
+      {!loaded && <QueryState query={q} />}
+      {outdated && (
+        <Alert color="orange" icon={<IconAlertTriangle size={18} />} mb="md" title={t('wall.outdatedTitle')} role="alert" data-testid="status-wall-outdated">
+          {t('wall.outdated', { when: fmtDate(new Date(q.dataUpdatedAt).toISOString()) })}
+        </Alert>
+      )}
+      <SimpleGrid cols={{ base: 1, xs: 2, md: 3, xl: 4 }} spacing="sm" style={outdated ? { opacity: 0.6 } : undefined}>
         {list.map((m) => (
           <Box
             key={m.id}

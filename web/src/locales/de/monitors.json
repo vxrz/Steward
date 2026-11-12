@@ -16,7 +16,9 @@
     "offAgree": "{{state}} – alle Prüfungen stimmen überein",
     "offSettling": "{{state}} · stellt sich ein, {{minutes}} min",
     "settling_one": "{{state}} · stellt sich ein, {{minutes}} min – {{count}} Prüfung noch nicht wie erwartet",
-    "settling_other": "{{state}} · stellt sich ein, {{minutes}} min – {{count}} Prüfungen noch nicht wie erwartet"
+    "settling_other": "{{state}} · stellt sich ein, {{minutes}} min – {{count}} Prüfungen noch nicht wie erwartet",
+    "outdatedTitle": "Nicht aktuell",
+    "outdated": "Die Status konnten seit {{when}} nicht aktualisiert werden – die Kacheln zeigen den letzten bekannten Stand. Prüfen Sie die Verbindung oder melden Sie sich erneut an."
   },
   "title": "Monitore",
   "description": "Zusammensetzbare Statusprüfungen mit Abhängigkeiten: Jede Prüfung läuft nach eigenem Zeitplan; Verknüpfungen erklären Ausfälle (Ursachen) und halten Folgealarme zurück.",

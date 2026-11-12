@@ -16,7 +16,9 @@
     "offAgree": "{{state}} – all checks agree",
     "offSettling": "{{state}} · settling {{minutes}} min",
     "settling_one": "{{state}} · settling {{minutes}} min – {{count}} check not as expected yet",
-    "settling_other": "{{state}} · settling {{minutes}} min – {{count}} checks not as expected yet"
+    "settling_other": "{{state}} · settling {{minutes}} min – {{count}} checks not as expected yet",
+    "outdatedTitle": "Not up to date",
+    "outdated": "The statuses could not be refreshed since {{when}} – the tiles show the last known statuses. Check the connection, or sign in again."
   },
   "title": "Monitors",
   "description": "Composable health checks with dependencies: every check runs on its own schedule; links explain failures (root causes) and keep follow-up alerts quiet.",

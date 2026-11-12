@@ -126,6 +126,32 @@ test('the status wall lists monitors with problems first', async ({ page }) => {
   await expect(first).toHaveAttribute('data-status', /down|degraded|unknown|up/);
 });
 
+test('a status wall that cannot refresh does not look healthy (0.20 review)', async ({ page, allowConsole }) => {
+  allowConsole(/Failed to load resource|status of 50\d|net::ERR_FAILED/);
+  await page.clock.install();
+  await page.goto('/monitors/wall');
+  await expect(page.getByTestId('status-wall-headline')).toBeVisible();
+  await expect(page.getByTestId('status-wall-outdated')).toHaveCount(0);
+  // the server stops answering: after three missed refreshes the wall says it is not up to date
+  await page.route('**/api/monitors', (route) => route.fulfill({ status: 503, body: '' }));
+  await page.clock.fastForward(60_000);
+  await expect(page.getByTestId('status-wall-outdated')).toContainText('could not be refreshed since');
+  await page.unroute('**/api/monitors');
+  await page.clock.fastForward(20_000);
+  await expect(page.getByTestId('status-wall-outdated')).toHaveCount(0);
+});
+
+test('a status wall that cannot load shows the error, not "all healthy"', async ({ page, allowConsole }) => {
+  allowConsole(/Failed to load resource|status of 50\d/);
+  await page.route('**/api/monitors', (route) => route.fulfill({ status: 503, body: '' }));
+  await page.goto('/monitors/wall');
+  await expect(page.getByRole('heading', { name: 'Status wall' })).toBeVisible();
+  await expect(page.getByTestId('status-wall-headline')).toHaveCount(0);
+  await expect(page.getByText('Could not load this page')).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTestId('status-wall-headline')).toHaveCount(0);
+  await expect(page.getByText(/monitors are healthy/)).toHaveCount(0);
+});
+
 test('viewers see monitors but cannot create or edit them', async ({ loginAs }) => {
   const page = await loginAs('vera');
   await page.goto('/monitors');

@@ -7123,6 +7123,8 @@ export interface Resources {
     'wall.offSettling': string;
     'wall.settling_one': string;
     'wall.settling_other': string;
+    'wall.outdatedTitle': string;
+    'wall.outdated': string;
     title: string;
     description: string;
     new: string;
