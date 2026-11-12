@@ -741,6 +741,10 @@ function computeWithLinks(serviceIds: string[] | undefined, viewer: AuthUser | n
   const d = load(serviceIds, now, viewer);
   if (!d.services.length) return [];
   const oc: ObjCtx = { cache: readingCache(now), facts: sampleFacts(), platforms: platformLookup(), monitors: monitorLookup(), viewer };
+  // the source monitors of every objective at once, not per objective (review 0.20.0)
+  const objectiveRows = d.services.flatMap((s) => d.objectives.get(s.id) ?? []);
+  oc.cache.prefetch(objectiveRows);
+  oc.monitors.prefetch(objectiveRows.map((o) => o.monitor_id));
   const docs = docCtx(d, viewer);
   const needs = protectionNeeds(d.services.map((s) => s.id));
   const lc = lifecycleCtx(d, viewer);

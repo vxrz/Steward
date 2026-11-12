@@ -40,7 +40,9 @@ export function sampleObjectives(now = Date.now()): { sampled: number; breaches:
   const cache = readingCache(now);
   let all: UserInfo[] | null = null;
   const users = () => (all ??= listUsers().filter((u) => u.active));
-  for (const o of db().all<ObjectiveRow>('SELECT * FROM availability_objectives ORDER BY id')) {
+  const rows = db().all<ObjectiveRow>('SELECT * FROM availability_objectives ORDER BY id');
+  cache.prefetch(rows.filter((o) => !services.get(o.service_id)?.archived));
+  for (const o of rows) {
     const s = services.get(o.service_id);
     if (!s || s.archived || o.archived_at) continue;
     try {

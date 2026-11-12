@@ -6,6 +6,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- **Faster start page, scorecard and lists with many items**: availability objectives with a monitor as source, the credentials register and its start page tile, the access check findings tile, the user and team lists read their items in a fixed number of database statements instead of a few per item – on PostgreSQL each statement is a round trip.
+
 ### Fixed
 
 - **The Industrial Edge examples read the online state from the device statistics and the firmware from the device details** ([examples/README.md](examples/README.md#verify-against-your-environment)): the IEM device list has only the onboarding state (`deviceStatus` ACTIVE, PENDING, DELETED), so the device status check, inventory snapshot, firmware compliance, stale device cleanup and weekly service report read the last report from the newest key of `GET /portal/api/v1/devices/{id}/statistics` (online within `onlineWithinMinutes`, default 15; "unknown" without statistics) and the IED OS version from `deviceVersion` of `GET /portal/api/v1/devices/{id}`, compared as a version number and shown in full. Pending devices are "not onboarded yet" instead of offline, deleted ones are left out, the device list is read page by page, and the app version compliance takes the latest version from `appVersions` of `GET /portal/api/v1/applications/{id}`. The inputs for a state field name and an "online" value are gone. The datasets keep their names and columns and gain _Onboarding_, _Offline (h)_, _Version_ and _Device type_ and the metrics `unknown` and `pending` (`iem.devices` loses `inactive`); the _Edge fleet_ dashboard shows them. The simulated IEM answers in the shapes of the IEM Pro Portal API, and the IEM preset tests the connection with `?size=1&page=1`. **Check before updating:** Git sync's _Steward example library_ brings the corrected examples with the next release tag, or now when you set the source's ref to `main`; review them under _Updates from Git_. Schedules that set the removed inputs keep working (undeclared inputs are left out).
