@@ -37,5 +37,6 @@ Short records of decisions that shape Steward's design: the context, what was de
 | [0031](0031-supplier-contracts-and-contacts-scope.md)  | Shared suppliers: contracts and contacts with own scope | Accepted, built in 0.18.0                                              |
 | [0032](0032-cost-attribution-platform-plans.md)        | Cost attribution, platform cost plans and volumes       | Accepted, built in 0.19.0                                              |
 | [0033](0033-one-access-model.md)                       | One access model: owning teams and shares               | Proposed                                                               |
+| [0034](0034-module-access.md)                          | Who may use a module: module access and roles           | Proposed                                                               |
 
 New record: copy [template.md](template.md) to `NNNN-short-title.md`, fill it in, add it to the table, and link it from [ARCHITECTURE.md](../ARCHITECTURE.md) where it applies.
