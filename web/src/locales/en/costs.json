@@ -590,8 +590,8 @@
       "service": "Service or platform",
       "team": "Team"
     },
-    "warnings_one": "{{count}} notice date before an unplanned year",
-    "warnings_other": "{{count}} notice dates before unplanned years",
+    "warnings_one": "{{count}} payment schedule needs attention",
+    "warnings_other": "{{count}} payment schedules need attention",
     "empty": "No payment schedules here. Add payments to a supplier contract to see what it still owes.",
     "hiddenSupplier": "Suppliers you may not see",
     "noTeam": "Without a team",

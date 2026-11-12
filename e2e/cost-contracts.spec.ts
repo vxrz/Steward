@@ -143,3 +143,31 @@ test('contract payments on a phone @mobile', async ({ page, apiAs }) => {
     }
   });
 });
+
+test('commitments: a currency that owes nothing any more gets no total card', async ({ page, apiAs }) => {
+  const api = await apiAs('admin');
+  const service = await json<{ id: string; name: string }>(await api.post('/api/services', { data: { name: uniq('Paid-up service') } }));
+  const supplier = await json<{ id: string; name: string }>(await api.post('/api/suppliers', { data: { name: uniq('Invented Paid Ltd'), type: 'saas' } }));
+  const d = await json<{ contracts: { id: string }[] }>(
+    await api.post(`/api/suppliers/${supplier.id}/contracts`, {
+      data: { title: 'Paid up front', startsOn: '2024-01-01', endsOn: '2099-12-31', noticeDays: 30, renewal: 'fixedEnd' },
+    }),
+  );
+  const contractId = d.contracts[0]!.id;
+  try {
+    // paid once, two years ago: nothing is owed in CHF any more
+    await json(
+      await api.post('/api/costs/schedules', {
+        data: { contractId, serviceId: service.id, title: 'One-off fee', amount: '500', currency: 'CHF', billing: 'once', startsOn: '2024-01-15' },
+      }),
+    );
+    await page.goto(`/costs/commitments`);
+    await chooseOption(page, 'Service', service.name);
+    await expect(page.getByTestId('commitments-show-paid')).toHaveText('Show 1 paid schedule');
+    await expect(page.getByTestId('commitment-total')).toHaveCount(0);
+  } finally {
+    await api.delete(`/api/suppliers/${supplier.id}/contracts/${contractId}`);
+    await api.post(`/api/suppliers/${supplier.id}/archive`, { data: { archived: true } });
+    await api.post(`/api/services/${service.id}/archive`, { data: { archived: true } });
+  }
+});

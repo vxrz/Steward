@@ -590,8 +590,8 @@
       "service": "Service oder Plattform",
       "team": "Team"
     },
-    "warnings_one": "{{count}} Kündigungsfrist vor einem ungeplanten Jahr",
-    "warnings_other": "{{count}} Kündigungsfristen vor ungeplanten Jahren",
+    "warnings_one": "{{count}} Zahlungsplan erfordert Aufmerksamkeit",
+    "warnings_other": "{{count}} Zahlungspläne erfordern Aufmerksamkeit",
     "empty": "Hier gibt es keine Zahlungspläne. Fügen Sie einem Lieferantenvertrag Zahlungen hinzu, um zu sehen, was er noch schuldet.",
     "hiddenSupplier": "Lieferanten, die Sie nicht sehen dürfen",
     "noTeam": "Ohne Team",
