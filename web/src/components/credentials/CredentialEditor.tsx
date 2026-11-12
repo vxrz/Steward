@@ -44,13 +44,12 @@ import type {
   CredentialBelongsKind,
   CredentialBelongsTarget,
 } from '@sm/shared';
-import { PVAULT_KIND } from '@sm/shared';
+import { CREDENTIAL_TYPES, PVAULT_KIND } from '@sm/shared';
 import { api, get, getOptional, notifyError, post } from '../../api';
 import { TagInput } from '../tags';
 import { useMe } from '../../auth';
 import { fmtDay } from '../../format';
 import { useFieldErrors } from '../common';
-import { CREDENTIAL_TYPE_IDS } from '../../pages/Credentials';
 import { monitorKeys, platformKeys, processKeys } from '../../queryKeys';
 
 const CERT_MAX = 256 * 1024;
@@ -323,7 +322,7 @@ export function CredentialEditor({
             label={t('fields.type')}
             required
             allowDeselect={false}
-            data={CREDENTIAL_TYPE_IDS.map((x) => ({ value: x, label: t(`types.${x}`) }))}
+            data={CREDENTIAL_TYPES.map((x) => ({ value: x, label: t(`types.${x}`) }))}
             value={d.type}
             onChange={(v) => set({ type: (v as CredentialType) ?? 'other' })}
           />

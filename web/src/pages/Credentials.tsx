@@ -42,7 +42,8 @@ import {
   IconTrash,
 } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import type { Backlink, Credential, CredentialBelongsTo, CredentialEvent, CredentialList, CredentialStatus, CredentialType } from '@sm/shared';
+import type { Backlink, Credential, CredentialBelongsTo, CredentialEvent, CredentialList, CredentialStatus } from '@sm/shared';
+import { CREDENTIAL_TYPES } from '@sm/shared';
 import { api, apiUrl, confirmedDownload, del, get, notifyError, notifyOk, post } from '../api';
 import { useMe } from '../auth';
 import { EmptyState, FilterPanel, QueryState, TONE, useCreateParam } from '../components/common';
@@ -62,7 +63,6 @@ import { TableScroll } from '../components/TableScroll';
 /** "Used by" entries listed before "Show all" */
 const USED_BY_FIRST = 5;
 
-export const CREDENTIAL_TYPE_IDS: CredentialType[] = ['apiClient', 'technicalUser', 'password', 'token', 'certificate', 'agentCertificate', 'sshKey', 'other'];
 export const CREDENTIAL_STATUS_IDS: CredentialStatus[] = ['ok', 'dueSoon', 'overdue', 'expired'];
 export const STATUS_COLOR: Record<CredentialStatus, string> = { ok: TONE.ok, dueSoon: TONE.soon, overdue: TONE.attention, expired: TONE.bad };
 
@@ -366,7 +366,7 @@ export function CredentialsPage() {
           <MultiSelect
             size="xs"
             label={t('filters.type')}
-            data={CREDENTIAL_TYPE_IDS.map((x) => ({ value: x, label: t(`types.${x}`) }))}
+            data={CREDENTIAL_TYPES.map((x) => ({ value: x, label: t(`types.${x}`) }))}
             value={types}
             onChange={setTypes}
             placeholder={types.length ? undefined : t('filters.allTypes')}

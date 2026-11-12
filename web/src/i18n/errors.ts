@@ -1,5 +1,5 @@
 import type { ErrorParam, ErrorParams } from '@sm/shared';
-import { ApiError } from '../api';
+import { ApiError } from '../apiError';
 import { fmtNumber, listFormat } from '../format';
 import i18n from './index';
 
