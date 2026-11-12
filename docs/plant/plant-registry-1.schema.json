@@ -4020,11 +4020,13 @@
                 "description": "Seen from the collector: pull (it fetches from the peer – a source), push (it sends to the peer – a target) or receive (the peer sends to it – a source)"
               },
               "peer_kind": {
-                "description": "device (of the asset), system (a Steward system) or other (default)",
+                "description": "device (of the asset), system, application or platform (a Steward item, by id) or other (default)",
                 "type": "string",
                 "enum": [
                   "device",
                   "system",
+                  "application",
+                  "platform",
                   "other"
                 ]
               },
@@ -4077,10 +4079,12 @@
             "type": "object",
             "properties": {
               "kind": {
-                "description": "system, dataset or other (default)",
+                "description": "system, application or platform (a Steward item, by id), dataset (a key) or other (default)",
                 "type": "string",
                 "enum": [
                   "system",
+                  "application",
+                  "platform",
                   "dataset",
                   "other"
                 ]

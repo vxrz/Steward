@@ -44,6 +44,7 @@ import {
   type PlantConduitValues,
   type PlantDataPathValues,
   type PlantDeviceValues,
+  type PlantItemRef,
   type PlantSiteNetwork,
   type PlantStatusCheck,
   type PlantSubnet,
@@ -982,6 +983,8 @@ export function DataPathModal({
   const [notes, setNotes] = useState(path?.notes ?? '');
   const save = useSave(onSaved, onClose, network.canManage);
   const view = network.dataPaths.find((x) => x.id === path?.id);
+  // what the form shows for a Steward item it loaded: its name, or "not visible" – never the name of one the reader may not see
+  const keepOf = (ref: PlantItemRef | null | undefined) => (ref ? { id: ref.id, label: ref.visible ? ref.label : t('notVisible') } : null);
   const v = useFieldErrors({
     subject: !subject.trim() && t('common:validation.required'),
     id: !PLANT_ID_RE.test(id.id) && t('plant:form.idInvalid'),
@@ -1063,7 +1066,7 @@ export function DataPathModal({
                 kind={COLLECTOR_LINK[collector.kind]}
                 label={t(`collectorKinds.${collector.kind}`)}
                 value={collector.ref || null}
-                keep={view?.collectorRef ? { id: view.collectorRef.id, label: view.collectorRef.label } : null}
+                keep={keepOf(view?.collectorRef)}
                 onChange={(x) => setCollector({ ...collector, ref: x ?? '' })}
                 required
                 error={v.error('collector')}
@@ -1075,7 +1078,7 @@ export function DataPathModal({
               label={t('path.host')}
               description={t('path.hostHelp')}
               value={collector.host}
-              keep={view?.collectorHost ? { id: view.collectorHost.id, label: view.collectorHost.label } : null}
+              keep={keepOf(view?.collectorHost)}
               onChange={(x) => setCollector({ ...collector, host: x })}
             />
           )}
@@ -1139,12 +1142,12 @@ export function DataPathModal({
                     onChange={(p) => setTransfers(at(transfers, i, { peer: p ?? '' }))}
                     required
                   />
-                ) : x.peerKind === 'system' ? (
+                ) : x.peerKind === 'system' || x.peerKind === 'application' || x.peerKind === 'platform' ? (
                   <ItemSelect
-                    kind="system"
+                    kind={x.peerKind}
                     label={t('path.peer')}
                     value={x.peer || null}
-                    keep={view?.peers[i] ? { id: view.peers[i]!.id, label: view.peers[i]!.label } : null}
+                    keep={keepOf(view?.peers[i])}
                     onChange={(p) => setTransfers(at(transfers, i, { peer: p ?? '' }))}
                     required
                   />
@@ -1191,12 +1194,12 @@ export function DataPathModal({
                   allowDeselect={false}
                   onChange={(k) => k && setDestinations(at(destinations, i, { kind: k as (typeof DESTINATION_KINDS)[number], ref: '' }))}
                 />
-                {x.kind === 'system' ? (
+                {x.kind === 'system' || x.kind === 'application' || x.kind === 'platform' ? (
                   <ItemSelect
-                    kind="system"
+                    kind={x.kind}
                     label={t('path.destination')}
                     value={x.ref || null}
-                    keep={view?.targets[i] ? { id: view.targets[i]!.id, label: view.targets[i]!.label } : null}
+                    keep={keepOf(view?.targets[i])}
                     onChange={(r) => setDestinations(at(destinations, i, { ref: r ?? '' }))}
                     required
                   />

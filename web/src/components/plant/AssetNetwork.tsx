@@ -125,7 +125,7 @@ export function DataPathSummary({ path, withAsset }: { path: PlantDataPathView; 
           <Text size="xs" c="dimmed">
             {x.mode === 'push' ? t('path.to') : t('path.from')}
           </Text>
-          {x.peerKind === 'system' ? <ItemRefView item={path.peers[i] ?? null} fallback={x.peer} /> : <Text size="sm">{x.peer || '–'}</Text>}
+          {path.peers[i] ? <ItemRefView item={path.peers[i]} fallback={x.peer} /> : <Text size="sm">{x.peer || '–'}</Text>}
         </Group>
       ))}
       {path.destinations.length > 0 && (

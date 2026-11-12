@@ -747,7 +747,10 @@ export const dataPathSchema = z
               .describe(
                 'Seen from the collector: pull (it fetches from the peer – a source), push (it sends to the peer – a target) or receive (the peer sends to it – a source)',
               ),
-            peer_kind: z.enum(PEER_KINDS).optional().describe('device (of the asset), system (a Steward system) or other (default)'),
+            peer_kind: z
+              .enum(PEER_KINDS)
+              .optional()
+              .describe('device (of the asset), system, application or platform (a Steward item, by id) or other (default)'),
             peer: short,
             port: z.number().int().min(1).max(65535).nullable().optional(),
             notes: text(500),
@@ -760,7 +763,7 @@ export const dataPathSchema = z
       .array(
         z
           .object({
-            kind: z.enum(DESTINATION_KINDS).optional().describe('system, dataset or other (default)'),
+            kind: z.enum(DESTINATION_KINDS).optional().describe('system, application or platform (a Steward item, by id), dataset (a key) or other (default)'),
             ref: z.string().min(1).max(NL.text),
             path: text(500),
             notes: text(500),

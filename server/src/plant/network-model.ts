@@ -552,9 +552,17 @@ export function namedRefs(v: Partial<PlantVlanValues & PlantDeviceValues & Plant
     if (v.collector.kind !== 'job') out.push({ kind: v.collector.kind, id: v.collector.ref, path: 'collector.ref' });
     if (v.collector.host) out.push({ kind: 'system', id: v.collector.host, path: 'collector.host' });
   }
-  v.transfers?.forEach((t, i) => t.peerKind === 'system' && out.push({ kind: 'system', id: t.peer, path: `transfers[${i}].peer` }));
-  // a dataset destination is documentation (it may be published later): only systems must be visible
-  v.destinations?.forEach((d, i) => d.kind === 'system' && out.push({ kind: 'system', id: d.ref, path: `destinations[${i}].ref` }));
+  // systems, applications and platforms a transfer or destination names (0.20: also applications and platforms)
+  v.transfers?.forEach(
+    (t, i) =>
+      (t.peerKind === 'system' || t.peerKind === 'application' || t.peerKind === 'platform') &&
+      out.push({ kind: t.peerKind, id: t.peer, path: `transfers[${i}].peer` }),
+  );
+  // a dataset destination is documentation (it may be published later): only Steward items must be visible
+  v.destinations?.forEach(
+    (d, i) =>
+      (d.kind === 'system' || d.kind === 'application' || d.kind === 'platform') && out.push({ kind: d.kind, id: d.ref, path: `destinations[${i}].ref` }),
+  );
   v.checks?.forEach((c, i) =>
     out.push(
       c.kind === 'monitor'

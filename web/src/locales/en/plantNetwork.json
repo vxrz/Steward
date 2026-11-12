@@ -159,10 +159,14 @@
   "peerKinds": {
     "device": "Device of the asset",
     "system": "Steward system",
+    "application": "Steward application",
+    "platform": "Steward platform",
     "other": "Other"
   },
   "destinationKinds": {
     "system": "Steward system",
+    "application": "Steward application",
+    "platform": "Steward platform",
     "dataset": "Steward dataset",
     "other": "Other"
   },

@@ -127,4 +127,27 @@ describe('the OT network diagram', () => {
     const edges = g.edges.map((e) => `${e.from}>${e.to}`).sort();
     expect(edges).toEqual(['asset:a1>col:job:push', 'col:job:push>host:share', 'host:share>col:job:archive'].sort());
   });
+  it('an application or platform is one part: pushed to by one path, collecting for another', () => {
+    const app = (id: string, label: string): PlantItemRef => ({ kind: 'application', id, label, path: `/applications/${id}`, visible: true });
+    const g = networkGraph(
+      site([
+        {
+          collector: { kind: 'job', ref: 'bfc', host: null },
+          transfers: [{ protocol: 'http', mode: 'push', peerKind: 'application', peer: 'app_influx', port: 8086, notes: '' }],
+          peers: [app('app_influx', 'InfluxDB')],
+          destinations: [{ kind: 'platform', ref: 'pf_ih', path: '', notes: '' }],
+          targets: [{ kind: 'platform', id: 'pf_ih', label: '', path: null, visible: false }],
+        },
+        { collector: { kind: 'application', ref: 'app_influx', host: null }, collectorRef: app('app_influx', 'InfluxDB') },
+      ]),
+      undefined,
+      words,
+    );
+    expect(g.nodes.filter((x) => x.id === 'col:application:app_influx')).toEqual([expect.objectContaining({ kind: 'collector', label: 'InfluxDB' })]);
+    // a platform the reader may not see: drawn without its name
+    expect(g.nodes.find((x) => x.id === 'col:platform:pf_ih')).toMatchObject({ kind: 'platform', label: '', hidden: true });
+    expect(g.edges.map((e) => `${e.from}>${e.to}`).sort()).toEqual(
+      ['asset:a0>col:job:bfc', 'asset:a1>col:application:app_influx', 'col:job:bfc>col:application:app_influx', 'col:job:bfc>col:platform:pf_ih'].sort(),
+    );
+  });
 });

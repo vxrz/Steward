@@ -203,8 +203,12 @@ export function plantImpact(targets: { kind: MaintenanceTargetKind; id: string }
   const touched = (p: PlantDataPathValues): { from: string | null } | null => {
     const h = dataPathEnds(p);
     for (const key of [...h.from, ...h.to, ...(p.collector?.host ? [`system:${p.collector.host}`] : [])]) {
+      const kind = key.slice(0, key.indexOf(':'));
       const id = key.slice(key.indexOf(':') + 1);
-      if (key.startsWith('system:') && reach.systems.has(id)) return { from: systemName(id) };
+      if (kind === 'system' && reach.systems.has(id)) return { from: systemName(id) };
+      // an application or platform a path pushes to or reads from (0.20), named as the reader may see it
+      if ((kind === 'application' && reach.applications.has(id)) || (kind === 'platform' && reach.platforms.has(id)))
+        return { from: resolveTarget(kind, id)?.label ?? kind };
     }
     return null;
   };

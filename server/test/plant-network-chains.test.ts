@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { dataPathEnds, type PlantDataPathValues } from '@sm/shared';
-import { setup, startTestServer, type TestServer } from './helpers.js';
+import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
 /**
  * Chains of data paths (0.20.0, docs/PLANT.md#chains-of-data-paths). A transfer is seen from the collector: pull – it
@@ -17,6 +17,7 @@ process.env.SM_MONITOR_AUTOSTART = '0';
 process.env.SM_MONITOR_DEMO_SIMULATOR = '0';
 
 let s: TestServer;
+let dana: Client;
 const sys: Record<string, string> = {};
 const assetNet = (asset: string) => s.api('GET', `/plant/assets/${asset}/network`);
 const pathOf = async (asset: string, id: string) => (await assetNet(asset)).dataPaths.find((p: { id: string }) => p.id === id);
@@ -31,6 +32,9 @@ beforeAll(async () => {
     content: fs.readFileSync(path.resolve(__dirname, '../../examples/plant', name), 'utf8'),
   }));
   await s.api('POST', '/plant/import', { files, mode: 'add' });
+  const { createUser } = await import('../src/auth/users.js');
+  createUser({ username: 'dana', roles: ['designer'], password: 'Plant-password-1' });
+  dana = await s.as('dana', 'Plant-password-1');
   for (const name of ['gateway', 'iot', 'influx', 'share', 'archive', 'historian'])
     sys[name] = (await s.api('POST', '/systems', { name: `Invented ${name}`, kind: 'server' })).id;
 });
@@ -149,6 +153,94 @@ describe('chains', () => {
     expect(pushed.previous).toEqual([]);
     expect(links(pushed.next)).toEqual(['rvs-press-01/archive']);
     expect(links((await pathOf('rvs-mill-02', 'programs-out')).next)).toEqual(['rvs-press-01/archive']);
+  });
+
+  it('applications and platforms as peers and destinations: chained by the exact item, never through its host', async () => {
+    // the owner's case: two assets' BFC gateways push to the application InfluxDB (on the gateway's host) and to the
+    // Insights Hub platform
+    const influx = (await s.api('POST', '/applications', { name: 'Invented InfluxDB' })).id;
+    const ih = (await s.api('POST', '/platforms', { name: 'Invented Insights Hub', kind: 'generic', baseUrl: 'http://127.0.0.1:9/api' })).id;
+    for (const asset of ['rvs-mill-01', 'rvs-mill-02'])
+      await s.api('POST', `/plant/assets/${asset}/paths`, {
+        id: 'bfc-apps',
+        subject: 'Machine data over the gateway',
+        collector: { kind: 'job', ref: `bfc-${asset}`, host: sys.gateway },
+        transfers: [
+          { protocol: 'mqtt', mode: 'receive', peerKind: 'other', peer: 'PLC' },
+          { protocol: 'http', mode: 'push', peerKind: 'application', peer: influx, port: 8086 },
+        ],
+        destinations: [{ kind: 'platform', ref: ih, path: 'assets/machine' }],
+      });
+    const one = await pathOf('rvs-mill-01', 'bfc-apps');
+    expect(one).toMatchObject({
+      peers: [null, { kind: 'application', id: influx, label: 'Invented InfluxDB', visible: true }],
+      targets: [{ kind: 'platform', id: ih, label: 'Invented Insights Hub', visible: true }],
+      next: [],
+      previous: [],
+    });
+    // a job that pulls from the InfluxDB application continues both; one that reads from the gateway's host does not
+    await s.api('POST', '/plant/assets/rvs-press-01/paths', {
+      id: 'influx-report',
+      subject: 'Report from InfluxDB',
+      collector: { kind: 'job', ref: 'influx-report' },
+      transfers: [{ protocol: 'http', mode: 'pull', peerKind: 'application', peer: influx }],
+    });
+    await s.api('POST', '/plant/assets/rvs-press-01/paths', {
+      id: 'gateway-backup',
+      subject: 'Backup of the gateway',
+      collector: { kind: 'job', ref: 'backup' },
+      transfers: [{ protocol: 'sftp', mode: 'pull', peerKind: 'system', peer: sys.gateway }],
+    });
+    const report = await pathOf('rvs-press-01', 'influx-report');
+    expect(links(report.previous)).toEqual(['rvs-mill-01/bfc-apps', 'rvs-mill-02/bfc-apps']);
+    expect(report.previous[0]).toMatchObject({ via: influx, viaKind: 'application' });
+    // (what pushes into the gateway itself does continue there)
+    expect(links((await pathOf('rvs-press-01', 'gateway-backup')).previous)).toEqual(['rvs-mill-03/to-gateway']);
+    expect(links((await pathOf('rvs-mill-02', 'bfc-apps')).next)).toEqual(['rvs-press-01/influx-report']);
+    // the file format writes and reads them
+    const yaml = await s.api('GET', '/plant/export?site=riverside');
+    expect(yaml).toContain('peer_kind: application');
+    expect(yaml).toContain('kind: platform');
+    const back = await s.api('POST', '/plant/import/preview', { files: [{ name: 'riverside.plant.yaml', content: yaml }], mode: 'update' });
+    expect(back.problems).toEqual([]);
+    expect(back.counts).toMatchObject({ add: 0, change: 0 });
+  });
+
+  it('an application or platform the reader may not see: "not visible", kept by an editor’s save, never picked anew', async () => {
+    const pf = (await s.api('POST', '/platforms', { name: 'Invented secret platform', kind: 'generic', baseUrl: 'http://127.0.0.1:9/api' })).id;
+    await s.api('PUT', `/platforms/${pf}/access`, { acl: [{ subject: 'role:admin', permissions: ['use', 'manage'] }] });
+    await s.api('POST', '/plant/assets/rvs-mill-03/paths', {
+      id: 'secret',
+      subject: 'To the secret platform',
+      collector: { kind: 'job', ref: 'secret-job' },
+      transfers: [{ protocol: 'https', mode: 'push', peerKind: 'platform', peer: pf }],
+      destinations: [{ kind: 'platform', ref: pf }],
+    });
+    const seen = (await dana('GET', '/plant/assets/rvs-mill-03/network')).dataPaths.find((p: { id: string }) => p.id === 'secret');
+    expect(seen.peers[0]).toMatchObject({ kind: 'platform', label: '', path: null, visible: false });
+    expect(seen.targets[0]).toMatchObject({ kind: 'platform', label: '', visible: false });
+    expect(JSON.stringify(seen)).not.toContain('Invented secret platform');
+    // her save sends it back as it was: kept
+    const { revision, subject, description, devices, collector, transfers, destinations, notes } = seen;
+    await dana('PUT', '/plant/assets/rvs-mill-03/paths/secret', {
+      revision,
+      subject: `${subject}!`,
+      description,
+      devices,
+      collector,
+      transfers,
+      destinations,
+      notes,
+    });
+    expect((await pathOf('rvs-mill-03', 'secret')).transfers[0]).toMatchObject({ peerKind: 'platform', peer: pf });
+    // naming it anew is refused (a hidden item reads like a missing one)
+    await expect(
+      dana('POST', '/plant/assets/rvs-mill-03/paths', {
+        id: 'secret-2',
+        subject: 'Again',
+        destinations: [{ kind: 'platform', ref: pf }],
+      }),
+    ).rejects.toMatchObject({ status: 400 });
   });
 
   it('the file format and the API take the mode receive', async () => {

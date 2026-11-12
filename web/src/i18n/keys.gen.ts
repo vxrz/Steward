@@ -10696,8 +10696,12 @@ export interface Resources {
     'modes.receive': string;
     'peerKinds.device': string;
     'peerKinds.system': string;
+    'peerKinds.application': string;
+    'peerKinds.platform': string;
     'peerKinds.other': string;
     'destinationKinds.system': string;
+    'destinationKinds.application': string;
+    'destinationKinds.platform': string;
     'destinationKinds.dataset': string;
     'destinationKinds.other': string;
     'vlan.title': string;
@@ -11016,6 +11020,8 @@ export interface Resources {
     'kinds.conduit': string;
     'kinds.host': string;
     'kinds.peer': string;
+    'kinds.application': string;
+    'kinds.platform': string;
     'node.hidden': string;
     'node.inactive': string;
     'node.inactiveSentence': string;

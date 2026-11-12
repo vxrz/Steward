@@ -122,7 +122,9 @@
     "vlan": "VLAN",
     "conduit": "Verbindungskanal (Conduit)",
     "host": "Host",
-    "peer": "Andere Stelle"
+    "peer": "Andere Stelle",
+    "application": "Anwendung",
+    "platform": "Plattform"
   },
   "node": {
     "hidden": "Nicht sichtbar",

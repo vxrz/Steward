@@ -1,6 +1,8 @@
 import type { z } from 'zod';
 import {
   dataPathEnds,
+  PATH_ITEM_KINDS,
+  type PathItemKind,
   inCidr,
   ipValue,
   PLANT_NETWORK_LIMITS as L,
@@ -322,6 +324,7 @@ interface PathIndex {
 const pathKey = (assetId: string, id: string) => `${assetId}\u0000${id}`;
 /** The id of an item key (`system:<id>`) */
 const idOfKey = (key: string) => key.slice(key.indexOf(':') + 1);
+const isPathItemKind = (k: string): k is PathItemKind => (PATH_ITEM_KINDS as readonly string[]).includes(k);
 
 function pathIndex(rights: Map<string, PlantPermission[]>): PathIndex {
   const idx: PathIndex = { byKey: new Map(), readers: new Map(), writers: new Map(), memo: new Map() };
@@ -375,17 +378,17 @@ function chainOf(idx: PathIndex, side: 'readers' | 'writers', hosts: string[]): 
  * The data paths that read from a host (a Steward system): where a sink's data goes next (0.12). Paths of sites the
  * reader may not see are counted, not named.
  */
-export function pathsReadingFrom(host: string): { paths: PlantPathLink[]; more: number; hidden: number } {
+export function pathsReadingFrom(kind: PathItemKind, host: string): { paths: PlantPathLink[]; more: number; hidden: number } {
   const rights = siteRights(db().all<{ id: string; acl: string }>('SELECT id, acl FROM plant_sites'));
   const idx = pathIndex(rights);
-  const key = `system:${host}`;
+  const key = `${kind}:${host}`;
   const c = chainOf(idx, 'readers', [key]);
   const all = db()
     .all<DataPathRow>('SELECT * FROM plant_data_paths')
     .filter((r) => hostsOf(dataPathValuesOf(r)).from.includes(key)).length;
   const shown = c.first.slice(0, L.chainLinks);
   return {
-    paths: shown.map((x) => ({ assetId: x.r.asset_id, assetName: x.r.asset_name, pathId: x.v.id, subject: x.v.subject, via: host })),
+    paths: shown.map((x) => ({ assetId: x.r.asset_id, assetName: x.r.asset_name, pathId: x.v.id, subject: x.v.subject, via: host, viaKind: kind })),
     more: Math.max(0, c.count - shown.length),
     hidden: Math.max(0, all - c.count),
   };
@@ -407,13 +410,17 @@ function pathView(r: DataPathRow, assetName: string, idx: PathIndex, refs: Map<s
     const others = c.first.filter((x) => x !== self).slice(0, L.chainLinks);
     const total = c.count - (self && unique.some((h) => (side === 'readers' ? self.from : self.to).has(h)) ? 1 : 0);
     return {
-      list: others.map((x) => ({
-        assetId: x.r.asset_id,
-        assetName: x.r.asset_name,
-        pathId: x.v.id,
-        subject: x.v.subject,
-        via: idOfKey(unique.find((h) => (side === 'readers' ? x.from : x.to).has(h))!),
-      })),
+      list: others.map((x) => {
+        const via = unique.find((h) => (side === 'readers' ? x.from : x.to).has(h))!;
+        return {
+          assetId: x.r.asset_id,
+          assetName: x.r.asset_name,
+          pathId: x.v.id,
+          subject: x.v.subject,
+          via: idOfKey(via),
+          viaKind: via.slice(0, via.indexOf(':')) as PathItemKind,
+        };
+      }),
       more: Math.max(0, total - others.length),
     };
   };
@@ -426,8 +433,8 @@ function pathView(r: DataPathRow, assetName: string, idx: PathIndex, refs: Map<s
     assetName,
     collectorRef: v.collector ? ref(v.collector.kind, v.collector.ref) : null,
     collectorHost: v.collector?.host ? ref('system', v.collector.host) : null,
-    peers: v.transfers.map((t) => (t.peerKind === 'system' ? ref('system', t.peer) : null)),
-    targets: v.destinations.map((x) => (x.kind === 'system' ? ref('system', x.ref) : x.kind === 'dataset' ? ref('dataset', x.ref) : null)),
+    peers: v.transfers.map((t) => (isPathItemKind(t.peerKind) ? ref(t.peerKind, t.peer) : null)),
+    targets: v.destinations.map((x) => (isPathItemKind(x.kind) || x.kind === 'dataset' ? ref(x.kind, x.ref) : null)),
     next: next.list,
     previous: previous.list,
     nextMore: next.more,

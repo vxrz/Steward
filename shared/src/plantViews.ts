@@ -115,6 +115,9 @@ export const PLANT_FLOW_NODE_KINDS = [
   'conduit',
   'host',
   'peer',
+  // 0.20: a Steward application or platform a data path pushes to, reads from or delivers to
+  'application',
+  'platform',
 ] as const;
 export type PlantFlowNodeKind = (typeof PLANT_FLOW_NODE_KINDS)[number];
 

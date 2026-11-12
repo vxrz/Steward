@@ -59,7 +59,7 @@ export interface NetLayout {
   height: number;
 }
 
-const KIND_ORDER: Record<string, number> = { asset: 0, host: 1, collector: 2, dataset: 3, peer: 4 };
+const KIND_ORDER: Record<string, number> = { asset: 0, host: 1, collector: 2, application: 3, platform: 4, dataset: 5, peer: 6 };
 const byKindThenLabel = (a: PlantFlowNode, b: PlantFlowNode) =>
   (KIND_ORDER[a.kind] ?? 9) - (KIND_ORDER[b.kind] ?? 9) || a.label.localeCompare(b.label) || a.id.localeCompare(b.id);
 

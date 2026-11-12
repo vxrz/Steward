@@ -28575,6 +28575,8 @@
                         "enum": [
                           "device",
                           "system",
+                          "application",
+                          "platform",
                           "other"
                         ]
                       },
@@ -28615,6 +28617,8 @@
                         "type": "string",
                         "enum": [
                           "system",
+                          "application",
+                          "platform",
                           "dataset",
                           "other"
                         ]
@@ -28876,7 +28880,16 @@
                       },
                       "via": {
                         "type": "string",
-                        "description": "The system they share"
+                        "description": "The Steward item they share (its id)"
+                      },
+                      "viaKind": {
+                        "type": "string",
+                        "enum": [
+                          "system",
+                          "application",
+                          "platform"
+                        ],
+                        "description": "Its kind: system, application or platform"
                       }
                     },
                     "required": [
@@ -28884,11 +28897,12 @@
                       "assetName",
                       "pathId",
                       "subject",
-                      "via"
+                      "via",
+                      "viaKind"
                     ],
                     "additionalProperties": false
                   },
-                  "description": "Data paths that read from a system this one writes to (at most 50). A path reads from its pull and receive peers (else from the system its collector runs on) and writes to its push peers and destinations"
+                  "description": "Data paths that read from a Steward item (system, application, platform) this one writes to (at most 50). A path reads from its pull and receive peers (else from the system its collector runs on) and writes to its push peers and destinations"
                 },
                 "previous": {
                   "type": "array",
@@ -28909,7 +28923,16 @@
                       },
                       "via": {
                         "type": "string",
-                        "description": "The system they share"
+                        "description": "The Steward item they share (its id)"
+                      },
+                      "viaKind": {
+                        "type": "string",
+                        "enum": [
+                          "system",
+                          "application",
+                          "platform"
+                        ],
+                        "description": "Its kind: system, application or platform"
                       }
                     },
                     "required": [
@@ -28917,11 +28940,12 @@
                       "assetName",
                       "pathId",
                       "subject",
-                      "via"
+                      "via",
+                      "viaKind"
                     ],
                     "additionalProperties": false
                   },
-                  "description": "Data paths that write to a system this one reads from (at most 50)"
+                  "description": "Data paths that write to a Steward item this one reads from (at most 50)"
                 },
                 "nextMore": {
                   "type": "integer",
@@ -29866,6 +29890,8 @@
                         "enum": [
                           "device",
                           "system",
+                          "application",
+                          "platform",
                           "other"
                         ]
                       },
@@ -29906,6 +29932,8 @@
                         "type": "string",
                         "enum": [
                           "system",
+                          "application",
+                          "platform",
                           "dataset",
                           "other"
                         ]
@@ -30167,7 +30195,16 @@
                       },
                       "via": {
                         "type": "string",
-                        "description": "The system they share"
+                        "description": "The Steward item they share (its id)"
+                      },
+                      "viaKind": {
+                        "type": "string",
+                        "enum": [
+                          "system",
+                          "application",
+                          "platform"
+                        ],
+                        "description": "Its kind: system, application or platform"
                       }
                     },
                     "required": [
@@ -30175,11 +30212,12 @@
                       "assetName",
                       "pathId",
                       "subject",
-                      "via"
+                      "via",
+                      "viaKind"
                     ],
                     "additionalProperties": false
                   },
-                  "description": "Data paths that read from a system this one writes to (at most 50). A path reads from its pull and receive peers (else from the system its collector runs on) and writes to its push peers and destinations"
+                  "description": "Data paths that read from a Steward item (system, application, platform) this one writes to (at most 50). A path reads from its pull and receive peers (else from the system its collector runs on) and writes to its push peers and destinations"
                 },
                 "previous": {
                   "type": "array",
@@ -30200,7 +30238,16 @@
                       },
                       "via": {
                         "type": "string",
-                        "description": "The system they share"
+                        "description": "The Steward item they share (its id)"
+                      },
+                      "viaKind": {
+                        "type": "string",
+                        "enum": [
+                          "system",
+                          "application",
+                          "platform"
+                        ],
+                        "description": "Its kind: system, application or platform"
                       }
                     },
                     "required": [
@@ -30208,11 +30255,12 @@
                       "assetName",
                       "pathId",
                       "subject",
-                      "via"
+                      "via",
+                      "viaKind"
                     ],
                     "additionalProperties": false
                   },
-                  "description": "Data paths that write to a system this one reads from (at most 50)"
+                  "description": "Data paths that write to a Steward item this one reads from (at most 50)"
                 },
                 "nextMore": {
                   "type": "integer",

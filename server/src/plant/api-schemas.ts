@@ -30,6 +30,7 @@ import {
   PEER_KINDS,
   STATUS_CHECK_KINDS,
   TRANSFER_MODES,
+  PATH_ITEM_KINDS,
   VLAN_RANGE_TYPES,
   ZONE_CRITICALITIES,
   ZONE_LEVELS,
@@ -655,7 +656,8 @@ const PathLink = z.object({
   assetName: z.string(),
   pathId: z.string(),
   subject: z.string(),
-  via: z.string().describe('The system they share'),
+  via: z.string().describe('The Steward item they share (its id)'),
+  viaKind: z.enum(PATH_ITEM_KINDS).describe('Its kind: system, application or platform'),
 });
 const DataPath = z.object({
   id: z.string(),
@@ -687,9 +689,9 @@ const DataPath = z.object({
   next: z
     .array(PathLink)
     .describe(
-      'Data paths that read from a system this one writes to (at most 50). A path reads from its pull and receive peers (else from the system its collector runs on) and writes to its push peers and destinations',
+      'Data paths that read from a Steward item (system, application, platform) this one writes to (at most 50). A path reads from its pull and receive peers (else from the system its collector runs on) and writes to its push peers and destinations',
     ),
-  previous: z.array(PathLink).describe('Data paths that write to a system this one reads from (at most 50)'),
+  previous: z.array(PathLink).describe('Data paths that write to a Steward item this one reads from (at most 50)'),
   nextMore: z.number().int().describe('How many more data paths read from it than `next` lists'),
   previousMore: z.number().int().describe('How many more data paths write to it than `previous` lists'),
 });

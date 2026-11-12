@@ -254,6 +254,21 @@ export function networkGraph(
       parent: c.host ? vlanParent(hostVlan.get(c.host)) : undefined,
     });
   };
+  /**
+   * A Steward application or platform a data path pushes to, reads from or delivers to (0.20): one part with the
+   * collector of the same item, so a chain through it stays one picture
+   */
+  const stewardItem = (kind: 'application' | 'platform', item: PlantItemRef | null, id: string) =>
+    node({
+      id: `col:${kind}:${norm(id)}`,
+      kind,
+      label: item?.visible ? item.label || id : '',
+      hidden: !item?.visible,
+      detail: '',
+      path: item?.path ?? null,
+    });
+  // collectors first: an application that collects for one path and receives from another is drawn as its collector
+  for (const dp of n.dataPaths as PlantDataPathView[]) if (nodes.has(`asset:${dp.assetId}`)) collectorNode(dp);
   for (const dp of n.dataPaths as PlantDataPathView[]) {
     const pid = `${dp.assetId}/${dp.id}`;
     const asset = `asset:${dp.assetId}`;
@@ -296,8 +311,14 @@ export function networkGraph(
       }
       touch(to);
     };
-    const party = (kind: 'device' | 'system' | 'other', ref: string, item: PlantItemRef | null) =>
-      kind === 'device' ? asset : kind === 'system' ? host(item, ref) : peer(ref);
+    const party = (kind: PlantDataPathView['transfers'][number]['peerKind'], ref: string, item: PlantItemRef | null) =>
+      kind === 'device'
+        ? asset
+        : kind === 'system'
+          ? host(item, ref)
+          : kind === 'application' || kind === 'platform'
+            ? stewardItem(kind, item, ref)
+            : peer(ref);
     // where the data comes from (seen from the collector): what it pulls from and what sends to it – a device is its
     // asset –, else the asset itself
     const ends = dp.transfers.map((t, i) => ({ t, id: party(t.peerKind, t.peer, dp.peers[i] ?? null), label: transferLabel(t, w) }));
@@ -317,6 +338,7 @@ export function networkGraph(
     const dests = dp.destinations.map((d, i) => {
       const item = dp.targets[i] ?? null;
       if (d.kind === 'system') return host(item, d.ref);
+      if (d.kind === 'application' || d.kind === 'platform') return stewardItem(d.kind, item, d.ref);
       if (d.kind === 'dataset') return node({ id: `ds:${d.ref}`, kind: 'dataset', label: d.ref, detail: '', path: item?.path ?? null });
       return peer(d.ref);
     });
