@@ -1,6 +1,6 @@
 # 0034. Who may use a module: module access and module roles
 
-- **Status:** Proposed – the owner decides the questions under _Owner decisions_; nothing is built yet
+- **Status:** Accepted – the owner accepted every recommendation under _Owner decisions_ (2026-11-12); nothing is built yet
 - **Date:** 2026-11-12
 - **Since:** 0.21.0 at the earliest (phase 1, see _Phases_); builds on [ADR 0016](0016-module-registry.md) and [ADR 0033](0033-one-access-model.md)
 
@@ -27,7 +27,7 @@ So two special roles solve "this person uses only this area" for two modules, an
 
 The common shape: the outer gate (may this person use the application at all) is coarse, given to groups, and open by default where licences do not force otherwise; the application declares a few roles; item permissions stay inside. Steward has no licences, so the default can stay open.
 
-## Decision (proposed)
+## Decision
 
 **Four layers, outermost first: the module is on (exists) → the person may use the module (module access: everyone signed in by default, or selected teams and users) → owning teams and shares decide per item ([ADR 0033](0033-one-access-model.md)) → roles decide what the person may do. A module declares its access and, where it owns items, its module roles – viewer, contributor, manager – mapped onto the core rights and granted per user or per team. The plant registry's own role becomes the plant module's roles; nobody gains or loses access.**
 
@@ -149,7 +149,7 @@ Data platform and data mesh integrations, quality management, MES, planning and 
 2. **0.22.0 – module roles:** the framework, the plant registry migrated (part 5), module roles per user and team and in the SSO mapping, `moduleOnly`, manager settings.
 3. **Later:** the status viewer as the status pages' viewer role; new modules declare `access` from their first release.
 
-## Owner decisions
+## Owner decisions (accepted as recommended)
 
 1. **The default for every module, new ones included.** _Recommendation:_ _Everyone signed in_ – an upgrade and a new module change nothing; administrators restrict deliberately.
 2. **Administrators.** _Recommendation:_ always use every module – they switch it and give access; hiding a module from oneself is a personal UI choice, not access.

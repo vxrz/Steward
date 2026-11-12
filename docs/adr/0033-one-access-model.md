@@ -1,6 +1,6 @@
 # 0033. One access model: owning teams and shares on every resource
 
-- **Status:** Proposed – the owner decides the questions under _Owner decisions_; nothing is built yet
+- **Status:** Accepted – the owner accepted every recommendation under _Owner decisions_ (2026-11-12); nothing is built yet
 - **Date:** 2026-11-12
 - **Since:** 0.21.0 at the earliest (phase 1, see _Phases_)
 
@@ -74,7 +74,7 @@ Administrators have every right everywhere. Auditors view every kind above **exc
 12. **Corrective action findings** of a team-owned service are read by every instance designer and approver (the service's name is hidden from them, the finding is not).
 13. **Publications outside the model:** status pages (every signed-in user, a link), report recipients (the owner's view to users, teams and e-mail addresses) and datasets (the publishing process's readers) pass data on without being shown in _Why do I have access?_. They are deliberate; they are not shares.
 
-## Decision (proposed)
+## Decision
 
 **Owning teams stay the scope. Every top-level resource kind gets shares – a user, a team or a role, given View, Edit or Manage, with the kind's action rights beside the level – in one table, one API, one _Access_ tab and one _Why do I have access?_. Shares replace the per-kind access lists. Owners and responsibles become responsibility; an owner implies an Edit share and is shown as one. Device profiles, KPI definitions and dashboards get owning teams and shares. Widening access asks for the `access.grant` step-up and is audited as an access change; team scope applies on every surface.**
 
@@ -206,7 +206,7 @@ A share is one more reason in the policy module, so every surface that asks the 
 2. **0.22.0 – the rest:** access lists of processes, platforms (with identities), monitors and sites migrated with their aliases; records, credentials, ticket references, dashboards and data contracts get shares; duties, measures and corrective actions show implied shares; corrective action findings in team scope (decision 14).
 3. **0.23.0 – clean-up:** aliases removed; supplier contracts' owners split into owning teams and shares, ADR 0031's other rules unchanged.
 
-## Owner decisions
+## Owner decisions (accepted as recommended)
 
 1. **Level names.** _Recommendation:_ View, Edit, Manage (_Ansehen_, _Bearbeiten_, _Verwalten_); the list is _Shared with_ (_Geteilt mit_), not _Freigabe_.
 2. **Whether `use` on platforms and `run`/`approve` on processes stay separate.** _Recommendation:_ yes, as action rights beside the level for every kind that has them (`use`, `run`, `approve`, `acknowledge`, `propose`, `test`) – using a production tenant is not editing it, and an operator who runs a process should not change it.
