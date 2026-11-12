@@ -37,6 +37,7 @@ import {
   insertChangeSet,
   insertOp,
   isAuthor,
+  operationsFor,
   opsOf,
   previewOf,
   rememberWhere,
@@ -478,6 +479,18 @@ export async function changeSetRoutes(app: FastifyInstance): Promise<void> {
     const r = visibleRow((req.params as { changeSetId: string }).changeSetId, u);
     if (!['rejected', 'withdrawn', 'expired'].includes(r.state) || r.source === 'assistant' || !plantProposesSome(u))
       throw new HttpError(409, 'Only a rejected, withdrawn or expired change set is copied into a new draft', 'PLANT_CHANGESET_DECIDE', { id: r.id });
+    // a copy holds only what the copier may see (security review 0.19.0, informational): someone else's change set with
+    // operations on sites they may not see, or with imported files, is copied by one of its authors
+    if (!isAuthor(r, u)) {
+      const hasSources = !!db().get('SELECT 1 AS x FROM plant_change_sources WHERE change_set_id = ?', r.id);
+      if (operationsFor(r, u).hidden > 0 || hasSources)
+        throw new HttpError(
+          409,
+          'The change set has changes in sites you may not see, or imported files – one of its authors can copy it',
+          'PLANT_CHANGESET_COPY_PARTIAL',
+          { id: r.id },
+        );
+    }
     checkOpenLimits(u);
     const id = db().tx(() => {
       const id = insertChangeSet({ state: 'draft', source: 'draft', title: r.title, by: u.username, current: true, copiedFrom: r.id });

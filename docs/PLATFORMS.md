@@ -21,6 +21,13 @@ Stored credentials go only to the platform's own addresses. Changing one of them
 
 A new path on the same host, a new name, description or variable that is not part of an address are ordinary changes.
 
+**Templates in an address** (security review 0.19.0, L3): Steward fills in `{{ baseUrl }}` and `{{ vars.x }}` to compare addresses. Anything else in an address field – the base URL, trusted origins, sign-in addresses, portal, proxy and the connection variables – cannot be compared, so:
+
+- a **stored secret** an address uses (`https://{{ secrets.tenant }}.example.com`, a token URL with `{{ secrets.idp }}`) is part of the destination: setting, changing or removing it (_Credentials_ of the platform or of an identity, `PUT /api/platforms/:id/secrets`, `PUT /api/platforms/:id/identities/:identityId/secrets`) is for **administrators only** (`403 PLATFORM_DESTINATION_SECRET` for others), in a signed-in session, after the step-up `platform.destination`. A template that reads the secrets without naming the key makes every secret of the platform such a secret. Other credentials change as before.
+- a template that reads the **platform's name or kind** (`{{ platform.name }}`) makes them part of the destination: renaming the platform is a change of address as above.
+
+Prefer `{{ vars.x }}` for the parts of an address that differ: variables are compared, and an identity cannot override them.
+
 While the platform has stored credentials (in any identity), such a change
 
 - needs a signed-in session – API tokens get `403 SESSION_REQUIRED` – and a [step-up](SECURITY-HARDENING.md#step-up-re-authentication) (control point `platform.destination`, part of the baseline);

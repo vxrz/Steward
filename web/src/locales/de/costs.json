@@ -679,6 +679,7 @@
       "supplierArchived": "Archivierter Lieferant",
       "contractUnknown": "Unbekannter Vertrag oder einer, den Sie nicht sehen dürfen",
       "contractNotCovering": "Der Vertrag deckt diesen Service nicht ab, und Sie dürfen den Service nicht hinzufügen",
+      "contractPlatformGrant": "Der Vertrag deckt diese Plattform nicht ab, und sie hier hinzuzufügen würde den Vertrag einem anderen Team zeigen oder das Limit an Plattformen überschreiten – fügen Sie die Plattform zuerst beim Vertrag hinzu",
       "targetUnknown": "Unbekannte Anwendung oder unbekanntes System",
       "limit": "Über der Grenze an Buchungen je Geschäftsjahr"
     },
@@ -710,6 +711,7 @@
     "drawnLine": "Aus vorausbezahlten Volumen genutzt: bisher {{soFar}} – gezeigt, nicht noch einmal gezählt (die Zahlung sind die Kosten).",
     "bookHelp": "Ein nach Nutzung abgerechnetes Volumen wird mit dem Betrag der Rechnung gebucht. Die durchschnittliche Nutzung je Monat im Zeitraum ist als Vorschlag eingetragen.",
     "entryDrawn": "{{amount}} aus einem vorausbezahlten Volumen",
+    "entryDrawnHidden": "Möglicherweise von einem vorausbezahlten Volumen gedeckt, das Sie nicht sehen dürfen – voll gezählt",
     "billing": {
       "prepaid": "Vorausbezahlt",
       "byUse": "Nach Nutzung"

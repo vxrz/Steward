@@ -135,6 +135,8 @@
   },
   "namedOutside": {
     "hint_one": "{{names}} gehört nicht zu den zuständigen Teams ({{teams}}) und wird diesen Eintrag sehen und ändern können. Beim Speichern bestätigen Sie, dass Sie es sind.",
-    "hint_other": "{{names}} gehören nicht zu den zuständigen Teams ({{teams}}) und werden diesen Eintrag sehen und ändern können. Beim Speichern bestätigen Sie, dass Sie es sind."
+    "hint_other": "{{names}} gehören nicht zu den zuständigen Teams ({{teams}}) und werden diesen Eintrag sehen und ändern können. Beim Speichern bestätigen Sie, dass Sie es sind.",
+    "platformHint_one": "{{names}} gehört nicht zu den zuständigen Teams des Vertrags ({{teams}}) und wird ihn über die Plattform sehen. Beim Hinzufügen bestätigen Sie, dass Sie es sind.",
+    "platformHint_other": "{{names}} gehören nicht zu den zuständigen Teams des Vertrags ({{teams}}) und werden ihn über die Plattform sehen. Beim Hinzufügen bestätigen Sie, dass Sie es sind."
   }
 }

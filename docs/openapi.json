@@ -35855,6 +35855,10 @@
                   ],
                   "description": "The part drawn from a prepaid volume of its contract (0.19.0): not counted as incurred again – a decimal in the currency; null when the token owner may not see amounts"
                 },
+                "drawnHidden": {
+                  "type": "boolean",
+                  "description": "It counts for a prepaid volume the token owner may not see in full (its payer, amounts or other users): counted in full, nothing drawn shown"
+                },
                 "planLineYear": {
                   "anyOf": [
                     {
@@ -35911,6 +35915,7 @@
                 "note",
                 "unplanned",
                 "drawn",
+                "drawnHidden",
                 "planLineYear",
                 "createdAt",
                 "createdBy",

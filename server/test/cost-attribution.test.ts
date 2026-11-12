@@ -5,6 +5,7 @@ import {
   fiscalYearOf,
   prepaidDrawdown,
   proposalParts,
+  SUPPLIER_LIMITS,
   schedulePayments,
   toMicros,
   volumeEstimate,
@@ -369,7 +370,9 @@ describe('contracts covering a platform', () => {
     await expect(read(adam)).rejects.toMatchObject({ status: 404 });
     const listed: PlatformContracts = await olivia('GET', `/platforms/${platform}/contracts`);
     expect(listed.contracts.map((x) => x.contract.title)).toEqual(['Capacity contract']);
-    expect(listed.canEdit).toBe(true);
+    // a member of the owning team reads them; who changes them through the platform manages it (security review 0.19.0 M1)
+    expect(listed.canEdit).toBe(false);
+    expect(((await dana('GET', `/platforms/${platform}/contracts`)) as PlatformContracts).canEdit).toBe(true);
     expect(((await adam('GET', `/platforms/${platform}/contracts`)) as PlatformContracts).contracts).toEqual([]);
     // taking the platform off needs a session and who changes the contract or manages the platform
     await expect(adam('DELETE', `/suppliers/${supplier}/contracts/${contract}/platforms/${platform}`)).rejects.toMatchObject({ status: 404 });
@@ -427,6 +430,108 @@ describe('contracts covering a platform', () => {
     const first = checkVolumeNotices(Date.now(), true);
     expect(first).toBeGreaterThan(0);
     expect(checkVolumeNotices(Date.now(), true)).toBe(0);
+  });
+});
+
+describe('a prepaid volume another payer pays (security review 0.19.0 M2, L2)', () => {
+  let contract: string;
+  let svcA: string;
+  it('draws an entry down only for who sees the payer with its amounts and every service using it', async () => {
+    const { db } = await import('../src/db.js');
+    svcA = (await s.api('POST', '/services', { name: 'Prepaid service A', owners: ['user:olivia'] })).id;
+    const svcB = (await s.api('POST', '/services', { name: 'Prepaid service B' })).id;
+    const hidden = (await s.api('POST', '/teams', { name: 'Prepaid hidden team', members: [] })).id;
+    db().run("INSERT INTO resource_teams (kind, resource_id, team_id, created_at) VALUES ('service', ?, ?, ?)", svcB, hidden, new Date().toISOString());
+    const d: SupplierDetail = await s.api('POST', `/suppliers/${supplier}/contracts`, {
+      title: 'Shared prepaid',
+      startsOn: day(-30),
+      endsOn: day(335),
+      renewal: 'fixedEnd',
+      owners: ['user:admin'],
+      services: [
+        { serviceId: svcA, purpose: 'A' },
+        { serviceId: svcB, purpose: 'B' },
+      ],
+    });
+    contract = d.contracts.find((c) => c.title === 'Shared prepaid')!.id;
+    // B pays a prepaid volume of 1,000 and uses 900 of it; A books 300 on the same contract
+    await s.api('POST', '/costs/schedules', {
+      contractId: contract,
+      serviceId: svcB,
+      title: 'B secret prepaid',
+      category: 'support',
+      amount: '1000',
+      currency: 'USD',
+      billing: 'volume',
+      volume: { per: 'term', billing: 'prepaid', committed: 'full' },
+    });
+    const entry = (date: string, amount: string) => ({ date, amount, currency: 'USD', supplierId: supplier, supplierContractId: contract });
+    await s.api('POST', `/costs/plans/${svcB}/entries`, entry(day(-2), '900'));
+    await s.api('POST', `/costs/plans/${svcA}/entries`, entry(day(-1), '300'));
+    const fy = Number(day(-1).slice(0, 4));
+    // olivia sees A only: the entry counts in full, nothing drawn – else 100 would show what is left of B's volume
+    const a: CostPlanYear = await olivia('GET', `/costs/plans/${svcA}?fiscalYear=${fy}`);
+    expect(a.entries.find((e) => e.amount === '300.00')).toMatchObject({ drawn: null, drawnHidden: true });
+    const usd = a.currencies.find((c) => c.currency === 'USD')!;
+    expect(usd.drawn).toBeNull();
+    expect(m(usd.unplanned.incurredToDate)).toBe(300);
+    // who sees B with its amounts sees the drawdown
+    const all: CostPlanYear = await s.api('GET', `/costs/plans/${svcA}?fiscalYear=${fy}`);
+    expect(all.entries.find((e) => e.amount === '300.00')).toMatchObject({ drawn: '100.00', drawnHidden: false });
+    expect(m(all.currencies.find((c) => c.currency === 'USD')!.unplanned.incurredToDate)).toBe(200);
+  });
+
+  it('does not name the volume of a payer the person may not see when a second one is refused', async () => {
+    const body = { ...volBody(contract), serviceId: svcA, volume: { per: 'year', billing: 'byUse', committed: 'none' } };
+    const e = await olivia('POST', '/costs/schedules', body).catch((x: { status: number; body: Record<string, unknown> }) => x);
+    expect(e).toMatchObject({ status: 409, body: { code: 'COST_VOLUME_ONE_PER_CURRENCY', params: { context: 'hidden', currency: 'USD' } } });
+    expect(JSON.stringify(e.body)).not.toContain('B secret prepaid');
+    // who sees the payer is told which one
+    await expect(s.api('POST', '/costs/schedules', body)).rejects.toMatchObject({ body: { params: { title: 'B secret prepaid' } } });
+  });
+});
+
+describe('the limit of platforms per contract (security review 0.19.0 L7)', () => {
+  it('holds on the paths that add a covered platform on the side', async () => {
+    const ids: string[] = [];
+    for (let i = 0; i <= SUPPLIER_LIMITS.contractPlatforms; i++)
+      ids.push((await s.api('POST', '/platforms', { name: `Limit platform ${i}`, kind: 'rest', baseUrl: `https://limit-${i}.example.com` })).id);
+    const d: SupplierDetail = await s.api('POST', `/suppliers/${supplier}/contracts`, {
+      title: 'Twenty platforms',
+      startsOn: day(-10),
+      endsOn: day(355),
+      renewal: 'fixedEnd',
+      owners: ['user:admin'],
+      platforms: ids.slice(0, SUPPLIER_LIMITS.contractPlatforms).map((platformId) => ({ platformId, purpose: '' })),
+    });
+    const contract = d.contracts.find((c) => c.title === 'Twenty platforms')!.id;
+    const last = ids[SUPPLIER_LIMITS.contractPlatforms]!;
+    const limit = { status: 409, body: { code: 'SUPPLIER_CONTRACT_PLATFORM_LIMIT' } };
+    // a payment schedule the 21st platform pays, and an entry of its plan naming the contract
+    await expect(
+      s.api('POST', '/costs/schedules', {
+        contractId: contract,
+        platformId: last,
+        title: 'Over',
+        category: 'support',
+        amount: '10',
+        currency: 'USD',
+        billing: 'yearly',
+      }),
+    ).rejects.toMatchObject(limit);
+    await expect(
+      s.api('POST', `/costs/platform-plans/${last}/entries`, {
+        date: day(0),
+        amount: '5',
+        currency: 'USD',
+        supplierId: supplier,
+        supplierContractId: contract,
+      }),
+    ).rejects.toMatchObject(limit);
+    const { db } = await import('../src/db.js');
+    expect(db().get<{ n: number }>('SELECT COUNT(*) AS n FROM supplier_contract_platforms WHERE contract_id = ?', contract)!.n).toBe(
+      SUPPLIER_LIMITS.contractPlatforms,
+    );
   });
 });
 

@@ -64,6 +64,7 @@ import {
   schedulesOfOwner,
   scheduleLineTitle,
   isVolume,
+  payerOf,
   type Schedule,
 } from './schedule-model.js';
 import { VolumeUse, volumeView } from './volumes.js';
@@ -441,7 +442,19 @@ export function planYearOf(info: ScopeInfo, year: number | undefined, now: numbe
   const scheduleById = new Map(schedules.map((x) => [x.row.id, x]));
   // volumes (ADR 0032 part 3): the owner's own, and the prepaid ones whose use this plan's entries are – read in bulk
   const vu = VolumeUse.forPlan(schedules, entries, now);
-  const drawnOf = (e: EntryRow) => vu.drawnEntry(e.id);
+  // what a prepaid volume covers of an entry counts only where the reader sees the volume's payer with its amounts and
+  // every service and platform using it (security review 0.19.0 M2): else the entry counts in full, marked
+  const usableVolume = new Map<string, boolean>();
+  const ownersSeen = new Map<string, boolean>();
+  const usable = (sch: Schedule) => {
+    if (!usableVolume.has(sch.row.id)) {
+      const p = payerOf(sch.row);
+      usableVolume.set(sch.row.id, !!scopeInfo(p.kind, p.id)?.amounts && vu.seesAllOwners(sch, ownersSeen));
+    }
+    return usableVolume.get(sch.row.id)!;
+  };
+  const drawnByEntry = new Map(entries.map((e) => [e.id, vu.drawnEntry(e.id, usable)]));
+  const drawnOf = (e: EntryRow) => drawnByEntry.get(e.id)?.drawn ?? 0;
   const net = (e: EntryRow) => Number(e.amount) - drawnOf(e);
   const scheduleChanges = new Map<string, CostContractChange[]>();
   // fiscal years that are over are never offered: history stays as planned
@@ -766,6 +779,7 @@ export function planYearOf(info: ScopeInfo, year: number | undefined, now: numbe
       note: e.note,
       unplanned: !line,
       drawn: drawnOf(e) ? show(drawnOf(e)) : null,
+      drawnHidden: !!drawnByEntry.get(e.id)?.hidden,
       planLineYear: other ? { fiscalYear: other.fiscalYear, label: fiscalYearLabel(other.fiscalYear, start) } : null,
       createdAt: e.created_at,
       createdBy: e.created_by,

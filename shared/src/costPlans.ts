@@ -443,6 +443,12 @@ export interface CostEntry {
    */
   drawn: string | null;
   /**
+   * It counts for a prepaid volume of its contract the reader may not see in full – its payer, its amounts, or another
+   * service or platform using it (security review 0.19.0 M2): the entry counts in full here, nothing of that volume is
+   * shown as drawn ("possibly covered by a prepaid volume you may not see")
+   */
+  drawnHidden: boolean;
+  /**
    * The fiscal year of its plan line when that is another one than the entry's (the fiscal year start changed since
    * the entry was linked): the link stays, the entry counts as unplanned in its own year (docs/COSTS.md).
    */

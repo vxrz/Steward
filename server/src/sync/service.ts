@@ -352,8 +352,9 @@ export function updateSource(id: string, raw: SourceInput): SyncSource {
 
 /**
  * Whether a source change needs a step-up (security review 0.19.0 L1, control point sync.sources): a new source,
- * another repository, API URL or provider (where its token goes and where definitions come from), signed commits no
- * longer required, an allowed signer added to a list or the list emptied (any verified signer), or auto-accept turned
+ * another repository, API URL or provider (where its token goes and where definitions come from), another branch or tag
+ * rule, pre-releases or folder (where in the repository they come from – L5, always, signed commits or not), signed
+ * commits no longer required, an allowed signer added to a list or the list emptied (any verified signer), or auto-accept turned
  * on. Tightening and everyday changes (name, interval, kinds) do not ask. The raw body: an invalid one is refused by
  * the route.
  */
@@ -364,6 +365,9 @@ export function sourceChangeNeedsStepUp(id: string | undefined, raw: unknown): b
   if (!id) return true;
   const before = toSource(requireSource(id));
   if (before.repoUrl !== s.repoUrl || (before.apiUrl ?? '') !== (s.apiUrl ?? '') || before.provider !== s.provider) return true;
+  // where in the repository definitions come from (L5): another branch may be one more people can push to
+  if (before.branch !== s.branch || before.refType !== s.refType || !!before.allowPrereleases !== s.allowPrereleases || (before.folder ?? '') !== s.folder)
+    return true;
   if (before.requireSignedCommits && !s.requireSignedCommits) return true;
   if (s.requireSignedCommits && before.allowedSigners.length && (!s.allowedSigners.length || s.allowedSigners.some((x) => !before.allowedSigners.includes(x))))
     return true;

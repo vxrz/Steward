@@ -56,7 +56,15 @@ import { assertKnownSubjects } from '../auth/subjects.js';
 import { catalogueTeams, forgetOwningTeams, newResourceTeams, type OwningTeam } from '../auth/policy.js';
 import { auditNamedGrant, catalogueGrant, outsidersOf, requireNamedGrant, type NamedGrant } from '../auth/named-grants.js';
 import { currentScale, protectionNeeds, ratingsOf } from '../catalogue/cia.js';
-import { ScopeCtx, contractOwnersOf, finishContractScopeUpgrade } from './contract-scope.js';
+import {
+  ScopeCtx,
+  checkSideCover,
+  contractOwnersOf,
+  finishContractScopeUpgrade,
+  ownerTeams,
+  platformCoverGrant,
+  platformCoverOutsiders,
+} from './contract-scope.js';
 import { ticketAccess } from '../tickets/service.js';
 import { instanceTimeZone, localDate } from '../duties/periods.js';
 import { normVendor } from '../plant/advisories/match.js';
@@ -1723,13 +1731,6 @@ function checkOpening(before: string[], after: string[], confirmed: boolean | un
     });
 }
 
-/** The teams among a contract's owners (its scope, ADR 0031). */
-function ownerTeams(owners: readonly string[]): OwningTeam[] {
-  const names = [...new Set(owners.filter((o) => /^team:/i.test(o)).map((o) => o.slice(5).trim().toLowerCase()))];
-  if (!names.length) return [];
-  return db().all<OwningTeam>(`SELECT id, name FROM teams WHERE lower(name) IN (${names.map(() => '?').join(', ')}) ORDER BY name`, ...names);
-}
-
 /**
  * The owners a contract change names (#195): a contract's teams are the teams among its owners – for a new one those
  * of its creator's new resources; without any, those of the supplier (who reads the contract then); without those
@@ -1756,7 +1757,11 @@ function contractGrant(s: SupplierRow, cur: ContractRow | undefined, title: stri
 /** The teams a contract's owners are covered by (#195), for the form's hint: a contract the caller changes, or a new one (null). */
 export function contractScopeTeams(supplierId: string, contractId: string | null): OwningTeam[] {
   const s = supplierRow(supplierId);
-  const cur = contractId ? editableContractRow(s, contractId, new ScopeCtx(me())) : undefined;
+  const ctx = new ScopeCtx(me());
+  // a new contract: for who may add one to the supplier, as the route would (security review 0.19.0 L6)
+  if (!contractId && !mayAddContract(s, ctx))
+    forbid('add a contract to this supplier (designers, administrators, the supplier’s owners, editors of a service it covers)', 'addContract');
+  const cur = contractId ? editableContractRow(s, contractId, ctx) : undefined;
   return [...contractGrant(s, cur, cur?.title ?? '', []).teams];
 }
 
@@ -1768,8 +1773,14 @@ export function contractNamesOutsiders(supplierId: string, contractId: string | 
   const ctx = new ScopeCtx(u);
   if (!contractId) {
     const services = (input.services ?? []).map((x) => x.serviceId);
-    if (!mayAddContract(s, ctx, services)) return [];
-    return outsidersOf(contractGrant(s, undefined, input.title, [...new Set(input.owners ?? defaultContractOwners(u))]));
+    const platforms = [...new Set((input.platforms ?? []).map((x) => x.platformId))];
+    if (!mayAddContract(s, ctx, services, platforms)) return [];
+    const owners = [...new Set(input.owners ?? defaultContractOwners(u))];
+    // the platforms it covers from the start: their grantees outside its teams too (security review 0.19.0 M1)
+    const viaPlatforms = platforms
+      .filter((id) => ctx.seesPlatform(id))
+      .flatMap((id) => platformCoverOutsiders({ id: null, title: input.title, owners }, s, id));
+    return [...new Set([...outsidersOf(contractGrant(s, undefined, input.title, owners)), ...viaPlatforms])].sort();
   }
   const cur = editableContractRow(s, contractId, ctx);
   return input.owners ? outsidersOf(contractGrant(s, cur, input.title, [...new Set(input.owners)])) : [];
@@ -1807,6 +1818,11 @@ export function addContract(supplierId: string, input: ContractInput): SupplierD
   // owners from outside the teams it gets: confirmed like an access list (#195)
   const grant = contractGrant(s, undefined, c.title, owners);
   const named = requireNamedGrant(grant);
+  // covering a platform of another team gives it the contract: confirmed the same way (security review 0.19.0 M1)
+  const platformGrants = platforms
+    .map((x) => platformCoverGrant({ id: null, title: c.title, owners }, s, { id: x.platformId, name: ctx.platform(x.platformId)!.name }))
+    .filter((g): g is NamedGrant => !!g)
+    .map((g) => ({ g, named: requireNamedGrant(g) }));
   const id = newId('sct_');
   const now = nowIso();
   db().tx(() => {
@@ -1882,6 +1898,7 @@ export function addContract(supplierId: string, input: ContractInput): SupplierD
       },
     });
     auditNamedGrant({ ...grant, entityId: supplierId, details: { contractId: id } }, named);
+    for (const x of platformGrants) auditNamedGrant({ ...x.g, entityId: supplierId, details: { ...x.g.details, contractId: id } }, x.named);
   });
   return getSupplier(supplierId);
 }
@@ -2051,6 +2068,9 @@ function replacementOf(
     .platformCoverOf(cur.id)
     .filter((x) => !havePlatforms.has(x.platform_id) && ctx.seesPlatform(x.platform_id))
     .map((x) => x.platform_id);
+  // within the limit, and never a grant on the side: a platform of another team is added on the replacement first
+  // (security review 0.19.0 M1, L7)
+  joiningPlatforms.forEach((pid, i) => checkSideCover(row.id, pid, i ? 0 : joiningPlatforms.length));
   // a payment schedule moves with its payer only: one whose service or platform cannot join is refused
   const paying = db().all<{ service_id: string; platform_id: string | null; title: string }>(
     'SELECT service_id, platform_id, title FROM cost_schedules WHERE contract_id = ?',
@@ -2330,10 +2350,21 @@ export function removeContractService(supplierId: string, contractId: string, se
   return new ScopeCtx(u).reads(c, s) ? getContract(supplierId, contractId) : { ok: true };
 }
 
+/** The route's step-up rule (security review 0.19.0 M1): who covering the platform gives the contract to from outside its teams. */
+export function contractPlatformNamesOutsiders(supplierId: string, contractId: string, platformId: string): string[] {
+  const s = supplierRow(supplierId);
+  const ctx = new ScopeCtx(me());
+  const c = visibleContractRow(s, contractId, ctx);
+  if (!ctx.seesPlatform(platformId) || ctx.platformCoverOf(c.id).some((x) => x.platform_id === platformId) || !ctx.edits(c, s)) return [];
+  return platformCoverOutsiders({ id: c.id, title: c.title, owners: contractOwnersOf(c) }, s, platformId);
+}
+
 /**
  * Adds a platform to a contract (0.19.0, ADR 0032: who may change the contract and may see the platform) or changes its
  * purpose (who may change the contract, or manages the platform). Covering a platform lets its managers and the members
- * of its owning teams see a team-owned contract – a decision of a person in a session, audited on the supplier.
+ * of its owning teams who see it read a team-owned contract (its managers change it) – a decision of a person in a
+ * session, audited on the supplier; grantees from outside the contract's teams ask for the step-up and are audited as
+ * an access change (security review 0.19.0 M1).
  */
 export function setContractPlatform(supplierId: string, contractId: string, platformId: string, input: SupplierContractPlatformInput): SupplierContractDetail {
   const u = me();
@@ -2352,6 +2383,9 @@ export function setContractPlatform(supplierId: string, contractId: string, plat
         max: SUPPLIER_LIMITS.contractPlatforms,
       });
     const purpose = input.purpose ?? '';
+    // its grantees from outside the contract's teams: confirmed and audited like naming them (security review 0.19.0 M1)
+    const grant = platformCoverGrant({ id: c.id, title: c.title, owners: contractOwnersOf(c) }, s, { id: platformId, name });
+    const named = grant ? requireNamedGrant(grant) : [];
     db().tx(() => {
       db().run(
         'INSERT INTO supplier_contract_platforms (contract_id, platform_id, purpose, added_by, added_at) VALUES (?, ?, ?, ?, ?)',
@@ -2361,6 +2395,7 @@ export function setContractPlatform(supplierId: string, contractId: string, plat
         u.username,
         now,
       );
+      if (grant) auditNamedGrant({ ...grant, entityId: supplierId }, named);
       touch(supplierId, u);
       audit({
         action: 'supplier.contract_platform_added',
@@ -2515,8 +2550,9 @@ export function serviceContractItems(serviceId: string): { kind: 'application' |
     serviceId,
   );
   const systems = db().all<{ id: string; name: string; owners: string }>(
-    `SELECT DISTINCT y.id, y.name, y.owners FROM systems y JOIN application_systems ay ON ay.system_id = y.id
-       JOIN service_applications sa ON sa.application_id = ay.application_id WHERE sa.service_id = ? ORDER BY lower(y.name), y.id`,
+    // PostgreSQL orders a DISTINCT only by what it selects
+    `SELECT DISTINCT y.id, y.name, y.owners, lower(y.name) AS sort_name FROM systems y JOIN application_systems ay ON ay.system_id = y.id
+       JOIN service_applications sa ON sa.application_id = ay.application_id WHERE sa.service_id = ? ORDER BY sort_name, y.id`,
     serviceId,
   );
   return [

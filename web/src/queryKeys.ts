@@ -263,6 +263,9 @@ export const responsibilityKeys = {
 export const accessKeys = {
   namedOutside: (kind: string, id: string | null | undefined, supplierId: string | undefined, subjects: readonly string[]) =>
     ['access', 'named-outside', kind, id ?? null, supplierId ?? null, [...subjects].sort().join('\n')] as const,
+  /** Who covering a platform gives a contract to from outside its teams (security review 0.19.0 M1) */
+  platformOutside: (supplierId: string, contractId: string, platformId: string) =>
+    ['access', 'named-outside', 'platform', supplierId, contractId, platformId] as const,
 };
 
 /** Users, teams and roles for owner pickers and owner names (`GET /api/subjects`; empty for read-only accounts). */

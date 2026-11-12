@@ -26,7 +26,7 @@ import { audit } from '../audit.js';
 import { currentActor, currentUser } from '../auth/context.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { contractEditable, contractVisible, supplierRefs, visibleContracts } from '../suppliers/links.js';
-import { ScopeCtx } from '../suppliers/contract-scope.js';
+import { ScopeCtx, checkSideCover } from '../suppliers/contract-scope.js';
 import { scopeInfo, visibleScopes, type ScopeInfo } from './access.js';
 import {
   catalogueOf,
@@ -258,17 +258,20 @@ function checkVolume(x: ReturnType<typeof costScheduleUpdate.parse>, contractId:
   if (x.billing !== 'volume' || !x.volume) return;
   if (x.volume.consumption === 'read' && payer.kind !== 'platform')
     throw new HttpError(400, 'Only a volume a platform pays can be used up by its read costs', 'COST_VOLUME_READ_PLATFORM');
-  const other = db().get<{ title: string }>(
-    "SELECT title FROM cost_schedules WHERE contract_id = ? AND currency = ? AND billing = 'volume' AND id <> ?",
+  const other = db().get<{ title: string; service_id: string; platform_id: string | null }>(
+    "SELECT title, service_id, platform_id FROM cost_schedules WHERE contract_id = ? AND currency = ? AND billing = 'volume' AND id <> ?",
     contractId,
     x.currency,
     except ?? '',
   );
-  if (other)
-    throw new HttpError(409, `The contract has a volume in ${x.currency} already: "${other.title}"`, 'COST_VOLUME_ONE_PER_CURRENCY', {
-      title: other.title,
-      currency: x.currency,
-    });
+  if (!other) return;
+  // named only to who may see its payer (security review 0.19.0 L2): another payer's schedule stays unnamed
+  if (!payerInfo(payerOf(other)))
+    throw new HttpError(409, `The contract has a volume in ${x.currency} already`, 'COST_VOLUME_ONE_PER_CURRENCY', { currency: x.currency, context: 'hidden' });
+  throw new HttpError(409, `The contract has a volume in ${x.currency} already: "${other.title}"`, 'COST_VOLUME_ONE_PER_CURRENCY', {
+    title: other.title,
+    currency: x.currency,
+  });
 }
 
 function columnsOf(x: ReturnType<typeof costScheduleUpdate.parse>, payer: OwnerRef) {
@@ -337,6 +340,8 @@ export function addSchedule(body: unknown): CostScheduleList {
   checkOwnerTarget(payer, x.target);
   checkLimits(c.id, payer);
   checkVolume(x, c.id, payer, null);
+  // a platform added on the side: within the limit and never a grant to another team (security review 0.19.0 M1, L7)
+  if (payer.kind === 'platform' && !cover) checkSideCover(c.id, payer.id);
   const cols = columnsOf(x, payer);
   const id = newId('csc_');
   const now = nowIso();

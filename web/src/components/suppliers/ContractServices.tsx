@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { ActionIcon, Anchor, Badge, Button, Group, MultiSelect, Select, Stack, Text, TextInput } from '@mantine/core';
+import { ActionIcon, Alert, Anchor, Badge, Button, Group, MultiSelect, Select, Stack, Text, TextInput } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { IconCheck, IconDoorExit, IconEdit, IconPlus, IconX } from '@tabler/icons-react';
+import { IconCheck, IconDoorExit, IconEdit, IconPlus, IconUserShare, IconX } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import {
   SUPPLIER_LIMITS,
@@ -13,9 +13,9 @@ import {
   type SupplierContractPlatform,
   type SupplierContractService,
 } from '@sm/shared';
-import { del, get, notifyError, notifyOk, put } from '../../api';
+import { del, get, notifyError, notifyOk, post, put } from '../../api';
 import { confirmDanger } from '../confirm';
-import { platformKeys } from '../../queryKeys';
+import { accessKeys, platformKeys } from '../../queryKeys';
 import { FormModal, FormModalCancel } from '../FormModal';
 
 /**
@@ -348,6 +348,8 @@ export function ContractPlatforms({
       )}
       {(editing || adding) && (
         <PlatformModal
+          supplierId={supplierId}
+          contractId={contract.id}
           current={editing}
           taken={contract.platforms.map((p) => p.id)}
           onClose={() => {
@@ -366,12 +368,38 @@ export function ContractPlatforms({
   );
 }
 
+/**
+ * Says before adding a platform that its managers or owning teams from outside the contract's teams will see the
+ * contract (security review 0.19.0 M1): adding it asks the person to confirm it is them, like naming an owner.
+ */
+function PlatformOutsideHint({ supplierId, contractId, platformId }: { supplierId: string; contractId: string; platformId: string }) {
+  const { t } = useTranslation('access');
+  const q = useQuery({
+    queryKey: accessKeys.platformOutside(supplierId, contractId, platformId),
+    queryFn: () =>
+      post<{ teams: string[]; outside: string[] }>('/access/named-outside', { kind: 'supplierContract', id: contractId, supplierId, subjects: [], platformId }),
+    retry: false,
+    staleTime: 30_000,
+  });
+  const outside = q.data?.outside ?? [];
+  if (!outside.length) return null;
+  return (
+    <Alert color="yellow" variant="light" p="xs" icon={<IconUserShare size={16} />} data-testid="platform-outside-hint">
+      <Text size="sm">{t('namedOutside.platformHint', { count: outside.length, names: outside.join(', '), teams: (q.data?.teams ?? []).join(', ') })}</Text>
+    </Alert>
+  );
+}
+
 function PlatformModal({
+  supplierId,
+  contractId,
   current,
   taken,
   onClose,
   onSave,
 }: {
+  supplierId: string;
+  contractId: string;
   current: SupplierContractPlatform | null;
   taken: string[];
   onClose: () => void;
@@ -396,6 +424,7 @@ function PlatformModal({
             data-testid="add-platform-select"
           />
         )}
+        {!current && id && <PlatformOutsideHint supplierId={supplierId} contractId={contractId} platformId={id} />}
         <TextInput
           label={t('contractServices.purpose')}
           maxLength={SUPPLIER_LIMITS.purpose}

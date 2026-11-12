@@ -28,7 +28,9 @@ import { isVolume, schedulesWhere, type Schedule } from './schedule-model.js';
  *   them gets the warnings only (`stateOnly`): the figures would give the others' costs away by subtraction – the rule
  *   of budgets (docs/COSTS.md#budgets).
  * - A prepaid volume covers use until it is used up (prepaidDrawdown): the cost plan does not count that part of an
- *   entry or of a platform's read costs as incurred again – the payment is the cost.
+ *   entry or of a platform's read costs as incurred again – the payment is the cost. Only for a reader who sees the
+ *   volume's payer with amounts and every service and platform using it; others count the entry in full, marked
+ *   (security review 0.19.0 M2).
  * - Warnings: used up, running out before the period ends, a ceiling passed or expected to be passed, a shortfall
  *   against the committed minimum; their notices: volume-notices.ts.
  */
@@ -62,7 +64,8 @@ export class VolumeUse {
   private readonly schedules: Schedule[];
   private readonly itemsOf = new Map<string, VolumeUseItem[]>();
   private readonly ownersOf = new Map<string, Set<string>>();
-  private readonly drawnEntries = new Map<string, number>();
+  /** Per entry: the prepaid volumes billed from entries it counts for, and what each of them covers of it */
+  private readonly drawnEntries = new Map<string, Map<string, number>>();
   private readonly drawnRead = new Map<string, number>();
   private readonly periodsOf = new Map<string, VolumePeriod[]>();
 
@@ -128,7 +131,15 @@ export class VolumeUse {
         }
         this.itemsOf.set(s.row.id, items);
         this.ownersOf.set(s.row.id, owners);
-        if (prepaid) for (const [k, v] of prepaidDrawdown(periods, items)) this.drawnEntries.set(k, (this.drawnEntries.get(k) ?? 0) + v);
+        if (prepaid) {
+          const drawn = prepaidDrawdown(periods, items);
+          for (const x of items) {
+            if (!x.key) continue;
+            const m = this.drawnEntries.get(x.key) ?? new Map<string, number>();
+            m.set(s.row.id, (m.get(s.row.id) ?? 0) + (drawn.get(x.key) ?? 0));
+            this.drawnEntries.set(x.key, m);
+          }
+        }
       }
     }
     if (byRead.length) {
@@ -159,9 +170,21 @@ export class VolumeUse {
     }
   }
 
-  /** The part of an entry a prepaid volume covers (micros). */
-  drawnEntry(entryId: string): number {
-    return this.drawnEntries.get(entryId) ?? 0;
+  /**
+   * The part of an entry prepaid volumes cover (micros), from the volumes `usable` for the reader only (security review
+   * 0.19.0 M2: who sees the volume's payer with its amounts and every service and platform using it – else what is left
+   * of another payer's volume would show by subtraction). `hidden`: the entry counts for a prepaid volume the reader may
+   * not use that way – it then counts in full, nothing of that volume is drawn.
+   */
+  drawnEntry(entryId: string, usable: (s: Schedule) => boolean): { drawn: number; hidden: boolean } {
+    let drawn = 0;
+    let hidden = false;
+    for (const [id, v] of this.drawnEntries.get(entryId) ?? []) {
+      const s = this.schedules.find((x) => x.row.id === id);
+      if (s && usable(s)) drawn += v;
+      else hidden = true;
+    }
+    return { drawn, hidden };
   }
 
   /** The part of a platform's read costs of a month a prepaid volume covers (micros). */

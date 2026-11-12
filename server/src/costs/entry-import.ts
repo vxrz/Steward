@@ -29,7 +29,7 @@ import { audit } from '../audit.js';
 import { currentActor } from '../auth/context.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { contractEditable, coverChosenContract, supplierVisible, visibleContracts } from '../suppliers/links.js';
-import { ScopeCtx } from '../suppliers/contract-scope.js';
+import { ScopeCtx, checkSideCover } from '../suppliers/contract-scope.js';
 import { csvRows } from './csv.js';
 import { requireScope } from './access.js';
 import {
@@ -195,6 +195,20 @@ function resolve(o: OwnerRef, p: Parsed, m: CostEntryImportMapping): Resolved[] 
       );
     return mayCover.get(id)!;
   };
+  // a platform added on the side: within the limit and never a grant to another team (security review 0.19.0 M1, L7)
+  const sideOk = new Map<string, boolean>();
+  const mayAddSide = (id: string) => {
+    if (o.kind !== 'platform') return true;
+    if (!sideOk.has(id)) {
+      try {
+        checkSideCover(id, o.id);
+        sideOk.set(id, true);
+      } catch {
+        sideOk.set(id, false);
+      }
+    }
+    return sideOk.get(id)!;
+  };
   const seen = new Set(L.existing.map((e) => dupKey(e.reference, e.entry_date, Number(e.amount), e.currency)));
   // entries per fiscal year so far, against the limit of 2,000
   const inYear = new Map<number, number>();
@@ -247,6 +261,7 @@ function resolve(o: OwnerRef, p: Parsed, m: CostEntryImportMapping): Resolved[] 
       else {
         if (!supplier) supplier = L.suppliers.find((s) => s.id === contract!.supplier_id);
         if (!covering.has(contract.id) && !mayAdd(contract.id)) problems.push('contractNotCovering');
+        else if (!covering.has(contract.id) && !mayAddSide(contract.id)) problems.push('contractPlatformGrant');
       }
     }
     // the plan line: named (title or id), or the only line of the contract in that year and currency, else unplanned
