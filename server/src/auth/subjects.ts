@@ -107,7 +107,18 @@ export function rewriteTeamReferences(from: string, to: string | null): number {
     );
     for (const r of rows) {
       const next = mapValue(ref.kind, r.v, maps);
-      if (next !== mapValue(ref.kind, r.v, NONE)) changed += db().run(`UPDATE ${ref.table} SET ${ref.column} = ? WHERE ${ref.column} = ?`, next, r.v).changes;
+      if (next === mapValue(ref.kind, r.v, NONE)) continue;
+      // a share of the renamed team where the same resource keeps one for a former team of the new name (it matched
+      // nobody): the renamed team's share stays, so the rename gives nobody a right on that resource
+      if (ref.kind === 'subject' && ref.key?.length)
+        db().run(
+          `DELETE FROM ${ref.table} WHERE ${ref.column} = ? AND EXISTS (SELECT 1 FROM ${ref.table} o WHERE o.${ref.column} = ? AND ${ref.key
+            .map((k) => `o.${k} = ${ref.table}.${k}`)
+            .join(' AND ')})`,
+          next,
+          r.v,
+        );
+      changed += db().run(`UPDATE ${ref.table} SET ${ref.column} = ? WHERE ${ref.column} = ?`, next, r.v).changes;
     }
   }
   return changed;

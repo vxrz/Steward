@@ -44,4 +44,34 @@ export const TEAM_MIGRATIONS: NamedMigration[] = [
       ALTER TABLE report_schedules ADD COLUMN team TEXT NOT NULL DEFAULT '[]';
     `,
   },
+  {
+    // shares (0.21.0, ADR 0033): one subject (user:, team: or role: – the subject strings used everywhere else, lower
+    // case) given a level (view, edit, manage) and the kind's action rights (JSON array) on one resource, with an
+    // optional end date (at most a year ahead) and when its Manage holders were reminded of it. resource_restrictions:
+    // the resources whose scope is Restricted – instance roles give nothing there, only shares (and owning teams)
+    name: 'teams-004-shares',
+    sql: `
+      CREATE TABLE resource_shares (
+        kind TEXT NOT NULL,
+        resource_id TEXT NOT NULL,
+        subject TEXT NOT NULL,
+        level TEXT NOT NULL,
+        actions TEXT NOT NULL DEFAULT '[]',
+        expires_at TEXT,
+        reminded_at TEXT,
+        created_by TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        PRIMARY KEY (kind, resource_id, subject)
+      );
+      CREATE INDEX resource_shares_subject ON resource_shares(subject);
+      CREATE INDEX resource_shares_expires ON resource_shares(expires_at);
+      CREATE TABLE resource_restrictions (
+        kind TEXT NOT NULL,
+        resource_id TEXT NOT NULL,
+        created_by TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        PRIMARY KEY (kind, resource_id)
+      );
+    `,
+  },
 ];
