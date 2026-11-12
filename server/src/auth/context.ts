@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
-import type { Role } from '@sm/shared';
+import type { ResourceShare, Role } from '@sm/shared';
 
 export interface AuthUser {
   id: string;
@@ -40,8 +40,20 @@ interface RequestStore {
   apiToken?: string;
   /** Owning teams of all resources, read once per request (auth/policy.ts) */
   teamIndex?: Map<string, { id: string; name: string }[]>;
+  /** Shares and Restricted resources, read once per request and kind (auth/share-store.ts) */
+  shareIndex?: ShareIndex;
   /** How this request met the assurance policy (auth/assurance.ts): written into its audit entries */
   assurance?: { proofs: Record<string, unknown>[]; consumed: boolean };
+}
+
+/** What auth/share-store.ts reads once per request (ADR 0033 "Performance"). */
+export interface ShareIndex {
+  /** `<user id>|<kind>` → resource id → the shares of that user's subjects (expired ones included; deciding drops them) */
+  mine: Map<string, Map<string, ResourceShare[]>>;
+  /** kind → the ids of its Restricted resources */
+  restricted: Map<string, Set<string>>;
+  /** A preview (withShareState): `<kind>:<id>` → the state to decide with instead of the stored one */
+  overlay?: Map<string, { shares?: ResourceShare[]; restricted?: boolean }>;
 }
 
 /** Per-request context so services can attribute audit entries to the signed-in user. */
