@@ -5280,8 +5280,12 @@ export interface Resources {
     'codes.GIT_REPO_PATH_INVALID': string;
     'codes.GIT_TOO_LARGE': string;
     'codes.GIT_ACCESS_DENIED': string;
+    'codes.GIT_ACCESS_DENIED_noToken': string;
     'codes.GIT_NOT_FOUND': string;
     'codes.GIT_RATE_LIMITED': string;
+    'codes.GIT_RATE_LIMITED_retry': string;
+    'codes.GIT_RATE_LIMITED_noToken': string;
+    'codes.GIT_RATE_LIMITED_retryNoToken': string;
     'codes.GIT_HTTP_ERROR': string;
     'codes.GIT_BLOCKED': string;
     'codes.OUTBOUND_REDIRECT_BLOCKED': string;
@@ -6362,6 +6366,8 @@ export interface Resources {
     'sources.settingsCard': string;
     'sources.builtIn': string;
     'sources.builtInHint': string;
+    'sources.githubLimitHint': string;
+    'sources.failedNothingStaged': string;
     'sources.refTag': string;
     'sources.newestSeen': string;
     'sources.noReleaseSeen': string;
@@ -6389,6 +6395,7 @@ export interface Resources {
     'form.kind.recordType': string;
     'form.token': string;
     'form.tokenHint': string;
+    'form.tokenHintGithub': string;
     'form.tokenKeep': string;
     'form.tokenRemove': string;
     'form.interval': string;

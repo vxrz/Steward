@@ -19,6 +19,8 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
  *   POST /mock/git/_tag {repo, tag, branch? | sha?, annotated?}   creates or moves a tag (annotated: a tag object in between) → {sha}
  *        (tag lists: GET …/tags on all three APIs, for library sources)
  *   POST /mock/git/_tamper {repo, path, content}   serves other content under the blob id of path at the head of main
+ *   POST /mock/git/_limit {repo, after, status?, headers?, message?}   after `after` more API calls the repository answers with a
+ *        rate limit (default 403, GitHub's answer when the limit is used up) until _limit {repo, after: null} lifts it
  *   POST /mock/git/_reset
  *   GET  /mock/git/_calls?repo=…   requests seen per repository (whether a token was sent, never its value)
  */
@@ -44,6 +46,8 @@ interface Repo {
   commits: Map<string, Commit>;
   blobs: Map<string, Buffer>;
   calls: { path: string; token: boolean; tokenOk: boolean }[];
+  /** A simulated rate limit: answered once `after` more calls were served */
+  limit?: { after: number; status: number; headers: Record<string, string>; message: string };
 }
 
 const blobSha = (b: Buffer, format: Repo['format'] = 'sha1') => crypto.createHash(format).update(`blob ${b.length}\0`).update(b).digest('hex');
@@ -188,6 +192,13 @@ export async function mockGit(app: FastifyInstance): Promise<void> {
     const tokenOk = token === DEMO_GIT.token;
     repo?.calls.push({ path: req.url.split('?')[0]!, token: token !== undefined, tokenOk });
     if (repo && repo.calls.length > 500) repo.calls.shift();
+    if (repo?.limit) {
+      if (repo.limit.after <= 0) {
+        void reply.code(repo.limit.status).headers(repo.limit.headers).send({ message: repo.limit.message });
+        return null;
+      }
+      repo.limit.after--;
+    }
     if (!repo || (repo.isPrivate && !tokenOk)) {
       void reply.code(404).send({ message: 'Not Found' });
       return null;
@@ -253,6 +264,20 @@ export async function mockGit(app: FastifyInstance): Promise<void> {
     const sha = head ? repo!.commits.get(head)!.tree.get(String(b.path)) : undefined;
     if (!repo || !sha || typeof b.content !== 'string') return reply.code(400).send({ error: 'repo, path and content are required' });
     repo.blobs.set(sha, Buffer.from(b.content, 'utf8'));
+    return { ok: true };
+  });
+  app.post('/git/_limit', async (req, reply) => {
+    const b = (req.body ?? {}) as { repo?: string; after?: number | null; status?: number; headers?: Record<string, string>; message?: string };
+    const repo = repos.get(String(b.repo));
+    if (!repo) return reply.code(400).send({ error: 'unknown repo' });
+    if (b.after === null || b.after === undefined) delete repo.limit;
+    else
+      repo.limit = {
+        after: Math.max(0, Number(b.after)),
+        status: b.status ?? 403,
+        headers: Object.fromEntries(Object.entries(b.headers ?? {}).filter(([k, v]) => /^[a-z-]{1,40}$/.test(k) && typeof v === 'string')),
+        message: b.message ?? 'API rate limit exceeded for 192.0.2.1.',
+      };
     return { ok: true };
   });
   app.get('/git/_calls', async (req) => repos.get(String((req.query as { repo?: string }).repo))?.calls ?? []);
