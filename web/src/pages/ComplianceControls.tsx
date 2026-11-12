@@ -427,6 +427,8 @@ function ControlDrawer({ cov, meta, onClose }: { cov: ControlCoverage; meta?: Co
   const [description, setDescription] = useState(cov.control.description);
   const targets = useQuery({
     queryKey: ['tag-targets', kind, dq],
+    // while the next search loads, the list keeps the last results of the same kind (no flicker of the options)
+    placeholderData: (prev, prevQuery) => (prevQuery?.queryKey[1] === kind ? prev : undefined),
     queryFn: () => get<{ id: string; label: string }[]>(`/compliance/tag-targets?kind=${kind}&q=${encodeURIComponent(dq)}`),
     enabled: !!meta?.canTag,
   });

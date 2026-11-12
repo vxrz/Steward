@@ -341,6 +341,8 @@ function AffectedPicker({ value, onChange, hidden }: { value: Affected[]; onChan
   const [target, setTarget] = useState<string | null>(null);
   const targets = useQuery({
     queryKey: ['link-targets', kind, debounced],
+    // while the next search loads, the list keeps the last results of the same kind (no flicker of the options)
+    placeholderData: (prev, prevQuery) => (prevQuery?.queryKey[1] === kind ? prev : undefined),
     queryFn: () => get<LinkTarget[]>(`/link-targets?kind=${kind}&q=${encodeURIComponent(debounced)}`),
   });
   useEffect(() => setTarget(null), [kind]);

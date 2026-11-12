@@ -27,7 +27,7 @@ import {
   Tooltip,
 } from '@mantine/core';
 import { useDebouncedValue } from '@mantine/hooks';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   IconAlertTriangle,
@@ -892,6 +892,8 @@ function TransitionModal({
   const [summary, setSummary] = useState('');
   const targets = useQuery({
     queryKey: ['link-targets', 'record', debounced],
+    // while the next search loads, the list keeps the last results (no flicker of the options)
+    placeholderData: keepPreviousData,
     queryFn: () => get<LinkTarget[]>(`/link-targets?kind=record&q=${encodeURIComponent(debounced)}`),
     enabled: action.needsRecord || action.optionalRecord,
   });

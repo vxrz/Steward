@@ -226,6 +226,8 @@ export function CredentialEditor({
   const [vaultQuery] = useDebouncedValue(vaultSearch, 300);
   const vaultSecrets = useQuery({
     queryKey: ['vault-secrets', d.vault?.platformId, vaultQuery],
+    // while the next search loads, the list keeps the last results of the same vault (no flicker of the options)
+    placeholderData: (prev, prevQuery) => (prevQuery?.queryKey[1] === d.vault?.platformId && vaultQuery.trim().length >= 2 ? prev : undefined),
     queryFn: () =>
       get<{ id: number; name: string; folderPath: string; templateName: string }[]>(
         `/credentials/vault-secrets?platformId=${encodeURIComponent(d.vault!.platformId)}&q=${encodeURIComponent(vaultQuery)}`,
