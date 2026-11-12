@@ -1,0 +1,7 @@
+# Changes to how coding agents behave in this repository need the maintainer's review:
+# skills, subagents and settings under .claude/ change what agents do for every contributor,
+# and hooks in a settings file run commands.
+/.claude/   @vxrz
+/AGENTS.md  @vxrz
+/CLAUDE.md  @vxrz
+/.github/   @vxrz

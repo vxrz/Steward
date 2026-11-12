@@ -6,6 +6,10 @@ By contributing you agree that your contribution is licensed under the [Apache L
 
 Security issues: **do not open a public issue**. Report them privately as described in [SECURITY.md](SECURITY.md).
 
+## Working with coding agents
+
+[AGENTS.md](AGENTS.md) tells coding agents (and their users) how to build, test and route work in this repository; `CLAUDE.md` imports it. Planned work lives in GitHub Issues – one issue per task with acceptance criteria and one tier label (`tier:frontier`, `tier:mid`, `tier:bulk`). Project subagents are in `.claude/agents/`, project skills in `.claude/skills/`; changes to them, `AGENTS.md` and `CLAUDE.md` need the maintainer's review (`.github/CODEOWNERS`).
+
 ## Getting started
 
 Requirements:
