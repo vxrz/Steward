@@ -6364,6 +6364,8 @@ export interface Resources {
     'sources.disabled': string;
     'sources.manageLink': string;
     'sources.settingsCard': string;
+    'sources.enabledList': string;
+    'sources.noneEnabled': string;
     'sources.builtIn': string;
     'sources.builtInHint': string;
     'sources.githubLimitHint': string;

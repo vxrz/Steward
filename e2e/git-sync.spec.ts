@@ -34,6 +34,9 @@ test('admin configures a Git source, reviews the diff and accepts a new process 
   await expect(examples).toContainText('Steward examples');
   await expect(examples).toContainText('disabled');
   await expect(examples).toContainText(/tag v\d+\.\d+\.\d+/);
+  // it says which host to allow and that GitHub limits calls without a token, before the first fetch
+  await expect(examples).toContainText('allow api.github.com');
+  await expect(examples.getByTestId('github-limit-hint')).toContainText('Public repositories (read-only)');
   await page.getByRole('button', { name: 'New source' }).first().click();
   const dialog = page.getByRole('dialog', { name: 'New Git sync source' });
   await dialog.getByRole('textbox', { name: 'Name' }).fill(sourceName);
@@ -143,4 +146,38 @@ test('admin requires signed commits from named signers and sees why a fetch is r
   const src = (await json<{ id: string; name: string; allowedSigners: string[] }[]>(await api.get('/api/sync-sources'))).find((s) => s.name === sourceName)!;
   expect(src.allowedSigners).toEqual(['alice']);
   await api.delete(`/api/sync-sources/${src.id}`);
+});
+
+test("a GitHub rate limit is shown as such, in the reader's time, and nothing is staged", async ({ page, request, apiAs }) => {
+  const tag = uniq('e2e').split(' ')[1]!;
+  const repo = `e2e/limited-${tag}`;
+  await request.post('/mock/git/_commit', {
+    data: { repo, signed: true, files: { [`steward/processes/e2e-limited-${tag}.yaml`]: processYaml(`e2e-limited-${tag}`, `Limited ${tag}`, 'v1') } },
+  });
+  const api = await apiAs('admin');
+  const sourceName = `Limited library ${tag}`;
+  const created = await json<{ source: { id: string } }>(
+    await api.post('/api/sync-sources', {
+      data: { name: sourceName, provider: 'github', repoUrl: `${baseURL()}/mock/github/${repo}`, branch: 'main', folder: 'steward', kinds: ['process'] },
+    }),
+  );
+  // GitHub's answer to a used-up limit: 403, no calls left, the reset time in epoch seconds
+  const reset = Math.ceil(Date.now() / 1000) + 1800;
+  await request.post('/mock/git/_limit', { data: { repo, after: 0, headers: { 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': String(reset) } } });
+  await page.goto('/settings/git-sync');
+  const card = page.getByTestId('sync-source').filter({ hasText: sourceName });
+  await card.getByRole('button', { name: `Fetch now: ${sourceName}` }).click();
+  const shown = await page.evaluate(
+    (ms) => new Intl.DateTimeFormat(navigator.language, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(ms)),
+    reset * 1000,
+  );
+  const error = card.getByTestId('sync-source-error');
+  await expect(error).toContainText(`The Git host's rate limit was reached. Try again after ${shown}.`);
+  await expect(error).toContainText('add a read-only access token');
+  await expect(error).toContainText('Nothing from this fetch was staged');
+  await expect(card).not.toContainText('access denied');
+  await settle(page);
+  await expectAccessible(page, 'Git sync sources with a failed fetch');
+  await request.post('/mock/git/_limit', { data: { repo, after: null } });
+  await api.delete(`/api/sync-sources/${created.source.id}`);
 });
