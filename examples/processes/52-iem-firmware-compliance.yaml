@@ -1,18 +1,28 @@
 name: "Industrial Edge – Firmware compliance"
 description: |
-  Compares the firmware of every edge device with the minimum version your
-  security baseline requires and lists devices that need an update.
-  Read-only – plan the updates in IEM (update jobs) afterwards.
+  Compares the IED OS (firmware) of every onboarded edge device with the
+  minimum version your security baseline requires and lists devices that need
+  an update. Read-only – plan the updates in IEM (update jobs) afterwards.
 
-  Recommended schedule: daily, and after a new firmware is released.
-  Publishes `iem.firmware`. Verify the firmware field name on your IEM version.
+  The device list does not carry the version: it is `deviceVersion` of
+  `GET /portal/api/v1/devices/{id}`, a string such as `ied-os-2.4.0-12-amd64`.
+  The version number in it (2.4.0) is compared with the minimum; the dataset
+  shows the full string as well. PENDING devices (not onboarded yet) and devices
+  whose details cannot be read are "unknown"; deleted devices are left out.
+
+  Calls: one per 100 devices for the list (GET /portal/api/v1/devices, paged)
+  plus one details call per ACTIVE device, 4 at a time – about 303 calls for
+  300 devices.
+
+  Recommended schedule: daily, and after a new IED OS is released.
+  Publishes `iem.firmware`.
 tags: [compliance, security, devices, industrial-edge]
 connections:
   - slot: iem
     kind: industrial-edge-management
 inputs:
   - name: minFirmware
-    label: Minimum firmware version
+    label: Minimum IED OS (firmware) version
     type: string
     default: 2.3.0
 steps:
@@ -22,28 +32,65 @@ steps:
     connection: iem
     method: GET
     path: /portal/api/v1/devices
+    paginate: { mode: page, firstPage: 1, pageSize: 100, itemsPath: data, totalPagesPath: totalPages }
     saveAs: devices
+  - id: fleet
+    type: set
+    name: Devices in IEM
+    values:
+      all: "{{ [vars.devices.body[deviceStatus != 'DELETED'].{ 'id': deviceId, 'name': deviceName, 'onboarding': deviceStatus }] }}"
+      active: "{{ [vars.all[onboarding = 'ACTIVE']] }}"
+  - id: read
+    type: forEach
+    name: Firmware of each onboarded device (4 in parallel)
+    items: vars.active
+    as: device
+    concurrency: 4
+    maxItems: 2000
+    saveAs: read
+    steps:
+      - id: detail
+        type: http
+        name: Device details
+        connection: iem
+        method: GET
+        path: "/portal/api/v1/devices/{{ $encodeUrlComponent(vars.device.id) }}"
+        expectStatus: [200, 400, 404]
+        onError: continue
+        saveAs: detail
+      - id: row
+        type: set
+        name: Compare the version
+        values:
+          row: >-
+            {{ (
+              $semver := function($v){ ($m := $match($string($v), /[0-9]+(\.[0-9]+)+/)[0].match; $m ? $m : $match($string($v), /[0-9]+/)[0].match) };
+              $norm := function($v){ $join($split($semver($v) & '.0.0', '.')[[0..2]].$pad($, -6, '0'), '.') };
+              $firmware := vars.detail.status = 200 ? vars.detail.body.data.deviceVersion;
+              $version := $firmware ? $semver($firmware);
+              {
+                'id': vars.device.id,
+                'name': vars.device.name,
+                'onboarding': vars.device.onboarding,
+                'deviceType': vars.detail.body.data.deviceTypeId,
+                'firmware': $firmware,
+                'version': $version,
+                'compliant': $version ? $norm($version) >= $norm($inputs.minFirmware) : null
+              }
+            ) }}
+          detail: "{{ null }}"
   - id: evaluate
     type: set
     name: Compare versions
     values:
-      fleet: >-
-        {{ (
-          $norm := function($v){ $join($map($split($string($v) & '.0.0', '.')[[0..2]], function($p){ $pad($p, -6, '0') }), '.') };
-          $all := vars.devices.body.data ? vars.devices.body.data : vars.devices.body;
-          [$all.$merge([$, {
-            "id": deviceId ? deviceId : id,
-            "name": deviceName ? deviceName : name,
-            "compliant": $norm(firmware) >= $norm($inputs.minFirmware)
-          }])]
-        ) }}
-      outdated: "{{ [vars.fleet[$not(compliant)]] }}"
+      fleet: "{{ [vars.read.results.row, vars.all[onboarding = 'PENDING'].$merge([$, { 'compliant': null }])]^(name) }}"
+      outdated: "{{ [vars.fleet[compliant = false]] }}"
   - id: compliance
     type: check
     name: All devices meet the minimum firmware
     severity: warning
     condition: "$count(vars.outdated) = 0"
-    message: "{{ $count(vars.outdated) }} of {{ $count(vars.fleet) }} device(s) below {{ inputs.minFirmware }}: {{ $join(vars.outdated.(name & ' (' & firmware & ')'), ', ') }}"
+    message: "{{ $count(vars.outdated) }} of {{ $count(vars.active) }} onboarded device(s) below {{ inputs.minFirmware }}: {{ $join(vars.outdated.(name & ' (' & firmware & ')'), ', ') }}"
   - id: publish
     type: publish
     name: Publish firmware compliance
@@ -53,13 +100,19 @@ steps:
     key: id
     columns:
       - { label: Device, value: name }
-      - { label: Firmware, value: firmware }
+      - { label: Firmware, value: "firmware ? firmware : '–'" }
+      - { label: Version, value: "version ? version : '–'" }
       - { label: Required, value: "$inputs.minFirmware" }
-    status: "compliant ? 'good' : 'warning'"
-    statusText: "compliant ? 'compliant' : 'update to ' & $inputs.minFirmware & ' or later'"
+      - { label: Onboarding, value: onboarding }
+    status: "compliant = true ? 'good' : (compliant = false ? 'warning' : 'unknown')"
+    statusText: >-
+      compliant = true ? 'compliant'
+        : (compliant = false ? 'update to ' & $inputs.minFirmware & ' or later'
+        : (onboarding = 'PENDING' ? 'not onboarded yet' : 'version not reported'))
     metrics:
-      compliant: "$count(vars.fleet[compliant])"
+      compliant: "$count(vars.fleet[compliant = true])"
       outdated: "$count(vars.outdated)"
+      unknown: "$count(vars.fleet[compliant != true and compliant != false])"
     staleAfterMinutes: 2880
   - id: report
     type: report
@@ -69,4 +122,5 @@ steps:
     columns:
       - { label: Device, value: name }
       - { label: Firmware, value: firmware }
-      - { label: State, value: connectionState }
+      - { label: Version, value: version }
+      - { label: Device type, value: "deviceType ? deviceType : '–'" }

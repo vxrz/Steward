@@ -199,7 +199,7 @@ Do this on a **test tenant / test IEM** before any production use.
 2. **Test connection** and run the **contract check** (`npm run contract …`). Fix variables or specs until all GET operations pass. Save the output as a baseline and repeat it after Siemens API updates.
 3. **Dry runs only.** Run every template you plan to use as a dry run. In the run page check:
    - _Steps_: request URL, status, page count of paginated calls, duration;
-   - _List all users_ output: is `lastLogonTime` present? Do the IEM field names (`connectionState`, `lastSeen`, `firmware`) match?
+   - _List all users_ output: is `lastLogonTime` present? Do the IEM device statistics (`GET /portal/api/v1/devices/{id}/statistics`) have epoch-millisecond keys, and the device details a `deviceVersion`?
    - _Simulated_ counter and the simulated requests in the protocol: are they exactly the writes you expect?
 4. **Compare with the portal.** Check the numbers by hand: user count and inactive users (Identity Management UI or `mdsp` CLI), group members, asset counts and attributes per type (Asset Manager attribute calculator), online/offline devices in IEM. Any difference has to be explained before you go on.
 5. **Writes on test objects only, with approvals.** Create test users and groups (e.g. `zz-sm-test-*`) and use the exempt-list input to protect real accounts. Grant write rights to a separate credential, keep the approval/four-eyes steps on, and run onboarding → access review 1 → 2 → offboarding on the test users.

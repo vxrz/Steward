@@ -311,7 +311,7 @@ export const STEP_META: Record<NodeType, StepMeta> = {
         key: 'status',
         label: 'Status (expression per item)',
         kind: 'expr',
-        placeholder: "connectionState = 'ONLINE' ? 'good' : 'critical'",
+        placeholder: "state = 'online' ? 'good' : 'critical'",
         help: 'good | warning | serious | critical | unknown',
       },
       { key: 'statusText', label: 'Status reason (expression per item)', kind: 'expr' },

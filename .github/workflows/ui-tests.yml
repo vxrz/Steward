@@ -20,7 +20,8 @@ concurrency:
 jobs:
   playwright:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # the suite takes 22–29 minutes on a hosted runner (more with a slow browser install): 30 cancelled it several times
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -59,7 +60,7 @@ jobs:
   # job above, so it adds runner minutes but no waiting time.
   playwright-base-path:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     env:
       E2E_BASE_PATH: /steward
     steps:

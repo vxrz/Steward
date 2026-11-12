@@ -1,13 +1,21 @@
 name: "Industrial Edge – Stale device cleanup"
 description: |
-  Housekeeping for devices that have been offline for a long time (e.g.
+  Housekeeping for devices that have not reported for a long time (e.g.
   decommissioned hardware). Lists them, lets you pick the ones to remove and –
   after a second person confirms (four-eyes) – deletes them from IEM.
   Always start with a dry run.
 
-  Recommended schedule: monthly. Verify the delete endpoint
-  (DELETE /portal/api/v1/devices/{deviceId}) and the field names against your IEM
-  version before running it for real; removing a device from IEM requires
+  The last report is the newest key of
+  `GET /portal/api/v1/devices/{id}/statistics` (epoch milliseconds). Only
+  onboarded (ACTIVE) devices whose last report is at least `offlineDays` old
+  are offered; devices without statistics and PENDING devices are never
+  offered, because their age is not known.
+
+  Calls: one per 100 devices for the list (GET /portal/api/v1/devices, paged)
+  plus one statistics call per ACTIVE device, 4 at a time – about 303 calls for
+  300 devices – and one DELETE /portal/api/v1/devices/{id} per device removed.
+
+  Recommended schedule: monthly. Removing a device from IEM requires
   re-onboarding to use it again.
 tags: [housekeeping, devices, industrial-edge]
 connections:
@@ -15,17 +23,9 @@ connections:
     kind: industrial-edge-management
 inputs:
   - name: offlineDays
-    label: Offline for at least (days)
+    label: No report for at least (days)
     type: number
     default: 30
-  - name: statusField
-    label: Field holding the connection state
-    type: string
-    default: connectionState
-  - name: onlineValue
-    label: Value meaning "online"
-    type: string
-    default: ONLINE
 steps:
   - id: devices
     type: http
@@ -33,23 +33,58 @@ steps:
     connection: iem
     method: GET
     path: /portal/api/v1/devices
+    paginate: { mode: page, firstPage: 1, pageSize: 100, itemsPath: data, totalPagesPath: totalPages }
     saveAs: devices
+  - id: fleet
+    type: set
+    name: Onboarded devices
+    values:
+      active: "{{ [vars.devices.body[deviceStatus = 'ACTIVE'].{ 'id': deviceId, 'name': deviceName }] }}"
+  - id: read
+    type: forEach
+    name: Last report of each onboarded device (4 in parallel)
+    items: vars.active
+    as: device
+    concurrency: 4
+    maxItems: 2000
+    saveAs: read
+    steps:
+      - id: stats
+        type: http
+        name: Device statistics
+        connection: iem
+        method: GET
+        path: "/portal/api/v1/devices/{{ $encodeUrlComponent(vars.device.id) }}/statistics"
+        expectStatus: [200, 400, 404]
+        onError: continue
+        saveAs: stats
+      - id: row
+        type: set
+        name: Last report
+        values:
+          row: >-
+            {{ (
+              $times := vars.stats.status = 200 ? $keys(vars.stats.body.data)[$contains($, /^[0-9]+$/)];
+              $last := $max($times.$number($));
+              {
+                'id': vars.device.id,
+                'name': vars.device.name,
+                'lastSeen': $last,
+                'daysOffline': $exists($last) ? $floor(($toMillis($now()) - $last) / 86400000)
+              }
+            ) }}
+          stats: "{{ null }}"
   - id: stale
     type: set
     name: Find stale devices
     values:
-      all: >-
-        {{ [(vars.devices.body.data ? vars.devices.body.data : vars.devices.body).$merge([$, {
-          "id": deviceId ? deviceId : id,
-          "name": deviceName ? deviceName : name
-        }])] }}
-      stale: "{{ [vars.all[$lookup($, $inputs.statusField) != $inputs.onlineValue and $ts(lastSeen) and $daysSince(lastSeen) >= $inputs.offlineDays]] }}"
+      stale: "{{ [vars.read.results.row[$exists(daysOffline) and daysOffline >= $inputs.offlineDays]]^(name) }}"
   - id: pick
     type: userTask
     name: Select devices to remove
     when: "$count(vars.stale) > 0"
     mode: select
-    title: "{{ $count(vars.stale) }} device(s) offline for {{ inputs.offlineDays }}+ days – select the ones to remove"
+    title: "{{ $count(vars.stale) }} device(s) without a report for {{ inputs.offlineDays }}+ days – select the ones to remove"
     instructions: |
       Only remove hardware that is really decommissioned. Selected devices are deleted from
       Industrial Edge Management after a second person confirms.
@@ -57,9 +92,8 @@ steps:
     itemKey: id
     columns:
       - { label: Device, value: name }
-      - { label: Last seen, value: "$ts(lastSeen) ? $fromMillis($ts(lastSeen), '[Y0001]-[M01]-[D01]') : '–'" }
-      - { label: Days offline, value: "$daysSince(lastSeen)" }
-      - { label: Firmware, value: firmware }
+      - { label: Last seen, value: "$fromMillis(lastSeen, '[Y0001]-[M01]-[D01]')" }
+      - { label: Days offline, value: daysOffline }
     preselect: "true"
     saveAs: selection
   - id: confirm
@@ -71,7 +105,7 @@ steps:
     instructions: |
       Requested by {{ run.actor }}.
 
-      {{ $join(vars.selection.selected.('- ' & name & ' (last seen ' & ($ts(lastSeen) ? $fromMillis($ts(lastSeen), '[Y0001]-[M01]-[D01]') : 'unknown') & ')'), '\n') }}
+      {{ $join(vars.selection.selected.('- ' & name & ' (last seen ' & $fromMillis(lastSeen, '[Y0001]-[M01]-[D01]') & ')'), '\n') }}
     assignees: [role:approver, role:admin]
     fourEyes: true
     onReject: continue
@@ -88,17 +122,18 @@ steps:
         name: Delete device
         connection: iem
         method: DELETE
-        path: "/portal/api/v1/devices/{{ vars.device.id }}"
+        path: "/portal/api/v1/devices/{{ $encodeUrlComponent(vars.device.id) }}"
         expectStatus: [200, 202, 204, 404]
   - id: report
     type: report
     name: Result
     title: Stale device cleanup
     text: |
-      - Offline for {{ inputs.offlineDays }}+ days: **{{ $count(vars.stale) }}**
+      - No report for {{ inputs.offlineDays }}+ days: **{{ $count(vars.stale) }}**
+      - Without statistics (not offered): **{{ $count(vars.read.results.row[$not($exists(daysOffline))]) }}**
       - Removed: **{{ vars.approval.approved = true ? $count(vars.selection.selected) : 0 }}**{{ run.dryRun ? ' (dry run – nothing deleted)' : '' }}
     rows: vars.stale
     columns:
       - { label: Device, value: name }
-      - { label: Days offline, value: "$daysSince(lastSeen)" }
+      - { label: Days offline, value: daysOffline }
       - { label: Result, value: "id in $vars.selection.selectedKeys and $vars.approval.approved = true ? 'deleted' : 'kept'" }

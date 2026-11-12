@@ -430,8 +430,8 @@ let routes: Route[] = [];
 let calls: Call[] = [];
 let dynamic: string[] = [];
 
-// parses every source file of the web app (about 30 s of CPU on a developer machine): more than the default hook time
-// on a shared CI runner with other test files beside it
+// parses every source file of the web app (about 30 s of CPU on a developer machine, growing with the app): far more
+// than the default hook time on a shared CI runner with other test files beside it – 180 s ran out once in 0.19.0
 beforeAll(async () => {
   s = await startTestServer();
   const { registeredRoutes } = await import('../src/app.js');
@@ -439,7 +439,7 @@ beforeAll(async () => {
     .filter((r) => !r.url.startsWith('/mock/'))
     .map(({ method, url }) => ({ method, url }));
   ({ calls, dynamic } = webCalls());
-}, 180_000);
+}, 480_000);
 afterAll(async () => {
   await s?.app.close();
 });

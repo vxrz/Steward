@@ -112,7 +112,7 @@ export const PRESETS: PlatformPreset[] = [
       },
       variables: {},
       http: { insecureTls: false },
-      testPath: '/portal/api/v1/devices?limit=1',
+      testPath: '/portal/api/v1/devices?size=1&page=1',
     },
     secretFields: [
       { key: 'username', label: 'IEM user (e-mail)' },
