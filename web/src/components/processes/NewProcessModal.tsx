@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Group, Modal, MultiSelect, SegmentedControl, Select, Stack, Text, TextInput, Textarea } from '@mantine/core';
+import { Button, Group, MultiSelect, SegmentedControl, Select, Stack, Text, TextInput, Textarea } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -10,6 +10,7 @@ import { useFieldErrors } from '../common';
 import { errorText } from '../../i18n/errors';
 import { useMe } from '../../auth';
 import { processKeys } from '../../queryKeys';
+import { FormModal, FormModalCancel } from '../FormModal';
 
 export type NewProcessStart = 'blank' | 'manual' | 'template';
 
@@ -130,8 +131,10 @@ export function NewProcessModal({ opened, onClose, initialStart = 'blank' }: { o
     }
   };
 
+  // FormModal is mounted while open: it asks before Esc or Cancel discard what was entered
+  if (!opened) return null;
   return (
-    <Modal opened={opened} onClose={close} title={t('create.title')} size="lg">
+    <FormModal onClose={close} title={t('create.title')} size="lg">
       <form
         noValidate
         onSubmit={(e) => {
@@ -230,16 +233,14 @@ export function NewProcessModal({ opened, onClose, initialStart = 'blank' }: { o
             </div>
           )}
           <Group justify="flex-end">
-            <Button variant="default" onClick={close}>
-              {t('common:cancel')}
-            </Button>
+            <FormModalCancel />
             <Button type="submit" loading={busy} leftSection={<IconPlus size={14} />}>
               {t('create.submit')}
             </Button>
           </Group>
         </Stack>
       </form>
-    </Modal>
+    </FormModal>
   );
 }
 

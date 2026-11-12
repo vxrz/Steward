@@ -18,6 +18,7 @@ import { appUrl } from '../../basePath';
 import { PlatformChoices, chosenPlatforms, platformsComplete } from './PlatformChoices';
 import { monitorKeys } from '../../queryKeys';
 import { TableScroll } from '../TableScroll';
+import { FormModal, FormModalCancel } from '../FormModal';
 
 export function CopyBlock({ label, text }: { label: string; text: string }) {
   const { t } = useTranslation('common');
@@ -93,16 +94,14 @@ export function AcknowledgeModal({ monitor, onClose, onSaved }: { monitor: Monit
   const [busy, setBusy] = useState(false);
   const { t } = useTranslation(['monitors', 'common']);
   return (
-    <Modal opened onClose={onClose} title={t('acknowledge.title', { name: monitor.name })}>
+    <FormModal onClose={onClose} title={t('acknowledge.title', { name: monitor.name })}>
       <Stack>
         <Text size="sm" c="dimmed">
           {t('acknowledge.intro')}
         </Text>
         <Textarea label={t('acknowledge.comment')} autosize minRows={2} value={comment} onChange={(e) => setComment(e.currentTarget.value)} />
         <Group justify="flex-end">
-          <Button variant="default" onClick={onClose}>
-            {t('common:cancel')}
-          </Button>
+          <FormModalCancel />
           <Button
             loading={busy}
             onClick={async () => {
@@ -122,7 +121,7 @@ export function AcknowledgeModal({ monitor, onClose, onSaved }: { monitor: Monit
           </Button>
         </Group>
       </Stack>
-    </Modal>
+    </FormModal>
   );
 }
 
@@ -155,7 +154,7 @@ export function InstantiateModal({
     }
   };
   return (
-    <Modal opened onClose={onClose} title={t('instances.title', { name: template.name })} size="lg">
+    <FormModal onClose={onClose} title={t('instances.title', { name: template.name })} size="lg">
       <Tabs value={tab} onChange={setTab}>
         <Tabs.List>
           <Tabs.Tab value="form">{t('instances.one')}</Tabs.Tab>
@@ -211,14 +210,12 @@ export function InstantiateModal({
         </Tabs.Panel>
       </Tabs>
       <Group justify="flex-end" mt="md">
-        <Button variant="default" onClick={onClose}>
-          {t('common:cancel')}
-        </Button>
+        <FormModalCancel />
         <Button onClick={create} loading={busy}>
           {t('instances.create')}
         </Button>
       </Group>
-    </Modal>
+    </FormModal>
   );
 }
 
@@ -280,7 +277,7 @@ export function ImportModal({ onClose, onImported }: { onClose: () => void; onIm
     }
   };
   return (
-    <Modal opened onClose={onClose} title={t('importDialog.title')} size="lg">
+    <FormModal onClose={onClose} title={t('importDialog.title')} size="lg">
       <Stack>
         <Select
           label={t('importDialog.library')}
@@ -334,7 +331,7 @@ export function ImportModal({ onClose, onImported }: { onClose: () => void; onIm
           </Button>
         </Group>
       </Stack>
-    </Modal>
+    </FormModal>
   );
 }
 

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Button, Divider, Group, Modal, Select, Stack, Text } from '@mantine/core';
+import { Alert, Button, Divider, Group, Select, Stack, Text } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -10,6 +10,7 @@ import { InputsForm, defaultInputs } from './InputsForm';
 import { RunModeField, runModeFlags, type RunMode } from './RunModeField';
 import { platformKeys, processKeys } from '../queryKeys';
 import { IdentitySelect } from './platform/IdentitySelect';
+import { FormModal, FormModalCancel } from './FormModal';
 
 export function bindingsKey(processId: string) {
   return `sm.bindings.${processId}`;
@@ -177,8 +178,10 @@ export function RunDialog({ processId, opened, onClose }: { processId: string | 
     }
   };
 
+  // FormModal is mounted while open: it asks before Esc or Cancel discard what was entered
+  if (!opened) return null;
   return (
-    <Modal opened={opened} onClose={onClose} title={proc.data ? t('dialog.title', { name: proc.data.name }) : t('dialog.titleFallback')} size="lg">
+    <FormModal onClose={onClose} title={proc.data ? t('dialog.title', { name: proc.data.name }) : t('dialog.titleFallback')} size="lg">
       {proc.data && (
         <Stack>
           {proc.data.description && (
@@ -197,15 +200,13 @@ export function RunDialog({ processId, opened, onClose }: { processId: string | 
             </Alert>
           )}
           <Group justify="flex-end">
-            <Button variant="default" onClick={onClose}>
-              {t('common:cancel')}
-            </Button>
+            <FormModalCancel />
             <Button leftSection={<IconPlayerPlay size={16} />} onClick={start} loading={busy} color={mode === 'real' ? 'orange' : undefined}>
               {t(mode === 'test' ? 'dialog.startTestRun' : mode === 'dry' ? 'dialog.startDryRun' : 'dialog.startRun')}
             </Button>
           </Group>
         </Stack>
       )}
-    </Modal>
+    </FormModal>
   );
 }

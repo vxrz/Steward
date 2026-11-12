@@ -59,6 +59,7 @@ import { DataTable, ListFooter, type DataColumn } from '../components/DataTable'
 import { NewProcessModal, type NewProcessStart } from '../components/processes/NewProcessModal';
 import { dashboardKeys, processKeys, scheduleKeys } from '../queryKeys';
 import { DuplicateMenuItem, useDuplicate } from '../components/duplicate/DuplicateButton';
+import { FormModal } from '../components/FormModal';
 
 type LastRunFilter = 'succeeded' | 'findings' | 'failed' | 'other' | 'never';
 const LAST_RUN_FILTERS: LastRunFilter[] = ['succeeded', 'findings', 'failed', 'other', 'never'];
@@ -468,8 +469,10 @@ function ImportModal({ opened, onClose }: { opened: boolean; onClose: () => void
     const okCount = out.filter((r) => r.ok).length;
     if (okCount) notifyOk(t('import.imported', { count: okCount, total: out.length }));
   };
+  // FormModal is mounted while open: it asks before Esc or Cancel discard what was entered
+  if (!opened) return null;
   return (
-    <Modal opened={opened} onClose={onClose} title={t('import.title')} size="lg">
+    <FormModal onClose={onClose} title={t('import.title')} size="lg">
       <Stack>
         <Text size="xs" c="dimmed">
           {t('import.hint')}
@@ -529,7 +532,7 @@ function ImportModal({ opened, onClose }: { opened: boolean; onClose: () => void
           </Button>
         </Group>
       </Stack>
-    </Modal>
+    </FormModal>
   );
 }
 

@@ -38,6 +38,7 @@ import { DataTable, ListFooter, type DataColumn } from '../components/DataTable'
 import { dashboardKeys, datasetKeys } from '../queryKeys';
 import { RestrictedEmpty, useHiddenByPermissions } from '../components/modules/RestrictedEmpty';
 import { TableScroll } from '../components/TableScroll';
+import { FormModal, FormModalCancel } from '../components/FormModal';
 
 interface DashboardTemplate {
   id: string;
@@ -348,8 +349,10 @@ function NewDashboardModal({ opened, onClose }: { opened: boolean; onClose: () =
       setBusy(false);
     }
   };
+  // FormModal is mounted while open: it asks before Esc or Cancel discard what was entered
+  if (!opened) return null;
   return (
-    <Modal opened={opened} onClose={close} title={t('create.title')} size="lg">
+    <FormModal onClose={close} title={t('create.title')} size="lg">
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -409,16 +412,14 @@ function NewDashboardModal({ opened, onClose }: { opened: boolean; onClose: () =
             />
           )}
           <Group justify="flex-end">
-            <Button variant="default" onClick={close}>
-              {t('common:cancel')}
-            </Button>
+            <FormModalCancel />
             <Button type="submit" loading={busy} leftSection={<IconPlus size={14} />}>
               {t('create.submit')}
             </Button>
           </Group>
         </Stack>
       </form>
-    </Modal>
+    </FormModal>
   );
 }
 
@@ -478,8 +479,10 @@ function ImportModal({ opened, onClose }: { opened: boolean; onClose: () => void
   const qc = useQueryClient();
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
+  // FormModal is mounted while open: it asks before Esc or Cancel discard what was entered
+  if (!opened) return null;
   return (
-    <Modal opened={opened} onClose={onClose} title={t('import.title')} size="lg">
+    <FormModal onClose={onClose} title={t('import.title')} size="lg">
       <Stack>
         <Textarea
           classNames={{ input: 'mono' }}
@@ -516,6 +519,6 @@ function ImportModal({ opened, onClose }: { opened: boolean; onClose: () => void
           </Button>
         </Group>
       </Stack>
-    </Modal>
+    </FormModal>
   );
 }

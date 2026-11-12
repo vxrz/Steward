@@ -48,6 +48,7 @@ import { ListPage } from '../components/page/ListPage';
 import { monitorKeys } from '../queryKeys';
 import { RestrictedEmpty, useHiddenByPermissions } from '../components/modules/RestrictedEmpty';
 import { TableScroll } from '../components/TableScroll';
+import { FormModal, FormModalCancel } from '../components/FormModal';
 
 export function MonitorsPage() {
   const { t } = useTranslation(['monitors', 'common']);
@@ -515,7 +516,7 @@ function GatewayModal({ draft, onClose, onSave }: { draft: GatewayDraft; onClose
   const [d, setD] = useState(draft);
   const v = useFieldErrors({ name: !d.name.trim() && t('common:validation.required') });
   return (
-    <Modal opened onClose={onClose} title={draft.id ? t('gateways.editTitle') : t('gateways.new')} size="lg">
+    <FormModal onClose={onClose} title={draft.id ? t('gateways.editTitle') : t('gateways.new')} size="lg">
       <Stack>
         <TextInput label={t('form.name')} required value={d.name} onChange={(e) => setD({ ...d, name: e.currentTarget.value })} error={v.error('name')} />
         <Textarea
@@ -547,12 +548,10 @@ function GatewayModal({ draft, onClose, onSave }: { draft: GatewayDraft; onClose
         />
         <Switch label={t('form.enabled')} checked={d.enabled} onChange={(e) => setD({ ...d, enabled: e.currentTarget.checked })} />
         <Group justify="flex-end">
-          <Button variant="default" onClick={onClose}>
-            {t('common:cancel')}
-          </Button>
+          <FormModalCancel />
           <Button onClick={() => v.validate() && onSave(d)}>{draft.id ? t('common:save') : t('gateways.create')}</Button>
         </Group>
       </Stack>
-    </Modal>
+    </FormModal>
   );
 }
