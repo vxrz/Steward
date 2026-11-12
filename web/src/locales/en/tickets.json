@@ -102,7 +102,7 @@
     "openExternal": "Open ticket",
     "delete": "Delete",
     "edit": "Edit",
-    "statusMenu": "Change the status of {{number}}"
+    "statusMenu": "Change status of {{number}}"
   },
   "detail": {
     "details": "Details",
