@@ -50,6 +50,7 @@ import { TagInput } from '../tags';
 import { useMe } from '../../auth';
 import { fmtDay } from '../../format';
 import { useFieldErrors } from '../common';
+import { searchTermOf } from '../remoteSelect';
 import { CREDENTIAL_TYPE_IDS } from '../../pages/Credentials';
 import { monitorKeys, platformKeys, processKeys } from '../../queryKeys';
 
@@ -223,7 +224,8 @@ export function CredentialEditor({
     enabled: !!d.gatus?.platformId,
   });
   const [vaultSearch, setVaultSearch] = useState('');
-  const [vaultQuery] = useDebouncedValue(vaultSearch, 300);
+  // the selected secret's label in the input is no search (remoteSelect.ts)
+  const [vaultQuery] = useDebouncedValue(searchTermOf(vaultSearch, d.vault?.secretId ? (d.vault.label ?? `#${d.vault.secretId}`) : null), 300);
   const vaultSecrets = useQuery({
     queryKey: ['vault-secrets', d.vault?.platformId, vaultQuery],
     queryFn: () =>

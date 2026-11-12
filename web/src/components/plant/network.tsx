@@ -1,7 +1,6 @@
-import { useState, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import { Anchor, Badge, Button, Group, Paper, Select, SimpleGrid, Stack, Text, Tooltip } from '@mantine/core';
-import { useDebouncedValue } from '@mantine/hooks';
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { IconCircleCheck, IconCircleDashed, IconCircleX, IconEyeOff, IconNetwork } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
@@ -10,6 +9,7 @@ import { get } from '../../api';
 import { TONE } from '../common';
 import { fmtDate } from '../../format';
 import { plantKeys } from '../../queryKeys';
+import { useRemoteSelect } from '../remoteSelect';
 
 /** A labelled value in the network's cards (the text in the size of the card's). */
 export function NetField({ label, children }: { label: string; children: ReactNode }) {
@@ -268,7 +268,8 @@ export function SiteNetworkCard({ siteId }: { siteId: string }) {
 /**
  * A Steward item to pick (a system, application, platform, process or monitor): searched as one types, through the
  * link targets the reader may see. `keep` is the current value with its label, so an item the reader no longer finds
- * stays selected.
+ * stays selected. The selected item's label is never a search, and every item keeps one label (remoteSelect.ts) – the
+ * field does not flicker between "Gateway" and "Gateway (server)" while nothing is typed.
  */
 export function ItemSelect({
   kind,
@@ -293,15 +294,15 @@ export function ItemSelect({
   error?: ReactNode;
   testId?: string;
 }) {
-  const [search, setSearch] = useState('');
-  const [debounced] = useDebouncedValue(search, 250);
+  // the fallback label belongs to its id only (a transfer removed above must not lend its peer's name to the next)
+  const pick = useRemoteSelect({ value, fallback: (id) => (keep?.id === id ? keep.label : null) });
   const q = useQuery({
-    queryKey: ['link-targets', kind, debounced],
-    queryFn: () => get<LinkTarget[]>(`/link-targets?kind=${kind}&q=${encodeURIComponent(debounced)}&limit=50`),
+    queryKey: ['link-targets', kind, pick.term],
+    queryFn: () => get<LinkTarget[]>(`/link-targets?kind=${kind}&q=${encodeURIComponent(pick.term)}&limit=50`),
+    placeholderData: keepPreviousData,
   });
   const found = (q.data ?? []).filter((x) => !filter || filter(x));
-  const options = found.map((x) => ({ value: x.id, label: x.detail ? `${x.label} (${x.detail})` : x.label }));
-  if (value && !options.some((o) => o.value === value)) options.unshift({ value, label: keep?.label || value });
+  const options = pick.options(found.map((x) => ({ value: x.id, label: x.detail ? `${x.label} (${x.detail})` : x.label })));
   return (
     <Select
       label={label}
@@ -312,7 +313,8 @@ export function ItemSelect({
       searchable
       clearable={!required}
       required={required}
-      onSearchChange={setSearch}
+      searchValue={pick.search}
+      onSearchChange={pick.setSearch}
       nothingFoundMessage="–"
       error={error}
       data-testid={testId}

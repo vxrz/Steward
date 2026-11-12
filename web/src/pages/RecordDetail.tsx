@@ -26,8 +26,7 @@ import {
   Timeline,
   Tooltip,
 } from '@mantine/core';
-import { useDebouncedValue } from '@mantine/hooks';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   IconAlertTriangle,
@@ -65,6 +64,7 @@ import {
 } from '@sm/shared';
 import { api, apiUrl, del, get, notifyError, notifyOk, patch, post, put } from '../api';
 import { DetailState } from '../components/common';
+import { useRemoteSelect } from '../components/remoteSelect';
 import { UnifiedDiff } from '../components/editor/VersionDiff';
 import { MarkdownView } from '../components/records/MarkdownView';
 import { Field, LinksPanel, RecordStatusBadge, useTypeName, type LinkInput } from '../components/records/common';
@@ -884,16 +884,16 @@ function TransitionModal({
   const { t } = useTranslation(['records', 'common']);
   const [comment, setComment] = useState('');
   const [busy, setBusy] = useState(false);
-  const [q, setQ] = useState('');
-  const [debounced] = useDebouncedValue(q, 250);
   const [target, setTarget] = useState<string | null>(null);
+  const pick = useRemoteSelect({ value: target });
   // living documents: the kind of the edition and what changed (submit)
   const [kind, setKind] = useState<EditionKind | null>(null);
   const [summary, setSummary] = useState('');
   const targets = useQuery({
-    queryKey: ['link-targets', 'record', debounced],
-    queryFn: () => get<LinkTarget[]>(`/link-targets?kind=record&q=${encodeURIComponent(debounced)}`),
+    queryKey: ['link-targets', 'record', pick.term],
+    queryFn: () => get<LinkTarget[]>(`/link-targets?kind=record&q=${encodeURIComponent(pick.term)}`),
     enabled: action.needsRecord || action.optionalRecord,
+    placeholderData: keepPreviousData,
   });
   const label = t(`actions.${action.action as 'submit'}`, { defaultValue: action.action });
   const edition = action.needsEdition && !!rec.document;
@@ -939,9 +939,9 @@ function TransitionModal({
             clearable={action.optionalRecord}
             placeholder={t('links.search')}
             searchable
-            searchValue={q}
-            onSearchChange={setQ}
-            data={(targets.data ?? []).filter((x) => x.id !== rec.id).map((x) => ({ value: x.id, label: x.label }))}
+            searchValue={pick.search}
+            onSearchChange={pick.setSearch}
+            data={pick.options((targets.data ?? []).filter((x) => x.id !== rec.id).map((x) => ({ value: x.id, label: x.label })))}
             value={target}
             onChange={setTarget}
             filter={({ options }) => options}
