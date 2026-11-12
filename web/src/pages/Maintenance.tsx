@@ -80,7 +80,7 @@ export function MaintenancePage() {
       <UnstyledButton
         fw={500}
         fz="sm"
-        c="var(--mantine-primary-color-filled)"
+        c="var(--mantine-color-anchor)"
         aria-label={t('maintenance.detailsOf', { title: w.title })}
         onClick={(e) => {
           e.stopPropagation();

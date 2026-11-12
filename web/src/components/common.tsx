@@ -107,11 +107,6 @@ export function StatusBadge({ status, size = 'sm' }: { status: string; size?: 'x
 export type Crumb = NavKey | { to: string; label: ReactNode };
 
 /**
- * The header every page starts with: title (h2), optional description, the page's actions on the right
- * and, on detail pages, the way back to the parent pages (`back`). On narrow screens the actions wrap
- * below the title instead of squeezing it.
- */
-/**
  * Filters of a list: shown as they are on wide screens; on phones folded behind a "Filters" button
  * (with the number of active filters) so the list itself stays on the first screen.
  */
@@ -150,6 +145,11 @@ export function SeverityBadge({ severity, size = 'xs' }: { severity: string; siz
   );
 }
 
+/**
+ * The header every page starts with: title (the page's only h1), optional description, the page's actions on the right
+ * and, on detail pages, the way back to the parent pages (`back`). On narrow screens the actions wrap
+ * below the title instead of squeezing it.
+ */
 export function PageHeader({ title, description, actions, back }: { title: ReactNode; description?: ReactNode; actions?: ReactNode; back?: Crumb | Crumb[] }) {
   const crumbs = back ? (Array.isArray(back) ? back : [back]) : [];
   return (
@@ -494,7 +494,7 @@ export function KeyValueEditor({
         </Group>
       ))}
       <Group gap={6}>
-        <TextInput size="xs" w={160} placeholder={keyLabel} value={draftKey} onChange={(e) => setDraftKey(e.currentTarget.value)} />
+        <TextInput size="xs" w={160} placeholder={keyLabel} aria-label={keyLabel} value={draftKey} onChange={(e) => setDraftKey(e.currentTarget.value)} />
         <Button
           size="xs"
           variant="light"

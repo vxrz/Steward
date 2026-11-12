@@ -161,6 +161,9 @@ body {
 :root:root[data-mantine-color-scheme='dark'] {
   --mantine-color-dimmed: var(--mantine-color-dark-1);
   --mantine-color-error: var(--mantine-color-red-4);
+  /* placeholders and the "Choose a file" of file inputs (dark.3 #696969: 2.5:1 on the dark inputs; #a3a3a3: 5.4:1,
+     still quieter than dimmed text) */
+  --mantine-color-placeholder: #a3a3a3;
   --mantine-color-cyan-filled: #0b7e91;
   --mantine-color-cyan-filled-hover: #0a6f80;
   --mantine-color-teal-filled: #08835e;
@@ -250,6 +253,15 @@ p .mantine-Anchor-root,
   }
 }
 
+/*
+ * Focus visible (WCAG 2.4.7): Mantine's Paper and Card set `outline: 0`, so a card that is a link or a button (the start
+ * page's tiles, clickable cards) showed no focus at all. They get the ring Mantine draws around its own controls.
+ */
+:is(.mantine-Paper-root, .mantine-Card-root):is(a[href], button, [role='button'], [tabindex]:not([tabindex='-1'])):focus-visible {
+  outline: 2px solid var(--mantine-primary-color-filled);
+  outline-offset: 2px;
+}
+
 /* "Skip to content" (App.tsx): off-screen until it receives keyboard focus */
 .skip-link {
   position: fixed;
@@ -296,6 +308,18 @@ p .mantine-Anchor-root,
   align-items: center;
   min-height: 24px;
   vertical-align: middle;
+}
+
+/* A tag that filters its list (components/tags.tsx): the badge stays small, its button or link is 24 px high (WCAG 2.5.8). */
+.tag-target {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  border-radius: var(--mantine-radius-sm);
+}
+.tag-target:focus-visible {
+  outline: 2px solid var(--mantine-primary-color-filled);
+  outline-offset: 1px;
 }
 
 /* Sidebar pins (v0.4.0): the pin of an entry shows on hover and keyboard focus; on touch screens always. */
