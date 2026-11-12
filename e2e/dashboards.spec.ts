@@ -68,7 +68,7 @@ test.describe('dashboards', () => {
     // named by the spec's description for screen readers
     await expect(chart.locator('.vega-chart[role="graphics-document"]')).toHaveAttribute('aria-label', /^Number of devices per firmware version/);
     await chart.getByText('Table', { exact: true }).click();
-    await expect(chart.getByRole('columnheader', { name: 'Firmware' })).toBeVisible();
+    await expect(chart.getByRole('columnheader', { name: 'Version' })).toBeVisible();
     await expect(chart.getByRole('table').getByRole('row').nth(1)).toBeVisible();
     await chart.getByText('Chart', { exact: true }).click();
     await expect(svg).toBeVisible();

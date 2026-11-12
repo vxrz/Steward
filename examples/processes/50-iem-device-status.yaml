@@ -1,8 +1,17 @@
 name: "Industrial Edge – Device status check"
 description: |
-  Lists all devices onboarded in Industrial Edge Management and flags devices
-  that are not connected. The status field name differs between IEM versions
-  (verify with the API explorer); configure it via the inputs.
+  Shows which edge devices are online. The IEM device list says only whether a
+  device is onboarded (`deviceStatus`: ACTIVE, PENDING or DELETED), not whether
+  it is connected. The online state therefore comes from the device statistics:
+  the newest key of `GET /portal/api/v1/devices/{id}/statistics` is the time of
+  the device's last report (epoch milliseconds). A device that reported within
+  the last `onlineWithinMinutes` is online, an older report means offline. A
+  device without statistics is "unknown", a PENDING device "not onboarded" –
+  neither counts as offline. Deleted devices are left out.
+
+  Calls: the device list in pages of 100 (one call per 100 devices) plus one
+  statistics call per ACTIVE device, 4 at a time – about 303 calls for 300
+  devices.
 
   Recommended schedule: every 30–60 minutes. Publishes `iem.device-status`
   (lightweight online/offline view). For firmware compliance and offline
@@ -12,14 +21,10 @@ connections:
   - slot: iem
     kind: industrial-edge-management
 inputs:
-  - name: statusField
-    label: Field holding the connection state
-    type: string
-    default: connectionState
-  - name: onlineValue
-    label: Value meaning "online"
-    type: string
-    default: ONLINE
+  - name: onlineWithinMinutes
+    label: Online when the last report is at most this old (minutes)
+    type: number
+    default: 15
 steps:
   - id: devices
     type: http
@@ -27,47 +32,96 @@ steps:
     connection: iem
     method: GET
     path: /portal/api/v1/devices
+    paginate: { mode: page, firstPage: 1, pageSize: 100, itemsPath: data, totalPagesPath: totalPages }
     saveAs: devices
+  - id: fleet
+    type: set
+    name: Devices in IEM
+    values:
+      all: "{{ [vars.devices.body[deviceStatus != 'DELETED'].{ 'id': deviceId, 'name': deviceName, 'onboarding': deviceStatus }] }}"
+      active: "{{ [vars.all[onboarding = 'ACTIVE']] }}"
+  - id: read
+    type: forEach
+    name: Last report of each onboarded device (4 in parallel)
+    items: vars.active
+    as: device
+    concurrency: 4
+    maxItems: 2000
+    saveAs: read
+    steps:
+      - id: stats
+        type: http
+        name: Device statistics
+        connection: iem
+        method: GET
+        path: "/portal/api/v1/devices/{{ $encodeUrlComponent(vars.device.id) }}/statistics"
+        expectStatus: [200, 400, 404]
+        onError: continue
+        saveAs: stats
+      - id: row
+        type: set
+        name: State of the device
+        values:
+          row: >-
+            {{ (
+              $times := vars.stats.status = 200 ? $keys(vars.stats.body.data)[$contains($, /^[0-9]+$/)];
+              $last := $max($times.$number($));
+              $minutes := $exists($last) ? ($toMillis($now()) - $last) / 60000;
+              $online := $exists($last) and $minutes <= $inputs.onlineWithinMinutes;
+              {
+                'id': vars.device.id,
+                'name': vars.device.name,
+                'onboarding': vars.device.onboarding,
+                'lastSeen': $last,
+                'state': $not($exists($last)) ? 'unknown' : ($online ? 'online' : 'offline'),
+                'offlineHours': $exists($last) and $not($online) ? $round($minutes / 60, 1)
+              }
+            ) }}
+          stats: "{{ null }}"
   - id: evaluate
     type: set
     name: Evaluate device states
     values:
-      all: >-
-        {{ [(vars.devices.body.data ? vars.devices.body.data : vars.devices.body).$merge([$, {
-          "id": deviceId ? deviceId : id,
-          "name": deviceName ? deviceName : name
-        }])] }}
-      offline: "{{ [vars.all[$lookup($, $inputs.statusField) != $inputs.onlineValue]] }}"
+      rows: "{{ [vars.read.results.row, vars.all[onboarding = 'PENDING'].$merge([$, { 'state': 'not onboarded' }])]^(name) }}"
+      offline: "{{ [vars.rows[state = 'offline']] }}"
   - id: allOnline
     type: check
-    name: All devices online
+    name: All onboarded devices online
     severity: warning
     condition: "$count(vars.offline) = 0"
-    message: "{{ $count(vars.offline) }} of {{ $count(vars.all) }} device(s) not {{ inputs.onlineValue }}: {{ $join(vars.offline.name, ', ') }}"
+    message: "{{ $count(vars.offline) }} of {{ $count(vars.active) }} onboarded device(s) offline: {{ $join(vars.offline.(name & ' (' & offlineHours & ' h)'), ', ') }}"
   - id: report
     type: report
     name: Device overview
     title: Device status
-    rows: vars.all
+    rows: vars.rows
     columns:
       - { label: Device, value: name }
-      - { label: State, value: "$lookup($, $inputs.statusField)" }
-      - { label: Status, value: deviceStatus }
-      - { label: Last seen, value: lastSeen }
+      - { label: State, value: state }
+      - { label: Onboarding, value: onboarding }
+      - { label: Last seen, value: "$exists(lastSeen) ? $fromMillis(lastSeen, '[Y0001]-[M01]-[D01] [H01]:[m01]') : '–'" }
   - id: publish
     type: publish
     name: Publish device status
     dataset: iem.device-status
     title: Edge device connection status
-    rows: vars.all
+    rows: vars.rows
     key: id
     columns:
       - { label: Device, value: name }
-      - { label: State, value: "$lookup($, $inputs.statusField)" }
-      - { label: Last seen, value: "$ts(lastSeen) ? $fromMillis($ts(lastSeen), '[Y0001]-[M01]-[D01] [H01]:[m01]') : '–'" }
-    status: "$lookup($, $inputs.statusField) = $inputs.onlineValue ? 'good' : 'critical'"
-    statusText: "$lookup($, $inputs.statusField)"
+      - { label: State, value: state }
+      - { label: Onboarding, value: onboarding }
+      - { label: Last seen, value: "$exists(lastSeen) ? $fromMillis(lastSeen, '[Y0001]-[M01]-[D01] [H01]:[m01]') : '–'" }
+      - { label: Offline (h), value: "$exists(offlineHours) ? offlineHours : '–'" }
+    status: "state = 'online' ? 'good' : (state = 'offline' ? 'critical' : 'unknown')"
+    statusText: >-
+      state = 'offline' ? 'offline for ' & offlineHours & ' h'
+        : (state = 'unknown' ? 'no statistics reported'
+        : (state = 'not onboarded' ? 'not onboarded yet (' & onboarding & ')' : 'online'))
     metrics:
-      total: "$count(vars.all)"
+      total: "$count(vars.rows)"
+      online: "$count(vars.rows[state = 'online'])"
       offline: "$count(vars.offline)"
+      unknown: "$count(vars.rows[state = 'unknown'])"
+      pending: "$count(vars.rows[state = 'not onboarded'])"
     staleAfterMinutes: 120

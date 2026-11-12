@@ -5,6 +5,12 @@ description: |
   `platform.service-report` (one row per check) for the dashboard and keeps
   the figures as history.
 
+  Industrial Edge: the device list (`GET /portal/api/v1/devices`, paged) gives
+  the onboarded devices; a device counts as online when the newest key of its
+  statistics (`GET /portal/api/v1/devices/{id}/statistics`, the time of its
+  last report) is at most `onlineWithinMinutes` old. Calls to IEM: one per 100
+  devices plus one per onboarded device, 4 at a time.
+
   Recommended schedule: weekly (Monday 07:00). Read-only.
 tags: [report, status, insights-hub, industrial-edge]
 connections:
@@ -12,6 +18,11 @@ connections:
     kind: insights-hub
   - slot: iem
     kind: industrial-edge-management
+inputs:
+  - name: onlineWithinMinutes
+    label: Edge device online when its last report is at most this old (minutes)
+    type: number
+    default: 15
 steps:
   - id: setup
     type: set
@@ -43,21 +54,52 @@ steps:
     connection: iem
     method: GET
     path: /portal/api/v1/devices
+    paginate: { mode: page, firstPage: 1, pageSize: 100, itemsPath: data, totalPagesPath: totalPages }
     onError: continue
     saveAs: devices
+  - id: edge
+    type: forEach
+    name: Last report of each onboarded edge device (4 in parallel)
+    items: "[vars.devices.body[deviceStatus = 'ACTIVE'].deviceId]"
+    as: deviceId
+    concurrency: 4
+    maxItems: 2000
+    saveAs: edge
+    steps:
+      - id: stats
+        type: http
+        name: Device statistics
+        connection: iem
+        method: GET
+        path: "/portal/api/v1/devices/{{ $encodeUrlComponent(vars.deviceId) }}/statistics"
+        expectStatus: [200, 400, 404]
+        onError: continue
+        saveAs: stats
+      - id: seen
+        type: set
+        name: Online?
+        values:
+          seen: >-
+            {{ (
+              $last := $max((vars.stats.status = 200 ? $keys(vars.stats.body.data)[$contains($, /^[0-9]+$/)]).$number($));
+              $not($exists($last)) ? 'unknown' : (($toMillis($now()) - $last) / 60000 <= $inputs.onlineWithinMinutes ? 'online' : 'offline')
+            ) }}
+          stats: "{{ null }}"
   - id: summarise
     type: set
     name: Summarise
     values:
-      fleet: "{{ [vars.devices.body.data ? vars.devices.body.data : vars.devices.body] }}"
-      offline: "{{ $count(vars.fleet[connectionState != 'ONLINE']) }}"
+      fleet: "{{ [vars.devices.body[deviceStatus = 'ACTIVE']] }}"
+      online: "{{ $count(vars.edge.results[seen = 'online']) }}"
+      offline: "{{ $count(vars.edge.results[seen = 'offline']) }}"
+      unknown: "{{ $count(vars.edge.results[seen = 'unknown']) }}"
       rows: >-
         {{ [
           { "platform": "Insights Hub", "check": "Identity Management reachable", "value": $exists(vars.users.error) ? vars.users.error : 'HTTP ' & vars.users.status, "state": $exists(vars.users.error) ? 'critical' : 'good' },
           { "platform": "Insights Hub", "check": "Users", "value": $string(vars.users.body.totalResults), "state": 'good' },
           { "platform": "Insights Hub", "check": "Assets", "value": $string(vars.assets.body.page.totalElements), "state": $exists(vars.assets.error) ? 'critical' : 'good' },
           { "platform": "Industrial Edge", "check": "Management reachable", "value": $exists(vars.devices.error) ? vars.devices.error : 'HTTP ' & vars.devices.status, "state": $exists(vars.devices.error) ? 'critical' : 'good' },
-          { "platform": "Industrial Edge", "check": "Devices online", "value": ($count(vars.fleet) - vars.offline) & ' / ' & $count(vars.fleet), "state": vars.offline > 0 ? 'warning' : 'good' }
+          { "platform": "Industrial Edge", "check": "Devices online", "value": vars.online & ' / ' & $count(vars.fleet) & (vars.unknown > 0 ? ' (' & vars.unknown & ' without statistics)' : ''), "state": $exists(vars.devices.error) ? 'unknown' : (vars.offline > 0 ? 'warning' : 'good') }
         ] }}
   - id: publish
     type: publish
@@ -76,6 +118,7 @@ steps:
       ihAssets: "vars.assets.body.page.totalElements"
       iemDevices: "$count(vars.fleet)"
       iemOffline: "vars.offline"
+      iemOnline: "vars.online"
     staleAfterMinutes: 20160
   - id: report
     type: report

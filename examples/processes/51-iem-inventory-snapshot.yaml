@@ -1,40 +1,47 @@
 name: "Industrial Edge – Inventory snapshot (devices, apps)"
 description: |
-  Read-only snapshot of the edge fleet for dashboards: every device with
-  connection state, firmware compliance against a minimum version and how long
-  it has been offline; plus the application catalogue.
+  Read-only snapshot of the edge fleet for dashboards: every device with its
+  onboarding state, whether it is online, how long it has been offline and
+  whether its IED OS (firmware) meets a minimum version; plus the application
+  catalogue with the latest version of each app.
+
+  Where the figures come from (IEM Portal API):
+  - Onboarding: `deviceStatus` of the paged device list `GET /portal/api/v1/devices`
+    (ACTIVE, PENDING = not onboarded yet; DELETED devices are left out).
+  - Online and last seen: the newest key of `GET /portal/api/v1/devices/{id}/statistics`
+    (epoch milliseconds of the last report). Online = reported within
+    `onlineWithinMinutes`; no statistics = unknown, not offline.
+  - Firmware: `deviceVersion` of `GET /portal/api/v1/devices/{id}`, e.g.
+    `ied-os-2.4.0-12-amd64`. The version number in it (2.4.0) is compared with
+    the minimum; the dataset shows the full string.
+  - Latest app version: the highest `appVersions[].versionNumber` of
+    `GET /portal/api/v1/applications/{id}`.
+
+  Calls: one per 100 devices for the list, two per ACTIVE device (details and
+  statistics), one for the catalogue and one per catalogue app, 4 at a time –
+  about 650 calls for 300 devices and 50 apps.
 
   Recommended schedule: hourly. Publishes `iem.devices` and `iem.apps`.
   Status per device: good = online and compliant, warning = firmware below the
   minimum, serious = offline (short), critical = offline longer than the
-  threshold or not onboarded (INACTIVE).
-
-  Devices are identified by `deviceId` and `deviceName` (with `id` and `name`
-  as a fallback); `deviceStatus` is ACTIVE for onboarded devices. Verify against
-  your IEM version: the fields for connection state (`connectionState`),
-  `lastSeen` and `firmware` differ between IEM releases – adapt the inputs /
-  expressions after checking a real response in the platform's API explorer.
+  threshold, unknown = no statistics or not onboarded yet.
 tags: [inventory, dashboard, devices, industrial-edge]
 connections:
   - slot: iem
     kind: industrial-edge-management
 inputs:
   - name: minFirmware
-    label: Minimum firmware version
+    label: Minimum IED OS (firmware) version
     type: string
     default: 2.3.0
+  - name: onlineWithinMinutes
+    label: Online when the last report is at most this old (minutes)
+    type: number
+    default: 15
   - name: offlineCriticalHours
     label: Offline counts as critical after (hours)
     type: number
     default: 24
-  - name: statusField
-    label: Field holding the connection state
-    type: string
-    default: connectionState
-  - name: onlineValue
-    label: Value meaning "online"
-    type: string
-    default: ONLINE
 steps:
   - id: devices
     type: http
@@ -42,33 +49,75 @@ steps:
     connection: iem
     method: GET
     path: /portal/api/v1/devices
+    paginate: { mode: page, firstPage: 1, pageSize: 100, itemsPath: data, totalPagesPath: totalPages }
     saveAs: devices
-  - id: apps
-    type: http
-    name: List application catalogue
-    connection: iem
-    method: GET
-    path: /portal/api/v1/applications
-    onError: continue
-    saveAs: apps
   - id: fleet
+    type: set
+    name: Devices in IEM
+    values:
+      all: "{{ [vars.devices.body[deviceStatus != 'DELETED'].{ 'id': deviceId, 'name': deviceName, 'onboarding': deviceStatus }] }}"
+      active: "{{ [vars.all[onboarding = 'ACTIVE']] }}"
+  - id: read
+    type: forEach
+    name: Details and last report of each onboarded device (4 in parallel)
+    items: vars.active
+    as: device
+    concurrency: 4
+    maxItems: 2000
+    saveAs: read
+    steps:
+      - id: detail
+        type: http
+        name: Device details
+        connection: iem
+        method: GET
+        path: "/portal/api/v1/devices/{{ $encodeUrlComponent(vars.device.id) }}"
+        expectStatus: [200, 400, 404]
+        onError: continue
+        saveAs: detail
+      - id: stats
+        type: http
+        name: Device statistics
+        connection: iem
+        method: GET
+        path: "/portal/api/v1/devices/{{ $encodeUrlComponent(vars.device.id) }}/statistics"
+        expectStatus: [200, 400, 404]
+        onError: continue
+        saveAs: stats
+      - id: row
+        type: set
+        name: State of the device
+        values:
+          row: >-
+            {{ (
+              $semver := function($v){ ($m := $match($string($v), /[0-9]+(\.[0-9]+)+/)[0].match; $m ? $m : $match($string($v), /[0-9]+/)[0].match) };
+              $norm := function($v){ $join($split($semver($v) & '.0.0', '.')[[0..2]].$pad($, -6, '0'), '.') };
+              $firmware := vars.detail.status = 200 ? vars.detail.body.data.deviceVersion;
+              $version := $firmware ? $semver($firmware);
+              $times := vars.stats.status = 200 ? $keys(vars.stats.body.data)[$contains($, /^[0-9]+$/)];
+              $last := $max($times.$number($));
+              $minutes := $exists($last) ? ($toMillis($now()) - $last) / 60000;
+              $online := $exists($last) and $minutes <= $inputs.onlineWithinMinutes;
+              {
+                'id': vars.device.id,
+                'name': vars.device.name,
+                'onboarding': vars.device.onboarding,
+                'deviceType': vars.detail.body.data.deviceTypeId,
+                'firmware': $firmware,
+                'version': $version,
+                'fwCompliant': $version ? $norm($version) >= $norm($inputs.minFirmware) : null,
+                'lastSeen': $last,
+                'state': $not($exists($last)) ? 'unknown' : ($online ? 'online' : 'offline'),
+                'offlineHours': $exists($last) and $not($online) ? $round($minutes / 60, 1)
+              }
+            ) }}
+          detail: "{{ null }}"
+          stats: "{{ null }}"
+  - id: evaluate
     type: set
     name: Evaluate devices
     values:
-      all: >-
-        {{ [(vars.devices.body.data ? vars.devices.body.data : vars.devices.body).$merge([$, {
-          "id": deviceId ? deviceId : id,
-          "name": deviceName ? deviceName : name
-        }])] }}
-      fleet: >-
-        {{ (
-          $norm := function($v){ $join($map($split($string($v) & '.0.0', '.')[[0..2]], function($p){ $pad($p, -6, '0') }), '.') };
-          [vars.all.$merge([$, {
-            "online": $lookup($, $inputs.statusField) = $inputs.onlineValue,
-            "fwCompliant": $norm(firmware) >= $norm($inputs.minFirmware),
-            "offlineHours": $ts(lastSeen) ? $round(($toMillis($now()) - $ts(lastSeen)) / 3600000, 1)
-          }])]
-        ) }}
+      fleet: "{{ [vars.read.results.row, vars.all[onboarding = 'PENDING'].$merge([$, { 'state': 'not onboarded', 'fwCompliant': null }])]^(name) }}"
   - id: publishDevices
     type: publish
     name: Publish devices
@@ -78,44 +127,95 @@ steps:
     key: id
     columns:
       - { label: Device, value: name }
-      - { label: State, value: "$lookup($, $inputs.statusField)" }
-      - { label: Onboarding, value: deviceStatus }
-      - { label: Firmware, value: firmware }
-      - { label: Compliant, value: "fwCompliant ? 'yes' : 'no'" }
-      - { label: Last seen, value: "$ts(lastSeen) ? $fromMillis($ts(lastSeen), '[Y0001]-[M01]-[D01] [H01]:[m01]') : '–'" }
+      - { label: State, value: state }
+      - { label: Onboarding, value: onboarding }
+      - { label: Firmware, value: "firmware ? firmware : '–'" }
+      - { label: Compliant, value: "fwCompliant = true ? 'yes' : (fwCompliant = false ? 'no' : 'unknown')" }
+      - { label: Last seen, value: "$exists(lastSeen) ? $fromMillis(lastSeen, '[Y0001]-[M01]-[D01] [H01]:[m01]') : '–'" }
+      - { label: Offline (h), value: "$exists(offlineHours) ? offlineHours : '–'" }
+      - { label: Device type, value: "deviceType ? deviceType : '–'" }
     status: >-
-      deviceStatus = 'INACTIVE' ? 'critical'
-        : ($not(online) ? ($exists(offlineHours) and offlineHours >= $inputs.offlineCriticalHours ? 'critical' : 'serious')
-        : (fwCompliant ? 'good' : 'warning'))
+      state = 'offline' ? (offlineHours >= $inputs.offlineCriticalHours ? 'critical' : 'serious')
+        : (fwCompliant = false ? 'warning'
+        : (state = 'online' ? 'good' : 'unknown'))
     statusText: >-
-      deviceStatus = 'INACTIVE' ? 'not onboarded / inactive'
-        : ($not(online) ? 'offline for ' & ($exists(offlineHours) ? offlineHours & ' h' : 'unknown time')
-        : (fwCompliant ? 'online' : 'firmware ' & firmware & ' below ' & $inputs.minFirmware))
+      state = 'offline' ? 'offline for ' & offlineHours & ' h'
+        : (fwCompliant = false ? 'firmware ' & version & ' below ' & $inputs.minFirmware
+        : (state = 'not onboarded' ? 'not onboarded yet (' & onboarding & ')'
+        : (state = 'unknown' ? 'no statistics reported'
+        : (fwCompliant = true ? 'online' : 'online, firmware version not reported'))))
     metrics:
       total: "$count(vars.fleet)"
-      online: "$count(vars.fleet[online])"
-      offline: "$count(vars.fleet[$not(online)])"
-      outdated: "$count(vars.fleet[$not(fwCompliant)])"
-      inactive: "$count(vars.fleet[deviceStatus = 'INACTIVE'])"
+      online: "$count(vars.fleet[state = 'online'])"
+      offline: "$count(vars.fleet[state = 'offline'])"
+      unknown: "$count(vars.fleet[state = 'unknown'])"
+      pending: "$count(vars.fleet[state = 'not onboarded'])"
+      outdated: "$count(vars.fleet[fwCompliant = false])"
     staleAfterMinutes: 180
+  - id: apps
+    type: http
+    name: List application catalogue
+    connection: iem
+    method: GET
+    path: /portal/api/v1/applications
+    onError: continue
+    saveAs: apps
+  - id: versions
+    type: forEach
+    name: Versions of each catalogue app (4 in parallel)
+    when: "$exists(vars.apps.body)"
+    items: "[vars.apps.body.data]"
+    as: app
+    concurrency: 4
+    maxItems: 1000
+    saveAs: versions
+    steps:
+      - id: appDetail
+        type: http
+        name: Application details
+        connection: iem
+        method: GET
+        path: "/portal/api/v1/applications/{{ $encodeUrlComponent(vars.app.applicationId) }}"
+        expectStatus: [200, 404]
+        onError: continue
+        saveAs: appDetail
+      - id: appRow
+        type: set
+        name: Latest version
+        values:
+          appRow: >-
+            {{ (
+              $norm := function($v){ $join($split($match($string($v), /[0-9]+(\.[0-9]+)*/)[0].match & '.0.0', '.')[[0..2]].$pad($, -6, '0'), '.') };
+              $d := vars.appDetail.body.data ? vars.appDetail.body.data : vars.appDetail.body;
+              $all := [$d.appVersions.versionNumber];
+              {
+                'applicationId': vars.app.applicationId,
+                'title': vars.app.title,
+                'latest': $sort($all, function($a, $b){ $norm($a) > $norm($b) })[-1],
+                'versions': $count($all)
+              }
+            ) }}
+          appDetail: "{{ null }}"
   - id: publishApps
     type: publish
     name: Publish application catalogue
     when: "$exists(vars.apps.body)"
     dataset: iem.apps
     title: Edge application catalogue
-    rows: "[vars.apps.body.data ? vars.apps.body.data : vars.apps.body]"
+    rows: "[vars.versions.results.appRow]"
     key: applicationId
     columns:
       - { label: Application, value: title }
-      - { label: Latest version, value: "latestVersion ? latestVersion : (versionNumber ? versionNumber : version)" }
-    status: "'good'"
+      - { label: Latest version, value: "latest ? latest : '–'" }
+      - { label: Versions, value: versions }
+    status: "latest ? 'good' : 'unknown'"
+    statusText: "latest ? '' : 'no version in the catalogue'"
     metrics:
-      apps: "$count(vars.apps.body.data ? vars.apps.body.data : vars.apps.body)"
+      apps: "$count(vars.versions.results.appRow)"
     staleAfterMinutes: 180
   - id: offlineCheck
     type: check
-    name: All devices online
+    name: All onboarded devices online
     severity: warning
-    condition: "$count(vars.fleet[$not(online)]) = 0"
-    message: "{{ $count(vars.fleet[$not(online)]) }} of {{ $count(vars.fleet) }} device(s) offline: {{ $join(vars.fleet[$not(online)].name, ', ') }}"
+    condition: "$count(vars.fleet[state = 'offline']) = 0"
+    message: "{{ $count(vars.fleet[state = 'offline']) }} of {{ $count(vars.active) }} onboarded device(s) offline: {{ $join(vars.fleet[state = 'offline'].(name & ' (' & offlineHours & ' h)'), ', ') }}"

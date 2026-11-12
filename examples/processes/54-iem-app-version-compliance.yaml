@@ -3,15 +3,24 @@ description: |
   Compares the applications installed on each device with the latest version in
   the IEM application catalogue and lists outdated installations.
 
-  Recommended schedule: daily. Publishes `iem.app-compliance`.
-  One call reads the installations of all devices
-  (GET /portal/api/v1/devices/installed-apps: deviceId, deviceName,
-  applicationId, title and versionNumber per entry); the rows are grouped by
-  device. Devices without any entry in that list are reported as "unknown".
-  Verify against your IEM version: the catalogue field with the latest version
-  (`latestVersion`, `versionNumber` and `version` are tried) and whether your
-  IEM pages long lists – the run logs a warning when the answer reports more
-  entries than it contains.
+  - Installations: one call for all devices
+    (GET /portal/api/v1/devices/installed-apps: deviceId, deviceName,
+    applicationId, title and versionNumber per entry), grouped by device.
+  - Latest version: the catalogue list has no versions, so the details of each
+    installed app are read (GET /portal/api/v1/applications/{id}) and the
+    highest of its `appVersions[].versionNumber` is taken – compared as
+    version numbers, so 1.12.2 is newer than 1.9.0.
+  - Devices: the paged device list (GET /portal/api/v1/devices); onboarded
+    devices without any installation are reported as "unknown", PENDING ones
+    as "not onboarded yet", deleted ones are left out.
+
+  Calls: one per 100 devices for the list, one for the installations and one
+  per distinct installed app, 4 at a time – about 35 calls for 300 devices
+  running 30 different apps. No call per device.
+
+  Recommended schedule: daily. Publishes `iem.app-compliance`. The run logs a
+  warning when the installations answer reports more entries than it contains
+  (an IEM that pages this list).
 tags: [compliance, apps, devices, dashboard, industrial-edge]
 connections:
   - slot: iem
@@ -23,14 +32,8 @@ steps:
     connection: iem
     method: GET
     path: /portal/api/v1/devices
+    paginate: { mode: page, firstPage: 1, pageSize: 100, itemsPath: data, totalPagesPath: totalPages }
     saveAs: devices
-  - id: catalog
-    type: http
-    name: Application catalogue
-    connection: iem
-    method: GET
-    path: /portal/api/v1/applications
-    saveAs: catalog
   - id: installed
     type: http
     name: Installed apps of all devices
@@ -38,30 +41,69 @@ steps:
     method: GET
     path: /portal/api/v1/devices/installed-apps
     saveAs: installed
-  - id: compare
+  - id: collect
     type: set
-    name: Compare with catalogue
+    name: Installed apps
     values:
       installs: "{{ [vars.installed.body.data ? vars.installed.body.data : vars.installed.body] }}"
+      appIds: "{{ [$distinct(vars.installs.applicationId)] }}"
       reported: >-
         {{ (
           $p := vars.installed.body.page;
           $n := $p.totalCount ? $p.totalCount : ($p.totalElements ? $p.totalElements : vars.installed.body.totalCount);
           $n ? $number($n) : 0
         ) }}
+  - id: latest
+    type: forEach
+    name: Latest version of each installed app (4 in parallel)
+    items: vars.appIds
+    as: appId
+    concurrency: 4
+    maxItems: 1000
+    saveAs: latest
+    steps:
+      - id: appDetail
+        type: http
+        name: Application details
+        connection: iem
+        method: GET
+        path: "/portal/api/v1/applications/{{ $encodeUrlComponent(vars.appId) }}"
+        expectStatus: [200, 404]
+        onError: continue
+        saveAs: appDetail
+      - id: version
+        type: set
+        name: Highest catalogue version
+        values:
+          version: >-
+            {{ (
+              $norm := function($v){ $join($split($match($string($v), /[0-9]+(\.[0-9]+)*/)[0].match & '.0.0', '.')[[0..2]].$pad($, -6, '0'), '.') };
+              $d := vars.appDetail.body.data ? vars.appDetail.body.data : vars.appDetail.body;
+              {
+                'applicationId': vars.appId,
+                'missing': vars.appDetail.status = 404,
+                'latest': $sort([$d.appVersions.versionNumber], function($a, $b){ $norm($a) > $norm($b) })[-1]
+              }
+            ) }}
+          appDetail: "{{ null }}"
+  - id: compare
+    type: set
+    name: Compare with catalogue
+    values:
       rows: >-
         {{ (
-          $norm := function($v){ $join($map($split($string($v) & '.0.0', '.')[[0..2]], function($p){ $pad($p, -6, '0') }), '.') };
-          $cat := vars.catalog.body.data ? vars.catalog.body.data : vars.catalog.body;
-          $devs := (vars.devices.body.data ? vars.devices.body.data : vars.devices.body).{
-            "id": deviceId ? deviceId : id,
-            "name": deviceName ? deviceName : name
+          $norm := function($v){ $join($split($match($string($v), /[0-9]+(\.[0-9]+)*/)[0].match & '.0.0', '.')[[0..2]].$pad($, -6, '0'), '.') };
+          $cat := vars.latest.results.version;
+          $devs := vars.devices.body[deviceStatus != 'DELETED'].{
+            "id": deviceId,
+            "name": deviceName,
+            "onboarding": deviceStatus
           };
           $apps := vars.installs.(
             $app := $;
             $c := $cat[applicationId = $app.applicationId][0];
-            $latest := $c.latestVersion ? $c.latestVersion : ($c.versionNumber ? $c.versionNumber : $c.version);
-            $version := $app.versionNumber ? $app.versionNumber : $app.version;
+            $latest := $c.latest;
+            $version := $app.versionNumber;
             $dev := $devs[id = $app.deviceId][0];
             {
               "key": $app.deviceId & '/' & $app.applicationId,
@@ -70,7 +112,7 @@ steps:
               "app": $app.title ? $app.title : $app.applicationId,
               "installed": $version,
               "latest": $exists($latest) ? $latest : '–',
-              "state": $not($exists($c)) ? 'not in catalogue'
+              "state": $c.missing = true ? 'not in catalogue'
                 : ($not($exists($latest)) ? 'latest unknown'
                 : ($norm($version) >= $norm($latest) ? 'current' : 'behind'))
             }
@@ -83,7 +125,7 @@ steps:
             "app": '–',
             "installed": '–',
             "latest": '–',
-            "state": 'no apps'
+            "state": onboarding = 'PENDING' ? 'not onboarded' : 'no apps'
           };
           [$apps, $none]^(device, app)
         ) }}
@@ -106,11 +148,14 @@ steps:
       - { label: Installed, value: installed }
       - { label: Latest, value: latest }
     status: "state = 'current' ? 'good' : (state = 'behind' ? 'warning' : 'unknown')"
-    statusText: "state = 'behind' ? 'update to ' & latest : (state = 'no apps' ? 'no installed apps reported' : state)"
+    statusText: >-
+      state = 'behind' ? 'update to ' & latest
+        : (state = 'no apps' ? 'no installed apps reported'
+        : (state = 'not onboarded' ? 'not onboarded yet' : state))
     metrics:
-      installations: "$count(vars.rows[state != 'no apps'])"
+      installations: "$count(vars.rows[app != '–'])"
       outdated: "$count(vars.rows[state = 'behind'])"
-      unknownDevices: "$count(vars.rows[state = 'no apps'])"
+      unknownDevices: "$count(vars.rows[app = '–'])"
     staleAfterMinutes: 2880
   - id: check
     type: check

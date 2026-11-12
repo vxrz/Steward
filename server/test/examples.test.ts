@@ -225,34 +225,214 @@ describe('example library', () => {
     expect(d.metrics).toMatchObject({ topics: 3, violations: 2, lagging: 1, quiet: 0 });
   });
 
-  it('Industrial Edge – App version compliance reads installed-apps once and groups by device (IEM devices carry deviceId)', async () => {
-    // the simulated IEM (server/src/mock/mockPlatform.ts) answers like a real one: devices without `id`, one installed-apps list
-    const iem = { iem: platformByKind['industrial-edge-management']! };
-    const { id: runId } = await s.api('POST', '/runs', { processId: 'iem-app-version-compliance', bindings: iem });
-    const r = await finish(runId);
-    expect([r.status, r.error]).toEqual(['succeeded', null]);
-    expect(r.steps.filter((x: any) => x.status === 'failed' && x.type !== 'check').map((x: any) => `${x.key}: ${x.error}`)).toEqual([]);
-    const http = r.steps.filter((x: any) => x.type === 'http').map((x: any) => x.summary);
-    expect(http).toHaveLength(3); // devices, catalog, installed apps – no call per device
-    expect(http.join('\n')).toContain('GET /portal/api/v1/devices/installed-apps → 200');
-    expect(http.join('\n')).not.toMatch(/devices\/\//);
-    expect(r.steps.find((x: any) => x.key === 'incomplete').status).toBe('skipped'); // the answer holds every entry
+  describe('Industrial Edge examples against the simulated IEM (the Portal API shapes of IEM Pro)', () => {
+    // server/src/mock/mockPlatform.ts: 10 devices – 7 reporting (dev-003 3 days, dev-007 45 days and dev-008 10 hours ago),
+    // dev-005 PENDING, dev-009 ACTIVE without statistics (404), dev-010 DELETED; IED OS 1.9.0 … 2.4.0 in deviceVersion
+    const iem = () => ({ iem: platformByKind['industrial-edge-management']! });
+    const run = async (processId: string, more: Record<string, unknown> = {}) => {
+      const { id } = await s.api('POST', '/runs', { processId, ...more, bindings: { ...iem(), ...(more.bindings as object) } });
+      const r = await finish(id);
+      expect([r.status, r.error]).toEqual(['succeeded', null]);
+      expect(r.steps.filter((x: any) => x.status === 'failed' && x.type !== 'check').map((x: any) => `${x.key}: ${x.error}`)).toEqual([]);
+      return r;
+    };
+    const calls = (r: any) => r.steps.filter((x: any) => x.type === 'http').map((x: any) => x.summary as string);
+    const rowsBy = (d: any, col = 'Device') => Object.fromEntries(d.rows.map((x: any) => [x[col], x]));
 
-    const d = await s.api('GET', '/datasets/iem.app-compliance');
-    const by = Object.fromEntries(d.rows.map((x: any) => [x._key, x]));
-    expect(by['dev-001/app-1']).toMatchObject({ Device: 'edge-line-1', Application: 'Data Service', Installed: '1.8.0', Latest: '1.8.0', _status: 'good' });
-    expect(by['dev-002/app-1']).toMatchObject({ Device: 'edge-line-2', Installed: '1.7.1', Latest: '1.8.0', _status: 'warning' });
-    expect(by['dev-006/app-3']).toMatchObject({ Device: 'edge-press-hall', Installed: '1.10.0', Latest: '1.12.2', _status: 'warning' });
-    expect(by['dev-005/-']).toMatchObject({ Device: 'edge-lab', Application: '–', _status: 'unknown' }); // inactive, nothing installed
-    expect(new Set(d.rows.map((x: any) => x.Device)).size).toBe(9);
-    expect(d.metrics).toMatchObject({ installations: 13, outdated: 4, unknownDevices: 2 });
+    it('the mock answers like the Portal API: paged devices, details with deviceVersion, statistics with epoch-ms keys, app versions', async () => {
+      const { DEMO_CREDENTIALS } = await import('../src/mock/mockPlatform.js');
+      const base = `${s.base}/mock/iem/portal/api/v1`;
+      const login = await fetch(`${base}/login/direct`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(DEMO_CREDENTIALS.iem),
+      }).then((x) => x.json());
+      const get = async (p: string) => {
+        const res = await fetch(base + p, { headers: { authorization: `Bearer ${login.data.access_token}` } });
+        return { status: res.status, body: await res.json() };
+      };
+      const first = await get('/devices');
+      expect(first.body).toMatchObject({ pageNo: 1, pageSize: 5, totalPages: 2, totalCount: 10 }); // size 5 by default
+      expect(first.body.data).toHaveLength(5);
+      const last = await get('/devices?size=4&page=3');
+      expect(last.body).toMatchObject({ pageNo: 3, pageSize: 4, totalPages: 3, totalCount: 10 });
+      expect(last.body.data.map((d: any) => [d.deviceName, d.deviceStatus])).toEqual([
+        ['edge-qa', 'ACTIVE'],
+        ['edge-retired-cell', 'DELETED'],
+      ]);
+      // the list has neither an online state nor a version
+      expect(Object.keys(first.body.data[0]).sort()).toEqual(
+        ['createdDate', 'deviceId', 'deviceName', 'deviceStatus', 'modifiedDate', 'platformId', 'softwarePlatformName', 'swPlatformId', 'userId'].sort(),
+      );
+      expect((await get('/devices/dev-004')).body.data).toMatchObject({
+        deviceName: 'edge-warehouse',
+        deviceTypeId: 'core.ieipc',
+        deviceVersion: 'ied-os-1.9.0-21-amd64',
+      });
+      expect((await get('/devices/dev-005')).body.data.deviceVersion).toBeUndefined(); // pending: no version yet
+      const stats = (await get('/devices/dev-001/statistics')).body.data;
+      const keys = Object.keys(stats).map(Number);
+      expect(keys).toHaveLength(2);
+      expect(Date.now() - Math.max(...keys)).toBeLessThan(3 * 60000);
+      expect(JSON.parse(stats[String(Math.max(...keys))])).toMatchObject({ DeviceId: 'dev-001', SystemInfo: { CpuPercentage: expect.any(String) } });
+      expect((await get('/devices/dev-009/statistics')).status).toBe(404);
+      expect((await get('/devices/dev-005/statistics')).body).toEqual({ data: {} });
+      expect((await get('/applications')).body.data.every((a: any) => !('versionNumber' in a) && !('appVersions' in a))).toBe(true);
+      expect((await get('/applications/app-3')).body).toMatchObject({
+        id: 'app-3',
+        title: 'OPC UA Connector',
+        appVersions: expect.arrayContaining([{ versionId: 'ver-app-3-1.12.2', versionNumber: '1.12.2' }]),
+      });
+      expect((await get('/devices/installed-apps?deviceid=dev-002')).body.data.map((a: any) => a.versionNumber)).toEqual(['1.7.1', '2.1.0']);
+    });
 
-    // the stale-device cleanup deletes by deviceId (dry run: the call is only logged)
-    const { id: cleanupId } = await s.api('POST', '/runs', { processId: 'iem-stale-device-cleanup', bindings: iem, dryRun: true });
-    const c = await finish(cleanupId);
-    expect(c.status).toBe('succeeded');
-    const deletes = c.steps.filter((x: any) => x.stepId === 'deleteDevice').map((x: any) => x.summary);
-    expect(deletes).toEqual(expect.arrayContaining(['DRY RUN DELETE /portal/api/v1/devices/dev-005', 'DRY RUN DELETE /portal/api/v1/devices/dev-007']));
+    it('Device status check: online from the newest statistics key, offline, unknown without statistics, pending not offline', async () => {
+      const r = await run('iem-device-status');
+      const c = calls(r);
+      expect(c.filter((x: string) => x.includes('/statistics'))).toHaveLength(8); // ACTIVE devices only
+      expect(c.filter((x: string) => /^GET \/portal\/api\/v1\/devices → /.test(x))).toEqual(['GET /portal/api/v1/devices → 10 item(s) in 1 page(s)']);
+      expect(c).toHaveLength(9);
+      const d = await s.api('GET', '/datasets/iem.device-status');
+      const by = rowsBy(d);
+      expect(Object.keys(by).sort()).not.toContain('edge-retired-cell'); // deleted
+      expect(by['edge-line-1']).toMatchObject({ State: 'online', Onboarding: 'ACTIVE', 'Offline (h)': '–', _status: 'good' });
+      expect(by['edge-line-1']['Last seen']).toMatch(/^\d{4}-\d\d-\d\d \d\d:\d\d$/);
+      expect(by['edge-test-bench']).toMatchObject({ State: 'offline', 'Offline (h)': 10, _status: 'critical', _statusText: 'offline for 10 h' });
+      expect(by['edge-qa']).toMatchObject({ State: 'unknown', 'Last seen': '–', _status: 'unknown', _statusText: 'no statistics reported' });
+      expect(by['edge-lab']).toMatchObject({ State: 'not onboarded', Onboarding: 'PENDING', _status: 'unknown', _statusText: 'not onboarded yet (PENDING)' });
+      expect(d.metrics).toMatchObject({ total: 9, online: 4, offline: 3, unknown: 1, pending: 1 });
+      expect(r.steps.find((x: any) => x.stepId === 'allOnline').status).toBe('failed'); // three devices offline
+
+      // a wider window: the device that stopped reporting 10 hours ago counts as online
+      await run('iem-device-status', { inputs: { onlineWithinMinutes: 720 } });
+      expect(rowsBy(await s.api('GET', '/datasets/iem.device-status'))['edge-test-bench']).toMatchObject({ State: 'online', _status: 'good' });
+      await run('iem-device-status');
+    });
+
+    it('Inventory snapshot: online state, firmware from deviceVersion, onboarding; the catalogue with the newest appVersions entry', async () => {
+      const r = await run('iem-inventory-snapshot');
+      const c = calls(r);
+      expect(c.filter((x: string) => /\/devices\/dev-\d+ → /.test(x))).toHaveLength(8); // details of the ACTIVE devices
+      expect(c.filter((x: string) => x.includes('/statistics'))).toHaveLength(8);
+      expect(c.filter((x: string) => /\/applications\/app-\d → /.test(x))).toHaveLength(4);
+      expect(c).toHaveLength(1 + 16 + 1 + 4);
+      const d = await s.api('GET', '/datasets/iem.devices');
+      const by = rowsBy(d);
+      expect(by['edge-line-1']).toMatchObject({
+        State: 'online',
+        Firmware: 'ied-os-2.4.0-12-amd64',
+        Compliant: 'yes',
+        'Device type': 'core.ieipc',
+        _status: 'good',
+      });
+      expect(by['edge-warehouse']).toMatchObject({ State: 'online', Firmware: 'ied-os-1.9.0-21-amd64', Compliant: 'no', _status: 'warning' });
+      expect(by['edge-warehouse']._statusText).toBe('firmware 1.9.0 below 2.3.0');
+      expect(by['edge-test-bench']).toMatchObject({
+        State: 'offline',
+        Firmware: 'ied-os-2.4.0-12-amd64-develop',
+        Compliant: 'yes',
+        'Offline (h)': 10,
+        _status: 'serious',
+      });
+      expect(by['edge-paint-shop']).toMatchObject({ State: 'offline', 'Offline (h)': 72, _status: 'critical' });
+      expect(by['edge-old-line-7']._status).toBe('critical');
+      expect(by['edge-qa']).toMatchObject({ State: 'unknown', Compliant: 'yes', _status: 'unknown', _statusText: 'no statistics reported' });
+      expect(by['edge-lab']).toMatchObject({ State: 'not onboarded', Onboarding: 'PENDING', Firmware: '–', Compliant: 'unknown', _status: 'unknown' });
+      expect(by['edge-retired-cell']).toBeUndefined();
+      expect(d.metrics).toMatchObject({ total: 9, online: 4, offline: 3, unknown: 1, pending: 1, outdated: 4 });
+
+      const apps = await s.api('GET', '/datasets/iem.apps');
+      expect(Object.fromEntries(apps.rows.map((x: any) => [x.Application, x['Latest version']]))).toEqual({
+        'Data Service': '1.8.0',
+        'IE Databus': '2.1.0',
+        'OPC UA Connector': '1.12.2', // not 1.9.0: compared as version numbers
+        'Flow Creator': '1.17.0',
+      });
+      expect(apps.metrics).toMatchObject({ apps: 4 });
+    });
+
+    it('Inventory snapshot reads every page of the device list', async () => {
+      // the same process with pages of 4: three pages, the same result
+      const text = fs
+        .readFileSync(path.join(EXAMPLES, 'processes', '51-iem-inventory-snapshot.yaml'), 'utf8')
+        .replace('pageSize: 100', 'pageSize: 4')
+        .replace(/^name: .*$/m, 'name: "Industrial Edge – Inventory snapshot in small pages"')
+        .replace('dataset: iem.devices', 'dataset: iem.devices-paged')
+        .replace('dataset: iem.apps', 'dataset: iem.apps-paged');
+      const proc = await s.api('POST', '/processes', { text, id: 'iem-inventory-paged' });
+      const r = await run(proc.id);
+      expect(calls(r)[0]).toBe('GET /portal/api/v1/devices → 10 item(s) in 3 page(s)');
+      const d = await s.api('GET', '/datasets/iem.devices-paged');
+      expect(d.rowCount).toBe(9);
+      expect(d.metrics).toMatchObject({ total: 9, online: 4, offline: 3, unknown: 1, pending: 1, outdated: 4 });
+    });
+
+    it('Firmware compliance: the version in deviceVersion against the minimum, the raw string shown, pending unknown', async () => {
+      const r = await run('iem-firmware-compliance');
+      expect(calls(r).filter((x: string) => /\/devices\/dev-\d+ → /.test(x))).toHaveLength(8);
+      expect(calls(r).some((x: string) => x.includes('/statistics'))).toBe(false);
+      const d = await s.api('GET', '/datasets/iem.firmware');
+      const by = rowsBy(d);
+      expect(by['edge-line-2']).toMatchObject({ Firmware: 'ied-os-2.4.0-12-amd64', Version: '2.4.0', Required: '2.3.0', _status: 'good' });
+      expect(by['edge-qa']).toMatchObject({ Version: '2.3.0', _status: 'good' }); // equal is compliant
+      expect(by['edge-press-hall']).toMatchObject({
+        Firmware: 'ied-os-2.2.1-4-amd64',
+        Version: '2.2.1',
+        _status: 'warning',
+        _statusText: 'update to 2.3.0 or later',
+      });
+      expect(by['edge-old-line-7']).toMatchObject({ Version: '1.9.4', _status: 'warning' });
+      expect(by['edge-lab']).toMatchObject({ Firmware: '–', Version: '–', _status: 'unknown', _statusText: 'not onboarded yet' });
+      expect(d.metrics).toMatchObject({ compliant: 4, outdated: 4, unknown: 1 });
+
+      // a minimum with two parts and a higher patch level
+      await run('iem-firmware-compliance', { inputs: { minFirmware: '2.4' } });
+      expect((await s.api('GET', '/datasets/iem.firmware')).metrics).toMatchObject({ compliant: 3, outdated: 5 });
+      await run('iem-firmware-compliance', { inputs: { minFirmware: '1.10.0' } });
+      expect(rowsBy(await s.api('GET', '/datasets/iem.firmware'))['edge-warehouse']._status).toBe('warning'); // 1.9.0 < 1.10.0
+      await run('iem-firmware-compliance'); // the default again, for the dataset checks below
+    });
+
+    it('Stale device cleanup offers only devices whose last report is old enough and deletes by deviceId', async () => {
+      const c = await run('iem-stale-device-cleanup', { dryRun: true });
+      expect(calls(c).filter((x: string) => x.includes('/statistics'))).toHaveLength(8);
+      const pick = c.tasks.find((t: any) => t.stepKey === 'pick');
+      expect(pick.items.map((x: any) => x.key)).toEqual(['dev-007']); // 45 days; not the pending device, not the one without statistics
+      const deletes = c.steps.filter((x: any) => x.stepId === 'deleteDevice').map((x: any) => x.summary);
+      expect(deletes).toEqual(['DRY RUN DELETE /portal/api/v1/devices/dev-007']);
+      // two days: the paint shop (three days) as well
+      const two = await run('iem-stale-device-cleanup', { dryRun: true, inputs: { offlineDays: 2 } });
+      expect(two.tasks.find((t: any) => t.stepKey === 'pick').items.map((x: any) => x.key)).toEqual(['dev-007', 'dev-003']);
+    });
+
+    it('App version compliance reads installed-apps once, the versions of each installed app, and groups by device', async () => {
+      const r = await run('iem-app-version-compliance');
+      const http = calls(r);
+      expect(http).toHaveLength(6); // devices, installed apps, 4 app details – no call per device
+      expect(http.join('\n')).toContain('GET /portal/api/v1/devices/installed-apps → 200');
+      expect(http.join('\n')).not.toMatch(/devices\/dev-/);
+      expect(r.steps.find((x: any) => x.key === 'incomplete').status).toBe('skipped'); // the answer holds every entry
+
+      const d = await s.api('GET', '/datasets/iem.app-compliance');
+      const by = Object.fromEntries(d.rows.map((x: any) => [x._key, x]));
+      expect(by['dev-001/app-1']).toMatchObject({ Device: 'edge-line-1', Application: 'Data Service', Installed: '1.8.0', Latest: '1.8.0', _status: 'good' });
+      expect(by['dev-002/app-1']).toMatchObject({ Device: 'edge-line-2', Installed: '1.7.1', Latest: '1.8.0', _status: 'warning' });
+      expect(by['dev-006/app-3']).toMatchObject({ Device: 'edge-press-hall', Installed: '1.10.0', Latest: '1.12.2', _status: 'warning' });
+      expect(by['dev-001/app-3']).toMatchObject({ Installed: '1.12.2', Latest: '1.12.2', _status: 'good' });
+      expect(by['dev-005/-']).toMatchObject({ Device: 'edge-lab', Application: '–', _status: 'unknown', _statusText: 'not onboarded yet' });
+      expect(by['dev-007/-']).toMatchObject({ Device: 'edge-old-line-7', _status: 'unknown', _statusText: 'no installed apps reported' });
+      expect(new Set(d.rows.map((x: any) => x.Device)).size).toBe(9); // without the deleted device
+      expect(d.metrics).toMatchObject({ installations: 13, outdated: 4, unknownDevices: 2 });
+    });
+
+    it('Weekly service report counts the onboarded devices online from their statistics', async () => {
+      const r = await run('weekly-service-report', { bindings: { hub: platformByKind['insights-hub'] } });
+      expect(calls(r).filter((x: string) => x.includes('/statistics'))).toHaveLength(8);
+      const d = await s.api('GET', '/datasets/platform.service-report');
+      const row = d.rows.find((x: any) => x.Check === 'Devices online');
+      expect(row).toMatchObject({ Value: '4 / 8 (1 without statistics)', _status: 'warning' });
+      expect(d.metrics).toMatchObject({ iemDevices: 8, iemOffline: 3, iemOnline: 4 });
+    });
   });
 
   it('published sensible datasets', async () => {
@@ -268,8 +448,9 @@ describe('example library', () => {
     expect(byName['edge-warehouse']).toBe('warning'); // online, firmware 1.9.0
     expect(byName['edge-test-bench']).toBe('serious'); // offline for hours
     expect(byName['edge-old-line-7']).toBe('critical'); // offline for weeks
-    expect(byName['edge-lab']).toBe('critical'); // inactive
-    expect(devices.metrics).toMatchObject({ total: 9, offline: 4, outdated: 4 });
+    expect(byName['edge-lab']).toBe('unknown'); // pending: not onboarded yet, not offline
+    expect(byName['edge-qa']).toBe('unknown'); // no statistics
+    expect(devices.metrics).toMatchObject({ total: 9, offline: 3, outdated: 4, pending: 1, unknown: 1 });
 
     const freshness = await s.api('GET', '/datasets/ih.data-freshness');
     expect(freshness.rows.find((r: any) => r.Asset === 'Pump P4')._status).toBe('critical');

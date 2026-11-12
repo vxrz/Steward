@@ -1,17 +1,17 @@
 name: Edge fleet
-description: Industrial Edge device fleet – connectivity, firmware and application versions. Fed by the IEM inventory snapshot, firmware compliance and app version compliance processes.
+description: Industrial Edge device fleet – online state from the device statistics, onboarding, IED OS (firmware) and application versions. Fed by the IEM inventory snapshot, firmware compliance and app version compliance processes.
 refreshSeconds: 60
 widgets:
   - { id: total, type: kpi, title: Devices, dataset: iem.devices, metric: total, width: 3 }
   - { id: online, type: kpi, title: Online, dataset: iem.devices, metric: online, goodWhen: up, width: 3 }
   - { id: offline, type: kpi, title: Offline, dataset: iem.devices, metric: offline, goodWhen: down, width: 3 }
+  - { id: unknown, type: kpi, title: No statistics, dataset: iem.devices, metric: unknown, goodWhen: down, width: 3 }
   - { id: outdatedFw, type: kpi, title: Firmware below baseline, dataset: iem.firmware, metric: outdated, goodWhen: down, width: 3 }
   - { id: outdatedApps, type: kpi, title: Outdated app installations, dataset: iem.app-compliance, metric: outdated, goodWhen: down, width: 3 }
   - { id: apps, type: kpi, title: Apps in the catalogue, dataset: iem.apps, metric: apps, width: 3 }
-  - { id: inactive, type: kpi, title: Inactive devices, dataset: iem.devices, metric: inactive, goodWhen: down, width: 3 }
-  - { id: rows, type: kpi, title: Installations checked, dataset: iem.app-compliance, metric: installations, width: 3 }
+  - { id: pending, type: kpi, title: Not onboarded yet, dataset: iem.devices, metric: pending, width: 3 }
   - { id: status, type: status, title: Device status, dataset: iem.devices, width: 6 }
-  - { id: trend, type: trend, title: Online vs. offline, dataset: iem.devices, metrics: [online, offline], days: 30, width: 6 }
+  - { id: trend, type: trend, title: Online vs. offline, dataset: iem.devices, metrics: [online, offline, unknown], days: 30, width: 6 }
   - { id: devices, type: table, title: All devices, dataset: iem.devices, width: 12 }
   - { id: firmware, type: table, title: Firmware updates needed, dataset: iem.firmware, problemsOnly: true, width: 6 }
   - id: firmwareChart
@@ -20,10 +20,10 @@ widgets:
     dataset: iem.firmware
     width: 6
     spec:
-      description: Number of devices per firmware version, coloured by whether the version meets the minimum.
+      description: Number of devices per firmware version (the IED OS version in deviceVersion), coloured by whether the version meets the minimum.
       mark: { type: bar, cornerRadiusEnd: 2 }
       encoding:
-        x: { field: Firmware, type: ordinal, title: Firmware, sort: ascending, axis: { labelAngle: 0 } }
+        x: { field: Version, type: ordinal, title: IED OS version, sort: ascending, axis: { labelAngle: 0 } }
         y: { aggregate: count, type: quantitative, title: Devices }
         color:
           field: _status
@@ -32,7 +32,7 @@ widgets:
           scale: { domain: [good, warning, serious, critical, unknown], scheme: steward-status }
           legend: null
         tooltip:
-          - { field: Firmware }
+          - { field: Version, title: IED OS version }
           - { aggregate: count, type: quantitative, title: Devices }
   - { id: appVersions, type: table, title: Outdated applications, dataset: iem.app-compliance, problemsOnly: true, width: 6 }
   - { id: catalog, type: table, title: App catalogue, dataset: iem.apps, width: 6 }

@@ -68,6 +68,19 @@ const uid = (seedName?: string) => {
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20, 32)}`;
 };
 
+type IemDeviceStatus = 'PENDING' | 'ACTIVE' | 'DELETED';
+interface IemDevice {
+  deviceId: string;
+  deviceName: string;
+  deviceStatus: IemDeviceStatus;
+  deviceVersion: string | undefined;
+  deviceTypeId: string;
+  /** Minutes since each statistics report (oldest first); empty: no statistics. */
+  reported: number[];
+  createdDate: number;
+  modifiedDate: number;
+}
+
 function seed() {
   const people: [string, string, number | null][] = [
     ['Anna', 'Berger', 2],
@@ -168,30 +181,46 @@ function seed() {
       ts.set(`${a.assetId}/${asp.name}`, rec);
     }
   }
-  const devices = [
-    { deviceId: 'dev-001', deviceName: 'edge-line-1', deviceStatus: 'ACTIVE', connectionState: 'ONLINE', lastSeen: daysAgo(0.001), firmware: '2.4.0' },
-    { deviceId: 'dev-002', deviceName: 'edge-line-2', deviceStatus: 'ACTIVE', connectionState: 'ONLINE', lastSeen: daysAgo(0.002), firmware: '2.4.0' },
-    { deviceId: 'dev-003', deviceName: 'edge-paint-shop', deviceStatus: 'ACTIVE', connectionState: 'OFFLINE', lastSeen: daysAgo(3), firmware: '2.1.3' },
-    { deviceId: 'dev-004', deviceName: 'edge-warehouse', deviceStatus: 'ACTIVE', connectionState: 'ONLINE', lastSeen: daysAgo(0.01), firmware: '1.9.0' },
-    { deviceId: 'dev-005', deviceName: 'edge-lab', deviceStatus: 'INACTIVE', connectionState: 'OFFLINE', lastSeen: daysAgo(40), firmware: '2.4.0' },
-    { deviceId: 'dev-006', deviceName: 'edge-press-hall', deviceStatus: 'ACTIVE', connectionState: 'ONLINE', lastSeen: daysAgo(0.003), firmware: '2.2.1' },
-    {
-      deviceId: 'dev-007',
-      deviceName: 'edge-old-line-7',
-      deviceStatus: 'ACTIVE',
-      connectionState: 'OFFLINE',
-      lastSeen: Date.parse(daysAgo(45)), // epoch millis, as some IEM versions send
-      firmware: '1.9.4',
-    },
-    { deviceId: 'dev-008', deviceName: 'edge-test-bench', deviceStatus: 'ACTIVE', connectionState: 'OFFLINE', lastSeen: daysAgo(0.4), firmware: '2.4.0' },
-    { deviceId: 'dev-009', deviceName: 'edge-qa', deviceStatus: 'ACTIVE', connectionState: 'ONLINE', lastSeen: daysAgo(0.002), firmware: '2.3.0' },
+  // Industrial Edge devices as the Portal API knows them (IEM Pro Portal Public API v1): the device list carries only the
+  // onboarding state (`deviceStatus` PENDING / ACTIVE / DELETED), the IED OS version comes from GET /devices/{id}
+  // (`deviceVersion`) and the last report from GET /devices/{id}/statistics (epoch-ms keys). `reported` holds the
+  // minutes since the device's statistics reports, newest last – none: never reported (statistics answer 404).
+  const iemDevice = (
+    deviceId: string,
+    deviceName: string,
+    deviceStatus: IemDeviceStatus,
+    deviceVersion: string | undefined,
+    reported: number[],
+    deviceTypeId = 'core.ieipc',
+  ): IemDevice => ({
+    deviceId,
+    deviceName,
+    deviceStatus,
+    deviceVersion,
+    deviceTypeId,
+    reported,
+    createdDate: Date.parse(daysAgo(400 - Number(deviceId.slice(-3)) * 20)),
+    modifiedDate: Date.parse(daysAgo(30 - Number(deviceId.slice(-3)))),
+  });
+  const devices: IemDevice[] = [
+    iemDevice('dev-001', 'edge-line-1', 'ACTIVE', 'ied-os-2.4.0-12-amd64', [62, 2]), // two reports: the newest counts
+    iemDevice('dev-002', 'edge-line-2', 'ACTIVE', 'ied-os-2.4.0-12-amd64', [3]),
+    iemDevice('dev-003', 'edge-paint-shop', 'ACTIVE', 'ied-os-2.1.3-7-amd64', [3 * 1440]), // offline for three days
+    iemDevice('dev-004', 'edge-warehouse', 'ACTIVE', 'ied-os-1.9.0-21-amd64', [5]), // online, old firmware
+    iemDevice('dev-005', 'edge-lab', 'PENDING', undefined, []), // created, not onboarded yet
+    iemDevice('dev-006', 'edge-press-hall', 'ACTIVE', 'ied-os-2.2.1-4-amd64', [4]),
+    iemDevice('dev-007', 'edge-old-line-7', 'ACTIVE', 'ied-os-1.9.4-2-amd64', [45 * 1440]), // stopped reporting 45 days ago
+    iemDevice('dev-008', 'edge-test-bench', 'ACTIVE', 'ied-os-2.4.0-12-amd64-develop', [10 * 60], 'core.ievd'), // stopped reporting hours ago
+    iemDevice('dev-009', 'edge-qa', 'ACTIVE', 'ied-os-2.3.0-9-amd64', []), // onboarded, no statistics (404)
+    iemDevice('dev-010', 'edge-retired-cell', 'DELETED', 'ied-os-1.8.0-3-amd64', []),
   ];
-  // application catalog (latest versions) and what is installed per device (served flat by /devices/installed-apps)
+  // application catalogue: GET /applications lists the apps without versions, GET /applications/{id} has `appVersions`
+  // (not sorted: the newest is found by comparing version numbers, 1.12.2 > 1.10.0 > 1.9.0)
   const catalog = [
-    { applicationId: 'app-1', title: 'Data Service', version: '1.8.0' },
-    { applicationId: 'app-2', title: 'IE Databus', version: '2.1.0' },
-    { applicationId: 'app-3', title: 'OPC UA Connector', version: '1.12.2' },
-    { applicationId: 'app-4', title: 'Flow Creator', version: '1.17.0' },
+    { applicationId: 'app-1', title: 'Data Service', versions: ['1.7.1', '1.8.0', '1.6.0'] },
+    { applicationId: 'app-2', title: 'IE Databus', versions: ['2.1.0', '1.9.0'] },
+    { applicationId: 'app-3', title: 'OPC UA Connector', versions: ['1.9.0', '1.12.2', '1.10.0'] },
+    { applicationId: 'app-4', title: 'Flow Creator', versions: ['1.17.0'] },
   ];
   const installed: Record<string, { applicationId: string; version: string }[]> = {
     'dev-001': [
@@ -494,15 +523,87 @@ export async function mockPlatform(app: FastifyInstance): Promise<void> {
     const t = String(req.headers.authorization ?? '').replace(/^Bearer\s+/i, '');
     if (!iemTokens.has(t)) return reply.code(401).send({ errors: [{ message: 'unauthorized' }] });
   };
-  // list answers as the Portal API sends them: { data: [...], page: { pageNo, pageSize, totalPages, totalCount } }
-  const iemPage = <T>(data: T[]) => ({ data, page: { pageNo: 1, pageSize: Math.max(data.length, 1), totalPages: 1, totalCount: data.length } });
-  app.get('/iem/portal/api/v1/devices', { preHandler: iemAuth }, async () => iemPage(state.devices));
-  app.get('/iem/portal/api/v1/applications', { preHandler: iemAuth }, async () => ({ data: state.catalog }));
-  // installed apps of all devices (or of one with ?deviceId=), one entry per device and app – `verionId` is spelled as the real API does
+  // the fields of a device in the list (GET /devices); version and statistics are not part of it
+  const iemListed = (d: IemDevice) => ({
+    userId: 'user-iem-admin',
+    deviceId: d.deviceId,
+    deviceName: d.deviceName,
+    deviceStatus: d.deviceStatus,
+    platformId: 'platform-ied',
+    swPlatformId: 'sw-platform-docker',
+    createdDate: d.createdDate,
+    modifiedDate: d.modifiedDate,
+    softwarePlatformName: 'DOCKER_COMPOSE',
+  });
+  // paged as the Portal API pages: ?size (default 5) and ?page (from 1); data, pageNo, totalPages, pageSize, totalCount
+  app.get('/iem/portal/api/v1/devices', { preHandler: iemAuth }, async (req, reply) => {
+    const q = req.query as { size?: string; page?: string };
+    const size = q.size === undefined ? 5 : Number(q.size);
+    const page = q.page === undefined ? 1 : Number(q.page);
+    if (!Number.isInteger(size) || size < 1 || size > 1000 || !Number.isInteger(page) || page < 1) {
+      return reply.code(400).send({ errors: [{ message: 'invalid page or size' }] });
+    }
+    const all = state.devices;
+    return {
+      data: all.slice((page - 1) * size, page * size).map(iemListed),
+      pageNo: page,
+      totalPages: Math.ceil(all.length / size),
+      pageSize: size,
+      totalCount: all.length,
+    };
+  });
+  const iemFind = (id: string) => state.devices.find((d) => d.deviceId === id);
+  // one device with its type and IED OS version (`deviceVersion`, e.g. ied-os-2.4.0-12-amd64); a pending device has none yet
+  app.get('/iem/portal/api/v1/devices/:id', { preHandler: iemAuth }, async (req, reply) => {
+    const d = iemFind((req.params as { id: string }).id);
+    if (!d) return reply.code(404).send({ errors: [{ message: 'device not found' }] });
+    return { data: { ...iemListed(d), deviceTypeId: d.deviceTypeId, ...(d.deviceVersion ? { deviceVersion: d.deviceVersion } : {}) } };
+  });
+  // the device's statistics: keys are the epoch milliseconds of its reports, values JSON as a string
+  app.get('/iem/portal/api/v1/devices/:id/statistics', { preHandler: iemAuth }, async (req, reply) => {
+    const d = iemFind((req.params as { id: string }).id);
+    if (!d || (d.deviceStatus === 'ACTIVE' && d.reported.length === 0)) return reply.code(404).send({ errors: [{ message: 'no statistics found' }] });
+    const data: Record<string, string> = {};
+    for (const minutes of d.reported) {
+      data[String(Date.now() - minutes * 60000)] = JSON.stringify({
+        AppCount: { Installed: (state.installed[d.deviceId] ?? []).length, Running: (state.installed[d.deviceId] ?? []).length },
+        DeviceId: d.deviceId,
+        InternetStatus: { Connected: true },
+        StorageInfo: { DataSpaceFree: '25.4 GB', DataSpacePercentage: '5.92%' },
+        SystemInfo: { CpuPercentage: '3.10', GetUptime: '12 days, 4 hours, 7 minutes', MemoryPercentage: '41.84' },
+      });
+    }
+    return { data };
+  });
+  // catalogue: the list has no versions; the details of one app (not wrapped in `data`) list its `appVersions`
+  app.get('/iem/portal/api/v1/applications', { preHandler: iemAuth }, async () => ({
+    data: state.catalog.map((c) => ({
+      applicationId: c.applicationId,
+      userId: 'user-iem-admin',
+      icon: `https://iem.example.local/pp/PortalCache/app/${c.applicationId}/appicon.png`,
+      title: c.title,
+    })),
+  }));
+  app.get('/iem/portal/api/v1/applications/:id', { preHandler: iemAuth }, async (req, reply) => {
+    const c = state.catalog.find((x) => x.applicationId === (req.params as { id: string }).id);
+    if (!c) return reply.code(404).send({ errors: [{ message: 'application not found' }] });
+    return {
+      id: c.applicationId,
+      userId: 'user-iem-admin',
+      icon: `https://iem.example.local/pp/PortalCache/app/${c.applicationId}/appicon.png`,
+      projectId: 'project-demo',
+      title: c.title,
+      appStatus: 'LIVE',
+      description: `${c.title} (simulated)`,
+      appVersions: c.versions.map((v) => ({ versionId: `ver-${c.applicationId}-${v}`, versionNumber: v })),
+    };
+  });
+  // installed apps of all devices (or of one with ?deviceid=), one entry per device and app – `verionId` is spelled as the real API does
   app.get('/iem/portal/api/v1/devices/installed-apps', { preHandler: iemAuth }, async (req) => {
-    const only = (req.query as { deviceId?: string }).deviceId;
+    const q = req.query as { deviceid?: string; deviceId?: string };
+    const only = q.deviceid ?? q.deviceId;
     const list = state.devices
-      .filter((d) => !only || d.deviceId === only)
+      .filter((d) => d.deviceStatus !== 'DELETED' && (!only || d.deviceId === only))
       .flatMap((d) =>
         (state.installed[d.deviceId] ?? []).map((a) => ({
           applicationId: a.applicationId,
@@ -515,7 +616,7 @@ export async function mockPlatform(app: FastifyInstance): Promise<void> {
           status: 'LIVE',
         })),
       );
-    return iemPage(list);
+    return { data: list };
   });
   app.delete('/iem/portal/api/v1/devices/:id', { preHandler: iemAuth }, async (req, reply) => {
     const id = (req.params as { id: string }).id;
@@ -544,11 +645,14 @@ export async function mockPlatform(app: FastifyInstance): Promise<void> {
   });
   app.get('/portal/home', async (req, reply) => {
     if (!String(req.headers.cookie ?? '').includes('demo_session=1')) return reply.redirect('/mock/portal/login');
-    const offline = state.devices.filter((d) => d.connectionState !== 'ONLINE').length;
+    // online: an onboarded device that sent statistics within the last 15 minutes
+    const online = (d: IemDevice) => d.deviceStatus === 'ACTIVE' && d.reported.length > 0 && Math.min(...d.reported) <= 15;
+    const shown = state.devices.filter((d) => d.deviceStatus === 'ACTIVE');
+    const offline = shown.filter((d) => !online(d)).length;
     return reply.type('text/html').send(
       html(`<h1>Welcome, Admin</h1><p id="system-status">System status: ${offline ? 'Degraded' : 'Operational'}</p>
 <p>License usage: <span id="license-usage">72%</span></p>
-<table><tr><th>Device</th><th>State</th></tr>${state.devices.map((d) => `<tr><td>${d.deviceName}</td><td class="state">${d.connectionState}</td></tr>`).join('')}</table>`),
+<table><tr><th>Device</th><th>State</th></tr>${shown.map((d) => `<tr><td>${d.deviceName}</td><td class="state">${online(d) ? 'ONLINE' : 'OFFLINE'}</td></tr>`).join('')}</table>`),
     );
   });
   app.addContentTypeParser('application/x-www-form-urlencoded', { parseAs: 'string' }, (_req, body, done) => {
