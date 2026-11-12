@@ -757,7 +757,7 @@
     "amountsHidden": "Beträge sind ausgeblendet.",
     "upTo": "Bis zu {{amount}} können noch berechnet werden",
     "upToLabel": "Bis zu (nicht geschuldet)",
-    "upToTotal": "Volumen können bis zu {{amount}} mehr berechnen – nicht geschuldet",
+    "upToTotal": "Über Volumen können bis zu {{amount}} mehr berechnet werden – nicht geschuldet",
     "summary": {
       "year": "{{amount}} je Vertragsjahr",
       "term": "{{amount}} für die Laufzeit"

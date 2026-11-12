@@ -2,7 +2,7 @@ import { Badge, Group, Paper, Progress, Stack, Text, Title } from '@mantine/core
 import { useTranslation } from 'react-i18next';
 import { IconAlertTriangle } from '@tabler/icons-react';
 import type { CostPlanYear, CostVolumeStatus, CostVolumeWarning } from '@sm/shared';
-import { fmtDay } from '../../format';
+import { fmtDay, fmtNumber } from '../../format';
 import { fmtMoney } from './common';
 
 /**
@@ -52,10 +52,14 @@ export function VolumeUse({ v, upTo }: { v: CostVolumeStatus; upTo: string | nul
             value={Math.min(100, pct)}
             color={v.warnings.some((w) => w === 'usedUp' || w === 'overCeiling') ? 'red' : v.warnings.length ? 'orange' : 'blue'}
             size="sm"
-            aria-label={t('volumes.shareLabel', { pct })}
+            aria-label={t('volumes.shareLabel', { pct: fmtNumber(pct, { maximumFractionDigits: 1 }) })}
           />
           <Text size="xs" className="viz-num">
-            {t('volumes.usedOf', { used: fmtMoney(v.used, v.currency), amount: fmtMoney(v.amount, v.currency), pct })}
+            {t('volumes.usedOf', {
+              used: fmtMoney(v.used, v.currency),
+              amount: fmtMoney(v.amount, v.currency),
+              pct: fmtNumber(pct, { maximumFractionDigits: 1 }),
+            })}
           </Text>
           <Text size="xs" className="viz-num">
             {t('volumes.left', { left: fmtMoney(v.left, v.currency) })}

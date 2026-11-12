@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { type ScorecardPart, type ServiceScorecardDetail, type ServiceScorecardHistoryPoint } from '@sm/shared';
 import { get } from '../../api';
-import { fmtDate, fmtDay } from '../../format';
+import { fmtDate, fmtDay, fmtNumber } from '../../format';
 import { QueryState } from '../common';
 import { useLevel } from '../catalogue/cia';
 import { AttentionBadge, PART_COLORS, PartBadge, shownParts } from './common';
@@ -222,16 +222,16 @@ function PartDetails({ card: c, part }: { card: ServiceScorecardDetail; part: Sc
                   used: fmtAmount(k.thisMonth, k.currency ?? ''),
                   budget: fmtAmount(k.budget, k.currency ?? ''),
                   currency: k.currency,
-                  pct: k.budgetPct,
+                  pct: fmtNumber(k.budgetPct, { maximumFractionDigits: 1 }),
                 })
-              : t('costs.summary', { pct: k.budgetPct })}
+              : t('costs.summary', { pct: fmtNumber(k.budgetPct, { maximumFractionDigits: 1 }) })}
         </Text>
         {k.stateOnly && (
           <Text size="xs" c="dimmed">
             {t('costs.stateOnly')}
           </Text>
         )}
-        {k.forecastPct !== null && <Text size="xs">{t('costs.forecast', { pct: k.forecastPct })}</Text>}
+        {k.forecastPct !== null && <Text size="xs">{t('costs.forecast', { pct: fmtNumber(k.forecastPct, { maximumFractionDigits: 1 }) })}</Text>}
         <Anchor component={Link} to={`/costs/service/${c.serviceId}`} size="xs">
           {t('costs.open')}
         </Anchor>

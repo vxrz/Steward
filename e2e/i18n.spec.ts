@@ -213,6 +213,13 @@ async function checkPages(page: Page, headers: Record<string, string>) {
     await expectGerman(page, 'supplier contract');
   }
 
+  // commitments: amounts and the share of a volume in German number format ("19,2 %", not "19.2 %")
+  await page.goto('/costs/commitments');
+  await expect(page.getByRole('heading', { name: 'Zahlungsverpflichtungen', level: 1 })).toBeVisible();
+  await expectGerman(page, 'commitments');
+  const volumes = page.getByTestId('volume-use');
+  if (await volumes.count()) for (const v of await volumes.all()) await expect(v).not.toContainText(/\d\.\d+ %/);
+
   // Credentials, reports, monitors, settings (incl. MCP), profile
   for (const path of ['/credentials', '/reports', '/monitors', '/monitors/new', '/settings', '/profile']) {
     await page.goto(path);
